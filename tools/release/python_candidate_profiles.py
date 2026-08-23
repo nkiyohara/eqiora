@@ -556,7 +556,12 @@ def run_base_profile(
     run(
         [str(python), "-I", "-m", "pytest", "-q", str(gmsh_test)],
         cwd=workspace.consumer,
-        extra_environment={"PATH": gmsh_path},
+        extra_environment={
+            "EQIORA_GMSH": str(
+                python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
+            ),
+            "PATH": gmsh_path,
+        },
     )
     compact = python_version.replace(".", "")
     return [
