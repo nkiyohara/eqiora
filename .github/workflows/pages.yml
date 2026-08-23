@@ -292,6 +292,8 @@ jobs:
           rustc -Vv
           test -d "$UV_CACHE_DIR"
           cp -a "$UV_CACHE_DIR/." "$EQIORA_API_SCRATCH/uv-cache/"
+          git fetch --no-tags --no-recurse-submodules --no-write-fetch-head \
+            origin refs/pull/501/head
           mv docs/site/node_modules "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           test "$(git rev-parse --show-toplevel)" = "$GITHUB_WORKSPACE"
