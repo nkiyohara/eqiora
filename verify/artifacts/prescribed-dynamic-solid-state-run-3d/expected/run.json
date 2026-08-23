@@ -3,5 +3,5 @@
 "model_sha256":"2d28e2f8142a4fc06c0b02da96bdde6c1b306c43483cbed749d9145818427107",
 "semantic_revision":1,
 "realization_sha256":"64ec436b1f9478982543a0ee9928af41c37e719a1037f72fe18653f718550488",
-"execution":{"adapter":"eqiora.host.serial","adapter_version":"0.1.0-alpha.2","solver_backend":"eqiora.reference","solver_backend_version":"0.1.0-alpha.2","libraries":{},"topology":{"kind":"host","workers":1},"reduction":"reproducible"},
+"execution":{"adapter":"eqiora.host.serial","adapter_version":"0.1.0-alpha.3","solver_backend":"eqiora.reference","solver_backend_version":"0.1.0-alpha.3","libraries":{},"topology":{"kind":"host","workers":1},"reduction":"reproducible"},
 "output_sha256":["fe39ad236c445abea52ba815a3feb231cc01bddd6b598a26d4c77b6b40c79af2"]}

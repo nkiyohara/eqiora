@@ -539,9 +539,9 @@ def build_documents() -> dict[str, bytes]:
         "realization_sha256": realization_identity,
         "execution": {
             "adapter": "eqiora.host.serial",
-            "adapter_version": "0.1.0-alpha.2",
+            "adapter_version": "0.1.0-alpha.3",
             "solver_backend": "eqiora.reference",
-            "solver_backend_version": "0.1.0-alpha.2",
+            "solver_backend_version": "0.1.0-alpha.3",
             "libraries": {},
             "topology": {"kind": "host", "workers": 1},
             "reduction": "reproducible",
