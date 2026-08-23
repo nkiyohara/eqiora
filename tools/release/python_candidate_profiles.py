@@ -368,7 +368,8 @@ for retired in (
 ):
     assert not hasattr(eqiora.fsi, retired)
     assert retired not in eqiora.fsi.__all__
-assert not any(name in __import__("sys").modules for name in ("torch", "jax", "jaxlib", "matplotlib"))
+for optional in ("torch", "jax", "jaxlib", "matplotlib", "gmsh"):
+    assert optional not in __import__("sys").modules
 """
     run(
         [str(python), "-I", "-c", script],
@@ -500,7 +501,7 @@ def run_base_profile(
         uv=uv,
         interpreter=interpreter,
         environment=workspace.environment,
-        requirements=[f"{wheel}[gmsh]", config.pytest, config.mypy],
+        requirements=[str(wheel), config.pytest, config.mypy],
         run=run,
     )
     workspace.consumer.mkdir(parents=True)
@@ -512,7 +513,20 @@ def run_base_profile(
         python, wheel, workspace.consumer, config.python_version, run=run
     )
     assert_matplotlib_is_optional(python, workspace.consumer, run=run)
-    run([str(python), "-I", "-m", "pytest", "-q", str(tests)], cwd=workspace.consumer)
+    gmsh_test = tests / "test_circular_hole_chordal_mesh.py"
+    run(
+        [
+            str(python),
+            "-I",
+            "-m",
+            "pytest",
+            "-q",
+            str(tests),
+            "--ignore",
+            str(gmsh_test),
+        ],
+        cwd=workspace.consumer,
+    )
     run(
         [str(python), "-I", "-m", "mypy", "--strict", str(typecheck / "base.py")],
         cwd=workspace.consumer,
@@ -524,6 +538,21 @@ def run_base_profile(
         expected_version=config.python_version,
         profile="base",
         run=run,
+    )
+    run(
+        [
+            uv,
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            f"{wheel}[gmsh]",
+        ],
+        cwd=workspace.environment.parent,
+    )
+    run(
+        [str(python), "-I", "-m", "pytest", "-q", str(gmsh_test)],
+        cwd=workspace.consumer,
     )
     compact = python_version.replace(".", "")
     return [
