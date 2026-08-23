@@ -16,6 +16,8 @@ CI_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = CI_ROOT.parents[1]
 sys.path.insert(0, str(CI_ROOT))
 
+import python_package_gate as python_package_gate_module  # noqa: E402
+
 from check_gate import JOB_SURFACES, evaluate, parse_relevance, parse_results  # noqa: E402
 from classify_changes import SURFACES, changed_paths, classify, render_outputs  # noqa: E402
 from local_verify import HOSTED_TEST_PROFILE  # noqa: E402
@@ -1097,14 +1099,39 @@ class PythonPackageGateTests(unittest.TestCase):
             f"{venv_python(virtual_environment).parent}{os.pathsep}/usr/bin",
         )
 
-    def test_uv_rebuilds_the_current_noneditable_project(self) -> None:
+    def test_uv_rebuilds_the_current_noneditable_project_without_gmsh(self) -> None:
         command = uv_gate_command("uv", "/usr/bin/python3")
 
         self.assertIn("--no-editable", command)
         index = command.index("--reinstall-package")
         self.assertEqual(command[index + 1], "eqiora")
-        self.assertEqual(command[command.index("--extra") + 1], "gmsh")
+        self.assertNotIn("--extra", command)
+        self.assertNotIn("gmsh", command)
         self.assertEqual(command[command.index("--python") + 1], "/usr/bin/python3")
+
+    def test_package_gate_runs_base_only_before_gmsh_mesh_evidence(self) -> None:
+        with (
+            mock.patch.object(
+                python_package_gate_module.shutil,
+                "which",
+                return_value="/reviewed/uv",
+            ),
+            mock.patch.object(python_package_gate_module, "run") as run,
+        ):
+            self.assertEqual(python_package_gate_module.main(), 0)
+
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(len(commands), 2)
+        base, gmsh = commands
+        self.assertNotIn("--extra", base)
+        self.assertIn(str(REPOSITORY_ROOT / "bindings/python/tests"), base)
+        gmsh_evidence = str(
+            REPOSITORY_ROOT
+            / "bindings/python/tests/test_circular_hole_chordal_mesh.py"
+        )
+        self.assertEqual(base[base.index("--ignore") + 1], gmsh_evidence)
+        self.assertEqual(gmsh[gmsh.index("--extra") + 1], "gmsh")
+        self.assertEqual(gmsh[-1], gmsh_evidence)
 
     @mock.patch("python_package_gate.subprocess.run")
     def test_package_gate_removes_host_python_path(self, run: mock.Mock) -> None:

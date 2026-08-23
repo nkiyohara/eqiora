@@ -1502,6 +1502,105 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
             config=config,
         )
 
+    def test_base_profile_installs_the_plain_wheel_before_optional_gmsh(self) -> None:
+        profiles = self.profiles_module()
+        config = self.config()
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            workspace = profiles.build_profile_plan(
+                root, config, skip_extras=False
+            )[0]
+            wheel = root / "eqiora-cp311.whl"
+            extracted = root / "source"
+            python = workspace.environment / "bin/python"
+            install = mock.Mock(return_value=python)
+
+            with (
+                mock.patch.object(profiles, "install_environment", new=install),
+                mock.patch.object(
+                    profiles,
+                    "prepare_base_consumer_tree",
+                    return_value=(
+                        workspace.consumer / "tests",
+                        workspace.consumer / "typecheck",
+                    ),
+                ),
+                mock.patch.object(
+                    profiles, "prepare_exact_cylinder_demo_consumer"
+                ),
+                mock.patch.object(
+                    profiles, "prepare_mixed_boundary_elasticity_demo_consumer"
+                ),
+                mock.patch.object(
+                    profiles, "prepare_fixed_reference_fsi_demo_consumer"
+                ),
+                mock.patch.object(profiles, "assert_installed_origin"),
+                mock.patch.object(profiles, "assert_matplotlib_is_optional"),
+                mock.patch.object(profiles, "run_public_smoke"),
+            ):
+                profiles.run_base_profile(
+                    uv="/reviewed/uv",
+                    interpreter="/reviewed/python3.11",
+                    python_version="3.11",
+                    wheel=wheel,
+                    extracted=extracted,
+                    workspace=workspace,
+                    config=config,
+                    run=mock.Mock(),
+                )
+
+        install.assert_called_once_with(
+            uv="/reviewed/uv",
+            interpreter="/reviewed/python3.11",
+            environment=workspace.environment,
+            requirements=[str(wheel), config.pytest, config.mypy],
+            run=mock.ANY,
+        )
+
+    def test_base_public_smoke_rejects_gmsh_imported_with_eqiora(self) -> None:
+        smoke = importlib.import_module("python_public_smoke")
+        expected_version = "0.1.0a1"
+
+        def reached_base_execution(*_args: object, **_kwargs: object) -> object:
+            raise RuntimeError("base smoke continued after importing Gmsh")
+
+        eqiora = types.SimpleNamespace(
+            __version__=expected_version,
+            Field=reached_base_execution,
+        )
+        real_import = builtins.__import__
+
+        def import_with_gmsh(
+            name: str,
+            globals: object = None,
+            locals: object = None,
+            fromlist: object = (),
+            level: int = 0,
+        ) -> object:
+            if name == "eqiora":
+                sys.modules["gmsh"] = types.ModuleType("gmsh")
+                return eqiora
+            return real_import(name, globals, locals, fromlist, level)
+
+        with (
+            mock.patch.dict(sys.modules, {"eqiora": eqiora}),
+            mock.patch.object(builtins, "__import__", new=import_with_gmsh),
+            mock.patch.object(
+                smoke.importlib.metadata,
+                "version",
+                return_value=expected_version,
+            ),
+        ):
+            sys.modules.pop("gmsh", None)
+            try:
+                smoke.base_smoke(expected_version)
+            except AssertionError:
+                pass
+            except RuntimeError as error:
+                self.fail(str(error))
+            else:  # pragma: no cover - the fake base execution always stops
+                self.fail("base smoke accepted an Eqiora import that loaded Gmsh")
+
     def test_notebook_profile_dispatch_requires_validated_authority_pair(self) -> None:
         profiles = self.profiles_module()
         config = self.config()
