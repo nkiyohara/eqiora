@@ -16,6 +16,47 @@ from typing import Mapping, Sequence
 
 SOURCE_SHA = "a" * 40
 REPOSITORY = Path(__file__).resolve().parents[4]
+PRESSURE_ALT = (
+    "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder "
+    "demonstration, shown with a viridis color scale and the 1,210-triangle "
+    "affine mesh overlaid. Presentation image only; linked Result evidence "
+    "carries the numerical claim."
+)
+PUBLIC_CLAIM = (
+    "One frozen 2D steady incompressible Stokes exact-cylinder demonstration on "
+    "the accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine "
+    "triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = "
+    "14/2/48/50, and 548 interior vertices; rendered from its accepted public "
+    "Result path and linked evidence."
+)
+WITNESS_COPY = (
+    "Accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine "
+    "triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = "
+    "14/2/48/50, and 548 interior vertices."
+)
+CASE_EVIDENCE_PATHS = (
+    "verify/artifacts/current-model-canonical-identity/README.md",
+    "verify/fluid/packaged-steady-stokes-2d/README.md",
+    "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
+    "verify/geometry/exact-circular-hole-geometry/README.md",
+    "verify/interfaces/python-circular-hole-chordal-mesh/README.md",
+    "verify/interfaces/python-exact-circular-hole-geometry/README.md",
+    "verify/interfaces/python-exact-cylinder-stokes-result/README.md",
+    "verify/interfaces/python-exact-cylinder-pressure-still/README.md",
+    "verify/interfaces/python-exact-cylinder-stokes-marimo/README.md",
+)
+NONCLAIMS = (
+    "No arbitrary geometry or provider selection.",
+    "No 3D, curved, boundary-layer, or adaptive meshing.",
+    "No mesh/PDE convergence.",
+    "No drag/lift coefficient, scaled or mesh-independent force, or DFG value.",
+    "No transient or Navier–Stokes behavior.",
+    "No vortex shedding.",
+    "No performance claim.",
+    "No cross-platform mesh-byte identity or byte-reproducible Result.",
+    "No pixel validation.",
+    "API presence is neither verification nor maturity.",
+)
 SITE_ROUTES = (
     "/",
     "/api/",
@@ -598,7 +639,7 @@ def _page(route: str, body: str) -> str:
 
 def _exact_links() -> str:
     links = []
-    for relative in (*checker.CASE_SOURCE_PATHS, *checker.CASE_EVIDENCE_PATHS):
+    for relative in (*checker.CASE_SOURCE_PATHS, *CASE_EVIDENCE_PATHS):
         url = f"https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/{relative}"
         label = Path(relative).parent.name + " " + Path(relative).name
         links.append(f'<a href="{url}">{label}</a>')
@@ -606,18 +647,10 @@ def _exact_links() -> str:
 
 
 def _case_body() -> str:
-    nonclaims = (
-        "no curved elements; no mesh/PDE convergence; no drag/lift coefficient, "
-        "scaled or mesh-independent force, or DFG value; no transient or "
-        "Navier–Stokes behavior; no vortex shedding; no 3D; no production mesher; "
-        "no performance claim; no cross-platform byte reproducibility; pixels are "
-        "not validation. All 104 vertices are on the boundary and only the outlet "
-        "midpoint velocity vertex is free. API presence is neither verification "
-        "nor maturity."
-    )
+    nonclaims = " ".join(NONCLAIMS)
     return f"""<h1>Exact-cylinder steady Stokes</h1>
 <p>Static walkthrough · canonical Marimo source available</p>
-<p>one frozen 2D steady incompressible Stokes exact-cylinder demonstration, rendered from its accepted public Result path and linked evidence.</p>
+<p>{"one" + PUBLIC_CLAIM[3:]}</p>
 <section><h2>Problem setup</h2><p>2.2m x 0.41m channel; centre [0.2,0.2]m; radius 0.05m.</p>
 <span class="katex"><span class="katex-mathml"><math><mi>H</mi></math></span><span class="katex-html">H</span></span></section>
 <section><h2>Eqiora model definition</h2>
@@ -625,9 +658,9 @@ def _case_body() -> str:
 <p>Eqiora source form</p><pre>sigma(u,p) = 2 mu sym(grad(u)) - p I
 -div(sigma(u,p)) - grad(phi) = 0
 div(u) = 0</pre></section>
-<section><h2>Mesh and boundaries</h2><p>50-chord and 104-triangle affine demonstration mesh; coarse-mesh warning.</p></section>
+<section><h2>Mesh and boundaries</h2><p>{WITNESS_COPY}</p></section>
 <section><h2>Submit and result</h2><p>One immutable SteadyStokes intent, resolve, submit, and Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes_marimo.py#L77-L95">Eqiora source form: canonical intent/submit/result cells</a></section>
-<section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{checker.PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION} <a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/verify/interfaces/python-exact-cylinder-stokes-result/README.md">Result evidence</a> <a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/verify/interfaces/python-exact-cylinder-pressure-still/README.md">Pressure-still presentation case</a></figcaption></figure><p>Presentation, not evidence.</p></section>
+<section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION} <a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/verify/interfaces/python-exact-cylinder-stokes-result/README.md">Result evidence</a> <a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/verify/interfaces/python-exact-cylinder-pressure-still/README.md">Pressure-still presentation case</a></figcaption></figure><p>Presentation, not evidence.</p></section>
 <section><h2>Verified and not claimed</h2><p>{nonclaims}</p>{_exact_links()}</section>"""
 
 
@@ -638,7 +671,7 @@ def _home_body() -> str:
 <p>A model states typed mathematical relations. A realization chooses how those relations are discretized, solved, and executed.</p>
 <p>That separation lets block diagrams, acausal physical networks, PDE fields, hybrid dynamics, and reusable components share one canonical meaning without making a numerical method or hardware backend part of the model.</p>
 <a href="/get-started/">Get started</a><a href="/gallery/">Explore gallery</a>
-<article><p>Featured walkthrough</p><h2>Exact-cylinder steady Stokes</h2><img src="/assets/pressure.png" alt="{checker.PRESSURE_ALT}"><p>Follow one frozen 2D steady-Stokes problem from model definition and named boundaries through one submit/Result path to an independently admitted static pressure image.</p><p>Python</p><p>2D</p><p>steady Stokes</p><a href="/gallery/exact-cylinder-steady-stokes/">View the static walkthrough</a></article>
+<article><p>Featured walkthrough</p><h2>Exact-cylinder steady Stokes</h2><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><p>Follow one frozen 2D steady-Stokes problem from model definition and named boundaries through one submit/Result path to an independently admitted static pressure image.</p><p>Python</p><p>2D</p><p>steady Stokes</p><a href="/gallery/exact-cylinder-steady-stokes/">View the static walkthrough</a></article>
 <article><h2>Docs</h2><p>Learn the Model–Realization boundary and start from bounded examples.</p></article>
 <article><h2>Reference</h2><p>Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces. API presence is not verification or maturity.</p></article>
 <article><h2>Evidence</h2><p>Inspect the generated capability-to-case index and the manifests that own each bounded claim.</p></article>

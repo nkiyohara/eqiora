@@ -6,7 +6,15 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from fixture import REPOSITORY, SOURCE_SHA, checker, make_fixture
+from fixture import (
+    CASE_EVIDENCE_PATHS,
+    PRESSURE_ALT,
+    REPOSITORY,
+    SOURCE_SHA,
+    WITNESS_COPY,
+    checker,
+    make_fixture,
+)
 
 
 class CompleteContractTests(unittest.TestCase):
@@ -172,9 +180,59 @@ class CompleteContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             artifact, identities = make_fixture(root)
+            case = artifact / "gallery/exact-cylinder-steady-stokes/index.html"
+            raw = case.read_text(encoding="utf-8")
+            self.assertIn(WITNESS_COPY, raw)
+            self.assertIn(
+                "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
+                raw,
+            )
+            self.assertNotIn("104-triangle", raw)
+            self.assertNotIn(
+                "verify/fluid/exact-circular-hole-stokes-2d/README.md",
+                raw,
+            )
+            self.assertNotIn(
+                "verify/geometry/circular-hole-chordal-reference-mesh/README.md",
+                raw,
+            )
             self.assertEqual(
                 checker.check_site(root, artifact, SOURCE_SHA, identities), []
             )
+
+    def test_01_exact_gmsh_publication_boundary_mutants_fail(self) -> None:
+        mutations = {
+            "stale 104-triangle figure alt": (
+                PRESSURE_ALT,
+                PRESSURE_ALT.replace("1,210-triangle", "104-triangle"),
+            ),
+            "stale reference-science attribution": (
+                "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
+                "verify/fluid/exact-circular-hole-stokes-2d/README.md",
+            ),
+            "omitted Gmsh and interior-mesh boundary": (
+                WITNESS_COPY,
+                "Accepted mesh witness: 662 vertices, 1,210 affine triangles, "
+                "114 boundary facets partitioned inlet/outlet/walls/cylinder = "
+                "14/2/48/50.",
+            ),
+        }
+        self.assertIn(
+            "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
+            CASE_EVIDENCE_PATHS,
+        )
+        for label, (accepted, mutant) in mutations.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                artifact, identities = make_fixture(root)
+                self.assertEqual(
+                    checker.check_site(root, artifact, SOURCE_SHA, identities), []
+                )
+                case = artifact / "gallery/exact-cylinder-steady-stokes/index.html"
+                self._replace(case, accepted, mutant)
+                self.assertTrue(
+                    checker.check_site(root, artifact, SOURCE_SHA, identities)
+                )
 
     def test_01_foundation_shape_is_red_for_only_missing_downstream_inputs(
         self,
