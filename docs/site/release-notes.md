@@ -1,7 +1,13 @@
 # Release notes
 
-Eqiora `0.1.0a1` is the first public alpha. It establishes a coherent public
+Eqiora `0.1.0a3` is the current public alpha. It establishes a coherent public
 identity and a bounded compatibility policy; it is not a stable-1.0 promise.
+
+## 0.1.0a3
+
+The bounded exact-cylinder Python workflow uses Gmsh 4.15.2 for automatic
+meshing, and its Result, Notebook mesh view, and Gallery pressure image use the
+accepted Gmsh realization.
 
 ## 0.1.0a1
 

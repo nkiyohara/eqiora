@@ -19,7 +19,12 @@ class PythonGalleryGateTests(unittest.TestCase):
         command = python_gallery_gate.uv_gate_command("uv")
         self.assertIn("--isolated", command)
         self.assertIn("--no-editable", command)
-        self.assertEqual(command[command.index("--extra") + 1], "matplotlib")
+        extras = [
+            command[index + 1]
+            for index, value in enumerate(command)
+            if value == "--extra"
+        ]
+        self.assertEqual(extras, ["gmsh", "matplotlib"])
         self.assertIn("matplotlib==3.11.1", command)
         self.assertEqual(command[command.index("--python") + 1], "3.13")
         self.assertTrue(command[-1].endswith("tools/ci/python_gallery_gate.py"))

@@ -129,9 +129,11 @@ Name: eqiora
 Version: 0.1.0a1
 Requires-Python: <3.15,>=3.11
 Provides-Extra: jax
+Provides-Extra: gmsh
 Provides-Extra: matplotlib
 Provides-Extra: torch
 Requires-Dist: numpy<3,>=2.1
+Requires-Dist: gmsh==4.15.2; extra == "gmsh"
 Requires-Dist: torch>=2.13,<2.14; extra == "torch"
 Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
@@ -144,6 +146,9 @@ BASE_PYPROJECT = b"""\
 name = "eqiora"
 version = "0.1.0a1"
 dependencies = ["numpy>=2.1,<3"]
+
+[project.optional-dependencies]
+gmsh = ["gmsh==4.15.2"]
 """
 
 
@@ -521,6 +526,7 @@ dynamic = ["version"]
 dependencies = ["numpy>=2.1,<3"]
 
 [project.optional-dependencies]
+gmsh = ["gmsh==4.15.2"]
 notebook = ["anywidget==0.11.0"]
 """
     sdist_members = {

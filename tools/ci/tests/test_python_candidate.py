@@ -628,9 +628,11 @@ License-Expression: Apache-2.0
 License-File: LICENSE
 License-File: NOTICE
 Provides-Extra: jax
+Provides-Extra: gmsh
 Provides-Extra: matplotlib
 Provides-Extra: torch
 Requires-Dist: numpy<3,>=2.1
+Requires-Dist: gmsh==4.15.2; extra == "gmsh"
 Requires-Dist: torch>=2.13,<2.14; extra == "torch"
 Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
@@ -693,9 +695,11 @@ License-Expression: Apache-2.0
 License-File: LICENSE
 License-File: NOTICE
 Provides-Extra: jax
+Provides-Extra: gmsh
 Provides-Extra: matplotlib
 Provides-Extra: torch
 Requires-Dist: numpy<3,>=2.1
+Requires-Dist: gmsh==4.15.2; extra == "gmsh"
 Requires-Dist: torch>=2.13,<2.14
 Requires-Dist: jax==0.11.0; extra == "jax"
 Requires-Dist: jaxlib==0.11.0; extra == "jax"
@@ -756,10 +760,12 @@ License-Expression: Apache-2.0
 License-File: LICENSE
 License-File: NOTICE
 Provides-Extra: jax
+Provides-Extra: gmsh
 Provides-Extra: matplotlib
 Provides-Extra: notebook
 Provides-Extra: torch
 Requires-Dist: numpy<3,>=2.1
+Requires-Dist: gmsh==4.15.2; extra == "gmsh"
 Requires-Dist: torch>=2.13,<2.14; extra == "torch"
 Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"

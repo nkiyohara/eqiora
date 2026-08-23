@@ -5,12 +5,13 @@ use eqiora::meshing::MeshQualityGate;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+use super::gmsh;
 use super::request_error;
 use crate::error::validation_error;
 use crate::geometry::{PyGeometry, digest_to_hex};
 use crate::panic_boundary;
 
-const REFERENCE_PROVIDER: &str = "eqiora.reference.chordal-triangle/v1";
+const GMSH_PROVIDER: &str = "eqiora.gmsh-cli/4.15.2";
 
 /// Immutable caller intent for the currently admitted planar mesh provider.
 #[pyclass(
@@ -112,7 +113,7 @@ impl PyMeshPlan {
 
     #[getter]
     const fn provider(&self) -> &'static str {
-        REFERENCE_PROVIDER
+        GMSH_PROVIDER
     }
 
     #[getter]
@@ -161,7 +162,7 @@ impl PyMeshPlan {
     fn __repr__(&self) -> String {
         format!(
             "MeshPlan(provider={:?}, source_digest={:?}, boundary_facets={})",
-            REFERENCE_PROVIDER,
+            GMSH_PROVIDER,
             self.source_digest,
             self.boundary_facets(),
         )
@@ -180,13 +181,15 @@ pub(super) fn resolve(
         let request = *request;
         let quality_gate = MeshQualityGate::new(request.minimum_mean_ratio)
             .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
-        let accepted = AcceptedCircularHoleChordalRealizationV1::from_reference(
+        let reference = AcceptedCircularHoleChordalRealizationV1::from_reference(
             geometry.geometry(),
             request.maximum_boundary_error,
             request.maximum_boundary_facets,
             quality_gate,
         )
         .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
+        let accepted = gmsh::generate(&reference, quality_gate)
+            .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
         Ok(PyMeshPlan {
             source_digest: digest_to_hex(&geometry.geometry().digest_bytes()),
             request,

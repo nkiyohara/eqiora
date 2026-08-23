@@ -1,5 +1,6 @@
 //! Common installed-Python projection of accepted Geometry-to-Mesh paths.
 
+mod gmsh;
 mod mesh;
 mod plan;
 

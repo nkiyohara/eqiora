@@ -1103,6 +1103,7 @@ class PythonPackageGateTests(unittest.TestCase):
         self.assertIn("--no-editable", command)
         index = command.index("--reinstall-package")
         self.assertEqual(command[index + 1], "eqiora")
+        self.assertEqual(command[command.index("--extra") + 1], "gmsh")
         self.assertEqual(command[command.index("--python") + 1], "/usr/bin/python3")
 
     @mock.patch("python_package_gate.subprocess.run")
@@ -1134,7 +1135,12 @@ class PythonPackageGateTests(unittest.TestCase):
     def test_matplotlib_gate_installs_the_extra_and_exact_renderer(self) -> None:
         command = matplotlib_uv_gate_command("uv")
 
-        self.assertEqual(command[command.index("--extra") + 1], "matplotlib")
+        extras = [
+            command[index + 1]
+            for index, value in enumerate(command)
+            if value == "--extra"
+        ]
+        self.assertEqual(extras, ["gmsh", "matplotlib"])
         self.assertIn("matplotlib==3.11.1", command)
         self.assertEqual(command[command.index("--python") + 1], "3.13")
         self.assertTrue(

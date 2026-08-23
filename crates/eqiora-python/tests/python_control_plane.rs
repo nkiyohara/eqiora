@@ -275,7 +275,7 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         let module = native_module.bind(py);
         assert_eq!(
             module.getattr("__version__")?.extract::<String>()?,
-            "0.1.0a2"
+            "0.1.0a3"
         );
         for optional in ["numpy", "torch", "jax"] {
             assert!(

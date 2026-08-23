@@ -715,7 +715,7 @@ fn package_conformance_native_facts_match_direct_double_compile_and_replay() -> 
     assert_eq!(package.package(), root);
     let toolchain = first.compilation().toolchain();
     assert_eq!(toolchain.compiler().as_str(), "Eqiora.Compiler");
-    assert_eq!(toolchain.compiler_version().as_str(), "0.1.0-alpha.2");
+    assert_eq!(toolchain.compiler_version().as_str(), "0.1.0-alpha.3");
     assert_eq!(toolchain.semantic_canonicalization_version(), 1);
     assert_eq!(toolchain.source_bundle_version(), 1);
     assert_eq!(toolchain.resolution_version(), 1);

@@ -636,15 +636,18 @@ def inspect_wheel(
         or ";" in numpy_requirements[0]
     ):
         raise CandidateError("wheel must declare the reviewed NumPy range")
+    gmsh_requirements = [item for item in normalized if item.startswith("gmsh")]
+    if gmsh_requirements != ['gmsh==4.15.2;extra=="gmsh"']:
+        raise CandidateError("wheel must declare exactly the Gmsh 4.15.2 extra")
     for framework in ("torch", "jax", "jaxlib", "matplotlib"):
         declarations = [item for item in normalized if item.startswith(framework)]
         if not declarations or any("extra==" not in item for item in declarations):
             raise CandidateError(
                 f"{framework} must remain an optional-extra dependency"
             )
-    expected_extras = ["jax", "matplotlib", "torch"]
+    expected_extras = ["gmsh", "jax", "matplotlib", "torch"]
     if notebook_assets is not None:
-        expected_extras.insert(2, "notebook")
+        expected_extras.insert(3, "notebook")
         if not _has_exact_notebook_anywidget_requirement(dependencies):
             raise CandidateError(
                 "wheel must declare exactly anywidget==0.11.0 for the notebook extra"
@@ -1780,7 +1783,7 @@ def run_notebook_profile(
             interpreter=interpreter,
             environment=workspace.environment,
             requirements=[
-                f"{wheel}[matplotlib,notebook]",
+                f"{wheel}[gmsh,matplotlib,notebook]",
                 config.pytest,
                 "anywidget==0.11.0",
                 "jupyterlab==4.6.2",

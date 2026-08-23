@@ -500,7 +500,7 @@ def run_base_profile(
         uv=uv,
         interpreter=interpreter,
         environment=workspace.environment,
-        requirements=[str(wheel), config.pytest, config.mypy],
+        requirements=[f"{wheel}[gmsh]", config.pytest, config.mypy],
         run=run,
     )
     workspace.consumer.mkdir(parents=True)
@@ -562,7 +562,11 @@ def run_optional_profile(
         uv=uv,
         interpreter=interpreter,
         environment=workspace.environment,
-        requirements=[f"{wheel}[{name}]", config.pytest, *exact],
+        requirements=[
+            f"{wheel}[gmsh,{name}]" if name == "matplotlib" else f"{wheel}[{name}]",
+            config.pytest,
+            *exact,
+        ],
         run=run,
     )
     workspace.consumer.mkdir(parents=True)

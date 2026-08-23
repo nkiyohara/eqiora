@@ -82,6 +82,8 @@ def uv_gate_command(uv: str, python: str) -> list[str]:
         "--no-editable",
         "--reinstall-package",
         "eqiora",
+        "--extra",
+        "gmsh",
         "--with",
         BUILD_TOOLS[1],
         "--python",
@@ -108,7 +110,7 @@ def main() -> int:
                 virtual_environment=environment,
             )
             run(
-                [python, "-m", "pip", "install", "--no-build-isolation", "."],
+                [python, "-m", "pip", "install", "--no-build-isolation", ".[gmsh]"],
                 cwd=PACKAGE,
                 virtual_environment=environment,
             )

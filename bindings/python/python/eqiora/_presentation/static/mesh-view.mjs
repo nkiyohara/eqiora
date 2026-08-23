@@ -11296,7 +11296,7 @@ function rl(e) {
 }
 //#endregion
 //#region src/mesh-contract.ts
-var il = "circular-hole-chordal-reference-50/v1", al = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a", ol = 104, sl = 104, cl = 1664, ll = 1248, ul = "2aaf87276bf352faddfadc76e63c1f44340a362047b1399a2e081c798c5921aa", dl = "229392dc7faca769c88348cf41a810f29df3a22ad1276cb866783e5e04078a9f", fl = [
+var il = "circular-hole-gmsh-4.15.2/v1", al = "5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b", ol = 662, sl = 1210, cl = 10592, ll = 14520, ul = "42ea585f3facdc21fadf66435f37f1127bf926e6159c5ff1e4a345ba7268db3d", dl = "05a68c5630e68ed091e7da3bff07516a9ddf9345bc8319db108ac4004a7c6642", fl = [
 	"profile",
 	"mesh_digest",
 	"vertex_count",

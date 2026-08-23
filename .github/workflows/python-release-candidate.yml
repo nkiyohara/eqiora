@@ -141,6 +141,10 @@ jobs:
         run: |
           npm install --global npm@11.16.0
           test "$(npm --version)" = "11.16.0"
+      - name: Install Gmsh native runtime dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes libglu1-mesa
       - name: Download immutable prepared family
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
