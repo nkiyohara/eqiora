@@ -737,7 +737,7 @@
           "class": "delegated-current-owner-evidence",
           "signals": ["model_digest"],
           "identity_literals": 75,
-          "accepted_sha256": "2c21047a9acee6a77d5f2666eba4d6c93795c3239fb3745197fb962df71ef854",
+          "accepted_sha256": "f5df7f5dd74abcac60776786e5863a9cfb81ab88855b9f77ee90c38decb61813",
           "owner": "gallery.exact-cylinder-steady-stokes accepted publication evidence",
           "note": "the accepted minified publication projection names `model_digest` and contains 75 same-line lower-hex-64 occurrences. Admission owns only this exact path, observed shape, category, and accepted bytes; scientific, source, package, renderer, receipt, and publication identities remain owned by the accepted Gallery authorities."
         }

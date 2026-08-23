@@ -183,7 +183,7 @@ aggregate 120 occurrences. The accepted minified Cylinder publication JSON is
 the twenty-seventh and final row: `delegated-current-owner-evidence`, one
 `model_digest` signal, 75 textual lower-hex-64 occurrences on its qualifying
 line, and accepted raw SHA-256
-`2c21047a9acee6a77d5f2666eba4d6c93795c3239fb3745197fb962df71ef854`.
+`f5df7f5dd74abcac60776786e5863a9cfb81ab88855b9f77ee90c38decb61813`.
 The aggregate is therefore 195.
 
 This permission is also containment-only and exact-path-only. Empty,
