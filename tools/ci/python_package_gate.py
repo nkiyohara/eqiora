@@ -16,7 +16,14 @@ from typing import Mapping
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT
 TESTS = ROOT / "bindings/python/tests"
-GMSH_EVIDENCE = TESTS / "test_circular_hole_chordal_mesh.py"
+GMSH_EVIDENCE = tuple(
+    TESTS / name
+    for name in (
+        "test_circular_hole_chordal_mesh.py",
+        "test_exact_cylinder_stokes_result.py",
+        "test_rich_mesh_display.py",
+    )
+)
 _PROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 _DISTRIBUTION = _PROJECT["tool"]["eqiora-distribution"]
 BUILD_TOOLS = (
@@ -92,8 +99,11 @@ def uv_gate_command(uv: str, python: str) -> list[str]:
         "pytest",
         "-q",
         str(TESTS),
-        "--ignore",
-        str(GMSH_EVIDENCE),
+        *(
+            argument
+            for evidence in GMSH_EVIDENCE
+            for argument in ("--ignore", str(evidence))
+        ),
     ]
 
 
@@ -117,7 +127,7 @@ def _uv_gmsh_gate_command(uv: str, python: str) -> list[str]:
         "-m",
         "pytest",
         "-q",
-        str(GMSH_EVIDENCE),
+        *(str(evidence) for evidence in GMSH_EVIDENCE),
     ]
 
 
@@ -147,8 +157,11 @@ def main() -> int:
                     "pytest",
                     "-q",
                     str(TESTS),
-                    "--ignore",
-                    str(GMSH_EVIDENCE),
+                    *(
+                        argument
+                        for evidence in GMSH_EVIDENCE
+                        for argument in ("--ignore", str(evidence))
+                    ),
                 ],
                 cwd=PACKAGE,
                 virtual_environment=environment,
@@ -159,7 +172,13 @@ def main() -> int:
                 virtual_environment=environment,
             )
             run(
-                [python, "-m", "pytest", "-q", str(GMSH_EVIDENCE)],
+                [
+                    python,
+                    "-m",
+                    "pytest",
+                    "-q",
+                    *(str(evidence) for evidence in GMSH_EVIDENCE),
+                ],
                 cwd=PACKAGE,
                 virtual_environment=environment,
             )

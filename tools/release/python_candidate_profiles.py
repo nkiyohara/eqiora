@@ -513,7 +513,14 @@ def run_base_profile(
         python, wheel, workspace.consumer, config.python_version, run=run
     )
     assert_matplotlib_is_optional(python, workspace.consumer, run=run)
-    gmsh_test = tests / "test_circular_hole_chordal_mesh.py"
+    gmsh_tests = tuple(
+        tests / name
+        for name in (
+            "test_circular_hole_chordal_mesh.py",
+            "test_exact_cylinder_stokes_result.py",
+            "test_rich_mesh_display.py",
+        )
+    )
     run(
         [
             str(python),
@@ -522,8 +529,7 @@ def run_base_profile(
             "pytest",
             "-q",
             str(tests),
-            "--ignore",
-            str(gmsh_test),
+            *(argument for test in gmsh_tests for argument in ("--ignore", str(test))),
         ],
         cwd=workspace.consumer,
     )
@@ -554,7 +560,14 @@ def run_base_profile(
     if inherited_path := os.environ.get("PATH"):
         gmsh_path = os.pathsep.join((gmsh_path, inherited_path))
     run(
-        [str(python), "-I", "-m", "pytest", "-q", str(gmsh_test)],
+        [
+            str(python),
+            "-I",
+            "-m",
+            "pytest",
+            "-q",
+            *(str(test) for test in gmsh_tests),
+        ],
         cwd=workspace.consumer,
         extra_environment={
             "EQIORA_GMSH": str(
