@@ -1502,7 +1502,9 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
             config=config,
         )
 
-    def test_base_profile_installs_the_plain_wheel_before_optional_gmsh(self) -> None:
+    def test_base_profile_receipts_gmsh_only_after_base_checks_and_mesh_test(
+        self,
+    ) -> None:
         profiles = self.profiles_module()
         config = self.config()
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
@@ -1513,7 +1515,12 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
             wheel = root / "eqiora-cp311.whl"
             extracted = root / "source"
             python = workspace.environment / "bin/python"
-            install = mock.Mock(return_value=python)
+            events = mock.Mock()
+            install = events.install_environment
+            install.return_value = python
+            run = events.run
+            run.return_value = ""
+            public_smoke = events.run_public_smoke
 
             with (
                 mock.patch.object(profiles, "install_environment", new=install),
@@ -1536,9 +1543,9 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 ),
                 mock.patch.object(profiles, "assert_installed_origin"),
                 mock.patch.object(profiles, "assert_matplotlib_is_optional"),
-                mock.patch.object(profiles, "run_public_smoke"),
+                mock.patch.object(profiles, "run_public_smoke", new=public_smoke),
             ):
-                profiles.run_base_profile(
+                checks = profiles.run_base_profile(
                     uv="/reviewed/uv",
                     interpreter="/reviewed/python3.11",
                     python_version="3.11",
@@ -1546,15 +1553,100 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                     extracted=extracted,
                     workspace=workspace,
                     config=config,
-                    run=mock.Mock(),
+                    run=run,
                 )
 
-        install.assert_called_once_with(
-            uv="/reviewed/uv",
-            interpreter="/reviewed/python3.11",
-            environment=workspace.environment,
-            requirements=[str(wheel), config.pytest, config.mypy],
-            run=mock.ANY,
+        tests = workspace.consumer / "tests"
+        typecheck = workspace.consumer / "typecheck"
+        gmsh_test = tests / "test_circular_hole_chordal_mesh.py"
+        gmsh_path = str(python.parent)
+        if inherited_path := os.environ.get("PATH"):
+            gmsh_path = os.pathsep.join((gmsh_path, inherited_path))
+        self.assertEqual(
+            checks,
+            [
+                "cp311:installed-wheel",
+                "cp311:base-and-numpy",
+                "cp311:packaged-exact-cylinder-model-demo",
+                "cp311:packaged-mixed-boundary-elasticity-demo",
+                "cp311:packaged-fixed-reference-fsi-demo",
+                "cp311:async-and-cancellation",
+                "cp311:strict-base-typing",
+                "cp311:public-smoke-base",
+                "cp311:matplotlib-free-base",
+            ],
+        )
+        self.assertEqual(
+            events.mock_calls,
+            [
+                mock.call.install_environment(
+                    uv="/reviewed/uv",
+                    interpreter="/reviewed/python3.11",
+                    environment=workspace.environment,
+                    requirements=[str(wheel), config.pytest, config.mypy],
+                    run=run,
+                ),
+                mock.call.run(
+                    [
+                        str(python),
+                        "-I",
+                        "-m",
+                        "pytest",
+                        "-q",
+                        str(tests),
+                        "--ignore",
+                        str(gmsh_test),
+                    ],
+                    cwd=workspace.consumer,
+                ),
+                mock.call.run(
+                    [
+                        str(python),
+                        "-I",
+                        "-m",
+                        "mypy",
+                        "--strict",
+                        str(typecheck / "base.py"),
+                    ],
+                    cwd=workspace.consumer,
+                ),
+                mock.call.run_public_smoke(
+                    python=python,
+                    extracted=extracted,
+                    run_root=workspace.consumer,
+                    expected_version=config.python_version,
+                    profile="base",
+                    run=run,
+                ),
+                mock.call.run(
+                    [
+                        "/reviewed/uv",
+                        "pip",
+                        "install",
+                        "--python",
+                        str(python),
+                        f"{wheel}[gmsh]",
+                    ],
+                    cwd=workspace.environment.parent,
+                ),
+                mock.call.run(
+                    [
+                        str(python),
+                        "-I",
+                        "-m",
+                        "pytest",
+                        "-q",
+                        str(gmsh_test),
+                    ],
+                    cwd=workspace.consumer,
+                    extra_environment={
+                        "EQIORA_GMSH": str(
+                            python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
+                        ),
+                        "PATH": gmsh_path,
+                    },
+                ),
+            ],
         )
 
     def test_base_public_smoke_rejects_gmsh_imported_with_eqiora(self) -> None:
