@@ -1005,6 +1005,7 @@ dependencies = [
  "eqiora",
  "numpy",
  "pyo3",
+ "rustix",
  "sha2",
 ]
 

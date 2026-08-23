@@ -2,13 +2,16 @@
 
 use std::ffi::{OsStr, OsString};
 use std::fmt::Write as _;
-use std::fs;
+use std::fs::{self, File};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+#[cfg(unix)]
+use std::os::unix::process::CommandExt as _;
 
 use eqiora::Diagnostic;
 use eqiora::artifact::{
@@ -19,6 +22,8 @@ use eqiora::diagnostic::codes;
 use eqiora::geometry::PlanarRegion;
 use eqiora::io::gmsh::{GmshImportLimits, GmshSimplexImporter};
 use eqiora::meshing::MeshQualityGate;
+#[cfg(unix)]
+use rustix::process::{Pid, Signal, kill_process_group};
 
 const GMSH_VERSION: &str = "4.15.2";
 const GMSH_ENV: &str = "EQIORA_GMSH";
@@ -32,9 +37,9 @@ pub(super) fn generate(
     quality_gate: MeshQualityGate,
 ) -> Result<AcceptedCircularHoleChordalRealizationV1, Diagnostic> {
     let executable = gmsh_executable()?;
-    require_version(&executable)?;
-
     let scratch = ScratchDirectory::create()?;
+    require_version(&executable, scratch.path())?;
+
     let geometry_path = scratch.path().join("mesh.geo");
     let mesh_path = scratch.path().join("mesh.msh");
     let region = reference.realized_geometry().region()?;
@@ -42,7 +47,9 @@ pub(super) fn generate(
         invalid_import(format!("cannot write the Gmsh geometry input: {error}"))
     })?;
 
-    let mut command = Command::new(&executable);
+    let limits = GmshImportLimits::default();
+    let importer = GmshSimplexImporter::new(2, quality_gate, limits)?;
+    let mut command = bounded_output_command(&executable, limits.max_bytes.saturating_add(1));
     command
         .arg("-2")
         .arg(&geometry_path)
@@ -51,17 +58,20 @@ pub(super) fn generate(
         .args(["-format", "msh41", "-v", "2"])
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    let (_, status) = run_with_timeout(command, PROCESS_TIMEOUT)?;
+    let status = run_with_timeout(command, PROCESS_TIMEOUT)?;
     if !status.success() {
         return Err(invalid_import(format!(
             "Gmsh {GMSH_VERSION} failed with status {status}"
         )));
     }
 
-    let bytes = fs::read(&mesh_path)
-        .map_err(|error| invalid_import(format!("cannot read the Gmsh mesh output: {error}")))?;
-    let mesh = GmshSimplexImporter::new(2, quality_gate, GmshImportLimits::default())?
-        .import_bytes(&bytes)?;
+    let bytes = read_bounded_output(
+        &mesh_path,
+        limits.max_bytes,
+        "Gmsh input exceeds the configured byte limit",
+        "Gmsh mesh output",
+    )?;
+    let mesh = importer.import_bytes(&bytes)?;
     let mesh = SimplicialMeshEnvelopeV1::from_mesh(&mesh)?;
     let correspondence =
         GeometryMeshCorrespondenceEnvelopeV1::from_region(reference.realized_geometry(), &mesh)?;
@@ -76,30 +86,28 @@ fn gmsh_executable() -> Result<OsString, Diagnostic> {
     }
 }
 
-fn require_version(executable: &OsStr) -> Result<(), Diagnostic> {
-    let mut command = Command::new(executable);
+fn require_version(executable: &OsStr, scratch: &Path) -> Result<(), Diagnostic> {
+    let output_path = scratch.join("version.txt");
+    let output = File::create(&output_path)
+        .map_err(|error| invalid_import(format!("cannot create Gmsh version output: {error}")))?;
+    let mut command = bounded_output_command(executable, 65);
     command
         .arg("--version")
-        .stdout(Stdio::piped())
+        .stdout(Stdio::from(output))
         .stderr(Stdio::null());
-    let (mut child, status) = run_with_timeout(command, VERSION_TIMEOUT)?;
+    let status = run_with_timeout(command, VERSION_TIMEOUT)?;
     if !status.success() {
         return Err(invalid_import(format!(
             "Gmsh version check failed with status {}",
             status
         )));
     }
-    let mut stdout = Vec::new();
-    child
-        .stdout
-        .take()
-        .ok_or_else(|| invalid_import("Gmsh version output is unavailable"))?
-        .take(65)
-        .read_to_end(&mut stdout)
-        .map_err(|error| invalid_import(format!("cannot read Gmsh version output: {error}")))?;
-    if stdout.len() > 64 {
-        return Err(invalid_import("Gmsh version output exceeds 64 bytes"));
-    }
+    let stdout = read_bounded_output(
+        &output_path,
+        64,
+        "Gmsh version output exceeds 64 bytes",
+        "Gmsh version output",
+    )?;
     let version = std::str::from_utf8(&stdout)
         .map_err(|_| invalid_import("Gmsh version output must be UTF-8"))?
         .trim();
@@ -109,6 +117,53 @@ fn require_version(executable: &OsStr) -> Result<(), Diagnostic> {
         )));
     }
     Ok(())
+}
+
+fn read_bounded_output(
+    path: &Path,
+    max_bytes: usize,
+    over_limit: &str,
+    description: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let length = fs::metadata(path)
+        .map_err(|error| invalid_import(format!("cannot inspect {description}: {error}")))?
+        .len();
+    if length > max_bytes as u64 {
+        return Err(invalid_import(over_limit));
+    }
+    let mut bytes = Vec::with_capacity(length as usize);
+    File::open(path)
+        .map_err(|error| invalid_import(format!("cannot read {description}: {error}")))?
+        .take(max_bytes as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| invalid_import(format!("cannot read {description}: {error}")))?;
+    if bytes.len() > max_bytes {
+        return Err(invalid_import(over_limit));
+    }
+    Ok(bytes)
+}
+
+fn bounded_output_command(executable: &OsStr, max_bytes: usize) -> Command {
+    #[cfg(unix)]
+    {
+        const FILE_LIMIT_BLOCK_BYTES: usize = 512;
+        let blocks = max_bytes.div_ceil(FILE_LIMIT_BLOCK_BYTES);
+        let mut command = Command::new("/bin/sh");
+        command
+            .args([
+                "-c",
+                "ulimit -f \"$1\" || exit 126; shift; exec \"$@\"",
+                "eqiora-gmsh",
+            ])
+            .arg(blocks.to_string())
+            .arg(executable);
+        command
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = max_bytes;
+        Command::new(executable)
+    }
 }
 
 fn geometry_script(region: &PlanarRegion) -> Result<String, Diagnostic> {
@@ -211,10 +266,9 @@ fn comma_separated(values: &[usize]) -> String {
         .join(", ")
 }
 
-fn run_with_timeout(
-    mut command: Command,
-    timeout: Duration,
-) -> Result<(Child, ExitStatus), Diagnostic> {
+fn run_with_timeout(mut command: Command, timeout: Duration) -> Result<ExitStatus, Diagnostic> {
+    #[cfg(unix)]
+    command.process_group(0);
     let mut child = command
         .spawn()
         .map_err(|error| invalid_import(format!("cannot launch Gmsh: {error}")))?;
@@ -224,17 +278,35 @@ fn run_with_timeout(
             .try_wait()
             .map_err(|error| invalid_import(format!("cannot wait for Gmsh: {error}")))?
         {
-            return Ok((child, status));
+            kill_descendants(&child);
+            return Ok(status);
         }
         if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
+            terminate(&mut child);
             return Err(invalid_import(
                 "Gmsh exceeded the 30 second execution limit",
             ));
         }
         thread::sleep(Duration::from_millis(10));
     }
+}
+
+#[cfg(unix)]
+fn kill_descendants(child: &Child) {
+    if let Ok(raw_pid) = i32::try_from(child.id())
+        && let Some(pid) = Pid::from_raw(raw_pid)
+    {
+        let _ = kill_process_group(pid, Signal::KILL);
+    }
+}
+
+#[cfg(not(unix))]
+fn kill_descendants(_child: &Child) {}
+
+fn terminate(child: &mut Child) {
+    kill_descendants(child);
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 struct ScratchDirectory {

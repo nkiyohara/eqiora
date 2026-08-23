@@ -18,5 +18,8 @@ numpy = { workspace = true }
 pyo3 = { workspace = true }
 sha2 = { workspace = true }
 
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true, features = ["process"] }
+
 [lints]
 workspace = true
