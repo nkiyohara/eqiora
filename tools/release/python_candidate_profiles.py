@@ -553,6 +553,9 @@ def run_base_profile(
     run(
         [str(python), "-I", "-m", "pytest", "-q", str(gmsh_test)],
         cwd=workspace.consumer,
+        extra_environment={
+            "PATH": os.pathsep.join((str(python.parent), os.environ.get("PATH", "")))
+        },
     )
     compact = python_version.replace(".", "")
     return [
