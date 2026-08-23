@@ -1502,7 +1502,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
             config=config,
         )
 
-    def test_base_profile_receipts_gmsh_only_after_base_checks_and_mesh_test(
+    def test_base_profile_receipts_gmsh_only_after_base_checks_and_mesh_tests(
         self,
     ) -> None:
         profiles = self.profiles_module()
@@ -1558,7 +1558,14 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
 
         tests = workspace.consumer / "tests"
         typecheck = workspace.consumer / "typecheck"
-        gmsh_test = tests / "test_circular_hole_chordal_mesh.py"
+        gmsh_tests = tuple(
+            tests / name
+            for name in (
+                "test_circular_hole_chordal_mesh.py",
+                "test_exact_cylinder_stokes_result.py",
+                "test_rich_mesh_display.py",
+            )
+        )
         gmsh_path = str(python.parent)
         if inherited_path := os.environ.get("PATH"):
             gmsh_path = os.pathsep.join((gmsh_path, inherited_path))
@@ -1595,7 +1602,11 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                         "-q",
                         str(tests),
                         "--ignore",
-                        str(gmsh_test),
+                        str(gmsh_tests[0]),
+                        "--ignore",
+                        str(gmsh_tests[1]),
+                        "--ignore",
+                        str(gmsh_tests[2]),
                     ],
                     cwd=workspace.consumer,
                 ),
@@ -1636,7 +1647,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                         "-m",
                         "pytest",
                         "-q",
-                        str(gmsh_test),
+                        *(str(test) for test in gmsh_tests),
                     ],
                     cwd=workspace.consumer,
                     extra_environment={
