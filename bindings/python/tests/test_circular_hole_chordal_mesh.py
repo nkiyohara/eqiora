@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import os
+import signal
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,7 @@ GEOMETRY_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa0004
 MESH_SCHEMA = b"eqiora.simplicial-mesh-envelope/v1"
 GMSH_VERSION = "4.15.2"
 GMSH_PROVIDER = f"eqiora.gmsh-cli/{GMSH_VERSION}"
+GMSH_RAW_BYTE_CAP = 16 * 1024 * 1024
 OLD_REFERENCE_MESH_DIGEST = (
     "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
 )
@@ -241,6 +243,22 @@ def path_with_gmsh(directory: Path, executable: Path) -> str:
     (directory / "gmsh").symlink_to(executable)
     inherited = os.environ.get("PATH", "")
     return os.pathsep.join((str(directory), inherited))
+
+
+def process_can_continue(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+
+    status = Path(f"/proc/{pid}/stat")
+    if status.is_file():
+        try:
+            state = status.read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0]
+        except OSError:
+            return False
+        return state not in {"X", "Z"}
+    return True
 
 
 def affine_quality_observations(mesh: object) -> tuple[float, float]:
@@ -544,6 +562,114 @@ Path({str(continuation)!r}).write_text("continued", encoding="utf-8")
     assert not continuation.exists()
 
 
+def test_gmsh_version_boundary_cleans_a_stdout_holding_descendant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    descendant_pid_path = tmp_path / "version-descendant.pid"
+    descendant_continuation = tmp_path / "version-descendant-continued"
+    descendant_program = f"""import time
+from pathlib import Path
+
+time.sleep(60)
+Path({str(descendant_continuation)!r}).write_text("continued", encoding="utf-8")
+"""
+    wrapper = write_python_executable(
+        tmp_path / "stdout-holding-version-gmsh",
+        f"""import subprocess
+import sys
+from pathlib import Path
+
+if sys.argv[1:] == ["--version"]:
+    descendant = subprocess.Popen(
+        [sys.executable, "-c", {descendant_program!r}],
+        stdout=sys.stdout,
+        stderr=subprocess.DEVNULL,
+    )
+    Path({str(descendant_pid_path)!r}).write_text(
+        str(descendant.pid), encoding="utf-8"
+    )
+    print({GMSH_VERSION!r}, flush=True)
+    raise SystemExit(0)
+raise SystemExit(23)
+""",
+    )
+    monkeypatch.setenv("EQIORA_GMSH", str(wrapper))
+    program = f"""import json
+import runpy
+
+contract = runpy.run_path({str(Path(__file__).resolve())!r})
+eqiora = contract["eqiora"]
+try:
+    plan = contract["resolve_plan"]()
+except eqiora.ValidationError as error:
+    print(json.dumps({{
+        "outcome": "validation",
+        "category": error.category,
+        "diagnostics": [
+            [item.code, item.severity] for item in error.diagnostics
+        ],
+    }}))
+else:
+    print(json.dumps({{
+        "outcome": "success",
+        "provider": plan.provider,
+    }}))
+"""
+
+    started = time.monotonic()
+    operation = subprocess.Popen(
+        [sys.executable, "-I", "-c", program],
+        cwd=tmp_path,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    timed_out = False
+    stdout = ""
+    stderr = ""
+    descendant_pid: int | None = None
+    descendant_was_runnable = False
+    try:
+        try:
+            stdout, stderr = operation.communicate(timeout=7)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+        elapsed = time.monotonic() - started
+        if descendant_pid_path.is_file():
+            descendant_pid = int(descendant_pid_path.read_text(encoding="utf-8"))
+            cleanup_deadline = time.monotonic() + 0.5
+            while (
+                process_can_continue(descendant_pid)
+                and time.monotonic() < cleanup_deadline
+            ):
+                time.sleep(0.01)
+            descendant_was_runnable = process_can_continue(descendant_pid)
+    finally:
+        try:
+            os.killpg(operation.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        operation.communicate()
+
+    assert not timed_out, "version probing exceeded its five-second boundary"
+    assert elapsed < 7.0
+    assert operation.returncode == 0
+    assert stderr == ""
+    receipt = json.loads(stdout)
+    if receipt["outcome"] == "success":
+        assert receipt["provider"] == GMSH_PROVIDER
+    else:
+        assert receipt == {
+            "outcome": "validation",
+            "category": "validation",
+            "diagnostics": [["EQ0808", "error"]],
+        }
+    assert descendant_pid is not None
+    assert not descendant_was_runnable
+    assert not descendant_continuation.exists()
+
+
 def test_gmsh_version_output_over_64_bytes_is_exact_bounded_validation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -571,6 +697,42 @@ Path({str(continuation)!r}).write_text("continued", encoding="utf-8")
         for item in caught.value.diagnostics
     ] == [("EQ0808", "error", "Gmsh version output exceeds 64 bytes")]
     assert not continuation.exists()
+
+
+def test_gmsh_over_cap_output_reaches_the_importer_size_gate_before_reading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    oversized = write_python_executable(
+        tmp_path / "oversized-output-gmsh",
+        f"""import sys
+from pathlib import Path
+
+if sys.argv[1:] == ["--version"]:
+    print({GMSH_VERSION!r})
+    raise SystemExit(0)
+arguments = sys.argv[1:]
+output = Path(arguments[arguments.index("-o") + 1])
+with output.open("wb") as stream:
+    stream.truncate({GMSH_RAW_BYTE_CAP + 1})
+output.chmod(0)
+""",
+    )
+    monkeypatch.setenv("EQIORA_GMSH", str(oversized))
+
+    with pytest.raises(eqiora.ValidationError) as caught:
+        resolve_plan()
+
+    assert caught.value.category == "validation"
+    assert [
+        (item.code, item.severity, item.message)
+        for item in caught.value.diagnostics
+    ] == [
+        (
+            "EQ0808",
+            "error",
+            "Gmsh input exceeds the configured byte limit",
+        )
+    ]
 
 
 @pytest.mark.parametrize(
