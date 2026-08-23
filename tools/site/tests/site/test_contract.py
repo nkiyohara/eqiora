@@ -75,21 +75,21 @@ class CompleteContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             _, identities, publication = self._real_publication_fixture(
-                root, "0.1.0-alpha.2"
+                root, "0.1.0-alpha.3"
             )
             before = publication.read_bytes()
             release_identity, release_errors = checker.derive_release_identity(root)
             self.assertEqual(release_errors, [])
             self.assertEqual(
                 release_identity,
-                checker.ReleaseIdentity(cargo="0.1.0-alpha.2", python="0.1.0a2"),
+                checker.ReleaseIdentity(cargo="0.1.0-alpha.3", python="0.1.0a3"),
             )
             self.assertEqual(checker.check_source(root, identities), [])
             self.assertEqual(publication.read_bytes(), before)
             self.assertEqual(checker.sha256(publication), checker.PUBLICATION_SHA256)
             self.assertEqual(
                 self._eqiora_input(self._read_publication(publication))["version"],
-                "0.1.0a1",
+                "0.1.0a3",
             )
 
         # Causal mutants execute only after every ordinary positive above.
@@ -121,7 +121,7 @@ class CompleteContractTests(unittest.TestCase):
             errors = checker.check_source(root, identities)
             self.assertTrue(
                 any(
-                    "hard-codes product version '0.1.0a1': "
+                    "hard-codes product version '0.1.0a3': "
                     "docs/site/src/data/copied/"
                     "exact-cylinder-steady-stokes.publication.json" in error
                     for error in errors
@@ -129,13 +129,17 @@ class CompleteContractTests(unittest.TestCase):
                 errors,
             )
 
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            _, identities, publication = self._real_publication_fixture(root)
-            document = self._read_publication(publication)
-            self._eqiora_input(document)["version"] = "0.1.0a2"
-            self._write_publication(publication, document)
-            self._assert_publication_mutant(root, identities, publication, "0.1.0a2")
+        for stale_version in ("0.1.0a1", "0.1.0a2"):
+            with self.subTest(stale_publication_version=stale_version):
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    _, identities, publication = self._real_publication_fixture(root)
+                    document = self._read_publication(publication)
+                    self._eqiora_input(document)["version"] = stale_version
+                    self._write_publication(publication, document)
+                    self._assert_publication_mutant(
+                        root, identities, publication, stale_version
+                    )
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -145,7 +149,7 @@ class CompleteContractTests(unittest.TestCase):
             eqiora_input = resolved_inputs.pop(4)
             resolved_inputs.insert(5, eqiora_input)
             self._write_publication(publication, document)
-            self._assert_publication_mutant(root, identities, publication, "0.1.0a1")
+            self._assert_publication_mutant(root, identities, publication, "0.1.0a3")
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -154,7 +158,7 @@ class CompleteContractTests(unittest.TestCase):
             document["unexpected_eqiora_version"] = "0.1.0-alpha.9"
             self._write_publication(publication, document)
             self._assert_publication_mutant(
-                root, identities, publication, "0.1.0a1", "0.1.0-alpha.9"
+                root, identities, publication, "0.1.0a3", "0.1.0-alpha.9"
             )
 
         object_mutations = {
@@ -173,7 +177,7 @@ class CompleteContractTests(unittest.TestCase):
                 self._eqiora_input(document)[field] = replacement
                 self._write_publication(publication, document)
                 self._assert_publication_mutant(
-                    root, identities, publication, "0.1.0a1"
+                    root, identities, publication, "0.1.0a3"
                 )
 
     def test_00_synthetic_ordinary_site_passes_before_mutants(self) -> None:
@@ -531,7 +535,7 @@ class CompleteContractTests(unittest.TestCase):
 
     @classmethod
     def _real_publication_fixture(
-        cls, root: Path, cargo_version: str = "0.1.0-alpha.1"
+        cls, root: Path, cargo_version: str = "0.1.0-alpha.3"
     ) -> tuple[Path, checker.SiteIdentities, Path]:
         artifact, identities = make_fixture(root, cargo_version)
         publication = root / cls.PUBLICATION_RELATIVE
