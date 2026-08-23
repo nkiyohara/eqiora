@@ -33,18 +33,23 @@ PNG_SOFTWARE = "Eqiora exact-cylinder gallery publication v1"
 
 ALT_TEXT = (
     "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder "
-    "demonstration, shown with a viridis color scale and the 104-triangle "
+    "demonstration, shown with a viridis color scale and the 1,210-triangle "
     "affine mesh overlaid. Presentation image only; linked Result evidence "
     "carries the numerical claim."
 )
 PUBLIC_CLAIM = (
-    "one frozen 2D steady incompressible Stokes exact-cylinder demonstration, "
+    "one frozen 2D steady incompressible Stokes exact-cylinder demonstration on "
+    "the accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine "
+    "triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = "
+    "14/2/48/50, and 548 interior vertices; "
     "rendered from its accepted public Result path and linked evidence."
 )
 NONCLAIMS = (
-    "no curved elements|no mesh/PDE convergence|no drag/lift coefficient, scaled or mesh-independent force, or DFG value|"
-    "no transient or Navier–Stokes behavior|no vortex shedding|no 3D|no production mesher|no performance claim|"
-    "no cross-platform/byte-reproducible result|no pixel validation|API presence is neither verification nor maturity"
+    "no arbitrary geometry or provider selection|no 3D, curved, boundary-layer, or adaptive meshing|"
+    "no mesh/PDE convergence|no drag/lift coefficient, scaled or mesh-independent force, or DFG value|"
+    "no transient or Navier–Stokes behavior|no vortex shedding|no performance claim|"
+    "no cross-platform mesh-byte identity or byte-reproducible Result|no pixel validation|"
+    "API presence is neither verification nor maturity"
 ).split("|")
 
 SOURCE_ROLES = {
@@ -64,10 +69,8 @@ SOURCE_ROLES = {
 
 CASE_ROLES = {
     "artifacts.current-model-canonical-identity": "evidence",
-    "fluid.exact-circular-hole-stokes-2d": "evidence",
+    "fluid.exact-circular-hole-stokes-2d-gmsh": "evidence",
     "fluid.packaged-steady-stokes-2d": "evidence",
-    "geometry.circular-hole-chordal-realization-binding": "evidence",
-    "geometry.circular-hole-chordal-reference-mesh": "evidence",
     "geometry.exact-circular-hole-geometry": "evidence",
     "interfaces.python-circular-hole-chordal-mesh": "evidence",
     "interfaces.python-exact-circular-hole-geometry": "evidence",
@@ -95,7 +98,8 @@ RECEIPT_CHECKS = (
     "renderer-scene-profile-and-environment-identities|claim-nonclaims-and-evidence-routes"
 ).split("|")
 RECEIPT_NONCHECKS = (
-    "image pixels are not scientific validation|no cross-platform or byte-reproducible Result claim|"
+    "image pixels are not scientific validation|"
+    "no cross-platform mesh-byte identity or byte-reproducible Result claim|"
     "no new scientific oracle or equality"
 ).split("|")
 

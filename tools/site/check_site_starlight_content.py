@@ -11,9 +11,10 @@ __all__ = (
     "check_starlight_content",
 )
 
-PRESSURE_ALT = "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder demonstration, shown with a viridis color scale and the 104-triangle affine mesh overlaid. Presentation image only; linked Result evidence carries the numerical claim."
+PRESSURE_ALT = "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder demonstration, shown with a viridis color scale and the 1,210-triangle affine mesh overlaid. Presentation image only; linked Result evidence carries the numerical claim."
 PRESSURE_CAPTION = "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at c6b7a21f52ae1acf941d26319d2499ed89152c15; presentation only, not validation."
-PUBLIC_CLAIM = "One frozen 2D steady incompressible Stokes exact-cylinder demonstration, rendered from its accepted public Result path and linked evidence."
+PUBLIC_CLAIM = "One frozen 2D steady incompressible Stokes exact-cylinder demonstration on the accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = 14/2/48/50, and 548 interior vertices; rendered from its accepted public Result path and linked evidence."
+WITNESS_COPY = "Accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = 14/2/48/50, and 548 interior vertices."
 RENDERED_SOURCE_SENTENCE = "This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository’s architecture, RFCs, capability matrix, and validated verify manifests."
 REFERENCE_BOUNDARY = "API presence is neither capability evidence nor maturity."
 EVIDENCE_LABELS = {"Result evidence", "Pressure-still presentation case"}
@@ -26,19 +27,15 @@ STAGES = (
     ("verified-boundary", "6", "Verified and not claimed"),
 )
 NONCLAIMS = (
-    "No curved elements.",
+    "No arbitrary geometry or provider selection.",
+    "No 3D, curved, boundary-layer, or adaptive meshing.",
     "No mesh/PDE convergence.",
     "No drag/lift coefficient, scaled or mesh-independent force, or DFG value.",
     "No transient or Navier–Stokes behavior.",
     "No vortex shedding.",
-    "No 3D.",
-    "No production mesher.",
     "No performance claim.",
-    "No cross-platform/byte-reproducible result.",
+    "No cross-platform mesh-byte identity or byte-reproducible Result.",
     "No pixel validation.",
-    "All 104 mesh vertices lie on a boundary",
-    "103 velocity vertices are essential",
-    "the only free velocity vertex is the outlet midpoint",
     "API presence is neither verification nor maturity.",
 )
 CASE_SOURCE_PATHS = (
@@ -53,12 +50,10 @@ CASE_SOURCE_PATHS = (
 CASE_EVIDENCE_PATHS = (
     "verify/artifacts/current-model-canonical-identity/README.md",
     "verify/fluid/packaged-steady-stokes-2d/README.md",
-    "verify/fluid/exact-circular-hole-stokes-2d/README.md",
+    "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
     "verify/geometry/exact-circular-hole-geometry/README.md",
-    "verify/geometry/circular-hole-chordal-realization-binding/README.md",
-    "verify/geometry/circular-hole-chordal-reference-mesh/README.md",
-    "verify/interfaces/python-exact-circular-hole-geometry/README.md",
     "verify/interfaces/python-circular-hole-chordal-mesh/README.md",
+    "verify/interfaces/python-exact-circular-hole-geometry/README.md",
     "verify/interfaces/python-exact-cylinder-stokes-result/README.md",
     "verify/interfaces/python-exact-cylinder-pressure-still/README.md",
     "verify/interfaces/python-exact-cylinder-stokes-marimo/README.md",
@@ -367,6 +362,8 @@ def _check_case(
     expected_claim = PUBLIC_CLAIM if enhanced else "one" + PUBLIC_CLAIM[3:]
     if expected_claim not in page.visible_text:
         report("Cylinder route omits the exact bounded public claim")
+    if WITNESS_COPY not in page.visible_text:
+        report("Cylinder route omits the accepted exact Gmsh CLI 4.15.2 mesh witness")
     source_tokens = (
         (
             "relation momentum continuous on body",
@@ -448,18 +445,15 @@ def _check_case(
                 report(f"Cylinder claim boundary omits {phrase!r}")
     else:
         legacy = (
-            "no curved elements",
+            "no arbitrary geometry or provider selection",
+            "no 3D, curved, boundary-layer, or adaptive meshing",
             "no mesh/PDE convergence",
             "no drag/lift coefficient, scaled or mesh-independent force, or DFG value",
             "no transient or Navier–Stokes behavior",
             "no vortex shedding",
-            "no 3D",
-            "no production mesher",
             "no performance claim",
-            "no cross-platform byte reproducibility",
-            "pixels are not validation",
-            "all 104 vertices are on the boundary",
-            "only the outlet midpoint velocity vertex is free",
+            "no cross-platform mesh-byte identity or byte-reproducible result",
+            "no pixel validation",
             "API presence is neither verification nor maturity",
         )
         folded = page.visible_text.casefold()
