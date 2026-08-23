@@ -627,7 +627,10 @@ def inspect_wheel(
         raise CandidateError("wheel has incomplete PEP 639 license metadata")
 
     dependencies = metadata.get_all("Requires-Dist", [])
-    normalized = [dependency.lower().replace(" ", "") for dependency in dependencies]
+    normalized = [
+        dependency.lower().replace(" ", "").replace("'", '"')
+        for dependency in dependencies
+    ]
     numpy_requirements = [item for item in normalized if item.startswith("numpy")]
     if (
         len(numpy_requirements) != 1
