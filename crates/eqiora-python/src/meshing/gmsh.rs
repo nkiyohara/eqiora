@@ -158,14 +158,15 @@ fn geometry_script(region: &PlanarRegion) -> Result<String, Diagnostic> {
     }
 
     let mut next_line = 1_usize;
-    let mut next_loop = 1_usize;
     let mut surface_loops = Vec::new();
-    for vertices in face
+    for (offset, vertices) in face
         .holes()
         .iter()
         .map(Vec::as_slice)
         .chain(std::iter::once(face.outer()))
+        .enumerate()
     {
+        let next_loop = offset + 1;
         let mut lines = Vec::with_capacity(vertices.len());
         for pair in vertices
             .iter()
@@ -189,7 +190,6 @@ fn geometry_script(region: &PlanarRegion) -> Result<String, Diagnostic> {
         )
         .expect("writing to String cannot fail");
         surface_loops.push(next_loop);
-        next_loop += 1;
     }
     let outer_loop = surface_loops.pop().expect("the outer loop was generated");
     let mut plane_loops = vec![outer_loop];
