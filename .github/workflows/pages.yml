@@ -298,6 +298,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse "$GITHUB_SHA^{tree}")"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git fetch --no-tags origin c971b7c70ef3606883f9f1f2d34e5966abfdddab
           for object in 5d2a9bef58c2df32cd6b14c5b6dd876beac7144f 3237f739098498ac46bfdd6a993c00b0575900f3 57f8b9b476c04b8103b5a43c8a30504c0e2fa1fb 47dc3e3d863cfb5727b87d785d09abf9743c0a72 61c1bbede492aef4a9c85fa364d031e012621809 68c9c2fe245ac52cc20dcf5a65a2455de507f0dc 20701fe8909295b980c1da7cf3eab366f8d5f27c 6e685495bf6989e1ad902a7e88c199557285cbee 19968da984c16e718baeb9faa5aae04260896c29 1d19473c487b8035608cc88cbd99757f2b95865a 21d5f0bc5213bca02336040f1085c7d52c63588f 47dc3e3d863cfb5727b87d785d09abf9743c0a72 61c1bbede492aef4a9c85fa364d031e012621809; do git cat-file -e "$object"; done
           { echo "EQIORA_SITE_GIT_OBJECT_REPOSITORY=$GITHUB_WORKSPACE"; } >> "$GITHUB_ENV"
           {
