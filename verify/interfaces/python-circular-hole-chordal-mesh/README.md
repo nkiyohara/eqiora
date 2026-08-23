@@ -1,57 +1,100 @@
-# Python exact-source-bound chordal reference mesh
+# Exact-cylinder external Gmsh 4.15.2 mesh
 
-This case freezes one deliberately limited installed-Python path through common
-ownership boundaries. `MeshRequest` records the three explicit policies
-`maximum_boundary_error`, `minimum_mean_ratio`, and
-`maximum_boundary_facets`; `eqiora.meshing.resolve` binds the exact
-`eqiora.geometry.Geometry` and complete current provider choice into immutable
-`MeshPlan`; `eqiora.meshing.generate` publishes one immutable
-`eqiora.meshing.Mesh`.
+This case freezes one deliberately narrow installed-Python path:
 
-The Python object is a same-process view of the accepted RFC 0082 artifact
-owner. That owner retains the exact source, pure binding envelope, accepted
-inner `SimplicialMeshEnvelopeV1`, Rust-derived authored-region correspondence,
-and private regenerated reference. Python does not select the chord count, sample the circle,
-construct connectivity, compute quality, encode an artifact, derive a digest,
-or infer selection membership from coordinates.
+```text
+exact circular-hole Geometry
+  -> MeshRequest
+  -> eqiora.meshing.resolve
+  -> external Gmsh CLI exactly 4.15.2
+  -> immutable MeshPlan containing the inspected mesh
+  -> eqiora.meshing.generate
+  -> immutable Mesh
+```
+
+The plan provider is exactly `eqiora.gmsh-cli/4.15.2`. Executable resolution
+uses the explicit `EQIORA_GMSH` path when present and otherwise `gmsh` on
+`PATH`. Missing executables, launch failures, nonzero exits, malformed or
+unsupported output, and every nonexact version fail as structured validation.
+None may fall back to the former reference spoke mesh.
 
 ## Independently owned positive witness
 
-The non-implementing evidence lane froze the API shape, claim boundary, and
-falsifiers before the public Python implementation existed. The first oracle
-revision's exact artifact values were wrong: it reconstructed the accepted
-fluid fixture's local cell order instead of replaying the deterministic Rust producer. The
-installed-package gate exposed that provenance mismatch.
-
-Before acceptance, the independent evidence owner corrected the values below
-by replaying the pre-existing deterministic Rust producer, without reading or changing
-the new Python implementation and without consuming its output. The producer's
-inputs come from the already accepted
-[`geometry.circular-hole-chordal-reference-mesh`](../../geometry/circular-hole-chordal-reference-mesh/README.md)
-case. The expected artifact is derived through the exact public Rust chain the
-adapter must expose:
+The ordinary positive path runs before provider-failure probes. It retains the
+exact source digest
+`b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9`
+and the existing request and boundary receipt:
 
 ```text
-CanonicalGeometryV1
-  -> AcceptedCircularHoleChordalRealizationV1::from_reference(..., 1e-4, 50, MeshQualityGate(1e-5))
-  -> accepted.mesh()
+maximum_boundary_error = 1e-4 m
+minimum_mean_ratio = 1e-5
+maximum_boundary_facets = 50
+circle_segments = 50
 ```
 
-The accepted fluid `mesh.json` remains an independent topology witness, not a
-substitute serialization for the accepted artifact owner. Its existing conformance check
-matches coordinates within the RFC allowance and compares unordered cell
-vertex sets. It deliberately does not freeze the private reference's local cell rotations.
+The evidence owner started from commit
+`934493bcb487c1753fb4b3ddffaab88d7150aa7d`, constructed the pre-existing
+accepted Rust chordal owner, and traversed its canonical `PlanarRegion` hole
+first and outer loop second. Coordinates were emitted with Rust's
+shortest-roundtrip binary64 spelling. The Gmsh recipe has no point mesh-size
+argument and fixes:
 
-The resulting inner mesh artifact has:
+- Built-in straight lines and one planar surface;
+- Algorithm 6, element order 1, and all elements saved;
+- ASCII MSH 4.1, `Mesh.RandomFactor = 0`; and
+- one thread.
 
-- 4,835 canonical bytes;
-- raw canonical-byte SHA-256
-  `d977d9125488fffee72deaf9a0f146bc42dc05a135692919a374d746da0f1079`;
-  and
-- domain-separated mesh digest
-  `148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a`.
+The derived GEO SHA-256 is
+`81c96068891d6b506827339cd6fecf07eafcb867c76f01747c35d134167d367e`.
+Independently installed official Linux64 and PyPI Gmsh 4.15.2 produced the
+same local MSH bytes, and an immediate clean replay was byte-identical. Their
+local SHA-256 was
+`ab7340cec1976f713b5c5deab76fc7d554593126f1c1cd68cc021749911a206a`.
+That hash records this Linux derivation; it is not a raw-MSH portability claim.
 
-These two hashes are intentionally different. `Mesh.digest` is the latter:
+The pre-existing bounded MSH 4.1 importer and mesh envelope project those
+bytes to 662 vertices and 1,210 positively oriented linear triangles. The
+former 104-vertex/104-triangle spoke artifact is therefore not the accepted
+positive path.
+
+## Independent quality derivations
+
+The accepted two-dimensional `AffineMapQuality` for a cell with local
+Jacobian `J` is
+
+```text
+q = 2 |det(J)| / ||J||_F^2.
+```
+
+One derivation imported the frozen MSH through the pre-existing Rust importer
+and mesh constructor. A separate Python numerical pass decoded the MSH node
+blocks and triangle blocks, rebuilt each local Jacobian in importer order, and
+evaluated the formula directly. They agreed exactly in binary64 on:
+
+```text
+minimum_mean_ratio          = 0.5236522686855336
+minimum_signed_measure_scale = 2.6093038450074273e-5
+```
+
+The installed-Python test repeats the coordinate-array calculation and
+requires the achieved quality to satisfy the requested `1e-5` gate. A `0.75`
+request is a precommitted rejection probe, not a tuned production target.
+Reconstructing the circle with Gmsh-side trigonometric expressions changes
+interior Delaunay coordinates and is an explicit non-authoritative route.
+
+## Frozen public mesh projection
+
+For the exact one-thread Linux witness, the imported mesh projection has:
+
+```text
+canonical byte length       42,388
+raw canonical SHA-256       9d3c6211e6832aa5a5f7e99fa210058ff1b76eab7f1e99aaa7033c282d6e2dd2
+domain-separated Mesh digest 5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b
+f64 coordinate-buffer SHA-256 42ea585f3facdc21fadf66435f37f1127bf926e6159c5ff1e4a345ba7268db3d
+u32 triangle-buffer SHA-256   05a68c5630e68ed091e7da3bff07516a9ddf9345bc8319db108ac4004a7c6642
+```
+
+`Mesh.digest` retains the established domain separation:
 
 ```text
 sha256(
@@ -61,106 +104,66 @@ sha256(
 )
 ```
 
-The test independently recomputes both hashes from public `canonical_bytes`,
-pins its byte count, parses its closed topology,
-geometry, acceptance, and evidence fields, and requires the public property
-to equal the domain-separated digest. The inner mesh bytes contain no
-exact-source field; the Mesh's separate `source_digest` proves the live
-same-process ownership
-described below.
+The NumPy projections are memoized, C-contiguous, and irreversibly read-only.
+The test also requires repeated `generate` calls to publish independent array
+storage with identical content.
 
-The DFG witness requires 50 circular chords, 104 vertices, and 104 triangles.
-Rust correspondence expands the exact names to
-`inlet=14`, `outlet=2`, `walls=38`, `cylinder=50`, and `fluid=104`.
-Every public selection name is resolved through
-`region_entity_set_entities(...).len()`; the adapter does not independently
-count mesh facets. The four boundary-selection counts sum to the RFC witness's
-104 boundary facets.
+## Conformity and authored correspondence
 
-## Numeric evidence boundary
+An independent edge-incidence pass finds exactly 114 boundary edges and
+classifies every one against the accepted chordal geometry:
 
-RFC 0082 remains the independent scientific oracle for chord selection,
-boundary error, area deficit, and perimeter deficit. This adapter case reuses
-its published allowances; it does not tune them from Python output.
+```text
+cylinder = 50
+inlet    = 14
+outlet   = 2
+walls    = 48
+fluid    = 1,210 triangles
+```
 
-The minimum mean ratio `0.003213006369764433` and minimum signed measure scale
-`0.0004210245914983321` are compared exactly because
-`SimplicialMeshEnvelopeV1` serializes their binary64 values as canonical
-acceptance evidence and rejects any bitwise-different replay. That exact
-comparison verifies byte-for-byte adapter fidelity. It is not a new claim
-that this one cell-quality value is an independently derived scientific
-tolerance or a production mesh-quality target.
+The public selection counts must match that complete partition. A second
+same-coordinate source swaps only the authored inlet and outlet names. Its
+mesh identity remains unchanged, while correspondence-derived public counts
+become `inlet=2` and `outlet=14`. This rejects hard-coded standard-name
+membership and keeps the MSH file from deciding authored meaning.
 
-### Local-cell-order audit
+The plan inspection occurs during `resolve`. A forwarding executable records
+the positive Gmsh calls and is then made unlaunchable; two calls to `generate`
+must still publish the exact inspected mesh without another external launch.
 
-The first oracle revision rebuilt a `SimplicialMesh` directly from the accepted
-fluid fixture's recorded cell order. That was the wrong projection. After the
-owner vertices are mapped to fixture indices, owner cell 0 is
-`[50, 52, 1]`; the accepted fixture records the same oriented triangle as
-`[1, 50, 52]`. Their unordered vertex set is identical, so the accepted RFC
-topology check passes, but the local reference origin differs.
+## Failure closure
 
-The current `AffineMapQuality` uses the Frobenius norm of the Jacobian whose
-columns are based at local vertex 0. A cyclic cell rotation therefore preserves
-orientation and signed measure but does not preserve this recorded quality
-value. Rebuilding from fixture order produces the superseded
-`minimum_mean_ratio=0.0064272786692910235`, 4,843 bytes, and mesh digest
-`c0d57813a0ca56aade9b286d1f4fff7df217ff130ac176515be5ef174b07847b`.
-Those values describe a different in-memory ordering and are now an explicit
-falsifier for bypassing the accepted producer.
+After the positive witness, focused probes require structured
+`eqiora.ValidationError` for:
 
-This was not consumption of `falsifier-wrong-diagonal.json`. That file declares
-`role=wrong-contract-falsifier`, fails the mapped unordered-cell-set comparison,
-and independently produces `minimum_mean_ratio=0.006427278669291052` and mesh
-digest
-`17f363d9cea003e89508473b9857b2b11206c9b6e02e9e9203be28567899ec56`.
-The accepted fixture and wrong-diagonal fixture are therefore distinguished
-both structurally and by artifact identity.
+- absent Gmsh on both explicit and `PATH` routes;
+- an explicit executable that cannot launch, even when valid Gmsh is on
+  `PATH`;
+- exact-version discovery followed by a nonzero mesh-generation exit;
+- malformed bytes or an unsupported MSH version after a successful exit;
+- older, newer, suffixed, or multiline version reports;
+- a 49-facet work limit, a `0.75` quality requirement, an unknown selection,
+  or a plan replayed against foreign exact Geometry.
 
-## Falsifiers
+The explicit-path positive probe places a wrong-version `gmsh` on `PATH` and
+still requires the explicit 4.15.2 executable. The complementary positive
+probe removes `EQIORA_GMSH` and resolves through `PATH`.
 
-The test requires structured `ValidationError` when 49 segments cannot meet
-the request, when a `0.5` mean-ratio gate rejects the frozen mesh, and when an
-unknown realized selection is queried.
+## Claim boundary
 
-A stronger identity mutant uses the same exact coordinates with `inlet` and
-`outlet` assigned to opposite x sides. Its inner mesh bytes and digest must
-remain unchanged, while its exact source digest changes and its realized
-counts become `inlet=2` and `outlet=14`. This kills both a source identity
-reconstructed from mesh bytes and hard-coded standard selection counts.
+This is one current exact-cylinder straight-chordal planar geometry, linear
+two-dimensional triangles, ASCII MSH 4.1, and external Gmsh exactly 4.15.2.
+It does not claim arbitrary geometry, another provider or version, 3D, curved
+elements, bundled or downloaded Gmsh, raw-MSH or cross-platform byte identity,
+persistence, performance, general production meshing, a Model, solve, Result,
+visualization, or physical validation.
 
-Changing only the exact geometry classification tolerance from `1e-12` to
-`1e-10` likewise changes exact source identity while retaining the explicit
-`1e-4` mesh request, topology, approximation evidence, and inner mesh digest.
-That falsifies an adapter that silently reuses geometry classification
-tolerance as meshing policy.
-
-The package test always launches an equivalent public program with
-`python -I -c`, so an isolated sdist consumer still executes the complete
-public path. When the repository example tree is present, it separately
-executes `examples/python/exact_cylinder_mesh.py`. Only that repository-file
-check skips when a packaged consumer intentionally has no examples directory.
-
-## Boundary and future dependency
-
-The common names state ownership and do not widen provider coverage. This is
-not an arbitrary-Geometry generated-mesh protocol or external import surface.
-It claims no Delaunay or production mesher, curved
-element, Model, solver, Result, visualization, performance, or physical
-validation.
-
-In particular, `Mesh.canonical_bytes` and the inner
-`SimplicialMeshEnvelopeV1` digest are not a durable
-source-to-mesh binding. The live Mesh is not a cross-process proof and
-cannot publish or replay the generated realization for a later Result
-lineage. Cross-process publication, replay, and future Result lineage require
-future acceptance of the separate
-`CircularHoleChordalRealizationEnvelopeV1` durable realization artifact.
-
-Run the registered evidence after implementation:
+Run the registered evidence in an environment that supplies the exact
+executable:
 
 ```bash
-python3 tools/ci/python_package_gate.py
+EQIORA_GMSH=/absolute/path/to/gmsh-4.15.2 \
+  python3 tools/ci/python_package_gate.py
 cargo run --locked -p eqiora-verify -- run \
   --case interfaces.python-circular-hole-chordal-mesh
 ```

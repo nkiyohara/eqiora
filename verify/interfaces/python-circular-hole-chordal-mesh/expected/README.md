@@ -1,42 +1,31 @@
-# Frozen adapter observations
+# Frozen Gmsh 4.15.2 observations
 
-The installed-wheel test embeds independently owned acceptance observations.
-The API shape and falsifiers were frozen before implementation. The first
-oracle revision's exact artifact values were wrong; the installed-package gate
-found that provenance mismatch. Before acceptance, the independent evidence
-owner corrected the values below by replaying the pre-existing public Rust
-owner-to-envelope producer, without reading or changing the Python
-implementation and without taking values from its output:
+The independent evidence owner projected the pre-existing accepted chordal
+`PlanarRegion` to a Built-in Gmsh recipe, with hole traversal before outer
+traversal, shortest-roundtrip binary64 coordinates, no point mesh size,
+Algorithm 6, linear elements, ASCII MSH 4.1, `RandomFactor=0`, `SaveAll`, and
+one thread.
 
-- exact source digest
-  `b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9`;
-- inner mesh canonical byte count `4,835`;
-- raw canonical-byte SHA-256
-  `d977d9125488fffee72deaf9a0f146bc42dc05a135692919a374d746da0f1079`;
-- domain-separated public `Mesh.digest`
-  `148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a`;
-- 50 circular chords and 104 vertices and triangles;
-- realized entity counts `inlet=14`, `outlet=2`, `walls=38`,
-  `cylinder=50`, and `fluid=104`;
-- quality evidence `minimum_mean_ratio=0.003213006369764433` and
-  `minimum_signed_measure_scale=0.0004210245914983321`.
+Official Linux64 and PyPI Gmsh 4.15.2 produced byte-identical MSH output on an
+immediate clean replay. The pre-existing Eqiora importer and mesh envelope
+then produced:
 
-The exact quality comparisons pin the existing artifact's canonical binary64
-evidence, not a new scientific accuracy target. Boundary, area, and perimeter
-comparisons retain RFC 0082's previously frozen allowances.
+- 662 vertices, 1,210 triangles, and 114 boundary edges;
+- `cylinder=50`, `inlet=14`, `outlet=2`, `walls=48`, and `fluid=1210`;
+- minimum affine-map mean ratio `0.5236522686855336`;
+- minimum signed measure scale `2.6093038450074273e-5`;
+- 42,388 canonical bytes;
+- raw canonical SHA-256
+  `9d3c6211e6832aa5a5f7e99fa210058ff1b76eab7f1e99aaa7033c282d6e2dd2`;
+- domain-separated Mesh digest
+  `5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b`;
+- C-order binary64 coordinate-buffer SHA-256
+  `42ea585f3facdc21fadf66435f37f1127bf926e6159c5ff1e4a345ba7268db3d`;
+  and
+- C-order native little-endian u32 triangle-buffer SHA-256
+  `05a68c5630e68ed091e7da3bff07516a9ddf9345bc8319db108ac4004a7c6642`.
 
-The public byte property is named `canonical_bytes` and encodes only the inner
-`SimplicialMeshEnvelopeV1`; its raw SHA-256 must not be substituted for the
-domain-separated `Mesh.digest`.
-
-These values are the direct
-`AcceptedCircularHoleChordalRealizationV1::from_reference` to
-`accepted.mesh()` projection. Reconstructing
-from the accepted fluid fixture's cyclically rotated local cell order is an
-explicit negative route: it yields a different quality observation and
-artifact identity even though its mapped unordered cell sets agree.
-
-The same-coordinate swapped-x-role witness preserves the inner mesh bytes and
-digest, changes exact source identity, and requires `inlet=2`,
-`outlet=14`. This is the precommitted falsifier for source identity derived
-from mesh bytes and standard-name counts hard-coded in the adapter.
+A separate Python MSH decoder recomputed the accepted `AffineMapQuality`
+formula from node and local-cell order and agreed exactly in binary64. These
+values describe the exact one-thread Linux witness, not raw-MSH or
+cross-platform portability.
