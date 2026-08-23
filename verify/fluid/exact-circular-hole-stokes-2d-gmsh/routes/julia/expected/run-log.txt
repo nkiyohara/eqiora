@@ -1,0 +1,81 @@
+Julia Route B: exact-source Gmsh 4.15.2 MINI/P1 Stokes oracle
+base=934493bcb487c1753fb4b3ddffaab88d7150aa7d mesh_evidence=05254257d98caee8cac924759d01d92c25801169
+
+-- ordinary positive path: exact inputs and Gmsh replay ------------------
+  input.official_linux64_archive_sha256                                      PASS  6c62116e072db29fd1f701fdb9d3d34b46ed5373545063e177b965a008274745
+  input.official_linux64_executable_sha256                                   PASS  9dccade5dd1374b28c18af9085d7ce63216cf7ac39d3cefbc0adbfabafba2c7f
+  input.accepted_geo_sha256                                                  PASS  81c96068891d6b506827339cd6fecf07eafcb867c76f01747c35d134167d367e
+  input.sealed_msh_sha256                                                    PASS  ab7340cec1976f713b5c5deab76fc7d554593126f1c1cd68cc021749911a206a
+  gmsh.version_exact                                                         PASS  4.15.2
+  gmsh.replay_msh_sha256                                                     PASS  ab7340cec1976f713b5c5deab76fc7d554593126f1c1cd68cc021749911a206a
+  gmsh.replay_byte_identical_to_sealed_input                                 PASS
+
+-- mesh topology and correspondence --------------------------------------
+  mesh.vertices_662                                                          PASS  662
+  mesh.triangles_1210                                                        PASS  1210
+  mesh.boundary_facets_114                                                   PASS  114
+  mesh.interior_edges_1758                                                   PASS  1758
+  mesh.euler_characteristic_zero                                             PASS  0
+  mesh.all_triangles_positive                                                PASS  2.6093038450074273e-5
+  mesh.minimum_measure_matches_owner                                         PASS  2.6093038450074273e-5
+  mesh.minimum_quality_matches_owner                                         PASS  0.5236522686855336
+  mapping.curve_counts                                                       PASS
+  mapping.facet_counts                                                       PASS
+  mapping.partition_complete_once                                            PASS
+  mapping.canonical_sha256                                                   PASS  8eafb74f5727d720ac6b8e67d4413c07687636ada7cb72af78194634475b1d83
+
+-- accepted MINI/P1 solve ------------------------------------------------
+  dof.full_4406                                                              PASS  4406
+  dof.reduced_4180                                                           PASS  4180
+  dof.essential_velocity_226                                                 PASS  226
+  trace.essential_vertices_113                                               PASS  113
+  trace.only_free_boundary_vertex_is_outlet_midpoint                         PASS  [(2.2, 0.2)]
+  pressure_reference.boundary_traction_no_gauge                              PASS
+  assembly.exact_symmetry                                                    PASS
+  assembly.nnz_83268                                                         PASS  83268
+  residual.true_reduced_within_existing_limit                                PASS  2.7331758424307547e-14 <= 6.1407767907500515e-6
+  residual.weak_pressure_rows_within_existing_limit                          PASS  1.3023613209636815e-16 <= 6.1384864882804355e-6
+  residual.independent_cell_reapplication_finite                             PASS
+  balance.signed_flux                                                        PASS  -2.7755575615628914e-17
+  balance.no_slip_flux_exact_zero                                            PASS
+  balance.momentum_componentwise                                             PASS  (-6.195044477408373e-18, 1.5987211554602254e-18)
+  reaction.cylinder_force_nonzero                                            PASS  (-0.006384200476069209, -6.344553664048034e-5)
+  selector.velocity_unique_and_separated                                     PASS
+  selector.pressure_expected_ties                                            PASS
+  selector.pressure_ties_separated_from_untied                               PASS
+  selector.pressure_extrema_stable                                           PASS
+
+-- independent solver and indexing checks --------------------------------
+  stability.refined_sparse_lu_vs_refined_sparse_qr                           PASS  (velocity = 9.8879238130678e-17, pressure = 1.3877787807814457e-17, pressure_extrema = 2.927345865710862e-18, flux = 2.7755575615628914e-17, reaction = 8.673617379884035e-19, closure = 9.059419880941276e-18, selectors_moved = false)
+  stability.vertex_cell_facet_reindexing                                     PASS  (velocity = 1.3530843112619095e-16, pressure = 5.551115123125783e-17, pressure_extrema = 4.163336342344337e-17, flux = 5.551115123125783e-17, reaction = 1.2739375526704677e-18, closure = 1.0516587600761794e-17, selectors_moved = false)
+  stability.reindexed_boundary_mapping_digest                                PASS
+
+-- falsifiers (after the ordinary positive path) --------------------------
+  falsifier.vector_laplacian_detected                                        PASS  (velocity = 0.002526638884557232, pressure = 0.001811837409274028, pressure_extrema = 0.001811837409274028, flux = 4.163336342344337e-17, reaction = 3.880752401135782e-5, closure = 6.9277916736609765e-18, selectors_moved = false)
+  falsifier.pressure_coupling_sign_detected                                  PASS  (velocity = 0.0, pressure = 0.1391966547627787, pressure_extrema = 0.0700725323489631, flux = 0.0, reaction = 0.0, closure = 6.195044477408373e-18, selectors_moved = true)
+  falsifier.swapped_inlet_outlet_detected                                    PASS  (velocity = 0.08844017269369797, pressure = 0.06297307895056244, pressure_extrema = 0.06217973427694787, flux = 0.1429591456334217, reaction = 0.001685495990498163, closure = 3.530509218307997e-18, selectors_moved = true)
+  falsifier.reversed_flux_normal_detected                                    PASS
+  falsifier.suffixed_gmsh_version_rejected                                   PASS
+  falsifier.algorithm5_changes_exact_mesh                                    PASS  ("c46cdd5cbe3eba0a3e8456154c38be1269df7674cc1210291473a9290017a324", 689, 1264)
+
+-- frozen observations ----------------------------------------------------
+  velocity target=(0.1, 0.2) barycentre=(0.09793337988219507, 0.20177374283660565) u=(0.14213243952137308, 0.01500729300430398)
+  velocity target=(0.2, 0.3) barycentre=(0.19694114554517952, 0.2995191378539526) u=(0.37263638830345264, 0.010313584478627463)
+  velocity target=(0.3, 0.2) barycentre=(0.29488874450425756, 0.20638624237896663) u=(0.10859853497962273, -0.019034808196661753)
+  velocity target=(1.0, 0.2) barycentre=(0.9761231491450052, 0.17080514234999064) u=(0.2964981847265619, 0.000591437399105796)
+  velocity target=(2.0, 0.2) barycentre=(1.9591009670192758, 0.19146450026592787) u=(0.3127064966772555, 0.0037804493525137846)
+  pressure cylinder_min_x vertex=(0.15, 0.2) p=0.06959832738138935 Pa ties=1
+  pressure cylinder_max_x vertex=(0.25, 0.2) p=0.01933318139710498 Pa ties=1
+  pressure cylinder_min_y vertex=(0.1968604740235343, 0.1500986635785864) p=0.04389626088659285 Pa ties=2
+  pressure cylinder_max_y vertex=(0.1968604740235343, 0.2499013364214136) p=0.04516523057732172 Pa ties=2
+  pressure outer_near_inlet_mid vertex=(0.0, 0.2) p=0.062148654204246964 Pa ties=1
+  pressure outer_near_outlet_mid vertex=(2.2, 0.2) p=0.00047420496757375326 Pa ties=1
+  pressure extrema=(minimum = (pressure_pa = 0.00047420496757375326, vertex_m = (2.2, 0.2), gap_pa = 0.0010854406283514599), maximum = (pressure_pa = 0.06959832738138935, vertex_m = (0.15, 0.2), gap_pa = 0.00027416201650938554))
+  fluxes=Dict(:walls => 0.0, :inlet => -0.08149573099927537, :outlet => 0.08149573099927535, :cylinder => 0.0)
+  cylinder force on fluid=(-0.006384200476069209, -6.344553664048034e-5) N/m
+  momentum closure=(-6.195044477408373e-18, 1.5987211554602254e-18) N/m
+  refined LU vs QR=(velocity = 9.8879238130678e-17, pressure = 1.3877787807814457e-17, pressure_extrema = 2.927345865710862e-18, flux = 2.7755575615628914e-17, reaction = 8.673617379884035e-19, closure = 9.059419880941276e-18, selectors_moved = false)
+  reindexing=(velocity = 1.3530843112619095e-16, pressure = 5.551115123125783e-17, pressure_extrema = 4.163336342344337e-17, flux = 5.551115123125783e-17, reaction = 1.2739375526704677e-18, closure = 1.0516587600761794e-17, selectors_moved = false)
+
+record_sha256=5e6ce308919d87d8c56e3261e09b519bb9e33a98657e321b0fe0747fc8fe3d23
+checks=47 passed=47 failed=0
