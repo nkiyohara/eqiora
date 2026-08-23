@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from collections import Counter
 from pathlib import Path
@@ -504,6 +505,72 @@ raise SystemExit(23)
     monkeypatch.setenv("EQIORA_GMSH", str(failing))
 
     assert_structured_validation(resolve_plan)
+
+
+def test_gmsh_version_timeout_kills_process_without_fallback_or_continuation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_gmsh = configured_gmsh()
+    monkeypatch.setenv("PATH", path_with_gmsh(tmp_path / "bin", real_gmsh))
+    pid_path = tmp_path / "version.pid"
+    continuation = tmp_path / "mesh-generation-started"
+    hanging = write_python_executable(
+        tmp_path / "hanging-version-gmsh",
+        f"""import os
+import sys
+import time
+from pathlib import Path
+if sys.argv[1:] == ["--version"]:
+    Path({str(pid_path)!r}).write_text(str(os.getpid()), encoding="utf-8")
+    time.sleep(60)
+Path({str(continuation)!r}).write_text("continued", encoding="utf-8")
+""",
+    )
+    monkeypatch.setenv("EQIORA_GMSH", str(hanging))
+
+    started = time.monotonic()
+    with pytest.raises(eqiora.ValidationError) as caught:
+        resolve_plan()
+    elapsed = time.monotonic() - started
+
+    assert 5.0 <= elapsed < 7.0
+    assert caught.value.category == "validation"
+    assert [(item.code, item.severity) for item in caught.value.diagnostics] == [
+        ("EQ0808", "error")
+    ]
+    pid = int(pid_path.read_text(encoding="utf-8"))
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)
+    assert not continuation.exists()
+
+
+def test_gmsh_version_output_over_64_bytes_is_exact_bounded_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_gmsh = configured_gmsh()
+    monkeypatch.setenv("PATH", path_with_gmsh(tmp_path / "bin", real_gmsh))
+    continuation = tmp_path / "mesh-generation-started"
+    oversized = write_python_executable(
+        tmp_path / "oversized-version-gmsh",
+        f"""import sys
+from pathlib import Path
+if sys.argv[1:] == ["--version"]:
+    sys.stdout.buffer.write(b"x" * 65)
+    raise SystemExit(0)
+Path({str(continuation)!r}).write_text("continued", encoding="utf-8")
+""",
+    )
+    monkeypatch.setenv("EQIORA_GMSH", str(oversized))
+
+    with pytest.raises(eqiora.ValidationError) as caught:
+        resolve_plan()
+
+    assert caught.value.category == "validation"
+    assert [
+        (item.code, item.severity, item.message)
+        for item in caught.value.diagnostics
+    ] == [("EQ0808", "error", "Gmsh version output exceeds 64 bytes")]
+    assert not continuation.exists()
 
 
 @pytest.mark.parametrize(
