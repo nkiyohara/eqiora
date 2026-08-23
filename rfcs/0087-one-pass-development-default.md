@@ -1,6 +1,6 @@
 # RFC 0087: One-pass development by default
 
-- Status: Draft
+- Status: Accepted
 - Authors: Eqiora contributors
 - Created: 2026-08-22
 - Related: [RFC 0084](0084-contract-wave-capability-development.md) and
