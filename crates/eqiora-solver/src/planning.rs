@@ -22,12 +22,12 @@ const FAER_LIBRARIES: &[ProviderLibrary] = &[ProviderLibrary::new("faer", "0.24.
 
 const REFERENCE_PROVIDER: SolverProvider = SolverProvider::new(
     BackendId::new("eqiora.reference"),
-    "0.1.0-alpha.3",
+    "0.1.0-alpha.2",
     EMPTY_LIBRARIES,
 );
 const FAER_PROVIDER: SolverProvider = SolverProvider::new(
     BackendId::new("eqiora.faer"),
-    "0.1.0-alpha.3",
+    "0.1.0-alpha.2",
     FAER_LIBRARIES,
 );
 
