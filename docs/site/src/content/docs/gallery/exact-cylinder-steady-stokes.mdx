@@ -173,7 +173,7 @@ walls_and_cylinder: trace(u) = [0, 0] m/s
 ```
 
 <ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Eqiora source form: application boundary relations</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d/routes/python/result.json" kind="blob">accepted walls-and-cylinder trace boundary</ExactSourceLink>
+· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d-gmsh/routes/python/result.json" kind="blob">accepted Gmsh-route walls-and-cylinder trace boundary</ExactSourceLink>
 
 The bounded realization requests at most 50 circular-boundary facets, then
 resolves and generates the source-bound mesh:
@@ -188,21 +188,20 @@ mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
 mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 ```
 
-<Aside type="caution" title="Deliberately coarse demonstration mesh">
+<Aside type="caution" title="Bounded Gmsh demonstration mesh">
 
-The accepted realization has 50 straight chords and 104 affine triangles. All
-104 mesh vertices lie on a boundary; 103 velocity vertices are essential, and
-the only free velocity vertex is the outlet midpoint $[2.2,0.2]\,\mathrm{m}$.
-This walkthrough makes no curved-element, mesh-convergence, or PDE-convergence
-claim.
+The accepted `eqiora.gmsh-cli/4.15.2` realization has 50 straight cylinder
+chords, 662 vertices, 1,210 affine triangles, and 114 boundary facets. Those
+facets partition as inlet/outlet/walls/cylinder = 14/2/48/50, and 548 vertices
+are interior. This walkthrough makes no curved-element, mesh-convergence, or
+PDE-convergence claim.
 
 </Aside>
 
-<ExactSourceLink path="verify/geometry/circular-hole-chordal-reference-mesh/README.md" kind="blob">Chordal reference-mesh dossier</ExactSourceLink>
-· <ExactSourceLink path="verify/geometry/circular-hole-chordal-realization-binding/README.md" kind="blob">chordal realization-binding dossier</ExactSourceLink>
+<ExactSourceLink path="verify/interfaces/python-circular-hole-chordal-mesh/README.md" kind="blob">Python Gmsh mesh dossier</ExactSourceLink>
 · <ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L54-L63">canonical Marimo mesh cell</ExactSourceLink>
 · <ExactSourceLink path="examples/python/exact_cylinder_mesh.py" kind="blob">plain Python mesh adapter</ExactSourceLink>
-· <ExactSourceLink path="verify/interfaces/python-circular-hole-chordal-mesh/README.md" kind="blob">Python mesh composition dossier</ExactSourceLink>
+· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d-gmsh/routes/python/README.md" kind="blob">Gmsh steady-Stokes Route A</ExactSourceLink>
 
 </NotebookStage>
 
@@ -276,7 +275,7 @@ pressure_figure = eqplot.plot_scalar_field(result, field=pressure.field)
 · <ExactSourceLink path="verify/interfaces/python-exact-cylinder-pressure-still/README.md" kind="blob">Pressure-still presentation case</ExactSourceLink>
 
 Read the figure only as a pressure field in pascals, with a viridis scale and
-the 104-triangle affine mesh overlaid. The admitted pixels are a static
+the 1,210-triangle affine mesh overlaid. The admitted pixels are a static
 presentation of the linked Result; color and pixel values are not validation
 and do not establish flow quality.
 
@@ -288,19 +287,18 @@ and do not establish flow quality.
   title="Verified boundary"
   supported={[
     'One frozen 2D steady incompressible Stokes exact-cylinder demonstration, rendered from its accepted public Result path and linked evidence.',
-    'The exact geometry, source-bound chordal realization, packaged model, Plan-to-Run composition, and Marimo application each have a directly linked registered dossier.',
+    'The exact geometry, exact accepted Gmsh 4.15.2 realization of this 50-chord cylinder witness, packaged model, Plan-to-Run composition, and Marimo application each have directly linked evidence.',
     'The installed publication record binds the admitted PNG, exact source revision, Result lineage, caption, alternative text, and presentation-only boundary.',
   ]}
   notClaimed={[
-    'No curved elements.',
-    'No mesh/PDE convergence.',
+    'No arbitrary geometry or provider selection.',
+    'No 3D, curved, boundary-layer, or adaptive meshing.',
+    'No mesh or PDE convergence.',
     'No drag/lift coefficient, scaled or mesh-independent force, or DFG value.',
     'No transient or Navier–Stokes behavior.',
     'No vortex shedding.',
-    'No 3D.',
-    'No production mesher.',
     'No performance claim.',
-    'No cross-platform/byte-reproducible result.',
+    'No cross-platform mesh-byte identity or byte-reproducible Result.',
     'No pixel validation.',
     'API presence is neither verification nor maturity.',
   ]}
@@ -308,8 +306,9 @@ and do not establish flow quality.
 
 [Browse the evidence catalog](/evidence/)
 · <ExactSourceLink path="verify/geometry/exact-circular-hole-geometry/README.md" kind="blob">exact geometry</ExactSourceLink>
-· <ExactSourceLink path="verify/geometry/circular-hole-chordal-reference-mesh/README.md" kind="blob">chordal mesh</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d/README.md" kind="blob">steady-Stokes science</ExactSourceLink>
+· <ExactSourceLink path="verify/interfaces/python-circular-hole-chordal-mesh/README.md" kind="blob">Gmsh mesh</ExactSourceLink>
+· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d-gmsh/routes/python/README.md" kind="blob">steady-Stokes Route A</ExactSourceLink>
+· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d-gmsh/routes/julia/README.md" kind="blob">steady-Stokes Route B</ExactSourceLink>
 · <ExactSourceLink path="verify/interfaces/python-exact-cylinder-stokes-result/README.md" kind="blob">common Result path</ExactSourceLink>
 · <ExactSourceLink path="verify/interfaces/python-exact-cylinder-stokes-marimo/README.md" kind="blob">Marimo composition</ExactSourceLink>
 
