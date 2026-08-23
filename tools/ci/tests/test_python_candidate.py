@@ -2130,6 +2130,104 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 ]
                 self.assertEqual(observed, [owner], variable)
 
+            config = self.config()
+            workspace = next(item for item in plan if item.name == "matplotlib-3.13")
+            extracted = scratch / "source"
+            source_test = extracted / "bindings/python/tests/test_matplotlib.py"
+            source_test.parent.mkdir(parents=True)
+            source_test.write_text(
+                "def test_placeholder():\n    pass\n", encoding="utf-8"
+            )
+            python = workspace.environment / (
+                "Scripts/python.exe" if os.name == "nt" else "bin/python"
+            )
+            demos = tuple(
+                workspace.consumer / name for name in ("exact.py", "mixed.py", "fsi.py")
+            )
+            install = mock.Mock(return_value=python)
+
+            def run(argv: list[str], **_kwargs: object) -> str:
+                for value in argv:
+                    output = Path(value)
+                    if output.is_absolute() and output.suffix == ".png":
+                        output.write_bytes(b"\x89PNG\r\n\x1a\n")
+                return ""
+
+            checked = mock.Mock(side_effect=run)
+            with (
+                mock.patch.object(profiles, "install_environment", new=install),
+                mock.patch.object(
+                    profiles,
+                    "prepare_exact_cylinder_demo_consumer",
+                    return_value=demos[0],
+                ),
+                mock.patch.object(
+                    profiles,
+                    "prepare_mixed_boundary_elasticity_demo_consumer",
+                    return_value=demos[1],
+                ),
+                mock.patch.object(
+                    profiles,
+                    "prepare_fixed_reference_fsi_demo_consumer",
+                    return_value=demos[2],
+                ),
+                mock.patch.dict(
+                    os.environ,
+                    {"EQIORA_GMSH": "/ambient/gmsh", "PATH": "/ambient/bin"},
+                ),
+            ):
+                checks = profiles.run_optional_profile(
+                    name="matplotlib",
+                    uv="/reviewed/uv",
+                    interpreter="/reviewed/python3.13",
+                    wheel=scratch / "candidate.whl",
+                    extracted=extracted,
+                    workspace=workspace,
+                    config=config,
+                    run=checked,
+                )
+
+            self.assertEqual(
+                checks,
+                [
+                    "cp313:matplotlib",
+                    "cp313:packaged-exact-cylinder-pressure-demo",
+                    "cp313:packaged-mixed-boundary-displacement-demo",
+                    "cp313:packaged-fixed-reference-fsi-still",
+                ],
+            )
+            install.assert_called_once_with(
+                uv="/reviewed/uv",
+                interpreter="/reviewed/python3.13",
+                environment=workspace.environment,
+                requirements=[
+                    f"{scratch / 'candidate.whl'}[gmsh,matplotlib]",
+                    config.pytest,
+                    config.matplotlib,
+                ],
+                run=checked,
+            )
+            self.assertEqual(
+                [tuple(call.args[0][2:4]) for call in checked.call_args_list],
+                [
+                    ("-m", "pytest"),
+                    (str(demos[0]), "--pressure-png"),
+                    (str(demos[1]), "--displacement-png"),
+                    (str(demos[2]), "--fsi-png"),
+                ],
+            )
+            expected_environment = {
+                "EQIORA_GMSH": str(
+                    python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
+                ),
+                "PATH": os.pathsep.join((str(python.parent), "/ambient/bin")),
+            }
+            for index, call in enumerate(checked.call_args_list):
+                with self.subTest(matplotlib_run=index):
+                    self.assertEqual(
+                        call.kwargs.get("extra_environment"), expected_environment
+                    )
+
     def test_reverse_completion_merges_immutable_receipts_in_frozen_order(
         self,
     ) -> None:
@@ -5120,14 +5218,23 @@ write(JSON.stringify({calls,output,failure}));
             test_source.write_text(
                 "def test_placeholder():\n    pass\n", encoding="utf-8"
             )
+            exact_app = (
+                extracted / python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_APP
+            )
+            exact_app.parent.mkdir(parents=True)
+            exact_app.write_text("# exact candidate app\n", encoding="utf-8")
             workspace_root = root / "notebook-profile"
             workspace = types.SimpleNamespace(
                 root=workspace_root,
                 environment=workspace_root / "environment",
                 consumer=workspace_root / "consumer",
             )
+            python = workspace.environment / (
+                "Scripts/python.exe" if os.name == "nt" else "bin/python"
+            )
             emitted: list[str] = []
             commands: list[tuple[str, ...]] = []
+            run_calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
             original_observer = profiles.run_notebook_profile
 
             def observe_checks(
@@ -5141,15 +5248,17 @@ write(JSON.stringify({calls,output,failure}));
 
                 return original_observer(observations, emit=record)
 
-            def checked_run(argv: list[str], **_kwargs: object) -> str:
+            def checked_run(argv: list[str], **kwargs: object) -> str:
                 command = tuple(str(value) for value in argv)
                 commands.append(command)
+                run_calls.append((command, dict(kwargs)))
                 if command == (
                     "npm",
                     "run",
                     "test:hosts",
                     "--",
-                    "--project=jupyterlab-4.6.2",
+                    "--project=marimo-0.23.16",
+                    "tests/exact-cylinder-stokes-marimo.spec.ts",
                 ):
                     raise CandidateError("forced downstream host launch failure")
                 return ""
@@ -5160,6 +5269,14 @@ write(JSON.stringify({calls,output,failure}));
             process = mock.Mock()
             process.poll.return_value = None
             process.wait.return_value = 0
+            install = mock.Mock(return_value=python)
+            checked = mock.Mock(side_effect=checked_run)
+            popen = mock.Mock(return_value=process)
+
+            def cleanup(**kwargs: object) -> None:
+                primary_error = kwargs["primary_error"]
+                if isinstance(primary_error, BaseException):
+                    raise primary_error
 
             def run_profiles(**_kwargs: object) -> object:
                 with (
@@ -5171,17 +5288,17 @@ write(JSON.stringify({calls,output,failure}));
                     mock.patch.object(
                         profiles,
                         "install_environment",
-                        return_value=root / "python",
+                        new=install,
                     ),
                     mock.patch.object(
                         python_candidate_module,
                         "checked_run",
-                        side_effect=checked_run,
+                        new=checked,
                     ),
                     mock.patch.object(
                         python_candidate_module.subprocess,
                         "Popen",
-                        return_value=process,
+                        new=popen,
                     ),
                     mock.patch.object(
                         python_candidate_module.socket,
@@ -5197,6 +5314,11 @@ write(JSON.stringify({calls,output,failure}));
                         executor,
                         "acquire_inputs",
                         return_value=acquired,
+                    ),
+                    mock.patch.object(
+                        python_candidate_module,
+                        "_notebook_cleanup_lifecycle",
+                        side_effect=cleanup,
                     ),
                 ):
                     return python_candidate_module.run_notebook_profile(
@@ -5242,6 +5364,10 @@ write(JSON.stringify({calls,output,failure}));
                     side_effect=run_profiles,
                 ) as profile_runner,
                 mock.patch.object(python_candidate_module, "write_manifest") as write,
+                mock.patch.dict(
+                    os.environ,
+                    {"EQIORA_GMSH": "/ambient/gmsh", "PATH": "/ambient/bin"},
+                ),
             ):
                 with self.assertRaisesRegex(
                     CandidateError, "forced downstream host launch failure"
@@ -5257,13 +5383,7 @@ write(JSON.stringify({calls,output,failure}));
             write.assert_not_called()
             self.assertEqual(
                 emitted,
-                [
-                    "frontend:lock-integrity",
-                    "frontend:license-notices",
-                    "frontend:bundle-byte-rebuild",
-                    "wheel-family:notebook-metadata",
-                    "cp313:notebook-anywidget-0.11.0",
-                ],
+                list(NOTEBOOK_PROFILE_CHECKS[:7]),
             )
             self.assertIn(
                 (
@@ -5271,17 +5391,64 @@ write(JSON.stringify({calls,output,failure}));
                     "run",
                     "test:hosts",
                     "--",
-                    "--project=jupyterlab-4.6.2",
+                    "--project=marimo-0.23.16",
+                    "tests/exact-cylinder-stokes-marimo.spec.ts",
                 ),
                 commands,
             )
-            self.assertFalse(
-                any(
-                    "marimo-0.23.16" in argument
-                    for command in commands
-                    for argument in command
-                )
+            install.assert_called_once_with(
+                uv="/reviewed/uv",
+                interpreter="/reviewed/python3.13",
+                environment=workspace.environment,
+                requirements=[
+                    f"{root / 'candidate.whl'}[gmsh,matplotlib,notebook]",
+                    python_candidate_module.load_config().pytest,
+                    "anywidget==0.11.0",
+                    "jupyterlab==4.6.2",
+                    "marimo==0.23.16",
+                ],
+                run=checked,
             )
+            rich_runs = [
+                kwargs
+                for command, kwargs in run_calls
+                if command[2:5] == ("-m", "pytest", "-q")
+            ]
+            self.assertEqual(len(rich_runs), 1)
+            popen_calls = popen.call_args_list
+            self.assertEqual(len(popen_calls), 3)
+            self.assertEqual(
+                [tuple(call.args[0][2:5]) for call in popen_calls],
+                [
+                    ("-m", "jupyter", "lab"),
+                    ("-m", "marimo", "run"),
+                    ("-m", "marimo", "run"),
+                ],
+            )
+            self.assertEqual(
+                [call.args[0][0] for call in popen_calls], [str(python)] * 3
+            )
+            self.assertEqual(
+                popen_calls[2].kwargs["cwd"],
+                workspace.root / "exact-cylinder-stokes-marimo-positive",
+            )
+            expected_gmsh = str(
+                python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
+            )
+            environments = [
+                ("rich-mesh-pytest", rich_runs[0].get("extra_environment") or {}),
+                *(
+                    (f"host-popen-{index}", call.kwargs["env"])
+                    for index, call in enumerate(popen_calls)
+                ),
+            ]
+            for surface, environment in environments:
+                with self.subTest(notebook_environment=surface):
+                    self.assertEqual(environment.get("EQIORA_GMSH"), expected_gmsh)
+                    self.assertEqual(
+                        environment.get("PATH", "").split(os.pathsep)[0],
+                        str(python.parent),
+                    )
             self.assertEqual(
                 receipt_path.read_bytes(), b"sealed independent H2 receipt"
             )
