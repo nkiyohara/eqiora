@@ -237,11 +237,11 @@ separate slices. The runnable file is
 
 ## Exact-cylinder pressure still
 
-Install the optional Matplotlib adapter and ask the same runnable file to save
+Install the Gmsh and Matplotlib adapters and ask the same runnable file to save
 the accepted pressure field:
 
 ```console
-python -m pip install 'eqiora[matplotlib]'
+python -m pip install 'eqiora[gmsh,matplotlib]'
 python examples/python/exact_cylinder_stokes.py \
   --pressure-png exact-cylinder-pressure.png
 ```

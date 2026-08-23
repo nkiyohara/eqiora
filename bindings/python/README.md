@@ -39,6 +39,9 @@ python -m pip install "eqiora[matplotlib]==0.1.0a3"
 python -m pip install "eqiora[notebook]==0.1.0a3"
 ```
 
+The exact-cylinder pressure example combines the mesher and plot adapter:
+`python -m pip install "eqiora[gmsh,matplotlib]==0.1.0a3"`.
+
 The base package imports none of these optional libraries. The PyTorch extra
 declares `torch>=2.13,<2.14`; this release verifies exactly PyTorch 2.13.0. It
 also verifies the exact JAX/JAXLIB 0.11.0 pair and Matplotlib 3.11.1 on
