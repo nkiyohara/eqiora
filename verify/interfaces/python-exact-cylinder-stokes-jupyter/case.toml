@@ -1,0 +1,101 @@
+id = "interfaces.python-exact-cylinder-stokes-jupyter"
+status = "verified"
+scope = "installed-python-one-exact-cylinder-steady-stokes-jupyter-composition"
+reference_kind = "accepted-owner-composition-plus-clean-candidate-jupyter-reachability-and-marimo-parity"
+
+capabilities = [
+  "python-exact-cylinder-steady-stokes-jupyter-notebook",
+  "python-installed-candidate-jupyter-scientific-composition",
+  "python-exact-cylinder-jupyter-marimo-workflow-parity",
+]
+
+[contract]
+issue = 509
+parent_issues = [245, 312]
+body_sha256 = "7da07dc13224c6fcc58fa8160f9a5f1fd87654c6f0b4746b68a09530aa1ddd2e"
+predecessor_commit = "61665fcf7e2dbc766dde3cf950e7c4260bf9ae3e"
+predecessor_tree = "22bb638436612017cd63d104c5fb591862487d51"
+
+[problem]
+notebook = "examples/python/exact_cylinder_stokes_jupyter.ipynb"
+companion = "examples/python/exact_cylinder_stokes_marimo.py"
+entry = "Jupyter nbformat 4 checked-in notebook"
+environment = "exact Linux x86-64 CPython 3.13 candidate notebook profile"
+host = "JupyterLab 4.6.2"
+package = "one non-editable installed eqiora candidate with its exact notebook, Gmsh, and Matplotlib extras"
+model = "installed eqiora/examples/steady-flow-past-cylinder.model.json package resource"
+composition = "exact Geometry -> MeshRequest -> MeshPlan -> Mesh -> Model -> SteadyStokes -> SteadyStokesPlan -> one Run -> common Result"
+presentation = "typed identity and evidence summary plus the existing caller-owned pressure Figure"
+
+[oracle]
+geometry = "interfaces.python-exact-circular-hole-geometry"
+mesh = "interfaces.python-circular-hole-chordal-mesh"
+run_result_and_evidence = "interfaces.python-exact-cylinder-stokes-result"
+pressure_figure = "interfaces.python-exact-cylinder-pressure-still"
+science = "fluid.exact-circular-hole-stokes-2d-gmsh"
+marimo_composition = "interfaces.python-exact-cylinder-stokes-marimo"
+new_scientific_values = false
+new_tolerances = false
+new_image_baseline = false
+browser = "live Jupyter DOM readiness, typed carrier names, relational Run/Result identity, unit labels, one nonempty Figure, no stderr, and loopback-only traffic"
+source = "clean notebook metadata, exact critical-call inventory, and parity with the canonical Marimo public-call inventory"
+
+[acceptance]
+canonical_checked_in_notebook = true
+discoverable_from_examples_readme = true
+installed_eqiora_import_only = true
+installed_model_resource_only = true
+direct_call_inventory = "eqiora.submit=1; attribute .result=1; eqiora.run=0"
+same_critical_public_call_inventory_as_marimo = true
+geometry_mesh_plan_mesh_model_plan_run_result_types_visible = true
+typed_steady_stokes_evidence_visible = true
+pressure_force_flux_units_visible = true
+run_and_result_identity_equal_relationally = true
+caller_owned_pressure_figure_visible_and_nonempty = true
+consumer_recursive_inventory = ["exact_cylinder_stokes_jupyter.ipynb"]
+consumer_members_are_regular_files_without_symlinks = true
+isolated_interpreter_flag = true
+exact_jupyter_candidate_host = true
+ordinary_positive_path_precedes_existing_repository_helper_falsifier = true
+
+[falsifiers]
+missing_notebook = "source oracle rejects before candidate construction"
+second_run = "adding exact direct eqiora.run(model, plan=plan) changes the one-run inventory and rejects"
+stored_execution = "any non-null execution count or checked-in output rejects before candidate construction"
+workflow_fork = "omitting or duplicating any critical public call relative to the accepted Marimo composition rejects"
+missing_or_foreign_owner = "existing public Geometry, Mesh, Model, Plan, Run, Result, snapshot, and Field boundaries remain fail-closed"
+missing_installed_model = "the ordinary notebook fails before readiness"
+missing_matplotlib_or_jupyter = "the exact candidate profile fails before readiness"
+hardcoded_identity = "the canonical notebook contains no literal SHA-256 identity"
+unrelated_text_only_success = "browser requires all live typed rows, equal Run/Result identity, unit-bearing evidence, the Figure, and no stderr before readiness counts"
+blank_figure = "browser requires exactly one visible PNG with positive decoded natural dimensions"
+repository_example_helper = "the companion Marimo case retains the clean installed-candidate missing-helper falsifier after its ordinary positive"
+
+[claim_boundary]
+candidate_profile = "notebook"
+ordinary_gil_cpython = "3.13"
+operating_system = "linux"
+architecture = "x86_64"
+jupyterlab = "4.6.2"
+matplotlib = "3.11.1"
+one_exact_geometry = true
+one_exact_mesh = true
+one_exact_model = true
+one_steady_stokes_run = true
+one_pressure_field = true
+one_pressure_figure = true
+new_geometry_mesh_or_scientific_meaning = false
+new_public_python_api = false
+new_private_message_or_scene_schema = false
+new_dependency_or_lockfile = false
+transient_navier_stokes_or_cylinder_wake = false
+drag_lift_strouhal_or_reynolds_claim = false
+trajectory_animation_or_field_selection = false
+pixel_or_image_byte_oracle = false
+studio_parity = false
+general_notebook_result_workflow = false
+performance_or_production_scale = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_distribution_gate.py"

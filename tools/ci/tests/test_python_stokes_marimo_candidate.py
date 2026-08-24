@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Precommitted evidence for the exact-cylinder steady-Stokes Marimo app."""
+"""Compatibility evidence for the exact-cylinder steady-Stokes notebook surfaces."""
 
 from __future__ import annotations
 
 import ast
 import hashlib
 import importlib
+import json
 import os
 import re
 import subprocess
@@ -25,13 +26,17 @@ if str(RELEASE) not in sys.path:
 
 APP_PATH = Path("examples/python/exact_cylinder_stokes_marimo.py")
 APP = ROOT / APP_PATH
+NOTEBOOK_PATH = Path("examples/python/exact_cylinder_stokes_jupyter.ipynb")
+NOTEBOOK = ROOT / NOTEBOOK_PATH
 MUTANT_PATH = Path(
     "verify/interfaces/python-exact-cylinder-stokes-marimo/references/"
     "exact_cylinder_stokes_marimo_repository_helper_mutant.py"
 )
 MUTANT = ROOT / MUTANT_PATH
 CHECK = "cp313:marimo-0.23.16-exact-cylinder-stokes"
+JUPYTER_CHECK = "cp313:jupyterlab-4.6.2-exact-cylinder-stokes"
 ORACLE_FLAG = "EQIORA_EXACT_CYLINDER_STOKES_MARIMO_ORACLE"
+JUPYTER_ORACLE_FLAG = "EQIORA_EXACT_CYLINDER_STOKES_JUPYTER_ORACLE"
 EXPECTED_MUTANT_FAILURE = "ModuleNotFoundError: No module named 'examples'"
 UNEXPECTED_HELPER_MARKER = "EQIORA_REPOSITORY_HELPER_UNEXPECTEDLY_RESOLVED_BEFORE_RUN"
 HEX_SHA256 = re.compile(r"(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])")
@@ -125,6 +130,54 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
         self.assertEqual(mutant.count("repository_solve()"), 1)
         self.assertNotIn("app.run()", mutant)
 
+    def test_jupyter_notebook_is_clean_and_matches_the_marimo_workflow(self) -> None:
+        self.assertTrue(
+            NOTEBOOK.is_file(), f"missing canonical notebook: {NOTEBOOK_PATH}"
+        )
+        document = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
+        self.assertEqual(document["nbformat"], 4)
+        self.assertEqual(document["nbformat_minor"], 5)
+        self.assertEqual(document["metadata"]["kernelspec"]["name"], "python3")
+
+        cells = document["cells"]
+        self.assertEqual(
+            [cell["id"] for cell in cells],
+            ["title", "imports", "geometry", "mesh", "run", "result"],
+        )
+        for cell in cells:
+            if cell["cell_type"] == "code":
+                self.assertIsNone(cell["execution_count"])
+                self.assertEqual(cell["outputs"], [])
+        source = "\n".join(
+            "".join(cell["source"])
+            for cell in cells
+            if cell["cell_type"] == "code"
+        )
+        marimo = APP.read_text(encoding="utf-8")
+        for occurrence in (
+            "CadAuthoredGraph.rectangle_extrusion(",
+            ").circular_through_cut(",
+            "geometry_graph.planar_circular_section(",
+            "eqiora.meshing.MeshRequest(",
+            "eqiora.meshing.resolve(",
+            "eqiora.meshing.generate(",
+            "files(eqiora)",
+            "steady-flow-past-cylinder.model.json",
+            "eqiora.replay(",
+            "eqiora.fluid.SteadyStokes(",
+            "eqiora.fluid.resolve(",
+            "eqiora.submit(",
+            ".result()",
+            "steady_stokes_evidence(",
+            "plot_scalar_field(",
+        ):
+            self.assertEqual(source.count(occurrence), 1, occurrence)
+            self.assertEqual(marimo.count(occurrence), 1, occurrence)
+        self.assertIsNone(HEX_SHA256.search(source))
+        self.assertIn("assert run_identity == result_identity", source)
+        self.assertIn("EQIORA_EXACT_CYLINDER_STOKES_JUPYTER_READY", source)
+        _require_one_direct_run(source)
+
     def test_candidate_inventory_and_runner_freeze_the_exact_route(self) -> None:
         manifest = importlib.import_module("candidate_manifest")
         profiles = importlib.import_module("python_candidate_profiles")
@@ -132,6 +185,8 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
 
         self.assertIn(CHECK, manifest.NOTEBOOK_CHECKS)
         self.assertIn(CHECK, profiles.NOTEBOOK_CHECK_NAMES)
+        self.assertIn(JUPYTER_CHECK, manifest.NOTEBOOK_CHECKS)
+        self.assertIn(JUPYTER_CHECK, profiles.NOTEBOOK_CHECK_NAMES)
 
         runner_source = Path(candidate.__file__).read_text(encoding="utf-8")
         self.assertIn(APP_PATH.as_posix(), runner_source)
@@ -139,6 +194,9 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
         self.assertIn(CHECK, runner_source)
         self.assertIn(ORACLE_FLAG, runner_source)
         self.assertIn(EXPECTED_MUTANT_FAILURE, runner_source)
+        self.assertIn(NOTEBOOK_PATH.as_posix(), runner_source)
+        self.assertIn(JUPYTER_CHECK, runner_source)
+        self.assertIn(JUPYTER_ORACLE_FLAG, runner_source)
 
     def test_positive_then_exact_missing_helper_mutant_use_closed_consumers(
         self,
@@ -173,6 +231,8 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             fake_mutant = extracted / MUTANT_PATH
             fake_mutant.parent.mkdir(parents=True)
             fake_mutant.write_bytes(MUTANT.read_bytes())
+            fake_notebook = extracted / NOTEBOOK_PATH
+            fake_notebook.write_bytes(NOTEBOOK.read_bytes())
 
             python = root / "environment/bin/python"
             acquired = types.SimpleNamespace(
@@ -262,6 +322,19 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                         "--project=marimo-0.23.16",
                     ) and "exact-cylinder-stokes-marimo.spec.ts" in "\n".join(command):
                         causal_events.append("positive-browser")
+                    if (
+                        command[:5]
+                        == (
+                            "npm",
+                            "run",
+                            "test:hosts",
+                            "--",
+                            "--project=jupyterlab-4.6.2",
+                        )
+                        and "exact-cylinder-stokes-jupyter.spec.ts"
+                        in "\n".join(command)
+                    ):
+                        causal_events.append("positive-jupyter-browser")
                     if command[:4] == ("npm", "run", "test:hosts", "--"):
                         environment = os.environ.copy()
                         environment.update(kwargs["extra_environment"])
@@ -337,9 +410,13 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                         )
                     )
                     if any(Path(value).name == APP_PATH.name for value in command):
-                        launch_inventories["positive"] = _recursive_regular_inventory(
-                            cwd
-                        )
+                        launch_inventories[
+                            "marimo-positive"
+                        ] = _recursive_regular_inventory(cwd)
+                    if cwd.name == "exact-cylinder-stokes-jupyter-positive":
+                        launch_inventories[
+                            "jupyter-positive"
+                        ] = _recursive_regular_inventory(cwd)
                     process = real_popen(
                         [
                             sys.executable,
@@ -402,17 +479,26 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                 self.assertEqual(observed, emitted)
                 self.assertEqual(
                     causal_events,
-                    ["positive-browser", "negative-missing-helper"],
+                    [
+                        "positive-browser",
+                        "negative-missing-helper",
+                        "positive-jupyter-browser",
+                    ],
                 )
-                self.assertEqual(launch_inventories["positive"], (APP_PATH.name,))
+                self.assertEqual(
+                    launch_inventories["marimo-positive"], (APP_PATH.name,)
+                )
+                self.assertEqual(
+                    launch_inventories["jupyter-positive"], (NOTEBOOK_PATH.name,)
+                )
                 self.assertEqual(
                     launch_inventories["negative"],
                     (MUTANT_PATH.name,),
                 )
-                self.assertEqual(len(host_identities), 3)
-                self.assertEqual(len(set(host_identities)), 3)
-                self.assertEqual(len(direct_launch_identities), 3)
-                self.assertEqual(len(set(direct_launch_identities)), 3)
+                self.assertEqual(len(host_identities), 4)
+                self.assertEqual(len(set(host_identities)), 4)
+                self.assertEqual(len(direct_launch_identities), 4)
+                self.assertEqual(len(set(direct_launch_identities)), 4)
                 return observed, launches, checked_commands, installs
 
             observed, launches, checked_commands, installs = execute_profile(
@@ -420,6 +506,7 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                 EXPECTED_MUTANT_FAILURE,
             )
             self.assertIn(CHECK, observed)
+            self.assertIn(JUPYTER_CHECK, observed)
 
             candidate_requirements = tuple(
                 requirement
@@ -453,6 +540,26 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             self.assertEqual(
                 (positive_cwd / APP_PATH.name).read_bytes(),
                 fake_app.read_bytes(),
+            )
+
+            jupyter_launches = [
+                (argv, cwd)
+                for argv, cwd in launches
+                if cwd.name == "exact-cylinder-stokes-jupyter-positive"
+            ]
+            self.assertEqual(len(jupyter_launches), 1)
+            jupyter_argv, jupyter_cwd = jupyter_launches[0]
+            self.assertEqual(
+                jupyter_argv[:5],
+                (str(python), "-I", "-m", "jupyter", "lab"),
+            )
+            self.assertEqual(
+                _recursive_regular_inventory(jupyter_cwd),
+                (NOTEBOOK_PATH.name,),
+            )
+            self.assertEqual(
+                (jupyter_cwd / NOTEBOOK_PATH.name).read_bytes(),
+                fake_notebook.read_bytes(),
             )
 
             negative_commands = [
@@ -490,6 +597,20 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                         "--project=marimo-0.23.16",
                     )
                     and "exact-cylinder-stokes-marimo.spec.ts" in "\n".join(command)
+                    for command, _cwd in checked_commands
+                )
+            )
+            self.assertTrue(
+                any(
+                    command[:5]
+                    == (
+                        "npm",
+                        "run",
+                        "test:hosts",
+                        "--",
+                        "--project=jupyterlab-4.6.2",
+                    )
+                    and "exact-cylinder-stokes-jupyter.spec.ts" in "\n".join(command)
                     for command, _cwd in checked_commands
                 )
             )

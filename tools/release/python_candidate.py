@@ -78,6 +78,15 @@ EXACT_CYLINDER_STOKES_MARIMO_ORACLE_FLAG = (
 EXACT_CYLINDER_STOKES_MARIMO_MUTANT_FAILURE = (
     "ModuleNotFoundError: No module named 'examples'"
 )
+EXACT_CYLINDER_STOKES_JUPYTER_NOTEBOOK = Path(
+    "examples/python/exact_cylinder_stokes_jupyter.ipynb"
+)
+EXACT_CYLINDER_STOKES_JUPYTER_CHECK = (
+    "cp313:jupyterlab-4.6.2-exact-cylinder-stokes"
+)
+EXACT_CYLINDER_STOKES_JUPYTER_ORACLE_FLAG = (
+    "EQIORA_EXACT_CYLINDER_STOKES_JUPYTER_ORACLE"
+)
 PYTHON_TEST_FIXTURES = candidate_profiles.PYTHON_TEST_FIXTURES
 PYTHON_TEST_RESOURCES = candidate_profiles.PYTHON_TEST_RESOURCES
 GIT_SHA = re.compile(r"[0-9a-f]{40}")
@@ -2199,6 +2208,24 @@ def run_notebook_profile(
                 f"{output}"
             )
 
+    def run_exact_cylinder_stokes_jupyter() -> None:
+        if not isinstance(state.get("python"), Path):
+            raise CandidateError(
+                "Exact-cylinder Stokes Jupyter notebook ran before the Python environment"
+            )
+
+        notebook = stage_single_file(
+            extracted / EXACT_CYLINDER_STOKES_JUPYTER_NOTEBOOK,
+            workspace.root / "exact-cylinder-stokes-jupyter-positive",
+        )
+        run_host(
+            "jupyterlab-4.6.2",
+            notebook.name,
+            source_root=notebook.parent,
+            test_spec="tests/exact-cylinder-stokes-jupyter.spec.ts",
+            extra_environment={EXACT_CYLINDER_STOKES_JUPYTER_ORACLE_FLAG: "1"},
+        )
+
     def require_host_observation(name: str) -> None:
         if not state.get("jupyterlab-4.6.2") or not state.get("marimo-0.23.16"):
             raise CandidateError(f"Notebook host observation is incomplete: {name}")
@@ -2214,6 +2241,7 @@ def run_notebook_profile(
         ("cp313:jupyterlab-4.6.2-bare-mesh", lambda: run_host("jupyterlab-4.6.2", "bindings/python/tests/fixtures/rich_mesh_display/jupyterlab.ipynb")),
         ("cp313:marimo-0.23.16-bare-mesh", lambda: run_host("marimo-0.23.16", "bindings/python/tests/fixtures/rich_mesh_display/marimo.py")),
         (EXACT_CYLINDER_STOKES_MARIMO_CHECK, run_exact_cylinder_stokes_marimo),
+        (EXACT_CYLINDER_STOKES_JUPYTER_CHECK, run_exact_cylinder_stokes_jupyter),
         ("cp313:notebook-managed-chromium-r1234", lambda: require_host_observation("browser")),
         ("cp313:notebook-no-external-network", lambda: require_host_observation("network")),
         ("cp313:notebook-cleanup-and-mutation", lambda: require_host_observation("cleanup")),

@@ -817,7 +817,7 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
             })
             .unwrap()
     };
-    assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 10);
+    assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 11);
     assert_eq!(count_for_script("tools/ci/python_package_gate.py"), 7);
     assert_eq!(count_for_script("tools/ci/python_gallery_gate.py"), 1);
 
@@ -838,6 +838,7 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
         [
             "interfaces.python-distribution-candidate",
             "interfaces.python-exact-cylinder-pressure-still",
+            "interfaces.python-exact-cylinder-stokes-jupyter",
             "interfaces.python-exact-cylinder-stokes-marimo",
             "interfaces.python-fixed-mesh-trajectory",
             "interfaces.python-fixed-reference-fsi-demo",
