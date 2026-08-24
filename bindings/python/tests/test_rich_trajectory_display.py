@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 from importlib.resources import files
 
 import numpy as np
@@ -96,6 +97,10 @@ def test_adapter_rejects_identity_and_array_substitution() -> None:
             presentation._capture_exact_payload(trajectory, changed)
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("anywidget") is None,
+    reason="the exact eqiora[notebook] candidate profile owns rich protocol evidence",
+)
 def test_native_mime_hook_filters_and_reuses_one_immutable_delegate() -> None:
     trajectory = accepted_trajectory()
     assert trajectory._repr_mimebundle_(include=[]) == {}
@@ -112,6 +117,10 @@ def test_native_mime_hook_filters_and_reuses_one_immutable_delegate() -> None:
     assert first[WIDGET_MIME]["version_minor"] == 0
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("anywidget") is None,
+    reason="the exact eqiora[notebook] candidate profile owns immutable widget evidence",
+)
 def test_delegate_payload_and_identity_are_immutable() -> None:
     trajectory = accepted_trajectory()
     payload = presentation._capture_exact_payload(trajectory, token(trajectory))

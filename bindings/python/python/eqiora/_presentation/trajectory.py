@@ -309,7 +309,9 @@ def _new_delegate(payload: dict[str, object], esm: str, css: str) -> object:
                 raise traitlets.TraitError("Eqiora Trajectory payload is immutable")
             super().set_state(sync_data)
 
-        def _repr_mimebundle_(self, **kwargs: dict[Any, Any]) -> object:
+        def _repr_mimebundle_(
+            self, **kwargs: dict[Any, Any]
+        ) -> tuple[dict[Any, Any], dict[Any, Any]] | None:
             hook = super()._repr_mimebundle_(**kwargs)
             if type(hook) is tuple and len(hook) == 2:
                 data, metadata = hook
