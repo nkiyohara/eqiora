@@ -1,6 +1,5 @@
 //! Immutable accepted Mesh publication and NumPy projections.
 
-use std::borrow::Cow;
 use std::collections::HashSet;
 use std::sync::Mutex;
 
@@ -201,9 +200,11 @@ impl PyMesh {
 
     /// Count mesh entities proven to realize one exact-source selection.
     fn selection_entity_count(&self, py: Python<'_>, name: &Bound<'_, PyAny>) -> PyResult<usize> {
+        let selection;
         let name = if let Ok(name) = name.extract::<&str>() {
-            Cow::Borrowed(name)
-        } else if let Ok(selection) = name.extract::<PyRef<'_, PyGeometrySelection>>() {
+            name
+        } else if let Ok(value) = name.extract::<PyRef<'_, PyGeometrySelection>>() {
+            selection = value;
             if selection.bound_source_digest() != self.lineage.source_digest {
                 let diagnostic = Diagnostic::error(
                     codes::INVALID_ARTIFACT,
@@ -211,7 +212,7 @@ impl PyMesh {
                 );
                 return Err(validation_error(py, std::slice::from_ref(&diagnostic)));
             }
-            Cow::Owned(selection.canonical_name().to_owned())
+            selection.canonical_name()
         } else {
             return Err(PyTypeError::new_err(
                 "name must be a str or GeometrySelection",
@@ -220,7 +221,7 @@ impl PyMesh {
         match &self.source {
             AcceptedMeshSource::Chordal { accepted, .. } => accepted
                 .correspondence()
-                .region_entity_set_entities(accepted.realized_geometry(), name.as_ref())
+                .region_entity_set_entities(accepted.realized_geometry(), name)
                 .map(|entities| entities.len())
                 .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
             AcceptedMeshSource::Cartesian => Err(capability_error(
