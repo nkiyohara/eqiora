@@ -28,6 +28,11 @@ run = "npm ci"
 description = "Print the setup-free affected verification plan without executing it"
 run = "python3 tools/ci/local_verify.py affected --base origin/main --plan"
 
+[tasks.pr]
+description = "Run the light iteration gate: changed packages and named cases only"
+depends = ["setup"]
+run = "python3 tools/ci/local_verify.py pr --base origin/main"
+
 [tasks.fast]
 description = "Run the repository fast gate; trailing arguments are forwarded"
 depends = ["setup"]

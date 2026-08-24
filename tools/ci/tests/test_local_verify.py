@@ -173,6 +173,92 @@ class PlanTests(unittest.TestCase):
             (*EVIDENCE_RUN_PREFIX, "--case", "language.explicit"),
         )
 
+    def test_pr_plan_keeps_direct_scope_and_defers_auxiliary_checks(self) -> None:
+        plan = build_plan(
+            "pr",
+            [
+                "crates/eqiora-core/src/lib.rs",
+                "docs/roadmap.md",
+                "tools/ci/local_verify.py",
+            ],
+            ["language.explicit"],
+            workspace(),
+        )
+        self.assertEqual(plan.packages, ("eqiora-core",))
+        self.assertEqual(plan.cases, ("language.explicit",))
+        labels = {item.label for item in plan.commands}
+        self.assertIn("Formatting", labels)
+        self.assertIn("Rust tests", labels)
+        self.assertIn("Rust Clippy", labels)
+        self.assertNotIn("Documentation contract", labels)
+        self.assertNotIn("Public release tree", labels)
+        self.assertNotIn("Dependency layers", labels)
+        self.assertNotIn("Public facade", labels)
+        self.assertNotIn("CI contract tests", labels)
+        self.assertNotIn("Rustdoc", labels)
+        self.assertEqual(len(evidence_runs(plan)), 1)
+        self.assertTrue(any("deferred" in item for item in plan.limitations))
+
+    def test_pr_rust_commands_use_default_targets(self) -> None:
+        plan = build_plan(
+            "pr",
+            ["crates/eqiora-core/src/lib.rs"],
+            [],
+            workspace(),
+        )
+        rendered = [item.render() for item in plan.commands]
+        self.assertTrue(
+            any("cargo test --locked -p eqiora-core" in item for item in rendered)
+        )
+        self.assertFalse(any("--all-targets" in item for item in rendered))
+
+    def test_fast_rust_commands_keep_all_targets(self) -> None:
+        plan = build_plan(
+            "fast",
+            ["crates/eqiora-core/src/lib.rs"],
+            [],
+            workspace(),
+        )
+        rendered = [item.render() for item in plan.commands]
+        self.assertTrue(
+            any(
+                "cargo test --locked -p eqiora-core --all-targets" in item
+                for item in rendered
+            )
+        )
+
+    def test_affected_missing_chrome_defers_only_interaction_tests(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            absent = Path(scratch) / "chrome"
+            plan = build_plan(
+                "affected",
+                ["studio/src/main.ts"],
+                [],
+                workspace(),
+                chrome_executable=absent,
+            )
+        labels = {item.label for item in plan.commands}
+        self.assertNotIn("Studio interaction tests", labels)
+        self.assertIn("Studio unit tests", labels)
+        self.assertIn("Studio build", labels)
+        self.assertIn("Studio native tests", labels)
+        self.assertTrue(any("hosted Studio lane" in item for item in plan.limitations))
+
+    def test_affected_present_chrome_keeps_interaction_tests(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            present = Path(scratch) / "chrome"
+            present.touch()
+            plan = build_plan(
+                "affected",
+                ["studio/src/main.ts"],
+                [],
+                workspace(),
+                chrome_executable=present,
+            )
+        labels = {item.label for item in plan.commands}
+        self.assertIn("Studio interaction tests", labels)
+        self.assertFalse(any("hosted Studio lane" in item for item in plan.limitations))
+
     def test_selected_cases_share_one_canonical_runner_invocation(self) -> None:
         first = build_plan(
             "fast",
@@ -312,12 +398,16 @@ class PlanTests(unittest.TestCase):
         self.assert_documentation_contract("periodic", [])
 
     def test_ci_infrastructure_change_reuses_fail_closed_surface_mapping(self) -> None:
-        plan = build_plan(
-            "affected",
-            ["tools/ci/local_verify.py"],
-            [],
-            workspace(),
-        )
+        with tempfile.TemporaryDirectory() as scratch:
+            chrome = Path(scratch) / "chrome"
+            chrome.touch()
+            plan = build_plan(
+                "affected",
+                ["tools/ci/local_verify.py"],
+                [],
+                workspace(),
+                chrome_executable=chrome,
+            )
         labels = {item.label for item in plan.commands}
         self.assertEqual(plan.packages, tuple(sorted(workspace())))
         self.assertIn("CI contract tests", labels)
@@ -418,8 +508,7 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
     MAX_SHARED_SEQUENCE = TOTAL_SHARED_INCREMENTS - 1
     MAX_PROCESS_ID = 4294967295
     SOCKET_RELATIVE = (
-        Path(f"eqiora-cli-filesystem-{MAX_PROCESS_ID}-{MAX_SHARED_SEQUENCE}")
-        / "socket"
+        Path(f"eqiora-cli-filesystem-{MAX_PROCESS_ID}-{MAX_SHARED_SEQUENCE}") / "socket"
     )
     SOCKET_SUFFIX = "/" + SOCKET_RELATIVE.as_posix()
     SOCKET_SUFFIX_SHA256 = (
@@ -707,9 +796,7 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
             self.PRIMARY_SCRATCH_ALLOCATIONS + self.RECEIPT_ALLOCATIONS,
         )
         self.assertEqual(self.TOTAL_SHARED_INCREMENTS, 30)
-        self.assertEqual(
-            self.MAX_SHARED_SEQUENCE, self.TOTAL_SHARED_INCREMENTS - 1
-        )
+        self.assertEqual(self.MAX_SHARED_SEQUENCE, self.TOTAL_SHARED_INCREMENTS - 1)
         self.assertEqual(self.MAX_SHARED_SEQUENCE, 29)
         self.assertEqual(self.MAX_PROCESS_ID, 4294967295)
         self.assertEqual(
