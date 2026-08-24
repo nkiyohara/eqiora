@@ -1,0 +1,54 @@
+id = "interfaces.external-spatial-component-binding"
+status = "verified"
+scope = "local-definitions-only-component-plus-one-exact-external-planar-geometry-to-common-model"
+reference_kind = "typed-compiler-expansion-and-existing-geometry-semantic-admission"
+
+capabilities = [
+  "definitions-only-component-external-support-binding",
+  "external-geometry-region-and-boundary-component-occurrence",
+  "common-model-document-canonical-reconstruction-with-geometry",
+]
+
+[reused_registered_evidence]
+component_supports = "packages.component-spatial-supports"
+geometry_semantics = "geometry.geometry-backed-semantic-admission"
+model_geometry_reference = "geometry.model-references-a-geometry"
+
+[acceptance]
+ordinary_positive_path_runs_first = true
+shape_authority_is_one_supplied_canonical_geometry = true
+source_contains_only_abstract_supports_and_physical_structure = true
+component_static_validation_precedes_binding = true
+hierarchy_expansion_and_typed_lowering_are_shared = true
+transaction_envelope_and_atomic_commit_are_shared = true
+canonical_model_reconstruction_uses_the_exact_geometry_closure = true
+cartesian_stand_in_or_transaction_rewrite = false
+
+[falsifiers]
+missing_support = "reject-before-transaction"
+duplicate_support_or_entity_set = "reject-before-transaction"
+foreign_geometry_identity = "reject-before-compilation"
+region_or_boundary_dimension_mismatch = "reject-before-compilation"
+missing_extra_duplicate_or_nonfinite_parameter = "ordinary-component-binding-rejection"
+
+[claim_boundary]
+source_resolution = "one selected local Component in one definitions-only source"
+geometry = "one accepted canonical planar Geometry"
+support_families = "one or more Volume and singular Boundary slots"
+parameter_values = "explicit coherent-SI scalar bindings"
+output = "existing immutable ModelDocument"
+persisted_schema = false
+source_geometry_syntax = false
+cartesian_scaffold = false
+transaction_postprocessing = false
+general_package_loader = false
+complete_exterior_support = false
+arbitrary_support_algebra = false
+python_api = false
+mesh_realization_or_solve = false
+scientific_value_tolerance_or_result = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-api"
+test = "external_spatial::tests::registered_evidence"

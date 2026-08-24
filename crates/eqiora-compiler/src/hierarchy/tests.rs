@@ -7,6 +7,139 @@ use crate::identity::{DeclarationPath, ElaborationKey, InstancePath};
 use crate::projection::PhysicalExposureContract;
 use crate::source_identity::LocalSourceIdentity;
 
+const EXTERNAL_SPATIAL_COMPONENT: &str = r#"
+public component BoundaryLaw {
+  public support body: volume(ambient_dimension = 2);
+  public support wall: boundary(parent = body);
+  public parameter value: 1;
+  representation space = continuum;
+  field state on body as space: 1 = 0;
+  relation volume_law continuous on body { state - value = 0; }
+  relation wall_law continuous on wall { trace(state) = 0; }
+}
+"#;
+
+fn external_binding() -> crate::ExternalComponentBinding {
+    let geometry = eqiora_schema::kernel::GeometryDigest::new([0x11; 32]);
+    crate::ExternalComponentBinding::new(
+        "BoundModel",
+        "BoundaryLaw",
+        vec![
+            crate::ExternalGeometrySupportBinding::region("body", geometry, "fluid", 2),
+            crate::ExternalGeometrySupportBinding::boundary("wall", geometry, "walls", "body"),
+        ],
+        vec![crate::ExternalParameterBinding::new("value", 2.0)],
+    )
+}
+
+#[test]
+fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
+    use eqiora_schema::kernel::DomainKind;
+
+    let compiled = crate::compile_external_component(
+        "boundary-law.eqi",
+        EXTERNAL_SPATIAL_COMPONENT,
+        &external_binding(),
+    )
+    .expect("external supports close one Component occurrence");
+    assert!(compiled.symbols().get("body").is_some());
+    assert!(compiled.symbols().get("wall").is_some());
+    assert!(compiled.symbols().get("definition.state").is_some());
+
+    let mut region = 0;
+    let mut boundary = 0;
+    for operation in compiled.transaction().ops() {
+        let Op::DefineKernelNode {
+            node: KernelNode::Domain(domain),
+        } = operation
+        else {
+            continue;
+        };
+        match domain.kind() {
+            DomainKind::GeometryRegion {
+                geometry,
+                entity_set,
+            } => {
+                region += 1;
+                assert_eq!(geometry.bytes(), [0x11; 32]);
+                assert_eq!(entity_set, "fluid");
+            }
+            DomainKind::GeometryBoundary { entity_set } => {
+                boundary += 1;
+                assert_eq!(entity_set, "walls");
+            }
+            _ => {}
+        }
+    }
+    assert_eq!((region, boundary), (1, 1));
+    let (transaction, _, _) = compiled.into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store
+        .commit(transaction)
+        .expect("external occurrence transaction commits atomically");
+}
+
+#[test]
+fn external_geometry_binding_inventory_fails_before_a_transaction_exists() {
+    let geometry = eqiora_schema::kernel::GeometryDigest::new([0x11; 32]);
+    let foreign = eqiora_schema::kernel::GeometryDigest::new([0x22; 32]);
+    let cases = [
+        (
+            crate::ExternalComponentBinding::new(
+                "Missing",
+                "BoundaryLaw",
+                vec![crate::ExternalGeometrySupportBinding::region(
+                    "body", geometry, "fluid", 2,
+                )],
+                vec![crate::ExternalParameterBinding::new("value", 2.0)],
+            ),
+            "no binding for required support slot `wall`",
+        ),
+        (
+            crate::ExternalComponentBinding::new(
+                "Foreign",
+                "BoundaryLaw",
+                vec![
+                    crate::ExternalGeometrySupportBinding::region("body", geometry, "fluid", 2),
+                    crate::ExternalGeometrySupportBinding::boundary(
+                        "wall", foreign, "walls", "body",
+                    ),
+                ],
+                vec![crate::ExternalParameterBinding::new("value", 2.0)],
+            ),
+            "one exact Geometry identity",
+        ),
+        (
+            crate::ExternalComponentBinding::new(
+                "Duplicate",
+                "BoundaryLaw",
+                vec![
+                    crate::ExternalGeometrySupportBinding::region("body", geometry, "shared", 2),
+                    crate::ExternalGeometrySupportBinding::boundary(
+                        "wall", geometry, "shared", "body",
+                    ),
+                ],
+                vec![crate::ExternalParameterBinding::new("value", 2.0)],
+            ),
+            "bound to more than one support slot",
+        ),
+    ];
+    for (binding, expected) in cases {
+        let diagnostics = crate::compile_external_component(
+            "boundary-law.eqi",
+            EXTERNAL_SPATIAL_COMPONENT,
+            &binding,
+        )
+        .unwrap_err();
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message().contains(expected)),
+            "missing `{expected}` in {diagnostics:#?}"
+        );
+    }
+}
+
 const RESISTOR_SOURCE: &str = r#"
 connector Pin = scalar_physical(
   across = kg * m ^ 2 / (s ^ 3 * A),

@@ -26,6 +26,7 @@ use super::preflight::{ComponentDefinition, DefinitionKey, Elaborator, ModelDefi
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedDefinitionGraph {
     component_order: Vec<DefinitionKey>,
+    component_summaries: BTreeMap<DefinitionKey, DefinitionSummary>,
     model_summaries: BTreeMap<DefinitionKey, DefinitionSummary>,
 }
 
@@ -36,6 +37,10 @@ impl CheckedDefinitionGraph {
 
     pub(super) fn model_summary(&self, key: &DefinitionKey) -> Option<&DefinitionSummary> {
         self.model_summaries.get(key)
+    }
+
+    pub(super) fn component_summary(&self, key: &DefinitionKey) -> Option<&DefinitionSummary> {
+        self.component_summaries.get(key)
     }
 }
 
@@ -295,6 +300,18 @@ pub(super) fn validate(
         summaries[index] = Some(summary);
     }
 
+    let component_summaries = components
+        .iter()
+        .zip(summaries.iter())
+        .map(|(component, summary)| {
+            (
+                component.key.clone(),
+                summary
+                    .clone()
+                    .expect("every acyclic Component was summarized"),
+            )
+        })
+        .collect();
     let mut model_summaries = BTreeMap::new();
     for model in models {
         let summary = summarize_model(&model, &summaries, limits, &mut reachability)?;
@@ -313,6 +330,7 @@ pub(super) fn validate(
     if diagnostics.is_empty() {
         Ok(CheckedDefinitionGraph {
             component_order,
+            component_summaries,
             model_summaries,
         })
     } else {

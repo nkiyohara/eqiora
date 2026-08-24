@@ -11,6 +11,7 @@ mod differentiation;
 mod elasticity;
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 mod external_data;
+mod external_spatial;
 mod fixed_mesh_trajectory;
 mod fixed_reference_fsi;
 mod geometry_edit;
@@ -76,6 +77,7 @@ use eqiora_artifact::{
 use eqiora_compiler::{CompiledModel, ModelSymbols};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
+use eqiora_geometry::CanonicalGeometryRef;
 use eqiora_graph::{GraphStore, InMemoryGraphStore, Revision};
 use eqiora_lang::ModelDraft;
 use eqiora_sem::KernelProgram;
@@ -148,6 +150,22 @@ impl ModelDocument {
         Self::from_store(store, program, aliases)
     }
 
+    pub(crate) fn accept_compiled_with_geometry(
+        compiled: CompiledModel,
+        geometries: &[CanonicalGeometryRef<'_>],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let aliases = aliases(compiled.symbols());
+        let model = compiled.model();
+        let transaction = ModelTransactionEnvelope::from_transaction(compiled.transaction())
+            .and_then(|envelope| envelope.to_transaction())
+            .map_err(single_diagnostic)?;
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction)?;
+        let program =
+            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, geometries)?;
+        Self::from_store_with_geometry(store, program, aliases, geometries)
+    }
+
     /// Replay one artifact through the single current Model contract.
     ///
     /// Historical schemas reject before semantic use; this path never sniffs,
@@ -185,6 +203,31 @@ impl ModelDocument {
         let artifact = AcceptedModelArtifact::from_json(&bytes, ModelDecoderLimits::default())
             .map_err(single_diagnostic)?;
         artifact.replay_model().map_err(single_diagnostic)?;
+        Ok(Self {
+            program,
+            artifact,
+            aliases,
+            store,
+        })
+    }
+
+    fn from_store_with_geometry(
+        _store: InMemoryGraphStore,
+        program: KernelProgram,
+        aliases: BTreeMap<String, RawId>,
+        geometries: &[CanonicalGeometryRef<'_>],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let artifact = AcceptedModelArtifact::from_program(&program).map_err(single_diagnostic)?;
+        let bytes = artifact.canonical_json().map_err(single_diagnostic)?;
+        let artifact = AcceptedModelArtifact::from_json(&bytes, ModelDecoderLimits::default())
+            .map_err(single_diagnostic)?;
+        let (transaction, model) = artifact.to_transaction()?;
+        let store = InMemoryGraphStore::restore_snapshot(
+            transaction,
+            Revision(artifact.source_revision()),
+        )?;
+        let program =
+            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, geometries)?;
         Ok(Self {
             program,
             artifact,

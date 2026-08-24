@@ -204,6 +204,15 @@ pub(crate) struct LoweringModel {
 #[derive(Debug, Clone)]
 pub(crate) enum LoweringDomainContract {
     Source(DomainSyntax),
+    ExternalGeometryRegion {
+        geometry: eqiora_schema::kernel::GeometryDigest,
+        entity_set: String,
+        dimensions: usize,
+    },
+    ExternalGeometryBoundary {
+        entity_set: String,
+        parent: String,
+    },
     BoundaryPhysical(BoundaryPhysicalConnector),
 }
 
@@ -616,6 +625,14 @@ pub(crate) fn lower_typed_model(
             } => {
                 let contract = match contract {
                     LoweringDomainContract::Source(syntax) => bind_domain(file, *range, syntax),
+                    LoweringDomainContract::ExternalGeometryRegion { dimensions, .. } => {
+                        Ok(DomainContract::Spatial {
+                            dimensions: Some(*dimensions),
+                        })
+                    }
+                    LoweringDomainContract::ExternalGeometryBoundary { .. } => {
+                        Ok(DomainContract::Spatial { dimensions: None })
+                    }
                     LoweringDomainContract::BoundaryPhysical(contract) => {
                         Ok(DomainContract::BoundaryPhysical(contract.clone()))
                     }

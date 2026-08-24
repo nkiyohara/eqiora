@@ -9,6 +9,7 @@
 pub mod connection_sets;
 mod diagnostics;
 mod dimensions;
+mod external;
 mod hierarchy;
 #[doc(hidden)]
 pub mod identity;
@@ -21,6 +22,10 @@ mod resolved;
 #[doc(hidden)]
 pub mod source_identity;
 
+pub use external::{
+    ExternalComponentBinding, ExternalGeometrySupportBinding, ExternalParameterBinding,
+};
+pub use hierarchy::compile_external_component;
 pub use lower::{CompiledModel, ModelSymbols, compile, lower_draft, lower_model};
 pub use resolved::{
     AnalyzedResolvedHierarchy, CanonicalDeclarationIdentity, CanonicalDeclarationKind,
