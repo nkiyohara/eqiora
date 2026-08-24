@@ -6,6 +6,8 @@ const SUPPORT_COUNT = 6;
 
 export interface TrajectoryModel {
 	get(name: string): unknown;
+	on?(event: string, callback: () => void): void;
+	off?(event: string, callback: () => void): void;
 }
 
 export interface DecodedTrajectory {
@@ -35,6 +37,12 @@ function digest(value: unknown, name: string): string {
 	if (typeof value !== "string" || !/^[0-9a-f]{64}$/.test(value)) {
 		fail(`${name} is not a lowercase SHA-256 digest`);
 	}
+	return value;
+}
+
+function nonEmptyString(value: unknown, name: string): string {
+	if (typeof value !== "string" || value.length === 0)
+		fail(`${name} is empty or invalid`);
 	return value;
 }
 
@@ -203,11 +211,7 @@ export function decodeTrajectoryContract(model: TrajectoryModel): DecodedTraject
 	return {
 		trajectoryDigest: digest(model.get("trajectory_digest"), "trajectory_digest"),
 		meshDigest: digest(model.get("mesh_digest"), "mesh_digest"),
-		fieldId: exactString(
-			model.get("field_id"),
-			model.get("field_id") as string,
-			"field_id",
-		),
+		fieldId: nonEmptyString(model.get("field_id"), "field_id"),
 		dimension: Object.freeze(dimensionValues),
 		frame: exactString(model.get("frame"), "invariant", "frame") as "invariant",
 		coordinates,

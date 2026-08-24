@@ -87,4 +87,12 @@ describe("decodeTrajectoryContract", () => {
 		);
 		expect(() => decodeTrajectoryContract(model(payload))).toThrow(/strictly ordered/);
 	});
+
+	it.each(["", undefined, 17])("rejects an empty or invalid field id", (fieldId) => {
+		const payload = fixture();
+		payload.set("field_id", fieldId);
+		expect(() => decodeTrajectoryContract(model(payload))).toThrow(
+			/field_id is empty or invalid/,
+		);
+	});
 });

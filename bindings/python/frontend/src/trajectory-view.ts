@@ -1,6 +1,6 @@
 import {
-	decodeTrajectoryContract,
 	type DecodedTrajectory,
+	decodeTrajectoryContract,
 	type TrajectoryModel,
 } from "./trajectory-contract";
 
@@ -197,10 +197,16 @@ export function render({ model, el }: Context): () => void {
 		}),
 	};
 	draw();
-	return () => {
+	const cleanup = () => {
+		if (disposed) return;
 		disposed = true;
 		stop();
+		model.off?.("destroy", cleanup);
+		model.off?.("comm:close", cleanup);
 		delete root.__eqioraN3Oracle;
 		el.replaceChildren();
 	};
+	model.on?.("destroy", cleanup);
+	model.on?.("comm:close", cleanup);
+	return cleanup;
 }
