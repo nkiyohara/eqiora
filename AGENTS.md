@@ -32,6 +32,16 @@ worktree, sealed handoff, or second derivation unless the actual delta or user r
 it. Reuse accepted contracts and evidence. Prefer the cheap check that could disprove a
 premise before work that assumes it.
 
+## Integration flow
+
+Opening a pull request is not completion. Keep one dependency-ordered integration queue and
+actively move its earliest unmerged item through checks, review, correction, and merge while
+independent implementation continues. Before adding another branch or worktree, inspect open
+pull requests and merge every ready predecessor; if none is ready, record the exact failing
+check, missing review, or external owner instead of silently accumulating work in progress.
+Dependent work may remain stacked, but it must not displace the earliest mergeable item from
+the critical path. Delete or retarget merged stack branches promptly.
+
 ## Structure and context
 
 Use the smallest conventional local tool and existing seam. Add a public abstraction only
