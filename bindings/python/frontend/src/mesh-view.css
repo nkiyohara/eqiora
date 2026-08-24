@@ -16,6 +16,53 @@
 	align-items: center;
 }
 
+.eqiora-mesh-selection {
+	display: grid;
+	grid-template-columns: auto minmax(12rem, 1fr);
+	gap: 0.35rem 0.7rem;
+	align-items: center;
+	padding: 0.55rem 0.65rem;
+	border: 1px solid #c0c8d0;
+	border-radius: 0.3rem;
+	background: #f7f8fa;
+}
+
+.eqiora-mesh-selection-label {
+	display: flex;
+	gap: 0.45rem;
+	align-items: center;
+	font-weight: 650;
+}
+
+.eqiora-mesh-select {
+	min-height: 2rem;
+	padding: 0.2rem 0.45rem;
+	border: 1px solid #8090a0;
+	border-radius: 0.25rem;
+	background: #fff;
+	color: #17202a;
+	font: inherit;
+}
+
+.eqiora-mesh-selection-summary {
+	font-variant-numeric: tabular-nums;
+}
+
+.eqiora-mesh-selection-members {
+	grid-column: 1 / -1;
+}
+
+.eqiora-mesh-selection-members code {
+	display: block;
+	max-height: 8rem;
+	margin-top: 0.35rem;
+	padding: 0.45rem;
+	overflow: auto;
+	background: #fff;
+	font-size: 0.82rem;
+	word-break: break-word;
+}
+
 .eqiora-mesh-button {
 	min-height: 2rem;
 	padding: 0.25rem 0.55rem;
@@ -41,6 +88,7 @@
 }
 
 .eqiora-mesh-button:focus-visible,
+.eqiora-mesh-select:focus-visible,
 .eqiora-mesh-canvas:focus {
 	outline: 3px solid var(--eqiora-focus);
 	outline-offset: 2px;

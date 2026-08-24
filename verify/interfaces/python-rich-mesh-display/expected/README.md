@@ -17,12 +17,15 @@ A diagnostic exists only when `text/plain` survives filtering. Widget-only
 failure returns `{}`. Every excluded, empty, absent, unsupported, or corrupt
 outcome creates zero surviving comms.
 
-The admitted private payload has exactly six immutable Eqiora members:
+The admitted private payload has exactly nine immutable Eqiora members:
 `profile`, `mesh_digest`, `vertex_count`, `triangle_count`,
-`coordinates_f64_le`, and `triangles_u32_le`. Their literal identity, counts,
-byte lengths, accepted bytes, and explicit little-endian decoding are fixed by
-the existing Mesh owner. Camera and mode state are per-view and never enter
-this payload.
+`coordinates_f64_le`, `triangles_u32_le`, `correspondence_digest`,
+`selection_membership`, and `selection_membership_sha256`. Their literal
+identity, counts, byte lengths, accepted bytes, and explicit little-endian
+decoding are fixed by the existing Mesh and correspondence owners. The sibling
+`interfaces.python-rich-mesh-selection-display` case owns the membership
+semantics and interaction. Camera, mode, and selected-item state are per-view
+and never enter this payload.
 
 The independent mutants include filter-order reversal, invalid-argument side
 effects, tuple return, comm-on-failure, same-shape source admission, raw/public

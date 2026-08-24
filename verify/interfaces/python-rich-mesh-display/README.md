@@ -38,8 +38,12 @@ payload holds no Mesh reference.
 ## Independent evidence
 
 The Python oracle fixes protocol filtering, exact fallbacks, zero-comm failure,
-same-shape source drift, open reuse, close/fresh behavior, immutable synced
-members, and byte-for-byte Mesh preservation. The frontend oracle mechanically
+same-shape source drift, open reuse, close/fresh behavior, nine immutable
+synced members, and byte-for-byte Mesh preservation. Six members own the
+existing Mesh identity and arrays; the correspondence digest plus membership
+bytes and transport digest carry the private selection extension verified by
+`interfaces.python-rich-mesh-selection-display`. The frontend oracle
+mechanically
 replays the independently accepted 10,592 little-endian coordinate bytes and
 14,520 little-endian connectivity bytes, and rejects endian,
 length, non-finite, digest, count, index, degeneracy, and same-size drift before
@@ -75,10 +79,10 @@ uninterruptible or inaccessible survivor disappears within a fixed time.
 
 This is not arbitrary Mesh display, another Gmsh version or platform witness,
 raw-MSH portability, a public `view()` or widget type, a
-renderer registry, a Studio component, selection/picking, field or trajectory
-visualization, scientific evidence from pixels, saved media, or a browser and
-platform compatibility promise. Camera and representation state are private
-presentation state and never mutate Python.
+renderer registry, a Studio component, arbitrary selection/picking, field or
+trajectory visualization, scientific evidence from pixels, saved media, or a
+browser and platform compatibility promise. Camera and representation state
+are private presentation state and never mutate Python.
 
 The registered gate is:
 

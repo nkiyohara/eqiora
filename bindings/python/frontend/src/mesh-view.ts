@@ -3,6 +3,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 import {
 	type DecodedMesh,
+	type DecodedSelection,
 	decodeMeshContract,
 	type MeshModel,
 	type RepresentationMode,
@@ -43,6 +44,8 @@ interface LifecycleObservation {
 
 interface ViewState {
 	mode: RepresentationMode;
+	selection: DecodedSelection;
+	highlightVertexCount: number;
 	preset: CameraPreset;
 	cleaned: boolean;
 	contextFailed: boolean;
@@ -61,14 +64,19 @@ interface CameraState {
 
 interface SceneState {
 	readonly geometry: THREE.BufferGeometry;
+	readonly selectionGeometry: THREE.BufferGeometry;
 	readonly materials: readonly [
 		THREE.MeshBasicMaterial,
 		THREE.MeshBasicMaterial,
 		THREE.PointsMaterial,
+		THREE.LineBasicMaterial,
+		THREE.MeshBasicMaterial,
 	];
 	readonly surface: THREE.Mesh;
 	readonly wireframe: THREE.Mesh;
 	readonly points: THREE.Points;
+	readonly selectedEdges: THREE.LineSegments;
+	readonly selectedCells: THREE.Mesh;
 	readonly scene: THREE.Scene;
 }
 
@@ -86,6 +94,15 @@ interface ViewSnapshot {
 	modelId: string;
 	viewId: string;
 	mode: RepresentationMode;
+	selection: {
+		name: string;
+		dimension: number;
+		memberCount: number;
+		entityIndices: number[];
+		highlightVertexCount: number;
+		edgesVisible: boolean;
+		cellsVisible: boolean;
+	};
 	transport: TransportObservation;
 	camera: {
 		position: Vector3;
@@ -162,6 +179,7 @@ function createRoot(
 ): {
 	root: OracleElement;
 	toolbar: HTMLDivElement;
+	selectionPanel: HTMLDivElement;
 	viewport: HTMLDivElement;
 } {
 	const root: OracleElement = document.createElement("section");
@@ -175,11 +193,16 @@ function createRoot(
 	toolbar.setAttribute("aria-label", "Mesh view controls");
 	root.append(toolbar);
 
+	const selectionPanel = document.createElement("div");
+	selectionPanel.className = "eqiora-mesh-selection";
+	selectionPanel.setAttribute("aria-label", "Mesh semantic selection");
+	root.append(selectionPanel);
+
 	const viewport = document.createElement("div");
 	viewport.className = "eqiora-mesh-viewport";
 	root.append(viewport);
 	context.el.replaceChildren(root);
-	return { root, toolbar, viewport };
+	return { root, toolbar, selectionPanel, viewport };
 }
 
 function createScene(mesh: DecodedMesh): SceneState {
@@ -190,6 +213,11 @@ function createScene(mesh: DecodedMesh): SceneState {
 	);
 	geometry.setIndex(new THREE.BufferAttribute(mesh.triangles, 1));
 	geometry.computeBoundingSphere();
+	const selectionGeometry = new THREE.BufferGeometry();
+	selectionGeometry.setAttribute(
+		"position",
+		new THREE.BufferAttribute(new Float32Array(), 3),
+	);
 
 	const surfaceMaterial = new THREE.MeshBasicMaterial({
 		color: 0x4f7fbb,
@@ -207,19 +235,117 @@ function createScene(mesh: DecodedMesh): SceneState {
 		size: 0.035,
 		sizeAttenuation: true,
 	});
+	const selectedEdgeMaterial = new THREE.LineBasicMaterial({
+		color: 0xe05228,
+		linewidth: 2,
+	});
+	const selectedCellMaterial = new THREE.MeshBasicMaterial({
+		color: 0xf5b642,
+		side: THREE.DoubleSide,
+		transparent: true,
+		opacity: 0.72,
+		depthTest: false,
+	});
 	const surface = new THREE.Mesh(geometry, surfaceMaterial);
 	const wireframe = new THREE.Mesh(geometry, wireframeMaterial);
 	const points = new THREE.Points(geometry, pointsMaterial);
+	const selectedEdges = new THREE.LineSegments(selectionGeometry, selectedEdgeMaterial);
+	const selectedCells = new THREE.Mesh(selectionGeometry, selectedCellMaterial);
+	selectedEdges.renderOrder = 2;
+	selectedCells.renderOrder = 1;
 	const scene = new THREE.Scene();
-	scene.add(surface, wireframe, points);
+	scene.add(surface, wireframe, points, selectedEdges, selectedCells);
 	return {
 		geometry,
-		materials: [surfaceMaterial, wireframeMaterial, pointsMaterial],
+		selectionGeometry,
+		materials: [
+			surfaceMaterial,
+			wireframeMaterial,
+			pointsMaterial,
+			selectedEdgeMaterial,
+			selectedCellMaterial,
+		],
 		surface,
 		wireframe,
 		points,
+		selectedEdges,
+		selectedCells,
 		scene,
 	};
+}
+
+function addSelectionInspector(
+	panel: HTMLElement,
+	mesh: DecodedMesh,
+	scene: SceneState,
+	state: ViewState,
+	requestDraw: () => void,
+	listeners: Array<() => void>,
+): void {
+	const label = document.createElement("label");
+	label.className = "eqiora-mesh-selection-label";
+	label.textContent = "Selection";
+	const select = document.createElement("select");
+	select.className = "eqiora-mesh-select";
+	select.setAttribute("aria-label", "Semantic Mesh selection");
+	for (const selection of mesh.selections) {
+		const option = document.createElement("option");
+		option.value = selection.name;
+		option.textContent = selection.name;
+		select.append(option);
+	}
+	label.append(select);
+	panel.append(label);
+
+	const summary = document.createElement("output");
+	summary.className = "eqiora-mesh-selection-summary";
+	summary.setAttribute("aria-live", "polite");
+	panel.append(summary);
+	const details = document.createElement("details");
+	details.className = "eqiora-mesh-selection-members";
+	const detailsSummary = document.createElement("summary");
+	detailsSummary.textContent = "Canonical entity indices";
+	const members = document.createElement("code");
+	details.append(detailsSummary, members);
+	panel.append(details);
+
+	const setSelection = (selection: DecodedSelection) => {
+		state.selection = selection;
+		const source = scene.geometry.getAttribute("position");
+		const positions = new Float32Array(selection.vertexIndices.length * 3);
+		for (let index = 0; index < selection.vertexIndices.length; index += 1) {
+			const vertex = selection.vertexIndices[index];
+			positions[index * 3] = source.getX(vertex);
+			positions[index * 3 + 1] = source.getY(vertex);
+			positions[index * 3 + 2] = source.getZ(vertex) + 0.002;
+		}
+		scene.selectionGeometry.setAttribute(
+			"position",
+			new THREE.BufferAttribute(positions, 3),
+		);
+		state.highlightVertexCount = positions.length / 3;
+		scene.selectionGeometry.computeBoundingSphere();
+		scene.selectedEdges.visible = selection.dimension === 1;
+		scene.selectedCells.visible = selection.dimension === 2;
+		summary.value = `${selection.name}: dimension ${selection.dimension}, ${selection.entityIndices.length} canonical entities`;
+		members.textContent = Array.from(selection.entityIndices).join(", ");
+		requestDraw();
+	};
+	const changed = () => {
+		const selection = mesh.selections.find(
+			(candidate) => candidate.name === select.value,
+		);
+		if (selection === undefined) {
+			throw new Error(
+				"the selected Mesh membership is not in the authenticated inventory",
+			);
+		}
+		setSelection(selection);
+	};
+	select.addEventListener("change", changed);
+	listeners.push(() => select.removeEventListener("change", changed));
+	select.value = state.selection.name;
+	setSelection(state.selection);
 }
 
 function createCamera(canvas: HTMLCanvasElement): CameraState {
@@ -448,6 +574,7 @@ function attachOracle(
 	context: RenderContext,
 	state: ViewState,
 	cameraState: CameraState,
+	scene: SceneState,
 	listeners: Array<() => void>,
 ): void {
 	const modelId = context.model.get("_eqiora_n1_model_id");
@@ -460,6 +587,15 @@ function attachOracle(
 			modelId,
 			viewId,
 			mode: state.mode,
+			selection: {
+				name: state.selection.name,
+				dimension: state.selection.dimension,
+				memberCount: state.selection.entityIndices.length,
+				entityIndices: Array.from(state.selection.entityIndices),
+				highlightVertexCount: state.highlightVertexCount,
+				edgesVisible: scene.selectedEdges.visible,
+				cellsVisible: scene.selectedCells.visible,
+			},
 			transport: { ...state.transport },
 			camera: {
 				position: cameraState.camera.position.toArray() as Vector3,
@@ -505,6 +641,8 @@ function makeCleanup(
 		scene.geometry.deleteAttribute("position");
 		scene.geometry.setIndex(null);
 		scene.geometry.dispose();
+		scene.selectionGeometry.deleteAttribute("position");
+		scene.selectionGeometry.dispose();
 		state.lifecycle.geometryDisposed = true;
 		for (const material of scene.materials) {
 			material.dispose();
@@ -522,7 +660,7 @@ function makeCleanup(
 
 function renderMesh(mesh: DecodedMesh, context: RenderContext): () => void {
 	const listeners: Array<() => void> = [];
-	const { root, toolbar, viewport } = createRoot(mesh, context);
+	const { root, toolbar, selectionPanel, viewport } = createRoot(mesh, context);
 	let renderer: THREE.WebGLRenderer;
 	try {
 		renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -543,6 +681,8 @@ function renderMesh(mesh: DecodedMesh, context: RenderContext): () => void {
 	const cameraState = createCamera(canvas);
 	const state: ViewState = {
 		mode: "surface",
+		selection: mesh.selections[0],
+		highlightVertexCount: 0,
 		preset: "initial",
 		cleaned: false,
 		contextFailed: false,
@@ -571,6 +711,7 @@ function renderMesh(mesh: DecodedMesh, context: RenderContext): () => void {
 	listeners.push(() => cameraState.controls.removeEventListener("change", requestDraw));
 	const actions = createCameraActions(cameraState, state, requestDraw);
 	addToolbar(toolbar, scene, state, actions, requestDraw, listeners);
+	addSelectionInspector(selectionPanel, mesh, scene, state, requestDraw, listeners);
 	addKeyboardControls(canvas, actions, listeners);
 	const resize = observeViewport(
 		viewport,
@@ -600,7 +741,7 @@ function renderMesh(mesh: DecodedMesh, context: RenderContext): () => void {
 	context.model.on?.("comm:close", cleanup);
 	listeners.push(() => context.model.off?.("destroy", cleanup));
 	listeners.push(() => context.model.off?.("comm:close", cleanup));
-	attachOracle(root, context, state, cameraState, listeners);
+	attachOracle(root, context, state, cameraState, scene, listeners);
 
 	const bounds = viewport.getBoundingClientRect();
 	renderer.setSize(Math.max(1, bounds.width), Math.max(1, bounds.height), false);

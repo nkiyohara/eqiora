@@ -343,6 +343,15 @@ type ViewSnapshot = {
   modelId: string;
   viewId: string;
   mode: "surface" | "wireframe" | "points";
+  selection: {
+    name: "cylinder" | "inlet" | "outlet" | "walls" | "fluid";
+    dimension: 1 | 2;
+    memberCount: number;
+    entityIndices: number[];
+    highlightVertexCount: number;
+    edgesVisible: boolean;
+    cellsVisible: boolean;
+  };
   transport: {
     modelSetCalls: number;
     saveChangesCalls: number;
@@ -698,6 +707,51 @@ async function exerciseModesAndAccessibility(view: Locator): Promise<void> {
   }
 }
 
+async function exerciseSemanticSelections(view: Locator, independent: Locator): Promise<void> {
+  const select = view.getByLabel("Semantic Mesh selection", { exact: true });
+  await expect(select).toHaveValue("cylinder");
+  expect((await snapshot(view)).selection).toMatchObject({
+    name: "cylinder",
+    dimension: 1,
+    memberCount: 50,
+    highlightVertexCount: 100,
+    edgesVisible: true,
+    cellsVisible: false,
+  });
+
+  await select.selectOption("outlet");
+  expect((await snapshot(view)).selection).toMatchObject({
+    name: "outlet",
+    dimension: 1,
+    memberCount: 2,
+    highlightVertexCount: 4,
+    edgesVisible: true,
+    cellsVisible: false,
+  });
+  await expect(view.getByText("outlet: dimension 1, 2 canonical entities")).toBeVisible();
+
+  await select.selectOption("fluid");
+  const fluid = (await snapshot(view)).selection;
+  expect(fluid).toMatchObject({
+    name: "fluid",
+    dimension: 2,
+    memberCount: 1_210,
+    highlightVertexCount: 3_630,
+    edgesVisible: false,
+    cellsVisible: true,
+  });
+  expect(fluid.entityIndices).toEqual(Array.from({ length: 1_210 }, (_, index) => index));
+  await expect(
+    view.getByText("fluid: dimension 2, 1210 canonical entities"),
+  ).toBeVisible();
+
+  expect((await snapshot(independent)).selection).toMatchObject({
+    name: "cylinder",
+    dimension: 1,
+    memberCount: 50,
+  });
+}
+
 async function runJupyterCommand(page: Page, label: RegExp): Promise<void> {
   await page.keyboard.press("Control+Shift+c");
   const palette = page.locator(".lm-CommandPalette");
@@ -835,6 +889,7 @@ test(BARE_MESH_TEST_TITLE, async ({
   const second = views.nth(1);
   await exerciseIndependentCameraOperations(first);
   await exerciseModesAndAccessibility(first);
+  await exerciseSemanticSelections(first, second);
   expect((await snapshot(second)).mode).toBe("surface");
   expect((await snapshot(first)).transport).toEqual({
     modelSetCalls: 0,

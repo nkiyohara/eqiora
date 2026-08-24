@@ -402,6 +402,9 @@ def test_private_payload_is_exact_little_endian_immutable_and_mesh_preserving() 
         "triangle_count",
         "coordinates_f64_le",
         "triangles_u32_le",
+        "correspondence_digest",
+        "selection_membership",
+        "selection_membership_sha256",
     }
     assert payload_keys <= state.keys()
     assert state["profile"] == PROFILE
@@ -411,12 +414,18 @@ def test_private_payload_is_exact_little_endian_immutable_and_mesh_preserving() 
 
     coordinate_bytes = _bytes(state["coordinates_f64_le"])
     triangle_bytes = _bytes(state["triangles_u32_le"])
+    selection_membership = _bytes(state["selection_membership"])
     assert len(coordinate_bytes) == COORDINATE_BYTES
     assert len(triangle_bytes) == TRIANGLE_BYTES
     assert coordinate_bytes == np.asarray(mesh.coordinates, dtype="<f8").tobytes(
         order="C"
     )
     assert triangle_bytes == np.asarray(mesh.cells, dtype="<u4").tobytes(order="C")
+    assert state["correspondence_digest"] == mesh.correspondence_digest
+    assert selection_membership.startswith(b"eqiora.mesh-selection-membership/v1\0")
+    assert hashlib.sha256(selection_membership).hexdigest() == state[
+        "selection_membership_sha256"
+    ]
 
     mutations: dict[str, object] = {
         "profile": "foreign/v1",
@@ -425,6 +434,9 @@ def test_private_payload_is_exact_little_endian_immutable_and_mesh_preserving() 
         "triangle_count": TRIANGLE_COUNT - 1,
         "coordinates_f64_le": bytes(COORDINATE_BYTES),
         "triangles_u32_le": bytes(TRIANGLE_BYTES),
+        "correspondence_digest": "f" * 64,
+        "selection_membership": b"foreign",
+        "selection_membership_sha256": "f" * 64,
     }
     for name, mutation in mutations.items():
         original = delegate.get_state()[name]

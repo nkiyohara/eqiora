@@ -34,6 +34,9 @@ _COORDINATE_SHA256: Final = (
 _TRIANGLE_SHA256: Final = (
     "05a68c5630e68ed091e7da3bff07516a9ddf9345bc8319db108ac4004a7c6642"
 )
+_SELECTION_MEMBERSHIP_DOMAIN: Final = b"eqiora.mesh-selection-membership/v1\0"
+_SELECTION_NAMES: Final = ("cylinder", "inlet", "outlet", "walls", "fluid")
+_SELECTION_DIMENSIONS: Final = (1, 1, 1, 1, 2)
 _WIDGET_MIME: Final = "application/vnd.jupyter.widget-view+json"
 _PAYLOAD_FIELDS: Final = (
     "profile",
@@ -42,6 +45,9 @@ _PAYLOAD_FIELDS: Final = (
     "triangle_count",
     "coordinates_f64_le",
     "triangles_u32_le",
+    "correspondence_digest",
+    "selection_membership",
+    "selection_membership_sha256",
 )
 _TOKEN_FIELDS: Final = frozenset(
     {
@@ -53,6 +59,9 @@ _TOKEN_FIELDS: Final = frozenset(
         "triangles",
         "coordinates_sha256",
         "triangles_sha256",
+        "correspondence_digest",
+        "selection_membership",
+        "selection_membership_sha256",
     }
 )
 
@@ -80,6 +89,115 @@ def _comm_is_open(delegate: object) -> bool:
     return not bool(getattr(comm, "_closed", False))
 
 
+def _capture_selection_membership(
+    mesh: Mesh,
+    token: dict[str, object],
+    correspondence_digest: str,
+    triangles: np.ndarray[Any, np.dtype[np.uint32]],
+) -> tuple[bytes, str]:
+    encoded = token["selection_membership"]
+    digest = token["selection_membership_sha256"]
+    if (
+        type(encoded) is not bytes
+        or type(digest) is not str
+        or len(digest) != 64
+        or digest != digest.lower()
+        or any(character not in "0123456789abcdef" for character in digest)
+        or hashlib.sha256(encoded).hexdigest() != digest
+        or not encoded.startswith(_SELECTION_MEMBERSHIP_DOMAIN)
+    ):
+        raise _AdmissionError
+
+    offset = len(_SELECTION_MEMBERSHIP_DOMAIN)
+
+    def take(length: int) -> bytes:
+        nonlocal offset
+        end = offset + length
+        if length < 0 or end > len(encoded):
+            raise _AdmissionError
+        value = encoded[offset:end]
+        offset = end
+        return value
+
+    def u32() -> int:
+        return int.from_bytes(take(4), "little")
+
+    if take(64) != correspondence_digest.encode("ascii"):
+        raise _AdmissionError
+    if u32() != len(_SELECTION_NAMES):
+        raise _AdmissionError
+
+    edge_incidence: dict[tuple[int, int], int] = {}
+    for triangle in triangles:
+        vertices = tuple(int(vertex) for vertex in triangle)
+        for first, second in (
+            (vertices[0], vertices[1]),
+            (vertices[0], vertices[2]),
+            (vertices[1], vertices[2]),
+        ):
+            edge = (first, second) if first < second else (second, first)
+            edge_incidence[edge] = edge_incidence.get(edge, 0) + 1
+    canonical_edges = tuple(sorted(edge_incidence))
+    selected_boundary_entities: set[int] = set()
+
+    observed_names: list[str] = []
+    observed_counts: list[int] = []
+    for expected_name, expected_dimension in zip(
+        _SELECTION_NAMES, _SELECTION_DIMENSIONS, strict=True
+    ):
+        try:
+            name = take(u32()).decode("utf-8", errors="strict")
+        except UnicodeError as error:
+            raise _AdmissionError from error
+        dimension = u32()
+        entity_count = u32()
+        if name != expected_name or dimension != expected_dimension:
+            raise _AdmissionError
+        observed_names.append(name)
+        observed_counts.append(entity_count)
+        previous = -1
+        for _ in range(entity_count):
+            entity = u32()
+            vertex_count = u32()
+            if entity <= previous or vertex_count != dimension + 1:
+                raise _AdmissionError
+            previous = entity
+            vertices = tuple(u32() for _ in range(vertex_count))
+            if len(set(vertices)) != vertex_count or any(
+                vertex >= _VERTEX_COUNT for vertex in vertices
+            ):
+                raise _AdmissionError
+            if dimension == 1:
+                if (
+                    entity >= len(canonical_edges)
+                    or vertices != canonical_edges[entity]
+                    or edge_incidence[vertices] != 1
+                    or entity in selected_boundary_entities
+                ):
+                    raise _AdmissionError
+                selected_boundary_entities.add(entity)
+            elif dimension == 2:
+                if entity >= _TRIANGLE_COUNT or vertices != tuple(
+                    int(vertex) for vertex in triangles[entity]
+                ):
+                    raise _AdmissionError
+            else:
+                raise _AdmissionError
+    if offset != len(encoded):
+        raise _AdmissionError
+    if tuple(observed_names) != mesh.selection_names:
+        raise _AdmissionError
+    if tuple(observed_counts) != tuple(
+        mesh.selection_entity_count(name) for name in observed_names
+    ):
+        raise _AdmissionError
+    if len(selected_boundary_entities) != sum(
+        1 for incidence in edge_incidence.values() if incidence == 1
+    ):
+        raise _AdmissionError
+    return (bytes(encoded), digest)
+
+
 def _capture_exact_payload(mesh: object, token: object) -> dict[str, object]:
     if type(mesh) is not Mesh or type(token) is not dict:
         raise _AdmissionError
@@ -99,6 +217,7 @@ def _capture_exact_payload(mesh: object, token: object) -> dict[str, object]:
         or token["source_digest"] != source_digest
         or mesh_digest != _MESH_DIGEST
         or token["mesh_digest"] != mesh_digest
+        or token["correspondence_digest"] != correspondence_digest
         or type(canonical) is not bytes
         or len(canonical) != _CANONICAL_BYTES
         or token["canonical_bytes"] != canonical
@@ -130,6 +249,10 @@ def _capture_exact_payload(mesh: object, token: object) -> dict[str, object]:
         raise _AdmissionError
     if not bool(np.all(triangles < _VERTEX_COUNT)):
         raise _AdmissionError
+
+    selection_membership, selection_membership_sha256 = (
+        _capture_selection_membership(mesh, token, correspondence_digest, triangles)
+    )
 
     coordinate_snapshot = coordinates.tobytes(order="C")
     triangle_snapshot = triangles.tobytes(order="C")
@@ -177,6 +300,9 @@ def _capture_exact_payload(mesh: object, token: object) -> dict[str, object]:
         "triangle_count": _TRIANGLE_COUNT,
         "coordinates_f64_le": coordinate_bytes,
         "triangles_u32_le": triangle_bytes,
+        "correspondence_digest": correspondence_digest,
+        "selection_membership": selection_membership,
+        "selection_membership_sha256": selection_membership_sha256,
     }
 
 
@@ -207,6 +333,9 @@ def _new_delegate(payload: dict[str, object], esm: str, css: str) -> object:
         triangle_count = traitlets.Int().tag(sync=True)
         coordinates_f64_le = traitlets.Bytes().tag(sync=True)
         triangles_u32_le = traitlets.Bytes().tag(sync=True)
+        correspondence_digest = traitlets.Unicode().tag(sync=True)
+        selection_membership = traitlets.Bytes().tag(sync=True)
+        selection_membership_sha256 = traitlets.Unicode().tag(sync=True)
         _eqiora_n1_model_id = traitlets.Unicode().tag(sync=True)
 
         def __init__(self) -> None:

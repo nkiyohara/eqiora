@@ -36,6 +36,7 @@ const REFERENCE_COORDINATES_SHA256: &str =
 const REFERENCE_TRIANGLES_SHA256: &str =
     "05a68c5630e68ed091e7da3bff07516a9ddf9345bc8319db108ac4004a7c6642";
 const MESH_DIGEST_DOMAIN: &[u8] = b"eqiora.simplicial-mesh-envelope/v1\0";
+const SELECTION_MEMBERSHIP_DOMAIN: &[u8] = b"eqiora.mesh-selection-membership/v1\0";
 const UNSUPPORTED_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: this N1 viewer supports only the exact accepted Gmsh 4.15.2 circular-hole Mesh (662 vertices, 1210 triangles).";
 const CORRUPT_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: the installed Eqiora Notebook presentation runtime or assets are incomplete. Reinstall eqiora[notebook].";
 
@@ -249,15 +250,23 @@ impl PyMesh {
 
         let coordinates = mesh.coordinates.numpy(py)?;
         let triangles = mesh.cells.numpy(py)?;
+        let selection_membership = mesh.notebook_selection_membership(py)?;
+        let selection_membership_sha256 = hex_digest(&Sha256::digest(&selection_membership));
         let token = PyDict::new(py);
         token.set_item("source_digest", &mesh.lineage.source_digest)?;
         token.set_item("canonical_bytes", PyBytes::new(py, &mesh.canonical_bytes))?;
         token.set_item("canonical_raw_sha256", REFERENCE_CANONICAL_RAW_SHA256)?;
         token.set_item("mesh_digest", &mesh.lineage.mesh_digest)?;
+        token.set_item("correspondence_digest", &mesh.lineage.correspondence_digest)?;
         token.set_item("coordinates", coordinates.bind(py))?;
         token.set_item("triangles", triangles.bind(py))?;
         token.set_item("coordinates_sha256", REFERENCE_COORDINATES_SHA256)?;
         token.set_item("triangles_sha256", REFERENCE_TRIANGLES_SHA256)?;
+        token.set_item(
+            "selection_membership",
+            PyBytes::new(py, &selection_membership),
+        )?;
+        token.set_item("selection_membership_sha256", selection_membership_sha256)?;
 
         let current = {
             let mut state = mesh
@@ -514,6 +523,63 @@ impl PyMesh {
         }
     }
 
+    fn notebook_selection_membership(&self, py: Python<'_>) -> PyResult<Vec<u8>> {
+        let AcceptedMeshSource::Chordal { accepted, .. } = &self.source else {
+            return Err(capability_error(
+                py,
+                "this Mesh publishes no Notebook selection membership",
+            ));
+        };
+        let source_sets = accepted.source().entity_sets();
+        let native_mesh = accepted.mesh().mesh();
+        let mut encoded = Vec::new();
+        encoded.extend_from_slice(SELECTION_MEMBERSHIP_DOMAIN);
+        encoded.extend_from_slice(self.lineage.correspondence_digest.as_bytes());
+        encode_u32(py, &mut encoded, source_sets.len(), "selection count")?;
+        for set in source_sets {
+            let name = set.name().as_bytes();
+            encode_u32(py, &mut encoded, name.len(), "selection name length")?;
+            encoded.extend_from_slice(name);
+            encode_u32(py, &mut encoded, set.dimension(), "selection dimension")?;
+            let entities = accepted
+                .correspondence()
+                .region_entity_set_entities(accepted.realized_geometry(), set.name())
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            encode_u32(py, &mut encoded, entities.len(), "selection entity count")?;
+            let mut previous = None;
+            for entity in entities {
+                if entity.dimension() != set.dimension()
+                    || previous.is_some_and(|index| entity.index() <= index)
+                {
+                    return Err(request_error(
+                        py,
+                        "accepted correspondence selection is not in canonical entity order",
+                    ));
+                }
+                previous = Some(entity.index());
+                encode_u32(py, &mut encoded, entity.index(), "selection entity index")?;
+                let vertices = native_mesh.entity_vertices(entity).ok_or_else(|| {
+                    request_error(py, "accepted correspondence entity has no vertex closure")
+                })?;
+                if vertices.len() != set.dimension() + 1
+                    || vertices.iter().any(|vertex| {
+                        vertex.dimension() != 0 || vertex.index() >= self.lineage.vertex_count
+                    })
+                {
+                    return Err(request_error(
+                        py,
+                        "accepted correspondence entity has invalid vertex closure",
+                    ));
+                }
+                encode_u32(py, &mut encoded, vertices.len(), "entity vertex count")?;
+                for vertex in vertices {
+                    encode_u32(py, &mut encoded, vertex.index(), "entity vertex index")?;
+                }
+            }
+        }
+        Ok(encoded)
+    }
+
     fn set_presentation_state(&self, next: PresentationState) -> PyResult<()> {
         let mut state = self
             .presentation
@@ -766,6 +832,18 @@ fn project_cartesian_mesh(
 fn mesh_index(index: usize) -> PyResult<u32> {
     u32::try_from(index)
         .map_err(|_| PyOverflowError::new_err("Mesh vertex index exceeds Python uint32"))
+}
+
+fn encode_u32(
+    py: Python<'_>,
+    output: &mut Vec<u8>,
+    value: usize,
+    description: &str,
+) -> PyResult<()> {
+    let value = u32::try_from(value)
+        .map_err(|_| request_error(py, format!("{description} exceeds uint32")))?;
+    output.extend_from_slice(&value.to_le_bytes());
+    Ok(())
 }
 
 fn capability_error(py: Python<'_>, message: &str) -> PyErr {

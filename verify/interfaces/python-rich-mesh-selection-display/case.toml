@@ -1,0 +1,81 @@
+id = "interfaces.python-rich-mesh-selection-display"
+status = "verified"
+scope = "installed-python-client-only-semantic-selection-of-one-exact-source-bound-gmsh-mesh"
+reference_kind = "accepted-geometry-selection-and-correspondence-replay-plus-private-transport-and-exact-host-falsifiers"
+
+capabilities = [
+  "python-private-correspondence-owned-mesh-selection-payload",
+  "python-exact-jupyterlab-and-marimo-mesh-selection-controls",
+  "python-read-only-canonical-entity-highlight-and-inspector",
+]
+
+[contract]
+issue = 525
+parent = 312
+depends_on = 517
+
+[problem]
+entry = "bare native exact circular-hole eqiora.meshing.Mesh"
+base_case = "interfaces.python-rich-mesh-display"
+selection_owner = "revision-bound Geometry selections and accepted GeometryMeshCorrespondence"
+selections = ["cylinder", "inlet", "outlet", "walls", "fluid"]
+dimensions = [1, 1, 1, 1, 2]
+entity_counts = [50, 14, 2, 48, 1210]
+
+[oracle]
+geometry_selection_identity = "interfaces.python-geometry-selection"
+mesh_and_correspondence = "interfaces.python-circular-hole-chordal-mesh"
+transport_and_failures = "focused installed-wheel Python and TypeScript tests"
+host_interaction = "exact JupyterLab and marimo Playwright observations"
+distribution = "interfaces.python-distribution-candidate"
+new_scientific_values = false
+new_tolerances = false
+new_image_baseline = false
+
+[acceptance]
+membership_is_projected_only_by_native_correspondence_owner = true
+closed_five_selection_inventory = true
+dimension_and_canonical_entity_order_are_exact = true
+entity_vertex_closure_matches_the_accepted_mesh = true
+boundary_selections_partition_every_boundary_entity_once = true
+fluid_selection_is_every_canonical_triangle = true
+dropdown_summary_index_inspector_and_overlay_agree = true
+edge_overlay_has_two_vertices_per_member = true
+cell_overlay_has_three_vertices_per_member = true
+selection_state_is_per_view_and_client_only = true
+python_mesh_bytes_arrays_flags_and_identities_remain_unchanged = true
+model_writes_custom_messages_and_nonloopback_requests = 0
+bare_outer_mesh_runs_in_both_exact_hosts = true
+
+[falsifiers]
+foreign_correspondence = "embedded and synced correspondence identities must agree"
+name_or_order_substitution = "the closed canonical selection inventory rejects"
+dimension_or_count_substitution = "the accepted dimension and owner-reused entity count reject"
+reordered_or_duplicate_entity = "canonical increasing entity indices are required"
+foreign_or_out_of_range_vertex = "every vertex must be in range and in the exact entity closure"
+nonboundary_edge = "dimension-one membership must name one-incidence canonical edges"
+incomplete_or_duplicate_boundary = "the four boundary selections must partition all boundary entities"
+foreign_cell = "dimension-two membership must name the exact canonical triangle and closure"
+transport_mutation = "membership bytes are bound by an independent SHA-256 transport digest"
+label_inference = "the client selects authenticated records and contains no coordinate/name membership derivation"
+writeback = "selection changes leave model.set, save_changes, send, and custom messages at zero"
+
+[claim_boundary]
+candidate_profile = "notebook"
+ordinary_gil_cpython = "3.13"
+operating_system = "linux"
+architecture = "x86_64"
+jupyterlab = "4.6.2"
+marimo = "0.23.16"
+one_exact_source_bound_reference_mesh_only = true
+public_viewer_or_selection_schema = false
+arbitrary_geometry_mesh_or_selection = false
+selection_algebra_query_or_picking = false
+field_result_trajectory_or_derived_quantity = false
+persisted_widget_state_or_studio_bridge = false
+scientific_pixel_or_image_claim = false
+performance_lod_or_production_scale = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_distribution_gate.py"
