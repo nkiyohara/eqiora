@@ -4,15 +4,20 @@ This case freezes one narrow Python completion path:
 
 ```python
 model = eqiora.replay(model_bytes)
-intent = eqiora.fluid.SteadyStokes(
-    length_scale_m=0.41,
-    velocity_scale_m_per_s=0.3,
-    pressure_scale_pa=0.001 * 0.3 / 0.41,
+scales = eqiora.IncompressibleFlowScales(
+    length_m=0.41,
+    velocity_m_per_s=0.3,
+    pressure_pa=0.001 * 0.3 / 0.41,
+)
+solve = eqiora.LinearSolve(
+    algorithm="sparse-lu",
+    preconditioner="identity",
+    reduction="fast",
     relative_tolerance=1e-6,
     absolute_tolerance=1e-13,
     maximum_iterations=10_000,
 )
-plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
+plan = eqiora.resolve(model, mesh=mesh, scales=scales, solve=solve)
 run = eqiora.submit(model, plan=plan)
 result = run.result()
 ```
@@ -30,14 +35,18 @@ static output is one common `FieldSnapshot` paired with the exact accepted
 physics observations. No cylinder-shaped Result owner or compatibility alias
 survives.
 
-## Intent, Plan, and Run
+## Policies, Plan, and Run
 
-All six intent arguments are mandatory keyword arguments and readable back.
-Omitting one is a `TypeError`; a zero, negative, or nonfinite scale or
-tolerance, and a nonpositive iteration limit, raise the existing structured
-`ValidationError` rather than being normalized. A valid but changed value
-raises `CapabilityError` during `fluid.resolve`, before a Run or worker
-exists.
+The Model remains the sole authority for fields, equations, coefficients,
+supports, and boundary laws. Python does not declare steady Stokes again.
+`IncompressibleFlowScales` owns the three dimensioned characteristic values,
+while the capability-neutral `LinearSolve` owns algorithm, preconditioner,
+reduction, tolerances, and iteration bound. Every argument is mandatory and
+readable back. Omitting one is a `TypeError`; a zero, negative, or nonfinite
+scale or tolerance, a nonpositive iteration limit, or an unknown policy name
+raises the existing structured `ValidationError` rather than being normalized.
+A valid but unsupported value raises `CapabilityError` during `eqiora.resolve`,
+before a Run or worker exists.
 
 `SteadyStokesPlan` publishes every previously hidden effective value before
 submission: Model, semantic, geometry, correspondence, mesh, and Realization
@@ -193,7 +202,7 @@ ordinary Rust gate, not the registered runner for this case.
 Malformed Model bytes report compatibility diagnostic `EQ0901` at
 `eqiora.replay`. A valid but foreign source revision, foreign exact owner,
 swapped authored roles, coarse mesh, or differently admitted mesh artifact
-reports validation diagnostic `EQ0807` during `fluid.resolve`, before any Plan
+reports validation diagnostic `EQ0807` during `eqiora.resolve`, before any Plan
 exists. Because the resolver consumes the Mesh rather than a separate Geometry,
 the foreign-owner and swapped-role falsifiers are carried by meshes whose inner
 artifact identity equals the accepted one while their exact source owner

@@ -83,25 +83,35 @@ assert not hasattr(eqiora.fluid, "CircularHoleSteadyStokesResult")
 assert "CircularHoleSteadyStokesResult" not in eqiora.fluid.__all__
 assert not hasattr(sys.modules["eqiora._eqiora"], "CircularHoleSteadyStokesResult")
 
-intent = eqiora.fluid.SteadyStokes(
-    length_scale_m=0.41,
-    velocity_scale_m_per_s=0.3,
-    pressure_scale_pa=0.001 * 0.3 / 0.41,
+scales = eqiora.IncompressibleFlowScales(
+    length_m=0.41,
+    velocity_m_per_s=0.3,
+    pressure_pa=0.001 * 0.3 / 0.41,
+)
+solve = eqiora.LinearSolve(
+    algorithm="sparse-lu",
+    preconditioner="identity",
+    reduction="fast",
     relative_tolerance=1e-6,
     absolute_tolerance=1e-13,
     maximum_iterations=10000,
 )
-assert intent == eqiora.fluid.SteadyStokes(
-    length_scale_m=0.41,
-    velocity_scale_m_per_s=0.3,
-    pressure_scale_pa=0.001 * 0.3 / 0.41,
+assert scales == eqiora.IncompressibleFlowScales(
+    length_m=0.41,
+    velocity_m_per_s=0.3,
+    pressure_pa=0.001 * 0.3 / 0.41,
+)
+assert solve == eqiora.LinearSolve(
+    algorithm="sparse-lu",
+    preconditioner="identity",
+    reduction="fast",
     relative_tolerance=1e-6,
     absolute_tolerance=1e-13,
     maximum_iterations=10000,
 )
 
 current = eqiora.replay(model)
-plan = eqiora.fluid.resolve(current, intent, mesh=realized)
+plan = eqiora.resolve(current, mesh=realized, scales=scales, solve=solve)
 assert "numpy" not in sys.modules
 assert type(plan).__module__ == "eqiora._eqiora"
 assert type(plan).__name__ == "SteadyStokesPlan"
@@ -223,7 +233,7 @@ else:
 _, foreign = mesh(geometry(tolerance=1e-10))
 assert foreign.digest == realized.digest
 try:
-    eqiora.fluid.resolve(current, intent, mesh=foreign)
+    eqiora.resolve(current, mesh=foreign, scales=scales, solve=solve)
 except eqiora.ValidationError as error:
     assert error.category == "validation"
     assert any(item.code == "EQ0807" for item in error.diagnostics)
@@ -231,17 +241,18 @@ else:
     raise AssertionError("foreign exact geometry ownership was admitted")
 
 try:
-    eqiora.fluid.resolve(
+    eqiora.resolve(
         current,
-        eqiora.fluid.SteadyStokes(
-            length_scale_m=0.41,
-            velocity_scale_m_per_s=0.3,
-            pressure_scale_pa=0.001 * 0.3 / 0.41,
+        mesh=realized,
+        scales=scales,
+        solve=eqiora.LinearSolve(
+            algorithm="sparse-lu",
+            preconditioner="identity",
+            reduction="fast",
             relative_tolerance=1e-11,
             absolute_tolerance=1e-13,
             maximum_iterations=10000,
         ),
-        mesh=realized,
     )
 except eqiora.CapabilityError as error:
     assert error.category == "capability"

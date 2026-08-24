@@ -10,6 +10,7 @@ from typing import (
     Any,
     ClassVar,
     Generic,
+    Literal,
     NamedTuple,
     Never,
     Protocol,
@@ -22,6 +23,7 @@ from typing import (
 import numpy as np
 import numpy.typing as npt
 
+from . import diff as diff
 from . import fluid as fluid
 from . import fsi as fsi
 from . import geometry as geometry
@@ -683,6 +685,65 @@ class ConvergenceReason:
     def __hash__(self) -> int: ...
 
 @final
+class IncompressibleFlowScales:
+    """Characteristic coherent-SI scales for incompressible-flow realization.
+
+    Authority: ``crates/eqiora-python/src/execution_policy.rs::PyIncompressibleFlowScales``.
+    """
+
+    def __new__(
+        cls,
+        *,
+        length_m: float,
+        velocity_m_per_s: float,
+        pressure_pa: float,
+    ) -> IncompressibleFlowScales: ...
+    @property
+    def length_m(self) -> float: ...
+    @property
+    def velocity_m_per_s(self) -> float: ...
+    @property
+    def pressure_pa(self) -> float: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+@final
+class LinearSolve:
+    """Complete backend-neutral policy for one linear solve.
+
+    Authority: ``crates/eqiora-python/src/execution_policy.rs::PyLinearSolve``.
+    """
+
+    def __new__(
+        cls,
+        *,
+        algorithm: Literal[
+            "conjugate-gradient", "minimum-residual", "bicgstab", "sparse-lu"
+        ],
+        preconditioner: Literal["identity", "jacobi"],
+        reduction: Literal["reproducible", "fast"],
+        relative_tolerance: float,
+        absolute_tolerance: float,
+        maximum_iterations: int,
+    ) -> LinearSolve: ...
+    @property
+    def algorithm(self) -> str: ...
+    @property
+    def preconditioner(self) -> str: ...
+    @property
+    def reduction(self) -> str: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerance(self) -> float: ...
+    @property
+    def maximum_iterations(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+@final
 class LinearSolveSummary:
     """Bounded projection of an independently accepted linear-solve report.
 
@@ -1215,6 +1276,25 @@ def replay(data: bytes) -> Model:
 
     ...
 
+def resolve(
+    model: Model,
+    /,
+    *,
+    mesh: meshing.Mesh,
+    scales: IncompressibleFlowScales,
+    solve: LinearSolve,
+) -> fluid.SteadyStokesPlan:
+    """Resolve the capability recognized from a Model using explicit policies.
+
+    The current admitted composition recognizes bounded two-dimensional steady
+    Stokes. The Model remains the sole authority for equations and boundary
+    laws.
+
+    Authority: ``crates/eqiora-python/src/steady_stokes.rs::resolve_model``.
+    """
+
+    ...
+
 @overload
 def run(
     model: Model,
@@ -1357,8 +1437,6 @@ def trace(value: _ExpressionLike) -> Expression:
 
     ...
 
-from . import diff as diff
-
 __all__ = [
     "__version__",
     "Array",
@@ -1386,6 +1464,8 @@ __all__ = [
     "Field",
     "FieldRef",
     "InternalError",
+    "IncompressibleFlowScales",
+    "LinearSolve",
     "LinearSolveSummary",
     "LinearizationState",
     "Model",
@@ -1426,6 +1506,7 @@ __all__ = [
     "grad",
     "preview_realization",
     "replay",
+    "resolve",
     "run",
     "submit",
     "through",

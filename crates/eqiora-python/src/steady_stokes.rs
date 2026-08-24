@@ -13,12 +13,15 @@ use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::diagnostic::codes;
 use eqiora::numerics::SteadyStokesMiniSolution2d;
 use eqiora::realization::SpaceFamily;
-use eqiora::solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyModule};
 
 use crate::error::diagnostic_error;
+use crate::execution_policy::{
+    PyIncompressibleFlowScales, PyLinearSolve, linear_solver_name, preconditioner_name,
+    reduction_name,
+};
 use crate::geometry::digest_to_hex;
 use crate::meshing::PyMesh;
 use crate::model::PyModel;
@@ -27,7 +30,7 @@ use crate::realization::{PyLinearSolveSummary, PyRunManifest};
 use crate::result::{PyRunResult, StaticResultParts};
 use crate::trajectory::PyFieldSnapshot;
 
-/// Complete steady-Stokes request with no hidden numerical defaults.
+/// Compatibility wrapper for the former application-shaped request.
 #[pyclass(
     name = "SteadyStokes",
     module = "eqiora._eqiora",
@@ -386,10 +389,32 @@ pub(crate) fn resolve(
     intent: &PySteadyStokes,
     mesh: Py<PyMesh>,
 ) -> PyResult<PySteadyStokesPlan> {
+    resolve_native(py, model, intent.native, mesh)
+}
+
+/// Resolve the capability recognized from one Model using composable policies.
+#[pyfunction]
+#[pyo3(signature = (model, /, *, mesh, scales, solve))]
+pub(crate) fn resolve_model(
+    py: Python<'_>,
+    model: &PyModel,
+    mesh: Py<PyMesh>,
+    scales: &PyIncompressibleFlowScales,
+    solve: &PyLinearSolve,
+) -> PyResult<PySteadyStokesPlan> {
+    let intent = SteadyStokesIntent2d::from_parts(scales.native(), solve.native());
+    resolve_native(py, model, intent, mesh)
+}
+
+fn resolve_native(
+    py: Python<'_>,
+    model: &PyModel,
+    intent: SteadyStokesIntent2d,
+    mesh: Py<PyMesh>,
+) -> PyResult<PySteadyStokesPlan> {
     panic_boundary(py, || {
         let model = model.artifact().clone();
         let accepted = mesh.borrow(py).accepted_chordal(py)?.clone();
-        let intent = intent.native;
         let native = py.detach(move || {
             ResolvedSteadyStokesPlan2d::resolve(&model, intent, &accepted, &FaerLinearSolver)
         });
@@ -660,34 +685,12 @@ fn space_name(space: eqiora::realization::Space) -> Result<&'static str, Diagnos
     }
 }
 
-const fn linear_solver_name(value: LinearSolver) -> &'static str {
-    match value {
-        LinearSolver::ConjugateGradient => "conjugate-gradient",
-        LinearSolver::MinimumResidual => "minimum-residual",
-        LinearSolver::BiConjugateGradientStabilized => "bicgstab",
-        LinearSolver::SparseLu => "sparse-lu",
-    }
-}
-
-const fn preconditioner_name(value: PreconditionerPolicy) -> &'static str {
-    match value {
-        PreconditionerPolicy::Identity => "identity",
-        PreconditionerPolicy::Jacobi => "jacobi",
-    }
-}
-
-const fn reduction_name(value: ReductionPolicy) -> &'static str {
-    match value {
-        ReductionPolicy::Reproducible => "reproducible",
-        ReductionPolicy::Fast => "fast",
-    }
-}
-
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PySteadyStokes>()?;
     module.add_class::<PySteadyStokesPlan>()?;
     module.add_class::<PySteadyStokesEvidence>()?;
     module.add_function(wrap_pyfunction!(resolve, module)?)?;
+    module.add_function(wrap_pyfunction!(resolve_model, module)?)?;
     module.add_function(wrap_pyfunction!(steady_stokes_evidence, module)?)?;
     Ok(())
 }

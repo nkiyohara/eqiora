@@ -10,7 +10,11 @@ from .meshing import Mesh
 
 @final
 class SteadyStokes:
-    """Complete steady-Stokes request with no hidden numerical defaults.
+    """Compatibility wrapper for the former application-shaped request.
+
+    New code composes :class:`eqiora.IncompressibleFlowScales` and
+    :class:`eqiora.LinearSolve` through :func:`eqiora.resolve`; the Model owns
+    the governing mathematics.
 
     Authority: ``crates/eqiora-python/src/steady_stokes.rs::PySteadyStokes``.
     """
@@ -139,7 +143,10 @@ def resolve(
     *,
     mesh: Mesh,
 ) -> SteadyStokesPlan:
-    """Resolve a steady-Stokes intent without executing it.
+    """Compatibility resolver for the former application-shaped request.
+
+    New code calls :func:`eqiora.resolve` with explicit scale and solve
+    policies.
 
     Authority: ``crates/eqiora-python/src/steady_stokes.rs::resolve``.
     """

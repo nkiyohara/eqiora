@@ -76,6 +76,12 @@ pub struct SteadyStokesIntent2d {
 }
 
 impl SteadyStokesIntent2d {
+    /// Compose already validated physical scales and linear-solve policy.
+    #[must_use]
+    pub const fn from_parts(scales: IncompressibleFlowScaleProfile2d, solver: SolverPlan) -> Self {
+        Self { scales, solver }
+    }
+
     /// Construct a complete request with no hidden numerical defaults.
     ///
     /// # Errors

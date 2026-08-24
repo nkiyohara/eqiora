@@ -218,15 +218,20 @@ model_bytes = (
     .read_bytes()
 )
 model = eqiora.replay(model_bytes)
-intent = eqiora.fluid.SteadyStokes(
-    length_scale_m=0.41,
-    velocity_scale_m_per_s=0.3,
-    pressure_scale_pa=0.001 * 0.3 / 0.41,
+scales = eqiora.IncompressibleFlowScales(
+    length_m=0.41,
+    velocity_m_per_s=0.3,
+    pressure_pa=0.001 * 0.3 / 0.41,
+)
+solve = eqiora.LinearSolve(
+    algorithm="sparse-lu",
+    preconditioner="identity",
+    reduction="fast",
     relative_tolerance=1e-6,
     absolute_tolerance=1e-13,
     maximum_iterations=10_000,
 )
-plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
+plan = eqiora.resolve(model, mesh=mesh, scales=scales, solve=solve)
 result = eqiora.run(model, plan=plan)
 
 pressure = result.snapshots[0]
@@ -239,6 +244,11 @@ print(evidence.cylinder_force_on_fluid, evidence.net_flux)
 
 Studio and Python use the same Rust resolved Plan for Model replay, exact-source
 binding, field-wise Realization, solve, pressure snapshot, and Run provenance.
+The Model compiled from Eqiora source remains the sole authority for fields,
+equations, coefficients, supports, and boundary laws. Python supplies only
+concrete Geometry/Mesh inputs and composable numerical policies; the resolver
+recognizes the admitted steady-Stokes capability from the Model rather than
+asking the caller to declare Stokes a second time.
 The Plan exposes the exact spaces, scales, solver tuple, backend, placement,
 and existing Realization bytes before a worker starts.
 The common `Result` exposes one immutable pressure `FieldSnapshot`, selected by

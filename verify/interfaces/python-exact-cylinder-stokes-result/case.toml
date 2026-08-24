@@ -5,6 +5,8 @@ reference_kind = "composition-of-dual-independent-fluid-oracle-and-independent-l
 
 capabilities = [
   "python-exact-cylinder-steady-stokes-run",
+  "python-model-recognized-capability-resolution",
+  "python-composable-incompressible-scales-and-linear-solve-policy",
   "python-typed-steady-stokes-intent-and-resolved-plan",
   "python-common-static-result-for-exact-cylinder-steady-stokes",
   "python-common-pressure-field-snapshot-and-support-mesh",
@@ -17,8 +19,9 @@ model = "one packaged byte-exact copy of the accepted current steady-flow-past-c
 geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one exact radius-0.05 m circle centred at [0.2, 0.2] m"
 realization = "the accepted exact-source-owned Gmsh 4.15.2 mesh of the 50-chord region, with 662 vertices and 1210 linear triangles"
 physics = "steady coherent-SI MINI/P1 Stokes"
-intent = "immutable eqiora.fluid.SteadyStokes with six mandatory readable arguments"
-entry_point = "eqiora.fluid.resolve then eqiora.submit(model, plan=...) or eqiora.run(model, plan=...)"
+execution_policy = "immutable eqiora.IncompressibleFlowScales plus capability-neutral eqiora.LinearSolve, with every value mandatory and readable"
+compatibility_intent = "eqiora.fluid.SteadyStokes remains temporarily accepted during the alpha API transition but is not the ordinary composition"
+entry_point = "eqiora.resolve infers the admitted capability from Model meaning, then eqiora.submit(model, plan=...) or eqiora.run(model, plan=...)"
 plan_type = "immutable eqiora.fluid.SteadyStokesPlan bound to the exact Model and accepted Mesh lineage"
 result_type = "immutable common eqiora.Result with one FieldSnapshot and its exact accepted Mesh"
 scientific_evidence = "eqiora.fluid.steady_stokes_evidence(result) returns the memoized bounded steady-Stokes observations"
@@ -66,6 +69,10 @@ plan_properties = 23
 intent_arguments = 6
 
 [acceptance]
+model_is_the_only_equation_and_boundary_law_authority = true
+root_resolver_recognizes_capability_from_model = true
+scales_and_linear_solve_are_separate_immutable_policies = true
+linear_solve_policy_is_not_stokes_named = true
 six_mandatory_readable_intent_arguments = true
 intent_is_immutable_with_value_equality_and_hash = true
 invalid_nonfinite_or_nonpositive_intent_fails_closed = true
@@ -129,6 +136,8 @@ missing_or_changed_packaged_model = "installed-wheel tests require the exact cur
 repository_model_dependency = "distribution consumer copies only the demo and runs it with no repository Model file"
 
 [claim_boundary]
+general_capability_resolution = false
+automatic_scale_inference = false
 one_frozen_model = true
 one_packaged_current_model_artifact = true
 general_packaged_model_catalog = false

@@ -41,15 +41,20 @@ def solve() -> eqiora.Result:
         .read_bytes()
     )
     model = eqiora.replay(model_bytes)
-    intent = eqiora.fluid.SteadyStokes(
-        length_scale_m=0.41,
-        velocity_scale_m_per_s=0.3,
-        pressure_scale_pa=0.001 * 0.3 / 0.41,
+    scales = eqiora.IncompressibleFlowScales(
+        length_m=0.41,
+        velocity_m_per_s=0.3,
+        pressure_pa=0.001 * 0.3 / 0.41,
+    )
+    solve = eqiora.LinearSolve(
+        algorithm="sparse-lu",
+        preconditioner="identity",
+        reduction="fast",
         relative_tolerance=1e-6,
         absolute_tolerance=1e-13,
         maximum_iterations=10_000,
     )
-    plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
+    plan = eqiora.resolve(model, mesh=mesh, scales=scales, solve=solve)
     return eqiora.run(model, plan=plan)
 
 

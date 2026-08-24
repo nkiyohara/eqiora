@@ -323,6 +323,44 @@ def intent(**overrides: object) -> Any:
     return eqiora.fluid.SteadyStokes(**arguments)
 
 
+def scales(**overrides: object) -> Any:
+    arguments: dict[str, object] = {
+        "length_m": LENGTH_SCALE_M,
+        "velocity_m_per_s": VELOCITY_SCALE_M_PER_S,
+        "pressure_pa": PRESSURE_SCALE_PA,
+    }
+    arguments.update(overrides)
+    return eqiora.IncompressibleFlowScales(**arguments)
+
+
+def linear_solve(**overrides: object) -> Any:
+    arguments: dict[str, object] = {
+        "algorithm": SOLVER_ALGORITHM,
+        "preconditioner": PRECONDITIONER,
+        "reduction": REDUCTION,
+        "relative_tolerance": RELATIVE_TOLERANCE,
+        "absolute_tolerance": ABSOLUTE_TOLERANCE,
+        "maximum_iterations": MAXIMUM_ITERATIONS,
+    }
+    arguments.update(overrides)
+    return eqiora.LinearSolve(**arguments)
+
+
+def resolve_with_policies(
+    current: Any,
+    realized: Any,
+    *,
+    scale_overrides: dict[str, object] | None = None,
+    solve_overrides: dict[str, object] | None = None,
+) -> Any:
+    return eqiora.resolve(
+        current,
+        mesh=realized,
+        scales=scales(**(scale_overrides or {})),
+        solve=linear_solve(**(solve_overrides or {})),
+    )
+
+
 def replayed(model: bytes | None = None) -> Any:
     return eqiora.replay(model_bytes() if model is None else model)
 
@@ -330,12 +368,30 @@ def replayed(model: bytes | None = None) -> Any:
 def resolve_plan(
     realized: Any, *, model: bytes | None = None, **overrides: object
 ) -> Any:
-    return eqiora.fluid.resolve(replayed(model), intent(**overrides), mesh=realized)
+    scale_aliases = {
+        "length_scale_m": "length_m",
+        "velocity_scale_m_per_s": "velocity_m_per_s",
+        "pressure_scale_pa": "pressure_pa",
+    }
+    scale_overrides = {
+        scale_aliases[name]: value
+        for name, value in overrides.items()
+        if name in scale_aliases
+    }
+    solve_overrides = {
+        name: value for name, value in overrides.items() if name not in scale_aliases
+    }
+    return resolve_with_policies(
+        replayed(model),
+        realized,
+        scale_overrides=scale_overrides,
+        solve_overrides=solve_overrides,
+    )
 
 
 def solve(realized: Any, *, model: bytes | None = None) -> Any:
     current = replayed(model)
-    resolved = eqiora.fluid.resolve(current, intent(), mesh=realized)
+    resolved = resolve_with_policies(current, realized)
     return eqiora.submit(current, plan=resolved).result()
 
 
@@ -835,7 +891,53 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
         eqiora.fluid.resolve(replayed(), object(), mesh=realized)
 
 
-def test_steady_stokes_intent_is_mandatory_readable_and_fails_closed() -> None:
+def test_common_scale_and_linear_solve_policies_resolve_model_capability(
+    accepted: tuple[Any, Any, Any],
+) -> None:
+    scale_policy = scales()
+    solve_policy = linear_solve()
+
+    assert type(scale_policy).__module__ == "eqiora._eqiora"
+    assert type(scale_policy).__name__ == "IncompressibleFlowScales"
+    assert scale_policy.length_m == LENGTH_SCALE_M
+    assert scale_policy.velocity_m_per_s == VELOCITY_SCALE_M_PER_S
+    assert scale_policy.pressure_pa == PRESSURE_SCALE_PA
+    assert scale_policy == scales()
+    assert hash(scale_policy) == hash(scales())
+
+    assert type(solve_policy).__module__ == "eqiora._eqiora"
+    assert type(solve_policy).__name__ == "LinearSolve"
+    assert solve_policy.algorithm == SOLVER_ALGORITHM
+    assert solve_policy.preconditioner == PRECONDITIONER
+    assert solve_policy.reduction == REDUCTION
+    assert solve_policy.relative_tolerance == RELATIVE_TOLERANCE
+    assert solve_policy.absolute_tolerance == ABSOLUTE_TOLERANCE
+    assert solve_policy.maximum_iterations == MAXIMUM_ITERATIONS
+    assert solve_policy == linear_solve()
+    assert hash(solve_policy) == hash(linear_solve())
+
+    resolved = eqiora.resolve(
+        replayed(), mesh=accepted[1], scales=scale_policy, solve=solve_policy
+    )
+    assert isinstance(resolved, eqiora.fluid.SteadyStokesPlan)
+    assert resolved.length_scale_m == scale_policy.length_m
+    assert resolved.solver_algorithm == solve_policy.algorithm
+
+    with pytest.raises(TypeError):
+        eqiora.resolve(
+            replayed(), mesh=accepted[1], scales=object(), solve=solve_policy
+        )
+    with pytest.raises(TypeError):
+        eqiora.resolve(
+            replayed(), mesh=accepted[1], scales=scale_policy, solve=object()
+        )
+    with pytest.raises(eqiora.ValidationError):
+        scales(length_m=0.0)
+    with pytest.raises(eqiora.ValidationError):
+        linear_solve(algorithm="unknown")
+
+
+def test_legacy_steady_stokes_intent_is_readable_and_fails_closed() -> None:
     requested = intent()
     assert type(requested).__module__ == "eqiora._eqiora"
     assert type(requested).__name__ == "SteadyStokes"

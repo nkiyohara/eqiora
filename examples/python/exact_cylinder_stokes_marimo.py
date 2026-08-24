@@ -76,15 +76,25 @@ def _(eqiora, files):
 
 @app.cell
 def _(eqiora, mesh, model):
-    stokes_intent = eqiora.fluid.SteadyStokes(
-        length_scale_m=0.41,
-        velocity_scale_m_per_s=0.3,
-        pressure_scale_pa=0.001 * 0.3 / 0.41,
+    flow_scales = eqiora.IncompressibleFlowScales(
+        length_m=0.41,
+        velocity_m_per_s=0.3,
+        pressure_pa=0.001 * 0.3 / 0.41,
+    )
+    linear_solve = eqiora.LinearSolve(
+        algorithm="sparse-lu",
+        preconditioner="identity",
+        reduction="fast",
         relative_tolerance=1e-6,
         absolute_tolerance=1e-13,
         maximum_iterations=10_000,
     )
-    stokes_plan = eqiora.fluid.resolve(model, stokes_intent, mesh=mesh)
+    stokes_plan = eqiora.resolve(
+        model,
+        mesh=mesh,
+        scales=flow_scales,
+        solve=linear_solve,
+    )
     return (stokes_plan,)
 
 

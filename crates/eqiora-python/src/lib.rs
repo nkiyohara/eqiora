@@ -9,6 +9,7 @@ mod differentiation;
 mod elasticity;
 mod error;
 mod execution;
+mod execution_policy;
 mod fsi;
 mod geometry;
 mod jax_ffi;
@@ -157,6 +158,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     cad_authored::register(module)?;
     differentiation::register(module)?;
     elasticity::register(module)?;
+    execution_policy::register(module)?;
     jax_ffi::register_module(module)?;
     result::register(module)?;
     execution::register(module)?;
