@@ -9,7 +9,7 @@ from typing import Self, final
 import numpy as np
 import numpy.typing as npt
 
-from .geometry import Geometry
+from .geometry import Geometry, GeometrySelection
 
 @final
 class MeshRequest:
@@ -96,7 +96,7 @@ class Mesh:
     def minimum_mean_ratio(self) -> float: ...
     @property
     def selection_names(self) -> tuple[str, ...]: ...
-    def selection_entity_count(self, name: str) -> int: ...
+    def selection_entity_count(self, name: str | GeometrySelection) -> int: ...
     def _repr_mimebundle_(
         self,
         include: Collection[str] | None = None,

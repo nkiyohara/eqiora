@@ -112,6 +112,7 @@ assert eqiora.geometry.__all__ == [
     "CadAuthoredGraph",
     "CadAuthoredSketch",
     "Geometry",
+    "GeometrySelection",
 ]
 assert isinstance(inspect.getattr_static(Sketch, "rectangle_xy"), staticmethod)
 assert isinstance(inspect.getattr_static(Sketch, "circle_on_face"), staticmethod)
