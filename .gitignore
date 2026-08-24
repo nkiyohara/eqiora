@@ -1,6 +1,8 @@
 /target
 /dist
 /build/gallery/
+/.astro/
+/node_modules/
 /experiments/**/target/
 /bindings/python/.venv
 /bindings/python/dist
