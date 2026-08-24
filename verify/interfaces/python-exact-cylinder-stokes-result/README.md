@@ -42,9 +42,11 @@ supports, and boundary laws. Python does not declare steady Stokes again.
 `IncompressibleFlowScales` owns the three dimensioned characteristic values,
 while the capability-neutral `LinearSolve` owns algorithm, preconditioner,
 reduction, tolerances, and iteration bound. Every argument is mandatory and
-readable back. Omitting one is a `TypeError`; a zero, negative, or nonfinite
-scale or tolerance, a nonpositive iteration limit, or an unknown policy name
-raises the existing structured `ValidationError` rather than being normalized.
+readable back. Omitting one is a `TypeError`; a nonpositive or nonfinite scale,
+a negative or nonfinite tolerance, jointly zero tolerances, a nonpositive
+iteration limit, or an unknown policy name raises the existing structured
+`ValidationError` rather than being normalized. Either tolerance may be zero
+when the other is positive, matching the common `SolverPlan` contract.
 A valid but unsupported value raises `CapabilityError` during `eqiora.resolve`,
 before a Run or worker exists.
 

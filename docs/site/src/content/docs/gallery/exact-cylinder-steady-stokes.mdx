@@ -207,21 +207,27 @@ PDE-convergence claim.
 
 <NotebookStage id="submit-and-result" step={4} title="Submit and result" emoji="▶">
 
-The immutable `SteadyStokes` intent makes every scale and solver bound explicit.
-`fluid.resolve` binds the accepted `Model` and `Mesh` into a
+The immutable `IncompressibleFlowScales` and capability-neutral `LinearSolve`
+policies make every scale and solver bound explicit. `eqiora.resolve` recognizes
+the accepted `Model` meaning and binds it with the `Mesh` into a
 `SteadyStokesPlan`; the application then creates one `Run` with one
 `eqiora.submit` call and obtains one common `Result` with `run.result()`.
 
 ```python
-stokes_intent = eqiora.fluid.SteadyStokes(
-    length_scale_m=0.41,
-    velocity_scale_m_per_s=0.3,
-    pressure_scale_pa=0.001 * 0.3 / 0.41,
+scales = eqiora.IncompressibleFlowScales(
+    length_m=0.41,
+    velocity_m_per_s=0.3,
+    pressure_pa=0.001 * 0.3 / 0.41,
+)
+solve = eqiora.LinearSolve(
+    algorithm="sparse-lu",
+    preconditioner="identity",
+    reduction="fast",
     relative_tolerance=1e-6,
     absolute_tolerance=1e-13,
     maximum_iterations=10_000,
 )
-stokes_plan = eqiora.fluid.resolve(model, stokes_intent, mesh=mesh)
+stokes_plan = eqiora.resolve(model, mesh=mesh, scales=scales, solve=solve)
 
 run = eqiora.submit(model, plan=stokes_plan)
 result = run.result()

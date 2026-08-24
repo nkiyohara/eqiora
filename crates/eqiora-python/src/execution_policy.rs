@@ -210,8 +210,8 @@ impl PyLinearSolve {
         self.algorithm().hash(&mut hasher);
         self.preconditioner().hash(&mut hasher);
         self.reduction().hash(&mut hasher);
-        self.relative_tolerance().to_bits().hash(&mut hasher);
-        self.absolute_tolerance().to_bits().hash(&mut hasher);
+        canonical_float_bits(self.relative_tolerance()).hash(&mut hasher);
+        canonical_float_bits(self.absolute_tolerance()).hash(&mut hasher);
         self.maximum_iterations().hash(&mut hasher);
         hasher.finish() as isize
     }
@@ -226,6 +226,14 @@ impl PyLinearSolve {
             self.absolute_tolerance(),
             self.maximum_iterations(),
         )
+    }
+}
+
+fn canonical_float_bits(value: f64) -> u64 {
+    if value == 0.0 {
+        0.0_f64.to_bits()
+    } else {
+        value.to_bits()
     }
 }
 
@@ -313,4 +321,14 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyIncompressibleFlowScales>()?;
     module.add_class::<PyLinearSolve>()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::canonical_float_bits;
+
+    #[test]
+    fn signed_zero_uses_one_hash_identity() {
+        assert_eq!(canonical_float_bits(-0.0), canonical_float_bits(0.0));
+    }
 }

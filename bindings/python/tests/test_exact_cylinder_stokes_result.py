@@ -916,6 +916,19 @@ def test_common_scale_and_linear_solve_policies_resolve_model_capability(
     assert solve_policy == linear_solve()
     assert hash(solve_policy) == hash(linear_solve())
 
+    relative_zero = linear_solve(relative_tolerance=0.0)
+    relative_negative_zero = linear_solve(relative_tolerance=-0.0)
+    assert relative_zero == relative_negative_zero
+    assert hash(relative_zero) == hash(relative_negative_zero)
+
+    absolute_zero = linear_solve(absolute_tolerance=0.0)
+    absolute_negative_zero = linear_solve(absolute_tolerance=-0.0)
+    assert absolute_zero == absolute_negative_zero
+    assert hash(absolute_zero) == hash(absolute_negative_zero)
+
+    with pytest.raises(eqiora.ValidationError):
+        linear_solve(relative_tolerance=0.0, absolute_tolerance=0.0)
+
     resolved = eqiora.resolve(
         replayed(), mesh=accepted[1], scales=scale_policy, solve=solve_policy
     )
