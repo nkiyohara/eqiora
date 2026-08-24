@@ -805,7 +805,12 @@ def make_fixture(root: Path, cargo_version: str = "0.1.0-alpha.1"):
     _write(
         root / "docs/site/src/content/docs/evidence/index.mdx",
         "import ExactSourceLink from '@components/site/ExactSourceLink.astro';\n"
-        '<ExactSourceLink path="verify/example/case.toml" kind="blob">case</ExactSourceLink>\n',
+        "## Capability areas\n"
+        "## What is not claimed\n"
+        "## Full capability-to-case index\n"
+        "<details>\n"
+        '<ExactSourceLink path="verify/example/case.toml" kind="blob">case</ExactSourceLink>\n'
+        "</details>\n",
     )
     _write(
         root / "docs/site/astro.config.mjs",

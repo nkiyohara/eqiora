@@ -612,6 +612,10 @@ def check_source(
         site / "src/content/docs/evidence/index.mdx": (
             "@components/site/ExactSourceLink.astro",
             "<ExactSourceLink",
+            "## Capability areas",
+            "## What is not claimed",
+            "## Full capability-to-case index",
+            "<details>",
         ),
         site / "astro.config.mjs": (
             "src/components/site/ExactSourceLink.astro",

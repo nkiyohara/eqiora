@@ -29,8 +29,10 @@ ENTRY_KEYS = {
     "conformance_kits",
     "evidence",
 }
-STATUSES = {"proposed", "specified", "implemented", "verified", "validated"}
-ENVIRONMENTS = {"host-cpu", "physical-mpi-cuda"}
+STATUS_ORDER = ("proposed", "specified", "implemented", "verified", "validated")
+STATUSES = set(STATUS_ORDER)
+ENVIRONMENT_ORDER = ("host-cpu", "physical-mpi-cuda")
+ENVIRONMENTS = set(ENVIRONMENT_ORDER)
 
 
 class CatalogError(ValueError):
@@ -106,9 +108,9 @@ def _manifest(value: Any, case: str, context: str) -> str:
     return manifest
 
 
-def _evidence_label(value: Any, context: str) -> str:
+def _evidence(value: Any, context: str) -> tuple[str, str | None]:
     if value is None:
-        return "No executable target"
+        return "No executable target", None
     if not isinstance(value, dict):
         raise CatalogError(f"{context} must be null or an object")
 
@@ -126,7 +128,7 @@ def _evidence_label(value: Any, context: str) -> str:
                 raise CatalogError(f"{context} is not a Python evidence target")
             script = _text(value["script"], f"{context}.script")
             suffix = "" if environment == "host-cpu" else f" [{environment}]"
-            return f"{runner}: {script}{suffix}"
+            return f"{runner}: {script}{suffix}", environment
         if runner != "cargo-library-test":
             raise CatalogError(f"{context}.runner is not supported")
 
@@ -151,7 +153,7 @@ def _evidence_label(value: Any, context: str) -> str:
         details.append(f"environment: {environment}")
     suffix = f" ({'; '.join(details)})" if details else ""
     label = "Cargo" if runner is None else runner
-    return f"{label}: {package}/{test}{suffix}"
+    return f"{label}: {package}/{test}{suffix}", environment
 
 
 _MDX_TEXT_ESCAPES = str.maketrans(
@@ -207,7 +209,7 @@ def render_catalog(document: Any) -> str:
     if not isinstance(root["entries"], list) or not root["entries"]:
         raise CatalogError("index.entries must be a non-empty array")
 
-    grouped: dict[str, list[dict[str, str]]] = defaultdict(list)
+    grouped: dict[str, list[dict[str, str | None]]] = defaultdict(list)
     seen: set[tuple[str, str]] = set()
     input_order: list[tuple[str, str, str]] = []
     for offset, raw_entry in enumerate(root["entries"]):
@@ -221,20 +223,23 @@ def render_catalog(document: Any) -> str:
             raise CatalogError(f"{context}.status is not recognized")
         reference = _text(entry["reference_kind"], f"{context}.reference_kind")
         kits = _text_list(entry["conformance_kits"], f"{context}.conformance_kits")
-        target = _evidence_label(entry["evidence"], f"{context}.evidence")
+        target, environment = _evidence(entry["evidence"], f"{context}.evidence")
         identity = (capability, case)
         if identity in seen:
             raise CatalogError(f"duplicate capability/case entry: {identity!r}")
         seen.add(identity)
         input_order.append((capability, case, manifest))
-        grouped[capability].append(
+        area = case.split(".", 1)[0]
+        grouped[area].append(
             {
+                "capability": capability,
                 "case": case,
                 "manifest": manifest,
                 "status": status,
                 "reference": reference,
                 "kits": ", ".join(kits) if kits else "—",
                 "target": target,
+                "environment": environment,
             }
         )
 
@@ -255,37 +260,90 @@ def render_catalog(document: Any) -> str:
         "",
         "This projection does not widen a case claim. The linked manifests remain authoritative.",
         "",
+        "## Capability areas",
+        "",
+        "| Area | Proposed | Specified | Implemented | Verified | Validated | Environment scope | Representative case |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |",
     ]
-    for capability in sorted(grouped):
+    for area in sorted(grouped):
+        entries = grouped[area]
+        counts = {
+            status: sum(entry["status"] == status for entry in entries)
+            for status in STATUS_ORDER
+        }
+        environments = {
+            entry["environment"]
+            for entry in entries
+            if entry["environment"] is not None
+        }
+        environment_scope = ", ".join(
+            environment
+            for environment in ENVIRONMENT_ORDER
+            if environment in environments
+        ) or "—"
+        representative = min(entries, key=lambda item: (item["case"], item["manifest"]))
+        representative_link = (
+            f"<ExactSourceLink path={{{_jsx_string(str(representative['manifest']))}}} "
+            f"kind=\"blob\"><code>{_cell(str(representative['case']))}</code></ExactSourceLink>"
+        )
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    f"`{_cell(area)}`",
+                    *(str(counts[status]) for status in STATUS_ORDER),
+                    _cell(environment_scope),
+                    representative_link,
+                ]
+            )
+            + " |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## What is not claimed",
+            "",
+            "Statuses below verified are not verification. A claim's scope is exactly its entry, nothing broader. Environment-specific evidence does not generalize to another environment.",
+            "",
+            "## Full capability-to-case index",
+            "",
+        ]
+    )
+    for area in sorted(grouped):
+        entries = grouped[area]
         lines.extend(
             [
-                f"## `{_cell(capability)}`",
+                "<details>",
+                f"<summary><code>{_cell(area)}</code> — {len(entries)} entries</summary>",
                 "",
-                "| Case | Status | Reference | Conformance kits | Target |",
-                "| --- | --- | --- | --- | --- |",
+                "| Capability | Case | Status | Reference | Conformance kits | Target |",
+                "| --- | --- | --- | --- | --- | --- |",
             ]
         )
         for entry in sorted(
-            grouped[capability], key=lambda item: (item["case"], item["manifest"])
+            entries,
+            key=lambda item: (item["capability"], item["case"], item["manifest"]),
         ):
             case_link = (
-                f"<ExactSourceLink path={{{_jsx_string(entry['manifest'])}}} "
-                f"kind=\"blob\"><code>{_cell(entry['case'])}</code></ExactSourceLink>"
+                f"<ExactSourceLink path={{{_jsx_string(str(entry['manifest']))}}} "
+                f"kind=\"blob\"><code>{_cell(str(entry['case']))}</code></ExactSourceLink>"
             )
             lines.append(
                 "| "
                 + " | ".join(
                     [
+                        _cell(str(entry["capability"])),
                         case_link,
-                        _cell(entry["status"]),
-                        _cell(entry["reference"]),
-                        _cell(entry["kits"]),
-                        _cell(entry["target"]),
+                        _cell(str(entry["status"])),
+                        _cell(str(entry["reference"])),
+                        _cell(str(entry["kits"])),
+                        _cell(str(entry["target"])),
                     ]
                 )
                 + " |"
             )
-        lines.append("")
+        lines.extend(["", "</details>", ""])
     return "\n".join(lines)
 
 

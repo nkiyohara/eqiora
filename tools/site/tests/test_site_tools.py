@@ -77,11 +77,11 @@ class EvidenceCatalogTests(unittest.TestCase):
         row = next(
             line
             for line in rendered.splitlines()
-            if line.startswith("| <ExactSourceLink ")
+            if line.startswith("| spatial.solve | <ExactSourceLink ")
         )
         source = (
-            "| Case | Status | Reference | Conformance kits | Target |\n"
-            "|---|---|---|---|---|\n"
+            "| Capability | Case | Status | Reference | Conformance kits | Target |\n"
+            "|---|---|---|---|---|---|\n"
             f"{row}\n"
         )
         script = """
@@ -143,6 +143,17 @@ process.stdout.write(html);
         )
         self.assertNotIn("/main/", first)
         self.assertNotIn("https://github.com", first)
+        self.assertEqual(first.count("<details>"), 1)
+        self.assertEqual(first.count("</details>"), 1)
+        self.assertIn(
+            "<summary><code>numerics</code> — 2 entries</summary>", first
+        )
+        entry_rows = [
+            line
+            for line in first.splitlines()
+            if line.startswith("| a.capability | <ExactSourceLink ")
+        ]
+        self.assertEqual(len(entry_rows), len(canonical["entries"]))
 
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "index.mdx"
@@ -284,6 +295,36 @@ process.stdout.write(html);
         physical["evidence"]["environment"] = "unreviewed-runner"
         with self.assertRaises(catalog.CatalogError):
             catalog.render_catalog(index([physical]))
+
+    def test_area_summary_counts_statuses_environments_and_links_representative(self):
+        entries = [
+            entry("a.proposed", "fluid.case-a"),
+            entry("b.verified", "fluid.case-z"),
+            entry("c.implemented", "numerics.case-a"),
+        ]
+        entries[0]["status"] = "proposed"
+        entries[0]["evidence"] = None
+        entries[1]["evidence"]["environment"] = "physical-mpi-cuda"
+        entries[2]["status"] = "implemented"
+        rendered = catalog.render_catalog(index(entries))
+
+        self.assertIn(
+            '| `fluid` | 1 | 0 | 0 | 1 | 0 | physical-mpi-cuda | '
+            '<ExactSourceLink path={"verify/fluid/case-a/case.toml"} '
+            'kind="blob"><code>fluid.case-a</code></ExactSourceLink> |',
+            rendered,
+        )
+        self.assertIn(
+            '| `numerics` | 0 | 0 | 1 | 0 | 0 | host-cpu |', rendered
+        )
+        self.assertIn(
+            "Statuses below verified are not verification. A claim's scope is exactly "
+            "its entry, nothing broader. Environment-specific evidence does not "
+            "generalize to another environment.",
+            rendered,
+        )
+        self.assertLess(rendered.index("`fluid`"), rendered.index("`numerics`"))
+        self.assertEqual(rendered.count("<details>"), 2)
 
     def test_cargo_library_target_is_visible_and_closed(self):
         library = entry()
