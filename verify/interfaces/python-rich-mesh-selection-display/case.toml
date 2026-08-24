@@ -23,7 +23,7 @@ dimensions = [1, 1, 1, 1, 2]
 entity_counts = [50, 14, 2, 48, 1210]
 
 [oracle]
-geometry_selection_identity = "interfaces.python-geometry-selection"
+geometry_selection_identity = "interfaces.python-exact-circular-hole-geometry"
 mesh_and_correspondence = "interfaces.python-circular-hole-chordal-mesh"
 transport_and_failures = "focused installed-wheel Python and TypeScript tests"
 host_interaction = "exact JupyterLab and marimo Playwright observations"
