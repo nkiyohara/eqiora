@@ -162,10 +162,12 @@ export function render({ model, el }: Context): () => void {
 	function start(): void {
 		stop();
 		play.textContent = "Pause";
-		timer = window.setInterval(() => {
+		const advance = () => {
 			stateIndex = (stateIndex + 1) % trajectory.steps.length;
 			draw();
-		}, 1000 / Number(speed.value));
+		};
+		advance();
+		timer = window.setInterval(advance, 1000 / Number(speed.value));
 	}
 	previous.addEventListener("click", () => {
 		stop();

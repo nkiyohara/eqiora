@@ -11739,9 +11739,11 @@ function ql({ model: e, el: t }) {
 		m !== void 0 && window.clearInterval(m), m = void 0, c.textContent = "Play";
 	}
 	function O() {
-		D(), c.textContent = "Pause", m = window.setInterval(() => {
+		D(), c.textContent = "Pause";
+		let e = () => {
 			p = (p + 1) % n.steps.length, E();
-		}, 1e3 / Number(d.value));
+		};
+		e(), m = window.setInterval(e, 1e3 / Number(d.value));
 	}
 	s.addEventListener("click", () => {
 		D(), p = Math.max(0, p - 1), E();
