@@ -55,15 +55,20 @@ model = eqiora.replay(
     .joinpath("examples", "steady-flow-past-cylinder.model.json")
     .read_bytes()
 )
-intent = eqiora.fluid.SteadyStokes(
-    length_scale_m=0.41,
-    velocity_scale_m_per_s=0.3,
-    pressure_scale_pa=0.001 * 0.3 / 0.41,
+scales = eqiora.IncompressibleFlowScales(
+    length_m=0.41,
+    velocity_m_per_s=0.3,
+    pressure_pa=0.001 * 0.3 / 0.41,
+)
+solve = eqiora.LinearSolve(
+    algorithm="sparse-lu",
+    preconditioner="identity",
+    reduction="fast",
     relative_tolerance=1e-6,
     absolute_tolerance=1e-13,
     maximum_iterations=10_000,
 )
-plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
+plan = eqiora.resolve(model, mesh=mesh, scales=scales, solve=solve)
 result = eqiora.run(model, plan=plan)
 evidence = eqiora.fluid.steady_stokes_evidence(result)
 
@@ -78,7 +83,9 @@ This is deliberately one bounded case rather than a claim of general CFD. It
 shows the distinction Eqiora is built around: exact geometry and model meaning
 remain immutable, meshing and solver choices live in explicit resolved plans,
 and the returned evidence stays tied to the same Model, Mesh, Run, and Result
-lineage. [Walk through the pressure result](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
+lineage. The Model determines the admitted steady-Stokes capability; Python
+supplies geometry, mesh, physical scales, and numerical policy without naming
+the governing equations again. [Walk through the pressure result](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
 or run the complete
 [`examples/python/exact_cylinder_stokes.py`](examples/python/exact_cylinder_stokes.py)
 script with optional Matplotlib output.
