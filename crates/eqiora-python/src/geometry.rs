@@ -70,6 +70,15 @@ impl PyGeometrySelection {
             self.name, self.dimension, self.source_digest,
         )
     }
+
+    /// Hash the same revision-bound identity used by equality.
+    fn __hash__(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.source_digest.hash(&mut hasher);
+        self.name.hash(&mut hasher);
+        self.dimension.hash(&mut hasher);
+        hasher.finish()
+    }
 }
 
 impl PyGeometrySelection {

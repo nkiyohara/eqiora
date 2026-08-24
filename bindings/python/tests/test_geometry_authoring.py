@@ -213,6 +213,8 @@ def test_selection_handles_are_immutable_and_revision_bound() -> None:
     assert inlet.source_digest == authored.digest
     assert inlet == authored.selection("inlet")
     assert inlet != authored.selection("outlet")
+    assert hash(inlet) == hash(authored.selection("inlet"))
+    assert {inlet: "accepted"}[authored.selection("inlet")] == "accepted"
 
     with pytest.raises(AttributeError):
         inlet.name = "outlet"
