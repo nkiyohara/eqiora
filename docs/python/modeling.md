@@ -176,11 +176,33 @@ mesh. The returned object retains the source, correspondence, and realization
 identities in the live process. Missing, wrong-version, failed, or invalid
 Gmsh output rejects without falling back to the retired spoke mesh.
 
-This bounded operation supports the one rectangle-with-circular-hole family
-and fixed-phase 50-chord boundary with one Gmsh 4.15.2 interior recipe. It does
-not claim arbitrary geometry, 3D, curved elements, boundary layers, adaptive
-sizing, cross-process generated-realization proof, or general mesh
-convergence.
+An existing complete MSH 4.1 image can enter the same `Mesh` boundary without
+launching Gmsh:
+
+```python
+from pathlib import Path
+
+source = Path("accepted-cylinder.msh").read_bytes()
+mesh = eqiora.meshing.import_gmsh(geometry, source, request=request)
+
+assert mesh.source_digest == geometry.digest
+assert mesh.external_import_manifest_bytes is not None
+print(mesh.external_import_manifest_digest)
+```
+
+The immutable external-import manifest records the raw source SHA-256, exact
+Eqiora Gmsh adapter version, empty native-runtime stack, normalized Nodes and
+Elements array identities, and the accepted common Mesh identity. The same
+`request` explicitly supplies the chordal realization and quality policy.
+Generated and imported Meshes may therefore have identical coordinates,
+connectivity, and Mesh digest while only the imported Mesh carries source
+provenance.
+
+These bounded operations support the one rectangle-with-circular-hole family
+and affine 2D triangles. Import accepts complete ASCII or binary MSH 4.1 bytes;
+it does not add paths, fields, multiple pieces, 3D, curved elements, repair,
+renumbering equivalence, adaptive sizing, general Geometry matching, or
+cross-platform normalized-byte identity.
 
 ## Exact-cylinder steady Stokes result
 

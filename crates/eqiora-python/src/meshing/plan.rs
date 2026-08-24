@@ -23,9 +23,9 @@ const GMSH_PROVIDER: &str = "eqiora.gmsh-cli/4.15.2";
 )]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct PyMeshRequest {
-    maximum_boundary_error: f64,
-    minimum_mean_ratio: f64,
-    maximum_boundary_facets: usize,
+    pub(super) maximum_boundary_error: f64,
+    pub(super) minimum_mean_ratio: f64,
+    pub(super) maximum_boundary_facets: usize,
 }
 
 #[pymethods]

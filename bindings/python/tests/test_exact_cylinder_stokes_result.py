@@ -21,6 +21,15 @@ import eqiora
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "exact_cylinder_stokes.py"
+EXACT_GMSH_GEOMETRY = (
+    REPOSITORY_ROOT
+    / "verify"
+    / "fluid"
+    / "exact-circular-hole-stokes-2d-gmsh"
+    / "routes"
+    / "python"
+    / "geometry.geo"
+)
 PACKAGED_MODEL = (
     importlib.resources.files("eqiora")
     .joinpath("examples")
@@ -325,6 +334,43 @@ def solve(realized: Any, *, model: bytes | None = None) -> Any:
     current = replayed(model)
     resolved = eqiora.fluid.resolve(current, intent(), mesh=realized)
     return eqiora.submit(current, plan=resolved).result()
+
+
+def test_imported_gmsh_mesh_reaches_the_existing_stokes_plan_boundary(
+    tmp_path: Path,
+) -> None:
+    msh = tmp_path / "accepted.msh"
+    subprocess.run(
+        [
+            "gmsh",
+            "-2",
+            str(EXACT_GMSH_GEOMETRY),
+            "-o",
+            str(msh),
+            "-format",
+            "msh41",
+            "-v",
+            "2",
+        ],
+        check=True,
+        timeout=30,
+    )
+    source = geometry()
+    imported = eqiora.meshing.import_gmsh(
+        source,
+        msh.read_bytes(),
+        request=eqiora.meshing.MeshRequest(
+            maximum_boundary_error=1.0e-4,
+            minimum_mean_ratio=1.0e-5,
+            maximum_boundary_facets=50,
+        ),
+    )
+
+    resolved = resolve_plan(imported)
+    assert resolved.geometry_digest == source.digest == imported.source_digest
+    assert resolved.mesh_digest == imported.digest
+    assert resolved.correspondence_digest == imported.correspondence_digest
+    assert imported.external_import_manifest_bytes is not None
 
 
 @pytest.fixture(scope="module")

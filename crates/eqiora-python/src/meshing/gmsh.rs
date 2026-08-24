@@ -15,8 +15,10 @@ use std::os::unix::process::CommandExt as _;
 
 use eqiora::Diagnostic;
 use eqiora::artifact::{
-    AcceptedCircularHoleChordalRealizationV1, GeometryMeshCorrespondenceEnvelopeV1,
-    SimplicialMeshEnvelopeV1,
+    AcceptedCircularHoleChordalRealizationV1, ExternalAdapterIdentityV1, ExternalImportManifestV1,
+    ExternalImportObservationV1, ExternalImportSelectionV1, ExternalImportSourceV1,
+    GeometryMeshCorrespondenceEnvelopeV1, ResolvedArrayV1, ResolvedImportArrayV1,
+    SelectedSourceEntityV1, SimplicialMeshEnvelopeV1, StructuralSelectorV1,
 };
 use eqiora::diagnostic::codes;
 use eqiora::geometry::PlanarRegion;
@@ -29,8 +31,95 @@ const GMSH_VERSION: &str = "4.15.2";
 const GMSH_ENV: &str = "EQIORA_GMSH";
 const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 const PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
+const GMSH_ADAPTER_ID: &str = "eqiora.gmsh";
+// Adapter-relative manifest selectors: the admitted whole MSH mesh, followed
+// by its normalized Nodes geometry and Elements topology observations.
+const MSH_MESH_SELECTOR: &[u32] = &[0];
+const MSH_NODES_SELECTOR: &[u32] = &[1];
+const MSH_ELEMENTS_SELECTOR: &[u32] = &[2];
 
 static SCRATCH_NONCE: AtomicU64 = AtomicU64::new(0);
+
+pub(super) struct ImportedGmshMesh {
+    pub(super) accepted: AcceptedCircularHoleChordalRealizationV1,
+    pub(super) manifest: ExternalImportManifestV1,
+}
+
+pub(super) fn import(
+    source: &[u8],
+    reference: &AcceptedCircularHoleChordalRealizationV1,
+    quality_gate: MeshQualityGate,
+) -> Result<ImportedGmshMesh, Diagnostic> {
+    let importer = GmshSimplexImporter::new(2, quality_gate, GmshImportLimits::default())?;
+    let mesh = SimplicialMeshEnvelopeV1::from_mesh(&importer.import_bytes(source)?)?;
+    let correspondence =
+        GeometryMeshCorrespondenceEnvelopeV1::from_region(reference.realized_geometry(), &mesh)?;
+    let accepted = reference.bind_conforming_mesh(&mesh, &correspondence)?;
+    let observation = observation(source, &mesh)?;
+    let selection = ExternalImportSelectionV1::new(
+        SelectedSourceEntityV1::new(
+            StructuralSelectorV1::new(MSH_MESH_SELECTOR.to_vec()),
+            Some("MSH 4.1 mesh".to_owned()),
+        )?,
+        Vec::new(),
+    )?;
+    let manifest = ExternalImportManifestV1::from_observation(
+        ExternalAdapterIdentityV1::new(GMSH_ADAPTER_ID, eqiora::VERSION)?,
+        Vec::new(),
+        selection,
+        &observation,
+        &mesh,
+        &[],
+    )?;
+    Ok(ImportedGmshMesh { accepted, manifest })
+}
+
+fn observation(
+    source: &[u8],
+    mesh: &SimplicialMeshEnvelopeV1,
+) -> Result<ExternalImportObservationV1, Diagnostic> {
+    let native = mesh.mesh();
+    let vertex_count = u64::try_from(native.vertices().len())
+        .map_err(|_| invalid_import("Gmsh vertex count exceeds portable u64"))?;
+    let dimension = u64::try_from(mesh.dimension())
+        .map_err(|_| invalid_import("Gmsh dimension exceeds portable u64"))?;
+    let cell_count = u64::try_from(native.cells().len())
+        .map_err(|_| invalid_import("Gmsh cell count exceeds portable u64"))?;
+    let cell_width = native.cells().first().map_or(0, Vec::len);
+    let cell_width = u64::try_from(cell_width)
+        .map_err(|_| invalid_import("Gmsh cell width exceeds portable u64"))?;
+    let coordinates = native
+        .vertices()
+        .iter()
+        .flat_map(|coordinate| coordinate.iter().copied())
+        .collect();
+    let topology = native
+        .cells()
+        .iter()
+        .flatten()
+        .map(|&index| {
+            u64::try_from(index)
+                .map_err(|_| invalid_import("Gmsh vertex index exceeds portable u64"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    ExternalImportObservationV1::new(
+        ExternalImportSourceV1::metadata_document(source.to_vec(), None)?,
+        Vec::new(),
+        ResolvedImportArrayV1::new(
+            0,
+            StructuralSelectorV1::new(MSH_NODES_SELECTOR.to_vec()),
+            Some("Nodes".to_owned()),
+            ResolvedArrayV1::from_f64(vec![vertex_count, dimension], coordinates)?,
+        )?,
+        ResolvedImportArrayV1::new(
+            0,
+            StructuralSelectorV1::new(MSH_ELEMENTS_SELECTOR.to_vec()),
+            Some("Elements".to_owned()),
+            ResolvedArrayV1::from_u64(vec![cell_count, cell_width], topology)?,
+        )?,
+        Vec::new(),
+    )
+}
 
 pub(super) fn generate(
     reference: &AcceptedCircularHoleChordalRealizationV1,

@@ -12,7 +12,7 @@ use pyo3::types::PyModule;
 use crate::error::validation_error;
 
 pub(crate) use mesh::PyMesh;
-use mesh::generate;
+use mesh::{generate, import_gmsh};
 use plan::{PyMeshPlan, PyMeshRequest, resolve};
 
 fn request_error(py: Python<'_>, message: impl Into<String>) -> PyErr {
@@ -26,5 +26,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyMesh>()?;
     module.add_function(wrap_pyfunction!(resolve, module)?)?;
     module.add_function(wrap_pyfunction!(generate, module)?)?;
+    module.add_function(wrap_pyfunction!(import_gmsh, module)?)?;
     Ok(())
 }

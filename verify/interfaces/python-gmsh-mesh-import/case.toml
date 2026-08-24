@@ -1,0 +1,50 @@
+id = "interfaces.python-gmsh-mesh-import"
+status = "verified"
+scope = "installed-python-caller-owned-gmsh-msh41-affine-triangle-import-into-common-mesh"
+reference_kind = "composition-of-accepted-gmsh-import-provenance-correspondence-and-python-boundaries"
+
+capabilities = [
+  "python-gmsh-msh41-bytes-to-common-mesh",
+  "python-gmsh-external-import-manifest-projection",
+  "python-imported-mesh-to-steady-stokes-plan",
+]
+
+[reused_registered_evidence]
+gmsh_decoder = "artifacts.gmsh-imported-simplicial-realization"
+external_import_manifest = "artifacts.discrete-field-import-provenance"
+exact_geometry_and_correspondence = "interfaces.python-circular-hole-chordal-mesh"
+downstream_plan = "interfaces.python-exact-cylinder-stokes-result"
+installed_distribution = "interfaces.python-distribution-candidate"
+
+[acceptance]
+ordinary_positive_path_runs_before_rejections = true
+installed_package_public_api = true
+existing_mesh_type_is_returned = true
+caller_supplies_complete_source_bytes = true
+request_explicitly_supplies_realization_and_quality_policy = true
+raw_source_adapter_normalized_arrays_and_mesh_identity_are_inspectable = true
+generated_mesh_has_no_external_import_manifest = true
+coordinates_and_cells_remain_read_only = true
+correspondence_derived_selections_remain_available = true
+accepted_exact_import_reaches_existing_steady_stokes_plan = true
+malformed_input_and_foreign_geometry_fail_before_mesh_publication = true
+
+[claim_boundary]
+format = "Gmsh MSH 4.1 ASCII or binary"
+intrinsic_dimension = 2
+cell_family = "affine Tri3"
+geometry = "one accepted exact rectangle with one circular hole and explicit names"
+fields = false
+filesystem_entry_point = false
+arbitrary_geometry = false
+tetrahedra_or_3d = false
+mixed_high_order_or_curved_cells = false
+repair_or_renumbering_equivalence = false
+verified_persisted_replay_handle = false
+studio = false
+performance_or_scale = false
+scientific_result = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_package_gate.py"
