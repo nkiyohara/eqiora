@@ -27,6 +27,7 @@ from . import diff as diff
 from . import fluid as fluid
 from . import fsi as fsi
 from . import geometry as geometry
+from .geometry import Geometry, GeometrySelection
 from . import meshing as meshing
 from . import solid as solid
 from . import trajectory as trajectory
@@ -1197,6 +1198,23 @@ def compile(
     """Compile one model through the canonical Rust pipeline.
 
     Authority: ``crates/eqiora-python/src/lib.rs::compile``.
+    """
+
+    ...
+
+def bind_component(
+    source: str,
+    *,
+    component: str,
+    geometry: Geometry,
+    supports: dict[str, GeometrySelection],
+    parameters: dict[str, float],
+    model: str = "Main",
+    filename: str = "<memory>",
+) -> Model:
+    """Bind abstract Component supports to one exact Geometry.
+
+    Authority: ``crates/eqiora-python/src/lib.rs::bind_component``.
     """
 
     ...

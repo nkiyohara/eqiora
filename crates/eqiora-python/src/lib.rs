@@ -24,14 +24,20 @@ mod steady_stokes;
 mod trajectory;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
+use eqiora::compiler::{
+    ExternalComponentBinding, ExternalGeometrySupportBinding, ExternalParameterBinding,
+};
+use eqiora::diagnostic::codes;
+use eqiora::kernel::GeometryDigest;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use pyo3::types::PyModule;
+use pyo3::types::{PyDict, PyModule};
 
 pub(crate) use error::diagnostic_error;
 #[doc(hidden)]
 pub use error::panic_boundary;
 use error::{compatibility_error, python_compile_admission_error};
+use geometry::{PyGeometry, PyGeometrySelection};
 use model::PyModel;
 
 const MAX_PYTHON_COMPILE_FILENAME_BYTES: usize = 4_096;
@@ -86,6 +92,112 @@ fn compile(py: Python<'_>, source: &str, filename: &str) -> PyResult<PyModel> {
         py.detach(move || ModelDocument::compile(&filename, &source))
             .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
             .and_then(|document| PyModel::from_document(py, document))
+    })
+}
+
+/// Bind one definitions-only Component to one exact Python-owned Geometry.
+#[pyfunction]
+#[pyo3(signature = (source, *, component, geometry, supports, parameters, model="Main", filename="<memory>"))]
+#[allow(clippy::too_many_arguments)]
+fn bind_component(
+    py: Python<'_>,
+    source: &str,
+    component: &str,
+    geometry: PyRef<'_, PyGeometry>,
+    supports: &Bound<'_, PyDict>,
+    parameters: &Bound<'_, PyDict>,
+    model: &str,
+    filename: &str,
+) -> PyResult<PyModel> {
+    panic_boundary(py, || {
+        validate_python_compile_input(py, filename, source)?;
+        let geometry_value = geometry.geometry().clone();
+        let geometry_digest = GeometryDigest::new(geometry_value.digest_bytes());
+        let geometry_digest_hex = geometry::digest_to_hex(&geometry_value.digest_bytes());
+        let geometry_dimension =
+            eqiora::geometry::CanonicalGeometryRef::from(&geometry_value).ambient_dimension();
+
+        let mut selected = Vec::with_capacity(supports.len());
+        for (slot, selection) in supports.iter() {
+            let slot = slot.extract::<String>()?;
+            let selection = selection.extract::<PyRef<'_, PyGeometrySelection>>()?;
+            if selection.bound_source_digest() != geometry_digest_hex {
+                let diagnostic = eqiora::Diagnostic::error(
+                    codes::INVALID_ARTIFACT,
+                    format!(
+                        "support {slot:?} uses a GeometrySelection from a foreign or stale Geometry revision"
+                    ),
+                );
+                return Err(error::validation_error(py, &[diagnostic]));
+            }
+            selected.push((
+                slot,
+                selection.canonical_name().to_owned(),
+                selection.topological_dimension(),
+            ));
+        }
+        let region_slots = selected
+            .iter()
+            .filter(|(_, _, dimension)| *dimension == geometry_dimension)
+            .map(|(slot, _, _)| slot.as_str())
+            .collect::<Vec<_>>();
+        if region_slots.len() != 1 {
+            let diagnostic = eqiora::Diagnostic::error(
+                codes::LANGUAGE_TYPE_ERROR,
+                format!(
+                    "external Component binding requires exactly one full-dimensional GeometrySelection, found {}",
+                    region_slots.len()
+                ),
+            );
+            return Err(error::validation_error(py, &[diagnostic]));
+        }
+        let parent_slot = region_slots[0].to_owned();
+        let supports = selected
+            .into_iter()
+            .map(|(slot, entity_set, dimension)| {
+                if dimension == geometry_dimension {
+                    Ok(ExternalGeometrySupportBinding::region(
+                        slot,
+                        geometry_digest,
+                        entity_set,
+                        geometry_dimension,
+                    ))
+                } else if dimension.checked_add(1) == Some(geometry_dimension) {
+                    Ok(ExternalGeometrySupportBinding::boundary(
+                        slot,
+                        geometry_digest,
+                        entity_set,
+                        parent_slot.clone(),
+                    ))
+                } else {
+                    Err(eqiora::Diagnostic::error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        format!(
+                            "support {slot:?} has selection dimension {dimension}, expected {geometry_dimension} or {}",
+                            geometry_dimension.saturating_sub(1)
+                        ),
+                    ))
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|diagnostic| error::validation_error(py, &[diagnostic]))?;
+        let parameters = parameters
+            .iter()
+            .map(|(parameter, value)| {
+                Ok(ExternalParameterBinding::new(
+                    parameter.extract::<String>()?,
+                    value.extract::<f64>()?,
+                ))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let binding = ExternalComponentBinding::new(model, component, supports, parameters);
+        let filename = filename.to_owned();
+        let source = source.to_owned();
+        py.detach(move || {
+            ModelDocument::bind_external_component(&filename, &source, &geometry_value, &binding)
+        })
+        .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
+        .and_then(|document| PyModel::from_document(py, document))
     })
 }
 
@@ -170,6 +282,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     steady_stokes::register(module)?;
     trajectory::register(module)?;
     module.add_function(wrap_pyfunction!(compile, module)?)?;
+    module.add_function(wrap_pyfunction!(bind_component, module)?)?;
     module.add_function(wrap_pyfunction!(replay, module)?)?;
     Ok(())
 }

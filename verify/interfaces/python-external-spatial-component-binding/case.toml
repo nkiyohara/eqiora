@@ -1,0 +1,42 @@
+id = "interfaces.python-external-spatial-component-binding"
+status = "implemented"
+scope = "installed-python-component-only-eqi-plus-one-exact-python-geometry-to-common-model"
+reference_kind = "projection-of-compiler-owned-external-spatial-binding"
+
+capabilities = [
+  "python-component-source-to-exact-geometry-binding",
+  "python-revision-bound-selections-to-common-model",
+  "installed-component-only-eqi-resource",
+]
+
+[reused_registered_evidence]
+compiler_binding = "interfaces.external-spatial-component-binding"
+geometry_selection = "interfaces.python-geometry-selection-handle"
+exact_geometry = "interfaces.python-exact-circular-hole-geometry"
+installed_distribution = "interfaces.python-distribution-candidate"
+
+[acceptance]
+ordinary_positive_path_runs_first = true
+concrete_shape_exists_only_in_python_geometry = true
+eqi_owns_abstract_supports_and_physical_structure = true
+channel_height_is_derived_from_geometry_bounds = true
+five_revision_bound_selection_handles_are_explicit = true
+rust_owned_binding_returns_the_common_model = true
+raw_selection_names_and_foreign_handles_fail_closed = true
+missing_extra_kind_wrong_and_nonfinite_bindings_fail_closed = true
+packaged_model_json_is_not_read = true
+
+[claim_boundary]
+source_resolution = "one installed definitions-only local Component source"
+geometry = "one accepted exact planar circular-hole Geometry"
+output = "existing immutable common Model"
+steady_stokes_plan_or_run = false
+scientific_admission_or_result = false
+persisted_binding_schema = false
+general_package_loader = false
+arbitrary_geometry_or_support_algebra = false
+raw_string_selection_binding = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_package_gate.py"

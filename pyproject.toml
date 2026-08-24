@@ -51,6 +51,7 @@ Security = "https://github.com/nkiyohara/eqiora/security/policy"
 [tool.maturin]
 include = [
     { path = "steady-flow-past-cylinder.model.json", from = "out-dir", to = "eqiora/examples/" },
+    { path = "steady-flow-past-cylinder.eqi", from = "out-dir", to = "eqiora/examples/" },
     { path = "mixed-boundary-elasticity.eqi", from = "out-dir", to = "eqiora/examples/" },
     { path = "fixed-reference-fsi.eqi", from = "out-dir", to = "eqiora/examples/" },
     { path = "bindings/python/frontend/package.json", format = "sdist" },
