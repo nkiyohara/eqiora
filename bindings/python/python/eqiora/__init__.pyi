@@ -27,7 +27,7 @@ from . import diff as diff
 from . import fluid as fluid
 from . import fsi as fsi
 from . import geometry as geometry
-from .geometry import Geometry, GeometrySelection
+from . import geometry as _geometry
 from . import meshing as meshing
 from . import solid as solid
 from . import trajectory as trajectory
@@ -1206,8 +1206,8 @@ def bind_component(
     source: str,
     *,
     component: str,
-    geometry: Geometry,
-    supports: dict[str, GeometrySelection],
+    geometry: _geometry.Geometry,
+    supports: dict[str, _geometry.GeometrySelection],
     parameters: dict[str, float],
     model: str = "Main",
     filename: str = "<memory>",
