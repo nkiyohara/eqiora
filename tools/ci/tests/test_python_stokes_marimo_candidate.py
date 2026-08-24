@@ -167,6 +167,12 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             rich_test = extracted / "bindings/python/tests/test_rich_mesh_display.py"
             rich_test.parent.mkdir(parents=True)
             rich_test.write_text("def test_positive():\n    pass\n", encoding="utf-8")
+            trajectory_test = (
+                extracted / "bindings/python/tests/test_rich_trajectory_display.py"
+            )
+            trajectory_test.write_text(
+                "def test_positive():\n    pass\n", encoding="utf-8"
+            )
             fake_app = extracted / APP_PATH
             fake_app.parent.mkdir(parents=True)
             fake_app.write_text("import marimo\n", encoding="utf-8")

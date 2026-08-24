@@ -132,6 +132,12 @@ while True:
         rich_test = extracted / "bindings/python/tests/test_rich_mesh_display.py"
         rich_test.parent.mkdir(parents=True, exist_ok=True)
         rich_test.write_text("def test_placeholder():\n    pass\n", encoding="utf-8")
+        trajectory_test = (
+            extracted / "bindings/python/tests/test_rich_trajectory_display.py"
+        )
+        trajectory_test.write_text(
+            "def test_placeholder():\n    pass\n", encoding="utf-8"
+        )
 
         browser = root / "browser"
         npm = root / "npm"
