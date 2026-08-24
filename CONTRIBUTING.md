@@ -5,21 +5,25 @@ Apache-2.0 through the Developer Certificate of Origin process.
 
 ## Before starting
 
-Read the [architecture summary](docs/architecture.md), the
-[glossary](docs/glossary.md), and the
-[contract-wave capability guide](docs/development/vertical-slice-development.md).
+Read [`AGENTS.md`](AGENTS.md), the
+[architecture summary](docs/architecture.md), and the
+[glossary](docs/glossary.md). Read the
+[high-risk and parallel development guide](docs/development/vertical-slice-development.md) only for
+high-risk capability work or explicitly parallel writes.
 
-- Small bug fixes and documentation improvements may go directly to a pull
-  request.
-- New public concepts, semantics, persisted or wire formats, dependency-layer
-  changes, and governance changes require an RFC.
-- Separate the contract cell, implementation lane, and capability closure;
-  reuse accepted contracts and applicable conformance kits instead of
-  rebuilding them. Execution-provider tuples retain their exact evidence.
+- Ordinary localized work goes directly to one small pull request: one writer,
+  the narrowest repository-owned check, one self-review, then stop.
+- New scientific semantics, public/versioned compatibility, persisted or wire
+  formats, security/trust policy, governance, and architecture ceilings require
+  their owning RFC or high-risk review. A filename or possible future use does
+  not make a change high risk.
+- Reuse accepted contracts and evidence. Do not create a contract artifact,
+  independent oracle, registry, or lane for ordinary behavior.
 - Do not add a Semantic Kernel node for UI or adapter convenience. First show
   why a typed named subgraph cannot express the concept.
-- Open an issue before substantial implementation so alternatives can be
-  compared without duplicating work.
+- Open an Issue only when alternatives need coordination, the work has durable
+  dependencies, or it cannot close in one pull request. Reuse an existing Issue
+  when it owns the same outcome.
 
 An implementation may optionally report machine-agent provenance under
 [RFC 0068](rfcs/0068-optional-implementation-agent-attestations.md). It is not
@@ -35,8 +39,9 @@ language-specific lockfiles or acceptance gates:
 ```bash
 mise install
 mise run setup
-mise run fast
-mise run affected
+# Then run the narrowest repository-owned check for the changed surface.
+# Use mise run fast only when no narrower task covers the delta.
+# Use mise run affected for high-risk or uncertain integration closure.
 ```
 
 Pass `--case <case-id>` after `--` to either verification task to forward
@@ -50,7 +55,9 @@ Public crates also support the workspace MSRV declared in `Cargo.toml`. The
 [local-verification guide](docs/development/local-verification.md) define the
 affected and complete gates.
 
-The complete Rust gate is:
+The complete Rust commands are shown below for diagnostics and unknown
+integration closure. They are not a substitute for the repository-owned mise
+planner and are not mandatory for every change:
 
 ```bash
 cargo fmt --all -- --check
@@ -62,10 +69,10 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 cargo deny check
 ```
 
-Run the narrower affected gate while iterating. Use the complete gate before
-integration when the dependency closure is uncertain or a release,
-compatibility, or trust boundary changes. Python, Studio, physical GPU/MPI,
-and installed-artifact commands are documented beside their own contracts.
+Use a focused task while iterating. Use `affected` or the complete gate only
+when dependency closure is uncertain or a release, compatibility, trust, or
+other high-risk boundary changes. Python, Studio, physical GPU/MPI, and
+installed-artifact commands are documented beside their own contracts.
 
 Tests should demonstrate the invariant, its failure mode, and transaction
 rollback where relevant. Public failures use stable diagnostic codes rather
@@ -103,12 +110,12 @@ not merge unsigned commits.
 
 ## Pull requests
 
-- Keep commits reviewable and explain the invariant, not only the
-  implementation.
-- Link the relevant public issue or RFC.
-- State the bounded claim, nonclaims, positive oracle, falsifier, and
-  verification performed.
+- Keep commits reviewable and avoid unrelated formatting, generated trees, or
+  refactors in the same integration envelope.
+- Link an Issue or RFC when one was actually required; do not create one only
+  to satisfy a template.
+- For capability changes, state the bounded claim, nonclaims, and verification.
+  For ordinary maintenance, state the behavior changed and focused check run.
 - Note environment-dependent evidence that could not be reproduced.
-- Do not mix unrelated formatting or refactors into a semantic change.
 - Review is technical and evidence-based; authority does not replace tests or
   conformance evidence.

@@ -29,6 +29,13 @@ class GalleryPublicationPositiveFirst(unittest.TestCase):
     def test_00_complete_receipt_then_receipt_free_installed_cli_lifecycle(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = PublicationFixture(Path(temporary) / "repository")
+            cases = {item["id"] for item in fixture.payload["evidence_cases"]}
+            self.assertIn("fluid.exact-circular-hole-stokes-2d-gmsh", cases)
+            self.assertIn("interfaces.python-circular-hole-chordal-mesh", cases)
+            self.assertNotIn("fluid.exact-circular-hole-stokes-2d", cases)
+            self.assertNotIn("geometry.circular-hole-chordal-reference-mesh", cases)
+            self.assertIn("1,210-triangle affine mesh", fixture.payload["text"]["alt"])
+            self.assertIn("548 interior vertices", fixture.payload["claim"]["public_claim"])
             external = subprocess.run(
                 [
                     sys.executable,

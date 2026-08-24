@@ -16,6 +16,14 @@ from typing import Mapping
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT
 TESTS = ROOT / "bindings/python/tests"
+GMSH_EVIDENCE = tuple(
+    TESTS / name
+    for name in (
+        "test_circular_hole_chordal_mesh.py",
+        "test_exact_cylinder_stokes_result.py",
+        "test_rich_mesh_display.py",
+    )
+)
 _PROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 _DISTRIBUTION = _PROJECT["tool"]["eqiora-distribution"]
 BUILD_TOOLS = (
@@ -91,6 +99,35 @@ def uv_gate_command(uv: str, python: str) -> list[str]:
         "pytest",
         "-q",
         str(TESTS),
+        *(
+            argument
+            for evidence in GMSH_EVIDENCE
+            for argument in ("--ignore", str(evidence))
+        ),
+    ]
+
+
+def _uv_gmsh_gate_command(uv: str, python: str) -> list[str]:
+    return [
+        uv,
+        "run",
+        "--directory",
+        str(PACKAGE),
+        "--isolated",
+        "--no-editable",
+        "--reinstall-package",
+        "eqiora",
+        "--extra",
+        "gmsh",
+        "--with",
+        BUILD_TOOLS[1],
+        "--python",
+        python,
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        *(str(evidence) for evidence in GMSH_EVIDENCE),
     ]
 
 
@@ -98,6 +135,7 @@ def main() -> int:
     try:
         if uv := shutil.which("uv"):
             run(uv_gate_command(uv, sys.executable))
+            run(_uv_gmsh_gate_command(uv, sys.executable))
             return 0
         with tempfile.TemporaryDirectory(prefix="eqiora-python-gate-") as directory:
             environment = Path(directory)
@@ -113,7 +151,34 @@ def main() -> int:
                 virtual_environment=environment,
             )
             run(
-                [python, "-m", "pytest", "-q", str(TESTS)],
+                [
+                    python,
+                    "-m",
+                    "pytest",
+                    "-q",
+                    str(TESTS),
+                    *(
+                        argument
+                        for evidence in GMSH_EVIDENCE
+                        for argument in ("--ignore", str(evidence))
+                    ),
+                ],
+                cwd=PACKAGE,
+                virtual_environment=environment,
+            )
+            run(
+                [python, "-m", "pip", "install", "--no-build-isolation", ".[gmsh]"],
+                cwd=PACKAGE,
+                virtual_environment=environment,
+            )
+            run(
+                [
+                    python,
+                    "-m",
+                    "pytest",
+                    "-q",
+                    *(str(evidence) for evidence in GMSH_EVIDENCE),
+                ],
                 cwd=PACKAGE,
                 virtual_environment=environment,
             )

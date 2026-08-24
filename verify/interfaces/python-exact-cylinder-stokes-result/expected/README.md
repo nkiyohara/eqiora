@@ -15,4 +15,4 @@ The tolerances are imported unchanged from the scientific case:
 - pressure: `2e-14 + 5e-7 * (0.001 * 0.3 / 0.41)`;
 - flux: `2e-13 + 5e-7 * (0.3 * 0.41)`;
 - reaction: `2e-14 + 5e-7 * (0.001 * 0.3)`; and
-- solver true-residual target: `1.3239627651209673e-7`.
+- solver true-residual target: `6.138485578780151e-6`.

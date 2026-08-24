@@ -12,27 +12,27 @@ import numpy as np
 
 from eqiora.meshing import Mesh
 
-_PROFILE: Final = "circular-hole-chordal-reference-50/v1"
+_PROFILE: Final = "circular-hole-gmsh-4.15.2/v1"
 _SOURCE_DIGEST: Final = (
     "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 )
 _RAW_CANONICAL_DIGEST: Final = (
-    "d977d9125488fffee72deaf9a0f146bc42dc05a135692919a374d746da0f1079"
+    "9d3c6211e6832aa5a5f7e99fa210058ff1b76eab7f1e99aaa7033c282d6e2dd2"
 )
 _MESH_DIGEST: Final = (
-    "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
+    "5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b"
 )
 _MESH_DIGEST_DOMAIN: Final = b"eqiora.simplicial-mesh-envelope/v1\0"
-_CANONICAL_BYTES: Final = 4_835
-_VERTEX_COUNT: Final = 104
-_TRIANGLE_COUNT: Final = 104
-_COORDINATE_BYTES: Final = 1_664
-_TRIANGLE_BYTES: Final = 1_248
+_CANONICAL_BYTES: Final = 42_388
+_VERTEX_COUNT: Final = 662
+_TRIANGLE_COUNT: Final = 1_210
+_COORDINATE_BYTES: Final = 10_592
+_TRIANGLE_BYTES: Final = 14_520
 _COORDINATE_SHA256: Final = (
-    "2aaf87276bf352faddfadc76e63c1f44340a362047b1399a2e081c798c5921aa"
+    "42ea585f3facdc21fadf66435f37f1127bf926e6159c5ff1e4a345ba7268db3d"
 )
 _TRIANGLE_SHA256: Final = (
-    "229392dc7faca769c88348cf41a810f29df3a22ad1276cb866783e5e04078a9f"
+    "05a68c5630e68ed091e7da3bff07516a9ddf9345bc8319db108ac4004a7c6642"
 )
 _WIDGET_MIME: Final = "application/vnd.jupyter.widget-view+json"
 _PAYLOAD_FIELDS: Final = (

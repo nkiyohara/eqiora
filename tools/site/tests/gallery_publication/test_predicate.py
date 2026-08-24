@@ -39,6 +39,19 @@ class GalleryPublicationPredicateTests(unittest.TestCase):
             self._verify_receipt()
         self.assertEqual(raised.exception.code, code)
 
+    def test_09_stale_104_triangle_alt_is_rejected_at_the_text_gate(self):
+        stale = self.fixture.clone_payload()
+        stale["text"]["alt"] = (
+            "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder "
+            "demonstration, shown with a viridis color scale and the 104-triangle "
+            "affine mesh overlaid. Presentation image only; linked Result evidence "
+            "carries the numerical claim."
+        )
+        stale["text"]["alt_sha256"] = sha(stale["text"]["alt"].encode())
+        with self.assertRaises(checker.AdmissionError) as raised:
+            checker._check_text(stale, self.fixture.revision)
+        self.assertEqual(raised.exception.code, "text")
+
     def test_10_one_claim_field_mutant_is_rejected(self):
         self.fixture.payload["claim"]["pixels_are_validation"] = True
         self.fixture.refresh_and_write_external()
@@ -179,6 +192,33 @@ class GalleryPublicationPredicateTests(unittest.TestCase):
         case["role"] = "media-admission"
         self.fixture.refresh_and_write_external()
         self._assert_rejected("case-set")
+
+    def test_19c_old_reference_science_cannot_replace_the_gmsh_case(self):
+        case = next(
+            item
+            for item in self.fixture.payload["evidence_cases"]
+            if item["id"] == "fluid.exact-circular-hole-stokes-2d-gmsh"
+        )
+        case["id"] = "fluid.exact-circular-hole-stokes-2d"
+        case["manifest_path"] = case_path(case["id"])
+        self.fixture.refresh_and_write_external()
+        self._assert_rejected("case-set")
+
+    def test_19d_gmsh_and_interior_mesh_boundary_cannot_be_omitted(self):
+        claim = self.fixture.payload["claim"]
+        claim["public_claim"] = (
+            claim["public_claim"]
+            .replace(
+                "the accepted exact Gmsh CLI 4.15.2 witness: ",
+                "an accepted mesh witness: ",
+            )
+            .replace(
+                ", and 548 interior vertices",
+                "",
+            )
+        )
+        self.fixture.refresh_and_write_external()
+        self._assert_rejected("claim")
 
     def test_19b_pressure_case_cannot_claim_exact_pixel_dimensions(self):
         manifest = self.fixture.root / case_path("interfaces.python-exact-cylinder-pressure-still")

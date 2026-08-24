@@ -6,6 +6,20 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.1.0a3] - 2026-08-23
+
+### Changed
+
+- Automatic Python meshing for the bounded exact-cylinder workflow now invokes
+  Gmsh 4.15.2 and imports its linear 2D MSH 4.1 output. Missing, mismatched, or
+  failed Gmsh executions reject explicitly; the former reference-mesh fallback
+  is not retained.
+
+- The exact-cylinder Result, Notebook mesh view, and Gallery pressure image now
+  use the accepted 662-vertex, 1,210-triangle Gmsh realization. This does not
+  claim arbitrary geometry, curved elements, adaptive sizing, or cross-platform
+  generated-mesh byte identity.
+
 ## [0.1.0a2] - 2026-08-21
 
 ### Added
@@ -136,6 +150,7 @@ Detailed claims and nonclaims are the responsibility of the
 [capability matrix](docs/capability-matrix.md) and registered
 [`verify/`](verify/) cases rather than this summary.
 
-[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a2...HEAD
+[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a3...HEAD
+[0.1.0a3]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a3
 [0.1.0a2]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a2
 [0.1.0a1]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a1

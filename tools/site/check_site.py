@@ -748,7 +748,7 @@ def check_source(
         is_release_history = "release-notes" in source.relative_to(site).parts
         if not is_release_history and relative not in CURRENT_VERSION_SOURCE_EXCEPTIONS:
             for forbidden_version in CURRENT_VERSION.findall(text):
-                if fixed and source == record and forbidden_version == "0.1.0a1":
+                if fixed and source == record and forbidden_version == "0.1.0a3":
                     continue
                 errors.append(
                     f"site source hard-codes product version {forbidden_version!r}: "

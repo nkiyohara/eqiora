@@ -31,12 +31,12 @@ const EXTRA_FAER_LIBRARIES: &[ProviderLibrary] = &[
 
 const REFERENCE_PROVIDER: SolverProvider = SolverProvider::new(
     BackendId::new("eqiora.reference"),
-    "0.1.0-alpha.2",
+    env!("CARGO_PKG_VERSION"),
     EMPTY_LIBRARIES,
 );
 const FAER_PROVIDER: SolverProvider = SolverProvider::new(
     BackendId::new("eqiora.faer"),
-    "0.1.0-alpha.2",
+    env!("CARGO_PKG_VERSION"),
     FAER_LIBRARIES,
 );
 
@@ -1042,17 +1042,17 @@ fn catalog_validation_precedence_and_exact_plan_tuple_are_frozen() {
         ),
         SolverProvider::new(
             BackendId::new("eqiora.faer"),
-            "0.1.0-alpha.2",
+            env!("CARGO_PKG_VERSION"),
             CHANGED_FAER_LIBRARIES,
         ),
         SolverProvider::new(
             BackendId::new("eqiora.faer"),
-            "0.1.0-alpha.2",
+            env!("CARGO_PKG_VERSION"),
             EMPTY_LIBRARIES,
         ),
         SolverProvider::new(
             BackendId::new("eqiora.faer"),
-            "0.1.0-alpha.2",
+            env!("CARGO_PKG_VERSION"),
             EXTRA_FAER_LIBRARIES,
         ),
     ] {

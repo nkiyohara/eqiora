@@ -16,6 +16,8 @@ CI_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = CI_ROOT.parents[1]
 sys.path.insert(0, str(CI_ROOT))
 
+import python_package_gate as python_package_gate_module  # noqa: E402
+
 from check_gate import JOB_SURFACES, evaluate, parse_relevance, parse_results  # noqa: E402
 from classify_changes import SURFACES, changed_paths, classify, render_outputs  # noqa: E402
 from local_verify import HOSTED_TEST_PROFILE  # noqa: E402
@@ -1097,13 +1099,109 @@ class PythonPackageGateTests(unittest.TestCase):
             f"{venv_python(virtual_environment).parent}{os.pathsep}/usr/bin",
         )
 
-    def test_uv_rebuilds_the_current_noneditable_project(self) -> None:
+    def test_uv_rebuilds_the_current_noneditable_project_without_gmsh(self) -> None:
         command = uv_gate_command("uv", "/usr/bin/python3")
 
         self.assertIn("--no-editable", command)
         index = command.index("--reinstall-package")
         self.assertEqual(command[index + 1], "eqiora")
+        self.assertNotIn("--extra", command)
+        self.assertNotIn("gmsh", command)
         self.assertEqual(command[command.index("--python") + 1], "/usr/bin/python3")
+
+    def test_package_gate_runs_base_only_before_exact_gmsh_evidence(self) -> None:
+        tests = REPOSITORY_ROOT / "bindings/python/tests"
+        gmsh_evidence = tuple(
+            str(tests / name)
+            for name in (
+                "test_circular_hole_chordal_mesh.py",
+                "test_exact_cylinder_stokes_result.py",
+                "test_rich_mesh_display.py",
+            )
+        )
+        temporary = mock.MagicMock()
+        temporary.__enter__.return_value = "/reviewed/python-package-gate"
+        with (
+            mock.patch.object(
+                python_package_gate_module.shutil,
+                "which",
+                side_effect=("/reviewed/uv", None),
+            ),
+            mock.patch.object(
+                python_package_gate_module.tempfile,
+                "TemporaryDirectory",
+                return_value=temporary,
+            ),
+            mock.patch.object(python_package_gate_module, "run") as run,
+        ):
+            self.assertEqual(python_package_gate_module.main(), 0)
+            uv_calls = tuple(run.call_args_list)
+            run.reset_mock()
+            self.assertEqual(python_package_gate_module.main(), 0)
+            pip_calls = tuple(run.call_args_list)
+
+        expected_base_tail = [
+            str(tests),
+            "--ignore",
+            gmsh_evidence[0],
+            "--ignore",
+            gmsh_evidence[1],
+            "--ignore",
+            gmsh_evidence[2],
+        ]
+        with self.subTest(path="uv"):
+            commands = [call.args[0] for call in uv_calls]
+            self.assertEqual(len(commands), 2)
+            base, gmsh = commands
+            self.assertNotIn("--extra", base)
+            self.assertEqual(
+                base[base.index(expected_base_tail[0]) :], expected_base_tail
+            )
+            self.assertEqual(gmsh[gmsh.index("--extra") + 1], "gmsh")
+            self.assertEqual(gmsh[gmsh.index("-q") + 1 :], list(gmsh_evidence))
+            self.assertEqual(
+                [
+                    base[base.index("--python") + 1],
+                    gmsh[gmsh.index("--python") + 1],
+                ],
+                [sys.executable, sys.executable],
+            )
+
+        with self.subTest(path="pip"):
+            self.assertEqual(len(pip_calls), 6)
+            environment = Path(temporary.__enter__.return_value)
+            python = str(venv_python(environment))
+            self.assertEqual(
+                pip_calls[3:],
+                (
+                    mock.call(
+                        [python, "-m", "pytest", "-q", *expected_base_tail],
+                        cwd=python_package_gate_module.PACKAGE,
+                        virtual_environment=environment,
+                    ),
+                    mock.call(
+                        [
+                            python,
+                            "-m",
+                            "pip",
+                            "install",
+                            "--no-build-isolation",
+                            ".[gmsh]",
+                        ],
+                        cwd=python_package_gate_module.PACKAGE,
+                        virtual_environment=environment,
+                    ),
+                    mock.call(
+                        [python, "-m", "pytest", "-q", *gmsh_evidence],
+                        cwd=python_package_gate_module.PACKAGE,
+                        virtual_environment=environment,
+                    ),
+                ),
+            )
+            self.assertEqual(
+                [call.kwargs.get("virtual_environment") for call in pip_calls[1:]],
+                [environment] * 5,
+            )
 
     @mock.patch("python_package_gate.subprocess.run")
     def test_package_gate_removes_host_python_path(self, run: mock.Mock) -> None:
@@ -1134,7 +1232,12 @@ class PythonPackageGateTests(unittest.TestCase):
     def test_matplotlib_gate_installs_the_extra_and_exact_renderer(self) -> None:
         command = matplotlib_uv_gate_command("uv")
 
-        self.assertEqual(command[command.index("--extra") + 1], "matplotlib")
+        extras = [
+            command[index + 1]
+            for index, value in enumerate(command)
+            if value == "--extra"
+        ]
+        self.assertEqual(extras, ["gmsh", "matplotlib"])
         self.assertIn("matplotlib==3.11.1", command)
         self.assertEqual(command[command.index("--python") + 1], "3.13")
         self.assertTrue(

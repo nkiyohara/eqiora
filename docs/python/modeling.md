@@ -148,7 +148,7 @@ separate slices. Installed Python exposes the common `Geometry` projection
 only through the accepted authored graph; it does not publish a demo-shaped
 constructor.
 
-## Bounded chordal reference mesh
+## Bounded Gmsh-backed chordal mesh
 
 The matching meshing operation is an explicit Realization choice rather than a
 method on exact geometry:
@@ -169,16 +169,18 @@ print(mesh.digest)
 ```
 
 Rust retains the exact source, chooses and measures the chordal approximation,
-accepts the affine-triangle mesh, and derives realized named selections through
-the geometry-to-mesh correspondence. `canonical_bytes` and `digest` identify
-only the accepted inner simplicial mesh. The returned object retains the
-source, correspondence, and realization identities in the live process.
+invokes exact Gmsh 4.15.2, admits its MSH 4.1 linear triangles, and derives
+realized named selections through the geometry-to-mesh correspondence.
+`canonical_bytes` and `digest` identify only the accepted inner simplicial
+mesh. The returned object retains the source, correspondence, and realization
+identities in the live process. Missing, wrong-version, failed, or invalid
+Gmsh output rejects without falling back to the retired spoke mesh.
 
 This bounded operation supports the one rectangle-with-circular-hole family
-and fixed-phase reference topology. Its common ownership types do not claim a
-production mesher, curved-element path, external import,
-cross-process generated-realization proof, Model binding, solve, Result, or
-visualization surface.
+and fixed-phase 50-chord boundary with one Gmsh 4.15.2 interior recipe. It does
+not claim arbitrary geometry, 3D, curved elements, boundary layers, adaptive
+sizing, cross-process generated-realization proof, or general mesh
+convergence.
 
 ## Exact-cylinder steady Stokes result
 
@@ -235,11 +237,11 @@ separate slices. The runnable file is
 
 ## Exact-cylinder pressure still
 
-Install the optional Matplotlib adapter and ask the same runnable file to save
+Install the Gmsh and Matplotlib adapters and ask the same runnable file to save
 the accepted pressure field:
 
 ```console
-python -m pip install 'eqiora[matplotlib]'
+python -m pip install 'eqiora[gmsh,matplotlib]'
 python examples/python/exact_cylinder_stokes.py \
   --pressure-png exact-cylinder-pressure.png
 ```

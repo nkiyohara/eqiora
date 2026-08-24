@@ -23,20 +23,26 @@ WIDGET_MIME = "application/vnd.jupyter.widget-view+json"
 SUPPORTED_MIMES = frozenset((PLAIN_MIME, WIDGET_MIME))
 
 SOURCE_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
-CANONICAL_BYTES = 4_835
+CANONICAL_BYTES = 42_388
 CANONICAL_RAW_SHA256 = (
-    "d977d9125488fffee72deaf9a0f146bc42dc05a135692919a374d746da0f1079"
+    "9d3c6211e6832aa5a5f7e99fa210058ff1b76eab7f1e99aaa7033c282d6e2dd2"
 )
-MESH_DIGEST = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
-PROFILE = "circular-hole-chordal-reference-50/v1"
-VERTEX_COUNT = 104
-TRIANGLE_COUNT = 104
-COORDINATE_BYTES = 1_664
-TRIANGLE_BYTES = 1_248
+MESH_DIGEST = "5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b"
+PROFILE = "circular-hole-gmsh-4.15.2/v1"
+VERTEX_COUNT = 662
+TRIANGLE_COUNT = 1_210
+COORDINATE_BYTES = 10_592
+COORDINATE_BYTES_SHA256 = (
+    "42ea585f3facdc21fadf66435f37f1127bf926e6159c5ff1e4a345ba7268db3d"
+)
+TRIANGLE_BYTES = 14_520
+TRIANGLE_BYTES_SHA256 = (
+    "05a68c5630e68ed091e7da3bff07516a9ddf9345bc8319db108ac4004a7c6642"
+)
 
 UNSUPPORTED_DIAGNOSTIC = (
     "Notebook view unavailable: this N1 viewer supports only the exact accepted "
-    "50-chord circular-hole reference Mesh (104 vertices, 104 triangles)."
+    "Gmsh 4.15.2 circular-hole Mesh (662 vertices, 1210 triangles)."
 )
 CORRUPT_DIAGNOSTIC = (
     "Notebook view unavailable: the installed Eqiora Notebook presentation "
@@ -216,9 +222,15 @@ def _assert_exact_reference(mesh: object) -> None:
     assert mesh.coordinates.shape == (VERTEX_COUNT, 2)
     assert mesh.coordinates.dtype == np.dtype(np.float64)
     assert not mesh.coordinates.flags.writeable
+    assert hashlib.sha256(mesh.coordinates.tobytes(order="C")).hexdigest() == (
+        COORDINATE_BYTES_SHA256
+    )
     assert mesh.cells.shape == (TRIANGLE_COUNT, 3)
     assert mesh.cells.dtype == np.dtype(np.uint32)
     assert not mesh.cells.flags.writeable
+    assert hashlib.sha256(mesh.cells.tobytes(order="C")).hexdigest() == (
+        TRIANGLE_BYTES_SHA256
+    )
 
 
 def test_hook_signature_invalid_arguments_and_plain_filtering_are_exact() -> None:
@@ -297,8 +309,11 @@ def test_same_shape_foreign_source_is_unsupported_before_optional_import() -> No
     assert swapped.source_digest != accepted.source_digest
     assert swapped.canonical_bytes == accepted.canonical_bytes
     assert swapped.digest == accepted.digest
-    assert swapped.coordinates.shape == accepted.coordinates.shape == (104, 2)
-    assert swapped.cells.shape == accepted.cells.shape == (104, 3)
+    assert swapped.coordinates.shape == accepted.coordinates.shape == (
+        VERTEX_COUNT,
+        2,
+    )
+    assert swapped.cells.shape == accepted.cells.shape == (TRIANGLE_COUNT, 3)
 
     before = set(_widget_registry()) if importlib.util.find_spec("anywidget") else set()
     expected = f"{repr(swapped)}\n{UNSUPPORTED_DIAGNOSTIC}"
@@ -406,8 +421,8 @@ def test_private_payload_is_exact_little_endian_immutable_and_mesh_preserving() 
     mutations: dict[str, object] = {
         "profile": "foreign/v1",
         "mesh_digest": "f" * 64,
-        "vertex_count": 103,
-        "triangle_count": 103,
+        "vertex_count": VERTEX_COUNT - 1,
+        "triangle_count": TRIANGLE_COUNT - 1,
         "coordinates_f64_le": bytes(COORDINATE_BYTES),
         "triangles_u32_le": bytes(TRIANGLE_BYTES),
     }

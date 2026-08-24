@@ -1,42 +1,30 @@
 # Reference provenance
 
-The adapter API shape, claim boundary, and falsifiers were authored before its
-Python implementation. The first oracle revision's exact artifact values were
-wrong; the installed-package gate exposed that it had reconstructed the
-accepted fluid fixture's local cell order rather than the deterministic producer.
+This pre-implementation evidence was derived from exact base commit
+`934493bcb487c1753fb4b3ddffaab88d7150aa7d` without reading or consuming the
+Gmsh-provider implementation.
 
-Before acceptance, the independent evidence owner corrected those values by
-replaying the pre-existing public Rust producer, without reading or changing
-the new Python implementation and without taking values from its output. That
-replay consumes, without changing:
+It reuses, without changing:
 
-- RFC 0082 and
-  `geometry.circular-hole-chordal-reference-mesh` for the exact-source-bound
-  private chordal reference, accepted artifact owner, topology, approximation observations, tolerances, and
-  falsifiers;
-- `interfaces.python-exact-circular-hole-geometry` for the installed-Python
-  exact source; and
-- the accepted `SimplicialMeshEnvelopeV1` contract for the inner mesh's
-  canonical bytes and domain-separated identity.
+- the accepted exact circular-hole source and deterministic 50-chord
+  `PlanarRegion` owner;
+- the bounded ASCII MSH 4.1 importer;
+- `SimplicialMesh` orientation and `AffineMapQuality`; and
+- `SimplicialMeshEnvelopeV1` canonical encoding and digest framing.
 
-The corrected artifact values were independently derived by applying
-the accepted artifact constructor directly to the pre-existing deterministic
-reference Mesh. The standalone test independently hashes the exposed
-`Mesh.canonical_bytes` and compares the Python observations to those
-acceptance values. It does not derive expected values from the new Python
-adapter. The property name and the distinct raw/domain-separated hashes keep
-this inner mesh encoding separate from its exact source and correspondence
-identities.
+The evidence owner independently downloaded the official Linux64 Gmsh 4.15.2
+archive (SHA-256
+`6c62116e072db29fd1f701fdb9d3d34b46ed5373545063e177b965a008274745`)
+and independently installed the PyPI 4.15.2 distribution. Both produced the
+same MSH bytes from the owner-derived GEO, and a clean rerun reproduced them.
 
-The accepted fluid fixture is used only as an independent topology witness:
-after the existing allowance-based vertex mapping, its unordered cell sets
-equal the reference Mesh's. Its cyclic local cell rotations are not the reference's
-artifact order. Direct fixture reconstruction was the superseded oracle
-interpretation; the declared wrong-diagonal fixture separately fails the
-mapped unordered-cell-set comparison.
+The GEO is derived rather than checked in because the accepted region remains
+the authority. It emits its canonical hole traversal before the outer
+traversal, uses shortest-roundtrip binary64 coordinate spelling, and supplies
+no point mesh-size value. A recipe that asks Gmsh to reconstruct the circle
+with its own trigonometric expressions is not the same input and cannot supply
+expected values.
 
-The inner mesh artifact contains coordinates, cells, acceptance policy, and
-quality evidence only. It contains no durable exact-source binding. A
-cross-process generated realization and later Result lineage remain dependent
-on future acceptance of the separate
-`CircularHoleChordalRealizationEnvelopeV1` durable realization artifact.
+The local GEO and MSH hashes are derivation receipts for this Linux run. The
+public test freezes the resulting mesh envelope and NumPy buffers, not a claim
+that raw MSH bytes are portable across platforms or Gmsh builds.

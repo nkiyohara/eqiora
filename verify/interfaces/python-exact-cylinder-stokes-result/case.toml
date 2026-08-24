@@ -15,7 +15,7 @@ capabilities = [
 [problem]
 model = "one packaged byte-exact copy of the accepted current steady-flow-past-cylinder Model envelope, supplied explicitly to the bounded solve"
 geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one exact radius-0.05 m circle centred at [0.2, 0.2] m"
-realization = "the accepted exact-source-owned 50-chord, 104-triangle reference mesh"
+realization = "the accepted exact-source-owned Gmsh 4.15.2 mesh of the 50-chord region, with 662 vertices and 1210 linear triangles"
 physics = "steady coherent-SI MINI/P1 Stokes"
 intent = "immutable eqiora.fluid.SteadyStokes with six mandatory readable arguments"
 entry_point = "eqiora.fluid.resolve then eqiora.submit(model, plan=...) or eqiora.run(model, plan=...)"
@@ -25,12 +25,11 @@ scientific_evidence = "eqiora.fluid.steady_stokes_evidence(result) returns the m
 retired_surfaces = "eqiora.fluid.solve_exact_cylinder_stokes, eqiora.fluid.CircularHoleSteadyStokesResult, and eqiora.matplotlib.plot_pressure are absent from the final runtime, __all__, and stubs"
 
 [oracle]
-fluid_case = "fluid.exact-circular-hole-stokes-2d"
+fluid_case = "fluid.exact-circular-hole-stokes-2d-gmsh"
 model_case = "artifacts.current-model-canonical-identity"
 geometry_case = "interfaces.python-exact-circular-hole-geometry"
 mesh_case = "interfaces.python-circular-hole-chordal-mesh"
-lineage_case = "interfaces.studio-exact-cylinder-stokes-demo"
-numeric_route = "verify/fluid/exact-circular-hole-stokes-2d/routes/python/result.json"
+numeric_route = "verify/fluid/exact-circular-hole-stokes-2d-gmsh/routes/python/result.json"
 digest_policy = "source, mesh, and model identities are frozen; produced realization, snapshot, and run identities are replayed relationally from canonical public bytes"
 
 [expected]
@@ -41,17 +40,17 @@ packaged_model_bytes = 16798
 packaged_model_raw_sha256 = "5c5c7924d6efe624a4b4df5f03f2fab03e423fc2ebafb658ba8ad050a7496387"
 semantic_revision = 1
 source_digest = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
-mesh_digest = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
+mesh_digest = "5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b"
 realization_revision = 133
-vertices = 104
-triangles = 104
-pressure_values = 104
+vertices = 662
+triangles = 1210
+pressure_values = 662
 pressure_probes = 6
 circle_segments = 50
 relative_tolerance = 1e-6
 absolute_tolerance = 1e-13
 maximum_iterations = 10000
-residual_target = 1.3239627651209673e-7
+residual_target = 6.138485578780151e-6
 length_scale_m = 0.41
 velocity_scale_m_per_s = 0.3
 pressure_scale_pa = 0.0007317073170731707
@@ -135,7 +134,7 @@ one_packaged_current_model_artifact = true
 general_packaged_model_catalog = false
 general_packaged_model_loader = false
 one_exact_geometry = true
-one_chordal_realization = true
+one_exact_gmsh_4_15_2_realization = true
 steady_stokes_only = true
 intrinsic_dimension = 2
 affine_triangles_only = true
@@ -154,6 +153,7 @@ navier_stokes_or_transient = false
 fsi = false
 performance_or_scale = false
 cross_platform_bit_identity = false
+linux_x86_64_exact_mesh_witness_only = true
 one_accepted_intent_and_plan_tuple = true
 alternate_solver_backend_or_topology_selection = false
 general_plan_or_realization_unification = false

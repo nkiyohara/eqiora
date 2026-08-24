@@ -39,8 +39,10 @@ const ACCEPTED_MODEL_DIGEST: &str =
     "8bc5155bc1b64ed37f7a2ac010a966e1619091a118e6cf7806dbdf9621977146";
 const ACCEPTED_SOURCE_DIGEST: &str =
     "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9";
-const ACCEPTED_MESH_DIGEST: &str =
+const ACCEPTED_REFERENCE_MESH_DIGEST: &str =
     "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a";
+const ACCEPTED_GMSH_MESH_DIGEST: &str =
+    "5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b";
 const ACCEPTED_SEMANTIC_REVISION: u64 = 1;
 const APPLICATION_REALIZATION_REVISION: u64 = 133;
 const ACCEPTED_MAX_BOUNDARY_ERROR_M: f64 = 1.0e-4;
@@ -507,9 +509,10 @@ fn require_accepted_inputs(
             "exact-cylinder reference operation requires the accepted chordal realization policy",
         ));
     }
-    if accepted.mesh().digest()?.to_string() != ACCEPTED_MESH_DIGEST {
+    let mesh_digest = accepted.mesh().digest()?.to_string();
+    if mesh_digest != ACCEPTED_REFERENCE_MESH_DIGEST && mesh_digest != ACCEPTED_GMSH_MESH_DIGEST {
         return Err(invalid_reference_input(
-            "exact-cylinder reference operation requires the accepted chordal mesh policy",
+            "exact-cylinder reference operation requires an accepted exact mesh policy",
         ));
     }
     Ok(())
@@ -689,3 +692,7 @@ fn internal_failure(message: impl Into<String>) -> Diagnostic {
 fn invalid_reference_input(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
 }
+
+#[cfg(test)]
+#[path = "steady_stokes/tests.rs"]
+mod tests;

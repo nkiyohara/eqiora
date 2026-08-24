@@ -28,17 +28,17 @@ const TEXT_MIME: &str = "text/plain";
 const WIDGET_MIME: &str = "application/vnd.jupyter.widget-view+json";
 const REFERENCE_SOURCE_DIGEST: &str =
     "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9";
-const REFERENCE_CANONICAL_BYTES: usize = 4_835;
+const REFERENCE_CANONICAL_BYTES: usize = 42_388;
 const REFERENCE_CANONICAL_RAW_SHA256: &str =
-    "d977d9125488fffee72deaf9a0f146bc42dc05a135692919a374d746da0f1079";
+    "9d3c6211e6832aa5a5f7e99fa210058ff1b76eab7f1e99aaa7033c282d6e2dd2";
 const REFERENCE_MESH_DIGEST: &str =
-    "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a";
+    "5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b";
 const REFERENCE_COORDINATES_SHA256: &str =
-    "2aaf87276bf352faddfadc76e63c1f44340a362047b1399a2e081c798c5921aa";
+    "42ea585f3facdc21fadf66435f37f1127bf926e6159c5ff1e4a345ba7268db3d";
 const REFERENCE_TRIANGLES_SHA256: &str =
-    "229392dc7faca769c88348cf41a810f29df3a22ad1276cb866783e5e04078a9f";
+    "05a68c5630e68ed091e7da3bff07516a9ddf9345bc8319db108ac4004a7c6642";
 const MESH_DIGEST_DOMAIN: &[u8] = b"eqiora.simplicial-mesh-envelope/v1\0";
-const UNSUPPORTED_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: this N1 viewer supports only the exact accepted 50-chord circular-hole reference Mesh (104 vertices, 104 triangles).";
+const UNSUPPORTED_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: this N1 viewer supports only the exact accepted Gmsh 4.15.2 circular-hole Mesh (662 vertices, 1210 triangles).";
 const CORRUPT_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: the installed Eqiora Notebook presentation runtime or assets are incomplete. Reinstall eqiora[notebook].";
 
 /// Immutable source-bound accepted Mesh.

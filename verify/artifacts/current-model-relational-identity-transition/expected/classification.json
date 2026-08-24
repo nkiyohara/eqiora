@@ -411,7 +411,7 @@
           "class": "current-owner-assertion",
           "signals": ["model_digest"],
           "identity_literals": 0,
-          "accepted_sha256": "2f2a3f0749df9a7674b743f707f2f144415cb8e7b0b02e46543ee04323a1d792",
+          "accepted_sha256": "3c9bc27c7aa4e4b8836af021c1ae775da9a1dc47229c0bb68a75743430b876bb",
           "owner": "gallery.exact-cylinder-steady-stokes current-owner documentation",
           "note": "the accepted Cylinder gallery projection names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; gallery science and prose remain owned by their accepted authorities."
         },
@@ -429,7 +429,7 @@
           "class": "current-owner-assertion",
           "signals": ["eqiora.model-envelope/v", "eqiora.model-transaction-envelope/v"],
           "identity_literals": 0,
-          "accepted_sha256": "fc284ef3ee15d4f1a4c563765a67111f3283a3156a1025971e9b46897bf77f1e",
+          "accepted_sha256": "8aa18b3a0c67d23ebe31d380042551fbf9d61f9c5b9e78203aaabf2e44265aef",
           "owner": "interfaces.mcp-stdio-compile-check current-owner reference projection",
           "note": "the accepted MCP reference projection names the current Model and Transaction schema families without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes."
         },
@@ -483,7 +483,7 @@
           "class": "non-fixture-search-hit",
           "signals": ["model_digest"],
           "identity_literals": 0,
-          "accepted_sha256": "f6a736cbbe364d8acba59212888297ffc483a052b9ad76b5ac28b410a11b71e4",
+          "accepted_sha256": "e9a27aeae4c77c951be9017faef0343a2e712aeedad92238249993b87967a150",
           "owner": "the accepted Gallery publication checker",
           "note": "the accepted checker names `model_digest` as a publication predicate field without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; predicate semantics remain owned by its accepted evidence."
         },
@@ -501,7 +501,7 @@
           "class": "non-fixture-search-hit",
           "signals": ["model_digest"],
           "identity_literals": 0,
-          "accepted_sha256": "749099735ad08b3eb7362de46290f25d3f5d041b746b96c6b4e01e7904f91b6d",
+          "accepted_sha256": "7b88383809422f73dec1a6cf21d4e1006610b4b81917379abdd97a1134261a7b",
           "owner": "the accepted Gallery publication fixture helper",
           "note": "the accepted fixture helper names `model_digest` while constructing causal publication mutants and freezes no Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes."
         },
@@ -510,7 +510,7 @@
           "class": "non-fixture-search-hit",
           "signals": ["model_digest"],
           "identity_literals": 0,
-          "accepted_sha256": "dd44507123d370e7110a21ee2f25e6d675026081ff6df557598ec902c9cc8c7b",
+          "accepted_sha256": "9db7b122386c52998fd4dd35714f5ff9f7b5b39ae06e4e8078237778eaad25f0",
           "owner": "the accepted Gallery publication predicate oracle",
           "note": "the accepted predicate test names `model_digest` as an asserted and mutated publication field without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; expected publication semantics remain owned by that independent oracle."
         }
@@ -736,10 +736,10 @@
           "path": "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json",
           "class": "delegated-current-owner-evidence",
           "signals": ["model_digest"],
-          "identity_literals": 76,
-          "accepted_sha256": "db88a9a60926f52fc34b4106a29137b2fd8afbd5cc83b4eb797619432a744d33",
+          "identity_literals": 75,
+          "accepted_sha256": "f5df7f5dd74abcac60776786e5863a9cfb81ab88855b9f77ee90c38decb61813",
           "owner": "gallery.exact-cylinder-steady-stokes accepted publication evidence",
-          "note": "the accepted minified publication projection names `model_digest` and contains 76 same-line lower-hex-64 occurrences. Admission owns only this exact path, observed shape, category, and accepted bytes; scientific, source, package, renderer, receipt, and publication identities remain owned by the accepted Gallery authorities."
+          "note": "the accepted minified publication projection names `model_digest` and contains 75 same-line lower-hex-64 occurrences. Admission owns only this exact path, observed shape, category, and accepted bytes; scientific, source, package, renderer, receipt, and publication identities remain owned by the accepted Gallery authorities."
         }
       ],
       "post_reset_classified_contract": "identity-bearing evidence created after the reset is classified by exact path and by nothing else. Classification is containment-only and never makes a later capability a condition of accepting the reset. A present path must reproduce its complete recorded search-token inventory, same-line lower-hex search-signal count, and lower-hex-64 literal multiset; a missing signal, extra signal, substituted identity, or additional identity returns the path to this oracle.",

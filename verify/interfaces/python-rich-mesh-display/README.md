@@ -3,7 +3,7 @@
 This case verifies one deliberately closed Notebook presentation path. An
 installed native `eqiora.meshing.Mesh` carries the conventional
 `_repr_mimebundle_(include=None, exclude=None)` hook, but only the already
-accepted 50-chord circular-hole reference Mesh may create rich output. A bare
+accepted external-Gmsh 4.15.2 circular-hole Mesh may create rich output. A bare
 last expression renders through the same private anywidget adapter in exact
 JupyterLab 4.6.2 and marimo 0.23.16.
 
@@ -39,8 +39,9 @@ payload holds no Mesh reference.
 
 The Python oracle fixes protocol filtering, exact fallbacks, zero-comm failure,
 same-shape source drift, open reuse, close/fresh behavior, immutable synced
-members, and byte-for-byte Mesh preservation. The frontend oracle replays the
-accepted little-endian coordinate/connectivity bytes and rejects endian,
+members, and byte-for-byte Mesh preservation. The frontend oracle mechanically
+replays the independently accepted 10,592 little-endian coordinate bytes and
+14,520 little-endian connectivity bytes, and rejects endian,
 length, non-finite, digest, count, index, degeneracy, and same-size drift before
 renderer creation.
 
@@ -72,7 +73,8 @@ uninterruptible or inaccessible survivor disappears within a fixed time.
 
 ## Boundary
 
-This is not arbitrary Mesh display, a public `view()` or widget type, a
+This is not arbitrary Mesh display, another Gmsh version or platform witness,
+raw-MSH portability, a public `view()` or widget type, a
 renderer registry, a Studio component, selection/picking, field or trajectory
 visualization, scientific evidence from pixels, saved media, or a browser and
 platform compatibility promise. Camera and representation state are private

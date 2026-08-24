@@ -9,7 +9,7 @@ The exact text outcomes are:
 
 - ordinary/optional-absence: the unchanged `repr(mesh)`;
 - unsupported reference:
-  `repr(mesh) + "\nNotebook view unavailable: this N1 viewer supports only the exact accepted 50-chord circular-hole reference Mesh (104 vertices, 104 triangles)."`;
+  `repr(mesh) + "\nNotebook view unavailable: this N1 viewer supports only the exact accepted Gmsh 4.15.2 circular-hole Mesh (662 vertices, 1210 triangles)."`;
 - corrupt runtime/assets:
   `repr(mesh) + "\nNotebook view unavailable: the installed Eqiora Notebook presentation runtime or assets are incomplete. Reinstall eqiora[notebook]."`.
 

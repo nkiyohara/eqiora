@@ -39,7 +39,17 @@ RUNNER_LINE = (
     '                  "$EQIORA_SITE_SOURCE_ROOT/tools/site/'
     'run_offline_site_checks.sh"\n'
 )
-FROZEN_SUCCESSOR_ERROR = "workflow is not the frozen two-line mise trust successor"
+HISTORY_FETCH_LINES = (
+    "          git fetch --no-tags --no-recurse-submodules --no-write-fetch-head \\\n"
+    "            origin refs/pull/501/head\n"
+)
+NODE_MODULES_MOVE_LINE = (
+    '          mv docs/site/node_modules '
+    '"$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules"\n'
+)
+FROZEN_SUCCESSOR_ERROR = (
+    "workflow is not the frozen mise trust and history fetch successor"
+)
 UNTRUSTED = "not trusted"
 MISE_VERSION = "2026.5.10 linux-x64 (2026-05-16)"
 
@@ -209,16 +219,25 @@ class PagesMiseTrustBoundaryTests(unittest.TestCase):
 
         cls.candidate_workflow = cls.candidate_workflow_bytes.decode("utf-8")
         target = ENV_LINE + HOME_LINE
-        cls.known_good_workflow = _replace_once(
+        cls.mise_trust_successor_workflow = _replace_once(
             cls.candidate_workflow,
             target,
             ENV_LINE + CHDIR_LINE + TRUST_LINE + HOME_LINE,
+        )
+        cls.known_good_workflow = _replace_once(
+            cls.mise_trust_successor_workflow,
+            NODE_MODULES_MOVE_LINE,
+            HISTORY_FETCH_LINES + NODE_MODULES_MOVE_LINE,
         )
         if cls.candidate_workflow.count(CHDIR_LINE) != 0:
             raise AssertionError("the frozen candidate unexpectedly contains env chdir")
         if cls.candidate_workflow.count(TRUST_LINE) != 0:
             raise AssertionError(
                 "the frozen candidate unexpectedly contains exact-file trust"
+            )
+        if cls.mise_trust_successor_workflow.count(HISTORY_FETCH_LINES) != 0:
+            raise AssertionError(
+                "the frozen mise trust successor unexpectedly contains history fetch"
             )
 
         cls.temporary = tempfile.TemporaryDirectory(dir=SCRATCH_ROOT)
@@ -377,6 +396,8 @@ class PagesMiseTrustBoundaryTests(unittest.TestCase):
         self.assertEqual(step.count(ENV_LINE), 1)
         self.assertEqual(step.count(HOME_LINE), 1)
         self.assertEqual(step.count(RUNNER_LINE), 1)
+        self.assertEqual(text.count(HISTORY_FETCH_LINES), 1)
+        self.assertIn(HISTORY_FETCH_LINES + NODE_MODULES_MOVE_LINE, text)
         self.assertIn(ENV_LINE + CHDIR_LINE + TRUST_LINE + HOME_LINE, step)
         self.assertIn(
             '                  EQIORA_SITE_SOURCE_ROOT="$EQIORA_SITE_SOURCE_ROOT" \\\n',
@@ -398,7 +419,13 @@ class PagesMiseTrustBoundaryTests(unittest.TestCase):
         self.assertIn('                --regid "$EQIORA_RUNNER_GID" \\\n', step)
         self.assertIn("                --clear-groups \\\n", step)
         self.assertEqual(
-            text.replace(CHDIR_LINE + TRUST_LINE, "", 1),
+            text.replace(HISTORY_FETCH_LINES, "", 1),
+            self.mise_trust_successor_workflow,
+        )
+        self.assertEqual(
+            text.replace(HISTORY_FETCH_LINES, "", 1).replace(
+                CHDIR_LINE + TRUST_LINE, "", 1
+            ),
             self.candidate_workflow,
         )
 
@@ -409,7 +436,7 @@ class PagesMiseTrustBoundaryTests(unittest.TestCase):
         )
         self._assert_success(result, sentinel)
 
-    def test_01_frozen_two_line_successor_is_structural_and_executable(self) -> None:
+    def test_01_frozen_successor_is_structural_and_executable(self) -> None:
         self._assert_known_good_structure(self.known_good_workflow)
         result, sentinel = self._invoke(
             chdir=self.source,
@@ -471,6 +498,17 @@ class PagesMiseTrustBoundaryTests(unittest.TestCase):
         good = self.known_good_workflow
         preserve = "--preserve-env=ASTRO_TELEMETRY_DISABLED"
         mutants = {
+            "delete-history-fetch": _replace_once(good, HISTORY_FETCH_LINES, ""),
+            "changed-history-fetch": _replace_once(
+                good,
+                HISTORY_FETCH_LINES,
+                HISTORY_FETCH_LINES.replace("refs/pull/501/head", "refs/pull/500/head"),
+            ),
+            "moved-history-fetch": _replace_once(
+                _replace_once(good, HISTORY_FETCH_LINES, ""),
+                NODE_MODULES_MOVE_LINE,
+                NODE_MODULES_MOVE_LINE + HISTORY_FETCH_LINES,
+            ),
             "delete-trust": _replace_once(good, TRUST_LINE, ""),
             "delete-chdir": _replace_once(good, CHDIR_LINE, ""),
             "chdir-after-assignment": _replace_once(

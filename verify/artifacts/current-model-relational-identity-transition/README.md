@@ -54,7 +54,7 @@ by hand.
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
 | `post_reset_admitted` | 29 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
 | `post_reset_fixture_admitted` | 27 | later exact evidence representations admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
-| accepted-byte-bound optional rows | 13 | exact alpha.2 site/source rows guarded by accepted raw SHA-256; permission remains optional and owns no input semantics |
+| accepted-byte-bound optional rows | 13 | exact alpha.3 site/source rows guarded by accepted raw SHA-256; permission remains optional and owns no input semantics |
 
 **44, 304 and 13 are not one partition of 338.** What partitions the inventory
 is 34 + 304: the retired paths that are inventory members, plus the preserved
@@ -154,7 +154,7 @@ The transition is history; later work is admitted only as optional permission.
 The original seventeen identity-free rows cover the Python trajectory and
 Result surfaces, Cartesian Q1 snapshot and oracle, RFC 0085 standalone-solid
 surfaces, subprocess-provider surfaces, non-box transient oracle, and private
-MCP adapter. Twelve accepted alpha.2 site rows append in exact order:
+MCP adapter. Twelve accepted alpha.3 site rows append in exact order:
 
 - Cylinder gallery, control-v2 reference, MCP reference, and five generated
   Python reference pages, all `current-owner-assertion`;
@@ -181,10 +181,10 @@ The first 26 fixture rows retain their exact RFC 0085, subprocess-provider,
 Python-package, MCP, Stokes, collocated, and semantic-impact shapes and their
 aggregate 120 occurrences. The accepted minified Cylinder publication JSON is
 the twenty-seventh and final row: `delegated-current-owner-evidence`, one
-`model_digest` signal, 76 textual lower-hex-64 occurrences on its qualifying
+`model_digest` signal, 75 textual lower-hex-64 occurrences on its qualifying
 line, and accepted raw SHA-256
-`db88a9a60926f52fc34b4106a29137b2fd8afbd5cc83b4eb797619432a744d33`.
-The aggregate is therefore 196.
+`f5df7f5dd74abcac60776786e5863a9cfb81ab88855b9f77ee90c38decb61813`.
+The aggregate is therefore 195.
 
 This permission is also containment-only and exact-path-only. Empty,
 singleton, all, and all-but-one subsets of both admission vectors remain valid.

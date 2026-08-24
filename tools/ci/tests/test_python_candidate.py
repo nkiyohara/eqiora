@@ -69,7 +69,7 @@ EXACT_WHEEL_PAYLOAD_SHA256 = {
 EXACT_WHEEL_MEMBER = "eqiora-0.1.0a1.dist-info/WHEEL"
 EXACT_RECORD_MEMBER = "eqiora-0.1.0a1.dist-info/RECORD"
 PLAYWRIGHT_CORE_LOCK_SHA256 = (
-    "8ca9ceead35d1346739868105f61f6948df3a9fa0a7640f335233678e11551d6"
+    "37dc93bb47a5a4e2f4e50ffb80a231bdd6400193f61d87e99e376eb95fcf25bf"
 )
 PLAYWRIGHT_CORE_PACKAGE_SHA256 = (
     "07c47543631fef9508760365dee9fbe958c562093ec8d122543949ed231f233f"
@@ -628,9 +628,11 @@ License-Expression: Apache-2.0
 License-File: LICENSE
 License-File: NOTICE
 Provides-Extra: jax
+Provides-Extra: gmsh
 Provides-Extra: matplotlib
 Provides-Extra: torch
 Requires-Dist: numpy<3,>=2.1
+Requires-Dist: gmsh==4.15.2 ; extra == 'gmsh'
 Requires-Dist: torch>=2.13,<2.14; extra == "torch"
 Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
@@ -693,9 +695,11 @@ License-Expression: Apache-2.0
 License-File: LICENSE
 License-File: NOTICE
 Provides-Extra: jax
+Provides-Extra: gmsh
 Provides-Extra: matplotlib
 Provides-Extra: torch
 Requires-Dist: numpy<3,>=2.1
+Requires-Dist: gmsh==4.15.2; extra == "gmsh"
 Requires-Dist: torch>=2.13,<2.14
 Requires-Dist: jax==0.11.0; extra == "jax"
 Requires-Dist: jaxlib==0.11.0; extra == "jax"
@@ -756,10 +760,12 @@ License-Expression: Apache-2.0
 License-File: LICENSE
 License-File: NOTICE
 Provides-Extra: jax
+Provides-Extra: gmsh
 Provides-Extra: matplotlib
 Provides-Extra: notebook
 Provides-Extra: torch
 Requires-Dist: numpy<3,>=2.1
+Requires-Dist: gmsh==4.15.2; extra == "gmsh"
 Requires-Dist: torch>=2.13,<2.14; extra == "torch"
 Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
@@ -1496,6 +1502,208 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
             config=config,
         )
 
+    def test_base_profile_receipts_gmsh_only_after_base_checks_and_mesh_tests(
+        self,
+    ) -> None:
+        profiles = self.profiles_module()
+        config = self.config()
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            workspace = profiles.build_profile_plan(
+                root, config, skip_extras=False
+            )[0]
+            wheel = root / "eqiora-cp311.whl"
+            extracted = root / "source"
+            python = workspace.environment / "bin/python"
+            events = mock.Mock()
+            install = events.install_environment
+            install.return_value = python
+            run = events.run
+            run.return_value = ""
+            public_smoke = events.run_public_smoke
+
+            with (
+                mock.patch.object(profiles, "install_environment", new=install),
+                mock.patch.object(
+                    profiles,
+                    "prepare_base_consumer_tree",
+                    return_value=(
+                        workspace.consumer / "tests",
+                        workspace.consumer / "typecheck",
+                    ),
+                ),
+                mock.patch.object(
+                    profiles, "prepare_exact_cylinder_demo_consumer"
+                ),
+                mock.patch.object(
+                    profiles, "prepare_mixed_boundary_elasticity_demo_consumer"
+                ),
+                mock.patch.object(
+                    profiles, "prepare_fixed_reference_fsi_demo_consumer"
+                ),
+                mock.patch.object(profiles, "assert_installed_origin"),
+                mock.patch.object(profiles, "assert_matplotlib_is_optional"),
+                mock.patch.object(profiles, "run_public_smoke", new=public_smoke),
+            ):
+                checks = profiles.run_base_profile(
+                    uv="/reviewed/uv",
+                    interpreter="/reviewed/python3.11",
+                    python_version="3.11",
+                    wheel=wheel,
+                    extracted=extracted,
+                    workspace=workspace,
+                    config=config,
+                    run=run,
+                )
+
+        tests = workspace.consumer / "tests"
+        typecheck = workspace.consumer / "typecheck"
+        gmsh_tests = tuple(
+            tests / name
+            for name in (
+                "test_circular_hole_chordal_mesh.py",
+                "test_exact_cylinder_stokes_result.py",
+                "test_rich_mesh_display.py",
+            )
+        )
+        gmsh_path = str(python.parent)
+        if inherited_path := os.environ.get("PATH"):
+            gmsh_path = os.pathsep.join((gmsh_path, inherited_path))
+        self.assertEqual(
+            checks,
+            [
+                "cp311:installed-wheel",
+                "cp311:base-and-numpy",
+                "cp311:packaged-exact-cylinder-model-demo",
+                "cp311:packaged-mixed-boundary-elasticity-demo",
+                "cp311:packaged-fixed-reference-fsi-demo",
+                "cp311:async-and-cancellation",
+                "cp311:strict-base-typing",
+                "cp311:public-smoke-base",
+                "cp311:matplotlib-free-base",
+            ],
+        )
+        self.assertEqual(
+            events.mock_calls,
+            [
+                mock.call.install_environment(
+                    uv="/reviewed/uv",
+                    interpreter="/reviewed/python3.11",
+                    environment=workspace.environment,
+                    requirements=[str(wheel), config.pytest, config.mypy],
+                    run=run,
+                ),
+                mock.call.run(
+                    [
+                        str(python),
+                        "-I",
+                        "-m",
+                        "pytest",
+                        "-q",
+                        str(tests),
+                        "--ignore",
+                        str(gmsh_tests[0]),
+                        "--ignore",
+                        str(gmsh_tests[1]),
+                        "--ignore",
+                        str(gmsh_tests[2]),
+                    ],
+                    cwd=workspace.consumer,
+                ),
+                mock.call.run(
+                    [
+                        str(python),
+                        "-I",
+                        "-m",
+                        "mypy",
+                        "--strict",
+                        str(typecheck / "base.py"),
+                    ],
+                    cwd=workspace.consumer,
+                ),
+                mock.call.run_public_smoke(
+                    python=python,
+                    extracted=extracted,
+                    run_root=workspace.consumer,
+                    expected_version=config.python_version,
+                    profile="base",
+                    run=run,
+                ),
+                mock.call.run(
+                    [
+                        "/reviewed/uv",
+                        "pip",
+                        "install",
+                        "--python",
+                        str(python),
+                        f"{wheel}[gmsh]",
+                    ],
+                    cwd=workspace.environment.parent,
+                ),
+                mock.call.run(
+                    [
+                        str(python),
+                        "-I",
+                        "-m",
+                        "pytest",
+                        "-q",
+                        *(str(test) for test in gmsh_tests),
+                    ],
+                    cwd=workspace.consumer,
+                    extra_environment={
+                        "EQIORA_GMSH": str(
+                            python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
+                        ),
+                        "PATH": gmsh_path,
+                    },
+                ),
+            ],
+        )
+
+    def test_base_public_smoke_rejects_gmsh_imported_with_eqiora(self) -> None:
+        smoke = importlib.import_module("python_public_smoke")
+        expected_version = "0.1.0a1"
+
+        def reached_base_execution(*_args: object, **_kwargs: object) -> object:
+            raise RuntimeError("base smoke continued after importing Gmsh")
+
+        eqiora = types.SimpleNamespace(
+            __version__=expected_version,
+            Field=reached_base_execution,
+        )
+        real_import = builtins.__import__
+
+        def import_with_gmsh(
+            name: str,
+            globals: object = None,
+            locals: object = None,
+            fromlist: object = (),
+            level: int = 0,
+        ) -> object:
+            if name == "eqiora":
+                sys.modules["gmsh"] = types.ModuleType("gmsh")
+                return eqiora
+            return real_import(name, globals, locals, fromlist, level)
+
+        with (
+            mock.patch.dict(sys.modules, {"eqiora": eqiora}),
+            mock.patch.object(builtins, "__import__", new=import_with_gmsh),
+            mock.patch.object(
+                smoke.importlib.metadata,
+                "version",
+                return_value=expected_version,
+            ),
+        ):
+            sys.modules.pop("gmsh", None)
+            try:
+                smoke.base_smoke(expected_version)
+            except AssertionError:
+                pass
+            except RuntimeError as error:
+                self.fail(str(error))
+            else:  # pragma: no cover - the fake base execution always stops
+                self.fail("base smoke accepted an Eqiora import that loaded Gmsh")
+
     def test_notebook_profile_dispatch_requires_validated_authority_pair(self) -> None:
         profiles = self.profiles_module()
         config = self.config()
@@ -1921,6 +2129,104 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                     if variable in dict(item.environment_variables)
                 ]
                 self.assertEqual(observed, [owner], variable)
+
+            config = self.config()
+            workspace = next(item for item in plan if item.name == "matplotlib-3.13")
+            extracted = scratch / "source"
+            source_test = extracted / "bindings/python/tests/test_matplotlib.py"
+            source_test.parent.mkdir(parents=True)
+            source_test.write_text(
+                "def test_placeholder():\n    pass\n", encoding="utf-8"
+            )
+            python = workspace.environment / (
+                "Scripts/python.exe" if os.name == "nt" else "bin/python"
+            )
+            demos = tuple(
+                workspace.consumer / name for name in ("exact.py", "mixed.py", "fsi.py")
+            )
+            install = mock.Mock(return_value=python)
+
+            def run(argv: list[str], **_kwargs: object) -> str:
+                for value in argv:
+                    output = Path(value)
+                    if output.is_absolute() and output.suffix == ".png":
+                        output.write_bytes(b"\x89PNG\r\n\x1a\n")
+                return ""
+
+            checked = mock.Mock(side_effect=run)
+            with (
+                mock.patch.object(profiles, "install_environment", new=install),
+                mock.patch.object(
+                    profiles,
+                    "prepare_exact_cylinder_demo_consumer",
+                    return_value=demos[0],
+                ),
+                mock.patch.object(
+                    profiles,
+                    "prepare_mixed_boundary_elasticity_demo_consumer",
+                    return_value=demos[1],
+                ),
+                mock.patch.object(
+                    profiles,
+                    "prepare_fixed_reference_fsi_demo_consumer",
+                    return_value=demos[2],
+                ),
+                mock.patch.dict(
+                    os.environ,
+                    {"EQIORA_GMSH": "/ambient/gmsh", "PATH": "/ambient/bin"},
+                ),
+            ):
+                checks = profiles.run_optional_profile(
+                    name="matplotlib",
+                    uv="/reviewed/uv",
+                    interpreter="/reviewed/python3.13",
+                    wheel=scratch / "candidate.whl",
+                    extracted=extracted,
+                    workspace=workspace,
+                    config=config,
+                    run=checked,
+                )
+
+            self.assertEqual(
+                checks,
+                [
+                    "cp313:matplotlib",
+                    "cp313:packaged-exact-cylinder-pressure-demo",
+                    "cp313:packaged-mixed-boundary-displacement-demo",
+                    "cp313:packaged-fixed-reference-fsi-still",
+                ],
+            )
+            install.assert_called_once_with(
+                uv="/reviewed/uv",
+                interpreter="/reviewed/python3.13",
+                environment=workspace.environment,
+                requirements=[
+                    f"{scratch / 'candidate.whl'}[gmsh,matplotlib]",
+                    config.pytest,
+                    config.matplotlib,
+                ],
+                run=checked,
+            )
+            self.assertEqual(
+                [tuple(call.args[0][2:4]) for call in checked.call_args_list],
+                [
+                    ("-m", "pytest"),
+                    (str(demos[0]), "--pressure-png"),
+                    (str(demos[1]), "--displacement-png"),
+                    (str(demos[2]), "--fsi-png"),
+                ],
+            )
+            expected_environment = {
+                "EQIORA_GMSH": str(
+                    python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
+                ),
+                "PATH": os.pathsep.join((str(python.parent), "/ambient/bin")),
+            }
+            for index, call in enumerate(checked.call_args_list):
+                with self.subTest(matplotlib_run=index):
+                    self.assertEqual(
+                        call.kwargs.get("extra_environment"), expected_environment
+                    )
 
     def test_reverse_completion_merges_immutable_receipts_in_frozen_order(
         self,
@@ -4912,14 +5218,23 @@ write(JSON.stringify({calls,output,failure}));
             test_source.write_text(
                 "def test_placeholder():\n    pass\n", encoding="utf-8"
             )
+            exact_app = (
+                extracted / python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_APP
+            )
+            exact_app.parent.mkdir(parents=True)
+            exact_app.write_text("# exact candidate app\n", encoding="utf-8")
             workspace_root = root / "notebook-profile"
             workspace = types.SimpleNamespace(
                 root=workspace_root,
                 environment=workspace_root / "environment",
                 consumer=workspace_root / "consumer",
             )
+            python = workspace.environment / (
+                "Scripts/python.exe" if os.name == "nt" else "bin/python"
+            )
             emitted: list[str] = []
             commands: list[tuple[str, ...]] = []
+            run_calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
             original_observer = profiles.run_notebook_profile
 
             def observe_checks(
@@ -4933,15 +5248,17 @@ write(JSON.stringify({calls,output,failure}));
 
                 return original_observer(observations, emit=record)
 
-            def checked_run(argv: list[str], **_kwargs: object) -> str:
+            def checked_run(argv: list[str], **kwargs: object) -> str:
                 command = tuple(str(value) for value in argv)
                 commands.append(command)
+                run_calls.append((command, dict(kwargs)))
                 if command == (
                     "npm",
                     "run",
                     "test:hosts",
                     "--",
-                    "--project=jupyterlab-4.6.2",
+                    "--project=marimo-0.23.16",
+                    "tests/exact-cylinder-stokes-marimo.spec.ts",
                 ):
                     raise CandidateError("forced downstream host launch failure")
                 return ""
@@ -4952,6 +5269,14 @@ write(JSON.stringify({calls,output,failure}));
             process = mock.Mock()
             process.poll.return_value = None
             process.wait.return_value = 0
+            install = mock.Mock(return_value=python)
+            checked = mock.Mock(side_effect=checked_run)
+            popen = mock.Mock(return_value=process)
+
+            def cleanup(**kwargs: object) -> None:
+                primary_error = kwargs["primary_error"]
+                if isinstance(primary_error, BaseException):
+                    raise primary_error
 
             def run_profiles(**_kwargs: object) -> object:
                 with (
@@ -4963,17 +5288,17 @@ write(JSON.stringify({calls,output,failure}));
                     mock.patch.object(
                         profiles,
                         "install_environment",
-                        return_value=root / "python",
+                        new=install,
                     ),
                     mock.patch.object(
                         python_candidate_module,
                         "checked_run",
-                        side_effect=checked_run,
+                        new=checked,
                     ),
                     mock.patch.object(
                         python_candidate_module.subprocess,
                         "Popen",
-                        return_value=process,
+                        new=popen,
                     ),
                     mock.patch.object(
                         python_candidate_module.socket,
@@ -4989,6 +5314,11 @@ write(JSON.stringify({calls,output,failure}));
                         executor,
                         "acquire_inputs",
                         return_value=acquired,
+                    ),
+                    mock.patch.object(
+                        python_candidate_module,
+                        "_notebook_cleanup_lifecycle",
+                        side_effect=cleanup,
                     ),
                 ):
                     return python_candidate_module.run_notebook_profile(
@@ -5034,6 +5364,10 @@ write(JSON.stringify({calls,output,failure}));
                     side_effect=run_profiles,
                 ) as profile_runner,
                 mock.patch.object(python_candidate_module, "write_manifest") as write,
+                mock.patch.dict(
+                    os.environ,
+                    {"EQIORA_GMSH": "/ambient/gmsh", "PATH": "/ambient/bin"},
+                ),
             ):
                 with self.assertRaisesRegex(
                     CandidateError, "forced downstream host launch failure"
@@ -5049,13 +5383,7 @@ write(JSON.stringify({calls,output,failure}));
             write.assert_not_called()
             self.assertEqual(
                 emitted,
-                [
-                    "frontend:lock-integrity",
-                    "frontend:license-notices",
-                    "frontend:bundle-byte-rebuild",
-                    "wheel-family:notebook-metadata",
-                    "cp313:notebook-anywidget-0.11.0",
-                ],
+                list(NOTEBOOK_PROFILE_CHECKS[:7]),
             )
             self.assertIn(
                 (
@@ -5063,17 +5391,64 @@ write(JSON.stringify({calls,output,failure}));
                     "run",
                     "test:hosts",
                     "--",
-                    "--project=jupyterlab-4.6.2",
+                    "--project=marimo-0.23.16",
+                    "tests/exact-cylinder-stokes-marimo.spec.ts",
                 ),
                 commands,
             )
-            self.assertFalse(
-                any(
-                    "marimo-0.23.16" in argument
-                    for command in commands
-                    for argument in command
-                )
+            install.assert_called_once_with(
+                uv="/reviewed/uv",
+                interpreter="/reviewed/python3.13",
+                environment=workspace.environment,
+                requirements=[
+                    f"{root / 'candidate.whl'}[gmsh,matplotlib,notebook]",
+                    python_candidate_module.load_config().pytest,
+                    "anywidget==0.11.0",
+                    "jupyterlab==4.6.2",
+                    "marimo==0.23.16",
+                ],
+                run=checked,
             )
+            rich_runs = [
+                kwargs
+                for command, kwargs in run_calls
+                if command[2:5] == ("-m", "pytest", "-q")
+            ]
+            self.assertEqual(len(rich_runs), 1)
+            popen_calls = popen.call_args_list
+            self.assertEqual(len(popen_calls), 3)
+            self.assertEqual(
+                [tuple(call.args[0][2:5]) for call in popen_calls],
+                [
+                    ("-m", "jupyter", "lab"),
+                    ("-m", "marimo", "run"),
+                    ("-m", "marimo", "run"),
+                ],
+            )
+            self.assertEqual(
+                [call.args[0][0] for call in popen_calls], [str(python)] * 3
+            )
+            self.assertEqual(
+                popen_calls[2].kwargs["cwd"],
+                workspace.root / "exact-cylinder-stokes-marimo-positive",
+            )
+            expected_gmsh = str(
+                python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
+            )
+            environments = [
+                ("rich-mesh-pytest", rich_runs[0].get("extra_environment") or {}),
+                *(
+                    (f"host-popen-{index}", call.kwargs["env"])
+                    for index, call in enumerate(popen_calls)
+                ),
+            ]
+            for surface, environment in environments:
+                with self.subTest(notebook_environment=surface):
+                    self.assertEqual(environment.get("EQIORA_GMSH"), expected_gmsh)
+                    self.assertEqual(
+                        environment.get("PATH", "").split(os.pathsep)[0],
+                        str(python.parent),
+                    )
             self.assertEqual(
                 receipt_path.read_bytes(), b"sealed independent H2 receipt"
             )

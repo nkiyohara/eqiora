@@ -368,7 +368,8 @@ for retired in (
 ):
     assert not hasattr(eqiora.fsi, retired)
     assert retired not in eqiora.fsi.__all__
-assert not any(name in __import__("sys").modules for name in ("torch", "jax", "jaxlib", "matplotlib"))
+for optional in ("torch", "jax", "jaxlib", "matplotlib", "gmsh"):
+    assert optional not in __import__("sys").modules
 """
     run(
         [str(python), "-I", "-c", script],
@@ -512,7 +513,26 @@ def run_base_profile(
         python, wheel, workspace.consumer, config.python_version, run=run
     )
     assert_matplotlib_is_optional(python, workspace.consumer, run=run)
-    run([str(python), "-I", "-m", "pytest", "-q", str(tests)], cwd=workspace.consumer)
+    gmsh_tests = tuple(
+        tests / name
+        for name in (
+            "test_circular_hole_chordal_mesh.py",
+            "test_exact_cylinder_stokes_result.py",
+            "test_rich_mesh_display.py",
+        )
+    )
+    run(
+        [
+            str(python),
+            "-I",
+            "-m",
+            "pytest",
+            "-q",
+            str(tests),
+            *(argument for test in gmsh_tests for argument in ("--ignore", str(test))),
+        ],
+        cwd=workspace.consumer,
+    )
     run(
         [str(python), "-I", "-m", "mypy", "--strict", str(typecheck / "base.py")],
         cwd=workspace.consumer,
@@ -524,6 +544,37 @@ def run_base_profile(
         expected_version=config.python_version,
         profile="base",
         run=run,
+    )
+    run(
+        [
+            uv,
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            f"{wheel}[gmsh]",
+        ],
+        cwd=workspace.environment.parent,
+    )
+    gmsh_path = str(python.parent)
+    if inherited_path := os.environ.get("PATH"):
+        gmsh_path = os.pathsep.join((gmsh_path, inherited_path))
+    run(
+        [
+            str(python),
+            "-I",
+            "-m",
+            "pytest",
+            "-q",
+            *(str(test) for test in gmsh_tests),
+        ],
+        cwd=workspace.consumer,
+        extra_environment={
+            "EQIORA_GMSH": str(
+                python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
+            ),
+            "PATH": gmsh_path,
+        },
     )
     compact = python_version.replace(".", "")
     return [
@@ -562,17 +613,21 @@ def run_optional_profile(
         uv=uv,
         interpreter=interpreter,
         environment=workspace.environment,
-        requirements=[f"{wheel}[{name}]", config.pytest, *exact],
+        requirements=[
+            f"{wheel}[gmsh,{name}]" if name == "matplotlib" else f"{wheel}[{name}]",
+            config.pytest,
+            *exact,
+        ],
         run=run,
     )
     workspace.consumer.mkdir(parents=True)
     test_path = workspace.consumer / test
     shutil.copy2(extracted / f"bindings/python/tests/{test}", test_path)
-    run(
-        [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
-        cwd=workspace.consumer,
-    )
     if name != "matplotlib":
+        run(
+            [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
+            cwd=workspace.consumer,
+        )
         run_public_smoke(
             python=python,
             extracted=extracted,
@@ -584,6 +639,18 @@ def run_optional_profile(
         compact = config.extras_interpreter.replace(".", "")
         return [f"cp{compact}:{name}", f"cp{compact}:public-smoke-{name}"]
 
+    gmsh_path = str(python.parent)
+    if inherited_path := os.environ.get("PATH"):
+        gmsh_path = os.pathsep.join((gmsh_path, inherited_path))
+    gmsh_environment = {
+        "EQIORA_GMSH": str(python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")),
+        "PATH": gmsh_path,
+    }
+    run(
+        [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
+        cwd=workspace.consumer,
+        extra_environment=gmsh_environment,
+    )
     destinations = (
         (
             prepare_exact_cylinder_demo_consumer(extracted, workspace.consumer),
@@ -621,7 +688,11 @@ def run_optional_profile(
         ]
         if rendered == ["--pressure-png"]:
             rendered.append(str(destination))
-        run([str(python), "-I", str(demo), *rendered], cwd=workspace.consumer)
+        run(
+            [str(python), "-I", str(demo), *rendered],
+            cwd=workspace.consumer,
+            extra_environment=gmsh_environment,
+        )
         if not destination.is_file() or not destination.read_bytes().startswith(
             b"\x89PNG\r\n\x1a\n"
         ):

@@ -28,7 +28,7 @@ PACKAGED_MODEL = (
 )
 
 SOURCE_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
-MESH_DIGEST = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
+MESH_DIGEST = "5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b"
 MODEL_DIGEST = "8bc5155bc1b64ed37f7a2ac010a966e1619091a118e6cf7806dbdf9621977146"
 MODEL_RESOURCE_BYTES = 16_798
 MODEL_RESOURCE_SHA256 = (
@@ -92,20 +92,20 @@ PRESSURE_DIMENSION = (1, -1, -2, 0, 0, 0, 0)
 PRESSURE_TOLERANCE = 2.0e-14 + 5.0e-7 * (0.001 * 0.3 / 0.41)
 FLUX_TOLERANCE = 2.0e-13 + 5.0e-7 * (0.3 * 0.41)
 REACTION_TOLERANCE = 2.0e-14 + 5.0e-7 * (0.001 * 0.3)
-RESIDUAL_TARGET = 1.323_962_765_120_967_3e-7
+RESIDUAL_TARGET = 6.138_485_578_780_151e-6
 
 PRESSURE_PROBES = (
-    ((0.15000000000000002, 0.2), 20.611897142913634),
-    ((0.25, 0.2), 0.111521650853062),
-    ((0.19686047402353435, 0.15009866357858642), 11.03786740720071),
-    ((0.19686047402353435, 0.2499013364214136), 10.315730130178096),
-    ((0.0, 0.20000000000000004), 19.780390332641403),
-    ((2.2, 0.2), -0.04836168726748482),
+    ((0.15, 0.2), 0.06959832738138942),
+    ((0.25, 0.2), 0.019333181397105),
+    ((0.1968604740235343, 0.1500986635785864), 0.04389626088659296),
+    ((0.1968604740235343, 0.2499013364214136), 0.045165230577321865),
+    ((0.0, 0.2), 0.062148654204247),
+    ((2.2, 0.2), 0.0004742049675737538),
 )
 EXPECTED_INLET_FLUX = -0.08149573099927537
 EXPECTED_OUTLET_FLUX = 0.08149573099927537
-EXPECTED_CYLINDER_REACTION = (-4.617062540501679, 0.03952008400301018)
-EXPECTED_GLOBAL_REACTION = (-5.345112862320582e-41, 1.140769053837547e-40)
+EXPECTED_CYLINDER_REACTION = (-0.006384200476069211, -0.00006344553664047762)
+EXPECTED_GLOBAL_REACTION = (7.368560570709604e-63, -6.624108059442036e-62)
 EXPECTED_ZERO_FORCE = (0.0, 0.0)
 
 BINDING_FIELDS = (
@@ -514,11 +514,11 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
     np.testing.assert_array_equal(
         triangles, np.asarray(mesh_document["cells"], dtype=np.uint32)
     )
-    assert pressure.shape == (104,)
+    assert pressure.shape == (662,)
     assert np.isfinite(pressure).all()
     assert float(pressure.min()) == evidence.pressure_minimum
     assert float(pressure.max()) == evidence.pressure_maximum
-    assert len(pressure) == 104
+    assert len(pressure) == 662
     assert pressure[-1] == pressure[-1]
     with pytest.raises(IndexError):
         pressure[-sys.maxsize]
@@ -615,9 +615,9 @@ def test_matrix_views_are_memoized_read_only_and_lifetime_safe() -> None:
     assert triangles is realized.cells
     assert pressure is snapshot.values("vertex")
     assert support is snapshot.support_indices("vertex")
-    assert coordinates.shape == (104, 2) and coordinates.dtype == np.float64
-    assert triangles.shape == (104, 3) and triangles.dtype == np.uint32
-    np.testing.assert_array_equal(support, np.arange(104, dtype=np.uint32))
+    assert coordinates.shape == (662, 2) and coordinates.dtype == np.float64
+    assert triangles.shape == (1210, 3) and triangles.dtype == np.uint32
+    np.testing.assert_array_equal(support, np.arange(662, dtype=np.uint32))
     for view in (coordinates, triangles, pressure, support):
         assert view.flags.c_contiguous and view.flags.aligned
         assert not view.flags.owndata
@@ -1040,7 +1040,7 @@ def test_cancellation_is_honest_and_publishes_no_partial_result(
         assert submitted.status == eqiora.RunStatus.Completed
         assert completed.run_manifest().digest == accepted[2].run_manifest().digest
         assert completed.snapshots[0].digest == accepted[2].snapshots[0].digest
-        assert completed.snapshots[0].values("vertex").shape == (104,)
+        assert completed.snapshots[0].values("vertex").shape == (662,)
     assert submitted.done
 
 
@@ -1201,10 +1201,10 @@ assert "numpy" not in sys.modules
 coordinates = result.mesh(snapshot.field).coordinates
 triangles = result.mesh(snapshot.field).cells
 assert "numpy" in sys.modules
-assert coordinates.shape == (104, 2)
-assert triangles.shape == (104, 3)
+assert coordinates.shape == (662, 2)
+assert triangles.shape == (1210, 3)
 pressure = snapshot.values("vertex")
-assert pressure.shape == (104,)
+assert pressure.shape == (662,)
 assert pressure[0] == snapshot.values("vertex")[0]
 del result, snapshot, run, resolved, intent, current, geometry, mesh
 gc.collect()
@@ -1226,7 +1226,7 @@ print(coordinates.shape[0], triangles.shape[0], pressure.shape[0])
         MODEL_DIGEST,
         SOURCE_DIGEST,
         MESH_DIGEST,
-        "104 104 104",
+        "662 1210 662",
     ]
 
 

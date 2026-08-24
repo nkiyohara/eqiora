@@ -6,27 +6,41 @@ declarations, synchronous and awaitable execution, explicit NumPy/DLPack
 ownership, bounded first-order PyTorch and JAX adapters, and an optional
 Matplotlib Result adapter without reimplementing model meaning in Python.
 
-> **Alpha — `0.1.0a2`.** The supported boundary is intentionally narrow.
+> **Alpha — `0.1.0a3`.** The supported boundary is intentionally narrow.
 > Consult the [capability matrix](https://eqiora.org/capabilities/) before
 > relying on a method, backend, or platform.
 
 ## Install
 
-Eqiora `0.1.0a2` supports ordinary-GIL CPython 3.11–3.14 on
+Eqiora `0.1.0a3` supports ordinary-GIL CPython 3.11–3.14 on
 manylinux x86-64:
 
 ```console
-python -m pip install eqiora==0.1.0a2
+python -m pip install eqiora==0.1.0a3
 ```
+
+Automatic exact-cylinder meshing requires Gmsh 4.15.2. The conventional Linux
+installation is:
+
+```console
+sudo apt-get install libglu1-mesa
+python -m pip install "eqiora[gmsh]==0.1.0a3"
+```
+
+The Gmsh extra is separate so the base `manylinux_2_17` package keeps its
+compatibility floor; the current Gmsh wheel has a newer Linux floor.
 
 Optional first-order framework adapters are explicit:
 
 ```console
-python -m pip install "eqiora[torch]==0.1.0a2"
-python -m pip install "eqiora[jax]==0.1.0a2"
-python -m pip install "eqiora[matplotlib]==0.1.0a2"
-python -m pip install "eqiora[notebook]==0.1.0a2"
+python -m pip install "eqiora[torch]==0.1.0a3"
+python -m pip install "eqiora[jax]==0.1.0a3"
+python -m pip install "eqiora[matplotlib]==0.1.0a3"
+python -m pip install "eqiora[notebook]==0.1.0a3"
 ```
+
+The exact-cylinder pressure example combines the mesher and plot adapter:
+`python -m pip install "eqiora[gmsh,matplotlib]==0.1.0a3"`.
 
 The base package imports none of these optional libraries. The PyTorch extra
 declares `torch>=2.13,<2.14`; this release verifies exactly PyTorch 2.13.0. It
@@ -144,9 +158,10 @@ canonical graph. The graph and its exact planar section have distinct
 identities. The section reproduces the accepted exact planar value
 byte-for-byte; depth and CAD tolerances cannot leak into its independently
 classified 2D meaning. This is not a generic Sketch, section, or Python Boolean
-implementation. Its matching meshing operation is one Rust-owned,
-error-controlled chordal reference path behind common request, plan, and mesh
-ownership boundaries, not a production mesher.
+implementation. Its matching meshing operation invokes exact Gmsh 4.15.2,
+then admits the MSH 4.1 linear triangles through Rust-owned quality and
+source-correspondence checks. Missing, wrong-version, failed, or invalid Gmsh
+output rejects without falling back to the retired spoke reference mesh.
 The returned value retains exact source and correspondence identity within the
 live process; durable generated-realization replay, geometry-backed
 Model binding, solve, Result, and visualization are separate capabilities.
@@ -358,7 +373,7 @@ not claimed. See
 
 ## Compatibility and limitations
 
-`0.1.0a2` is an alpha prerelease. Public Python names and serialized contracts
+`0.1.0a3` is an alpha prerelease. Public Python names and serialized contracts
 change only deliberately and are documented in release notes, but breaking
 changes may occur before 1.0. Corrections to a published artifact use a new
 version; an existing release is never overwritten.

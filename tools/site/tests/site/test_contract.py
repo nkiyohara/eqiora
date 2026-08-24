@@ -6,13 +6,44 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from fixture import REPOSITORY, SOURCE_SHA, checker, make_fixture
+from fixture import (
+    CASE_EVIDENCE_PATHS,
+    PRESSURE_ALT,
+    REPOSITORY,
+    SOURCE_SHA,
+    WITNESS_COPY,
+    checker,
+    make_fixture,
+)
 
 
 class CompleteContractTests(unittest.TestCase):
     PUBLICATION_RELATIVE = Path(
         "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json"
     )
+
+    def test_00_checker_caption_matches_exact_accepted_publication(self) -> None:
+        publication = REPOSITORY / self.PUBLICATION_RELATIVE
+        before = publication.read_bytes()
+        self.assertEqual(checker.sha256(publication), checker.PUBLICATION_SHA256)
+        document = self._read_publication(publication)
+        self.assertEqual(
+            (
+                document["schema"],
+                document["entry_id"],
+                document["admission"]["status"],
+            ),
+            (
+                "eqiora.site.gallery-publication/v1",
+                "exact-cylinder-steady-stokes",
+                "accepted",
+            ),
+        )
+        self.assertEqual(publication.read_bytes(), before)
+        self.assertEqual(
+            checker.PRESSURE_CAPTION,
+            document["publication_payload"]["text"]["caption"],
+        )
 
     def test_00_publication_provenance_positives_then_mutants(self) -> None:
         # The real, fixed-production record in the post-B source tree is the
@@ -67,21 +98,21 @@ class CompleteContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             _, identities, publication = self._real_publication_fixture(
-                root, "0.1.0-alpha.2"
+                root, "0.1.0-alpha.3"
             )
             before = publication.read_bytes()
             release_identity, release_errors = checker.derive_release_identity(root)
             self.assertEqual(release_errors, [])
             self.assertEqual(
                 release_identity,
-                checker.ReleaseIdentity(cargo="0.1.0-alpha.2", python="0.1.0a2"),
+                checker.ReleaseIdentity(cargo="0.1.0-alpha.3", python="0.1.0a3"),
             )
             self.assertEqual(checker.check_source(root, identities), [])
             self.assertEqual(publication.read_bytes(), before)
             self.assertEqual(checker.sha256(publication), checker.PUBLICATION_SHA256)
             self.assertEqual(
                 self._eqiora_input(self._read_publication(publication))["version"],
-                "0.1.0a1",
+                "0.1.0a3",
             )
 
         # Causal mutants execute only after every ordinary positive above.
@@ -113,7 +144,7 @@ class CompleteContractTests(unittest.TestCase):
             errors = checker.check_source(root, identities)
             self.assertTrue(
                 any(
-                    "hard-codes product version '0.1.0a1': "
+                    "hard-codes product version '0.1.0a3': "
                     "docs/site/src/data/copied/"
                     "exact-cylinder-steady-stokes.publication.json" in error
                     for error in errors
@@ -121,13 +152,17 @@ class CompleteContractTests(unittest.TestCase):
                 errors,
             )
 
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            _, identities, publication = self._real_publication_fixture(root)
-            document = self._read_publication(publication)
-            self._eqiora_input(document)["version"] = "0.1.0a2"
-            self._write_publication(publication, document)
-            self._assert_publication_mutant(root, identities, publication, "0.1.0a2")
+        for stale_version in ("0.1.0a1", "0.1.0a2"):
+            with self.subTest(stale_publication_version=stale_version):
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    _, identities, publication = self._real_publication_fixture(root)
+                    document = self._read_publication(publication)
+                    self._eqiora_input(document)["version"] = stale_version
+                    self._write_publication(publication, document)
+                    self._assert_publication_mutant(
+                        root, identities, publication, stale_version
+                    )
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -137,7 +172,7 @@ class CompleteContractTests(unittest.TestCase):
             eqiora_input = resolved_inputs.pop(4)
             resolved_inputs.insert(5, eqiora_input)
             self._write_publication(publication, document)
-            self._assert_publication_mutant(root, identities, publication, "0.1.0a1")
+            self._assert_publication_mutant(root, identities, publication, "0.1.0a3")
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -146,7 +181,7 @@ class CompleteContractTests(unittest.TestCase):
             document["unexpected_eqiora_version"] = "0.1.0-alpha.9"
             self._write_publication(publication, document)
             self._assert_publication_mutant(
-                root, identities, publication, "0.1.0a1", "0.1.0-alpha.9"
+                root, identities, publication, "0.1.0a3", "0.1.0-alpha.9"
             )
 
         object_mutations = {
@@ -165,16 +200,66 @@ class CompleteContractTests(unittest.TestCase):
                 self._eqiora_input(document)[field] = replacement
                 self._write_publication(publication, document)
                 self._assert_publication_mutant(
-                    root, identities, publication, "0.1.0a1"
+                    root, identities, publication, "0.1.0a3"
                 )
 
     def test_00_synthetic_ordinary_site_passes_before_mutants(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             artifact, identities = make_fixture(root)
+            case = artifact / "gallery/exact-cylinder-steady-stokes/index.html"
+            raw = case.read_text(encoding="utf-8")
+            self.assertIn(WITNESS_COPY, raw)
+            self.assertIn(
+                "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
+                raw,
+            )
+            self.assertNotIn("104-triangle", raw)
+            self.assertNotIn(
+                "verify/fluid/exact-circular-hole-stokes-2d/README.md",
+                raw,
+            )
+            self.assertNotIn(
+                "verify/geometry/circular-hole-chordal-reference-mesh/README.md",
+                raw,
+            )
             self.assertEqual(
                 checker.check_site(root, artifact, SOURCE_SHA, identities), []
             )
+
+    def test_01_exact_gmsh_publication_boundary_mutants_fail(self) -> None:
+        mutations = {
+            "stale 104-triangle figure alt": (
+                PRESSURE_ALT,
+                PRESSURE_ALT.replace("1,210-triangle", "104-triangle"),
+            ),
+            "stale reference-science attribution": (
+                "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
+                "verify/fluid/exact-circular-hole-stokes-2d/README.md",
+            ),
+            "omitted Gmsh and interior-mesh boundary": (
+                WITNESS_COPY,
+                "Accepted mesh witness: 662 vertices, 1,210 affine triangles, "
+                "114 boundary facets partitioned inlet/outlet/walls/cylinder = "
+                "14/2/48/50.",
+            ),
+        }
+        self.assertIn(
+            "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
+            CASE_EVIDENCE_PATHS,
+        )
+        for label, (accepted, mutant) in mutations.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                artifact, identities = make_fixture(root)
+                self.assertEqual(
+                    checker.check_site(root, artifact, SOURCE_SHA, identities), []
+                )
+                case = artifact / "gallery/exact-cylinder-steady-stokes/index.html"
+                self._replace(case, accepted, mutant)
+                self.assertTrue(
+                    checker.check_site(root, artifact, SOURCE_SHA, identities)
+                )
 
     def test_01_foundation_shape_is_red_for_only_missing_downstream_inputs(
         self,
@@ -473,7 +558,7 @@ class CompleteContractTests(unittest.TestCase):
 
     @classmethod
     def _real_publication_fixture(
-        cls, root: Path, cargo_version: str = "0.1.0-alpha.1"
+        cls, root: Path, cargo_version: str = "0.1.0-alpha.3"
     ) -> tuple[Path, checker.SiteIdentities, Path]:
         artifact, identities = make_fixture(root, cargo_version)
         publication = root / cls.PUBLICATION_RELATIVE

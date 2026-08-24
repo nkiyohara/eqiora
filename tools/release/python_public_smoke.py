@@ -87,7 +87,10 @@ def base_smoke(expected_version: str) -> None:
 
     assert importlib.metadata.version("eqiora") == expected_version
     assert eqiora.__version__ == expected_version
-    assert not ({"torch", "jax", "jaxlib", "matplotlib"} & (set(sys.modules) - before))
+    assert not (
+        {"torch", "jax", "jaxlib", "matplotlib", "gmsh"}
+        & (set(sys.modules) - before)
+    )
 
     model = decay_model(eqiora)
     result = eqiora.run(model, end_time=1.0, max_step=0.01)

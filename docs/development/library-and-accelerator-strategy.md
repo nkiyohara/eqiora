@@ -21,7 +21,7 @@ The following sources have separate authority:
 | What are the exact accepted contracts? | [`rfcs/`](../../rfcs/README.md) |
 | Which Rust dependency versions ship? | root and separately scoped `Cargo.lock` files |
 | Which native runtime/library/device versions executed? | accepted Run evidence and registered environment observations |
-| What work remains open? | GitHub Issues, audited under the [contract-wave queue rules](vertical-slice-development.md#issue-queue-discipline) |
+| What work remains open? | GitHub Issues and their native parent, sub-issue, and blocking relations |
 
 Do not copy those inventories into this file. A library name below is an
 adoption decision or investigation boundary, not by itself a capability claim.

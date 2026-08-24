@@ -94,6 +94,8 @@ def uv_gate_command(uv: str) -> list[str]:
         "--reinstall-package",
         "eqiora",
         "--extra",
+        "gmsh",
+        "--extra",
         "matplotlib",
         "--with",
         PYTEST,
@@ -233,7 +235,7 @@ def main() -> int:
                         "pip",
                         "install",
                         "--no-build-isolation",
-                        ".[matplotlib]",
+                        ".[gmsh,matplotlib]",
                     ],
                     environment=environment,
                 )

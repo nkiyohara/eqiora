@@ -1,6 +1,6 @@
 {
   "name": "@eqiora/python-mesh-presentation",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.16.0",

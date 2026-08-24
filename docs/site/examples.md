@@ -229,8 +229,9 @@ and
 ## Close a new capability
 
 Contributors should follow the repository's
-[contract-wave capability guide](https://github.com/nkiyohara/eqiora/blob/main/docs/development/vertical-slice-development.md):
-typed contract, execution path, falsifier, registered evidence, capability
-matrix update, and verification. Reuse accepted contracts and applicable
-conformance kits. Only compiler-derived instances use the class-proof/instance-
-witness split; execution providers retain exact-tuple evidence.
+[high-risk and parallel development guide](https://github.com/nkiyohara/eqiora/blob/main/docs/development/vertical-slice-development.md):
+a narrow claim, its existing invariant owner, an ordinary execution path, the
+evidence needed for the changed claim, and a truthful capability-matrix update.
+Ordinary work does not create a new contract artifact, independent oracle, or
+lane. High-risk scientific, public, persisted, security, or trust changes keep
+their specific independent evidence and review.

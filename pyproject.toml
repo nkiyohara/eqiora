@@ -28,6 +28,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+gmsh = ["gmsh==4.15.2"]
 jax = [
     "jax==0.11.0; python_version >= '3.12'",
     "jaxlib==0.11.0; python_version >= '3.12'",

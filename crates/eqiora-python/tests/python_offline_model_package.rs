@@ -51,7 +51,7 @@ const OFFLINE_MODEL_ID: &str = "3JNCJVGEYX9N2QSYVEXRXWXWF4";
 const OFFLINE_MODEL_DIGEST: &str =
     "92837f0f85ff4a1310af0ca6e412d3ace81393df837d017caf5bfabeb8f6c1a1";
 const OFFLINE_COMPILATION_DIGEST: &str =
-    "f9e91466c52c381268ace441e0851fb6d32d5471280d991dd3552b804d569714";
+    "3a8352b7a4843266749e9b213c3f7dedf33c280afdc0d92fc42985b5a0e0a3fa";
 const HISTORICAL_ALPHA1_OFFLINE_COMPILATION_DIGEST: &str =
     "a6e31415d973c5dc23a92a101ba3db7cef7b1b70b0dc51d2b73214f1fc00bf49";
 const TYPED_MODEL_ID: &str = "7Q7ZYW89BV0RH2HSB3S5ZMTY0K";
@@ -61,7 +61,7 @@ const TYPED_RESOLUTION_DIGEST: &str =
     "38b5bb0c7e1f8aa7baa5e690157014a974c446f8f38fcd19d6b73b981e9ca810";
 const TYPED_MODEL_DIGEST: &str = "c2c35e6b58f6ee0d40b8aa2bd0c252e519eec6f6779e39366ae2e28cdbd5300a";
 const TYPED_COMPILATION_DIGEST: &str =
-    "9bb80485bd79132220e7ea865a69d656fd177f72ad9f852319e726086f38ff2e";
+    "cb797d1c262e5a657d9d2a03d757894fdce01d2a98f09e6557796cb9c2d460a4";
 
 fn canonical_fixture(bytes: &[u8]) -> &[u8] {
     let canonical = bytes
@@ -715,7 +715,7 @@ fn package_conformance_native_facts_match_direct_double_compile_and_replay() -> 
     assert_eq!(package.package(), root);
     let toolchain = first.compilation().toolchain();
     assert_eq!(toolchain.compiler().as_str(), "Eqiora.Compiler");
-    assert_eq!(toolchain.compiler_version().as_str(), "0.1.0-alpha.2");
+    assert_eq!(toolchain.compiler_version().as_str(), "0.1.0-alpha.3");
     assert_eq!(toolchain.semantic_canonicalization_version(), 1);
     assert_eq!(toolchain.source_bundle_version(), 1);
     assert_eq!(toolchain.resolution_version(), 1);

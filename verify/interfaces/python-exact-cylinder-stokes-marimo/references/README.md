@@ -11,7 +11,7 @@ or copying their expected values:
   typed Plan, one Run, common Result, pressure Field, and typed evidence;
 - `interfaces.python-exact-cylinder-pressure-still` for the caller-owned
   pressure Figure; and
-- `fluid.exact-circular-hole-stokes-2d` for all scientific observations and
+- `fluid.exact-circular-hole-stokes-2d-gmsh` for all scientific observations and
   tolerances.
 
 Marimo 0.23.16 and the existing CPython 3.13 candidate profile own host
