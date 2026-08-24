@@ -22,6 +22,11 @@ Everything else uses one primary agent and one local pass: make the smallest cha
 narrowest repository-owned check that can expose a plausible defect, self-review once, and
 stop. A focused failure permits a focused correction and rerun, not broader ceremony.
 
+Two failed attempts to replace the same oracle, evidence package, or review artifact
+exhaust its retries; a fresh session or thread does not reset the count. Before any third
+attempt, re-scope the task, falsify its premise, or return it to its owner with the
+argument. Focused review of a localized correction is not a replacement attempt.
+
 Do not add an Issue, RFC, contract artifact, schema, registry, oracle, subagent, lane,
 worktree, sealed handoff, or second derivation unless the actual delta or user request needs
 it. Reuse accepted contracts and evidence. Prefer the cheap check that could disprove a
