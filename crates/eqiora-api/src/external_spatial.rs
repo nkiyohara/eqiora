@@ -116,12 +116,15 @@ mod tests {
     const SOURCE: &str = r#"
 public component BoundaryLaw {
   public support body: volume(ambient_dimension = 2);
-  public support wall: boundary(parent = body);
+  public support inlet: boundary(parent = body);
+  public support outlet: boundary(parent = body);
+  public support walls: boundary(parent = body);
+  public support cylinder: boundary(parent = body);
   public parameter value: 1;
   representation space = continuum;
   field state on body as space: 1 = 0;
   relation volume_law continuous on body { state - value = 0; }
-  relation wall_law continuous on wall { trace(state) = 0; }
+  relation wall_law continuous on walls { trace(state) = 0; }
 }
 "#;
 
@@ -150,7 +153,10 @@ public component BoundaryLaw {
             "BoundaryLaw",
             vec![
                 ExternalGeometrySupportBinding::region("body", digest, "fluid", 2),
-                ExternalGeometrySupportBinding::boundary("wall", digest, "walls", "body"),
+                ExternalGeometrySupportBinding::boundary("inlet", digest, "inlet", "body"),
+                ExternalGeometrySupportBinding::boundary("outlet", digest, "outlet", "body"),
+                ExternalGeometrySupportBinding::boundary("walls", digest, "walls", "body"),
+                ExternalGeometrySupportBinding::boundary("cylinder", digest, "cylinder", "body"),
             ],
             vec![ExternalParameterBinding::new("value", 2.0)],
         );
@@ -158,7 +164,14 @@ public component BoundaryLaw {
             ModelDocument::bind_external_component("boundary-law.eqi", SOURCE, &geometry, &binding)
                 .unwrap();
         assert!(!document.canonical_json().unwrap().is_empty());
-        for name in ["body", "wall", "definition.state"] {
+        for name in [
+            "body",
+            "inlet",
+            "outlet",
+            "walls",
+            "cylinder",
+            "definition.state",
+        ] {
             assert!(document.aliases().contains_key(name), "missing `{name}`");
         }
     }
@@ -182,7 +195,7 @@ public component BoundaryLaw {
                 "topological dimension 1",
             ),
             (
-                ExternalGeometrySupportBinding::boundary("wall", digest, "fluid", "body"),
+                ExternalGeometrySupportBinding::boundary("inlet", digest, "fluid", "body"),
                 "entity-set dimension 2",
             ),
         ];

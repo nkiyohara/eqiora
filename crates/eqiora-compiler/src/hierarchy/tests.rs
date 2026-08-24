@@ -10,12 +10,15 @@ use crate::source_identity::LocalSourceIdentity;
 const EXTERNAL_SPATIAL_COMPONENT: &str = r#"
 public component BoundaryLaw {
   public support body: volume(ambient_dimension = 2);
-  public support wall: boundary(parent = body);
+  public support inlet: boundary(parent = body);
+  public support outlet: boundary(parent = body);
+  public support walls: boundary(parent = body);
+  public support cylinder: boundary(parent = body);
   public parameter value: 1;
   representation space = continuum;
   field state on body as space: 1 = 0;
   relation volume_law continuous on body { state - value = 0; }
-  relation wall_law continuous on wall { trace(state) = 0; }
+  relation wall_law continuous on walls { trace(state) = 0; }
 }
 "#;
 
@@ -26,7 +29,12 @@ fn external_binding() -> crate::ExternalComponentBinding {
         "BoundaryLaw",
         vec![
             crate::ExternalGeometrySupportBinding::region("body", geometry, "fluid", 2),
-            crate::ExternalGeometrySupportBinding::boundary("wall", geometry, "walls", "body"),
+            crate::ExternalGeometrySupportBinding::boundary("inlet", geometry, "inlet", "body"),
+            crate::ExternalGeometrySupportBinding::boundary("outlet", geometry, "outlet", "body"),
+            crate::ExternalGeometrySupportBinding::boundary("walls", geometry, "walls", "body"),
+            crate::ExternalGeometrySupportBinding::boundary(
+                "cylinder", geometry, "cylinder", "body",
+            ),
         ],
         vec![crate::ExternalParameterBinding::new("value", 2.0)],
     )
@@ -42,12 +50,13 @@ fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
         &external_binding(),
     )
     .expect("external supports close one Component occurrence");
-    assert!(compiled.symbols().get("body").is_some());
-    assert!(compiled.symbols().get("wall").is_some());
+    for support in ["body", "inlet", "outlet", "walls", "cylinder"] {
+        assert!(compiled.symbols().get(support).is_some());
+    }
     assert!(compiled.symbols().get("definition.state").is_some());
 
     let mut region = 0;
-    let mut boundary = 0;
+    let mut boundaries = std::collections::BTreeSet::new();
     for operation in compiled.transaction().ops() {
         let Op::DefineKernelNode {
             node: KernelNode::Domain(domain),
@@ -65,13 +74,16 @@ fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
                 assert_eq!(entity_set, "fluid");
             }
             DomainKind::GeometryBoundary { entity_set } => {
-                boundary += 1;
-                assert_eq!(entity_set, "walls");
+                boundaries.insert(entity_set.as_str());
             }
             _ => {}
         }
     }
-    assert_eq!((region, boundary), (1, 1));
+    assert_eq!(region, 1);
+    assert_eq!(
+        boundaries,
+        std::collections::BTreeSet::from(["inlet", "outlet", "walls", "cylinder"])
+    );
     let (transaction, _, _) = compiled.into_parts();
     let mut store = InMemoryGraphStore::new();
     store
@@ -93,7 +105,7 @@ fn external_geometry_binding_inventory_fails_before_a_transaction_exists() {
                 )],
                 vec![crate::ExternalParameterBinding::new("value", 2.0)],
             ),
-            "no binding for required support slot `wall`",
+            "no binding for required support slot `inlet`",
         ),
         (
             crate::ExternalComponentBinding::new(
@@ -102,7 +114,7 @@ fn external_geometry_binding_inventory_fails_before_a_transaction_exists() {
                 vec![
                     crate::ExternalGeometrySupportBinding::region("body", geometry, "fluid", 2),
                     crate::ExternalGeometrySupportBinding::boundary(
-                        "wall", foreign, "walls", "body",
+                        "inlet", foreign, "inlet", "body",
                     ),
                 ],
                 vec![crate::ExternalParameterBinding::new("value", 2.0)],
@@ -116,7 +128,7 @@ fn external_geometry_binding_inventory_fails_before_a_transaction_exists() {
                 vec![
                     crate::ExternalGeometrySupportBinding::region("body", geometry, "shared", 2),
                     crate::ExternalGeometrySupportBinding::boundary(
-                        "wall", geometry, "shared", "body",
+                        "inlet", geometry, "shared", "body",
                     ),
                 ],
                 vec![crate::ExternalParameterBinding::new("value", 2.0)],
