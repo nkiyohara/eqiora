@@ -17,34 +17,71 @@ The alpha distribution supports ordinary-GIL CPython 3.11–3.14 on
 manylinux x86-64:
 
 ```console
-python -m pip install eqiora==0.1.0a3
+python -m pip install "eqiora[gmsh]==0.1.0a3"
 ```
 
-Build and run an immutable decay model:
+Build an exact rectangle-with-circular-hole geometry, resolve its chordal mesh,
+run the accepted steady-Stokes application, and inspect typed evidence from the
+immutable `Result`:
+
+![Accepted exact-cylinder steady-Stokes pressure field](docs/site/src/assets/gallery/exact-cylinder-pressure.png)
 
 ```python
+from importlib.resources import files
+
 import eqiora
 
-state = eqiora.Field("state", initial=1.0)
-rate = eqiora.Parameter(
-    "rate",
-    value=1.0,
-    dimension=eqiora.Dimension(time=-1),
+graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+    x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41),
+    plane_z=0.0, depth=1.0, modeling_tolerance=1e-10,
+).circular_through_cut(
+    center=(0.2, 0.2), radius=0.05, boolean_tolerance=1e-10,
 )
-decay = eqiora.Relation(
-    "decay",
-    residual=eqiora.derivative(state) + rate * state,
+geometry = graph.planar_circular_section(
+    classification_tolerance=1e-12,
+    region="fluid", x_lower="inlet", x_upper="outlet",
+    y_lower="walls", y_upper="walls", hole="cylinder",
 )
-model = eqiora.Model.define("decay", state, rate, decay)
+mesh_request = eqiora.meshing.MeshRequest(
+    maximum_boundary_error=1e-4,
+    minimum_mean_ratio=1e-5,
+    maximum_boundary_facets=50,
+)
+mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
+mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 
-result = eqiora.run(model, end_time=1.0, max_step=0.01)
-print(result["state"].values.numpy(copy=False)[-1])
+model = eqiora.replay(
+    files(eqiora)
+    .joinpath("examples", "steady-flow-past-cylinder.model.json")
+    .read_bytes()
+)
+intent = eqiora.fluid.SteadyStokes(
+    length_scale_m=0.41,
+    velocity_scale_m_per_s=0.3,
+    pressure_scale_pa=0.001 * 0.3 / 0.41,
+    relative_tolerance=1e-6,
+    absolute_tolerance=1e-13,
+    maximum_iterations=10_000,
+)
+plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
+result = eqiora.run(model, plan=plan)
+evidence = eqiora.fluid.steady_stokes_evidence(result)
+
+print(result.run_manifest().digest)
+print(evidence.solve)
+print("pressure", evidence.pressure_minimum, evidence.pressure_maximum, "Pa")
+print("cylinder force on fluid", evidence.cylinder_force_on_fluid, "N/m")
+print("net flux", evidence.net_flux, "m^2/s")
 ```
 
-The [five-minute guide](https://eqiora.org/get-started/) continues through
-structured diagnostics, array ownership, asynchronous runs, bounded PyTorch
-and JAX integrations, and optional Matplotlib presentation of accepted
-results.
+This is deliberately one bounded case rather than a claim of general CFD. It
+shows the distinction Eqiora is built around: exact geometry and model meaning
+remain immutable, meshing and solver choices live in explicit resolved plans,
+and the returned evidence stays tied to the same Model, Mesh, Run, and Result
+lineage. [Walk through the pressure result](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
+or run the complete
+[`examples/python/exact_cylinder_stokes.py`](examples/python/exact_cylinder_stokes.py)
+script with optional Matplotlib output.
 
 For a bounded local file check, the installed `eqiora` binary accepts
 `eqiora check <MODEL_PATH>`. It reads one UTF-8 regular file, prints only a
