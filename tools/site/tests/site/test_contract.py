@@ -22,6 +22,29 @@ class CompleteContractTests(unittest.TestCase):
         "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json"
     )
 
+    def test_00_checker_caption_matches_exact_accepted_publication(self) -> None:
+        publication = REPOSITORY / self.PUBLICATION_RELATIVE
+        before = publication.read_bytes()
+        self.assertEqual(checker.sha256(publication), checker.PUBLICATION_SHA256)
+        document = self._read_publication(publication)
+        self.assertEqual(
+            (
+                document["schema"],
+                document["entry_id"],
+                document["admission"]["status"],
+            ),
+            (
+                "eqiora.site.gallery-publication/v1",
+                "exact-cylinder-steady-stokes",
+                "accepted",
+            ),
+        )
+        self.assertEqual(publication.read_bytes(), before)
+        self.assertEqual(
+            checker.PRESSURE_CAPTION,
+            document["publication_payload"]["text"]["caption"],
+        )
+
     def test_00_publication_provenance_positives_then_mutants(self) -> None:
         # The real, fixed-production record in the post-B source tree is the
         # first positive. All source checks pass before any provenance mutant runs.
