@@ -30,7 +30,7 @@ PRESSURE_ALT = (
 )
 PRESSURE_CAPTION = (
     "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at "
-    "c6b7a21f52ae1acf941d26319d2499ed89152c15; presentation only, not validation."
+    "ea5f69a9ed6d9152912f905a75462bbf71cf7d99; presentation only, not validation."
 )
 PUBLIC_CLAIM = (
     "One frozen 2D steady incompressible Stokes exact-cylinder demonstration on "

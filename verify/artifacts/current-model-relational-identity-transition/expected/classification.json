@@ -411,7 +411,7 @@
           "class": "current-owner-assertion",
           "signals": ["model_digest"],
           "identity_literals": 0,
-          "accepted_sha256": "00c08c890a46d08a0619ba0bb8f5f21c9fa5edda2fe3ea0349a40b407ef04413",
+          "accepted_sha256": "3c9bc27c7aa4e4b8836af021c1ae775da9a1dc47229c0bb68a75743430b876bb",
           "owner": "gallery.exact-cylinder-steady-stokes current-owner documentation",
           "note": "the accepted Cylinder gallery projection names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; gallery science and prose remain owned by their accepted authorities."
         },
