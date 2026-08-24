@@ -4,6 +4,7 @@ description: Carry one exact-cylinder flow problem from authored geometry to typ
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
 
 The public alpha supports ordinary-GIL CPython 3.11–3.14 on manylinux x86-64.
 
@@ -69,7 +70,7 @@ print("cylinder force on fluid", evidence.cylinder_force_on_fluid, "N/m")
 print("net flux", evidence.net_flux, "m^2/s")
 ```
 
-This is one verified steady-Stokes case, not a general CFD claim. The [gallery walkthrough](/gallery/exact-cylinder-steady-stokes/) shows its pressure field and links every supported statement to the registered evidence that owns it. The complete runnable source is [`examples/python/exact_cylinder_stokes.py`](https://github.com/nkiyohara/eqiora/blob/main/examples/python/exact_cylinder_stokes.py).
+This is one verified steady-Stokes case, not a general CFD claim. The [gallery walkthrough](/gallery/exact-cylinder-steady-stokes/) shows its pressure field and links every supported statement to the registered evidence that owns it. <ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob">View the complete runnable source</ExactSourceLink>.
 
 ## Choose your next path
 
