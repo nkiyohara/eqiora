@@ -12,7 +12,7 @@ __all__ = (
 )
 
 PRESSURE_ALT = "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder demonstration, shown with a viridis color scale and the 1,210-triangle affine mesh overlaid. Presentation image only; linked Result evidence carries the numerical claim."
-PRESSURE_CAPTION = "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at c6b7a21f52ae1acf941d26319d2499ed89152c15; presentation only, not validation."
+PRESSURE_CAPTION = "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at ea5f69a9ed6d9152912f905a75462bbf71cf7d99; presentation only, not validation."
 PUBLIC_CLAIM = "One frozen 2D steady incompressible Stokes exact-cylinder demonstration on the accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = 14/2/48/50, and 548 interior vertices; rendered from its accepted public Result path and linked evidence."
 WITNESS_COPY = "Accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = 14/2/48/50, and 548 interior vertices."
 RENDERED_SOURCE_SENTENCE = "This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository’s architecture, RFCs, capability matrix, and validated verify manifests."
