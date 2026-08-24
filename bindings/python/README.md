@@ -54,40 +54,66 @@ x86-64 CPython 3.13 profile, a bare exact accepted 50-chord circular-hole
 meshes and hosts retain deterministic text; this does not add Mesh selection,
 field display, saved widget state, a public viewer API, or Studio coupling.
 
-## Five-minute model and run
+## Geometry to evidence
 
-Build a decay relation from frozen native declarations and execute it through
-the shared native lifecycle:
+The first complete application starts from exact authored geometry, resolves
+an inspectable mesh, replays the installed Model artifact, and executes one
+typed steady-Stokes plan:
 
 ```python
+from importlib.resources import files
+
 import eqiora
 
-state = eqiora.Field("state", initial=1.0)
-rate = eqiora.Parameter(
-    "rate",
-    value=1.0,
-    dimension=eqiora.Dimension(time=-1),
+graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+    x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41),
+    plane_z=0.0, depth=1.0, modeling_tolerance=1e-10,
+).circular_through_cut(
+    center=(0.2, 0.2), radius=0.05, boolean_tolerance=1e-10,
 )
-decay = eqiora.Relation(
-    "decay",
-    residual=eqiora.derivative(state) + rate * state,
+geometry = graph.planar_circular_section(
+    classification_tolerance=1e-12,
+    region="fluid", x_lower="inlet", x_upper="outlet",
+    y_lower="walls", y_upper="walls", hole="cylinder",
 )
-model = eqiora.Model.define("decay", state, rate, decay)
+mesh_request = eqiora.meshing.MeshRequest(
+    maximum_boundary_error=1e-4,
+    minimum_mean_ratio=1e-5,
+    maximum_boundary_facets=50,
+)
+mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
+mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 
-result = eqiora.run(model, end_time=1.0, max_step=0.01)
-time = result["state"].time.numpy(copy=False)
-values = result["state"].values.numpy(copy=False)
+model = eqiora.replay(
+    files(eqiora)
+    .joinpath("examples", "steady-flow-past-cylinder.model.json")
+    .read_bytes()
+)
+intent = eqiora.fluid.SteadyStokes(
+    length_scale_m=0.41,
+    velocity_scale_m_per_s=0.3,
+    pressure_scale_pa=0.001 * 0.3 / 0.41,
+    relative_tolerance=1e-6,
+    absolute_tolerance=1e-13,
+    maximum_iterations=10_000,
+)
+plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
+result = eqiora.run(model, plan=plan)
+evidence = eqiora.fluid.steady_stokes_evidence(result)
 
-print(eqiora.__version__)
-print(model.digest)
-print(time[-1], values[-1])
+print(result.run_manifest().digest)
+print(evidence.solve)
+print("pressure", evidence.pressure_minimum, evidence.pressure_maximum, "Pa")
+print("cylinder force on fluid", evidence.cylinder_force_on_fluid, "N/m")
+print("net flux", evidence.net_flux, "m^2/s")
 ```
 
-`Field`, `Parameter`, `Relation`, and `Model` are immutable handles over
-Rust-owned meaning. A relation declares a residual equal to zero; validation,
-typed lowering, atomic commit, execution, and artifact identity remain in
-Rust. Spatial authoring and the bounded FEM/FVM realization path are described
-in [Modeling and realization](https://eqiora.org/python/modeling/).
+The exact Geometry and Model remain distinct from meshing and execution plans.
+The common `Result` retains their Mesh, Realization, Run, Field, and evidence
+lineage rather than returning an unowned array. This is one verified 2D
+steady-Stokes case, not general CFD; its precise boundary and the optional
+pressure plot are described in
+[Modeling and realization](https://eqiora.org/python/modeling/#exact-cylinder-steady-stokes-result).
 
 One explicit locked Model Package can also be checked through the installed
 Python distribution:

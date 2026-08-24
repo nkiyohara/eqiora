@@ -1,6 +1,6 @@
 ---
 title: Get started
-description: Install Eqiora and run a small immutable model through the shared native lifecycle.
+description: Carry one exact-cylinder flow problem from authored geometry to typed result evidence.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -14,38 +14,62 @@ Create a clean environment and install the available prerelease:
 ```bash
 python -m venv .venv
 . .venv/bin/activate
-python -m pip install --pre eqiora
+python -m pip install --pre 'eqiora[gmsh]'
 ```
 
-## Build and run a model
+## Build geometry, mesh, and run
 
-This complete example creates immutable `Field`, `Parameter`, and `Relation` declarations, closes them into one native `Model`, and runs the shared native execution lifecycle:
+This bounded application keeps exact geometry and Model meaning separate from explicit meshing and solver plans, then ties the returned evidence to the same immutable lineage:
 
 ```python
+from importlib.resources import files
+
 import eqiora
 
-state = eqiora.Field("state", initial=1.0)
-rate = eqiora.Parameter(
-    "rate",
-    value=1.0,
-    dimension=eqiora.Dimension(time=-1),
+graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+    x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41),
+    plane_z=0.0, depth=1.0, modeling_tolerance=1e-10,
+).circular_through_cut(
+    center=(0.2, 0.2), radius=0.05, boolean_tolerance=1e-10,
 )
-decay = eqiora.Relation(
-    "decay",
-    residual=eqiora.derivative(state) + rate * state,
+geometry = graph.planar_circular_section(
+    classification_tolerance=1e-12,
+    region="fluid", x_lower="inlet", x_upper="outlet",
+    y_lower="walls", y_upper="walls", hole="cylinder",
 )
-model = eqiora.Model.define("decay", state, rate, decay)
+mesh_request = eqiora.meshing.MeshRequest(
+    maximum_boundary_error=1e-4,
+    minimum_mean_ratio=1e-5,
+    maximum_boundary_facets=50,
+)
+mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
+mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 
-result = eqiora.run(model, end_time=1.0, max_step=0.01)
-time = result["state"].time.numpy(copy=False)
-values = result["state"].values.numpy(copy=False)
+model = eqiora.replay(
+    files(eqiora)
+    .joinpath("examples", "steady-flow-past-cylinder.model.json")
+    .read_bytes()
+)
+intent = eqiora.fluid.SteadyStokes(
+    length_scale_m=0.41,
+    velocity_scale_m_per_s=0.3,
+    pressure_scale_pa=0.001 * 0.3 / 0.41,
+    relative_tolerance=1e-6,
+    absolute_tolerance=1e-13,
+    maximum_iterations=10_000,
+)
+plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
+result = eqiora.run(model, plan=plan)
+evidence = eqiora.fluid.steady_stokes_evidence(result)
 
-print(eqiora.__version__)
-print(model.digest)
-print(time[-1], values[-1])
+print(result.run_manifest().digest)
+print(evidence.solve)
+print("pressure", evidence.pressure_minimum, evidence.pressure_maximum, "Pa")
+print("cylinder force on fluid", evidence.cylinder_force_on_fluid, "N/m")
+print("net flux", evidence.net_flux, "m^2/s")
 ```
 
-The NumPy arrays returned by `copy=False` are lifetime-safe and read-only. Use `copy=True` when you need an independent writable array; Eqiora does not turn an impossible zero-copy request into a hidden copy.
+This is one verified steady-Stokes case, not a general CFD claim. The [gallery walkthrough](/gallery/exact-cylinder-steady-stokes/) shows its pressure field and links every supported statement to the registered evidence that owns it. The complete runnable source is [`examples/python/exact_cylinder_stokes.py`](https://github.com/nkiyohara/eqiora/blob/main/examples/python/exact_cylinder_stokes.py).
 
 ## Choose your next path
 
@@ -63,7 +87,7 @@ cargo run --locked -p eqiora --example quickstart
 cargo run --locked -p eqiora --example poisson
 ```
 
-`quickstart` compiles and runs the decay model above. `poisson` is the spatial counterpart: it compiles a 2D Poisson model, selects a finite-element Realization explicitly, runs it on the host CPU, and reports the L2 error against the exact solution. The [Examples](/examples/) page walks through it stage by stage.
+`quickstart` remains the smallest semantic-kernel orientation example. `poisson` is its spatial counterpart: it compiles a 2D Poisson model, selects a finite-element Realization explicitly, runs it on the host CPU, and reports the L2 error against the exact solution. The [Examples](/examples/) page keeps those small Rust paths separate from the application-scale cylinder workflow above.
 
 <Aside type="caution" title="Check the bounded claim">
   Before relying on any numerical method or backend, trace its row in the [capability matrix](/capabilities/) to a registered evidence case.
