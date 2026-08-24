@@ -221,6 +221,7 @@ impl ModelDocument {
         let bytes = artifact.canonical_json().map_err(single_diagnostic)?;
         let artifact = AcceptedModelArtifact::from_json(&bytes, ModelDecoderLimits::default())
             .map_err(single_diagnostic)?;
+        let reference = artifact.artifact_reference().map_err(single_diagnostic)?;
         let (transaction, model) = artifact.to_transaction()?;
         let store = InMemoryGraphStore::restore_snapshot(
             transaction,
@@ -228,6 +229,14 @@ impl ModelDocument {
         )?;
         let program =
             KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, geometries)?;
+        if program.model() != reference.model()
+            || program.revision().0 != reference.semantic_revision().get()
+        {
+            return Err(single_diagnostic(Diagnostic::error(
+                codes::INVALID_ARTIFACT,
+                "replayed Model identity or semantic revision differs from its exact artifact reference",
+            )));
+        }
         Ok(Self {
             program,
             artifact,

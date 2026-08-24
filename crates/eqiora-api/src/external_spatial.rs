@@ -66,15 +66,22 @@ fn validate_geometry_bindings(
             ExternalGeometrySupportBinding::Region {
                 ambient_dimension, ..
             } => {
-                if *ambient_dimension != geometry.ambient_dimension()
-                    || dimension != geometry.topological_dimension()
-                {
+                if *ambient_dimension != geometry.ambient_dimension() {
                     diagnostics.push(binding_error(
                         filename,
                         format!(
-                            "external region support `{}` has topological dimension {dimension} in a {}D Geometry, not declared ambient dimension {ambient_dimension}",
+                            "external region support `{}` declares ambient dimension {ambient_dimension}, expected {}",
                             support.slot(),
                             geometry.ambient_dimension(),
+                        ),
+                    ));
+                } else if dimension != geometry.topological_dimension() {
+                    diagnostics.push(binding_error(
+                        filename,
+                        format!(
+                            "external region support `{}` has entity-set dimension {dimension}, expected {}",
+                            support.slot(),
+                            geometry.topological_dimension(),
                         ),
                     ));
                 }
@@ -192,7 +199,11 @@ public component BoundaryLaw {
             ),
             (
                 ExternalGeometrySupportBinding::region("body", digest, "walls", 2),
-                "topological dimension 1",
+                "entity-set dimension 1, expected 2",
+            ),
+            (
+                ExternalGeometrySupportBinding::region("body", digest, "fluid", 3),
+                "declares ambient dimension 3, expected 2",
             ),
             (
                 ExternalGeometrySupportBinding::boundary("inlet", digest, "fluid", "body"),
