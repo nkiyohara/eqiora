@@ -43,6 +43,7 @@ import python_candidate as python_candidate_module  # noqa: E402
 
 from python_candidate import (  # noqa: E402
     PYTHON_TEST_FIXTURES,
+    PYTHON_TEST_RESOURCES,
     CandidateError,
     DistributionConfig,
     SourceIdentity,
@@ -1370,6 +1371,7 @@ N1 candidate
                 "bindings/python/tests/test_vertical_slice.py",
                 "bindings/python/typecheck/base.py",
                 *(str(fixture / "payload.json") for fixture in PYTHON_TEST_FIXTURES),
+                *(str(resource) for resource in PYTHON_TEST_RESOURCES),
             )
             self.assertGreaterEqual(len(files), 4)
             for relative in files:
