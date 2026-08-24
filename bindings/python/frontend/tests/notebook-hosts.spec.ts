@@ -1152,3 +1152,53 @@ test(WEBGL_FAILURE_TEST_TITLE, async ({ page }) => {
   }
   traffic.expectLoopbackOnly();
 });
+
+test("bare Trajectory uses only exact discrete state controls", async ({ page }) => {
+  await prepareHost(page);
+  const view = page.locator("[data-eqiora-trajectory-digest]");
+  await expect(view).toBeVisible({ timeout: 60_000 });
+  await expect(view).toHaveCount(1);
+
+  const snapshot = async (): Promise<{
+    stateIndex: number;
+    step: string;
+    timeS: number;
+    playing: boolean;
+    disposed: boolean;
+    drawableTriangles: number;
+  }> =>
+    view.evaluate((element) => {
+      const oracle = (
+        element as HTMLElement & {
+          __eqioraN3Oracle?: { snapshot(): object };
+        }
+      ).__eqioraN3Oracle;
+      if (oracle === undefined) throw new Error("missing Trajectory host oracle");
+      return oracle.snapshot();
+    }) as Promise<{
+      stateIndex: number;
+      step: string;
+      timeS: number;
+      playing: boolean;
+      disposed: boolean;
+      drawableTriangles: number;
+    }>;
+
+  expect(await snapshot()).toMatchObject({
+    stateIndex: 0,
+    step: "1",
+    timeS: 0.05,
+    playing: false,
+    disposed: false,
+    drawableTriangles: 4,
+  });
+  await view.getByRole("button", { name: "Next" }).click();
+  expect(await snapshot()).toMatchObject({ stateIndex: 1, step: "2", timeS: 0.1 });
+  await view.getByRole("button", { name: "Previous" }).click();
+  expect((await snapshot()).stateIndex).toBe(0);
+  await view.getByLabel("Playback speed").selectOption("2");
+  await view.getByRole("button", { name: "Play" }).click();
+  await expect.poll(async () => (await snapshot()).stateIndex).toBe(1);
+  await view.getByRole("button", { name: "Pause" }).click();
+  expect((await snapshot()).playing).toBe(false);
+});

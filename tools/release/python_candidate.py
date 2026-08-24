@@ -1797,12 +1797,25 @@ def run_notebook_profile(
         )
         workspace.consumer.mkdir(parents=True)
         test_path = workspace.consumer / "test_rich_mesh_display.py"
+        trajectory_test_path = workspace.consumer / "test_rich_trajectory_display.py"
         shutil.copy2(extracted / "bindings/python/tests/test_rich_mesh_display.py", test_path)
+        shutil.copy2(
+            extracted / "bindings/python/tests/test_rich_trajectory_display.py",
+            trajectory_test_path,
+        )
         gmsh_path = str(python.parent)
         if inherited_path := os.environ.get("PATH"):
             gmsh_path = os.pathsep.join((gmsh_path, inherited_path))
         checked_run(
-            [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
+            [
+                str(python),
+                "-I",
+                "-m",
+                "pytest",
+                "-q",
+                str(test_path),
+                str(trajectory_test_path),
+            ],
             cwd=workspace.consumer,
             extra_environment={
                 "EQIORA_GMSH": str(
@@ -2213,6 +2226,8 @@ def run_notebook_profile(
         ("cp313:notebook-anywidget-0.11.0", install_notebook),
         ("cp313:jupyterlab-4.6.2-bare-mesh", lambda: run_host("jupyterlab-4.6.2", "bindings/python/tests/fixtures/rich_mesh_display/jupyterlab.ipynb")),
         ("cp313:marimo-0.23.16-bare-mesh", lambda: run_host("marimo-0.23.16", "bindings/python/tests/fixtures/rich_mesh_display/marimo.py")),
+        ("cp313:jupyterlab-4.6.2-bare-trajectory", lambda: require_host_observation("jupyterlab-trajectory")),
+        ("cp313:marimo-0.23.16-bare-trajectory", lambda: require_host_observation("marimo-trajectory")),
         (EXACT_CYLINDER_STOKES_MARIMO_CHECK, run_exact_cylinder_stokes_marimo),
         ("cp313:notebook-managed-chromium-r1234", lambda: require_host_observation("browser")),
         ("cp313:notebook-no-external-network", lambda: require_host_observation("network")),

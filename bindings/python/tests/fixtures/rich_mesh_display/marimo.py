@@ -47,7 +47,29 @@ def _(eqiora):
         plan = eqiora.meshing.resolve(geometry, request)
         return eqiora.meshing.generate(geometry, plan=plan)
 
-    return (make_mesh,)
+    def make_trajectory():
+        from importlib.resources import files
+
+        source = files(eqiora).joinpath(
+            "examples", "fixed-reference-fsi.eqi"
+        ).read_text()
+        model = eqiora.compile(source, filename="fixed-reference-fsi.eqi")
+        intent = eqiora.fsi.FixedMeshMonolithic(
+            time_step_s=0.05,
+            steps=2,
+            initial_velocity_m_per_s=(0.0, 0.0),
+            initial_free_interface_displacement_m=(0.02, 0.0),
+            length_scale_m=2.0,
+            velocity_scale_m_per_s=0.5,
+            pressure_scale_pa=4.0,
+            relative_tolerance=1e-11,
+            absolute_tolerance=1e-13,
+            maximum_iterations=20_000,
+        )
+        plan = eqiora.fsi.resolve(model, intent)
+        return eqiora.submit(model, plan=plan).result().trajectory
+
+    return make_mesh, make_trajectory
 
 
 @app.cell
@@ -71,8 +93,9 @@ def _():
 
 
 @app.cell
-def _(make_mesh):
+def _(make_mesh, make_trajectory):
     mesh = make_mesh()
+    trajectory = make_trajectory()
     coordinates = mesh.coordinates
     cells = mesh.cells
     accepted_snapshot = {
@@ -94,12 +117,12 @@ def _(make_mesh):
         "cell_dtype": cells.dtype.str,
         "cell_writeable": cells.flags.writeable,
     }
-    return accepted_snapshot, mesh
+    return accepted_snapshot, mesh, trajectory
 
 
 @app.cell
-def _(mesh):
-    mesh
+def _(mesh, mo, trajectory):
+    mo.vstack([mesh, trajectory])
     return
 
 

@@ -11,7 +11,7 @@ and the exact CPython 3.13 `notebook` profile.
 Every wheel declares exactly one `notebook` extra and exactly one semantically
 parsed `anywidget == 0.11.0 ; extra == "notebook"` requirement. The sdist and
 all wheels contain the same three nonempty closed frontend assets. The manifest
-contains the ten exact Notebook checks and the closed Node 24.18.1/npm 11.16.0,
+contains the thirteen exact Notebook checks and the closed Node 24.18.1/npm 11.16.0,
 asset, MIT-license, runtime, Playwright 1.62.1, and managed Chromium
 1234/151.0.7922.34 identity.
 

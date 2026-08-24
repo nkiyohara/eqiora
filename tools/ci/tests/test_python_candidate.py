@@ -201,6 +201,8 @@ NOTEBOOK_PROFILE_CHECKS = (
     "cp313:notebook-anywidget-0.11.0",
     "cp313:jupyterlab-4.6.2-bare-mesh",
     "cp313:marimo-0.23.16-bare-mesh",
+    "cp313:jupyterlab-4.6.2-bare-trajectory",
+    "cp313:marimo-0.23.16-bare-trajectory",
     "cp313:marimo-0.23.16-exact-cylinder-stokes",
     "cp313:notebook-managed-chromium-r1234",
     "cp313:notebook-no-external-network",
@@ -1566,6 +1568,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 "test_circular_hole_chordal_mesh.py",
                 "test_exact_cylinder_stokes_result.py",
                 "test_rich_mesh_display.py",
+                "test_rich_trajectory_display.py",
             )
         )
         gmsh_path = str(python.parent)
@@ -1609,6 +1612,8 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                         str(gmsh_tests[1]),
                         "--ignore",
                         str(gmsh_tests[2]),
+                        "--ignore",
+                        str(gmsh_tests[3]),
                     ],
                     cwd=workspace.consumer,
                 ),
@@ -5220,6 +5225,12 @@ write(JSON.stringify({calls,output,failure}));
             test_source.write_text(
                 "def test_placeholder():\n    pass\n", encoding="utf-8"
             )
+            trajectory_test_source = (
+                extracted / "bindings/python/tests/test_rich_trajectory_display.py"
+            )
+            trajectory_test_source.write_text(
+                "def test_placeholder():\n    pass\n", encoding="utf-8"
+            )
             exact_app = (
                 extracted / python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_APP
             )
@@ -5385,7 +5396,7 @@ write(JSON.stringify({calls,output,failure}));
             write.assert_not_called()
             self.assertEqual(
                 emitted,
-                list(NOTEBOOK_PROFILE_CHECKS[:7]),
+                list(NOTEBOOK_PROFILE_CHECKS[:9]),
             )
             self.assertIn(
                 (
@@ -6602,6 +6613,8 @@ write(JSON.stringify({calls,output,failure}));
             "cp313:notebook-anywidget-0.11.0",
             "cp313:jupyterlab-4.6.2-bare-mesh",
             "cp313:marimo-0.23.16-bare-mesh",
+            "cp313:jupyterlab-4.6.2-bare-trajectory",
+            "cp313:marimo-0.23.16-bare-trajectory",
             "cp313:marimo-0.23.16-exact-cylinder-stokes",
             "cp313:notebook-managed-chromium-r1234",
             "cp313:notebook-no-external-network",
@@ -7318,6 +7331,8 @@ write(JSON.stringify({calls,output,failure}));
             "cp313:notebook-anywidget-0.11.0",
             "cp313:jupyterlab-4.6.2-bare-mesh",
             "cp313:marimo-0.23.16-bare-mesh",
+            "cp313:jupyterlab-4.6.2-bare-trajectory",
+            "cp313:marimo-0.23.16-bare-trajectory",
             "cp313:marimo-0.23.16-exact-cylinder-stokes",
             "cp313:notebook-managed-chromium-r1234",
             "cp313:notebook-no-external-network",
@@ -8199,6 +8214,12 @@ while True:
         rich_test = extracted / "bindings/python/tests/test_rich_mesh_display.py"
         rich_test.parent.mkdir(parents=True, exist_ok=True)
         rich_test.write_text("def test_placeholder():\n    pass\n", encoding="utf-8")
+        trajectory_test = (
+            extracted / "bindings/python/tests/test_rich_trajectory_display.py"
+        )
+        trajectory_test.write_text(
+            "def test_placeholder():\n    pass\n", encoding="utf-8"
+        )
 
         browser = root / "browser"
         browser.write_bytes(b"browser")

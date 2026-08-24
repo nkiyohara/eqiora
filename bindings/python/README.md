@@ -50,8 +50,11 @@ CPython 3.13. The JAX extra requires Python 3.12 or newer.
 The exact `notebook` extra installs anywidget 0.11.0 and keeps the complete
 private Three.js frontend inside the Eqiora wheel. In the verified Linux
 x86-64 CPython 3.13 profile, a bare exact accepted 50-chord circular-hole
-`Mesh` renders interactively in JupyterLab 4.6.2 and marimo 0.23.16. Other
-meshes and hosts retain deterministic text; this does not add Mesh selection,
+`Mesh` and the accepted fixed-reference FSI `Trajectory` render interactively
+in JupyterLab 4.6.2 and marimo 0.23.16. The Trajectory view provides exact
+stored-state previous/next, playback, speed, time, and scalar-Field metadata
+without interpolation or Python writeback. Other meshes, trajectories, fields,
+and hosts retain deterministic text; this does not add Mesh selection,
 field display, saved widget state, a public viewer API, or Studio coupling.
 
 ## Geometry to evidence

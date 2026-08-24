@@ -1,0 +1,86 @@
+id = "interfaces.python-rich-trajectory-display"
+status = "verified"
+scope = "installed-python-bare-read-only-two-state-fixed-mesh-trajectory-display"
+reference_kind = "accepted-trajectory-owner-composition-plus-immutable-transport-and-exact-host-falsifiers"
+
+capabilities = [
+  "python-native-trajectory-rich-display-hook",
+  "python-private-read-only-notebook-trajectory-view",
+  "python-exact-jupyterlab-and-marimo-discrete-trajectory-controls",
+]
+
+[contract]
+issue = 312
+body_sha256 = "abc7a5c46507403a78b555d0a72bdc0c2a9fffe9fad36bfd3cd558aaf5ef117f"
+predecessor_commit = "56944506b06ef1697f3c037d37bcbaaa4b648538"
+
+[problem]
+entry = "bare native eqiora.trajectory.Trajectory._repr_mimebundle_ last expression"
+installed_extra = "eqiora[notebook]"
+accepted_trajectory = "interfaces.python-fixed-mesh-trajectory"
+profile = "fixed-mesh-scalar-trajectory-2d/v1"
+dimension = 2
+vertices = 9
+triangles = 8
+states = 2
+field_admission = "the unique invariant scalar Vertex Field with one exact identity and support across every stored state"
+
+[oracle]
+trajectory_identity_and_arrays = "interfaces.python-fixed-mesh-trajectory"
+field_support = "interfaces.python-trajectory-field-stills"
+science = "fsi.fixed-reference-monolithic-step-2d"
+hook_transport_and_immutability = "focused installed-wheel Python tests"
+discrete_controls = "frontend byte-contract tests and live exact-host Playwright observations"
+distribution = "interfaces.python-distribution-candidate"
+new_scientific_values = false
+new_tolerances = false
+new_image_baseline = false
+
+[acceptance]
+bare_outer_trajectory_in_jupyterlab_and_marimo = true
+exact_coordinates_cells_states_owner_identity = true
+one_consistent_invariant_scalar_vertex_field = true
+support_is_accepted_membership_not_nonzero_inference = true
+state_cursor_is_discrete = true
+previous_next_play_pause_and_speed = true
+stored_step_time_dimension_frame_and_field_id_visible = true
+payload_is_owned_little_endian_and_immutable = true
+frontend_state_is_client_only = true
+python_values_arrays_and_identities_remain_unchanged = true
+wheel_local_existing_presentation_bundle = true
+runtime_nonloopback_requests = 0
+
+[falsifiers]
+foreign_owner = "substituted trajectory digest or array identity rejects"
+support_inference = "full zero-extended coefficient length is not treated as support; accepted support indices gather the displayed values"
+payload_drift = "same-length byte mutation rejects under its transported SHA-256"
+state_substitution = "missing, duplicate, or reordered step/time metadata rejects before controls"
+interpolation = "the slider and playback choose only stored state indices"
+writeback = "synced payload and delegate identity writes raise and the frontend names no custom-message or save path"
+network_asset = "candidate host traffic remains loopback-only and both adapters load the same wheel-local bundle"
+
+[claim_boundary]
+candidate_profile = "notebook"
+ordinary_gil_cpython = "3.13"
+operating_system = "linux"
+architecture = "x86_64"
+jupyterlab = "4.6.2"
+marimo = "0.23.16"
+anywidget = "0.11.0"
+playwright = "1.62.1"
+chromium_revision = "1234"
+one_accepted_fixed_reference_fsi_trajectory = true
+one_scalar_vertex_field = true
+two_stored_states = true
+public_viewer_or_payload_schema = false
+interpolation_or_generated_frames = false
+field_selection = false
+vector_tensor_cell_or_arbitrary_field = false
+topology_changing_or_3d_trajectory = false
+scientific_pixel_or_image_claim = false
+saved_widget_html_or_gallery_media = false
+performance_or_production_scale = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_distribution_gate.py"

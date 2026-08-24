@@ -74,7 +74,7 @@ token, frontend or `_presentation` path, semantic anywidget dependency,
 `notebook` extra/profile/check, v3 format, or `build.frontend` member activates
 v3. Every wheel must then carry exactly one `notebook` extra and exactly one
 `anywidget == 0.11.0 ; extra == "notebook"` requirement. Only a complete family
-with the ten exact Notebook checks and canonical H2 receipt is accepted.
+with the thirteen exact Notebook checks and canonical H2 receipt is accepted.
 
 Read compatibility remains for a genuinely signal-free pre-N1 v2 family. It
 does not permit relabelling or stripping one N1 field: any signal in any one

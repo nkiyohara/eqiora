@@ -1114,6 +1114,7 @@ class PythonPackageGateTests(unittest.TestCase):
                 "test_circular_hole_chordal_mesh.py",
                 "test_exact_cylinder_stokes_result.py",
                 "test_rich_mesh_display.py",
+                "test_rich_trajectory_display.py",
             )
         )
         temporary = mock.MagicMock()
@@ -1145,6 +1146,8 @@ class PythonPackageGateTests(unittest.TestCase):
             gmsh_evidence[1],
             "--ignore",
             gmsh_evidence[2],
+            "--ignore",
+            gmsh_evidence[3],
         ]
         with self.subTest(path="uv"):
             commands = [call.args[0] for call in uv_calls]

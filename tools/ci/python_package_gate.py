@@ -22,6 +22,7 @@ GMSH_EVIDENCE = tuple(
         "test_circular_hole_chordal_mesh.py",
         "test_exact_cylinder_stokes_result.py",
         "test_rich_mesh_display.py",
+        "test_rich_trajectory_display.py",
     )
 )
 _PROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
