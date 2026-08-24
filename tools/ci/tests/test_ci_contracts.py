@@ -150,9 +150,11 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertNotIn("--exclude", workflow)
         self.assertIn("GITHUB_STEP_SUMMARY", workflow)
 
-        aggregate = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
-            encoding="utf-8"
-        ).split("\n  gate:\n", maxsplit=1)[1]
+        aggregate = (
+            (REPOSITORY_ROOT / ".github/workflows/ci.yml")
+            .read_text(encoding="utf-8")
+            .split("\n  gate:\n", maxsplit=1)[1]
+        )
         self.assertNotIn("windows", aggregate.lower())
 
     def test_base_owned_trust_workflow_never_checks_out_head_code(self) -> None:
@@ -280,9 +282,7 @@ class HostedTriggerTests(unittest.TestCase):
         release = (
             REPOSITORY_ROOT / ".github/workflows/python-release-candidate.yml"
         ).read_text(encoding="utf-8")
-        setup_node = (
-            "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"
-        )
+        setup_node = "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"
 
         for surface in (python_evidence, release):
             self.assertIn(setup_node, surface)
@@ -294,7 +294,7 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn("--h2-receipt", release)
         self.assertIn("candidate-manifest", release)
         self.assertNotIn(
-            "*-python-candidate-h2.json\" -exec cp {} candidate-dist",
+            '*-python-candidate-h2.json" -exec cp {} candidate-dist',
             release,
         )
 
@@ -465,7 +465,9 @@ class HostedTriggerTests(unittest.TestCase):
 
         published_family = publish_downloads[0]
         self.assertEqual(published_family["name"], finalized_family["name"])
-        publish_packages = re.search(r"(?m)^          packages-dir: (?P<path>\S+)$", publish)
+        publish_packages = re.search(
+            r"(?m)^          packages-dir: (?P<path>\S+)$", publish
+        )
         self.assertIsNotNone(publish_packages)
         assert publish_packages is not None
         self.assertEqual(published_family["path"], publish_packages.group("path"))
@@ -845,9 +847,9 @@ jobs:
 
         for marker, next_marker, conditions, command in steps:
             self.assertEqual(quality.count(marker), 1)
-            step = quality.split(marker, maxsplit=1)[1].split(
-                next_marker, maxsplit=1
-            )[0]
+            step = quality.split(marker, maxsplit=1)[1].split(next_marker, maxsplit=1)[
+                0
+            ]
             self.assertEqual(
                 re.findall(r"(?m)^        if: (.+)$", step),
                 list(conditions),
@@ -856,9 +858,7 @@ jobs:
                 "        run:", maxsplit=1
             )[0]
             self.assertEqual(
-                re.findall(
-                    r"(?m)^          TMPDIR:[ \t]*(.*?)[ \t]*$", environment
-                ),
+                re.findall(r"(?m)^          TMPDIR:[ \t]*(.*?)[ \t]*$", environment),
                 ["${{ runner.temp }}"],
             )
             self.assertEqual(
@@ -908,9 +908,7 @@ jobs:
             "        run:", maxsplit=1
         )[0]
         self.assertEqual(
-            re.findall(
-                r"(?m)^          TMPDIR:[ \t]*(.*?)[ \t]*$", environment
-            ),
+            re.findall(r"(?m)^          TMPDIR:[ \t]*(.*?)[ \t]*$", environment),
             ["${{ runner.temp }}"],
         )
         self.assertEqual(
@@ -926,8 +924,7 @@ jobs:
             "\n  gate:", maxsplit=1
         )[0]
         formatting = (
-            "cargo +stable fmt --manifest-path "
-            "studio/src-tauri/Cargo.toml -- --check"
+            "cargo +stable fmt --manifest-path studio/src-tauri/Cargo.toml -- --check"
         )
         self.assertEqual(workflow.count(formatting), 1)
         self.assertIn("rustup toolchain install 1.89.0", studio)
@@ -1495,7 +1492,7 @@ class MiseTaskContractTests(unittest.TestCase):
     )
     DIRECT_GATE = re.compile(
         r"(?:/usr/bin/)?python3\s+tools/ci/local_verify\.py\s+"
-        r"(?:fast|affected|periodic)(?=[\s`\\;&]|\|\||$)"
+        r"(?:pr|fast|affected|periodic)(?=[\s`\\;&]|\|\||$)"
     )
     PLANNER_VALUE_OPTIONS = frozenset(
         (
@@ -1508,9 +1505,7 @@ class MiseTaskContractTests(unittest.TestCase):
         )
     )
     PLANNER_VALUE = re.compile(r"[A-Za-z0-9_./:@+~^-]+")
-    SETUP_FREE_DIAGNOSTIC_MARKER = (
-        "# eqiora: setup-free-local-verify-diagnostic-only"
-    )
+    SETUP_FREE_DIAGNOSTIC_MARKER = "# eqiora: setup-free-local-verify-diagnostic-only"
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -1527,6 +1522,7 @@ class MiseTaskContractTests(unittest.TestCase):
             setup["sources"],
         )
         for task in (
+            "pr",
             "fast",
             "affected",
             "periodic",
@@ -1539,6 +1535,7 @@ class MiseTaskContractTests(unittest.TestCase):
 
     def test_standard_gates_wrap_exact_planner_commands(self) -> None:
         expected = {
+            "pr": "python3 tools/ci/local_verify.py pr --base origin/main",
             "fast": "python3 tools/ci/local_verify.py fast --base origin/main",
             "affected": (
                 "python3 tools/ci/local_verify.py affected --base origin/main"
@@ -1556,7 +1553,12 @@ class MiseTaskContractTests(unittest.TestCase):
         environment["COLUMNS"] = "240"
         environment.pop("FORCE_COLOR", None)
         environment["NO_COLOR"] = "1"
-        for task, marker in (("fast", "f"), ("affected", "a"), ("periodic", "p")):
+        for task, marker in (
+            ("pr", "r"),
+            ("fast", "f"),
+            ("affected", "a"),
+            ("periodic", "p"),
+        ):
             with self.subTest(task=task):
                 completed = subprocess.run(
                     [
@@ -1847,7 +1849,9 @@ class HostedTestProfileTests(unittest.TestCase):
     """The local gate must build test targets the way the hosted one does."""
 
     def _hosted_profile_blocks(self) -> list[dict[str, str]]:
-        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        )
         blocks: list[dict[str, str]] = []
         current: dict[str, str] = {}
         for line in workflow.splitlines():
@@ -1866,7 +1870,9 @@ class HostedTestProfileTests(unittest.TestCase):
         blocks = self._hosted_profile_blocks()
         # A renamed or deleted workflow key must fail here rather than leave the
         # comparison vacuously true.
-        self.assertGreater(len(blocks), 0, "ci.yml declares no CARGO_PROFILE_TEST_* block")
+        self.assertGreater(
+            len(blocks), 0, "ci.yml declares no CARGO_PROFILE_TEST_* block"
+        )
         for index, block in enumerate(blocks):
             with self.subTest(block=index):
                 self.assertEqual(block, HOSTED_TEST_PROFILE)

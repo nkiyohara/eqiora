@@ -9,6 +9,9 @@ Run the cheapest repository-owned check that can expose a plausible defect in th
 Use the focused command named beside the changed surface when one exists.
 
 ```bash
+# Iteration loop: changed packages and named cases only, minutes not tens of minutes.
+mise run pr -- --case packages.hierarchical-physical-boundary
+
 # Fallback for a localized change with no narrower repository-owned task.
 mise run fast
 
@@ -64,6 +67,12 @@ Every semantically affected case must be passed with `--case`; a shared executor
 not imply semantic ownership of all its cases.
 
 ## Gate tiers
+
+`pr` is the iteration loop while a change is being written: formatting, default-target tests
+and Clippy for directly changed packages, and changed or explicitly named cases only. It defers
+documentation, release-tree, dependency-layer, facade, CI-contract, and surface checks to
+hosted pull-request CI or a `fast`/`affected` run, and states that deferral as a limitation.
+It never substitutes for the tier a high-risk delta or release requires.
 
 `fast` selects formatting, direct changed-package tests and Clippy, explicitly named or directly
 changed cases, and relevant lightweight documentation, dependency, or CI-contract checks. It is
@@ -125,8 +134,11 @@ narrow the claim or stop.
 - One Python interpreter is not the supported-version matrix.
 - One-host MPI is not physical multi-node evidence.
 - A build without a matching GPU and driver is not physical CUDA evidence.
-- Studio browser checks require documented browser and native system dependencies. A missing
-  Chrome executable is a limitation, not a passing gate.
+- Studio browser checks require documented browser and native system dependencies. When the
+  local Chrome executable is absent, the planner omits the Studio interaction tests, records
+  the deferral to the hosted Studio lane as an explicit limitation, and completes; the run
+  never reports a local Studio interaction pass. Every other Studio command, and any failure
+  with Chrome present, remains a failure.
 - Run `tools/ci/python_package_gate.py` for installed Python evidence. A hand-written
   `uv run --with .` may reuse a stale cached wheel.
 - Do not verify `icon.icns` regeneration with a whole-file hash; the pinned Tauri tool may

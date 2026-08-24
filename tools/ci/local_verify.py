@@ -35,6 +35,11 @@ from verification_scheduler import (
 
 ROOT = Path(__file__).resolve().parents[2]
 
+# The Playwright configuration pins `channel: "chrome"`, which resolves to this
+# executable on Linux; its absence is the one prerequisite that defers the
+# Studio interaction tests to the hosted Studio lane.
+CHROME_EXECUTABLE = Path("/opt/google/chrome/chrome")
+
 __all__ = [
     "HOSTED_TEST_PROFILE",
     "PlannedCommand",
@@ -180,11 +185,14 @@ def command(
     )
 
 
-def _rust_commands(packages: Iterable[str], *, rustdoc: bool) -> list[PlannedCommand]:
+def _rust_commands(
+    packages: Iterable[str], *, rustdoc: bool, all_targets: bool = True
+) -> list[PlannedCommand]:
     selected = sorted(packages)
     if not selected:
         return []
     selectors = tuple(item for package in selected for item in ("-p", package))
+    target_scope = ("--all-targets",) if all_targets else ()
     commands = [
         command(
             "Rust tests",
@@ -192,7 +200,7 @@ def _rust_commands(packages: Iterable[str], *, rustdoc: bool) -> list[PlannedCom
             "test",
             "--locked",
             *selectors,
-            "--all-targets",
+            *target_scope,
             lane=ROOT_CARGO_LANE,
         ),
         command(
@@ -200,7 +208,7 @@ def _rust_commands(packages: Iterable[str], *, rustdoc: bool) -> list[PlannedCom
             "cargo",
             "clippy",
             *selectors,
-            "--all-targets",
+            *target_scope,
             "--",
             "-D",
             "warnings",
@@ -245,7 +253,9 @@ def _case_commands(cases: Iterable[str]) -> list[PlannedCommand]:
     ]
 
 
-def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
+def _surface_commands(
+    surfaces: Mapping[str, bool], *, chrome_available: bool = True
+) -> list[PlannedCommand]:
     commands: list[PlannedCommand] = []
     if surfaces["dependency_policy"]:
         commands.extend(
@@ -319,15 +329,21 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                     cwd="studio",
                     lane=STUDIO_LANE,
                 ),
-                command(
-                    "Studio interaction tests",
-                    "npm",
-                    "run",
-                    "test:e2e",
-                    "--",
-                    "--workers=1",
-                    cwd="studio",
-                    lane=STUDIO_LANE,
+                *(
+                    (
+                        command(
+                            "Studio interaction tests",
+                            "npm",
+                            "run",
+                            "test:e2e",
+                            "--",
+                            "--workers=1",
+                            cwd="studio",
+                            lane=STUDIO_LANE,
+                        ),
+                    )
+                    if chrome_available
+                    else ()
                 ),
                 command(
                     "Studio native MSRV",
@@ -401,7 +417,12 @@ def build_plan(
     explicit_cases: Sequence[str],
     packages: Mapping[str, WorkspacePackage],
     root: Path = ROOT,
+    *,
+    chrome_executable: Path | None = None,
 ) -> VerificationPlan:
+    chrome_available = (
+        chrome_executable if chrome_executable is not None else CHROME_EXECUTABLE
+    ).exists()
     if tier == "periodic":
         surfaces = classify([], full=True)
         selected_packages = set(packages)
@@ -511,7 +532,7 @@ def build_plan(
                 lane=ROOT_CARGO_LANE,
             ),
         ]
-        commands.extend(_surface_commands(surfaces))
+        commands.extend(_surface_commands(surfaces, chrome_available=chrome_available))
         limitations = (
             "Python coverage is the current interpreter, not the complete 3.11-3.14 matrix.",
             "Physical multi-node MPI and GPU evidence requires an explicit matching environment run.",
@@ -546,7 +567,13 @@ def build_plan(
                     lane=ROOT_CARGO_LANE,
                 )
             )
-        commands.extend(_rust_commands(selected_packages, rustdoc=tier == "affected"))
+        commands.extend(
+            _rust_commands(
+                selected_packages,
+                rustdoc=tier == "affected",
+                all_targets=tier != "pr",
+            )
+        )
         if tier == "affected":
             commands.append(
                 command(
@@ -562,7 +589,7 @@ def build_plan(
                 )
             )
         commands.extend(_case_commands(cases))
-        if any(
+        if tier != "pr" and any(
             path.endswith(".md") or path in {"AGENTS.md", "CONTRIBUTING.md"}
             for path in paths
         ):
@@ -582,7 +609,7 @@ def build_plan(
                     ".",
                 )
             )
-        if any(
+        if tier != "pr" and any(
             PurePosixPath(path).name == "Cargo.toml"
             or path in {"Cargo.lock", "tools/xtask/src/main.rs"}
             for path in paths
@@ -596,7 +623,7 @@ def build_plan(
                     lane=ROOT_CARGO_LANE,
                 )
             )
-        if any(
+        if tier != "pr" and any(
             path
             in {
                 "api/eqiora-facade-v1.json",
@@ -625,7 +652,7 @@ def build_plan(
             "crates/eqiora-backend-rayon/Cargo.toml",
             "crates/eqiora-backend-rayon/src/lib.rs",
         }
-        if any(
+        if tier != "pr" and any(
             path.startswith("tools/ci/") or path in ci_contract_inputs for path in paths
         ):
             commands.append(
@@ -642,13 +669,29 @@ def build_plan(
                 )
             )
         if tier == "affected":
-            commands.extend(_surface_commands(surfaces))
-        limitations = (
-            "Affected evidence runs changed and explicitly named cases; semantic owners must name every affected case with --case.",
-            "Default-feature Clippy is the local code gate; optional backend features require their registered case or an explicit environment-specific check.",
-            "Environment-dependent hardware and multi-node evidence is not implied unless explicitly run and recorded.",
-        )
+            commands.extend(
+                _surface_commands(surfaces, chrome_available=chrome_available)
+            )
+        if tier == "pr":
+            limitations = (
+                "The pr tier is the local iteration loop: formatting, default-target tests and Clippy for directly changed packages, and changed or explicitly named cases only.",
+                "Documentation, release-tree, dependency-layer, facade, CI-contract, and surface checks are deferred to hosted pull-request CI or a fast/affected run.",
+                "Reverse-dependency closure is not computed; use affected for uncertain dependency closure.",
+            )
+        else:
+            limitations = (
+                "Affected evidence runs changed and explicitly named cases; semantic owners must name every affected case with --case.",
+                "Default-feature Clippy is the local code gate; optional backend features require their registered case or an explicit environment-specific check.",
+                "Environment-dependent hardware and multi-node evidence is not implied unless explicitly run and recorded.",
+            )
 
+    if tier in ("affected", "periodic") and surfaces["studio"] and not chrome_available:
+        limitations = (
+            *limitations,
+            "Studio interaction tests are deferred to the hosted Studio lane: the "
+            "local Chrome executable is absent. This deferral is not a local "
+            "Studio pass.",
+        )
     deduplicated = tuple(dict.fromkeys(commands))
     return VerificationPlan(
         tier=tier,
@@ -694,7 +737,7 @@ def render_plan(plan: VerificationPlan, budget: ResourceBudget | None = None) ->
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("tier", choices=("fast", "affected", "periodic"))
+    parser.add_argument("tier", choices=("pr", "fast", "affected", "periodic"))
     parser.add_argument(
         "--base", default="origin/main", help="merge-base comparison ref"
     )
