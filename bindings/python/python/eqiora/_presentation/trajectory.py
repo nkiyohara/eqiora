@@ -232,21 +232,16 @@ def _capture_exact_payload(trajectory: object, token: object) -> dict[str, objec
         "times_f64_le": time_bytes,
         "values_f64_le": value_bytes,
     }
-    for name in (
-        "coordinates",
-        "triangles",
-        "support",
-        "steps",
-        "times",
-        "values",
-    ):
-        payload[f"{name}_sha256"] = hashlib.sha256(
-            payload[f"{name}_f64_le"]
-            if name in {"coordinates", "times", "values"}
-            else payload[f"{name}_u32_le"]
-            if name in {"triangles", "support"}
-            else payload["steps_u64_le"]
-        ).hexdigest()
+    binary_parts: dict[str, bytes] = {
+        "coordinates": coordinate_bytes,
+        "triangles": triangle_bytes,
+        "support": support_snapshot,
+        "steps": step_bytes,
+        "times": time_bytes,
+        "values": value_bytes,
+    }
+    for name, encoded in binary_parts.items():
+        payload[f"{name}_sha256"] = hashlib.sha256(encoded).hexdigest()
     return payload
 
 
