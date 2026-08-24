@@ -8,6 +8,8 @@ import hashlib
 import importlib.resources
 import json
 import math
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -60,6 +62,7 @@ PRECONDITIONER = "identity"
 REDUCTION = "fast"
 SOLVER_BACKEND = "eqiora.faer"
 WORKERS = 1
+GMSH_VERSION = "4.15.2"
 
 INTENT_ARGUMENTS: dict[str, Any] = {
     "length_scale_m": LENGTH_SCALE_M,
@@ -336,13 +339,32 @@ def solve(realized: Any, *, model: bytes | None = None) -> Any:
     return eqiora.submit(current, plan=resolved).result()
 
 
+def configured_gmsh() -> Path:
+    explicit = os.environ.get("EQIORA_GMSH")
+    discovered = explicit if explicit is not None else shutil.which("gmsh")
+    assert discovered is not None, (
+        "this evidence requires Gmsh 4.15.2 through EQIORA_GMSH or PATH"
+    )
+    executable = Path(discovered).resolve()
+    completed = subprocess.run(
+        [str(executable), "--version"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert completed.stderr == ""
+    assert completed.stdout.strip() == GMSH_VERSION
+    return executable
+
+
 def test_imported_gmsh_mesh_reaches_the_existing_stokes_plan_boundary(
     tmp_path: Path,
 ) -> None:
     msh = tmp_path / "accepted.msh"
     subprocess.run(
         [
-            "gmsh",
+            str(configured_gmsh()),
             "-2",
             str(EXACT_GMSH_GEOMETRY),
             "-o",
