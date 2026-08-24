@@ -175,6 +175,12 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             self.assertEqual(marimo.count(occurrence), 1, occurrence)
         self.assertIsNone(HEX_SHA256.search(source))
         self.assertIn("assert run_identity == result_identity", source)
+        self.assertEqual(
+            source.count(
+                'alt="Accepted exact-cylinder steady-Stokes pressure field"'
+            ),
+            1,
+        )
         self.assertIn("EQIORA_EXACT_CYLINDER_STOKES_JUPYTER_READY", source)
         _require_one_direct_run(source)
 
