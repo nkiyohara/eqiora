@@ -174,6 +174,7 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             self.assertEqual(source.count(occurrence), 1, occurrence)
             self.assertEqual(marimo.count(occurrence), 1, occurrence)
         self.assertIsNone(HEX_SHA256.search(source))
+        self.assertEqual(source.count('matplotlib.use("Agg")'), 1)
         self.assertIn("assert run_identity == result_identity", source)
         self.assertEqual(
             source.count(
