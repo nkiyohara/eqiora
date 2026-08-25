@@ -11,6 +11,7 @@ mod differentiation;
 mod elasticity;
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 mod external_data;
+mod external_spatial;
 mod fixed_mesh_trajectory;
 mod fixed_reference_fsi;
 mod geometry_edit;
@@ -76,6 +77,7 @@ use eqiora_artifact::{
 use eqiora_compiler::{CompiledModel, ModelSymbols};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
+use eqiora_geometry::{CanonicalGeometryRef, CanonicalGeometryV1};
 use eqiora_graph::{GraphStore, InMemoryGraphStore, Revision};
 use eqiora_lang::ModelDraft;
 use eqiora_sem::KernelProgram;
@@ -88,6 +90,7 @@ pub struct ModelDocument {
     artifact: AcceptedModelArtifact,
     aliases: BTreeMap<String, RawId>,
     store: InMemoryGraphStore,
+    geometry_authority: Vec<CanonicalGeometryV1>,
 }
 
 impl PartialEq for ModelDocument {
@@ -95,6 +98,7 @@ impl PartialEq for ModelDocument {
         self.program == other.program
             && self.artifact == other.artifact
             && self.aliases == other.aliases
+            && self.geometry_authority == other.geometry_authority
     }
 }
 
@@ -148,10 +152,13 @@ impl ModelDocument {
         Self::from_store(store, program, aliases)
     }
 
-    /// Replay one artifact through the single current Model contract.
+    /// Replay one self-contained artifact through the single current Model
+    /// contract.
     ///
     /// Historical schemas reject before semantic use; this path never sniffs,
-    /// retries, or migrates bytes.
+    /// retries, or migrates bytes. Geometry-referencing artifact bytes require
+    /// the exact external Geometry closure and therefore reject this
+    /// resource-free entry rather than fabricating spatial authority.
     ///
     /// # Errors
     /// Returns decoder, graph, or whole-Model validation diagnostics.
@@ -169,6 +176,7 @@ impl ModelDocument {
             artifact,
             aliases: BTreeMap::new(),
             store,
+            geometry_authority: Vec::new(),
         })
     }
 
@@ -190,6 +198,7 @@ impl ModelDocument {
             artifact,
             aliases,
             store,
+            geometry_authority: Vec::new(),
         })
     }
 
@@ -219,7 +228,9 @@ impl ModelDocument {
     /// # Errors
     /// Returns an artifact diagnostic if invariant replay fails.
     pub fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
-        self.artifact.canonical_json()
+        let bytes = self.artifact.canonical_json()?;
+        self.replay_with_retained_geometry()?;
+        Ok(bytes)
     }
 
     /// Domain-separated semantic content digest.
@@ -227,6 +238,7 @@ impl ModelDocument {
     /// # Errors
     /// Returns an artifact diagnostic if invariant replay fails.
     pub fn digest(&self) -> Result<String, Diagnostic> {
+        self.replay_with_retained_geometry()?;
         self.artifact.digest().map(|digest| digest.to_string())
     }
 
@@ -256,6 +268,39 @@ impl ModelDocument {
     pub fn structurally_equivalent(&self, other: &Self) -> Result<bool, Diagnostic> {
         eqiora_artifact::structurally_equivalent(&self.program, &other.program)
     }
+
+    fn replay_with_retained_geometry(&self) -> Result<KernelProgram, Diagnostic> {
+        if self.geometry_authority.is_empty() {
+            return self
+                .artifact
+                .replay_model()
+                .map(|replayed| replayed.program().clone());
+        }
+        let reference = self.artifact.artifact_reference()?;
+        let (transaction, model) = self.artifact.to_transaction().map_err(first_diagnostic)?;
+        let store = InMemoryGraphStore::restore_snapshot(
+            transaction,
+            Revision(self.artifact.source_revision()),
+        )
+        .map_err(first_diagnostic)?;
+        let geometries = self
+            .geometry_authority
+            .iter()
+            .map(CanonicalGeometryRef::from)
+            .collect::<Vec<_>>();
+        let program =
+            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &geometries)
+                .map_err(first_diagnostic)?;
+        if program.model() != reference.model()
+            || program.revision().0 != reference.semantic_revision().get()
+        {
+            return Err(Diagnostic::error(
+                codes::INVALID_ARTIFACT,
+                "replayed Model identity or semantic revision differs from its exact artifact reference",
+            ));
+        }
+        Ok(program)
+    }
 }
 
 fn aliases(symbols: &ModelSymbols) -> BTreeMap<String, RawId> {
@@ -267,6 +312,15 @@ fn aliases(symbols: &ModelSymbols) -> BTreeMap<String, RawId> {
 
 fn single_diagnostic(diagnostic: Diagnostic) -> Vec<Diagnostic> {
     vec![diagnostic]
+}
+
+fn first_diagnostic(diagnostics: Vec<Diagnostic>) -> Diagnostic {
+    diagnostics.into_iter().next().unwrap_or_else(|| {
+        Diagnostic::error(
+            codes::INVALID_ARTIFACT,
+            "Model replay failed without a diagnostic",
+        )
+    })
 }
 
 #[cfg(test)]

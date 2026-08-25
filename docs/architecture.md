@@ -1865,4 +1865,9 @@ sole solver plan, distributed algebra consumes scalar/reduction and complete-
 CSR storage/view vocabulary, assembly implements only the solver storage
 projection, and spatial distribution composes exact mesh ownership with that
 assembly vocabulary and distributed partition identities. The solver-owned
-view implements the operator action. No reverse edge is permitted.
+view implements the operator action. RFC 0080 geometry admission also has two
+one-way consumers of the same opaque, kind-erased canonical Geometry reference:
+semantic admission derives spatial support, while the compiler now derives the
+exact digest, dimensions, entity-set membership, and boundary-parent facts for
+one externally bound Component occurrence. Neither consumer retains Geometry
+content or admits caller-supplied fact tuples. No reverse edge is permitted.

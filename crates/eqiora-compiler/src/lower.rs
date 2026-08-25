@@ -2,6 +2,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
 mod domain;
+mod domain_contract;
+mod external;
+pub(crate) use domain_contract::{LoweringDomainContract, LoweringPortContract};
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
@@ -190,6 +193,7 @@ pub fn lower_model(file: &str, model: &ModelDecl) -> Result<CompiledModel, Vec<D
 
 /// Compiler-owned declaration form consumed by Kernel lowering.
 ///
+/// It is the sole entry shape for the typed transaction lowerer.
 /// Parsed source and hierarchy elaboration both enter lowering through this
 /// exact form. In particular, hierarchy-only boundary-physical contracts are
 /// represented directly rather than disguised as source-language scalar
@@ -199,18 +203,6 @@ pub(crate) struct LoweringModel {
     pub(crate) name: String,
     pub(crate) range: TextRange,
     pub(crate) items: Vec<LoweringItem>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum LoweringDomainContract {
-    Source(DomainSyntax),
-    BoundaryPhysical(BoundaryPhysicalConnector),
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum LoweringPortContract {
-    Source(PortSyntax),
-    BoundaryPhysical { connector: String, boundary: String },
 }
 
 /// Compiler-owned, typed scalar expression consumed by Kernel lowering.
@@ -616,6 +608,14 @@ pub(crate) fn lower_typed_model(
             } => {
                 let contract = match contract {
                     LoweringDomainContract::Source(syntax) => bind_domain(file, *range, syntax),
+                    LoweringDomainContract::ExternalGeometryRegion { dimensions, .. } => {
+                        Ok(DomainContract::Spatial {
+                            dimensions: Some(*dimensions),
+                        })
+                    }
+                    LoweringDomainContract::ExternalGeometryBoundary { .. } => {
+                        Ok(DomainContract::Spatial { dimensions: None })
+                    }
                     LoweringDomainContract::BoundaryPhysical(contract) => {
                         Ok(DomainContract::BoundaryPhysical(contract.clone()))
                     }

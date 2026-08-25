@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 eqiora-core = { workspace = true }
+eqiora-geometry = { workspace = true }
 eqiora-graph = { workspace = true }
 eqiora-lang = { workspace = true }
 eqiora-schema = { workspace = true }
