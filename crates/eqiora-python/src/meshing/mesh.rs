@@ -38,7 +38,6 @@ const REFERENCE_COORDINATES_SHA256: &str =
 const REFERENCE_TRIANGLES_SHA256: &str =
     "05a68c5630e68ed091e7da3bff07516a9ddf9345bc8319db108ac4004a7c6642";
 const MESH_DIGEST_DOMAIN: &[u8] = b"eqiora.simplicial-mesh-envelope/v1\0";
-const EXTERNAL_IMPORT_DIGEST_DOMAIN: &[u8] = b"eqiora.external-import-manifest/v1\0";
 const UNSUPPORTED_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: this N1 viewer supports only the exact accepted Gmsh 4.15.2 circular-hole Mesh (662 vertices, 1210 triangles).";
 const CORRUPT_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: the installed Eqiora Notebook presentation runtime or assets are incomplete. Reinstall eqiora[notebook].";
 
@@ -389,14 +388,15 @@ impl PyMesh {
     }
 
     fn from_imported(py: Python<'_>, imported: super::gmsh::ImportedGmshMesh) -> PyResult<Self> {
+        let manifest_digest = imported
+            .manifest
+            .digest()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
+            .to_string();
         let manifest_bytes = imported
             .manifest
             .canonical_json()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-        let mut framed = Sha256::new();
-        framed.update(EXTERNAL_IMPORT_DIGEST_DOMAIN);
-        framed.update(&manifest_bytes);
-        let manifest_digest = hex_digest(&framed.finalize());
         let mut mesh = Self::from_accepted(py, imported.accepted)?;
         let AcceptedMeshSource::Chordal {
             external_import, ..
