@@ -143,3 +143,34 @@ def test_assets_are_wheel_local_nonempty_and_do_not_request_network() -> None:
     assert "save_changes" not in esm
     assert "__eqioraN3Oracle" in esm
     assert ".eqiora-trajectory" in css
+
+
+def test_closed_delegate_is_closed_before_replacement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Delegate:
+        def __init__(self, *, open_comm: bool) -> None:
+            self.comm = type("Comm", (), {"_closed": not open_comm})()
+            self.close_calls = 0
+
+        def close(self) -> None:
+            self.close_calls += 1
+
+        def _repr_mimebundle_(self) -> dict[str, object]:
+            return {WIDGET_MIME: {"version_major": 2, "version_minor": 0}}
+
+    stale = Delegate(open_comm=False)
+    replacement = Delegate(open_comm=True)
+    monkeypatch.setattr(presentation, "_capture_exact_payload", lambda *_: {})
+    monkeypatch.setattr(presentation.importlib.util, "find_spec", lambda *_: object())
+    monkeypatch.setattr(presentation, "_load_assets", lambda: ("esm", "css"))
+    monkeypatch.setattr(presentation, "_new_delegate", lambda *_: replacement)
+
+    outcome, delegate, bundle = presentation.trajectory_mimebundle(
+        object(), object(), stale
+    )
+
+    assert outcome == "rich"
+    assert stale.close_calls == 1
+    assert delegate is replacement
+    assert bundle == {WIDGET_MIME: {"version_major": 2, "version_minor": 0}}

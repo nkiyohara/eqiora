@@ -1,6 +1,6 @@
 //! Immutable Python projection of one accepted spatial trajectory.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
@@ -13,18 +13,15 @@ use eqiora::artifact::{
 use eqiora::kernel::ValueFrame;
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldShape};
 use numpy::{PyArray1, PyArray2};
-use pyo3::exceptions::{
-    PyIndexError, PyKeyError, PyOverflowError, PyRuntimeError, PyTypeError, PyValueError,
-};
+use pyo3::exceptions::{PyIndexError, PyKeyError, PyOverflowError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyDict, PyModule, PyTuple};
 
 use crate::diagnostic_error;
 use crate::matrix::{ReadOnlyMatrix, ReadOnlyVector};
 use crate::model::{PyModel, PyModelFieldRef};
+use crate::notebook_mime::{TEXT_MIME, WIDGET_MIME, select_mime_types};
 
-const TEXT_MIME: &str = "text/plain";
-const WIDGET_MIME: &str = "application/vnd.jupyter.widget-view+json";
 const TRAJECTORY_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: this N3 viewer supports only an accepted fixed-mesh 2D Trajectory with one consistent invariant scalar vertex Field.";
 const CORRUPT_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: the installed Eqiora Notebook presentation runtime or assets are incomplete. Reinstall eqiora[notebook].";
 
@@ -747,45 +744,6 @@ enum AdapterOutcome {
         delegate: Py<PyAny>,
         widget_view: Py<PyAny>,
     },
-}
-
-fn select_mime_types(
-    py: Python<'_>,
-    include: Option<&Bound<'_, PyAny>>,
-    exclude: Option<&Bound<'_, PyAny>>,
-) -> PyResult<HashSet<&'static str>> {
-    let mut selected = HashSet::from([TEXT_MIME, WIDGET_MIME]);
-    if let Some(include) = include {
-        let include = mime_collection(py, include, "include")?;
-        selected.retain(|mime| include.contains(*mime));
-    }
-    if let Some(exclude) = exclude {
-        let exclude = mime_collection(py, exclude, "exclude")?;
-        selected.retain(|mime| !exclude.contains(*mime));
-    }
-    Ok(selected)
-}
-
-fn mime_collection(
-    py: Python<'_>,
-    value: &Bound<'_, PyAny>,
-    name: &str,
-) -> PyResult<HashSet<String>> {
-    let collection = py.import("collections.abc")?.getattr("Collection")?;
-    if !value.is_instance(&collection)? {
-        return Err(PyTypeError::new_err(format!(
-            "{name} must be None or a collection of MIME strings"
-        )));
-    }
-    let mut members = HashSet::new();
-    for member in value.try_iter()? {
-        members.insert(member?.extract::<String>().map_err(|_| {
-            PyTypeError::new_err(format!(
-                "{name} must be None or a collection of MIME strings"
-            ))
-        })?);
-    }
-    Ok(members)
 }
 
 fn call_presentation_adapter(

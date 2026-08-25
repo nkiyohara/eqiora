@@ -1864,6 +1864,7 @@ def run_notebook_profile(
         source_root: Path | None = None,
         test_spec: str | None = None,
         extra_environment: dict[str, str] | None = None,
+        observations: tuple[str, ...] = (),
     ) -> None:
         python = state.get("python")
         if not isinstance(python, Path):
@@ -2169,6 +2170,8 @@ def run_notebook_profile(
             if process.stdout is not None:
                 process.stdout.close()
         state[project] = True
+        for observation in observations:
+            state[f"host-observation:{observation}"] = True
 
     def run_exact_cylinder_stokes_marimo() -> None:
         python = state.get("python")
@@ -2215,6 +2218,10 @@ def run_notebook_profile(
     def require_host_observation(name: str) -> None:
         if not state.get("jupyterlab-4.6.2") or not state.get("marimo-0.23.16"):
             raise CandidateError(f"Notebook host observation is incomplete: {name}")
+        if name.endswith("-trajectory") and not state.get(
+            f"host-observation:{name}"
+        ):
+            raise CandidateError(f"Trajectory host observation is incomplete: {name}")
         if name == "browser" and not Path(state["browser-executable"]).is_file():
             raise CandidateError("accepted managed Chromium executable is missing")
 
@@ -2224,8 +2231,22 @@ def run_notebook_profile(
         ("frontend:bundle-byte-rebuild", lambda: require_frontend_binding("bundle")),
         ("wheel-family:notebook-metadata", lambda: require_frontend_binding("wheel")),
         ("cp313:notebook-anywidget-0.11.0", install_notebook),
-        ("cp313:jupyterlab-4.6.2-bare-mesh", lambda: run_host("jupyterlab-4.6.2", "bindings/python/tests/fixtures/rich_mesh_display/jupyterlab.ipynb")),
-        ("cp313:marimo-0.23.16-bare-mesh", lambda: run_host("marimo-0.23.16", "bindings/python/tests/fixtures/rich_mesh_display/marimo.py")),
+        (
+            "cp313:jupyterlab-4.6.2-bare-mesh",
+            lambda: run_host(
+                "jupyterlab-4.6.2",
+                "bindings/python/tests/fixtures/rich_mesh_display/jupyterlab.ipynb",
+                observations=("jupyterlab-trajectory",),
+            ),
+        ),
+        (
+            "cp313:marimo-0.23.16-bare-mesh",
+            lambda: run_host(
+                "marimo-0.23.16",
+                "bindings/python/tests/fixtures/rich_mesh_display/marimo.py",
+                observations=("marimo-trajectory",),
+            ),
+        ),
         ("cp313:jupyterlab-4.6.2-bare-trajectory", lambda: require_host_observation("jupyterlab-trajectory")),
         ("cp313:marimo-0.23.16-bare-trajectory", lambda: require_host_observation("marimo-trajectory")),
         (EXACT_CYLINDER_STOKES_MARIMO_CHECK, run_exact_cylinder_stokes_marimo),

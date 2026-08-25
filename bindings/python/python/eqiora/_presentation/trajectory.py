@@ -346,6 +346,7 @@ def trajectory_mimebundle(
         return "corrupt", None, None
     delegate = current_delegate if current_delegate is not None else None
     if delegate is not None and not _comm_is_open(delegate):
+        _close(delegate)
         delegate = None
     try:
         if delegate is None:
