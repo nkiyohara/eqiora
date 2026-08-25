@@ -21,7 +21,11 @@ This module publishes **5** literal `__all__` spellings. Member entries below ar
 
 ## `SteadyStokes`
 
-Complete steady-Stokes request with no hidden numerical defaults.
+Compatibility wrapper for the former application-shaped request.
+
+New code composes `eqiora.IncompressibleFlowScales` and
+`eqiora.LinearSolve` through `eqiora.resolve`; the Model owns
+the governing mathematics.
 
 Authority: <ExactSourceLink path="crates/eqiora-python/src/steady_stokes.rs" kind="blob">crates/eqiora-python/src/steady_stokes.rs::PySteadyStokes</ExactSourceLink>
 
@@ -151,7 +155,10 @@ class SteadyStokesPlan:
 
 ## `resolve`
 
-Resolve a steady-Stokes intent without executing it.
+Compatibility resolver for the former application-shaped request.
+
+New code calls `eqiora.resolve` with explicit scale and solve
+policies.
 
 Authority: <ExactSourceLink path="crates/eqiora-python/src/steady_stokes.rs" kind="blob">crates/eqiora-python/src/steady_stokes.rs::resolve</ExactSourceLink>
 

@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **77** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **80** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -539,6 +539,58 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/error.rs" kind="blob"
 ```python
 class InternalError(EqioraError):
     ...
+```
+
+<a id="api-eqiora-IncompressibleFlowScales"></a>
+
+## `IncompressibleFlowScales`
+
+Characteristic coherent-SI scales for incompressible-flow realization.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/execution_policy.rs" kind="blob">crates/eqiora-python/src/execution_policy.rs::PyIncompressibleFlowScales</ExactSourceLink>
+
+```python
+@final
+class IncompressibleFlowScales:
+    def __new__(cls, *, length_m: float, velocity_m_per_s: float, pressure_pa: float) -> IncompressibleFlowScales: ...
+    @property
+    def length_m(self) -> float: ...
+    @property
+    def velocity_m_per_s(self) -> float: ...
+    @property
+    def pressure_pa(self) -> float: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-LinearSolve"></a>
+
+## `LinearSolve`
+
+Complete backend-neutral policy for one linear solve.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/execution_policy.rs" kind="blob">crates/eqiora-python/src/execution_policy.rs::PyLinearSolve</ExactSourceLink>
+
+```python
+@final
+class LinearSolve:
+    def __new__(cls, *, algorithm: Literal['conjugate-gradient', 'minimum-residual', 'bicgstab', 'sparse-lu'], preconditioner: Literal['identity', 'jacobi'], reduction: Literal['reproducible', 'fast'], relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int) -> LinearSolve: ...
+    @property
+    def algorithm(self) -> str: ...
+    @property
+    def preconditioner(self) -> str: ...
+    @property
+    def reduction(self) -> str: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerance(self) -> float: ...
+    @property
+    def maximum_iterations(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
 ```
 
 <a id="api-eqiora-LinearSolveSummary"></a>
@@ -1397,6 +1449,22 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/lib.rs" kind="blob">c
 
 ```python
 def replay(data: bytes) -> Model: ...
+```
+
+<a id="api-eqiora-resolve"></a>
+
+## `resolve`
+
+Resolve the capability recognized from a Model using explicit policies.
+
+The current admitted composition recognizes bounded two-dimensional steady
+Stokes. The Model remains the sole authority for equations and boundary
+laws.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/steady_stokes.rs" kind="blob">crates/eqiora-python/src/steady_stokes.rs::resolve_model</ExactSourceLink>
+
+```python
+def resolve(model: Model, /, *, mesh: meshing.Mesh, scales: IncompressibleFlowScales, solve: LinearSolve) -> fluid.SteadyStokesPlan: ...
 ```
 
 <a id="api-eqiora-run"></a>

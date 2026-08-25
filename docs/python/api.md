@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 11 module summaries and all 110 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 493 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 11 module summaries and all 113 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 502 signature-only entries under documented owning types**.
 
-Inventory: 11 modules, 129 literal public spellings, 110 canonical grouped declarations, 626 visible method signatures (493 non-dunder and 133 dunder), and 47 visible class assignments.
+Inventory: 11 modules, 132 literal public spellings, 113 canonical grouped declarations, 643 visible method signatures (502 non-dunder and 141 dunder), and 47 visible class assignments.
 
 Regenerate with:
 
@@ -547,6 +547,58 @@ Authority: [`crates/eqiora-python/src/error.rs::InternalError`](../../crates/eqi
 ```python
 class InternalError(EqioraError):
     ...
+```
+
+<a id="api-eqiora-IncompressibleFlowScales"></a>
+
+### `eqiora.IncompressibleFlowScales`
+
+Characteristic coherent-SI scales for incompressible-flow realization.
+
+Authority: [`crates/eqiora-python/src/execution_policy.rs::PyIncompressibleFlowScales`](../../crates/eqiora-python/src/execution_policy.rs)
+
+```python
+@final
+class IncompressibleFlowScales:
+    def __new__(cls, *, length_m: float, velocity_m_per_s: float, pressure_pa: float) -> IncompressibleFlowScales: ...
+    @property
+    def length_m(self) -> float: ...
+    @property
+    def velocity_m_per_s(self) -> float: ...
+    @property
+    def pressure_pa(self) -> float: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-LinearSolve"></a>
+
+### `eqiora.LinearSolve`
+
+Complete backend-neutral policy for one linear solve.
+
+Authority: [`crates/eqiora-python/src/execution_policy.rs::PyLinearSolve`](../../crates/eqiora-python/src/execution_policy.rs)
+
+```python
+@final
+class LinearSolve:
+    def __new__(cls, *, algorithm: Literal['conjugate-gradient', 'minimum-residual', 'bicgstab', 'sparse-lu'], preconditioner: Literal['identity', 'jacobi'], reduction: Literal['reproducible', 'fast'], relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int) -> LinearSolve: ...
+    @property
+    def algorithm(self) -> str: ...
+    @property
+    def preconditioner(self) -> str: ...
+    @property
+    def reduction(self) -> str: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerance(self) -> float: ...
+    @property
+    def maximum_iterations(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
 ```
 
 <a id="api-eqiora-LinearSolveSummary"></a>
@@ -1407,6 +1459,22 @@ Authority: [`crates/eqiora-python/src/lib.rs::replay`](../../crates/eqiora-pytho
 def replay(data: bytes) -> Model: ...
 ```
 
+<a id="api-eqiora-resolve"></a>
+
+### `eqiora.resolve`
+
+Resolve the capability recognized from a Model using explicit policies.
+
+The current admitted composition recognizes bounded two-dimensional steady
+Stokes. The Model remains the sole authority for equations and boundary
+laws.
+
+Authority: [`crates/eqiora-python/src/steady_stokes.rs::resolve_model`](../../crates/eqiora-python/src/steady_stokes.rs)
+
+```python
+def resolve(model: Model, /, *, mesh: meshing.Mesh, scales: IncompressibleFlowScales, solve: LinearSolve) -> fluid.SteadyStokesPlan: ...
+```
+
 <a id="api-eqiora-run"></a>
 
 ### `eqiora.run`
@@ -1934,7 +2002,11 @@ Shipped stub: [`bindings/python/python/eqiora/fluid.pyi`](../../bindings/python/
 
 ### `eqiora.fluid.SteadyStokes`
 
-Complete steady-Stokes request with no hidden numerical defaults.
+Compatibility wrapper for the former application-shaped request.
+
+New code composes `eqiora.IncompressibleFlowScales` and
+`eqiora.LinearSolve` through `eqiora.resolve`; the Model owns
+the governing mathematics.
 
 Authority: [`crates/eqiora-python/src/steady_stokes.rs::PySteadyStokes`](../../crates/eqiora-python/src/steady_stokes.rs)
 
@@ -2064,7 +2136,10 @@ class SteadyStokesPlan:
 
 ### `eqiora.fluid.resolve`
 
-Resolve a steady-Stokes intent without executing it.
+Compatibility resolver for the former application-shaped request.
+
+New code calls `eqiora.resolve` with explicit scale and solve
+policies.
 
 Authority: [`crates/eqiora-python/src/steady_stokes.rs::resolve`](../../crates/eqiora-python/src/steady_stokes.rs)
 
