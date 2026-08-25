@@ -24,28 +24,16 @@
   carries — 98 of the 102, with `from_program_v2`, `from_json_v2`,
   `from_transaction_v2`, and `digest_v2` absent and forbidden prospectively.
 - `classification.json` also declares two disjoint containment-only successor
-  permissions. `post_reset_admitted` contains exactly 17 identity-free
-  classified paths — the unchanged 5 existing rows, the exact 4 RFC 0085 rows,
-  the exact 6 source/test/derivation/provider/documentation rows for
-  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`, the exact
-  private non-box transient oracle path, and the exact private `eqiora-mcp`
-  tool-adapter row — each optional, absent before reset, exact in path and
-  ordered signals, and fixed at zero Model-derived identity literals.
-  `post_reset_fixture_admitted` contains exactly 15 paths: the 10 RFC 0085
-  expected paths, the exact provider-occurrence and Run fixtures for
-  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`, and the exact
-  source-or-package release path from the independent
-  `interfaces.python-package-conformance` oracle, plus the exact tool-definition
-  snapshot from the independent `interfaces.mcp-stdio-compile-check` oracle,
-  and the exact minified Stokes E1 sealed input from the independent
-  `geometry.stokes-dissipation-profile-2d` evidence authority.
-  The provider rows contribute 13 + 4 occurrences and the release adds 2 with
-  an empty search-signal list, taking the aggregate from 9 to 28; the MCP row
-  adds zero; the E1 row adds 5 source, contract, and review identities with an
-  empty signal list, taking the aggregate to 33 without claiming a Model
-  artifact identity. Every row is optional and exact in path, ordered signals
-  (empty only with a positive occurrence count), same-line lower-hex-64
-  literal occurrence count, fixture class, owner, and note.
+  permissions. `post_reset_admitted` contains exactly 32 identity-free
+  classified paths, including 12 accepted site/source rows and the 3 common
+  Plan production/test rows appended after them. Every row is optional, absent
+  before reset, exact in path and ordered signals, and fixed at zero
+  Model-derived identity literals. `post_reset_fixture_admitted` contains
+  exactly 27 exact evidence representations with an aggregate 195 same-line
+  lower-hex-64 occurrences. Thirteen accepted site/source or publication rows
+  across the two permissions additionally bind their accepted raw SHA-256.
+  Every fixture row is optional and exact in path, ordered signals, same-line
+  lower-hex-64 literal occurrence count, fixture class, owner, and note.
   Multiple matching identities on one qualifying line are counted separately.
   Neither permission changes a historical inventory, transition, evidence,
   promotion, required, or later-classified count; fixture admission joins no

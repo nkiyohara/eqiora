@@ -11,7 +11,7 @@ struct ExpectedAdmission {
     source: String,
 }
 
-const IDENTITY_FREE_PATH_ORDER: [&str; 29] = [
+const IDENTITY_FREE_PATH_ORDER: [&str; 32] = [
     "crates/eqiora-python/src/trajectory.rs",
     "bindings/python/python/eqiora/trajectory.pyi",
     "crates/eqiora-python/src/result.rs",
@@ -44,6 +44,9 @@ const IDENTITY_FREE_PATH_ORDER: [&str; 29] = [
     "tools/site/produce_exact_cylinder_pressure.py",
     "tools/site/tests/gallery_publication/fixtures.py",
     "tools/site/tests/gallery_publication/test_predicate.py",
+    "crates/eqiora-python/src/common_plan.rs",
+    "crates/eqiora-python/tests/python_common_plan.rs",
+    "bindings/python/tests/test_common_plan.py",
 ];
 
 const FIXTURE_PATH_ORDER: [&str; 27] = [
@@ -97,7 +100,7 @@ const SITE_ADMISSIONS: [SiteAdmission; 13] = [
     ("docs/site/src/content/docs/gallery/exact-cylinder-steady-stokes.mdx", "current-owner-assertion", ("3c9bc27c7aa4e4b8836af021c1ae775d", "a9a1dc47229c0bb68a75743430b876bb"), "gallery.exact-cylinder-steady-stokes current-owner documentation", "the accepted Cylinder gallery projection names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; gallery science and prose remain owned by their accepted authorities."),
     ("docs/site/src/content/docs/reference/control-v2/index.mdx", "current-owner-assertion", ("71265ea8c47bcbf73c5d3d606311bec9", "05b3c4da3b39948eb744d3e3fa57e0f9"), "interfaces.control-plane-compile-check current-owner reference projection", "the accepted control-v2 reference projection names the current Model and Transaction schema families without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes."),
     ("docs/site/src/content/docs/reference/mcp/index.mdx", "current-owner-assertion", ("8aa18b3a0c67d23ebe31d380042551fb", "f9d61f9c5b9e78203aaabf2e44265aef"), "interfaces.mcp-stdio-compile-check current-owner reference projection", "the accepted MCP reference projection names the current Model and Transaction schema families without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes."),
-    ("docs/site/src/content/docs/reference/python/eqiora.mdx", "current-owner-assertion", ("962e184c67359ff1e3753cff704ae3a4", "b8093829ceb1ee446c93f12b4632e499"), "the accepted Python API reference projection", "the generated top-level Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
+    ("docs/site/src/content/docs/reference/python/eqiora.mdx", "current-owner-assertion", ("02bfdda1e74115719a608a20700b5f797", "7fce2f5d6ae6cd948877758564d9225"), "the accepted Python API reference projection", "the generated top-level Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
     ("docs/site/src/content/docs/reference/python/fluid.mdx", "current-owner-assertion", ("97874be5371df59158beec442545e29b0", "2ef3956b028b7f515fe8354796ce2e6"), "the accepted Python API reference projection", "the generated fluid Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
     ("docs/site/src/content/docs/reference/python/fsi.mdx", "current-owner-assertion", ("cc3cb3f8119883005f3dcbe63e5b9cc", "f01d2c2c1ab120669ad8c07f92b16e3e5"), "the accepted Python API reference projection", "the generated FSI Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
     ("docs/site/src/content/docs/reference/python/solid.mdx", "current-owner-assertion", ("8ada7c9fe856095da5334bdcde07a017", "48aee2d82dc201098695f03fd2c1a841"), "the accepted Python API reference projection", "the generated solid Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
@@ -606,6 +609,41 @@ fn site_fixture() -> ExpectedAdmission {
     site_expected(SITE_ADMISSIONS[12])
 }
 
+fn issue540_identity_free() -> Vec<ExpectedAdmission> {
+    vec![
+        ExpectedAdmission {
+            path: "crates/eqiora-python/src/common_plan.rs",
+            class: "non-fixture-search-hit",
+            owner: "the eqiora-python common Plan surface",
+            note: "the common Plan binding exposes and compares the digest of its caller-owned \
+                   current Model without freezing a Model-derived identity literal; admission \
+                   owns only this exact production path and signal shape."
+                .to_owned(),
+            source: format!("fn lineage() {{ let _ = \"{}\"; }}\n", SEARCH_TOKENS[4]),
+        },
+        ExpectedAdmission {
+            path: "crates/eqiora-python/tests/python_common_plan.rs",
+            class: "non-fixture-search-hit",
+            owner: "the eqiora-python common Plan integration oracle",
+            note: "the independent installed-Python integration oracle checks common Plan \
+                   lineage against caller-owned Model identities without pinning a Model-derived \
+                   literal; admission grants no test-directory or sibling permission."
+                .to_owned(),
+            source: format!("assert plan.{} == model.digest\n", SEARCH_TOKENS[4]),
+        },
+        ExpectedAdmission {
+            path: "bindings/python/tests/test_common_plan.py",
+            class: "non-fixture-search-hit",
+            owner: "the shipped-Python common Plan static oracle",
+            note: "the static Python oracle checks common Plan lineage and mutation behaviour \
+                   through caller-owned Model identities without freezing a Model-derived \
+                   literal; admission grants no Python-test family or sibling permission."
+                .to_owned(),
+            source: format!("assert plan.{} == model.digest\n", SEARCH_TOKENS[4]),
+        },
+    ]
+}
+
 fn has_exact_accepted_digests(contract: &TransitionContract) -> bool {
     let expected = SITE_ADMISSIONS
         .iter()
@@ -671,6 +709,11 @@ fn all_identity_free_sources() -> Vec<(&'static str, String)> {
     sources.push((issue79.path, issue79.source));
     sources.extend(
         site_identity_free()
+            .into_iter()
+            .map(|row| (row.path, row.source)),
+    );
+    sources.extend(
+        issue540_identity_free()
             .into_iter()
             .map(|row| (row.path, row.source)),
     );
@@ -865,7 +908,7 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .as_u64()
             .unwrap()
     );
-    assert_eq!(identity_free.len(), 29);
+    assert_eq!(identity_free.len(), 32);
     assert_eq!(fixtures.len(), 27);
     assert_eq!(
         contract
@@ -949,9 +992,9 @@ fn admission_arrays_reject_row_reorder_and_duplicate_paths() {
             "identity-free",
             contract.post_reset_admitted.as_slice(),
             IDENTITY_FREE_PATH_ORDER.as_slice(),
-            27,
-            28,
-            28,
+            30,
+            31,
+            31,
         ),
         (
             "fixture",
@@ -1046,6 +1089,7 @@ fn successor_rows_reject_wrong_path_signal_count_class_owner_or_note() {
                 non_box_transient_identity_free(),
                 vec![issue79_identity_free()],
                 site_identity_free(),
+                issue540_identity_free(),
             ]
             .concat(),
         ),

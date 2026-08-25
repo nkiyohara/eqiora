@@ -52,7 +52,7 @@ by hand.
 | `required_post_reset` | 13 | the complete set of paths the reset may add: 11 byte-frozen promotions — 10 staged control-v2 targets plus the historical cylinder — and 2 existence-only unversioned Rust owners |
 | `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
-| `post_reset_admitted` | 29 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
+| `post_reset_admitted` | 32 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
 | `post_reset_fixture_admitted` | 27 | later exact evidence representations admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
 | accepted-byte-bound optional rows | 13 | exact alpha.3 site/source rows guarded by accepted raw SHA-256; permission remains optional and owns no input semantics |
 
@@ -163,7 +163,10 @@ MCP adapter. Twelve accepted alpha.3 site rows append in exact order:
 
 Every one carries its recorded ordered search signals and zero same-line
 Model-derived identity occurrences. `post_reset_admitted` therefore contains
-exactly 29 rows. A row is absent before the reset, optional after it, belongs to
+exactly 29 rows before the common Plan surface. The common Plan binding and its
+independent Rust and Python tests add three exact `model_digest` consumer paths,
+bringing the identity-free admission to 32 rows. A row is absent before the
+reset, optional after it, belongs to
 no historical, required, promotion, classified, fixture, or oracle-exclusion
 set, and grants no sibling, stem, suffix, directory, generated-page, or tool
 family permission.
