@@ -365,6 +365,18 @@ def test_gmsh_mesh_replays_the_frozen_public_artifact() -> None:
     }
     assert realized_counts == SELECTION_COUNTS
     assert mesh.selection_entity_count(name="cylinder") == SELECTION_COUNTS["cylinder"]
+    inlet = source.selection("inlet")
+    assert mesh.selection_entity_count(inlet) == SELECTION_COUNTS["inlet"]
+    assert mesh.selection_entity_count(name=inlet) == SELECTION_COUNTS["inlet"]
+
+    foreign = geometry(y_lower="floor", y_upper="ceiling").selection("inlet")
+    with pytest.raises(eqiora.ValidationError) as caught:
+        mesh.selection_entity_count(foreign)
+    assert caught.value.category == "validation"
+    assert caught.value.diagnostics
+
+    with pytest.raises(TypeError, match="str or GeometrySelection"):
+        mesh.selection_entity_count(1)
     assert (
         sum(realized_counts[name] for name in ("inlet", "outlet", "walls", "cylinder"))
         == BOUNDARY_EDGE_COUNT
@@ -481,6 +493,7 @@ def test_caller_owned_gmsh_bytes_reach_the_common_mesh_with_distinct_provenance(
     )
     assert set(mesh.selection_names) == set(SELECTION_COUNTS)
     assert all(mesh.selection_entity_count(name) > 0 for name in mesh.selection_names)
+    assert mesh.selection_entity_count(geometry().selection("fluid")) == mesh.cell_count
 
 
 def test_caller_owned_gmsh_import_fails_before_mesh_publication() -> None:

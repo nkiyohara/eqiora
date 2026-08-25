@@ -32,6 +32,65 @@ pub(crate) struct PyGeometry {
     geometry: CanonicalGeometryV1,
 }
 
+/// Immutable named selection bound to one exact Geometry revision.
+#[pyclass(
+    name = "GeometrySelection",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    skip_from_py_object
+)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PyGeometrySelection {
+    source_digest: String,
+    name: String,
+    dimension: usize,
+}
+
+#[pymethods]
+impl PyGeometrySelection {
+    #[getter]
+    fn source_digest(&self) -> &str {
+        &self.source_digest
+    }
+
+    #[getter]
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[getter]
+    const fn dimension(&self) -> usize {
+        self.dimension
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "GeometrySelection(name={:?}, dimension={}, source_digest={:?})",
+            self.name, self.dimension, self.source_digest,
+        )
+    }
+
+    /// Hash the same revision-bound identity used by equality.
+    fn __hash__(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.source_digest.hash(&mut hasher);
+        self.name.hash(&mut hasher);
+        self.dimension.hash(&mut hasher);
+        hasher.finish()
+    }
+}
+
+impl PyGeometrySelection {
+    pub(crate) fn bound_source_digest(&self) -> &str {
+        &self.source_digest
+    }
+
+    pub(crate) fn canonical_name(&self) -> &str {
+        &self.name
+    }
+}
+
 #[pymethods]
 impl PyGeometry {
     /// Intrinsic and coordinate dimension of this accepted Geometry.
@@ -92,6 +151,22 @@ impl PyGeometry {
             })
     }
 
+    /// Resolve one canonical name into an immutable revision-bound selection.
+    fn selection(&self, py: Python<'_>, name: &str) -> PyResult<PyGeometrySelection> {
+        let entity_set = self.geometry.entity_set(name).ok_or_else(|| {
+            let diagnostic = Diagnostic::error(
+                codes::INVALID_ARTIFACT,
+                format!("Geometry has no selection named {name:?}"),
+            );
+            validation_error(py, std::slice::from_ref(&diagnostic))
+        })?;
+        Ok(PyGeometrySelection {
+            source_digest: self.digest(),
+            name: entity_set.name().to_owned(),
+            dimension: entity_set.dimension(),
+        })
+    }
+
     /// Hash the same canonical identity used by equality.
     fn __hash__(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
@@ -121,5 +196,6 @@ impl PyGeometry {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<PyGeometry>()
+    module.add_class::<PyGeometry>()?;
+    module.add_class::<PyGeometrySelection>()
 }

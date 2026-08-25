@@ -20,7 +20,7 @@ use sha2::{Digest, Sha256};
 use super::plan::{PyMeshPlan, PyMeshRequest};
 use super::request_error;
 use crate::error::{diagnostic_error, validation_error};
-use crate::geometry::{PyGeometry, digest_to_hex};
+use crate::geometry::{PyGeometry, PyGeometrySelection, digest_to_hex};
 use crate::matrix::ReadOnlyMatrix;
 use crate::panic_boundary;
 
@@ -199,7 +199,25 @@ impl PyMesh {
     }
 
     /// Count mesh entities proven to realize one exact-source selection.
-    fn selection_entity_count(&self, py: Python<'_>, name: &str) -> PyResult<usize> {
+    fn selection_entity_count(&self, py: Python<'_>, name: &Bound<'_, PyAny>) -> PyResult<usize> {
+        let selection;
+        let name = if let Ok(name) = name.extract::<&str>() {
+            name
+        } else if let Ok(value) = name.extract::<PyRef<'_, PyGeometrySelection>>() {
+            selection = value;
+            if selection.bound_source_digest() != self.lineage.source_digest {
+                let diagnostic = Diagnostic::error(
+                    codes::INVALID_ARTIFACT,
+                    "GeometrySelection belongs to a foreign or stale Geometry revision",
+                );
+                return Err(validation_error(py, std::slice::from_ref(&diagnostic)));
+            }
+            selection.canonical_name()
+        } else {
+            return Err(PyTypeError::new_err(
+                "name must be a str or GeometrySelection",
+            ));
+        };
         match &self.source {
             AcceptedMeshSource::Chordal { accepted, .. } => accepted
                 .correspondence()

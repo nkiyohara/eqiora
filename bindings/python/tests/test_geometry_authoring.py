@@ -202,6 +202,28 @@ def test_fixed_roles_form_the_canonical_named_selection_catalogue() -> None:
     assert caught.value.diagnostics
 
 
+def test_selection_handles_are_immutable_and_revision_bound() -> None:
+    authored = geometry()
+    inlet = authored.selection("inlet")
+
+    assert type(inlet).__module__ == "eqiora._eqiora"
+    assert type(inlet).__name__ == "GeometrySelection"
+    assert inlet.name == "inlet"
+    assert inlet.dimension == 1
+    assert inlet.source_digest == authored.digest
+    assert inlet == authored.selection("inlet")
+    assert inlet != authored.selection("outlet")
+    assert hash(inlet) == hash(authored.selection("inlet"))
+    assert {inlet: "accepted"}[authored.selection("inlet")] == "accepted"
+
+    with pytest.raises(AttributeError):
+        inlet.name = "outlet"
+    with pytest.raises(eqiora.ValidationError) as caught:
+        authored.selection("missing")
+    assert caught.value.category == "validation"
+    assert caught.value.diagnostics
+
+
 def test_distinct_y_roles_pin_lower_and_upper_canonical_members() -> None:
     oriented = geometry(y_lower="floor", y_upper="ceiling")
 
@@ -315,7 +337,7 @@ def test_constructor_has_no_numerical_realization_policy(
         geometry(**unsupported)
 
 
-def test_bounded_geometry_module_does_not_claim_generic_cad_or_handles() -> None:
+def test_bounded_geometry_module_does_not_claim_generic_cad_or_selection_algebra() -> None:
     assert not hasattr(eqiora.geometry, "RectangleWithCircularHole")
     with pytest.raises(TypeError):
         eqiora.geometry.Geometry()
@@ -339,7 +361,6 @@ def test_bounded_geometry_module_does_not_claim_generic_cad_or_handles() -> None
         "region",
         "boundary",
         "select",
-        "selection",
     ):
         assert not hasattr(authored, unsupported_member)
 
