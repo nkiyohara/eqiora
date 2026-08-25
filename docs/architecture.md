@@ -1207,6 +1207,17 @@ facet membership and exposes no competing mesh-local tolerance. Exact bounds
 still determine entity topology; mesh quality, solver acceptance, CAD healing,
 and future import uncertainty remain separate policies.
 
+Planar circular-hole Geometry v2 is a separate provenance-neutral identity
+domain rather than a reinterpretation of that classifier-bearing contract. Its
+content is finite bounds, centre, radius, and complete named membership; it
+persists no graph, build, provider, lineage, or `tolerance_m`. Separately, the
+accepted authored-CAD producer projects retained and created lineage into
+crate-private dimension-carrying result handles bound to the exact graph
+identity, then validates complete atomic naming. Imported or otherwise
+untracked topology still requires an explicit identity-bearing classification
+policy at its correspondence/Realization boundary. V1 decoding and its
+classification semantics remain unchanged.
+
 Cross-revision retention is a separate explicit total body bijection. Domain
 ULIDs are revision-local; paired boundaries are derived from the retained
 parent pair and `(axis, side)`. Missing, split, merged, ambiguous, partial, or
