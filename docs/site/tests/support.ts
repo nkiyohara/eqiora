@@ -79,7 +79,7 @@ export const TABLE_SELECTORS = {
 
 export const TABLE_ROUTES = [
   { route: '/capabilities/', tables: 1, direct: 1, component: 0 },
-  { route: '/evidence/', tables: 1138, direct: 1138, component: 0 },
+  { route: '/evidence/', tables: 1145, direct: 1145, component: 0 },
   { route: '/gallery/exact-cylinder-steady-stokes/', tables: 1, direct: 0, component: 1 },
   { route: '/reference/control-v2/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/python/', tables: 2, direct: 2, component: 0 },
