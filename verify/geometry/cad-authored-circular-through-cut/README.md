@@ -6,13 +6,20 @@ z; a strictly interior circle on its end cap is then cut through all in
 negative z. The result remains exact analytic meaning: the circle and cylinder
 are never replaced by chords, elements, or renderer facets.
 
-The same graph now derives its exact transverse rectangle-minus-circle section
-through the pre-existing planar Geometry owner. Geometry classification
-tolerance and six semantic role names are supplied explicitly; neither the
-Boolean tolerance nor the modeling tolerance is reused. The DFG section is the
-already accepted 511-byte value with digest
-`b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9`,
-so this route adds lineage rather than another circle or mesh semantics.
+The final graph now admits one immutable planar result after executing its
+analytic build once. The build receipt owns the complete exact relation from
+pre-Boolean construction handles to result dimension/member identity. Retained
+side and end-cap handles must belong to the exact predecessor v1 graph; the
+created cut-wall handle must belong to the final v2 graph. Wrong generations,
+lookalike predecessors, deleted topology, and ambiguity reject rather than
+falling back to coordinates or proximity.
+
+After projection, one atomic name-to-result-handle mapping must cover the
+complete planar topology exactly once. It produces the accepted
+provenance-neutral planar circular-hole Geometry v2 without classification or
+tolerance input. The older circle-shaped Geometry v1 method remains temporarily
+as a compatibility route. The v2 exact bytes and digest remain owned unchanged
+by [`geometry.planar-circular-hole-geometry-v2`](../planar-circular-hole-geometry-v2/README.md).
 
 Opus 5 and Fable 5 independently derived the geometry and topology before
 implementation. Both routes agreed on the 1292-byte v2 wire, digest
@@ -43,6 +50,7 @@ cargo test -p eqiora-geometry --test cad_authored_circular_through_cut
 cargo run -p eqiora-verify -- run --case geometry.cad-authored-circular-through-cut
 ```
 
-This is not a general feature DAG, B-rep or CSG schema, multiple/blind-hole
-system, production CAD-kernel Boolean, healing or per-entity tolerance system,
-mesh, solver, Python/Studio projection, or renderer claim.
+This is not general primitive/subtract result ergonomics, a feature DAG, B-rep
+or CSG schema, arbitrary section extractor, multiple/blind-hole system,
+production CAD-kernel Boolean, healing or per-entity tolerance system, mesh,
+solver, Studio projection, or renderer claim.

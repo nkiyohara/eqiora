@@ -15,7 +15,10 @@ use crate::cad_authored_cut::{CircularThroughCut, GRAPH_SCHEMA_V2, decode_v2, en
 use crate::cad_authored_selection::{CadAuthoredFaceHandle, FaceKey, WireFaceSelectionV1};
 use crate::cad_authored_sketch::CadAuthoredSketch;
 use crate::canonical::{CANONICAL_ENCODING, WireLengthUnit, digest_with_schema};
-use crate::{AxisAlignedBox3, CadRepairDispositionV1, CanonicalGeometryV1, ConstrainedRectangleV1};
+use crate::{
+    AxisAlignedBox3, CadAuthoredPlanarResult, CadRepairDispositionV1, CanonicalGeometryV1,
+    ConstrainedRectangleV1,
+};
 
 const GRAPH_SCHEMA_V1: &str = "eqiora.cad-authored-operation-graph-envelope/v1";
 const MAX_GRAPH_BYTES: usize = 4_096;
@@ -149,6 +152,15 @@ impl CadAuthoredGraph {
             GRAPH_SCHEMA_V2,
             bytes,
         ))
+    }
+
+    /// Execute and admit this graph once as its bounded exact planar result.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` unless this is the admitted circular through-cut graph
+    /// and its complete build observation and source-to-result relation pass.
+    pub fn planar_result(&self) -> Result<CadAuthoredPlanarResult, Diagnostic> {
+        CadAuthoredPlanarResult::from_graph(self)
     }
 
     /// Derive one exact planar section from the admitted through-cut history.
@@ -597,10 +609,6 @@ impl CadAuthoredGraph {
         matches!(self.kind, GraphKind::CircularThroughCut(_))
     }
 
-    #[allow(
-        dead_code,
-        reason = "crate-private foundation awaiting its first public post-build naming consumer"
-    )]
     pub(crate) fn planar_cut_parts(&self) -> Option<([[f64; 2]; 2], [f64; 2], f64)> {
         let GraphKind::CircularThroughCut(cut) = self.kind else {
             return None;
@@ -612,6 +620,19 @@ impl CadAuthoredGraph {
             cut.center_m(),
             cut.radius_m(),
         ))
+    }
+
+    pub(crate) fn predecessor_graph_digest_bytes(&self) -> Option<[u8; 32]> {
+        if !self.is_cut() {
+            return None;
+        }
+        Self::from_rectangle_sketch(
+            self.core.sketch,
+            self.core.requested_modeling_tolerance_m,
+            self.core.extrusion_depth_m,
+        )
+        .ok()
+        .map(|predecessor| predecessor.digest_bytes())
     }
 }
 

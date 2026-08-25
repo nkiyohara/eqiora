@@ -1,5 +1,8 @@
+use std::collections::BTreeMap;
+
 use eqiora_geometry::{
-    CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1, ConstrainedRectangleV1,
+    CadAuthoredFaceHandle, CadAuthoredGraph, CadAuthoredPlanarResult,
+    CadAuthoredResultTopologyHandle, CadRepairDispositionV1, ConstrainedRectangleV1,
 };
 
 const WIRE: &str = r#"{"schema":"eqiora.cad-authored-operation-graph-envelope/v2","encoding":"eqiora.canonical-json/v1","length_unit":"metre","requested_modeling_tolerance_m":1e-10,"sketch_plane":{"id":"sketch-plane","kind":"xy","z_m":0.0},"profile":{"id":"rectangle-profile","kind":"axis-aligned-rectangle","sketch_plane":"sketch-plane","constraint":"closed-by-construction","x_bounds_m":[-0.04,0.04],"y_bounds_m":[-0.025,0.025]},"face":{"id":"profile-face","kind":"one-closed-loop-face","profile":"rectangle-profile","region_count":1},"extrusion":{"id":"positive-z-extrusion","kind":"positive-z","face":"profile-face","depth_m":0.02,"repair":"none"},"cut_sketch_plane":{"id":"cut-sketch-plane","kind":"on-face","face":"end-cap"},"cut_profile":{"id":"circle-profile","kind":"circle","sketch_plane":"cut-sketch-plane","constraint":"closed-by-construction","center_m":[0.02,0.0],"radius_m":0.008},"cut_face":{"id":"cut-profile-face","kind":"one-closed-loop-face","profile":"circle-profile","region_count":1},"cut":{"id":"circular-through-cut","kind":"difference-through-all-negative-z","target":"positive-z-extrusion","tool_face":"cut-profile-face","requested_tolerance_m":1e-9,"repair":"none"},"selections":["start-cap","end-cap","profile-x-lower","profile-x-upper","profile-y-lower","profile-y-upper","cut-wall"]}"#;
@@ -31,6 +34,46 @@ fn witness() -> CadAuthoredGraph {
     base(1.0e-10)
         .circular_through_cut([0.02, 0.0], 0.008, 1.0e-9)
         .unwrap()
+}
+
+fn dfg_channel() -> CadAuthoredGraph {
+    CadAuthoredGraph::new(
+        ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), 0.0).unwrap(),
+        1.0,
+        1.0e-10,
+    )
+    .unwrap()
+}
+
+fn dfg_graph() -> CadAuthoredGraph {
+    dfg_channel()
+        .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
+        .unwrap()
+}
+
+fn dfg_named_topology(
+    channel: &CadAuthoredGraph,
+    fluid: &CadAuthoredGraph,
+    result: &CadAuthoredPlanarResult,
+) -> BTreeMap<String, Vec<CadAuthoredResultTopologyHandle>> {
+    let project = |name| result.project(&channel.face_handle(name).unwrap()).unwrap();
+    BTreeMap::from([
+        ("fluid".to_owned(), vec![project("end-cap")]),
+        ("inlet".to_owned(), vec![project("profile-x-lower")]),
+        ("outlet".to_owned(), vec![project("profile-x-upper")]),
+        (
+            "walls".to_owned(),
+            vec![project("profile-y-lower"), project("profile-y-upper")],
+        ),
+        (
+            "cylinder".to_owned(),
+            vec![
+                result
+                    .project(&fluid.face_handle("cut-wall").unwrap())
+                    .unwrap(),
+            ],
+        ),
+    ])
 }
 
 fn close(actual: f64, expected: f64) {
@@ -248,14 +291,7 @@ fn wire_and_handles_fail_closed_without_rebinding() {
 
 #[test]
 fn through_cut_derives_the_frozen_exact_planar_section() {
-    let graph = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), 0.0).unwrap(),
-        1.0,
-        1.0e-10,
-    )
-    .unwrap()
-    .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
-    .unwrap();
+    let graph = dfg_graph();
     let section = graph
         .planar_circular_section(
             1.0e-12, "fluid", "inlet", "outlet", "walls", "walls", "cylinder",
@@ -272,6 +308,96 @@ fn through_cut_derives_the_frozen_exact_planar_section() {
         )
         .unwrap();
     assert_ne!(swapped.digest_bytes(), section.digest_bytes());
+}
+
+#[test]
+fn accepted_result_projects_then_names_geometry_v2() {
+    let graph = dfg_graph();
+    let channel = dfg_channel();
+    let result = graph.planar_result().unwrap();
+    let section = result
+        .with_named_topology(&dfg_named_topology(&channel, &graph, &result))
+        .unwrap();
+    assert_eq!(section.entity_set("fluid").unwrap().dimension(), 2);
+    assert_eq!(section.entity_set("cylinder").unwrap().dimension(), 1);
+    assert_eq!(result.build().graph_digest_bytes(), graph.digest_bytes());
+
+    let mut arbitrary = dfg_named_topology(&channel, &graph, &result);
+    let inlet = arbitrary.remove("inlet").unwrap();
+    arbitrary.insert("left boundary".to_owned(), inlet);
+    let renamed = result.with_named_topology(&arbitrary).unwrap();
+    assert_eq!(renamed.entity_set("left boundary").unwrap().dimension(), 1);
+    assert!(renamed.entity_set("inlet").is_none());
+}
+
+#[test]
+fn atomic_topology_naming_rejects_foreign_incomplete_and_ambiguous_mappings() {
+    let graph = dfg_graph();
+    let channel = dfg_channel();
+    let result = graph.planar_result().unwrap();
+    let foreign = CadAuthoredGraph::new(
+        ConstrainedRectangleV1::new((0.0, 2.3), (0.0, 0.41), 0.0).unwrap(),
+        1.0,
+        1.0e-10,
+    )
+    .unwrap()
+    .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
+    .unwrap();
+
+    let mut named = dfg_named_topology(&channel, &graph, &result);
+    named.insert(
+        "cylinder".to_owned(),
+        vec![
+            foreign
+                .planar_result()
+                .unwrap()
+                .project(&foreign.face_handle("cut-wall").unwrap())
+                .unwrap(),
+        ],
+    );
+    assert!(result.with_named_topology(&named).is_err());
+
+    let mut named = dfg_named_topology(&channel, &graph, &result);
+    named.remove("outlet");
+    assert!(result.with_named_topology(&named).is_err());
+
+    let mut named = dfg_named_topology(&channel, &graph, &result);
+    named.insert("empty".to_owned(), Vec::new());
+    assert!(result.with_named_topology(&named).is_err());
+
+    let mut named = dfg_named_topology(&channel, &graph, &result);
+    named.get_mut("walls").unwrap().push(
+        result
+            .project(&channel.face_handle("profile-x-lower").unwrap())
+            .unwrap(),
+    );
+    assert!(result.with_named_topology(&named).is_err());
+
+    let mut named = dfg_named_topology(&channel, &graph, &result);
+    named.get_mut("walls").unwrap().push(
+        result
+            .project(&channel.face_handle("end-cap").unwrap())
+            .unwrap(),
+    );
+    assert!(result.with_named_topology(&named).is_err());
+
+    assert!(
+        result
+            .project(&channel.face_handle("start-cap").unwrap())
+            .is_err()
+    );
+
+    let lookalike = CadAuthoredGraph::new(
+        ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), 0.0).unwrap(),
+        1.0,
+        2.0e-10,
+    )
+    .unwrap();
+    assert!(
+        result
+            .project(&lookalike.face_handle("profile-x-lower").unwrap())
+            .is_err()
+    );
 }
 
 #[test]

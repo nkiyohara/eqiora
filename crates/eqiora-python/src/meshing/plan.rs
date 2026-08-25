@@ -181,8 +181,14 @@ pub(super) fn resolve(
         let request = *request;
         let quality_gate = MeshQualityGate::new(request.minimum_mean_ratio)
             .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
+        let source = geometry.geometry_v1().ok_or_else(|| {
+            request_error(
+                py,
+                "Geometry v2 requires an admitted source-owned mesh correspondence",
+            )
+        })?;
         let reference = AcceptedCircularHoleChordalRealizationV1::from_reference(
-            geometry.geometry(),
+            source,
             request.maximum_boundary_error,
             request.maximum_boundary_facets,
             quality_gate,
@@ -191,7 +197,7 @@ pub(super) fn resolve(
         let accepted = gmsh::generate(&reference, quality_gate)
             .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
         Ok(PyMeshPlan {
-            source_digest: digest_to_hex(&geometry.geometry().digest_bytes()),
+            source_digest: digest_to_hex(&geometry.digest_bytes()),
             request,
             accepted,
         })

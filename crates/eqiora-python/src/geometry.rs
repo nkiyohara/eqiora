@@ -5,7 +5,9 @@ use std::hash::{Hash, Hasher};
 
 use eqiora::Diagnostic;
 use eqiora::diagnostic::codes;
-use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet};
+use eqiora::geometry::{
+    CanonicalGeometryV1, CanonicalPlanarCircularHoleGeometryV2, NamedEntitySet,
+};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PyTuple};
 
@@ -29,7 +31,59 @@ pub(crate) fn digest_to_hex(bytes: &[u8; 32]) -> String {
 )]
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PyGeometry {
-    geometry: CanonicalGeometryV1,
+    geometry: GeometryOwner,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum GeometryOwner {
+    V1(CanonicalGeometryV1),
+    PlanarCircularHoleV2(CanonicalPlanarCircularHoleGeometryV2),
+}
+
+impl GeometryOwner {
+    fn bounds(&self) -> &[[f64; 2]; 2] {
+        match self {
+            Self::V1(geometry) => geometry
+                .circular_hole_bounds()
+                .expect("the admitted planar Geometry has exact Cartesian bounds"),
+            Self::PlanarCircularHoleV2(geometry) => geometry.bounds(),
+        }
+    }
+
+    fn classification_tolerance(&self) -> Option<f64> {
+        match self {
+            Self::V1(geometry) => Some(geometry.tolerance_m()),
+            Self::PlanarCircularHoleV2(_) => None,
+        }
+    }
+
+    fn canonical_bytes(&self) -> &[u8] {
+        match self {
+            Self::V1(geometry) => geometry.canonical_bytes(),
+            Self::PlanarCircularHoleV2(geometry) => geometry.canonical_bytes(),
+        }
+    }
+
+    fn digest_bytes(&self) -> [u8; 32] {
+        match self {
+            Self::V1(geometry) => geometry.digest_bytes(),
+            Self::PlanarCircularHoleV2(geometry) => geometry.digest_bytes(),
+        }
+    }
+
+    fn entity_sets(&self) -> &[NamedEntitySet] {
+        match self {
+            Self::V1(geometry) => geometry.entity_sets(),
+            Self::PlanarCircularHoleV2(geometry) => geometry.entity_sets(),
+        }
+    }
+
+    fn entity_set(&self, name: &str) -> Option<&NamedEntitySet> {
+        match self {
+            Self::V1(geometry) => geometry.entity_set(name),
+            Self::PlanarCircularHoleV2(geometry) => geometry.entity_set(name),
+        }
+    }
 }
 
 /// Immutable named selection bound to one exact Geometry revision.
@@ -102,17 +156,14 @@ impl PyGeometry {
     /// Exact Cartesian bounds, one pair per coordinate axis, in metres.
     #[getter]
     fn bounds(&self) -> ((f64, f64), (f64, f64)) {
-        let [[x_lower, x_upper], [y_lower, y_upper]] = *self
-            .geometry
-            .circular_hole_bounds()
-            .expect("the admitted planar Geometry has exact Cartesian bounds");
+        let [[x_lower, x_upper], [y_lower, y_upper]] = *self.geometry.bounds();
         ((x_lower, x_upper), (y_lower, y_upper))
     }
 
     /// Producer classification tolerance in metres.
     #[getter]
-    fn classification_tolerance(&self) -> f64 {
-        self.geometry.tolerance_m()
+    fn classification_tolerance(&self) -> Option<f64> {
+        self.geometry.classification_tolerance()
     }
 
     /// Exact canonical JSON, without a trailing newline.
@@ -187,11 +238,28 @@ impl PyGeometry {
 
 impl PyGeometry {
     pub(crate) const fn from_geometry(geometry: CanonicalGeometryV1) -> Self {
-        Self { geometry }
+        Self {
+            geometry: GeometryOwner::V1(geometry),
+        }
     }
 
-    pub(crate) const fn geometry(&self) -> &CanonicalGeometryV1 {
-        &self.geometry
+    pub(crate) const fn from_planar_circular_hole_v2(
+        geometry: CanonicalPlanarCircularHoleGeometryV2,
+    ) -> Self {
+        Self {
+            geometry: GeometryOwner::PlanarCircularHoleV2(geometry),
+        }
+    }
+
+    pub(crate) fn geometry_v1(&self) -> Option<&CanonicalGeometryV1> {
+        match &self.geometry {
+            GeometryOwner::V1(geometry) => Some(geometry),
+            GeometryOwner::PlanarCircularHoleV2(_) => None,
+        }
+    }
+
+    pub(crate) fn digest_bytes(&self) -> [u8; 32] {
+        self.geometry.digest_bytes()
     }
 }
 

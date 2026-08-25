@@ -89,7 +89,7 @@ def cut(*, boolean_tolerance: float = 1e-9):
     )
 
 
-def dfg_cut(
+def dfg_channel(
     *, plane_z: float = 0.0, depth: float = 1.0, modeling_tolerance: float = 1e-10
 ):
     return eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
@@ -98,6 +98,14 @@ def dfg_cut(
         plane_z=plane_z,
         depth=depth,
         modeling_tolerance=modeling_tolerance,
+    )
+
+
+def dfg_cut(
+    *, plane_z: float = 0.0, depth: float = 1.0, modeling_tolerance: float = 1e-10
+):
+    return dfg_channel(
+        plane_z=plane_z, depth=depth, modeling_tolerance=modeling_tolerance
     ).circular_through_cut(
         center=(0.2, 0.2),
         radius=0.05,
@@ -420,6 +428,57 @@ def test_planar_section_preserves_distinct_y_roles_and_ignores_nonplanar_facts()
         )
 
 
+def test_atomic_topology_mapping_uses_build_lineage_without_classification_input() -> None:
+    channel = dfg_channel()
+    graph = channel.circular_through_cut(
+        center=(0.2, 0.2), radius=0.05, boolean_tolerance=1e-10
+    )
+    result = graph.planar_result()
+    named_topology = {
+        "fluid": result.project(channel.face_handle("end-cap")),
+        "inlet": result.project(channel.face_handle("profile-x-lower")),
+        "outlet": result.project(channel.face_handle("profile-x-upper")),
+        "walls": (
+            result.project(channel.face_handle("profile-y-lower")),
+            result.project(channel.face_handle("profile-y-upper")),
+        ),
+        "cylinder": result.project(graph.face_handle("cut-wall")),
+    }
+    section = result.with_named_topology(named_topology)
+    assert section.classification_tolerance is None
+    assert section.selection("fluid").dimension == 2
+    assert section.selection("cylinder").dimension == 1
+    assert result.build.graph_digest == graph.graph_digest
+    request = eqiora.meshing.MeshRequest(
+        maximum_boundary_error=1e-4,
+        minimum_mean_ratio=1e-5,
+        maximum_boundary_facets=50,
+    )
+    with pytest.raises(eqiora.ValidationError, match="source-owned mesh correspondence"):
+        eqiora.meshing.resolve(section, request)
+
+    arbitrary = dict(named_topology)
+    arbitrary["left boundary"] = arbitrary.pop("inlet")
+    renamed = result.with_named_topology(arbitrary)
+    assert "left boundary" in renamed.selection_names
+    assert "inlet" not in renamed.selection_names
+
+    with pytest.raises(TypeError):
+        result.with_named_topology([])
+    with pytest.raises(eqiora.ValidationError):
+        result.with_named_topology(
+            {
+                key: value for key, value in named_topology.items() if key != "outlet"
+            }
+        )
+    with pytest.raises(eqiora.ValidationError):
+        result.project(channel.face_handle("start-cap"))
+
+    lookalike = dfg_channel(modeling_tolerance=2e-10)
+    with pytest.raises(eqiora.ValidationError):
+        result.project(lookalike.face_handle("profile-x-lower"))
+
+
 def test_runtime_surface_and_installed_stub_name_the_same_bounded_api() -> None:
     expected = {
         eqiora.geometry.CadAuthoredFaceHandle: {
@@ -427,6 +486,16 @@ def test_runtime_surface_and_installed_stub_name_the_same_bounded_api() -> None:
             "canonical_bytes",
             "graph_digest",
             "provenance_key",
+        },
+        eqiora.geometry.CadAuthoredPlanarResult: {
+            "graph_digest",
+            "build",
+            "project",
+            "with_named_topology",
+        },
+        eqiora.geometry.CadAuthoredResultTopologyHandle: {
+            "dimension",
+            "graph_digest",
         },
         eqiora.geometry.CadAuthoredBuild: {
             "graph_digest",
@@ -450,6 +519,7 @@ def test_runtime_surface_and_installed_stub_name_the_same_bounded_api() -> None:
             "decode_canonical",
             "circular_through_cut",
             "through_cut",
+            "planar_result",
             "planar_circular_section",
             "canonical_bytes",
             "graph_digest",

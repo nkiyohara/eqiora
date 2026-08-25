@@ -68,6 +68,8 @@ EXPECTED_GEOMETRY_ALL = [
     "CadAuthoredBuild",
     "CadAuthoredFaceHandle",
     "CadAuthoredGraph",
+    "CadAuthoredPlanarResult",
+    "CadAuthoredResultTopologyHandle",
     "CadAuthoredSketch",
     "Geometry",
     "GeometrySelection",

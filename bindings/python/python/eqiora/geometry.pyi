@@ -3,6 +3,7 @@
 Authority: ``bindings/python/python/eqiora/geometry.py``.
 """
 
+from collections.abc import Mapping, Sequence
 from typing import final
 
 @final
@@ -63,6 +64,45 @@ class CadAuthoredBuild:
     def __eq__(self, other: object, /) -> bool: ...
 
 @final
+class CadAuthoredResultTopologyHandle:
+    """Opaque topology member owned by one accepted planar result.
+
+    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyCadAuthoredResultTopologyHandle``.
+    """
+
+    @property
+    def dimension(self) -> int: ...
+    @property
+    def graph_digest(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class CadAuthoredPlanarResult:
+    """Accepted bounded planar result with construction-lineage projection.
+
+    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyCadAuthoredPlanarResult``.
+    """
+
+    @property
+    def graph_digest(self) -> str: ...
+    @property
+    def build(self) -> CadAuthoredBuild: ...
+    def project(
+        self, source: CadAuthoredFaceHandle, /
+    ) -> CadAuthoredResultTopologyHandle: ...
+    def with_named_topology(
+        self,
+        named_topology: Mapping[
+            str,
+            CadAuthoredResultTopologyHandle
+            | Sequence[CadAuthoredResultTopologyHandle],
+        ],
+        /,
+    ) -> Geometry: ...
+    def __eq__(self, other: object, /) -> bool: ...
+
+@final
 class CadAuthoredGraph:
     """Immutable native-owned authored-CAD operation graph.
 
@@ -94,6 +134,7 @@ class CadAuthoredGraph:
         *,
         boolean_tolerance: float,
     ) -> CadAuthoredGraph: ...
+    def planar_result(self) -> CadAuthoredPlanarResult: ...
     def planar_circular_section(
         self,
         *,
@@ -225,7 +266,7 @@ class Geometry:
     @property
     def bounds(self) -> tuple[tuple[float, float], tuple[float, float]]: ...
     @property
-    def classification_tolerance(self) -> float: ...
+    def classification_tolerance(self) -> float | None: ...
     @property
     def canonical_bytes(self) -> bytes: ...
     @property
@@ -242,6 +283,8 @@ __all__ = [
     "CadAuthoredBuild",
     "CadAuthoredFaceHandle",
     "CadAuthoredGraph",
+    "CadAuthoredPlanarResult",
+    "CadAuthoredResultTopologyHandle",
     "CadAuthoredSketch",
     "Geometry",
     "GeometrySelection",

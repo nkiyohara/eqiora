@@ -10,9 +10,10 @@
 //!
 //! It deliberately does not own a CAD kernel, STEP parsing, concrete B-rep or
 //! modeling operations, artifact encoding, physics, transfer operators, or
-//! generic topology naming. The bounded authored result-topology projection
-//! remains crate-private until a public consumer needs that seam. Concrete CAD
-//! responsibilities remain isolated in adapters such as `eqiora-cad-truck`.
+//! generic topology naming. The public bounded authored planar result closes
+//! only construction-handle projection and atomic naming for the admitted
+//! circular through-cut; it is not a generic B-rep. Concrete CAD responsibilities
+//! remain isolated in adapters such as `eqiora-cad-truck`.
 //! In particular, [`ParentOutward`] is
 //! geometric meaning derived relative to a parent body; it is not a normal
 //! sign and is unrelated to
@@ -24,10 +25,6 @@ mod cad_authored_build;
 mod cad_authored_cut;
 mod cad_authored_face_mesh;
 mod cad_authored_graph;
-#[allow(
-    dead_code,
-    reason = "crate-private foundation awaiting its first public post-build naming consumer"
-)]
 mod cad_authored_result_topology;
 mod cad_authored_selection;
 mod cad_authored_sketch;
@@ -51,6 +48,7 @@ pub use cad::{
 pub use cad_authored_build::CadAuthoredBuild;
 pub use cad_authored_face_mesh::CadAuthoredFaceMesh;
 pub use cad_authored_graph::CadAuthoredGraph;
+pub use cad_authored_result_topology::{CadAuthoredPlanarResult, CadAuthoredResultTopologyHandle};
 pub use cad_authored_selection::CadAuthoredFaceHandle;
 pub use cad_authored_sketch::CadAuthoredSketch;
 pub use cad_authored_swept_mesh::CadAuthoredSweptMesh;

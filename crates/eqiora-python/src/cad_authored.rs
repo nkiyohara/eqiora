@@ -1,16 +1,18 @@
 //! Transparent Python projection of the closed authored-CAD graph.
 
+use std::collections::BTreeMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use eqiora::Diagnostic;
 use eqiora::geometry::{
-    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CadAuthoredSketch,
-    CadRepairDispositionV1, ConstrainedRectangleV1,
+    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CadAuthoredPlanarResult,
+    CadAuthoredResultTopologyHandle, CadAuthoredSketch, CadRepairDispositionV1,
+    ConstrainedRectangleV1,
 };
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyModule, PyTuple};
+use pyo3::types::{PyBytes, PyMapping, PyModule, PySequence, PyTuple};
 
 use crate::error::validation_error;
 use crate::geometry::{PyGeometry, digest_to_hex};
@@ -151,6 +153,14 @@ impl PyCadAuthoredGraph {
         self.graph
             .through_cut(&sketch.sketch, boolean_tolerance)
             .map(|graph| Self { graph })
+            .map_err(|diagnostic| native_error(py, diagnostic))
+    }
+
+    /// Execute and admit this graph as its bounded exact planar result.
+    fn planar_result(&self, py: Python<'_>) -> PyResult<PyCadAuthoredPlanarResult> {
+        self.graph
+            .planar_result()
+            .map(|result| PyCadAuthoredPlanarResult { result })
             .map_err(|diagnostic| native_error(py, diagnostic))
     }
 
@@ -457,6 +467,107 @@ impl PyCadAuthoredFaceHandle {
     }
 }
 
+/// Accepted bounded planar result with construction-lineage projection.
+#[pyclass(
+    name = "CadAuthoredPlanarResult",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    skip_from_py_object
+)]
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PyCadAuthoredPlanarResult {
+    result: CadAuthoredPlanarResult,
+}
+
+/// Opaque topology member owned by one accepted planar result.
+#[pyclass(
+    name = "CadAuthoredResultTopologyHandle",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    skip_from_py_object
+)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PyCadAuthoredResultTopologyHandle {
+    handle: CadAuthoredResultTopologyHandle,
+}
+
+#[pymethods]
+impl PyCadAuthoredResultTopologyHandle {
+    #[getter]
+    fn dimension(&self) -> usize {
+        self.handle.dimension()
+    }
+
+    #[getter]
+    fn graph_digest(&self) -> String {
+        digest_to_hex(&self.handle.owner_graph_digest_bytes())
+    }
+
+    fn __hash__(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.handle.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CadAuthoredResultTopologyHandle(dimension={}, graph_digest={:?})",
+            self.dimension(),
+            self.graph_digest(),
+        )
+    }
+}
+
+#[pymethods]
+impl PyCadAuthoredPlanarResult {
+    #[getter]
+    fn graph_digest(&self) -> String {
+        digest_to_hex(&self.result.owner_graph_digest_bytes())
+    }
+
+    #[getter]
+    fn build(&self) -> PyCadAuthoredBuild {
+        PyCadAuthoredBuild {
+            build: self.result.build().clone(),
+        }
+    }
+
+    fn project(
+        &self,
+        py: Python<'_>,
+        source: &PyCadAuthoredFaceHandle,
+    ) -> PyResult<PyCadAuthoredResultTopologyHandle> {
+        self.result
+            .project(&source.handle)
+            .map(|handle| PyCadAuthoredResultTopologyHandle { handle })
+            .map_err(|diagnostic| native_error(py, diagnostic))
+    }
+
+    #[pyo3(signature = (named_topology, /))]
+    fn with_named_topology(
+        &self,
+        py: Python<'_>,
+        #[pyo3(from_py_with = extract_named_result_topology)] named_topology: BTreeMap<
+            String,
+            Vec<CadAuthoredResultTopologyHandle>,
+        >,
+    ) -> PyResult<PyGeometry> {
+        self.result
+            .with_named_topology(&named_topology)
+            .map(PyGeometry::from_planar_circular_hole_v2)
+            .map_err(|diagnostic| native_error(py, diagnostic))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CadAuthoredPlanarResult(graph_digest={:?})",
+            self.graph_digest()
+        )
+    }
+}
+
 /// Complete read-only receipt from the bounded native analytic CAD profile.
 #[pyclass(
     name = "CadAuthoredBuild",
@@ -566,6 +677,53 @@ fn handle_tuple(py: Python<'_>, handles: &[CadAuthoredFaceHandle]) -> PyResult<P
     Ok(PyTuple::new(py, projected)?.unbind())
 }
 
+fn extract_named_result_topology(
+    value: &Bound<'_, PyAny>,
+) -> PyResult<BTreeMap<String, Vec<CadAuthoredResultTopologyHandle>>> {
+    let mapping = value.cast::<PyMapping>().map_err(|_| {
+        PyTypeError::new_err("named_topology must be one mapping from strings to topology handles")
+    })?;
+    let mut result = BTreeMap::new();
+    for item in mapping.items()?.try_iter()? {
+        let item = item?;
+        let pair = item.cast::<PyTuple>()?;
+        let name = pair
+            .get_item(0)?
+            .extract::<String>()
+            .map_err(|_| PyTypeError::new_err("named_topology keys must be strings"))?;
+        let raw = pair.get_item(1)?;
+        let handles =
+            if let Ok(handle) = raw.extract::<PyRef<'_, PyCadAuthoredResultTopologyHandle>>() {
+                vec![handle.handle.clone()]
+            } else {
+                let sequence = raw.cast::<PySequence>().map_err(|_| {
+                    PyTypeError::new_err(
+                        "named_topology values must be a topology handle or a sequence of handles",
+                    )
+                })?;
+                let mut handles = Vec::with_capacity(sequence.len()?);
+                for member in sequence.try_iter()? {
+                    let member = member?;
+                    let handle = member
+                        .extract::<PyRef<'_, PyCadAuthoredResultTopologyHandle>>()
+                        .map_err(|_| {
+                            PyTypeError::new_err(
+                                "named_topology sequences must contain only topology handles",
+                            )
+                        })?;
+                    handles.push(handle.handle.clone());
+                }
+                handles
+            };
+        if result.insert(name, handles).is_some() {
+            return Err(PyValueError::new_err(
+                "named_topology mapping contains a duplicate name",
+            ));
+        }
+    }
+    Ok(result)
+}
+
 fn native_error(py: Python<'_>, diagnostic: Diagnostic) -> PyErr {
     validation_error(py, std::slice::from_ref(&diagnostic))
 }
@@ -621,5 +779,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyCadAuthoredGraph>()?;
     module.add_class::<PyCadAuthoredSketch>()?;
     module.add_class::<PyCadAuthoredFaceHandle>()?;
-    module.add_class::<PyCadAuthoredBuild>()
+    module.add_class::<PyCadAuthoredBuild>()?;
+    module.add_class::<PyCadAuthoredPlanarResult>()?;
+    module.add_class::<PyCadAuthoredResultTopologyHandle>()
 }

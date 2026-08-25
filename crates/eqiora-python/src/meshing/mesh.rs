@@ -554,7 +554,15 @@ pub(super) fn import_gmsh(
     request: PyRef<'_, PyMeshRequest>,
 ) -> PyResult<PyMesh> {
     panic_boundary(py, || {
-        let geometry = geometry.geometry().clone();
+        let geometry = geometry
+            .geometry_v1()
+            .ok_or_else(|| {
+                request_error(
+                    py,
+                    "Geometry v2 requires an admitted source-owned mesh correspondence",
+                )
+            })?
+            .clone();
         let source = source.to_vec();
         let request = *request;
         let imported = py.detach(move || {
@@ -841,7 +849,13 @@ pub(super) fn generate(
     plan: &PyMeshPlan,
 ) -> PyResult<PyMesh> {
     panic_boundary(py, || {
-        if geometry.geometry() != plan.accepted.source() {
+        let Some(source) = geometry.geometry_v1() else {
+            return Err(request_error(
+                py,
+                "Geometry v2 requires an admitted source-owned mesh correspondence",
+            ));
+        };
+        if source != plan.accepted.source() {
             return Err(request_error(
                 py,
                 "MeshPlan belongs to a different exact Geometry",

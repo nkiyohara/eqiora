@@ -78,13 +78,24 @@ except eqiora.ValidationError:
 else:
     raise AssertionError("a rectangle-only graph produced a circular section")
 
-dfg_graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+channel = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
     x_bounds=(0.0, 2.2),
     y_bounds=(0.0, 0.41),
     plane_z=0.0,
     depth=1.0,
     modeling_tolerance=1e-10,
-).circular_through_cut(
+)
+channel_handles = {
+    name: channel.face_handle(name)
+    for name in (
+        "end-cap",
+        "profile-x-lower",
+        "profile-x-upper",
+        "profile-y-lower",
+        "profile-y-upper",
+    )
+}
+dfg_graph = channel.circular_through_cut(
     center=(0.2, 0.2), radius=0.05, boolean_tolerance=1e-10
 )
 section = dfg_graph.planar_circular_section(
@@ -100,6 +111,84 @@ assert type(section).__name__ == "Geometry"
 assert section.canonical_bytes == expected_section_wire
 assert section.digest == expected_section_digest
 assert section.selection_names == ("cylinder", "inlet", "outlet", "walls", "fluid")
+
+result = dfg_graph.planar_result()
+named_topology = {
+    "fluid": result.project(channel_handles["end-cap"]),
+    "inlet": result.project(channel_handles["profile-x-lower"]),
+    "outlet": result.project(channel_handles["profile-x-upper"]),
+    "walls": (
+        result.project(channel_handles["profile-y-lower"]),
+        result.project(channel_handles["profile-y-upper"]),
+    ),
+    "cylinder": result.project(dfg_graph.face_handle("cut-wall")),
+}
+common_section = result.with_named_topology(named_topology)
+assert common_section.classification_tolerance is None
+assert common_section.selection("fluid").dimension == 2
+assert common_section.selection("cylinder").dimension == 1
+request = eqiora.meshing.MeshRequest(
+    maximum_boundary_error=1e-4,
+    minimum_mean_ratio=1e-5,
+    maximum_boundary_facets=50,
+)
+try:
+    eqiora.meshing.resolve(common_section, request)
+except eqiora.ValidationError as error:
+    assert "source-owned mesh correspondence" in str(error)
+else:
+    raise AssertionError("Geometry v2 reached v1 mesh realization")
+assert hash(named_topology["inlet"]) == hash(result.project(channel_handles["profile-x-lower"]))
+try:
+    hash(result)
+except TypeError:
+    pass
+else:
+    raise AssertionError("value-equal planar results must remain explicitly unhashable")
+
+arbitrary_names = dict(named_topology)
+arbitrary_names["left boundary"] = arbitrary_names.pop("inlet")
+renamed = result.with_named_topology(arbitrary_names)
+assert "left boundary" in renamed.selection_names
+assert "inlet" not in renamed.selection_names
+
+for invalid in (
+    [],
+    {**named_topology, "empty": ()},
+    {key: value for key, value in named_topology.items() if key != "outlet"},
+    {**named_topology, "fluid": dfg_graph.face_handle("start-cap")},
+    {**named_topology, "walls": (named_topology["walls"],)},
+):
+    try:
+        result.with_named_topology(invalid)
+    except (TypeError, eqiora.ValidationError):
+        pass
+    else:
+        raise AssertionError("invalid topology mapping reached Geometry publication")
+
+try:
+    result.project(dfg_graph.face_handle("start-cap"))
+except eqiora.ValidationError:
+    pass
+else:
+    raise AssertionError("deleted construction topology reached result publication")
+
+for stale in (
+    dfg_graph.face_handle("profile-x-lower"),
+    eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+        x_bounds=(0.0, 2.2),
+        y_bounds=(0.0, 0.41),
+        plane_z=0.0,
+        depth=1.0,
+        modeling_tolerance=2e-10,
+    ).face_handle("profile-x-lower"),
+):
+    try:
+        result.project(stale)
+    except eqiora.ValidationError:
+        pass
+    else:
+        raise AssertionError("foreign or wrong-generation predecessor handle projected")
 
 canonical = graph.canonical_bytes
 digest = graph.graph_digest

@@ -3,9 +3,10 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
-use crate::cad_authored_result_topology::CadAuthoredResultTopology;
 use crate::cad_authored_selection::FaceKey;
-use crate::{CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1};
+use crate::{
+    CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1, EDGE_DIMENSION, FACE_DIMENSION,
+};
 
 const RECTANGLE_PROFILE: &str = "eqiora.cad.analytic-rectangle-extrusion-v1";
 const CIRCULAR_CUT_PROFILE: &str = "eqiora.cad.analytic-circular-through-cut-v1";
@@ -30,6 +31,16 @@ struct BuildObservation {
     deleted: Vec<FaceKey>,
     split: Vec<FaceKey>,
     merged: Vec<FaceKey>,
+    result_topology: Vec<ResultTopologyMember>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ResultTopologyMember {
+    source_graph_digest: [u8; 32],
+    source: FaceKey,
+    source_is_v1: bool,
+    dimension: usize,
+    member: usize,
 }
 
 /// Complete accepted receipt from one bounded authored-CAD analytic build.
@@ -55,15 +66,16 @@ pub struct CadAuthoredBuild {
     deleted: Vec<CadAuthoredFaceHandle>,
     split: Vec<CadAuthoredFaceHandle>,
     merged: Vec<CadAuthoredFaceHandle>,
+    result_topology: Vec<ResultTopologyMember>,
 }
 
 impl CadAuthoredBuild {
     pub(crate) fn from_graph(graph: &CadAuthoredGraph) -> Result<Self, Diagnostic> {
-        Self::admit(graph, Self::expected_observation(graph))
+        Self::admit(graph, Self::expected_observation(graph)?)
     }
 
     fn admit(graph: &CadAuthoredGraph, observation: BuildObservation) -> Result<Self, Diagnostic> {
-        let expected = Self::expected_observation(graph);
+        let expected = Self::expected_observation(graph)?;
         if observation != expected {
             return Err(invalid(
                 "analytic CAD build omitted or changed provider, tolerance, discrepancy, repair, or topology-lineage evidence",
@@ -85,12 +97,16 @@ impl CadAuthoredBuild {
             deleted: bind(graph, &observation.deleted)?,
             split: bind(graph, &observation.split)?,
             merged: bind(graph, &observation.merged)?,
+            result_topology: observation.result_topology,
         })
     }
 
-    fn expected_observation(graph: &CadAuthoredGraph) -> BuildObservation {
+    fn expected_observation(graph: &CadAuthoredGraph) -> Result<BuildObservation, Diagnostic> {
         if graph.is_cut() {
-            BuildObservation {
+            let predecessor_digest = graph.predecessor_graph_digest_bytes().ok_or_else(|| {
+                invalid("admitted through-cut omitted its exact predecessor graph")
+            })?;
+            Ok(BuildObservation {
                 provider_profile: CIRCULAR_CUT_PROFILE,
                 requested_modeling_tolerance_m: graph.requested_modeling_tolerance_m(),
                 requested_boolean_tolerance_m: graph.requested_boolean_tolerance_m(),
@@ -110,9 +126,53 @@ impl CadAuthoredBuild {
                 deleted: Vec::new(),
                 split: Vec::new(),
                 merged: Vec::new(),
-            }
+                result_topology: vec![
+                    ResultTopologyMember {
+                        source_graph_digest: predecessor_digest,
+                        source: FaceKey::profile_x_lower(),
+                        source_is_v1: true,
+                        dimension: EDGE_DIMENSION,
+                        member: 0,
+                    },
+                    ResultTopologyMember {
+                        source_graph_digest: predecessor_digest,
+                        source: FaceKey::profile_x_upper(),
+                        source_is_v1: true,
+                        dimension: EDGE_DIMENSION,
+                        member: 1,
+                    },
+                    ResultTopologyMember {
+                        source_graph_digest: predecessor_digest,
+                        source: FaceKey::profile_y_lower(),
+                        source_is_v1: true,
+                        dimension: EDGE_DIMENSION,
+                        member: 2,
+                    },
+                    ResultTopologyMember {
+                        source_graph_digest: predecessor_digest,
+                        source: FaceKey::profile_y_upper(),
+                        source_is_v1: true,
+                        dimension: EDGE_DIMENSION,
+                        member: 3,
+                    },
+                    ResultTopologyMember {
+                        source_graph_digest: graph.digest_bytes(),
+                        source: FaceKey::cut_wall(),
+                        source_is_v1: false,
+                        dimension: EDGE_DIMENSION,
+                        member: 4,
+                    },
+                    ResultTopologyMember {
+                        source_graph_digest: predecessor_digest,
+                        source: FaceKey::end_cap(),
+                        source_is_v1: true,
+                        dimension: FACE_DIMENSION,
+                        member: 0,
+                    },
+                ],
+            })
         } else {
-            BuildObservation {
+            Ok(BuildObservation {
                 provider_profile: RECTANGLE_PROFILE,
                 requested_modeling_tolerance_m: graph.requested_modeling_tolerance_m(),
                 requested_boolean_tolerance_m: None,
@@ -127,7 +187,8 @@ impl CadAuthoredBuild {
                 deleted: Vec::new(),
                 split: Vec::new(),
                 merged: Vec::new(),
-            }
+                result_topology: Vec::new(),
+            })
         }
     }
 
@@ -221,21 +282,23 @@ impl CadAuthoredBuild {
         &self.merged
     }
 
-    /// Project this accepted build's complete lineage into immutable result topology.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` when the build and graph identities differ, the graph
-    /// is not the admitted circular through-cut, or lineage is incomplete,
-    /// mutated, deleted, split, merged, or ambiguous.
-    #[allow(
-        dead_code,
-        reason = "crate-private foundation awaiting its first public post-build naming consumer"
-    )]
-    pub(crate) fn result_topology(
+    pub(crate) fn project_result_member(
         &self,
-        graph: &CadAuthoredGraph,
-    ) -> Result<CadAuthoredResultTopology, Diagnostic> {
-        CadAuthoredResultTopology::from_build(graph, self)
+        source: &CadAuthoredFaceHandle,
+    ) -> Result<(usize, usize), Diagnostic> {
+        self.result_topology
+            .iter()
+            .find(|candidate| {
+                candidate.source_graph_digest == source.graph_digest_bytes()
+                    && candidate.source == source.face_key()
+                    && candidate.source_is_v1 == source.is_v1()
+            })
+            .map(|candidate| (candidate.dimension, candidate.member))
+            .ok_or_else(|| {
+                invalid(
+                    "construction handle was deleted or has no unambiguous admitted result member",
+                )
+            })
     }
 }
 
@@ -251,7 +314,7 @@ fn bind(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::ConstrainedRectangleV1;
 
@@ -267,19 +330,33 @@ mod tests {
     }
 
     #[test]
-    fn incomplete_or_substituted_build_observation_rejects() {
+    pub(crate) fn incomplete_or_substituted_build_observation_rejects() {
         let graph = cut_graph();
-        let mut observation = CadAuthoredBuild::expected_observation(&graph);
+        let mut observation = CadAuthoredBuild::expected_observation(&graph).unwrap();
         observation.effective_boolean_tolerance_m = Some(1.0e-10);
         assert!(CadAuthoredBuild::admit(&graph, observation).is_err());
 
-        let mut observation = CadAuthoredBuild::expected_observation(&graph);
+        let mut observation = CadAuthoredBuild::expected_observation(&graph).unwrap();
         observation.created.clear();
         assert!(CadAuthoredBuild::admit(&graph, observation).is_err());
 
-        let mut observation = CadAuthoredBuild::expected_observation(&graph);
+        let mut observation = CadAuthoredBuild::expected_observation(&graph).unwrap();
+        observation.result_topology.pop();
+        assert!(CadAuthoredBuild::admit(&graph, observation).is_err());
+
+        let mut observation = CadAuthoredBuild::expected_observation(&graph).unwrap();
         observation.repair = CadRepairDispositionV1::None;
         observation.provider_profile = "truck";
         assert!(CadAuthoredBuild::admit(&graph, observation).is_err());
+    }
+
+    #[test]
+    pub(crate) fn result_projection_requires_exact_source_handle_generation() {
+        let graph = cut_graph();
+        let build = CadAuthoredBuild::from_graph(&graph).unwrap();
+        let predecessor_digest = graph.predecessor_graph_digest_bytes().unwrap();
+        let wrong_generation =
+            CadAuthoredFaceHandle::bind_v2(predecessor_digest, FaceKey::profile_x_lower()).unwrap();
+        assert!(build.project_result_member(&wrong_generation).is_err());
     }
 }
