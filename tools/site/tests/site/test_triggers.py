@@ -20,12 +20,16 @@ BASIS_SHA = "68c9c2fe245ac52cc20dcf5a65a2455de507f0dc"
 ARCHIVE_ERROR = "Pages archive must bind the tracked link after extraction"
 BROWSER_ERROR = "Pages browser identity must precede execution and propagation"
 C03_ERROR = "Pages path filters omit exact authorities: ['.gitattributes']"
+HISTORY_C03_ERROR = (
+    "Pages path filters omit exact authorities: ['.gitattributes', "
+    "'examples/python/exact_cylinder_stokes_jupyter.ipynb']"
+)
 ORDER_ERROR = "Pages archive/browser supply checks are out of causal order"
 DEREFERENCE_ERROR = "Pages workflow uses forbidden supply substitution '--dereference'"
 HISTORY_TREE = "20701fe8909295b980c1da7cf3eab366f8d5f27c"
 HISTORY_BLOB = "6e685495bf6989e1ad902a7e88c199557285cbee"
 HISTORY_DIGEST = "fc55c24da8b9b58a7e997a22d5ebc26a87cdb52b73b2513a2cc91b8347432f16"
-HISTORY_ERRORS = [C03_ERROR, ARCHIVE_ERROR, BROWSER_ERROR]
+HISTORY_ERRORS = [HISTORY_C03_ERROR, ARCHIVE_ERROR, BROWSER_ERROR]
 UNRELATED_ERROR = "UNRELATED: retained deployment syntax rejected"
 observe = checker.check_workflow_text
 

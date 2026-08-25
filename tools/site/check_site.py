@@ -198,6 +198,7 @@ REQUIRED_TRIGGER_PATTERNS = {
     "examples/python/exact_cylinder_geometry.py",
     "examples/python/exact_cylinder_mesh.py",
     "examples/python/exact_cylinder_stokes.py",
+    "examples/python/exact_cylinder_stokes_jupyter.ipynb",
     "examples/python/exact_cylinder_stokes_marimo.py",
     "examples/steady-flow-past-cylinder.eqi",
     "examples/steady-flow-past-cylinder.geometry.json",
