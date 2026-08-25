@@ -1131,7 +1131,7 @@ class CandidateManifestTests(unittest.TestCase):
 
         self.assertEqual(candidate.version, "0.1.0a1")
 
-    def test_notebook_profile_has_eleven_exact_checks(self) -> None:
+    def test_notebook_profile_has_twelve_exact_checks(self) -> None:
         self.assertEqual(PROFILE_CHECKS["notebook"], NOTEBOOK_CHECKS)
 
     def test_every_n1_signal_forces_v3_before_reader_selection(self) -> None:
