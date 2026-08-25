@@ -160,10 +160,13 @@ pub(crate) fn compile_hierarchy(
 }
 
 /// Compile one local Component definition as an ephemeral root occurrence
-/// bound to exact external Geometry supports.
+/// carrying caller-provided external Geometry support identities.
 ///
 /// The external root is compiler-owned structure: no Cartesian stand-in,
 /// formatted source, transaction rewrite, or second lowerer is constructed.
+/// This step validates the binding's shape, not its digest or entity-set names
+/// against a concrete Geometry artifact; geometry-aware semantic admission
+/// performs that validation later.
 ///
 /// # Errors
 /// Returns accumulated source, binding, hierarchy, or typed-lowering
