@@ -1,5 +1,6 @@
 //! Transparent Python projection of the closed authored-CAD graph.
 
+use std::collections::BTreeMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -10,7 +11,7 @@ use eqiora::geometry::{
 };
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyModule, PyTuple};
+use pyo3::types::{PyAny, PyBytes, PyMapping, PyModule, PySequence, PyTuple};
 
 use crate::error::validation_error;
 use crate::geometry::{PyGeometry, digest_to_hex};
@@ -386,11 +387,28 @@ impl PyCadAuthoredGraph {
     }
 
     /// Execute and admit the bounded analytic provider profile.
-    fn build(&self, py: Python<'_>) -> PyResult<PyCadAuthoredBuild> {
-        self.graph
+    ///
+    /// With `named_topology`, atomically project the supplied construction
+    /// handles through the accepted build and publish common Geometry.
+    #[pyo3(signature = (*, named_topology=None))]
+    fn build(
+        &self,
+        py: Python<'_>,
+        named_topology: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Py<PyAny>> {
+        let build = self
+            .graph
             .build_analytic()
-            .map(|build| PyCadAuthoredBuild { build })
+            .map_err(|diagnostic| native_error(py, diagnostic))?;
+        let Some(named_topology) = named_topology else {
+            return Py::new(py, PyCadAuthoredBuild { build }).map(Py::into_any);
+        };
+        let named_topology = extract_named_topology(named_topology)?;
+        build
+            .with_named_topology(&named_topology)
+            .map(PyGeometry::from_geometry)
             .map_err(|diagnostic| native_error(py, diagnostic))
+            .and_then(|geometry| Py::new(py, geometry).map(Py::into_any))
     }
 
     fn __hash__(&self) -> u64 {
@@ -564,6 +582,54 @@ fn handle_tuple(py: Python<'_>, handles: &[CadAuthoredFaceHandle]) -> PyResult<P
         .map(|handle| Py::new(py, PyCadAuthoredFaceHandle { handle }))
         .collect::<PyResult<Vec<_>>>()?;
     Ok(PyTuple::new(py, projected)?.unbind())
+}
+
+fn extract_named_topology(
+    value: &Bound<'_, PyAny>,
+) -> PyResult<BTreeMap<String, Vec<CadAuthoredFaceHandle>>> {
+    let mapping = value.cast::<PyMapping>().map_err(|_| {
+        PyTypeError::new_err(
+            "named_topology must be one mapping from strings to construction handles",
+        )
+    })?;
+    let mut result = BTreeMap::new();
+    for item in mapping.items()?.try_iter()? {
+        let item = item?;
+        let pair = item.cast::<PyTuple>()?;
+        let name = pair
+            .get_item(0)?
+            .extract::<String>()
+            .map_err(|_| PyTypeError::new_err("named_topology keys must be strings"))?;
+        let raw = pair.get_item(1)?;
+        let handles = if let Ok(handle) = raw.extract::<PyRef<'_, PyCadAuthoredFaceHandle>>() {
+            vec![handle.handle.clone()]
+        } else {
+            let sequence = raw.cast::<PySequence>().map_err(|_| {
+                PyTypeError::new_err(
+                    "named_topology values must be a construction handle or a sequence of handles",
+                )
+            })?;
+            let mut handles = Vec::with_capacity(sequence.len()?);
+            for member in sequence.try_iter()? {
+                let member = member?;
+                let handle = member
+                    .extract::<PyRef<'_, PyCadAuthoredFaceHandle>>()
+                    .map_err(|_| {
+                        PyTypeError::new_err(
+                            "named_topology sequences must contain only construction handles",
+                        )
+                    })?;
+                handles.push(handle.handle.clone());
+            }
+            handles
+        };
+        if result.insert(name, handles).is_some() {
+            return Err(PyValueError::new_err(
+                "named_topology mapping contains a duplicate name",
+            ));
+        }
+    }
+    Ok(result)
 }
 
 fn native_error(py: Python<'_>, diagnostic: Diagnostic) -> PyErr {

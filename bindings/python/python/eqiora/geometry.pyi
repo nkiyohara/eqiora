@@ -3,6 +3,7 @@
 Authority: ``bindings/python/python/eqiora/geometry.py``.
 """
 
+from collections.abc import Mapping, Sequence
 from typing import final
 
 @final
@@ -162,7 +163,14 @@ class CadAuthoredGraph:
     def planar_face_outward_normal(
         self, handle: CadAuthoredFaceHandle
     ) -> tuple[float, float, float] | None: ...
-    def build(self) -> CadAuthoredBuild: ...
+    def build(
+        self,
+        *,
+        named_topology: Mapping[
+            str, CadAuthoredFaceHandle | Sequence[CadAuthoredFaceHandle]
+        ]
+        | None = None,
+    ) -> CadAuthoredBuild | Geometry: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -225,7 +233,7 @@ class Geometry:
     @property
     def bounds(self) -> tuple[tuple[float, float], tuple[float, float]]: ...
     @property
-    def classification_tolerance(self) -> float: ...
+    def classification_tolerance(self) -> float | None: ...
     @property
     def canonical_bytes(self) -> bytes: ...
     @property
