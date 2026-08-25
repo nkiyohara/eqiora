@@ -133,6 +133,7 @@
         { "name": "ScalarEllipticBalanceEvidence", "from": "eqiora_api::ScalarEllipticBalanceEvidence" },
         { "name": "ScalarEllipticExecutionEnvironment", "from": "eqiora_api::ScalarEllipticExecutionEnvironment" },
         { "name": "ScalarEllipticIntent", "from": "eqiora_api::ScalarEllipticIntent" },
+        { "name": "ScalarEllipticMesh", "from": "eqiora_api::ScalarEllipticMesh" },
         { "name": "ScalarEllipticMethod", "from": "eqiora_api::ScalarEllipticMethod" },
         { "name": "ScalarEllipticRunCancellation", "from": "eqiora_api::ScalarEllipticRunCancellation" },
         { "name": "ScalarEllipticRunDirective", "from": "eqiora_api::ScalarEllipticRunDirective" },

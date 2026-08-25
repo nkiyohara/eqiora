@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **77** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **82** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -733,6 +733,68 @@ class ParameterRef:
     def __hash__(self) -> int: ...
 ```
 
+<a id="api-eqiora-Plan"></a>
+
+## `Plan`
+
+Immutable common numerical Plan owning an exact Model and effective Mesh.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan.rs" kind="blob">crates/eqiora-python/src/common_plan.rs::PyPlan</ExactSourceLink>
+
+```python
+@final
+class Plan:
+    @property
+    def realization_digest(self) -> str: ...
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def mesh_digest(self) -> str: ...
+    @property
+    def mesh(self) -> meshing.CartesianMesh: ...
+    @property
+    def realization(self) -> Realization: ...
+    @property
+    def spatial(self) -> fem.Q1 | fvm.CellCenteredTpfa: ...
+    @property
+    def solve(self) -> solve.Linear: ...
+    @property
+    def discretization(self) -> str: ...
+    @property
+    def space(self) -> str: ...
+    @property
+    def quadrature(self) -> str: ...
+    @property
+    def mesh_kind(self) -> str: ...
+    @property
+    def spatial_dimension(self) -> int: ...
+    @property
+    def scalar_type(self) -> str: ...
+    @property
+    def vector_layout(self) -> str: ...
+    @property
+    def operator_properties(self) -> str: ...
+    @property
+    def schedule(self) -> str: ...
+    @property
+    def solver_algorithm(self) -> str: ...
+    @property
+    def solver_backend(self) -> str: ...
+    @property
+    def solver_backend_version(self) -> str: ...
+    @property
+    def execution_provider(self) -> str: ...
+    @property
+    def execution_provider_version(self) -> str: ...
+    @property
+    def placement(self) -> str: ...
+    @property
+    def workers(self) -> int: ...
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
 <a id="api-eqiora-PhysicalDomain"></a>
 
 ## `PhysicalDomain`
@@ -1399,6 +1461,18 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/lib.rs" kind="blob">c
 def replay(data: bytes) -> Model: ...
 ```
 
+<a id="api-eqiora-resolve"></a>
+
+## `resolve`
+
+Resolve one exact Model, Mesh, spatial policy, and solve policy.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::resolve</ExactSourceLink>
+
+```python
+def resolve(model: Model, *, mesh: meshing.Cartesian, spatial: fem.Q1 | fvm.CellCenteredTpfa, solve: solve.Linear) -> Plan: ...
+```
+
 <a id="api-eqiora-run"></a>
 
 ## `run`
@@ -1408,6 +1482,9 @@ Execute through the lifecycle returned by `submit`.
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::run</ExactSourceLink>
 
 ```python
+@overload
+def run(plan: Plan) -> ScalarEllipticResult: ...
+
 @overload
 def run(model: Model, *, end_time: float, max_step: float, realization: None=None) -> Result: ...
 
@@ -1483,6 +1560,16 @@ Accepted implicit differentiation over exact Eqiora programs.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/diff.py" kind="blob">bindings/python/python/eqiora/diff.py</ExactSourceLink>
 
+<a id="api-eqiora-fem"></a>
+
+## `fem`
+
+**Module export.** This spelling exposes the documented public module [`eqiora.fem`](/reference/python/fem/).
+
+Closed finite-element spatial policies.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan.rs" kind="blob">crates/eqiora-python/src/common_plan.rs::PyQ1</ExactSourceLink>
+
 <a id="api-eqiora-fluid"></a>
 
 ## `fluid`
@@ -1502,6 +1589,16 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/fluid.py" kind="
 Fixed-mesh monolithic FSI intent, plan, and typed evidence.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/fsi.py" kind="blob">bindings/python/python/eqiora/fsi.py</ExactSourceLink>
+
+<a id="api-eqiora-fvm"></a>
+
+## `fvm`
+
+**Module export.** This spelling exposes the documented public module [`eqiora.fvm`](/reference/python/fvm/).
+
+Closed finite-volume spatial policies.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan.rs" kind="blob">crates/eqiora-python/src/common_plan.rs::PyCellCenteredTpfa</ExactSourceLink>
 
 <a id="api-eqiora-geometry"></a>
 
@@ -1532,6 +1629,16 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/meshing.py" kind
 Typed structural intents, plans, and scientific evidence.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/solid.py" kind="blob">bindings/python/python/eqiora/solid.py</ExactSourceLink>
+
+<a id="api-eqiora-solve"></a>
+
+## `solve`
+
+**Module export.** This spelling exposes the documented public module [`eqiora.solve`](/reference/python/solve/).
+
+Closed algebraic solve policies.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan.rs" kind="blob">crates/eqiora-python/src/common_plan.rs::PyLinear</ExactSourceLink>
 
 <a id="api-eqiora-trajectory"></a>
 
