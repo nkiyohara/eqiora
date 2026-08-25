@@ -1,5 +1,10 @@
 //! Provenance-neutral canonical identity of planar circular-hole geometry v2.
 
+#![allow(
+    dead_code,
+    reason = "crate-private exact Geometry foundation awaiting its first public consumer"
+)]
+
 use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
@@ -27,7 +32,7 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 /// this content from separately admitted construction lineage, but that
 /// lineage and its graph identity are not geometry content.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CanonicalPlanarCircularHoleGeometryV2 {
+pub(crate) struct CanonicalPlanarCircularHoleGeometryV2 {
     bounds: [[f64; 2]; 2],
     circle_center: [f64; 2],
     circle_radius_m: f64,

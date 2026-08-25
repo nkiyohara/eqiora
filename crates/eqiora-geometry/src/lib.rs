@@ -55,7 +55,7 @@ pub use cad_authored_selection::CadAuthoredFaceHandle;
 pub use cad_authored_sketch::CadAuthoredSketch;
 pub use cad_authored_swept_mesh::CadAuthoredSweptMesh;
 pub use canonical::{CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1};
-pub use circular_hole_v2::CanonicalPlanarCircularHoleGeometryV2;
+pub(crate) use circular_hole_v2::CanonicalPlanarCircularHoleGeometryV2;
 pub use correspondence::{
     CartesianBodyAssignment, CartesianBoundaryAssignment, GeometryCorrespondenceError,
     GeometryMeshCorrespondence,
