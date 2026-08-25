@@ -11,7 +11,7 @@ struct ExpectedAdmission {
     source: String,
 }
 
-const IDENTITY_FREE_PATH_ORDER: [&str; 29] = [
+const IDENTITY_FREE_PATH_ORDER: [&str; 31] = [
     "crates/eqiora-python/src/trajectory.rs",
     "bindings/python/python/eqiora/trajectory.pyi",
     "crates/eqiora-python/src/result.rs",
@@ -44,6 +44,8 @@ const IDENTITY_FREE_PATH_ORDER: [&str; 29] = [
     "tools/site/produce_exact_cylinder_pressure.py",
     "tools/site/tests/gallery_publication/fixtures.py",
     "tools/site/tests/gallery_publication/test_predicate.py",
+    "bindings/python/python/eqiora/_presentation/trajectory.py",
+    "bindings/python/tests/test_rich_trajectory_display.py",
 ];
 
 const FIXTURE_PATH_ORDER: [&str; 27] = [
@@ -606,6 +608,44 @@ fn site_fixture() -> ExpectedAdmission {
     site_expected(SITE_ADMISSIONS[12])
 }
 
+fn trajectory_presentation_expected() -> ExpectedAdmission {
+    let path = "bindings/python/python/eqiora/_presentation/trajectory.py";
+    ExpectedAdmission {
+        path,
+        class: "non-fixture-search-hit",
+        owner: "the eqiora-python trajectory notebook presentation adapter",
+        note: format!(
+            "the closed notebook presentation adapter validates the caller-owned Trajectory \
+             and FieldSnapshot `{}` lineage before projecting display bytes. It freezes no \
+             Model-derived identity literal, and admission owns only this exact path and \
+             observed shape.",
+            SEARCH_TOKENS[4]
+        ),
+        source: fs::read_to_string(repository_root().join(path)).unwrap_or_else(|error| {
+            panic!("trajectory presentation adapter `{path}` must be UTF-8: {error}")
+        }),
+    }
+}
+
+fn trajectory_presentation_test_expected() -> ExpectedAdmission {
+    let path = "bindings/python/tests/test_rich_trajectory_display.py";
+    ExpectedAdmission {
+        path,
+        class: "non-fixture-search-hit",
+        owner: "the eqiora-python trajectory notebook presentation behavior test",
+        note: format!(
+            "the installed-Python behavior test obtains `{}` from its caller-owned Trajectory \
+             while constructing the exact closed presentation token. It freezes no \
+             Model-derived identity literal, and admission owns only this exact test path and \
+             observed shape.",
+            SEARCH_TOKENS[4]
+        ),
+        source: fs::read_to_string(repository_root().join(path)).unwrap_or_else(|error| {
+            panic!("trajectory presentation behavior test `{path}` must be UTF-8: {error}")
+        }),
+    }
+}
+
 fn has_exact_accepted_digests(contract: &TransitionContract) -> bool {
     let expected = SITE_ADMISSIONS
         .iter()
@@ -674,6 +714,10 @@ fn all_identity_free_sources() -> Vec<(&'static str, String)> {
             .into_iter()
             .map(|row| (row.path, row.source)),
     );
+    let presentation = trajectory_presentation_expected();
+    sources.push((presentation.path, presentation.source));
+    let presentation_test = trajectory_presentation_test_expected();
+    sources.push((presentation_test.path, presentation_test.source));
     sources
 }
 
@@ -682,6 +726,56 @@ fn admitting_all(mut state: Observed, sources: &[(&str, String)]) -> Observed {
         state = state.admitting(path, source);
     }
     state
+}
+
+#[test]
+fn trajectory_presentation_paths_are_exact_identity_free_admissions() {
+    let contract = TransitionContract::from_classification();
+    let expected = [
+        trajectory_presentation_expected(),
+        trajectory_presentation_test_expected(),
+    ];
+    for entry in &expected {
+        let row = contract
+            .post_reset_admitted
+            .iter()
+            .find(|row| row.path == entry.path)
+            .expect("trajectory presentation admission must exist");
+        assert!(row_matches(row, entry));
+    }
+
+    let observed = Observed::from_repository(&contract, &repository_root());
+    assert_eq!(
+        classify_transition(&contract, &observed),
+        Ok(TransitionState::PostReset)
+    );
+
+    for entry in &expected {
+        for mutate in ["remove", "rename", "extra-signal", "pinned-identity"] {
+            let mut mutant = TransitionContract::from_classification();
+            let at = mutant
+                .post_reset_admitted
+                .iter()
+                .position(|candidate| candidate.path == entry.path)
+                .unwrap();
+            match mutate {
+                "remove" => {
+                    mutant.post_reset_admitted.remove(at);
+                }
+                "rename" => mutant.post_reset_admitted[at].path.push_str(".copy"),
+                "extra-signal" => mutant.post_reset_admitted[at]
+                    .signals
+                    .push(SEARCH_TOKENS[2].to_owned()),
+                "pinned-identity" => mutant.post_reset_admitted[at].identity_literals = 1,
+                _ => unreachable!(),
+            }
+            assert!(
+                classify_transition(&mutant, &observed).is_err(),
+                "the {mutate} mutant for {} must be refused",
+                entry.path
+            );
+        }
+    }
 }
 
 /// Accepted alpha.3 site bytes are optional exact-path permissions. The real
@@ -865,7 +959,7 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .as_u64()
             .unwrap()
     );
-    assert_eq!(identity_free.len(), 29);
+    assert_eq!(identity_free.len(), 31);
     assert_eq!(fixtures.len(), 27);
     assert_eq!(
         contract
@@ -949,9 +1043,9 @@ fn admission_arrays_reject_row_reorder_and_duplicate_paths() {
             "identity-free",
             contract.post_reset_admitted.as_slice(),
             IDENTITY_FREE_PATH_ORDER.as_slice(),
-            27,
-            28,
-            28,
+            29,
+            30,
+            30,
         ),
         (
             "fixture",
