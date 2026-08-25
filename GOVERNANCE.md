@@ -11,7 +11,8 @@ Committee (TSC) replaces it.
 - No contributor receives architectural authority by virtue of employment,
   funding, vendor affiliation, or tooling.
 - Semantic-kernel and conformance changes use the public RFC process.
-- Verification authority remains independent from feature implementation.
+- Existing verification authority remains independent from feature implementation and immutable
+  during the evidence-development freeze in RFC 0088.
 - Official functionality is not withheld for a closed edition.
 
 ## Roles

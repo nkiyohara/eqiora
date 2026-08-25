@@ -4,6 +4,7 @@
 - Authors: Eqiora contributors
 - Created: 2026-08-22
 - Amended: 2026-08-25 — one agent may own evidence, review, and integration
+- Superseded in part: [RFC 0088](0088-freeze-evidence-development.md) freezes evidence development
 - Related: [RFC 0084](0084-contract-wave-capability-development.md) and
   [AI-authored platform strategy](../docs/development/ai-authored-platform-strategy.md)
 
@@ -16,6 +17,10 @@ parallel writes; they are no longer the default writable unit.
 This RFC supersedes RFC 0084 as active development policy. Historical descriptions of
 non-writer or non-implementer roles in older RFCs and evidence packages remain factual records,
 but they do not impose actor separation on future implementation, evidence, review, or merge.
+
+RFC 0088 supersedes this RFC's permission to author new evidence, scientific values, or
+derivations. Those passages below are historical rationale only; active work preserves existing
+evidence unchanged and uses focused product tests without upgrading verification status.
 
 ## Problem
 

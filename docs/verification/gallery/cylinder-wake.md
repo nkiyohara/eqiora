@@ -1,5 +1,10 @@
 # Laminar cylinder-wake experience
 
+Under RFC 0088, implement and publish this only as an **Unverified product example** unless it is
+an unchanged projection of a pre-freeze accepted Result. Every later evidence, oracle, falsifier,
+candidate, acceptance, or promotion requirement is frozen historical scope and does not block
+the unverified product path. Do not create or update that evidence.
+
 Status: future-state experience contract. It does not advance
 `fluid.flow-past-cylinder`.
 
@@ -31,7 +36,7 @@ the scientific precursor by itself.
 Vorticity is the sole primary field. Pressure belongs in the detailed view and
 poster comparison, not as a simultaneous overlay.
 
-## Evidence and falsifiers
+## Pre-freeze accepted-result evidence (frozen)
 
 The evidence plan owns these distinct obligations:
 

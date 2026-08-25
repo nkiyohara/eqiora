@@ -1,5 +1,10 @@
 # Turek--Hron FSI3 experience
 
+Under RFC 0088, implement and publish this only as an **Unverified product example** unless it is
+an unchanged projection of a pre-freeze accepted Result. Every later evidence, oracle, falsifier,
+candidate, acceptance, or promotion requirement is frozen historical scope and does not block
+the unverified product path. Do not create or update that evidence.
+
 Status: future-state experience contract. It does not advance
 `multiphysics.turek-hron-fsi`.
 
@@ -31,7 +36,7 @@ coupling.
 The fixed camera makes the flag amplitude readable. Mesh lines appear only in
 a short, labelled interval if needed to explain ALE motion.
 
-## Evidence and falsifiers
+## Pre-freeze accepted-result evidence (frozen)
 
 The coupled case consumes already accepted transient non-box flow, finite-
 strain structure, moving-mesh/GCL, and interface-transfer evidence. The

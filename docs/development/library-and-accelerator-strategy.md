@@ -26,10 +26,18 @@ The following sources have separate authority:
 Do not copy those inventories into this file. A library name below is an
 adoption decision or investigation boundary, not by itself a capability claim.
 
+Evidence development is frozen as of 2026-08-25. The existing registered evidence and verified
+provider tuples below remain valid and runnable, but this strategy does not authorize new cases,
+oracles, expected values, tolerances, falsifiers, exact inventories, or evidence mechanisms.
+New adapters use focused product and compatibility tests and remain explicitly unverified unless
+unchanged pre-freeze evidence already proves their exact tuple. Any later text that says a change
+"requires new evidence" now means that verified promotion is unavailable during the freeze; it
+does not require or authorize an evidence lane.
+
 ## Decision in one sentence
 
 Eqiora owns mathematical meaning, typed lowering and realization contracts,
-capability admission, provenance, and small deterministic conformance oracles;
+capability admission, provenance, and its existing small deterministic conformance oracles;
 optimized algebra, integration, transport, device execution, parsing, CAD
 kernels, persistent storage, and presentation mechanisms enter only through
 isolated adapters that consume those contracts.
@@ -41,8 +49,11 @@ meaning
   -> lowered contract
   -> realization
   -> adapter
-  -> independently accepted evidence
+  -> focused positive and failure tests
 ```
+
+Verification is a separate optional status supplied only by unchanged applicable pre-freeze
+evidence.
 
 No execution backend may skip a step by interpreting the Semantic Model
 directly. Other extension families have different, equally closed paths:
@@ -65,16 +76,14 @@ provider around capability admission.
 2. **Eqiora owns accepted representations.** No third-party matrix, vector,
    parser node, mesh object, CAD face handle, communicator, device pointer, or
    error type appears in the stable Semantic Model or wire schemas.
-3. **Reference oracles remain independent.** Adding a production adapter does
-   not delete the small in-house interpreter, assembler, or solver used to
-   falsify it.
-4. **Capability admission is exact.** A provider advertises verified tuples,
-   not the Cartesian product of independently supported-looking axes.
+3. **Existing reference oracles remain independent and unchanged.** Adding a production adapter
+   does not delete the small in-house interpreter, assembler, or solver used by accepted evidence.
+4. **Capability admission is exact.** A provider advertises supported tuples, not the Cartesian
+   product of independently supported-looking axes. New tuples are explicitly unverified.
 5. **Unsupported combinations fail before execution.** There is no silent
    fallback to another solver, scalar, layout, target, reduction, or device.
-6. **Reported convergence is not acceptance.** Eqiora recomputes the true
-   residual or an equivalent independent physical/numerical oracle using the
-   accepted operator.
+6. **Reported convergence is not verification.** Focused tests may check a residual or declared
+   product outcome, but only unchanged pre-freeze evidence upgrades verification status.
 7. **Environment observations remain bounded.** One device, host, driver,
    process count, or network proves only the recorded configuration. Portable
    support requires a replayable registered case with an honest boundary.
@@ -85,9 +94,9 @@ provider around capability admission.
    execution providers, data adapters, and Studio workflows share identity and
    provenance discipline while retaining distinct payload schemas and loading
    contracts.
-10. **Dependencies are evidence decisions.** A version bump that affects
-    numerical behavior, ABI, hardware, MSRV, safety, or durable provenance is a
-    bounded implementation slice, not routine text maintenance.
+10. **Dependencies are compatibility decisions.** A version bump that affects numerical
+    behavior, ABI, hardware, MSRV, safety, or durable provenance is a bounded implementation slice
+    with focused tests, not routine text maintenance or a new evidence lane.
 
 ## Ownership and layers
 
@@ -234,9 +243,8 @@ For example, evidence for the exact CUDA tuples `CG + SPD + Jacobi + f64 +
 replicated + Fast`, `BiCGSTAB + General + Identity + f64 + replicated + Fast`,
 and `MINRES + SymmetricIndefinite + Identity + f64 + replicated + Fast` does
 not admit BiCGSTAB on an SPD declaration, Jacobi with BiCGSTAB or MINRES,
-reproducible device MINRES, or any other cross-product tuple. A new tuple
-arrives with its own positive oracle, falsifier, registered evidence, and
-capability-matrix update.
+reproducible device MINRES, or any other cross-product tuple. A new tuple arrives with focused
+positive/failure tests and a capability-matrix update whose verification status remains absent.
 
 Realization-level capabilities follow the same rule. Independent sets of
 method, mesh, solver capability, layout, and target are safe only when every
@@ -270,20 +278,20 @@ An external adapter graduates only when all applicable items are complete:
 3. capability discovery rejects unknown versions, unsupported tuples, and
    stale mappings before numerical mutation;
 4. one ordinary end-to-end path executes without a test-only semantic bypass;
-5. an independent oracle and a plausible falsifier are present;
-6. a `verify/<area>/<case>/case.toml` names the exact executable target and
-   claim boundary;
-7. the capability matrix states the same narrow boundary;
-8. run evidence records applicable model/plan/operator identities, provider
-   and library versions, scalar/layout, topology, tolerances, and environment;
-9. dependency license, advisory, MSRV, unsafe/FFI, and platform effects pass
+5. focused ordinary positive and failure tests cover the admitted tuple without a test-only
+   semantic bypass;
+6. the capability matrix states the same narrow boundary and leaves verification absent unless
+   unchanged pre-freeze evidence applies exactly;
+7. ordinary Run provenance records applicable model/plan/operator identities, provider and
+   library versions, scalar/layout, topology, and environment;
+8. dependency license, advisory, MSRV, unsafe/FFI, and platform effects pass
    policy review; and
-10. fast and affected local gates pass, including every semantically affected
-    registered case.
+9. the narrowest relevant local gates pass, including every semantically affected existing
+   registered case unchanged.
 
-An ignored hardware test or a prose observation is useful investigation, but
-does not satisfy item 6. Failed experiments remain valuable when their gate is
-explicit; they still do not become support claims.
+An ignored hardware test or a prose observation is useful investigation, but it does not upgrade
+verification. Failed experiments remain valuable when their gate is explicit; they still do not
+become support claims.
 
 ## Stable execution seams
 
@@ -594,13 +602,13 @@ before a material upgrade.
 | ODE/mass DAE | Adopt [Diffsol 0.16.1](https://github.com/martinjrobins/diffsol/releases/tag/v0.16.1) behind the time adapter | Exact pin includes the BDF scratch-memory fix; rerun BDF, mass, sensitivity and restart evidence on every numerical upgrade |
 | General implicit DAE primal | Investigate [SUNDIALS IDA 7.8](https://github.com/llnl/sundials/releases/tag/v7.8.0) only when the reference oracle is insufficient | First FFI falsifier covers `IDACalcIC`, primal residual equivalence, callback panic containment, ABI/version, allocation ownership and clean teardown; it does not claim sensitivity or adjoint support |
 | General implicit DAE differentiation | Investigate [SUNDIALS IDAS 7.8](https://sundials.readthedocs.io/en/v7.8.0/idas/) only after the primal IDA boundary is accepted and a derivative consumer exists | Forward sensitivity, quadrature, adjoint checkpoint/recompute consistency and derivative-run provenance form a distinct slice; IDAS is not bundled into primal admission |
-| NVIDIA execution | Keep cudarc 0.18.2 plus narrow dynamic cuSPARSE/cuBLAS bindings as the implementation baseline | `cuda-12000` is the tested binding ABI baseline, not “current CUDA”. Privacy-bounded public-source observations verify the exact Q1/TPFA CG/Jacobi and fixed-reference FSI MINRES/identity tuples. Neither implies a general CUDA, reproducible-device, hardware-support-matrix, or scale claim. A cudarc 0.19 upgrade requires fresh API, ABI and physical-device evidence; follow [cuSPARSE](https://docs.nvidia.com/cuda/cusparse/index.html) and [cuBLAS](https://docs.nvidia.com/cuda/cublas/) reproducibility rules |
+| NVIDIA execution | Keep cudarc 0.18.2 plus narrow dynamic cuSPARSE/cuBLAS bindings as the implementation baseline | `cuda-12000` is the tested binding ABI baseline, not “current CUDA”. Privacy-bounded public-source observations verify the exact Q1/TPFA CG/Jacobi and fixed-reference FSI MINRES/identity tuples. Neither implies a general CUDA, reproducible-device, hardware-support-matrix, or scale claim. During the freeze, a cudarc 0.19 product upgrade uses focused API/ABI/device compatibility tests and remains unverified; follow [cuSPARSE](https://docs.nvidia.com/cuda/cusparse/index.html) and [cuBLAS](https://docs.nvidia.com/cuda/cublas/) reproducibility rules |
 | Cross-vendor kernels | Keep [CubeCL 0.10](https://github.com/tracel-ai/cubecl/releases/tag/v0.10.0) in an unpublished experiment | Do not graduate while ordinary required `f64`, production MSRV, physical ROCm, cross-device values, cache identity and scale gates fail |
 | Visualization compute | Prefer `wgpu` at the L4 Studio boundary when a real rendering slice begins | Do not use it as the first numerical solver backend. Select an exact line only after rechecking the Studio toolchain and [wgpu package MSRV](https://crates.io/crates/wgpu) |
 | Gmsh parsing | Keep the narrow ASCII/binary MSH 4.1 decoder owned by `eqiora-io-gmsh` | Decode only the admitted linear-simplex grammar under Eqiora count, byte, work, and fallible-allocation budgets, then reconstruct through owned mesh constructors. Do not widen this adapter into a general MSH parser without a typed consumer and evidence |
 | XDMF metadata | Retain exact `quick-xml` 0.41.0 behind an Eqiora-owned streaming grammar and resource budget | Parse only the admitted XDMF 3 Uniform simplex subset into typed HDF array requests; the XML adapter performs no I/O and never treats parser acceptance as an Eqiora mesh/Field claim. Caller-resolved and native-HDF5 execution remain distinct L4 compositions. See [quick-xml](https://github.com/tafia/quick-xml) |
 | VTK XML UnstructuredGrid | Reuse exact `quick-xml` 0.41.0 behind an independent Eqiora-owned VTU grammar and resource budget | Admit only the one-Piece ASCII homogeneous affine-simplex profile, then reconstruct through shared mesh/Field invariants and L4 provenance replay. Inline/appended binary, compression, multiple pieces and export graduate independently. See the [VTK XML file-format specification](https://docs.vtk.org/en/latest/vtk_file_formats/vtkxml_file_format.html) |
-| HDF5 storage | Retain exact `hdf5-metno` 0.13.0 with its static bundled HDF5 behind `eqiora-io-hdf5` | Current runtime evidence observes HDF5 2.1.0. The adapter accepts only a complete borrowed file image, fixes native VOL, suppresses plugins during the serialized operation, audits the whole hard-link tree, and resolves one fully preflighted `u64`/`f64` batch. CMake is a fresh-build prerequisite. Any dependency/runtime upgrade, broader datatype/storage grammar, multiple-image plan, or isolated-worker claim requires new evidence. See [hdf5-metno](https://github.com/metno/hdf5-rust) and [HDF5 file images](https://support.hdfgroup.org/documentation/hdf5/latest/group___f_a_p_l.html) |
+| HDF5 storage | Retain exact `hdf5-metno` 0.13.0 with its static bundled HDF5 behind `eqiora-io-hdf5` | Current runtime evidence observes HDF5 2.1.0. The adapter accepts only a complete borrowed file image, fixes native VOL, suppresses plugins during the serialized operation, audits the whole hard-link tree, and resolves one fully preflighted `u64`/`f64` batch. CMake is a fresh-build prerequisite. During the freeze, dependency/runtime upgrades or broader grammar use focused compatibility tests and remain unverified rather than creating new evidence. See [hdf5-metno](https://github.com/metno/hdf5-rust) and [HDF5 file images](https://support.hdfgroup.org/documentation/hdf5/latest/group___f_a_p_l.html) |
 | CAD kernel | Retain exact `truck-modeling` 0.6.0, `truck-stepio` 0.3.0 and `truck-topology` 0.6.0 for the bounded adapter | Continue excluding `truck-shapeops`; `deny.toml` confines exact unmaintained exceptions `RUSTSEC-2026-0196` and `RUSTSEC-2024-0370` to the reviewed graph. Widen only with topology, healing, naming and advisory evidence. See [Truck](https://github.com/ricosjp/truck) |
 | Persistent graph | Benchmark before adopting `imbl`; no production version is selected | If an experiment begins, recheck an exact maintained release at or beyond the reviewed 7.0.1 safety fix, then prove snapshot isolation, atomic validation behavior, deterministic ordering and representative graph-scale benefit. See [imbl](https://github.com/jneem/imbl) |
 | Incremental syntax | Consider Rowan only with the first incremental parsing/LSP slice; no production version is selected | Rowan may store a lossless tree, while Eqiora retains grammar, recovery, typed lowering, formatting rules and stable projections/canonical bytes. Compare incremental identity, parse/format/reparse idempotence and diagnostic-span stability before adoption. See [Rowan](https://github.com/rust-analyzer/rowan) |
@@ -614,6 +622,9 @@ optional adapter, documented in `deny.toml`, and re-audited before scope grows.
 An actual vulnerability is not waived merely because a dependency is optional.
 
 ## Evidence admission
+
+Admission is closed to new evidence during the development freeze. The commands and rules below
+apply only to running and interpreting the accepted pre-freeze inventory unchanged.
 
 The machine-readable evidence inventory is generated, never transcribed:
 
@@ -665,57 +676,31 @@ now:
 - complete application-facing capability preview, placement, data-plane and
   progress/cancellation contracts.
 
-Each gate starts only when its consumer and falsifier are concrete. Empty
-provider names, target enums, and method configs do not count as progress.
+Implementation starts only when its consumer and focused positive/failure tests are concrete.
+Verified promotion remains unavailable without applicable pre-freeze evidence. Empty provider
+names, target enums, and method configs do not count as progress.
 
-Investigation may also start on a second, disjunctive condition: the current
-method demonstrably breaks a **pre-declared resource, convergence, or
-robustness envelope** on an existing model or a synthetic operator. This exists
-because some capabilities are preconditions for their own consumers; "the
-absence of the capability prevents consumers from existing" is rejected as too
-subjective to gate on, while a declared envelope breach is checkable.
-
-The declaration must be **merged to the protected default branch on its own**,
-naming the probe, the thresholds, the indeterminate band, and the validity
-conditions under which a run is void. Only measurements produced by hosted CI,
-from a descendant of that merge commit, on a run started after it, are
-admissible as the breach.
-
-A weaker rule does not work. A declaration in the same commit as its
-observations is an assertion about the author's order of work, not a fact:
-choosing the threshold and choosing the probe are both post-hoc degrees of
-freedom, and freezing the numbers closes only the first. Requiring merely a
-separate earlier commit is no better, because local history can be rebuilt so
-that a declaration written after measuring becomes the parent of the
-observation. Commit and author timestamps are self-reported and add nothing.
-Protected-branch merge order is the first thing an author cannot rewrite.
-
-Even this proves only that the *admitted* measurement post-dates the
-declaration. It cannot prove that the same probe was not run privately
-beforehand, so the requirement binds the accepted evidence and never claims
-more. Where a probe is replaced because the first was void, the replacement is
-declared under the same two-stage rule and the void run is retained.
-
-The falsifier and the construction/provenance policy are built first. A
-candidate enters the stable vocabulary only after passing them, never on the
-strength of the investigation alone. AMG, restarted GMRES, and field split are
-three distinct contracts — a multilevel construction and provenance problem, a
-Krylov algorithm with restart and orthogonalization policy, and a solver graph
-over semantic or algebraic blocks — and each needs its own envelope rather than
-one shared gate.
+Investigation may also start when a current workflow demonstrates a concrete resource,
+convergence, or robustness need. During the freeze this is a product prioritization signal, not
+an evidence campaign: add no predeclared threshold artifact, hosted observation protocol,
+falsifier, or admission envelope. A candidate enters the supported vocabulary only after its
+typed contract and focused positive/failure tests pass, with verification explicitly absent.
+AMG, restarted GMRES, and field split remain three distinct product contracts rather than one
+shared gate.
 
 ## Rejected or superseded approaches
 
 - **Backend types in model or artifact schemas.** Rejected because execution
   representation would become canonical meaning and compatibility debt.
 - **Delete the reference path after adopting a library.** Rejected because it
-  removes the independent oracle needed to accept that library.
+  removes a useful product fallback and may invalidate accepted pre-freeze evidence.
 - **Build an entire production sparse/time/device stack in Eqiora.** Rejected;
   it duplicates mature mechanisms without strengthening semantic ownership.
 - **Advertise capabilities as independent axis sets.** Superseded by exact
   tuples because cross-products admit unverified combinations.
 - **Treat `HostCpu`, `CudaGpu`, a thread count, or a provider name as support.**
-  Rejected; support is an admitted executable tuple with registered evidence.
+  Rejected; support is an admitted executable tuple with focused product tests. Verification is
+  reported separately.
 - **Use a universal dynamic plugin registry now.** Rejected until one typed
   provider family has multiple independently shipped implementations and a
   demonstrated discovery need.

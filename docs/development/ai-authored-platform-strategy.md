@@ -1,15 +1,16 @@
 # AI-authored platform strategy
 
 - Status: Accepted
-- Revised: 2026-08-22
+- Revised: 2026-08-25
 - Related: [high-risk and parallel development](vertical-slice-development.md),
   [local verification](local-verification.md), and [roadmap](../roadmap.md)
 
 ## Decision
 
-Eqiora optimizes for **truthful capability lead time**: the time from a concrete accepted
-outcome to a merged, reproducibly evidenced capability. It does not optimize agent utilization,
-document volume, open lanes, contract count, test count, or CI activity in isolation.
+Eqiora optimizes for **truthful product lead time**: the time from a concrete accepted outcome to
+a merged, focused-tested capability whose verification status is reported independently and
+honestly. It does not optimize agent utilization, document volume, open lanes, contract count,
+test count, or CI activity in isolation.
 
 AI makes implementation cheap. It does not make context, integration, compatibility, scientific
 evidence, or human attention free. Process and abstraction therefore need the same deletion
@@ -18,13 +19,14 @@ pressure as production code.
 The default development path is one primary agent, one local change, the narrowest useful
 check, one self-review, and stop. The same primary agent owns implementation through pull
 request integration. Durable scientific, compatibility, artifact, security, release, CI,
-governance, and architecture risk keeps the specific reproducible evidence or focused review
-it needs, without requiring a second actor. Nothing else inherits that ceremony by analogy.
+governance, and architecture risk keeps its applicable existing evidence and focused review,
+without requiring a second actor. Nothing else inherits that ceremony by analogy.
 
 ## Product position
 
 Eqiora aims to make computational engineering capabilities machine-checkable end to end, with
-narrow claims and reproducible evidence. Performance claims remain workload-specific and bind
+narrow claims and independently truthful verification status. Performance claims remain
+workload-specific and bind
 hardware, mesh, ordering, solver, preconditioner, tolerances, transfer accounting, warmup, and
 repetitions.
 
@@ -37,6 +39,20 @@ Generated or hand-written physics must not create a bespoke proof system per mod
 existing compiler, realization, and evidence paths when they genuinely reduce repeated
 invariant-bearing formulas. Do not build a universal form, plugin, or intermediate
 representation before a current capability and a second real consumer show the need.
+
+## Evidence development freeze
+
+As of 2026-08-25, evidence development is frozen. Preserve and run the accepted evidence, but
+do not add or extend verification cases, scientific or exact-artifact oracles, expected values,
+tolerances, falsifiers, exact inventories, evidence schemas, evidence projections, or bespoke
+evidence infrastructure. Do not update a frozen expectation to follow implementation output.
+
+The freeze is not a product-development or test freeze. New product behavior uses ordinary
+focused behavior, compatibility, and failure tests. The capability matrix records the resulting
+contract and execution truth, but verification remains absent unless unchanged pre-freeze
+evidence already proves the exact claim. When frozen evidence disagrees with a candidate, fix
+the product or build reproducibility, narrow the claim, or leave the capability unverified.
+Only an explicit owner instruction may unfreeze a named evidence scope.
 
 ## Context scales by navigation
 
@@ -84,21 +100,13 @@ must not rise through ordinary work, and should disappear when a simpler invaria
 
 Evidence should be cheaper than the mistake it prevents.
 
-- Ordinary low-risk code and its focused tests may share a writer.
-- The implementation writer may own scientific expected values, tolerances, falsifiers, and
-  exact-artifact oracles, but derives them from the claim and records their reproducible basis
-  instead of tuning them to implementation output.
-- New scientific formulations use independently checkable analytic and numerical or symbolic
-  derivations; one agent may author both when the routes are genuinely distinct.
-- Every evidence package reaches a normal positive path before its targeted negative probe.
-- A registered case supports only its explicit claim and non-claims.
-- Resource claims use implementation-independent input or work bounds unless live residency is
-  itself the product promise.
-- One environment, cache, host, or aborted run does not generalize to another.
-
-If an oracle grows larger than the implementation seam, depends on unrelated OS machinery, or
-rejects only because an earlier gate made the capability unusable, simplify or replace the
-oracle. Do not turn evidence infrastructure into a second product.
+- Run accepted cases without changing their claim, oracle, expected result, tolerance, or
+  falsifier.
+- Treat an accepted case as support only for its explicit claim and non-claims.
+- Use focused tests for new ordinary behavior; do not register them as evidence.
+- Do not generalize a result across environments, caches, hosts, or aborted runs.
+- Fix nondeterministic product or build output rather than teaching an exact oracle to accept it.
+- Narrow or mark a claim unverified when frozen evidence cannot support it.
 
 ## Process deletion rules
 
