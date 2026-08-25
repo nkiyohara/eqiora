@@ -1,18 +1,20 @@
 import { defineConfig, type Plugin } from "vite";
 
-function includeMeshStyles(): Plugin {
+function includeStyles(): Plugin {
 	const entry = new URL("./src/mesh-view.ts", import.meta.url).pathname;
 	return {
-		name: "eqiora-mesh-view-styles",
+		name: "eqiora-view-styles",
 		enforce: "pre",
 		transform(source, id) {
-			return id === entry ? `import "./mesh-view.css";\n${source}` : undefined;
+			return id === entry
+				? `import "./mesh-view.css";\nimport "./trajectory-view.css";\n${source}`
+				: undefined;
 		},
 	};
 }
 
 export default defineConfig({
-	plugins: [includeMeshStyles()],
+	plugins: [includeStyles()],
 	build: {
 		copyPublicDir: false,
 		cssCodeSplit: false,

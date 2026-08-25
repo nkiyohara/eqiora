@@ -15,11 +15,14 @@ use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldShape};
 use numpy::{PyArray1, PyArray2};
 use pyo3::exceptions::{PyIndexError, PyKeyError, PyOverflowError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyModule, PyTuple};
+use pyo3::types::{PyAny, PyDict, PyModule, PyTuple};
 
 use crate::diagnostic_error;
 use crate::matrix::{ReadOnlyMatrix, ReadOnlyVector};
 use crate::model::{PyModel, PyModelFieldRef};
+mod presentation;
+
+use presentation::TrajectoryPresentation;
 
 enum ProjectedValues {
     Scalar(ReadOnlyVector<f64>),
@@ -288,6 +291,7 @@ pub(crate) struct PyTrajectory {
     cells: ReadOnlyMatrix<u32>,
     states: Vec<Py<PyTrajectoryState>>,
     state_lookup: BTreeMap<u64, usize>,
+    presentation: TrajectoryPresentation,
 }
 
 impl PartialEq for PyTrajectory {
@@ -376,6 +380,16 @@ impl PyTrajectory {
             self.digest(),
             self.states.len()
         )
+    }
+
+    #[pyo3(signature = (include=None, exclude=None))]
+    fn _repr_mimebundle_(
+        slf: Py<Self>,
+        py: Python<'_>,
+        include: Option<&Bound<'_, PyAny>>,
+        exclude: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Py<PyDict>> {
+        presentation::mimebundle(slf, py, include, exclude)
     }
 }
 
@@ -607,6 +621,7 @@ impl PyTrajectory {
             cells: ReadOnlyMatrix::new(cell_count, 3, cells),
             states,
             state_lookup,
+            presentation: TrajectoryPresentation::default(),
         })
     }
 }

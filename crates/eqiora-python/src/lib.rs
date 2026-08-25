@@ -16,6 +16,7 @@ mod matrix;
 mod meshing;
 mod model;
 mod modeling;
+mod notebook_mime;
 mod package;
 mod realization;
 mod result;

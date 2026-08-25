@@ -8,6 +8,7 @@ import {
 	type RepresentationMode,
 	validateRepresentationMode,
 } from "./mesh-contract";
+import { render as renderTrajectory } from "./trajectory-view";
 
 type Vector3 = [number, number, number];
 type CameraPreset = "initial" | "orbit" | "pan" | "zoom" | "top" | "isometric";
@@ -609,7 +610,7 @@ function renderMesh(mesh: DecodedMesh, context: RenderContext): () => void {
 	return cleanup;
 }
 
-function render(context: RenderContext): () => void {
+function renderMeshEntry(context: RenderContext): () => void {
 	let cleanup: (() => void) | undefined;
 	let cancelled = false;
 	void decodeMeshContract(context.model)
@@ -628,6 +629,13 @@ function render(context: RenderContext): () => void {
 		cleanup?.();
 		cleanup = undefined;
 	};
+}
+
+function render(context: RenderContext): () => void {
+	if (context.model.get("profile") === "fixed-mesh-scalar-trajectory-2d/v1") {
+		return renderTrajectory(context);
+	}
+	return renderMeshEntry(context);
 }
 
 export default { render };
