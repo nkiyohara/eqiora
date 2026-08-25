@@ -243,9 +243,9 @@
       "promoted_evidence_note": "each entry names one evidence file whose bytes survive and whose owner changes. `pre_reset` is a member of `retired`, `post_reset` is a member of `required_post_reset`, and a `promotion` row freezes the exact bytes carried across. Deleting the bytes rather than moving them fails as a substituted promotion, not as a missing path.",
       "post_reset_admitted_contract": "an identity-free classified path created after the reset is admitted by exact path and by nothing else. Admission is containment-only: it adds the path to what the post-reset discovered set may contain and never requires the path to exist, so a post-reset state carrying none of the admitted paths is accepted exactly as it was before this amendment. An admitted path that does exist must carry exactly the search signals recorded for it and must freeze no Model-derived lower-hex-64 identity literal; an admitted path present in the pre-reset state is refused as mid-flight, because admission describes a path the reset did not create and the pre-reset tree did not have.",
       "post_reset_admitted_is_not_membership": "no admitted path joins `inventory`, `retired`, `retired_outside_inventory`, `required_post_reset`, `required_post_reset_without_frozen_bytes`, `preserved_evidence`, `promoted_evidence`, or any `promotion` row, and no count above moves. Listing one in the inventory would claim it existed before the reset; listing one in `required_post_reset` would claim the reset created it and would make a later capability mandatory for acceptance. Both are false.",
-      "post_reset_admitted_exactness": "these thirty-two paths and no others. A thirty-third identity-free signal-bearing path is not admitted by proximity, by sharing their directory, by sharing a `trajectory`, `result`, common-Plan, Cartesian snapshot, prescribed-solid, provider, protocol, MCP, RFC, documentation, non-box transient, test, or derivation name, or by any suffix rule — it is refused as an unclassified candidate and returned to this oracle, exactly as an unlisted path was before this amendment. There is no glob here either.",
-      "post_reset_admitted_note": "hosted whole-tree transition gates found the first five after the reset. The first two arrived when the general trajectory owner of the Python surface was split out of its FSI-specific host; the third is the common installed-Python static Result owner exercised by the registered `interfaces.python-exact-cylinder-stokes-result` evidence. Those three are ordinary current-owner consumers of `model_digest`. The fourth is the low-level Cartesian Q1 Field snapshot artifact owner, whose `model_sha256` is a relational artifact edge; the fifth is its independent generated-Cartesian spatial-output oracle, which checks and mutates that key without pinning a value. RFC 0085 pre-admits four more identity-free classified search hits: the accepted RFC, the standalone-solid Realization source owner, the independent Rust exact-artifact oracle, and its independent derivation route. The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` evidence pre-admits exactly six further current-Model hits: the provider-occurrence artifact owner, protocol-control owner, independent Rust oracle, independent derivation, positive Python provider, and current-owner documentation. The registered `fluid.non-box-transient-navier-stokes-2d-private` oracle adds one exact `model_digest` assertion that derives the digest from accepted source bytes rather than pinning it. The private `eqiora-mcp` tool adapter adds one exact production path carrying the current Model and Transaction schema signals in order with zero Model-derived identity literals. Twelve accepted site/source projections follow with exact accepted-byte guards. The common Plan implementation and its independent Rust and Python tests add three exact `model_digest` consumer paths with zero Model-derived identity literals. Every identity-free path freezes zero Model identity literals. This case bounds the exact signal each may carry and owns none of the files' content except the separately declared accepted-byte guards.",
-      "post_reset_admitted_path_count": 32,
+      "post_reset_admitted_exactness": "these seventeen paths and no others. An eighteenth identity-free signal-bearing path is not admitted by proximity, by sharing their directory, by sharing a `trajectory`, `result`, Cartesian snapshot, prescribed-solid, provider, protocol, MCP, RFC, documentation, non-box transient, test, or derivation name, or by any suffix rule — it is refused as an unclassified candidate and returned to this oracle, exactly as an unlisted path was before this amendment. There is no glob here either.",
+      "post_reset_admitted_note": "hosted whole-tree transition gates found the first five after the reset. The first two arrived when the general trajectory owner of the Python surface was split out of its FSI-specific host; the third is the common installed-Python static Result owner exercised by the registered `interfaces.python-exact-cylinder-stokes-result` evidence. Those three are ordinary current-owner consumers of `model_digest`. The fourth is the low-level Cartesian Q1 Field snapshot artifact owner, whose `model_sha256` is a relational artifact edge; the fifth is its independent generated-Cartesian spatial-output oracle, which checks and mutates that key without pinning a value. RFC 0085 pre-admits four more identity-free classified search hits: the accepted RFC, the standalone-solid Realization source owner, the independent Rust exact-artifact oracle, and its independent derivation route. The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` evidence pre-admits exactly six further current-Model hits: the provider-occurrence artifact owner, protocol-control owner, independent Rust oracle, independent derivation, positive Python provider, and current-owner documentation. The registered `fluid.non-box-transient-navier-stokes-2d-private` oracle adds one exact `model_digest` assertion that derives the digest from accepted source bytes rather than pinning it. The private `eqiora-mcp` tool adapter adds one exact production path carrying the current Model and Transaction schema signals in order with zero Model-derived identity literals. Every path freezes zero Model identity literals. This case bounds the exact signal each may carry and owns none of the files' content.",
+      "post_reset_admitted_path_count": 29,
       "post_reset_admitted": [
         {
           "path": "crates/eqiora-python/src/trajectory.rs",
@@ -438,7 +438,7 @@
           "class": "current-owner-assertion",
           "signals": ["model_digest"],
           "identity_literals": 0,
-          "accepted_sha256": "02bfdda1e74115719a608a20700b5f7977fce2f5d6ae6cd948877758564d9225",
+          "accepted_sha256": "962e184c67359ff1e3753cff704ae3a4b8093829ceb1ee446c93f12b4632e499",
           "owner": "the accepted Python API reference projection",
           "note": "the generated top-level Python reference names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."
         },
@@ -513,30 +513,6 @@
           "accepted_sha256": "9db7b122386c52998fd4dd35714f5ff9f7b5b39ae06e4e8078237778eaad25f0",
           "owner": "the accepted Gallery publication predicate oracle",
           "note": "the accepted predicate test names `model_digest` as an asserted and mutated publication field without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; expected publication semantics remain owned by that independent oracle."
-        },
-        {
-          "path": "crates/eqiora-python/src/common_plan.rs",
-          "class": "non-fixture-search-hit",
-          "signals": ["model_digest"],
-          "identity_literals": 0,
-          "owner": "the eqiora-python common Plan surface",
-          "note": "the common Plan binding exposes and compares the digest of its caller-owned current Model without freezing a Model-derived identity literal; admission owns only this exact production path and signal shape."
-        },
-        {
-          "path": "crates/eqiora-python/tests/python_common_plan.rs",
-          "class": "non-fixture-search-hit",
-          "signals": ["model_digest"],
-          "identity_literals": 0,
-          "owner": "the eqiora-python common Plan integration oracle",
-          "note": "the independent installed-Python integration oracle checks common Plan lineage against caller-owned Model identities without pinning a Model-derived literal; admission grants no test-directory or sibling permission."
-        },
-        {
-          "path": "bindings/python/tests/test_common_plan.py",
-          "class": "non-fixture-search-hit",
-          "signals": ["model_digest"],
-          "identity_literals": 0,
-          "owner": "the shipped-Python common Plan static oracle",
-          "note": "the static Python oracle checks common Plan lineage and mutation behaviour through caller-owned Model identities without freezing a Model-derived literal; admission grants no Python-test family or sibling permission."
         }
       ],
       "post_reset_fixture_admitted_contract": "a later exact evidence representation is admitted through a second containment-only permission, by exact path and by nothing else. Each path is optional after the reset, absent before it, and if present must carry exactly its recorded ordered search-signal list and exact same-line Model/Transaction-bearing lower-hex-64 occurrence count together with its declared fixture class, owner, and note. An empty signal list normally requires a positive count; the four filename-ordered zero-count semantic-impact JSONL rows are admitted only as exact members of the same externally owned nine-file runtime representation as its five 17-count rows. Every non-overlapping matching occurrence is counted, including multiple identities on one qualifying line. This permission joins no historical frozen, promotion, identity-free, classified, or required set and does not weaken `post_reset_admitted`'s zero-identity predicate.",
