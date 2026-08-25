@@ -1290,7 +1290,7 @@ def resolve(
     ...
 
 @overload
-def run(plan: Plan) -> ScalarEllipticResult:
+def run(model: Plan) -> ScalarEllipticResult:
     """Execute through the lifecycle returned by :func:`submit`.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::run``.
