@@ -1,19 +1,24 @@
 # Dam-break-around-an-obstacle experience
 
+Under RFC 0088, implement and publish this only as an **Unverified product example** unless it is
+an unchanged projection of a pre-freeze accepted Result. Every later evidence, oracle, falsifier,
+candidate, acceptance, or promotion requirement is frozen historical scope and does not block
+the unverified product path. Do not create or update that evidence.
+
 Status: future-state experience contract. It does not advance
 `multiphase.dam-break`.
 
 ## Responsibility and public claim
 
 The film shows a gravity-driven free surface released in the Kleefsman et al.
-dam-break geometry, impacting the fixed obstacle and producing accepted water-
+dam-break geometry, impacting the fixed obstacle and producing computed water-
 height and pressure-probe histories. The fluid state, interface
 representation, obstacle load, and conservation diagnostics share one result
 lineage.
 
-The public claim is a verified interface-capturing implementation plus a
-comparison with the selected experiment within its declared measurement and
-model uncertainty. It does not claim a resolved air phase unless the retained
+The public claim is an **unverified product demonstration** of one interface-capturing workflow,
+with a descriptive side-by-side comparison to the selected experiment. It does not claim verified
+agreement, experimental validation, or an acceptance band. It also does not claim a resolved air phase unless the retained
 model solves it, universal impact-pressure accuracy, cavitation, compressible
 impact, arbitrary fragmentation, or general free-surface CFD.
 
@@ -29,7 +34,7 @@ impact, arbitrary fragmentation, or general free-surface CFD.
 The camera is fixed to preserve gauge and obstacle location. Any interface
 threshold used for the visible surface is recorded and fixed.
 
-## Evidence and falsifiers
+## Pre-freeze accepted-result evidence (frozen)
 
 The prerequisite ladder verifies hydrostatic balance, interface advection,
 boundedness, mass conservation, surface reconstruction, gravity forcing, wall

@@ -8,8 +8,7 @@ consumers fan out. Every product claim must still travel through:
 typed meaning
   -> lowered contract
   -> Realization or adapter
-  -> falsifier
-  -> registered evidence
+  -> focused positive and failure tests
   -> capability-matrix update
 ```
 
@@ -17,6 +16,12 @@ The manifests under [`verify/`](../verify/) are the authority for executable
 claims. The [capability matrix](capability-matrix.md) is their whole-product
 index. This roadmap records dependency order and deliberate nonclaims; it does
 not widen either source.
+
+Evidence development is frozen as of 2026-08-25. Existing registered cases remain runnable and
+authoritative for their exact claims, but the roadmap does not create new evidence lanes, cases,
+oracles, expected values, tolerances, falsifiers, exact inventories, or evidence mechanisms.
+Product and gallery work continues with focused tests; verification remains absent unless
+unchanged pre-freeze evidence already proves the exact claim.
 
 ## Multiphysics dependency spine
 
@@ -106,8 +111,7 @@ those two parent paths, not another physical semantics.
   production Dataset loader.
 
 Those remain independent capability closures. They must reuse the established
-meaning-to-evidence path rather than introduce a second physical or identity
-authority.
+meaning-to-tested-execution path rather than introduce a second physical or identity authority.
 
 ## Flagship evidence-gallery sequence
 
@@ -135,20 +139,17 @@ presentation seams. It consumes no force or drag. The final motor remains last
 because no single motor benchmark verifies its electromagnetic, circuit,
 rotating, thermal, and coolant composition.
 
-Visible delivery order is not implementation serialization. Before the first
-film, the fluid line closes smooth transient verification, non-box transient
-lowering, physical boundary functionals, durable general 2D field
-trajectories, and deterministic accepted-result publication. The nonlinear
-solid line closes large-rotation, shell, continuation, imperfection, and any
-claimed contact or plasticity evidence before shell collapse. Independent
-three-dimensional, fracture, free-surface, and electromagnetic lanes may start
-whenever their contracts and writable seams satisfy the repository's parallel
-lane rules.
+Visible delivery order is not implementation serialization. Before the first film, the fluid
+line closes the bounded product execution, non-box lowering, required boundary quantities,
+durable field output, and reproducible unverified-example publication path. Later physics lines
+likewise close their actual product prerequisites and focused tests without starting evidence
+lanes. Independent three-dimensional, fracture, free-surface, and electromagnetic product work
+may start whenever its contracts and writable seams satisfy the repository's parallel rules.
 
-The gallery specifications do not promote any benchmark or capability. A film
-is eligible only after its exact supporting cases, result lineage, media
-projection, dossier, and accessibility assets pass the common admission
-contract.
+The gallery specifications do not promote any benchmark or capability. A film is eligible either
+as an explicitly unverified product example under the focused product path or as an unchanged
+projection of a pre-freeze accepted scientific Result. Both require real result lineage and
+accessible presentation; only the latter carries its existing evidence dossier.
 
 ## Implemented foundations
 
@@ -383,8 +384,8 @@ precedent. See
 [AI-authored platform strategy](development/ai-authored-platform-strategy.md).
 
 With the exact Geometry Identity edit-and-regeneration seam accepted, CAD
-adapters, mesh regeneration, Python authoring, Studio editing, and independent
-physics evidence fan out from that revision. They reunite first as a
+adapters, mesh regeneration, Python authoring, Studio editing, and physics product work fan out
+from that revision. They reunite first as a
 single-physics user path and then as a coupled FSI path; client projections do
 not acquire their own geometry or physical semantics.
 
@@ -401,13 +402,14 @@ phase:
   action before scale and accelerator expansion.
 
 Each preparation is behavior-preserving, stays private until two independent
-consumers justify a public boundary, and runs the existing affected evidence.
+consumers justify a public boundary, and runs any semantically affected existing evidence
+unchanged.
 Do not create a general refactoring phase or broaden a lane merely because
 adjacent cleanup is attractive.
 
 Release work remains a separate trust path. Additional platforms and release
-formats do not reorder product dependencies, and every scale claim requires
-environment-specific evidence.
+formats do not reorder product dependencies. New scale work remains unverified during the freeze
+unless pre-freeze environment-specific evidence already proves its exact claim.
 
 ## Canonical conformance set
 

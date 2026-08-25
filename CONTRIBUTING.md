@@ -15,11 +15,13 @@ high-risk capability work or explicitly parallel writes.
   the narrowest repository-owned check, one self-review, then stop.
 - New scientific semantics, public/versioned compatibility, persisted or wire
   formats, security/trust policy, governance, and architecture ceilings require
-  their owning RFC or risk-focused review. The same primary agent may author
-  the evidence, perform that review, approve, and merge; actor separation is not
-  required. A filename or possible future use does not make a change high risk.
-- Reuse accepted contracts and evidence. Do not create a contract artifact,
-  independent oracle, registry, or lane for ordinary behavior.
+  their owning RFC or risk-focused review. The same primary agent may perform that review,
+  approve, and merge; actor separation is not required. A filename or possible future use does
+  not make a change high risk.
+- Under [RFC 0088](rfcs/0088-freeze-evidence-development.md), preserve and run accepted evidence
+  unchanged. Do not add or change a case, oracle, expected value, tolerance, falsifier, exact
+  inventory, projection, schema, or evidence infrastructure. Use focused product tests and leave
+  new verification absent unless pre-freeze evidence already proves the exact claim.
 - Do not add a Semantic Kernel node for UI or adapter convenience. First show
   why a typed named subgraph cannot express the concept.
 - Open an Issue only when alternatives need coordination, the work has durable

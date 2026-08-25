@@ -5,6 +5,12 @@ broader than the active implementation roadmap and is not a support matrix.
 Each case remains `proposed` until the evidence required by a higher status
 exists.
 
+Evidence development is frozen as of 2026-08-25. Proposed cases may still become `specified` or
+`implemented` through product work and focused tests, but they do not gain new `verified` or
+`validated` status during the freeze unless unchanged pre-freeze evidence already proves the
+exact claim. This roadmap does not authorize new cases, oracles, expected values, tolerances,
+falsifiers, exact inventories, or evidence mechanisms.
+
 ## Why the portfolio is layered
 
 A famous benchmark by itself rarely identifies why a solver is wrong. Each
@@ -33,10 +39,10 @@ publication-readiness states do not change a case's status here.
 | Status | Required evidence |
 |---|---|
 | `proposed` | A useful candidate with a stated capability target |
-| `specified` | Equations, geometry, data, boundary conditions, quantities of interest, and reference source are fixed |
-| `implemented` | The canonical model executes reproducibly and produces the declared quantities |
-| `verified` | Declared analytic/manufactured error, applicable convergence and conservation, and tolerance contracts pass in CI; any inapplicable axis is justified |
-| `validated` | The verified model is compared with licensed experimental or accepted community evidence within a declared validity range |
+| `specified` | Product equations, geometry, data, boundary conditions, and displayed quantities are fixed; no new acceptance oracle or tolerance is implied |
+| `implemented` | The canonical model executes reproducibly and focused product tests cover the declared path |
+| `verified` | Pre-freeze registered evidence proves the exact declared analytic/manufactured, convergence, conservation, and tolerance claim |
+| `validated` | Pre-freeze accepted evidence compares the verified model with licensed experimental or community data in a declared range |
 
 Status is monotone only while its evidence remains reproducible. A regression
 may demote a case. Merely producing a plausible plot never establishes
@@ -311,61 +317,14 @@ error, overshoot/undershoot, and a norm appropriate to nonsmooth solutions.
 | `multiscale.periodic-cell` | Periodic homogenization cell | periodic BC and effective tensor | `proposed` |
 | `multiscale.fe2-bar` | FE² bar/material point | nested solve, batching, surrogate fallback | `proposed` |
 
-## Case contract
+## Frozen registered cases
 
-An implemented case lives below `verify/` and keeps human explanation separate
-from the machine-readable acceptance contract:
-
-```text
-verify/<area>/<case>/
-├── case.toml
-├── README.md
-├── models/
-├── references/
-└── expected/
-```
-
-The repository runner validates every `case.toml`. A `verified` case must name
-a structured target from the closed shell-free runner set. Most numerical
-cases use a Cargo integration-test target:
-
-```toml
-id = "fluid.poiseuille"
-status = "verified"
-reference_kind = "analytic"
-
-capabilities = [
-  "incompressible",
-  "viscous-flux",
-  "dirichlet-bc",
-  "pressure-driving",
-  "conservation",
-]
-
-[quantities.velocity_l2]
-tolerance = 1e-8
-
-[quantities.mass_imbalance]
-tolerance = 1e-12
-
-[quantities.wall_shear]
-relative_tolerance = 1e-6
-
-[convergence]
-norm = "L2"
-minimum_order = 1.9
-
-[evidence]
-package = "eqiora-numerics"
-test = "canonical_axial_bar"
-```
-
-The command and machine-report contract is documented in the
-[verification runner guide](runner.md).
-
-Concrete tolerances above are illustrative until the case is `specified`.
-Specifications must distinguish discretization error, iterative tolerance,
-floating-point/backend variation, and uncertainty in external reference data.
+Pre-freeze implemented and verified cases under `verify/` retain their existing manifests,
+references, expected data, and runner behavior unchanged. Do not copy their package structure for
+a new roadmap entry during the freeze. A new `implemented` entry lives in the ordinary product,
+example, or gallery surface with focused tests; it does not add a `verify/` directory or acceptance
+tolerance. The existing command and report format remains documented in the
+[verification runner guide](runner.md) only for running accepted cases.
 
 ## Reference and licensing policy
 
@@ -381,8 +340,9 @@ floating-point/backend variation, and uncertainty in external reference data.
 
 ## Promotion rule
 
-A roadmap entry advances only when its current evidence is reviewable. New
-physics support should normally add one analytic/manufactured case before a
-large showcase. No benchmark may require an example-specific Semantic Kernel
-node; differences must be expressed through relations, activations,
-connections, clocks, ontology views, and realizations.
+A roadmap entry advances to `specified` or `implemented` when its product inputs, outputs, and
+focused tests are reviewable. It does not advance to `verified` or `validated` without unchanged
+applicable pre-freeze evidence. New physics does not add an analytic/manufactured evidence case
+during the freeze. No benchmark may require an example-specific Semantic Kernel node;
+differences must be expressed through relations, activations, connections, clocks, ontology
+views, and realizations.

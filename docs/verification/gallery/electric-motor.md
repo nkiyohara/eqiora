@@ -1,5 +1,10 @@
 # Full electric-motor multiphysics experience
 
+Under RFC 0088, implement and publish this only as an **Unverified product example** unless it is
+an unchanged projection of a pre-freeze accepted Result. Every later evidence, oracle, falsifier,
+candidate, acceptance, or promotion requirement is frozen historical scope and does not block
+the unverified product path. Do not create or update that evidence.
+
 Status: future-state experience contract. It does not advance electromagnetics,
 rotating machinery, thermal, cooling-flow, or motor-system capability.
 
@@ -37,7 +42,7 @@ Fields never overlap merely to suggest complexity. Rotor motion, field phase,
 and thermal time are mapped explicitly because they occur on different
 physical time scales.
 
-## Evidence and falsifiers
+## Pre-freeze accepted-result evidence (frozen)
 
 The prerequisite ladder separates:
 

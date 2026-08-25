@@ -3,6 +3,10 @@
 Repository-owned checks establish local technical evidence. Hosted checks protect the submitted
 commit, provider identity, and CI/release trust; they do not replace scientific evidence.
 
+Evidence development is frozen. Existing registered cases remain runnable inputs, but no new
+case, oracle, expected value, tolerance, falsifier, exact inventory, or evidence mechanism is
+added or changed. New product behavior uses focused tests and may remain explicitly unverified.
+
 ## Choose the smallest check
 
 Run the cheapest repository-owned check that can expose a plausible defect in the actual delta.
@@ -62,9 +66,9 @@ temporary directories use `~/.cache/eqiora/local-verify-tmp` and are removed aft
 `--scratch-root` relocates both to an equivalent home-backed location. Do not use OS `/tmp`
 for large verification artifacts.
 
-A new directory under `verify/` must add its valid `case.toml` with its first evidence files.
-Every semantically affected case must be passed with `--case`; a shared executor package does
-not imply semantic ownership of all its cases.
+Do not add a directory under `verify/` while the evidence-development freeze is active. Every
+semantically affected existing case must be passed with `--case`; a shared executor package
+does not imply semantic ownership of all its cases.
 
 ## Gate tiers
 
@@ -98,6 +102,10 @@ State the exact environment for any timing; an aborted run is not a sample.
 
 ## Evidence-package behavior
 
+Treat existing evidence packages as immutable. Run them without changing their oracle,
+falsifier, expected output, tolerance, inventory, or claim. Fix the product or reproducibility
+defect, narrow the claim, or leave the capability unverified when they disagree.
+
 An oracle or falsifier package first proves one ordinary positive end-to-end path. Negative
 probes then reach and name the intended gate. If an earlier unrelated denial makes the
 capability unusable, the rejection is vacuous and the case fails.
@@ -111,6 +119,9 @@ the claim or separate authority. Never convert a mismatch or unavailable environ
 pass.
 
 ## Heavy scientific candidates
+
+Do not define a new candidate campaign or acceptance oracle during the evidence-development
+freeze. The rules below apply only to already accepted campaigns.
 
 Production gallery solves, refinement campaigns, and complete media encodes are outside
 ordinary pull-request gates:

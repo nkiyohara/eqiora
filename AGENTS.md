@@ -3,6 +3,7 @@
 Keep this file a short routing map for recurring facts that code cannot reveal.
 
 - [AI-authored platform strategy](docs/development/ai-authored-platform-strategy.md) — what to optimize and what not to build.
+- [Evidence-development freeze](rfcs/0088-freeze-evidence-development.md) — preserve existing evidence; develop product behavior with focused tests.
 - [High-risk and parallel development](docs/development/vertical-slice-development.md) — read only for high-risk capability work or explicitly requested parallel writes.
 - [Local verification](docs/development/local-verification.md) — focused checks and gate tiers.
 
@@ -21,11 +22,6 @@ High risk is limited to changes in:
 Everything else uses one primary agent and one local pass: make the smallest change, run the
 narrowest repository-owned check that can expose a plausible defect, self-review once, and
 stop. A focused failure permits a focused correction and rerun, not broader ceremony.
-
-Two failed attempts to replace the same oracle, evidence package, or review artifact
-exhaust its retries; a fresh session or thread does not reset the count. Before any third
-attempt, re-scope the task, falsify its premise, or return it to its owner with the
-argument. Focused review of a localized correction is not a replacement attempt.
 
 Do not add an Issue, RFC, contract artifact, schema, registry, oracle, subagent, lane,
 worktree, sealed handoff, or second derivation unless the actual delta or user request needs
@@ -59,28 +55,24 @@ nearest code and instructions, and fetch additional context only when the task n
 
 ## Claims and evidence
 
+Evidence development is frozen. Existing cases and oracles remain executable, read-only
+verification inputs; run them, but do not add, extend, tune, regenerate, or replace evidence,
+expected values, tolerances, falsifiers, exact inventories, evidence schemas, or evidence
+infrastructure. A mismatch is a product, build-reproducibility, or claim-scope problem, never a
+reason to change the evidence. Ordinary focused product and compatibility tests remain allowed.
+Only an explicit owner instruction may unfreeze a named evidence scope.
+
 When a change adds, removes, narrows, or extends an executable or user-visible capability,
 update [the capability matrix](docs/capability-matrix.md) in the same pull request. The case
 manifests under `verify/` remain authoritative; the matrix is their index.
 
 - Assess contract, execution, verification, and maturity independently.
 - Mark verification present only when a reproducible `verify/` case supports the exact claim.
+- Leave new capability verification absent unless unchanged pre-freeze evidence already proves
+  the exact claim.
 - State the narrowest honest boundary and important non-claims.
 - A pure refactor needs no status change, but check that the matrix remains truthful.
 - Use `cargo run -p eqiora-verify -- index`; maintain no second evidence registry.
-
-Implementers own the evidence needed for their change, including exact inventories and
-high-risk oracles. Derive expected values and tolerances from the claim rather than adapting
-them to observed implementation output, and record enough inputs and method for reproduction.
-New scientific formulations, expected values, or tolerances use two independently checkable
-analytic and numerical or symbolic derivations; one agent may author both when their methods
-and inputs remain genuinely distinct. Application surfaces and adapters use focused tests, not
-derivation ceremony.
-
-Every evidence package proves an ordinary positive path first. An unrelated earlier denial
-cannot count as rejection of the intended mutant. If an oracle becomes more complex than the
-seam or needs unrelated OS trust, simplify the claim or separate authority; never relax an
-inconsistency.
 
 ## Review by durable risk
 

@@ -116,3 +116,4 @@ implementation or capability claim.
 - [RFC 0085: Standalone prescribed dynamic-solid artifacts](0085-standalone-prescribed-dynamic-solid-artifacts.md)
 - [RFC 0086: Private numerics--differentiation composition](0086-private-numerics-differentiation-composition.md)
 - [RFC 0087: One-pass development by default](0087-one-pass-development-default.md)
+- [RFC 0088: Freeze technical evidence development](0088-freeze-evidence-development.md)

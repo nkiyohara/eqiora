@@ -15,7 +15,7 @@ A change that adds or extends an executable or user-visible capability closes on
 bounded claim
   -> existing invariant owner
   -> ordinary positive execution path
-  -> evidence for the changed claim
+  -> focused product tests
   -> capability-matrix update
 ```
 
@@ -28,9 +28,10 @@ The claim states the narrow supported boundary and important non-claims. One fix
 imply a general dimension, field shape, backend, package, hardware, or performance promise.
 Code presence is neither verification nor maturity.
 
-Use a validated `verify/<area>/<case>/case.toml` when the change makes a new reproducible
-capability claim. Reuse existing evidence when it already supports the exact changed claim.
-Do not add a case, matrix row, or oracle for a refactor that changes no claim.
+Evidence development is frozen. Reuse unchanged existing evidence only when it already supports
+the exact changed claim. Do not add a case, oracle, expected value, tolerance, falsifier, exact
+inventory, or evidence mechanism. New behavior uses focused product tests and remains unverified
+in the capability matrix unless pre-freeze evidence already proves it.
 
 ## Minimal outcome contract
 
@@ -52,30 +53,13 @@ No separate contract file, schema, receipt, or sealed handoff is required by def
 only when a concrete trust boundary needs a durable artifact and no existing authority carries
 it.
 
-## Evidence proportional to risk
+## Frozen evidence
 
-Ordinary low-risk implementation and its focused tests stay in one pass. High-risk evidence
-remains independently reproducible, but it does not require a different writer or agent.
-
-- Prove one ordinary positive end-to-end path before negative probes.
-- Name the exact gate a mutant is intended to reach. An earlier unrelated denial is not a
-  successful rejection.
-- Derive high-risk expected values, tolerances, and falsifiers from the claim rather than
-  tuning them to observed implementation output.
-- New scientific formulations, expected values, or tolerances use two independently checkable
-  analytic and numerical or symbolic derivations. The same agent may author both when they do
-  not share the implementation path or each other's output.
-- Exact artifacts use a deterministic generator or independently reproducible derivation that
-  matches the claimed byte or ordering semantics.
-- Public/API adapters without new science use focused compatibility and failure tests, not
-  scientific derivation.
-
-Where one compiler rule derives many instances, prove the translation class once and keep each
-instance to witness data. If a new instance needs executable formulas outside the accepted
-class, return that requirement to the class owner rather than adding a parallel proof system.
-
-If evidence becomes larger or more trusted than the seam it checks, simplify the claim or
-separate authority. Never relax an inconsistent oracle to make work proceed.
+Existing evidence remains independently runnable and immutable. A failure may expose a product
+defect, build nondeterminism, or an unsupported claim; correct or narrow that surface without
+changing the evidence. Public/API adapters and new scientific behavior use focused positive and
+failure tests, not new derivation or oracle machinery. Only an explicit owner instruction may
+unfreeze a named evidence scope.
 
 ## Parallel writable work
 
@@ -132,7 +116,7 @@ scope; do not add machinery solely to carry a giant envelope.
 Before integration:
 
 1. inspect the complete diff and remove unrelated changes;
-2. confirm the narrow claim, non-claims, and affected evidence;
+2. confirm the narrow claim, non-claims, and unchanged pre-freeze evidence, if any;
 3. run the narrowest repository-owned checks required by
    [local verification](local-verification.md);
 4. perform and record a risk-focused review of the actual high-risk delta; and
@@ -151,7 +135,7 @@ not create a second one.
 Stop the affected work, not the whole repository, when:
 
 - the accepted seam cannot express a discovered requirement;
-- an oracle is inconsistent or cannot reach an ordinary positive path;
+- frozen evidence disagrees with the product or cannot reach its ordinary positive path;
 - parallel lanes begin editing the same invariant;
 - a new framework has only hypothetical consumers;
 - the process artifact becomes larger than the product delta; or

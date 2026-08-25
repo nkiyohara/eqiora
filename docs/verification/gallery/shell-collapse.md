@@ -1,5 +1,10 @@
 # Thin cylindrical-shell collapse experience
 
+Under RFC 0088, implement and publish this only as an **Unverified product example** unless it is
+an unchanged projection of a pre-freeze accepted Result. Every later evidence, oracle, falsifier,
+candidate, acceptance, or promotion requirement is frozen historical scope and does not block
+the unverified product path. Do not create or update that evidence.
+
 Status: future-state experience contract. It does not advance any structural
 benchmark or claim shell support.
 
@@ -34,7 +39,7 @@ absent from the public claim and storyboard rather than simulated visually.
 Any deformation exaggeration is fixed and stated. The camera does not move to
 hide a competing mode or contact event.
 
-## Evidence and falsifiers
+## Pre-freeze accepted-result evidence (frozen)
 
 The prerequisite ladder separates:
 
