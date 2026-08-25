@@ -7,11 +7,16 @@ circular through-cut, replays either frozen canonical wire, exposes graph-bound
 face handles, and returns the complete native analytic build receipt.
 
 For the accepted circular-through-cut history, Python can also request the
-exact transverse planar section with an explicit classification tolerance and
-semantic role names. Native Rust derives it through the existing exact planar
-owner. The standard DFG route reproduces its previously frozen 511 canonical
-bytes and digest exactly; the ordinary installed-package cylinder examples now
-author the graph before following the unchanged mesh and solve path.
+exact transverse planar section by passing one `named_topology` mapping to
+`graph.planar_section(...)`. Values are graph-bound face handles or
+same-dimensional sequences of them; arbitrary user names are admitted only
+when the complete section topology is named exactly once. Native Rust derives
+the roles from build lineage and rejects foreign/stale handles, omissions,
+duplicates, mixed dimensions, coordinates, provider labels, and malformed
+mapping values. No caller classification tolerance is involved. The standard
+DFG mapping reproduces its previously frozen 511 canonical bytes and digest
+exactly. The predecessor circle-shaped method remains temporarily available to
+the existing installed-package examples until their separate migration.
 
 The adapter owns no CAD meaning and introduces no numeric oracle. The v1
 731-byte wire and digest come from
@@ -28,10 +33,12 @@ equal geometry observations, and neither graph nor build exposes a misleading
 `geometry_digest`. Canonical wires and foreign graph-bound handles fail closed
 in the native owner rather than being interpreted in Python.
 
-A rectangle-only graph cannot produce the circular section. A
-cut-admitted narrow-clearance graph still rejects when the separately supplied
-Geometry classification tolerance is too large, while plane z, extrusion
-depth, and modeling tolerance cannot leak into transverse planar identity.
+A rectangle-only graph cannot produce the circular section. The predecessor
+compatibility route still rejects a cut-admitted narrow-clearance graph when
+its separately supplied Geometry classification tolerance is too large, while
+plane z, extrusion depth, and modeling tolerance cannot leak into transverse
+planar identity. The atomic mapping route performs no geometric
+classification.
 
 The registered executor rebuilds and installs a non-editable wheel, runs the
 complete public Python contract, and launches a second isolated interpreter.
@@ -44,7 +51,7 @@ cargo run -p eqiora-verify -- run --case interfaces.python-cad-authored-graph
 ```
 
 This case does not claim generic CAD operations, arbitrary profiles, Booleans
-or sections, a public feature enum, meshing, Model construction, new solve or
-Result semantics, Studio section projection, performance, or physical
-validation. Authored-graph identity and derived output-Geometry identity remain
-distinct.
+or sections, a public feature enum, persisted topology-name schema, meshing,
+Model construction, new solve or Result semantics, Studio section projection,
+performance, or physical validation. Authored-graph identity and derived
+output-Geometry identity remain distinct.

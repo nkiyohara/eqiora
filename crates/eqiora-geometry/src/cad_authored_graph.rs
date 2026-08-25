@@ -4,6 +4,7 @@
 //! the frozen rectangle-extrusion v1 wire and the bounded circular-through-cut
 //! v2 wire.  The private sum is not a public feature enum or general B-rep.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::f64::consts::PI;
 
 use eqiora_core::Diagnostic;
@@ -15,7 +16,10 @@ use crate::cad_authored_cut::{CircularThroughCut, GRAPH_SCHEMA_V2, decode_v2, en
 use crate::cad_authored_selection::{CadAuthoredFaceHandle, FaceKey, WireFaceSelectionV1};
 use crate::cad_authored_sketch::CadAuthoredSketch;
 use crate::canonical::{CANONICAL_ENCODING, WireLengthUnit, digest_with_schema};
-use crate::{AxisAlignedBox3, CadRepairDispositionV1, CanonicalGeometryV1, ConstrainedRectangleV1};
+use crate::{
+    AxisAlignedBox3, CadRepairDispositionV1, CanonicalGeometryV1, ConstrainedRectangleV1,
+    EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
+};
 
 const GRAPH_SCHEMA_V1: &str = "eqiora.cad-authored-operation-graph-envelope/v1";
 const MAX_GRAPH_BYTES: usize = 4_096;
@@ -23,6 +27,10 @@ const SKETCH_PLANE_ID: &str = "sketch-plane";
 const PROFILE_ID: &str = "rectangle-profile";
 const FACE_ID: &str = "profile-face";
 const EXTRUSION_ID: &str = "positive-z-extrusion";
+// The admitted analytic section performs no geometric classification. This
+// preserves the existing exact circular-hole Geometry identity while removing
+// classification precision from the authored-graph caller surface.
+const ANALYTIC_PLANAR_SECTION_IDENTITY_TOLERANCE_M: f64 = 1.0e-12;
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_ARTIFACT, message)
@@ -149,6 +157,90 @@ impl CadAuthoredGraph {
             GRAPH_SCHEMA_V2,
             bytes,
         ))
+    }
+
+    /// Project the admitted through-cut result into one exactly named planar Geometry.
+    ///
+    /// The mapping is atomic: every name owns one or more same-dimensional,
+    /// graph-bound result-topology handles, and the complete section topology
+    /// must be covered exactly once. Names are caller data; coordinates,
+    /// proximity, provider-local indices, and mesh labels are never consulted.
+    /// The bounded analytic build is admitted before any naming is published.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` unless this graph contains the admitted circular
+    /// through-cut and the mapping uses only this exact graph's surviving end
+    /// cap, four retained side faces, and created cut wall, with no missing,
+    /// repeated, empty, or mixed-dimensional group.
+    pub fn planar_section(
+        &self,
+        named_topology: &BTreeMap<String, Vec<CadAuthoredFaceHandle>>,
+    ) -> Result<CanonicalGeometryV1, Diagnostic> {
+        let GraphKind::CircularThroughCut(cut) = self.kind else {
+            return Err(invalid(
+                "an exact planar section requires the admitted through-cut history",
+            ));
+        };
+        self.build_analytic()?;
+
+        let mut covered = BTreeSet::new();
+        let mut entity_sets = Vec::with_capacity(named_topology.len());
+        for (name, handles) in named_topology {
+            if handles.is_empty() {
+                return Err(invalid("named planar topology group must not be empty"));
+            }
+            let mut dimension = None;
+            let mut members = Vec::with_capacity(handles.len());
+            for handle in handles {
+                let face = self.resolve_face_key(handle)?;
+                let (next_dimension, member) = planar_section_entity(face).ok_or_else(|| {
+                    invalid(
+                        "CAD face handle is not surviving topology of the positive-z planar section",
+                    )
+                })?;
+                if !covered.insert(face) {
+                    return Err(invalid(
+                        "planar section topology handle must be named exactly once",
+                    ));
+                }
+                if dimension.is_some_and(|current| current != next_dimension) {
+                    return Err(invalid(
+                        "one planar topology name cannot group entities of different dimensions",
+                    ));
+                }
+                dimension = Some(next_dimension);
+                members.push(member);
+            }
+            entity_sets.push(NamedEntitySet::new(
+                name,
+                dimension.expect("nonempty handle group has one dimension"),
+                members,
+            ));
+        }
+
+        let expected = BTreeSet::from([
+            FaceKey::end_cap(),
+            FaceKey::profile_x_lower(),
+            FaceKey::profile_x_upper(),
+            FaceKey::profile_y_lower(),
+            FaceKey::profile_y_upper(),
+            FaceKey::cut_wall(),
+        ]);
+        if covered != expected {
+            return Err(invalid(
+                "named planar topology must cover the complete result section exactly once",
+            ));
+        }
+
+        let (x_lower_m, x_upper_m) = self.core.sketch.x_bounds_m();
+        let (y_lower_m, y_upper_m) = self.core.sketch.y_bounds_m();
+        CanonicalGeometryV1::from_circular_hole(
+            [[x_lower_m, x_upper_m], [y_lower_m, y_upper_m]],
+            cut.center_m(),
+            cut.radius_m(),
+            entity_sets,
+            ANALYTIC_PLANAR_SECTION_IDENTITY_TOLERANCE_M,
+        )
     }
 
     /// Derive one exact planar section from the admitted through-cut history.
@@ -596,6 +688,26 @@ impl CadAuthoredGraph {
     pub(crate) const fn is_cut(&self) -> bool {
         matches!(self.kind, GraphKind::CircularThroughCut(_))
     }
+}
+
+fn planar_section_entity(face: FaceKey) -> Option<(usize, usize)> {
+    if face == FaceKey::end_cap() {
+        return Some((FACE_DIMENSION, 0));
+    }
+    let member = if face == FaceKey::profile_x_lower() {
+        0
+    } else if face == FaceKey::profile_x_upper() {
+        1
+    } else if face == FaceKey::profile_y_lower() {
+        2
+    } else if face == FaceKey::profile_y_upper() {
+        3
+    } else if face == FaceKey::cut_wall() {
+        4
+    } else {
+        return None;
+    };
+    Some((EDGE_DIMENSION, member))
 }
 
 fn validate_extrusion(

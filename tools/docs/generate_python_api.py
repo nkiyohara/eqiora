@@ -31,7 +31,7 @@ RECORD_SHA = "0e040a71c3643cf1478454f0311a4c7c28d1b9623773518c833a948556b75b0c"
 EXPECTED_COUNTS = dict(
     zip(
         "modules qualified_exports grouped_declarations classes top_level_function_nodes grouped_functions aliases method_nodes non_dunder_method_nodes dunder_method_nodes visible_class_assignments authoritative_member_summaries signature_only_non_dunder_members canonical_reexports module_exports version_exports".split(),
-        map(int, "11 129 110 79 40 30 1 626 493 133 47 0 493 11 7 1".split()),
+        map(int, "11 129 110 79 40 30 1 627 494 133 47 0 494 11 7 1".split()),
         strict=True,
     )
 )

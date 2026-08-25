@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use eqiora_geometry::{
     CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1, ConstrainedRectangleV1,
 };
@@ -31,6 +33,45 @@ fn witness() -> CadAuthoredGraph {
     base(1.0e-10)
         .circular_through_cut([0.02, 0.0], 0.008, 1.0e-9)
         .unwrap()
+}
+
+fn dfg_graph() -> CadAuthoredGraph {
+    CadAuthoredGraph::new(
+        ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), 0.0).unwrap(),
+        1.0,
+        1.0e-10,
+    )
+    .unwrap()
+    .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
+    .unwrap()
+}
+
+fn dfg_named_topology(graph: &CadAuthoredGraph) -> BTreeMap<String, Vec<CadAuthoredFaceHandle>> {
+    BTreeMap::from([
+        (
+            "fluid".to_owned(),
+            vec![graph.face_handle("end-cap").unwrap()],
+        ),
+        (
+            "inlet".to_owned(),
+            vec![graph.face_handle("profile-x-lower").unwrap()],
+        ),
+        (
+            "outlet".to_owned(),
+            vec![graph.face_handle("profile-x-upper").unwrap()],
+        ),
+        (
+            "walls".to_owned(),
+            vec![
+                graph.face_handle("profile-y-lower").unwrap(),
+                graph.face_handle("profile-y-upper").unwrap(),
+            ],
+        ),
+        (
+            "cylinder".to_owned(),
+            vec![graph.face_handle("cut-wall").unwrap()],
+        ),
+    ])
 }
 
 fn close(actual: f64, expected: f64) {
@@ -248,14 +289,7 @@ fn wire_and_handles_fail_closed_without_rebinding() {
 
 #[test]
 fn through_cut_derives_the_frozen_exact_planar_section() {
-    let graph = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), 0.0).unwrap(),
-        1.0,
-        1.0e-10,
-    )
-    .unwrap()
-    .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
-    .unwrap();
+    let graph = dfg_graph();
     let section = graph
         .planar_circular_section(
             1.0e-12, "fluid", "inlet", "outlet", "walls", "walls", "cylinder",
@@ -272,6 +306,71 @@ fn through_cut_derives_the_frozen_exact_planar_section() {
         )
         .unwrap();
     assert_ne!(swapped.digest_bytes(), section.digest_bytes());
+}
+
+#[test]
+fn atomic_topology_naming_reproduces_the_frozen_exact_planar_section() {
+    let graph = dfg_graph();
+    let section = graph.planar_section(&dfg_named_topology(&graph)).unwrap();
+
+    assert_eq!(section.canonical_bytes(), DFG_SECTION_WIRE.as_bytes());
+    assert_eq!(section.digest_bytes(), DFG_SECTION_DIGEST);
+
+    let mut arbitrary = dfg_named_topology(&graph);
+    let inlet = arbitrary.remove("inlet").unwrap();
+    arbitrary.insert("left boundary".to_owned(), inlet);
+    let renamed = graph.planar_section(&arbitrary).unwrap();
+    assert_eq!(renamed.entity_set("left boundary").unwrap().dimension(), 1);
+    assert!(renamed.entity_set("inlet").is_none());
+}
+
+#[test]
+fn atomic_topology_naming_rejects_foreign_incomplete_and_ambiguous_mappings() {
+    let graph = dfg_graph();
+    let foreign = CadAuthoredGraph::new(
+        ConstrainedRectangleV1::new((0.0, 2.3), (0.0, 0.41), 0.0).unwrap(),
+        1.0,
+        1.0e-10,
+    )
+    .unwrap()
+    .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
+    .unwrap();
+
+    let mut named = dfg_named_topology(&graph);
+    named.insert(
+        "cylinder".to_owned(),
+        vec![foreign.face_handle("cut-wall").unwrap()],
+    );
+    assert!(graph.planar_section(&named).is_err());
+
+    let mut named = dfg_named_topology(&graph);
+    named.remove("outlet");
+    assert!(graph.planar_section(&named).is_err());
+
+    let mut named = dfg_named_topology(&graph);
+    named.insert("empty".to_owned(), Vec::new());
+    assert!(graph.planar_section(&named).is_err());
+
+    let mut named = dfg_named_topology(&graph);
+    named
+        .get_mut("walls")
+        .unwrap()
+        .push(graph.face_handle("profile-x-lower").unwrap());
+    assert!(graph.planar_section(&named).is_err());
+
+    let mut named = dfg_named_topology(&graph);
+    named
+        .get_mut("walls")
+        .unwrap()
+        .push(graph.face_handle("end-cap").unwrap());
+    assert!(graph.planar_section(&named).is_err());
+
+    let mut named = dfg_named_topology(&graph);
+    named.insert(
+        "fluid".to_owned(),
+        vec![graph.face_handle("start-cap").unwrap()],
+    );
+    assert!(graph.planar_section(&named).is_err());
 }
 
 #[test]

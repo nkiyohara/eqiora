@@ -9,6 +9,7 @@ capabilities = [
   "python-graph-bound-face-provenance",
   "python-complete-analytic-cad-build-receipt",
   "python-graph-derived-exact-planar-section",
+  "python-atomic-post-build-topology-naming",
 ]
 
 [problem]
@@ -28,6 +29,9 @@ complete_build_lineage_and_tolerance_receipt_equal = true
 derived_exact_section_bytes_and_digest_equal_existing_geometry_oracle = true
 ordinary_exact_cylinder_demo_authors_the_graph_first = true
 immutable_public_values_and_collections = true
+single_mapping_input_only = true
+arbitrary_user_chosen_names = true
+complete_graph_bound_topology_before_geometry_publication = true
 isolated_interpreter_public_api = true
 
 [falsifiers]
@@ -40,12 +44,15 @@ rectangle_only_section = "structured-native-validation-error"
 section_role_swap = "different-exact-geometry-identity"
 section_nonplanar_fact_leakage = "depth-plane-z-and-modeling-tolerance-do-not-enter-planar-identity"
 editable_or_source_tree_import = "installed-wheel-gate-does-not-use-it"
+non_mapping_or_non_handle_value = "python-type-error-before-native-admission"
+foreign_incomplete_duplicate_or_mixed_topology = "structured-native-validation-error-before-geometry-publication"
 
 [claim_boundary]
 transparent_projection_of_existing_native_contract = true
 one_rectangle_extrusion_and_one_circular_through_cut = true
 authored_graph_identity_not_output_geometry_identity = true
 one_transverse_section_of_the_admitted_through_cut = true
+construction_derived_topology_naming = true
 existing_exact_geometry_owner_and_wire_unchanged = true
 new_geometry_or_numeric_oracle = false
 generic_operation_dag_or_public_feature_enum = false

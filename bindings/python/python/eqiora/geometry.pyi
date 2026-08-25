@@ -3,6 +3,7 @@
 Authority: ``bindings/python/python/eqiora/geometry.py``.
 """
 
+from collections.abc import Mapping, Sequence
 from typing import final
 
 @final
@@ -94,6 +95,14 @@ class CadAuthoredGraph:
         *,
         boolean_tolerance: float,
     ) -> CadAuthoredGraph: ...
+    def planar_section(
+        self,
+        *,
+        named_topology: Mapping[
+            str,
+            CadAuthoredFaceHandle | Sequence[CadAuthoredFaceHandle],
+        ],
+    ) -> Geometry: ...
     def planar_circular_section(
         self,
         *,

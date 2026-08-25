@@ -420,6 +420,46 @@ def test_planar_section_preserves_distinct_y_roles_and_ignores_nonplanar_facts()
         )
 
 
+def test_atomic_topology_mapping_uses_build_lineage_without_classification_input() -> None:
+    graph = dfg_cut()
+    named_topology = {
+        "fluid": graph.face_handle("end-cap"),
+        "inlet": graph.face_handle("profile-x-lower"),
+        "outlet": graph.face_handle("profile-x-upper"),
+        "walls": (
+            graph.face_handle("profile-y-lower"),
+            graph.face_handle("profile-y-upper"),
+        ),
+        "cylinder": graph.face_handle("cut-wall"),
+    }
+    section = graph.planar_section(named_topology=named_topology)
+    predecessor = dfg_section(graph)
+    assert section.canonical_bytes == predecessor.canonical_bytes
+    assert section.digest == predecessor.digest
+
+    arbitrary = dict(named_topology)
+    arbitrary["left boundary"] = arbitrary.pop("inlet")
+    renamed = graph.planar_section(named_topology=arbitrary)
+    assert "left boundary" in renamed.selection_names
+    assert "inlet" not in renamed.selection_names
+
+    with pytest.raises(TypeError):
+        graph.planar_section(named_topology=[])
+    with pytest.raises(eqiora.ValidationError):
+        graph.planar_section(
+            named_topology={
+                key: value for key, value in named_topology.items() if key != "outlet"
+            }
+        )
+    with pytest.raises(eqiora.ValidationError):
+        graph.planar_section(
+            named_topology={
+                **named_topology,
+                "fluid": graph.face_handle("start-cap"),
+            }
+        )
+
+
 def test_runtime_surface_and_installed_stub_name_the_same_bounded_api() -> None:
     expected = {
         eqiora.geometry.CadAuthoredFaceHandle: {
@@ -450,6 +490,7 @@ def test_runtime_surface_and_installed_stub_name_the_same_bounded_api() -> None:
             "decode_canonical",
             "circular_through_cut",
             "through_cut",
+            "planar_section",
             "planar_circular_section",
             "canonical_bytes",
             "graph_digest",

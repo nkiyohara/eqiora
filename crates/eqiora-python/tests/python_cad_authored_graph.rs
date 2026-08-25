@@ -101,6 +101,40 @@ assert section.canonical_bytes == expected_section_wire
 assert section.digest == expected_section_digest
 assert section.selection_names == ("cylinder", "inlet", "outlet", "walls", "fluid")
 
+named_topology = {
+    "fluid": dfg_graph.face_handle("end-cap"),
+    "inlet": dfg_graph.face_handle("profile-x-lower"),
+    "outlet": dfg_graph.face_handle("profile-x-upper"),
+    "walls": (
+        dfg_graph.face_handle("profile-y-lower"),
+        dfg_graph.face_handle("profile-y-upper"),
+    ),
+    "cylinder": dfg_graph.face_handle("cut-wall"),
+}
+common_section = dfg_graph.planar_section(named_topology=named_topology)
+assert common_section.canonical_bytes == expected_section_wire
+assert common_section.digest == expected_section_digest
+
+arbitrary_names = dict(named_topology)
+arbitrary_names["left boundary"] = arbitrary_names.pop("inlet")
+renamed = dfg_graph.planar_section(named_topology=arbitrary_names)
+assert "left boundary" in renamed.selection_names
+assert "inlet" not in renamed.selection_names
+
+for invalid in (
+    [],
+    {**named_topology, "empty": ()},
+    {key: value for key, value in named_topology.items() if key != "outlet"},
+    {**named_topology, "fluid": dfg_graph.face_handle("start-cap")},
+    {**named_topology, "walls": (named_topology["walls"],)},
+):
+    try:
+        dfg_graph.planar_section(named_topology=invalid)
+    except (TypeError, eqiora.ValidationError):
+        pass
+    else:
+        raise AssertionError("invalid topology mapping reached Geometry publication")
+
 canonical = graph.canonical_bytes
 digest = graph.graph_digest
 "#

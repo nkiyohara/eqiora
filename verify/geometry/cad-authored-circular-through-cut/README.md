@@ -7,10 +7,15 @@ negative z. The result remains exact analytic meaning: the circle and cylinder
 are never replaced by chords, elements, or renderer facets.
 
 The same graph now derives its exact transverse rectangle-minus-circle section
-through the pre-existing planar Geometry owner. Geometry classification
-tolerance and six semantic role names are supplied explicitly; neither the
-Boolean tolerance nor the modeling tolerance is reused. The DFG section is the
-already accepted 511-byte value with digest
+through the pre-existing planar Geometry owner. The ordinary route supplies one
+atomic name-to-handle mapping after the build: each arbitrary user name owns one
+graph-bound end-cap face or same-dimensional sequence of retained/created side
+faces, and the complete section topology must be covered exactly once. Native
+lineage, rather than coordinates, proximity, provider IDs, mesh labels, or a
+caller classification tolerance, determines every role. The predecessor
+circle-shaped method remains temporarily as a compatibility route and is the
+only route that accepts an explicit Geometry classification tolerance. The DFG
+section is the already accepted 511-byte value with digest
 `b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9`,
 so this route adds lineage rather than another circle or mesh semantics.
 
@@ -43,6 +48,7 @@ cargo test -p eqiora-geometry --test cad_authored_circular_through_cut
 cargo run -p eqiora-verify -- run --case geometry.cad-authored-circular-through-cut
 ```
 
-This is not a general feature DAG, B-rep or CSG schema, multiple/blind-hole
-system, production CAD-kernel Boolean, healing or per-entity tolerance system,
-mesh, solver, Python/Studio projection, or renderer claim.
+This is not a general feature DAG, B-rep or CSG schema, arbitrary section
+extractor, multiple/blind-hole system, production CAD-kernel Boolean, healing
+or per-entity tolerance system, mesh, solver, Studio projection, or renderer
+claim.
