@@ -60,6 +60,13 @@ VOID_TAGS = frozenset(
     }
 )
 RAW_LINK_ATTRIBUTES = frozenset({"class", "data-notable-ty", "href", "title"})
+ORDERED_IMPLEMENTATION_LIST_IDS = frozenset(
+    {
+        "trait-implementations-list",
+        "synthetic-implementations-list",
+        "blanket-implementations-list",
+    }
+)
 SPECIAL_HIDEME_LABELS = frozenset(
     {
         "Show 13 fields",
@@ -249,6 +256,86 @@ def _script_markup(root: _Element) -> list[str]:
     return [_render(node) for node in root.descendants() if node.tag == "script"]
 
 
+def _implementation_key(implementation: _Element, context: str) -> str:
+    if implementation.tag == "section" and "impl" in implementation.classes():
+        identifier = implementation.attr("id")
+        if not identifier:
+            raise RustReferenceError(
+                f"{context}: implementation section lacks one stable id"
+            )
+        return identifier
+    summaries = _direct(implementation, "summary")
+    if len(summaries) != 1:
+        raise RustReferenceError(
+            f"{context}: implementation toggle must have exactly one direct summary"
+        )
+    sections = _direct(summaries[0], "section")
+    if len(sections) != 1 or not sections[0].attr("id"):
+        raise RustReferenceError(
+            f"{context}: implementation toggle lacks one stable direct section id"
+        )
+    return sections[0].attr("id") or ""
+
+
+def _canonicalize_implementation_order(root: _Element, context: str) -> None:
+    containers = [
+        node
+        for node in root.descendants()
+        if node.attr("id") in ORDERED_IMPLEMENTATION_LIST_IDS
+    ]
+    identities = [container.attr("id") for container in containers]
+    if len(identities) != len(set(identities)):
+        raise RustReferenceError(f"{context}: duplicate implementation-list identity")
+    for container in containers:
+        assert container.children is not None
+        if any(
+            isinstance(child, str) and child.strip() for child in container.children
+        ):
+            raise RustReferenceError(
+                f"{context}: implementation list contains non-whitespace text"
+            )
+        elements = [
+            child for child in container.children if isinstance(child, _Element)
+        ]
+        if any(
+            not (
+                child.tag == "details"
+                and "toggle" in child.classes()
+                or child.tag == "section"
+                and "impl" in child.classes()
+            )
+            for child in elements
+        ):
+            raise RustReferenceError(
+                f"{context}: implementation list contains an unknown element"
+            )
+        all_keys = [_implementation_key(element, context) for element in elements]
+        if len(all_keys) != len(set(all_keys)):
+            raise RustReferenceError(
+                f"{context}: implementation list has duplicate stable section ids"
+            )
+        # Rustdoc deliberately renders expandable and non-expandable impls in
+        # separate runs. Preserve those no-JavaScript presentation runs while
+        # removing compiler traversal order from each run.
+        for tag in ("details", "section"):
+            positions = [
+                offset
+                for offset, child in enumerate(container.children)
+                if isinstance(child, _Element) and child.tag == tag
+            ]
+            implementations = [container.children[offset] for offset in positions]
+            ordered = sorted(
+                implementations,
+                key=lambda child: (
+                    _implementation_key(child, context)
+                    if isinstance(child, _Element)
+                    else ""
+                ),
+            )
+            for offset, implementation in zip(positions, ordered, strict=True):
+                container.children[offset] = implementation
+
+
 def _canonical_start(tag: str, attrs: list[tuple[str, str | None]]) -> str:
     rendered = [f"<{tag}"]
     for name, value in attrs:
@@ -282,6 +369,7 @@ def _project_anchor(anchor: _Element, context: str) -> str:
 
 def _project_document(source: str, context: str) -> tuple[str, _ProjectionStats]:
     root = _parse_document(source, context)
+    _canonicalize_implementation_order(root, context)
     original_hrefs = _active_hrefs(root)
     original_scripts = _script_markup(root)
     nodes = root.descendants()
