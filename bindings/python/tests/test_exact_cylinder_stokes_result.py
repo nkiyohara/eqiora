@@ -8,6 +8,8 @@ import hashlib
 import importlib.resources
 import json
 import math
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +23,15 @@ import eqiora
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "exact_cylinder_stokes.py"
+EXACT_GMSH_GEOMETRY = (
+    REPOSITORY_ROOT
+    / "verify"
+    / "fluid"
+    / "exact-circular-hole-stokes-2d-gmsh"
+    / "routes"
+    / "python"
+    / "geometry.geo"
+)
 PACKAGED_MODEL = (
     importlib.resources.files("eqiora")
     .joinpath("examples")
@@ -51,6 +62,7 @@ PRECONDITIONER = "identity"
 REDUCTION = "fast"
 SOLVER_BACKEND = "eqiora.faer"
 WORKERS = 1
+GMSH_VERSION = "4.15.2"
 
 INTENT_ARGUMENTS: dict[str, Any] = {
     "length_scale_m": LENGTH_SCALE_M,
@@ -325,6 +337,62 @@ def solve(realized: Any, *, model: bytes | None = None) -> Any:
     current = replayed(model)
     resolved = eqiora.fluid.resolve(current, intent(), mesh=realized)
     return eqiora.submit(current, plan=resolved).result()
+
+
+def configured_gmsh() -> Path:
+    explicit = os.environ.get("EQIORA_GMSH")
+    discovered = explicit if explicit is not None else shutil.which("gmsh")
+    assert discovered is not None, (
+        "this evidence requires Gmsh 4.15.2 through EQIORA_GMSH or PATH"
+    )
+    executable = Path(discovered).resolve()
+    completed = subprocess.run(
+        [str(executable), "--version"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert completed.stderr == ""
+    assert completed.stdout.strip() == GMSH_VERSION
+    return executable
+
+
+def test_imported_gmsh_mesh_reaches_the_existing_stokes_plan_boundary(
+    tmp_path: Path,
+) -> None:
+    msh = tmp_path / "accepted.msh"
+    subprocess.run(
+        [
+            str(configured_gmsh()),
+            "-2",
+            str(EXACT_GMSH_GEOMETRY),
+            "-o",
+            str(msh),
+            "-format",
+            "msh41",
+            "-v",
+            "2",
+        ],
+        check=True,
+        timeout=30,
+    )
+    source = geometry()
+    imported = eqiora.meshing.import_gmsh(
+        source,
+        msh.read_bytes(),
+        request=eqiora.meshing.MeshRequest(
+            maximum_boundary_error=1.0e-4,
+            minimum_mean_ratio=1.0e-5,
+            maximum_boundary_facets=50,
+        ),
+    )
+
+    resolved = resolve_plan(imported)
+    assert resolved.geometry_digest == source.digest == imported.source_digest
+    assert resolved.mesh_digest == imported.digest
+    assert resolved.correspondence_digest == imported.correspondence_digest
+    assert imported.external_import_manifest_bytes is not None
 
 
 @pytest.fixture(scope="module")

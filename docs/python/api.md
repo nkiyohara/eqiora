@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 11 module summaries and all 108 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 487 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 11 module summaries and all 109 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 489 signature-only entries under documented owning types**.
 
-Inventory: 11 modules, 127 literal public spellings, 108 canonical grouped declarations, 617 visible method signatures (487 non-dunder and 130 dunder), and 47 visible class assignments.
+Inventory: 11 modules, 128 literal public spellings, 109 canonical grouped declarations, 619 visible method signatures (489 non-dunder and 130 dunder), and 47 visible class assignments.
 
 Regenerate with:
 
@@ -1780,6 +1780,10 @@ class Mesh:
     @property
     def realization_digest(self) -> str: ...
     @property
+    def external_import_manifest_bytes(self) -> bytes | None: ...
+    @property
+    def external_import_manifest_digest(self) -> str | None: ...
+    @property
     def canonical_bytes(self) -> bytes: ...
     @property
     def dimension(self) -> int: ...
@@ -1861,6 +1865,24 @@ Authority: [`crates/eqiora-python/src/meshing/mesh.rs::generate`](../../crates/e
 
 ```python
 def generate(geometry: Geometry, /, *, plan: MeshPlan) -> Mesh: ...
+```
+
+<a id="api-eqiora-meshing-import_gmsh"></a>
+
+### `eqiora.meshing.import_gmsh`
+
+Import one complete Gmsh MSH 4.1 image into the common Mesh.
+
+The current boundary accepts affine two-dimensional triangles for the
+supplied exact circular-hole Geometry. `request` explicitly owns the
+boundary-realization and quality policy. External source, adapter,
+normalized-array, and accepted-Mesh identities are retained by
+`Mesh.external_import_manifest_bytes`.
+
+Authority: [`crates/eqiora-python/src/meshing/mesh.rs::import_gmsh`](../../crates/eqiora-python/src/meshing/mesh.rs)
+
+```python
+def import_gmsh(geometry: Geometry, source: bytes, /, *, request: MeshRequest) -> Mesh: ...
 ```
 
 <a id="api-eqiora-meshing-resolve"></a>

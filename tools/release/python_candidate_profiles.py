@@ -57,6 +57,16 @@ PYTHON_TEST_FIXTURES = (
     Path("verify/interfaces/python-package-conformance"),
     Path("verify/interfaces/python-offline-model-package/models/typed-execution-lineage"),
 )
+PYTHON_TEST_RESOURCES = (
+    Path(
+        "verify/fluid/flow-past-cylinder-mesh-family-private/"
+        "references/primary-l0.msh"
+    ),
+    Path(
+        "verify/fluid/exact-circular-hole-stokes-2d-gmsh/"
+        "routes/python/geometry.geo"
+    ),
+)
 
 COMPLETE_PROFILE_NAMES = (
     "base-3.11",
@@ -385,6 +395,10 @@ def prepare_base_consumer_tree(extracted: Path, run_root: Path) -> tuple[Path, P
     shutil.copytree(extracted / "bindings/python/typecheck", typecheck)
     for relative in PYTHON_TEST_FIXTURES:
         shutil.copytree(extracted / relative, run_root / relative)
+    for relative in PYTHON_TEST_RESOURCES:
+        destination = run_root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(extracted / relative, destination)
     return tests, typecheck
 
 

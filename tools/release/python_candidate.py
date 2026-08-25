@@ -79,6 +79,7 @@ EXACT_CYLINDER_STOKES_MARIMO_MUTANT_FAILURE = (
     "ModuleNotFoundError: No module named 'examples'"
 )
 PYTHON_TEST_FIXTURES = candidate_profiles.PYTHON_TEST_FIXTURES
+PYTHON_TEST_RESOURCES = candidate_profiles.PYTHON_TEST_RESOURCES
 GIT_SHA = re.compile(r"[0-9a-f]{40}")
 
 

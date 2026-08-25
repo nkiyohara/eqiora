@@ -17,7 +17,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyBytes, PyDict, PyTuple};
 use sha2::{Digest, Sha256};
 
-use super::plan::PyMeshPlan;
+use super::plan::{PyMeshPlan, PyMeshRequest};
 use super::request_error;
 use crate::error::{diagnostic_error, validation_error};
 use crate::geometry::{PyGeometry, digest_to_hex};
@@ -65,8 +65,16 @@ enum PresentationState {
 }
 
 enum AcceptedMeshSource {
-    Chordal(Box<AcceptedCircularHoleChordalRealizationV1>),
+    Chordal {
+        accepted: Box<AcceptedCircularHoleChordalRealizationV1>,
+        external_import: Option<Box<ExternalImportLineage>>,
+    },
     Cartesian,
+}
+
+struct ExternalImportLineage {
+    canonical_bytes: Vec<u8>,
+    digest: String,
 }
 
 struct MeshLineage {
@@ -112,6 +120,20 @@ impl PyMesh {
         &self.lineage.realization_digest
     }
 
+    /// Canonical external-import manifest, or None for non-imported Meshes.
+    #[getter]
+    fn external_import_manifest_bytes(&self, py: Python<'_>) -> Option<Py<PyBytes>> {
+        self.external_import()
+            .map(|lineage| PyBytes::new(py, &lineage.canonical_bytes).unbind())
+    }
+
+    /// Identity of the external-import manifest, or None otherwise.
+    #[getter]
+    fn external_import_manifest_digest(&self) -> Option<&str> {
+        self.external_import()
+            .map(|lineage| lineage.digest.as_str())
+    }
+
     /// Canonical bytes of the accepted common Mesh artifact.
     #[getter]
     fn canonical_bytes(&self, py: Python<'_>) -> Py<PyBytes> {
@@ -149,7 +171,7 @@ impl PyMesh {
     #[getter]
     fn minimum_mean_ratio(&self, py: Python<'_>) -> PyResult<f64> {
         match &self.source {
-            AcceptedMeshSource::Chordal(accepted) => {
+            AcceptedMeshSource::Chordal { accepted, .. } => {
                 Ok(accepted.mesh().mesh().quality_report().minimum_mean_ratio())
             }
             AcceptedMeshSource::Cartesian => Err(capability_error(
@@ -162,7 +184,7 @@ impl PyMesh {
     #[getter]
     fn selection_names(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         let names = match &self.source {
-            AcceptedMeshSource::Chordal(accepted) => accepted
+            AcceptedMeshSource::Chordal { accepted, .. } => accepted
                 .source()
                 .entity_sets()
                 .iter()
@@ -179,7 +201,7 @@ impl PyMesh {
     /// Count mesh entities proven to realize one exact-source selection.
     fn selection_entity_count(&self, py: Python<'_>, name: &str) -> PyResult<usize> {
         match &self.source {
-            AcceptedMeshSource::Chordal(accepted) => accepted
+            AcceptedMeshSource::Chordal { accepted, .. } => accepted
                 .correspondence()
                 .region_entity_set_entities(accepted.realized_geometry(), name)
                 .map(|entities| entities.len())
@@ -344,7 +366,10 @@ impl PyMesh {
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
 
         Ok(Self {
-            source: AcceptedMeshSource::Chordal(Box::new(accepted)),
+            source: AcceptedMeshSource::Chordal {
+                accepted: Box::new(accepted),
+                external_import: None,
+            },
             lineage: MeshLineage {
                 source_digest,
                 realized_geometry_digest,
@@ -360,6 +385,30 @@ impl PyMesh {
             cells,
             presentation: Mutex::new(PresentationState::Empty),
         })
+    }
+
+    fn from_imported(py: Python<'_>, imported: super::gmsh::ImportedGmshMesh) -> PyResult<Self> {
+        let manifest_digest = imported
+            .manifest
+            .digest()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
+            .to_string();
+        let manifest_bytes = imported
+            .manifest
+            .canonical_json()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        let mut mesh = Self::from_accepted(py, imported.accepted)?;
+        let AcceptedMeshSource::Chordal {
+            external_import, ..
+        } = &mut mesh.source
+        else {
+            unreachable!("from_accepted always publishes a chordal Mesh")
+        };
+        *external_import = Some(Box::new(ExternalImportLineage {
+            canonical_bytes: manifest_bytes,
+            digest: manifest_digest,
+        }));
+        Ok(mesh)
     }
 
     pub(crate) fn from_cartesian(
@@ -422,7 +471,7 @@ impl PyMesh {
         py: Python<'_>,
     ) -> PyResult<&AcceptedCircularHoleChordalRealizationV1> {
         match &self.source {
-            AcceptedMeshSource::Chordal(accepted) => Ok(accepted),
+            AcceptedMeshSource::Chordal { accepted, .. } => Ok(accepted),
             AcceptedMeshSource::Cartesian => Err(capability_error(
                 py,
                 "this operation requires an accepted affine-triangle Mesh",
@@ -441,7 +490,7 @@ impl PyMesh {
     }
 
     fn is_exact_notebook_reference(&self) -> bool {
-        if !matches!(self.source, AcceptedMeshSource::Chordal(_))
+        if !matches!(self.source, AcceptedMeshSource::Chordal { .. })
             || self.lineage.source_digest != REFERENCE_SOURCE_DIGEST
             || self.canonical_bytes.len() != REFERENCE_CANONICAL_BYTES
             || self.lineage.mesh_digest != REFERENCE_MESH_DIGEST
@@ -458,6 +507,15 @@ impl PyMesh {
         hex_digest(&framed.finalize()) == REFERENCE_MESH_DIGEST
     }
 
+    fn external_import(&self) -> Option<&ExternalImportLineage> {
+        match &self.source {
+            AcceptedMeshSource::Chordal {
+                external_import, ..
+            } => external_import.as_deref(),
+            AcceptedMeshSource::Cartesian => None,
+        }
+    }
+
     fn set_presentation_state(&self, next: PresentationState) -> PyResult<()> {
         let mut state = self
             .presentation
@@ -466,6 +524,35 @@ impl PyMesh {
         *state = next;
         Ok(())
     }
+}
+
+/// Import one complete Gmsh MSH 4.1 image into the common accepted Mesh.
+#[pyfunction]
+#[pyo3(signature = (geometry, source, /, *, request))]
+pub(super) fn import_gmsh(
+    py: Python<'_>,
+    geometry: &PyGeometry,
+    source: &[u8],
+    request: PyRef<'_, PyMeshRequest>,
+) -> PyResult<PyMesh> {
+    panic_boundary(py, || {
+        let geometry = geometry.geometry().clone();
+        let source = source.to_vec();
+        let request = *request;
+        let imported = py.detach(move || {
+            let quality_gate = eqiora::meshing::MeshQualityGate::new(request.minimum_mean_ratio)?;
+            let reference = AcceptedCircularHoleChordalRealizationV1::from_reference(
+                &geometry,
+                request.maximum_boundary_error,
+                request.maximum_boundary_facets,
+                quality_gate,
+            )?;
+            super::gmsh::import(&source, &reference, quality_gate)
+        });
+        imported
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+            .and_then(|imported| PyMesh::from_imported(py, imported))
+    })
 }
 
 enum AdapterOutcome {

@@ -25,6 +25,14 @@ import eqiora
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "exact_cylinder_mesh.py"
+IMPORTED_L0_MESH = (
+    REPOSITORY_ROOT
+    / "verify"
+    / "fluid"
+    / "flow-past-cylinder-mesh-family-private"
+    / "references"
+    / "primary-l0.msh"
+)
 
 GEOMETRY_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 MESH_SCHEMA = b"eqiora.simplicial-mesh-envelope/v1"
@@ -201,6 +209,17 @@ def realize(
     return eqiora.meshing.generate(source, plan=plan)
 
 
+def import_l0(authored: object | None = None, source: bytes | None = None) -> object:
+    return eqiora.meshing.import_gmsh(
+        geometry() if authored is None else authored,
+        IMPORTED_L0_MESH.read_bytes() if source is None else source,
+        request=request(
+            maximum_boundary_error=4.0e-3,
+            maximum_boundary_facets=8,
+        ),
+    )
+
+
 def assert_structured_validation(operation: Callable[[], object]) -> None:
     with pytest.raises(eqiora.ValidationError) as caught:
         operation()
@@ -368,6 +387,8 @@ def test_gmsh_mesh_replays_the_frozen_public_artifact() -> None:
     assert plan.achieved_minimum_mean_ratio == MINIMUM_MEAN_RATIO
     assert mesh.minimum_mean_ratio == MINIMUM_MEAN_RATIO
     assert mesh.minimum_mean_ratio >= plan.request.minimum_mean_ratio
+    assert mesh.external_import_manifest_bytes is None
+    assert mesh.external_import_manifest_digest is None
     assert affine_quality_observations(mesh) == (
         MINIMUM_MEAN_RATIO,
         MINIMUM_SIGNED_MEASURE_SCALE,
@@ -420,6 +441,52 @@ def test_gmsh_mesh_replays_the_frozen_public_artifact() -> None:
     }
     assert "source" not in document
     assert "source_digest" not in document
+
+
+def test_caller_owned_gmsh_bytes_reach_the_common_mesh_with_distinct_provenance() -> None:
+    source = IMPORTED_L0_MESH.read_bytes()
+    mesh = import_l0(source=source)
+
+    assert type(mesh).__name__ == "Mesh"
+    assert mesh.source_digest == geometry().digest
+    assert mesh.dimension == 2
+    assert mesh.vertex_count > 0 and mesh.cell_count > 0
+    assert not mesh.coordinates.flags.writeable
+    assert not mesh.cells.flags.writeable
+    assert mesh.external_import_manifest_bytes is not None
+    assert mesh.external_import_manifest_digest is not None
+
+    manifest = json.loads(mesh.external_import_manifest_bytes)
+    assert manifest["schema"] == "eqiora.external-import-manifest/v1"
+    assert manifest["adapter"]["id"] == "eqiora.gmsh"
+    assert manifest["adapter"]["version"]
+    assert manifest["runtime_stack"] == []
+    assert manifest["sources"][0]["source_sha256"] == hashlib.sha256(source).hexdigest()
+    assert manifest["resolved_arrays"][0]["storage_display_selector"] == "Nodes"
+    assert manifest["resolved_arrays"][1]["storage_display_selector"] == "Elements"
+    assert manifest["accepted_artifacts"] == [
+        {
+            "ordinal": 0,
+            "role": "mesh",
+            "artifact_sha256": mesh.digest,
+        }
+    ]
+    assert (
+        hashlib.sha256(
+            manifest["schema"].encode()
+            + b"\0"
+            + mesh.external_import_manifest_bytes
+        ).hexdigest()
+        == mesh.external_import_manifest_digest
+    )
+    assert set(mesh.selection_names) == set(SELECTION_COUNTS)
+    assert all(mesh.selection_entity_count(name) > 0 for name in mesh.selection_names)
+
+
+def test_caller_owned_gmsh_import_fails_before_mesh_publication() -> None:
+    assert_structured_validation(lambda: import_l0(source=b"not a Gmsh mesh\n"))
+    foreign = geometry(bounds=((0.0, 2.3), (0.0, 0.41)))
+    assert_structured_validation(lambda: import_l0(authored=foreign))
 
 
 def test_plan_publishes_the_exact_mesh_it_inspected(
@@ -879,11 +946,18 @@ def test_unknown_realized_selection_is_structured_validation() -> None:
 
 
 def test_meshing_surface_uses_common_boundaries_without_overclaiming() -> None:
-    for supported in ("Mesh", "MeshPlan", "MeshRequest", "generate", "resolve"):
+    for supported in (
+        "Mesh",
+        "MeshPlan",
+        "MeshRequest",
+        "generate",
+        "import_gmsh",
+        "resolve",
+    ):
         assert hasattr(eqiora.meshing, supported)
     for removed in ("CircularHoleChordalMesh", "circular_hole_chordal"):
         assert not hasattr(eqiora.meshing, removed)
-    for unsupported in ("import_gmsh", "Triangular", "Quality"):
+    for unsupported in ("Triangular", "Quality"):
         assert not hasattr(eqiora.meshing, unsupported)
 
     mesh = realize()

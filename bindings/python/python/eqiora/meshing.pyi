@@ -77,6 +77,10 @@ class Mesh:
     @property
     def realization_digest(self) -> str: ...
     @property
+    def external_import_manifest_bytes(self) -> bytes | None: ...
+    @property
+    def external_import_manifest_digest(self) -> str | None: ...
+    @property
     def canonical_bytes(self) -> bytes: ...
     @property
     def dimension(self) -> int: ...
@@ -116,4 +120,24 @@ def generate(geometry: Geometry, /, *, plan: MeshPlan) -> Mesh:
 
     ...
 
-__all__ = ["Mesh", "MeshPlan", "MeshRequest", "generate", "resolve"]
+def import_gmsh(
+    geometry: Geometry,
+    source: bytes,
+    /,
+    *,
+    request: MeshRequest,
+) -> Mesh:
+    """Import one complete Gmsh MSH 4.1 image into the common Mesh.
+
+    The current boundary accepts affine two-dimensional triangles for the
+    supplied exact circular-hole Geometry. ``request`` explicitly owns the
+    boundary-realization and quality policy. External source, adapter,
+    normalized-array, and accepted-Mesh identities are retained by
+    ``Mesh.external_import_manifest_bytes``.
+
+    Authority: ``crates/eqiora-python/src/meshing/mesh.rs::import_gmsh``.
+    """
+
+    ...
+
+__all__ = ["Mesh", "MeshPlan", "MeshRequest", "generate", "import_gmsh", "resolve"]
