@@ -1207,13 +1207,13 @@ facet membership and exposes no competing mesh-local tolerance. Exact bounds
 still determine entity topology; mesh quality, solver acceptance, CAD healing,
 and future import uncertainty remain separate policies.
 
-Construction-owned planar Geometry v2 is a separate identity domain rather
-than a reinterpretation of that classifier-bearing contract. The accepted
-authored-CAD build projects explicit retained and created lineage into opaque
-dimension-carrying result handles bound to the exact graph/build identity.
-Complete naming consumes those handles atomically and therefore needs neither
-coordinates nor a `tolerance_m`; finite strict-positive-clearance predicates
-admit the same construction under uniform scaling. Imported or otherwise
+Planar circular-hole Geometry v2 is a separate provenance-neutral identity
+domain rather than a reinterpretation of that classifier-bearing contract. Its
+content is finite bounds, centre, radius, and complete named membership; it
+persists no graph, build, provider, lineage, or `tolerance_m`. Separately, the
+accepted authored-CAD producer projects retained and created lineage into
+crate-private dimension-carrying result handles bound to the exact graph
+identity, then validates complete atomic naming. Imported or otherwise
 untracked topology still requires an explicit identity-bearing classification
 policy at its correspondence/Realization boundary. V1 decoding and its
 classification semantics remain unchanged.

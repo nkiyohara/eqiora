@@ -597,6 +597,10 @@ impl CadAuthoredGraph {
         matches!(self.kind, GraphKind::CircularThroughCut(_))
     }
 
+    #[allow(
+        dead_code,
+        reason = "crate-private foundation awaiting the first public naming consumer in issue 530"
+    )]
     pub(crate) fn planar_cut_parts(&self) -> Option<([[f64; 2]; 2], [f64; 2], f64)> {
         let GraphKind::CircularThroughCut(cut) = self.kind else {
             return None;

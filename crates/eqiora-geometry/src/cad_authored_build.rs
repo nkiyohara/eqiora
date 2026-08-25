@@ -227,7 +227,11 @@ impl CadAuthoredBuild {
     /// Returns `EQ0901` when the build and graph identities differ, the graph
     /// is not the admitted circular through-cut, or lineage is incomplete,
     /// mutated, deleted, split, merged, or ambiguous.
-    pub fn result_topology(
+    #[allow(
+        dead_code,
+        reason = "crate-private foundation awaiting the first public naming consumer in issue 530"
+    )]
+    pub(crate) fn result_topology(
         &self,
         graph: &CadAuthoredGraph,
     ) -> Result<CadAuthoredResultTopology, Diagnostic> {

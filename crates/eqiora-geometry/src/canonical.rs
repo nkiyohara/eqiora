@@ -14,7 +14,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::circular_hole::CircularHoleGeometry;
-use crate::{CanonicalGeometryV2, EDGE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion};
+use crate::{
+    CanonicalPlanarCircularHoleGeometryV2, EDGE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion,
+};
 
 const GEOMETRY_DEFINITION_SCHEMA: &str = "eqiora.geometry-definition-envelope/v1";
 pub(crate) const CANONICAL_ENCODING: &str = "eqiora.canonical-json/v1";
@@ -89,7 +91,7 @@ pub struct CanonicalGeometryRef<'a> {
 #[derive(Clone, Copy, PartialEq)]
 enum CanonicalGeometryBorrowed<'a> {
     V1(&'a CanonicalGeometryV1),
-    V2(&'a CanonicalGeometryV2),
+    V2(&'a CanonicalPlanarCircularHoleGeometryV2),
 }
 
 impl<'a> From<&'a CanonicalGeometryV1> for CanonicalGeometryRef<'a> {
@@ -100,8 +102,8 @@ impl<'a> From<&'a CanonicalGeometryV1> for CanonicalGeometryRef<'a> {
     }
 }
 
-impl<'a> From<&'a CanonicalGeometryV2> for CanonicalGeometryRef<'a> {
-    fn from(geometry: &'a CanonicalGeometryV2) -> Self {
+impl<'a> From<&'a CanonicalPlanarCircularHoleGeometryV2> for CanonicalGeometryRef<'a> {
+    fn from(geometry: &'a CanonicalPlanarCircularHoleGeometryV2) -> Self {
         Self {
             geometry: CanonicalGeometryBorrowed::V2(geometry),
         }

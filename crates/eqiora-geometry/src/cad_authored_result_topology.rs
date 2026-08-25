@@ -7,8 +7,8 @@ use eqiora_core::diagnostic::codes;
 
 use crate::cad_authored_selection::FaceKey;
 use crate::{
-    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CanonicalGeometryV2, EDGE_DIMENSION,
-    FACE_DIMENSION, NamedEntitySet,
+    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph,
+    CanonicalPlanarCircularHoleGeometryV2, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
 };
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
@@ -17,14 +17,14 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 
 /// Opaque one-dimensional handle owned by one exact accepted result topology.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct CadAuthoredResultEdgeHandle {
+pub(crate) struct CadAuthoredResultEdgeHandle {
     owner_graph_digest: [u8; 32],
     member: usize,
     source: FaceKey,
 }
 
 impl CadAuthoredResultEdgeHandle {
-    /// Exact authored-graph/build identity that owns this result handle.
+    /// Exact authored-graph identity that owns this result handle.
     #[must_use]
     pub const fn owner_graph_digest_bytes(&self) -> [u8; 32] {
         self.owner_graph_digest
@@ -39,14 +39,14 @@ impl CadAuthoredResultEdgeHandle {
 
 /// Opaque two-dimensional handle owned by one exact accepted result topology.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct CadAuthoredResultFaceHandle {
+pub(crate) struct CadAuthoredResultFaceHandle {
     owner_graph_digest: [u8; 32],
     member: usize,
     source: FaceKey,
 }
 
 impl CadAuthoredResultFaceHandle {
-    /// Exact authored-graph/build identity that owns this result handle.
+    /// Exact authored-graph identity that owns this result handle.
     #[must_use]
     pub const fn owner_graph_digest_bytes(&self) -> [u8; 32] {
         self.owner_graph_digest
@@ -61,7 +61,7 @@ impl CadAuthoredResultFaceHandle {
 
 /// Dimension-carrying handle in one admitted planar result topology.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub enum CadAuthoredResultTopologyHandle {
+pub(crate) enum CadAuthoredResultTopologyHandle {
     /// One exact boundary edge.
     Edge(CadAuthoredResultEdgeHandle),
     /// The exact rectangle-minus-circle region face.
@@ -78,7 +78,7 @@ impl CadAuthoredResultTopologyHandle {
         }
     }
 
-    /// Exact authored-graph/build identity that owns this result handle.
+    /// Exact authored-graph identity that owns this result handle.
     #[must_use]
     pub const fn owner_graph_digest_bytes(&self) -> [u8; 32] {
         match self {
@@ -114,13 +114,13 @@ struct LineageProjection {
     merged: Vec<FaceKey>,
 }
 
-/// Immutable planar result topology owned by one admitted graph and analytic build.
+/// Immutable planar result topology owned by one admitted authored graph.
 ///
 /// This is deliberately not a generic B-rep. It closes exactly the positive-z
 /// transverse rectangle-minus-circle result needed by the accepted construction
 /// graph and retains no provider-local indices or coordinate classifier.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CadAuthoredResultTopology {
+pub(crate) struct CadAuthoredResultTopology {
     owner_graph_digest: [u8; 32],
     bounds: [[f64; 2]; 2],
     circle_center: [f64; 2],
@@ -184,7 +184,7 @@ impl CadAuthoredResultTopology {
         })
     }
 
-    /// Exact authored graph and accepted build identity owning this topology.
+    /// Exact authored-graph identity owning this topology.
     #[must_use]
     pub const fn owner_graph_digest_bytes(&self) -> [u8; 32] {
         self.owner_graph_digest
@@ -234,14 +234,10 @@ impl CadAuthoredResultTopology {
     /// # Errors
     /// Returns `EQ0901` for foreign, incomplete, duplicate, empty, or
     /// mixed-dimensional membership, or invalid semantic names.
-    #[allow(
-        dead_code,
-        reason = "the atomic naming seam remains private until the unified first-touch API lands"
-    )]
     pub(crate) fn canonical_geometry_v2(
         &self,
         named_topology: &BTreeMap<String, Vec<CadAuthoredResultTopologyHandle>>,
-    ) -> Result<CanonicalGeometryV2, Diagnostic> {
+    ) -> Result<CanonicalPlanarCircularHoleGeometryV2, Diagnostic> {
         let mut covered = BTreeSet::new();
         let mut entity_sets = Vec::with_capacity(named_topology.len());
         for (name, handles) in named_topology {
@@ -284,7 +280,7 @@ impl CadAuthoredResultTopology {
                 "named result topology must cover the complete planar result exactly once",
             ));
         }
-        CanonicalGeometryV2::new(
+        CanonicalPlanarCircularHoleGeometryV2::new(
             self.bounds,
             self.circle_center,
             self.circle_radius_m,
@@ -381,7 +377,7 @@ mod tests {
             assert_eq!(geometry_ref.entity_set_dimension("cylinder"), Some(1));
             assert_eq!(geometry_ref.entity_set_dimension("fluid"), Some(2));
             assert_eq!(
-                CanonicalGeometryV2::decode_canonical(
+                CanonicalPlanarCircularHoleGeometryV2::decode_canonical(
                     geometry.canonical_bytes(),
                     Default::default(),
                 )
@@ -460,13 +456,13 @@ mod tests {
     }
 
     #[test]
-    fn registered_construction_geometry_v2_evidence() {
+    fn registered_planar_circular_hole_geometry_v2_evidence() {
         scale_family_projects_identical_typed_membership_and_replays();
         owner_dimension_and_complete_membership_fail_closed();
         mutated_deleted_split_or_merged_lineage_rejects();
-        crate::construction_geometry_v2::tests::strict_scale_independent_geometry_replays_without_tolerance();
-        crate::construction_geometry_v2::tests::independent_oracle_freezes_exact_v2_artifact();
-        crate::construction_geometry_v2::tests::finite_increasing_positive_and_strict_clearance_predicates_fail_closed();
-        crate::construction_geometry_v2::tests::closed_v2_decoder_rejects_noncanonical_and_open_wire_mutants();
+        crate::circular_hole_v2::tests::strict_scale_independent_geometry_replays_without_tolerance(
+        );
+        crate::circular_hole_v2::tests::finite_increasing_positive_and_strict_clearance_predicates_fail_closed();
+        crate::circular_hole_v2::tests::closed_v2_decoder_rejects_noncanonical_and_open_wire_mutants();
     }
 }
