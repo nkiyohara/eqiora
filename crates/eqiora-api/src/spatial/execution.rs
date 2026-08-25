@@ -106,7 +106,7 @@ pub(super) fn validate_scalar_elliptic_solution(
             ResolvedScalarEllipticCartesianSolution::FiniteVolume(solution) => solution.mesh(),
         };
         let solved_mesh = CartesianMeshEnvelopeV1::from_mesh(solved_mesh).map_err(single)?;
-        if &solved_mesh != planned_mesh.artifact() {
+        if &solved_mesh != planned_mesh {
             return Err(single(capability_error(
                 "executed scalar-elliptic Mesh differs from the exact Mesh authenticated by the Plan",
             )));

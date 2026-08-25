@@ -12,7 +12,6 @@ use eqiora_artifact::{
     CartesianMeshEnvelopeV1, JsonDecoderLimits, RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora_core::Diagnostic;
-use eqiora_meshing::CartesianMesh;
 use eqiora_realization::{
     DiscretizationMethod, PortableRealizationGraph, QuadraturePolicy, RealizationPlan,
     RealizationRequirements, RealizationRevision, ResolvedRealization, Space,
@@ -23,74 +22,6 @@ use std::time::Duration;
 /// Maximum topological cells or reported scalar values admitted before any
 /// mesh, assembly, or solver allocation.
 pub const MAX_SCALAR_ELLIPTIC_ENTITY_COUNT: usize = 250_000;
-
-/// Exact effective generated Cartesian Mesh owned by a resolved Plan.
-///
-/// This value is deliberately narrower than a universal mesh request: it is
-/// the already executable uniform Cartesian mesh family used by the scalar
-/// Q1 and TPFA consumers.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ScalarEllipticMesh {
-    pub(super) cells_per_axis: NonZeroUsize,
-    pub(super) mesh: CartesianMeshEnvelopeV1,
-}
-
-impl ScalarEllipticMesh {
-    /// Materialize one exact uniform Cartesian Mesh from resolved bounds.
-    ///
-    /// # Errors
-    /// Rejects dimensions or resource shapes outside the current scalar FEM/FVM
-    /// envelope before allocating Mesh storage.
-    pub(super) fn uniform(
-        bounds: &[[f64; 2]],
-        cells_per_axis: NonZeroUsize,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let dimension = NonZeroUsize::new(bounds.len()).ok_or_else(|| {
-            single(capability_error(
-                "a scalar-elliptic Cartesian Mesh requires at least one dimension",
-            ))
-        })?;
-        if dimension.get() > 3 {
-            return Err(single(capability_error(
-                "scalar-elliptic Cartesian Meshes admit one through three dimensions",
-            )));
-        }
-        resource_shape(
-            ScalarEllipticIntent::new(
-                RealizationRevision::new(1),
-                ScalarEllipticMethod::FiniteElement,
-                cells_per_axis,
-                NonZeroUsize::MIN,
-            ),
-            dimension,
-        )?;
-        let extents = vec![cells_per_axis.get(); dimension.get()];
-        let mesh = CartesianMesh::uniform(bounds, &extents).map_err(single)?;
-        let mesh = CartesianMeshEnvelopeV1::from_mesh(&mesh).map_err(single)?;
-        Ok(Self {
-            cells_per_axis,
-            mesh,
-        })
-    }
-
-    /// Uniform cell count on every topological axis.
-    #[must_use]
-    pub const fn cells_per_axis(&self) -> NonZeroUsize {
-        self.cells_per_axis
-    }
-
-    /// Runtime topological dimension.
-    #[must_use]
-    pub fn dimension(&self) -> usize {
-        self.mesh.dimension()
-    }
-
-    /// Exact generated Mesh artifact.
-    #[must_use]
-    pub const fn artifact(&self) -> &CartesianMeshEnvelopeV1 {
-        &self.mesh
-    }
-}
 
 /// Numerical family selected by one scalar-elliptic Realization intent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -238,7 +169,7 @@ pub struct ScalarEllipticRunPlan {
     pub(super) cell_count: usize,
     pub(super) field_value_count: usize,
     pub(super) field_projection: CartesianScalarFieldProjection,
-    pub(super) mesh: Option<ScalarEllipticMesh>,
+    pub(super) mesh: Option<CartesianMeshEnvelopeV1>,
 }
 
 impl ScalarEllipticRunPlan {
@@ -310,7 +241,7 @@ impl ScalarEllipticRunPlan {
 
     /// Exact effective Mesh authenticated alongside the Model by this Plan.
     #[must_use]
-    pub const fn mesh(&self) -> Option<&ScalarEllipticMesh> {
+    pub const fn mesh(&self) -> Option<&CartesianMeshEnvelopeV1> {
         self.mesh.as_ref()
     }
 

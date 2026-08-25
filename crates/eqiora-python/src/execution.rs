@@ -550,7 +550,7 @@ impl PyRun {
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
 
-    fn submit_plan(py: Python<'_>, plan: &PyPlan) -> PyResult<Self> {
+    pub(crate) fn submit_plan(py: Python<'_>, plan: &PyPlan) -> PyResult<Self> {
         let document = plan.document().clone();
         let native = plan.native().clone();
         let identity = RunIdentity::from_scalar_elliptic(&document, &native)
@@ -869,11 +869,6 @@ pub(crate) fn submit_realization(
 }
 
 #[pyfunction]
-pub(crate) fn submit_plan(py: Python<'_>, plan: &PyPlan) -> PyResult<PyRun> {
-    panic_boundary(py, || PyRun::submit_plan(py, plan))
-}
-
-#[pyfunction]
 pub(crate) fn submit_steady_stokes(
     py: Python<'_>,
     model: &PyModel,
@@ -909,7 +904,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyRun>()?;
     module.add_function(wrap_pyfunction!(submit, module)?)?;
     module.add_function(wrap_pyfunction!(submit_realization, module)?)?;
-    module.add_function(wrap_pyfunction!(submit_plan, module)?)?;
     module.add_function(wrap_pyfunction!(submit_steady_stokes, module)?)?;
     module.add_function(wrap_pyfunction!(submit_linear_elasticity, module)?)?;
     module.add_function(wrap_pyfunction!(submit_fixed_mesh_monolithic, module)?)?;

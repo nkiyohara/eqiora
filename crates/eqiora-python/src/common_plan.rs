@@ -5,9 +5,10 @@ use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
 
 use eqiora::api::{
-    ModelDocument, ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMesh,
-    ScalarEllipticMethod, ScalarEllipticRunPlan,
+    ModelDocument, ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod,
+    ScalarEllipticRunPlan,
 };
+use eqiora::artifact::CartesianMeshEnvelopeV1;
 use eqiora::meshing::MeshTopology;
 use eqiora::realization::RealizationRevision;
 use pyo3::exceptions::PyTypeError;
@@ -15,6 +16,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyModule};
 
 use crate::error::{diagnostic_error, internal_diagnostic_error, validation_error};
+use crate::execution::PyRun;
 use crate::model::PyModel;
 use crate::panic_boundary;
 use crate::realization::PyRealization;
@@ -62,18 +64,26 @@ impl PyCartesian {
 )]
 #[derive(Debug, Clone)]
 pub(crate) struct PyCartesianMesh {
-    native: ScalarEllipticMesh,
+    native: CartesianMeshEnvelopeV1,
+    cells_per_axis: NonZeroUsize,
     digest: String,
 }
 
 impl PyCartesianMesh {
-    fn from_native(py: Python<'_>, native: ScalarEllipticMesh) -> PyResult<Self> {
+    fn from_native(
+        py: Python<'_>,
+        native: CartesianMeshEnvelopeV1,
+        cells_per_axis: NonZeroUsize,
+    ) -> PyResult<Self> {
         let digest = native
-            .artifact()
             .digest()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
             .to_string();
-        Ok(Self { native, digest })
+        Ok(Self {
+            native,
+            cells_per_axis,
+            digest,
+        })
     }
 }
 
@@ -91,13 +101,12 @@ impl PyCartesianMesh {
 
     #[getter]
     fn cells_per_axis(&self) -> usize {
-        self.native.cells_per_axis().get()
+        self.cells_per_axis.get()
     }
 
     #[getter]
     fn cell_count(&self) -> usize {
         self.native
-            .artifact()
             .mesh()
             .entity_count(self.dimension())
             .expect("an accepted Cartesian Mesh has top-dimensional entities")
@@ -106,7 +115,6 @@ impl PyCartesianMesh {
     #[getter]
     fn canonical_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         self.native
-            .artifact()
             .canonical_json()
             .map(|bytes| PyBytes::new(py, &bytes))
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))
@@ -495,11 +503,16 @@ fn resolve(
         })?;
         Ok(PyPlan {
             document,
-            mesh: PyCartesianMesh::from_native(py, effective_mesh)?,
+            mesh: PyCartesianMesh::from_native(py, effective_mesh, mesh.cells_per_axis)?,
             spatial,
             native,
         })
     })
+}
+
+#[pyfunction]
+pub(crate) fn submit_plan(py: Python<'_>, plan: &PyPlan) -> PyResult<PyRun> {
+    panic_boundary(py, || PyRun::submit_plan(py, plan))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -510,5 +523,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyLinear>()?;
     module.add_class::<PyPlan>()?;
     module.add_function(wrap_pyfunction!(resolve, module)?)?;
+    module.add_function(wrap_pyfunction!(submit_plan, module)?)?;
     Ok(())
 }
