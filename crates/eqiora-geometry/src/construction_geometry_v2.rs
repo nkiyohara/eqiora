@@ -333,7 +333,11 @@ struct WireCircleV2 {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::{EDGE_DIMENSION, FACE_DIMENSION};
+    use std::process::Command;
+
+    use sha2::{Digest, Sha256};
+
+    use crate::{CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION};
 
     fn sets() -> Vec<NamedEntitySet> {
         vec![
@@ -374,6 +378,73 @@ pub(crate) mod tests {
     }
 
     #[test]
+    pub(crate) fn independent_oracle_freezes_exact_v2_artifact() {
+        let oracle = Command::new("python3")
+            .arg(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../verify/geometry/construction-proven-planar-geometry-v2/oracle.py"),
+            )
+            .output()
+            .expect("independent Python v2 identity oracle must execute");
+        assert!(
+            oracle.status.success(),
+            "independent oracle failed: {}",
+            String::from_utf8_lossy(&oracle.stderr)
+        );
+        let oracle_output = String::from_utf8(oracle.stdout).expect("oracle emits UTF-8");
+        let oracle_wire = oracle_output
+            .lines()
+            .next()
+            .expect("oracle emits complete canonical JSON")
+            .as_bytes();
+        assert!(oracle_output.contains("bytes=511"));
+        assert!(
+            oracle_output.contains(
+                "sha256=1811037532ef5697a2c331d47786d39b2a0d3a64b2f348e7859342e742fecca0"
+            )
+        );
+        assert!(oracle_output.contains(
+            "plain_sha256=bdcd32d3829ad1bf7b8ef455a09bdbe863db88dc6454584381ef38421ea29ddc"
+        ));
+
+        let geometry =
+            CanonicalGeometryV2::new([[0.0, 2.2], [0.0, 0.41]], [0.2, 0.2], 0.05, sets()).unwrap();
+        assert_eq!(geometry.canonical_bytes(), oracle_wire);
+        assert_eq!(geometry.canonical_bytes().len(), 511);
+        assert_eq!(
+            hex(geometry.digest_bytes()),
+            "1811037532ef5697a2c331d47786d39b2a0d3a64b2f348e7859342e742fecca0"
+        );
+        let plain_digest: [u8; 32] = Sha256::digest(oracle_wire).into();
+        assert_eq!(
+            hex(plain_digest),
+            "bdcd32d3829ad1bf7b8ef455a09bdbe863db88dc6454584381ef38421ea29ddc"
+        );
+        assert_ne!(plain_digest, geometry.digest_bytes());
+        assert_eq!(
+            CanonicalGeometryV2::decode_canonical(oracle_wire, Default::default()).unwrap(),
+            geometry
+        );
+
+        let signed_zero =
+            CanonicalGeometryV2::new([[-0.0, 2.2], [-0.0, 0.41]], [0.2, 0.2], 0.05, sets())
+                .unwrap();
+        assert_eq!(signed_zero.canonical_bytes(), oracle_wire);
+        assert_eq!(signed_zero.digest_bytes(), geometry.digest_bytes());
+
+        let v1 = CanonicalGeometryV1::from_circular_hole(
+            [[0.0, 2.2], [0.0, 0.41]],
+            [0.2, 0.2],
+            0.05,
+            sets(),
+            1.0e-12,
+        )
+        .unwrap();
+        assert_ne!(v1.canonical_bytes(), geometry.canonical_bytes());
+        assert_ne!(v1.digest_bytes(), geometry.digest_bytes());
+    }
+
+    #[test]
     pub(crate) fn finite_increasing_positive_and_strict_clearance_predicates_fail_closed() {
         let valid_bounds = [[0.0, 2.2], [0.0, 0.41]];
         let valid_center = [0.2, 0.2];
@@ -409,6 +480,10 @@ pub(crate) mod tests {
         .unwrap();
         for mutant in [
             wire.replacen('{', "{\"unknown\":0,", 1).into_bytes(),
+            wire.replacen('{', "{\"tolerance_m\":1e-12,", 1)
+                .into_bytes(),
+            wire.replacen('{', "{\"classification_tolerance_m\":1e-12,", 1)
+                .into_bytes(),
             wire.replacen(
                 "\"schema\":",
                 "\"schema\":\"eqiora.planar-construction-circular-hole-envelope/v2\",\"schema\":",
@@ -424,5 +499,9 @@ pub(crate) mod tests {
             assert_ne!(mutant, geometry.canonical_bytes());
             assert!(CanonicalGeometryV2::decode_canonical(&mutant, Default::default()).is_err());
         }
+    }
+
+    fn hex(bytes: [u8; 32]) -> String {
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
     }
 }

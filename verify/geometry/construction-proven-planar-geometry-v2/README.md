@@ -20,15 +20,27 @@ canonical geometry bytes and digest correctly differ across these metrically
 different geometries, while each value replays byte-for-byte through the closed
 v2 decoder.
 
-The existing `eqiora.planar-circular-hole-envelope/v1` decoder, 511-byte DFG
-witness, digest, and classification-tolerance bits remain exact compatibility
-falsifiers. V1 and v2 are never artifact-equal. This case intentionally does
-not freeze the new v2 byte count or digest; that exact-artifact admission is a
-separate independently derived review input.
+The independent oracle freezes the ordinary scale-1 DFG v2 value as exactly
+511 compact JSON bytes. Its identity is SHA-256 over the v2 schema text, one
+NUL byte, and those complete bytes:
+`1811037532ef5697a2c331d47786d39b2a0d3a64b2f348e7859342e742fecca0`.
+The plain JSON hash is explicitly a nonidentity. The oracle constructs the same
+wire as a full literal, through a hand-written encoder, and through ordered
+stdlib JSON before the Rust evidence compares complete bytes, digest, and
+bounded replay.
+
+Unknown, duplicate, tolerance/classification-policy, reordered, alternate
+number-spelling, noncanonical member-order, and signed-zero probes protect the
+exact encoding boundary. The existing
+`eqiora.planar-circular-hole-envelope/v1` decoder, 511-byte DFG witness,
+digest, and classification-tolerance bits remain compatibility falsifiers.
+V1 and v2 are never artifact-equal; their coincident byte lengths do not imply
+identity.
 
 Run:
 
 ```console
+python3 verify/geometry/construction-proven-planar-geometry-v2/oracle.py
 cargo test -p eqiora-geometry --lib \
   cad_authored_result_topology::tests::registered_construction_geometry_v2_evidence
 cargo run -p eqiora-verify -- run \

@@ -1,7 +1,7 @@
 id = "geometry.construction-proven-planar-geometry-v2"
 status = "verified"
 scope = "one-scale-independent-axis-aligned-rectangle-minus-circle-geometry-derived-from-the-accepted-authored-cad-lineage"
-reference_kind = "structural-scale-family-canonical-replay-and-lineage-falsifiers"
+reference_kind = "independent-exact-artifact-oracle-plus-structural-scale-family-and-lineage-falsifiers"
 
 capabilities = [
   "closed-construction-proven-planar-geometry-v2",
@@ -9,6 +9,7 @@ capabilities = [
   "immutable-owner-bound-dimension-carrying-result-handles",
   "complete-atomic-result-topology-naming",
   "canonical-v2-replay-without-classification-tolerance",
+  "exact-ordinary-dfg-v2-canonical-identity",
 ]
 
 [problem]
@@ -21,7 +22,10 @@ naming = "fluid, inlet, outlet, walls, and cylinder from complete typed result m
 geometry_predicates = "finite increasing bounds, finite positive radius, finite arithmetic, and strict positive side clearance"
 topology = "one face plus five edges projected only from exact retained/created construction lineage"
 canonical_replay = "closed unknown-field-denying v2 wire reconstructs through the validating constructor and must reproduce its input byte-for-byte"
-exact_v2_bytes_and_digest = "pending independent exact-artifact admission; no expected v2 byte count or digest is frozen by this structural case"
+exact_v2_oracle = "standalone Python literal, hand encoder, and stdlib JSON construction independent of the Rust serializer"
+exact_v2_bytes = 511
+exact_v2_sha256 = "1811037532ef5697a2c331d47786d39b2a0d3a64b2f348e7859342e742fecca0"
+identity = "SHA-256 over the v2 schema domain, one NUL separator, and the complete canonical bytes"
 new_scientific_tolerance = false
 
 [falsifiers]
@@ -31,7 +35,9 @@ lineage = "incomplete, changed, deleted, split, merged, and foreign-build lineag
 handle_owner = "foreign and stale source or result owner identity rejects"
 deleted_section_member = "start-cap does not project into the positive-z result section"
 naming = "empty, incomplete, duplicate, and mixed-dimensional groups reject atomically"
-wire = "v2 replay is canonical and contains no tolerance_m member"
+wire = "exact v2 literal replays byte-for-byte; unknown, duplicate, tolerance/classification, reordered, equivalent-number-spelling, and noncanonical-member wire mutants reject"
+plain_hash = "plain JSON SHA-256 bdcd32d3829ad1bf7b8ef455a09bdbe863db88dc6454584381ef38421ea29ddc is not the v2 identity"
+signed_zero = "negative coordinate zero normalizes to the one frozen exact identity"
 compatibility = "frozen v1 remains 511 bytes, retains exact digest and tolerance bits, and is never artifact-equal to v2"
 
 [claim_boundary]
@@ -42,7 +48,7 @@ classification_or_absolute_naming_threshold = false
 generic_brep_or_boolean_lineage = false
 imported_mesh_classification = false
 public_python_post_build_naming = false
-exact_v2_byte_or_digest_admission = false
+exact_ordinary_dfg_v2_identity = true
 
 [evidence]
 runner = "cargo-library-test"

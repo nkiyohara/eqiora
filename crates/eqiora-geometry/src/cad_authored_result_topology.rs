@@ -465,6 +465,7 @@ mod tests {
         owner_dimension_and_complete_membership_fail_closed();
         mutated_deleted_split_or_merged_lineage_rejects();
         crate::construction_geometry_v2::tests::strict_scale_independent_geometry_replays_without_tolerance();
+        crate::construction_geometry_v2::tests::independent_oracle_freezes_exact_v2_artifact();
         crate::construction_geometry_v2::tests::finite_increasing_positive_and_strict_clearance_predicates_fail_closed();
         crate::construction_geometry_v2::tests::closed_v2_decoder_rejects_noncanonical_and_open_wire_mutants();
     }
