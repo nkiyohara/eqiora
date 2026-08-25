@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 11 module summaries and all 113 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 502 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 11 module summaries and all 114 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 502 signature-only entries under documented owning types**.
 
-Inventory: 11 modules, 132 literal public spellings, 113 canonical grouped declarations, 643 visible method signatures (502 non-dunder and 141 dunder), and 47 visible class assignments.
+Inventory: 11 modules, 133 literal public spellings, 114 canonical grouped declarations, 643 visible method signatures (502 non-dunder and 141 dunder), and 47 visible class assignments.
 
 Regenerate with:
 
@@ -1349,6 +1349,18 @@ Authority: [`crates/eqiora-python/src/modeling.rs::across`](../../crates/eqiora-
 
 ```python
 def across(port: ConservingPort) -> Expression: ...
+```
+
+<a id="api-eqiora-bind_component"></a>
+
+### `eqiora.bind_component`
+
+Bind abstract Component supports to one exact Geometry.
+
+Authority: [`crates/eqiora-python/src/lib.rs::bind_component`](../../crates/eqiora-python/src/lib.rs)
+
+```python
+def bind_component(source: str, *, component: str, geometry: _geometry.Geometry, supports: dict[str, _geometry.GeometrySelection], parameters: dict[str, float], model: str='Main', filename: str='<memory>') -> Model: ...
 ```
 
 <a id="api-eqiora-check_package_conformance"></a>

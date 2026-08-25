@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **80** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **81** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -1341,6 +1341,18 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="bl
 
 ```python
 def across(port: ConservingPort) -> Expression: ...
+```
+
+<a id="api-eqiora-bind_component"></a>
+
+## `bind_component`
+
+Bind abstract Component supports to one exact Geometry.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/lib.rs" kind="blob">crates/eqiora-python/src/lib.rs::bind_component</ExactSourceLink>
+
+```python
+def bind_component(source: str, *, component: str, geometry: _geometry.Geometry, supports: dict[str, _geometry.GeometrySelection], parameters: dict[str, float], model: str='Main', filename: str='<memory>') -> Model: ...
 ```
 
 <a id="api-eqiora-check_package_conformance"></a>

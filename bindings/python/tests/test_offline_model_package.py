@@ -159,6 +159,7 @@ EXPECTED_EQIORA_ALL = [
     "ValidationError",
     "ValueEdit",
     "across",
+    "bind_component",
     "check_package_conformance",
     "compile",
     "compile_package",
