@@ -30,8 +30,8 @@ const SOURCE_MESSAGE: &str = "source exceeds the 8388608-byte compile/check v2 l
 const PUBLIC_INIT: &[u8] = include_bytes!("../../../bindings/python/python/eqiora/__init__.py");
 const PUBLIC_STUB: &[u8] = include_bytes!("../../../bindings/python/python/eqiora/__init__.pyi");
 const PUBLIC_STUB_PATH: &str = "bindings/python/python/eqiora/__init__.pyi";
-const PUBLIC_INIT_SHA256: &str = "a213c9495c3d5570356e2f78f8ebea45be27d62d43d56801a49db0a3a019973d";
-const PUBLIC_STUB_SHA256: &str = "2a3d005ec9a823859824f1945136f57a4aa912d12d09896a34e7442f8f23e367";
+const PUBLIC_INIT_SHA256: &str = "f141d04a74cf678bfdea28292f26efcecaaa6a69e817a431cc0dc827b69ae33c";
+const PUBLIC_STUB_SHA256: &str = "2e61b4b171bf5b88077a48e9cb2afb61c9b0c7cf962ea841469002355ebd343c";
 
 #[derive(Debug, PartialEq, Eq)]
 struct NormalizedDiagnostic {
@@ -57,7 +57,7 @@ fn python_compile_surface_and_source_dependencies_are_frozen() -> PyResult<()> {
         Ok(())
     );
 
-    let wrong_hash = "3a3d005ec9a823859824f1945136f57a4aa912d12d09896a34e7442f8f23e367";
+    let wrong_hash = "3e61b4b171bf5b88077a48e9cb2afb61c9b0c7cf962ea841469002355ebd343c";
     assert!(
         wrong_hash.len() == 64
             && wrong_hash
