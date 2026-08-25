@@ -5,6 +5,13 @@ description: Native run lifecycle, cancellation, structured failures, NumPy owne
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
+The ordinary numerical path is `Model + typed Mesh request + policies → Plan → Run`.
+The `.eqi` Model remains sole mathematical authority; Python selects only
+admitted numerical realization choices and repeats no Domain bounds. The first common slice exposes
+`eqiora.fem.Q1()` and `eqiora.fvm.CellCenteredTpfa()` with
+`eqiora.solve.Linear()`, then executes the Model- and Mesh-owning value through
+`eqiora.run(plan)` without repeating Model.
+
 `eqiora.run(...)`, `submit(...).result()`, and `await submit(...)` share one native lifecycle. Runs expose monotone state, coalesced progress, cooperative cancellation at accepted boundaries, and one immutable result. Cancellation never publishes a partial result.
 
 Dense result arrays are rank-one CPU `float64` values in the current alpha. `numpy(copy=False)` is lifetime-safe and read-only; an impossible zero-copy request fails instead of copying silently. `numpy(copy=True)` returns an independent writable allocation. DLPack exports are explicit CPU snapshots, not aliases of immutable evidence.

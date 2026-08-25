@@ -12,6 +12,41 @@ import numpy.typing as npt
 from .geometry import Geometry, GeometrySelection
 
 @final
+class Cartesian:
+    """Model-unbound generated Cartesian Mesh request.
+
+    Authority: ``crates/eqiora-python/src/common_plan.rs::PyCartesian``.
+    """
+
+    def __new__(cls, *, cells_per_axis: int) -> Self: ...
+    @property
+    def cells_per_axis(self) -> int: ...
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class CartesianMesh:
+    """Exact effective generated Cartesian Mesh owned by a resolved Plan.
+
+    Authority: ``crates/eqiora-python/src/common_plan.rs::PyCartesianMesh``.
+    """
+
+    @property
+    def digest(self) -> str: ...
+    @property
+    def dimension(self) -> int: ...
+    @property
+    def cells_per_axis(self) -> int: ...
+    @property
+    def cell_count(self) -> int: ...
+    @property
+    def canonical_bytes(self) -> bytes: ...
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
 class MeshRequest:
     """Immutable caller intent for the admitted planar mesh provider.
 
@@ -140,4 +175,13 @@ def import_gmsh(
 
     ...
 
-__all__ = ["Mesh", "MeshPlan", "MeshRequest", "generate", "import_gmsh", "resolve"]
+__all__ = [
+    "Cartesian",
+    "CartesianMesh",
+    "Mesh",
+    "MeshPlan",
+    "MeshRequest",
+    "generate",
+    "import_gmsh",
+    "resolve",
+]

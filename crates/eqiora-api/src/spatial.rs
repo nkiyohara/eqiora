@@ -17,9 +17,9 @@ pub use field::{
 };
 pub use plan::{
     MAX_SCALAR_ELLIPTIC_ENTITY_COUNT, ScalarEllipticExecutionEnvironment, ScalarEllipticIntent,
-    ScalarEllipticMethod, ScalarEllipticRunCancellation, ScalarEllipticRunDirective,
-    ScalarEllipticRunObserver, ScalarEllipticRunOutcome, ScalarEllipticRunPlan,
-    ScalarEllipticRunProgress,
+    ScalarEllipticMesh, ScalarEllipticMethod, ScalarEllipticRunCancellation,
+    ScalarEllipticRunDirective, ScalarEllipticRunObserver, ScalarEllipticRunOutcome,
+    ScalarEllipticRunPlan, ScalarEllipticRunProgress,
 };
 
 use diagnostic::{capability_error, single};
@@ -49,13 +49,15 @@ use eqiora_execution::HostExecutorDescriptor;
 use eqiora_numerics::{
     scalar::finalize_resolved_scalar_elliptic_cartesian, scalar::lower_scalar_elliptic_cartesian,
 };
+#[cfg(test)]
+use eqiora_realization::DiscretizationMethod;
+#[cfg(test)]
+use eqiora_realization::RealizationRevision;
 use eqiora_realization::{
     Discretization, ExecutionSchedule, MeshPolicy, RealizationPlan, RealizationRequest,
     RealizationRequirements, SemanticRevision, SingleFieldOperatorClaim, Target, VectorLayoutKind,
     resolve,
 };
-#[cfg(test)]
-use eqiora_realization::{DiscretizationMethod, RealizationRevision};
 #[cfg(all(test, feature = "rayon"))]
 use eqiora_solver::ExecutionReport;
 #[cfg(all(test, feature = "rayon"))]
@@ -87,7 +89,64 @@ impl ModelDocument {
         intent: ScalarEllipticIntent,
         environment: ScalarEllipticExecutionEnvironment,
     ) -> Result<ScalarEllipticRunPlan, Vec<Diagnostic>> {
+        self.preview_scalar_elliptic_run_inner(intent, environment, None)
+    }
+
+    /// Resolve one explicit scalar-elliptic Realization and materialize its
+    /// exact generated Cartesian Mesh from the currently admitted Model domain.
+    ///
+    /// This transitional scalar seam does not move geometry authority out of
+    /// the Model. It only separates the caller's typed density request from the
+    /// effective Mesh owned by the resulting Plan.
+    ///
+    /// # Errors
+    /// Returns one structured lowering, resource, Mesh, artifact, or capability
+    /// diagnostic before publishing a partial Plan.
+    pub fn preview_scalar_elliptic_run_with_generated_mesh(
+        &self,
+        intent: ScalarEllipticIntent,
+        environment: ScalarEllipticExecutionEnvironment,
+    ) -> Result<ScalarEllipticRunPlan, Vec<Diagnostic>> {
+        let lowered = lower_scalar_elliptic_cartesian(self.program()).map_err(single)?;
+        let mesh = ScalarEllipticMesh::uniform(lowered.bounds(), intent.cells_per_axis)?;
+        self.preview_scalar_elliptic_run_on_mesh(intent, environment, mesh)
+    }
+
+    /// Resolve one explicit scalar-elliptic Realization against an exact
+    /// effective Mesh without silently regenerating or substituting it.
+    ///
+    /// # Errors
+    /// Rejects a foreign Model binding, mismatched mesh policy, or unsupported
+    /// method/provider combination before Plan publication.
+    pub(crate) fn preview_scalar_elliptic_run_on_mesh(
+        &self,
+        intent: ScalarEllipticIntent,
+        environment: ScalarEllipticExecutionEnvironment,
+        mesh: ScalarEllipticMesh,
+    ) -> Result<ScalarEllipticRunPlan, Vec<Diagnostic>> {
+        if mesh.cells_per_axis != intent.cells_per_axis {
+            return Err(single(capability_error(
+                "the supplied scalar-elliptic Mesh does not match the spatial policy density",
+            )));
+        }
+        let lowered = lower_scalar_elliptic_cartesian(self.program()).map_err(single)?;
+        let expected = ScalarEllipticMesh::uniform(lowered.bounds(), intent.cells_per_axis)?;
+        if mesh != expected {
+            return Err(single(capability_error(
+                "the supplied Cartesian Mesh does not exactly realize the Model domain",
+            )));
+        }
+        self.preview_scalar_elliptic_run_inner(intent, environment, Some(mesh))
+    }
+
+    fn preview_scalar_elliptic_run_inner(
+        &self,
+        intent: ScalarEllipticIntent,
+        environment: ScalarEllipticExecutionEnvironment,
+        mesh: Option<ScalarEllipticMesh>,
+    ) -> Result<ScalarEllipticRunPlan, Vec<Diagnostic>> {
         let model_reference = self.artifact_reference().map_err(single)?;
+        let model_digest = self.digest().map_err(single)?;
         if !environment.supports(intent.workers) {
             return Err(single(capability_error(format!(
                 "host execution admits at most {} worker(s){}; {} were requested",
@@ -162,7 +221,7 @@ impl ModelDocument {
         .map_err(single)?;
         let key = artifact.digest().map_err(single)?.to_string();
         Ok(ScalarEllipticRunPlan {
-            model_digest: self.digest().map_err(single)?,
+            model_digest,
             intent,
             environment,
             resolved,
@@ -172,6 +231,7 @@ impl ModelDocument {
             cell_count,
             field_value_count,
             field_projection,
+            mesh,
         })
     }
 
@@ -393,6 +453,7 @@ mod tests {
         assert_eq!(plan.cell_count(), 256);
         assert_eq!(plan.field_value_count(), 289);
         assert_eq!(plan.artifact().digest().unwrap().to_string(), plan.key());
+        assert!(plan.mesh().is_none());
         let lowered = lower_scalar_elliptic_cartesian(document.program()).unwrap();
         assert_eq!(
             plan.portable_realization().domains()[0].domain(),
@@ -406,6 +467,46 @@ mod tests {
             plan.portable_realization().systems()[0].operator_properties(),
             LinearOperatorProperties::SymmetricPositiveDefinite
         );
+    }
+
+    #[test]
+    fn exact_mesh_bound_preview_is_distinct_from_legacy_lazy_preview() {
+        let owner = document();
+        let lowered = lower_scalar_elliptic_cartesian(owner.program()).unwrap();
+        let mesh =
+            ScalarEllipticMesh::uniform(lowered.bounds(), NonZeroUsize::new(4).unwrap()).unwrap();
+        assert_eq!(mesh.dimension(), 2);
+        assert_eq!(mesh.cells_per_axis().get(), 4);
+
+        let plan = owner
+            .preview_scalar_elliptic_run_on_mesh(
+                intent(ScalarEllipticMethod::FiniteElement, 4, 1),
+                ScalarEllipticExecutionEnvironment::host_serial(),
+                mesh.clone(),
+            )
+            .unwrap();
+        assert_eq!(plan.mesh(), Some(&mesh));
+
+        let density_errors = owner
+            .preview_scalar_elliptic_run_on_mesh(
+                intent(ScalarEllipticMethod::FiniteElement, 5, 1),
+                ScalarEllipticExecutionEnvironment::host_serial(),
+                mesh.clone(),
+            )
+            .unwrap_err();
+        assert_eq!(density_errors[0].code(), codes::INVALID_REALIZATION);
+
+        let incompatible_mesh =
+            ScalarEllipticMesh::uniform(&[[0.0, 2.0], [0.0, 1.0]], NonZeroUsize::new(4).unwrap())
+                .unwrap();
+        let errors = owner
+            .preview_scalar_elliptic_run_on_mesh(
+                intent(ScalarEllipticMethod::FiniteElement, 4, 1),
+                ScalarEllipticExecutionEnvironment::host_serial(),
+                incompatible_mesh,
+            )
+            .unwrap_err();
+        assert_eq!(errors[0].code(), codes::INVALID_REALIZATION);
     }
 
     #[test]

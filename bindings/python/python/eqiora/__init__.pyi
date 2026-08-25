@@ -23,10 +23,13 @@ import numpy as np
 import numpy.typing as npt
 
 from . import fluid as fluid
+from . import fem as fem
 from . import fsi as fsi
+from . import fvm as fvm
 from . import geometry as geometry
 from . import meshing as meshing
 from . import solid as solid
+from . import solve as solve
 from . import trajectory as trajectory
 
 _Float64Array = npt.NDArray[np.float64]
@@ -625,6 +628,63 @@ class Realization:
     def __hash__(self) -> int: ...
 
 @final
+class Plan:
+    """Immutable common numerical Plan owning an exact Model and effective Mesh.
+
+    Authority: ``crates/eqiora-python/src/common_plan.rs::PyPlan``.
+    """
+
+    @property
+    def realization_digest(self) -> str: ...
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def mesh_digest(self) -> str: ...
+    @property
+    def mesh(self) -> meshing.CartesianMesh: ...
+    @property
+    def realization(self) -> Realization: ...
+    @property
+    def spatial(self) -> fem.Q1 | fvm.CellCenteredTpfa: ...
+    @property
+    def solve(self) -> solve.Linear: ...
+    @property
+    def discretization(self) -> str: ...
+    @property
+    def space(self) -> str: ...
+    @property
+    def quadrature(self) -> str: ...
+    @property
+    def mesh_kind(self) -> str: ...
+    @property
+    def spatial_dimension(self) -> int: ...
+    @property
+    def scalar_type(self) -> str: ...
+    @property
+    def vector_layout(self) -> str: ...
+    @property
+    def operator_properties(self) -> str: ...
+    @property
+    def schedule(self) -> str: ...
+    @property
+    def solver_algorithm(self) -> str: ...
+    @property
+    def solver_backend(self) -> str: ...
+    @property
+    def solver_backend_version(self) -> str: ...
+    @property
+    def execution_provider(self) -> str: ...
+    @property
+    def execution_provider_version(self) -> str: ...
+    @property
+    def placement(self) -> str: ...
+    @property
+    def workers(self) -> int: ...
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
 class ScalarFieldLocation:
     """Vertex or cell-centre meaning of a scalar field summary.
 
@@ -1215,6 +1275,29 @@ def replay(data: bytes) -> Model:
 
     ...
 
+def resolve(
+    model: Model,
+    *,
+    mesh: meshing.Cartesian,
+    spatial: fem.Q1 | fvm.CellCenteredTpfa,
+    solve: solve.Linear,
+) -> Plan:
+    """Resolve one exact Model, Mesh, spatial policy, and solve policy.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::resolve``.
+    """
+
+    ...
+
+@overload
+def run(plan: Plan) -> ScalarEllipticResult:
+    """Execute through the lifecycle returned by :func:`submit`.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
+    """
+
+    ...
+
 @overload
 def run(
     model: Model,
@@ -1393,6 +1476,7 @@ __all__ = [
     "PackageConformanceReport",
     "Parameter",
     "ParameterRef",
+    "Plan",
     "PhysicalDomain",
     "Realization",
     "Representation",
@@ -1426,15 +1510,19 @@ __all__ = [
     "grad",
     "preview_realization",
     "replay",
+    "resolve",
     "run",
     "submit",
     "through",
     "trace",
     "diff",
+    "fem",
     "fluid",
     "fsi",
+    "fvm",
     "geometry",
     "meshing",
     "solid",
+    "solve",
     "trajectory",
 ]

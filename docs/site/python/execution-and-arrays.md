@@ -1,5 +1,11 @@
 # Execution, diagnostics, and arrays
 
+The ordinary numerical path is `Model + typed Mesh request + policies → Plan →
+Run`. The `.eqi` Model remains mathematical authority; Python supplies only
+admitted numerical choices and repeats no Domain bounds. The first common path resolves Q1 FEM or
+cell-centred TPFA FVM with the closed reference linear solve, then executes the
+Model- and Mesh-owning value through `eqiora.run(plan)`.
+
 `eqiora.run(...)`, `submit(...).result()`, and `await submit(...)` share one
 native lifecycle. Runs expose monotone state, coalesced progress, cooperative
 cancellation at accepted boundaries, and one immutable result. Cancellation

@@ -62,14 +62,15 @@ pub mod api {
         ReferenceRunPlan, ReferenceRunProgress, ReferenceRunResult, ReferenceSeries,
         RemeshingTrajectoryReplayInputV1, ResolvedFixedMeshMonolithicFsiPlan2d,
         ResolvedLinearElasticityPlan2d, ResolvedSteadyStokesPlan2d, ScalarEllipticBalanceEvidence,
-        ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod,
-        ScalarEllipticRunCancellation, ScalarEllipticRunDirective, ScalarEllipticRunObserver,
-        ScalarEllipticRunOutcome, ScalarEllipticRunPlan, ScalarEllipticRunProgress,
-        ScalarEllipticRunResult, ScalarFieldLocation, ScalarFieldSummary,
-        SemanticFingerprintGeneration, SteadyStokesIntent2d, StructuralSemanticFingerprint,
-        TransientNavierStokesInitialCondition2d, TransientNavierStokesReference2d,
-        UnstructuredP1ScalarFieldProjection2d, ValueEditPlan, ValueEditResult, VerifiedMlDatasetV1,
-        derive_ml_dataset_v1, snapshot_fixed_reference_fsi_solution_v1, verify_ml_dataset_v1,
+        ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMesh,
+        ScalarEllipticMethod, ScalarEllipticRunCancellation, ScalarEllipticRunDirective,
+        ScalarEllipticRunObserver, ScalarEllipticRunOutcome, ScalarEllipticRunPlan,
+        ScalarEllipticRunProgress, ScalarEllipticRunResult, ScalarFieldLocation,
+        ScalarFieldSummary, SemanticFingerprintGeneration, SteadyStokesIntent2d,
+        StructuralSemanticFingerprint, TransientNavierStokesInitialCondition2d,
+        TransientNavierStokesReference2d, UnstructuredP1ScalarFieldProjection2d, ValueEditPlan,
+        ValueEditResult, VerifiedMlDatasetV1, derive_ml_dataset_v1,
+        snapshot_fixed_reference_fsi_solution_v1, verify_ml_dataset_v1,
     };
 
     /// Fresh XDMF artifact derivation and verified persisted replay.

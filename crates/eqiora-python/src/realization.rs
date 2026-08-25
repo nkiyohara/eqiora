@@ -141,6 +141,10 @@ pub(crate) struct PyRealization {
 }
 
 impl PyRealization {
+    pub(crate) const fn from_plan(plan: ScalarEllipticRunPlan) -> Self {
+        Self { plan }
+    }
+
     pub(crate) const fn plan(&self) -> &ScalarEllipticRunPlan {
         &self.plan
     }

@@ -1,5 +1,39 @@
 # Execution, diagnostics, and arrays
 
+## Model to Plan to Run
+
+The `.eqi` `Model` owns equations, coefficients, fields, supports, and boundary
+laws. Python supplies only typed numerical choices. Resolution binds those
+choices to one exact Model and Mesh before execution:
+
+```python
+model = eqiora.compile(source, filename="poisson.eqi")
+mesh = eqiora.meshing.Cartesian(cells_per_axis=16)
+
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=eqiora.fem.Q1(),
+    solve=eqiora.solve.Linear(),
+)
+result = eqiora.run(plan)
+```
+
+Use `eqiora.fvm.CellCenteredTpfa()` for the other currently admitted spatial
+policy. `Plan` owns the exact Model and Mesh and publishes every effective
+space, quadrature, solver/backend, reduction, provider, and host placement
+choice; `run(plan)` therefore does not ask for the Model again. An unsupported
+request or policy, or an incompatible operator, fails during `resolve` without
+a fallback. The Cartesian request deliberately repeats no Domain bounds;
+`resolve` obtains the effective bounds from the current `.eqi` Model.
+
+This first common slice is intentionally closed to generated Cartesian scalar
+elliptic Q1 FEM and cell-centred orthogonal TPFA FVM with the existing
+host-serial reference linear solve. It is not a generic method registry or a
+promise that arbitrary policies compose. The former `ScalarElliptic` /
+`preview_realization` form remains temporary alpha compatibility while other
+proved consumers migrate to the common lifecycle.
+
 ## One run lifecycle
 
 Blocking and awaitable execution use the same native worker, state machine,
@@ -106,4 +140,3 @@ byte order, alignment, and contiguity, then makes one documented owned staging
 copy before native execution. This is not a zero-copy execution-input claim.
 GPU streams, sparse/distributed arrays, and general Run inputs remain separate
 contracts.
-

@@ -3,7 +3,7 @@
 import os
 from typing import NamedTuple
 
-from . import fluid, fsi, geometry, meshing, solid, trajectory
+from . import fem, fluid, fsi, fvm, geometry, meshing, solid, solve, trajectory
 
 from ._eqiora import (
     __version__,
@@ -38,6 +38,7 @@ from ._eqiora import (
     Model,
     Parameter,
     ParameterRef,
+    Plan,
     PhysicalDomain,
     Realization,
     Representation,
@@ -70,7 +71,9 @@ from ._eqiora import (
     grad,
     preview_realization,
     replay,
+    resolve_plan as _resolve_plan,
     submit as _submit,
+    submit_plan as _submit_plan,
     submit_realization as _submit_realization,
     submit_fixed_mesh_monolithic as _submit_fixed_mesh_monolithic,
     submit_linear_elasticity as _submit_linear_elasticity,
@@ -142,6 +145,7 @@ __all__ = [
     "PackageConformanceReport",
     "Parameter",
     "ParameterRef",
+    "Plan",
     "PhysicalDomain",
     "Realization",
     "Representation",
@@ -175,21 +179,31 @@ __all__ = [
     "grad",
     "preview_realization",
     "replay",
+    "resolve",
     "run",
     "submit",
     "through",
     "trace",
     "diff",
+    "fem",
     "fluid",
     "fsi",
+    "fvm",
     "geometry",
     "meshing",
     "solid",
+    "solve",
     "trajectory",
 ]
 
 
 _MISSING = object()
+
+
+def resolve(model: Model, *, mesh, spatial, solve) -> Plan:
+    """Resolve one exact Model, Mesh, spatial policy, and solve policy."""
+
+    return _resolve_plan(model, mesh=mesh, spatial=spatial, solve=solve)
 
 
 def check_package_conformance(
@@ -216,7 +230,7 @@ def check_package_conformance(
 
 
 def run(
-    model: Model,
+    model: Model | Plan,
     *,
     end_time=_MISSING,
     max_step=_MISSING,
@@ -224,6 +238,16 @@ def run(
     plan=_MISSING,
 ):
     """Execute through the same native lifecycle returned by :func:`submit`."""
+
+    if isinstance(model, Plan):
+        if (
+            end_time is not _MISSING
+            or max_step is not _MISSING
+            or realization is not None
+            or plan is not _MISSING
+        ):
+            raise TypeError("run(Plan) accepts no additional execution arguments")
+        return Run(_submit_plan(model)).result()
 
     return Run(
         _submit_native(
