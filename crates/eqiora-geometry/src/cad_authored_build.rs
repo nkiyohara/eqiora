@@ -3,6 +3,7 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
+use crate::cad_authored_result_topology::CadAuthoredResultTopology;
 use crate::cad_authored_selection::FaceKey;
 use crate::{CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1};
 
@@ -218,6 +219,19 @@ impl CadAuthoredBuild {
     #[must_use]
     pub fn merged(&self) -> &[CadAuthoredFaceHandle] {
         &self.merged
+    }
+
+    /// Project this accepted build's complete lineage into immutable result topology.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` when the build and graph identities differ, the graph
+    /// is not the admitted circular through-cut, or lineage is incomplete,
+    /// mutated, deleted, split, merged, or ambiguous.
+    pub fn result_topology(
+        &self,
+        graph: &CadAuthoredGraph,
+    ) -> Result<CadAuthoredResultTopology, Diagnostic> {
+        CadAuthoredResultTopology::from_build(graph, self)
     }
 }
 

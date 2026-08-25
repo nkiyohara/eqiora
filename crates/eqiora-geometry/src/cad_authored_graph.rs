@@ -596,6 +596,19 @@ impl CadAuthoredGraph {
     pub(crate) const fn is_cut(&self) -> bool {
         matches!(self.kind, GraphKind::CircularThroughCut(_))
     }
+
+    pub(crate) fn planar_cut_parts(&self) -> Option<([[f64; 2]; 2], [f64; 2], f64)> {
+        let GraphKind::CircularThroughCut(cut) = self.kind else {
+            return None;
+        };
+        let (x_lower_m, x_upper_m) = self.core.sketch.x_bounds_m();
+        let (y_lower_m, y_upper_m) = self.core.sketch.y_bounds_m();
+        Some((
+            [[x_lower_m, x_upper_m], [y_lower_m, y_upper_m]],
+            cut.center_m(),
+            cut.radius_m(),
+        ))
+    }
 }
 
 fn validate_extrusion(

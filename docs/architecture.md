@@ -1207,6 +1207,17 @@ facet membership and exposes no competing mesh-local tolerance. Exact bounds
 still determine entity topology; mesh quality, solver acceptance, CAD healing,
 and future import uncertainty remain separate policies.
 
+Construction-owned planar Geometry v2 is a separate identity domain rather
+than a reinterpretation of that classifier-bearing contract. The accepted
+authored-CAD build projects explicit retained and created lineage into opaque
+dimension-carrying result handles bound to the exact graph/build identity.
+Complete naming consumes those handles atomically and therefore needs neither
+coordinates nor a `tolerance_m`; finite strict-positive-clearance predicates
+admit the same construction under uniform scaling. Imported or otherwise
+untracked topology still requires an explicit identity-bearing classification
+policy at its correspondence/Realization boundary. V1 decoding and its
+classification semantics remain unchanged.
+
 Cross-revision retention is a separate explicit total body bijection. Domain
 ULIDs are revision-local; paired boundaries are derived from the retained
 parent pair and `(axis, side)`. Missing, split, merged, ambiguous, partial, or

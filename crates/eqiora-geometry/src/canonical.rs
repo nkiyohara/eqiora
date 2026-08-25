@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::circular_hole::CircularHoleGeometry;
-use crate::{EDGE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion};
+use crate::{CanonicalGeometryV2, EDGE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion};
 
 const GEOMETRY_DEFINITION_SCHEMA: &str = "eqiora.geometry-definition-envelope/v1";
 pub(crate) const CANONICAL_ENCODING: &str = "eqiora.canonical-json/v1";
@@ -83,12 +83,28 @@ enum CanonicalGeometryKind {
 /// from caller-supplied digest and dimension facts.
 #[derive(Clone, Copy, PartialEq)]
 pub struct CanonicalGeometryRef<'a> {
-    geometry: &'a CanonicalGeometryV1,
+    geometry: CanonicalGeometryBorrowed<'a>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum CanonicalGeometryBorrowed<'a> {
+    V1(&'a CanonicalGeometryV1),
+    V2(&'a CanonicalGeometryV2),
 }
 
 impl<'a> From<&'a CanonicalGeometryV1> for CanonicalGeometryRef<'a> {
     fn from(geometry: &'a CanonicalGeometryV1) -> Self {
-        Self { geometry }
+        Self {
+            geometry: CanonicalGeometryBorrowed::V1(geometry),
+        }
+    }
+}
+
+impl<'a> From<&'a CanonicalGeometryV2> for CanonicalGeometryRef<'a> {
+    fn from(geometry: &'a CanonicalGeometryV2) -> Self {
+        Self {
+            geometry: CanonicalGeometryBorrowed::V2(geometry),
+        }
     }
 }
 
@@ -107,33 +123,32 @@ impl CanonicalGeometryRef<'_> {
     /// Complete domain-separated content identity.
     #[must_use]
     pub const fn digest_bytes(self) -> [u8; 32] {
-        self.geometry.digest_bytes()
+        match self.geometry {
+            CanonicalGeometryBorrowed::V1(geometry) => geometry.digest_bytes(),
+            CanonicalGeometryBorrowed::V2(geometry) => geometry.digest_bytes(),
+        }
     }
 
     /// Dimension of the physical coordinate embedding.
     #[must_use]
     pub const fn ambient_dimension(self) -> usize {
-        match &self.geometry.kind {
-            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. }
-            | CanonicalGeometryKind::CircularHolePlanarV1(_) => 2,
-        }
+        2
     }
 
     /// Highest topological dimension represented by the geometry.
     #[must_use]
     pub const fn topological_dimension(self) -> usize {
-        match &self.geometry.kind {
-            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. }
-            | CanonicalGeometryKind::CircularHolePlanarV1(_) => 2,
-        }
+        2
     }
 
     /// Topological dimension of one exact entity-set name.
     #[must_use]
     pub fn entity_set_dimension(self, name: &str) -> Option<usize> {
-        self.geometry
-            .entity_set(name)
-            .map(NamedEntitySet::dimension)
+        match self.geometry {
+            CanonicalGeometryBorrowed::V1(geometry) => geometry.entity_set(name),
+            CanonicalGeometryBorrowed::V2(geometry) => geometry.entity_set(name),
+        }
+        .map(NamedEntitySet::dimension)
     }
 
     /// Exact constant parent-outward normal of one supported boundary set.
@@ -144,8 +159,13 @@ impl CanonicalGeometryRef<'_> {
     /// callers must not infer a catalogue from entity indices themselves.
     #[must_use]
     pub fn constant_parent_outward_normal(self, name: &str) -> Option<[f64; 2]> {
-        self.geometry.circular_hole()?;
-        let set = self.geometry.entity_set(name)?;
+        let set = match self.geometry {
+            CanonicalGeometryBorrowed::V1(geometry) => {
+                geometry.circular_hole()?;
+                geometry.entity_set(name)?
+            }
+            CanonicalGeometryBorrowed::V2(geometry) => geometry.entity_set(name)?,
+        };
         if set.dimension() != EDGE_DIMENSION {
             return None;
         }

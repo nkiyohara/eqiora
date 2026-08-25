@@ -1,0 +1,50 @@
+id = "geometry.construction-proven-planar-geometry-v2"
+status = "verified"
+scope = "one-scale-independent-axis-aligned-rectangle-minus-circle-geometry-derived-from-the-accepted-authored-cad-lineage"
+reference_kind = "structural-scale-family-canonical-replay-and-lineage-falsifiers"
+
+capabilities = [
+  "closed-construction-proven-planar-geometry-v2",
+  "scale-independent-strict-clearance-admission",
+  "immutable-owner-bound-dimension-carrying-result-handles",
+  "complete-atomic-result-topology-naming",
+  "canonical-v2-replay-without-classification-tolerance",
+]
+
+[problem]
+construction = "accepted rectangle extrusion plus one circular through-all cut and exact analytic build receipt"
+projection = "positive-z section face, four retained side edges, and created circular edge"
+scale_family = "2^-40, 1, and 2^40 applied uniformly to all coordinates, lengths, and upstream CAD tolerances"
+naming = "fluid, inlet, outlet, walls, and cylinder from complete typed result membership"
+
+[oracle]
+geometry_predicates = "finite increasing bounds, finite positive radius, finite arithmetic, and strict positive side clearance"
+topology = "one face plus five edges projected only from exact retained/created construction lineage"
+canonical_replay = "closed unknown-field-denying v2 wire reconstructs through the validating constructor and must reproduce its input byte-for-byte"
+exact_v2_bytes_and_digest = "pending independent exact-artifact admission; no expected v2 byte count or digest is frozen by this structural case"
+new_scientific_tolerance = false
+
+[falsifiers]
+scale = "all three uniform scales admit with identical name/dimension/provenance membership"
+geometry = "nonfinite, degenerate, zero/negative/nonfinite radius, tangent, and outside inputs reject"
+lineage = "incomplete, changed, deleted, split, merged, and foreign-build lineage reject before topology publication"
+handle_owner = "foreign and stale source or result owner identity rejects"
+deleted_section_member = "start-cap does not project into the positive-z result section"
+naming = "empty, incomplete, duplicate, and mixed-dimensional groups reject atomically"
+wire = "v2 replay is canonical and contains no tolerance_m member"
+compatibility = "frozen v1 remains 511 bytes, retains exact digest and tolerance bits, and is never artifact-equal to v2"
+
+[claim_boundary]
+one_rectangle_minus_circle_family = true
+construction_owned_source_topology = true
+provider_index_or_coordinate_recovery = false
+classification_or_absolute_naming_threshold = false
+generic_brep_or_boolean_lineage = false
+imported_mesh_classification = false
+public_python_post_build_naming = false
+exact_v2_byte_or_digest_admission = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-geometry"
+test = "cad_authored_result_topology::tests::registered_construction_geometry_v2_evidence"
