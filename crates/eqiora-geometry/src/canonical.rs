@@ -131,6 +131,31 @@ impl CanonicalGeometryRef<'_> {
         self.geometry.entity_set_dimension(name)
     }
 
+    /// Topological dimension of one selection borrowed from this exact
+    /// Geometry revision.
+    ///
+    /// A foreign, cloned, or stale selection returns `None` even when its name
+    /// and members happen to compare equal.
+    #[must_use]
+    #[doc(hidden)]
+    pub fn selection_dimension(self, selection: &NamedEntitySet) -> Option<usize> {
+        self.geometry
+            .owns_selection(selection)
+            .then_some(selection.dimension())
+    }
+
+    /// Whether two selections borrowed from this exact Geometry revision form
+    /// one admitted codimension-one boundary and full-dimensional parent.
+    #[must_use]
+    #[doc(hidden)]
+    pub fn selection_is_boundary_of(
+        self,
+        boundary: &NamedEntitySet,
+        region: &NamedEntitySet,
+    ) -> bool {
+        self.geometry.selection_is_boundary_of(boundary, region)
+    }
+
     /// Exact constant parent-outward normal of one supported boundary set.
     #[must_use]
     pub fn constant_parent_outward_normal(self, name: &str) -> Option<[f64; 2]> {
@@ -166,6 +191,35 @@ impl CanonicalGeometryV1 {
     #[must_use]
     pub fn entity_set_dimension(&self, name: &str) -> Option<usize> {
         self.entity_set(name).map(NamedEntitySet::dimension)
+    }
+
+    fn selection_is_boundary_of(&self, boundary: &NamedEntitySet, region: &NamedEntitySet) -> bool {
+        if !self.owns_selection(boundary)
+            || !self.owns_selection(region)
+            || boundary.dimension().checked_add(1) != Some(self.topological_dimension())
+            || region.dimension() != self.topological_dimension()
+        {
+            return false;
+        }
+        match &self.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 {
+                region: topology, ..
+            } => boundary
+                .members()
+                .iter()
+                .all(|edge| edge_has_selected_parent(topology, *edge, region.members())),
+            CanonicalGeometryKind::CircularHolePlanarV1(_)
+            | CanonicalGeometryKind::PlanarCircularHoleV2(_) => region.members() == [0],
+        }
+    }
+
+    fn owns_selection(&self, selection: &NamedEntitySet) -> bool {
+        self.entity_sets()
+            .binary_search_by(|candidate| {
+                (candidate.dimension(), candidate.name())
+                    .cmp(&(selection.dimension(), selection.name()))
+            })
+            .is_ok_and(|index| std::ptr::eq(&self.entity_sets()[index], selection))
     }
 
     /// Exact constant parent-outward normal of one supported boundary set.
@@ -447,6 +501,23 @@ impl CanonicalGeometryV1 {
         CanonicalPlanarCircularHoleGeometryV2::decode_canonical(bytes, limits)
             .map(Self::from_planar_circular_hole_v2)
     }
+}
+
+fn edge_has_selected_parent(
+    topology: &PlanarRegion,
+    target_edge: usize,
+    selected_faces: &[usize],
+) -> bool {
+    let mut first_edge = 0_usize;
+    for (face_index, face) in topology.faces().iter().enumerate() {
+        let edge_count = face.outer().len() + face.holes().iter().map(Vec::len).sum::<usize>();
+        let after_face = first_edge.saturating_add(edge_count);
+        if (first_edge..after_face).contains(&target_edge) {
+            return selected_faces.binary_search(&face_index).is_ok();
+        }
+        first_edge = after_face;
+    }
+    false
 }
 
 pub(crate) fn digest_with_schema(schema: &str, bytes: &[u8]) -> [u8; 32] {

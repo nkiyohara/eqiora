@@ -17,27 +17,14 @@ use crate::diagnostics::source_error;
 use super::HierarchyLimits;
 use super::preflight::{ComponentDefinition, DefinitionKey, Elaborator, ModelDefinition};
 
-/// Compiler-owned proof that every Component reference is acyclic and every
+mod checked;
+/// Compiler-owned proof that Component references are acyclic and every
 /// reusable definition has a bounded possible occurrence footprint.
 ///
-/// The summaries make this more than a control-flow token. Selected-root
-/// compilation can reuse the same proof instead of recursively recounting the
-/// definition DAG.
-#[derive(Clone, Debug)]
-pub(crate) struct CheckedDefinitionGraph {
-    component_order: Vec<DefinitionKey>,
-    model_summaries: BTreeMap<DefinitionKey, DefinitionSummary>,
-}
-
-impl CheckedDefinitionGraph {
-    pub(super) fn component_order(&self) -> &[DefinitionKey] {
-        &self.component_order
-    }
-
-    pub(super) fn model_summary(&self, key: &DefinitionKey) -> Option<&DefinitionSummary> {
-        self.model_summaries.get(key)
-    }
-}
+/// Selected-root compilation reuses these summaries rather than recursively
+/// recounting the definition DAG for each future occurrence.
+/// The value remains private to hierarchy elaboration.
+pub(crate) use checked::CheckedDefinitionGraph;
 
 /// Saturating footprint of one Component occurrence or one Model root.
 ///
@@ -295,6 +282,18 @@ pub(super) fn validate(
         summaries[index] = Some(summary);
     }
 
+    let component_summaries = components
+        .iter()
+        .zip(summaries.iter())
+        .map(|(component, summary)| {
+            (
+                component.key.clone(),
+                summary
+                    .clone()
+                    .expect("every acyclic Component was summarized"),
+            )
+        })
+        .collect();
     let mut model_summaries = BTreeMap::new();
     for model in models {
         let summary = summarize_model(&model, &summaries, limits, &mut reachability)?;
@@ -311,10 +310,11 @@ pub(super) fn validate(
     }
 
     if diagnostics.is_empty() {
-        Ok(CheckedDefinitionGraph {
+        Ok(CheckedDefinitionGraph::new(
             component_order,
+            component_summaries,
             model_summaries,
-        })
+        ))
     } else {
         Err(diagnostics)
     }

@@ -61,6 +61,54 @@ pub(super) fn lower_domain(
             ))
         }
         (
+            LoweringDomainContract::ExternalGeometryRegion {
+                geometry,
+                entity_set,
+                ..
+            },
+            DomainContract::Spatial { .. },
+        ) => DomainDef::geometry_region(id, *geometry, entity_set.clone())
+            .map(|definition| (definition, None, Vec::new()))
+            .map_err(|diagnostic| {
+                source_error(
+                    codes::LANGUAGE_LOWERING_ERROR,
+                    file,
+                    range,
+                    diagnostic.message(),
+                )
+            }),
+        (
+            LoweringDomainContract::ExternalGeometryBoundary { entity_set, parent },
+            DomainContract::Spatial { .. },
+        ) => {
+            let Some(parent_binding) = bindings.get(parent) else {
+                return Err(unresolved(
+                    file,
+                    range,
+                    parent,
+                    "geometry boundary parent Domain",
+                ));
+            };
+            let Binding::Domain(parent_id, DomainContract::Spatial { .. }) = parent_binding else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    range,
+                    format!("geometry boundary parent `{parent}` is not a spatial Domain"),
+                ));
+            };
+            DomainDef::geometry_boundary(id, entity_set.clone())
+                .map(|definition| (definition, Some(parent_id.erase()), Vec::new()))
+                .map_err(|diagnostic| {
+                    source_error(
+                        codes::LANGUAGE_LOWERING_ERROR,
+                        file,
+                        range,
+                        diagnostic.message(),
+                    )
+                })
+        }
+        (
             LoweringDomainContract::Source(DomainSyntax::ScalarPhysical { .. }),
             DomainContract::ScalarPhysical {
                 across_dimension,

@@ -20,6 +20,8 @@ use super::flat::SourceLocation;
 use super::parameters::ResolvedParameter;
 use super::supports::ResolvedBoundarySet;
 
+mod external;
+
 #[derive(Debug, Clone)]
 pub(super) struct FlatSymbol {
     pub(super) internal_name: String,
@@ -101,6 +103,8 @@ pub(super) struct Scope {
     forwarded_parameter_resolution_bindings: Vec<SourceLocation>,
     forwarded_field_resolution_bindings: Vec<SourceLocation>,
     forwarded_boundary_set_resolution_bindings: Vec<SourceLocation>,
+    // Preserve source-occurrence DAG shape only for the external root path.
+    detach_parameter_expressions: bool,
 }
 
 impl Scope {
@@ -483,11 +487,7 @@ pub(super) fn rewrite_expression_with_boundary_member(
         ExprKind::Name(name) if name == "time" => {
             LoweringExpression::name(name.clone(), expression.range())
         }
-        ExprKind::Name(name) if scope.parameter(name).is_some() => scope
-            .parameter(name)
-            .expect("Parameter presence was checked")
-            .expression
-            .clone(),
+        ExprKind::Name(name) if scope.parameter(name).is_some() => scope.parameter_expression(name),
         ExprKind::Name(name) => {
             let path = NamePath::from_segments([name.clone()], expression.range()).map_err(
                 |ast_error| {
