@@ -1212,8 +1212,11 @@ domain rather than a reinterpretation of that classifier-bearing contract. Its
 content is finite bounds, centre, radius, and complete named membership; it
 persists no graph, build, provider, lineage, or `tolerance_m`. Separately, the
 accepted authored-CAD producer projects retained and created lineage into
-crate-private dimension-carrying result handles bound to the exact graph
-identity, then validates complete atomic naming. Imported or otherwise
+private result topology through the accepted build owner, then validates
+complete atomic naming into the common owned Geometry. The private v1/v2
+representations remain closed, classification precision is present only for
+kinds that own it, and no public result handle or classifier is introduced.
+Imported or otherwise
 untracked topology still requires an explicit identity-bearing classification
 policy at its correspondence/Realization boundary. V1 decoding and its
 classification semantics remain unchanged.

@@ -1,11 +1,15 @@
 //! Accepted build evidence from Eqiora's bounded analytic CAD profiles.
 
+use std::collections::BTreeMap;
+
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
-use crate::cad_authored_result_topology::CadAuthoredResultTopology;
+use crate::cad_authored_result_topology::{
+    CadAuthoredResultTopology, CadAuthoredResultTopologyHandle,
+};
 use crate::cad_authored_selection::FaceKey;
-use crate::{CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1};
+use crate::{CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1, CanonicalGeometryV1};
 
 const RECTANGLE_PROFILE: &str = "eqiora.cad.analytic-rectangle-extrusion-v1";
 const CIRCULAR_CUT_PROFILE: &str = "eqiora.cad.analytic-circular-through-cut-v1";
@@ -55,6 +59,8 @@ pub struct CadAuthoredBuild {
     deleted: Vec<CadAuthoredFaceHandle>,
     split: Vec<CadAuthoredFaceHandle>,
     merged: Vec<CadAuthoredFaceHandle>,
+    predecessor_graph_digest: Option<[u8; 32]>,
+    result_topology: Option<CadAuthoredResultTopology>,
 }
 
 impl CadAuthoredBuild {
@@ -69,7 +75,7 @@ impl CadAuthoredBuild {
                 "analytic CAD build omitted or changed provider, tolerance, discrepancy, repair, or topology-lineage evidence",
             ));
         }
-        Ok(Self {
+        let mut build = Self {
             graph_digest: graph.digest_bytes(),
             provider_profile: observation.provider_profile,
             requested_modeling_tolerance_m: observation.requested_modeling_tolerance_m,
@@ -85,7 +91,13 @@ impl CadAuthoredBuild {
             deleted: bind(graph, &observation.deleted)?,
             split: bind(graph, &observation.split)?,
             merged: bind(graph, &observation.merged)?,
-        })
+            predecessor_graph_digest: graph.predecessor_digest_bytes(),
+            result_topology: None,
+        };
+        if graph.is_cut() {
+            build.result_topology = Some(CadAuthoredResultTopology::from_build(graph, &build)?);
+        }
+        Ok(build)
     }
 
     fn expected_observation(graph: &CadAuthoredGraph) -> BuildObservation {
@@ -221,21 +233,69 @@ impl CadAuthoredBuild {
         &self.merged
     }
 
-    /// Project this accepted build's complete lineage into immutable result topology.
+    fn project_source(
+        &self,
+        topology: &CadAuthoredResultTopology,
+        source: &CadAuthoredFaceHandle,
+    ) -> Result<CadAuthoredResultTopologyHandle, Diagnostic> {
+        let key = source.face_key();
+        let retained_source = source.is_v1()
+            && Some(source.graph_digest_bytes()) == self.predecessor_graph_digest
+            && key != FaceKey::cut_wall();
+        let created_source = !source.is_v1()
+            && source.graph_digest_bytes() == self.graph_digest
+            && key == FaceKey::cut_wall();
+        if !retained_source && !created_source {
+            return Err(invalid(
+                "construction handle is foreign or stale for this accepted build result",
+            ));
+        }
+        let current = self
+            .retained_unchanged
+            .iter()
+            .chain(&self.retained_modified)
+            .chain(&self.created)
+            .find(|handle| handle.face_key() == key)
+            .ok_or_else(|| invalid("construction handle is absent from this accepted result"))?;
+        topology.project(current)
+    }
+
+    /// Atomically bind complete named source lineage into common Geometry.
+    ///
+    /// Retained handles must belong to this graph's exact predecessor and
+    /// created handles to this exact result graph. Every group must be nonempty
+    /// and dimension-homogeneous, and every result member must occur exactly
+    /// once. Projection and naming are one operation; no coordinate classifier
+    /// or public result-topology handle participates.
     ///
     /// # Errors
-    /// Returns `EQ0901` when the build and graph identities differ, the graph
-    /// is not the admitted circular through-cut, or lineage is incomplete,
-    /// mutated, deleted, split, merged, or ambiguous.
-    #[allow(
-        dead_code,
-        reason = "crate-private foundation awaiting its first public post-build naming consumer"
-    )]
-    pub(crate) fn result_topology(
+    /// Returns `EQ0901` for a non-planar build or foreign, incomplete,
+    /// duplicate, empty, or mixed-dimensional named membership.
+    pub fn with_named_topology(
         &self,
-        graph: &CadAuthoredGraph,
-    ) -> Result<CadAuthoredResultTopology, Diagnostic> {
-        CadAuthoredResultTopology::from_build(graph, self)
+        named_topology: &BTreeMap<String, Vec<CadAuthoredFaceHandle>>,
+    ) -> Result<CanonicalGeometryV1, Diagnostic> {
+        let topology = self
+            .result_topology
+            .as_ref()
+            .ok_or_else(|| invalid("accepted build has no planar circular-hole result topology"))?;
+        let projected = named_topology
+            .iter()
+            .map(|(name, handles)| {
+                handles
+                    .iter()
+                    .map(|handle| self.project_source(topology, handle))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map(|handles| (name.clone(), handles))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        topology
+            .canonical_geometry_v2(&projected)
+            .map(CanonicalGeometryV1::from_planar_circular_hole_v2)
+    }
+
+    pub(crate) const fn has_planar_result(&self) -> bool {
+        self.result_topology.is_some()
     }
 }
 

@@ -208,11 +208,14 @@ impl ChordalSource {
         let circle_radius_m = source.circular_hole_radius_m().ok_or_else(|| {
             invalid("chordal circular-hole realization requires exact circular-hole geometry")
         })?;
+        let tolerance_m = source.classification_tolerance_m().ok_or_else(|| {
+            invalid("chordal circular-hole realization requires classification-bearing v1 geometry")
+        })?;
         Ok(Self {
             bounds: *bounds,
             circle_center,
             circle_radius_m,
-            tolerance_m: source.tolerance_m(),
+            tolerance_m,
             entity_sets: source.entity_sets().to_vec(),
         })
     }

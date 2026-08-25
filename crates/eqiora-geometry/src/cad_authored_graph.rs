@@ -545,6 +545,25 @@ impl CadAuthoredGraph {
         CadAuthoredBuild::from_graph(self)
     }
 
+    /// Build and accept this graph's immutable planar circular-hole result.
+    ///
+    /// The returned build is the result owner: it projects graph-bound source
+    /// handles and atomically binds complete named result topology without a
+    /// coordinate classifier or a duplicate planar-result wrapper.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` unless this graph contains the admitted circular
+    /// through-cut and its complete analytic build evidence is accepted.
+    pub fn planar_result(&self) -> Result<CadAuthoredBuild, Diagnostic> {
+        let build = self.build_analytic()?;
+        if !build.has_planar_result() {
+            return Err(invalid(
+                "planar result requires the admitted circular through-cut graph",
+            ));
+        }
+        Ok(build)
+    }
+
     fn face_area_for(&self, selection: FaceKey) -> f64 {
         let [(x0, x1), (y0, y1), (z0, z1)] = self.core.bounds.bounds_m();
         let width = x1 - x0;
@@ -597,10 +616,6 @@ impl CadAuthoredGraph {
         matches!(self.kind, GraphKind::CircularThroughCut(_))
     }
 
-    #[allow(
-        dead_code,
-        reason = "crate-private foundation awaiting its first public post-build naming consumer"
-    )]
     pub(crate) fn planar_cut_parts(&self) -> Option<([[f64; 2]; 2], [f64; 2], f64)> {
         let GraphKind::CircularThroughCut(cut) = self.kind else {
             return None;
@@ -612,6 +627,14 @@ impl CadAuthoredGraph {
             cut.center_m(),
             cut.radius_m(),
         ))
+    }
+
+    pub(crate) fn predecessor_digest_bytes(&self) -> Option<[u8; 32]> {
+        self.is_cut().then(|| {
+            let bytes = serde_json::to_vec(&WireCadAuthoredGraphV1::from_core(self.core))
+                .expect("validated authored graph core always has canonical JSON");
+            digest_with_schema(GRAPH_SCHEMA_V1, &bytes)
+        })
     }
 }
 
