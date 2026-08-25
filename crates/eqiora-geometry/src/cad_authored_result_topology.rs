@@ -315,7 +315,7 @@ fn edge_member(source: FaceKey) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CanonicalGeometryRef, ConstrainedRectangleV1};
+    use crate::ConstrainedRectangleV1;
 
     fn scaled_graph(scale: f64) -> CadAuthoredGraph {
         CadAuthoredGraph::new(
@@ -371,11 +371,17 @@ mod tests {
                 membership = Some(actual_membership);
             }
             let geometry = topology.canonical_geometry_v2(&named).unwrap();
-            let geometry_ref = CanonicalGeometryRef::from(&geometry);
-            assert_eq!(geometry_ref.ambient_dimension(), 2);
-            assert_eq!(geometry_ref.topological_dimension(), 2);
-            assert_eq!(geometry_ref.entity_set_dimension("cylinder"), Some(1));
-            assert_eq!(geometry_ref.entity_set_dimension("fluid"), Some(2));
+            assert_eq!(geometry.bounds().len(), 2);
+            assert_eq!(
+                geometry
+                    .entity_set("cylinder")
+                    .map(NamedEntitySet::dimension),
+                Some(1)
+            );
+            assert_eq!(
+                geometry.entity_set("fluid").map(NamedEntitySet::dimension),
+                Some(2)
+            );
             assert_eq!(
                 CanonicalPlanarCircularHoleGeometryV2::decode_canonical(
                     geometry.canonical_bytes(),
