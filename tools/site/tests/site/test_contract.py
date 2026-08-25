@@ -500,6 +500,14 @@ class CompleteContractTests(unittest.TestCase):
                 "@components/site/ReleaseIdentity.astro",
             ),
             (
+                "docs/site/src/content/docs/evidence/index.mdx",
+                "<ol>",
+            ),
+            (
+                "docs/site/src/content/docs/evidence/index.mdx",
+                "<dl>",
+            ),
+            (
                 "docs/site/astro.config.mjs",
                 "src/components/site/ExactSourceLink.astro",
             ),
@@ -517,7 +525,9 @@ class CompleteContractTests(unittest.TestCase):
                     encoding="utf-8",
                 )
                 errors = checker.check_source(root, identities)
-                self.assertTrue(any("provider" in error for error in errors))
+                self.assertTrue(
+                    any(f"omits {token!r}" in error for error in errors), errors
+                )
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

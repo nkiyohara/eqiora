@@ -809,7 +809,17 @@ def make_fixture(root: Path, cargo_version: str = "0.1.0-alpha.1"):
         "## What is not claimed\n"
         "## Full capability-to-case index\n"
         "<details>\n"
-        '<ExactSourceLink path="verify/example/case.toml" kind="blob">case</ExactSourceLink>\n'
+        "<summary><code>example</code> — 1 entry</summary>\n"
+        "<ol>\n"
+        "<li>\n"
+        "<dl>\n"
+        "<dt>Capability</dt><dd>example</dd>\n"
+        "<dt>Case</dt><dd>"
+        '<ExactSourceLink path="verify/example/case.toml" kind="blob">'
+        "case</ExactSourceLink></dd>\n"
+        "</dl>\n"
+        "</li>\n"
+        "</ol>\n"
         "</details>\n",
     )
     _write(
