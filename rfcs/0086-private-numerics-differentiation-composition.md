@@ -3,6 +3,8 @@
 - Status: Accepted
 - Authors: Eqiora contributors
 - Created: 2026-08-11
+- Review-role requirements superseded by [RFC 0087](0087-one-pass-development-default.md);
+  the primary agent may perform the required risk-focused review and merge
 - Related RFCs and evidence: [RFC 0011](0011-implicit-differentiation-contracts.md),
   [`differentiation.materialized-direct-output`](../verify/differentiation/materialized-direct-output/README.md)
 
@@ -261,8 +263,8 @@ same-layer license. The exact allowlist tuple, sole import site, STOP on a
 second consumer, and deletion condition constrain that risk.
 
 Because this is a dependency-layer exception and architecture decision, the
-complete RFC delta requires fresh-context non-writer review before acceptance.
-The writer cannot supply that review. Acceptance of this RFC does not accept
+complete RFC delta requires recorded risk-focused review before acceptance.
+The writer may supply that review. Acceptance of this RFC does not accept
 the quadrature decision's implementation, the E2 scientific contract, or any
 later source/evidence delta; each retains its own authority and review gates.
 

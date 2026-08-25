@@ -39,11 +39,12 @@ frames.
 
 ## Evidence and falsifiers
 
-Two mutually isolated non-implementer routes precommit every new initial
+Two mutually isolated derivation routes precommit every new initial
 formula, cell average, integral, normalization, exact identity, discrete
 ledger term, acceptance criterion, expected value, tolerance, solver
-criterion, and arithmetic floor before Eqiora output is visible. Eqiora
-histories are producer results, not self-authored expected values.
+criterion, and arithmetic floor before Eqiora output is visible. One agent may
+author both routes when neither reads the implementation path or the other's
+output. Eqiora histories are producer results, not post-hoc expected values.
 
 The reusable 3D periodic collocated class first proves one ordinary positive
 path, then its exact seam, checkerboard, retained-flux, JVP, ledger, resource,

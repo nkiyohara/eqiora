@@ -38,7 +38,9 @@ Opening a pull request is not completion. Keep one dependency-ordered integratio
 actively move its earliest unmerged item through checks, review, correction, and merge while
 independent implementation continues. Before adding another branch or worktree, inspect open
 pull requests and merge every ready predecessor; if none is ready, record the exact failing
-check, missing review, or external owner instead of silently accumulating work in progress.
+check or unresolved decision instead of silently accumulating work in progress. The primary
+agent owns its pull request through merge and may review, approve, and merge its own change once
+the required repository evidence is satisfied; a separate actor is never a merge prerequisite.
 Dependent work may remain stacked, but it must not displace the earliest mergeable item from
 the critical path. Delete or retarget merged stack branches promptly.
 
@@ -67,11 +69,13 @@ manifests under `verify/` remain authoritative; the matrix is their index.
 - A pure refactor needs no status change, but check that the matrix remains truthful.
 - Use `cargo run -p eqiora-verify -- index`; maintain no second evidence registry.
 
-Implementers may write focused tests and assertions for ordinary low-risk behavior. When a
-high-risk change introduces or changes scientific evidence, an exact-artifact oracle, expected
-values, tolerances, or falsifiers, the implementer must not author, tune, or relax that
-evidence. New scientific formulations, expected values, or tolerances use two fresh independent
-derivations. Application surfaces and adapters use focused tests, not derivation ceremony.
+Implementers own the evidence needed for their change, including exact inventories and
+high-risk oracles. Derive expected values and tolerances from the claim rather than adapting
+them to observed implementation output, and record enough inputs and method for reproduction.
+New scientific formulations, expected values, or tolerances use two independently checkable
+analytic and numerical or symbolic derivations; one agent may author both when their methods
+and inputs remain genuinely distinct. Application surfaces and adapters use focused tests, not
+derivation ceremony.
 
 Every evidence package proves an ordinary positive path first. An unrelated earlier denial
 cannot count as rejection of the intended mutant. If an oracle becomes more complex than the
@@ -80,14 +84,15 @@ inconsistency.
 
 ## Review by durable risk
 
-Fresh-context non-writer review is required before integration only for the high-risk delta
-listed above, plus enough context to judge it. Mixed changes do not send unrelated low-risk
-work through that review. The writer or integrator cannot approve its own high-risk delta.
+High-risk deltas receive one explicit risk-focused review before integration, with enough
+context to judge the claim, evidence, compatibility, or trust boundary. The writer or
+integrator may perform that review and approve and merge its own change. External review is
+welcome when it can change a concrete decision, but actor separation is never required.
 
 Dependency-only updates with their lockfile and relevant check, non-governance documentation,
 reproducible mechanical changes, private behavior-preserving refactors, and localized low-risk
 corrections need only self-review unless an anomaly appears. A localized correction to reviewed
-high-risk work receives focused review of the correction; changed claims, evidence,
+high-risk work receives focused self-review of the correction; changed claims, evidence,
 compatibility, or scope reopen only that risk.
 
 ## Verification

@@ -16,9 +16,10 @@ evidence, or human attention free. Process and abstraction therefore need the sa
 pressure as production code.
 
 The default development path is one primary agent, one local change, the narrowest useful
-check, one self-review, and stop. Durable scientific, compatibility, artifact, security,
-release, CI, governance, and architecture risk keeps the specific independent evidence or
-review it needs. Nothing else inherits that ceremony by analogy.
+check, one self-review, and stop. The same primary agent owns implementation through pull
+request integration. Durable scientific, compatibility, artifact, security, release, CI,
+governance, and architecture risk keeps the specific reproducible evidence or focused review
+it needs, without requiring a second actor. Nothing else inherits that ceremony by analogy.
 
 ## Product position
 
@@ -84,9 +85,11 @@ must not rise through ordinary work, and should disappear when a simpler invaria
 Evidence should be cheaper than the mistake it prevents.
 
 - Ordinary low-risk code and its focused tests may share a writer.
-- The implementation writer does not own or tune newly introduced scientific expected values,
-  tolerances, falsifiers, or exact-artifact oracles.
-- New scientific formulations use independent analytic and numerical or symbolic derivations.
+- The implementation writer may own scientific expected values, tolerances, falsifiers, and
+  exact-artifact oracles, but derives them from the claim and records their reproducible basis
+  instead of tuning them to implementation output.
+- New scientific formulations use independently checkable analytic and numerical or symbolic
+  derivations; one agent may author both when the routes are genuinely distinct.
 - Every evidence package reaches a normal positive path before its targeted negative probe.
 - A registered case supports only its explicit claim and non-claims.
 - Resource claims use implementation-independent input or work bounds unless live residency is

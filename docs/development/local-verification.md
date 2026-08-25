@@ -167,8 +167,10 @@ ceilings wait for every relevant hosted check before merge.
 
 The exact localized low-risk classes and auditable owner/admin bypass are defined by
 [the public verification topology](ci-topology.md). Before such a bypass, the exact head still
-runs its focused mise gate, scope/DCO audit, and required review. Record the actor, reason, head,
-commands, results, and post-merge signal. Ambiguous or high-risk work is ineligible.
+runs its focused mise gate, scope/DCO audit, and recorded risk-focused self-review. Record the
+actor, reason, head, commands, results, and post-merge signal. A high-risk bypass is limited to
+a named self-approval deadlock in the protected check itself; all other relevant contexts still
+complete before merge.
 
 Record exact commands and limitations in the pull request or Issue. If a check fails, correct
 the same slice and rerun the exposing check. Do not create a standing report or another
