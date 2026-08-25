@@ -54,19 +54,19 @@ it.
 
 ## Evidence proportional to risk
 
-Ordinary low-risk implementation and its focused tests stay in one pass and may have the same
-writer. Independent evidence ownership is required when the delta introduces or changes
-scientific meaning, expected values, tolerances, falsifiers, or an exact-artifact oracle.
+Ordinary low-risk implementation and its focused tests stay in one pass. High-risk evidence
+remains independently reproducible, but it does not require a different writer or agent.
 
 - Prove one ordinary positive end-to-end path before negative probes.
 - Name the exact gate a mutant is intended to reach. An earlier unrelated denial is not a
   successful rejection.
-- The implementation writer does not author, tune, or relax high-risk expected values,
-  tolerances, or falsifiers.
-- New scientific formulations, expected values, or tolerances use two fresh independent
-  analytic and numerical or symbolic derivations.
-- Exact artifacts use a precommitted non-implementer oracle that matches the claimed byte or
-  ordering semantics.
+- Derive high-risk expected values, tolerances, and falsifiers from the claim rather than
+  tuning them to observed implementation output.
+- New scientific formulations, expected values, or tolerances use two independently checkable
+  analytic and numerical or symbolic derivations. The same agent may author both when they do
+  not share the implementation path or each other's output.
+- Exact artifacts use a deterministic generator or independently reproducible derivation that
+  matches the claimed byte or ordering semantics.
 - Public/API adapters without new science use focused compatibility and failure tests, not
   scientific derivation.
 
@@ -135,7 +135,7 @@ Before integration:
 2. confirm the narrow claim, non-claims, and affected evidence;
 3. run the narrowest repository-owned checks required by
    [local verification](local-verification.md);
-4. obtain fresh-context non-writer review only for the actual high-risk delta; and
+4. perform and record a risk-focused review of the actual high-risk delta; and
 5. wait for relevant hosted checks when durable risk requires them.
 
 A localized correction reruns the exposing check and receives only the focused review its risk

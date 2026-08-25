@@ -813,7 +813,7 @@ correspondence, discrete blocks, and reference README prose must remain
 free of the sweep's search spellings unless first admitted by another exact
 row.
 
-The production implementation writer owns only:
+The primary agent may own the production implementation paths:
 
 ```text
 crates/eqiora-artifact/src/prescribed_dynamic_solid_realization.rs
@@ -824,7 +824,7 @@ crates/eqiora-artifact/src/spatial_data/state.rs
 crates/eqiora-api/src/prescribed_dynamic_solid.rs
 ```
 
-The integrator alone owns:
+The same primary agent may also own the integration paths:
 
 ```text
 rfcs/README.md
@@ -880,13 +880,13 @@ statuses and all existing evidence links:
 
 No Cargo manifest or lockfile change is expected. A writer that needs another
 path, public item, registration, or ceiling change beyond the three exact
-amendments stops and returns the requirement to the contract owner or
-integrator.
+amendments stops and re-scopes the RFC before widening the delta.
 
-## Independent exact-artifact oracle
+## Reproducible exact-artifact oracle
 
-This RFC adds durable schema and exact-artifact meaning, so a fresh
-non-implementer must pre-commit the oracle before production implementation.
+This RFC adds durable schema and exact-artifact meaning, so the primary agent
+pre-commits a deterministic, independently reproducible oracle before observing
+production implementation output. Actor separation is not required.
 No dual scientific derivation is required because the oracle consumes every
 scientific value and tolerance from the accepted reference unchanged.
 
@@ -1026,9 +1026,9 @@ capabilities only; their accepted reports are checked by the existing
 numerical contract.
 
 Because this change defines a persisted schema, public API, compatibility
-promise, and exact artifact, the complete risky delta requires fresh-context
-non-writer review before integration. The exact-artifact oracle is separately
-owned and pre-committed. Confidence or implementation self-tests cannot
+promise, and exact artifact, the complete risky delta requires a recorded
+risk-focused self-review before integration. The exact-artifact oracle remains
+pre-committed and reproducible. Confidence or implementation self-tests cannot
 replace either gate.
 
 ## Nonclaims and stop conditions

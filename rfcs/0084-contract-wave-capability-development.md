@@ -3,6 +3,8 @@
 - Status: Accepted
 - Authors: Eqiora contributors
 - Created: 2026-08-04
+- Active development policy superseded by [RFC 0087](0087-one-pass-development-default.md);
+  role-separated passages below are historical, not current merge requirements
 - Related: [AI-authored platform strategy](../docs/development/ai-authored-platform-strategy.md),
   [capability development guide](../docs/development/vertical-slice-development.md),
   and [RFC 0075](0075-fem-form-compiler-poisson-q1.md)

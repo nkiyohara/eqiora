@@ -3,6 +3,7 @@
 - Status: Accepted
 - Authors: Eqiora contributors
 - Created: 2026-08-22
+- Amended: 2026-08-25 — one agent may own evidence, review, and integration
 - Related: [RFC 0084](0084-contract-wave-capability-development.md) and
   [AI-authored platform strategy](../docs/development/ai-authored-platform-strategy.md)
 
@@ -12,8 +13,9 @@ Make one local pass the default for every change outside a short durable-risk li
 waves remain available for genuinely high-risk capability work and explicitly requested
 parallel writes; they are no longer the default writable unit.
 
-This RFC supersedes RFC 0084 only as active development policy. RFC 0084 remains immutable
-history, and its scientific or product decisions are not reinterpreted.
+This RFC supersedes RFC 0084 as active development policy. Historical descriptions of
+non-writer or non-implementer roles in older RFCs and evidence packages remain factual records,
+but they do not impose actor separation on future implementation, evidence, review, or merge.
 
 ## Problem
 
@@ -49,8 +51,11 @@ oracle, sealed handoff, worktree, subagent, or broad gate. Implementers may writ
 for low-risk behavior.
 
 High-risk work retains only the evidence, review, environment, and hosted checks justified by
-its concrete risk. Scientific expected values and exact-artifact oracles stay independent of
-the implementation writer. A mixed change sends only its risky delta to fresh review.
+its concrete risk. Evidence must remain independently reproducible, but the implementation
+writer may author it, perform the risk-focused review, approve the pull request, and merge it.
+Scientific values are derived from the claim rather than tuned to observed output; new
+formulations use two genuinely distinct derivation routes even when one agent owns both. A
+mixed change reviews only its risky delta.
 
 ## Parallelism
 
@@ -88,7 +93,7 @@ The governance delta is accepted when:
 
 - ordinary-work guidance has one unambiguous path across the active documents;
 - documentation links and repository documentation checks pass;
-- a fresh-context non-writer reviews this complete governance delta;
+- the complete governance delta receives a recorded risk-focused self-review;
 - no product capability, scientific claim, schema, compatibility promise, or trust boundary is
   changed; and
 - the Priority Zero tracker records the remaining release and backlog work.

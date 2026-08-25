@@ -57,27 +57,26 @@ this repository policy may silently mutate.
 Normal integration and every high-risk delta wait for the relevant required
 contexts. The trust guard intentionally cannot approve its own replacement, so
 with one maintainer a legitimate trust-definition change retains its explicit
-owner bootstrap bypass after exact-tree repository verification and required
-fresh review. This is auditable bootstrap, not independent review.
+owner bootstrap bypass after exact-tree repository verification and recorded
+risk-focused self-review. This is auditable bootstrap, not external review.
 
-The same existing owner/admin bypass may be used deliberately for no other
-class except one of these localized low-risk deltas: a one-line non-protection
-agent-capacity setting, non-governance documentation, reproducible mechanical
-output, a private behavior-preserving refactor, or a localized correction to an
-already-reviewed low-risk finding. Before bypass, the exact head must pass its
-mise gate, scope and DCO audit, and any required review; the base-owned
-`CI definition trust` context should be allowed to complete whenever possible.
+The same existing owner/admin bypass may be used when a required context cannot
+approve a change to its own protected definition, and for localized low-risk
+deltas such as a one-line non-protection agent-capacity setting, non-governance
+documentation, reproducible mechanical output, a private behavior-preserving
+refactor, or a localized correction. Before bypass, the exact head must pass its
+mise gate, scope and DCO audit, and recorded risk-focused self-review; every
+unaffected required context should be allowed to complete whenever possible.
 Record the exact head, actor, reason, commands, and results in the pull request.
 Continue already-running CI as a post-merge signal and immediately assess
 repair or rollback on failure.
 
-This route does not weaken, remove, or reconfigure required contexts or the
-ruleset; it uses the live auditable bypass narrowly. Ambiguous risk, a change to
-scientific meaning or an oracle, public or versioned API, persisted schema or
-exact artifact, security or data integrity, release or CI trust, governance,
-or architecture is ineligible and waits pre-merge. Once a second active human
-maintainer exists, critical trust paths should require independent Code Owner
-review.
+This route does not silently weaken, remove, or reconfigure required contexts
+or the ruleset; it uses the live auditable bypass narrowly to resolve a named
+self-approval deadlock. High-risk work still waits for every relevant context
+that can evaluate it, and the pull request records the actor, exact head,
+reason, commands, results, and any post-merge signal. External Code Owner
+review may be added for a concrete trust decision, but it is not mandatory.
 
 ## Change ownership
 

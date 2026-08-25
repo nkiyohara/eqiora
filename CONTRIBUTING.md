@@ -15,8 +15,9 @@ high-risk capability work or explicitly parallel writes.
   the narrowest repository-owned check, one self-review, then stop.
 - New scientific semantics, public/versioned compatibility, persisted or wire
   formats, security/trust policy, governance, and architecture ceilings require
-  their owning RFC or high-risk review. A filename or possible future use does
-  not make a change high risk.
+  their owning RFC or risk-focused review. The same primary agent may author
+  the evidence, perform that review, approve, and merge; actor separation is not
+  required. A filename or possible future use does not make a change high risk.
 - Reuse accepted contracts and evidence. Do not create a contract artifact,
   independent oracle, registry, or lane for ordinary behavior.
 - Do not add a Semantic Kernel node for UI or adapter convenience. First show
