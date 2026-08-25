@@ -411,7 +411,7 @@
           "class": "current-owner-assertion",
           "signals": ["model_digest"],
           "identity_literals": 0,
-          "accepted_sha256": "3c9bc27c7aa4e4b8836af021c1ae775da9a1dc47229c0bb68a75743430b876bb",
+          "accepted_sha256": "9f6b9bb4d1f7b6dfa2631fbfa97bef2d0849445c15a2d5ab4379eb4c64b3f60d",
           "owner": "gallery.exact-cylinder-steady-stokes current-owner documentation",
           "note": "the accepted Cylinder gallery projection names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; gallery science and prose remain owned by their accepted authorities."
         },
@@ -492,7 +492,7 @@
           "class": "non-fixture-search-hit",
           "signals": ["model_digest"],
           "identity_literals": 0,
-          "accepted_sha256": "e569129c5e0f1508cdaba79c7bdd9ed5d877e1aaae64e2315d776851bbdd92cc",
+          "accepted_sha256": "b999486b9333cfea52ad7bcc331842444954d717bbd65230673b4a7536e18120",
           "owner": "the accepted exact-cylinder pressure producer",
           "note": "the accepted producer names `model_digest` as an input lineage field without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; scientific and publication semantics remain with their accepted authorities."
         },
