@@ -33,12 +33,12 @@ def geometry(*, x_upper: float = 2.2) -> eqiora.geometry.Geometry:
     )
 
 
-def inputs(source: eqiora.geometry.Geometry):
+def inputs(geometry: eqiora.geometry.Geometry):
     supports = {
-        name: source.selection(name)
+        name: geometry.selection(name)
         for name in ("fluid", "inlet", "outlet", "walls", "cylinder")
     }
-    channel_height = source.bounds[1][1] - source.bounds[1][0]
+    channel_height = geometry.bounds[1][1] - geometry.bounds[1][0]
     parameters = {
         "dynamic_viscosity": 0.001,
         "zero_pressure": 0.0,
@@ -119,3 +119,6 @@ def test_bindings_fail_closed_before_returning_a_model() -> None:
 
     with pytest.raises(eqiora.ValidationError, match="finite"):
         bind(source, authored, supports, {**parameters, "inlet_speed": float("nan")})
+
+    with pytest.raises(eqiora.ValidationError, match="not bool"):
+        bind(source, authored, supports, {**parameters, "inlet_speed": True})

@@ -31,7 +31,7 @@ use eqiora::diagnostic::codes;
 use eqiora::kernel::GeometryDigest;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyModule};
+use pyo3::types::{PyBool, PyDict, PyModule};
 
 pub(crate) use error::diagnostic_error;
 #[doc(hidden)]
@@ -184,8 +184,20 @@ fn bind_component(
         let parameters = parameters
             .iter()
             .map(|(parameter, value)| {
+                let parameter = parameter.extract::<String>()?;
+                if value.is_instance_of::<PyBool>() {
+                    return Err(error::validation_error(
+                        py,
+                        &[eqiora::Diagnostic::error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            format!(
+                                "external parameter {parameter:?} must be a real number, not bool"
+                            ),
+                        )],
+                    ));
+                }
                 Ok(ExternalParameterBinding::new(
-                    parameter.extract::<String>()?,
+                    parameter,
                     value.extract::<f64>()?,
                 ))
             })
