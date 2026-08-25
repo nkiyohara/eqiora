@@ -163,7 +163,7 @@ impl ModelDocument {
         store.commit(transaction)?;
         let program =
             KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, geometries)?;
-        Self::from_store_with_geometry(store, program, aliases, geometries)
+        Self::from_store_with_geometry(program, aliases, geometries)
     }
 
     /// Replay one artifact through the single current Model contract.
@@ -212,7 +212,6 @@ impl ModelDocument {
     }
 
     fn from_store_with_geometry(
-        _store: InMemoryGraphStore,
         program: KernelProgram,
         aliases: BTreeMap<String, RawId>,
         geometries: &[CanonicalGeometryRef<'_>],
