@@ -21,25 +21,25 @@ ROOT = Path(__file__).resolve().parents[2]
 FACADE = ROOT / "api/eqiora-facade-v1.json"
 LANDING = ROOT / "docs/site/src/content/docs/reference/rust/index.mdx"
 FACADE_SCHEMA = "eqiora.facade-inventory/v1"
-FACADE_SHA256 = "dbef944048019a3cadbe8da8c2c709d13d373995fc1657d0c62744d44c8fce73"
+FACADE_SHA256 = "101a1292c8c2195b8dfb17e542c548934b59a735c6dbf077aec347a0192539f6"
 EXPECTED_COUNTS = {
     "modules": 24,
     "stable_modules": 3,
     "transitional_modules": 21,
-    "items": 183,
+    "items": 182,
     "stable_items": 48,
-    "transitional_items": 135,
+    "transitional_items": 134,
 }
 PUBLIC_RUSTDOC_PREFIX = "/reference/rust/api/eqiora/"
 ALLOWED_SITE_LINKS = {"/favicon.svg", "/reference/rust/"}
-EXPECTED_RUSTDOC_FILES = 2_216
-EXPECTED_RUSTDOC_HTML = 1_378
-EXPECTED_PROJECTED_PAGES = 1_081
-EXPECTED_TOGGLE_SUMMARIES = 93_201
-EXPECTED_DIRECT_SECTIONS = 91_783
-EXPECTED_SIGNATURE_LINKS = 268_319
-EXPECTED_HIDEME_LABELS = 1_418
-EXPECTED_DESCRIPTION_LABELS = 1_361
+EXPECTED_RUSTDOC_FILES = 2_215
+EXPECTED_RUSTDOC_HTML = 1_377
+EXPECTED_PROJECTED_PAGES = 1_080
+EXPECTED_TOGGLE_SUMMARIES = 93_119
+EXPECTED_DIRECT_SECTIONS = 91_702
+EXPECTED_SIGNATURE_LINKS = 268_096
+EXPECTED_HIDEME_LABELS = 1_417
+EXPECTED_DESCRIPTION_LABELS = 1_360
 EXPECTED_SPECIAL_HIDEME_LABELS = 57
 VOID_TAGS = frozenset(
     {
@@ -689,8 +689,8 @@ def _render_landing(
         "| Surface | Stable | Transitional | Total |",
         "| --- | ---: | ---: | ---: |",
         "| Public modules | 3 | 21 | 24 |",
-        "| Explicit exported items | 48 | 135 | 183 |",
-        "| Classified facade paths | 51 | 156 | **207** |",
+        "| Explicit exported items | 48 | 134 | 182 |",
+        "| Classified facade paths | 51 | 155 | **206** |",
         "",
         "Classifications come from the checked facade inventory. Rustdoc remains compiler",
         "output; the inventory is the classification authority.",
@@ -711,7 +711,7 @@ def _render_landing(
     lines.extend(
         [
             "",
-            "## Explicit exported items (183)",
+            "## Explicit exported items (182)",
             "",
             "| Item | Classification | Provider |",
             "| --- | --- | --- |",
@@ -805,7 +805,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(
         "Rust reference: staged complete facade rustdoc at "
-        f"{destination} ({len(modules)} modules + {len(items)} items = 207 paths)"
+        f"{destination} ({len(modules)} modules + {len(items)} items = 206 paths)"
     )
     return 0
 
