@@ -616,6 +616,8 @@ def check_source(
             "## What is not claimed",
             "## Full capability-to-case index",
             "<details>",
+            "<ol>",
+            "<dl>",
         ),
         site / "astro.config.mjs": (
             "src/components/site/ExactSourceLink.astro",

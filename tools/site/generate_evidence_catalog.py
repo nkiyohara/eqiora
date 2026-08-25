@@ -317,8 +317,7 @@ def render_catalog(document: Any) -> str:
                 "<details>",
                 f"<summary><code>{_cell(area)}</code> — {len(entries)} entries</summary>",
                 "",
-                "| Capability | Case | Status | Reference | Conformance kits | Target |",
-                "| --- | --- | --- | --- | --- | --- |",
+                "<ol>",
             ]
         )
         for entry in sorted(
@@ -329,21 +328,21 @@ def render_catalog(document: Any) -> str:
                 f"<ExactSourceLink path={{{_jsx_string(str(entry['manifest']))}}} "
                 f"kind=\"blob\"><code>{_cell(str(entry['case']))}</code></ExactSourceLink>"
             )
-            lines.append(
-                "| "
-                + " | ".join(
-                    [
-                        _cell(str(entry["capability"])),
-                        case_link,
-                        _cell(str(entry["status"])),
-                        _cell(str(entry["reference"])),
-                        _cell(str(entry["kits"])),
-                        _cell(str(entry["target"])),
-                    ]
-                )
-                + " |"
+            lines.extend(
+                [
+                    "<li>",
+                    "<dl>",
+                    f"<dt>Capability</dt><dd>{_cell(str(entry['capability']))}</dd>",
+                    f"<dt>Case</dt><dd>{case_link}</dd>",
+                    f"<dt>Status</dt><dd>{_cell(str(entry['status']))}</dd>",
+                    f"<dt>Reference</dt><dd>{_cell(str(entry['reference']))}</dd>",
+                    f"<dt>Conformance kits</dt><dd>{_cell(str(entry['kits']))}</dd>",
+                    f"<dt>Target</dt><dd>{_cell(str(entry['target']))}</dd>",
+                    "</dl>",
+                    "</li>",
+                ]
             )
-        lines.extend(["", "</details>", ""])
+        lines.extend(["</ol>", "", "</details>", ""])
     return "\n".join(lines)
 
 

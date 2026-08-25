@@ -279,7 +279,7 @@ test('02 exact table inventory is complete before parent or product matrix resul
     componentTotal += expected.component;
   }
   expect({ tableTotal, directTotal, componentTotal }).toEqual({
-    tableTotal: 24,
+    tableTotal: 9,
     directTotal: 8,
     componentTotal: 1,
   });

@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from html import unescape
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parents[1]
@@ -72,18 +73,15 @@ class EvidenceCatalogTests(unittest.TestCase):
                 return int(error.code)
 
     @staticmethod
-    def render_reference_row(document):
+    def render_reference_entry(document):
         rendered = catalog.render_catalog(document)
-        row = next(
-            line
-            for line in rendered.splitlines()
-            if line.startswith("| spatial.solve | <ExactSourceLink ")
+        lines = rendered.splitlines()
+        start = next(
+            offset
+            for offset, line in enumerate(lines)
+            if line == "<dt>Capability</dt><dd>spatial.solve</dd>"
         )
-        source = (
-            "| Capability | Case | Status | Reference | Conformance kits | Target |\n"
-            "|---|---|---|---|---|---|\n"
-            f"{row}\n"
-        )
+        source = "<dl>\n" + "\n".join(lines[start : start + 6]) + "\n</dl>\n"
         script = """
 import { markdownToHtml } from 'satteri';
 import { katexMathPlugin } from './src/plugins/katex.ts';
@@ -148,12 +146,15 @@ process.stdout.write(html);
         self.assertIn(
             "<summary><code>numerics</code> — 2 entries</summary>", first
         )
-        entry_rows = [
+        entries = [
             line
             for line in first.splitlines()
-            if line.startswith("| a.capability | <ExactSourceLink ")
+            if line == "<dt>Capability</dt><dd>a.capability</dd>"
         ]
-        self.assertEqual(len(entry_rows), len(canonical["entries"]))
+        self.assertEqual(len(entries), len(canonical["entries"]))
+        self.assertNotIn("| Capability | Case |", first)
+        self.assertEqual(first.count("<ol>"), 1)
+        self.assertEqual(first.count("<dl>"), len(canonical["entries"]))
 
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "index.mdx"
@@ -162,16 +163,16 @@ process.stdout.write(html);
             self.assertEqual(output.read_text(encoding="utf-8"), first)
 
     def test_01_reference_metacharacters_remain_literal_through_site_processor(self):
-        ordinary_html = self.render_reference_row(index([entry()]))
-        self.assertIn("<td>independent-analytic</td>", ordinary_html)
+        ordinary_html = self.render_reference_entry(index([entry()]))
+        self.assertIn("<dd>independent-analytic</dd>", ordinary_html)
         self.assertNotIn("<em", ordinary_html)
         self.assertNotIn("<math", ordinary_html)
         self.assertNotIn('class="katex"', ordinary_html)
 
         metacharacters = entry()
         metacharacters["reference_kind"] = "_em_ $x$"
-        rendered_html = self.render_reference_row(index([metacharacters]))
-        self.assertIn("<td>_em_ $x$</td>", rendered_html)
+        rendered_html = self.render_reference_entry(index([metacharacters]))
+        self.assertIn("<dd>_em_ $x$</dd>", unescape(rendered_html))
         self.assertNotIn("<em", rendered_html)
         self.assertNotIn("<math", rendered_html)
         self.assertNotIn('class="katex"', rendered_html)
@@ -325,6 +326,8 @@ process.stdout.write(html);
         )
         self.assertLess(rendered.index("`fluid`"), rendered.index("`numerics`"))
         self.assertEqual(rendered.count("<details>"), 2)
+        self.assertEqual(rendered.count("<ol>"), 2)
+        self.assertEqual(rendered.count("<dl>"), len(entries))
 
     def test_cargo_library_target_is_visible_and_closed(self):
         library = entry()
