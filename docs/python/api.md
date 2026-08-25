@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 11 module summaries and all 110 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 494 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 11 module summaries and all 110 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 493 signature-only entries under documented owning types**.
 
-Inventory: 11 modules, 129 literal public spellings, 110 canonical grouped declarations, 627 visible method signatures (494 non-dunder and 133 dunder), and 47 visible class assignments.
+Inventory: 11 modules, 129 literal public spellings, 110 canonical grouped declarations, 626 visible method signatures (493 non-dunder and 133 dunder), and 47 visible class assignments.
 
 Regenerate with:
 
@@ -1646,7 +1646,6 @@ class CadAuthoredGraph:
     def circular_through_cut(self, *, center: tuple[float, float], radius: float, boolean_tolerance: float) -> CadAuthoredGraph: ...
     def through_cut(self, sketch: CadAuthoredSketch, /, *, boolean_tolerance: float) -> CadAuthoredGraph: ...
     def planar_section(self, *, named_topology: Mapping[str, CadAuthoredFaceHandle | Sequence[CadAuthoredFaceHandle]]) -> Geometry: ...
-    def planar_circular_section(self, *, classification_tolerance: float, region: str, x_lower: str, x_upper: str, y_lower: str, y_upper: str, hole: str) -> Geometry: ...
     @property
     def canonical_bytes(self) -> bytes: ...
     @property

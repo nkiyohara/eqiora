@@ -12,10 +12,9 @@ atomic name-to-handle mapping after the build: each arbitrary user name owns one
 graph-bound end-cap face or same-dimensional sequence of retained/created side
 faces, and the complete section topology must be covered exactly once. Native
 lineage, rather than coordinates, proximity, provider IDs, mesh labels, or a
-caller classification tolerance, determines every role. The predecessor
-circle-shaped method remains temporarily as a compatibility route and is the
-only route that accepts an explicit Geometry classification tolerance. The DFG
-section is the already accepted 511-byte value with digest
+caller classification tolerance, determines every role. No separate
+circle-shaped public route remains. The DFG section is the already accepted
+511-byte value with digest
 `b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9`,
 so this route adds lineage rather than another circle or mesh semantics.
 

@@ -39,14 +39,17 @@ def _(eqiora):
         radius=0.05,
         boolean_tolerance=1e-10,
     )
-    geometry = geometry_graph.planar_circular_section(
-        classification_tolerance=1e-12,
-        region="fluid",
-        x_lower="inlet",
-        x_upper="outlet",
-        y_lower="walls",
-        y_upper="walls",
-        hole="cylinder",
+    geometry = geometry_graph.planar_section(
+        named_topology={
+            "fluid": geometry_graph.face_handle("end-cap"),
+            "inlet": geometry_graph.face_handle("profile-x-lower"),
+            "outlet": geometry_graph.face_handle("profile-x-upper"),
+            "walls": (
+                geometry_graph.face_handle("profile-y-lower"),
+                geometry_graph.face_handle("profile-y-upper"),
+            ),
+            "cylinder": geometry_graph.face_handle("cut-wall"),
+        }
     )
     return (geometry,)
 

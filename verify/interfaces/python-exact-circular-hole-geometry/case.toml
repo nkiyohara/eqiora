@@ -6,13 +6,13 @@ reference_kind = "existing-canonical-example-bytes-and-public-rust-identity-repl
 capabilities = [
   "python-rust-owned-exact-circular-hole-geometry",
   "python-canonical-circular-hole-json-and-digest",
-  "python-fixed-role-named-selection-catalogue",
+  "python-construction-handle-named-selection-catalogue",
   "python-exact-geometry-validation-and-identity",
 ]
 
 [problem]
 geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one radius-0.05 m circle centred at [0.2, 0.2] m"
-constructor = "CadAuthoredGraph.circular_through_cut(...).planar_circular_section(...) -> eqiora.geometry.Geometry"
+constructor = "CadAuthoredGraph.circular_through_cut(...).planar_section(named_topology=...) -> eqiora.geometry.Geometry"
 canonical_source = "examples/steady-flow-past-cylinder.geometry.json"
 region = "fluid, exact topological dimension 2"
 boundaries = "inlet, outlet, walls, and cylinder, exact topological dimension 1"
@@ -32,7 +32,7 @@ unknown_selection_is_structured_validation = true
 swapped_inlet_outlet_roles = "different exact identity"
 reversed_y_lower_y_upper_mapping = "reject-by-independent-556-byte-content-and-digest-witness"
 transposed_circle_center_xy = "reject-by-independent-off-axis-canonical-content-and-digest-witness"
-nonfinite_or_nonpositive_radius_or_tolerance = "structured-validation-error"
+nonfinite_or_nonpositive_radius = "structured-validation-error"
 reversed_nonfinite_or_degenerate_span = "structured-validation-error"
 tangent_or_insufficiently_clear_circle = "structured-validation-error"
 empty_or_cross_dimension_selection_name = "structured-validation-error"
@@ -45,9 +45,9 @@ ambient_dimension = 2
 topological_dimension = 2
 one_axis_aligned_rectangle = true
 exactly_one_exact_circular_hole = true
-fixed_role_selectors_only = true
+fixed_role_selectors_only = false
 generic_primitives_or_boolean = false
-geometry_or_boundary_handles = false
+construction_bound_topology_handles = true
 mesh_or_approximation_policy = false
 external_json_admission = false
 model = false

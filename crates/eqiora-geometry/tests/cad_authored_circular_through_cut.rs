@@ -288,27 +288,6 @@ fn wire_and_handles_fail_closed_without_rebinding() {
 }
 
 #[test]
-fn through_cut_derives_the_frozen_exact_planar_section() {
-    let graph = dfg_graph();
-    let section = graph
-        .planar_circular_section(
-            1.0e-12, "fluid", "inlet", "outlet", "walls", "walls", "cylinder",
-        )
-        .unwrap();
-
-    assert_eq!(section.canonical_bytes(), DFG_SECTION_WIRE.as_bytes());
-    assert_eq!(section.canonical_bytes().len(), 511);
-    assert_eq!(section.digest_bytes(), DFG_SECTION_DIGEST);
-
-    let swapped = graph
-        .planar_circular_section(
-            1.0e-12, "fluid", "outlet", "inlet", "walls", "walls", "cylinder",
-        )
-        .unwrap();
-    assert_ne!(swapped.digest_bytes(), section.digest_bytes());
-}
-
-#[test]
 fn atomic_topology_naming_reproduces_the_frozen_exact_planar_section() {
     let graph = dfg_graph();
     let section = graph.planar_section(&dfg_named_topology(&graph)).unwrap();
@@ -374,48 +353,24 @@ fn atomic_topology_naming_rejects_foreign_incomplete_and_ambiguous_mappings() {
 }
 
 #[test]
-fn planar_section_keeps_tolerances_and_nonplanar_graph_facts_separate() {
+fn planar_section_keeps_nonplanar_graph_facts_out_of_geometry_identity() {
     let derive = |plane_z, depth, modeling_tolerance| {
-        CadAuthoredGraph::new(
+        let graph = CadAuthoredGraph::new(
             ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), plane_z).unwrap(),
             depth,
             modeling_tolerance,
         )
         .unwrap()
         .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
-        .unwrap()
-        .planar_circular_section(
-            1.0e-12, "fluid", "inlet", "outlet", "walls", "walls", "cylinder",
-        )
-        .unwrap()
+        .unwrap();
+        graph.planar_section(&dfg_named_topology(&graph)).unwrap()
     };
     assert_eq!(derive(0.0, 1.0, 1.0e-10), derive(4.0, 3.0, 2.0e-10));
-    assert!(
-        CadAuthoredGraph::new(
-            ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), 0.0).unwrap(),
-            1.0,
-            1.0e-10,
-        )
-        .unwrap()
-        .planar_circular_section(
-            1.0e-12, "fluid", "inlet", "outlet", "walls", "walls", "cylinder",
-        )
-        .is_err()
-    );
-
-    let narrow_clearance = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((0.0, 4.0e-9), (0.0, 4.0e-9), 0.0).unwrap(),
+    let rectangle = CadAuthoredGraph::new(
+        ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), 0.0).unwrap(),
         1.0,
-        1.0e-12,
+        1.0e-10,
     )
-    .unwrap()
-    .circular_through_cut([2.0e-9, 2.0e-9], 0.5e-9, 1.0e-10)
     .unwrap();
-    assert!(
-        narrow_clearance
-            .planar_circular_section(
-                1.5e-9, "fluid", "inlet", "outlet", "walls", "walls", "cylinder",
-            )
-            .is_err()
-    );
+    assert!(rectangle.planar_section(&BTreeMap::new()).is_err());
 }

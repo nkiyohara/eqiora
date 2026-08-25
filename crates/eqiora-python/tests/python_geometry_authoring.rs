@@ -85,7 +85,6 @@ def make(**overrides):
         "bounds": ((0.0, 2.2), (0.0, 0.41)),
         "circle_center": (0.2, 0.2),
         "circle_radius": 0.05,
-        "tolerance": 1e-12,
         "region": "fluid",
         "x_lower": "inlet",
         "x_upper": "outlet",
@@ -106,15 +105,20 @@ def make(**overrides):
         radius=arguments["circle_radius"],
         boolean_tolerance=1e-10,
     )
-    return graph.planar_circular_section(
-        classification_tolerance=arguments["tolerance"],
-        region=arguments["region"],
-        x_lower=arguments["x_lower"],
-        x_upper=arguments["x_upper"],
-        y_lower=arguments["y_lower"],
-        y_upper=arguments["y_upper"],
-        hole=arguments["hole"],
+    lower = graph.face_handle("profile-y-lower")
+    upper = graph.face_handle("profile-y-upper")
+    sides = (
+        {arguments["y_lower"]: (lower, upper)}
+        if arguments["y_lower"] == arguments["y_upper"]
+        else {arguments["y_lower"]: lower, arguments["y_upper"]: upper}
     )
+    return graph.planar_section(named_topology={
+        arguments["region"]: graph.face_handle("end-cap"),
+        arguments["x_lower"]: graph.face_handle("profile-x-lower"),
+        arguments["x_upper"]: graph.face_handle("profile-x-upper"),
+        **sides,
+        arguments["hole"]: graph.face_handle("cut-wall"),
+    })
 
 geometry = make()
 assert type(geometry).__module__ == "eqiora._eqiora"
@@ -153,19 +157,6 @@ except eqiora.ValidationError as error:
     assert error.diagnostics
 else:
     raise AssertionError("an unknown exact selection returned a value")
-
-try:
-    make(
-        bounds=((0.0, 1.0), (0.0, 1.0)),
-        circle_center=(0.1875, 0.5),
-        circle_radius=0.125,
-        tolerance=0.0625,
-    )
-except eqiora.ValidationError as error:
-    assert error.category == "validation"
-    assert error.diagnostics
-else:
-    raise AssertionError("a circle at tolerance clearance was admitted")
 
 canonical_json = geometry.canonical_bytes
 python_digest = geometry.digest

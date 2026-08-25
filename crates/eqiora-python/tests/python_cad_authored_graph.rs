@@ -64,15 +64,7 @@ else:
     raise AssertionError("a stale graph-bound handle rebound through Python")
 
 try:
-    base.planar_circular_section(
-        classification_tolerance=1e-12,
-        region="fluid",
-        x_lower="inlet",
-        x_upper="outlet",
-        y_lower="walls",
-        y_upper="walls",
-        hole="cylinder",
-    )
+    base.planar_section(named_topology={})
 except eqiora.ValidationError:
     pass
 else:
@@ -87,20 +79,6 @@ dfg_graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
 ).circular_through_cut(
     center=(0.2, 0.2), radius=0.05, boolean_tolerance=1e-10
 )
-section = dfg_graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid",
-    x_lower="inlet",
-    x_upper="outlet",
-    y_lower="walls",
-    y_upper="walls",
-    hole="cylinder",
-)
-assert type(section).__name__ == "Geometry"
-assert section.canonical_bytes == expected_section_wire
-assert section.digest == expected_section_digest
-assert section.selection_names == ("cylinder", "inlet", "outlet", "walls", "fluid")
-
 named_topology = {
     "fluid": dfg_graph.face_handle("end-cap"),
     "inlet": dfg_graph.face_handle("profile-x-lower"),
@@ -112,8 +90,12 @@ named_topology = {
     "cylinder": dfg_graph.face_handle("cut-wall"),
 }
 common_section = dfg_graph.planar_section(named_topology=named_topology)
+assert type(common_section).__name__ == "Geometry"
 assert common_section.canonical_bytes == expected_section_wire
 assert common_section.digest == expected_section_digest
+assert common_section.selection_names == (
+    "cylinder", "inlet", "outlet", "walls", "fluid"
+)
 
 arbitrary_names = dict(named_topology)
 arbitrary_names["left boundary"] = arbitrary_names.pop("inlet")

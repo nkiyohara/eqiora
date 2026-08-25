@@ -4,12 +4,13 @@ This case freezes one deliberately bounded Python projection from the accepted
 `CadAuthoredGraph` to common immutable `eqiora.geometry.Geometry`. Rust derives
 the exact planar section from the accepted circular-through-cut history and
 delegates its meaning to the existing canonical owner. Python exposes common
-dimension, bounds, classification tolerance, canonical bytes, digest, and the
-names and dimensions of semantic selections. The section operation assigns six
-roles: one region plus x-lower, x-upper, y-lower, y-upper, and hole boundaries.
-Equal same-dimensional names group roles into one selection, so the standard
-witness exposes five names because both y roles are `walls`. There is no public
-demo-shaped Geometry constructor.
+dimension, bounds, its private identity-preserving classification tolerance,
+canonical bytes, digest, and the names and dimensions of semantic selections.
+One atomic mapping assigns arbitrary user names to the complete graph-bound
+result topology after build lineage is admitted. Equal same-dimensional names
+group handles into one selection, so the standard witness exposes five names
+because both y sides are `walls`. There is no public demo-shaped Geometry
+constructor or circle-shaped section selector.
 
 The repository-owned standard byte oracle remains
 [`examples/steady-flow-past-cylinder.geometry.json`](../../../examples/steady-flow-past-cylinder.geometry.json).
@@ -66,6 +67,6 @@ cargo run -p eqiora-verify -- run --case interfaces.python-exact-circular-hole-g
 ```
 
 This case does not claim generic rectangles, circles, Boolean construction,
-general selection queries, geometry or boundary handles, mesh generation,
-import, Model construction, solve, Result, visualization, performance, or
-physical validation.
+general selection queries, persisted or provider-independent topology handles,
+mesh generation, import, Model construction, solve, Result, visualization,
+performance, or physical validation.

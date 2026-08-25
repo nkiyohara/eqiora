@@ -71,7 +71,6 @@ STANDARD_ARGUMENTS: dict[str, Any] = {
     "bounds": ((0.0, 2.2), (0.0, 0.41)),
     "circle_center": (0.2, 0.2),
     "circle_radius": 0.05,
-    "tolerance": 1e-12,
     "region": "fluid",
     "x_lower": "inlet",
     "x_upper": "outlet",
@@ -101,14 +100,17 @@ graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
     radius=0.05,
     boolean_tolerance=1e-10,
 )
-geometry = graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid",
-    x_lower="inlet",
-    x_upper="outlet",
-    y_lower="walls",
-    y_upper="walls",
-    hole="cylinder",
+geometry = graph.planar_section(
+    named_topology={
+        "fluid": graph.face_handle("end-cap"),
+        "inlet": graph.face_handle("profile-x-lower"),
+        "outlet": graph.face_handle("profile-x-upper"),
+        "walls": (
+            graph.face_handle("profile-y-lower"),
+            graph.face_handle("profile-y-upper"),
+        ),
+        "cylinder": graph.face_handle("cut-wall"),
+    }
 )
 print(geometry.digest)
 for selection in geometry.selection_names:
@@ -134,14 +136,21 @@ def geometry(**overrides: object) -> object:
         radius=arguments["circle_radius"],
         boolean_tolerance=1e-10,
     )
-    return graph.planar_circular_section(
-        classification_tolerance=arguments["tolerance"],
-        region=arguments["region"],
-        x_lower=arguments["x_lower"],
-        x_upper=arguments["x_upper"],
-        y_lower=arguments["y_lower"],
-        y_upper=arguments["y_upper"],
-        hole=arguments["hole"],
+    lower = graph.face_handle("profile-y-lower")
+    upper = graph.face_handle("profile-y-upper")
+    sides = (
+        {arguments["y_lower"]: (lower, upper)}
+        if arguments["y_lower"] == arguments["y_upper"]
+        else {arguments["y_lower"]: lower, arguments["y_upper"]: upper}
+    )
+    return graph.planar_section(
+        named_topology={
+            arguments["region"]: graph.face_handle("end-cap"),
+            arguments["x_lower"]: graph.face_handle("profile-x-lower"),
+            arguments["x_upper"]: graph.face_handle("profile-x-upper"),
+            **sides,
+            arguments["hole"]: graph.face_handle("cut-wall"),
+        }
     )
 
 
@@ -255,7 +264,6 @@ def test_identity_is_exact_hashable_and_normalizes_signed_zero() -> None:
         bounds=((-0.0, 2.2), (-0.0, 0.41)),
     )
     swapped_roles = geometry(x_lower="outlet", x_upper="inlet")
-    changed_tolerance = geometry(tolerance=2e-12)
 
     assert first == second == negative_zero
     assert hash(first) == hash(second) == hash(negative_zero)
@@ -263,8 +271,7 @@ def test_identity_is_exact_hashable_and_normalizes_signed_zero() -> None:
     assert first.canonical_bytes == negative_zero.canonical_bytes
     assert swapped_roles != first
     assert swapped_roles.digest != first.digest
-    assert changed_tolerance != first
-    assert len({first, second, negative_zero, swapped_roles, changed_tolerance}) == 3
+    assert len({first, second, negative_zero, swapped_roles}) == 2
 
 
 def test_geometry_value_and_public_collections_are_immutable() -> None:
@@ -291,10 +298,6 @@ def test_geometry_value_and_public_collections_are_immutable() -> None:
         {"circle_radius": -0.05},
         {"circle_radius": float("nan")},
         {"circle_radius": float("inf")},
-        {"tolerance": 0.0},
-        {"tolerance": -1e-12},
-        {"tolerance": float("nan")},
-        {"tolerance": float("inf")},
         {
             "bounds": ((0.0, 1.0), (0.0, 1.0)),
             "circle_center": (0.1, 0.5),
@@ -304,12 +307,6 @@ def test_geometry_value_and_public_collections_are_immutable() -> None:
             "bounds": ((0.0, 1.0), (0.0, 1.0)),
             "circle_center": (-0.2, 0.5),
             "circle_radius": 0.1,
-        },
-        {
-            "bounds": ((0.0, 1.0), (0.0, 1.0)),
-            "circle_center": (0.1875, 0.5),
-            "circle_radius": 0.125,
-            "tolerance": 0.0625,
         },
         {"region": ""},
         {"hole": "  "},

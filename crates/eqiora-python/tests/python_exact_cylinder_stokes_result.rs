@@ -34,7 +34,6 @@ def geometry(**overrides):
         "bounds": ((0.0, 2.2), (0.0, 0.41)),
         "circle_center": (0.2, 0.2),
         "circle_radius": 0.05,
-        "tolerance": 1e-12,
         "region": "fluid",
         "x_lower": "inlet",
         "x_upper": "outlet",
@@ -55,15 +54,20 @@ def geometry(**overrides):
         radius=arguments["circle_radius"],
         boolean_tolerance=1e-10,
     )
-    return graph.planar_circular_section(
-        classification_tolerance=arguments["tolerance"],
-        region=arguments["region"],
-        x_lower=arguments["x_lower"],
-        x_upper=arguments["x_upper"],
-        y_lower=arguments["y_lower"],
-        y_upper=arguments["y_upper"],
-        hole=arguments["hole"],
+    lower = graph.face_handle("profile-y-lower")
+    upper = graph.face_handle("profile-y-upper")
+    sides = (
+        {arguments["y_lower"]: (lower, upper)}
+        if arguments["y_lower"] == arguments["y_upper"]
+        else {arguments["y_lower"]: lower, arguments["y_upper"]: upper}
     )
+    return graph.planar_section(named_topology={
+        arguments["region"]: graph.face_handle("end-cap"),
+        arguments["x_lower"]: graph.face_handle("profile-x-lower"),
+        arguments["x_upper"]: graph.face_handle("profile-x-upper"),
+        **sides,
+        arguments["hole"]: graph.face_handle("cut-wall"),
+    })
 
 def mesh(source):
     request = eqiora.meshing.MeshRequest(
@@ -220,7 +224,7 @@ except eqiora.CompatibilityError as error:
 else:
     raise AssertionError("malformed current Model crossed the native boundary")
 
-_, foreign = mesh(geometry(tolerance=1e-10))
+_, foreign = mesh(geometry(x_lower="outlet", x_upper="inlet"))
 assert foreign.digest == realized.digest
 try:
     eqiora.fluid.resolve(current, intent, mesh=foreign)

@@ -106,14 +106,21 @@ def dfg_cut(
 
 
 def dfg_section(graph, *, y_lower: str = "walls", y_upper: str = "walls"):
-    return graph.planar_circular_section(
-        classification_tolerance=1e-12,
-        region="fluid",
-        x_lower="inlet",
-        x_upper="outlet",
-        y_lower=y_lower,
-        y_upper=y_upper,
-        hole="cylinder",
+    lower = graph.face_handle("profile-y-lower")
+    upper = graph.face_handle("profile-y-upper")
+    side_topology = (
+        {y_lower: (lower, upper)}
+        if y_lower == y_upper
+        else {y_lower: lower, y_upper: upper}
+    )
+    return graph.planar_section(
+        named_topology={
+            "fluid": graph.face_handle("end-cap"),
+            "inlet": graph.face_handle("profile-x-lower"),
+            "outlet": graph.face_handle("profile-x-upper"),
+            **side_topology,
+            "cylinder": graph.face_handle("cut-wall"),
+        }
     )
 
 
@@ -409,15 +416,7 @@ def test_planar_section_preserves_distinct_y_roles_and_ignores_nonplanar_facts()
     assert same_section.digest == oriented.digest
 
     with pytest.raises(eqiora.ValidationError):
-        rectangle().planar_circular_section(
-            classification_tolerance=1e-12,
-            region="fluid",
-            x_lower="inlet",
-            x_upper="outlet",
-            y_lower="floor",
-            y_upper="ceiling",
-            hole="cylinder",
-        )
+        rectangle().planar_section(named_topology={})
 
 
 def test_atomic_topology_mapping_uses_build_lineage_without_classification_input() -> None:
@@ -491,7 +490,6 @@ def test_runtime_surface_and_installed_stub_name_the_same_bounded_api() -> None:
             "circular_through_cut",
             "through_cut",
             "planar_section",
-            "planar_circular_section",
             "canonical_bytes",
             "graph_digest",
             "x_bounds",

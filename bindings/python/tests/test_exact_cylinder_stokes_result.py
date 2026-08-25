@@ -254,7 +254,6 @@ def geometry(**overrides: object) -> Any:
         "bounds": ((0.0, 2.2), (0.0, 0.41)),
         "circle_center": (0.2, 0.2),
         "circle_radius": 0.05,
-        "tolerance": 1.0e-12,
         "region": "fluid",
         "x_lower": "inlet",
         "x_upper": "outlet",
@@ -275,14 +274,21 @@ def geometry(**overrides: object) -> Any:
         radius=arguments["circle_radius"],
         boolean_tolerance=1e-10,
     )
-    return graph.planar_circular_section(
-        classification_tolerance=arguments["tolerance"],
-        region=arguments["region"],
-        x_lower=arguments["x_lower"],
-        x_upper=arguments["x_upper"],
-        y_lower=arguments["y_lower"],
-        y_upper=arguments["y_upper"],
-        hole=arguments["hole"],
+    lower = graph.face_handle("profile-y-lower")
+    upper = graph.face_handle("profile-y-upper")
+    sides = (
+        {arguments["y_lower"]: (lower, upper)}
+        if arguments["y_lower"] == arguments["y_upper"]
+        else {arguments["y_lower"]: lower, arguments["y_upper"]: upper}
+    )
+    return graph.planar_section(
+        named_topology={
+            arguments["region"]: graph.face_handle("end-cap"),
+            arguments["x_lower"]: graph.face_handle("profile-x-lower"),
+            arguments["x_upper"]: graph.face_handle("profile-x-upper"),
+            **sides,
+            arguments["hole"]: graph.face_handle("cut-wall"),
+        }
     )
 
 
@@ -782,7 +788,7 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
         code="EQ0807",
     )
 
-    foreign = geometry(tolerance=1.0e-10)
+    foreign = geometry(x_lower="outlet", x_upper="inlet")
     foreign_mesh = mesh(foreign)
     assert foreign_mesh.digest == realized.digest
     assert foreign_mesh.source_digest != realized.source_digest
@@ -1210,14 +1216,17 @@ graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
     radius=0.05,
     boolean_tolerance=1e-10,
 )
-geometry = graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid",
-    x_lower="inlet",
-    x_upper="outlet",
-    y_lower="walls",
-    y_upper="walls",
-    hole="cylinder",
+geometry = graph.planar_section(
+    named_topology={
+        "fluid": graph.face_handle("end-cap"),
+        "inlet": graph.face_handle("profile-x-lower"),
+        "outlet": graph.face_handle("profile-x-upper"),
+        "walls": (
+            graph.face_handle("profile-y-lower"),
+            graph.face_handle("profile-y-upper"),
+        ),
+        "cylinder": graph.face_handle("cut-wall"),
+    }
 )
 request = eqiora.meshing.MeshRequest(
     maximum_boundary_error=1e-4,

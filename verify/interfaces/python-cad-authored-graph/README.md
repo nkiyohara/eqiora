@@ -15,8 +15,7 @@ the roles from build lineage and rejects foreign/stale handles, omissions,
 duplicates, mixed dimensions, coordinates, provider labels, and malformed
 mapping values. No caller classification tolerance is involved. The standard
 DFG mapping reproduces its previously frozen 511 canonical bytes and digest
-exactly. The predecessor circle-shaped method remains temporarily available to
-the existing installed-package examples until their separate migration.
+exactly. Every installed-package example uses this common route.
 
 The adapter owns no CAD meaning and introduces no numeric oracle. The v1
 731-byte wire and digest come from
@@ -33,12 +32,10 @@ equal geometry observations, and neither graph nor build exposes a misleading
 `geometry_digest`. Canonical wires and foreign graph-bound handles fail closed
 in the native owner rather than being interpreted in Python.
 
-A rectangle-only graph cannot produce the circular section. The predecessor
-compatibility route still rejects a cut-admitted narrow-clearance graph when
-its separately supplied Geometry classification tolerance is too large, while
-plane z, extrusion depth, and modeling tolerance cannot leak into transverse
-planar identity. The atomic mapping route performs no geometric
-classification.
+A rectangle-only graph cannot produce the circular section. Plane z, extrusion
+depth, and modeling tolerance cannot leak into transverse planar identity. The
+atomic mapping route performs no geometric classification and the removed
+circle-shaped route has no compatibility fallback.
 
 The registered executor rebuilds and installs a non-editable wheel, runs the
 complete public Python contract, and launches a second isolated interpreter.

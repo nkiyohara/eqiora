@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 
 use eqiora_core::Diagnostic;
@@ -114,11 +115,32 @@ fn compatibility_dfg_graph() -> CadAuthoredGraph {
 }
 
 fn planar_authority(graph: &CadAuthoredGraph) -> CanonicalGeometryV1 {
-    graph
-        .planar_circular_section(
-            1.0e-12, "fluid", "inlet", "outlet", "walls", "walls", "cylinder",
-        )
-        .unwrap()
+    let named_topology = BTreeMap::from([
+        (
+            "fluid".to_owned(),
+            vec![graph.face_handle("end-cap").unwrap()],
+        ),
+        (
+            "inlet".to_owned(),
+            vec![graph.face_handle("profile-x-lower").unwrap()],
+        ),
+        (
+            "outlet".to_owned(),
+            vec![graph.face_handle("profile-x-upper").unwrap()],
+        ),
+        (
+            "walls".to_owned(),
+            vec![
+                graph.face_handle("profile-y-lower").unwrap(),
+                graph.face_handle("profile-y-upper").unwrap(),
+            ],
+        ),
+        (
+            "cylinder".to_owned(),
+            vec![graph.face_handle("cut-wall").unwrap()],
+        ),
+    ]);
+    graph.planar_section(&named_topology).unwrap()
 }
 
 fn assert_invalid<T: Debug>(result: Result<T, Diagnostic>) {

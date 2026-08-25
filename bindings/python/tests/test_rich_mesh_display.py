@@ -73,14 +73,17 @@ def _geometry(**overrides: object) -> object:
         radius=0.05,
         boolean_tolerance=1e-10,
     )
-    return graph.planar_circular_section(
-        classification_tolerance=arguments["classification_tolerance"],
-        region="fluid",
-        x_lower=arguments["x_lower"],
-        x_upper=arguments["x_upper"],
-        y_lower="walls",
-        y_upper="walls",
-        hole="cylinder",
+    return graph.planar_section(
+        named_topology={
+            "fluid": graph.face_handle("end-cap"),
+            arguments["x_lower"]: graph.face_handle("profile-x-lower"),
+            arguments["x_upper"]: graph.face_handle("profile-x-upper"),
+            "walls": (
+                graph.face_handle("profile-y-lower"),
+                graph.face_handle("profile-y-upper"),
+            ),
+            "cylinder": graph.face_handle("cut-wall"),
+        }
     )
 
 

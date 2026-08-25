@@ -117,14 +117,17 @@ cut_sketch = eqiora.geometry.CadAuthoredSketch.circle_on_face(
     radius=0.05,
 )
 graph = base.through_cut(cut_sketch, boolean_tolerance=1e-10)
-geometry = graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid",
-    x_lower="inlet",
-    x_upper="outlet",
-    y_lower="walls",
-    y_upper="walls",
-    hole="cylinder",
+geometry = graph.planar_section(
+    named_topology={
+        "fluid": graph.face_handle("end-cap"),
+        "inlet": graph.face_handle("profile-x-lower"),
+        "outlet": graph.face_handle("profile-x-upper"),
+        "walls": (
+            graph.face_handle("profile-y-lower"),
+            graph.face_handle("profile-y-upper"),
+        ),
+        "cylinder": graph.face_handle("cut-wall"),
+    }
 )
 
 assert geometry.selection_dimension("fluid") == 2
@@ -139,8 +142,8 @@ Every coordinate, radius, depth, and CAD tolerance is a coherent-SI metre.
 The existing `CadAuthoredGraph.rectangle_extrusion` and
 `graph.circular_through_cut` signatures remain supported and produce the same
 canonical graphs. The 3D graph retains its explicit depth and CAD tolerances;
-none enter the derived 2D Geometry, whose classification tolerance is supplied
-separately. The circle remains centre-and-radius geometry, so chord count,
+none enter the derived 2D Geometry, and the caller supplies no classification
+tolerance. The circle remains centre-and-radius geometry, so chord count,
 mesh size, and approximation tolerance cannot enter it. A general Sketch,
 arbitrary planes or profiles, operation DAGs, general Booleans or sections,
 multiple holes, Model binding, solve, Result, Studio, and visualization remain

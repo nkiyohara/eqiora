@@ -19,14 +19,17 @@ def solve() -> eqiora.Result:
         radius=0.05,
         boolean_tolerance=1e-10,
     )
-    geometry = graph.planar_circular_section(
-        classification_tolerance=1e-12,
-        region="fluid",
-        x_lower="inlet",
-        x_upper="outlet",
-        y_lower="walls",
-        y_upper="walls",
-        hole="cylinder",
+    geometry = graph.planar_section(
+        named_topology={
+            "fluid": graph.face_handle("end-cap"),
+            "inlet": graph.face_handle("profile-x-lower"),
+            "outlet": graph.face_handle("profile-x-upper"),
+            "walls": (
+                graph.face_handle("profile-y-lower"),
+                graph.face_handle("profile-y-upper"),
+            ),
+            "cylinder": graph.face_handle("cut-wall"),
+        }
     )
     request = eqiora.meshing.MeshRequest(
         maximum_boundary_error=1e-4,

@@ -76,7 +76,6 @@ STANDARD_ARGUMENTS: dict[str, Any] = {
     "bounds": ((0.0, 2.2), (0.0, 0.41)),
     "circle_center": (0.2, 0.2),
     "circle_radius": 0.05,
-    "tolerance": 1e-12,
     "region": "fluid",
     "x_lower": "inlet",
     "x_upper": "outlet",
@@ -111,14 +110,17 @@ graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
     radius=0.05,
     boolean_tolerance=1e-10,
 )
-geometry = graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid",
-    x_lower="inlet",
-    x_upper="outlet",
-    y_lower="walls",
-    y_upper="walls",
-    hole="cylinder",
+geometry = graph.planar_section(
+    named_topology={
+        "fluid": graph.face_handle("end-cap"),
+        "inlet": graph.face_handle("profile-x-lower"),
+        "outlet": graph.face_handle("profile-x-upper"),
+        "walls": (
+            graph.face_handle("profile-y-lower"),
+            graph.face_handle("profile-y-upper"),
+        ),
+        "cylinder": graph.face_handle("cut-wall"),
+    }
 )
 request = eqiora.meshing.MeshRequest(
     maximum_boundary_error=1e-4,
@@ -150,14 +152,21 @@ def geometry(**overrides: object) -> object:
         radius=arguments["circle_radius"],
         boolean_tolerance=1e-10,
     )
-    return graph.planar_circular_section(
-        classification_tolerance=arguments["tolerance"],
-        region=arguments["region"],
-        x_lower=arguments["x_lower"],
-        x_upper=arguments["x_upper"],
-        y_lower=arguments["y_lower"],
-        y_upper=arguments["y_upper"],
-        hole=arguments["hole"],
+    lower = graph.face_handle("profile-y-lower")
+    upper = graph.face_handle("profile-y-upper")
+    sides = (
+        {arguments["y_lower"]: (lower, upper)}
+        if arguments["y_lower"] == arguments["y_upper"]
+        else {arguments["y_lower"]: lower, arguments["y_upper"]: upper}
+    )
+    return graph.planar_section(
+        named_topology={
+            arguments["region"]: graph.face_handle("end-cap"),
+            arguments["x_lower"]: graph.face_handle("profile-x-lower"),
+            arguments["x_upper"]: graph.face_handle("profile-x-upper"),
+            **sides,
+            arguments["hole"]: graph.face_handle("cut-wall"),
+        }
     )
 
 
@@ -901,7 +910,7 @@ def test_mesh_arrays_outlive_the_wrapper_and_generations_do_not_share_storage() 
 
 def test_mesh_plan_rejects_a_foreign_exact_geometry() -> None:
     source = geometry()
-    foreign = geometry(tolerance=1e-10)
+    foreign = geometry(x_lower="outlet", x_upper="inlet")
     plan = resolve_plan(source)
 
     assert plan.source_digest == source.digest != foreign.digest
@@ -925,21 +934,6 @@ def test_swapped_side_names_separate_source_identity_from_mesh_identity() -> Non
     assert swapped.selection_entity_count("walls") == 48
     assert swapped.selection_entity_count("cylinder") == 50
     assert swapped.selection_entity_count("fluid") == CELL_COUNT
-
-
-def test_mesh_policy_is_distinct_from_geometry_classification_tolerance() -> None:
-    fine_classification = realize(geometry(tolerance=1e-12))
-    coarse_classification = realize(geometry(tolerance=1e-10))
-    fine_plan = resolve_plan(geometry(tolerance=1e-12))
-    coarse_plan = resolve_plan(geometry(tolerance=1e-10))
-
-    assert fine_classification.source_digest != coarse_classification.source_digest
-    assert fine_classification.digest == coarse_classification.digest
-    assert fine_plan.request.maximum_boundary_error == (
-        coarse_plan.request.maximum_boundary_error
-    )
-    assert fine_plan.boundary_facets == coarse_plan.boundary_facets
-    assert fine_plan.boundary_error_bound == coarse_plan.boundary_error_bound
 
 
 def test_insufficient_work_budget_fails_before_a_mesh_is_returned() -> None:

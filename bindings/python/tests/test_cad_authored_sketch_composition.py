@@ -426,14 +426,17 @@ def test_separate_dfg_fixture_replays_the_exact_planar_authority() -> None:
         assert_route_equivalence(graph, compatibility)
 
     sections = tuple(
-        graph.planar_circular_section(
-            classification_tolerance=1e-12,
-            region="fluid",
-            x_lower="inlet",
-            x_upper="outlet",
-            y_lower="walls",
-            y_upper="walls",
-            hole="cylinder",
+        graph.planar_section(
+            named_topology={
+                "fluid": graph.face_handle("end-cap"),
+                "inlet": graph.face_handle("profile-x-lower"),
+                "outlet": graph.face_handle("profile-x-upper"),
+                "walls": (
+                    graph.face_handle("profile-y-lower"),
+                    graph.face_handle("profile-y-upper"),
+                ),
+                "cylinder": graph.face_handle("cut-wall"),
+            }
         )
         for graph in routes
     )
