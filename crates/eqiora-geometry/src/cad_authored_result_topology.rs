@@ -457,6 +457,9 @@ mod tests {
 
     #[test]
     fn registered_planar_circular_hole_geometry_v2_evidence() {
+        crate::circular_hole::tests::independent_identity_witness_is_exact();
+        crate::circular_hole_v2::tests::independent_ordinary_identity_witness_is_exact();
+        crate::circular_hole_v2::tests::v1_and_v2_decoders_reject_each_others_wire();
         scale_family_projects_identical_typed_membership_and_replays();
         owner_dimension_and_complete_membership_fail_closed();
         mutated_deleted_split_or_merged_lineage_rejects();

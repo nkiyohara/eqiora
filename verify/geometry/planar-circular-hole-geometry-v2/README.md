@@ -22,8 +22,12 @@ reject.
 
 The existing `eqiora.planar-circular-hole-envelope/v1` decoder, 511-byte DFG
 witness, digest, and classification-tolerance semantics remain unchanged. V1
-and v2 are never artifact-equal. Exact bytes and digest for the renamed,
-provenance-neutral v2 wire remain pending a fresh independent derivation.
+and v2 are never artifact-equal, and each decoder rejects the other version's
+wire. Two blinded derivations independently fix the ordinary provenance-neutral
+v2 wire at 491 bytes, plain SHA-256
+`f9a278430c0033f2b0ec148b66d4608cf1f2b559cb46aa31ac9e7259861a26f3`, and
+schema-framed identity
+`c1226bdfc83a5539f21ecced9afe180c60c5f4ca07a952711e3f3529213dee14`.
 
 Run:
 

@@ -383,7 +383,7 @@ struct WireCircleV1 {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::CanonicalGeometryRef;
 
@@ -415,7 +415,7 @@ mod tests {
     }
 
     #[test]
-    fn independent_identity_witness_is_exact() {
+    pub(crate) fn independent_identity_witness_is_exact() {
         let geometry = witness();
         assert_eq!(geometry.canonical_bytes().len(), 511);
         assert_eq!(geometry.digest_bytes(), EXPECTED_DIGEST);

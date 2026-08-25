@@ -339,6 +339,34 @@ pub(crate) mod tests {
     use super::*;
 
     use crate::{EDGE_DIMENSION, FACE_DIMENSION};
+    use sha2::{Digest, Sha256};
+
+    const EXPECTED_CANONICAL: &[u8] = concat!(
+        "{\"schema\":\"eqiora.planar-circular-hole-envelope/v2\"",
+        ",\"encoding\":\"eqiora.canonical-json/v1\"",
+        ",\"kind\":\"axis-aligned-rectangle-with-circular-hole-v2\"",
+        ",\"length_unit\":\"metre\"",
+        ",\"bounds\":[[0.0,2.2],[0.0,0.41]]",
+        ",\"circle\":{\"center\":[0.2,0.2],\"radius_m\":0.05}",
+        ",\"entity_sets\":[{\"name\":\"cylinder\",\"dimension\":1,\"members\":[4]}",
+        ",{\"name\":\"inlet\",\"dimension\":1,\"members\":[0]}",
+        ",{\"name\":\"outlet\",\"dimension\":1,\"members\":[1]}",
+        ",{\"name\":\"walls\",\"dimension\":1,\"members\":[2,3]}",
+        ",{\"name\":\"fluid\",\"dimension\":2,\"members\":[0]}]}",
+    )
+    .as_bytes();
+    const EXPECTED_PLAIN_SHA256: &str =
+        "f9a278430c0033f2b0ec148b66d4608cf1f2b559cb46aa31ac9e7259861a26f3";
+    const EXPECTED_IDENTITY: &str =
+        "c1226bdfc83a5539f21ecced9afe180c60c5f4ca07a952711e3f3529213dee14";
+
+    fn lowercase_hex(bytes: impl AsRef<[u8]>) -> String {
+        bytes
+            .as_ref()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
+    }
 
     fn sets() -> Vec<NamedEntitySet> {
         vec![
@@ -348,6 +376,57 @@ pub(crate) mod tests {
             NamedEntitySet::new("cylinder", EDGE_DIMENSION, vec![4]),
             NamedEntitySet::new("outlet", EDGE_DIMENSION, vec![1]),
         ]
+    }
+
+    #[test]
+    pub(crate) fn independent_ordinary_identity_witness_is_exact() {
+        let geometry = CanonicalPlanarCircularHoleGeometryV2::new(
+            [[0.0, 2.2], [0.0, 0.41]],
+            [0.2, 0.2],
+            0.05,
+            sets(),
+        )
+        .unwrap();
+        assert_eq!(geometry.canonical_bytes(), EXPECTED_CANONICAL);
+        assert_eq!(geometry.canonical_bytes().len(), 491);
+        assert_eq!(
+            lowercase_hex(Sha256::digest(geometry.canonical_bytes())),
+            EXPECTED_PLAIN_SHA256
+        );
+        assert_eq!(lowercase_hex(geometry.digest_bytes()), EXPECTED_IDENTITY);
+    }
+
+    #[test]
+    pub(crate) fn v1_and_v2_decoders_reject_each_others_wire() {
+        let v2 = CanonicalPlanarCircularHoleGeometryV2::new(
+            [[0.0, 2.2], [0.0, 0.41]],
+            [0.2, 0.2],
+            0.05,
+            sets(),
+        )
+        .unwrap();
+        let v1 = crate::CanonicalGeometryV1::from_circular_hole(
+            [[0.0, 2.2], [0.0, 0.41]],
+            [0.2, 0.2],
+            0.05,
+            sets(),
+            1.0e-12,
+        )
+        .unwrap();
+        assert!(
+            crate::CanonicalGeometryV1::decode_circular_hole_canonical(
+                v2.canonical_bytes(),
+                Default::default()
+            )
+            .is_err()
+        );
+        assert!(
+            CanonicalPlanarCircularHoleGeometryV2::decode_canonical(
+                v1.canonical_bytes(),
+                Default::default()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -445,6 +524,8 @@ pub(crate) mod tests {
             wire.replacen("\"members\":[2,3]", "\"members\":[3,2]", 1)
                 .into_bytes(),
             wire.replacen("\"bounds\":[[0.0,", "\"bounds\":[[0,", 1)
+                .into_bytes(),
+            wire.replacen("\"bounds\":[[0.0,", "\"bounds\":[[-0.0,", 1)
                 .into_bytes(),
             reordered,
         ] {
