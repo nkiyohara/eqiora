@@ -26,7 +26,7 @@ mod cad_authored_face_mesh;
 mod cad_authored_graph;
 #[allow(
     dead_code,
-    reason = "crate-private foundation awaiting the first public naming consumer in issue 530"
+    reason = "crate-private foundation awaiting its first public post-build naming consumer"
 )]
 mod cad_authored_result_topology;
 mod cad_authored_selection;

@@ -229,7 +229,7 @@ impl CadAuthoredBuild {
     /// mutated, deleted, split, merged, or ambiguous.
     #[allow(
         dead_code,
-        reason = "crate-private foundation awaiting the first public naming consumer in issue 530"
+        reason = "crate-private foundation awaiting its first public post-build naming consumer"
     )]
     pub(crate) fn result_topology(
         &self,

@@ -599,7 +599,7 @@ impl CadAuthoredGraph {
 
     #[allow(
         dead_code,
-        reason = "crate-private foundation awaiting the first public naming consumer in issue 530"
+        reason = "crate-private foundation awaiting its first public post-build naming consumer"
     )]
     pub(crate) fn planar_cut_parts(&self) -> Option<([[f64; 2]; 2], [f64; 2], f64)> {
         let GraphKind::CircularThroughCut(cut) = self.kind else {
