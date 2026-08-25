@@ -3,6 +3,21 @@ use eqiora_solver::ExecutionTopology;
 
 const POISSON_2D: &str =
     include_str!("../../../../verify/numerics/cartesian-poisson-fem-fvm/models/poisson.eqi");
+const POISSON_1D: &str = r#"
+model common_plan_poisson_1d {
+  domain interval = box(0, 1);
+  domain lower_end = boundary(interval, axis = 0, side = lower);
+  domain upper_end = boundary(interval, axis = 0, side = upper);
+  representation scalar_space = continuum;
+  field potential on interval as scalar_space: 1 = 0;
+  parameter source_scale: 1 / m ^ 2 = 1;
+  relation balance continuous on interval {
+    -div(grad(potential)) - source_scale = 0;
+  }
+  relation lower_value continuous on lower_end { trace(potential) = 0; }
+  relation upper_value continuous on upper_end { trace(potential) = 0; }
+}
+"#;
 
 fn document() -> ModelDocument {
     ModelDocument::compile("poisson.eqi", POISSON_2D).unwrap()
@@ -82,7 +97,11 @@ fn exact_mesh_bound_preview_is_distinct_from_legacy_lazy_preview() {
     let owner = document();
     let environment = ScalarEllipticExecutionEnvironment::host_serial();
     let lowered = lower_scalar_elliptic_cartesian(owner.program()).unwrap();
-    let mesh = generated_cartesian_mesh(lowered.bounds(), NonZeroUsize::new(4).unwrap()).unwrap();
+    let mesh = generated_cartesian_mesh(
+        lowered.bounds(),
+        intent(ScalarEllipticMethod::FiniteElement, 4, 1),
+    )
+    .unwrap();
     assert_eq!(mesh.dimension(), 2);
     assert_eq!(mesh.mesh().axis_cell_count(0), Some(4));
     assert_eq!(mesh.mesh().axis_cell_count(1), Some(4));
@@ -109,8 +128,11 @@ fn exact_mesh_bound_preview_is_distinct_from_legacy_lazy_preview() {
         "the supplied scalar-elliptic Mesh does not match the spatial policy density"
     );
 
-    let incompatible_mesh =
-        generated_cartesian_mesh(&[[0.0, 2.0], [0.0, 1.0]], NonZeroUsize::new(4).unwrap()).unwrap();
+    let incompatible_mesh = generated_cartesian_mesh(
+        &[[0.0, 2.0], [0.0, 1.0]],
+        intent(ScalarEllipticMethod::FiniteElement, 4, 1),
+    )
+    .unwrap();
     let errors = owner
         .preview_scalar_elliptic_run_on_mesh(
             intent(ScalarEllipticMethod::FiniteElement, 4, 1),
@@ -126,7 +148,7 @@ fn exact_mesh_bound_preview_is_distinct_from_legacy_lazy_preview() {
 
     let foreign_dimension = generated_cartesian_mesh(
         &[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-        NonZeroUsize::new(4).unwrap(),
+        intent(ScalarEllipticMethod::FiniteElement, 4, 1),
     )
     .unwrap();
     let errors = owner
@@ -231,6 +253,32 @@ fn unsupported_workers_and_oversized_meshes_fail_before_allocation() {
         .unwrap_err();
     assert_eq!(oversized[0].code(), codes::INVALID_REALIZATION);
     assert!(oversized[0].message().contains("before allocation"));
+}
+
+#[test]
+fn generated_mesh_resource_admission_uses_the_actual_method_shape() {
+    let one_dimensional = ModelDocument::compile("poisson-1d.eqi", POISSON_1D).unwrap();
+    let two_dimensional = document();
+    for (owner, cells) in [(&one_dimensional, 250_000), (&two_dimensional, 500)] {
+        let fvm = owner
+            .preview_scalar_elliptic_run_with_generated_mesh(
+                intent(ScalarEllipticMethod::FiniteVolume, cells, 1),
+                ScalarEllipticExecutionEnvironment::host_serial(),
+            )
+            .unwrap();
+        assert_eq!(fvm.cell_count(), MAX_SCALAR_ELLIPTIC_ENTITY_COUNT);
+        assert_eq!(fvm.field_value_count(), MAX_SCALAR_ELLIPTIC_ENTITY_COUNT);
+        assert!(fvm.mesh().is_some());
+
+        let errors = owner
+            .preview_scalar_elliptic_run_with_generated_mesh(
+                intent(ScalarEllipticMethod::FiniteElement, cells, 1),
+                ScalarEllipticExecutionEnvironment::host_serial(),
+            )
+            .unwrap_err();
+        assert_eq!(errors[0].code(), codes::INVALID_REALIZATION);
+        assert!(errors[0].message().contains("before allocation"));
+    }
 }
 
 #[test]

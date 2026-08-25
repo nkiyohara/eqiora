@@ -52,10 +52,12 @@ use eqiora_numerics::{
 };
 #[cfg(test)]
 use eqiora_realization::DiscretizationMethod;
+#[cfg(test)]
+use eqiora_realization::RealizationRevision;
 use eqiora_realization::{
     Discretization, ExecutionSchedule, MeshPolicy, RealizationPlan, RealizationRequest,
-    RealizationRequirements, RealizationRevision, SemanticRevision, SingleFieldOperatorClaim,
-    Target, VectorLayoutKind, resolve,
+    RealizationRequirements, SemanticRevision, SingleFieldOperatorClaim, Target, VectorLayoutKind,
+    resolve,
 };
 #[cfg(all(test, feature = "rayon"))]
 use eqiora_solver::ExecutionReport;
@@ -78,7 +80,7 @@ use crate::ModelDocument;
 
 fn generated_cartesian_mesh(
     bounds: &[[f64; 2]],
-    cells_per_axis: NonZeroUsize,
+    intent: ScalarEllipticIntent,
 ) -> Result<CartesianMeshEnvelopeV1, Vec<Diagnostic>> {
     let dimension = NonZeroUsize::new(bounds.len()).ok_or_else(|| {
         single(capability_error(
@@ -90,16 +92,8 @@ fn generated_cartesian_mesh(
             "scalar-elliptic Cartesian Meshes admit one through three dimensions",
         )));
     }
-    resource_shape(
-        ScalarEllipticIntent::new(
-            RealizationRevision::new(1),
-            ScalarEllipticMethod::FiniteElement,
-            cells_per_axis,
-            NonZeroUsize::MIN,
-        ),
-        dimension,
-    )?;
-    let extents = vec![cells_per_axis.get(); dimension.get()];
+    resource_shape(intent, dimension)?;
+    let extents = vec![intent.cells_per_axis.get(); dimension.get()];
     let mesh = CartesianMesh::uniform(bounds, &extents).map_err(single)?;
     CartesianMeshEnvelopeV1::from_mesh(&mesh).map_err(single)
 }
@@ -135,7 +129,7 @@ impl ModelDocument {
         environment: ScalarEllipticExecutionEnvironment,
     ) -> Result<ScalarEllipticRunPlan, Vec<Diagnostic>> {
         let lowered = lower_scalar_elliptic_cartesian(self.program()).map_err(single)?;
-        let mesh = generated_cartesian_mesh(lowered.bounds(), intent.cells_per_axis)?;
+        let mesh = generated_cartesian_mesh(lowered.bounds(), intent)?;
         self.preview_scalar_elliptic_run_on_mesh(intent, environment, mesh)
     }
 
@@ -159,7 +153,7 @@ impl ModelDocument {
             )));
         }
         let lowered = lower_scalar_elliptic_cartesian(self.program()).map_err(single)?;
-        let expected = generated_cartesian_mesh(lowered.bounds(), intent.cells_per_axis)?;
+        let expected = generated_cartesian_mesh(lowered.bounds(), intent)?;
         if mesh != expected {
             return Err(single(capability_error(
                 "the supplied Cartesian Mesh does not exactly realize the Model domain",
