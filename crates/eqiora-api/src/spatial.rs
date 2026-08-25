@@ -319,7 +319,12 @@ impl ModelDocument {
         controlled_started: Instant,
         observer: &mut impl ScalarEllipticRunObserver,
     ) -> Result<ControlledScalarEllipticExecution, Vec<Diagnostic>> {
-        let replayed = self.preview_scalar_elliptic_run(accepted.intent, environment)?;
+        let replayed = match accepted.mesh().cloned() {
+            Some(mesh) => {
+                self.preview_scalar_elliptic_run_on_mesh(accepted.intent, environment, mesh)?
+            }
+            None => self.preview_scalar_elliptic_run(accepted.intent, environment)?,
+        };
         if replayed.key != accepted.key
             || replayed.artifact != accepted.artifact
             || replayed.portable != accepted.portable
@@ -472,6 +477,7 @@ mod tests {
     #[test]
     fn exact_mesh_bound_preview_is_distinct_from_legacy_lazy_preview() {
         let owner = document();
+        let environment = ScalarEllipticExecutionEnvironment::host_serial();
         let lowered = lower_scalar_elliptic_cartesian(owner.program()).unwrap();
         let mesh =
             ScalarEllipticMesh::uniform(lowered.bounds(), NonZeroUsize::new(4).unwrap()).unwrap();
@@ -481,7 +487,7 @@ mod tests {
         let plan = owner
             .preview_scalar_elliptic_run_on_mesh(
                 intent(ScalarEllipticMethod::FiniteElement, 4, 1),
-                ScalarEllipticExecutionEnvironment::host_serial(),
+                environment,
                 mesh.clone(),
             )
             .unwrap();
@@ -490,7 +496,7 @@ mod tests {
         let density_errors = owner
             .preview_scalar_elliptic_run_on_mesh(
                 intent(ScalarEllipticMethod::FiniteElement, 5, 1),
-                ScalarEllipticExecutionEnvironment::host_serial(),
+                environment,
                 mesh.clone(),
             )
             .unwrap_err();
@@ -502,11 +508,56 @@ mod tests {
         let errors = owner
             .preview_scalar_elliptic_run_on_mesh(
                 intent(ScalarEllipticMethod::FiniteElement, 4, 1),
-                ScalarEllipticExecutionEnvironment::host_serial(),
+                environment,
                 incompatible_mesh,
             )
             .unwrap_err();
         assert_eq!(errors[0].code(), codes::INVALID_REALIZATION);
+
+        let mut observer = UninterruptedScalarEllipticRun;
+        let outcome = owner
+            .run_scalar_elliptic_plan_controlled(plan.clone(), environment, &mut observer)
+            .unwrap();
+        let ScalarEllipticRunOutcome::Completed(result) = outcome else {
+            unreachable!("the uninterrupted observer cannot cancel the run")
+        };
+        assert_eq!(result.plan().mesh(), plan.mesh());
+
+        let foreign_source = POISSON_2D.replace(
+            "domain square = box(0, 1, 0, 1);",
+            "domain square = box(0, 2, 0, 1);",
+        );
+        let foreign = ModelDocument::compile("foreign-poisson.eqi", &foreign_source).unwrap();
+        let foreign_plan = foreign
+            .preview_scalar_elliptic_run_with_generated_mesh(
+                intent(ScalarEllipticMethod::FiniteElement, 4, 1),
+                environment,
+            )
+            .unwrap();
+        let mut observer = UninterruptedScalarEllipticRun;
+        let foreign_execution = foreign
+            .execute_scalar_elliptic_plan_controlled(
+                foreign_plan,
+                environment,
+                Instant::now(),
+                &mut observer,
+            )
+            .unwrap();
+        let ControlledScalarEllipticExecution::Accepted(foreign_execution) = foreign_execution
+        else {
+            unreachable!("the uninterrupted observer cannot cancel the run")
+        };
+        let mesh_errors = validate_scalar_elliptic_solution(
+            &plan,
+            &foreign_execution.solution,
+            &foreign_execution.receipt,
+        )
+        .unwrap_err();
+        assert!(
+            mesh_errors[0]
+                .message()
+                .contains("executed scalar-elliptic Mesh differs")
+        );
     }
 
     #[test]
