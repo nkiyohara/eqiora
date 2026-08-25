@@ -817,7 +817,7 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
             })
             .unwrap()
     };
-    assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 10);
+    assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 11);
     assert_eq!(count_for_script("tools/ci/python_package_gate.py"), 7);
     assert_eq!(count_for_script("tools/ci/python_gallery_gate.py"), 1);
 
@@ -845,6 +845,7 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
             "interfaces.python-mixed-boundary-elasticity-demo",
             "interfaces.python-pytorch-differentiation",
             "interfaces.python-rich-mesh-display",
+            "interfaces.python-rich-trajectory-display",
             "interfaces.python-trajectory-field-stills",
         ]
     );
