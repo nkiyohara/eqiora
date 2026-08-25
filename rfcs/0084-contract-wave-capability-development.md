@@ -153,15 +153,16 @@ The governance delta is rejected if any of these mutants survives review:
 
 Repository verification runs the fast and affected local gates. This RFC adds
 no `case.toml`: it changes governance and no executable or user-visible product
-capability. A fresh-context non-writer reviews the complete governance delta
-before integration.
+capability. The primary agent performs risk-focused review of the complete
+governance delta before integration and records the exact-head evidence.
 
 ## Security, safety, and governance
 
 This governance change takes authority when its accepted policy delta merges.
 Acceptance uses the public RFC process and the bootstrap decision rules in
-`GOVERNANCE.md`. The writer cannot provide the required independent review of
-this delta.
+`GOVERNANCE.md`. The same primary agent may author, review, approve, and merge
+the delta; review independence comes from explicit falsifiers and reproducible
+evidence rather than a second actor.
 
 The decision grants no new merge, semantic, release, or evidence authority.
 It preserves fail-closed admission, oracle independence, singular central-seam
