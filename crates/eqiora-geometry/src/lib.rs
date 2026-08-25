@@ -10,9 +10,10 @@
 //!
 //! It deliberately does not own a CAD kernel, STEP parsing, concrete B-rep or
 //! modeling operations, artifact encoding, physics, transfer operators, or
-//! generic topology naming. The bounded authored result-topology projection
-//! remains crate-private until a public consumer needs that seam. Concrete CAD
-//! responsibilities remain isolated in adapters such as `eqiora-cad-truck`.
+//! generic topology naming. The bounded authored build atomically projects
+//! construction lineage into complete named geometry without exposing private
+//! result topology. Concrete CAD responsibilities remain isolated in adapters
+//! such as `eqiora-cad-truck`.
 //! In particular, [`ParentOutward`] is
 //! geometric meaning derived relative to a parent body; it is not a normal
 //! sign and is unrelated to
@@ -26,7 +27,7 @@ mod cad_authored_face_mesh;
 mod cad_authored_graph;
 #[allow(
     dead_code,
-    reason = "crate-private foundation awaiting its first public post-build naming consumer"
+    reason = "frozen private evidence retains observations outside the public atomic owner path"
 )]
 mod cad_authored_result_topology;
 mod cad_authored_selection;
