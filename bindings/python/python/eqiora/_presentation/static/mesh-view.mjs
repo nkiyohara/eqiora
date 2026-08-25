@@ -11466,13 +11466,309 @@ async function Tl(e) {
 	});
 }
 //#endregion
+//#region src/trajectory-contract.ts
+var El = "fixed-mesh-scalar-trajectory-2d/v1", Dl = 9, Ol = 8, kl = 2, Al = 6;
+function jl(e) {
+	throw Error(`Invalid Eqiora Trajectory presentation payload: ${e}`);
+}
+function Ml(e, t, n) {
+	return (typeof e != "string" || e !== t) && jl(`${n} changed`), e;
+}
+function Nl(e, t) {
+	return (typeof e != "string" || !/^[0-9a-f]{64}$/.test(e)) && jl(`${t} is not a lowercase SHA-256 digest`), e;
+}
+function Pl(e, t) {
+	return (typeof e != "string" || e.length === 0) && jl(`${t} is empty or invalid`), e;
+}
+function Fl(e, t, n) {
+	return (!Number.isSafeInteger(e) || e !== t) && jl(`${n} changed`), e;
+}
+function Il(e, t, n) {
+	(!(e instanceof DataView) || e.byteLength !== t) && jl(`${n} has the wrong binary type or byte length`);
+	let r = new Uint8Array(new ArrayBuffer(t));
+	return r.set(new Uint8Array(e.buffer, e.byteOffset, e.byteLength)), r;
+}
+function Ll(e, t) {
+	return e >>> t | e << 32 - t;
+}
+var Rl = new Uint32Array([
+	1779033703,
+	3144134277,
+	1013904242,
+	2773480762,
+	1359893119,
+	2600822924,
+	528734635,
+	1541459225
+]), zl = new Uint32Array([
+	1116352408,
+	1899447441,
+	3049323471,
+	3921009573,
+	961987163,
+	1508970993,
+	2453635748,
+	2870763221,
+	3624381080,
+	310598401,
+	607225278,
+	1426881987,
+	1925078388,
+	2162078206,
+	2614888103,
+	3248222580,
+	3835390401,
+	4022224774,
+	264347078,
+	604807628,
+	770255983,
+	1249150122,
+	1555081692,
+	1996064986,
+	2554220882,
+	2821834349,
+	2952996808,
+	3210313671,
+	3336571891,
+	3584528711,
+	113926993,
+	338241895,
+	666307205,
+	773529912,
+	1294757372,
+	1396182291,
+	1695183700,
+	1986661051,
+	2177026350,
+	2456956037,
+	2730485921,
+	2820302411,
+	3259730800,
+	3345764771,
+	3516065817,
+	3600352804,
+	4094571909,
+	275423344,
+	430227734,
+	506948616,
+	659060556,
+	883997877,
+	958139571,
+	1322822218,
+	1537002063,
+	1747873779,
+	1955562222,
+	2024104815,
+	2227730452,
+	2361852424,
+	2428436474,
+	2756734187,
+	3204031479,
+	3329325298
+]);
+function Bl(e) {
+	let t = e.byteLength * 8, n = Math.ceil((e.byteLength + 9) / 64) * 64, r = new Uint8Array(new ArrayBuffer(n));
+	r.set(e), r[e.byteLength] = 128;
+	let i = new DataView(r.buffer);
+	i.setUint32(n - 8, Math.floor(t / 4294967296), !1), i.setUint32(n - 4, t >>> 0, !1);
+	let a = new Uint32Array(Rl), o = /* @__PURE__ */ new Uint32Array(64);
+	for (let e = 0; e < n; e += 64) {
+		for (let t = 0; t < 16; t += 1) o[t] = i.getUint32(e + t * 4, !1);
+		for (let e = 16; e < 64; e += 1) {
+			let t = o[e - 15], n = o[e - 2];
+			o[e] = o[e - 16] + (Ll(t, 7) ^ Ll(t, 18) ^ t >>> 3) + o[e - 7] + (Ll(n, 17) ^ Ll(n, 19) ^ n >>> 10) >>> 0;
+		}
+		let [t, n, r, s, c, l, u, d] = a;
+		for (let e = 0; e < 64; e += 1) {
+			let i = d + (Ll(c, 6) ^ Ll(c, 11) ^ Ll(c, 25)) + (c & l ^ ~c & u) + zl[e] + o[e] >>> 0, a = (Ll(t, 2) ^ Ll(t, 13) ^ Ll(t, 22)) + (t & n ^ t & r ^ n & r) >>> 0;
+			[d, u, l, c, s, r, n, t] = [
+				u,
+				l,
+				c,
+				s + i >>> 0,
+				r,
+				n,
+				t,
+				i + a >>> 0
+			];
+		}
+		a[0] = a[0] + t >>> 0, a[1] = a[1] + n >>> 0, a[2] = a[2] + r >>> 0, a[3] = a[3] + s >>> 0, a[4] = a[4] + c >>> 0, a[5] = a[5] + l >>> 0, a[6] = a[6] + u >>> 0, a[7] = a[7] + d >>> 0;
+	}
+	return Array.from(a, (e) => e.toString(16).padStart(8, "0")).join("");
+}
+function Vl(e, t, n) {
+	let r = Il(e.get(t), n, t);
+	return Bl(r) !== Nl(e.get(t.replace(/_(?:f64|u32|u64)_le$/, "_sha256")), `${t} hash`) && jl(`${t} digest disagrees with its bytes`), r;
+}
+function Hl(e) {
+	let t = new Float64Array(e.byteLength / 8), n = new DataView(e.buffer);
+	for (let e = 0; e < t.length; e += 1) t[e] = n.getFloat64(e * 8, !0);
+	return t;
+}
+function Ul(e) {
+	let t = new Uint32Array(e.byteLength / 4), n = new DataView(e.buffer);
+	for (let e = 0; e < t.length; e += 1) t[e] = n.getUint32(e * 4, !0);
+	return t;
+}
+function Wl(e) {
+	Ml(e.get("profile"), El, "profile"), Fl(e.get("vertex_count"), Dl, "vertex_count"), Fl(e.get("triangle_count"), Ol, "triangle_count"), Fl(e.get("state_count"), kl, "state_count");
+	for (let t of ["state_digests", "snapshot_digests"]) {
+		let n = e.get(t);
+		(typeof n != "string" || n.split(",").length !== kl || !n.split(",").every((e) => /^[0-9a-f]{64}$/.test(e))) && jl(`${t} changed`);
+	}
+	let t = e.get("dimension");
+	(typeof t != "string" || !/^-?\d+(,-?\d+){6}$/.test(t)) && jl("dimension changed");
+	let n = t.split(",").map(Number);
+	n.every(Number.isSafeInteger) || jl("dimension changed");
+	let r = Hl(Vl(e, "coordinates_f64_le", 144)), i = Ul(Vl(e, "triangles_u32_le", 96)), a = Ul(Vl(e, "support_u32_le", 24)), o = Vl(e, "steps_u64_le", 16), s = Hl(Vl(e, "times_f64_le", 16)), c = Hl(Vl(e, "values_f64_le", 96)), l = new DataView(o.buffer), u = Array.from({ length: kl }, (e, t) => l.getBigUint64(t * 8, !0));
+	return (!r.every(Number.isFinite) || !s.every(Number.isFinite) || !c.every(Number.isFinite)) && jl("non-finite numeric member"), (s[1] <= s[0] || u[1] <= u[0]) && jl("states are not strictly ordered"), (i.some((e) => e >= Dl) || a.some((e) => e >= Dl) || new Set(a).size !== Al) && jl("topology or support is invalid"), {
+		trajectoryDigest: Nl(e.get("trajectory_digest"), "trajectory_digest"),
+		meshDigest: Nl(e.get("mesh_digest"), "mesh_digest"),
+		fieldId: Pl(e.get("field_id"), "field_id"),
+		dimension: Object.freeze(n),
+		frame: Ml(e.get("frame"), "invariant", "frame"),
+		coordinates: r,
+		triangles: i,
+		support: a,
+		steps: Object.freeze(u),
+		times: s,
+		values: c
+	};
+}
+//#endregion
+//#region src/trajectory-view.ts
+function Gl(e, t) {
+	let n = document.createElement(e);
+	return t.append(n), n;
+}
+function Kl(e, t, n) {
+	let r = n === t ? .5 : Math.max(0, Math.min(1, (e - t) / (n - t))), i = [
+		[
+			38,
+			63,
+			143
+		],
+		[
+			57,
+			168,
+			189
+		],
+		[
+			243,
+			211,
+			91
+		],
+		[
+			181,
+			40,
+			53
+		]
+	], a = r * (i.length - 1), o = Math.min(i.length - 2, Math.floor(a)), s = a - o;
+	return `rgb(${i[o].map((e, t) => Math.round(e + (i[o + 1][t] - e) * s)).join(",")})`;
+}
+function ql({ model: e, el: t }) {
+	let n;
+	try {
+		n = Wl(e);
+	} catch {
+		return t.className = "eqiora-trajectory-error", t.textContent = "Eqiora could not validate this Trajectory view. The exact text representation remains available.", () => {
+			t.replaceChildren();
+		};
+	}
+	let r = Gl("div", t);
+	r.className = "eqiora-trajectory", r.dataset.eqioraTrajectoryDigest = n.trajectoryDigest;
+	let i = Gl("canvas", r);
+	i.width = 960, i.height = 480;
+	let a = `Eqiora Trajectory ${n.trajectoryDigest}; field ${n.fieldId}; coherent-SI dimension [${n.dimension.join(", ")}]; ${n.frame} frame; ${n.steps.length} stored states.`;
+	i.setAttribute("role", "img"), i.setAttribute("aria-label", a), i.textContent = a;
+	let o = Gl("div", r);
+	o.className = "eqiora-trajectory-meta";
+	let s = Gl("div", r);
+	s.className = "eqiora-trajectory-controls";
+	let c = Gl("button", s);
+	c.type = "button", c.textContent = "Previous";
+	let l = Gl("button", s);
+	l.type = "button", l.textContent = "Play";
+	let u = Gl("button", s);
+	u.type = "button", u.textContent = "Next";
+	let d = Gl("input", s);
+	d.type = "range", d.min = "0", d.max = String(n.steps.length - 1), d.step = "1", d.value = "0", d.setAttribute("aria-label", "Trajectory state");
+	let f = Gl("select", s);
+	f.setAttribute("aria-label", "Playback speed");
+	for (let e of [
+		.5,
+		1,
+		2
+	]) {
+		let t = Gl("option", f);
+		t.value = String(e), t.textContent = `${e}×`, e === 1 && (t.selected = !0);
+	}
+	let p = Gl("span", s);
+	p.className = "eqiora-trajectory-swatch";
+	let m = 0, h, g = !1, _ = /* @__PURE__ */ new Map();
+	n.support.forEach((e, t) => {
+		_.set(e, t);
+	});
+	let v = [];
+	for (let e = 0; e < n.triangles.length; e += 3) {
+		let t = [
+			n.triangles[e],
+			n.triangles[e + 1],
+			n.triangles[e + 2]
+		];
+		t.every((e) => _.has(e)) && v.push(t);
+	}
+	let y = Array.from(n.support, (e) => n.coordinates[e * 2]), b = Array.from(n.support, (e) => n.coordinates[e * 2 + 1]), x = Math.min(...y), S = Math.max(...y), C = Math.min(...b), w = Math.max(...b), T = Math.min(860 / (S - x || 1), 400 / (w - C || 1)), E = (e) => [50 + (n.coordinates[e * 2] - x) * T, 440 - (n.coordinates[e * 2 + 1] - C) * T];
+	function D() {
+		let e = i.getContext("2d");
+		if (!e) return;
+		e.clearRect(0, 0, i.width, i.height);
+		let t = m * n.support.length, r = n.values.slice(t, t + n.support.length), a = Math.min(...r), s = Math.max(...r);
+		for (let [t, n, i] of v) {
+			let o = [
+				t,
+				n,
+				i
+			], c = o.reduce((e, t) => e + r[_.get(t)], 0) / 3;
+			e.beginPath(), o.forEach((t, n) => {
+				let [r, i] = E(t);
+				n === 0 ? e.moveTo(r, i) : e.lineTo(r, i);
+			}), e.closePath(), e.fillStyle = Kl(c, a, s), e.fill(), e.strokeStyle = "rgba(20,31,52,.45)", e.stroke();
+		}
+		o.textContent = `state ${m + 1}/${n.steps.length} · step ${n.steps[m]} · t=${n.times[m]} s · field ${n.fieldId} · dimension [${n.dimension.join(", ")}] · ${n.frame} · range ${a}…${s}`, d.value = String(m), c.disabled = m === 0, u.disabled = m === n.steps.length - 1;
+	}
+	function O() {
+		h !== void 0 && window.clearInterval(h), h = void 0, l.textContent = "Play";
+	}
+	function k() {
+		O(), l.textContent = "Pause";
+		let e = () => {
+			m = (m + 1) % n.steps.length, D();
+		};
+		e(), h = window.setInterval(e, 1e3 / Number(f.value));
+	}
+	c.addEventListener("click", () => {
+		O(), m = Math.max(0, m - 1), D();
+	}), u.addEventListener("click", () => {
+		O(), m = Math.min(n.steps.length - 1, m + 1), D();
+	}), l.addEventListener("click", () => h === void 0 ? k() : O()), d.addEventListener("input", () => {
+		O(), m = Number(d.value), D();
+	}), f.addEventListener("change", () => {
+		h !== void 0 && k();
+	}), D();
+	let A = () => {
+		g || (g = !0, O(), e.off?.("destroy", A), e.off?.("comm:close", A), t.replaceChildren());
+	};
+	return e.on?.("destroy", A), e.on?.("comm:close", A), A;
+}
+//#endregion
 //#region src/mesh-view.ts
-var El = "Eqiora could not create the WebGL Mesh view. The exact text representation remains available.", Dl = 0;
-function Ol(e, t, n, r) {
+var Jl = "Eqiora could not create the WebGL Mesh view. The exact text representation remains available.", Yl = 0;
+function Xl(e, t, n, r) {
 	let i = document.createElement("button");
 	return i.type = "button", i.className = "eqiora-mesh-button", i.textContent = e, i.setAttribute("aria-label", e), i.addEventListener("click", r), n.push(() => i.removeEventListener("click", r)), t.append(i), i;
 }
-function kl(e) {
+function Zl(e) {
 	let t = Infinity, n = Infinity, r = -Infinity, i = -Infinity;
 	for (let a = 0; a < e.coordinates.length; a += 2) t = Math.min(t, e.coordinates[a]), r = Math.max(r, e.coordinates[a]), n = Math.min(n, e.coordinates[a + 1]), i = Math.max(i, e.coordinates[a + 1]);
 	let a = Math.max(r - t, i - n);
@@ -11481,7 +11777,7 @@ function kl(e) {
 	for (let t = 0; t < e.coordinates.length / 2; t += 1) c[t * 3] = 2 * (e.coordinates[t * 2] - o) / a, c[t * 3 + 1] = 2 * (e.coordinates[t * 2 + 1] - s) / a, c[t * 3 + 2] = 0;
 	return c;
 }
-function Al(e, t) {
+function Ql(e, t) {
 	let n = document.createElement("section");
 	n.className = "eqiora-mesh-view", n.setAttribute("aria-label", `Mesh ${e.digest}`), n.setAttribute("data-eqiora-mesh-digest", e.digest);
 	let r = document.createElement("div");
@@ -11493,9 +11789,9 @@ function Al(e, t) {
 		viewport: i
 	};
 }
-function jl(e) {
+function $l(e) {
 	let t = new wr();
-	t.setAttribute("position", new lr(kl(e), 3)), t.setIndex(new lr(e.triangles, 1)), t.computeBoundingSphere();
+	t.setAttribute("position", new lr(Zl(e), 3)), t.setIndex(new lr(e.triangles, 1)), t.computeBoundingSphere();
 	let n = new Fr({
 		color: 5210043,
 		side: 2,
@@ -11523,7 +11819,7 @@ function jl(e) {
 		scene: c
 	};
 }
-function Ml(e) {
+function eu(e) {
 	let t = new Zi(40, 1, .01, 100);
 	t.up.set(0, 1, 0);
 	let n = new q(0, 0, 0);
@@ -11537,7 +11833,7 @@ function Ml(e) {
 		initialUp: t.up.clone()
 	};
 }
-function Nl(e, t, n, r) {
+function tu(e, t, n, r) {
 	let i = () => {
 		r.frame = 0, !r.cleaned && !r.contextFailed && e.render(t, n);
 	};
@@ -11545,7 +11841,7 @@ function Nl(e, t, n, r) {
 		!r.cleaned && !r.contextFailed && r.frame === 0 && (r.frame = requestAnimationFrame(i));
 	};
 }
-function Pl(e, t, n) {
+function nu(e, t, n) {
 	let { camera: r, controls: i, initialPosition: a, initialTarget: o, initialUp: s } = e, c = (e, a, o) => {
 		r.position.copy(e), i.target.copy(a), r.lookAt(a), i.update(), t.preset = o, n();
 	}, l = (e, t) => {
@@ -11576,8 +11872,8 @@ function Pl(e, t, n) {
 		}
 	};
 }
-function Fl(e, t, n, r, i, a) {
-	Ol("Orbit camera", e, a, r.orbit), Ol("Pan camera", e, a, r.pan), Ol("Zoom camera", e, a, r.zoom), Ol("Zoom out", e, a, r.zoomOut), Ol("Reset camera", e, a, r.reset), Ol("Top view", e, a, r.top), Ol("Isometric view", e, a, r.isometric);
+function ru(e, t, n, r, i, a) {
+	Xl("Orbit camera", e, a, r.orbit), Xl("Pan camera", e, a, r.pan), Xl("Zoom camera", e, a, r.zoom), Xl("Zoom out", e, a, r.zoomOut), Xl("Reset camera", e, a, r.reset), Xl("Top view", e, a, r.top), Xl("Isometric view", e, a, r.isometric);
 	let o = /* @__PURE__ */ new Map(), s = (e) => {
 		let r = Cl(e);
 		n.mode = r, t.surface.visible = r === "surface", t.wireframe.visible = r === "wireframe", t.points.visible = r === "points";
@@ -11589,19 +11885,19 @@ function Fl(e, t, n, r, i, a) {
 		"wireframe",
 		"points"
 	]) {
-		let n = Ol(`${t[0].toUpperCase()}${t.slice(1)}`, e, a, () => s(t));
+		let n = Xl(`${t[0].toUpperCase()}${t.slice(1)}`, e, a, () => s(t));
 		n.setAttribute("aria-pressed", "false"), o.set(t, n);
 	}
 	s("surface");
 }
-function Il(e, t, n) {
+function iu(e, t, n) {
 	let r = (e) => {
 		let n = !0;
 		e.key === "ArrowLeft" ? t.orbit() : e.key === "ArrowRight" && e.shiftKey ? t.pan() : e.key === "+" || e.key === "=" ? t.zoom() : e.key === "-" ? t.zoomOut() : e.key.toLowerCase() === "r" ? t.reset() : e.key.toLowerCase() === "t" ? t.top() : e.key.toLowerCase() === "i" ? t.isometric() : n = !1, n && e.preventDefault();
 	};
 	e.addEventListener("keydown", r), n.push(() => e.removeEventListener("keydown", r));
 }
-function Ll(e, t, n, r, i) {
+function au(e, t, n, r, i) {
 	let a = new ResizeObserver((a) => {
 		let o = a.find((t) => t.target === e);
 		if (o === void 0 || r.cleaned) return;
@@ -11610,14 +11906,14 @@ function Ll(e, t, n, r, i) {
 	});
 	return a.observe(e), a;
 }
-function Rl(e, t) {
+function ou(e, t) {
 	let n = document.createElement("p");
-	n.className = "eqiora-mesh-diagnostic", n.setAttribute("role", "alert"), n.textContent = t === void 0 ? El : `${El} Mesh digest ${t}.`, e.replaceChildren(n);
+	n.className = "eqiora-mesh-diagnostic", n.setAttribute("role", "alert"), n.textContent = t === void 0 ? Jl : `${Jl} Mesh digest ${t}.`, e.replaceChildren(n);
 }
-function zl(e, t, n, r, i) {
+function su(e, t, n, r, i) {
 	let a = t.model.get("_eqiora_n1_model_id");
 	if (typeof a != "string" || a.length === 0) throw Error("Eqiora Mesh delegate omitted its private model identity");
-	let o = `${a}:${++Dl}`;
+	let o = `${a}:${++Yl}`;
 	e.__eqioraN1Oracle = { snapshot: () => ({
 		modelId: a,
 		viewId: o,
@@ -11637,7 +11933,7 @@ function zl(e, t, n, r, i) {
 		}
 	}) };
 }
-function Bl(e, t, n, r, i, a, o) {
+function cu(e, t, n, r, i, a, o) {
 	return () => {
 		if (!a.cleaned) {
 			a.cleaned = !0, a.lifecycle.cleanupCount += 1, t.disconnect(), a.frame !== 0 && (cancelAnimationFrame(a.frame), a.frame = 0);
@@ -11648,20 +11944,20 @@ function Bl(e, t, n, r, i, a, o) {
 		}
 	};
 }
-function Vl(e, t) {
-	let n = [], { root: r, toolbar: i, viewport: a } = Al(e, t), o;
+function lu(e, t) {
+	let n = [], { root: r, toolbar: i, viewport: a } = Ql(e, t), o;
 	try {
 		o = new Fc({
 			antialias: !0,
 			alpha: !1
 		});
 	} catch {
-		return Rl(a, e.digest), () => r.remove();
+		return ou(a, e.digest), () => r.remove();
 	}
 	o.setClearColor(16251130, 1), o.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 2));
 	let s = o.domElement;
 	s.tabIndex = 0, s.className = "eqiora-mesh-canvas", s.setAttribute("role", "img"), s.setAttribute("aria-label", `Mesh interactive view, digest ${e.digest}`), a.append(s);
-	let c = jl(e), l = Ml(s), u = {
+	let c = $l(e), l = eu(s), u = {
 		mode: "surface",
 		preset: "initial",
 		cleaned: !1,
@@ -11680,29 +11976,32 @@ function Vl(e, t) {
 			materialsDisposed: !1,
 			rendererDisposed: !1
 		}
-	}, d = Nl(o, c.scene, l.camera, u);
+	}, d = tu(o, c.scene, l.camera, u);
 	l.controls.addEventListener("change", d), n.push(() => l.controls.removeEventListener("change", d));
-	let f = Pl(l, u, d);
-	Fl(i, c, u, f, d, n), Il(s, f, n);
-	let p = Ll(a, o, l.camera, u, d), m = (t) => {
-		t.preventDefault(), u.contextFailed = !0, Rl(a, e.digest);
+	let f = nu(l, u, d);
+	ru(i, c, u, f, d, n), iu(s, f, n);
+	let p = au(a, o, l.camera, u, d), m = (t) => {
+		t.preventDefault(), u.contextFailed = !0, ou(a, e.digest);
 	};
 	s.addEventListener("webglcontextlost", m), n.push(() => s.removeEventListener("webglcontextlost", m));
-	let h = Bl(r, p, l, c, o, u, n);
-	t.model.on?.("destroy", h), t.model.on?.("comm:close", h), n.push(() => t.model.off?.("destroy", h)), n.push(() => t.model.off?.("comm:close", h)), zl(r, t, u, l, n);
+	let h = cu(r, p, l, c, o, u, n);
+	t.model.on?.("destroy", h), t.model.on?.("comm:close", h), n.push(() => t.model.off?.("destroy", h)), n.push(() => t.model.off?.("comm:close", h)), su(r, t, u, l, n);
 	let g = a.getBoundingClientRect();
 	return o.setSize(Math.max(1, g.width), Math.max(1, g.height), !1), l.camera.aspect = Math.max(1, g.width) / Math.max(1, g.height), l.camera.updateProjectionMatrix(), d(), h;
 }
-function Hl(e) {
+function uu(e) {
 	let t, n = !1;
 	return Tl(e.model).then((r) => {
-		n || (t = Vl(r, e));
+		n || (t = lu(r, e));
 	}).catch(() => {
-		n || Rl(e.el);
+		n || ou(e.el);
 	}), () => {
 		n = !0, t?.(), t = void 0;
 	};
 }
-var Ul = { render: Hl };
+function du(e) {
+	return e.model.get("profile") === "fixed-mesh-scalar-trajectory-2d/v1" ? ql(e) : uu(e);
+}
+var fu = { render: du };
 //#endregion
-export { Ul as default };
+export { fu as default };

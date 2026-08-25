@@ -1,0 +1,49 @@
+.eqiora-trajectory {
+	font:
+		13px / 1.4 system-ui,
+		sans-serif;
+	color: #172033;
+	border: 1px solid #d6dce8;
+	border-radius: 10px;
+	overflow: hidden;
+	background: #fff;
+}
+.eqiora-trajectory canvas {
+	display: block;
+	width: 100%;
+	height: 320px;
+	background: #f7f9fc;
+}
+.eqiora-trajectory-controls {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 9px 12px;
+	border-top: 1px solid #e1e6ef;
+	flex-wrap: wrap;
+}
+.eqiora-trajectory button,
+.eqiora-trajectory select {
+	font: inherit;
+}
+.eqiora-trajectory input[type="range"] {
+	flex: 1;
+	min-width: 140px;
+}
+.eqiora-trajectory-meta {
+	padding: 7px 12px;
+	color: #46516a;
+	background: #f7f9fc;
+	overflow-wrap: anywhere;
+}
+.eqiora-trajectory-swatch {
+	height: 8px;
+	min-width: 120px;
+	flex: 1;
+	background: linear-gradient(90deg, #263f8f, #39a8bd, #f3d35b, #b52835);
+	border-radius: 4px;
+}
+.eqiora-trajectory-error {
+	padding: 14px;
+	color: #8b1e2d;
+}
