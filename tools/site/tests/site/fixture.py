@@ -473,11 +473,16 @@ def _write_rustc_preflight_double(directory: Path) -> None:
     rustc.write_text(
         f"""#!{sys.executable}
 from pathlib import Path
+import os
 import sys
 
 args = sys.argv[1:]
 if args == ["+stable", "-Vv"]:
     sys.stdout.buffer.write(b"fixture stable rustc\\n")
+    raise SystemExit(0)
+if args == ["+1.97.1", "-Vv"]:
+    release = os.environ.get("FIXTURE_PINNED_RUST_RELEASE", "1.97.1")
+    sys.stdout.write(f"release: {{release}}\\n")
     raise SystemExit(0)
 if args == ["-Vv"]:
     try:
