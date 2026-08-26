@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 11 module summaries and all 118 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 510 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 14 module summaries and all 121 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 520 signature-only entries under documented owning types**.
 
-Inventory: 11 modules, 137 literal public spellings, 118 canonical grouped declarations, 659 visible method signatures (510 non-dunder and 149 dunder), and 47 visible class assignments.
+Inventory: 14 modules, 140 literal public spellings, 121 canonical grouped declarations, 681 visible method signatures (520 non-dunder and 161 dunder), and 47 visible class assignments.
 
 Regenerate with:
 
@@ -872,6 +872,14 @@ class Result:
     def fields(self) -> list[Series]: ...
     @property
     def snapshots(self) -> tuple[trajectory.FieldSnapshot, ...]: ...
+    @property
+    def values(self) -> Array: ...
+    @property
+    def field_location(self) -> str: ...
+    @property
+    def logical_shape(self) -> tuple[int, int]: ...
+    @property
+    def solve(self) -> LinearSolveSummary: ...
     def field(self, field: FieldRef, /) -> trajectory.FieldSnapshot: ...
     def mesh(self, field: FieldRef, /) -> meshing.Mesh: ...
     @property
@@ -1411,25 +1419,12 @@ def replay(data: bytes) -> Model: ...
 
 ### `eqiora.run`
 
-Execute through the lifecycle returned by `submit`.
+Execute solely from one immutable common Plan.
 
 Authority: [`bindings/python/python/eqiora/__init__.py::run`](../../bindings/python/python/eqiora/__init__.py)
 
 ```python
-@overload
-def run(model: Model, *, end_time: float, max_step: float, realization: None=None) -> Result: ...
-
-@overload
-def run(model: Model, *, realization: Realization) -> ScalarEllipticResult: ...
-
-@overload
-def run(model: Model, *, plan: fluid.SteadyStokesPlan) -> Result: ...
-
-@overload
-def run(model: Model, *, plan: solid.LinearElasticityPlan) -> Result: ...
-
-@overload
-def run(model: Model, *, plan: fsi.FixedMeshMonolithicPlan) -> Result: ...
+def run(plan: Plan) -> Result: ...
 ```
 
 <a id="api-eqiora-submit"></a>
@@ -2075,6 +2070,99 @@ Authority: [`crates/eqiora-python/src/meshing/plan.rs::resolve`](../../crates/eq
 
 ```python
 def resolve(geometry: Geometry, request: MeshRequest, /) -> MeshPlan: ...
+```
+
+<a id="module-eqiora-fem"></a>
+
+## `eqiora.fem`
+
+Closed finite-element spatial policies.
+
+Module authority: [`crates/eqiora-python/src/common_plan.rs::PyQ1`](../../crates/eqiora-python/src/common_plan.rs)
+
+Shipped stub: [`bindings/python/python/eqiora/fem.pyi`](../../bindings/python/python/eqiora/fem.pyi)
+
+<a id="api-eqiora-fem-Q1"></a>
+
+### `eqiora.fem.Q1`
+
+Continuous tensor-product Q1 Galerkin spatial policy.
+
+Authority: [`crates/eqiora-python/src/common_plan.rs::PyQ1`](../../crates/eqiora-python/src/common_plan.rs)
+
+```python
+@final
+class Q1:
+    def __new__(cls) -> Self: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="module-eqiora-fvm"></a>
+
+## `eqiora.fvm`
+
+Closed finite-volume spatial policies.
+
+Module authority: [`crates/eqiora-python/src/common_plan.rs::PyCellCenteredTpfa`](../../crates/eqiora-python/src/common_plan.rs)
+
+Shipped stub: [`bindings/python/python/eqiora/fvm.pyi`](../../bindings/python/python/eqiora/fvm.pyi)
+
+<a id="api-eqiora-fvm-CellCenteredTpfa"></a>
+
+### `eqiora.fvm.CellCenteredTpfa`
+
+Cell-centred orthogonal two-point-flux spatial policy.
+
+Authority: [`crates/eqiora-python/src/common_plan.rs::PyCellCenteredTpfa`](../../crates/eqiora-python/src/common_plan.rs)
+
+```python
+@final
+class CellCenteredTpfa:
+    def __new__(cls) -> Self: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="module-eqiora-solve"></a>
+
+## `eqiora.solve`
+
+Closed algebraic solve policies.
+
+Module authority: [`crates/eqiora-python/src/common_plan.rs::PyLinear`](../../crates/eqiora-python/src/common_plan.rs)
+
+Shipped stub: [`bindings/python/python/eqiora/solve.pyi`](../../bindings/python/python/eqiora/solve.pyi)
+
+<a id="api-eqiora-solve-Linear"></a>
+
+### `eqiora.solve.Linear`
+
+Admitted host-serial reproducible CG solve policy.
+
+Authority: [`crates/eqiora-python/src/common_plan.rs::PyLinear`](../../crates/eqiora-python/src/common_plan.rs)
+
+```python
+@final
+class Linear:
+    def __new__(cls, *, relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int) -> Self: ...
+    @property
+    def algorithm(self) -> str: ...
+    @property
+    def preconditioner(self) -> str: ...
+    @property
+    def reduction(self) -> str: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerance(self) -> float: ...
+    @property
+    def maximum_iterations(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
 ```
 
 <a id="module-eqiora-fluid"></a>

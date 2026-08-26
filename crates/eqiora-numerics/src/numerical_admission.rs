@@ -36,14 +36,193 @@ use eqiora_realization::{
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     ExecutionProvider, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
-    LinearSolverBackend, PreconditionerPolicy, ReductionPolicy, SERIAL_EXECUTION_PROVIDER,
-    ScalarType, SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
+    LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
+    SERIAL_EXECUTION_PROVIDER, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
+    SolverProvider,
 };
 use sha2::{Digest, Sha256};
 
 const APPLICATION_REALIZATION_REVISION: u64 = 134;
 const POLICY_DOMAIN: &[u8] = b"eqiora.private-native-numerical-admission/v1\0";
 type TaggedMeshAssignments = (BTreeMap<u32, Vec<usize>>, BTreeMap<u32, Vec<usize>>);
+
+/// Closed scalar spatial choice for the common Plan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommonScalarSpatialPolicy {
+    Q1,
+    CellCenteredTpfa,
+}
+
+/// Opaque common scalar Plan owning authenticated Model, Mesh, and policy state.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonScalarPlan {
+    admission: NativeNumericalAdmission,
+    identity: String,
+    model_id: String,
+    model_revision: u64,
+    geometry_digest: String,
+    mesh_digest: String,
+    correspondence_digest: String,
+    production_digest: String,
+    field_id: String,
+    cells: [usize; 2],
+}
+
+impl CommonScalarPlan {
+    /// Resolve one exact caller-owned Cartesian common Mesh and Model.
+    pub fn resolve(
+        model: &ModelEnvelope,
+        owner: AuthenticatedCommonMesh,
+        spatial: CommonScalarSpatialPolicy,
+        solver: SolverPlan,
+    ) -> Result<Self, Diagnostic> {
+        let model_reference = model.artifact_reference()?;
+        let NativeMeshResources::Cartesian {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        } = &owner.resources
+        else {
+            return Err(invalid(
+                "scalar Q1/TPFA common Plan requires an authenticated Cartesian Mesh",
+            ));
+        };
+        let geometry_digest = hex_bytes(&geometry.digest_bytes());
+        let mesh_digest = mesh.digest()?.to_string();
+        let correspondence_digest = correspondence.digest()?.to_string();
+        let production_digest = production.digest()?.to_string();
+        let cells = [
+            mesh.mesh()
+                .axis_cell_count(0)
+                .ok_or_else(|| invalid("common Plan Mesh omitted x-axis cells"))?,
+            mesh.mesh()
+                .axis_cell_count(1)
+                .ok_or_else(|| invalid("common Plan Mesh omitted y-axis cells"))?,
+        ];
+        let spatial = match spatial {
+            CommonScalarSpatialPolicy::Q1 => NativeSpatialPolicy::ScalarQ1,
+            CommonScalarSpatialPolicy::CellCenteredTpfa => NativeSpatialPolicy::ScalarTpfa,
+        };
+        if solver.algorithm() != LinearSolver::ConjugateGradient
+            || solver.preconditioner() != PreconditionerPolicy::Identity
+            || solver.reduction() != ReductionPolicy::Reproducible
+        {
+            return Err(invalid(
+                "common scalar Plan requires conjugate-gradient/identity/reproducible linear policy",
+            ));
+        }
+        let linear = NativeLinearPolicy::exact(solver, &REFERENCE_LINEAR_SOLVER)?;
+        let admission = NativeNumericalAdmission::admit(model, owner, spatial, linear)?;
+        let RecognizedNativeModel::Scalar(lowered) = &admission.recognized else {
+            return Err(invalid(
+                "common scalar Plan admitted non-scalar mathematics",
+            ));
+        };
+        let field_id = lowered.field_id().ulid().to_string();
+        let mut identity_bytes = Vec::new();
+        for value in [
+            admission.model_digest(),
+            geometry_digest.as_str(),
+            mesh_digest.as_str(),
+            correspondence_digest.as_str(),
+            production_digest.as_str(),
+            admission.policy_identity(),
+        ] {
+            push_framed(&mut identity_bytes, value.as_bytes());
+        }
+        let identity = hex_bytes(&Sha256::digest(
+            [
+                b"eqiora.common-scalar-plan/v1\0".as_slice(),
+                identity_bytes.as_slice(),
+            ]
+            .concat(),
+        ));
+        Ok(Self {
+            admission,
+            identity,
+            model_id: model_reference.model().ulid().to_string(),
+            model_revision: model_reference.semantic_revision().get(),
+            geometry_digest,
+            mesh_digest,
+            correspondence_digest,
+            production_digest,
+            field_id,
+            cells,
+        })
+    }
+
+    /// Execute solely from retained Plan state.
+    pub fn run(&self) -> Result<ResolvedScalarEllipticCartesianSolution, Diagnostic> {
+        self.admission.execute_scalar(&REFERENCE_LINEAR_SOLVER)
+    }
+
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+
+    #[must_use]
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+
+    #[must_use]
+    pub const fn model_revision(&self) -> u64 {
+        self.model_revision
+    }
+
+    #[must_use]
+    pub fn model_digest(&self) -> &str {
+        self.admission.model_digest()
+    }
+
+    #[must_use]
+    pub fn geometry_digest(&self) -> &str {
+        &self.geometry_digest
+    }
+
+    #[must_use]
+    pub fn mesh_digest(&self) -> &str {
+        &self.mesh_digest
+    }
+
+    #[must_use]
+    pub fn correspondence_digest(&self) -> &str {
+        &self.correspondence_digest
+    }
+
+    #[must_use]
+    pub fn production_digest(&self) -> &str {
+        &self.production_digest
+    }
+
+    #[must_use]
+    pub fn field_id(&self) -> &str {
+        &self.field_id
+    }
+
+    #[must_use]
+    pub const fn cells(&self) -> [usize; 2] {
+        self.cells
+    }
+
+    #[must_use]
+    pub fn spatial(&self) -> CommonScalarSpatialPolicy {
+        match self.admission.spatial {
+            NativeSpatialPolicy::ScalarQ1 => CommonScalarSpatialPolicy::Q1,
+            NativeSpatialPolicy::ScalarTpfa => CommonScalarSpatialPolicy::CellCenteredTpfa,
+            NativeSpatialPolicy::StokesMiniP1(_) => {
+                unreachable!("common scalar Plan cannot own Stokes policy")
+            }
+        }
+    }
+
+    #[must_use]
+    pub const fn linear(&self) -> SolverPlan {
+        self.admission.linear.solver
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum NativeCapability {
@@ -122,13 +301,13 @@ pub(super) enum NativeMeshResources {
 
 /// Authenticated in-process owner of one exact common Geometry/Mesh occurrence.
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct AuthenticatedCommonMesh {
+pub struct AuthenticatedCommonMesh {
     resources: NativeMeshResources,
 }
 
 impl AuthenticatedCommonMesh {
     /// Authenticate and own one structured-Cartesian rectangle occurrence.
-    pub(super) fn structured_cartesian(
+    pub fn structured_cartesian(
         geometry: CanonicalGeometryV1,
         mesh: CartesianMeshEnvelopeV1,
         correspondence: GeometryMeshCorrespondenceEnvelopeV1,
@@ -145,7 +324,7 @@ impl AuthenticatedCommonMesh {
     }
 
     /// Authenticate and own one deterministic reference simplicial occurrence.
-    pub(super) fn planar_reference(
+    pub fn planar_reference(
         geometry: CanonicalGeometryV1,
         mesh: SimplicialMeshEnvelopeV1,
         correspondence: GeometryMeshCorrespondenceEnvelopeV1,
@@ -162,7 +341,7 @@ impl AuthenticatedCommonMesh {
     }
 
     /// Re-import and own one exact bounded Gmsh 4.15.2 provider observation.
-    pub(super) fn gmsh_4152(
+    pub fn gmsh_4152(
         geometry: CanonicalGeometryV1,
         policy: eqiora_artifact::PlanarMeshQualityV1,
         provider_output: Vec<u8>,
@@ -883,6 +1062,10 @@ fn push_framed(target: &mut Vec<u8>, value: &[u8]) {
     target.extend_from_slice(value);
 }
 
+fn hex_bytes(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 fn first(diagnostics: Vec<Diagnostic>) -> Diagnostic {
     diagnostics
         .into_iter()
@@ -1394,6 +1577,76 @@ public component PoissonRectangle {
                 .into_primary_field_values()
                 .len(),
             6
+        );
+    }
+
+    #[test]
+    fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeated_inputs() {
+        let geometry = rectangle();
+        let model = model(&geometry);
+        let linear = SolverPlan::new(
+            LinearSolver::ConjugateGradient,
+            1.0e-10,
+            1.0e-12,
+            NonZeroUsize::new(10_000).unwrap(),
+        )
+        .unwrap();
+        let q1 = CommonScalarPlan::resolve(
+            &model,
+            resources(&geometry),
+            CommonScalarSpatialPolicy::Q1,
+            linear,
+        )
+        .unwrap();
+        let repeat = CommonScalarPlan::resolve(
+            &model,
+            resources(&geometry),
+            CommonScalarSpatialPolicy::Q1,
+            linear,
+        )
+        .unwrap();
+        let tpfa = CommonScalarPlan::resolve(
+            &model,
+            resources(&geometry),
+            CommonScalarSpatialPolicy::CellCenteredTpfa,
+            linear,
+        )
+        .unwrap();
+        let alternate_tolerance = CommonScalarPlan::resolve(
+            &model,
+            resources(&geometry),
+            CommonScalarSpatialPolicy::Q1,
+            SolverPlan::new(
+                LinearSolver::ConjugateGradient,
+                1.0e-9,
+                1.0e-12,
+                NonZeroUsize::new(10_000).unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(q1.identity(), repeat.identity());
+        assert_ne!(q1.identity(), tpfa.identity());
+        assert_ne!(q1.identity(), alternate_tolerance.identity());
+        assert_eq!(q1.model_digest(), model.digest().unwrap().to_string());
+        assert_eq!(q1.cells(), [2, 3]);
+        assert_eq!(q1.run().unwrap().into_primary_field_values().len(), 12);
+        assert_eq!(tpfa.run().unwrap().into_primary_field_values().len(), 6);
+        assert!(
+            CommonScalarPlan::resolve(
+                &model,
+                resources(&geometry),
+                CommonScalarSpatialPolicy::Q1,
+                SolverPlan::new(
+                    LinearSolver::MinimumResidual,
+                    1.0e-10,
+                    1.0e-12,
+                    NonZeroUsize::new(10_000).unwrap(),
+                )
+                .unwrap(),
+            )
+            .is_err()
         );
     }
 

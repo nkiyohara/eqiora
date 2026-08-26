@@ -11,6 +11,7 @@ use eqiora::artifact::{
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora::meshing::{MeshEntity, MeshTopology};
+use eqiora_numerics::AuthenticatedCommonMesh;
 use numpy::PyArray2;
 use pyo3::exceptions::{PyOverflowError, PyRuntimeError, PyTypeError};
 use pyo3::prelude::*;
@@ -115,6 +116,10 @@ struct MeshLineage {
 
 #[pymethods]
 impl PyMesh {
+    pub(crate) fn exact_mesh_digest(&self) -> &str {
+        &self.lineage.mesh_digest
+    }
+
     /// Exact Geometry identity retained by the source binding.
     #[getter]
     fn source_digest(&self) -> &str {
@@ -834,6 +839,55 @@ impl PyMesh {
             correspondence,
             production,
         }))
+    }
+
+    /// Reauthenticate this exact published occurrence for the common resolver.
+    pub(crate) fn authenticated_common_mesh(
+        &self,
+    ) -> Result<Option<AuthenticatedCommonMesh>, Diagnostic> {
+        match &self.source {
+            AcceptedMeshSource::SourceOwnedCartesian {
+                geometry,
+                mesh,
+                correspondence,
+                production,
+            } => AuthenticatedCommonMesh::structured_cartesian(
+                (**geometry).clone(),
+                (**mesh).clone(),
+                (**correspondence).clone(),
+                (**production).clone(),
+            )
+            .map(Some),
+            AcceptedMeshSource::SourceOwned {
+                geometry,
+                mesh,
+                correspondence,
+                production,
+                provider_observation: SourceOwnedProviderObservation::Reference,
+            } => AuthenticatedCommonMesh::planar_reference(
+                (**geometry).clone(),
+                (**mesh).clone(),
+                (**correspondence).clone(),
+                (**production).clone(),
+            )
+            .map(Some),
+            AcceptedMeshSource::SourceOwned {
+                geometry,
+                production,
+                provider_observation: SourceOwnedProviderObservation::Gmsh4152 { output },
+                ..
+            } => {
+                let policy = production.planar_mesh_quality().ok_or_else(|| {
+                    Diagnostic::error(
+                        codes::INVALID_ARTIFACT,
+                        "Gmsh common Mesh has a non-planar production policy",
+                    )
+                })?;
+                AuthenticatedCommonMesh::gmsh_4152((**geometry).clone(), policy, output.to_vec())
+                    .map(Some)
+            }
+            AcceptedMeshSource::Chordal { .. } | AcceptedMeshSource::Cartesian => Ok(None),
+        }
     }
 
     fn set_presentation_state(&self, next: PresentationState) -> PyResult<()> {

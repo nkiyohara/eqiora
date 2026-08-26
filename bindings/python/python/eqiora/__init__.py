@@ -3,7 +3,7 @@
 import os
 from typing import NamedTuple
 
-from . import fluid, fsi, geometry, meshing, solid, trajectory
+from . import fem, fluid, fsi, fvm, geometry, meshing, solid, solve, trajectory
 
 from ._eqiora import (
     __version__,
@@ -38,6 +38,7 @@ from ._eqiora import (
     Model,
     Parameter,
     ParameterRef,
+    Plan,
     PhysicalDomain,
     Realization,
     Representation,
@@ -77,6 +78,8 @@ from ._eqiora import (
     submit_steady_stokes as _submit_steady_stokes,
     through,
     trace,
+    _resolve_plan,
+    _run_plan,
 )
 
 from . import diff
@@ -143,6 +146,7 @@ __all__ = [
     "Parameter",
     "ParameterRef",
     "PhysicalDomain",
+    "Plan",
     "Realization",
     "Representation",
     "Relation",
@@ -175,16 +179,20 @@ __all__ = [
     "grad",
     "preview_realization",
     "replay",
+    "resolve",
     "run",
     "submit",
     "through",
     "trace",
     "diff",
+    "fem",
     "fluid",
     "fsi",
+    "fvm",
     "geometry",
     "meshing",
     "solid",
+    "solve",
     "trajectory",
 ]
 
@@ -215,26 +223,16 @@ def check_package_conformance(
     )
 
 
-def run(
-    model: Model,
-    *,
-    end_time=_MISSING,
-    max_step=_MISSING,
-    realization: Realization | None = None,
-    plan=_MISSING,
-):
-    """Execute through the same native lifecycle returned by :func:`submit`."""
+def resolve(model: Model, *, mesh: meshing.Mesh, spatial, solve: solve.Linear) -> Plan:
+    """Resolve an exact Model and caller-owned Mesh into an immutable common Plan."""
 
-    return Run(
-        _submit_native(
-            "run()",
-            model,
-            end_time=end_time,
-            max_step=max_step,
-            realization=realization,
-            plan=plan,
-        )
-    ).result()
+    return _resolve_plan(model, mesh=mesh, spatial=spatial, solve=solve)
+
+
+def run(plan: Plan) -> Result:
+    """Execute solely from one immutable common Plan."""
+
+    return _run_plan(plan)
 
 
 def _submit_native(

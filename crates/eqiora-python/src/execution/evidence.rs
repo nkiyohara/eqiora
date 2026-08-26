@@ -7,6 +7,7 @@ use eqiora::api::{
 };
 use eqiora::artifact::{CanonicalModelArtifact, ModelEnvelope};
 use eqiora::diagnostic::codes;
+use eqiora_numerics::CommonScalarPlan;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -259,6 +260,17 @@ pub(crate) struct RunIdentity {
 }
 
 impl RunIdentity {
+    pub(crate) fn from_common_plan(plan: &CommonScalarPlan) -> Self {
+        Self {
+            model_id: plan.model_id().to_owned(),
+            model_digest: plan.model_digest().to_owned(),
+            model_revision: plan.model_revision(),
+            plan_key: plan.identity().to_owned(),
+            adapter: eqiora::solver::SERIAL_EXECUTION_PROVIDER.id().as_str(),
+            adapter_version: eqiora::solver::SERIAL_EXECUTION_PROVIDER.implementation_version(),
+        }
+    }
+
     pub(super) fn from_reference(
         document: &ModelDocument,
         plan: &ReferenceRunPlan,

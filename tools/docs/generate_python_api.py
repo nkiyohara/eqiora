@@ -40,7 +40,7 @@ def module_spec(slug: str) -> ModuleSpec:
 
 
 MODULE_SLUGS = (
-    "eqiora geometry meshing fluid trajectory fsi solid matplotlib diff torch jax"
+    "eqiora geometry meshing fem fvm solve fluid trajectory fsi solid matplotlib diff torch jax"
 ).split()
 MODULES = tuple(module_spec(slug) for slug in MODULE_SLUGS)
 
@@ -900,8 +900,8 @@ def render_outputs() -> dict[Path, str]:
         outputs[SITE_OUTPUT / f"{module.spec.slug}.mdx"] = render_mdx_module(
             module, exports, modules, declarations
         )
-    if len(outputs) != 13:
-        raise fail(f"expected 13 generated outputs, got {len(outputs)}")
+    if len(outputs) != 16:
+        raise fail(f"expected 16 generated outputs, got {len(outputs)}")
     for path, rendered in outputs.items():
         encoded = rendered.encode("utf-8")
         if b"\r" in encoded or not encoded.endswith(b"\n"):

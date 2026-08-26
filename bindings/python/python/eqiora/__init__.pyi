@@ -23,10 +23,13 @@ import numpy as np
 import numpy.typing as npt
 
 from . import fluid as fluid
+from . import fem as fem
 from . import fsi as fsi
+from . import fvm as fvm
 from . import geometry as geometry
 from . import meshing as meshing
 from . import solid as solid
+from . import solve as solve
 from . import trajectory as trajectory
 
 _Float64Array = npt.NDArray[np.float64]
@@ -557,6 +560,82 @@ class Model:
     def __hash__(self) -> int: ...
 
 @final
+class Plan:
+    """Immutable common numerical Plan owning an exact Model and Mesh.
+
+    Authority: ``crates/eqiora-python/src/common_plan.rs::PyPlan``.
+    """
+    @property
+    def identity(self) -> str: ...
+    @property
+    def model_id(self) -> str: ...
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def model_revision(self) -> int: ...
+    @property
+    def geometry_digest(self) -> str: ...
+    @property
+    def mesh_digest(self) -> str: ...
+    @property
+    def correspondence_digest(self) -> str: ...
+    @property
+    def production_digest(self) -> str: ...
+    @property
+    def model(self) -> Model: ...
+    @property
+    def mesh(self) -> meshing.Mesh: ...
+    @property
+    def field(self) -> FieldRef: ...
+    @property
+    def spatial(self) -> fem.Q1 | fvm.CellCenteredTpfa: ...
+    @property
+    def solve(self) -> solve.Linear: ...
+    @property
+    def discretization(self) -> str: ...
+    @property
+    def space(self) -> str: ...
+    @property
+    def quadrature(self) -> str: ...
+    @property
+    def mesh_kind(self) -> str: ...
+    @property
+    def spatial_dimension(self) -> int: ...
+    @property
+    def cells(self) -> tuple[int, int]: ...
+    @property
+    def scalar_type(self) -> str: ...
+    @property
+    def vector_layout(self) -> str: ...
+    @property
+    def operator_properties(self) -> str: ...
+    @property
+    def schedule(self) -> str: ...
+    @property
+    def solver_algorithm(self) -> str: ...
+    @property
+    def preconditioner(self) -> str: ...
+    @property
+    def reduction(self) -> str: ...
+    @property
+    def solver_backend(self) -> str: ...
+    @property
+    def solver_backend_version(self) -> str: ...
+    @property
+    def execution_provider(self) -> str: ...
+    @property
+    def execution_provider_version(self) -> str: ...
+    @property
+    def placement(self) -> str: ...
+    @property
+    def workers(self) -> int: ...
+    @property
+    def scaling(self) -> None: ...
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
 class ScalarEllipticMethod:
     """Numerical family for one bounded scalar-elliptic request.
 
@@ -987,6 +1066,14 @@ class Result:
     def fields(self) -> list[Series]: ...
     @property
     def snapshots(self) -> tuple[trajectory.FieldSnapshot, ...]: ...
+    @property
+    def values(self) -> Array: ...
+    @property
+    def field_location(self) -> str: ...
+    @property
+    def logical_shape(self) -> tuple[int, int]: ...
+    @property
+    def solve(self) -> LinearSolveSummary: ...
     def field(self, field: FieldRef, /) -> trajectory.FieldSnapshot: ...
     def mesh(self, field: FieldRef, /) -> meshing.Mesh: ...
     @property
@@ -1215,63 +1302,22 @@ def replay(data: bytes) -> Model:
 
     ...
 
-@overload
-def run(
+def resolve(
     model: Model,
     *,
-    end_time: float,
-    max_step: float,
-    realization: None = None,
-) -> Result:
-    """Execute through the lifecycle returned by :func:`submit`.
+    mesh: meshing.Mesh,
+    spatial: fem.Q1 | fvm.CellCenteredTpfa,
+    solve: solve.Linear,
+) -> Plan:
+    """Resolve an exact Model and caller-owned Mesh into a common Plan.
 
-    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
+    Authority: ``bindings/python/python/eqiora/__init__.py::resolve``.
     """
 
     ...
 
-@overload
-def run(model: Model, *, realization: Realization) -> ScalarEllipticResult:
-    """Execute through the lifecycle returned by :func:`submit`.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
-    """
-
-    ...
-
-@overload
-def run(
-    model: Model,
-    *,
-    plan: fluid.SteadyStokesPlan,
-) -> Result:
-    """Execute through the lifecycle returned by :func:`submit`.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
-    """
-
-    ...
-
-@overload
-def run(
-    model: Model,
-    *,
-    plan: solid.LinearElasticityPlan,
-) -> Result:
-    """Execute through the lifecycle returned by :func:`submit`.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
-    """
-
-    ...
-
-@overload
-def run(
-    model: Model,
-    *,
-    plan: fsi.FixedMeshMonolithicPlan,
-) -> Result:
-    """Execute through the lifecycle returned by :func:`submit`.
+def run(plan: Plan) -> Result:
+    """Execute solely from one immutable common Plan.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::run``.
     """

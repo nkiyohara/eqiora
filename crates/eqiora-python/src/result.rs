@@ -1,9 +1,11 @@
 //! Common installed-Python ownership for accepted execution results.
 
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use eqiora::api::ReferenceRunResult;
 use eqiora::diagnostic::codes;
+use eqiora::numerics::ResolvedScalarEllipticCartesianSolution;
 use eqiora::{Diagnostic, DimExponents};
 use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -16,7 +18,7 @@ use crate::execution::RunIdentity;
 use crate::fsi::PyFixedMeshMonolithicEvidence;
 use crate::meshing::PyMesh;
 use crate::model::PyModelFieldRef;
-use crate::realization::PyRunManifest;
+use crate::realization::{PyLinearSolveSummary, PyRunManifest};
 use crate::steady_stokes::PySteadyStokesEvidence;
 use crate::trajectory::{PyFieldSnapshot, PyTrajectory};
 
@@ -119,6 +121,15 @@ struct TrajectoryResultPayload {
     evidence: Py<PyFixedMeshMonolithicEvidence>,
 }
 
+struct ScalarResultPayload {
+    field_id: String,
+    mesh: Py<PyMesh>,
+    values: Py<PyArrayBuffer>,
+    field_location: &'static str,
+    logical_shape: [usize; 2],
+    solve: Py<PyLinearSolveSummary>,
+}
+
 enum ResultPayload {
     Series {
         fields: Vec<Py<PySeries>>,
@@ -126,6 +137,7 @@ enum ResultPayload {
     },
     Static(StaticResultPayload),
     Trajectory(TrajectoryResultPayload),
+    Scalar(ScalarResultPayload),
 }
 
 /// One accepted execution occurrence with typed output relationships.
@@ -185,7 +197,9 @@ impl PyRunResult {
             ResultPayload::Series { fields, .. } => {
                 fields.iter().map(|field| field.clone_ref(py)).collect()
             }
-            ResultPayload::Static(_) | ResultPayload::Trajectory(_) => Vec::new(),
+            ResultPayload::Static(_) | ResultPayload::Trajectory(_) | ResultPayload::Scalar(_) => {
+                Vec::new()
+            }
         }
     }
 
@@ -199,7 +213,7 @@ impl PyRunResult {
                 .iter()
                 .map(|output| output.snapshot.clone_ref(py))
                 .collect(),
-            ResultPayload::Trajectory(_) => Vec::new(),
+            ResultPayload::Trajectory(_) | ResultPayload::Scalar(_) => Vec::new(),
         };
         Ok(PyTuple::new(py, snapshots)?.unbind())
     }
@@ -209,10 +223,12 @@ impl PyRunResult {
     fn trajectory(&self, py: Python<'_>) -> PyResult<Py<PyTrajectory>> {
         match &self.payload {
             ResultPayload::Trajectory(payload) => Ok(payload.trajectory.clone_ref(py)),
-            ResultPayload::Series { .. } | ResultPayload::Static(_) => Err(capability_error(
-                py,
-                "this Result occurrence has no spatial Trajectory",
-            )),
+            ResultPayload::Series { .. } | ResultPayload::Static(_) | ResultPayload::Scalar(_) => {
+                Err(capability_error(
+                    py,
+                    "this Result occurrence has no spatial Trajectory",
+                ))
+            }
         }
     }
 
@@ -226,8 +242,59 @@ impl PyRunResult {
     /// Select the exact accepted Mesh paired with one static Field.
     #[pyo3(signature = (field, /))]
     fn mesh(&self, py: Python<'_>, field: &PyModelFieldRef) -> PyResult<Py<PyMesh>> {
+        if let ResultPayload::Scalar(payload) = &self.payload {
+            self.validate_scalar_field(field)?;
+            return Ok(payload.mesh.clone_ref(py));
+        }
         self.static_output(py, field)
             .map(|output| output.mesh.clone_ref(py))
+    }
+
+    /// Exact primary scalar coefficients for a common scalar Plan Result.
+    #[getter]
+    fn values(&self, py: Python<'_>) -> PyResult<Py<PyArrayBuffer>> {
+        match &self.payload {
+            ResultPayload::Scalar(payload) => Ok(payload.values.clone_ref(py)),
+            _ => Err(capability_error(
+                py,
+                "this Result occurrence has no primary scalar coefficient buffer",
+            )),
+        }
+    }
+
+    #[getter]
+    fn field_location(&self, py: Python<'_>) -> PyResult<&'static str> {
+        match &self.payload {
+            ResultPayload::Scalar(payload) => Ok(payload.field_location),
+            _ => Err(capability_error(
+                py,
+                "this Result occurrence has no scalar Field location",
+            )),
+        }
+    }
+
+    #[getter]
+    fn logical_shape(&self, py: Python<'_>) -> PyResult<(usize, usize)> {
+        match &self.payload {
+            ResultPayload::Scalar(payload) => {
+                Ok((payload.logical_shape[0], payload.logical_shape[1]))
+            }
+            _ => Err(capability_error(
+                py,
+                "this Result occurrence has no scalar logical shape",
+            )),
+        }
+    }
+
+    #[getter]
+    fn solve(&self, py: Python<'_>) -> PyResult<Py<PyLinearSolveSummary>> {
+        match &self.payload {
+            ResultPayload::Scalar(payload) => Ok(payload.solve.clone_ref(py)),
+            _ => Err(capability_error(
+                py,
+                "this Result occurrence has no linear solve summary",
+            )),
+        }
     }
 
     /// Return the exact durable Run manifest when this occurrence owns one.
@@ -235,7 +302,7 @@ impl PyRunResult {
         match &self.payload {
             ResultPayload::Static(payload) => Ok(payload.run_manifest.clone_ref(py)),
             ResultPayload::Trajectory(payload) => Ok(payload.run_manifest.clone_ref(py)),
-            ResultPayload::Series { .. } => Err(capability_error(
+            ResultPayload::Series { .. } | ResultPayload::Scalar(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no durable Run manifest",
             )),
@@ -245,7 +312,7 @@ impl PyRunResult {
     fn __len__(&self) -> usize {
         match &self.payload {
             ResultPayload::Series { fields, .. } => fields.len(),
-            ResultPayload::Static(_) | ResultPayload::Trajectory(_) => 0,
+            ResultPayload::Static(_) | ResultPayload::Trajectory(_) | ResultPayload::Scalar(_) => 0,
         }
     }
 
@@ -267,7 +334,7 @@ impl PyRunResult {
             match &self.payload {
                 ResultPayload::Series { .. } => 0,
                 ResultPayload::Static(payload) => payload.outputs.len(),
-                ResultPayload::Trajectory(_) => 0,
+                ResultPayload::Trajectory(_) | ResultPayload::Scalar(_) => 0,
             },
             self.model_digest(),
             self.plan_key(),
@@ -276,6 +343,60 @@ impl PyRunResult {
 }
 
 impl PyRunResult {
+    fn validate_scalar_field(&self, field: &PyModelFieldRef) -> PyResult<()> {
+        if field.exact_model_digest() != self.identity.model_digest() {
+            return Err(PyValueError::new_err(
+                "FieldRef belongs to a different exact Model artifact",
+            ));
+        }
+        let ResultPayload::Scalar(payload) = &self.payload else {
+            return Err(PyKeyError::new_err(field.exact_id().to_owned()));
+        };
+        if field.exact_id() != payload.field_id {
+            return Err(PyKeyError::new_err(field.exact_id().to_owned()));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn from_common_scalar(
+        py: Python<'_>,
+        identity: RunIdentity,
+        mesh: Py<PyMesh>,
+        field_id: String,
+        cells: [usize; 2],
+        elapsed: Duration,
+        run: ResolvedScalarEllipticCartesianSolution,
+    ) -> PyResult<Self> {
+        let (values, solve, field_location, logical_shape) = match run {
+            ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) => (
+                solution.field().vertex_values().to_vec(),
+                solution.solve_report().clone(),
+                "vertex",
+                [cells[0] + 1, cells[1] + 1],
+            ),
+            ResolvedScalarEllipticCartesianSolution::FiniteVolume(solution) => (
+                solution.cell_values().to_vec(),
+                solution.solve_report().clone(),
+                "cell-center",
+                cells,
+            ),
+        };
+        let values = PyArrayBuffer::from_owned_result(py, values)?;
+        let solve = Py::new(py, PyLinearSolveSummary::from_report(&solve))?;
+        Ok(Self {
+            identity,
+            elapsed_seconds: elapsed.as_secs_f64(),
+            payload: ResultPayload::Scalar(ScalarResultPayload {
+                field_id,
+                mesh,
+                values,
+                field_location,
+                logical_shape,
+                solve,
+            }),
+        })
+    }
+
     fn static_output(
         &self,
         py: Python<'_>,
@@ -324,6 +445,10 @@ impl PyRunResult {
                 py,
                 "this Result occurrence has no steady-Stokes evidence",
             )),
+            ResultPayload::Scalar(_) => Err(capability_error(
+                py,
+                "this Result occurrence has no steady-Stokes evidence",
+            )),
         }
     }
 
@@ -338,7 +463,8 @@ impl PyRunResult {
             }) => Ok(evidence.clone_ref(py)),
             ResultPayload::Static(_)
             | ResultPayload::Series { .. }
-            | ResultPayload::Trajectory(_) => Err(capability_error(
+            | ResultPayload::Trajectory(_)
+            | ResultPayload::Scalar(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no linear-elasticity evidence",
             )),
@@ -351,10 +477,12 @@ impl PyRunResult {
     ) -> PyResult<Py<PyFixedMeshMonolithicEvidence>> {
         match &self.payload {
             ResultPayload::Trajectory(payload) => Ok(payload.evidence.clone_ref(py)),
-            ResultPayload::Static(_) | ResultPayload::Series { .. } => Err(capability_error(
-                py,
-                "this Result occurrence has no fixed-mesh monolithic FSI evidence",
-            )),
+            ResultPayload::Static(_) | ResultPayload::Series { .. } | ResultPayload::Scalar(_) => {
+                Err(capability_error(
+                    py,
+                    "this Result occurrence has no fixed-mesh monolithic FSI evidence",
+                ))
+            }
         }
     }
 
