@@ -478,19 +478,34 @@ import sys
 
 args = sys.argv[1:]
 if args == ["+stable", "-Vv"]:
-    sys.stdout.buffer.write(b"fixture stable rustc\\n")
-    raise SystemExit(0)
-if args == ["+1.97.1", "-Vv"]:
-    release = os.environ.get("FIXTURE_PINNED_RUST_RELEASE", "1.97.1")
-    sys.stdout.write(f"release: {{release}}\\n")
+    release = os.environ.get("FIXTURE_STABLE_RUST_RELEASE", "1.97.1")
+    sys.stdout.write(f"fixture stable rustc\\nrelease: {{release}}\\n")
     raise SystemExit(0)
 if args == ["-Vv"]:
+    selected = os.environ.get("RUSTUP_TOOLCHAIN")
+    if selected:
+        trace = os.environ.get("FIXTURE_RUSTC_TRACE")
+        if trace:
+            with open(trace, "a", encoding="utf-8") as stream:
+                stream.write(f"{{selected}}\\n")
+        if selected in ("stable", "stable-x86_64-unknown-linux-gnu"):
+            release = os.environ.get("FIXTURE_STABLE_RUST_RELEASE", "1.97.1")
+        elif selected == "1.97.1-x86_64-unknown-linux-gnu":
+            release = os.environ.get("FIXTURE_PINNED_RUST_RELEASE", "1.97.1")
+        else:
+            raise SystemExit(64)
+        sys.stdout.write(f"fixture {{selected}} rustc\\nrelease: {{release}}\\n")
+        raise SystemExit(0)
     try:
         toolchain = (Path.cwd() / "rust-toolchain.toml").read_bytes()
     except OSError:
         toolchain = None
     output = (
-        b"fixture stable rustc\\n"
+        (
+            "fixture stable rustc\\nrelease: "
+            + os.environ.get("FIXTURE_STABLE_RUST_RELEASE", "1.97.1")
+            + "\\n"
+        ).encode()
         if toolchain == {b'[toolchain]\nchannel = "stable"\ncomponents = ["rustfmt", "clippy"]\n'!r}
         else b"fixture selected rustc\\n"
     )
@@ -501,6 +516,20 @@ raise SystemExit(64)
         encoding="utf-8",
     )
     rustc.chmod(0o755)
+    rustup = directory / "rustup"
+    rustup.write_text(
+        "#!/bin/sh\n"
+        "test \"$#\" = 2\n"
+        "test \"$1\" = toolchain\n"
+        "test \"$2\" = list\n"
+        "if test -n \"${FIXTURE_RUSTUP_TRACE:-}\"; then\n"
+        "  printf 'toolchain list\\n' >> \"$FIXTURE_RUSTUP_TRACE\"\n"
+        "fi\n"
+        "printf '%s\\n' 'stable-x86_64-unknown-linux-gnu (active, default)' "
+        "'1.97.1-x86_64-unknown-linux-gnu'\n",
+        encoding="utf-8",
+    )
+    rustup.chmod(0o755)
 
 
 def _write(path: Path, value: str | bytes) -> None:

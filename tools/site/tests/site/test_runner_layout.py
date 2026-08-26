@@ -60,12 +60,16 @@ class ToolchainSelectorTests(unittest.TestCase):
         self.assertEqual(toolchain["toolchain"]["channel"], "stable")
         self.assertEqual(
             [entry["version"] for entry in mise["tools"]["rust"]],
-            ["stable", "1.97.1"],
+            ["stable", "1.97.1-x86_64-unknown-linux-gnu"],
         )
+        self.assertEqual(mise["tools"]["rust"][1]["os"], ["linux/x64"])
         self.assertEqual(
             lock["tools"]["rust"],
             [
-                {"version": "1.97.1", "backend": "core:rust"},
+                {
+                    "version": "1.97.1-x86_64-unknown-linux-gnu",
+                    "backend": "core:rust",
+                },
                 {"version": "stable", "backend": "core:rust"},
             ],
         )
@@ -163,6 +167,7 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
                 "npm_config_offline": "true",
                 "CARGO_NET_OFFLINE": "true",
                 "UV_OFFLINE": "1",
+                "HOME": str(root / "home"),
                 "PATH": f"{root / 'fixture-bin'}{os.pathsep}{pinned_node_path(root)}",
                 "EQIORA_API_SCRATCH": str(scratch),
                 "EQIORA_SITE_SOURCE_ROOT": str(scratch / "source"),
@@ -222,6 +227,10 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         fixture_bin = root / "fixture-bin"
         fixture_bin.mkdir()
         _write_rustc_preflight_double(fixture_bin)
+        rustup_proxy_bin = root / "home/.cargo/bin"
+        rustup_proxy_bin.mkdir(parents=True)
+        shutil.copy2(fixture_bin / "rustc", rustup_proxy_bin / "rustc")
+        shutil.copy2(fixture_bin / "rustup", rustup_proxy_bin / "rustup")
         sentinel = fixture_bin / "dpkg-query"
         sentinel.write_text(
             "#!/bin/sh\nprintf 'post-sb-preflight\\n' >> \"$TRACE_FILE\"\nexit 85\n",
@@ -460,13 +469,62 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         runner_text = (REPOSITORY / "tools/site/run_offline_site_checks.sh").read_text(
             encoding="utf-8"
         )
+        self.assertNotIn("+1.97.1", runner_text)
         errors = checker.check_runner_source_topology_text(runner_text)
         self.assertEqual(errors, [], "\n".join(errors))
 
     def test_01_normal_runner_reaches_post_sb_boundary_before_mutants(self) -> None:
         with tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary:
             runner, environment = self._layout(Path(temporary))
+            rustup_trace = Path(temporary) / "rustup-trace.log"
+            rustc_trace = Path(temporary) / "rustc-trace.log"
+            environment.update(
+                {
+                    "FIXTURE_RUSTUP_TRACE": str(rustup_trace),
+                    "FIXTURE_RUSTC_TRACE": str(rustc_trace),
+                }
+            )
             self._assert_sb_positive(self._run(runner, environment), environment)
+            self.assertFalse(rustup_trace.exists())
+            self.assertEqual(rustc_trace.read_text(encoding="utf-8"), "stable\n")
+
+        with tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary:
+            runner, environment = self._layout(Path(temporary))
+            rustup_trace = Path(temporary) / "rustup-trace.log"
+            rustc_trace = Path(temporary) / "rustc-trace.log"
+            environment.update(
+                {
+                    "FIXTURE_STABLE_RUST_RELEASE": "1.98.0",
+                    "FIXTURE_RUSTUP_TRACE": str(rustup_trace),
+                    "FIXTURE_RUSTC_TRACE": str(rustc_trace),
+                }
+            )
+            self._assert_sb_positive(self._run(runner, environment), environment)
+            self.assertEqual(
+                rustup_trace.read_text(encoding="utf-8"), "toolchain list\n"
+            )
+            self.assertEqual(
+                rustc_trace.read_text(encoding="utf-8"),
+                "stable-x86_64-unknown-linux-gnu\n"
+                "1.97.1-x86_64-unknown-linux-gnu\n"
+                "1.97.1-x86_64-unknown-linux-gnu\n",
+            )
+
+        with tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary:
+            runner, environment = self._layout(Path(temporary))
+            environment.update(
+                {
+                    "FIXTURE_STABLE_RUST_RELEASE": "1.98.0",
+                    "FIXTURE_PINNED_RUST_RELEASE": "1.98.0",
+                }
+            )
+            result = self._run(runner, environment)
+            self.assertNotIn(result.returncode, (0, POST_SB_SENTINEL))
+            self.assertIn(
+                "no installed Rust toolchain reports release 1.97.1",
+                result.stderr,
+            )
+            self.assertFalse(Path(environment["TRACE_FILE"]).exists())
 
         with tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary:
             runner, environment = self._layout(Path(temporary))
