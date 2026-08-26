@@ -1,9 +1,8 @@
 # Laminar cylinder-wake experience
 
-Under RFC 0088, implement and publish this only as an **Unverified product example** unless it is
-an unchanged projection of a pre-freeze accepted Result. Every later evidence, oracle, falsifier,
-candidate, acceptance, or promotion requirement is frozen historical scope and does not block
-the unverified product path. Do not create or update that evidence.
+Implement and publish this first as an **Unverified product example**. Promote it only after its
+claim-local candidate, independent oracle, falsifiers, and acceptance requirements pass under
+RFC 0089; evidence work must not block the earlier product path.
 
 Status: future-state experience contract. It does not advance
 `fluid.flow-past-cylinder`.
@@ -36,7 +35,7 @@ the scientific precursor by itself.
 Vorticity is the sole primary field. Pressure belongs in the detailed view and
 poster comparison, not as a simultaneous overlay.
 
-## Pre-freeze accepted-result evidence (frozen)
+## Accepted-result evidence plan
 
 The evidence plan owns these distinct obligations:
 
@@ -52,7 +51,7 @@ The evidence plan owns these distinct obligations:
 The decisive observable family is
 `C_D(t)`, `C_L(t)`, front/back pressure difference, and Strouhal number in the
 benchmark's normalization. The experience is rejected if the steady precursor
-misses its independently frozen comparison band, or if the reported shedding
+misses its independently derived comparison band, or if the reported shedding
 frequency fails its precommitted time-step-refinement check. A plausible
 vortex street cannot override either failure.
 

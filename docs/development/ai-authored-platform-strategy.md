@@ -1,7 +1,7 @@
 # AI-authored platform strategy
 
 - Status: Accepted
-- Revised: 2026-08-25
+- Revised: 2026-08-26
 - Related: [high-risk and parallel development](vertical-slice-development.md),
   [local verification](local-verification.md), and [roadmap](../roadmap.md)
 
@@ -40,19 +40,17 @@ existing compiler, realization, and evidence paths when they genuinely reduce re
 invariant-bearing formulas. Do not build a universal form, plugin, or intermediate
 representation before a current capability and a second real consumer show the need.
 
-## Evidence development freeze
+## Claim-local evidence development
 
-As of 2026-08-25, evidence development is frozen. Preserve and run the accepted evidence, but
-do not add or extend verification cases, scientific or exact-artifact oracles, expected values,
-tolerances, falsifiers, exact inventories, evidence schemas, evidence projections, or bespoke
-evidence infrastructure. Do not update a frozen expectation to follow implementation output.
+Evidence development is active under [RFC 0089](../../rfcs/0089-resume-claim-local-evidence-development.md).
+Add or change registered evidence when a durable scientific, semantic, artifact, security, release,
+or CI-trust claim needs a stronger falsifier than an ordinary focused product test. Derive its
+expected values, relations, tolerances, and failure probes independently of implementation output.
 
-The freeze is not a product-development or test freeze. New product behavior uses ordinary
-focused behavior, compatibility, and failure tests. The capability matrix records the resulting
-contract and execution truth, but verification remains absent unless unchanged pre-freeze
-evidence already proves the exact claim. When frozen evidence disagrees with a candidate, fix
-the product or build reproducibility, narrow the claim, or leave the capability unverified.
-Only an explicit owner instruction may unfreeze a named evidence scope.
+Evidence binds the smallest semantic projection that can falsify its claim. Do not use unrelated
+whole source files, package roots, generated trees, or broad inventories as proxies for a narrow
+surface. Exact bytes remain appropriate when those bytes are the actual public or persisted
+contract. Investigate a mismatch; never copy observed output into an expectation merely to pass.
 
 ## Context scales by navigation
 
@@ -105,29 +103,26 @@ repository-owned consumer, example, ordinary test, and document in the same chan
 the displaced name and path. Do not retain a legacy overload, alias, wrapper, deprecation shim,
 dual lifecycle, or transition period solely for backward compatibility.
 
-Published release artifacts remain immutable: a breaking correction ships in a new release and
-is stated plainly in its release notes. Explicitly versioned or persisted schemas, wire formats,
-artifact codecs, security and data-integrity boundaries, external ABI/platform baselines, and
-an owner-accepted stable compatibility promise retain their own rules. This convergence policy
-does not authorize silent byte migration, reinterpretation of an old identifier, weakened
-scientific meaning, or changed evidence.
-
-The evidence-development freeze may delay publication of an otherwise preferred API when a
-frozen case pins the current facade. Record the intended replacement and continue private
-product work; do not update the frozen expectation, publish an inaccurate stub, or add a hidden
-alternate spelling. A frozen accidental API is a temporary blocker, not the desired design.
+Published release artifacts remain immutable historical objects, but current readers and authoring
+surfaces need not preserve an obsolete pre-1.0 API, schema, or wire epoch without an explicit stable
+or external interoperability promise. A breaking correction ships in a new release and is stated
+plainly. Migrate repository-owned producers, consumers, examples, docs, tests, and evidence
+atomically, then delete displaced schemas, codecs, aliases, overloads, shims, and parallel paths.
+Security and data-integrity validation moves to the new boundary; it is not weakened.
 
 ## Evidence discipline
 
 Evidence should be cheaper than the mistake it prevents.
 
-- Run accepted cases without changing their claim, oracle, expected result, tolerance, or
-  falsifier.
 - Treat an accepted case as support only for its explicit claim and non-claims.
-- Use focused tests for new ordinary behavior; do not register them as evidence.
+- Use focused tests for ordinary behavior; register evidence only for a durable claim that needs
+  independent scientific, artifact, security, release, or CI-trust authority.
+- Derive evidence independently and change it only with an explicit rationale for the changed
+  claim, never to follow observed implementation output.
 - Do not generalize a result across environments, caches, hosts, or aborted runs.
-- Fix nondeterministic product or build output rather than teaching an exact oracle to accept it.
-- Narrow or mark a claim unverified when frozen evidence cannot support it.
+- Fix nondeterministic product or build output rather than teaching an oracle to accept it.
+- Replace broad exact witnesses with claim-local semantic checks unless exact identity is the
+  contract being tested.
 
 ## Process deletion rules
 

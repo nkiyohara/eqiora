@@ -17,11 +17,10 @@ claims. The [capability matrix](capability-matrix.md) is their whole-product
 index. This roadmap records dependency order and deliberate nonclaims; it does
 not widen either source.
 
-Evidence development is frozen as of 2026-08-25. Existing registered cases remain runnable and
-authoritative for their exact claims, but the roadmap does not create new evidence lanes, cases,
-oracles, expected values, tolerances, falsifiers, exact inventories, or evidence mechanisms.
-Product and gallery work continues with focused tests; verification remains absent unless
-unchanged pre-freeze evidence already proves the exact claim.
+Evidence development is active under [RFC 0089](../rfcs/0089-resume-claim-local-evidence-development.md).
+Roadmap work adds or changes a case only for a durable claim that needs independently derived
+evidence beyond focused product tests. Evidence follows the product dependency path and binds the
+smallest semantic projection that can falsify its claim; it does not create a parallel roadmap.
 
 ## Multiphysics dependency spine
 
@@ -148,7 +147,7 @@ may start whenever its contracts and writable seams satisfy the repository's par
 
 The gallery specifications do not promote any benchmark or capability. A film is eligible either
 as an explicitly unverified product example under the focused product path or as an unchanged
-projection of a pre-freeze accepted scientific Result. Both require real result lineage and
+projection of an accepted scientific Result. Both require real result lineage and
 accessible presentation; only the latter carries its existing evidence dossier.
 
 ## Implemented foundations
@@ -408,8 +407,8 @@ Do not create a general refactoring phase or broaden a lane merely because
 adjacent cleanup is attractive.
 
 Release work remains a separate trust path. Additional platforms and release
-formats do not reorder product dependencies. New scale work remains unverified during the freeze
-unless pre-freeze environment-specific evidence already proves its exact claim.
+formats do not reorder product dependencies. New scale work becomes verified only after
+environment-specific, independently derived evidence proves its exact claim.
 
 ## Canonical conformance set
 
