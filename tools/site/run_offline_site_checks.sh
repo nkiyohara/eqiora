@@ -69,8 +69,54 @@ test "$(node --version)" = v24.18.1
 test "$(npm --version)" = 11.16.0
 test "$(python3 --version)" = "Python 3.13.14"
 test "$(uv --version)" = "uv 0.12.1 (x86_64-unknown-linux-musl)"
-test "$(rustc -Vv)" = "$(rustc +stable -Vv)"
-test "$(rustc +1.97.1 -Vv | grep -F 'release: ')" = "release: 1.97.1"
+required_rust_release=1.97.1
+rustc_has_required_release() {
+  local version_output="$1"
+  local -a release_lines=()
+  mapfile -t release_lines < <(
+    printf '%s\n' "$version_output" | grep '^release: ' || true
+  )
+  test "${#release_lines[@]}" = 1
+  test "${release_lines[0]}" = "release: $required_rust_release"
+}
+selected_rust_toolchain=
+rustup_proxy_bin="$HOME/.cargo/bin"
+test -x "$rustup_proxy_bin/rustup"
+test -x "$rustup_proxy_bin/rustc"
+if stable_version="$(rustc +stable -Vv 2>/dev/null)"; then
+  source_selected_version="$(env -u RUSTUP_TOOLCHAIN rustc -Vv)"
+  test "$source_selected_version" = "$stable_version"
+  if rustc_has_required_release "$stable_version"; then
+    selected_rust_toolchain=stable
+  fi
+fi
+if test -z "$selected_rust_toolchain"; then
+  installed_toolchain_output="$("$rustup_proxy_bin/rustup" toolchain list)"
+  mapfile -t installed_toolchain_lines <<< "$installed_toolchain_output"
+  for installed_toolchain_line in "${installed_toolchain_lines[@]}"; do
+    if [[ ! "$installed_toolchain_line" =~ ^([A-Za-z0-9._-]+)([[:space:]]+\([^()]+\))?$ ]]; then
+      echo "offline site checks: malformed installed Rust toolchain entry" >&2
+      exit 1
+    fi
+    installed_toolchain="${BASH_REMATCH[1]}"
+    if installed_version="$(
+      RUSTUP_TOOLCHAIN="$installed_toolchain" \
+        "$rustup_proxy_bin/rustc" -Vv 2>/dev/null
+    )" && rustc_has_required_release "$installed_version"
+    then
+      selected_rust_toolchain="$installed_toolchain"
+      break
+    fi
+  done
+fi
+if test -z "$selected_rust_toolchain"; then
+  echo "offline site checks: no installed Rust toolchain reports release $required_rust_release" >&2
+  exit 1
+fi
+export RUSTUP_TOOLCHAIN="$selected_rust_toolchain"
+export PATH="$rustup_proxy_bin:$PATH"
+selected_rust_version="$(rustc -Vv)"
+rustc_has_required_release "$selected_rust_version"
 export PYTHONDONTWRITEBYTECODE=1
 source_manifest_before="$EQIORA_API_SCRATCH/source-sha256.before"
 source_manifest_after="$EQIORA_API_SCRATCH/source-sha256.after"
@@ -149,7 +195,7 @@ do
   test ! -L "$path"
 done
 mkdir "$wheels" "$identity_cwd"
-cargo +1.97.1 build --locked --release -p eqiora \
+cargo build --locked --release -p eqiora \
   --bin eqiora --bin eqiora-mcp \
   --target-dir "$cargo_target"
 eqiora_binary="$cargo_target/release/eqiora"
@@ -219,7 +265,7 @@ else:
 PY
 )
 # The committed evidence projection is checked before API projection or Astro.
-cargo +1.97.1 run --locked --quiet --target-dir "$cargo_target" -p eqiora-verify -- \
+cargo run --locked --quiet --target-dir "$cargo_target" -p eqiora-verify -- \
   index --format json > "$EQIORA_API_SCRATCH/evidence-index.json"
 python3 tools/site/generate_evidence_catalog.py \
   --input "$EQIORA_API_SCRATCH/evidence-index.json" \
@@ -238,9 +284,9 @@ python3 tools/docs/generate_interface_reference.py \
   --mcp-binary "$mcp_binary" \
   --source-sha "$EQIORA_SITE_SOURCE_SHA" \
   --check
-CARGO_TARGET_DIR="$cargo_target" cargo +1.97.1 xtask check-facade
+CARGO_TARGET_DIR="$cargo_target" cargo xtask check-facade
 RUSTDOCFLAGS="-D warnings --html-in-header docs/site/src/reference/rustdoc-head.html --extend-css docs/site/src/styles/rustdoc.css" \
-cargo +1.97.1 doc --locked -p eqiora --lib --no-deps --all-features \
+cargo doc --locked -p eqiora --lib --no-deps --all-features \
   --target-dir "$EQIORA_SITE_RUSTDOC_TARGET"
 mkdir "$EQIORA_SITE_RUSTDOC_STAGE"
 python3 tools/site/build_rust_reference.py \

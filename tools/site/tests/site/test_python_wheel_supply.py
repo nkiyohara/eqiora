@@ -652,6 +652,10 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
             ).lstrip(),
         )
         self._mock_uv(mocks / "uv")
+        rustup_proxy_bin = root / "home/.cargo/bin"
+        rustup_proxy_bin.mkdir(parents=True)
+        for executable in ("cargo", "rustc", "rustup"):
+            shutil.copy2(mocks / executable, rustup_proxy_bin / executable)
 
         browser_root = self._browser_root
         browser_sha256 = BROWSER_SHA256
@@ -680,6 +684,7 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
         environment.pop("RUSTUP_TOOLCHAIN", None)
         environment.update(
             {
+                "HOME": str(root / "home"),
                 "PATH": f"{mocks}{os.pathsep}{environment['PATH']}",
                 "LC_ALL": "C",
                 "TZ": "UTC",
@@ -712,6 +717,7 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
         elif upstream_mutant == "missing-browser-bytes":
             environment.pop("EQIORA_SITE_BROWSER_BYTES")
         elif upstream_mutant == "wrong-docs-rust-release":
+            environment["FIXTURE_STABLE_RUST_RELEASE"] = "1.98.0"
             environment["FIXTURE_PINNED_RUST_RELEASE"] = "1.98.0"
         return runner, environment, trace
 

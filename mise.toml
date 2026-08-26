@@ -9,7 +9,7 @@ locked = true
 [tools]
 rust = [
   { version = "stable", profile = "default", components = ["rustfmt", "clippy"] },
-  { version = "1.97.1", profile = "default", components = ["rustfmt", "clippy"] },
+  { version = "1.97.1-x86_64-unknown-linux-gnu", profile = "default", components = ["rustfmt", "clippy"], os = ["linux/x64"] },
 ]
 python = "3.13.14"
 node = "24.18.1"
