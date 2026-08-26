@@ -61,6 +61,7 @@ pub use realization::{
     steady_stokes_fieldwise_requirements_2d, steady_stokes_mini_plan_2d,
 };
 pub use recognize::lower_steady_incompressible_stokes_cartesian_2d;
+pub(crate) use recognize::recognize_steady_incompressible_stokes_geometry_mathematics;
 
 #[cfg(test)]
 mod tests;

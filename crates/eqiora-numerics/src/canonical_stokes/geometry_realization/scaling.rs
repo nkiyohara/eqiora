@@ -227,8 +227,7 @@ impl SteadyStokesGeometryBinding2d {
         model: &ModelEnvelope,
         request: Option<IncompressibleScalingRequest2d>,
     ) -> Result<ResolvedIncompressibleScaling2d, Diagnostic> {
-        self.accepted.revalidate()?;
-        let replayed = replay_model(model, self.accepted.source())?;
+        let replayed = replay_model(model, &self.source)?;
         if replayed != self.program {
             return Err(invalid(
                 "automatic scaling Model meaning differs from the authenticated Stokes binding",
@@ -261,8 +260,7 @@ impl SteadyStokesGeometryBinding2d {
                 let bounds = self.exact_bounds()?;
                 let height = positive(bounds[1][1] - bounds[1][0], "exact channel height")?;
                 let outward_normal = self
-                    .accepted
-                    .source()
+                    .source
                     .constant_parent_outward_normal("inlet")
                     .ok_or_else(|| {
                         invalid("automatic U requires one exact fixed-side `inlet` normal")
@@ -382,9 +380,9 @@ impl SteadyStokesGeometryBinding2d {
             scales,
             receipt: IncompressibleScalingReceipt2d {
                 model: model.digest()?,
-                geometry: ArtifactDigest::from_sha256(self.accepted.source().digest_bytes()),
-                correspondence: self.accepted.correspondence().digest()?,
-                mesh: self.accepted.mesh().digest()?,
+                geometry: ArtifactDigest::from_sha256(self.source.digest_bytes()),
+                correspondence: self.correspondence.digest()?,
+                mesh: self.mesh.digest()?,
                 components,
             },
         })
@@ -392,8 +390,7 @@ impl SteadyStokesGeometryBinding2d {
 
     fn exact_bounds(&self) -> Result<&[[f64; 2]; 2], Diagnostic> {
         let source_bounds = self
-            .accepted
-            .source()
+            .source
             .circular_hole_bounds()
             .ok_or_else(|| invalid("automatic scaling requires exact circular-hole bounds"))?;
         if self.model.bounds() != source_bounds {

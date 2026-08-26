@@ -974,6 +974,7 @@ dependencies = [
  "eqiora-execution",
  "eqiora-geometry",
  "eqiora-graph",
+ "eqiora-io-gmsh",
  "eqiora-ir",
  "eqiora-meshing",
  "eqiora-realization",
@@ -981,6 +982,7 @@ dependencies = [
  "eqiora-sem",
  "eqiora-solver",
  "eqiora-spatial-distribution",
+ "serde_json",
  "sha2",
 ]
 

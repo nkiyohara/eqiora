@@ -73,6 +73,7 @@ enum AcceptedMeshSource {
         mesh: Box<SimplicialMeshEnvelopeV1>,
         correspondence: Box<GeometryMeshCorrespondenceEnvelopeV1>,
         production: Box<MeshProductionLineageEnvelopeV1>,
+        provider_observation: SourceOwnedProviderObservation,
     },
     SourceOwnedCartesian {
         geometry: Box<CanonicalGeometryV1>,
@@ -81,6 +82,11 @@ enum AcceptedMeshSource {
         production: Box<MeshProductionLineageEnvelopeV1>,
     },
     Cartesian,
+}
+
+enum SourceOwnedProviderObservation {
+    Reference,
+    Gmsh4152 { output: Box<[u8]> },
 }
 
 /// Exact authenticated Cartesian resources admitted for downstream native consumers.
@@ -500,6 +506,7 @@ impl PyMesh {
             &plan.mesh,
             &plan.correspondence,
             production,
+            SourceOwnedProviderObservation::Reference,
         )
     }
 
@@ -509,6 +516,7 @@ impl PyMesh {
         accepted_mesh: &SimplicialMeshEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
         production: &MeshProductionLineageEnvelopeV1,
+        provider_observation: SourceOwnedProviderObservation,
     ) -> PyResult<Self> {
         let dimension = accepted_mesh.dimension();
         let mesh = accepted_mesh.mesh();
@@ -533,6 +541,7 @@ impl PyMesh {
                 mesh: Box::new(accepted_mesh.clone()),
                 correspondence: Box::new(correspondence.clone()),
                 production: Box::new(production.clone()),
+                provider_observation,
             },
             lineage: MeshLineage {
                 source_digest: source_digest.clone(),
@@ -776,6 +785,16 @@ impl PyMesh {
             AcceptedMeshSource::SourceOwned { production, .. } => Some(production),
             AcceptedMeshSource::SourceOwnedCartesian { production, .. } => Some(production),
             AcceptedMeshSource::Chordal { .. } | AcceptedMeshSource::Cartesian => None,
+        }
+    }
+
+    fn gmsh_provider_output(&self) -> Option<&[u8]> {
+        match &self.source {
+            AcceptedMeshSource::SourceOwned {
+                provider_observation: SourceOwnedProviderObservation::Gmsh4152 { output },
+                ..
+            } => Some(output),
+            _ => None,
         }
     }
 
@@ -1091,8 +1110,15 @@ pub(super) fn generate(
                     "MeshPlan belongs to a different exact Geometry",
                 ));
             }
-            super::gmsh::revalidate_generated(&resolved.source, &resolved.generated)
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            let super::plan::MeshProviderPolicy::Gmsh(provider) = plan.request.provider else {
+                unreachable!("Gmsh resolved plan retains Gmsh provider policy")
+            };
+            super::gmsh::revalidate_generated(
+                &resolved.source,
+                &resolved.generated,
+                provider.policy,
+            )
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
             plan.request
                 .provider
                 .validate_production_lineage(
@@ -1102,13 +1128,28 @@ pub(super) fn generate(
                     &resolved.generated.correspondence,
                 )
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            PyMesh::from_source_parts(
+            let published = PyMesh::from_source_parts(
                 py,
                 &resolved.source,
                 &resolved.generated.mesh,
                 &resolved.generated.correspondence,
                 &plan.production,
-            )
+                SourceOwnedProviderObservation::Gmsh4152 {
+                    output: resolved
+                        .generated
+                        .provider_output
+                        .clone()
+                        .into_boxed_slice(),
+                },
+            )?;
+            if published.gmsh_provider_output()
+                != Some(resolved.generated.provider_output.as_slice())
+            {
+                return Err(PyRuntimeError::new_err(
+                    "published Gmsh Mesh lost its exact provider observation",
+                ));
+            }
+            Ok(published)
         }
         ResolvedMeshPlan::SourceOwned(resolved) => {
             resolved

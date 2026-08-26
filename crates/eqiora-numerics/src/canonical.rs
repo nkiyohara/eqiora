@@ -1,14 +1,16 @@
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
+use eqiora_artifact::{CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1};
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::Id;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, GraphPath, RawId};
+use eqiora_geometry::{CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION};
 use eqiora_graph::EdgeKind;
 use eqiora_meshing::{
-    LineMesh, MeshTopology, QuadratureRule, SimplicialMesh, simplex_centroid_rule,
+    LineMesh, MeshTopology, OrientationCode, QuadratureRule, SimplicialMesh, simplex_centroid_rule,
 };
 use eqiora_realization::{
     Discretization, DiscretizationMethod, MeshArtifactReference, MeshPolicy,
@@ -716,6 +718,102 @@ pub fn lower_scalar_elliptic_cartesian(
     program: &KernelProgram,
 ) -> Result<ScalarEllipticCartesianModel, Diagnostic> {
     let (domain, bounds) = unique_cartesian_box(program)?;
+    let boundary_domains = program
+        .nodes()
+        .filter_map(|node| {
+            let KernelNode::Domain(boundary) = node else {
+                return None;
+            };
+            let DomainKind::CartesianBoundary { axis, side } = boundary.kind() else {
+                return None;
+            };
+            (boundary_parent(program, boundary.id().erase()) == Some(domain))
+                .then_some(((*axis, *side), boundary.id().erase()))
+        })
+        .collect();
+    lower_scalar_elliptic_cartesian_support(program, domain, bounds, boundary_domains)
+}
+
+pub(crate) fn lower_scalar_elliptic_cartesian_with_resources(
+    program: &KernelProgram,
+    geometry: &CanonicalGeometryV1,
+    mesh: &CartesianMeshEnvelopeV1,
+    correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+) -> Result<ScalarEllipticCartesianModel, Diagnostic> {
+    let (domain, bounds, boundary_domains) =
+        scalar_geometry_cartesian_support(program, geometry, mesh, correspondence)?;
+    lower_scalar_elliptic_cartesian_support(program, domain, bounds, boundary_domains)
+}
+
+pub(crate) fn recognize_scalar_elliptic_geometry_mathematics(
+    program: &KernelProgram,
+) -> Result<(), Diagnostic> {
+    let regions = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
+            {
+                Some(domain.id().erase())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [domain] = regions.as_slice() else {
+        return Err(model_lowering_error(
+            program,
+            "geometry-backed scalar elliptic recognition requires exactly one GeometryRegion",
+        ));
+    };
+    let compiled_form = derive_candidate(program, *domain)?;
+    let field = unique_continuum_field(program, *domain)?;
+    let volume_relation = unique_relation_on(program, *domain)?;
+    let (coefficient, source) = lower_volume_relation(program, volume_relation, field, 2)?;
+    let coefficient_value = coefficient
+        .constant_value()
+        .expect("flux coefficient is validated as spatially constant");
+    if !coefficient_value.is_finite() || coefficient_value <= 0.0 {
+        return Err(lowering_error(
+            volume_relation,
+            "elliptic coefficient must be finite and positive",
+        ));
+    }
+    let boundaries = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(boundary)
+                if matches!(boundary.kind(), DomainKind::GeometryBoundary { .. })
+                    && boundary_parent(program, boundary.id().erase()) == Some(*domain) =>
+            {
+                Some(boundary.id().erase())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if boundaries.len() != 4 {
+        return Err(lowering_error(
+            *domain,
+            "geometry-backed 2D scalar elliptic recognition requires four boundary supports",
+        ));
+    }
+    let mut lowered = BTreeMap::new();
+    for boundary in boundaries {
+        let relation = unique_relation_on(program, boundary)?;
+        lowered.insert(
+            boundary,
+            lower_cartesian_boundary_relation(program, relation, field, &coefficient, 2)?,
+        );
+    }
+    let _ = (compiled_form, source, lowered);
+    Ok(())
+}
+
+fn lower_scalar_elliptic_cartesian_support(
+    program: &KernelProgram,
+    domain: RawId,
+    bounds: Vec<[f64; 2]>,
+    boundary_domains: BTreeMap<(usize, BoundarySide), RawId>,
+) -> Result<ScalarEllipticCartesianModel, Diagnostic> {
     let compiled_form = derive_candidate(program, domain)?;
     let dimension = bounds.len();
     let field = unique_continuum_field(program, domain)?;
@@ -732,23 +830,14 @@ pub fn lower_scalar_elliptic_cartesian(
     }
 
     let mut boundaries = BTreeMap::new();
-    for node in program.nodes() {
-        let KernelNode::Domain(boundary_domain) = node else {
-            continue;
-        };
-        let DomainKind::CartesianBoundary { axis, side } = boundary_domain.kind() else {
-            continue;
-        };
-        if boundary_parent(program, boundary_domain.id().erase()) != Some(domain) {
-            continue;
-        }
-        let relation = unique_relation_on(program, boundary_domain.id().erase())?;
+    for ((axis, side), boundary_domain) in boundary_domains {
+        let relation = unique_relation_on(program, boundary_domain)?;
         let condition =
             lower_cartesian_boundary_relation(program, relation, field, &coefficient, dimension)?;
-        if boundaries.insert((*axis, *side), condition).is_some() {
+        if boundaries.insert((axis, side), condition).is_some() {
             return Err(lowering_error(
-                boundary_domain.id().erase(),
-                "Cartesian box has a duplicate canonical boundary side",
+                boundary_domain,
+                "scalar elliptic support has a duplicate canonical boundary side",
             ));
         }
     }
@@ -758,7 +847,7 @@ pub fn lower_scalar_elliptic_cartesian(
                 return Err(lowering_error(
                     domain,
                     format!(
-                        "Cartesian box requires an explicit Relation on axis {axis} {side:?} boundary"
+                        "scalar elliptic support requires an explicit Relation on axis {axis} {side:?} boundary"
                     ),
                 ));
             }
@@ -780,6 +869,147 @@ pub fn lower_scalar_elliptic_cartesian(
         parameter_values,
         compiled_form,
     })
+}
+
+type ScalarCartesianSupport = (RawId, Vec<[f64; 2]>, BTreeMap<(usize, BoundarySide), RawId>);
+
+fn scalar_geometry_cartesian_support(
+    program: &KernelProgram,
+    geometry: &CanonicalGeometryV1,
+    mesh: &CartesianMeshEnvelopeV1,
+    correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+) -> Result<ScalarCartesianSupport, Diagnostic> {
+    let bounds = geometry.planar_rectangle_bounds().ok_or_else(|| {
+        model_lowering_error(
+            program,
+            "geometry-backed scalar elliptic lowering requires exact PlanarRectangleV2",
+        )
+    })?;
+    let regions = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
+            {
+                Some(domain)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if regions.len() != 1 {
+        return Err(model_lowering_error(
+            program,
+            format!(
+                "geometry-backed scalar elliptic lowering requires one GeometryRegion, found {}",
+                regions.len()
+            ),
+        ));
+    }
+    let region = regions[0];
+    let DomainKind::GeometryRegion {
+        geometry: digest,
+        entity_set,
+    } = region.kind()
+    else {
+        unreachable!("GeometryRegion filter is exact")
+    };
+    let region_set = geometry.entity_set(entity_set).ok_or_else(|| {
+        lowering_error(
+            region.id().erase(),
+            "Model GeometryRegion entity set is absent from exact rectangle Geometry",
+        )
+    })?;
+    if digest.bytes() != geometry.digest_bytes()
+        || region_set.dimension() != FACE_DIMENSION
+        || region_set.members() != [0]
+    {
+        return Err(lowering_error(
+            region.id().erase(),
+            "Model GeometryRegion differs from the exact rectangle source face",
+        ));
+    }
+    let domain = region.id().erase();
+    let mut boundary_domains = BTreeMap::new();
+    for node in program.nodes() {
+        let KernelNode::Domain(boundary) = node else {
+            continue;
+        };
+        let DomainKind::GeometryBoundary { entity_set } = boundary.kind() else {
+            continue;
+        };
+        if boundary_parent(program, boundary.id().erase()) != Some(domain) {
+            continue;
+        }
+        let facets =
+            correspondence.planar_rectangle_v2_entity_set_entities(geometry, entity_set)?;
+        let mut side = None;
+        for facet in facets {
+            if facet.dimension() != EDGE_DIMENSION {
+                return Err(lowering_error(
+                    boundary.id().erase(),
+                    "rectangle GeometryBoundary correspondence contains a non-facet entity",
+                ));
+            }
+            let adjacent = mesh
+                .mesh()
+                .incidence(facet, FACE_DIMENSION)
+                .ok_or_else(|| {
+                    lowering_error(
+                        boundary.id().erase(),
+                        "rectangle boundary facet has no parent-cell incidence",
+                    )
+                })?;
+            let [parent] = adjacent.as_slice() else {
+                return Err(lowering_error(
+                    boundary.id().erase(),
+                    "rectangle boundary facet does not have exactly one parent cell",
+                ));
+            };
+            if parent.orientation != OrientationCode::identity() {
+                return Err(lowering_error(
+                    boundary.id().erase(),
+                    "rectangle boundary facet has noncanonical orientation",
+                ));
+            }
+            let facet_side = match parent.local_ordinal {
+                0 => (1, BoundarySide::Lower),
+                1 => (1, BoundarySide::Upper),
+                2 => (0, BoundarySide::Lower),
+                3 => (0, BoundarySide::Upper),
+                _ => {
+                    return Err(lowering_error(
+                        boundary.id().erase(),
+                        "rectangle boundary facet has an unsupported local side ordinal",
+                    ));
+                }
+            };
+            if side
+                .replace(facet_side)
+                .is_some_and(|old| old != facet_side)
+            {
+                return Err(lowering_error(
+                    boundary.id().erase(),
+                    "one rectangle source boundary maps to multiple topology sides",
+                ));
+            }
+        }
+        let Some(side) = side else {
+            return Err(lowering_error(
+                boundary.id().erase(),
+                "rectangle GeometryBoundary correspondence is empty",
+            ));
+        };
+        if boundary_domains
+            .insert(side, boundary.id().erase())
+            .is_some()
+        {
+            return Err(lowering_error(
+                boundary.id().erase(),
+                "rectangle GeometryBoundary side is duplicated",
+            ));
+        }
+    }
+    Ok((domain, bounds.to_vec(), boundary_domains))
 }
 
 /// Select the built-in default realization and execute it.

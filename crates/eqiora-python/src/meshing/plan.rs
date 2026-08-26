@@ -25,7 +25,7 @@ use crate::panic_boundary;
 )]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct PyGmshMesher {
-    policy: PlanarMeshQualityV1,
+    pub(super) policy: PlanarMeshQualityV1,
 }
 
 #[pymethods]

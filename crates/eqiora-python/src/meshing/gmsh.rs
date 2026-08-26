@@ -1,5 +1,6 @@
 //! Narrow external Gmsh producer for the admitted exact-cylinder mesh path.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::{OsStr, OsString};
 use std::fmt::Write as _;
 use std::fs::{self, File};
@@ -17,12 +18,12 @@ use eqiora::Diagnostic;
 use eqiora::artifact::{
     AcceptedCircularHoleChordalRealizationV1, ExternalAdapterIdentityV1, ExternalImportManifestV1,
     ExternalImportObservationV1, ExternalImportSelectionV1, ExternalImportSourceV1,
-    GeometryMeshCorrespondenceEnvelopeV1, ResolvedArrayV1, ResolvedImportArrayV1,
-    SelectedSourceEntityV1, SimplicialMeshEnvelopeV1, StructuralSelectorV1,
+    GeometryMeshCorrespondenceEnvelopeV1, PlanarMeshQualityV1, ResolvedArrayV1,
+    ResolvedImportArrayV1, SelectedSourceEntityV1, SimplicialMeshEnvelopeV1, StructuralSelectorV1,
 };
 use eqiora::diagnostic::codes;
 use eqiora::geometry::CanonicalGeometryV1;
-use eqiora::io::gmsh::{GmshImportLimits, GmshSimplexImporter};
+use eqiora::io::gmsh::{GmshImportLimits, GmshSimplexImporter, GmshSimplicialImport};
 use eqiora::meshing::{MeshEntity, MeshQualityGate, MeshTopology};
 #[cfg(unix)]
 use rustix::process::{Pid, Signal, kill_process_group};
@@ -32,6 +33,7 @@ const GMSH_ENV: &str = "EQIORA_GMSH";
 const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 const PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
 const GMSH_ADAPTER_ID: &str = "eqiora.gmsh";
+type TaggedMeshAssignments = (BTreeMap<u32, Vec<usize>>, BTreeMap<u32, Vec<usize>>);
 // Adapter-relative manifest selectors: the admitted whole MSH mesh, followed
 // by its normalized Nodes geometry and Elements topology observations.
 const MSH_MESH_SELECTOR: &[u32] = &[0];
@@ -46,13 +48,12 @@ pub(super) struct ImportedGmshMesh {
 }
 
 pub(super) struct GeneratedGmshMesh {
+    pub(super) provider_output: Vec<u8>,
+    pub(super) sizing_correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+    pub(super) minimum_mean_ratio: f64,
     pub(super) mesh: SimplicialMeshEnvelopeV1,
     pub(super) correspondence: GeometryMeshCorrespondenceEnvelopeV1,
     pub(super) edge_facets: [Vec<usize>; 5],
-    pub(super) face_cells: Vec<usize>,
-    pub(super) element_blocks: Vec<eqiora::io::gmsh::GmshElementBlock>,
-    pub(super) source_edge_by_tag: std::collections::BTreeMap<u32, usize>,
-    pub(super) source_face_by_tag: std::collections::BTreeMap<u32, usize>,
 }
 
 pub(super) fn import(
@@ -148,7 +149,6 @@ pub(super) fn generate(
     })?;
 
     let limits = GmshImportLimits::default();
-    let importer = GmshSimplexImporter::new(2, quality_gate, limits)?;
     let mut command = bounded_output_command(&executable, limits.max_bytes.saturating_add(1));
     command
         .arg("-2")
@@ -171,17 +171,35 @@ pub(super) fn generate(
         "Gmsh input exceeds the configured byte limit",
         "Gmsh mesh output",
     )?;
-    let imported = importer.import_ascii_bytes_with_entities(&bytes)?;
-    let edge_facets = generated_edge_facets(
-        imported.mesh(),
-        imported.element_blocks(),
-        &generated_geometry.source_edge_by_tag,
-    )?;
-    let face_cells = generated_face_cells(
-        imported.mesh(),
-        imported.element_blocks(),
-        &generated_geometry.source_face_by_tag,
-    )?;
+    derive_generated(source, source_correspondence, quality_gate, bytes)
+}
+
+fn derive_generated(
+    source: &CanonicalGeometryV1,
+    source_correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+    quality_gate: MeshQualityGate,
+    provider_output: Vec<u8>,
+) -> Result<GeneratedGmshMesh, Diagnostic> {
+    let importer = GmshSimplexImporter::new(2, quality_gate, GmshImportLimits::default())?;
+    let imported = importer.import_ascii_bytes_with_entities(&provider_output)?;
+    let (tagged_facets, tagged_cells) = derive_entity_assignments(&imported)?;
+    if tagged_facets.keys().copied().collect::<Vec<_>>() != [1, 5, 6, 7, 8] {
+        return Err(invalid_import(
+            "generated Gmsh boundary entity-tag inventory is not canonical",
+        ));
+    }
+    if tagged_cells.keys().copied().collect::<Vec<_>>() != [1] {
+        return Err(invalid_import(
+            "generated Gmsh face entity-tag inventory is not canonical",
+        ));
+    }
+    let mut edge_facets: [Vec<usize>; 5] = std::array::from_fn(|_| Vec::new());
+    for (tag, source_edge) in [(1_u32, 4_usize), (5, 2), (6, 1), (7, 3), (8, 0)] {
+        edge_facets[source_edge] = tagged_facets
+            .get(&tag)
+            .expect("exact tag inventory checked")
+            .clone();
+    }
     let mesh = SimplicialMeshEnvelopeV1::from_mesh(imported.mesh())?;
     let correspondence =
         GeometryMeshCorrespondenceEnvelopeV1::from_planar_circular_hole_v2_mesh_assignments(
@@ -190,14 +208,117 @@ pub(super) fn generate(
             edge_facets.clone(),
         )?;
     Ok(GeneratedGmshMesh {
+        provider_output,
+        sizing_correspondence: source_correspondence.clone(),
+        minimum_mean_ratio: quality_gate.minimum_mean_ratio(),
         mesh,
         correspondence,
         edge_facets,
-        face_cells,
-        element_blocks: imported.element_blocks().to_vec(),
-        source_edge_by_tag: generated_geometry.source_edge_by_tag,
-        source_face_by_tag: generated_geometry.source_face_by_tag,
     })
+}
+
+fn derive_entity_assignments(
+    imported: &GmshSimplicialImport,
+) -> Result<TaggedMeshAssignments, Diagnostic> {
+    let mesh = imported.mesh();
+    let dimension = mesh.topological_dimension();
+    let facet_dimension = dimension
+        .checked_sub(1)
+        .ok_or_else(|| invalid_import("Gmsh simplex Mesh has no boundary stratum"))?;
+    let facet_count = mesh
+        .entity_count(facet_dimension)
+        .ok_or_else(|| invalid_import("Gmsh simplex Mesh omitted its facet stratum"))?;
+    let mut facet_by_vertices = BTreeMap::new();
+    let mut boundary_facets = BTreeSet::new();
+    for facet_index in 0..facet_count {
+        let facet = MeshEntity::new(facet_dimension, facet_index);
+        let mut vertices = mesh
+            .entity_vertices(facet)
+            .ok_or_else(|| invalid_import("Gmsh Mesh facet omitted its vertex closure"))?
+            .into_iter()
+            .map(MeshEntity::index)
+            .collect::<Vec<_>>();
+        vertices.sort_unstable();
+        if facet_by_vertices.insert(vertices, facet_index).is_some() {
+            return Err(invalid_import(
+                "Gmsh Mesh has duplicate canonical facet connectivity",
+            ));
+        }
+        let parents = mesh
+            .incidence(facet, dimension)
+            .ok_or_else(|| invalid_import("Gmsh Mesh facet omitted parent incidence"))?;
+        if parents.len() == 1 {
+            boundary_facets.insert(facet_index);
+        }
+    }
+    let mut tagged_facets: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
+    let mut assigned_facets = BTreeSet::new();
+    for block in imported
+        .element_blocks()
+        .iter()
+        .filter(|block| block.dimension() == facet_dimension)
+    {
+        let facets = tagged_facets.entry(block.entity_tag()).or_default();
+        for element in block.elements() {
+            let mut vertices = element.clone();
+            vertices.sort_unstable();
+            let facet = *facet_by_vertices.get(&vertices).ok_or_else(|| {
+                invalid_import("Gmsh boundary element is absent from Mesh topology")
+            })?;
+            if !boundary_facets.contains(&facet) || !assigned_facets.insert(facet) {
+                return Err(invalid_import(
+                    "Gmsh boundary assignment is interior or duplicated",
+                ));
+            }
+            facets.push(facet);
+        }
+    }
+    for facets in tagged_facets.values_mut() {
+        facets.sort_unstable();
+    }
+    if assigned_facets != boundary_facets {
+        return Err(invalid_import(
+            "Gmsh entity blocks do not assign every Mesh boundary facet",
+        ));
+    }
+
+    let mut cell_by_vertices = BTreeMap::new();
+    for (cell_index, cell) in mesh.cells().iter().enumerate() {
+        let mut vertices = cell.clone();
+        vertices.sort_unstable();
+        if cell_by_vertices.insert(vertices, cell_index).is_some() {
+            return Err(invalid_import("Gmsh Mesh has duplicate canonical cells"));
+        }
+    }
+    let mut tagged_cells: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
+    let mut assigned_cells = BTreeSet::new();
+    for block in imported
+        .element_blocks()
+        .iter()
+        .filter(|block| block.dimension() == dimension)
+    {
+        let cells = tagged_cells.entry(block.entity_tag()).or_default();
+        for element in block.elements() {
+            let mut vertices = element.clone();
+            vertices.sort_unstable();
+            let cell = *cell_by_vertices
+                .get(&vertices)
+                .ok_or_else(|| invalid_import("Gmsh top element is absent from Mesh topology"))?;
+            if !assigned_cells.insert(cell) {
+                return Err(invalid_import("Gmsh top cell assignment is duplicated"));
+            }
+            cells.push(cell);
+        }
+    }
+    for cells in tagged_cells.values_mut() {
+        cells.sort_unstable();
+    }
+    if assigned_cells != (0..mesh.cells().len()).collect() {
+        return Err(invalid_import(
+            "Gmsh entity blocks do not assign every Mesh top cell",
+        ));
+    }
+    Ok((tagged_facets, tagged_cells))
 }
 
 fn gmsh_executable() -> Result<OsString, Diagnostic> {
@@ -290,8 +411,6 @@ fn bounded_output_command(executable: &OsStr, max_bytes: usize) -> Command {
 
 struct GeneratedGeometry {
     script: String,
-    source_edge_by_tag: std::collections::BTreeMap<u32, usize>,
-    source_face_by_tag: std::collections::BTreeMap<u32, usize>,
 }
 
 fn geometry_script(
@@ -377,139 +496,44 @@ fn geometry_script(
         .expect("writing to String cannot fail");
     }
 
-    // Gmsh entity tags are construction-owned and mapped directly to the
-    // five closed source-edge identities; no tag name or coordinate is used.
-    let source_edge_by_tag =
-        std::collections::BTreeMap::from([(1, 4), (5, 2), (6, 1), (7, 3), (8, 0)]);
-    Ok(GeneratedGeometry {
-        script,
-        source_edge_by_tag,
-        source_face_by_tag: std::collections::BTreeMap::from([(1, 0)]),
-    })
-}
-
-fn generated_edge_facets(
-    mesh: &eqiora::meshing::SimplicialMesh,
-    element_blocks: &[eqiora::io::gmsh::GmshElementBlock],
-    source_edge_by_tag: &std::collections::BTreeMap<u32, usize>,
-) -> Result<[Vec<usize>; 5], Diagnostic> {
-    let facet_count = mesh
-        .entity_count(1)
-        .ok_or_else(|| invalid_import("generated Gmsh Mesh has no facet stratum"))?;
-    let mut facet_by_vertices = std::collections::BTreeMap::new();
-    for facet_index in 0..facet_count {
-        let mut vertices = mesh
-            .entity_vertices(MeshEntity::new(1, facet_index))
-            .ok_or_else(|| invalid_import("generated Gmsh facet has no vertex closure"))?
-            .into_iter()
-            .map(MeshEntity::index)
-            .collect::<Vec<_>>();
-        vertices.sort_unstable();
-        facet_by_vertices.insert(vertices, facet_index);
-    }
-    let mut assigned: [Vec<usize>; 5] = std::array::from_fn(|_| Vec::new());
-    for block in element_blocks.iter().filter(|block| block.dimension() == 1) {
-        let source_edge = *source_edge_by_tag.get(&block.entity_tag()).ok_or_else(|| {
-            invalid_import("generated Gmsh emitted an unknown boundary entity tag")
-        })?;
-        for element in block.elements() {
-            let mut key = element.clone();
-            key.sort_unstable();
-            let facet = *facet_by_vertices.get(&key).ok_or_else(|| {
-                invalid_import("generated Gmsh boundary element is absent from Mesh topology")
-            })?;
-            assigned[source_edge].push(facet);
-        }
-    }
-    for facets in &mut assigned {
-        facets.sort_unstable();
-    }
-    Ok(assigned)
-}
-
-fn generated_face_cells(
-    mesh: &eqiora::meshing::SimplicialMesh,
-    element_blocks: &[eqiora::io::gmsh::GmshElementBlock],
-    source_face_by_tag: &std::collections::BTreeMap<u32, usize>,
-) -> Result<Vec<usize>, Diagnostic> {
-    if source_face_by_tag.values().copied().collect::<Vec<_>>() != [0] {
-        return Err(invalid_import(
-            "generated Gmsh source-face entity mapping is not canonical",
-        ));
-    }
-    let mut cell_by_vertices = std::collections::BTreeMap::new();
-    for (cell_index, cell) in mesh.cells().iter().enumerate() {
-        let mut vertices = cell.clone();
-        vertices.sort_unstable();
-        if cell_by_vertices.insert(vertices, cell_index).is_some() {
-            return Err(invalid_import(
-                "generated Gmsh Mesh has duplicate cell connectivity",
-            ));
-        }
-    }
-    let mut assigned = std::collections::BTreeSet::new();
-    for block in element_blocks.iter().filter(|block| block.dimension() == 2) {
-        let source_face = source_face_by_tag
-            .get(&block.entity_tag())
-            .ok_or_else(|| invalid_import("generated Gmsh emitted an unknown face entity tag"))?;
-        if *source_face != 0 {
-            return Err(invalid_import(
-                "generated Gmsh face entity maps to an unknown source face",
-            ));
-        }
-        for element in block.elements() {
-            let mut key = element.clone();
-            key.sort_unstable();
-            let cell = *cell_by_vertices.get(&key).ok_or_else(|| {
-                invalid_import("generated Gmsh face element is absent from Mesh topology")
-            })?;
-            if !assigned.insert(cell) {
-                return Err(invalid_import(
-                    "generated Gmsh face entity assigns one Mesh cell more than once",
-                ));
-            }
-        }
-    }
-    let cells = assigned.into_iter().collect::<Vec<_>>();
-    if cells != (0..mesh.cells().len()).collect::<Vec<_>>() {
-        return Err(invalid_import(
-            "generated Gmsh face entity omits a Mesh cell",
-        ));
-    }
-    Ok(cells)
+    Ok(GeneratedGeometry { script })
 }
 
 pub(super) fn revalidate_generated(
     source: &CanonicalGeometryV1,
     generated: &GeneratedGmshMesh,
+    policy: PlanarMeshQualityV1,
 ) -> Result<(), Diagnostic> {
-    let edge_facets = generated_edge_facets(
-        generated.mesh.mesh(),
-        &generated.element_blocks,
-        &generated.source_edge_by_tag,
-    )?;
-    if edge_facets != generated.edge_facets {
-        return Err(invalid_import(
-            "retained Gmsh entity-block provenance differs from source assignments",
-        ));
-    }
-    let face_cells = generated_face_cells(
-        generated.mesh.mesh(),
-        &generated.element_blocks,
-        &generated.source_face_by_tag,
-    )?;
-    if face_cells != generated.face_cells {
-        return Err(invalid_import(
-            "retained Gmsh face provenance differs from source assignment",
-        ));
-    }
-    generated
-        .correspondence
-        .validate_against_planar_circular_hole_v2_mesh_assignments(
+    let quality_gate = MeshQualityGate::new(policy.minimum_mean_ratio())?;
+    let (_, sizing_correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_planar_circular_hole_v2_reference(
             source,
-            &generated.mesh,
-            edge_facets,
-        )
+            policy.maximum_boundary_error_m(),
+            policy.maximum_boundary_facets(),
+            quality_gate,
+        )?;
+    if sizing_correspondence != generated.sizing_correspondence
+        || generated.minimum_mean_ratio.to_bits() != policy.minimum_mean_ratio().to_bits()
+    {
+        return Err(invalid_import(
+            "retained Gmsh generation inputs differ from exact policy replay",
+        ));
+    }
+    let replayed = derive_generated(
+        source,
+        &sizing_correspondence,
+        quality_gate,
+        generated.provider_output.clone(),
+    )?;
+    if replayed.mesh != generated.mesh
+        || replayed.correspondence != generated.correspondence
+        || replayed.edge_facets != generated.edge_facets
+    {
+        return Err(invalid_import(
+            "retained Gmsh provider output differs from deterministic resource replay",
+        ));
+    }
+    Ok(())
 }
 
 fn run_with_timeout(mut command: Command, timeout: Duration) -> Result<ExitStatus, Diagnostic> {

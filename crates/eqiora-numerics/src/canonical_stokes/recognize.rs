@@ -131,6 +131,63 @@ pub(super) fn lower_steady_incompressible_stokes_geometry_2d(
     .map(|lowered| lowered.model)
 }
 
+pub(crate) fn recognize_steady_incompressible_stokes_geometry_mathematics(
+    program: &KernelProgram,
+) -> Result<(), Diagnostic> {
+    let regions = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
+            {
+                Some(domain)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [region] = regions.as_slice() else {
+        return Err(model_lowering_error(
+            program,
+            "geometry-backed steady Stokes recognition requires exactly one GeometryRegion",
+        ));
+    };
+    let DomainKind::GeometryRegion { geometry, .. } = region.kind() else {
+        unreachable!("GeometryRegion filter is exact")
+    };
+    let domain = region.id().erase();
+    let boundaries = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(boundary)
+                if has_edge(program, boundary.id().erase(), domain, EdgeKind::BoundaryOf) =>
+            {
+                match boundary.kind() {
+                    DomainKind::GeometryBoundary { entity_set } => {
+                        Some((entity_set.clone(), boundary.id().erase()))
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .collect::<BTreeMap<_, _>>();
+    if boundaries.is_empty() {
+        return Err(lowering_error(
+            domain,
+            "geometry-backed steady Stokes recognition requires boundary supports",
+        ));
+    }
+    lower_steady_incompressible_stokes_2d_on(
+        program,
+        domain,
+        [[0.0, 1.0], [0.0, 1.0]],
+        BoundarySource2d::Named(boundaries),
+        Some(geometry.bytes()),
+        &BTreeSet::new(),
+    )?;
+    Ok(())
+}
+
 fn lower_steady_incompressible_stokes_2d_on(
     program: &KernelProgram,
     domain: RawId,

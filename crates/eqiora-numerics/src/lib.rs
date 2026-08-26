@@ -26,6 +26,7 @@ mod finalized_spatial;
 mod form_compiler;
 mod jacobian_audit;
 mod linearized_output;
+mod numerical_admission;
 mod operator;
 mod physical_network;
 mod poisson;
