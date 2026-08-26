@@ -9,6 +9,13 @@ constructing a control DTO. A source-compiled current `Model` must replay
 exactly through the one current owner: canonical bytes, artifact digest, typed
 Model ID, and revision identity are preserved rather than recreated by Python.
 
+The compile contract is admitted by those observable call, dependency,
+boundary, diagnostic, and result semantics. The complete bytes or digest of
+the public package root and stub are not part of this claim: unrelated root
+exports may evolve without creating a new compile contract. The installed
+Python test reads the stub structurally and checks only the `compile`
+declaration paired with the runtime signature.
+
 Admission evidence fixes the 4,096-byte filename and 8,388,608-byte source
 boundaries, including Unicode scalar-count limits, exact failure messages, and
 the one-diagnostic `ValidationError` projection. Exact at-bound witnesses must

@@ -6,7 +6,6 @@ use eqiora::control::{
 use eqiora::{Diagnostic, Severity};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyDictMethods, PyModule, PyModuleMethods};
-use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -27,11 +26,7 @@ const MAX_FILENAME_BYTES: usize = 4_096;
 const MAX_SOURCE_BYTES: usize = 8_388_608;
 const FILENAME_MESSAGE: &str = "source filename must contain 1 to 4096 non-control UTF-8 bytes";
 const SOURCE_MESSAGE: &str = "source exceeds the 8388608-byte compile/check v2 limit";
-const PUBLIC_INIT: &[u8] = include_bytes!("../../../bindings/python/python/eqiora/__init__.py");
-const PUBLIC_STUB: &[u8] = include_bytes!("../../../bindings/python/python/eqiora/__init__.pyi");
-const PUBLIC_STUB_PATH: &str = "bindings/python/python/eqiora/__init__.pyi";
-const PUBLIC_INIT_SHA256: &str = "a213c9495c3d5570356e2f78f8ebea45be27d62d43d56801a49db0a3a019973d";
-const PUBLIC_STUB_SHA256: &str = "2a3d005ec9a823859824f1945136f57a4aa912d12d09896a34e7442f8f23e367";
+const PUBLIC_STUB: &str = include_str!("../../../bindings/python/python/eqiora/__init__.pyi");
 
 #[derive(Debug, PartialEq, Eq)]
 struct NormalizedDiagnostic {
@@ -50,35 +45,7 @@ fn boundary_panic(py: Python<'_>) -> PyResult<()> {
 }
 
 #[test]
-fn python_compile_surface_and_source_dependencies_are_frozen() -> PyResult<()> {
-    assert_eq!(raw_sha256(PUBLIC_INIT), PUBLIC_INIT_SHA256);
-    assert_eq!(
-        admit_stub(PUBLIC_STUB_PATH, PUBLIC_STUB, PUBLIC_STUB_SHA256),
-        Ok(())
-    );
-
-    let wrong_hash = "3a3d005ec9a823859824f1945136f57a4aa912d12d09896a34e7442f8f23e367";
-    assert!(
-        wrong_hash.len() == 64
-            && wrong_hash
-                .bytes()
-                .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
-    );
-    assert_eq!(
-        admit_stub(PUBLIC_STUB_PATH, PUBLIC_STUB, wrong_hash),
-        Err("expected SHA-256")
-    );
-
-    let moved = admit_stub("bindings/eqiora.pyi", PUBLIC_STUB, PUBLIC_STUB_SHA256);
-    assert_eq!(moved, Err("repository path"));
-
-    let mut changed_stub = PUBLIC_STUB.to_vec();
-    changed_stub[0] ^= 1;
-    assert_eq!(
-        admit_stub(PUBLIC_STUB_PATH, &changed_stub, PUBLIC_STUB_SHA256),
-        Err("artifact bytes")
-    );
-
+fn python_compile_contract_is_claim_local_and_transport_neutral() -> PyResult<()> {
     let crate_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut rust_sources = Vec::new();
     collect_rust_sources(&crate_root, &mut rust_sources);
@@ -103,6 +70,8 @@ fn python_compile_surface_and_source_dependencies_are_frozen() -> PyResult<()> {
 
     Python::initialize();
     Python::attach(|py| {
+        assert_stub_compile_contract(py)?;
+
         let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
         let module = native.bind(py);
         let signature = py
@@ -115,6 +84,93 @@ fn python_compile_surface_and_source_dependencies_are_frozen() -> PyResult<()> {
         );
         Ok(())
     })
+}
+
+fn assert_stub_compile_contract(py: Python<'_>) -> PyResult<()> {
+    let ast = py.import("ast")?;
+    let syntax = ast.call_method1("parse", (PUBLIC_STUB,))?;
+    let function_def = ast.getattr("FunctionDef")?;
+    let declarations = syntax
+        .getattr("body")?
+        .try_iter()?
+        .filter_map(|item| {
+            let item = item.expect("stub syntax tree must be iterable");
+            if !item
+                .is_instance(&function_def)
+                .expect("FunctionDef identity check must succeed")
+            {
+                return None;
+            }
+            let name = item
+                .getattr("name")
+                .expect("function name must exist")
+                .extract::<String>()
+                .expect("function name must be text");
+            (name == "compile").then_some(item)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        declarations.len(),
+        1,
+        "stub must declare compile exactly once"
+    );
+
+    let declaration = &declarations[0];
+    let arguments = declaration.getattr("args")?;
+    assert!(argument_names(&arguments.getattr("posonlyargs")?)?.is_empty());
+    assert_eq!(
+        argument_names(&arguments.getattr("args")?)?,
+        ["source".to_owned()]
+    );
+    assert_eq!(
+        argument_names(&arguments.getattr("kwonlyargs")?)?,
+        ["filename".to_owned()]
+    );
+    assert!(arguments.getattr("vararg")?.is_none());
+    assert!(arguments.getattr("kwarg")?.is_none());
+
+    let defaults = arguments.getattr("kw_defaults")?;
+    assert_eq!(defaults.len()?, 1);
+    assert_eq!(
+        ast.call_method1("literal_eval", (defaults.get_item(0)?,))?
+            .extract::<String>()?,
+        "<memory>"
+    );
+    assert_eq!(
+        ast.call_method1(
+            "unparse",
+            (arguments
+                .getattr("args")?
+                .get_item(0)?
+                .getattr("annotation")?,),
+        )?
+        .extract::<String>()?,
+        "str"
+    );
+    assert_eq!(
+        ast.call_method1(
+            "unparse",
+            (arguments
+                .getattr("kwonlyargs")?
+                .get_item(0)?
+                .getattr("annotation")?,),
+        )?
+        .extract::<String>()?,
+        "str"
+    );
+    assert_eq!(
+        ast.call_method1("unparse", (declaration.getattr("returns")?,))?
+            .extract::<String>()?,
+        "Model"
+    );
+    Ok(())
+}
+
+fn argument_names(arguments: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
+    arguments
+        .try_iter()?
+        .map(|argument| argument?.getattr("arg")?.extract::<String>())
+        .collect()
 }
 
 #[test]
@@ -640,29 +696,6 @@ fn collect_rust_sources(directory: &Path, output: &mut Vec<std::path::PathBuf>) 
             output.push(path);
         }
     }
-}
-
-fn raw_sha256(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
-fn admit_stub(
-    repository_path: &str,
-    bytes: &[u8],
-    expected_sha256: &str,
-) -> Result<(), &'static str> {
-    (repository_path == PUBLIC_STUB_PATH)
-        .then_some(())
-        .ok_or("repository path")?;
-    (expected_sha256 == PUBLIC_STUB_SHA256)
-        .then_some(())
-        .ok_or("expected SHA-256")?;
-    (raw_sha256(bytes) == expected_sha256)
-        .then_some(())
-        .ok_or("artifact bytes")
 }
 
 fn assert_pairwise_distinct<T: std::fmt::Debug + PartialEq>(values: &[T; 3]) {
