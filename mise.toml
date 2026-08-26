@@ -1,10 +1,16 @@
 min_version = "2026.5.10"
 
+[settings]
+locked = true
+
 # mise owns developer-tool installation and required gate/setup orchestration.
 # Language and application dependencies remain owned by Cargo.lock, uv.lock,
 # and the Studio package-lock.json; local_verify.py owns the acceptance plan.
 [tools]
-rust = { version = "stable", profile = "default", components = ["rustfmt", "clippy"] }
+rust = [
+  { version = "stable", profile = "default", components = ["rustfmt", "clippy"] },
+  { version = "1.97.1", profile = "default", components = ["rustfmt", "clippy"] },
+]
 python = "3.13.14"
 node = "24.18.1"
 npm = "11.16.0"

@@ -6,6 +6,7 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -42,6 +43,32 @@ CHECKER_MODULES = (
     "check_site_starlight_content.py",
     "check_site_supply.py",
 )
+
+
+class ToolchainSelectorTests(unittest.TestCase):
+    def test_mise_supplies_stable_and_the_exact_docs_release(self) -> None:
+        toolchain = tomllib.loads(
+            (REPOSITORY / "rust-toolchain.toml").read_text(encoding="utf-8")
+        )
+        mise = tomllib.loads(
+            (REPOSITORY / "mise.toml").read_text(encoding="utf-8")
+        )
+        lock = tomllib.loads(
+            (REPOSITORY / "mise.lock").read_text(encoding="utf-8")
+        )
+        self.assertIs(mise["settings"]["locked"], True)
+        self.assertEqual(toolchain["toolchain"]["channel"], "stable")
+        self.assertEqual(
+            [entry["version"] for entry in mise["tools"]["rust"]],
+            ["stable", "1.97.1"],
+        )
+        self.assertEqual(
+            lock["tools"]["rust"],
+            [
+                {"version": "1.97.1", "backend": "core:rust"},
+                {"version": "stable", "backend": "core:rust"},
+            ],
+        )
 
 
 class OfflineRunnerLayoutTests(unittest.TestCase):

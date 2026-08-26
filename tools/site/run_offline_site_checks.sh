@@ -70,6 +70,7 @@ test "$(npm --version)" = 11.16.0
 test "$(python3 --version)" = "Python 3.13.14"
 test "$(uv --version)" = "uv 0.12.1 (x86_64-unknown-linux-musl)"
 test "$(rustc -Vv)" = "$(rustc +stable -Vv)"
+test "$(rustc +1.97.1 -Vv | grep -F 'release: ')" = "release: 1.97.1"
 export PYTHONDONTWRITEBYTECODE=1
 source_manifest_before="$EQIORA_API_SCRATCH/source-sha256.before"
 source_manifest_after="$EQIORA_API_SCRATCH/source-sha256.after"
@@ -148,7 +149,7 @@ do
   test ! -L "$path"
 done
 mkdir "$wheels" "$identity_cwd"
-cargo +stable build --locked --release -p eqiora \
+cargo +1.97.1 build --locked --release -p eqiora \
   --bin eqiora --bin eqiora-mcp \
   --target-dir "$cargo_target"
 eqiora_binary="$cargo_target/release/eqiora"
@@ -218,7 +219,7 @@ else:
 PY
 )
 # The committed evidence projection is checked before API projection or Astro.
-cargo +stable run --locked --quiet --target-dir "$cargo_target" -p eqiora-verify -- \
+cargo +1.97.1 run --locked --quiet --target-dir "$cargo_target" -p eqiora-verify -- \
   index --format json > "$EQIORA_API_SCRATCH/evidence-index.json"
 python3 tools/site/generate_evidence_catalog.py \
   --input "$EQIORA_API_SCRATCH/evidence-index.json" \
@@ -237,9 +238,9 @@ python3 tools/docs/generate_interface_reference.py \
   --mcp-binary "$mcp_binary" \
   --source-sha "$EQIORA_SITE_SOURCE_SHA" \
   --check
-CARGO_TARGET_DIR="$cargo_target" cargo +stable xtask check-facade
+CARGO_TARGET_DIR="$cargo_target" cargo +1.97.1 xtask check-facade
 RUSTDOCFLAGS="-D warnings --html-in-header docs/site/src/reference/rustdoc-head.html --extend-css docs/site/src/styles/rustdoc.css" \
-cargo +stable doc --locked -p eqiora --lib --no-deps --all-features \
+cargo +1.97.1 doc --locked -p eqiora --lib --no-deps --all-features \
   --target-dir "$EQIORA_SITE_RUSTDOC_TARGET"
 mkdir "$EQIORA_SITE_RUSTDOC_STAGE"
 python3 tools/site/build_rust_reference.py \

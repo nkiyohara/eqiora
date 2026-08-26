@@ -711,6 +711,8 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
             environment.pop("EQIORA_SITE_BROWSER_SHA256")
         elif upstream_mutant == "missing-browser-bytes":
             environment.pop("EQIORA_SITE_BROWSER_BYTES")
+        elif upstream_mutant == "wrong-docs-rust-release":
+            environment["FIXTURE_PINNED_RUST_RELEASE"] = "1.98.0"
         return runner, environment, trace
 
     def _run(
@@ -829,6 +831,12 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
                     else []
                 )
                 self._assert_toolchain_rejection(result, observations, environment)
+
+        result, observations = self._run(
+            upstream_mutant="wrong-docs-rust-release"
+        )
+        self.assertNotIn(result.returncode, (0, POST_IDENTITY_SENTINEL))
+        self.assertEqual(observations, [])
 
     def test_01_upstream_supply_mutants_fail_before_python_wheel_work(self) -> None:
         for mutation in (
