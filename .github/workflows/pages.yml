@@ -148,7 +148,10 @@ jobs:
         uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: 2026.5.10
-          cache: true
+          # Rust toolchains live in rustup's home, outside mise's cache. Restoring
+          # mise's install metadata alone can therefore create a dangling
+          # "installed" toolchain. Install the locked tools as one fresh unit.
+          cache: false
       - name: Prepare the exact clean source and unique home-backed scratch
         shell: bash
         run: |
