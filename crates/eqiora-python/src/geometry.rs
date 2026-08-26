@@ -109,12 +109,10 @@ impl PyGeometry {
         ((x_lower, x_upper), (y_lower, y_upper))
     }
 
-    /// Producer classification tolerance in metres.
+    /// Producer classification tolerance in metres, absent for source-owned topology.
     #[getter]
-    fn classification_tolerance(&self) -> f64 {
-        self.geometry
-            .classification_tolerance_m()
-            .expect("the current Python Geometry adapter admits only classification-bearing v1")
+    fn classification_tolerance(&self) -> Option<f64> {
+        self.geometry.classification_tolerance_m()
     }
 
     /// Exact canonical JSON, without a trailing newline.
