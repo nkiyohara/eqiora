@@ -89,6 +89,10 @@ impl PyGeometrySelection {
     pub(crate) fn canonical_name(&self) -> &str {
         &self.name
     }
+
+    pub(crate) const fn canonical_dimension(&self) -> usize {
+        self.dimension
+    }
 }
 
 #[pymethods]
