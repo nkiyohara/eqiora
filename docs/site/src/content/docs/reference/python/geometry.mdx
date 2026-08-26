@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/geometry.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/geometry.pyi" kind="blob">bindings/python/python/eqiora/geometry.pyi</ExactSourceLink>
 
-This module publishes **6** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **10** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-geometry-CadAuthoredBuild"></a>
 
@@ -203,6 +203,81 @@ class Geometry:
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-geometry-GeometryBoundaryHandle"></a>
+
+## `GeometryBoundaryHandle`
+
+Direct construction-owned handle to one exact planar boundary.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/planar_operation.rs" kind="blob">crates/eqiora-python/src/planar_operation.rs::PyGeometryBoundaryHandle</ExactSourceLink>
+
+```python
+@final
+class GeometryBoundaryHandle:
+    @property
+    def dimension(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+```
+
+<a id="api-eqiora-geometry-GeometryGraph"></a>
+
+## `GeometryGraph`
+
+Handle-first exact planar construction graph.
+
+This stack-only pre-1.0 surface is not independently mergeable before the
+dependent meshing and API-convergence slices.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/planar_operation.rs" kind="blob">crates/eqiora-python/src/planar_operation.rs::PyGeometryGraph</ExactSourceLink>
+
+```python
+@final
+class GeometryGraph:
+    def __init__(self) -> None: ...
+    def rectangle(self, *, x_bounds: tuple[float, float], y_bounds: tuple[float, float]) -> GeometryOperation: ...
+    def circle(self, *, center: tuple[float, float], radius: float) -> GeometryOperation: ...
+    def subtract(self, rectangle: GeometryOperation, circle: GeometryOperation) -> GeometryOperation: ...
+    def build(self, operation: GeometryOperation, /, *, named_topology: Mapping[str, GeometryRegionHandle | GeometryBoundaryHandle | Sequence[GeometryRegionHandle | GeometryBoundaryHandle]]) -> Geometry: ...
+```
+
+<a id="api-eqiora-geometry-GeometryOperation"></a>
+
+## `GeometryOperation`
+
+Immutable result of one exact primitive or Boolean operation.
+
+`boundaries` uses canonical construction order: a rectangle returns
+`(x_lower, x_upper, y_lower, y_upper)`, a circle returns its sole curve,
+and subtract returns the four outer boundaries followed by the created cut.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/planar_operation.rs" kind="blob">crates/eqiora-python/src/planar_operation.rs::PyGeometryOperation</ExactSourceLink>
+
+```python
+@final
+class GeometryOperation:
+    @property
+    def region(self) -> GeometryRegionHandle: ...
+    @property
+    def boundaries(self) -> tuple[GeometryBoundaryHandle, ...]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+```
+
+<a id="api-eqiora-geometry-GeometryRegionHandle"></a>
+
+## `GeometryRegionHandle`
+
+Direct construction-owned handle to one exact planar region.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/planar_operation.rs" kind="blob">crates/eqiora-python/src/planar_operation.rs::PyGeometryRegionHandle</ExactSourceLink>
+
+```python
+@final
+class GeometryRegionHandle:
+    @property
+    def dimension(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
 ```
 
 <a id="api-eqiora-geometry-GeometrySelection"></a>

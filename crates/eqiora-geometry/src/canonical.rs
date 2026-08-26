@@ -15,7 +15,8 @@ use sha2::{Digest, Sha256};
 
 use crate::circular_hole::CircularHoleGeometry;
 use crate::{
-    CanonicalPlanarCircularHoleGeometryV2, EDGE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion,
+    CanonicalPlanarCircularHoleGeometryV2, CanonicalPlanarRectangleGeometryV2, EDGE_DIMENSION,
+    NamedEntitySet, PlanarFace, PlanarRegion,
 };
 
 const GEOMETRY_DEFINITION_SCHEMA: &str = "eqiora.geometry-definition-envelope/v1";
@@ -76,6 +77,7 @@ enum CanonicalGeometryKind {
         digest: [u8; 32],
     },
     CircularHolePlanarV1(CircularHoleGeometry),
+    PlanarRectangleV2(CanonicalPlanarRectangleGeometryV2),
     PlanarCircularHoleV2(CanonicalPlanarCircularHoleGeometryV2),
 }
 
@@ -224,17 +226,13 @@ impl CanonicalGeometryV1 {
 
     /// Exact constant parent-outward normal of one supported boundary set.
     ///
-    /// The first curved family exposes a normal only for its exact single-edge
-    /// x-lower and x-upper sets. A wall or circular member, a multi-side group,
-    /// and every straight-edged or unknown geometry family return `None`;
-    /// callers must not infer a catalogue from entity indices themselves.
+    /// A classification-free rectangle derives all four axis normals from its
+    /// canonical boundary topology. The curved families expose a normal only
+    /// for exact single-edge x-lower and x-upper sets. A circular member,
+    /// multi-side group, and every straight-edged or unknown geometry family
+    /// return `None`; callers must not infer a catalogue from entity indices.
     #[must_use]
     pub fn constant_parent_outward_normal(&self, name: &str) -> Option<[f64; 2]> {
-        match &self.kind {
-            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => return None,
-            CanonicalGeometryKind::CircularHolePlanarV1(_)
-            | CanonicalGeometryKind::PlanarCircularHoleV2(_) => {}
-        }
         let set = self.entity_set(name)?;
         if set.dimension() != EDGE_DIMENSION {
             return None;
@@ -242,10 +240,21 @@ impl CanonicalGeometryV1 {
         let [boundary] = set.members() else {
             return None;
         };
-        match boundary {
-            0 => Some([-1.0, 0.0]),
-            1 => Some([1.0, 0.0]),
-            _ => None,
+        match &self.kind {
+            CanonicalGeometryKind::PlanarRectangleV2(_) => match boundary {
+                0 => Some([-1.0, 0.0]),
+                1 => Some([1.0, 0.0]),
+                2 => Some([0.0, -1.0]),
+                3 => Some([0.0, 1.0]),
+                _ => None,
+            },
+            CanonicalGeometryKind::CircularHolePlanarV1(_)
+            | CanonicalGeometryKind::PlanarCircularHoleV2(_) => match boundary {
+                0 => Some([-1.0, 0.0]),
+                1 => Some([1.0, 0.0]),
+                _ => None,
+            },
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
         }
     }
     /// Derive canonical bytes and identity from one validated region.
@@ -387,6 +396,18 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => Some(region),
             CanonicalGeometryKind::CircularHolePlanarV1(_)
+            | CanonicalGeometryKind::PlanarRectangleV2(_)
+            | CanonicalGeometryKind::PlanarCircularHoleV2(_) => None,
+        }
+    }
+
+    /// Exact Cartesian bounds for the classification-free rectangle kind.
+    #[must_use]
+    pub const fn planar_rectangle_bounds(&self) -> Option<&[[f64; 2]; 2]> {
+        match &self.kind {
+            CanonicalGeometryKind::PlanarRectangleV2(geometry) => Some(geometry.bounds()),
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. }
+            | CanonicalGeometryKind::CircularHolePlanarV1(_)
             | CanonicalGeometryKind::PlanarCircularHoleV2(_) => None,
         }
     }
@@ -397,6 +418,7 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => Some(geometry.bounds()),
+            CanonicalGeometryKind::PlanarRectangleV2(_) => None,
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => Some(geometry.bounds()),
         }
     }
@@ -407,6 +429,7 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => Some(geometry.circle_center()),
+            CanonicalGeometryKind::PlanarRectangleV2(_) => None,
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => Some(geometry.circle_center()),
         }
     }
@@ -419,6 +442,7 @@ impl CanonicalGeometryV1 {
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => {
                 Some(geometry.circle_radius_m())
             }
+            CanonicalGeometryKind::PlanarRectangleV2(_) => None,
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => {
                 Some(geometry.circle_radius_m())
             }
@@ -437,7 +461,8 @@ impl CanonicalGeometryV1 {
                 Some(region.tolerance_m())
             }
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => Some(geometry.tolerance_m()),
-            CanonicalGeometryKind::PlanarCircularHoleV2(_) => None,
+            CanonicalGeometryKind::PlanarRectangleV2(_)
+            | CanonicalGeometryKind::PlanarCircularHoleV2(_) => None,
         }
     }
 
@@ -447,6 +472,7 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => region.entity_sets(),
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.entity_sets(),
+            CanonicalGeometryKind::PlanarRectangleV2(geometry) => geometry.entity_sets(),
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => geometry.entity_sets(),
         }
     }
@@ -465,6 +491,7 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { bytes, .. } => bytes,
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.canonical_bytes(),
+            CanonicalGeometryKind::PlanarRectangleV2(geometry) => geometry.canonical_bytes(),
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => geometry.canonical_bytes(),
         }
     }
@@ -475,6 +502,7 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { digest, .. } => *digest,
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.digest_bytes(),
+            CanonicalGeometryKind::PlanarRectangleV2(geometry) => geometry.digest_bytes(),
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => geometry.digest_bytes(),
         }
     }
@@ -485,6 +513,23 @@ impl CanonicalGeometryV1 {
         Self {
             kind: CanonicalGeometryKind::PlanarCircularHoleV2(geometry),
         }
+    }
+
+    pub(crate) const fn from_planar_rectangle_v2(
+        geometry: CanonicalPlanarRectangleGeometryV2,
+    ) -> Self {
+        Self {
+            kind: CanonicalGeometryKind::PlanarRectangleV2(geometry),
+        }
+    }
+
+    /// Decode the classification-free planar rectangle wire.
+    pub fn decode_planar_rectangle_v2_canonical(
+        bytes: &[u8],
+        limits: CanonicalGeometryLimits,
+    ) -> Result<Self, Diagnostic> {
+        CanonicalPlanarRectangleGeometryV2::decode_canonical(bytes, limits)
+            .map(Self::from_planar_rectangle_v2)
     }
 
     /// Decode the accepted tolerance-free circular-hole v2 wire.

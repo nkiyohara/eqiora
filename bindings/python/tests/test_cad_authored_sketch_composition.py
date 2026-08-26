@@ -70,6 +70,10 @@ EXPECTED_GEOMETRY_ALL = [
     "CadAuthoredGraph",
     "CadAuthoredSketch",
     "Geometry",
+    "GeometryBoundaryHandle",
+    "GeometryGraph",
+    "GeometryOperation",
+    "GeometryRegionHandle",
     "GeometrySelection",
 ]
 WRONG_FACE_MESSAGE = "authored CAD circle sketch requires a v1 end-cap face handle"

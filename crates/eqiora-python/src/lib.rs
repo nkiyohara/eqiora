@@ -18,6 +18,7 @@ mod model;
 mod modeling;
 mod notebook_mime;
 mod package;
+mod planar_operation;
 mod realization;
 mod result;
 mod steady_stokes;
@@ -165,6 +166,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     geometry::register(module)?;
     meshing::register(module)?;
     modeling::register(module)?;
+    planar_operation::register(module)?;
     realization::register(module)?;
     steady_stokes::register(module)?;
     trajectory::register(module)?;

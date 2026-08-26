@@ -38,6 +38,8 @@ mod circular_hole;
 mod circular_hole_v2;
 mod correspondence;
 mod identity;
+mod planar_operation;
+mod planar_rectangle_v2;
 mod region;
 
 pub use association::{
@@ -64,6 +66,11 @@ pub use correspondence::{
 pub use identity::{
     GeometryEntity, GeometryRevisionReference, GeometryRevisionTopology, ParentOutward,
 };
+pub use planar_operation::{
+    PlanarBoundaryHandle, PlanarOperation, PlanarOperationGraph, PlanarRegionHandle,
+    PlanarTopologyHandle,
+};
+pub(crate) use planar_rectangle_v2::CanonicalPlanarRectangleGeometryV2;
 pub use region::{
     EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarLoop, PlanarRegion,
     VERTEX_DIMENSION,

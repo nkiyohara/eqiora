@@ -666,7 +666,7 @@ fn extract_rectangle_pair(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<(f6
     }
 }
 
-fn extract_sequence_pair(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<[f64; 2]> {
+pub(crate) fn extract_sequence_pair(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<[f64; 2]> {
     let extracted = value.extract::<[f64; 2]>();
     match extracted {
         Err(error) if error.is_instance_of::<PyValueError>(value.py()) => {

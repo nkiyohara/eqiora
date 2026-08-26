@@ -108,7 +108,8 @@ impl PyGeometry {
     fn bounds(&self) -> ((f64, f64), (f64, f64)) {
         let [[x_lower, x_upper], [y_lower, y_upper]] = *self
             .geometry
-            .circular_hole_bounds()
+            .planar_rectangle_bounds()
+            .or_else(|| self.geometry.circular_hole_bounds())
             .expect("the admitted planar Geometry has exact Cartesian bounds");
         ((x_lower, x_upper), (y_lower, y_upper))
     }
