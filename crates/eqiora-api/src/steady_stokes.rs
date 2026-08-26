@@ -2,7 +2,7 @@
 //!
 //! This module owns the complete composition shared by Studio and Python. It
 //! separates inspectable intent and resolution from execution while retaining
-//! the narrow accepted Model, mesh, and scientific reference configuration.
+//! the recognized Model, accepted mesh, and scientific reference configuration.
 
 use std::num::{NonZeroU16, NonZeroUsize};
 
@@ -35,8 +35,6 @@ use eqiora_solver::{
 
 use crate::UnstructuredP1ScalarFieldProjection2d;
 
-const ACCEPTED_MODEL_DIGEST: &str =
-    "8bc5155bc1b64ed37f7a2ac010a966e1619091a118e6cf7806dbdf9621977146";
 const ACCEPTED_SOURCE_DIGEST: &str =
     "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9";
 const ACCEPTED_REFERENCE_MESH_DIGEST: &str =
@@ -214,7 +212,7 @@ impl ResolvedSteadyStokesPlan2d {
         CircularHoleSteadyStokesResult2d::from_execution(self, solution)
     }
 
-    /// Accepted canonical Model.
+    /// Exact caller Model admitted by the semantic recognizer.
     #[must_use]
     pub const fn model(&self) -> &ModelEnvelope {
         &self.model
@@ -267,7 +265,7 @@ impl ResolvedSteadyStokesPlan2d {
 ///
 /// This is an immutable in-process application value, not a durable Result
 /// artifact and not a general fluid solver. It retains every artifact required
-/// to replay the accepted Model → Realization → Run path and projects pressure
+/// to replay the caller Model → Realization → Run path and projects pressure
 /// coefficients in the exact canonical mesh-vertex order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CircularHoleSteadyStokesResult2d {
@@ -369,7 +367,7 @@ impl CircularHoleSteadyStokesResult2d {
         })
     }
 
-    /// Accepted canonical Model.
+    /// Exact caller Model retained through execution.
     #[must_use]
     pub const fn model(&self) -> &ModelEnvelope {
         &self.model
@@ -490,11 +488,6 @@ fn require_accepted_inputs(
              {ACCEPTED_SEMANTIC_REVISION}"
         )));
     }
-    if model.digest()?.to_string() != ACCEPTED_MODEL_DIGEST {
-        return Err(invalid_reference_input(
-            "exact-cylinder reference operation requires the accepted canonical current Model artifact",
-        ));
-    }
     if encode_digest(&source.digest_bytes()) != ACCEPTED_SOURCE_DIGEST {
         return Err(invalid_reference_input(
             "exact-cylinder reference operation requires the accepted exact geometry source",
@@ -552,7 +545,6 @@ fn resolve_application(
              {ACCEPTED_SEMANTIC_REVISION}"
         )));
     }
-
     let binding = SteadyStokesGeometryBinding2d::new(&program, accepted.clone())?;
     let solver = intent.solver();
     let fieldwise = binding.mini_plan(
