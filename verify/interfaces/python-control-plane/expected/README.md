@@ -5,6 +5,11 @@ identities and digests are derived from the single artifact created during the
 test. It compares that artifact with its exact Rust replay and checks only
 invariants that remain meaningful without freezing a freshly minted identity.
 
+No whole-file digest or exact-byte expectation exists for the Python package
+root or stub. Their compile claim is the runtime call shape and the matching
+structural stub declaration; additive or otherwise unrelated root API changes
+are outside this case.
+
 Expected failure families are `compatibility`, `validation`, `execution`, and
 `internal`. Malformed exact wire carries `EQ0901`, a stale edit carries
 `EQ0106`, invalid execution policy carries `EQ0501`, and the contained panic
