@@ -224,4 +224,50 @@ fn v2_source_replay_rejects_foreign_geometry_and_structural_mutants() {
         )
         .is_err()
     );
+
+    let mut out_of_range: Value =
+        serde_json::from_slice(&correspondence.canonical_json().unwrap()).unwrap();
+    out_of_range["frontiers"][4]["facet_indices"][0] = Value::from(u64::MAX);
+    let out_of_range = GeometryMeshCorrespondenceEnvelopeV1::from_json(
+        &serde_json::to_vec(&out_of_range).unwrap(),
+        GeometryDecoderLimits::default(),
+    );
+    assert!(
+        out_of_range.is_err()
+            || out_of_range
+                .unwrap()
+                .validate_against_planar_circular_hole_v2_reference(
+                    &geometry,
+                    &mesh,
+                    MAX_BOUNDARY_ERROR_M,
+                    MAX_SEGMENTS,
+                )
+                .is_err()
+    );
+
+    let mut absent: Value =
+        serde_json::from_slice(&correspondence.canonical_json().unwrap()).unwrap();
+    absent["frontiers"][4]["facet_indices"]
+        .as_array_mut()
+        .unwrap()
+        .pop();
+    absent["frontiers"][4]["parent_outward"]
+        .as_array_mut()
+        .unwrap()
+        .pop();
+    let absent = GeometryMeshCorrespondenceEnvelopeV1::from_json(
+        &serde_json::to_vec(&absent).unwrap(),
+        GeometryDecoderLimits::default(),
+    )
+    .unwrap();
+    assert!(
+        absent
+            .validate_against_planar_circular_hole_v2_reference(
+                &geometry,
+                &mesh,
+                MAX_BOUNDARY_ERROR_M,
+                MAX_SEGMENTS,
+            )
+            .is_err()
+    );
 }

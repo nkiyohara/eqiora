@@ -3,6 +3,7 @@
 mod gmsh;
 mod mesh;
 mod plan;
+mod source_owned;
 
 use eqiora::Diagnostic;
 use eqiora::diagnostic::codes;

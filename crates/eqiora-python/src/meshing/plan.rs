@@ -1,13 +1,16 @@
 //! Immutable mesh intent and complete resolved provider choices.
 
+use eqiora::Diagnostic;
 use eqiora::artifact::AcceptedCircularHoleChordalRealizationV1;
+use eqiora::diagnostic::codes;
 use eqiora::meshing::MeshQualityGate;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 use super::gmsh;
 use super::request_error;
-use crate::error::validation_error;
+use super::source_owned::{self, SourceOwnedPlan};
+use crate::error::{diagnostic_error, validation_error};
 use crate::geometry::{PyGeometry, digest_to_hex};
 use crate::panic_boundary;
 
@@ -101,7 +104,18 @@ impl PyMeshRequest {
 pub(super) struct PyMeshPlan {
     source_digest: String,
     request: PyMeshRequest,
-    pub(super) accepted: AcceptedCircularHoleChordalRealizationV1,
+    pub(super) resolved: ResolvedMeshPlan,
+}
+
+pub(super) enum ResolvedMeshPlan {
+    Legacy(Box<AcceptedCircularHoleChordalRealizationV1>),
+    SourceOwned(Box<SourceOwnedPlan>),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MeshRoute {
+    Gmsh,
+    SourceOwned,
 }
 
 #[pymethods]
@@ -112,8 +126,11 @@ impl PyMeshPlan {
     }
 
     #[getter]
-    const fn provider(&self) -> &'static str {
-        GMSH_PROVIDER
+    fn provider(&self) -> &'static str {
+        match &self.resolved {
+            ResolvedMeshPlan::Legacy(_) => GMSH_PROVIDER,
+            ResolvedMeshPlan::SourceOwned(_) => source_owned::PROVIDER,
+        }
     }
 
     #[getter]
@@ -124,45 +141,71 @@ impl PyMeshPlan {
     /// Effective number of boundary facets selected by the provider.
     #[getter]
     fn boundary_facets(&self) -> usize {
-        self.accepted.circle_segments()
+        match &self.resolved {
+            ResolvedMeshPlan::Legacy(accepted) => accepted.circle_segments(),
+            ResolvedMeshPlan::SourceOwned(plan) => plan
+                .boundary_facets()
+                .expect("an admitted source-owned plan retains its circular frontier"),
+        }
     }
 
     /// Measured accepted boundary approximation error in metres.
     #[getter]
-    const fn boundary_error_bound(&self) -> f64 {
-        self.accepted.boundary_error_bound_m()
+    fn boundary_error_bound(&self, py: Python<'_>) -> PyResult<f64> {
+        match &self.resolved {
+            ResolvedMeshPlan::Legacy(accepted) => Ok(accepted.boundary_error_bound_m()),
+            ResolvedMeshPlan::SourceOwned(_) => Err(unsupported(
+                py,
+                "boundary_error_bound is unavailable without an accepted chordal realization",
+            )),
+        }
     }
 
     /// Binary64 allowance used to evaluate the boundary error receipt.
     #[getter]
-    const fn boundary_evaluation_allowance(&self) -> f64 {
-        self.accepted.boundary_evaluation_allowance_m()
+    fn boundary_evaluation_allowance(&self, py: Python<'_>) -> PyResult<f64> {
+        match &self.resolved {
+            ResolvedMeshPlan::Legacy(accepted) => Ok(accepted.boundary_evaluation_allowance_m()),
+            ResolvedMeshPlan::SourceOwned(_) => Err(unsupported(
+                py,
+                "boundary_evaluation_allowance is unavailable without an accepted chordal realization",
+            )),
+        }
     }
 
     /// Canonical bytes of the complete accepted source-to-mesh binding.
     #[getter]
     fn canonical_bytes(&self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
-        self.accepted
-            .envelope()
-            .canonical_json()
-            .map(|bytes| PyBytes::new(py, &bytes).unbind())
-            .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))
+        match &self.resolved {
+            ResolvedMeshPlan::Legacy(accepted) => accepted
+                .envelope()
+                .canonical_json()
+                .map(|bytes| PyBytes::new(py, &bytes).unbind())
+                .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
+            ResolvedMeshPlan::SourceOwned(_) => Err(unsupported(
+                py,
+                "canonical_bytes are unavailable without an accepted chordal realization",
+            )),
+        }
     }
 
     /// Measured minimum mean ratio achieved by the resolved mesh.
     #[getter]
     fn achieved_minimum_mean_ratio(&self) -> f64 {
-        self.accepted
-            .mesh()
-            .mesh()
-            .quality_report()
-            .minimum_mean_ratio()
+        match &self.resolved {
+            ResolvedMeshPlan::Legacy(accepted) => {
+                accepted.mesh().mesh().quality_report().minimum_mean_ratio()
+            }
+            ResolvedMeshPlan::SourceOwned(plan) => {
+                plan.mesh.mesh().quality_report().minimum_mean_ratio()
+            }
+        }
     }
 
     fn __repr__(&self) -> String {
         format!(
             "MeshPlan(provider={:?}, source_digest={:?}, boundary_facets={})",
-            GMSH_PROVIDER,
+            self.provider(),
             self.source_digest,
             self.boundary_facets(),
         )
@@ -181,19 +224,71 @@ pub(super) fn resolve(
         let request = *request;
         let quality_gate = MeshQualityGate::new(request.minimum_mean_ratio)
             .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
-        let reference = AcceptedCircularHoleChordalRealizationV1::from_reference(
-            geometry.geometry(),
-            request.maximum_boundary_error,
-            request.maximum_boundary_facets,
-            quality_gate,
-        )
-        .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
-        let accepted = gmsh::generate(&reference, quality_gate)
+        let resolved = if route(geometry.geometry()) == MeshRoute::Gmsh {
+            let reference = AcceptedCircularHoleChordalRealizationV1::from_reference(
+                geometry.geometry(),
+                request.maximum_boundary_error,
+                request.maximum_boundary_facets,
+                quality_gate,
+            )
             .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
+            let accepted = gmsh::generate(&reference, quality_gate)
+                .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
+            ResolvedMeshPlan::Legacy(Box::new(accepted))
+        } else {
+            SourceOwnedPlan::resolve(
+                geometry.geometry(),
+                request.maximum_boundary_error,
+                request.maximum_boundary_facets,
+                quality_gate,
+            )
+            .map(Box::new)
+            .map(ResolvedMeshPlan::SourceOwned)
+            .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?
+        };
         Ok(PyMeshPlan {
             source_digest: digest_to_hex(&geometry.geometry().digest_bytes()),
             request,
-            accepted,
+            resolved,
         })
     })
+}
+
+fn route(geometry: &eqiora::geometry::CanonicalGeometryV1) -> MeshRoute {
+    if geometry.classification_tolerance_m().is_some() {
+        MeshRoute::Gmsh
+    } else {
+        MeshRoute::SourceOwned
+    }
+}
+
+fn unsupported(py: Python<'_>, message: &str) -> PyErr {
+    diagnostic_error(py, &[Diagnostic::error(codes::NOT_IMPLEMENTED, message)])
+}
+
+#[cfg(test)]
+mod tests {
+    use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet};
+
+    use super::*;
+
+    #[test]
+    fn classification_bearing_geometry_keeps_the_exact_legacy_gmsh_route() {
+        let geometry = CanonicalGeometryV1::from_circular_hole(
+            [[0.0, 2.2], [0.0, 0.41]],
+            [0.2, 0.2],
+            0.05,
+            vec![
+                NamedEntitySet::new("fluid", 2, vec![0]),
+                NamedEntitySet::new("inlet", 1, vec![0]),
+                NamedEntitySet::new("outlet", 1, vec![1]),
+                NamedEntitySet::new("walls", 1, vec![2, 3]),
+                NamedEntitySet::new("cylinder", 1, vec![4]),
+            ],
+            1.0e-12,
+        )
+        .unwrap();
+        assert_eq!(route(&geometry), MeshRoute::Gmsh);
+        assert_eq!(GMSH_PROVIDER, "eqiora.gmsh-cli/4.15.2");
+    }
 }

@@ -5,10 +5,10 @@ use std::sync::Mutex;
 use eqiora::Diagnostic;
 use eqiora::artifact::{
     AcceptedCircularHoleChordalRealizationV1, CartesianMeshEnvelopeV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, RealizationEnvelopeV1,
+    GeometryMeshCorrespondenceEnvelopeV1, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1,
 };
 use eqiora::diagnostic::codes;
-use eqiora::geometry::NamedEntitySet;
+use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora::meshing::{MeshEntity, MeshTopology};
 use numpy::PyArray2;
 use pyo3::exceptions::{PyOverflowError, PyRuntimeError, PyTypeError};
@@ -16,7 +16,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyBytes, PyDict, PyTuple};
 use sha2::{Digest, Sha256};
 
-use super::plan::{PyMeshPlan, PyMeshRequest};
+use super::plan::{PyMeshPlan, PyMeshRequest, ResolvedMeshPlan};
 use super::request_error;
 use crate::error::{diagnostic_error, validation_error};
 use crate::geometry::{PyGeometry, PyGeometrySelection, digest_to_hex};
@@ -67,6 +67,11 @@ enum AcceptedMeshSource {
         accepted: Box<AcceptedCircularHoleChordalRealizationV1>,
         external_import: Option<Box<ExternalImportLineage>>,
     },
+    SourceOwned {
+        geometry: Box<CanonicalGeometryV1>,
+        mesh: Box<SimplicialMeshEnvelopeV1>,
+        correspondence: Box<GeometryMeshCorrespondenceEnvelopeV1>,
+    },
     Cartesian,
 }
 
@@ -80,7 +85,7 @@ struct MeshLineage {
     realized_geometry_digest: String,
     mesh_digest: String,
     correspondence_digest: String,
-    realization_digest: String,
+    realization_digest: Option<String>,
     dimension: usize,
     vertex_count: usize,
     cell_count: usize,
@@ -114,8 +119,13 @@ impl PyMesh {
 
     /// Identity of the complete exact-source realization binding.
     #[getter]
-    fn realization_digest(&self) -> &str {
-        &self.lineage.realization_digest
+    fn realization_digest(&self, py: Python<'_>) -> PyResult<&str> {
+        self.lineage.realization_digest.as_deref().ok_or_else(|| {
+            capability_error(
+                py,
+                "realization_digest is unavailable for a source-owned Geometry v2 Mesh",
+            )
+        })
     }
 
     /// Canonical external-import manifest, or None for non-imported Meshes.
@@ -172,6 +182,9 @@ impl PyMesh {
             AcceptedMeshSource::Chordal { accepted, .. } => {
                 Ok(accepted.mesh().mesh().quality_report().minimum_mean_ratio())
             }
+            AcceptedMeshSource::SourceOwned { mesh, .. } => {
+                Ok(mesh.mesh().quality_report().minimum_mean_ratio())
+            }
             AcceptedMeshSource::Cartesian => Err(capability_error(
                 py,
                 "minimum_mean_ratio is not defined for this Cartesian Mesh",
@@ -188,6 +201,11 @@ impl PyMesh {
                 .iter()
                 .map(NamedEntitySet::name)
                 .collect::<Vec<_>>(),
+            AcceptedMeshSource::SourceOwned { geometry, .. } => geometry
+                .entity_sets()
+                .iter()
+                .map(NamedEntitySet::name)
+                .collect::<Vec<_>>(),
             AcceptedMeshSource::Cartesian => {
                 // This accepted Cartesian Mesh publishes no named selections.
                 Vec::new()
@@ -199,8 +217,8 @@ impl PyMesh {
     /// Count mesh entities proven to realize one exact-source selection.
     fn selection_entity_count(&self, py: Python<'_>, name: &Bound<'_, PyAny>) -> PyResult<usize> {
         let selection;
-        let name = if let Ok(name) = name.extract::<&str>() {
-            name
+        let (name, expected_dimension) = if let Ok(name) = name.extract::<&str>() {
+            (name, None)
         } else if let Ok(value) = name.extract::<PyRef<'_, PyGeometrySelection>>() {
             selection = value;
             if selection.bound_source_digest() != self.lineage.source_digest {
@@ -210,7 +228,10 @@ impl PyMesh {
                 );
                 return Err(validation_error(py, std::slice::from_ref(&diagnostic)));
             }
-            selection.canonical_name()
+            (
+                selection.canonical_name(),
+                Some(selection.canonical_dimension()),
+            )
         } else {
             return Err(PyTypeError::new_err(
                 "name must be a str or GeometrySelection",
@@ -220,7 +241,15 @@ impl PyMesh {
             AcceptedMeshSource::Chordal { accepted, .. } => accepted
                 .correspondence()
                 .region_entity_set_entities(accepted.realized_geometry(), name)
-                .map(|entities| entities.len())
+                .and_then(|entities| validated_entity_count(entities, expected_dimension))
+                .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
+            AcceptedMeshSource::SourceOwned {
+                geometry,
+                correspondence,
+                ..
+            } => correspondence
+                .planar_circular_hole_v2_entity_set_entities(geometry, name)
+                .and_then(|entities| validated_entity_count(entities, expected_dimension))
                 .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
             AcceptedMeshSource::Cartesian => Err(capability_error(
                 py,
@@ -391,7 +420,56 @@ impl PyMesh {
                 realized_geometry_digest,
                 mesh_digest,
                 correspondence_digest,
-                realization_digest,
+                realization_digest: Some(realization_digest),
+                dimension,
+                vertex_count,
+                cell_count,
+            },
+            canonical_bytes,
+            coordinates,
+            cells,
+            presentation: Mutex::new(PresentationState::Empty),
+        })
+    }
+
+    fn from_source_owned(
+        py: Python<'_>,
+        plan: &super::source_owned::SourceOwnedPlan,
+    ) -> PyResult<Self> {
+        plan.revalidate(&plan.source)
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        let dimension = plan.mesh.dimension();
+        let mesh = plan.mesh.mesh();
+        let vertex_count = mesh.vertices().len();
+        let cell_count = mesh.cells().len();
+        let (coordinates, cells) = project_simplicial_mesh(py, mesh, dimension)?;
+        let source_digest = digest_to_hex(&plan.source.digest_bytes());
+        let mesh_digest = plan
+            .mesh
+            .digest()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
+            .to_string();
+        let correspondence_digest = plan
+            .correspondence
+            .digest()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
+            .to_string();
+        let canonical_bytes = plan
+            .mesh
+            .canonical_json()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        Ok(Self {
+            source: AcceptedMeshSource::SourceOwned {
+                geometry: Box::new(plan.source.clone()),
+                mesh: Box::new(plan.mesh.clone()),
+                correspondence: Box::new(plan.correspondence.clone()),
+            },
+            lineage: MeshLineage {
+                source_digest: source_digest.clone(),
+                realized_geometry_digest: source_digest,
+                mesh_digest,
+                correspondence_digest,
+                realization_digest: None,
                 dimension,
                 vertex_count,
                 cell_count,
@@ -470,7 +548,7 @@ impl PyMesh {
                 realized_geometry_digest: geometry_digest,
                 mesh_digest,
                 correspondence_digest,
-                realization_digest,
+                realization_digest: Some(realization_digest),
                 dimension,
                 vertex_count,
                 cell_count,
@@ -488,6 +566,10 @@ impl PyMesh {
     ) -> PyResult<&AcceptedCircularHoleChordalRealizationV1> {
         match &self.source {
             AcceptedMeshSource::Chordal { accepted, .. } => Ok(accepted),
+            AcceptedMeshSource::SourceOwned { .. } => Err(capability_error(
+                py,
+                "this operation requires the legacy accepted affine-triangle realization",
+            )),
             AcceptedMeshSource::Cartesian => Err(capability_error(
                 py,
                 "this operation requires an accepted affine-triangle Mesh",
@@ -528,6 +610,7 @@ impl PyMesh {
             AcceptedMeshSource::Chordal {
                 external_import, ..
             } => external_import.as_deref(),
+            AcceptedMeshSource::SourceOwned { .. } => None,
             AcceptedMeshSource::Cartesian => None,
         }
     }
@@ -798,13 +881,58 @@ pub(super) fn generate(
     geometry: &PyGeometry,
     plan: &PyMeshPlan,
 ) -> PyResult<PyMesh> {
-    panic_boundary(py, || {
-        if geometry.geometry() != plan.accepted.source() {
-            return Err(request_error(
-                py,
-                "MeshPlan belongs to a different exact Geometry",
-            ));
+    panic_boundary(py, || match &plan.resolved {
+        ResolvedMeshPlan::Legacy(accepted) => {
+            if geometry.geometry() != accepted.source() {
+                return Err(request_error(
+                    py,
+                    "MeshPlan belongs to a different exact Geometry",
+                ));
+            }
+            accepted
+                .revalidate()
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            PyMesh::from_accepted(py, accepted.as_ref().clone())
         }
-        PyMesh::from_accepted(py, plan.accepted.clone())
+        ResolvedMeshPlan::SourceOwned(resolved) => {
+            resolved
+                .revalidate(geometry.geometry())
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            PyMesh::from_source_owned(py, resolved)
+        }
     })
+}
+
+fn validated_entity_count(
+    entities: Vec<MeshEntity>,
+    expected_dimension: Option<usize>,
+) -> Result<usize, Diagnostic> {
+    if expected_dimension.is_some_and(|dimension| {
+        entities
+            .iter()
+            .any(|entity| entity.dimension() != dimension)
+    }) {
+        return Err(Diagnostic::error(
+            codes::INVALID_ARTIFACT,
+            "GeometrySelection dimension differs from correspondence-owned membership",
+        ));
+    }
+    Ok(entities.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn revision_bound_selection_dimension_must_match_correspondence_membership() {
+        assert!(
+            validated_entity_count(vec![MeshEntity::new(1, 0)], Some(2)).is_err(),
+            "dimension-wrong correspondence membership must reject"
+        );
+        assert_eq!(
+            validated_entity_count(vec![MeshEntity::new(1, 0)], Some(1)).unwrap(),
+            1
+        );
+    }
 }
