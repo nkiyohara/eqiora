@@ -407,8 +407,12 @@ class GitObjectAuthorityTests(unittest.TestCase):
         }
         for name, text in files.items():
             with self.subTest(name=name):
-                self.assertIn("historical_git", text)
                 self.assertNotIn("cwd=REPOSITORY", text)
+                if name == "test_triggers.py":
+                    self.assertNotIn("historical_git", text)
+                    self.assertIn("tools/ci/classify_changes.py", text)
+                else:
+                    self.assertIn("historical_git", text)
         self.assertIn(
             "git_object_authority", files["test_archive_binding_fail_closed.py"]
         )

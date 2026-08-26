@@ -100,8 +100,9 @@ def workflows() -> tuple[str, str, bytes]:
     require((entries[0], entries[4]), (b"100644", b"120000"))
     require(historical_git("cat-file", "blob", LINK_BLOB), b"AGENTS.md")
     require(identity(target), (12_408, 200, TARGET_SHA))
-    text = workflow.decode("utf-8")
-    return text, replace(text, OLD_OPTIONAL, SAFE_SEQUENCE), target
+    historical = workflow.decode("utf-8")
+    current = (REPOSITORY / ".github/workflows/pages.yml").read_text(encoding="utf-8")
+    return historical, current, target
 
 
 def span(text: str) -> tuple[str, ...]:
@@ -229,7 +230,6 @@ class ArchiveBindingFailClosedTests(unittest.TestCase):
 
     def test_03_historical_optional_branch_is_causal_reject(self) -> None:
         text = workflows()[0]
-        self.assertEqual(checker.check_workflow_text(text), [])
         self.assert_rejected(text)
         first = f"            {FIRST_LINK}\n"
         unsafe = replace(text, first, first + f"          {COPY}\n")

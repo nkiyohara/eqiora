@@ -919,7 +919,7 @@ removal = "duplicate"\n"""
             prefix,
             "name: CI definition trust\n\n"
             "on:\n  pull_request_target:\n"
-            "    types: [opened, reopened, synchronize]\n\n"
+            "    types: [opened, reopened, synchronize, edited]\n\n"
             "permissions:\n  contents: read\n  pull-requests: read\n\n"
             "concurrency:\n"
             "  group: ci-definition-trust-${{ github.event.pull_request.number }}\n"

@@ -7,7 +7,7 @@ replace targeted local or physical-backend verification.
 
 ## Pull-request boundary
 
-Every pull request reports two independent required contexts:
+Every pull request reports three independent required contexts:
 
 1. **CI gate** runs the untrusted head revision with read-only repository
    permission and no project secrets. The repository-owned classifier selects
@@ -21,8 +21,22 @@ Every pull request reports two independent required contexts:
    CI/release tooling, the dependency policy, the layer/facade checks, the
    registered-evidence runner, custom Actions, or CODEOWNERS fails this
    context.
+3. **Build and verify static documentation** checks out the ordinary untrusted
+   pull-request revision and asks the same repository-owned classifier whether
+   the complete produced-site input closure changed. A proven-irrelevant delta
+   succeeds immediately with the explicit `unchanged input closure` reason;
+   public API, generated-reference, content, asset, build, workflow, unknown,
+   ambiguous, file-mode/type-changing, or classification-failure input performs
+   the complete existing offline build. The unchanged decision records the
+   validated current base revision as the content authority that an unchanged
+   artifact would use; it does not pretend that the pull-request head identity
+   is itself site content. Protected-main pushes and
+   manual runs always build in full, and only a successful authenticated main
+   full build may deploy.
 
-Both workflows start on `opened`, `reopened`, and `synchronize`. Opening a
+The public code workflow starts on `opened`, `reopened`, and `synchronize`;
+the documentation and base-owned trust workflows also start on `edited` so
+retargeting a base reruns both base-sensitive decisions. Opening a
 Draft therefore verifies its exact head immediately, while changing that same
 head from Draft to Ready reuses the existing required contexts instead of
 starting and cancelling an identical full run. A pushed head still starts a
@@ -82,7 +96,9 @@ review may be added for a concrete trust decision, but it is not mandatory.
 
 [`tools/ci/classify_changes.py`](../../tools/ci/classify_changes.py) is the
 shared fail-closed surface map. Documentation-only changes avoid heavy product
-jobs; changes to CI definitions or unknown paths select every surface.
+jobs; site artifact inputs select the full documentation build; changes to CI
+definitions or unknown paths select every surface. The Pages workflow has no
+parallel `on.paths` approximation.
 
 Conditional jobs may be skipped only when their surface is irrelevant.
 [`tools/ci/check_gate.py`](../../tools/ci/check_gate.py) validates the complete

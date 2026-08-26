@@ -6,6 +6,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import tomllib
 import unittest
 from pathlib import Path
@@ -19,7 +20,14 @@ sys.path.insert(0, str(CI_ROOT))
 import python_package_gate as python_package_gate_module  # noqa: E402
 
 from check_gate import JOB_SURFACES, evaluate, parse_relevance, parse_results  # noqa: E402
-from classify_changes import SURFACES, changed_paths, classify, render_outputs  # noqa: E402
+from classify_changes import (  # noqa: E402
+    CLASSIFIED_SURFACES,
+    SURFACES,
+    append_github_outputs,
+    changed_paths,
+    classify,
+    render_outputs,
+)
 from local_verify import HOSTED_TEST_PROFILE  # noqa: E402
 from python_jax_gate import uv_gate_command as jax_uv_gate_command  # noqa: E402
 from python_matplotlib_gate import (  # noqa: E402
@@ -42,6 +50,7 @@ class HostedTriggerTests(unittest.TestCase):
         self,
         workflow: str,
         event: str,
+        expected: tuple[str, ...] | None = None,
     ) -> None:
         match = re.search(
             rf"(?m)^  {re.escape(event)}:\n    types: \[([a-z_, ]+)\]$",
@@ -50,7 +59,7 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIsNotNone(match, f"{event} must declare explicit action types")
         assert match is not None
         actions = tuple(action.strip() for action in match.group(1).split(","))
-        self.assertEqual(actions, self.EXPECTED_PULL_REQUEST_ACTIONS)
+        self.assertEqual(actions, expected or self.EXPECTED_PULL_REQUEST_ACTIONS)
 
     def test_public_workflow_runs_for_pull_requests_and_exact_sha_dispatch(
         self,
@@ -162,7 +171,11 @@ class HostedTriggerTests(unittest.TestCase):
             REPOSITORY_ROOT / ".github/workflows/ci-definition-trust.yml"
         ).read_text(encoding="utf-8")
         self.assertIn("pull_request_target:", workflow)
-        self.assert_exact_pull_request_actions(workflow, "pull_request_target")
+        self.assert_exact_pull_request_actions(
+            workflow,
+            "pull_request_target",
+            (*self.EXPECTED_PULL_REQUEST_ACTIONS, "edited"),
+        )
         self.assertNotIn("github.event.pull_request.draft", workflow)
         self.assertIn("github.event.pull_request.base.sha", workflow)
         self.assertEqual(workflow.count("github.event.pull_request.head.sha"), 1)
@@ -1263,17 +1276,38 @@ class PythonPackageGateTests(unittest.TestCase):
 
 class ChangeClassificationTests(unittest.TestCase):
     def test_documentation_only_selects_no_heavy_surface(self) -> None:
-        self.assertEqual(
-            classify(
-                [
-                    "docs/architecture.md",
-                    "README.md",
-                    "bindings/python/README.md",
-                    "verify/numerics/linear-backends/README.md",
-                ]
-            ),
-            {surface: False for surface in SURFACES},
+        selected = classify(
+            ["docs/architecture.md", "README.md", "bindings/python/README.md"]
         )
+        self.assertEqual(selected, {surface: False for surface in CLASSIFIED_SURFACES})
+
+        evidence_projection = classify(["verify/numerics/linear-backends/README.md"])
+        self.assertTrue(evidence_projection["site"])
+        self.assertFalse(evidence_projection["msrv"])
+
+    def test_site_input_closure_selects_only_real_artifact_inputs(self) -> None:
+        relevant = (
+            ".github/workflows/pages.yml",
+            "crates/eqiora/src/lib.rs",
+            "bindings/python/python/eqiora/fluid.pyi",
+            "docs/site/src/content/docs/index.mdx",
+            "tools/docs/generate_python_api.py",
+            "tools/xtask/src/main.rs",
+            "verify/fluid/example/case.toml",
+        )
+        for path in relevant:
+            with self.subTest(path=path):
+                self.assertTrue(classify([path])["site"])
+
+        irrelevant = (
+            "README.md",
+            "docs/architecture.md",
+            "bindings/python/README.md",
+            "studio/src/state.ts",
+        )
+        for path in irrelevant:
+            with self.subTest(path=path):
+                self.assertFalse(classify([path])["site"])
 
     def test_numerics_change_selects_rust_and_msrv_only(self) -> None:
         selected = classify(["crates/eqiora-numerics/src/lib.rs"])
@@ -1356,33 +1390,194 @@ class ChangeClassificationTests(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 self.assertEqual(
-                    classify([path]), {surface: True for surface in SURFACES}
+                    classify([path]), {surface: True for surface in CLASSIFIED_SURFACES}
                 )
 
         python_requirements = classify(["bindings/python/requirements.txt"])
         self.assertTrue(python_requirements["python"])
 
     def test_rename_classifies_source_and_destination(self) -> None:
+        zero = b"0" * 40
+        blob = b"1" * 40
         completed = mock.Mock(
-            stdout=b"crates/eqiora/src/old.rs\0docs/architecture/old.md\0"
+            stdout=(
+                b":100644 000000 " + blob + b" " + zero + b" D\0"
+                b"tools/xtask/src/old.rs\0"
+                b":000000 100644 " + zero + b" " + blob + b" A\0"
+                b"docs/architecture/old.md\0"
+            )
         )
         with mock.patch(
             "classify_changes.subprocess.run", return_value=completed
         ) as run:
-            paths = changed_paths("base", "head")
+            paths, unsafe_mode = changed_paths("base", "head")
 
         self.assertEqual(
             run.call_args.args[0],
-            ["git", "diff", "--no-renames", "--name-only", "-z", "base...head"],
+            ["git", "diff", "--raw", "--no-renames", "-z", "base...head"],
         )
+        self.assertFalse(unsafe_mode)
         selected = classify(paths)
-        self.assertTrue(selected["rust"])
-        self.assertTrue(selected["msrv"])
+        self.assertTrue(selected["site"])
+
+    def test_deleted_site_input_still_selects_full_build(self) -> None:
+        completed = mock.Mock(
+            stdout=(
+                b":100644 000000 " + b"1" * 40 + b" " + b"0" * 40 + b" D\0"
+                b"tools/xtask/src/removed.rs\0"
+            )
+        )
+        with mock.patch("classify_changes.subprocess.run", return_value=completed):
+            paths, unsafe_mode = changed_paths("base", "head")
+        self.assertFalse(unsafe_mode)
+        self.assertTrue(classify(paths)["site"])
+
+    def test_site_classifier_failure_falls_back_to_full_build(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(CI_ROOT / "classify_changes.py"),
+                "--event",
+                "pull_request",
+                "--base",
+                "missing-base",
+                "--head",
+                "HEAD",
+            ],
+            cwd=REPOSITORY_ROOT,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("site=true", result.stdout)
+        self.assertIn("site_reason=classification failure: full build", result.stdout)
+        self.assertIn("failed closed", result.stderr)
+
+    @staticmethod
+    def _commit(repository: Path, message: str) -> str:
+        subprocess.run(["git", "add", "-A"], cwd=repository, check=True)
+        subprocess.run(["git", "commit", "-qm", message], cwd=repository, check=True)
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repository, text=True
+        ).strip()
+
+    @staticmethod
+    def _classify_repository(repository: Path, base: str, head: str) -> str:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(CI_ROOT / "classify_changes.py"),
+                "--event",
+                "pull_request",
+                "--base",
+                base,
+                "--head",
+                head,
+            ],
+            cwd=repository,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        return completed.stdout
+
+    def test_advanced_base_is_the_unchanged_site_content_authority(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as value:
+            repository = Path(value)
+            subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repository, check=True)
+            subprocess.run(["git", "config", "user.name", "oracle"], cwd=repository, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "oracle@example.invalid"],
+                cwd=repository,
+                check=True,
+            )
+            (repository / "README.md").write_text("base\n", encoding="utf-8")
+            branch_point = self._commit(repository, "branch point")
+            subprocess.run(["git", "switch", "-qc", "head"], cwd=repository, check=True)
+            (repository / "README.md").write_text("head\n", encoding="utf-8")
+            head = self._commit(repository, "irrelevant head")
+            subprocess.run(["git", "switch", "-q", "main"], cwd=repository, check=True)
+            site = repository / "docs/site"
+            site.mkdir(parents=True)
+            (site / "base.mdx").write_text("advanced base\n", encoding="utf-8")
+            base = self._commit(repository, "advance base")
+            subprocess.run(["git", "switch", "-q", "head"], cwd=repository, check=True)
+
+            rendered = self._classify_repository(repository, base, head)
+            self.assertNotEqual(base, branch_point)
+            self.assertIn("site=false", rendered)
+            self.assertIn(f"site_source_sha={base}", rendered)
+            self.assertNotIn(f"site_source_sha={branch_point}", rendered)
+            self.assertIn("site_reason=unchanged input closure", rendered)
+
+    def test_irrelevant_regular_change_skips_but_symlink_changes_build(self) -> None:
+        for mutation in ("regular", "symlink-add", "symlink-conversion"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory(
+                dir=Path.home()
+            ) as value:
+                repository = Path(value)
+                subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repository, check=True)
+                subprocess.run(["git", "config", "user.name", "oracle"], cwd=repository, check=True)
+                subprocess.run(
+                    ["git", "config", "user.email", "oracle@example.invalid"],
+                    cwd=repository,
+                    check=True,
+                )
+                studio = repository / "studio/src"
+                studio.mkdir(parents=True)
+                state = studio / "state.ts"
+                state.write_text("base\n", encoding="utf-8")
+                base = self._commit(repository, "base")
+                if mutation == "regular":
+                    state.write_text("head\n", encoding="utf-8")
+                elif mutation == "symlink-add":
+                    (studio / "link.ts").symlink_to("state.ts")
+                else:
+                    state.unlink()
+                    state.symlink_to("target.ts")
+                head = self._commit(repository, mutation)
+
+                rendered = self._classify_repository(repository, base, head)
+                if mutation == "regular":
+                    self.assertIn("site=false", rendered)
+                else:
+                    self.assertIn("site=true", rendered)
+                    self.assertIn(
+                        "site_reason=file mode or type change: full build", rendered
+                    )
 
     def test_full_run_selects_compatibility_matrix(self) -> None:
         selected = classify([], full=True)
         rendered = render_outputs("a" * 40, selected, full=True)
         self.assertIn('python_versions=["3.11","3.12","3.13","3.14"]', rendered)
+
+    def test_github_output_rejects_malformed_or_inconsistent_quick_decisions(
+        self,
+    ) -> None:
+        valid = render_outputs(
+            "a" * 40,
+            classify(["README.md"]),
+            full=False,
+            site_source_sha="b" * 40,
+            site_reason="unchanged input closure",
+        )
+        mutations = (
+            valid.replace("site_source_sha=" + "b" * 40, "site_source_sha=forged"),
+            valid.replace("site_reason=unchanged input closure", "site_reason=forged"),
+            valid + "\nsite=false",
+        )
+        with tempfile.TemporaryDirectory(dir=Path.home()) as value:
+            output = Path(value) / "github-output"
+            for mutation in mutations:
+                with self.subTest(mutation=mutation):
+                    with self.assertRaises(ValueError):
+                        append_github_outputs(output, mutation)
+                    self.assertFalse(output.exists())
+            append_github_outputs(output, valid)
+            self.assertEqual(output.read_text(encoding="utf-8"), valid + "\n")
 
     def test_python_host_evidence_is_selected_by_rust_or_python(self) -> None:
         for path in (
