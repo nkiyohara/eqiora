@@ -1,6 +1,9 @@
+import ast
+import inspect
 import subprocess
 import sys
 from importlib import metadata
+from pathlib import Path
 
 import pytest
 
@@ -38,6 +41,34 @@ for name in ("numpy", "torch", "jax", "cupy"):
         text=True,
         capture_output=True,
     )
+
+
+def test_compile_contract_is_claim_local_at_runtime_and_in_the_stub() -> None:
+    import eqiora
+
+    assert str(inspect.signature(eqiora.compile)) == (
+        "(source, *, filename='<memory>')"
+    )
+
+    stub = Path(eqiora.__file__).with_name("__init__.pyi")
+    syntax = ast.parse(stub.read_text(encoding="utf-8"), filename=str(stub))
+    declarations = [
+        node
+        for node in syntax.body
+        if isinstance(node, ast.FunctionDef) and node.name == "compile"
+    ]
+    assert len(declarations) == 1
+    declaration = declarations[0]
+    assert [argument.arg for argument in declaration.args.posonlyargs] == []
+    assert [argument.arg for argument in declaration.args.args] == ["source"]
+    assert [argument.arg for argument in declaration.args.kwonlyargs] == ["filename"]
+    assert declaration.args.vararg is None
+    assert declaration.args.kwarg is None
+    assert len(declaration.args.kw_defaults) == 1
+    assert ast.literal_eval(declaration.args.kw_defaults[0]) == "<memory>"
+    assert ast.unparse(declaration.args.args[0].annotation) == "str"
+    assert ast.unparse(declaration.args.kwonlyargs[0].annotation) == "str"
+    assert ast.unparse(declaration.returns) == "Model"
 
 
 def test_revision_identity_is_exact_across_artifact_replay() -> None:
