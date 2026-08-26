@@ -5,6 +5,7 @@
 //! count, approximation metric, and mesh-quality policy belongs only to this
 //! value.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::f64::consts::{PI, TAU};
 
 use eqiora_core::Diagnostic;
@@ -13,13 +14,17 @@ use eqiora_geometry::{
     CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, GeometryRevisionReference, NamedEntitySet,
     PlanarFace, PlanarRegion, VERTEX_DIMENSION,
 };
-use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
+use eqiora_meshing::{MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh};
+
+use crate::geometry_mesh_correspondence::planar_circular_hole_v2_correspondence::{
+    PlanarCircularHoleV2Reference, SourceFrontierLineage, SourceParentOutward,
+};
 
 const MINIMUM_SEGMENTS: usize = 8;
 const MAXIMUM_REFERENCE_SEGMENTS: usize = 100_000;
 const BINARY64_EVALUATION_ULPS: f64 = 128.0;
 const RECTANGLE_CORNER_COUNT: usize = 4;
-const EXACT_BOUNDARY_COUNT: usize = 5;
+pub(super) const EXACT_BOUNDARY_COUNT: usize = 5;
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_ARTIFACT, message)
@@ -36,6 +41,40 @@ pub(super) struct ChordalReference {
     circle_perimeter_deficit_m: f64,
     region: PlanarRegion,
     mesh: SimplicialMesh,
+}
+
+impl PlanarCircularHoleV2Reference {
+    pub(super) fn from_exact(
+        source: &CanonicalGeometryV1,
+        requested_max_boundary_error_m: f64,
+        max_segments: usize,
+        quality_gate: MeshQualityGate,
+    ) -> Result<Self, Diagnostic> {
+        let exact = ChordalSource::from_planar_circular_hole_v2(source)?;
+        let (circle_segments, circle, _) =
+            generate_circle(&exact, requested_max_boundary_error_m, max_segments)?;
+        let topology = build_reference_topology(&exact, circle_segments, circle, 0.0)?;
+        let mesh = SimplicialMesh::new(
+            2,
+            topology
+                .vertices
+                .iter()
+                .map(|coordinate| coordinate.to_vec())
+                .collect(),
+            topology.cells,
+            quality_gate,
+        )?;
+        let frontiers = source_frontier_lineage(&mesh, &topology.outer_frontiers, circle_segments)?;
+        let face_cells = (0..mesh.entity_count(FACE_DIMENSION).ok_or_else(|| {
+            invalid("source-owned circular-hole reference has no triangle stratum")
+        })?)
+            .collect();
+        Ok(Self {
+            mesh,
+            face_cells,
+            frontiers,
+        })
+    }
 }
 
 impl ChordalReference {
@@ -65,54 +104,31 @@ impl ChordalReference {
         quality_gate: MeshQualityGate,
     ) -> Result<Self, Diagnostic> {
         let exact = ChordalSource::from_exact(source)?;
-        validate_work_limit(max_segments)?;
+        let (circle_segments, circle, measurements) =
+            generate_circle(&exact, requested_max_boundary_error_m, max_segments)?;
         let evaluation_allowance_m = evaluation_allowance_m(&exact)?;
-        if !requested_max_boundary_error_m.is_finite()
-            || requested_max_boundary_error_m <= evaluation_allowance_m
-        {
-            return Err(invalid(format!(
-                "chordal circular-boundary error must be finite and greater than the \
-                 binary64 evaluation allowance {evaluation_allowance_m} m",
-            )));
-        }
-
-        let radius_m = exact.circle_radius_m();
-        let effective_error_m = requested_max_boundary_error_m - evaluation_allowance_m;
-        let mut circle_segments = stable_segment_count(radius_m, effective_error_m, max_segments)?;
-
-        let (circle, measurements) = loop {
-            let circle = sample_circle(&exact, circle_segments)?;
-            validate_circle_loop(exact.circle_center(), &circle)?;
-            let measurements = measure_circle(exact.circle_center(), radius_m, &circle)?;
-            let accepted_bound = measurements.boundary_deviation_m + evaluation_allowance_m;
-            if !accepted_bound.is_finite() {
-                return Err(invalid("chordal circular-boundary error bound overflows"));
-            }
-            if accepted_bound <= requested_max_boundary_error_m {
-                break (circle, measurements);
-            }
-            circle_segments = circle_segments
-                .checked_add(1)
-                .ok_or_else(|| invalid("chordal circular-boundary segment correction overflows"))?;
-            if circle_segments > max_segments {
-                return Err(invalid(format!(
-                    "chordal circular-boundary error requires more than the caller limit of \
-                     {max_segments} segments",
-                )));
-            }
-        };
 
         let boundary_error_bound_m = measurements.boundary_deviation_m + evaluation_allowance_m;
-        let (vertices, cells, unnamed_region) =
-            build_reference_topology(&exact, circle_segments, circle)?;
+        let topology =
+            build_reference_topology(&exact, circle_segments, circle, exact.tolerance_m())?;
+        let unnamed_region = PlanarRegion::new(
+            topology.vertices.clone(),
+            vec![PlanarFace::new(
+                topology.outer_loop,
+                vec![(0..circle_segments).collect()],
+            )],
+            Vec::new(),
+            exact.tolerance_m(),
+        )?;
         let region = attach_source_entity_sets(&exact, &unnamed_region)?;
         let mesh = SimplicialMesh::new(
             2,
-            vertices
+            topology
+                .vertices
                 .into_iter()
                 .map(|coordinate| coordinate.to_vec())
                 .collect(),
-            cells,
+            topology.cells,
             quality_gate,
         )?;
 
@@ -193,7 +209,7 @@ struct ChordalSource {
     bounds: [[f64; 2]; 2],
     circle_center: [f64; 2],
     circle_radius_m: f64,
-    tolerance_m: f64,
+    classification_tolerance_m: Option<f64>,
     entity_sets: Vec<NamedEntitySet>,
 }
 
@@ -215,7 +231,38 @@ impl ChordalSource {
             bounds: *bounds,
             circle_center,
             circle_radius_m,
-            tolerance_m,
+            classification_tolerance_m: Some(tolerance_m),
+            entity_sets: source.entity_sets().to_vec(),
+        })
+    }
+
+    fn from_planar_circular_hole_v2(source: &CanonicalGeometryV1) -> Result<Self, Diagnostic> {
+        let replayed = CanonicalGeometryV1::decode_planar_circular_hole_v2_canonical(
+            source.canonical_bytes(),
+            Default::default(),
+        )
+        .map_err(|_| {
+            invalid("source-owned correspondence requires planar circular-hole Geometry v2")
+        })?;
+        if replayed != *source {
+            return Err(invalid(
+                "source-owned correspondence Geometry v2 differs from canonical replay",
+            ));
+        }
+        let bounds = source
+            .circular_hole_bounds()
+            .ok_or_else(|| invalid("source-owned correspondence requires circular-hole bounds"))?;
+        let circle_center = source.circular_hole_center().ok_or_else(|| {
+            invalid("source-owned correspondence requires a circular-hole centre")
+        })?;
+        let circle_radius_m = source.circular_hole_radius_m().ok_or_else(|| {
+            invalid("source-owned correspondence requires a circular-hole radius")
+        })?;
+        Ok(Self {
+            bounds: *bounds,
+            circle_center,
+            circle_radius_m,
+            classification_tolerance_m: None,
             entity_sets: source.entity_sets().to_vec(),
         })
     }
@@ -233,11 +280,54 @@ impl ChordalSource {
     }
 
     const fn tolerance_m(&self) -> f64 {
-        self.tolerance_m
+        self.classification_tolerance_m
+            .expect("classification-bearing v1 source was admitted before region construction")
     }
 
     fn entity_sets(&self) -> &[NamedEntitySet] {
         &self.entity_sets
+    }
+}
+
+fn generate_circle(
+    exact: &ChordalSource,
+    requested_max_boundary_error_m: f64,
+    max_segments: usize,
+) -> Result<(usize, Vec<[f64; 2]>, CircleMeasurements), Diagnostic> {
+    validate_work_limit(max_segments)?;
+    let evaluation_allowance_m = evaluation_allowance_m(exact)?;
+    if !requested_max_boundary_error_m.is_finite()
+        || requested_max_boundary_error_m <= evaluation_allowance_m
+    {
+        return Err(invalid(format!(
+            "chordal circular-boundary error must be finite and greater than the \
+             binary64 evaluation allowance {evaluation_allowance_m} m",
+        )));
+    }
+
+    let radius_m = exact.circle_radius_m();
+    let effective_error_m = requested_max_boundary_error_m - evaluation_allowance_m;
+    let mut circle_segments = stable_segment_count(radius_m, effective_error_m, max_segments)?;
+    loop {
+        let circle = sample_circle(exact, circle_segments)?;
+        validate_circle_loop(exact.circle_center(), &circle)?;
+        let measurements = measure_circle(exact.circle_center(), radius_m, &circle)?;
+        let accepted_bound = measurements.boundary_deviation_m + evaluation_allowance_m;
+        if !accepted_bound.is_finite() {
+            return Err(invalid("chordal circular-boundary error bound overflows"));
+        }
+        if accepted_bound <= requested_max_boundary_error_m {
+            return Ok((circle_segments, circle, measurements));
+        }
+        circle_segments = circle_segments
+            .checked_add(1)
+            .ok_or_else(|| invalid("chordal circular-boundary segment correction overflows"))?;
+        if circle_segments > max_segments {
+            return Err(invalid(format!(
+                "chordal circular-boundary error requires more than the caller limit of \
+                 {max_segments} segments",
+            )));
+        }
     }
 }
 
@@ -393,7 +483,12 @@ struct CircleMeasurements {
     perimeter_deficit_m: f64,
 }
 
-type ReferenceTopologyBuild = (Vec<[f64; 2]>, Vec<Vec<usize>>, PlanarRegion);
+struct ReferenceTopologyBuild {
+    vertices: Vec<[f64; 2]>,
+    cells: Vec<Vec<usize>>,
+    outer_loop: Vec<usize>,
+    outer_frontiers: [Vec<[usize; 2]>; 4],
+}
 
 fn measure_circle(
     center: [f64; 2],
@@ -450,6 +545,7 @@ fn build_reference_topology(
     source: &ChordalSource,
     segments: usize,
     circle: Vec<[f64; 2]>,
+    corner_match_tolerance_m: f64,
 ) -> Result<ReferenceTopologyBuild, Diagnostic> {
     let vertex_capacity = segments
         .checked_mul(2)
@@ -461,24 +557,36 @@ fn build_reference_topology(
         .ok_or_else(|| invalid("chordal reference cell capacity overflows"))?;
     let mut vertices = Vec::with_capacity(vertex_capacity);
     vertices.extend(circle);
+    let mut outer_vertex_roles = vec![[false; 4]; segments];
     for index in 0..segments {
         let theta = TAU * index as f64 / segments as f64;
-        vertices.push(ray_rectangle_intersection(source, theta)?);
+        let (point, side) = ray_rectangle_intersection(source, theta)?;
+        vertices.push(point);
+        let mut roles = [false; 4];
+        roles[side] = true;
+        outer_vertex_roles.push(roles);
     }
 
     let corners = exact_rectangle_corners(source);
     let mut corner_indices = Vec::with_capacity(RECTANGLE_CORNER_COUNT);
-    for corner in corners {
+    let corner_roles = [[0, 2], [0, 3], [1, 2], [1, 3]];
+    for (corner, roles) in corners.into_iter().zip(corner_roles) {
+        let mut role_membership = [false; 4];
+        for role in roles {
+            role_membership[role] = true;
+        }
         let candidates = (segments..(2 * segments))
-            .filter(|&index| distance(vertices[index], corner) <= source.tolerance_m())
+            .filter(|&index| distance(vertices[index], corner) <= corner_match_tolerance_m)
             .collect::<Vec<_>>();
         match candidates.as_slice() {
             [] => {
                 corner_indices.push(vertices.len());
                 vertices.push(corner);
+                outer_vertex_roles.push(role_membership);
             }
             [index] => {
                 vertices[*index] = corner;
+                outer_vertex_roles[*index] = role_membership;
                 corner_indices.push(*index);
             }
             _ => {
@@ -523,16 +631,141 @@ fn build_reference_topology(
         }
     }
 
-    let unnamed_region = PlanarRegion::new(
-        vertices.clone(),
-        vec![PlanarFace::new(outer_loop, vec![(0..segments).collect()])],
-        Vec::new(),
-        source.tolerance_m(),
-    )?;
-    Ok((vertices, cells, unnamed_region))
+    let mut outer_frontiers: [Vec<[usize; 2]>; 4] = std::array::from_fn(|_| Vec::new());
+    for position in 0..outer_loop.len() {
+        let start = outer_loop[position];
+        let end = outer_loop[(position + 1) % outer_loop.len()];
+        let roles = (0..4)
+            .filter(|&role| outer_vertex_roles[start][role] && outer_vertex_roles[end][role])
+            .collect::<Vec<_>>();
+        let [role] = roles.as_slice() else {
+            return Err(invalid(
+                "constructed outer segment must retain exactly one source rectangle role",
+            ));
+        };
+        outer_frontiers[*role].push([start, end]);
+    }
+
+    Ok(ReferenceTopologyBuild {
+        vertices,
+        cells,
+        outer_loop,
+        outer_frontiers,
+    })
 }
 
-fn ray_rectangle_intersection(source: &ChordalSource, theta: f64) -> Result<[f64; 2], Diagnostic> {
+fn source_frontier_lineage(
+    mesh: &SimplicialMesh,
+    outer_frontiers: &[Vec<[usize; 2]>; 4],
+    circle_segments: usize,
+) -> Result<[Vec<SourceFrontierLineage>; EXACT_BOUNDARY_COUNT], Diagnostic> {
+    let facet_count = mesh
+        .entity_count(EDGE_DIMENSION)
+        .ok_or_else(|| invalid("source-owned circular-hole reference has no facet stratum"))?;
+    let mut facet_by_vertices = BTreeMap::new();
+    let mut mesh_boundary_facets = BTreeSet::new();
+    for facet_index in 0..facet_count {
+        let facet = MeshEntity::new(EDGE_DIMENSION, facet_index);
+        let vertices = mesh
+            .entity_vertices(facet)
+            .ok_or_else(|| invalid("source-owned reference facet has no vertex closure"))?;
+        let [first, second] = vertices.as_slice() else {
+            return Err(invalid(
+                "source-owned circular-hole reference facet is not a segment",
+            ));
+        };
+        facet_by_vertices.insert([first.index(), second.index()], facet_index);
+        if mesh.is_boundary_entity(facet) == Some(true) {
+            mesh_boundary_facets.insert(facet_index);
+        }
+    }
+
+    let mut source_segments: [Vec<[usize; 2]>; EXACT_BOUNDARY_COUNT] =
+        std::array::from_fn(|_| Vec::new());
+    for (side, segments) in outer_frontiers.iter().enumerate() {
+        source_segments[side].extend(segments.iter().copied());
+    }
+    for start in 0..circle_segments {
+        source_segments[4].push([start, (start + 1) % circle_segments]);
+    }
+
+    let mut assigned = BTreeSet::new();
+    let mut frontiers: [Vec<SourceFrontierLineage>; EXACT_BOUNDARY_COUNT] =
+        std::array::from_fn(|_| Vec::new());
+    for (source_edge, segments) in source_segments.into_iter().enumerate() {
+        if segments.is_empty() {
+            return Err(invalid(format!(
+                "source edge {source_edge} has no emitted reference frontier"
+            )));
+        }
+        for segment in segments {
+            let mut canonical = segment;
+            canonical.sort_unstable();
+            let facet_index = *facet_by_vertices.get(&canonical).ok_or_else(|| {
+                invalid("emitted source frontier is absent from reference Mesh topology")
+            })?;
+            if !assigned.insert(facet_index) || !mesh_boundary_facets.contains(&facet_index) {
+                return Err(invalid(
+                    "emitted source frontiers must uniquely partition reference Mesh boundary facets",
+                ));
+            }
+            frontiers[source_edge].push(SourceFrontierLineage {
+                facet_index,
+                parent_outward: parent_outward_from_topology(mesh, facet_index)?,
+            });
+        }
+        frontiers[source_edge].sort_by_key(|entry| entry.facet_index);
+    }
+    if assigned != mesh_boundary_facets {
+        return Err(invalid(
+            "emitted source frontiers do not completely cover reference Mesh boundary facets",
+        ));
+    }
+    Ok(frontiers)
+}
+
+fn parent_outward_from_topology(
+    mesh: &SimplicialMesh,
+    facet_index: usize,
+) -> Result<SourceParentOutward, Diagnostic> {
+    let facet = MeshEntity::new(EDGE_DIMENSION, facet_index);
+    let vertices = mesh
+        .entity_vertices(facet)
+        .ok_or_else(|| invalid("reference frontier has no vertex closure"))?;
+    let [first, second] = vertices.as_slice() else {
+        return Err(invalid("reference frontier is not a segment"));
+    };
+    let adjacent = mesh
+        .incidence(facet, FACE_DIMENSION)
+        .ok_or_else(|| invalid("reference frontier has no parent-cell incidence"))?;
+    let [parent] = adjacent.as_slice() else {
+        return Err(invalid(
+            "reference frontier must have exactly one parent-cell incidence",
+        ));
+    };
+    let cell = mesh
+        .cells()
+        .get(parent.entity.index())
+        .ok_or_else(|| invalid("reference frontier parent cell is unavailable"))?;
+    let canonical_forward = (0..cell.len()).any(|position| {
+        cell[position] == first.index() && cell[(position + 1) % cell.len()] == second.index()
+    });
+    let canonical_reverse = (0..cell.len()).any(|position| {
+        cell[position] == second.index() && cell[(position + 1) % cell.len()] == first.index()
+    });
+    match (canonical_forward, canonical_reverse) {
+        (true, false) => Ok(SourceParentOutward::RightOfCanonicalFacet),
+        (false, true) => Ok(SourceParentOutward::LeftOfCanonicalFacet),
+        _ => Err(invalid(
+            "reference frontier orientation is absent or ambiguous in its parent cell",
+        )),
+    }
+}
+
+fn ray_rectangle_intersection(
+    source: &ChordalSource,
+    theta: f64,
+) -> Result<([f64; 2], usize), Diagnostic> {
     let center = source.circle_center();
     let bounds = source.bounds();
     let direction = [theta.cos(), theta.sin()];
@@ -556,15 +789,21 @@ fn ray_rectangle_intersection(source: &ChordalSource, theta: f64) -> Result<[f64
     } else {
         (y_bound - center[1]) / direction[1]
     };
-    let hit = if x_time < y_time {
-        [x_bound, center[1] + x_time * direction[1]]
+    let (hit, side) = if x_time < y_time {
+        (
+            [x_bound, center[1] + x_time * direction[1]],
+            if direction[0] > 0.0 { 1 } else { 0 },
+        )
     } else {
-        [center[0] + y_time * direction[0], y_bound]
+        (
+            [center[0] + y_time * direction[0], y_bound],
+            if direction[1] > 0.0 { 3 } else { 2 },
+        )
     };
     if hit.iter().any(|coordinate| !coordinate.is_finite()) {
         return Err(invalid("radial rectangle intersection must remain finite"));
     }
-    Ok(hit)
+    Ok((hit, side))
 }
 
 fn attach_source_entity_sets(

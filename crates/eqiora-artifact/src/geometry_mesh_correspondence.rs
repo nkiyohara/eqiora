@@ -2,6 +2,8 @@
 
 #[path = "geometry_mesh_correspondence_sources.rs"]
 mod correspondence_sources;
+#[path = "geometry_mesh_correspondence_planar_circular_hole_v2.rs"]
+pub(crate) mod planar_circular_hole_v2_correspondence;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
@@ -384,8 +386,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     }
 
     /// Decode bounded wire data. Exact referenced resources remain untrusted
-    /// until [`Self::validate_against`] or [`Self::validate_against_region`]
-    /// succeeds for the encoded source.
+    /// until the matching source-specific replay validator succeeds.
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, or noncanonical data.
@@ -729,6 +730,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
         match &self.wire {
             WireCorrespondenceV1::Cartesian(wire) => validate_cartesian_wire(wire, limits),
             WireCorrespondenceV1::AuthoredRegion(wire) => wire.validate_local(limits),
+            WireCorrespondenceV1::PlanarCircularHoleV2(wire) => wire.validate_local(limits),
         }
     }
 }
@@ -822,13 +824,16 @@ fn validate_cartesian_wire(
 enum WireCorrespondenceV1 {
     Cartesian(WireGeometryMeshCorrespondenceV1),
     AuthoredRegion(correspondence_sources::WireAuthoredRegionCorrespondenceV1),
+    PlanarCircularHoleV2(
+        planar_circular_hole_v2_correspondence::WirePlanarCircularHoleV2CorrespondenceV1,
+    ),
 }
 
 impl WireCorrespondenceV1 {
     fn cartesian(&self) -> Option<&WireGeometryMeshCorrespondenceV1> {
         match self {
             Self::Cartesian(wire) => Some(wire),
-            Self::AuthoredRegion(_) => None,
+            Self::AuthoredRegion(_) | Self::PlanarCircularHoleV2(_) => None,
         }
     }
 
@@ -836,6 +841,7 @@ impl WireCorrespondenceV1 {
         match self {
             Self::Cartesian(wire) => &wire.geometry_sha256,
             Self::AuthoredRegion(wire) => &wire.geometry_sha256,
+            Self::PlanarCircularHoleV2(wire) => &wire.geometry_sha256,
         }
     }
 
@@ -843,6 +849,7 @@ impl WireCorrespondenceV1 {
         match self {
             Self::Cartesian(wire) => &wire.mesh_sha256,
             Self::AuthoredRegion(wire) => &wire.mesh_sha256,
+            Self::PlanarCircularHoleV2(wire) => &wire.mesh_sha256,
         }
     }
 }
