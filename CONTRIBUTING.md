@@ -18,13 +18,13 @@ high-risk capability work or explicitly parallel writes.
   their owning RFC or risk-focused review. The same primary agent may perform that review,
   approve, and merge; actor separation is not required. A filename or possible future use does
   not make a change high risk.
-- Under [RFC 0088](rfcs/0088-freeze-evidence-development.md), preserve and run accepted evidence
-  unchanged. Do not add or change a case, oracle, expected value, tolerance, falsifier, exact
-  inventory, projection, schema, or evidence infrastructure. Use focused product tests and leave
-  new verification absent unless pre-freeze evidence already proves the exact claim.
-- Before 1.0, converge authoring APIs on one coherent final surface rather than preserving old
-  callers. Migrate all repository-owned consumers atomically and remove displaced names, aliases,
-  overloads, and deprecation shims; explicit persisted/versioned contracts keep their own rules.
+- Under [RFC 0089](rfcs/0089-resume-claim-local-evidence-development.md), registered evidence is
+  independently derived and claim-local. Use semantic projections instead of pinning unrelated
+  whole files or inventories; exact bytes are evidence only when byte identity is the claim.
+- Before 1.0, converge APIs and schemas on one coherent final surface rather than preserving old
+  callers or inputs. Migrate all repository-owned consumers and evidence atomically and remove
+  displaced names, schemas, aliases, overloads, decoders, and deprecation shims. Only an explicit
+  stable or external interoperability promise retains compatibility.
 - Do not add a Semantic Kernel node for UI or adapter convenience. First show
   why a typed named subgraph cannot express the concept.
 - Open an Issue only when alternatives need coordination, the work has durable

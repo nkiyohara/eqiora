@@ -1,10 +1,13 @@
 # RFC 0088: Freeze technical evidence development
 
-- Status: Accepted
+- Status: Superseded by [RFC 0089](0089-resume-claim-local-evidence-development.md)
 - Authors: Eqiora contributors
 - Created: 2026-08-25
 - Supersedes in part: [RFC 0087](0087-one-pass-development-default.md), evidence-authoring policy
 - Related: [AI-authored platform strategy](../docs/development/ai-authored-platform-strategy.md)
+
+> Historical record only. The repository-wide freeze ended on 2026-08-26. RFC 0089 is the
+> active evidence-development policy; none of the prohibitions below governs current work.
 
 ## Summary
 

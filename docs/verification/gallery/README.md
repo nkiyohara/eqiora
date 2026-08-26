@@ -1,7 +1,7 @@
 # Evidence gallery experience contract
 
 The gallery is a publication surface over real Eqiora Results: either clearly labelled
-unverified product examples or unchanged pre-freeze accepted scientific results. It is not
+unverified product examples or accepted scientific results. It is not
 another result store, benchmark registry, or capability authority.
 Registered manifests under [`verify/`](../../../verify/) own executable
 evidence, the [benchmark roadmap](../benchmark-roadmap.md) owns case status,
@@ -9,13 +9,11 @@ and the [capability matrix](../../capability-matrix.md) indexes supported
 claims. These experience specifications own only the public story and the
 conditions under which that story may be published.
 
-Evidence development is frozen as of 2026-08-25. Existing accepted Results and registered cases
-may still be published unchanged, but no new candidate oracle, tolerance, falsifier, registered
-case, exact inventory, or evidence mechanism is created. New gallery entries may ship as clearly
-labelled product examples backed by focused tests; they remain unverified and are not promoted as
-accepted scientific results unless unchanged pre-freeze evidence already supports the exact
-claim. The candidate requirements below apply only to pre-freeze accepted campaigns and future
-work after an explicit scoped unfreeze.
+Evidence development is active under [RFC 0089](../../../rfcs/0089-resume-claim-local-evidence-development.md).
+New entries may ship first as clearly labelled product examples and later become accepted
+scientific results when reproducible, independently derived evidence supports the exact claim.
+Candidate oracles and falsifiers bind claim-local semantic projections; they do not pin unrelated
+whole files, generated trees, or broad inventories.
 
 The eight retained flagship experiences are:
 
@@ -40,9 +38,9 @@ experiences add independent physics and scale.
 
 ## Heavy result production
 
-Do not start a new heavy candidate or evidence lane during the freeze. Product-resolution output
-may be shown only as an unverified development example unless it is an unchanged projection of a
-pre-freeze accepted Result.
+Start a heavy candidate only for a real gallery claim whose production-scale acceptance cannot be
+established in ordinary PR conformance. Product-resolution output remains an unverified example
+until that candidate is accepted.
 
 Production-resolution solves, refinement campaigns, and complete media encodes
 are governed by three separate authorities:
@@ -51,7 +49,7 @@ are governed by three separate authorities:
    manufactured witnesses, admission mutants, and bounded renderer fixtures to
    exercise the ordinary implementation path cheaply. It does not accept or
    claim the production gallery result.
-2. **Exact-head scientific candidates** run the full frozen scientific
+2. **Exact-head scientific candidates** run the full fixed scientific
    campaign explicitly for one final source revision in its declared trusted
    environment. Before the run, the claim, independent oracle, tolerances, and
    stop conditions are fixed; the candidate is accepted before the experience
@@ -108,7 +106,7 @@ predicate below.
 
 ### Unverified product example
 
-A new public gallery entry may ship during the freeze when it supplies:
+A new public gallery entry may ship as an unverified product example when it supplies:
 
 - a real bounded Model--Plan--Run--Result workflow through the supported product surface;
 - focused positive and failure tests for that workflow;
@@ -123,10 +121,9 @@ acceptance language.
 
 ### Accepted scientific result
 
-An entry may retain accepted-result status only as an unchanged projection of a pre-freeze
-accepted Result or trajectory. Its existing Model--Realization--Run--Result lineage, registered
-evidence, public claim, non-claims, media integrity records, and accessibility assets remain
-fixed and resolvable. A new implementation cannot enter this class during the freeze.
+An entry gains accepted-result status when its Model--Realization--Run--Result lineage,
+independently derived registered evidence, public claim, non-claims, media integrity records, and
+accessibility assets are complete, fixed for the candidate, and reproducible.
 
 Synthetic or incomplete mockups remain visibly marked development previews. They are distinct
 from real unverified product examples. A gallery entry never becomes evidence merely because its
@@ -166,7 +163,7 @@ Run, Result, or trajectory contracts as the product and Studio. It does not
 recreate missing meaning in Python. A repository-only Rust executable, private
 Studio bridge, or re-authored demo dataset may help development, but does not
 complete the workflow. Focused Rust/Python tests cover the product path; they do not become
-scientific evidence. Existing pre-freeze evidence may separately support an unchanged claim.
+scientific evidence. Registered evidence may separately support the exact claim.
 
 ## Film grammar
 
@@ -204,12 +201,12 @@ geometry, primary quantity, physical state, decisive observable, and either the 
 or the existing accepted-result link. Color is never the only carrier of state. Keyboard and
 screen-reader users can reach the same product details without traversing video controls.
 
-Normal site asset-integrity checks apply to unverified examples without becoming evidence or an
-exact-inventory oracle. Existing accepted-result media retains its pre-freeze integrity records.
+Normal site asset-integrity checks apply to unverified examples without becoming scientific
+evidence. Accepted-result media retains its claim-local integrity records.
 
-## Pre-freeze accepted-result dossier (frozen)
+## Accepted-result dossier
 
-Only an unchanged pre-freeze accepted scientific result carries an evidence dossier. Its dossier
+Only an accepted scientific result carries an evidence dossier. Its dossier
 distinguishes four evidence kinds rather than collapsing them into one badge:
 
 - analytic or manufactured code verification;
@@ -224,9 +221,9 @@ licensing. Design guidance, such as a shell knockdown-factor recommendation,
 is labelled as guidance rather than an exact oracle. A numerical community
 benchmark, such as Turek--Hron FSI3, is not labelled experimental validation.
 
-Do not create, extend, or update a dossier, derivation, acceptance band, or oracle during the
-freeze. An unverified product example instead publishes its invocation, quantities, units,
-focused-test boundary, and explicit scientific non-claims.
+Create or update a dossier only from independently derived, claim-local evidence. An unverified
+product example instead publishes its invocation, quantities, units, focused-test boundary, and
+explicit scientific non-claims.
 
 ## Publication progression
 
@@ -240,8 +237,8 @@ An unverified product example moves through:
    pass ordinary site checks; and
 5. **published** -- the example is deployed.
 
-An unchanged pre-freeze accepted scientific result retains its already accepted evidence-ready,
-result-ready, and publication records. No new entry enters that track during the freeze.
+An accepted scientific result retains its accepted evidence-ready, result-ready, and publication
+records. A new entry enters that track only after all corresponding acceptance obligations pass.
 
 No earlier state implies a later one. In particular, these future-state
 experience specifications do not change any capability or benchmark status.

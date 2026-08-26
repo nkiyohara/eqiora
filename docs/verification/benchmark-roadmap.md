@@ -5,11 +5,10 @@ broader than the active implementation roadmap and is not a support matrix.
 Each case remains `proposed` until the evidence required by a higher status
 exists.
 
-Evidence development is frozen as of 2026-08-25. Proposed cases may still become `specified` or
-`implemented` through product work and focused tests, but they do not gain new `verified` or
-`validated` status during the freeze unless unchanged pre-freeze evidence already proves the
-exact claim. This roadmap does not authorize new cases, oracles, expected values, tolerances,
-falsifiers, exact inventories, or evidence mechanisms.
+Evidence development is active under [RFC 0089](../../rfcs/0089-resume-claim-local-evidence-development.md).
+Cases advance to `verified` or `validated` only through reproducible evidence independently
+derived for their exact claim. A roadmap entry may motivate that evidence, but it does not bypass
+the registered `verify/` authority or justify a duplicate registry.
 
 ## Why the portfolio is layered
 
@@ -41,8 +40,8 @@ publication-readiness states do not change a case's status here.
 | `proposed` | A useful candidate with a stated capability target |
 | `specified` | Product equations, geometry, data, boundary conditions, and displayed quantities are fixed; no new acceptance oracle or tolerance is implied |
 | `implemented` | The canonical model executes reproducibly and focused product tests cover the declared path |
-| `verified` | Pre-freeze registered evidence proves the exact declared analytic/manufactured, convergence, conservation, and tolerance claim |
-| `validated` | Pre-freeze accepted evidence compares the verified model with licensed experimental or community data in a declared range |
+| `verified` | Registered independently derived evidence proves the exact declared analytic/manufactured, convergence, conservation, and tolerance claim |
+| `validated` | Accepted evidence compares the verified model with licensed experimental or community data in a declared range |
 
 Status is monotone only while its evidence remains reproducible. A regression
 may demote a case. Merely producing a plausible plot never establishes
@@ -317,14 +316,13 @@ error, overshoot/undershoot, and a norm appropriate to nonsmooth solutions.
 | `multiscale.periodic-cell` | Periodic homogenization cell | periodic BC and effective tensor | `proposed` |
 | `multiscale.fe2-bar` | FE² bar/material point | nested solve, batching, surrogate fallback | `proposed` |
 
-## Frozen registered cases
+## Registered cases
 
-Pre-freeze implemented and verified cases under `verify/` retain their existing manifests,
-references, expected data, and runner behavior unchanged. Do not copy their package structure for
-a new roadmap entry during the freeze. A new `implemented` entry lives in the ordinary product,
-example, or gallery surface with focused tests; it does not add a `verify/` directory or acceptance
-tolerance. The existing command and report format remains documented in the
-[verification runner guide](runner.md) only for running accepted cases.
+Cases under `verify/` own executable scientific and durable artifact claims. Add a case only when
+its independently derived oracle or falsifier can expose a mistake that ordinary focused product
+tests cannot. Bind the smallest relevant semantic projection, and do not copy another package's
+structure or broad inventory merely to create a roadmap entry. The command and report format is
+documented in the [verification runner guide](runner.md).
 
 ## Reference and licensing policy
 
@@ -341,8 +339,8 @@ tolerance. The existing command and report format remains documented in the
 ## Promotion rule
 
 A roadmap entry advances to `specified` or `implemented` when its product inputs, outputs, and
-focused tests are reviewable. It does not advance to `verified` or `validated` without unchanged
-applicable pre-freeze evidence. New physics does not add an analytic/manufactured evidence case
-during the freeze. No benchmark may require an example-specific Semantic Kernel node;
+focused tests are reviewable. It advances to `verified` or `validated` only when independently
+derived, reproducible evidence supports the exact claim. No benchmark may require an
+example-specific Semantic Kernel node;
 differences must be expressed through relations, activations, connections, clocks, ontology
 views, and realizations.

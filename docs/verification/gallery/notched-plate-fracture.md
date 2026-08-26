@@ -1,9 +1,8 @@
 # Notched-plate phase-field fracture experience
 
-Under RFC 0088, implement and publish this only as an **Unverified product example** unless it is
-an unchanged projection of a pre-freeze accepted Result. Every later evidence, oracle, falsifier,
-candidate, acceptance, or promotion requirement is frozen historical scope and does not block
-the unverified product path. Do not create or update that evidence.
+Implement and publish this first as an **Unverified product example**. Promote it only after its
+claim-local candidate, independent oracle, falsifiers, and acceptance requirements pass under
+RFC 0089; evidence work must not block the earlier product path.
 
 Status: future-state experience contract. It does not advance a fracture
 capability or benchmark.
@@ -34,7 +33,7 @@ fracture, or general topology change.
 Displacement may be geometrically shown at a fixed labelled scale, but it does
 not become a simultaneous color field.
 
-## Pre-freeze accepted-result evidence (frozen)
+## Accepted-result evidence plan
 
 The prerequisite ladder verifies elasticity, phase-field regularization,
 variational derivatives, the coupled/staggered solve actually selected,

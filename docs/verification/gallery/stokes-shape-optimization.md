@@ -1,9 +1,8 @@
 # Stokes exact-area dissipation shape-optimization experience
 
-Under RFC 0088, implement and publish this only as an **Unverified product example** unless it is
-an unchanged projection of a pre-freeze accepted Result. Every later evidence, oracle, falsifier,
-candidate, acceptance, or promotion requirement is frozen historical scope and does not block
-the unverified product path. Do not create or update that evidence.
+Implement and publish this first as an **Unverified product example**. Promote it only after its
+claim-local candidate, independent oracle, falsifiers, and acceptance requirements pass under
+RFC 0089; evidence work must not block the earlier product path.
 
 Status: future-state experience contract. It narrows, but does not advance,
 `optimization.stokes-cell-dissipation`. The deferred Richardson/physical-drag
@@ -44,7 +43,7 @@ Iteration sampling is explicit. The film does not imply that omitted accepted
 or rejected trials were never executed, and rejected trials remain part of
 the admitted history.
 
-## Pre-freeze accepted-result evidence (frozen)
+## Accepted-result evidence plan
 
 Dual independent routes precommit and reconcile the exact polar-area identity,
 complete discrete Stokes dissipation and reduced derivative, units, gradient-
