@@ -12,7 +12,7 @@ const PACKAGED_MODEL: &[u8] =
     include_bytes!("../../../../examples/steady-flow-past-cylinder.model.json");
 const PACKAGED_MODEL_DIGEST: &str =
     "8bc5155bc1b64ed37f7a2ac010a966e1619091a118e6cf7806dbdf9621977146";
-const ACCEPTED_COMPONENT_SOURCE: &str = include_str!("accepted_component.eqi");
+pub(crate) const ACCEPTED_COMPONENT_SOURCE: &str = include_str!("accepted_component.eqi");
 const DYNAMIC_VISCOSITY: DimExponents = DimExponents {
     mass: 1,
     length: -1,
@@ -21,7 +21,7 @@ const DYNAMIC_VISCOSITY: DimExponents = DimExponents {
 };
 
 #[derive(Debug)]
-struct ResolveOnlyBackend;
+pub(crate) struct ResolveOnlyBackend;
 
 impl LinearSolverBackend for ResolveOnlyBackend {
     fn provider(&self) -> SolverProvider {
@@ -49,7 +49,7 @@ impl LinearSolverBackend for ResolveOnlyBackend {
     }
 }
 
-fn accepted_source() -> CanonicalGeometryV1 {
+pub(crate) fn accepted_source() -> CanonicalGeometryV1 {
     CanonicalGeometryV1::from_circular_hole(
         [[0.0, 2.2], [0.0, 0.41]],
         [0.2, 0.2],
@@ -66,7 +66,7 @@ fn accepted_source() -> CanonicalGeometryV1 {
     .expect("accepted exact-cylinder source")
 }
 
-fn accepted_realization() -> AcceptedCircularHoleChordalRealizationV1 {
+pub(crate) fn accepted_realization() -> AcceptedCircularHoleChordalRealizationV1 {
     let source = accepted_source();
     AcceptedCircularHoleChordalRealizationV1::from_reference(
         &source,
@@ -78,7 +78,7 @@ fn accepted_realization() -> AcceptedCircularHoleChordalRealizationV1 {
     .expect("accepted exact-cylinder realization")
 }
 
-fn authored_model(
+pub(crate) fn authored_model(
     component_source: &str,
     values: [f64; 4],
     reverse_bindings: bool,
@@ -314,7 +314,7 @@ fn unsupported_model_meaning_rejects_for_semantic_reasons_before_plan_publicatio
 }
 
 #[test]
-fn unsupported_policy_rejects_before_model_admission() {
+fn unsupported_policy_rejects_after_model_admission_without_fallback() {
     let model = authored_model(ACCEPTED_COMPONENT_SOURCE, [1.0e-3, 0.0, 0.3, 0.41], false);
     let intent = SteadyStokesIntent2d::new(
         0.41,
@@ -335,6 +335,6 @@ fn unsupported_policy_rejects_before_model_admission() {
     assert_eq!(error.code(), codes::NOT_IMPLEMENTED);
     assert_eq!(
         error.message(),
-        "the accepted steady-Stokes application does not implement this intent without fallback"
+        "steady Stokes admits only the existing scaling and SparseLU/Identity/Fast policy"
     );
 }

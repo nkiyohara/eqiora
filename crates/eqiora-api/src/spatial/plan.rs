@@ -1,14 +1,16 @@
 //! What a scalar-elliptic run is asked to do, and how it is steered.
 //!
-//! Everything here is settled before any allocation: the intent a client
+//! Everything here is settled before numerical allocation: the intent a client
 //! proposes, the environment it may run in, the accepted plan that results, and
-//! the observer handles through which a caller watches or cancels the run. None
-//! of it touches a mesh, an assembler, or a solver.
+//! the observer handles through which a caller watches or cancels the run. The
+//! Plan retains its compressed Mesh; none of this touches an assembler or solver.
 
 use super::diagnostic::{capability_error, run_manifest_error, single};
 use super::execution::{host_executor, scalar_elliptic_execution_provenance};
 use super::field::{CartesianScalarFieldProjection, ScalarEllipticRunResult};
-use eqiora_artifact::{JsonDecoderLimits, RealizationEnvelopeV1, RunManifestV2};
+use eqiora_artifact::{
+    CartesianMeshEnvelopeV1, JsonDecoderLimits, ModelEnvelope, RealizationEnvelopeV1, RunManifestV2,
+};
 use eqiora_core::Diagnostic;
 use eqiora_realization::{
     DiscretizationMethod, PortableRealizationGraph, QuadraturePolicy, RealizationPlan,
@@ -157,6 +159,9 @@ impl ScalarEllipticExecutionEnvironment {
 /// Exact content-addressed plan admitted before numerical allocation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScalarEllipticRunPlan {
+    pub(super) model: ModelEnvelope,
+    pub(super) mesh: CartesianMeshEnvelopeV1,
+    pub(super) admission: crate::capability_resolution::NativeAdmission,
     pub(super) model_digest: String,
     pub(super) intent: ScalarEllipticIntent,
     pub(super) environment: ScalarEllipticExecutionEnvironment,
@@ -373,7 +378,7 @@ impl ScalarEllipticRunObserver for UninterruptedScalarEllipticRun {
     }
 }
 
-pub(super) fn resource_shape(
+pub(crate) fn resource_shape(
     intent: ScalarEllipticIntent,
     dimension: NonZeroUsize,
 ) -> Result<(usize, usize), Vec<Diagnostic>> {

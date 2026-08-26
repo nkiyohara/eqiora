@@ -6,6 +6,7 @@
 //! UI-specific ergonomics around these owned Rust values.
 
 mod cad;
+mod capability_resolution;
 pub mod control;
 mod differentiation;
 mod elasticity;

@@ -34,6 +34,9 @@ use eqiora_solver::{
 };
 
 use crate::UnstructuredP1ScalarFieldProjection2d;
+use crate::capability_resolution::{
+    NativeAdmission, NativeMesh, NativePlacement, NativeScalingPolicy, NativeSpatialPolicy, admit,
+};
 
 const ACCEPTED_SOURCE_DIGEST: &str =
     "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9";
@@ -140,6 +143,7 @@ pub struct ResolvedSteadyStokesPlan2d {
     pressure_space: Space,
     solver_provider: SolverProvider,
     solver_capabilities: SolverCapabilities,
+    admission: NativeAdmission,
 }
 
 impl ResolvedSteadyStokesPlan2d {
@@ -154,9 +158,20 @@ impl ResolvedSteadyStokesPlan2d {
         accepted: &AcceptedCircularHoleChordalRealizationV1,
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        require_supported_intent(intent)?;
         let solver_provider = backend.provider();
         let solver_capabilities = backend.capabilities();
+        let admission = admit(
+            model,
+            NativeMesh::CircularHole(accepted),
+            NativeSpatialPolicy::MiniP1,
+            NativeScalingPolicy::Incompressible(intent.scales()),
+            intent.solver(),
+            solver_provider,
+            solver_capabilities.clone(),
+            NativePlacement::HostCpu {
+                workers: NonZeroUsize::MIN,
+            },
+        )?;
         let (_, _, resolved, realization) = resolve_application(model, accepted, intent, backend)?;
         if backend.provider() != solver_provider || backend.capabilities() != solver_capabilities {
             return Err(internal_failure(
@@ -174,6 +189,7 @@ impl ResolvedSteadyStokesPlan2d {
             pressure_space,
             solver_provider,
             solver_capabilities,
+            admission,
         })
     }
 
@@ -191,6 +207,23 @@ impl ResolvedSteadyStokesPlan2d {
         {
             return Err(invalid_reference_input(
                 "resolved steady-Stokes Plan requires the admitted solver provider release and capabilities",
+            ));
+        }
+        let admission = admit(
+            &self.model,
+            NativeMesh::CircularHole(&self.accepted),
+            NativeSpatialPolicy::MiniP1,
+            NativeScalingPolicy::Incompressible(self.intent.scales()),
+            self.intent.solver(),
+            backend.provider(),
+            backend.capabilities(),
+            NativePlacement::HostCpu {
+                workers: NonZeroUsize::MIN,
+            },
+        )?;
+        if admission != self.admission {
+            return Err(internal_failure(
+                "steady-Stokes numerical admission changed between resolution and execution",
             ));
         }
         let (program, binding, resolved, realization) =
@@ -537,15 +570,7 @@ fn resolve_application(
     Diagnostic,
 > {
     require_supported_intent(intent)?;
-    require_accepted_inputs(model, accepted)?;
-    let program = replay_program(model, accepted.source())?;
-    if program.revision().0 != ACCEPTED_SEMANTIC_REVISION {
-        return Err(invalid_reference_input(format!(
-            "exact-cylinder reference Model must replay semantic revision \
-             {ACCEPTED_SEMANTIC_REVISION}"
-        )));
-    }
-    let binding = SteadyStokesGeometryBinding2d::new(&program, accepted.clone())?;
+    let (program, binding) = recognize_model_and_mesh(model, accepted)?;
     let solver = intent.solver();
     let fieldwise = binding.mini_plan(
         accepted.mesh().artifact_reference()?,
@@ -583,6 +608,22 @@ fn resolve_application(
         ));
     }
     Ok((program, binding, resolved, realization))
+}
+
+pub(crate) fn recognize_model_and_mesh(
+    model: &ModelEnvelope,
+    accepted: &AcceptedCircularHoleChordalRealizationV1,
+) -> Result<(KernelProgram, SteadyStokesGeometryBinding2d), Diagnostic> {
+    require_accepted_inputs(model, accepted)?;
+    let program = replay_program(model, accepted.source())?;
+    if program.revision().0 != ACCEPTED_SEMANTIC_REVISION {
+        return Err(invalid_reference_input(format!(
+            "exact-cylinder reference Model must replay semantic revision \
+             {ACCEPTED_SEMANTIC_REVISION}"
+        )));
+    }
+    let binding = SteadyStokesGeometryBinding2d::new(&program, accepted.clone())?;
+    Ok((program, binding))
 }
 
 fn resolved_mini_spaces(
@@ -626,7 +667,7 @@ fn first_diagnostic(diagnostics: Vec<Diagnostic>) -> Diagnostic {
     })
 }
 
-fn reference_intent() -> Result<SteadyStokesIntent2d, Diagnostic> {
+pub(crate) fn reference_intent() -> Result<SteadyStokesIntent2d, Diagnostic> {
     SteadyStokesIntent2d::new(
         0.41,
         0.3,
@@ -687,4 +728,4 @@ fn invalid_reference_input(message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 #[path = "steady_stokes/tests.rs"]
-mod tests;
+pub(crate) mod tests;

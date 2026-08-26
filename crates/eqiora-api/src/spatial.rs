@@ -29,15 +29,18 @@ use execution::{
     solve_finalized_controlled, threaded_solve_controlled, validate_scalar_elliptic_solution,
 };
 use field::{scalar_field_projection, summarize};
-use plan::{UninterruptedScalarEllipticRun, resource_shape};
+use plan::UninterruptedScalarEllipticRun;
+pub(crate) use plan::resource_shape;
 use std::num::NonZeroUsize;
 use std::time::Instant;
 
+use eqiora_artifact::{
+    CartesianMeshEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV1,
+};
 #[cfg(test)]
 use eqiora_artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, JsonDecoderLimits, RunManifestV2,
 };
-use eqiora_artifact::{LayoutArtifacts, RealizationEnvelopeV1};
 #[cfg(all(test, feature = "rayon"))]
 use eqiora_backend_rayon::CpuThreadPool;
 use eqiora_core::Diagnostic;
@@ -46,6 +49,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_execution::DeploymentBinding;
 #[cfg(all(test, feature = "rayon"))]
 use eqiora_execution::HostExecutorDescriptor;
+use eqiora_meshing::CartesianMesh;
 use eqiora_numerics::{
     scalar::finalize_resolved_scalar_elliptic_cartesian, scalar::lower_scalar_elliptic_cartesian,
 };
@@ -67,17 +71,34 @@ use eqiora_solver::{
     ExecutionProvider, REFERENCE_SOLVER_PROVIDER, ReductionPolicy, SERIAL_EXECUTION_PROVIDER,
     SolverProvider,
 };
-use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
-};
+use eqiora_solver::{LinearOperatorProperties, REFERENCE_LINEAR_SOLVER, ScalarType};
 #[cfg(test)]
 use execution::provider_execution_provenance;
 
 use crate::ModelDocument;
+use crate::capability_resolution::{
+    NativeMesh, NativePlacement, NativeScalingPolicy, NativeSpatialPolicy, admit, scalar_solver,
+};
+
+fn generated_cartesian_mesh(
+    bounds: &[[f64; 2]],
+    intent: ScalarEllipticIntent,
+) -> Result<CartesianMeshEnvelopeV1, Vec<Diagnostic>> {
+    let dimension = NonZeroUsize::new(bounds.len()).ok_or_else(|| {
+        single(capability_error(
+            "a scalar-elliptic Cartesian Mesh requires at least one dimension",
+        ))
+    })?;
+    resource_shape(intent, dimension)?;
+    let extents = vec![intent.cells_per_axis.get(); dimension.get()];
+    let mesh = CartesianMesh::uniform(bounds, &extents).map_err(single)?;
+    CartesianMeshEnvelopeV1::from_mesh(&mesh).map_err(single)
+}
 
 impl ModelDocument {
-    /// Resolve one explicit scalar-elliptic Realization without allocating its
-    /// mesh, matrix, worker pool, or result buffers.
+    /// Resolve one explicit scalar-elliptic Realization and retain its exact
+    /// axis-compressed Cartesian Mesh without allocating a matrix, worker pool,
+    /// or result buffers.
     ///
     /// # Errors
     /// Returns one structured lowering, resource, artifact, or capability
@@ -86,6 +107,17 @@ impl ModelDocument {
         &self,
         intent: ScalarEllipticIntent,
         environment: ScalarEllipticExecutionEnvironment,
+    ) -> Result<ScalarEllipticRunPlan, Vec<Diagnostic>> {
+        let lowered = lower_scalar_elliptic_cartesian(self.program()).map_err(single)?;
+        let mesh = generated_cartesian_mesh(lowered.bounds(), intent)?;
+        self.preview_scalar_elliptic_run_on_mesh(intent, environment, mesh)
+    }
+
+    fn preview_scalar_elliptic_run_on_mesh(
+        &self,
+        intent: ScalarEllipticIntent,
+        environment: ScalarEllipticExecutionEnvironment,
+        mesh: CartesianMeshEnvelopeV1,
     ) -> Result<ScalarEllipticRunPlan, Vec<Diagnostic>> {
         let model_reference = self.artifact_reference().map_err(single)?;
         if !environment.supports(intent.workers) {
@@ -110,11 +142,20 @@ impl ModelDocument {
         let (cell_count, field_value_count) = resource_shape(intent, dimension)?;
         let field_projection =
             scalar_field_projection(self, &model, intent, field_value_count).map_err(single)?;
-        let solver = SolverPlan::new(
-            LinearSolver::ConjugateGradient,
-            1.0e-10,
-            1.0e-12,
-            NonZeroUsize::new(10_000).expect("10,000 is non-zero"),
+        let solver = scalar_solver().map_err(single)?;
+        let model_envelope = ModelEnvelope::from_program(self.program()).map_err(single)?;
+        let executor = host_executor(environment, intent.workers);
+        let admission = admit(
+            &model_envelope,
+            NativeMesh::Cartesian(&mesh),
+            NativeSpatialPolicy::from_scalar_intent(intent),
+            NativeScalingPolicy::None,
+            solver,
+            executor.solver_provider(),
+            executor.solver_capabilities().clone(),
+            NativePlacement::HostCpu {
+                workers: intent.workers,
+            },
         )
         .map_err(single)?;
         let plan = RealizationPlan::new(
@@ -162,6 +203,9 @@ impl ModelDocument {
         .map_err(single)?;
         let key = artifact.digest().map_err(single)?.to_string();
         Ok(ScalarEllipticRunPlan {
+            model: model_envelope,
+            mesh,
+            admission,
             model_digest: self.digest().map_err(single)?,
             intent,
             environment,
@@ -259,10 +303,21 @@ impl ModelDocument {
         controlled_started: Instant,
         observer: &mut impl ScalarEllipticRunObserver,
     ) -> Result<ControlledScalarEllipticExecution, Vec<Diagnostic>> {
-        let replayed = self.preview_scalar_elliptic_run(accepted.intent, environment)?;
+        let current_model = ModelEnvelope::from_program(self.program()).map_err(single)?;
+        if current_model != accepted.model {
+            return Err(single(capability_error(
+                "scalar-elliptic Plan belongs to a foreign Model",
+            )));
+        }
+        let replayed = self.preview_scalar_elliptic_run_on_mesh(
+            accepted.intent,
+            environment,
+            accepted.mesh.clone(),
+        )?;
         if replayed.key != accepted.key
             || replayed.artifact != accepted.artifact
             || replayed.portable != accepted.portable
+            || replayed.admission != accepted.admission
         {
             return Err(single(capability_error(
                 "scalar-elliptic Realization no longer matches its accepted artifact",
@@ -335,6 +390,21 @@ mod tests {
 
     const POISSON_2D: &str =
         include_str!("../../../verify/numerics/cartesian-poisson-fem-fvm/models/poisson.eqi");
+    const PRIVATE_MESH_REPLAY_SCALAR: &str = r#"
+model private_mesh_replay_scalar {
+  domain interval = box(0, 1);
+  domain lower_end = boundary(interval, axis = 0, side = lower);
+  domain upper_end = boundary(interval, axis = 0, side = upper);
+  representation scalar_space = continuum;
+  field potential on interval as scalar_space: 1 = 0;
+  parameter source_scale: 1 / m ^ 2 = 1;
+  relation balance continuous on interval {
+    -div(grad(potential)) - source_scale = 0;
+  }
+  relation lower_value continuous on lower_end { trace(potential) = 0; }
+  relation upper_value continuous on upper_end { trace(potential) = 0; }
+}
+"#;
 
     fn document() -> ModelDocument {
         ModelDocument::compile("poisson.eqi", POISSON_2D).unwrap()
@@ -347,6 +417,44 @@ mod tests {
             NonZeroUsize::new(cells).unwrap(),
             NonZeroUsize::new(workers).unwrap(),
         )
+    }
+
+    #[test]
+    fn scalar_plan_owns_exact_model_and_mesh_and_rejects_foreign_replay() {
+        let owner =
+            ModelDocument::compile("private-mesh-replay.eqi", PRIVATE_MESH_REPLAY_SCALAR).unwrap();
+        let environment = ScalarEllipticExecutionEnvironment::host_serial();
+        let plan = owner
+            .preview_scalar_elliptic_run(
+                intent(ScalarEllipticMethod::FiniteElement, 8, 1),
+                environment,
+            )
+            .unwrap();
+        assert_eq!(
+            plan.model,
+            ModelEnvelope::from_program(owner.program()).unwrap()
+        );
+        assert_eq!(plan.mesh.dimension(), 1);
+
+        let foreign_source = PRIVATE_MESH_REPLAY_SCALAR.replace("box(0, 1)", "box(0, 2)");
+        let foreign = ModelDocument::compile("foreign-mesh-replay.eqi", &foreign_source).unwrap();
+        let foreign_error = foreign
+            .run_scalar_elliptic_plan(plan.clone(), environment)
+            .unwrap_err();
+        assert!(foreign_error[0].message().contains("foreign Model"));
+
+        let foreign_plan = foreign
+            .preview_scalar_elliptic_run(
+                intent(ScalarEllipticMethod::FiniteElement, 8, 1),
+                environment,
+            )
+            .unwrap();
+        let mut mismatched = plan;
+        mismatched.mesh = foreign_plan.mesh;
+        let mesh_error = owner
+            .run_scalar_elliptic_plan(mismatched, environment)
+            .unwrap_err();
+        assert!(mesh_error[0].message().contains("supplied Cartesian Mesh"));
     }
 
     #[derive(Debug, Default)]

@@ -11,7 +11,9 @@ use super::plan::{
     UninterruptedScalarEllipticRun,
 };
 use crate::ModelDocument;
-use eqiora_artifact::{ExecutionProvenanceV1, ExecutionTopologyV1, RunManifestV2};
+use eqiora_artifact::{
+    CartesianMeshEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, RunManifestV2,
+};
 #[cfg(feature = "rayon")]
 use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION_PROVIDER};
 use eqiora_core::Diagnostic;
@@ -96,6 +98,16 @@ pub(super) fn validate_scalar_elliptic_solution(
             "accepted result contains {value_count} primary field values, but the plan admits {}",
             plan.field_value_count,
         ))));
+    }
+    let solved_mesh = match solution {
+        ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) => solution.field().mesh(),
+        ResolvedScalarEllipticCartesianSolution::FiniteVolume(solution) => solution.mesh(),
+    };
+    let solved_mesh = CartesianMeshEnvelopeV1::from_mesh(solved_mesh).map_err(single)?;
+    if solved_mesh != plan.mesh {
+        return Err(single(capability_error(
+            "executed scalar-elliptic Mesh differs from the exact Mesh retained by the Plan",
+        )));
     }
     Ok(())
 }
