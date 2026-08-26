@@ -33,6 +33,8 @@ use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundaryFacet2d,
 };
 
+mod scaling;
+
 const DIMENSION: usize = 2;
 const REQUIRED_BOUNDARY_SETS: [&str; 4] = ["cylinder", "inlet", "outlet", "walls"];
 
@@ -49,6 +51,7 @@ struct GeometryBoundary2d {
 /// once through that correspondence and never recovered from coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SteadyStokesGeometryBinding2d {
+    program: KernelProgram,
     model: SteadyIncompressibleStokesModel2d,
     accepted: AcceptedCircularHoleChordalRealizationV1,
     entity_sets: BTreeMap<String, Vec<MeshEntity>>,
@@ -96,6 +99,7 @@ impl SteadyStokesGeometryBinding2d {
             ));
         }
         Ok(Self {
+            program: program.clone(),
             model,
             accepted,
             entity_sets,
