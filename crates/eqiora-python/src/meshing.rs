@@ -14,7 +14,7 @@ use crate::error::validation_error;
 
 pub(crate) use mesh::PyMesh;
 use mesh::{generate, import_gmsh};
-use plan::{PyMeshPlan, PyMeshRequest, resolve};
+use plan::{PyGmshImport, PyGmshMesher, PyMeshPlan, PyMeshRequest, PyReferenceMesher, resolve};
 
 fn request_error(py: Python<'_>, message: impl Into<String>) -> PyErr {
     let diagnostic = Diagnostic::error(codes::INVALID_ARTIFACT, message);
@@ -23,6 +23,9 @@ fn request_error(py: Python<'_>, message: impl Into<String>) -> PyErr {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyMeshRequest>()?;
+    module.add_class::<PyGmshMesher>()?;
+    module.add_class::<PyGmshImport>()?;
+    module.add_class::<PyReferenceMesher>()?;
     module.add_class::<PyMeshPlan>()?;
     module.add_class::<PyMesh>()?;
     module.add_function(wrap_pyfunction!(resolve, module)?)?;

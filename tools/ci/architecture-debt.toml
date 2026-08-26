@@ -385,7 +385,7 @@ removal = "withdraw MixedBoundaryElasticityResult2d when a common native static 
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 149
+ceiling = 151
 reason = """
 The current Model and ModelTransaction envelopes own the single admitted wire
 epoch; validated content, canonical bytes, and digest derivation remain below
@@ -410,8 +410,13 @@ role-preserving durable product claim for one admitted state-to-boundary
 provider occurrence; it binds provider, adapter, exact projection, request,
 candidate, transcript, admission, and accepted State without changing Run V2
 or adding a provider registry, callback, builder, or option bag.
+MeshProductionLineageEnvelopeV1 and PlanarMeshQualityV1 are the one closed
+provider-occurrence wire and its complete current planar effective-policy
+value. They keep provider identity/version outside provider-neutral Geometry,
+Mesh, and correspondence artifacts, bind those three exact resources, and add
+no provider registry, discovery protocol, trait, builder, or ambient choice.
 """
-removal = "withdraw the circular-hole wire and accepted type-state owner when common CAD/Mesh publication replaces both without losing the frozen scientific replay evidence; replace the specialized Cartesian Q1 snapshot with the common FieldSnapshot owner when that owner admits hypercube bases without weakening exact mesh linkage, then lower by one; fold CartesianMeshDecoderLimits into a source-compatible shared amplification policy only when that policy names both all-strata entities and entity-closure references without assigning Cartesian meaning to simplicial limits, then lower by one; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one. Withdraw PrescribedDynamicSolidRealizationEnvelopeV1 and lower this ceiling to 147 when one already-counted accepted common fixed-spatial Realization preserves its exact role derivation, Geometry and mesh gates, canonical bytes, and Run projection. Withdraw the type and lower 149 to 148 when an already-counted common external operator occurrence artifact preserves the same role graph, exact identities, bounded decoding, and Run linkage."
+removal = "withdraw the circular-hole wire and accepted type-state owner when common CAD/Mesh publication replaces both without losing the frozen scientific replay evidence; replace the specialized Cartesian Q1 snapshot with the common FieldSnapshot owner when that owner admits hypercube bases without weakening exact mesh linkage, then lower by one; fold CartesianMeshDecoderLimits into a source-compatible shared amplification policy only when that policy names both all-strata entities and entity-closure references without assigning Cartesian meaning to simplicial limits, then lower by one; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one. Withdraw PrescribedDynamicSolidRealizationEnvelopeV1 and lower this ceiling to 149 when one already-counted common fixed-spatial Realization preserves its exact role derivation, Geometry and mesh gates, canonical bytes, and Run projection. Withdraw the provider occurrence type and lower 151 to 150 when an already-counted common external operator occurrence artifact preserves the same role graph, exact identities, bounded decoding, and Run linkage. Fold PlanarMeshQualityV1 into an already-counted general mesh-policy value and lower 150 to 149 only when Cartesian and unstructured providers can share it without inheriting irrelevant circular-boundary knobs."
 
 [[public_surface]]
 crate = "eqiora-assembly"

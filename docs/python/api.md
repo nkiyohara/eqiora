@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 11 module summaries and all 114 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 501 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 11 module summaries and all 117 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 509 signature-only entries under documented owning types**.
 
-Inventory: 11 modules, 133 literal public spellings, 114 canonical grouped declarations, 638 visible method signatures (501 non-dunder and 137 dunder), and 47 visible class assignments.
+Inventory: 11 modules, 136 literal public spellings, 117 canonical grouped declarations, 655 visible method signatures (509 non-dunder and 146 dunder), and 47 visible class assignments.
 
 Regenerate with:
 
@@ -1856,6 +1856,50 @@ Module authority: [`bindings/python/python/eqiora/meshing.py`](../../bindings/py
 
 Shipped stub: [`bindings/python/python/eqiora/meshing.pyi`](../../bindings/python/python/eqiora/meshing.pyi)
 
+<a id="api-eqiora-meshing-GmshImport"></a>
+
+### `eqiora.meshing.GmshImport`
+
+Policy for one caller-supplied, untracked Gmsh MSH image.
+
+Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyGmshImport`](../../crates/eqiora-python/src/meshing/plan.rs)
+
+```python
+@final
+class GmshImport:
+    def __new__(cls, *, maximum_boundary_error: float=..., minimum_mean_ratio: float=..., maximum_boundary_facets: int=...) -> Self: ...
+    @property
+    def maximum_boundary_error(self) -> float: ...
+    @property
+    def minimum_mean_ratio(self) -> float: ...
+    @property
+    def maximum_boundary_facets(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-meshing-GmshMesher"></a>
+
+### `eqiora.meshing.GmshMesher`
+
+Select the exact external Gmsh provider.
+
+Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyGmshMesher`](../../crates/eqiora-python/src/meshing/plan.rs)
+
+```python
+@final
+class GmshMesher:
+    def __new__(cls, *, maximum_boundary_error: float=..., minimum_mean_ratio: float=..., maximum_boundary_facets: int=...) -> Self: ...
+    @property
+    def maximum_boundary_error(self) -> float: ...
+    @property
+    def minimum_mean_ratio(self) -> float: ...
+    @property
+    def maximum_boundary_facets(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+```
+
 <a id="api-eqiora-meshing-Mesh"></a>
 
 ### `eqiora.meshing.Mesh`
@@ -1875,6 +1919,10 @@ class Mesh:
     def digest(self) -> str: ...
     @property
     def correspondence_digest(self) -> str: ...
+    @property
+    def production_lineage_bytes(self) -> bytes: ...
+    @property
+    def production_lineage_digest(self) -> str: ...
     @property
     def realization_digest(self) -> str: ...
     @property
@@ -1915,17 +1963,15 @@ class MeshPlan:
     @property
     def source_digest(self) -> str: ...
     @property
-    def provider(self) -> str: ...
+    def provider(self) -> GmshMesher | ReferenceMesher: ...
     @property
     def request(self) -> MeshRequest: ...
     @property
+    def production_lineage_bytes(self) -> bytes: ...
+    @property
+    def production_lineage_digest(self) -> str: ...
+    @property
     def boundary_facets(self) -> int: ...
-    @property
-    def boundary_error_bound(self) -> float: ...
-    @property
-    def boundary_evaluation_allowance(self) -> float: ...
-    @property
-    def canonical_bytes(self) -> bytes: ...
     @property
     def achieved_minimum_mean_ratio(self) -> float: ...
     def __repr__(self) -> str: ...
@@ -1942,6 +1988,24 @@ Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyMeshRequest`](../../cra
 ```python
 @final
 class MeshRequest:
+    def __new__(cls, provider: GmshMesher | ReferenceMesher, /) -> Self: ...
+    @property
+    def provider(self) -> GmshMesher | ReferenceMesher: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-meshing-ReferenceMesher"></a>
+
+### `eqiora.meshing.ReferenceMesher`
+
+Select the deterministic in-process reference provider.
+
+Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyReferenceMesher`](../../crates/eqiora-python/src/meshing/plan.rs)
+
+```python
+@final
+class ReferenceMesher:
     def __new__(cls, *, maximum_boundary_error: float=..., minimum_mean_ratio: float=..., maximum_boundary_facets: int=...) -> Self: ...
     @property
     def maximum_boundary_error(self) -> float: ...
@@ -1972,15 +2036,15 @@ def generate(geometry: Geometry, /, *, plan: MeshPlan) -> Mesh: ...
 Import one complete Gmsh MSH 4.1 image into the common Mesh.
 
 The current boundary accepts affine two-dimensional triangles for the
-supplied exact circular-hole Geometry. `request` explicitly owns the
-boundary-realization and quality policy. External source, adapter,
+supplied exact circular-hole Geometry. `policy` explicitly owns the
+separately typed boundary-realization and quality policy. External source, adapter,
 normalized-array, and accepted-Mesh identities are retained by
 `Mesh.external_import_manifest_bytes`.
 
 Authority: [`crates/eqiora-python/src/meshing/mesh.rs::import_gmsh`](../../crates/eqiora-python/src/meshing/mesh.rs)
 
 ```python
-def import_gmsh(geometry: Geometry, source: bytes, /, *, request: MeshRequest) -> Mesh: ...
+def import_gmsh(geometry: Geometry, source: bytes, /, *, policy: GmshImport) -> Mesh: ...
 ```
 
 <a id="api-eqiora-meshing-resolve"></a>

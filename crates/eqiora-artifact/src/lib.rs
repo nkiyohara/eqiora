@@ -24,6 +24,7 @@ mod implicit_time;
 mod implicit_time_lineage;
 mod json_preflight;
 mod mesh;
+mod mesh_production_lineage;
 mod mesh_revision_overlap;
 mod model;
 mod model_reference;
@@ -102,6 +103,7 @@ pub use implicit_time_lineage::{ImplicitTimeCheckpointEnvelopeV1, ImplicitTimeRe
 pub use json_preflight::JsonDecoderLimits;
 pub(crate) use json_preflight::check_json_limits;
 pub use mesh::{MeshDecoderLimits, SimplicialMeshEnvelopeV1};
+pub use mesh_production_lineage::{MeshProductionLineageEnvelopeV1, PlanarMeshQualityV1};
 pub use mesh_revision_overlap::MeshRevisionOverlapEnvelopeV1;
 pub use model::ModelDecoderLimits;
 pub use model_reference::{

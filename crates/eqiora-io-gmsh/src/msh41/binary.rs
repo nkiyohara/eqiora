@@ -58,6 +58,7 @@ pub(super) fn parse(
     Ok(DecodedMesh {
         vertices: nodes.vertices,
         cells,
+        element_blocks: Vec::new(),
     })
 }
 

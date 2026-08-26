@@ -97,6 +97,61 @@ pub struct GmshSimplexImporter {
     limits: GmshImportLimits,
 }
 
+/// One MSH element block with its exact geometric-entity provenance.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GmshElementBlock {
+    dimension: usize,
+    entity_tag: u32,
+    elements: Vec<Vec<usize>>,
+}
+
+impl GmshElementBlock {
+    /// Geometric entity dimension declared by the MSH block.
+    #[must_use]
+    pub const fn dimension(&self) -> usize {
+        self.dimension
+    }
+
+    /// Positive geometric entity tag declared by the MSH block.
+    #[must_use]
+    pub const fn entity_tag(&self) -> u32 {
+        self.entity_tag
+    }
+
+    /// Element vertex indices in importer-normalized Mesh vertex order.
+    #[must_use]
+    pub fn elements(&self) -> &[Vec<usize>] {
+        &self.elements
+    }
+}
+
+/// An admitted ASCII MSH mesh together with its element-block provenance.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GmshSimplicialImport {
+    mesh: SimplicialMesh,
+    element_blocks: Vec<GmshElementBlock>,
+}
+
+impl GmshSimplicialImport {
+    /// Common accepted simplex Mesh.
+    #[must_use]
+    pub const fn mesh(&self) -> &SimplicialMesh {
+        &self.mesh
+    }
+
+    /// Complete source element-block provenance in MSH order.
+    #[must_use]
+    pub fn element_blocks(&self) -> &[GmshElementBlock] {
+        &self.element_blocks
+    }
+
+    /// Consume the import and return its common Mesh.
+    #[must_use]
+    pub fn into_mesh(self) -> SimplicialMesh {
+        self.mesh
+    }
+}
+
 impl GmshSimplexImporter {
     /// Construct an importer for XY triangles (`dimension = 2`) or XYZ
     /// tetrahedra (`dimension = 3`).
@@ -139,6 +194,46 @@ impl GmshSimplexImporter {
     /// or resource boundary. Accepted syntax may still return `EQ0803` when
     /// the shared mesh contract rejects topology, geometry, or quality.
     pub fn import_bytes(self, bytes: &[u8]) -> Result<SimplicialMesh, Diagnostic> {
+        self.decode(bytes).and_then(|decoded| {
+            SimplicialMesh::new(
+                self.dimension,
+                decoded.vertices,
+                decoded.cells,
+                self.quality_gate,
+            )
+        })
+    }
+
+    /// Parse an ASCII MSH 4.1 image while retaining its element-block entity
+    /// tags and normalized connectivity.
+    ///
+    /// Generated-provider adapters use this closed provenance path to map CAD
+    /// entities to Mesh entities without coordinate classification. Caller
+    /// imports that do not authenticate entity meaning should use
+    /// [`Self::import_bytes`] and remain unlabelled.
+    pub fn import_ascii_bytes_with_entities(
+        self,
+        bytes: &[u8],
+    ) -> Result<GmshSimplicialImport, Diagnostic> {
+        if declared_encoding(bytes)? != InputEncoding::Ascii {
+            return Err(invalid_import(
+                "entity-provenance import requires ASCII MSH 4.1",
+            ));
+        }
+        let decoded = self.decode(bytes)?;
+        let mesh = SimplicialMesh::new(
+            self.dimension,
+            decoded.vertices,
+            decoded.cells,
+            self.quality_gate,
+        )?;
+        Ok(GmshSimplicialImport {
+            mesh,
+            element_blocks: decoded.element_blocks,
+        })
+    }
+
+    fn decode(self, bytes: &[u8]) -> Result<DecodedMesh, Diagnostic> {
         if bytes.len() > self.limits.max_bytes {
             return Err(invalid_import(
                 "Gmsh input exceeds the configured byte limit",
@@ -160,12 +255,7 @@ impl GmshSimplexImporter {
                 &mut decoded_budget,
             )?,
         };
-        SimplicialMesh::new(
-            self.dimension,
-            decoded.vertices,
-            decoded.cells,
-            self.quality_gate,
-        )
+        Ok(decoded)
     }
 }
 
@@ -221,6 +311,7 @@ fn strip_carriage_return(line: &[u8]) -> &[u8] {
 struct DecodedMesh {
     vertices: Vec<Vec<f64>>,
     cells: Vec<Vec<usize>>,
+    element_blocks: Vec<GmshElementBlock>,
 }
 
 #[derive(Debug)]
@@ -243,7 +334,7 @@ impl DecodedMesh {
             parse_entities(entities, dimension, limits, budget)?;
         }
         let nodes = parse_nodes(sections.required("Nodes")?, dimension, limits, budget)?;
-        let cells = parse_elements(
+        let (cells, element_blocks) = parse_elements(
             sections.required("Elements")?,
             dimension,
             limits,
@@ -253,6 +344,7 @@ impl DecodedMesh {
         Ok(Self {
             vertices: nodes.vertices,
             cells,
+            element_blocks,
         })
     }
 }
@@ -559,7 +651,7 @@ fn parse_elements(
     limits: GmshImportLimits,
     vertex_by_tag: &HashMap<u64, usize>,
     budget: &mut DecodedBudget,
-) -> Result<Vec<Vec<usize>>, Diagnostic> {
+) -> Result<(Vec<Vec<usize>>, Vec<GmshElementBlock>), Diagnostic> {
     let header = exact_fields::<4>(lines.first().copied(), "$Elements header")?;
     let block_count = parse_usize(header[0], "$Elements block count")?;
     let total_elements = parse_usize(header[1], "$Elements total count")?;
@@ -580,6 +672,7 @@ fn parse_elements(
 
     let mut line_index = 1;
     let mut cells = Vec::new();
+    let mut element_blocks = fallible_vec(block_count, "$Elements provenance-block storage")?;
     let mut all_tags = fallible_set(total_elements, "$Elements unique-tag storage")?;
     let mut observed_min = u64::MAX;
     let mut observed_max = 0_u64;
@@ -606,6 +699,8 @@ fn parse_elements(
             ));
         }
         let entity_dimension = entity_dim as usize;
+        let entity_tag =
+            u32::try_from(entity_tag).map_err(|_| invalid_import("MSH entity tag exceeds u32"))?;
         if element_type != linear_simplex_type(entity_dimension) {
             return Err(invalid_import(
                 "element blocks must use the linear simplex type of their entity dimension",
@@ -626,6 +721,7 @@ fn parse_elements(
                 .ok_or_else(|| invalid_import("top-dimensional element count overflows usize"))?;
             fallible_reserve(&mut cells, count, "decoded top-dimensional cell storage")?;
         }
+        let mut block_elements = fallible_vec(count, "$Elements provenance storage")?;
         for _ in 0..count {
             let line = take_declared_line(lines, &mut line_index, "$Elements record")?;
             let mut tokens = TokenCursor::new(line);
@@ -638,14 +734,8 @@ fn parse_elements(
             }
             observed_min = observed_min.min(tag);
             observed_max = observed_max.max(tag);
-            let mut cell = if entity_dimension == dimension {
-                Some(fallible_vec(
-                    entity_dimension + 1,
-                    "decoded simplex-connectivity storage",
-                )?)
-            } else {
-                None
-            };
+            let mut element =
+                fallible_vec(entity_dimension + 1, "decoded simplex-connectivity storage")?;
             for _ in 0..=entity_dimension {
                 let node_tag = parse_u64(tokens.next("$Elements node tag")?, "$Elements node tag")?;
                 if node_tag == 0 {
@@ -655,15 +745,27 @@ fn parse_elements(
                     .get(&node_tag)
                     .copied()
                     .ok_or_else(|| invalid_import("MSH element references an unknown node tag"))?;
-                if let Some(cell) = &mut cell {
-                    cell.push(vertex);
-                }
+                element.push(vertex);
             }
             tokens.finish("$Elements record")?;
-            if let Some(cell) = cell {
-                fallible_push(&mut cells, cell, "decoded top-dimensional cell storage")?;
+            if entity_dimension == dimension {
+                fallible_push(
+                    &mut cells,
+                    element.clone(),
+                    "decoded top-dimensional cell storage",
+                )?;
             }
+            fallible_push(&mut block_elements, element, "$Elements provenance storage")?;
         }
+        fallible_push(
+            &mut element_blocks,
+            GmshElementBlock {
+                dimension: entity_dimension,
+                entity_tag,
+                elements: block_elements,
+            },
+            "$Elements provenance-block storage",
+        )?;
     }
     if line_index != lines.len()
         || checked_total != total_elements
@@ -681,7 +783,7 @@ fn parse_elements(
             "MSH input contains no admitted top-dimensional simplex cells",
         ));
     }
-    Ok(cells)
+    Ok((cells, element_blocks))
 }
 
 const fn linear_simplex_type(dimension: usize) -> u32 {
@@ -1043,6 +1145,34 @@ $Elements\n1 1 1 1\n3 1 4 1\n1 1 2 3 4\n$EndElements\n";
         assert_eq!(mesh.cells().len(), 4);
         assert_eq!(mesh.cells()[3], [3, 0, 4]);
         assert!(mesh.quality_report().minimum_mean_ratio() >= 0.5);
+    }
+
+    #[test]
+    fn ascii_entity_provenance_retains_block_tags_and_normalized_connectivity() {
+        let imported = importer()
+            .import_ascii_bytes_with_entities(TRIANGLES.as_bytes())
+            .unwrap();
+        assert_eq!(imported.mesh().cells().len(), 4);
+        assert_eq!(imported.element_blocks().len(), 2);
+        assert_eq!(imported.element_blocks()[0].dimension(), 1);
+        assert_eq!(imported.element_blocks()[0].entity_tag(), 1);
+        assert_eq!(
+            imported.element_blocks()[0].elements(),
+            &[vec![0, 1], vec![1, 2], vec![2, 3], vec![3, 0]]
+        );
+        assert_eq!(imported.element_blocks()[1].dimension(), 2);
+        assert_eq!(imported.element_blocks()[1].entity_tag(), 1);
+        assert_eq!(
+            imported.element_blocks()[1].elements(),
+            imported.mesh().cells()
+        );
+
+        let binary = binary_tetrahedron(TestEndian::Little, 8, 4);
+        assert!(
+            tetrahedron_importer()
+                .import_ascii_bytes_with_entities(&binary)
+                .is_err()
+        );
     }
 
     #[test]

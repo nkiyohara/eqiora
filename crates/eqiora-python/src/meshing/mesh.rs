@@ -5,7 +5,8 @@ use std::sync::Mutex;
 use eqiora::Diagnostic;
 use eqiora::artifact::{
     AcceptedCircularHoleChordalRealizationV1, CartesianMeshEnvelopeV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1,
+    GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1, RealizationEnvelopeV1,
+    SimplicialMeshEnvelopeV1,
 };
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet};
@@ -16,7 +17,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyBytes, PyDict, PyTuple};
 use sha2::{Digest, Sha256};
 
-use super::plan::{PyMeshPlan, PyMeshRequest, ResolvedMeshPlan};
+use super::plan::{PyGmshImport, PyMeshPlan, ResolvedMeshPlan};
 use super::request_error;
 use crate::error::{diagnostic_error, validation_error};
 use crate::geometry::{PyGeometry, PyGeometrySelection, digest_to_hex};
@@ -71,6 +72,7 @@ enum AcceptedMeshSource {
         geometry: Box<CanonicalGeometryV1>,
         mesh: Box<SimplicialMeshEnvelopeV1>,
         correspondence: Box<GeometryMeshCorrespondenceEnvelopeV1>,
+        production: Box<MeshProductionLineageEnvelopeV1>,
     },
     Cartesian,
 }
@@ -115,6 +117,30 @@ impl PyMesh {
     #[getter]
     fn correspondence_digest(&self) -> &str {
         &self.lineage.correspondence_digest
+    }
+
+    /// Canonical provider occurrence that produced this common Mesh.
+    #[getter]
+    fn production_lineage_bytes(&self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
+        let production = self.production_lineage().ok_or_else(|| {
+            capability_error(py, "this Mesh has no common production-lineage artifact")
+        })?;
+        production
+            .canonical_json()
+            .map(|bytes| PyBytes::new(py, &bytes).unbind())
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
+    /// Identity of the canonical provider occurrence.
+    #[getter]
+    fn production_lineage_digest(&self, py: Python<'_>) -> PyResult<String> {
+        let production = self.production_lineage().ok_or_else(|| {
+            capability_error(py, "this Mesh has no common production-lineage artifact")
+        })?;
+        production
+            .digest()
+            .map(|digest| digest.to_string())
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
     }
 
     /// Identity of the complete exact-source realization binding.
@@ -435,34 +461,49 @@ impl PyMesh {
     fn from_source_owned(
         py: Python<'_>,
         plan: &super::source_owned::SourceOwnedPlan,
+        production: &MeshProductionLineageEnvelopeV1,
     ) -> PyResult<Self> {
         plan.revalidate(&plan.source)
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-        let dimension = plan.mesh.dimension();
-        let mesh = plan.mesh.mesh();
+        Self::from_source_parts(
+            py,
+            &plan.source,
+            &plan.mesh,
+            &plan.correspondence,
+            production,
+        )
+    }
+
+    fn from_source_parts(
+        py: Python<'_>,
+        source: &CanonicalGeometryV1,
+        accepted_mesh: &SimplicialMeshEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        production: &MeshProductionLineageEnvelopeV1,
+    ) -> PyResult<Self> {
+        let dimension = accepted_mesh.dimension();
+        let mesh = accepted_mesh.mesh();
         let vertex_count = mesh.vertices().len();
         let cell_count = mesh.cells().len();
         let (coordinates, cells) = project_simplicial_mesh(py, mesh, dimension)?;
-        let source_digest = digest_to_hex(&plan.source.digest_bytes());
-        let mesh_digest = plan
-            .mesh
+        let source_digest = digest_to_hex(&source.digest_bytes());
+        let mesh_digest = accepted_mesh
             .digest()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
             .to_string();
-        let correspondence_digest = plan
-            .correspondence
+        let correspondence_digest = correspondence
             .digest()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
             .to_string();
-        let canonical_bytes = plan
-            .mesh
+        let canonical_bytes = accepted_mesh
             .canonical_json()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         Ok(Self {
             source: AcceptedMeshSource::SourceOwned {
-                geometry: Box::new(plan.source.clone()),
-                mesh: Box::new(plan.mesh.clone()),
-                correspondence: Box::new(plan.correspondence.clone()),
+                geometry: Box::new(source.clone()),
+                mesh: Box::new(accepted_mesh.clone()),
+                correspondence: Box::new(correspondence.clone()),
+                production: Box::new(production.clone()),
             },
             lineage: MeshLineage {
                 source_digest: source_digest.clone(),
@@ -615,6 +656,13 @@ impl PyMesh {
         }
     }
 
+    fn production_lineage(&self) -> Option<&MeshProductionLineageEnvelopeV1> {
+        match &self.source {
+            AcceptedMeshSource::SourceOwned { production, .. } => Some(production),
+            AcceptedMeshSource::Chordal { .. } | AcceptedMeshSource::Cartesian => None,
+        }
+    }
+
     fn set_presentation_state(&self, next: PresentationState) -> PyResult<()> {
         let mut state = self
             .presentation
@@ -627,23 +675,23 @@ impl PyMesh {
 
 /// Import one complete Gmsh MSH 4.1 image into the common accepted Mesh.
 #[pyfunction]
-#[pyo3(signature = (geometry, source, /, *, request))]
+#[pyo3(signature = (geometry, source, /, *, policy))]
 pub(super) fn import_gmsh(
     py: Python<'_>,
     geometry: &PyGeometry,
     source: &[u8],
-    request: PyRef<'_, PyMeshRequest>,
+    policy: PyRef<'_, PyGmshImport>,
 ) -> PyResult<PyMesh> {
     panic_boundary(py, || {
         let geometry = geometry.geometry().clone();
         let source = source.to_vec();
-        let request = *request;
+        let policy = *policy;
         let imported = py.detach(move || {
-            let quality_gate = eqiora::meshing::MeshQualityGate::new(request.minimum_mean_ratio)?;
+            let quality_gate = eqiora::meshing::MeshQualityGate::new(policy.minimum_mean_ratio)?;
             let reference = AcceptedCircularHoleChordalRealizationV1::from_reference(
                 &geometry,
-                request.maximum_boundary_error,
-                request.maximum_boundary_facets,
+                policy.maximum_boundary_error,
+                policy.maximum_boundary_facets,
                 quality_gate,
             )?;
             super::gmsh::import(&source, &reference, quality_gate)
@@ -882,23 +930,46 @@ pub(super) fn generate(
     plan: &PyMeshPlan,
 ) -> PyResult<PyMesh> {
     panic_boundary(py, || match &plan.resolved {
-        ResolvedMeshPlan::Legacy(accepted) => {
-            if geometry.geometry() != accepted.source() {
+        ResolvedMeshPlan::Gmsh(resolved) => {
+            if geometry.geometry() != &resolved.source {
                 return Err(request_error(
                     py,
                     "MeshPlan belongs to a different exact Geometry",
                 ));
             }
-            accepted
-                .revalidate()
+            super::gmsh::revalidate_generated(&resolved.source, &resolved.generated)
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            PyMesh::from_accepted(py, accepted.as_ref().clone())
+            plan.request
+                .provider
+                .validate_production_lineage(
+                    &plan.production,
+                    &resolved.source,
+                    &resolved.generated.mesh,
+                    &resolved.generated.correspondence,
+                )
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            PyMesh::from_source_parts(
+                py,
+                &resolved.source,
+                &resolved.generated.mesh,
+                &resolved.generated.correspondence,
+                &plan.production,
+            )
         }
         ResolvedMeshPlan::SourceOwned(resolved) => {
             resolved
                 .revalidate(geometry.geometry())
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            PyMesh::from_source_owned(py, resolved)
+            plan.request
+                .provider
+                .validate_production_lineage(
+                    &plan.production,
+                    &resolved.source,
+                    &resolved.mesh,
+                    &resolved.correspondence,
+                )
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            PyMesh::from_source_owned(py, resolved, &plan.production)
         }
     })
 }

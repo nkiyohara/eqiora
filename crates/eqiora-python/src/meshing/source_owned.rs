@@ -6,8 +6,6 @@ use eqiora::diagnostic::codes;
 use eqiora::geometry::{CanonicalGeometryV1, EDGE_DIMENSION};
 use eqiora::meshing::MeshQualityGate;
 
-pub(super) const PROVIDER: &str = "eqiora.source-owned-planar-circular-hole-v2/1";
-
 #[derive(Clone)]
 pub(super) struct SourceOwnedPlan {
     pub(super) source: CanonicalGeometryV1,

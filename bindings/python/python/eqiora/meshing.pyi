@@ -12,12 +12,11 @@ import numpy.typing as npt
 from .geometry import Geometry, GeometrySelection
 
 @final
-class MeshRequest:
-    """Immutable caller intent for the admitted planar mesh provider.
+class GmshMesher:
+    """Select the exact external Gmsh provider.
 
-    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyMeshRequest``.
+    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyGmshMesher``.
     """
-
     def __new__(
         cls,
         *,
@@ -35,6 +34,63 @@ class MeshRequest:
     def __repr__(self) -> str: ...
 
 @final
+class ReferenceMesher:
+    """Select the deterministic in-process reference provider.
+
+    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyReferenceMesher``.
+    """
+    def __new__(
+        cls,
+        *,
+        maximum_boundary_error: float = ...,
+        minimum_mean_ratio: float = ...,
+        maximum_boundary_facets: int = ...,
+    ) -> Self: ...
+    @property
+    def maximum_boundary_error(self) -> float: ...
+    @property
+    def minimum_mean_ratio(self) -> float: ...
+    @property
+    def maximum_boundary_facets(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+
+@final
+class GmshImport:
+    """Policy for one caller-supplied, untracked Gmsh MSH image.
+
+    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyGmshImport``.
+    """
+    def __new__(
+        cls,
+        *,
+        maximum_boundary_error: float = ...,
+        minimum_mean_ratio: float = ...,
+        maximum_boundary_facets: int = ...,
+    ) -> Self: ...
+    @property
+    def maximum_boundary_error(self) -> float: ...
+    @property
+    def minimum_mean_ratio(self) -> float: ...
+    @property
+    def maximum_boundary_facets(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+
+@final
+class MeshRequest:
+    """Immutable caller intent for the admitted planar mesh provider.
+
+    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyMeshRequest``.
+    """
+
+    def __new__(cls, provider: GmshMesher | ReferenceMesher, /) -> Self: ...
+    @property
+    def provider(self) -> GmshMesher | ReferenceMesher: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+
+@final
 class MeshPlan:
     """Complete provider choice bound to one exact geometry.
 
@@ -44,17 +100,15 @@ class MeshPlan:
     @property
     def source_digest(self) -> str: ...
     @property
-    def provider(self) -> str: ...
+    def provider(self) -> GmshMesher | ReferenceMesher: ...
     @property
     def request(self) -> MeshRequest: ...
     @property
+    def production_lineage_bytes(self) -> bytes: ...
+    @property
+    def production_lineage_digest(self) -> str: ...
+    @property
     def boundary_facets(self) -> int: ...
-    @property
-    def boundary_error_bound(self) -> float: ...
-    @property
-    def boundary_evaluation_allowance(self) -> float: ...
-    @property
-    def canonical_bytes(self) -> bytes: ...
     @property
     def achieved_minimum_mean_ratio(self) -> float: ...
     def __repr__(self) -> str: ...
@@ -74,6 +128,10 @@ class Mesh:
     def digest(self) -> str: ...
     @property
     def correspondence_digest(self) -> str: ...
+    @property
+    def production_lineage_bytes(self) -> bytes: ...
+    @property
+    def production_lineage_digest(self) -> str: ...
     @property
     def realization_digest(self) -> str: ...
     @property
@@ -125,13 +183,13 @@ def import_gmsh(
     source: bytes,
     /,
     *,
-    request: MeshRequest,
+    policy: GmshImport,
 ) -> Mesh:
     """Import one complete Gmsh MSH 4.1 image into the common Mesh.
 
     The current boundary accepts affine two-dimensional triangles for the
-    supplied exact circular-hole Geometry. ``request`` explicitly owns the
-    boundary-realization and quality policy. External source, adapter,
+    supplied exact circular-hole Geometry. ``policy`` explicitly owns the
+    separately typed boundary-realization and quality policy. External source, adapter,
     normalized-array, and accepted-Mesh identities are retained by
     ``Mesh.external_import_manifest_bytes``.
 
@@ -140,4 +198,4 @@ def import_gmsh(
 
     ...
 
-__all__ = ["Mesh", "MeshPlan", "MeshRequest", "generate", "import_gmsh", "resolve"]
+__all__ = ["GmshImport", "GmshMesher", "Mesh", "MeshPlan", "MeshRequest", "ReferenceMesher", "generate", "import_gmsh", "resolve"]
