@@ -28,10 +28,10 @@ The claim states the narrow supported boundary and important non-claims. One fix
 imply a general dimension, field shape, backend, package, hardware, or performance promise.
 Code presence is neither verification nor maturity.
 
-Evidence development is frozen. Reuse unchanged existing evidence only when it already supports
-the exact changed claim. Do not add a case, oracle, expected value, tolerance, falsifier, exact
-inventory, or evidence mechanism. New behavior uses focused product tests and remains unverified
-in the capability matrix unless pre-freeze evidence already proves it.
+Evidence is claim-local and independently derived. Use focused product tests for ordinary behavior;
+add or change registered evidence when a durable scientific, artifact, security, release, or
+CI-trust claim needs it. Never pin unrelated whole files or inventories as a proxy for a narrower
+surface, and never tune an expectation to observed implementation output.
 
 ## Minimal outcome contract
 
@@ -53,13 +53,12 @@ No separate contract file, schema, receipt, or sealed handoff is required by def
 only when a concrete trust boundary needs a durable artifact and no existing authority carries
 it.
 
-## Frozen evidence
+## Evidence authority
 
-Existing evidence remains independently runnable and immutable. A failure may expose a product
-defect, build nondeterminism, or an unsupported claim; correct or narrow that surface without
-changing the evidence. Public/API adapters and new scientific behavior use focused positive and
-failure tests, not new derivation or oracle machinery. Only an explicit owner instruction may
-unfreeze a named evidence scope.
+Evidence remains independently runnable and authoritative only for its stated claim. A failure may
+expose a product defect, build nondeterminism, an unsupported claim, or an obsolete witness. Change
+evidence only from an independent derivation with an explicit risk-focused rationale. Prefer a
+claim-local semantic projection; exact bytes belong only to an exact-byte contract.
 
 ## Parallel writable work
 
@@ -116,7 +115,7 @@ scope; do not add machinery solely to carry a giant envelope.
 Before integration:
 
 1. inspect the complete diff and remove unrelated changes;
-2. confirm the narrow claim, non-claims, and unchanged pre-freeze evidence, if any;
+2. confirm the narrow claim, non-claims, and independently derived evidence, if any;
 3. run the narrowest repository-owned checks required by
    [local verification](local-verification.md);
 4. perform and record a risk-focused review of the actual high-risk delta; and
@@ -135,7 +134,7 @@ not create a second one.
 Stop the affected work, not the whole repository, when:
 
 - the accepted seam cannot express a discovered requirement;
-- frozen evidence disagrees with the product or cannot reach its ordinary positive path;
+- evidence disagrees with the product or cannot reach its ordinary positive path;
 - parallel lanes begin editing the same invariant;
 - a new framework has only hypothetical consumers;
 - the process artifact becomes larger than the product delta; or

@@ -3,9 +3,9 @@
 Repository-owned checks establish local technical evidence. Hosted checks protect the submitted
 commit, provider identity, and CI/release trust; they do not replace scientific evidence.
 
-Evidence development is frozen. Existing registered cases remain runnable inputs, but no new
-case, oracle, expected value, tolerance, falsifier, exact inventory, or evidence mechanism is
-added or changed. New product behavior uses focused tests and may remain explicitly unverified.
+Registered evidence is independently derived and claim-local. Add or change it only when a durable
+claim needs a stronger falsifier than an ordinary focused product test. Never tune expectations or
+tolerances to observed implementation output.
 
 ## Choose the smallest check
 
@@ -66,9 +66,9 @@ temporary directories use `~/.cache/eqiora/local-verify-tmp` and are removed aft
 `--scratch-root` relocates both to an equivalent home-backed location. Do not use OS `/tmp`
 for large verification artifacts.
 
-Do not add a directory under `verify/` while the evidence-development freeze is active. Every
-semantically affected existing case must be passed with `--case`; a shared executor package
-does not imply semantic ownership of all its cases.
+A new directory under `verify/` must own one durable, bounded claim and an independently derived
+oracle or falsifier. Every semantically affected existing or new case must be passed with `--case`;
+a shared executor package does not imply semantic ownership of all its cases.
 
 ## Gate tiers
 
@@ -102,9 +102,11 @@ State the exact environment for any timing; an aborted run is not a sample.
 
 ## Evidence-package behavior
 
-Treat existing evidence packages as immutable. Run them without changing their oracle,
-falsifier, expected output, tolerance, inventory, or claim. Fix the product or reproducibility
-defect, narrow the claim, or leave the capability unverified when they disagree.
+Treat evidence as authority over its explicit claim, not as immutable repository structure.
+Investigate disagreements. Change a claim, oracle, falsifier, expected output, or tolerance only
+when an independent derivation and risk-focused rationale justify that semantic change; never
+copy observed output into the expectation. Migrate obsolete evidence atomically with the product
+invariant it observes.
 
 An oracle or falsifier package first proves one ordinary positive end-to-end path. Negative
 probes then reach and name the intended gate. If an earlier unrelated denial makes the
@@ -120,14 +122,14 @@ pass.
 
 ## Heavy scientific candidates
 
-Do not define a new candidate campaign or acceptance oracle during the evidence-development
-freeze. The rules below apply only to already accepted campaigns.
+Define a candidate campaign only for a real scientific or gallery claim whose production-scale
+acceptance cannot be established in ordinary pull-request conformance.
 
 Production gallery solves, refinement campaigns, and complete media encodes are outside
 ordinary pull-request gates:
 
 1. Pull-request conformance uses bounded data to exercise the ordinary path.
-2. An exact-head scientific candidate runs the frozen campaign in its declared trusted
+2. An exact-head scientific candidate runs the fixed campaign in its declared trusted
    environment with the claim, oracle, tolerances, stop conditions, and affected cases fixed.
 3. Publication consumes digest-verified accepted results; it does not rerun the solve.
 
