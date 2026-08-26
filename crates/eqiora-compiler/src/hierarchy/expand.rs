@@ -24,12 +24,11 @@ use crate::lower::{LoweringDomainContract, LoweringExpression, LoweringPortContr
 
 use super::body_check::field_expression_type;
 use super::complete_exterior::CartesianDomain;
-use super::exposure_cuts::ExposureCutIndex;
 use super::field_slots::{FieldContract, component_field_interface, resolve_instance_fields};
-use super::hierarchy_error;
 use super::occurrence_connections::{
     OccurrenceConnectionFragment, OccurrencePhysicalEndpoint, normalize_occurrence_connections,
 };
+use super::{exposure_cuts::ExposureCutIndex, hierarchy_error};
 
 use super::flat::{
     ConnectionIdentity, DisplayIdentity, EntityIdentity, EntitySourceOrigin, ExpandedBlueprint,
@@ -38,6 +37,7 @@ use super::flat::{
 };
 
 mod cartesian;
+mod external;
 use super::parameters::{
     ConstantValue, ParameterLineage, ParameterResolver, ResolvedParameter, normalize_zero,
 };
@@ -1133,7 +1133,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             &support_bindings,
         ));
         normalize_binding_locations(&mut forwarded_boundary_set_resolution_bindings);
-        let mut scope = Scope::default();
+        let mut scope = Scope::child(parent_scope);
         scope.set_pure_operators(self.elaborator.visible_pure_operators(&component.namespace));
         scope.set_occurrence_bindings(bindings.clone());
         scope.set_forwarded_parameter_resolution_bindings(forwarded_parameter_resolution_bindings);

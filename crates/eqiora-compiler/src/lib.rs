@@ -9,6 +9,8 @@
 pub mod connection_sets;
 mod diagnostics;
 mod dimensions;
+mod external;
+mod external_compile;
 mod hierarchy;
 #[doc(hidden)]
 pub mod identity;
