@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Iterable
 
@@ -25,6 +27,7 @@ SURFACES = (
     "dependency_policy",
     "cubecl_experiment",
 )
+CLASSIFIED_SURFACES = (*SURFACES, "site")
 PYTHON_HOST_EVIDENCE_SURFACES = ("rust", "python")
 
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
@@ -93,9 +96,80 @@ def dependency_policy_path(path: str) -> bool:
     )
 
 
+SITE_INPUT_FILES = {
+    ".cargo/config.toml",
+    ".gitattributes",
+    ".github/workflows/pages.yml",
+    "CHANGELOG.md",
+    "Cargo.lock",
+    "Cargo.toml",
+    "api/eqiora-facade-v1.json",
+    "docs/capability-matrix.md",
+    "docs/python/api.md",
+    "docs/verification/gallery/README.md",
+    "examples/python/exact_cylinder_geometry.py",
+    "examples/python/exact_cylinder_mesh.py",
+    "examples/python/exact_cylinder_stokes.py",
+    "examples/python/exact_cylinder_stokes_marimo.py",
+    "examples/steady-flow-past-cylinder.eqi",
+    "examples/steady-flow-past-cylinder.geometry.json",
+    "examples/steady-flow-past-cylinder.model.json",
+    "mise.lock",
+    "mise.toml",
+    "mkdocs.yml",
+    "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
+    "pyproject.toml",
+    "rust-toolchain.toml",
+    "schemas/control/compile-v2.schema.json",
+    "tools/release/python_candidate_common.py",
+    "uv.lock",
+}
+
+
+def site_input_path(path: str) -> bool:
+    """Return whether the complete documentation artifact can read this path."""
+    return (
+        path in SITE_INPUT_FILES
+        or path.startswith(
+            (
+                "bindings/python/python/eqiora/",
+                "crates/",
+                "docs/site/",
+                "tools/docs/",
+                "tools/site/",
+                "tools/xtask/",
+                "verify/",
+            )
+        )
+        or path == "tools/ci/classify_changes.py"
+    )
+
+
+def recognized_path(path: str) -> bool:
+    """Return whether a reviewed ownership rule recognizes this path."""
+    return (
+        documentation_path(path)
+        or root_rust_path(path)
+        or msrv_path(path)
+        or public_facade_path(path)
+        or dependency_policy_path(path)
+        or site_input_path(path)
+        or path.startswith(
+            (
+                ".github/workflows/",
+                "bindings/python/",
+                "crates/eqiora-python/",
+                "experiments/cubecl-local-action/",
+                "studio/",
+                "tools/ci/",
+            )
+        )
+    )
+
+
 def classify(paths: Iterable[str], *, full: bool = False) -> dict[str, bool]:
     """Map normalized repository paths to conditional CI surfaces."""
-    selected = {surface: full for surface in SURFACES}
+    selected = {surface: full for surface in CLASSIFIED_SURFACES}
     if full:
         return selected
 
@@ -108,51 +182,91 @@ def classify(paths: Iterable[str], *, full: bool = False) -> dict[str, bool]:
             continue
         normalized.append(path)
 
+    for path in normalized:
+        if site_input_path(path):
+            selected["site"] = True
+
     if normalized and all(documentation_path(path) for path in normalized):
         return selected
 
     for path in normalized:
-
         if path.startswith((".github/workflows/", "tools/ci/")):
-            return {surface: True for surface in SURFACES}
+            return {surface: True for surface in CLASSIFIED_SURFACES}
 
-        known = False
-        if documentation_path(path):
-            known = True
+        known = recognized_path(path)
         if root_rust_path(path):
             selected["rust"] = True
-            known = True
         if msrv_path(path):
             selected["msrv"] = True
-            known = True
-        if path.startswith(("bindings/python/", "crates/eqiora-python/")) or public_facade_path(
-            path
-        ):
+        if path.startswith(
+            ("bindings/python/", "crates/eqiora-python/")
+        ) or public_facade_path(path):
             selected["python"] = True
-            known = True
         if path.startswith("studio/") or public_facade_path(path):
             selected["studio"] = True
-            known = True
         if dependency_policy_path(path):
             selected["dependency_policy"] = True
-            known = True
         if path.startswith("experiments/cubecl-local-action/"):
             selected["cubecl_experiment"] = True
-            known = True
         if not known:
-            return {surface: True for surface in SURFACES}
+            return {surface: True for surface in CLASSIFIED_SURFACES}
 
     return selected
 
 
-def changed_paths(base: str, head: str) -> list[str]:
-    """Read the complete merge-base diff without GitHub's path-filter limit."""
+def changed_paths(base: str, head: str) -> tuple[list[str], bool]:
+    """Read paths and file modes from the complete merge-base diff."""
     output = subprocess.run(
-        ["git", "diff", "--no-renames", "--name-only", "-z", f"{base}...{head}"],
+        ["git", "diff", "--raw", "--no-renames", "-z", f"{base}...{head}"],
         check=True,
         stdout=subprocess.PIPE,
     ).stdout
-    return [entry.decode("utf-8") for entry in output.split(b"\0") if entry]
+    fields = output.split(b"\0")
+    if fields[-1:] == [b""]:
+        fields.pop()
+    if len(fields) % 2:
+        raise ValueError("raw diff does not contain header/path pairs")
+
+    paths: list[str] = []
+    unsafe_mode = False
+    for offset in range(0, len(fields), 2):
+        header, raw_path = fields[offset : offset + 2]
+        match = re.fullmatch(
+            rb":([0-7]{6}) ([0-7]{6}) ([0-9a-f]+) ([0-9a-f]+) ([AMDT])",
+            header,
+        )
+        if match is None or not raw_path:
+            raise ValueError("raw diff contains an unknown or ambiguous record")
+        old_mode, new_mode = match.group(1), match.group(2)
+        regular_or_absent = {b"000000", b"100644"}
+        if (
+            old_mode not in regular_or_absent
+            or new_mode not in regular_or_absent
+            or (
+                old_mode != b"000000"
+                and new_mode != b"000000"
+                and old_mode != new_mode
+            )
+        ):
+            unsafe_mode = True
+        paths.append(raw_path.decode("utf-8"))
+    return paths, unsafe_mode
+
+
+def exact_commit(value: str, label: str) -> str:
+    """Require one full SHA naming an available commit object."""
+    if FULL_SHA.fullmatch(value) is None:
+        raise ValueError(f"{label} is not one exact lowercase commit SHA")
+    expected = value
+    resolved = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{value}^{{commit}}"],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    ).stdout.strip()
+    if FULL_SHA.fullmatch(resolved) is None or resolved != expected:
+        raise ValueError(f"{label} did not resolve to one exact commit SHA")
+    return resolved
 
 
 def exact_head(expected: str) -> str:
@@ -165,27 +279,107 @@ def exact_head(expected: str) -> str:
     ).stdout.strip()
     if expected:
         if FULL_SHA.fullmatch(expected) is None:
-            raise ValueError("manual full verification requires a full lowercase commit SHA")
+            raise ValueError(
+                "manual full verification requires a full lowercase commit SHA"
+            )
         if actual != expected:
             raise ValueError(f"checked out {actual}, expected exact commit {expected}")
     return actual
 
 
-def render_outputs(target_sha: str, selected: dict[str, bool], *, full: bool) -> str:
+def render_outputs(
+    target_sha: str,
+    selected: dict[str, bool],
+    *,
+    full: bool,
+    site_source_sha: str = "",
+    site_reason: str = "",
+) -> str:
     """Render stable GitHub Actions outputs."""
     lines = [f"target_sha={target_sha}", f"full={'true' if full else 'false'}"]
     lines.extend(
         f"{surface}={'true' if selected[surface] else 'false'}" for surface in SURFACES
     )
+    lines.append(f"site={'true' if selected['site'] else 'false'}")
     python_host_evidence = any(
         selected[surface] for surface in PYTHON_HOST_EVIDENCE_SURFACES
     )
+    lines.append(f"python_host_evidence={'true' if python_host_evidence else 'false'}")
+    lines.append(f"site_source_sha={site_source_sha or target_sha}")
     lines.append(
-        f"python_host_evidence={'true' if python_host_evidence else 'false'}"
+        "site_reason="
+        + (
+            site_reason
+            or (
+                "changed input closure"
+                if selected["site"]
+                else "unchanged input closure"
+            )
+        )
     )
     versions = ["3.11", "3.12", "3.13", "3.14"] if full else ["3.11", "3.14"]
     lines.append(f"python_versions={json.dumps(versions, separators=(',', ':'))}")
     return "\n".join(lines)
+
+
+def append_github_outputs(path: Path, rendered: str) -> None:
+    """Validate one complete decision before appending it to GitHub outputs."""
+    expected_keys = (
+        "target_sha",
+        "full",
+        *SURFACES,
+        "site",
+        "python_host_evidence",
+        "site_source_sha",
+        "site_reason",
+        "python_versions",
+    )
+    records = [line.partition("=") for line in rendered.splitlines()]
+    if any(not separator for _, separator, _ in records):
+        raise ValueError("classification output contains a malformed record")
+    keys = tuple(key for key, _, _ in records)
+    if keys != expected_keys:
+        raise ValueError("classification output keys are missing, duplicated, or reordered")
+    values = {key: value for key, _, value in records}
+    if FULL_SHA.fullmatch(values["target_sha"]) is None or FULL_SHA.fullmatch(
+        values["site_source_sha"]
+    ) is None:
+        raise ValueError("classification output contains an invalid source identity")
+    for key in ("full", *SURFACES, "site", "python_host_evidence"):
+        if values[key] not in {"true", "false"}:
+            raise ValueError(f"classification output contains an invalid {key} decision")
+    try:
+        versions = json.loads(values["python_versions"])
+    except json.JSONDecodeError as error:
+        raise ValueError("classification output contains invalid Python versions") from error
+    expected_versions = (
+        ["3.11", "3.12", "3.13", "3.14"]
+        if values["full"] == "true"
+        else ["3.11", "3.14"]
+    )
+    if versions != expected_versions:
+        raise ValueError("classification output contains inconsistent Python versions")
+    if values["site"] == "false" and (
+        values["full"] != "false"
+        or values["site_reason"] != "unchanged input closure"
+    ):
+        raise ValueError("a quick site decision is incomplete or inconsistent")
+    if values["full"] == "true" and values["site"] != "true":
+        raise ValueError("a full decision must select the documentation site")
+    if not values["site_reason"]:
+        raise ValueError("classification output omits its decision reason")
+    if not path.is_absolute() or (os.path.lexists(path) and path.is_symlink()):
+        raise ValueError("GitHub output must be an absolute non-symlink path")
+    with path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(rendered)
+        handle.write("\n")
+
+
+def emit_outputs(arguments: argparse.Namespace, rendered: str) -> None:
+    if arguments.github_output:
+        append_github_outputs(Path(arguments.github_output), rendered)
+    else:
+        print(rendered)
 
 
 def main() -> int:
@@ -194,6 +388,7 @@ def main() -> int:
     parser.add_argument("--base", default="")
     parser.add_argument("--head", default="")
     parser.add_argument("--requested-commit", default="")
+    parser.add_argument("--github-output", default="")
     arguments = parser.parse_args()
 
     try:
@@ -201,18 +396,77 @@ def main() -> int:
         full = arguments.event != "pull_request"
         if full:
             paths: list[str] = []
+            site_source_sha = target_sha
+            site_reason = "non-pull-request full build"
         else:
             if not arguments.base or not arguments.head:
-                raise ValueError("pull-request classification requires base and head SHAs")
-            paths = changed_paths(arguments.base, arguments.head)
+                raise ValueError(
+                    "pull-request classification requires base and head SHAs"
+                )
+            site_source_sha = exact_commit(arguments.base, "pull-request base")
+            exact_commit(arguments.head, "pull-request head")
+            paths, unsafe_mode = changed_paths(arguments.base, arguments.head)
             if not paths:
                 raise ValueError("pull-request diff is unexpectedly empty")
         selected = classify(paths, full=full)
-    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError, ValueError) as error:
+        if not full:
+            if unsafe_mode:
+                selected["site"] = True
+            if selected["site"]:
+                site_source_sha = target_sha
+                site_reason = (
+                    "file mode or type change: full build"
+                    if unsafe_mode
+                    else (
+                        "unrecognized input: full build"
+                        if any(not recognized_path(path) for path in paths)
+                        else "changed input closure"
+                    )
+                )
+            else:
+                site_reason = "unchanged input closure"
+    except (
+        OSError,
+        subprocess.CalledProcessError,
+        UnicodeDecodeError,
+        ValueError,
+    ) as error:
+        if arguments.event == "pull_request":
+            try:
+                target_sha = exact_head("")
+            except (OSError, subprocess.CalledProcessError, ValueError):
+                pass
+            else:
+                selected = classify([], full=True)
+                print(f"CI classification failed closed: {error}", file=sys.stderr)
+                rendered = render_outputs(
+                    target_sha,
+                    selected,
+                    full=True,
+                    site_source_sha=target_sha,
+                    site_reason="classification failure: full build",
+                )
+                try:
+                    emit_outputs(arguments, rendered)
+                except (OSError, ValueError) as output_error:
+                    print(f"CI classification output failed: {output_error}", file=sys.stderr)
+                    return 2
+                return 0
         print(f"CI classification failed: {error}", file=sys.stderr)
         return 2
 
-    print(render_outputs(target_sha, selected, full=full))
+    rendered = render_outputs(
+        target_sha,
+        selected,
+        full=full,
+        site_source_sha=site_source_sha,
+        site_reason=site_reason,
+    )
+    try:
+        emit_outputs(arguments, rendered)
+    except (OSError, ValueError) as error:
+        print(f"CI classification output failed: {error}", file=sys.stderr)
+        return 2
     return 0
 
 

@@ -15,7 +15,6 @@ import tomllib
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
-from typing import Iterable
 from urllib.parse import unquote, urlsplit
 
 try:
@@ -180,95 +179,6 @@ CURRENT_VERSION_SOURCE_EXCEPTIONS = {
     "docs/site/src/content/docs/reference/cli/index.mdx",
     "docs/site/src/content/docs/reference/mcp/index.mdx",
 }
-REQUIRED_TRIGGER_PATTERNS = {
-    ".gitattributes",
-    ".github/workflows/pages.yml",
-    ".cargo/config.toml",
-    "CHANGELOG.md",
-    "Cargo.lock",
-    "Cargo.toml",
-    "api/eqiora-facade-v1.json",
-    "bindings/python/python/eqiora/**/*.py",
-    "bindings/python/python/eqiora/**/*.pyi",
-    "crates/**",
-    "docs/capability-matrix.md",
-    "docs/python/api.md",
-    "docs/site/**",
-    "docs/verification/gallery/README.md",
-    "examples/python/exact_cylinder_geometry.py",
-    "examples/python/exact_cylinder_mesh.py",
-    "examples/python/exact_cylinder_stokes.py",
-    "examples/python/exact_cylinder_stokes_marimo.py",
-    "examples/steady-flow-past-cylinder.eqi",
-    "examples/steady-flow-past-cylinder.geometry.json",
-    "examples/steady-flow-past-cylinder.model.json",
-    "mise.lock",
-    "mise.toml",
-    "mkdocs.yml",
-    "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
-    "pyproject.toml",
-    "rust-toolchain.toml",
-    "schemas/control/compile-v2.schema.json",
-    "tools/docs/**",
-    "tools/release/python_candidate_common.py",
-    "tools/site/**",
-    "uv.lock",
-    "verify/artifacts/current-model-canonical-identity/**",
-    "verify/fluid/exact-circular-hole-stokes-2d/**",
-    "verify/fluid/packaged-steady-stokes-2d/**",
-    "verify/geometry/circular-hole-chordal-realization-binding/**",
-    "verify/geometry/circular-hole-chordal-reference-mesh/**",
-    "verify/geometry/exact-circular-hole-geometry/**",
-    "verify/interfaces/cli-compile-check/**",
-    "verify/interfaces/control-plane-compile-check/**",
-    "verify/interfaces/mcp-stdio-compile-check/README.md",
-    "verify/interfaces/mcp-stdio-compile-check/case.toml",
-    "verify/interfaces/mcp-stdio-compile-check/**",
-    "verify/interfaces/python-circular-hole-chordal-mesh/**",
-    "verify/interfaces/python-exact-circular-hole-geometry/**",
-    "verify/interfaces/python-exact-cylinder-pressure-still/**",
-    "verify/interfaces/python-exact-cylinder-stokes-marimo/**",
-    "verify/interfaces/python-exact-cylinder-stokes-result/**",
-    "verify/interfaces/studio-exact-cylinder-stokes-demo/**",
-    "verify/**",
-}
-TRIGGER_REPRESENTATIVES = {
-    "archive attributes": ".gitattributes",
-    "workflow": ".github/workflows/pages.yml",
-    "site config": "docs/site/astro.config.mjs",
-    "old social deletion": "docs/site/assets/social-card.svg",
-    "timeless social target": "docs/site/public/social-card.svg",
-    "admitted media": "docs/site/src/assets/gallery/exact-cylinder-pressure.png",
-    "publication record": "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json",
-    "Python stub": "bindings/python/python/eqiora/geometry.pyi",
-    "Python runtime": "bindings/python/python/eqiora/geometry.py",
-    "Rust facade": "crates/eqiora/src/lib.rs",
-    "Rust provider": "crates/eqiora-core/src/diagnostic.rs",
-    "facade inventory": "api/eqiora-facade-v1.json",
-    "geometry snippet": "examples/python/exact_cylinder_geometry.py",
-    "mesh snippet": "examples/python/exact_cylinder_mesh.py",
-    "plain snippet": "examples/python/exact_cylinder_stokes.py",
-    "Marimo snippet": "examples/python/exact_cylinder_stokes_marimo.py",
-    "EQI owner": "examples/steady-flow-past-cylinder.eqi",
-    "geometry owner": "examples/steady-flow-past-cylinder.geometry.json",
-    "model owner": "examples/steady-flow-past-cylinder.model.json",
-    "formula owner": "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
-    "gallery contract": "docs/verification/gallery/README.md",
-    "schema": "schemas/control/compile-v2.schema.json",
-    "MCP case": "verify/interfaces/mcp-stdio-compile-check/case.toml",
-    "MCP prose": "verify/interfaces/mcp-stdio-compile-check/README.md",
-    "capability matrix": "docs/capability-matrix.md",
-    "uv lock": "uv.lock",
-    "mise lock": "mise.lock",
-    "Rust toolchain": "rust-toolchain.toml",
-    "Cargo config": ".cargo/config.toml",
-    "Cargo root": "Cargo.toml",
-    "Cargo lock": "Cargo.lock",
-    "site tooling": "tools/site/check_site.py",
-    "docs tooling": "tools/docs/generate_python_api.py",
-    "evidence": "verify/interfaces/python-exact-cylinder-stokes-result/case.toml",
-    "changelog": "CHANGELOG.md",
-}
 
 
 def _destination(raw: str) -> str:
@@ -374,82 +284,91 @@ def derive_release_identity(
     return ReleaseIdentity(cargo_version, python_version), []
 
 
-def _workflow_paths(text: str, event: str) -> list[str]:
-    lines = text.splitlines()
-    event_indent = None
-    paths_indent = None
-    result: list[str] = []
-    in_event = False
-    for line in lines:
-        stripped = line.strip()
-        indent = len(line) - len(line.lstrip())
-        if stripped == f"{event}:" and indent == 2:
-            in_event = True
-            event_indent = indent
-            continue
-        if in_event and stripped and indent <= (event_indent or 0):
-            break
-        if in_event and stripped == "paths:":
-            paths_indent = indent
-            continue
-        if paths_indent is not None:
-            if stripped and indent <= paths_indent:
-                break
-            match = re.match(r"\s*-\s+[\"']?([^\"']+?)[\"']?\s*$", line)
-            if match:
-                result.append(match.group(1))
-    return result
-
-
-def _glob_regex(pattern: str) -> re.Pattern[str]:
-    output = ""
-    offset = 0
-    while offset < len(pattern):
-        if pattern.startswith("**/", offset):
-            output += "(?:.*/)?"
-            offset += 3
-        elif pattern.startswith("**", offset):
-            output += ".*"
-            offset += 2
-        elif pattern[offset] == "*":
-            output += "[^/]*"
-            offset += 1
-        elif pattern[offset] == "?":
-            output += "[^/]"
-            offset += 1
-        else:
-            output += re.escape(pattern[offset])
-            offset += 1
-    return re.compile(f"^{output}$")
-
-
-def selected_by_paths(patterns: Iterable[str], changed_path: str) -> bool:
-    return any(_glob_regex(pattern).fullmatch(changed_path) for pattern in patterns)
-
-
 def check_workflow_text(text: str) -> list[str]:
     errors: list[str] = []
-    pull = _workflow_paths(text, "pull_request")
-    push = _workflow_paths(text, "push")
-    if not pull or not push:
+    trigger = text.split("permissions:", maxsplit=1)[0]
+    trigger_contract = (
+        "  pull_request:\n    types: [opened, reopened, synchronize, edited]\n",
+        "  push:\n    branches:\n      - main\n",
+        "  workflow_dispatch:\n",
+    )
+    if any(token not in trigger for token in trigger_contract) or "paths:" in trigger:
         errors.append(
-            "Pages workflow must define PR and protected-base push path filters"
+            "Pages must run one unfiltered required job for every pull request"
         )
-        return errors
-    if pull != push:
-        errors.append("Pages PR and push path filters differ")
-    if len(pull) != len(set(pull)):
-        errors.append("Pages path filters contain duplicates")
-    missing = sorted(REQUIRED_TRIGGER_PATTERNS - set(pull))
-    if missing:
-        errors.append(f"Pages path filters omit exact authorities: {missing}")
-    for label, changed in TRIGGER_REPRESENTATIVES.items():
-        if changed == ".gitattributes" and changed in missing:
-            continue
-        if not selected_by_paths(pull, changed):
-            errors.append(f"Pages does not select representative {label}: {changed}")
-    if selected_by_paths(pull, "notes/unrelated.txt"):
-        errors.append("Pages selects a docs-unrelated negative path")
+
+    build_match = re.search(
+        r"(?ms)^  build:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|\Z)", text
+    )
+    build = build_match.group("body") if build_match is not None else ""
+    classifier_match = re.search(
+        r"(?ms)^      - name: Classify the complete documentation input closure\n"
+        r"(?P<body>.*?)(?=^      - name: |\Z)",
+        build,
+    )
+    classifier = classifier_match.group("body") if classifier_match is not None else ""
+    expected_classifier = (
+        "        id: site_closure\n"
+        "        env:\n"
+        "          SITE_EVENT_NAME: ${{ github.event_name }}\n"
+        "          SITE_BASE_SHA: ${{ github.event.pull_request.base.sha }}\n"
+        "          SITE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}\n"
+        "        run: |\n"
+        "          exec python3 tools/ci/classify_changes.py \\\n"
+        "            --event \"$SITE_EVENT_NAME\" \\\n"
+        "            --base \"$SITE_BASE_SHA\" \\\n"
+        "            --head \"$SITE_HEAD_SHA\" \\\n"
+        "            --github-output \"$GITHUB_OUTPUT\"\n"
+    )
+    if classifier != expected_classifier:
+        errors.append("Pages omits the repository-owned input-closure classifier")
+
+    full_condition = "if: steps.site_closure.outputs.site == 'true'"
+    full_steps = (
+        "Configure GitHub Pages",
+        "Bind exact temporary supply roots",
+        "Restore the exact Playwright browser cache",
+        "Install the locked mise toolchain",
+        "Prepare the exact clean source and unique home-backed scratch",
+        "Supply locked native, Rust, Python, Node, and browser inputs",
+        "Build and verify with only loopback networking",
+        "Recheck exact inputs and checked artifact",
+        "Upload GitHub Pages artifact",
+    )
+    for name in full_steps:
+        marker = f"      - name: {name}\n        {full_condition}\n"
+        if marker not in text:
+            errors.append(f"Pages full build step is not fail-closed: {name}")
+    cleanup = (
+        "      - name: Retain an authenticated empty site scratch for runner teardown\n"
+        "        if: always() && steps.site_closure.outputs.site == 'true'\n"
+    )
+    if cleanup not in text:
+        errors.append("Pages cleanup is not bound to a selected full build")
+    deploy_match = re.search(
+        r"(?ms)^  deploy:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|\Z)", text
+    )
+    deploy = deploy_match.group("body") if deploy_match is not None else ""
+    deploy_header = deploy.split("    steps:\n", maxsplit=1)[0]
+    deploy_header = "\n".join(
+        line
+        for line in deploy_header.splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    deploy_if = (
+        "    if: >-\n"
+        "      github.event_name == 'push' &&\n"
+        "      github.ref == 'refs/heads/main' &&\n"
+        "      needs.build.outputs.full_build == 'true'\n"
+    )
+    if (
+        deploy_if not in deploy_header + "\n"
+        or len(re.findall(r"(?m)^    if:", deploy_header)) != 1
+        or not re.search(r"(?m)^    needs: build$", deploy_header)
+    ):
+        errors.append(
+            "Pages deployment is not bound to an authenticated main full build"
+        )
     for action, revision in ACTION_USE.findall(text):
         if not re.fullmatch(r"[0-9a-f]{40}", revision):
             errors.append(f"Pages action {action} is not pinned to a full SHA")
@@ -576,6 +495,12 @@ def check_source(
         )
     )
     provider_requirements = {
+        root / "tools/ci/classify_changes.py": (
+            "SITE_INPUT_FILES",
+            "site_input_path",
+            "recognized_path",
+            "exact_commit",
+        ),
         site / "src/components/site/ExactSourceLink.astro": (
             "EQIORA_SITE_SOURCE_SHA",
             "blob",

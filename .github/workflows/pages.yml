@@ -1,111 +1,10 @@
 name: Documentation site
 on:
   pull_request:
-    paths:
-      - ".github/workflows/pages.yml"
-      - ".cargo/config.toml"
-      - ".gitattributes"
-      - "CHANGELOG.md"
-      - "Cargo.lock"
-      - "Cargo.toml"
-      - "api/eqiora-facade-v1.json"
-      - "bindings/python/python/eqiora/**/*.py"
-      - "bindings/python/python/eqiora/**/*.pyi"
-      - "crates/**"
-      - "docs/capability-matrix.md"
-      - "docs/python/api.md"
-      - "docs/site/**"
-      - "docs/verification/gallery/README.md"
-      - "examples/python/exact_cylinder_geometry.py"
-      - "examples/python/exact_cylinder_mesh.py"
-      - "examples/python/exact_cylinder_stokes.py"
-      - "examples/python/exact_cylinder_stokes_marimo.py"
-      - "examples/steady-flow-past-cylinder.eqi"
-      - "examples/steady-flow-past-cylinder.geometry.json"
-      - "examples/steady-flow-past-cylinder.model.json"
-      - "mise.lock"
-      - "mise.toml"
-      - "mkdocs.yml"
-      - "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"
-      - "pyproject.toml"
-      - "rust-toolchain.toml"
-      - "schemas/control/compile-v2.schema.json"
-      - "tools/docs/**"
-      - "tools/release/python_candidate_common.py"
-      - "tools/site/**"
-      - "uv.lock"
-      - "verify/artifacts/current-model-canonical-identity/**"
-      - "verify/fluid/exact-circular-hole-stokes-2d/**"
-      - "verify/fluid/packaged-steady-stokes-2d/**"
-      - "verify/geometry/circular-hole-chordal-realization-binding/**"
-      - "verify/geometry/circular-hole-chordal-reference-mesh/**"
-      - "verify/geometry/exact-circular-hole-geometry/**"
-      - "verify/interfaces/cli-compile-check/**"
-      - "verify/interfaces/control-plane-compile-check/**"
-      - "verify/interfaces/mcp-stdio-compile-check/README.md"
-      - "verify/interfaces/mcp-stdio-compile-check/case.toml"
-      - "verify/interfaces/mcp-stdio-compile-check/**"
-      - "verify/interfaces/python-circular-hole-chordal-mesh/**"
-      - "verify/interfaces/python-exact-circular-hole-geometry/**"
-      - "verify/interfaces/python-exact-cylinder-pressure-still/**"
-      - "verify/interfaces/python-exact-cylinder-stokes-marimo/**"
-      - "verify/interfaces/python-exact-cylinder-stokes-result/**"
-      - "verify/interfaces/studio-exact-cylinder-stokes-demo/**"
-      - "verify/**"
+    types: [opened, reopened, synchronize, edited]
   push:
     branches:
       - main
-    paths:
-      - ".github/workflows/pages.yml"
-      - ".cargo/config.toml"
-      - ".gitattributes"
-      - "CHANGELOG.md"
-      - "Cargo.lock"
-      - "Cargo.toml"
-      - "api/eqiora-facade-v1.json"
-      - "bindings/python/python/eqiora/**/*.py"
-      - "bindings/python/python/eqiora/**/*.pyi"
-      - "crates/**"
-      - "docs/capability-matrix.md"
-      - "docs/python/api.md"
-      - "docs/site/**"
-      - "docs/verification/gallery/README.md"
-      - "examples/python/exact_cylinder_geometry.py"
-      - "examples/python/exact_cylinder_mesh.py"
-      - "examples/python/exact_cylinder_stokes.py"
-      - "examples/python/exact_cylinder_stokes_marimo.py"
-      - "examples/steady-flow-past-cylinder.eqi"
-      - "examples/steady-flow-past-cylinder.geometry.json"
-      - "examples/steady-flow-past-cylinder.model.json"
-      - "mise.lock"
-      - "mise.toml"
-      - "mkdocs.yml"
-      - "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"
-      - "pyproject.toml"
-      - "rust-toolchain.toml"
-      - "schemas/control/compile-v2.schema.json"
-      - "tools/docs/**"
-      - "tools/release/python_candidate_common.py"
-      - "tools/site/**"
-      - "uv.lock"
-      - "verify/artifacts/current-model-canonical-identity/**"
-      - "verify/fluid/exact-circular-hole-stokes-2d/**"
-      - "verify/fluid/packaged-steady-stokes-2d/**"
-      - "verify/geometry/circular-hole-chordal-realization-binding/**"
-      - "verify/geometry/circular-hole-chordal-reference-mesh/**"
-      - "verify/geometry/exact-circular-hole-geometry/**"
-      - "verify/interfaces/cli-compile-check/**"
-      - "verify/interfaces/control-plane-compile-check/**"
-      - "verify/interfaces/mcp-stdio-compile-check/README.md"
-      - "verify/interfaces/mcp-stdio-compile-check/case.toml"
-      - "verify/interfaces/mcp-stdio-compile-check/**"
-      - "verify/interfaces/python-circular-hole-chordal-mesh/**"
-      - "verify/interfaces/python-exact-circular-hole-geometry/**"
-      - "verify/interfaces/python-exact-cylinder-pressure-still/**"
-      - "verify/interfaces/python-exact-cylinder-stokes-marimo/**"
-      - "verify/interfaces/python-exact-cylinder-stokes-result/**"
-      - "verify/interfaces/studio-exact-cylinder-stokes-demo/**"
-      - "verify/**"
   workflow_dispatch:
 permissions:
   contents: read
@@ -117,6 +16,9 @@ jobs:
     name: Build and verify static documentation
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    outputs:
+      full_build: ${{ steps.site_closure.outputs.site }}
+      source_sha: ${{ steps.site_closure.outputs.site_source_sha }}
     env:
       ASTRO_TELEMETRY_DISABLED: "1"
       LC_ALL: C
@@ -127,9 +29,38 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Classify the complete documentation input closure
+        id: site_closure
+        env:
+          SITE_EVENT_NAME: ${{ github.event_name }}
+          SITE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SITE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          exec python3 tools/ci/classify_changes.py \
+            --event "$SITE_EVENT_NAME" \
+            --base "$SITE_BASE_SHA" \
+            --head "$SITE_HEAD_SHA" \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Bind the classified source authority
+        env:
+          SITE_SOURCE_SHA: ${{ steps.site_closure.outputs.site_source_sha }}
+        run: |
+          test -n "$SITE_SOURCE_SHA"
+          printf 'EQIORA_SITE_SOURCE_SHA=%s\n' "$SITE_SOURCE_SHA" >> "$GITHUB_ENV"
+      - name: Complete the unchanged input closure
+        if: steps.site_closure.outputs.site == 'false'
+        env:
+          SITE_REASON: ${{ steps.site_closure.outputs.site_reason }}
+          SITE_SOURCE_SHA: ${{ steps.site_closure.outputs.site_source_sha }}
+        run: |
+          test "$SITE_REASON" = "unchanged input closure"
+          printf 'Documentation Site: %s (content authority %s)\n' \
+            "$SITE_REASON" "$SITE_SOURCE_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Configure GitHub Pages
+        if: steps.site_closure.outputs.site == 'true'
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - name: Bind exact temporary supply roots
+        if: steps.site_closure.outputs.site == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -140,11 +71,13 @@ jobs:
             echo "UV_CACHE_DIR=$RUNNER_TEMP/eqiora-site-uv-cache"
           } >> "$GITHUB_ENV"
       - name: Restore the exact Playwright browser cache
+        if: steps.site_closure.outputs.site == 'true'
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: eqiora-site-${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-r1234-${{ hashFiles('docs/site/package-lock.json') }}
       - name: Install the locked mise toolchain
+        if: steps.site_closure.outputs.site == 'true'
         uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: 2026.5.10
@@ -153,6 +86,7 @@ jobs:
           # "installed" toolchain. Install the locked tools as one fresh unit.
           cache: false
       - name: Prepare the exact clean source and unique home-backed scratch
+        if: steps.site_closure.outputs.site == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -205,7 +139,6 @@ jobs:
             echo "EQIORA_SITE_RUSTDOC_TARGET=$scratch/rustdoc-target"
             echo "EQIORA_SITE_RUSTDOC_STAGE=$scratch/rustdoc-stage"
             echo "EQIORA_SITE_ARTIFACT=$scratch/build/site"
-            echo "EQIORA_SITE_SOURCE_SHA=$GITHUB_SHA"
             echo "EQIORA_RUNNER_UID=$(id -u)"
             echo "EQIORA_RUNNER_GID=$(id -g)"
             echo "EQIORA_RUNNER_HOME=$HOME"
@@ -214,6 +147,7 @@ jobs:
             echo "EQIORA_SITE_SCRATCH_INODE=$scratch_inode"
           } >> "$GITHUB_ENV"
       - name: Supply locked native, Rust, Python, Node, and browser inputs
+        if: steps.site_closure.outputs.site == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -310,6 +244,7 @@ jobs:
             echo "EQIORA_SITE_BROWSER_BYTES=$EQIORA_SITE_BROWSER_BYTES"
           } >> "$GITHUB_ENV"
       - name: Build and verify with only loopback networking
+        if: steps.site_closure.outputs.site == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -347,6 +282,7 @@ jobs:
                   "$EQIORA_SITE_SOURCE_ROOT/tools/site/run_offline_site_checks.sh"
             '
       - name: Recheck exact inputs and checked artifact
+        if: steps.site_closure.outputs.site == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -373,12 +309,13 @@ jobs:
           sha256sum "$RUNNER_TEMP/eqiora-site-artifact-sha256.txt"
 
       - name: Upload GitHub Pages artifact
+        if: steps.site_closure.outputs.site == 'true'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: ${{ env.EQIORA_SITE_ARTIFACT }}
 
       - name: Retain an authenticated empty site scratch for runner teardown
-        if: always()
+        if: always() && steps.site_closure.outputs.site == 'true'
         shell: bash
         run: |
           python3 - <<'PY'
@@ -644,7 +581,10 @@ jobs:
 
   deploy:
     name: Deploy static documentation
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.build.outputs.full_build == 'true'
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10

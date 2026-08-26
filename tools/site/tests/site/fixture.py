@@ -541,70 +541,7 @@ def _write(path: Path, value: str | bytes) -> None:
 
 
 def _workflow() -> str:
-    paths = "\n".join(
-        f'      - "{path}"'
-        for path in sorted({*checker.REQUIRED_TRIGGER_PATTERNS, ".gitattributes"})
-    )
-    return f"""name: fixture
-on:
-  pull_request:
-    paths:
-{paths}
-  push:
-    branches:
-      - main
-    paths:
-{paths}
-jobs:
-  build:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@{"1" * 40}
-      - run: |
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          scratch="$RUNNER_TEMP/eqiora-site.fixture"
-          mkdir -p "$scratch/source"
-          git ls-tree -r "$GITHUB_SHA" > "$scratch/source-tree"
-          source_links="$(awk '$1 == "120000" {{ print $4 }}' "$scratch/source-tree")"
-          case "$source_links" in ''|'CLAUDE.md') ;; *) exit 1 ;; esac
-          if test -n "$source_links"; then
-            test "$({checker.EXACT_TREE_LINK_COMMAND})" = {checker.EXACT_LINK_PAYLOAD_SHA256}
-            git ls-tree "$GITHUB_SHA" -- AGENTS.md | grep -F '100644 blob'
-            git cat-file blob "$GITHUB_SHA:AGENTS.md" > "$scratch/expected-AGENTS.md"
-          fi
-          git archive --format=tar "$GITHUB_SHA" | tar -xf - -C "$scratch/source"
-          if test -n "$source_links"; then
-            test -L "$scratch/source/CLAUDE.md"
-            if test -L "$scratch/source/CLAUDE.md"; then
-              test "$({checker.EXACT_EXTRACTED_LINK_COMMAND})" = {checker.EXACT_LINK_PAYLOAD_SHA256}
-              cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"
-            fi
-          elif test -e "$scratch/source/CLAUDE.md" || test -L "$scratch/source/CLAUDE.md"; then
-            exit 1
-          fi
-          echo "EQIORA_SITE_SOURCE_ROOT=$scratch/source"
-          echo eqiora-pw-1.62.1-r1234
-          npx playwright install --with-deps chromium
-          browser_path="$(node -e 'require("playwright").chromium.executablePath()')"
-          echo chromium-1234/chrome-linux64/chrome
-          expected_browser_sha256="0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"
-          expected_browser_bytes="290614600"
-          expected_browser_version_hex="{checker.FULL_CHROMIUM_VERSION_STDOUT_HEX}"
-          browser_sha256="$(sha256sum "$browser_path" | cut -d ' ' -f 1)"
-          browser_bytes="$(stat -c %s "$browser_path")"
-          test "$browser_sha256" = "$expected_browser_sha256"
-          test "$browser_bytes" = "$expected_browser_bytes"
-          EQIORA_SITE_BROWSER_SHA256="$expected_browser_sha256"
-          EQIORA_SITE_BROWSER_BYTES="$expected_browser_bytes"
-          export EQIORA_SITE_BROWSER_SHA256 EQIORA_SITE_BROWSER_BYTES
-          python3 tools/site/check_site.py browser-supply --site-root docs/site --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
-          version_hex="$("$browser_path" --version | od -An -tx1 | tr -d '[:space:]')"
-          test "$version_hex" = "$expected_browser_version_hex"
-          unshare --net bash -c 'ip link set lo up; setpriv true'
-          export npm_config_offline=true
-          export CARGO_NET_OFFLINE=true
-          export UV_OFFLINE=1
-"""
+    return (REPOSITORY / ".github/workflows/pages.yml").read_text(encoding="utf-8")
 
 
 def _runner() -> str:
@@ -815,6 +752,10 @@ def make_fixture(root: Path, cargo_version: str = "0.1.0-alpha.1"):
         root / "tools/release/python_candidate_common.py",
         "def python_distribution_version(version):\n"
         "    return version.replace('-alpha.', 'a')\n",
+    )
+    _write(
+        root / "tools/ci/classify_changes.py",
+        (REPOSITORY / "tools/ci/classify_changes.py").read_text(encoding="utf-8"),
     )
     _write(root / ".github/workflows/pages.yml", _workflow())
     _write(root / "tools/site/run_offline_site_checks.sh", _runner())
