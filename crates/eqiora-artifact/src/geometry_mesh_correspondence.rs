@@ -4,6 +4,8 @@
 mod correspondence_sources;
 #[path = "geometry_mesh_correspondence_planar_circular_hole_v2.rs"]
 pub(crate) mod planar_circular_hole_v2_correspondence;
+#[path = "geometry_mesh_correspondence_planar_rectangle_v2.rs"]
+mod planar_rectangle_v2_correspondence;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
@@ -731,6 +733,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
             WireCorrespondenceV1::Cartesian(wire) => validate_cartesian_wire(wire, limits),
             WireCorrespondenceV1::AuthoredRegion(wire) => wire.validate_local(limits),
             WireCorrespondenceV1::PlanarCircularHoleV2(wire) => wire.validate_local(limits),
+            WireCorrespondenceV1::PlanarRectangleV2(wire) => wire.validate_local(limits),
         }
     }
 }
@@ -827,13 +830,16 @@ enum WireCorrespondenceV1 {
     PlanarCircularHoleV2(
         planar_circular_hole_v2_correspondence::WirePlanarCircularHoleV2CorrespondenceV1,
     ),
+    PlanarRectangleV2(planar_rectangle_v2_correspondence::WirePlanarRectangleV2CorrespondenceV1),
 }
 
 impl WireCorrespondenceV1 {
     fn cartesian(&self) -> Option<&WireGeometryMeshCorrespondenceV1> {
         match self {
             Self::Cartesian(wire) => Some(wire),
-            Self::AuthoredRegion(_) | Self::PlanarCircularHoleV2(_) => None,
+            Self::AuthoredRegion(_)
+            | Self::PlanarCircularHoleV2(_)
+            | Self::PlanarRectangleV2(_) => None,
         }
     }
 
@@ -842,6 +848,7 @@ impl WireCorrespondenceV1 {
             Self::Cartesian(wire) => &wire.geometry_sha256,
             Self::AuthoredRegion(wire) => &wire.geometry_sha256,
             Self::PlanarCircularHoleV2(wire) => &wire.geometry_sha256,
+            Self::PlanarRectangleV2(wire) => &wire.geometry_sha256,
         }
     }
 
@@ -850,6 +857,7 @@ impl WireCorrespondenceV1 {
             Self::Cartesian(wire) => &wire.mesh_sha256,
             Self::AuthoredRegion(wire) => &wire.mesh_sha256,
             Self::PlanarCircularHoleV2(wire) => &wire.mesh_sha256,
+            Self::PlanarRectangleV2(wire) => &wire.mesh_sha256,
         }
     }
 }

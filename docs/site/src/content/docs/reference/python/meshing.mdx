@@ -15,7 +15,25 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/meshing.p
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/meshing.pyi" kind="blob">bindings/python/python/eqiora/meshing.pyi</ExactSourceLink>
 
-This module publishes **9** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **10** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+
+<a id="api-eqiora-meshing-CartesianMesher"></a>
+
+## `CartesianMesher`
+
+Select deterministic structured Cartesian meshing.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/plan.rs" kind="blob">crates/eqiora-python/src/meshing/plan.rs::PyCartesianMesher</ExactSourceLink>
+
+```python
+@final
+class CartesianMesher:
+    def __new__(cls, *, cells: tuple[int, int]) -> Self: ...
+    @property
+    def cells(self) -> tuple[int, int]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+```
 
 <a id="api-eqiora-meshing-GmshImport"></a>
 
@@ -124,7 +142,7 @@ class MeshPlan:
     @property
     def source_digest(self) -> str: ...
     @property
-    def provider(self) -> GmshMesher | ReferenceMesher: ...
+    def provider(self) -> CartesianMesher | GmshMesher | ReferenceMesher: ...
     @property
     def request(self) -> MeshRequest: ...
     @property
@@ -142,16 +160,16 @@ class MeshPlan:
 
 ## `MeshRequest`
 
-Immutable caller intent for the admitted planar mesh provider.
+Immutable caller intent for one admitted mesh provider.
 
 Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/plan.rs" kind="blob">crates/eqiora-python/src/meshing/plan.rs::PyMeshRequest</ExactSourceLink>
 
 ```python
 @final
 class MeshRequest:
-    def __new__(cls, provider: GmshMesher | ReferenceMesher, /) -> Self: ...
+    def __new__(cls, provider: CartesianMesher | GmshMesher | ReferenceMesher, /) -> Self: ...
     @property
-    def provider(self) -> GmshMesher | ReferenceMesher: ...
+    def provider(self) -> CartesianMesher | GmshMesher | ReferenceMesher: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __repr__(self) -> str: ...
 ```

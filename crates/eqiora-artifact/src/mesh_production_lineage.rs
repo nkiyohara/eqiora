@@ -6,8 +6,9 @@ use eqiora_meshing::MeshQualityGate;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, GeometryMeshCorrespondenceEnvelopeV1, JsonDecoderLimits,
-    SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, CartesianMeshEnvelopeV1,
+    GeometryMeshCorrespondenceEnvelopeV1, JsonDecoderLimits, SimplicialMeshEnvelopeV1,
+    check_json_limits, invalid_artifact,
 };
 
 const SCHEMA: &str = "eqiora.mesh-production-lineage-envelope/v1";
@@ -15,6 +16,8 @@ const GMSH_IDENTITY: &str = "eqiora.gmsh-cli";
 const GMSH_VERSION: &str = "4.15.2";
 const REFERENCE_IDENTITY: &str = "eqiora.reference-planar-circular-hole";
 const REFERENCE_VERSION: &str = "1";
+const CARTESIAN_IDENTITY: &str = "eqiora.structured-cartesian";
+const CARTESIAN_VERSION: &str = "1";
 
 /// Closed identity of a provider that currently produces a common Mesh.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,6 +26,8 @@ enum MeshProductionProvider {
     Gmsh4152,
     /// Deterministic in-process planar circular-hole reference producer v1.
     PlanarCircularHoleReferenceV1,
+    /// Deterministic structured Cartesian producer v1.
+    StructuredCartesianV1,
 }
 
 impl MeshProductionProvider {
@@ -32,6 +37,7 @@ impl MeshProductionProvider {
         match self {
             Self::Gmsh4152 => GMSH_IDENTITY,
             Self::PlanarCircularHoleReferenceV1 => REFERENCE_IDENTITY,
+            Self::StructuredCartesianV1 => CARTESIAN_IDENTITY,
         }
     }
 
@@ -41,7 +47,33 @@ impl MeshProductionProvider {
         match self {
             Self::Gmsh4152 => GMSH_VERSION,
             Self::PlanarCircularHoleReferenceV1 => REFERENCE_VERSION,
+            Self::StructuredCartesianV1 => CARTESIAN_VERSION,
         }
+    }
+}
+
+/// Exact effective policy of the structured Cartesian provider.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CartesianMeshCellsV1([usize; 2]);
+
+impl CartesianMeshCellsV1 {
+    /// Construct positive x/y cell counts.
+    pub fn new(cells: [usize; 2]) -> Result<Self, Diagnostic> {
+        if cells.contains(&0) {
+            return Err(invalid_artifact("Cartesian cell counts must be positive"));
+        }
+        if cells.iter().any(|&count| count.checked_add(1).is_none()) {
+            return Err(invalid_artifact(
+                "Cartesian cell count overflows its axis vertex count",
+            ));
+        }
+        Ok(Self(cells))
+    }
+
+    /// Exact x/y cell counts.
+    #[must_use]
+    pub const fn cells(self) -> [usize; 2] {
+        self.0
     }
 }
 
@@ -170,7 +202,36 @@ impl MeshProductionLineageEnvelopeV1 {
                     identity: provider.identity().to_owned(),
                     version: provider.version().to_owned(),
                 },
-                effective_policy: WirePlanarMeshQualityV1::try_from(policy)?,
+                effective_policy: WireEffectivePolicyV1::PlanarMeshQuality(
+                    WirePlanarMeshQualityV1::try_from(policy)?,
+                ),
+                geometry_sha256: ArtifactDigest::from_sha256(geometry.digest_bytes()).to_string(),
+                mesh_sha256: mesh.digest()?.to_string(),
+                correspondence_sha256: correspondence.digest()?.to_string(),
+            },
+        };
+        lineage.validate_local()?;
+        Ok(lineage)
+    }
+
+    /// Bind one structured Cartesian v1 occurrence to exact rectangle resources.
+    pub fn from_structured_cartesian_v1_resources(
+        policy: CartesianMeshCellsV1,
+        geometry: &CanonicalGeometryV1,
+        mesh: &CartesianMeshEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+    ) -> Result<Self, Diagnostic> {
+        let lineage = Self {
+            wire: WireMeshProductionLineageV1 {
+                schema: SCHEMA.to_owned(),
+                encoding: CANONICAL_ENCODING.to_owned(),
+                provider: WireProviderV1 {
+                    identity: CARTESIAN_IDENTITY.to_owned(),
+                    version: CARTESIAN_VERSION.to_owned(),
+                },
+                effective_policy: WireEffectivePolicyV1::CartesianCells(
+                    WireCartesianCellsV1::try_from(policy)?,
+                ),
                 geometry_sha256: ArtifactDigest::from_sha256(geometry.digest_bytes()).to_string(),
                 mesh_sha256: mesh.digest()?.to_string(),
                 correspondence_sha256: correspondence.digest()?.to_string(),
@@ -260,6 +321,24 @@ impl MeshProductionLineageEnvelopeV1 {
         )
     }
 
+    /// Rebuild and compare one exact structured Cartesian v1 occurrence.
+    pub fn validate_against_structured_cartesian_v1_resources(
+        &self,
+        policy: CartesianMeshCellsV1,
+        geometry: &CanonicalGeometryV1,
+        mesh: &CartesianMeshEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+    ) -> Result<(), Diagnostic> {
+        let expected =
+            Self::from_structured_cartesian_v1_resources(policy, geometry, mesh, correspondence)?;
+        if self != &expected {
+            return Err(invalid_artifact(
+                "mesh production lineage differs from structured Cartesian occurrence or accepted resources",
+            ));
+        }
+        Ok(())
+    }
+
     /// Stable provider identity reconstructed from the canonical wire.
     #[must_use]
     pub fn provider_identity(&self) -> &str {
@@ -274,11 +353,20 @@ impl MeshProductionLineageEnvelopeV1 {
 
     /// Exact effective numerical policy reconstructed from the canonical wire.
     #[must_use]
-    pub fn effective_policy(&self) -> PlanarMeshQualityV1 {
-        self.wire
-            .effective_policy
-            .to_policy()
-            .expect("validated production lineage retains one valid policy")
+    pub fn planar_mesh_quality(&self) -> Option<PlanarMeshQualityV1> {
+        match self.wire.effective_policy {
+            WireEffectivePolicyV1::PlanarMeshQuality(policy) => policy.to_policy().ok(),
+            WireEffectivePolicyV1::CartesianCells(_) => None,
+        }
+    }
+
+    /// Exact Cartesian cell policy, when this is a Cartesian occurrence.
+    #[must_use]
+    pub fn cartesian_cells(&self) -> Option<CartesianMeshCellsV1> {
+        match self.wire.effective_policy {
+            WireEffectivePolicyV1::CartesianCells(policy) => policy.to_policy().ok(),
+            WireEffectivePolicyV1::PlanarMeshQuality(_) => None,
+        }
     }
 
     /// Deterministic canonical JSON bytes.
@@ -308,8 +396,24 @@ impl MeshProductionLineageEnvelopeV1 {
                 "unsupported mesh production lineage schema or encoding",
             ));
         }
-        provider_from_wire(&self.wire.provider)?;
-        self.wire.effective_policy.to_policy()?;
+        let provider = provider_from_wire(&self.wire.provider)?;
+        self.wire.effective_policy.validate()?;
+        let compatible = matches!(
+            (provider, self.wire.effective_policy),
+            (
+                MeshProductionProvider::Gmsh4152
+                    | MeshProductionProvider::PlanarCircularHoleReferenceV1,
+                WireEffectivePolicyV1::PlanarMeshQuality(_)
+            ) | (
+                MeshProductionProvider::StructuredCartesianV1,
+                WireEffectivePolicyV1::CartesianCells(_)
+            )
+        );
+        if !compatible {
+            return Err(invalid_artifact(
+                "mesh production provider and effective policy kinds differ",
+            ));
+        }
         ArtifactDigest::from_hex(self.wire.geometry_sha256.clone())?;
         ArtifactDigest::from_hex(self.wire.mesh_sha256.clone())?;
         ArtifactDigest::from_hex(self.wire.correspondence_sha256.clone())?;
@@ -323,6 +427,9 @@ fn provider_from_wire(wire: &WireProviderV1) -> Result<MeshProductionProvider, D
         (REFERENCE_IDENTITY, REFERENCE_VERSION) => {
             Ok(MeshProductionProvider::PlanarCircularHoleReferenceV1)
         }
+        (CARTESIAN_IDENTITY, CARTESIAN_VERSION) => {
+            Ok(MeshProductionProvider::StructuredCartesianV1)
+        }
         _ => Err(invalid_artifact(
             "mesh production lineage names an unknown provider identity or version",
         )),
@@ -335,7 +442,7 @@ struct WireMeshProductionLineageV1 {
     schema: String,
     encoding: String,
     provider: WireProviderV1,
-    effective_policy: WirePlanarMeshQualityV1,
+    effective_policy: WireEffectivePolicyV1,
     geometry_sha256: String,
     mesh_sha256: String,
     correspondence_sha256: String,
@@ -354,6 +461,54 @@ struct WirePlanarMeshQualityV1 {
     maximum_boundary_error_m: f64,
     minimum_mean_ratio: f64,
     maximum_boundary_facets: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+enum WireEffectivePolicyV1 {
+    PlanarMeshQuality(WirePlanarMeshQualityV1),
+    CartesianCells(WireCartesianCellsV1),
+}
+
+impl WireEffectivePolicyV1 {
+    fn validate(self) -> Result<(), Diagnostic> {
+        match self {
+            Self::PlanarMeshQuality(policy) => policy.to_policy().map(|_| ()),
+            Self::CartesianCells(policy) => policy.to_policy().map(|_| ()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WireCartesianCellsV1 {
+    cells: [u64; 2],
+}
+
+impl TryFrom<CartesianMeshCellsV1> for WireCartesianCellsV1 {
+    type Error = Diagnostic;
+
+    fn try_from(policy: CartesianMeshCellsV1) -> Result<Self, Self::Error> {
+        Ok(Self {
+            cells: [
+                u64::try_from(policy.0[0])
+                    .map_err(|_| invalid_artifact("x cell count exceeds portable u64"))?,
+                u64::try_from(policy.0[1])
+                    .map_err(|_| invalid_artifact("y cell count exceeds portable u64"))?,
+            ],
+        })
+    }
+}
+
+impl WireCartesianCellsV1 {
+    fn to_policy(self) -> Result<CartesianMeshCellsV1, Diagnostic> {
+        CartesianMeshCellsV1::new([
+            usize::try_from(self.cells[0])
+                .map_err(|_| invalid_artifact("x cell count exceeds local usize"))?,
+            usize::try_from(self.cells[1])
+                .map_err(|_| invalid_artifact("y cell count exceeds local usize"))?,
+        ])
+    }
 }
 
 impl TryFrom<PlanarMeshQualityV1> for WirePlanarMeshQualityV1 {
@@ -426,6 +581,35 @@ mod tests {
         (geometry, mesh, correspondence)
     }
 
+    fn cartesian_resources() -> (
+        CanonicalGeometryV1,
+        CartesianMeshEnvelopeV1,
+        GeometryMeshCorrespondenceEnvelopeV1,
+    ) {
+        let graph = PlanarOperationGraph::new();
+        let rectangle = graph.rectangle([0.0, 2.0], [-1.0, 2.0]).unwrap();
+        let edges = rectangle.boundaries();
+        let geometry = graph
+            .build(
+                &rectangle,
+                &BTreeMap::from([
+                    ("region".to_owned(), vec![rectangle.region().into()]),
+                    ("left".to_owned(), vec![edges[0].into()]),
+                    ("right".to_owned(), vec![edges[1].into()]),
+                    ("bottom".to_owned(), vec![edges[2].into()]),
+                    ("top".to_owned(), vec![edges[3].into()]),
+                ]),
+            )
+            .unwrap();
+        let (mesh, correspondence) =
+            GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
+                &geometry,
+                [2, 3],
+            )
+            .unwrap();
+        (geometry, mesh, correspondence)
+    }
+
     #[test]
     fn registered_mesh_production_lineage_replays_and_rejects_mutations() {
         let (geometry, mesh, correspondence) = resources();
@@ -439,6 +623,8 @@ mod tests {
             )
             .unwrap();
         let bytes = lineage.canonical_json().unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["effective_policy"]["kind"], "planar-mesh-quality");
         assert_eq!(
             MeshProductionLineageEnvelopeV1::from_json(&bytes).unwrap(),
             lineage
@@ -454,24 +640,40 @@ mod tests {
                 )
                 .is_err()
         );
-        let changed_policy = PlanarMeshQualityV1::new(2.0e-4, 1.0e-5, 50).unwrap();
-        assert!(
-            lineage
-                .validate_against_resources(
-                    MeshProductionProvider::PlanarCircularHoleReferenceV1,
-                    changed_policy,
-                    &geometry,
-                    &mesh,
-                    &correspondence,
-                )
-                .is_err()
-        );
+        for changed_policy in [
+            PlanarMeshQualityV1::new(2.0e-4, 1.0e-5, 50).unwrap(),
+            PlanarMeshQualityV1::new(1.0e-4, 2.0e-5, 50).unwrap(),
+            PlanarMeshQualityV1::new(1.0e-4, 1.0e-5, 51).unwrap(),
+        ] {
+            assert!(
+                lineage
+                    .validate_against_resources(
+                        MeshProductionProvider::PlanarCircularHoleReferenceV1,
+                        changed_policy,
+                        &geometry,
+                        &mesh,
+                        &correspondence,
+                    )
+                    .is_err()
+            );
+        }
         let mut mutated: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         mutated["provider"]["version"] = serde_json::Value::String("2".to_owned());
         assert!(
             MeshProductionLineageEnvelopeV1::from_json(&serde_json::to_vec(&mutated).unwrap())
                 .is_err()
         );
+
+        let mut unknown: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        unknown["unexpected"] = true.into();
+        assert!(
+            MeshProductionLineageEnvelopeV1::from_json(&serde_json::to_vec(&unknown).unwrap())
+                .is_err()
+        );
+        assert!(MeshProductionLineageEnvelopeV1::from_json(b"not-json").is_err());
+        let mut noncanonical = bytes.clone();
+        noncanonical.push(b'\n');
+        assert!(MeshProductionLineageEnvelopeV1::from_json(&noncanonical).is_err());
 
         let resource_digests = [
             ArtifactDigest::from_sha256(geometry.digest_bytes()).to_string(),
@@ -497,5 +699,142 @@ mod tests {
                     .is_err()
             );
         }
+
+        let (rectangle, cartesian_mesh, cartesian_correspondence) = cartesian_resources();
+        let cells = CartesianMeshCellsV1::new([2, 3]).unwrap();
+        let cartesian = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
+            cells,
+            &rectangle,
+            &cartesian_mesh,
+            &cartesian_correspondence,
+        )
+        .unwrap();
+        let cartesian_bytes = cartesian.canonical_json().unwrap();
+        let cartesian_value: serde_json::Value = serde_json::from_slice(&cartesian_bytes).unwrap();
+        assert_eq!(
+            cartesian_value["effective_policy"],
+            serde_json::json!({
+                "kind": "cartesian-cells", "cells": [2, 3]
+            })
+        );
+        cartesian
+            .validate_against_structured_cartesian_v1_resources(
+                cells,
+                &rectangle,
+                &cartesian_mesh,
+                &cartesian_correspondence,
+            )
+            .unwrap();
+        for changed_cells in [[3, 3], [2, 4]] {
+            assert!(
+                cartesian
+                    .validate_against_structured_cartesian_v1_resources(
+                        CartesianMeshCellsV1::new(changed_cells).unwrap(),
+                        &rectangle,
+                        &cartesian_mesh,
+                        &cartesian_correspondence,
+                    )
+                    .is_err()
+            );
+        }
+        for invalid_cells in [[0, 3], [2, 0], [usize::MAX, 3], [2, usize::MAX]] {
+            assert!(CartesianMeshCellsV1::new(invalid_cells).is_err());
+        }
+
+        let (foreign_geometry, foreign_mesh, foreign_correspondence) = {
+            let graph = PlanarOperationGraph::new();
+            let rectangle = graph.rectangle([0.0, 3.0], [-1.0, 2.0]).unwrap();
+            let edges = rectangle.boundaries();
+            let geometry = graph
+                .build(
+                    &rectangle,
+                    &BTreeMap::from([
+                        ("region".to_owned(), vec![rectangle.region().into()]),
+                        ("left".to_owned(), vec![edges[0].into()]),
+                        ("right".to_owned(), vec![edges[1].into()]),
+                        ("bottom".to_owned(), vec![edges[2].into()]),
+                        ("top".to_owned(), vec![edges[3].into()]),
+                    ]),
+                )
+                .unwrap();
+            let (mesh, correspondence) =
+                GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
+                    &geometry,
+                    [2, 3],
+                )
+                .unwrap();
+            (geometry, mesh, correspondence)
+        };
+        for resources in [
+            (
+                &foreign_geometry,
+                &cartesian_mesh,
+                &cartesian_correspondence,
+            ),
+            (&rectangle, &foreign_mesh, &cartesian_correspondence),
+            (&rectangle, &cartesian_mesh, &foreign_correspondence),
+        ] {
+            assert!(
+                cartesian
+                    .validate_against_structured_cartesian_v1_resources(
+                        cells,
+                        resources.0,
+                        resources.1,
+                        resources.2,
+                    )
+                    .is_err()
+            );
+        }
+        let cartesian_resource_digests = [
+            ArtifactDigest::from_sha256(rectangle.digest_bytes()).to_string(),
+            cartesian_mesh.digest().unwrap().to_string(),
+            cartesian_correspondence.digest().unwrap().to_string(),
+        ];
+        for digest in cartesian_resource_digests {
+            let resource_mutation = std::str::from_utf8(&cartesian_bytes)
+                .unwrap()
+                .replacen(&digest, &"0".repeat(64), 1)
+                .into_bytes();
+            let mutated_lineage =
+                MeshProductionLineageEnvelopeV1::from_json(&resource_mutation).unwrap();
+            assert!(
+                mutated_lineage
+                    .validate_against_structured_cartesian_v1_resources(
+                        cells,
+                        &rectangle,
+                        &cartesian_mesh,
+                        &cartesian_correspondence,
+                    )
+                    .is_err()
+            );
+        }
+        let foreign_lineage =
+            MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
+                cells,
+                &foreign_geometry,
+                &foreign_mesh,
+                &foreign_correspondence,
+            )
+            .unwrap();
+        assert!(
+            foreign_lineage
+                .validate_against_structured_cartesian_v1_resources(
+                    cells,
+                    &rectangle,
+                    &cartesian_mesh,
+                    &cartesian_correspondence,
+                )
+                .is_err()
+        );
+        let mut provider_mismatch = cartesian_value.clone();
+        provider_mismatch["provider"] = serde_json::json!({
+            "identity": REFERENCE_IDENTITY, "version": REFERENCE_VERSION
+        });
+        assert!(
+            MeshProductionLineageEnvelopeV1::from_json(
+                &serde_json::to_vec(&provider_mismatch).unwrap()
+            )
+            .is_err()
+        );
     }
 }

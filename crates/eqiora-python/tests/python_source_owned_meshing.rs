@@ -62,6 +62,7 @@ assert reference_lineage["provider"] == {
     "identity": "eqiora.reference-planar-circular-hole", "version": "1"
 }
 assert reference_lineage["effective_policy"] == {
+    "kind": "planar-mesh-quality",
     "maximum_boundary_error_m": 1e-4,
     "minimum_mean_ratio": 1e-5,
     "maximum_boundary_facets": 50,

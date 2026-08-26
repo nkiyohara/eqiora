@@ -1,9 +1,12 @@
 //! Immutable mesh intent and complete resolved provider choices.
 
-use eqiora::artifact::{MeshProductionLineageEnvelopeV1, PlanarMeshQualityV1};
+use eqiora::artifact::{
+    CartesianMeshCellsV1, CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
+    MeshProductionLineageEnvelopeV1, PlanarMeshQualityV1,
+};
 use eqiora::meshing::MeshQualityGate;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes};
+use pyo3::types::{PyAny, PyBool, PyBytes, PyTuple};
 
 use super::gmsh;
 use super::request_error;
@@ -118,20 +121,61 @@ impl PyReferenceMesher {
     }
 }
 
+/// Deterministic structured Cartesian provider selection.
+#[pyclass(
+    name = "CartesianMesher",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    skip_from_py_object
+)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct PyCartesianMesher {
+    pub(super) policy: CartesianMeshCellsV1,
+}
+
+#[pymethods]
+impl PyCartesianMesher {
+    #[new]
+    #[pyo3(signature = (*, cells))]
+    fn new(py: Python<'_>, cells: &Bound<'_, PyTuple>) -> PyResult<Self> {
+        if cells.len() != 2 {
+            return Err(request_error(py, "cells must contain exactly (nx, ny)"));
+        }
+        let mut parsed = [0; 2];
+        for (axis, value) in cells.iter().enumerate() {
+            if value.is_instance_of::<PyBool>() {
+                return Err(request_error(py, "cells must contain positive integers"));
+            }
+            parsed[axis] = value
+                .extract::<usize>()
+                .map_err(|_| request_error(py, "cells must contain positive integers"))?;
+        }
+        let policy = CartesianMeshCellsV1::new(parsed)
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        Ok(Self { policy })
+    }
+
+    #[getter]
+    const fn cells(&self) -> (usize, usize) {
+        let [nx, ny] = self.policy.cells();
+        (nx, ny)
+    }
+
+    fn __repr__(&self) -> String {
+        let (nx, ny) = self.cells();
+        format!("CartesianMesher(cells=({nx}, {ny}))")
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum MeshProviderPolicy {
     Gmsh(PyGmshMesher),
     Reference(PyReferenceMesher),
+    Cartesian(PyCartesianMesher),
 }
 
 impl MeshProviderPolicy {
-    pub(super) const fn policy(self) -> PlanarMeshQualityV1 {
-        match self {
-            Self::Gmsh(provider) => provider.policy,
-            Self::Reference(provider) => provider.policy,
-        }
-    }
-
     fn production_lineage(
         self,
         geometry: &eqiora::geometry::CanonicalGeometryV1,
@@ -139,20 +183,21 @@ impl MeshProviderPolicy {
         correspondence: &eqiora::artifact::GeometryMeshCorrespondenceEnvelopeV1,
     ) -> Result<MeshProductionLineageEnvelopeV1, eqiora::Diagnostic> {
         match self {
-            Self::Gmsh(_) => MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
-                self.policy(),
+            Self::Gmsh(provider) => MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
+                provider.policy,
                 geometry,
                 mesh,
                 correspondence,
             ),
-            Self::Reference(_) => {
+            Self::Reference(provider) => {
                 MeshProductionLineageEnvelopeV1::from_planar_circular_hole_reference_v1_resources(
-                    self.policy(),
+                    provider.policy,
                     geometry,
                     mesh,
                     correspondence,
                 )
             }
+            Self::Cartesian(_) => unreachable!("Cartesian lineage uses Cartesian resources"),
         }
     }
 
@@ -164,19 +209,20 @@ impl MeshProviderPolicy {
         correspondence: &eqiora::artifact::GeometryMeshCorrespondenceEnvelopeV1,
     ) -> Result<(), eqiora::Diagnostic> {
         match self {
-            Self::Gmsh(_) => lineage.validate_against_gmsh_4152_resources(
-                self.policy(),
+            Self::Gmsh(provider) => lineage.validate_against_gmsh_4152_resources(
+                provider.policy,
                 geometry,
                 mesh,
                 correspondence,
             ),
-            Self::Reference(_) => lineage
+            Self::Reference(provider) => lineage
                 .validate_against_planar_circular_hole_reference_v1_resources(
-                    self.policy(),
+                    provider.policy,
                     geometry,
                     mesh,
                     correspondence,
                 ),
+            Self::Cartesian(_) => unreachable!("Cartesian lineage uses Cartesian resources"),
         }
     }
 
@@ -184,6 +230,7 @@ impl MeshProviderPolicy {
         match self {
             Self::Gmsh(provider) => Py::new(py, provider).map(Py::into_any),
             Self::Reference(provider) => Py::new(py, provider).map(Py::into_any),
+            Self::Cartesian(provider) => Py::new(py, provider).map(Py::into_any),
         }
     }
 
@@ -191,6 +238,7 @@ impl MeshProviderPolicy {
         match self {
             Self::Gmsh(provider) => provider.__repr__(),
             Self::Reference(provider) => provider.__repr__(),
+            Self::Cartesian(provider) => provider.__repr__(),
         }
     }
 }
@@ -276,10 +324,12 @@ impl PyMeshRequest {
             MeshProviderPolicy::Gmsh(*provider)
         } else if let Ok(provider) = provider.extract::<PyRef<'_, PyReferenceMesher>>() {
             MeshProviderPolicy::Reference(*provider)
+        } else if let Ok(provider) = provider.extract::<PyRef<'_, PyCartesianMesher>>() {
+            MeshProviderPolicy::Cartesian(*provider)
         } else {
             return Err(request_error(
                 py,
-                "provider must be GmshMesher or ReferenceMesher",
+                "provider must be GmshMesher, ReferenceMesher, or CartesianMesher",
             ));
         };
         Ok(Self { provider })
@@ -344,6 +394,34 @@ pub(super) struct PyMeshPlan {
 pub(super) enum ResolvedMeshPlan {
     Gmsh(Box<GmshPlan>),
     SourceOwned(Box<SourceOwnedPlan>),
+    Cartesian(Box<CartesianPlan>),
+}
+
+pub(super) struct CartesianPlan {
+    pub(super) source: eqiora::geometry::CanonicalGeometryV1,
+    pub(super) mesh: CartesianMeshEnvelopeV1,
+    pub(super) correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+}
+
+impl CartesianPlan {
+    pub(super) fn revalidate(
+        &self,
+        geometry: &eqiora::geometry::CanonicalGeometryV1,
+        policy: CartesianMeshCellsV1,
+    ) -> Result<(), eqiora::Diagnostic> {
+        if geometry != &self.source {
+            return Err(eqiora::Diagnostic::error(
+                eqiora::diagnostic::codes::INVALID_ARTIFACT,
+                "MeshPlan belongs to a different exact Geometry",
+            ));
+        }
+        self.correspondence
+            .validate_against_planar_rectangle_v2_cartesian(
+                &self.source,
+                &self.mesh,
+                policy.cells(),
+            )
+    }
 }
 
 pub(super) struct GmshPlan {
@@ -394,22 +472,39 @@ impl PyMeshPlan {
             ResolvedMeshPlan::SourceOwned(plan) => plan
                 .boundary_facets()
                 .expect("an admitted source-owned plan retains its circular frontier"),
+            ResolvedMeshPlan::Cartesian(plan) => {
+                let nx = plan
+                    .mesh
+                    .mesh()
+                    .axis_cell_count(0)
+                    .expect("validated x axis");
+                let ny = plan
+                    .mesh
+                    .mesh()
+                    .axis_cell_count(1)
+                    .expect("validated y axis");
+                2 * (nx + ny)
+            }
         }
     }
 
     /// Measured minimum mean ratio achieved by the resolved mesh.
     #[getter]
-    fn achieved_minimum_mean_ratio(&self) -> f64 {
+    fn achieved_minimum_mean_ratio(&self, py: Python<'_>) -> PyResult<f64> {
         match &self.resolved {
-            ResolvedMeshPlan::Gmsh(plan) => plan
+            ResolvedMeshPlan::Gmsh(plan) => Ok(plan
                 .generated
                 .mesh
                 .mesh()
                 .quality_report()
-                .minimum_mean_ratio(),
+                .minimum_mean_ratio()),
             ResolvedMeshPlan::SourceOwned(plan) => {
-                plan.mesh.mesh().quality_report().minimum_mean_ratio()
+                Ok(plan.mesh.mesh().quality_report().minimum_mean_ratio())
             }
+            ResolvedMeshPlan::Cartesian(_) => Err(request_error(
+                py,
+                "achieved_minimum_mean_ratio is not defined for a Cartesian MeshPlan",
+            )),
         }
     }
 
@@ -433,11 +528,11 @@ pub(super) fn resolve(
 ) -> PyResult<PyMeshPlan> {
     panic_boundary(py, || {
         let request = *request;
-        let policy = request.provider.policy();
-        let quality_gate = MeshQualityGate::new(policy.minimum_mean_ratio())
-            .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
         let resolved = match request.provider {
-            MeshProviderPolicy::Gmsh(_) => {
+            MeshProviderPolicy::Gmsh(provider) => {
+                let policy = provider.policy;
+                let quality_gate = MeshQualityGate::new(policy.minimum_mean_ratio())
+                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
                 let seed = SourceOwnedPlan::resolve(
                     geometry.geometry(),
                     policy.maximum_boundary_error_m(),
@@ -455,24 +550,58 @@ pub(super) fn resolve(
                     generated,
                 }))
             }
-            MeshProviderPolicy::Reference(_) => SourceOwnedPlan::resolve(
+            MeshProviderPolicy::Reference(provider) => SourceOwnedPlan::resolve(
                 geometry.geometry(),
-                policy.maximum_boundary_error_m(),
-                policy.maximum_boundary_facets(),
-                quality_gate,
+                provider.policy.maximum_boundary_error_m(),
+                provider.policy.maximum_boundary_facets(),
+                MeshQualityGate::new(provider.policy.minimum_mean_ratio())
+                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
             )
             .map(Box::new)
             .map(ResolvedMeshPlan::SourceOwned)
             .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?,
+            MeshProviderPolicy::Cartesian(provider) => {
+                let (mesh, correspondence) =
+                    GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
+                        geometry.geometry(),
+                        provider.policy.cells(),
+                    )
+                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+                ResolvedMeshPlan::Cartesian(Box::new(CartesianPlan {
+                    source: geometry.geometry().clone(),
+                    mesh,
+                    correspondence,
+                }))
+            }
         };
-        let (mesh, correspondence) = match &resolved {
-            ResolvedMeshPlan::Gmsh(plan) => (&plan.generated.mesh, &plan.generated.correspondence),
-            ResolvedMeshPlan::SourceOwned(plan) => (&plan.mesh, &plan.correspondence),
+        let production = match (&request.provider, &resolved) {
+            (
+                MeshProviderPolicy::Gmsh(_) | MeshProviderPolicy::Reference(_),
+                ResolvedMeshPlan::Gmsh(plan),
+            ) => request.provider.production_lineage(
+                geometry.geometry(),
+                &plan.generated.mesh,
+                &plan.generated.correspondence,
+            ),
+            (
+                MeshProviderPolicy::Gmsh(_) | MeshProviderPolicy::Reference(_),
+                ResolvedMeshPlan::SourceOwned(plan),
+            ) => request.provider.production_lineage(
+                geometry.geometry(),
+                &plan.mesh,
+                &plan.correspondence,
+            ),
+            (MeshProviderPolicy::Cartesian(provider), ResolvedMeshPlan::Cartesian(plan)) => {
+                MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
+                    provider.policy,
+                    geometry.geometry(),
+                    &plan.mesh,
+                    &plan.correspondence,
+                )
+            }
+            _ => unreachable!("resolved plan and closed provider policy remain paired"),
         };
-        let production = request
-            .provider
-            .production_lineage(geometry.geometry(), mesh, correspondence)
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        let production = production.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         Ok(PyMeshPlan {
             source_digest: digest_to_hex(&geometry.geometry().digest_bytes()),
             request,

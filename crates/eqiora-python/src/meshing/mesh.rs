@@ -74,7 +74,21 @@ enum AcceptedMeshSource {
         correspondence: Box<GeometryMeshCorrespondenceEnvelopeV1>,
         production: Box<MeshProductionLineageEnvelopeV1>,
     },
+    SourceOwnedCartesian {
+        geometry: Box<CanonicalGeometryV1>,
+        mesh: Box<CartesianMeshEnvelopeV1>,
+        correspondence: Box<GeometryMeshCorrespondenceEnvelopeV1>,
+        production: Box<MeshProductionLineageEnvelopeV1>,
+    },
     Cartesian,
+}
+
+/// Exact authenticated Cartesian resources admitted for downstream native consumers.
+pub(crate) struct AuthenticatedCartesianResources<'a> {
+    pub(crate) geometry: &'a CanonicalGeometryV1,
+    pub(crate) mesh: &'a CartesianMeshEnvelopeV1,
+    pub(crate) correspondence: &'a GeometryMeshCorrespondenceEnvelopeV1,
+    pub(crate) production: &'a MeshProductionLineageEnvelopeV1,
 }
 
 struct ExternalImportLineage {
@@ -211,10 +225,12 @@ impl PyMesh {
             AcceptedMeshSource::SourceOwned { mesh, .. } => {
                 Ok(mesh.mesh().quality_report().minimum_mean_ratio())
             }
-            AcceptedMeshSource::Cartesian => Err(capability_error(
-                py,
-                "minimum_mean_ratio is not defined for this Cartesian Mesh",
-            )),
+            AcceptedMeshSource::SourceOwnedCartesian { .. } | AcceptedMeshSource::Cartesian => {
+                Err(capability_error(
+                    py,
+                    "minimum_mean_ratio is not defined for this Cartesian Mesh",
+                ))
+            }
         }
     }
 
@@ -228,6 +244,11 @@ impl PyMesh {
                 .map(NamedEntitySet::name)
                 .collect::<Vec<_>>(),
             AcceptedMeshSource::SourceOwned { geometry, .. } => geometry
+                .entity_sets()
+                .iter()
+                .map(NamedEntitySet::name)
+                .collect::<Vec<_>>(),
+            AcceptedMeshSource::SourceOwnedCartesian { geometry, .. } => geometry
                 .entity_sets()
                 .iter()
                 .map(NamedEntitySet::name)
@@ -277,6 +298,14 @@ impl PyMesh {
                 .planar_circular_hole_v2_entity_set_entities(geometry, name)
                 .and_then(|entities| validated_entity_count(entities, expected_dimension))
                 .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
+            AcceptedMeshSource::SourceOwnedCartesian {
+                geometry,
+                correspondence,
+                ..
+            } => correspondence
+                .planar_rectangle_v2_entity_set_entities(geometry, name)
+                .and_then(|entities| validated_entity_count(entities, expected_dimension))
+                .map_err(|diagnostic| validation_error(py, &[diagnostic])),
             AcceptedMeshSource::Cartesian => Err(capability_error(
                 py,
                 "this Cartesian Mesh publishes no named selection membership",
@@ -522,6 +551,87 @@ impl PyMesh {
         })
     }
 
+    fn from_source_owned_cartesian(
+        py: Python<'_>,
+        source: &CanonicalGeometryV1,
+        accepted_mesh: &CartesianMeshEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        production: &MeshProductionLineageEnvelopeV1,
+    ) -> PyResult<Self> {
+        let policy = production.cartesian_cells().ok_or_else(|| {
+            request_error(
+                py,
+                "Cartesian MeshPlan has a non-Cartesian production policy",
+            )
+        })?;
+        correspondence
+            .validate_against_planar_rectangle_v2_cartesian(source, accepted_mesh, policy.cells())
+            .and_then(|()| {
+                production.validate_against_structured_cartesian_v1_resources(
+                    policy,
+                    source,
+                    accepted_mesh,
+                    correspondence,
+                )
+            })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        let dimension = accepted_mesh.dimension();
+        let native = accepted_mesh.mesh();
+        let vertex_count = native
+            .entity_count(0)
+            .ok_or_else(|| PyRuntimeError::new_err("Cartesian Mesh omitted its vertices"))?;
+        let cell_count = native.entity_count(dimension).ok_or_else(|| {
+            PyRuntimeError::new_err("Cartesian Mesh omitted its top-dimensional cells")
+        })?;
+        let (coordinates, cells) =
+            project_cartesian_mesh(py, native, dimension, vertex_count, cell_count)?;
+        let source_digest = digest_to_hex(&source.digest_bytes());
+        let mesh_digest = accepted_mesh
+            .digest()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
+            .to_string();
+        let correspondence_digest = correspondence
+            .digest()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
+            .to_string();
+        let canonical_bytes = accepted_mesh
+            .canonical_json()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        let published = Self {
+            source: AcceptedMeshSource::SourceOwnedCartesian {
+                geometry: Box::new(source.clone()),
+                mesh: Box::new(accepted_mesh.clone()),
+                correspondence: Box::new(correspondence.clone()),
+                production: Box::new(production.clone()),
+            },
+            lineage: MeshLineage {
+                source_digest: source_digest.clone(),
+                realized_geometry_digest: source_digest,
+                mesh_digest,
+                correspondence_digest,
+                realization_digest: None,
+                dimension,
+                vertex_count,
+                cell_count,
+            },
+            canonical_bytes,
+            coordinates,
+            cells,
+            presentation: Mutex::new(PresentationState::Empty),
+        };
+        let authenticated = published
+            .authenticated_cartesian_resources()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
+            .ok_or_else(|| PyRuntimeError::new_err("Cartesian publication lost its resources"))?;
+        let _ = (
+            authenticated.geometry,
+            authenticated.mesh,
+            authenticated.correspondence,
+            authenticated.production,
+        );
+        Ok(published)
+    }
+
     fn from_imported(py: Python<'_>, imported: super::gmsh::ImportedGmshMesh) -> PyResult<Self> {
         let manifest_digest = imported
             .manifest
@@ -611,6 +721,10 @@ impl PyMesh {
                 py,
                 "this operation requires the legacy accepted affine-triangle realization",
             )),
+            AcceptedMeshSource::SourceOwnedCartesian { .. } => Err(capability_error(
+                py,
+                "this operation requires an accepted affine-triangle Mesh",
+            )),
             AcceptedMeshSource::Cartesian => Err(capability_error(
                 py,
                 "this operation requires an accepted affine-triangle Mesh",
@@ -652,6 +766,7 @@ impl PyMesh {
                 external_import, ..
             } => external_import.as_deref(),
             AcceptedMeshSource::SourceOwned { .. } => None,
+            AcceptedMeshSource::SourceOwnedCartesian { .. } => None,
             AcceptedMeshSource::Cartesian => None,
         }
     }
@@ -659,8 +774,47 @@ impl PyMesh {
     fn production_lineage(&self) -> Option<&MeshProductionLineageEnvelopeV1> {
         match &self.source {
             AcceptedMeshSource::SourceOwned { production, .. } => Some(production),
+            AcceptedMeshSource::SourceOwnedCartesian { production, .. } => Some(production),
             AcceptedMeshSource::Chordal { .. } | AcceptedMeshSource::Cartesian => None,
         }
+    }
+
+    /// Return only exact replay-authenticated Cartesian resources.
+    pub(crate) fn authenticated_cartesian_resources(
+        &self,
+    ) -> Result<Option<AuthenticatedCartesianResources<'_>>, Diagnostic> {
+        let AcceptedMeshSource::SourceOwnedCartesian {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        } = &self.source
+        else {
+            return Ok(None);
+        };
+        let policy = production.cartesian_cells().ok_or_else(|| {
+            Diagnostic::error(
+                codes::INVALID_ARTIFACT,
+                "Cartesian Mesh has a non-Cartesian production policy",
+            )
+        })?;
+        correspondence.validate_against_planar_rectangle_v2_cartesian(
+            geometry,
+            mesh,
+            policy.cells(),
+        )?;
+        production.validate_against_structured_cartesian_v1_resources(
+            policy,
+            geometry,
+            mesh,
+            correspondence,
+        )?;
+        Ok(Some(AuthenticatedCartesianResources {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        }))
     }
 
     fn set_presentation_state(&self, next: PresentationState) -> PyResult<()> {
@@ -970,6 +1124,30 @@ pub(super) fn generate(
                 )
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
             PyMesh::from_source_owned(py, resolved, &plan.production)
+        }
+        ResolvedMeshPlan::Cartesian(resolved) => {
+            let super::plan::MeshProviderPolicy::Cartesian(provider) = plan.request.provider else {
+                unreachable!("Cartesian resolved plan retains Cartesian provider policy")
+            };
+            resolved
+                .revalidate(geometry.geometry(), provider.policy)
+                .and_then(|()| {
+                    plan.production
+                        .validate_against_structured_cartesian_v1_resources(
+                            provider.policy,
+                            &resolved.source,
+                            &resolved.mesh,
+                            &resolved.correspondence,
+                        )
+                })
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            PyMesh::from_source_owned_cartesian(
+                py,
+                &resolved.source,
+                &resolved.mesh,
+                &resolved.correspondence,
+                &plan.production,
+            )
         }
     })
 }

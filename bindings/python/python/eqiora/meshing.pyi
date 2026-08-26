@@ -12,6 +12,18 @@ import numpy.typing as npt
 from .geometry import Geometry, GeometrySelection
 
 @final
+class CartesianMesher:
+    """Select deterministic structured Cartesian meshing.
+
+    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyCartesianMesher``.
+    """
+    def __new__(cls, *, cells: tuple[int, int]) -> Self: ...
+    @property
+    def cells(self) -> tuple[int, int]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+
+@final
 class GmshMesher:
     """Select the exact external Gmsh provider.
 
@@ -79,14 +91,14 @@ class GmshImport:
 
 @final
 class MeshRequest:
-    """Immutable caller intent for the admitted planar mesh provider.
+    """Immutable caller intent for one admitted mesh provider.
 
     Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyMeshRequest``.
     """
 
-    def __new__(cls, provider: GmshMesher | ReferenceMesher, /) -> Self: ...
+    def __new__(cls, provider: CartesianMesher | GmshMesher | ReferenceMesher, /) -> Self: ...
     @property
-    def provider(self) -> GmshMesher | ReferenceMesher: ...
+    def provider(self) -> CartesianMesher | GmshMesher | ReferenceMesher: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __repr__(self) -> str: ...
 
@@ -100,7 +112,7 @@ class MeshPlan:
     @property
     def source_digest(self) -> str: ...
     @property
-    def provider(self) -> GmshMesher | ReferenceMesher: ...
+    def provider(self) -> CartesianMesher | GmshMesher | ReferenceMesher: ...
     @property
     def request(self) -> MeshRequest: ...
     @property
@@ -198,4 +210,4 @@ def import_gmsh(
 
     ...
 
-__all__ = ["GmshImport", "GmshMesher", "Mesh", "MeshPlan", "MeshRequest", "ReferenceMesher", "generate", "import_gmsh", "resolve"]
+__all__ = ["CartesianMesher", "GmshImport", "GmshMesher", "Mesh", "MeshPlan", "MeshRequest", "ReferenceMesher", "generate", "import_gmsh", "resolve"]

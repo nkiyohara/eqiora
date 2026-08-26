@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 11 module summaries and all 117 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 509 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 11 module summaries and all 118 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 510 signature-only entries under documented owning types**.
 
-Inventory: 11 modules, 136 literal public spellings, 117 canonical grouped declarations, 655 visible method signatures (509 non-dunder and 146 dunder), and 47 visible class assignments.
+Inventory: 11 modules, 137 literal public spellings, 118 canonical grouped declarations, 659 visible method signatures (510 non-dunder and 149 dunder), and 47 visible class assignments.
 
 Regenerate with:
 
@@ -1856,6 +1856,24 @@ Module authority: [`bindings/python/python/eqiora/meshing.py`](../../bindings/py
 
 Shipped stub: [`bindings/python/python/eqiora/meshing.pyi`](../../bindings/python/python/eqiora/meshing.pyi)
 
+<a id="api-eqiora-meshing-CartesianMesher"></a>
+
+### `eqiora.meshing.CartesianMesher`
+
+Select deterministic structured Cartesian meshing.
+
+Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyCartesianMesher`](../../crates/eqiora-python/src/meshing/plan.rs)
+
+```python
+@final
+class CartesianMesher:
+    def __new__(cls, *, cells: tuple[int, int]) -> Self: ...
+    @property
+    def cells(self) -> tuple[int, int]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+```
+
 <a id="api-eqiora-meshing-GmshImport"></a>
 
 ### `eqiora.meshing.GmshImport`
@@ -1963,7 +1981,7 @@ class MeshPlan:
     @property
     def source_digest(self) -> str: ...
     @property
-    def provider(self) -> GmshMesher | ReferenceMesher: ...
+    def provider(self) -> CartesianMesher | GmshMesher | ReferenceMesher: ...
     @property
     def request(self) -> MeshRequest: ...
     @property
@@ -1981,16 +1999,16 @@ class MeshPlan:
 
 ### `eqiora.meshing.MeshRequest`
 
-Immutable caller intent for the admitted planar mesh provider.
+Immutable caller intent for one admitted mesh provider.
 
 Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyMeshRequest`](../../crates/eqiora-python/src/meshing/plan.rs)
 
 ```python
 @final
 class MeshRequest:
-    def __new__(cls, provider: GmshMesher | ReferenceMesher, /) -> Self: ...
+    def __new__(cls, provider: CartesianMesher | GmshMesher | ReferenceMesher, /) -> Self: ...
     @property
-    def provider(self) -> GmshMesher | ReferenceMesher: ...
+    def provider(self) -> CartesianMesher | GmshMesher | ReferenceMesher: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __repr__(self) -> str: ...
 ```
