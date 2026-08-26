@@ -2,7 +2,7 @@
 
 Keep this file a short routing map for recurring facts that code cannot reveal.
 
-- [AI-authored platform strategy](docs/development/ai-authored-platform-strategy.md) — what to optimize and what not to build.
+- [AI-authored platform strategy](docs/development/ai-authored-platform-strategy.md) — optimization boundaries, including pre-1.0 API convergence.
 - [Evidence-development freeze](rfcs/0088-freeze-evidence-development.md) — preserve existing evidence; develop product behavior with focused tests.
 - [High-risk and parallel development](docs/development/vertical-slice-development.md) — read only for high-risk capability work or explicitly requested parallel writes.
 - [Local verification](docs/development/local-verification.md) — focused checks and gate tiers.
@@ -42,9 +42,12 @@ the critical path. Delete or retarget merged stack branches promptly.
 
 ## Structure and context
 
-Use the smallest conventional local tool and existing seam. Add a public abstraction only
-for a current invariant with real consumers, not anticipated reuse. If a ceiling blocks work,
-simplify or split the implementation rather than raising the ceiling or adding a bypass.
+Use the smallest conventional local tool and existing seam. Add a public abstraction only for a
+current invariant with real consumers. If a ceiling blocks work, simplify or split it; add no bypass.
+
+Pre-1.0 authoring APIs optimize for one coherent final surface, not backward compatibility. Migrate
+repository consumers atomically; delete displaced aliases, overloads, shims, and parallel paths.
+Stable promises, persisted contracts, immutable releases, and the evidence freeze retain their own boundaries.
 
 Parallelize only when requested or when independent work can shorten the critical path.
 Read-heavy exploration is the safest use. Parallel writes need disjoint paths and separate

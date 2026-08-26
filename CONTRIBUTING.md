@@ -22,6 +22,9 @@ high-risk capability work or explicitly parallel writes.
   unchanged. Do not add or change a case, oracle, expected value, tolerance, falsifier, exact
   inventory, projection, schema, or evidence infrastructure. Use focused product tests and leave
   new verification absent unless pre-freeze evidence already proves the exact claim.
+- Before 1.0, converge authoring APIs on one coherent final surface rather than preserving old
+  callers. Migrate all repository-owned consumers atomically and remove displaced names, aliases,
+  overloads, and deprecation shims; explicit persisted/versioned contracts keep their own rules.
 - Do not add a Semantic Kernel node for UI or adapter convenience. First show
   why a typed named subgraph cannot express the concept.
 - Open an Issue only when alternatives need coordination, the work has durable
