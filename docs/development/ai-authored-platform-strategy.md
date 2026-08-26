@@ -96,6 +96,27 @@ Private source layout is not a product artifact. Line, token, complexity, or pub
 ratchets may prevent unreviewable code, but each ceiling is debt: it needs a current reason,
 must not rise through ordinary work, and should disappear when a simpler invariant replaces it.
 
+## Pre-1.0 API convergence
+
+Eqiora's current Rust and Python authoring APIs are design candidates, not backward-
+compatibility obligations. Until an explicit stable compatibility promise is accepted, choose
+the most coherent final surface even when that breaks a current caller. Migrate every
+repository-owned consumer, example, ordinary test, and document in the same change, and delete
+the displaced name and path. Do not retain a legacy overload, alias, wrapper, deprecation shim,
+dual lifecycle, or transition period solely for backward compatibility.
+
+Published release artifacts remain immutable: a breaking correction ships in a new release and
+is stated plainly in its release notes. Explicitly versioned or persisted schemas, wire formats,
+artifact codecs, security and data-integrity boundaries, external ABI/platform baselines, and
+an owner-accepted stable compatibility promise retain their own rules. This convergence policy
+does not authorize silent byte migration, reinterpretation of an old identifier, weakened
+scientific meaning, or changed evidence.
+
+The evidence-development freeze may delay publication of an otherwise preferred API when a
+frozen case pins the current facade. Record the intended replacement and continue private
+product work; do not update the frozen expectation, publish an inaccurate stub, or add a hidden
+alternate spelling. A frozen accidental API is a temporary blocker, not the desired design.
+
 ## Evidence discipline
 
 Evidence should be cheaper than the mistake it prevents.

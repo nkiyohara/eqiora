@@ -133,6 +133,9 @@ platform, method, and maturity of each slice are recorded in the
 Important nonclaims include:
 
 - no stable-1.0 compatibility promise;
+- pre-1.0 authoring APIs may be replaced without aliases or a deprecation period
+  as the repository converges on one coherent final surface; released artifacts
+  and explicitly versioned persisted contracts remain immutable;
 - no macOS, Windows, free-threaded Python, GPU wheel, or bundled MPI package;
 - no complete CFD, FSI, CAD, controls, or physical-component catalogue;
 - no general high-order, adaptive, mixed/tensor-field, or arbitrary-DAE path;

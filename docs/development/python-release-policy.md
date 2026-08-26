@@ -139,22 +139,22 @@ its registered adapter evidence. The first candidate proves the NumPy 2.1.0
 floor in one compatible installed-wheel environment; it does not claim every
 NumPy version by CPython-version combination has been tested.
 
-## Pre-1.0 compatibility and deprecation
+## Pre-1.0 API convergence
 
-Before 1.0, public Python names and behavior may change between minor releases,
-but not silently within a released artifact. When practical, a renamed or
-replaced public API remains available for at least one subsequent prerelease
-and emits `DeprecationWarning` with the replacement. Immediate removal is
-reserved for security, data-integrity, or scientifically incorrect behavior
-that cannot be retained safely.
+Before 1.0, public Python authoring names and behavior carry no backward-
+compatibility or deprecation-period promise between releases. When a cleaner
+final surface replaces an API, migrate every repository-owned caller, test,
+example, and document atomically and remove the old name and path. Do not keep
+an alias, overload, wrapper, warning shim, or parallel lifecycle solely for
+compatibility.
 
-[RFC 0083](../../rfcs/0083-current-model-artifact-epoch.md) authorizes one
-additional exception: the bounded pre-1.0 Model and Model Transaction
-compatibility epoch reset. It names every removed surface, freezes the retained
-persisted contract and its exact rejection behavior, requires migration of
-every live consumer, and requires the break in release notes. This one-time
-exception cannot reinterpret an old identifier, silently migrate bytes, or
-authorize unrelated removals.
+Released wheels remain immutable. A breaking correction ships under a new
+version and is stated plainly in its release notes; an existing wheel never
+changes in place. [RFC 0083](../../rfcs/0083-current-model-artifact-epoch.md)
+remains the authority for the bounded Model and Model Transaction compatibility
+epoch reset and its exact rejection behavior. This authoring-API policy does
+not reinterpret an old identifier, silently migrate persisted bytes, or
+authorize unrelated wire changes.
 
 Persisted Eqiora artifact codecs and versioned control contracts follow their
 own compatibility rules. A Python package version never authorizes silent
