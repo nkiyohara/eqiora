@@ -209,12 +209,6 @@ reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
-path = "crates/eqiora-io-gmsh/src/msh41.rs"
-ceiling = 1478
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
 path = "crates/eqiora-io-vtu/src/parse.rs"
 ceiling = 1648
 reason = "predates the predicate; not yet triaged"

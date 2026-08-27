@@ -29,7 +29,7 @@ Resource checks therefore precede declaration-controlled work and allocation,
 and malformed input becomes one stable Eqiora diagnostic rather than crossing
 the public API.
 
-`GmshImportLimits` defines independent semantic budgets for source bytes,
+`Msh41Policy` defines independent semantic budgets for source bytes,
 entities, entity references, blocks, nodes, elements, and ignored
 lower-dimensional elements. It additionally defines aggregate decoded-byte and
 decoded-work budgets. Every declaration-controlled loop is charged before its
@@ -72,12 +72,16 @@ MSH bytes
   -> content-addressed Realization
 ```
 
-`GmshSimplexImporter` owns requested spatial dimension, an explicit
-`MeshQualityGate`, and `GmshImportLimits`. It accepts bytes rather than paths;
-filesystem selection, permissions, recent-file UX, and source provenance
-belong to callers such as Studio. This also makes the same import operation
-usable from Rust, Python, browser uploads, and tests without adding competing
-meaning.
+The typed `import_msh41(bytes, policy, assignment_sink)` boundary consumes an
+`Msh41Policy` that owns the requested spatial dimension, an explicit `MeshQualityGate`, and
+all resource bounds. It accepts bytes rather than paths; filesystem selection,
+permissions, recent-file UX, and source provenance belong to callers such as
+Studio. The ordinary policy returns only the existing `SimplicialMesh` owner.
+The ASCII provider policy additionally emits complete source entity-tag
+assignments expressed as canonical Mesh facet and cell indices only after the
+whole import validates, without publishing parser blocks or importer state.
+This keeps the same operation usable from Rust providers and tests without
+adding competing mesh meaning.
 
 The owned decoder admits exactly:
 

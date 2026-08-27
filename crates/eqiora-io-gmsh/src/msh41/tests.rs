@@ -3,7 +3,9 @@ use std::panic::catch_unwind;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{MeshQualityGate, MeshTopology};
 
-use super::{GmshImportLimits, GmshSimplexImporter, fallible_map, fallible_set, fallible_vec};
+use super::{
+    Decoder, DecoderLimits, Msh41Policy, fallible_map, fallible_set, fallible_vec, import_msh41,
+};
 
 #[derive(Clone, Copy)]
 enum TestEndian {
@@ -20,20 +22,20 @@ const TETRAHEDRON: &str = "$MeshFormat\n4.1 0 8\n$EndMeshFormat\n\
 $Nodes\n1 4 1 4\n3 1 0 4\n1\n2\n3\n4\n0 0 0\n1 0 0\n0 1 0\n0 0 1\n$EndNodes\n\
 $Elements\n1 1 1 1\n3 1 4 1\n1 1 2 3 4\n$EndElements\n";
 
-fn importer() -> GmshSimplexImporter {
-    GmshSimplexImporter::new(
+fn importer() -> Decoder {
+    Decoder::new(
         2,
         MeshQualityGate::new(0.5).unwrap(),
-        GmshImportLimits::default(),
+        DecoderLimits::default(),
     )
     .unwrap()
 }
 
-fn tetrahedron_importer() -> GmshSimplexImporter {
-    GmshSimplexImporter::new(
+fn tetrahedron_importer() -> Decoder {
+    Decoder::new(
         3,
         MeshQualityGate::new(0.1).unwrap(),
-        GmshImportLimits::default(),
+        DecoderLimits::default(),
     )
     .unwrap()
 }
@@ -177,30 +179,32 @@ fn imports_sparse_multiblock_triangles_and_ignores_boundary_elements() {
 
 #[test]
 fn ascii_entity_provenance_retains_block_tags_and_normalized_connectivity() {
-    let imported = importer()
-        .import_ascii_bytes_with_entities(TRIANGLES.as_bytes())
-        .unwrap();
-    assert_eq!(imported.mesh().cells().len(), 4);
-    assert_eq!(imported.element_blocks().len(), 2);
-    assert_eq!(imported.element_blocks()[0].dimension(), 1);
-    assert_eq!(imported.element_blocks()[0].entity_tag(), 1);
-    assert_eq!(
-        imported.element_blocks()[0].elements(),
-        &[vec![0, 1], vec![1, 2], vec![2, 3], vec![3, 0]]
+    let policy =
+        Msh41Policy::ascii_with_entity_assignments(2, MeshQualityGate::new(0.5).unwrap()).unwrap();
+    let mut assignments = std::collections::BTreeMap::new();
+    let mesh = import_msh41(TRIANGLES.as_bytes(), policy, |dimension, tag, indices| {
+        assignments.insert((dimension, tag), indices.to_vec());
+    })
+    .unwrap();
+    assert_eq!(mesh.cells().len(), 4);
+    assert_eq!(assignments.len(), 2);
+    assert_eq!(assignments[&(1, 1)].len(), 4);
+    assert_eq!(assignments[&(2, 1)], [0, 1, 2, 3]);
+
+    let invalid = TRIANGLES.replacen("104 40 10", "104 40 50", 1);
+    let mut escaped_assignments = 0;
+    assert!(
+        import_msh41(invalid.as_bytes(), policy, |_, _, indices| {
+            escaped_assignments += indices.len()
+        },)
+        .is_err()
     );
-    assert_eq!(imported.element_blocks()[1].dimension(), 2);
-    assert_eq!(imported.element_blocks()[1].entity_tag(), 1);
-    assert_eq!(
-        imported.element_blocks()[1].elements(),
-        imported.mesh().cells()
-    );
+    assert_eq!(escaped_assignments, 0);
 
     let binary = binary_tetrahedron(TestEndian::Little, 8, 4);
-    assert!(
-        tetrahedron_importer()
-            .import_ascii_bytes_with_entities(&binary)
-            .is_err()
-    );
+    let policy =
+        Msh41Policy::ascii_with_entity_assignments(3, MeshQualityGate::new(0.1).unwrap()).unwrap();
+    assert!(import_msh41(&binary, policy, |_, _, _| {}).is_err());
 }
 
 #[test]
@@ -247,7 +251,7 @@ fn every_truncated_binary_representation_prefix_fails_closed() {
 #[test]
 fn binary_count_budgets_are_inclusive_and_extreme_limits_do_not_panic() {
     let valid = binary_tetrahedron(TestEndian::Little, 8, 4);
-    let exact_limits = GmshImportLimits {
+    let exact_limits = DecoderLimits {
         max_bytes: valid.len(),
         max_entities: 1,
         max_entity_references: 1,
@@ -259,8 +263,7 @@ fn binary_count_budgets_are_inclusive_and_extreme_limits_do_not_panic() {
         max_decoded_bytes: usize::MAX,
         max_decoded_work: usize::MAX,
     };
-    let exact =
-        GmshSimplexImporter::new(3, MeshQualityGate::new(0.1).unwrap(), exact_limits).unwrap();
+    let exact = Decoder::new(3, MeshQualityGate::new(0.1).unwrap(), exact_limits).unwrap();
     assert_eq!(exact.import_bytes(&valid).unwrap().cells().len(), 1);
 
     let mut forged = valid;
@@ -270,7 +273,7 @@ fn binary_count_budgets_are_inclusive_and_extreme_limits_do_not_panic() {
         .unwrap()
         + b"$Nodes\n".len();
     overwrite_size_t(&mut forged, node_header, u64::MAX, 8, TestEndian::Little);
-    let extreme_limits = GmshImportLimits {
+    let extreme_limits = DecoderLimits {
         max_bytes: usize::MAX,
         max_entities: usize::MAX,
         max_entity_references: usize::MAX,
@@ -282,8 +285,7 @@ fn binary_count_budgets_are_inclusive_and_extreme_limits_do_not_panic() {
         max_decoded_bytes: usize::MAX,
         max_decoded_work: usize::MAX,
     };
-    let extreme =
-        GmshSimplexImporter::new(3, MeshQualityGate::new(0.1).unwrap(), extreme_limits).unwrap();
+    let extreme = Decoder::new(3, MeshQualityGate::new(0.1).unwrap(), extreme_limits).unwrap();
     let outcome = catch_unwind(|| extreme.import_bytes(&forged));
     assert_eq!(
         outcome
@@ -298,24 +300,23 @@ fn binary_count_budgets_are_inclusive_and_extreme_limits_do_not_panic() {
 fn aggregate_decoded_budgets_and_ignored_elements_fail_before_materialization() {
     let valid = binary_tetrahedron(TestEndian::Little, 8, 4);
     for limits in [
-        GmshImportLimits {
+        DecoderLimits {
             max_decoded_bytes: 1,
-            ..GmshImportLimits::default()
+            ..DecoderLimits::default()
         },
-        GmshImportLimits {
+        DecoderLimits {
             max_decoded_work: 1,
-            ..GmshImportLimits::default()
+            ..DecoderLimits::default()
         },
     ] {
-        let bounded =
-            GmshSimplexImporter::new(3, MeshQualityGate::new(0.1).unwrap(), limits).unwrap();
+        let bounded = Decoder::new(3, MeshQualityGate::new(0.1).unwrap(), limits).unwrap();
         assert_eq!(
             bounded.import_bytes(&valid).unwrap_err().code(),
             codes::INVALID_MESH_IMPORT,
         );
     }
 
-    let default_limits = GmshImportLimits::default();
+    let default_limits = DecoderLimits::default();
     let ignored = default_limits.max_ignored_elements + 1;
     let padded = binary_tetrahedron_with_ignored_points(TestEndian::Little, 8, 4, ignored);
     assert!(padded.len() < default_limits.max_bytes);
@@ -330,12 +331,12 @@ fn aggregate_decoded_budgets_and_ignored_elements_fail_before_materialization() 
     let admitted_ignored = 64;
     let admitted =
         binary_tetrahedron_with_ignored_points(TestEndian::Little, 8, 4, admitted_ignored);
-    let explicit = GmshSimplexImporter::new(
+    let explicit = Decoder::new(
         3,
         MeshQualityGate::new(0.1).unwrap(),
-        GmshImportLimits {
+        DecoderLimits {
             max_ignored_elements: admitted_ignored,
-            ..GmshImportLimits::default()
+            ..DecoderLimits::default()
         },
     )
     .unwrap();
@@ -375,10 +376,10 @@ fn ascii_extreme_declarations_never_panic_under_extreme_public_limits() {
     let forged_entities = TRIANGLES.replacen("4 4 1 0", &format!("{maximum} 4 1 0"), 1);
     let forged_nodes = TRIANGLES.replacen("2 5 10 50", &format!("2 {maximum} 10 50"), 1);
     let forged_elements = TRIANGLES.replacen("2 8 101 204", &format!("2 {maximum} 101 204"), 1);
-    let importer = GmshSimplexImporter::new(
+    let importer = Decoder::new(
         2,
         MeshQualityGate::new(0.1).unwrap(),
-        GmshImportLimits {
+        DecoderLimits {
             max_bytes: usize::MAX,
             max_entities: usize::MAX,
             max_entity_references: usize::MAX,
@@ -425,11 +426,11 @@ fn token_dense_ascii_never_allocates_a_token_scratch_vector() {
     }
     let dense_entities = TRIANGLES.replacen("1 0 0 0 1 0 0 0 2 1 -2", &dense_entity, 1);
 
-    let limits = GmshImportLimits {
+    let limits = DecoderLimits {
         max_decoded_bytes: 64 * 1024,
-        ..GmshImportLimits::default()
+        ..DecoderLimits::default()
     };
-    let importer = GmshSimplexImporter::new(2, MeshQualityGate::new(0.1).unwrap(), limits).unwrap();
+    let importer = Decoder::new(2, MeshQualityGate::new(0.1).unwrap(), limits).unwrap();
     for (dense, expected_budget_rejection) in [(dense_header, false), (dense_entities, true)] {
         assert!(dense.len() <= limits.max_bytes);
         let outcome = catch_unwind(|| importer.import_bytes(dense.as_bytes()));
@@ -517,12 +518,16 @@ fn binary_header_counts_sections_and_element_families_fail_closed() {
 
 #[test]
 fn resource_version_and_semantic_boundaries_fail_closed() {
-    let too_small = GmshSimplexImporter::new(
+    let mut zero_policy = Msh41Policy::mesh(2, MeshQualityGate::new(0.1).unwrap()).unwrap();
+    zero_policy.max_bytes = 0;
+    assert!(import_msh41(TRIANGLES.as_bytes(), zero_policy, |_, _, _| {}).is_err());
+
+    let too_small = Decoder::new(
         2,
         MeshQualityGate::new(0.1).unwrap(),
-        GmshImportLimits {
+        DecoderLimits {
             max_bytes: 8,
-            ..GmshImportLimits::default()
+            ..DecoderLimits::default()
         },
     )
     .unwrap();
@@ -580,10 +585,10 @@ fn inconsistent_tags_references_orientation_and_quality_are_rejected() {
         codes::INVALID_MESH
     );
 
-    let strict = GmshSimplexImporter::new(
+    let strict = Decoder::new(
         2,
         MeshQualityGate::new(0.99).unwrap(),
-        GmshImportLimits::default(),
+        DecoderLimits::default(),
     )
     .unwrap();
     assert_eq!(
@@ -597,12 +602,12 @@ fn inconsistent_tags_references_orientation_and_quality_are_rejected() {
 
 #[test]
 fn count_limits_and_malformed_sections_are_rejected_before_parsing() {
-    let node_limited = GmshSimplexImporter::new(
+    let node_limited = Decoder::new(
         2,
         MeshQualityGate::new(0.1).unwrap(),
-        GmshImportLimits {
+        DecoderLimits {
             max_nodes: 4,
-            ..GmshImportLimits::default()
+            ..DecoderLimits::default()
         },
     )
     .unwrap();

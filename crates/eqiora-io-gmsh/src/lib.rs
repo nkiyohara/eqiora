@@ -10,4 +10,4 @@
 
 mod msh41;
 
-pub use msh41::{GmshElementBlock, GmshImportLimits, GmshSimplexImporter, GmshSimplicialImport};
+pub use msh41::{Msh41Policy, import_msh41};

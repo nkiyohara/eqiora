@@ -5,9 +5,12 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
 
+mod api;
 mod binary;
 mod budget;
 
+use api::{DecodedElementBlock, DecodedMsh};
+pub use api::{Msh41Policy, import_msh41};
 use budget::DecodedBudget;
 
 const MSH_VERSION: &str = "4.1";
@@ -22,7 +25,7 @@ const MSH_VERSION: &str = "4.1";
 /// storage also uses fallible reservation. The byte budget is a deterministic
 /// logical account, not a promise of exact allocator RSS.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GmshImportLimits {
+struct DecoderLimits {
     /// Maximum complete input size.
     pub max_bytes: usize,
     /// Maximum number of decoded geometric-entity records.
@@ -45,7 +48,7 @@ pub struct GmshImportLimits {
     pub max_decoded_work: usize,
 }
 
-impl Default for GmshImportLimits {
+impl Default for DecoderLimits {
     fn default() -> Self {
         Self {
             max_bytes: 16 * 1024 * 1024,
@@ -62,7 +65,7 @@ impl Default for GmshImportLimits {
     }
 }
 
-impl GmshImportLimits {
+impl DecoderLimits {
     fn validate(self) -> Result<Self, Diagnostic> {
         if [
             self.max_bytes,
@@ -91,68 +94,13 @@ impl GmshImportLimits {
 /// This type accepts bytes rather than paths so filesystem policy and source
 /// provenance stay outside accepted mesh identity.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct GmshSimplexImporter {
+struct Decoder {
     dimension: usize,
     quality_gate: MeshQualityGate,
-    limits: GmshImportLimits,
+    limits: DecoderLimits,
 }
 
-/// One MSH element block with its exact geometric-entity provenance.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GmshElementBlock {
-    dimension: usize,
-    entity_tag: u32,
-    elements: Vec<Vec<usize>>,
-}
-
-impl GmshElementBlock {
-    /// Geometric entity dimension declared by the MSH block.
-    #[must_use]
-    pub const fn dimension(&self) -> usize {
-        self.dimension
-    }
-
-    /// Positive geometric entity tag declared by the MSH block.
-    #[must_use]
-    pub const fn entity_tag(&self) -> u32 {
-        self.entity_tag
-    }
-
-    /// Element vertex indices in importer-normalized Mesh vertex order.
-    #[must_use]
-    pub fn elements(&self) -> &[Vec<usize>] {
-        &self.elements
-    }
-}
-
-/// An admitted ASCII MSH mesh together with its element-block provenance.
-#[derive(Debug, Clone, PartialEq)]
-pub struct GmshSimplicialImport {
-    mesh: SimplicialMesh,
-    element_blocks: Vec<GmshElementBlock>,
-}
-
-impl GmshSimplicialImport {
-    /// Common accepted simplex Mesh.
-    #[must_use]
-    pub const fn mesh(&self) -> &SimplicialMesh {
-        &self.mesh
-    }
-
-    /// Complete source element-block provenance in MSH order.
-    #[must_use]
-    pub fn element_blocks(&self) -> &[GmshElementBlock] {
-        &self.element_blocks
-    }
-
-    /// Consume the import and return its common Mesh.
-    #[must_use]
-    pub fn into_mesh(self) -> SimplicialMesh {
-        self.mesh
-    }
-}
-
-impl GmshSimplexImporter {
+impl Decoder {
     /// Construct an importer for XY triangles (`dimension = 2`) or XYZ
     /// tetrahedra (`dimension = 3`).
     ///
@@ -161,7 +109,7 @@ impl GmshSimplexImporter {
     pub fn new(
         dimension: usize,
         quality_gate: MeshQualityGate,
-        limits: GmshImportLimits,
+        limits: DecoderLimits,
     ) -> Result<Self, Diagnostic> {
         if !matches!(dimension, 2 | 3) {
             return Err(invalid_import(
@@ -173,18 +121,6 @@ impl GmshSimplexImporter {
             quality_gate,
             limits: limits.validate()?,
         })
-    }
-
-    /// Requested full-dimensional mesh dimension.
-    #[must_use]
-    pub const fn dimension(self) -> usize {
-        self.dimension
-    }
-
-    /// Resource policy applied throughout bounded decoding.
-    #[must_use]
-    pub const fn limits(self) -> GmshImportLimits {
-        self.limits
     }
 
     /// Parse, validate, and reconstruct one admitted MSH 4.1 mesh.
@@ -211,10 +147,7 @@ impl GmshSimplexImporter {
     /// entities to Mesh entities without coordinate classification. Caller
     /// imports that do not authenticate entity meaning should use
     /// [`Self::import_bytes`] and remain unlabelled.
-    pub fn import_ascii_bytes_with_entities(
-        self,
-        bytes: &[u8],
-    ) -> Result<GmshSimplicialImport, Diagnostic> {
+    pub fn import_ascii_bytes_with_entities(self, bytes: &[u8]) -> Result<DecodedMsh, Diagnostic> {
         if declared_encoding(bytes)? != InputEncoding::Ascii {
             return Err(invalid_import(
                 "entity-provenance import requires ASCII MSH 4.1",
@@ -227,7 +160,7 @@ impl GmshSimplexImporter {
             decoded.cells,
             self.quality_gate,
         )?;
-        Ok(GmshSimplicialImport {
+        Ok(DecodedMsh {
             mesh,
             element_blocks: decoded.element_blocks,
         })
@@ -311,7 +244,7 @@ fn strip_carriage_return(line: &[u8]) -> &[u8] {
 struct DecodedMesh {
     vertices: Vec<Vec<f64>>,
     cells: Vec<Vec<usize>>,
-    element_blocks: Vec<GmshElementBlock>,
+    element_blocks: Vec<DecodedElementBlock>,
 }
 
 #[derive(Debug)]
@@ -324,7 +257,7 @@ impl DecodedMesh {
     fn parse_ascii(
         text: &str,
         dimension: usize,
-        limits: GmshImportLimits,
+        limits: DecoderLimits,
         budget: &mut DecodedBudget,
     ) -> Result<Self, Diagnostic> {
         let sections = Sections::parse(text, budget)?;
@@ -459,7 +392,7 @@ fn parse_mesh_format(lines: &[&str]) -> Result<(), Diagnostic> {
 fn parse_entities(
     lines: &[&str],
     requested_dimension: usize,
-    limits: GmshImportLimits,
+    limits: DecoderLimits,
     budget: &mut DecodedBudget,
 ) -> Result<(), Diagnostic> {
     let header = exact_fields::<4>(lines.first().copied(), "$Entities header")?;
@@ -552,7 +485,7 @@ fn parse_entities(
 fn parse_nodes(
     lines: &[&str],
     dimension: usize,
-    limits: GmshImportLimits,
+    limits: DecoderLimits,
     budget: &mut DecodedBudget,
 ) -> Result<DecodedNodes, Diagnostic> {
     let header = exact_fields::<4>(lines.first().copied(), "$Nodes header")?;
@@ -648,10 +581,10 @@ fn parse_nodes(
 fn parse_elements(
     lines: &[&str],
     dimension: usize,
-    limits: GmshImportLimits,
+    limits: DecoderLimits,
     vertex_by_tag: &HashMap<u64, usize>,
     budget: &mut DecodedBudget,
-) -> Result<(Vec<Vec<usize>>, Vec<GmshElementBlock>), Diagnostic> {
+) -> Result<(Vec<Vec<usize>>, Vec<DecodedElementBlock>), Diagnostic> {
     let header = exact_fields::<4>(lines.first().copied(), "$Elements header")?;
     let block_count = parse_usize(header[0], "$Elements block count")?;
     let total_elements = parse_usize(header[1], "$Elements total count")?;
@@ -759,7 +692,7 @@ fn parse_elements(
         }
         fallible_push(
             &mut element_blocks,
-            GmshElementBlock {
+            DecodedElementBlock {
                 dimension: entity_dimension,
                 entity_tag,
                 elements: block_elements,

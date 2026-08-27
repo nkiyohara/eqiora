@@ -1,6 +1,6 @@
 //! Narrow external Gmsh producer for the admitted exact-cylinder mesh path.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fmt::Write as _;
 use std::fs::{self, File};
@@ -20,8 +20,8 @@ use eqiora::artifact::{
 };
 use eqiora::diagnostic::codes;
 use eqiora::geometry::CanonicalGeometryV1;
-use eqiora::io::gmsh::{GmshImportLimits, GmshSimplexImporter, GmshSimplicialImport};
-use eqiora::meshing::{MeshEntity, MeshQualityGate, MeshTopology};
+use eqiora::io::gmsh::{Msh41Policy, import_msh41};
+use eqiora::meshing::MeshQualityGate;
 #[cfg(unix)]
 use rustix::process::{Pid, Signal, kill_process_group};
 
@@ -31,8 +31,6 @@ const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 const PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
 const PROCESS_FILE_LIMIT_FLOOR_BYTES: usize = 1024 * 1024;
 const FAILURE_DETAIL_LIMIT_BYTES: usize = 4096;
-type TaggedMeshAssignments = (BTreeMap<u32, Vec<usize>>, BTreeMap<u32, Vec<usize>>);
-
 static SCRATCH_NONCE: AtomicU64 = AtomicU64::new(0);
 
 pub(super) struct GeneratedGmshMesh {
@@ -61,7 +59,7 @@ pub(super) fn generate(
         invalid_import(format!("cannot write the Gmsh geometry input: {error}"))
     })?;
 
-    let limits = GmshImportLimits::default();
+    let limits = Msh41Policy::mesh(2, quality_gate)?;
     let mut command = bounded_output_command(&executable, limits.max_bytes.saturating_add(1));
     command
         .arg("-2")
@@ -97,27 +95,26 @@ fn derive_generated(
     quality_gate: MeshQualityGate,
     provider_output: Vec<u8>,
 ) -> Result<GeneratedGmshMesh, Diagnostic> {
-    let importer = GmshSimplexImporter::new(2, quality_gate, GmshImportLimits::default())?;
-    let imported = importer.import_ascii_bytes_with_entities(&provider_output)?;
-    let (tagged_facets, tagged_cells) = derive_entity_assignments(&imported)?;
-    if tagged_facets.keys().copied().collect::<Vec<_>>() != [1, 5, 6, 7, 8] {
+    let policy = Msh41Policy::ascii_with_entity_assignments(2, quality_gate)?;
+    let mut assignments = BTreeMap::new();
+    let mesh = import_msh41(&provider_output, policy, |dimension, tag, indices| {
+        assignments.insert((dimension, tag), indices.to_vec());
+    })?;
+    if assignments.keys().copied().collect::<Vec<_>>()
+        != [(1, 1), (1, 5), (1, 6), (1, 7), (1, 8), (2, 1)]
+    {
         return Err(invalid_import(
-            "generated Gmsh boundary entity-tag inventory is not canonical",
-        ));
-    }
-    if tagged_cells.keys().copied().collect::<Vec<_>>() != [1] {
-        return Err(invalid_import(
-            "generated Gmsh face entity-tag inventory is not canonical",
+            "generated Gmsh entity-tag inventory is not canonical",
         ));
     }
     let mut edge_facets: [Vec<usize>; 5] = std::array::from_fn(|_| Vec::new());
     for (tag, source_edge) in [(1_u32, 4_usize), (5, 2), (6, 1), (7, 3), (8, 0)] {
-        edge_facets[source_edge] = tagged_facets
-            .get(&tag)
+        edge_facets[source_edge] = assignments
+            .get(&(1, tag))
             .expect("exact tag inventory checked")
             .clone();
     }
-    let mesh = SimplicialMeshEnvelopeV1::from_mesh(imported.mesh())?;
+    let mesh = SimplicialMeshEnvelopeV1::from_mesh(&mesh)?;
     let correspondence =
         GeometryMeshCorrespondenceEnvelopeV1::from_planar_circular_hole_v2_mesh_assignments(
             source,
@@ -132,110 +129,6 @@ fn derive_generated(
         correspondence,
         edge_facets,
     })
-}
-
-fn derive_entity_assignments(
-    imported: &GmshSimplicialImport,
-) -> Result<TaggedMeshAssignments, Diagnostic> {
-    let mesh = imported.mesh();
-    let dimension = mesh.topological_dimension();
-    let facet_dimension = dimension
-        .checked_sub(1)
-        .ok_or_else(|| invalid_import("Gmsh simplex Mesh has no boundary stratum"))?;
-    let facet_count = mesh
-        .entity_count(facet_dimension)
-        .ok_or_else(|| invalid_import("Gmsh simplex Mesh omitted its facet stratum"))?;
-    let mut facet_by_vertices = BTreeMap::new();
-    let mut boundary_facets = BTreeSet::new();
-    for facet_index in 0..facet_count {
-        let facet = MeshEntity::new(facet_dimension, facet_index);
-        let mut vertices = mesh
-            .entity_vertices(facet)
-            .ok_or_else(|| invalid_import("Gmsh Mesh facet omitted its vertex closure"))?
-            .into_iter()
-            .map(MeshEntity::index)
-            .collect::<Vec<_>>();
-        vertices.sort_unstable();
-        if facet_by_vertices.insert(vertices, facet_index).is_some() {
-            return Err(invalid_import(
-                "Gmsh Mesh has duplicate canonical facet connectivity",
-            ));
-        }
-        let parents = mesh
-            .incidence(facet, dimension)
-            .ok_or_else(|| invalid_import("Gmsh Mesh facet omitted parent incidence"))?;
-        if parents.len() == 1 {
-            boundary_facets.insert(facet_index);
-        }
-    }
-    let mut tagged_facets: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
-    let mut assigned_facets = BTreeSet::new();
-    for block in imported
-        .element_blocks()
-        .iter()
-        .filter(|block| block.dimension() == facet_dimension)
-    {
-        let facets = tagged_facets.entry(block.entity_tag()).or_default();
-        for element in block.elements() {
-            let mut vertices = element.clone();
-            vertices.sort_unstable();
-            let facet = *facet_by_vertices.get(&vertices).ok_or_else(|| {
-                invalid_import("Gmsh boundary element is absent from Mesh topology")
-            })?;
-            if !boundary_facets.contains(&facet) || !assigned_facets.insert(facet) {
-                return Err(invalid_import(
-                    "Gmsh boundary assignment is interior or duplicated",
-                ));
-            }
-            facets.push(facet);
-        }
-    }
-    for facets in tagged_facets.values_mut() {
-        facets.sort_unstable();
-    }
-    if assigned_facets != boundary_facets {
-        return Err(invalid_import(
-            "Gmsh entity blocks do not assign every Mesh boundary facet",
-        ));
-    }
-
-    let mut cell_by_vertices = BTreeMap::new();
-    for (cell_index, cell) in mesh.cells().iter().enumerate() {
-        let mut vertices = cell.clone();
-        vertices.sort_unstable();
-        if cell_by_vertices.insert(vertices, cell_index).is_some() {
-            return Err(invalid_import("Gmsh Mesh has duplicate canonical cells"));
-        }
-    }
-    let mut tagged_cells: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
-    let mut assigned_cells = BTreeSet::new();
-    for block in imported
-        .element_blocks()
-        .iter()
-        .filter(|block| block.dimension() == dimension)
-    {
-        let cells = tagged_cells.entry(block.entity_tag()).or_default();
-        for element in block.elements() {
-            let mut vertices = element.clone();
-            vertices.sort_unstable();
-            let cell = *cell_by_vertices
-                .get(&vertices)
-                .ok_or_else(|| invalid_import("Gmsh top element is absent from Mesh topology"))?;
-            if !assigned_cells.insert(cell) {
-                return Err(invalid_import("Gmsh top cell assignment is duplicated"));
-            }
-            cells.push(cell);
-        }
-    }
-    for cells in tagged_cells.values_mut() {
-        cells.sort_unstable();
-    }
-    if assigned_cells != (0..mesh.cells().len()).collect() {
-        return Err(invalid_import(
-            "Gmsh entity blocks do not assign every Mesh top cell",
-        ));
-    }
-    Ok((tagged_facets, tagged_cells))
 }
 
 fn gmsh_executable() -> Result<OsString, Diagnostic> {

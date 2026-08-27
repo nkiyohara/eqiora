@@ -13,7 +13,7 @@ use eqiora_artifact::{
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_geometry::CanonicalGeometryV1;
-use eqiora_io_gmsh::{GmshImportLimits, GmshSimplexImporter};
+use eqiora_io_gmsh::{Msh41Policy, import_msh41};
 use eqiora_meshing::MeshQualityGate;
 
 mod identity;
@@ -62,8 +62,11 @@ impl PreparedCylinderMeshMember {
             input.max_segments,
             quality_gate,
         )?;
-        let mesh = GmshSimplexImporter::new(2, quality_gate, GmshImportLimits::default())?
-            .import_bytes(&input.msh_bytes)?;
+        let mesh = import_msh41(
+            &input.msh_bytes,
+            Msh41Policy::mesh(2, quality_gate)?,
+            |_, _, _| {},
+        )?;
         let mesh = SimplicialMeshEnvelopeV1::from_mesh(&mesh)?;
         let correspondence = GeometryMeshCorrespondenceEnvelopeV1::from_region(
             reference.realized_geometry(),
