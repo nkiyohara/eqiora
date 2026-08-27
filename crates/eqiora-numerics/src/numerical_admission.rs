@@ -68,7 +68,7 @@ use eqiora_execution::{
 };
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
-use eqiora_io_gmsh::{GmshImportLimits, GmshSimplexImporter, GmshSimplicialImport};
+use eqiora_io_gmsh::{Msh41Policy, import_msh41};
 use eqiora_meshing::{CellId, FacetId, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh};
 use eqiora_realization::{
     CoupledFieldwiseRealizationRequest, Discretization, DiscretizationMethod, ExecutionSchedule,
@@ -104,8 +104,6 @@ const TIME: DimExponents = DimExponents {
     ..DimExponents::DIMENSIONLESS
 };
 const POLICY_DOMAIN: &[u8] = b"eqiora.private-native-numerical-admission/v1\0";
-type TaggedMeshAssignments = (BTreeMap<u32, Vec<usize>>, BTreeMap<u32, Vec<usize>>);
-
 /// Closed spatial choice requested from the Model-first common resolver.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommonSpatialPolicy {
