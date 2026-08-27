@@ -13,6 +13,26 @@ use eqiora_sem::KernelProgram;
 use crate::{ModelDocument, aliases, single_diagnostic};
 
 impl ModelDocument {
+    /// Compile one definitions-only `.eqi` Component against exact-name
+    /// selections borrowed from one common Geometry revision.
+    ///
+    /// The compiler selects the sole public Component unless `component` is
+    /// explicit, derives Parameter dimensions from source, expands one
+    /// ephemeral root occurrence, and returns the ordinary immutable Model.
+    #[doc(hidden)]
+    pub fn compile_with_geometry(
+        filename: &str,
+        source: &str,
+        geometry: &CanonicalGeometryV1,
+        component: Option<&str>,
+        parameters: &[(&str, f64)],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let compiled = CompiledModel::compile_external_geometry_component(
+            filename, source, geometry, component, parameters,
+        )?;
+        Self::accept_external_compiled(compiled, geometry)
+    }
+
     /// Compile one definitions-only `.eqi` Component against typed selections
     /// borrowed from one exact common Geometry revision.
     ///
@@ -445,6 +465,73 @@ public component SteadyFlowPastCylinder {
         for name in ["fluid", "inlet", "outlet", "walls", "cylinder"] {
             assert!(document.aliases().contains_key(name), "missing `{name}`");
         }
+    }
+
+    #[test]
+    fn exact_name_geometry_compilation_selects_one_public_component() {
+        let geometry = fixture_geometry();
+        let automatic = ModelDocument::compile_with_geometry(
+            "fluid-boundary.eqi",
+            SOURCE,
+            &geometry,
+            None,
+            &[("value", 2.0)],
+        )
+        .expect("sole public Component closes automatically");
+        let explicit = ModelDocument::compile_with_geometry(
+            "renamed-for-diagnostics.eqi",
+            SOURCE,
+            &geometry,
+            Some("FluidBoundaryLaw"),
+            &[("value", 2.0)],
+        )
+        .expect("explicit public Component closes identically");
+        assert_eq!(automatic.digest().unwrap(), explicit.digest().unwrap());
+        assert!(automatic.structurally_equivalent(&explicit).unwrap());
+        ModelDocument::compile_with_geometry(
+            "negative-is-not-a-compiler-policy.eqi",
+            SOURCE,
+            &geometry,
+            None,
+            &[("value", -2.0)],
+        )
+        .expect("compiler checks type and finiteness, not application positivity");
+
+        let missing =
+            ModelDocument::compile_with_geometry("missing.eqi", SOURCE, &geometry, None, &[])
+                .unwrap_err();
+        assert!(
+            missing
+                .iter()
+                .any(|error| error.message().contains("value"))
+        );
+        let extra = ModelDocument::compile_with_geometry(
+            "extra.eqi",
+            SOURCE,
+            &geometry,
+            None,
+            &[("value", 2.0), ("extra", 1.0)],
+        )
+        .unwrap_err();
+        assert!(extra.iter().any(|error| error.message().contains("extra")));
+
+        let ambiguous = format!(
+            "{SOURCE}\n{}",
+            SOURCE.replace("FluidBoundaryLaw", "OtherLaw")
+        );
+        let errors = ModelDocument::compile_with_geometry(
+            "ambiguous.eqi",
+            &ambiguous,
+            &geometry,
+            None,
+            &[("value", 2.0)],
+        )
+        .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("component="))
+        );
     }
 
     #[test]

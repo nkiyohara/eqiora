@@ -586,7 +586,7 @@ def inspect_wheel(
             "eqiora/solid.pyi",
             "eqiora/torch.pyi",
             "eqiora/py.typed",
-            "eqiora/examples/steady-flow-past-cylinder.model.json",
+            "eqiora/examples/steady-flow-past-cylinder.eqi",
             "eqiora/examples/mixed-boundary-elasticity.eqi",
             "eqiora/examples/fixed-reference-fsi.eqi",
             f"{dist_info}licenses/LICENSE",

@@ -67,7 +67,7 @@ def differentiable_program(
     *,
     include_wave_number: bool = False,
 ) -> eqiora.DifferentiableProgram:
-    model = eqiora.compile(POISSON)
+    model = eqiora.compile(source=POISSON)
     realization = eqiora.preview_realization(
         model,
         eqiora.ScalarElliptic(method=method, cells_per_axis=4),
@@ -312,9 +312,7 @@ def test_nonfinite_and_unknown_program_identity_fail_closed() -> None:
     forged = dict(solve._params)
     forged["program_key"] = "0" * 64
     with pytest.raises(jax.errors.JaxRuntimeError, match="not registered"):
-        eqjax._Solve(input_aval, output_aval, forged)(
-            parameters
-        ).block_until_ready()
+        eqjax._Solve(input_aval, output_aval, forged)(parameters).block_until_ready()
 
 
 def test_sharded_input_is_rejected_without_implicit_gather() -> None:

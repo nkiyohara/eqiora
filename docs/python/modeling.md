@@ -206,55 +206,66 @@ cross-platform normalized-byte identity.
 
 ## Exact-cylinder steady Stokes result
 
-The first fluid application consumes the accepted geometry-bound current Model
-artifact explicitly and returns one immutable result:
+The first fluid application keeps the component's equations, fields,
+dimensions, Parameters, and abstract support names in the installed `.eqi`
+source. Python is the sole owner of concrete shape and size. `compile` checks
+that exact Geometry selections close the selected public Component, derives
+Parameter dimensions from its declarations, and returns the ordinary immutable
+`Model` used by every resolver:
 
 ```python
 from importlib.resources import files
 
-model_bytes = (
-    files(eqiora)
-    .joinpath("examples", "steady-flow-past-cylinder.model.json")
-    .read_bytes()
+model = eqiora.compile(
+    path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
+    geometry=geometry,
+    parameters={
+        "dynamic_viscosity": 1.0e-3,
+        "zero_pressure": 0.0,
+        "inlet_speed": 0.3,
+        "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
+    },
 )
-model = eqiora.replay(model_bytes)
-intent = eqiora.fluid.SteadyStokes(
-    length_scale_m=0.41,
-    velocity_scale_m_per_s=0.3,
-    pressure_scale_pa=0.001 * 0.3 / 0.41,
+linear = eqiora.solve.Linear(
     relative_tolerance=1e-6,
     absolute_tolerance=1e-13,
     maximum_iterations=10_000,
 )
-plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
-result = eqiora.run(model, plan=plan)
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=eqiora.fem.MiniP1(),
+    solve=linear,
+    scaling=None,
+)
+result = eqiora.run(plan)
 
-pressure = result.snapshots[0]
+pressure = result.output(plan.pressure_field)
 evidence = eqiora.fluid.steady_stokes_evidence(result)
-print(result.run_manifest().digest, pressure.digest)
+print(result.plan_key, pressure.vertex_count)
 print(evidence.solve)
 print(evidence.pressure_minimum, evidence.pressure_maximum)
 print(evidence.cylinder_force_on_fluid, evidence.net_flux)
 ```
 
-Studio and Python use the same Rust resolved Plan for Model replay, exact-source
-binding, field-wise Realization, solve, pressure snapshot, and Run provenance.
+Freshly compiled and replayed Models use the same root resolver. The source or
+host path is not Model meaning; only the accepted source, concrete Geometry,
+and values enter identity. `compile` is keyword-only and accepts exactly one of
+`path=` or `source=`; `filename=` labels diagnostics only for `source=`.
 The Plan exposes the exact spaces, scales, solver tuple, backend, placement,
 and existing Realization bytes before a worker starts.
-The common `Result` exposes one immutable pressure `FieldSnapshot`, selected by
-its exact Model-bound `FieldRef`; `result.mesh(field)` returns the paired common
-`Mesh`. Snapshot values and Mesh coordinates/connectivity lazily publish
+The common `Result` exposes one immutable pressure `FieldOutput`, selected by
+its exact Model-bound `FieldRef`; that output retains the paired common `Mesh`.
+Field values and Mesh coordinates/connectivity lazily publish
 read-only NumPy views in matching mesh order. Solver- and physics-specific
 observations remain available through
 `eqiora.fluid.steady_stokes_evidence(result)`.
 
-This operation admits only the checked exact-cylinder Model and mesh plus the
-frozen scale and SparseLU intent. Replaying the Model bytes is explicit
-artifact consumption; the wheel ships an exact copy of that one canonical
-artifact so the documented script needs no repository-local runtime input.
-This is not a general Model catalog or Python fluid authoring. Velocity
-projection, drag/lift, solver selection, transient flow, and FSI remain
-separate slices. The runnable file is
+This operation admits only the checked exact-cylinder component, Geometry,
+mesh, MINI/P1 policy, and SparseLU request. It is not a general Model catalog,
+arbitrary Geometry/component closure, or general CFD authoring. Velocity
+projection, drag/lift, transient flow, and FSI remain separate slices. The
+runnable file is
 [`examples/python/exact_cylinder_stokes.py`](../../examples/python/exact_cylinder_stokes.py).
 
 ## Exact-cylinder pressure still
@@ -305,7 +316,7 @@ source = (
     .read_text()
 )
 model = eqiora.compile(
-    source,
+    source=source,
     filename="mixed-boundary-elasticity.eqi",
 )
 intent = eqiora.solid.LinearElasticity(
@@ -378,7 +389,7 @@ source = (
     .read_text()
 )
 model = eqiora.compile(
-    source,
+    source=source,
     filename="fixed-reference-fsi.eqi",
 )
 intent = eqiora.fsi.FixedMeshMonolithic(
@@ -611,7 +622,7 @@ comparison:
 
 ```python
 source_model = eqiora.compile(
-    """
+    source="""
     model decay {
       field x: 1 = 1;
       parameter rate: 1 / s = 1;

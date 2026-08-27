@@ -80,7 +80,7 @@ fn python_compile_contract_is_claim_local_and_transport_neutral() -> PyResult<()
             .call1((module.getattr("compile")?,))?;
         assert_eq!(
             signature.str()?.to_str()?,
-            "(source, *, filename='<memory>')"
+            "(*, path=None, source=None, filename=None, geometry=None, parameters=None, component=None)"
         );
         Ok(())
     })
@@ -118,46 +118,29 @@ fn assert_stub_compile_contract(py: Python<'_>) -> PyResult<()> {
     let declaration = &declarations[0];
     let arguments = declaration.getattr("args")?;
     assert!(argument_names(&arguments.getattr("posonlyargs")?)?.is_empty());
-    assert_eq!(
-        argument_names(&arguments.getattr("args")?)?,
-        ["source".to_owned()]
-    );
+    assert!(argument_names(&arguments.getattr("args")?)?.is_empty());
     assert_eq!(
         argument_names(&arguments.getattr("kwonlyargs")?)?,
-        ["filename".to_owned()]
+        [
+            "path".to_owned(),
+            "source".to_owned(),
+            "filename".to_owned(),
+            "geometry".to_owned(),
+            "parameters".to_owned(),
+            "component".to_owned(),
+        ]
     );
     assert!(arguments.getattr("vararg")?.is_none());
     assert!(arguments.getattr("kwarg")?.is_none());
 
     let defaults = arguments.getattr("kw_defaults")?;
-    assert_eq!(defaults.len()?, 1);
-    assert_eq!(
-        ast.call_method1("literal_eval", (defaults.get_item(0)?,))?
-            .extract::<String>()?,
-        "<memory>"
-    );
-    assert_eq!(
-        ast.call_method1(
-            "unparse",
-            (arguments
-                .getattr("args")?
-                .get_item(0)?
-                .getattr("annotation")?,),
-        )?
-        .extract::<String>()?,
-        "str"
-    );
-    assert_eq!(
-        ast.call_method1(
-            "unparse",
-            (arguments
-                .getattr("kwonlyargs")?
-                .get_item(0)?
-                .getattr("annotation")?,),
-        )?
-        .extract::<String>()?,
-        "str"
-    );
+    assert_eq!(defaults.len()?, 6);
+    for index in 0..6 {
+        assert!(
+            ast.call_method1("literal_eval", (defaults.get_item(index)?,))?
+                .is_none()
+        );
+    }
     assert_eq!(
         ast.call_method1("unparse", (declaration.getattr("returns")?,))?
             .extract::<String>()?,
@@ -183,7 +166,8 @@ fn independent_python_control_and_direct_compilations_share_only_structure() -> 
 
         let kwargs = PyDict::new(py);
         kwargs.set_item("filename", filename)?;
-        let python = module.getattr("compile")?.call((SOURCE,), Some(&kwargs))?;
+        kwargs.set_item("source", SOURCE)?;
+        let python = module.getattr("compile")?.call((), Some(&kwargs))?;
 
         let request = CompileRequestV2::new("three-path-control", filename, SOURCE).unwrap();
         let control = execute_compile_v2(&request);
@@ -267,9 +251,10 @@ fn rejected_python_control_and_direct_compilations_preserve_ordinary_diagnostics
         let module = native.bind(py);
         let kwargs = PyDict::new(py);
         kwargs.set_item("filename", FILENAME)?;
+        kwargs.set_item("source", REJECTED)?;
         let error = module
             .getattr("compile")?
-            .call((REJECTED,), Some(&kwargs))
+            .call((), Some(&kwargs))
             .expect_err("Python accepted rejected source");
         let (category, python) = normalize_python_error(py, &error)?;
         assert_eq!(category, "validation");
@@ -367,9 +352,8 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
 
         let compile_kwargs = PyDict::new(py);
         compile_kwargs.set_item("filename", "python-control-plane.eqi")?;
-        let base = module
-            .getattr("compile")?
-            .call((SOURCE,), Some(&compile_kwargs))?;
+        compile_kwargs.set_item("source", SOURCE)?;
+        let base = module.getattr("compile")?.call((), Some(&compile_kwargs))?;
         let base_bytes = model_bytes(&base)?;
         let base_digest = base.getattr("digest")?.extract::<String>()?;
         let base_model_id = base.getattr("model_id")?.extract::<String>()?;
@@ -476,9 +460,11 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
             Some("EQ0901"),
         )?;
 
+        let invalid_kwargs = PyDict::new(py);
+        invalid_kwargs.set_item("source", "model broken { field ; }")?;
         let invalid_source = module
             .getattr("compile")?
-            .call1(("model broken { field ; }",))
+            .call((), Some(&invalid_kwargs))
             .expect_err("invalid source must be rejected by the shared compiler");
         assert_exception(
             module,
@@ -569,7 +555,8 @@ fn assert_python_compile_reaches_operation(
 ) -> PyResult<()> {
     let kwargs = PyDict::new(module.py());
     kwargs.set_item("filename", filename)?;
-    match module.getattr("compile")?.call((source,), Some(&kwargs)) {
+    kwargs.set_item("source", source)?;
+    match module.getattr("compile")?.call((), Some(&kwargs)) {
         Ok(_) => Ok(()),
         Err(error) => {
             let (_, diagnostics) = normalize_python_error(module.py(), &error)?;
@@ -593,9 +580,10 @@ fn assert_python_admission_error(
 ) -> PyResult<()> {
     let kwargs = PyDict::new(module.py());
     kwargs.set_item("filename", filename)?;
+    kwargs.set_item("source", source)?;
     let error = module
         .getattr("compile")?
-        .call((source,), Some(&kwargs))
+        .call((), Some(&kwargs))
         .expect_err("an over-bound Python input reached compilation");
     assert!(error.is_instance(module.py(), &module.getattr("ValidationError")?));
     let (category, diagnostics) = normalize_python_error(module.py(), &error)?;

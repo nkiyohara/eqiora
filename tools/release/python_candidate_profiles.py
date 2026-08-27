@@ -31,7 +31,7 @@ from resource_scheduler import (  # noqa: E402
 
 
 EXACT_CYLINDER_DEMO = Path("examples/python/exact_cylinder_stokes.py")
-EXACT_CYLINDER_REPOSITORY_MODEL = Path("examples/steady-flow-past-cylinder.model.json")
+EXACT_CYLINDER_REPOSITORY_SOURCE = Path("examples/steady-flow-past-cylinder.eqi")
 MIXED_BOUNDARY_ELASTICITY_DEMO = Path("examples/python/mixed_boundary_elasticity.py")
 MIXED_BOUNDARY_REPOSITORY_SOURCE = Path(
     "verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi"
@@ -428,7 +428,7 @@ def prepare_exact_cylinder_demo_consumer(extracted: Path, run_root: Path) -> Pat
         extracted,
         run_root,
         EXACT_CYLINDER_DEMO,
-        EXACT_CYLINDER_REPOSITORY_MODEL,
+        EXACT_CYLINDER_REPOSITORY_SOURCE,
         "exact-cylinder",
     )
 

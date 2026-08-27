@@ -30,7 +30,7 @@ def load_control_fixture(relative_path: str) -> dict[str, object]:
 
 def test_python_authoring_and_replay_use_the_registered_current_profile() -> None:
     profile = json.loads(CURRENT_PROFILE_FIXTURE.read_text(encoding="utf-8"))
-    model = eqiora.compile(SOURCE, filename="current.eqi")
+    model = eqiora.compile(source=SOURCE, filename="current.eqi")
     assert json.loads(model.to_json())["schema"] == profile["modelSchema"]
 
     state = eqiora.Field("x", initial=1.0)
@@ -86,7 +86,7 @@ model native_poisson {
 
 
 def test_compile_artifact_run_and_owned_numpy_result() -> None:
-    model = eqiora.compile(SOURCE, filename="decay.eqi")
+    model = eqiora.compile(source=SOURCE, filename="decay.eqi")
     artifact = model.to_json()
     assert len(model.digest) == 64
     reconstructed = eqiora.replay(artifact)
@@ -134,7 +134,7 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
 
 def test_diagnostics_are_structured() -> None:
     with pytest.raises(eqiora.EqioraError) as caught:
-        eqiora.compile("model broken { field ; }", filename="broken.eqi")
+        eqiora.compile(source="model broken { field ; }", filename="broken.eqi")
     assert caught.value.diagnostics
     diagnostic = caught.value.diagnostics[0]
     assert diagnostic.code.startswith("EQ")
@@ -142,7 +142,7 @@ def test_diagnostics_are_structured() -> None:
     assert diagnostic.message
     assert diagnostic.source_span is not None
 
-    model = eqiora.compile(SOURCE)
+    model = eqiora.compile(source=SOURCE)
     with pytest.raises(eqiora.EqioraError) as caught:
         eqiora.run(model, end_time=1.0, max_step=0.0)
     assert caught.value.diagnostics[0].code == "EQ0501"
@@ -150,7 +150,7 @@ def test_diagnostics_are_structured() -> None:
 
 def test_compile_request_fails_closed_before_entering_the_compiler() -> None:
     with pytest.raises(eqiora.EqioraError) as caught:
-        eqiora.compile(SOURCE, filename="invalid\nfilename.eqi")
+        eqiora.compile(source=SOURCE, filename="invalid\nfilename.eqi")
 
     assert len(caught.value.diagnostics) == 1
     diagnostic = caught.value.diagnostics[0]
@@ -170,7 +170,7 @@ def test_shared_compile_check_fixtures_cross_the_python_adapter() -> None:
     assert accepted["requestId"] == accepted_expectation["requestId"]
     assert accepted_expectation["outcome"] == "accepted"
     model = eqiora.compile(
-        accepted["source"],
+        source=accepted["source"],
         filename=accepted["filename"],
     )
     artifact = json.loads(model.to_json())
@@ -187,7 +187,7 @@ def test_shared_compile_check_fixtures_cross_the_python_adapter() -> None:
     assert rejected_expectation["outcome"] == "rejected"
     with pytest.raises(eqiora.EqioraError) as caught:
         eqiora.compile(
-            rejected["source"],
+            source=rejected["source"],
             filename=rejected["filename"],
         )
     assert [diagnostic.code for diagnostic in caught.value.diagnostics] == [
@@ -224,7 +224,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
 
 
 def test_source_and_native_models_share_only_structural_identity() -> None:
-    source = eqiora.compile(SOURCE, filename="source-decay.eqi")
+    source = eqiora.compile(source=SOURCE, filename="source-decay.eqi")
     state = eqiora.Field("state", initial=1.0)
     rate = eqiora.Parameter(
         "coefficient",
@@ -307,7 +307,7 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
             residual=eqiora.trace(potential),
         ),
     )
-    source = eqiora.compile(SPATIAL_SOURCE, filename="source-poisson.eqi")
+    source = eqiora.compile(source=SPATIAL_SOURCE, filename="source-poisson.eqi")
 
     assert native.digest != source.digest
     assert native.structural_fingerprint == source.structural_fingerprint
@@ -413,7 +413,7 @@ def test_native_physical_declarations_use_current_and_retain_replay() -> None:
     assert reconstructed.to_json() == artifact
     assert reconstructed.digest == model.digest
 
-    source = eqiora.compile(PHYSICAL_SOURCE, filename="physical-source.eqi")
+    source = eqiora.compile(source=PHYSICAL_SOURCE, filename="physical-source.eqi")
     assert source.digest != model.digest
     assert source.structural_fingerprint == model.structural_fingerprint
     assert source.structurally_equivalent(model)
@@ -421,7 +421,7 @@ def test_native_physical_declarations_use_current_and_retain_replay() -> None:
 
 def test_physical_source_compile_uses_current_without_user_codec_selection() -> None:
     model = eqiora.compile(
-        PHYSICAL_SOURCE,
+        source=PHYSICAL_SOURCE,
         filename="physical_pair.eqi",
     )
     restored = eqiora.replay(model.to_json())

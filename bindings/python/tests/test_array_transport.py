@@ -23,7 +23,7 @@ model decay {
 
 def result_array() -> tuple[eqiora.Result, eqiora.Array]:
     result = eqiora.run(
-        eqiora.compile(DECAY),
+        eqiora.compile(source=DECAY),
         end_time=0.2,
         max_step=0.1,
     )
@@ -36,7 +36,7 @@ import sys
 import eqiora
 assert "numpy" not in sys.modules
 result = eqiora.run(
-    eqiora.compile({DECAY!r}),
+    eqiora.compile(source={DECAY!r}),
     end_time=0.2,
     max_step=0.1,
 )
@@ -149,9 +149,7 @@ def test_dlpack_is_a_versioned_cpu_snapshot_not_a_mutable_alias() -> None:
     with pytest.raises(BufferError):
         array.__dlpack__(max_version=(2, 0))
 
-    capsule = array.__dlpack__(
-        max_version=(1, 0), dl_device=(1, 0), copy=True
-    )
+    capsule = array.__dlpack__(max_version=(1, 0), dl_device=(1, 0), copy=True)
     assert '"dltensor_versioned"' in repr(capsule)
 
     class SingleUseProducer:

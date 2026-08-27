@@ -31,7 +31,7 @@ from itertools import product
 
 import numpy as np
 
-model = eqiora.compile(source)
+model = eqiora.compile(source=source)
 fem_request = eqiora.ScalarElliptic(
     method=eqiora.ScalarEllipticMethod.FiniteElement,
     cells_per_axis=4,
@@ -164,7 +164,7 @@ def affine_source(dimension):
     ])
 
 for dimension, cells in ((1, 4), (2, 2), (3, 2)):
-    affine_model = eqiora.compile(affine_source(dimension))
+    affine_model = eqiora.compile(source=affine_source(dimension))
     for method, location_grid in (
         (eqiora.ScalarEllipticMethod.FiniteElement, np.linspace(0.0, 1.0, cells + 1)),
         (
@@ -240,7 +240,7 @@ except eqiora.ValidationError:
 else:
     raise AssertionError("a foreign Model must not silently re-resolve a Realization")
 
-decay = eqiora.compile(
+decay = eqiora.compile(source=
     """
 model decay {
   field x: 1 = 1;

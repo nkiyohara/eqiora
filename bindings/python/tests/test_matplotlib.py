@@ -157,7 +157,7 @@ def accepted_structural_model() -> eqiora.Model:
         .read_text(encoding="utf-8")
     )
     return eqiora.compile(
-        source,
+        source=source,
         filename="mixed-boundary-elasticity.eqi",
     )
 
@@ -185,7 +185,7 @@ def fsi_source() -> str:
 
 
 def accepted_fsi_model() -> eqiora.Model:
-    return eqiora.compile(fsi_source(), filename="fixed-reference-fsi.eqi")
+    return eqiora.compile(source=fsi_source(), filename="fixed-reference-fsi.eqi")
 
 
 def accepted_fsi_intent() -> Any:
@@ -211,7 +211,7 @@ def foreign_fsi_model() -> eqiora.Model:
     """
 
     return eqiora.compile(
-        fsi_source().replace("model Main {", "model IndependentMain {"),
+        source=fsi_source().replace("model Main {", "model IndependentMain {"),
         filename="independent-fixed-reference-fsi.eqi",
     )
 
@@ -806,9 +806,7 @@ def test_withdrawn_demo_stills_are_absent_without_alias_shims_or_exports() -> No
 
 @pytest.mark.parametrize("step", ACCEPTED_STEPS)
 def test_scalar_still_draws_exactly_the_accepted_support_restriction(
-    fsi: tuple[
-        eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory
-    ],
+    fsi: tuple[eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory],
     step: int,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -872,9 +870,7 @@ def test_scalar_still_draws_exactly_the_accepted_support_restriction(
 @pytest.mark.parametrize("step", ACCEPTED_STEPS)
 @pytest.mark.parametrize("scale", [0.0, 1.0, 12.0])
 def test_deformed_still_draws_reference_and_scaled_support_edges(
-    fsi: tuple[
-        eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory
-    ],
+    fsi: tuple[eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory],
     step: int,
     scale: float,
 ) -> None:
@@ -926,9 +922,7 @@ def test_deformed_still_draws_reference_and_scaled_support_edges(
 
 
 def test_deformed_still_defaults_to_unit_scale_and_separates_accepted_steps(
-    fsi: tuple[
-        eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory
-    ],
+    fsi: tuple[eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory],
 ) -> None:
     model, _, trajectory = fsi
     field = model.field("solid_displacement")
@@ -949,9 +943,7 @@ def test_deformed_still_defaults_to_unit_scale_and_separates_accepted_steps(
 
 
 def test_stills_reject_foreign_identity_and_contract_violations_before_a_figure(
-    fsi: tuple[
-        eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory
-    ],
+    fsi: tuple[eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     model, result, trajectory = fsi
@@ -1047,9 +1039,7 @@ def test_stills_reject_foreign_identity_and_contract_violations_before_a_figure(
 
 
 def test_stills_leave_digests_arrays_and_support_membership_untouched(
-    fsi: tuple[
-        eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory
-    ],
+    fsi: tuple[eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory],
 ) -> None:
     model, _, trajectory = fsi
     fields = {name: model.field(name) for name in ACCEPTED_VERTEX_SUPPORT}

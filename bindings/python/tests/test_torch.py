@@ -55,7 +55,7 @@ assert "torch" not in sys.modules
 
 
 def differentiable_program(method) -> eqiora.DifferentiableProgram:
-    model = eqiora.compile(POISSON)
+    model = eqiora.compile(source=POISSON)
     realization = eqiora.preview_realization(
         model,
         eqiora.ScalarElliptic(method=method, cells_per_axis=4),

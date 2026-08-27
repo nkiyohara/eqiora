@@ -139,7 +139,7 @@ def accepted_model() -> eqiora.Model:
     source = MODEL_RESOURCE.read_text(encoding="utf-8")
     assert hashlib.sha256(source.encode()).hexdigest() == MODEL_SHA256
     return eqiora.compile(
-        source,
+        source=source,
         filename="mixed-boundary-elasticity.eqi",
     )
 
@@ -151,7 +151,7 @@ def foreign_model() -> eqiora.Model:
         "parameter mu: kg / (m * s ^ 2) = 3;",
         "parameter mu: kg / (m * s ^ 2) = 4;",
     )
-    return eqiora.compile(source, filename="foreign-elasticity.eqi")
+    return eqiora.compile(source=source, filename="foreign-elasticity.eqi")
 
 
 def revised_model(model: eqiora.Model) -> eqiora.Model:
@@ -703,7 +703,7 @@ assert "numpy" not in sys.modules
 source = files(eqiora).joinpath(
     "examples", "mixed-boundary-elasticity.eqi"
 ).read_text()
-model = eqiora.compile(
+model = eqiora.compile(source=
     source,
     filename="mixed-boundary-elasticity.eqi",
 )

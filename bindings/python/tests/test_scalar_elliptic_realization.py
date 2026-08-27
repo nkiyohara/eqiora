@@ -88,7 +88,7 @@ def request(
 
 
 def test_preview_returns_deterministic_opaque_model_bound_realization() -> None:
-    model = eqiora.compile(POISSON, filename="poisson.eqi")
+    model = eqiora.compile(source=POISSON, filename="poisson.eqi")
     selected = request()
     same_request = request()
 
@@ -149,7 +149,7 @@ def test_run_replays_exact_realization_and_publishes_bounded_evidence(
     location: eqiora.ScalarFieldLocation,
     value_count: int,
 ) -> None:
-    model = eqiora.compile(POISSON, filename="poisson.eqi")
+    model = eqiora.compile(source=POISSON, filename="poisson.eqi")
     accepted = eqiora.preview_realization(model, request(method))
 
     result = eqiora.run(model, realization=accepted)
@@ -215,7 +215,7 @@ def test_runtime_dimensional_field_shape_and_canonical_order_are_explicit(
     method: eqiora.ScalarEllipticMethod,
 ) -> None:
     cells = 4 if dimension == 1 else 2
-    model = eqiora.compile(affine_poisson(dimension))
+    model = eqiora.compile(source=affine_poisson(dimension))
     accepted = eqiora.preview_realization(
         model,
         eqiora.ScalarElliptic(method=method, cells_per_axis=cells),
@@ -244,7 +244,7 @@ def test_runtime_dimensional_field_shape_and_canonical_order_are_explicit(
 
 
 def test_complete_field_values_outlive_the_result_owner() -> None:
-    model = eqiora.compile(POISSON, filename="poisson.eqi")
+    model = eqiora.compile(source=POISSON, filename="poisson.eqi")
     accepted = eqiora.preview_realization(model, request())
     result = eqiora.run(model, realization=accepted)
     values = result.values.numpy(copy=False)
@@ -260,7 +260,7 @@ def test_complete_field_values_outlive_the_result_owner() -> None:
 
 
 def test_sync_and_await_share_one_scalar_elliptic_run_lifecycle() -> None:
-    model = eqiora.compile(POISSON, filename="poisson.eqi")
+    model = eqiora.compile(source=POISSON, filename="poisson.eqi")
     accepted = eqiora.preview_realization(model, request())
 
     submitted = eqiora.submit(model, realization=accepted)
@@ -288,7 +288,7 @@ def test_sync_and_await_share_one_scalar_elliptic_run_lifecycle() -> None:
 
 
 def test_scalar_elliptic_cancellation_is_typed_and_publishes_no_result() -> None:
-    model = eqiora.compile(POISSON, filename="poisson.eqi")
+    model = eqiora.compile(source=POISSON, filename="poisson.eqi")
     accepted = eqiora.preview_realization(
         model,
         eqiora.ScalarElliptic(
@@ -318,7 +318,7 @@ def test_scalar_elliptic_cancellation_is_typed_and_publishes_no_result() -> None
 
 
 def test_run_forms_are_exclusive_and_the_native_entry_point_stays_private() -> None:
-    model = eqiora.compile(POISSON, filename="poisson.eqi")
+    model = eqiora.compile(source=POISSON, filename="poisson.eqi")
     accepted = eqiora.preview_realization(model, request())
 
     with pytest.raises(TypeError, match="requires either realization"):
@@ -347,7 +347,7 @@ def test_run_forms_are_exclusive_and_the_native_entry_point_stays_private() -> N
 
 
 def test_scalar_elliptic_run_releases_the_gil() -> None:
-    model = eqiora.compile(POISSON, filename="poisson.eqi")
+    model = eqiora.compile(source=POISSON, filename="poisson.eqi")
     accepted = eqiora.preview_realization(
         model,
         eqiora.ScalarElliptic(
@@ -382,10 +382,10 @@ def test_scalar_elliptic_run_releases_the_gil() -> None:
 
 
 def test_an_accepted_realization_cannot_run_against_a_foreign_model() -> None:
-    original = eqiora.compile(POISSON, filename="original.eqi")
+    original = eqiora.compile(source=POISSON, filename="original.eqi")
     accepted = eqiora.preview_realization(original, request())
     foreign = eqiora.compile(
-        POISSON.replace(
+        source=POISSON.replace(
             "source_scale: 1 / m ^ 2 = 1",
             "source_scale: 1 / m ^ 2 = 2",
         )
@@ -425,7 +425,7 @@ def test_field_bounds_report_the_accepted_domain_extent_per_axis(
     cells: int,
 ) -> None:
     shifted = POISSON.replace("box(0, 1)", "box(-1, 3)")
-    model = eqiora.compile(shifted, filename="shifted.eqi")
+    model = eqiora.compile(source=shifted, filename="shifted.eqi")
     accepted = eqiora.preview_realization(
         model,
         eqiora.ScalarElliptic(method=method, cells_per_axis=cells),
@@ -474,7 +474,7 @@ model anisotropic {
 
 
 def test_field_bounds_track_each_axis_of_a_multidimensional_domain() -> None:
-    model = eqiora.compile(ANISOTROPIC_2D, filename="anisotropic.eqi")
+    model = eqiora.compile(source=ANISOTROPIC_2D, filename="anisotropic.eqi")
     accepted = eqiora.preview_realization(
         model,
         eqiora.ScalarElliptic(
@@ -501,7 +501,7 @@ def test_packaged_poisson_converges_to_its_exact_solution_from_python() -> None:
     Realization publishes.
     """
     model = eqiora.compile(
-        PACKAGED_POISSON.read_text(encoding="utf-8"),
+        source=PACKAGED_POISSON.read_text(encoding="utf-8"),
         filename="main.eqi",
     )
 

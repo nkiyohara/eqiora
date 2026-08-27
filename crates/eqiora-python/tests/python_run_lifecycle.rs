@@ -27,7 +27,9 @@ fn python_reference_run_lifecycle_is_typed_bounded_and_fail_closed() -> PyResult
     Python::initialize();
     Python::attach(|py| {
         let module = public_module(py)?;
-        let model = module.getattr("compile")?.call1((DECAY,))?;
+        let compile_kwargs = PyDict::new(py);
+        compile_kwargs.set_item("source", DECAY)?;
+        let model = module.getattr("compile")?.call((), Some(&compile_kwargs))?;
 
         let completed = submit(&module, &model, 0.2, 0.1)?;
         assert_eq!(
@@ -93,7 +95,9 @@ fn python_reference_run_lifecycle_is_typed_bounded_and_fail_closed() -> PyResult
                 .extract::<f64>()?
         );
 
-        let invalid = module.getattr("compile")?.call1((OVERDETERMINED,))?;
+        let invalid_kwargs = PyDict::new(py);
+        invalid_kwargs.set_item("source", OVERDETERMINED)?;
+        let invalid = module.getattr("compile")?.call((), Some(&invalid_kwargs))?;
         let failed = submit(&module, &invalid, 0.1, 0.1)?;
         let error = failed
             .call_method0("result")
@@ -126,7 +130,7 @@ import time
 
 # The observer must see at least two distinct, throttled publications while
 # result() owns the calling thread. Without GIL release it cannot do so.
-gil_model = eqiora.compile(decay_source)
+gil_model = eqiora.compile(source=decay_source)
 gil_run = eqiora.submit(gil_model, end_time=0.2, max_step=2.0e-6)
 gil_ready = threading.Event()
 gil_publications = []
@@ -156,13 +160,13 @@ assert all(
 
 async def exercise_awaitable():
     completed = eqiora.submit(
-        eqiora.compile(decay_source), end_time=0.2, max_step=0.1
+        eqiora.compile(source=decay_source), end_time=0.2, max_step=0.1
     )
     result = await completed
     assert result is completed.result()
 
     live = eqiora.submit(
-        eqiora.compile(decay_source), end_time=1.0, max_step=1.0e-6
+        eqiora.compile(source=decay_source), end_time=1.0, max_step=1.0e-6
     )
     task = asyncio.ensure_future(live)
     await asyncio.sleep(0)

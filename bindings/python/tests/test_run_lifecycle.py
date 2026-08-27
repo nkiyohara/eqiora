@@ -33,7 +33,7 @@ model overdetermined {
 
 
 def test_sync_and_submitted_runs_share_one_result_contract() -> None:
-    model = eqiora.compile(DECAY)
+    model = eqiora.compile(source=DECAY)
     synchronous = eqiora.run(model, end_time=0.2, max_step=0.1)
     submitted = eqiora.submit(model, end_time=0.2, max_step=0.1)
     first = submitted.result()
@@ -71,7 +71,7 @@ def test_sync_and_submitted_runs_share_one_result_contract() -> None:
 
 
 def test_result_wait_releases_the_gil() -> None:
-    model = eqiora.compile(DECAY)
+    model = eqiora.compile(source=DECAY)
     submitted = eqiora.submit(model, end_time=0.2, max_step=2.0e-6)
     ready = threading.Event()
     observed_while_running: list[bool] = []
@@ -95,7 +95,7 @@ def test_result_wait_releases_the_gil() -> None:
 
 
 def test_cancellation_is_typed_and_never_publishes_a_partial_result() -> None:
-    model = eqiora.compile(DECAY)
+    model = eqiora.compile(source=DECAY)
     submitted = eqiora.submit(model, end_time=1.0, max_step=1.0e-6)
     assert submitted.cancel() is True
     assert submitted.cancel() is False
@@ -118,7 +118,7 @@ def test_cancellation_is_typed_and_never_publishes_a_partial_result() -> None:
 
 
 def test_failure_and_zero_interval_have_unambiguous_terminal_authority() -> None:
-    invalid = eqiora.compile(OVERDETERMINED)
+    invalid = eqiora.compile(source=OVERDETERMINED)
     failed = eqiora.submit(invalid, end_time=0.1, max_step=0.1)
     with pytest.raises(eqiora.ExecutionError) as captured:
         failed.result()
@@ -127,7 +127,7 @@ def test_failure_and_zero_interval_have_unambiguous_terminal_authority() -> None
     assert failed.done
     assert failed.cancel() is False
 
-    zero = eqiora.submit(eqiora.compile(DECAY), end_time=0.0, max_step=0.1)
+    zero = eqiora.submit(eqiora.compile(source=DECAY), end_time=0.0, max_step=0.1)
     zero.result()
     assert zero.status == eqiora.RunStatus.Completed
     assert zero.progress is None
@@ -135,11 +135,15 @@ def test_failure_and_zero_interval_have_unambiguous_terminal_authority() -> None
 
 def test_await_and_task_cancellation_do_not_redefine_native_cancellation() -> None:
     async def exercise() -> None:
-        completed = eqiora.submit(eqiora.compile(DECAY), end_time=0.2, max_step=0.1)
+        completed = eqiora.submit(
+            eqiora.compile(source=DECAY), end_time=0.2, max_step=0.1
+        )
         result = await completed
         assert result is completed.result()
 
-        live = eqiora.submit(eqiora.compile(DECAY), end_time=1.0, max_step=1.0e-6)
+        live = eqiora.submit(
+            eqiora.compile(source=DECAY), end_time=1.0, max_step=1.0e-6
+        )
         task = asyncio.ensure_future(live)
         await asyncio.sleep(0)
         task.cancel()
@@ -159,7 +163,7 @@ def test_await_and_task_cancellation_do_not_redefine_native_cancellation() -> No
 def test_dropping_a_live_handle_does_not_block_interpreter_exit() -> None:
     program = f"""
 import eqiora
-model = eqiora.compile({DECAY!r})
+model = eqiora.compile(source={DECAY!r})
 eqiora.submit(model, end_time=10.0, max_step=1.0e-7)
 """
     completed = subprocess.run(

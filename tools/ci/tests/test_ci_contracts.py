@@ -1082,7 +1082,7 @@ class PythonPackageGateTests(unittest.TestCase):
         self.assertEqual(maturin["sdist-generator"], "git")
         self.assertIn(
             {
-                "path": "steady-flow-past-cylinder.model.json",
+                "path": "steady-flow-past-cylinder.eqi",
                 "from": "out-dir",
                 "to": "eqiora/examples/",
             },

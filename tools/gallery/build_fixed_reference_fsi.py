@@ -85,7 +85,7 @@ def build(
         files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi").read_bytes()
     )
     model = eqiora.compile(
-        model_source.decode("utf-8"), filename="fixed-reference-fsi.eqi"
+        source=model_source.decode("utf-8"), filename="fixed-reference-fsi.eqi"
     )
     intent = eqiora.fsi.FixedMeshMonolithic(
         time_step_s=0.05,

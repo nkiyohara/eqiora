@@ -50,7 +50,7 @@ def decay_model(eqiora):
 
 
 def differentiable_program(eqiora):
-    model = eqiora.compile(POISSON)
+    model = eqiora.compile(source=POISSON)
     realization = eqiora.preview_realization(
         model,
         eqiora.ScalarElliptic(
@@ -88,8 +88,7 @@ def base_smoke(expected_version: str) -> None:
     assert importlib.metadata.version("eqiora") == expected_version
     assert eqiora.__version__ == expected_version
     assert not (
-        {"torch", "jax", "jaxlib", "matplotlib", "gmsh"}
-        & (set(sys.modules) - before)
+        {"torch", "jax", "jaxlib", "matplotlib", "gmsh"} & (set(sys.modules) - before)
     )
 
     model = decay_model(eqiora)
@@ -155,10 +154,12 @@ def main() -> int:
     parser.add_argument("--expected-version", required=True)
     parser.add_argument("--profile", choices=("base", "torch", "jax"), required=True)
     arguments = parser.parse_args()
-    {"base": base_smoke, "torch": torch_smoke, "jax": jax_smoke}[
-        arguments.profile
-    ](arguments.expected_version)
-    print(f"installed Eqiora {arguments.expected_version} {arguments.profile} smoke passed")
+    {"base": base_smoke, "torch": torch_smoke, "jax": jax_smoke}[arguments.profile](
+        arguments.expected_version
+    )
+    print(
+        f"installed Eqiora {arguments.expected_version} {arguments.profile} smoke passed"
+    )
     return 0
 
 

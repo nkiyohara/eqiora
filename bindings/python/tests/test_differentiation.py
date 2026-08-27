@@ -56,7 +56,7 @@ class DLPackProducer:
     ],
 )
 def test_public_diff_module_exposes_paired_complete_field_actions(method) -> None:
-    model = eqiora.compile(POISSON)
+    model = eqiora.compile(source=POISSON)
     realization = eqiora.preview_realization(
         model,
         eqiora.ScalarElliptic(method=method, cells_per_axis=4),
@@ -121,7 +121,7 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
 
 
 def test_diff_input_admission_is_explicit_and_model_bound() -> None:
-    model = eqiora.compile(POISSON)
+    model = eqiora.compile(source=POISSON)
     realization = eqiora.preview_realization(
         model,
         eqiora.ScalarElliptic(
@@ -219,7 +219,9 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
             output=model.field("potential"),
         )
 
-    foreign = eqiora.compile(POISSON.replace("diffusion: 1 = 1", "diffusion: 1 = 2"))
+    foreign = eqiora.compile(
+        source=POISSON.replace("diffusion: 1 = 1", "diffusion: 1 = 2")
+    )
     with pytest.raises(eqiora.ValidationError):
         eqiora.diff.compile(
             foreign,

@@ -49,24 +49,16 @@ OFFLINE_COMPILATION_DIGEST = (
     "3a8352b7a4843266749e9b213c3f7dedf33c280afdc0d92fc42985b5a0e0a3fa"
 )
 TYPED_MODEL_ID = "7Q7ZYW89BV0RH2HSB3S5ZMTY0K"
-TYPED_SOURCE_DIGEST = (
-    "4f3aa811b814ac7fb959f777ff5d758804e2e68593a568ee8935b122c9565462"
-)
+TYPED_SOURCE_DIGEST = "4f3aa811b814ac7fb959f777ff5d758804e2e68593a568ee8935b122c9565462"
 TYPED_RESOLUTION_DIGEST = (
     "38b5bb0c7e1f8aa7baa5e690157014a974c446f8f38fcd19d6b73b981e9ca810"
 )
-TYPED_MODEL_DIGEST = (
-    "c2c35e6b58f6ee0d40b8aa2bd0c252e519eec6f6779e39366ae2e28cdbd5300a"
-)
+TYPED_MODEL_DIGEST = "c2c35e6b58f6ee0d40b8aa2bd0c252e519eec6f6779e39366ae2e28cdbd5300a"
 TYPED_COMPILATION_DIGEST = (
     "cb797d1c262e5a657d9d2a03d757894fdce01d2a98f09e6557796cb9c2d460a4"
 )
-LIBRARY_SOURCE = (
-    "ce343238d92f202646d2dd2947d68c311eac90aa711aa9d0e3905fa170f6f3f1"
-)
-ROOT_SOURCE = (
-    "cd7afe063d06007b97c108d3957e1bdc92e64fe47adfc7ac92975fee4f2c0d28"
-)
+LIBRARY_SOURCE = "ce343238d92f202646d2dd2947d68c311eac90aa711aa9d0e3905fa170f6f3f1"
+ROOT_SOURCE = "cd7afe063d06007b97c108d3957e1bdc92e64fe47adfc7ac92975fee4f2c0d28"
 CONFORMANCE = ROOT / "verify/interfaces/python-package-conformance"
 FALSE_CLAIM = CONFORMANCE / "models/false-scientific-claim"
 FALSE_CLAIM_STORE = FALSE_CLAIM / "store"
@@ -284,7 +276,9 @@ def expected_conformance_report(label: str) -> eqiora.PackageConformanceReport:
 
 def tree_snapshot(root: Path) -> tuple[tuple[object, ...], ...]:
     snapshot: list[tuple[object, ...]] = []
-    for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
+    for path in sorted(
+        root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()
+    ):
         relative = path.relative_to(root).as_posix()
         metadata = path.lstat()
         mode = stat.S_IMODE(metadata.st_mode)
@@ -295,7 +289,13 @@ def tree_snapshot(root: Path) -> tuple[tuple[object, ...], ...]:
         elif path.is_file():
             content = path.read_bytes()
             snapshot.append(
-                (relative, "file", mode, len(content), hashlib.sha256(content).hexdigest())
+                (
+                    relative,
+                    "file",
+                    mode,
+                    len(content),
+                    hashlib.sha256(content).hexdigest(),
+                )
             )
         else:
             snapshot.append((relative, "nonregular", mode))
@@ -358,9 +358,9 @@ def test_exact_package_projection_is_the_frozen_ordinary_model() -> None:
         del model.package_compilation_digest
 
     identities = json.loads(
-        (ROOT / "verify/packages/offline-model-package/expected/identities.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            ROOT / "verify/packages/offline-model-package/expected/identities.json"
+        ).read_text(encoding="utf-8")
     )
     assert identities["resolution_digest"] == OFFLINE_RESOLUTION_DIGEST
     assert identities["model_digest"] == model.digest
@@ -390,7 +390,7 @@ def test_exact_package_projection_is_the_frozen_ordinary_model() -> None:
     assert reacquired.package_compilation_digest == OFFLINE_COMPILATION_DIGEST
 
     source = eqiora.compile(
-        """
+        source="""
 model source_model {
   field x: 1 = 1;
   relation hold continuous { derivative(x) = 0; }
@@ -417,9 +417,9 @@ def test_commit_clears_only_the_accepted_parent_lineage() -> None:
     assert model.package_compilation_digest == TYPED_COMPILATION_DIGEST
 
     identities = json.loads(
-        (ROOT / "verify/packages/typed-execution-lineage/expected/identities.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            ROOT / "verify/packages/typed-execution-lineage/expected/identities.json"
+        ).read_text(encoding="utf-8")
     )
     assert identities["source_bundle_sha256"] == TYPED_SOURCE_DIGEST
     assert identities["resolution_sha256"] == TYPED_RESOLUTION_DIGEST
@@ -546,7 +546,9 @@ def test_missing_mutated_and_unrelated_store_entries() -> None:
         assert unicode_model.digest == OFFLINE_MODEL_DIGEST
 
         unrelated = copied_store(parent, "unrelated")
-        (unrelated / "caller-note.json").write_text("not part of the closure\n", encoding="utf-8")
+        (unrelated / "caller-note.json").write_text(
+            "not part of the closure\n", encoding="utf-8"
+        )
         accepted = eqiora.compile_package(
             unrelated,
             PRIMARY_RESOLUTION,
@@ -565,7 +567,9 @@ def test_missing_mutated_and_unrelated_store_entries() -> None:
         documentation = release["source"]["files"][0]
         encoded = documentation["bytes"]
         documentation["bytes"] = ("J" if encoded[0] != "J" else "I") + encoded[1:]
-        release_path.write_bytes(json.dumps(release, separators=(",", ":")).encode("utf-8"))
+        release_path.write_bytes(
+            json.dumps(release, separators=(",", ":")).encode("utf-8")
+        )
         assert_compatibility(assert_store_rejection(mutated))
 
         nonregular = copied_store(parent, "nonregular")
@@ -596,7 +600,9 @@ def test_missing_mutated_and_unrelated_store_entries() -> None:
     with_scratch(run)
 
 
-@pytest.mark.skipif(os.name != "posix", reason="registered symlink oracle is POSIX-only")
+@pytest.mark.skipif(
+    os.name != "posix", reason="registered symlink oracle is POSIX-only"
+)
 def test_store_and_exact_entry_symlinks_fail_closed() -> None:
     def run(parent: Path) -> None:
         entry_store = copied_store(parent, "entry-symlink")
@@ -634,8 +640,14 @@ def test_package_conformance_public_signature_named_tuples_and_stub_are_exact() 
         "entry_model",
         "profile",
     )
-    assert signature.parameters["store_root"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-    assert signature.parameters["resolution_bytes"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    assert (
+        signature.parameters["store_root"].kind
+        is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    )
+    assert (
+        signature.parameters["resolution_bytes"].kind
+        is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    )
     for name in ("entry_model", "profile"):
         parameter = signature.parameters[name]
         assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
@@ -706,36 +718,40 @@ def test_package_conformance_public_signature_named_tuples_and_stub_are_exact() 
             if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
         }
         assert tuple(declarations) == fields
-        assert declarations == {
-            "PackageConformancePackage": {
-                "name": "str",
-                "version": "str",
-                "semantic_digest": "str",
-                "source_digest": "str",
-            },
-            "PackageConformanceReport": {
-                "profile": "str",
-                "eqiora_version": "str",
-                "compiler": "str",
-                "compiler_version": "str",
-                "semantic_canonicalization_version": "int",
-                "source_bundle_version": "int",
-                "resolution_version": "int",
-                "root_package": "PackageConformancePackage",
-                "packages": "tuple[PackageConformancePackage, ...]",
-                "entry_model": "str",
-                "resolution_digest": "str",
-                "package_compilation_digest": "str",
-                "model_id": "str",
-                "model_revision": "int",
-                "model_digest": "str",
-                "deterministic_replay_agreement": "bool",
-            },
-        }[name]
+        assert (
+            declarations
+            == {
+                "PackageConformancePackage": {
+                    "name": "str",
+                    "version": "str",
+                    "semantic_digest": "str",
+                    "source_digest": "str",
+                },
+                "PackageConformanceReport": {
+                    "profile": "str",
+                    "eqiora_version": "str",
+                    "compiler": "str",
+                    "compiler_version": "str",
+                    "semantic_canonicalization_version": "int",
+                    "source_bundle_version": "int",
+                    "resolution_version": "int",
+                    "root_package": "PackageConformancePackage",
+                    "packages": "tuple[PackageConformancePackage, ...]",
+                    "entry_model": "str",
+                    "resolution_digest": "str",
+                    "package_compilation_digest": "str",
+                    "model_id": "str",
+                    "model_revision": "int",
+                    "model_digest": "str",
+                    "deterministic_replay_agreement": "bool",
+                },
+            }[name]
+        )
     function = next(
         node
         for node in stub.body
-        if isinstance(node, ast.FunctionDef) and node.name == "check_package_conformance"
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "check_package_conformance"
     )
     assert [argument.arg for argument in function.args.args] == [
         "store_root",
@@ -761,7 +777,10 @@ def test_package_conformance_public_signature_named_tuples_and_stub_are_exact() 
         ast.literal_eval(node.value)
         for node in stub.body
         if isinstance(node, ast.Assign)
-        and any(isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets)
+        and any(
+            isinstance(target, ast.Name) and target.id == "__all__"
+            for target in node.targets
+        )
     )
     assert stub_exports == EXPECTED_EQIORA_ALL
 
@@ -785,7 +804,9 @@ def test_structural_reports_match_frozen_facts_without_scientific_inference() ->
         release_path = false_store / f"{false_report.root_package.source_digest}.json"
         release = json.loads(release_path.read_bytes())
         documentation = next(
-            file for file in release["source"]["files"] if file["role"] == "documentation"
+            file
+            for file in release["source"]["files"]
+            if file["role"] == "documentation"
         )
         decoded_documentation = base64.b64decode(documentation["bytes"]).decode("utf-8")
         assert "every physical prediction is exact" in decoded_documentation
@@ -812,22 +833,31 @@ def test_structural_reports_match_frozen_facts_without_scientific_inference() ->
         assert tree_snapshot(poisson_store) == poisson_before
         assert poisson_report.root_package != false_report.root_package
         assert poisson_report.resolution_digest != false_report.resolution_digest
-        assert poisson_report.package_compilation_digest != false_report.package_compilation_digest
+        assert (
+            poisson_report.package_compilation_digest
+            != false_report.package_compilation_digest
+        )
         assert poisson_report.model_digest != false_report.model_digest
 
         independently_accepted = json.loads(
-            (ROOT / "verify/packages/typed-execution-lineage/expected/identities.json").read_text(
-                encoding="utf-8"
-            )
+            (
+                ROOT
+                / "verify/packages/typed-execution-lineage/expected/identities.json"
+            ).read_text(encoding="utf-8")
         )
-        assert poisson_report.root_package.source_digest == independently_accepted[
-            "source_bundle_sha256"
-        ]
-        assert poisson_report.resolution_digest == independently_accepted["resolution_sha256"]
+        assert (
+            poisson_report.root_package.source_digest
+            == independently_accepted["source_bundle_sha256"]
+        )
+        assert (
+            poisson_report.resolution_digest
+            == independently_accepted["resolution_sha256"]
+        )
         assert poisson_report.model_digest == independently_accepted["model_sha256"]
-        assert poisson_report.package_compilation_digest == independently_accepted[
-            "package_compilation_sha256"
-        ]
+        assert (
+            poisson_report.package_compilation_digest
+            == independently_accepted["package_compilation_sha256"]
+        )
 
         parallel_store = parent / "copied-parallel"
         shutil.copytree(PRIMARY_STORE, parallel_store)
@@ -858,7 +888,8 @@ def test_structural_reports_match_frozen_facts_without_scientific_inference() ->
             for package in parallel_report.packages
             if package.name == parallel_compilation["root"]["name"]
             and package.version == parallel_compilation["root"]["version"]
-            and package.semantic_digest == parallel_compilation["root"]["semantic_digest"]
+            and package.semantic_digest
+            == parallel_compilation["root"]["semantic_digest"]
         )
         assert parallel_report.resolution_digest == OFFLINE_RESOLUTION_DIGEST
         assert parallel_report.package_compilation_digest == OFFLINE_COMPILATION_DIGEST
@@ -949,7 +980,9 @@ def test_profile_and_argument_shapes_fail_before_filesystem_authority() -> None:
             check_conformance(FALSE_CLAIM_STORE, invalid)
 
 
-def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inputs() -> None:
+def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inputs() -> (
+    None
+):
     false_decoded = json.loads(FALSE_CLAIM_RESOLUTION)
     key_reordered = json.dumps(
         {
@@ -977,9 +1010,7 @@ def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inpu
     dependencies.append(spare_dependency)
     two_edge = json.loads(PRIMARY_RESOLUTION)
     root_node = next(
-        node
-        for node in two_edge["nodes"]
-        if node["identity"] == two_edge["root"]
+        node for node in two_edge["nodes"] if node["identity"] == two_edge["root"]
     )
     root_node["source_digest"] = source_bundle_digest(root_release["source"])
     spare_edge = {
@@ -1041,21 +1072,31 @@ def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inpu
 
         digest_mismatch = json.loads(FALSE_CLAIM_RESOLUTION)
         digest_mismatch["nodes"][0]["source_digest"] = "0" * 64
-        mismatch_bytes = json.dumps(digest_mismatch, separators=(",", ":")).encode("utf-8")
-        assert_compatibility(assert_conformance_rejection(store, resolution=mismatch_bytes))
+        mismatch_bytes = json.dumps(digest_mismatch, separators=(",", ":")).encode(
+            "utf-8"
+        )
+        assert_compatibility(
+            assert_conformance_rejection(store, resolution=mismatch_bytes)
+        )
 
         stale_identity = json.loads(FALSE_CLAIM_RESOLUTION)
         stale_identity["root"]["semantic_digest"] = "1" * 64
         stale_identity["nodes"][0]["identity"]["semantic_digest"] = "1" * 64
         stale_bytes = json.dumps(stale_identity, separators=(",", ":")).encode("utf-8")
-        assert_compatibility(assert_conformance_rejection(store, resolution=stale_bytes))
+        assert_compatibility(
+            assert_conformance_rejection(store, resolution=stale_bytes)
+        )
 
-        assert_compatibility(assert_conformance_rejection(store, resolution=SECONDARY_RESOLUTION))
+        assert_compatibility(
+            assert_conformance_rejection(store, resolution=SECONDARY_RESOLUTION)
+        )
 
     with_scratch(run)
 
 
-def test_release_normalization_accepts_representation_but_rejects_semantic_changes_and_roles() -> None:
+def test_release_normalization_accepts_representation_but_rejects_semantic_changes_and_roles() -> (
+    None
+):
     expected = expected_conformance_report("false_claim")
 
     def run(parent: Path) -> None:
@@ -1084,7 +1125,9 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
             },
             "schema": release["schema"],
         }
-        release_path.write_text(json.dumps(represented, indent=2) + "\n", encoding="utf-8")
+        release_path.write_text(
+            json.dumps(represented, indent=2) + "\n", encoding="utf-8"
+        )
         represented_before = tree_snapshot(normalized)
         assert check_conformance(normalized, FALSE_CLAIM_RESOLUTION) == expected
         assert tree_snapshot(normalized) == represented_before
@@ -1100,7 +1143,9 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
         )
         decoded = base64.b64decode(model_source["bytes"])
         model_source["bytes"] = base64.b64encode(decoded + b"\n").decode("ascii")
-        source_path.write_bytes(json.dumps(source_release, separators=(",", ":")).encode("utf-8"))
+        source_path.write_bytes(
+            json.dumps(source_release, separators=(",", ":")).encode("utf-8")
+        )
         assert_compatibility(assert_conformance_rejection(source_changed))
 
         foreign = parent / "foreign-release"
@@ -1145,7 +1190,9 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
         alias_path = alias_changed / f"{ROOT_SOURCE}.json"
         alias_release = json.loads(alias_path.read_bytes())
         alias_release["source"]["manifest"]["dependencies"][0]["alias"] = "changed"
-        alias_path.write_bytes(json.dumps(alias_release, separators=(",", ":")).encode("utf-8"))
+        alias_path.write_bytes(
+            json.dumps(alias_release, separators=(",", ":")).encode("utf-8")
+        )
         alias_error = assert_conformance_rejection(
             alias_changed,
             resolution=PRIMARY_RESOLUTION,
@@ -1159,7 +1206,9 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
     "selector",
     ["", "Missing", "dep.Main", "org.example.poisson.Main", "wave_number"],
 )
-def test_conformance_selector_is_bare_root_local_without_a_visibility_policy(selector: str) -> None:
+def test_conformance_selector_is_bare_root_local_without_a_visibility_policy(
+    selector: str,
+) -> None:
     error = assert_conformance_rejection(
         FALSE_CLAIM_STORE,
         entry_model=selector,
@@ -1167,7 +1216,10 @@ def test_conformance_selector_is_bare_root_local_without_a_visibility_policy(sel
     )
     assert error.category == "validation"
     assert error.diagnostics
-    assert check_conformance(FALSE_CLAIM_STORE, FALSE_CLAIM_RESOLUTION).entry_model == "Main"
+    assert (
+        check_conformance(FALSE_CLAIM_STORE, FALSE_CLAIM_RESOLUTION).entry_model
+        == "Main"
+    )
 
 
 def test_conformance_filesystem_authority_and_atomicity_are_exact() -> None:
@@ -1176,9 +1228,9 @@ def test_conformance_filesystem_authority_and_atomicity_are_exact() -> None:
         shutil.copytree(FALSE_CLAIM_STORE, accepted)
         (accepted / "unlisted.json").write_text("ignored\n", encoding="utf-8")
         before = tree_snapshot(accepted)
-        assert check_conformance(accepted, FALSE_CLAIM_RESOLUTION) == expected_conformance_report(
-            "false_claim"
-        )
+        assert check_conformance(
+            accepted, FALSE_CLAIM_RESOLUTION
+        ) == expected_conformance_report("false_claim")
         assert tree_snapshot(accepted) == before
 
         missing = parent / "missing"

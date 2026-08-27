@@ -14,7 +14,7 @@ def solve() -> tuple[eqiora.Model, eqiora.Result]:
         .read_text(encoding="utf-8")
     )
     model = eqiora.compile(
-        source,
+        source=source,
         filename="mixed-boundary-elasticity.eqi",
     )
     # This checked-in reference case follows the tuple enforced by

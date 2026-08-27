@@ -96,7 +96,7 @@ def accepted_model() -> eqiora.Model:
     source = MODEL_RESOURCE.read_text(encoding="utf-8")
     assert hashlib.sha256(source.encode()).hexdigest() == MODEL_SHA256
     return eqiora.compile(
-        source,
+        source=source,
         filename="fixed-reference-fsi.eqi",
     )
 
@@ -106,7 +106,7 @@ def foreign_model() -> eqiora.Model:
         "parameter fluid_density: kg / m ^ 3 = 2;",
         "parameter fluid_density: kg / m ^ 3 = 4;",
     )
-    return eqiora.compile(source, filename="foreign-fsi.eqi")
+    return eqiora.compile(source=source, filename="foreign-fsi.eqi")
 
 
 def revised_model(model: eqiora.Model) -> eqiora.Model:
@@ -291,7 +291,9 @@ def test_partition_and_ordered_step_arrays_are_complete_and_immutable(
 
     assert tuple(state.step for state in trajectory.states) == (1, 2)
     assert tuple(state.time_s for state in trajectory.states) == (0.05, 0.10)
-    assert tuple(evidence.state(state) for state in trajectory.states) == evidence.states
+    assert (
+        tuple(evidence.state(state) for state in trajectory.states) == evidence.states
+    )
 
     velocity = model.field("fluid_velocity")
     pressure = model.field("fluid_pressure")
@@ -574,7 +576,9 @@ def test_general_trajectory_rejects_foreign_fields_and_mutation(
         "model Main {",
         "model IndependentMain {",
     )
-    independent = eqiora.compile(source, filename="independent-fixed-reference-fsi.eqi")
+    independent = eqiora.compile(
+        source=source, filename="independent-fixed-reference-fsi.eqi"
+    )
     assert model.structurally_equivalent(independent)
     assert model.digest != independent.digest
     with pytest.raises(ValueError, match="different exact Model"):
@@ -663,8 +667,7 @@ def test_plan_is_bound_to_one_exact_model_before_worker_creation(
             with pytest.raises(eqiora.ValidationError) as caught:
                 entry_point(foreign, plan=plan)
             assert any(
-                diagnostic.code == "EQ0807"
-                for diagnostic in caught.value.diagnostics
+                diagnostic.code == "EQ0807" for diagnostic in caught.value.diagnostics
             )
 
 
@@ -760,7 +763,7 @@ import eqiora
 
 assert "numpy" not in sys.modules
 source = files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi").read_text()
-model = eqiora.compile(
+model = eqiora.compile(source=
     source,
     filename="fixed-reference-fsi.eqi",
 )

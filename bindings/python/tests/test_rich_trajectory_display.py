@@ -16,7 +16,7 @@ TEXT_MIME = "text/plain"
 
 def supported_trajectory() -> eqiora.trajectory.Trajectory:
     source = files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi").read_text()
-    model = eqiora.compile(source, filename="fixed-reference-fsi.eqi")
+    model = eqiora.compile(source=source, filename="fixed-reference-fsi.eqi")
     intent = eqiora.fsi.FixedMeshMonolithic(
         time_step_s=0.05,
         steps=2,

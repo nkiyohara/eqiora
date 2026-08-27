@@ -97,7 +97,7 @@ model decay {
 
 
 def decayed_series() -> eqiora.Series:
-    return eqiora.run(eqiora.compile(DECAY), end_time=0.2, max_step=0.1)["x"]
+    return eqiora.run(eqiora.compile(source=DECAY), end_time=0.2, max_step=0.1)["x"]
 
 
 def test_asarray_needs_no_method_call_and_stays_zero_copy() -> None:

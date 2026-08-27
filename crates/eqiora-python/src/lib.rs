@@ -24,16 +24,21 @@ mod realization;
 mod result;
 mod steady_stokes;
 mod trajectory;
+use std::fs::File;
+use std::io::Read;
+use std::path::PathBuf;
+
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::PyModule;
+use pyo3::types::{PyAny, PyBool, PyDict, PyFloat, PyInt, PyModule, PyString};
 
 pub(crate) use error::diagnostic_error;
 #[doc(hidden)]
 pub use error::panic_boundary;
 use error::{compatibility_error, python_compile_admission_error};
+use geometry::PyGeometry;
 use model::PyModel;
 
 const MAX_PYTHON_COMPILE_FILENAME_BYTES: usize = 4_096;
@@ -77,18 +82,149 @@ fn python_distribution_version(cargo_version: &str) -> Option<String> {
     Some(format!("{release}{marker}{serial}"))
 }
 
-/// Compile exactly one Eqiora model through the canonical Rust pipeline.
+/// Compile exactly one Eqiora source through the canonical Rust pipeline.
 #[pyfunction]
-#[pyo3(signature = (source, *, filename="<memory>"))]
-fn compile(py: Python<'_>, source: &str, filename: &str) -> PyResult<PyModel> {
+#[pyo3(signature = (*, path=None, source=None, filename=None, geometry=None, parameters=None, component=None))]
+#[allow(clippy::too_many_arguments)]
+fn compile(
+    py: Python<'_>,
+    path: Option<&Bound<'_, PyAny>>,
+    source: Option<&str>,
+    filename: Option<&str>,
+    geometry: Option<Py<PyGeometry>>,
+    parameters: Option<&Bound<'_, PyDict>>,
+    component: Option<&str>,
+) -> PyResult<PyModel> {
     panic_boundary(py, || {
-        validate_python_compile_input(py, filename, source)?;
-        let filename = filename.to_owned();
-        let source = source.to_owned();
-        py.detach(move || ModelDocument::compile(&filename, &source))
-            .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
-            .and_then(|document| PyModel::from_document(py, document))
+        let (filename, source) = admitted_compile_source(py, path, source, filename)?;
+        validate_python_compile_input(py, &filename, &source)?;
+        let parameter_values = extract_parameter_values(parameters)?;
+        match geometry {
+            None => {
+                if parameters.is_some() || component.is_some() {
+                    return Err(python_compile_admission_error(
+                        py,
+                        "parameters= and component= require geometry= for definitions-only source compilation",
+                    ));
+                }
+                py.detach(move || ModelDocument::compile(&filename, &source))
+                    .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
+                    .and_then(|document| PyModel::from_document(py, document))
+            }
+            Some(geometry) => {
+                let native_geometry = geometry.borrow(py).geometry().clone();
+                let component = component.map(str::to_owned);
+                let compiled = py.detach(move || {
+                    let parameters = parameter_values
+                        .iter()
+                        .map(|(name, value)| (name.as_str(), *value))
+                        .collect::<Vec<_>>();
+                    ModelDocument::compile_with_geometry(
+                        &filename,
+                        &source,
+                        &native_geometry,
+                        component.as_deref(),
+                        &parameters,
+                    )
+                });
+                compiled
+                    .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
+                    .and_then(|document| {
+                        PyModel::from_document_with_geometry(py, document, geometry)
+                    })
+            }
+        }
     })
+}
+
+fn admitted_compile_source(
+    py: Python<'_>,
+    path: Option<&Bound<'_, PyAny>>,
+    source: Option<&str>,
+    filename: Option<&str>,
+) -> PyResult<(String, String)> {
+    match (path, source) {
+        (None, None) | (Some(_), Some(_)) => Err(python_compile_admission_error(
+            py,
+            "compile requires exactly one of path= or source=",
+        )),
+        (None, Some(source)) => Ok((filename.unwrap_or("<memory>").to_owned(), source.to_owned())),
+        (Some(_), None) if filename.is_some() => Err(python_compile_admission_error(
+            py,
+            "filename= is available only with source=",
+        )),
+        (Some(path), None) => {
+            let path = py.import("os")?.getattr("fspath")?.call1((path,))?;
+            let path = path.cast::<PyString>().map_err(|_| {
+                PyTypeError::new_err("path must resolve to a Unicode filesystem path")
+            })?;
+            let path = PathBuf::from(path.to_str()?);
+            let logical = path.to_string_lossy().into_owned();
+            let read_path = path.clone();
+            let bytes = py
+                .detach(move || {
+                    let file = File::open(&read_path)?;
+                    let mut bytes = Vec::new();
+                    file.take((MAX_PYTHON_COMPILE_SOURCE_BYTES + 1) as u64)
+                        .read_to_end(&mut bytes)?;
+                    Ok::<_, std::io::Error>(bytes)
+                })
+                .map_err(|error| {
+                    python_compile_admission_error(
+                        py,
+                        &format!("could not read compile path {logical:?}: {error}"),
+                    )
+                })?;
+            if bytes.len() > MAX_PYTHON_COMPILE_SOURCE_BYTES {
+                return Err(python_compile_admission_error(
+                    py,
+                    "source exceeds the 8388608-byte compile/check v2 limit",
+                ));
+            }
+            let source = String::from_utf8(bytes).map_err(|_| {
+                python_compile_admission_error(py, "compile path is not valid UTF-8 source")
+            })?;
+            Ok((logical, source))
+        }
+    }
+}
+
+fn extract_parameter_values(
+    parameters: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Vec<(String, f64)>> {
+    let Some(parameters) = parameters else {
+        return Ok(Vec::new());
+    };
+    let mut values = Vec::with_capacity(parameters.len());
+    for (name, value) in parameters.iter() {
+        let name = name
+            .cast::<PyString>()
+            .map_err(|_| PyTypeError::new_err("parameter names must be strings"))?
+            .to_str()?
+            .to_owned();
+        if value.cast::<PyBool>().is_ok() {
+            return Err(PyTypeError::new_err(format!(
+                "parameter {name:?} must be a real coherent-SI scalar, not bool"
+            )));
+        }
+        let scalar = if let Ok(value) = value.cast::<PyFloat>() {
+            value.value()
+        } else if value.cast::<PyInt>().is_ok() {
+            value.extract::<f64>()?
+        } else {
+            return Err(PyTypeError::new_err(format!(
+                "parameter {name:?} must be a real coherent-SI scalar"
+            )));
+        };
+        if !scalar.is_finite() {
+            return Err(PyTypeError::new_err(format!(
+                "parameter {name:?} must be finite"
+            )));
+        }
+        values.push((name, scalar));
+    }
+    values.sort_by(|left, right| left.0.cmp(&right.0));
+    Ok(values)
 }
 
 fn validate_python_compile_input(py: Python<'_>, filename: &str, source: &str) -> PyResult<()> {

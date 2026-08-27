@@ -112,8 +112,8 @@ fn reversing_the_inlet_normal_term_flips_the_signed_flux_oracle() {
 #[test]
 fn a_traction_cylinder_cannot_be_named_as_a_constrained_reaction_surface() {
     let cylinder_traction = SOURCE.replace(
-        "relation upper_wall continuous on y_upper { trace(velocity) = 0; }",
-        r#"relation upper_wall continuous on y_upper {
+        "relation cylinder_velocity continuous on cylinder { trace(velocity) = 0; }",
+        r#"relation cylinder_velocity continuous on cylinder {
     normal(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)

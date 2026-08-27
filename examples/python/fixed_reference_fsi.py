@@ -14,7 +14,7 @@ def compile_model() -> eqiora.Model:
         .read_text(encoding="utf-8")
     )
     return eqiora.compile(
-        source,
+        source=source,
         filename="fixed-reference-fsi.eqi",
     )
 

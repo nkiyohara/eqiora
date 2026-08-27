@@ -31,43 +31,49 @@ from importlib.resources import files
 
 import eqiora
 
-graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
-    x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41),
-    plane_z=0.0, depth=1.0, modeling_tolerance=1e-10,
-).circular_through_cut(
-    center=(0.2, 0.2), radius=0.05, boolean_tolerance=1e-10,
-)
-geometry = graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid", x_lower="inlet", x_upper="outlet",
-    y_lower="walls", y_upper="walls", hole="cylinder",
-)
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+circle = graph.circle(center=(0.2, 0.2), radius=0.05)
+fluid = graph.subtract(rectangle, circle)
+geometry = graph.build(fluid, named_topology={
+    "fluid": fluid.region,
+    "inlet": rectangle.boundaries[0],
+    "outlet": rectangle.boundaries[1],
+    "walls": rectangle.boundaries[2:4],
+    "cylinder": circle.boundaries[0],
+})
 mesh_request = eqiora.meshing.MeshRequest(
-    maximum_boundary_error=1e-4,
-    minimum_mean_ratio=1e-5,
-    maximum_boundary_facets=50,
+    eqiora.meshing.GmshMesher(
+        maximum_boundary_error=1e-4,
+        minimum_mean_ratio=1e-5,
+        maximum_boundary_facets=50,
+    )
 )
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
 mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 
-model = eqiora.replay(
-    files(eqiora)
-    .joinpath("examples", "steady-flow-past-cylinder.model.json")
-    .read_bytes()
+model = eqiora.compile(
+    path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
+    geometry=geometry,
+    parameters={
+        "dynamic_viscosity": 1.0e-3,
+        "zero_pressure": 0.0,
+        "inlet_speed": 0.3,
+        "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
+    },
 )
-intent = eqiora.fluid.SteadyStokes(
-    length_scale_m=0.41,
-    velocity_scale_m_per_s=0.3,
-    pressure_scale_pa=0.001 * 0.3 / 0.41,
+linear = eqiora.solve.Linear(
     relative_tolerance=1e-6,
     absolute_tolerance=1e-13,
     maximum_iterations=10_000,
 )
-plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
-result = eqiora.run(model, plan=plan)
+plan = eqiora.resolve(
+    model, mesh=mesh, spatial=eqiora.fem.MiniP1(), solve=linear, scaling=None,
+)
+result = eqiora.run(plan)
 evidence = eqiora.fluid.steady_stokes_evidence(result)
 
-print(result.run_manifest().digest)
+print(result.plan_key)
 print(evidence.solve)
 print("pressure", evidence.pressure_minimum, evidence.pressure_maximum, "Pa")
 print("cylinder force on fluid", evidence.cylinder_force_on_fluid, "N/m")

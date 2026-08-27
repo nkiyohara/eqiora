@@ -47,7 +47,8 @@ def test_compile_contract_is_claim_local_at_runtime_and_in_the_stub() -> None:
     import eqiora
 
     assert str(inspect.signature(eqiora.compile)) == (
-        "(source, *, filename='<memory>')"
+        "(*, path=None, source=None, filename=None, geometry=None, "
+        "parameters=None, component=None)"
     )
 
     stub = Path(eqiora.__file__).with_name("__init__.pyi")
@@ -60,21 +61,26 @@ def test_compile_contract_is_claim_local_at_runtime_and_in_the_stub() -> None:
     assert len(declarations) == 1
     declaration = declarations[0]
     assert [argument.arg for argument in declaration.args.posonlyargs] == []
-    assert [argument.arg for argument in declaration.args.args] == ["source"]
-    assert [argument.arg for argument in declaration.args.kwonlyargs] == ["filename"]
+    assert declaration.args.args == []
+    assert [argument.arg for argument in declaration.args.kwonlyargs] == [
+        "path",
+        "source",
+        "filename",
+        "geometry",
+        "parameters",
+        "component",
+    ]
     assert declaration.args.vararg is None
     assert declaration.args.kwarg is None
-    assert len(declaration.args.kw_defaults) == 1
-    assert ast.literal_eval(declaration.args.kw_defaults[0]) == "<memory>"
-    assert ast.unparse(declaration.args.args[0].annotation) == "str"
-    assert ast.unparse(declaration.args.kwonlyargs[0].annotation) == "str"
+    assert len(declaration.args.kw_defaults) == 6
+    assert all(ast.literal_eval(default) is None for default in declaration.args.kw_defaults)
     assert ast.unparse(declaration.returns) == "Model"
 
 
 def test_revision_identity_is_exact_across_artifact_replay() -> None:
     import eqiora
 
-    model = eqiora.compile(SOURCE, filename="decay.eqi")
+    model = eqiora.compile(source=SOURCE, filename="decay.eqi")
     revision = model.revision
     replay = eqiora.replay(model.to_json())
 
@@ -107,7 +113,7 @@ def test_current_only_surface_rejects_retired_selectors_and_malformed_replay() -
 def test_value_edit_is_atomic_immutable_and_stale_base_safe() -> None:
     import eqiora
 
-    base = eqiora.compile(SOURCE, filename="decay.eqi")
+    base = eqiora.compile(source=SOURCE, filename="decay.eqi")
     edit = base.preview_value_edit("rate", 2.0)
     child = base.commit(edit)
 
@@ -153,7 +159,7 @@ def test_exception_taxonomy_keeps_structured_diagnostics() -> None:
     import eqiora
 
     with pytest.raises(eqiora.ValidationError) as validation:
-        eqiora.compile("model broken { field ; }", filename="broken.eqi")
+        eqiora.compile(source="model broken { field ; }", filename="broken.eqi")
     assert isinstance(validation.value, eqiora.EqioraError)
     assert validation.value.category == "validation"
     assert validation.value.diagnostics[0].source_span is not None
@@ -163,7 +169,7 @@ def test_exception_taxonomy_keeps_structured_diagnostics() -> None:
     assert compatibility.value.category == "compatibility"
     assert compatibility.value.diagnostics[0].code == "EQ0901"
 
-    model = eqiora.compile(SOURCE)
+    model = eqiora.compile(source=SOURCE)
     with pytest.raises(eqiora.ExecutionError) as execution:
         eqiora.run(model, end_time=1.0, max_step=0.0)
     assert execution.value.category == "execution"

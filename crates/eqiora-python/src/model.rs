@@ -14,6 +14,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyModule};
 
 use crate::error::{diagnostic_error, internal_diagnostic_error, panic_boundary, validation_error};
+use crate::geometry::PyGeometry;
 
 /// Exact identity of one immutable canonical Model artifact.
 #[pyclass(
@@ -264,12 +265,15 @@ impl PyValueEdit {
 
 /// One immutable canonical Model artifact, semantically admitted when closed.
 #[pyclass(name = "Model", module = "eqiora._eqiora", frozen, skip_from_py_object)]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct PyModel {
     document: Option<ModelDocument>,
     artifact: ModelEnvelope,
     revision: PyRevision,
     package_compilation: Option<PackageCompilationRecordV1>,
+    /// Retains the exact caller-owned Python Geometry handle for a fresh
+    /// geometry-closed compilation; artifact identity remains Rust-owned.
+    _geometry: Option<Py<PyGeometry>>,
 }
 
 impl PyModel {
@@ -290,7 +294,18 @@ impl PyModel {
             document: Some(document),
             artifact,
             package_compilation: None,
+            _geometry: None,
         })
+    }
+
+    pub(crate) fn from_document_with_geometry(
+        py: Python<'_>,
+        document: ModelDocument,
+        geometry: Py<PyGeometry>,
+    ) -> PyResult<Self> {
+        let mut model = Self::from_document(py, document)?;
+        model._geometry = Some(geometry);
+        Ok(model)
     }
 
     pub(crate) fn from_artifact(py: Python<'_>, artifact: ModelEnvelope) -> PyResult<Self> {
@@ -306,6 +321,7 @@ impl PyModel {
             document: None,
             artifact,
             package_compilation: None,
+            _geometry: None,
         })
     }
 

@@ -1291,11 +1291,15 @@ def across(port: ConservingPort) -> Expression:
     ...
 
 def compile(
-    source: str,
     *,
-    filename: str = "<memory>",
+    path: str | PathLike[str] | None = None,
+    source: str | None = None,
+    filename: str | None = None,
+    geometry: geometry.Geometry | None = None,
+    parameters: dict[str, float | int] | None = None,
+    component: str | None = None,
 ) -> Model:
-    """Compile one model through the canonical Rust pipeline.
+    """Compile one source and its optional exact Geometry closure.
 
     Authority: ``crates/eqiora-python/src/lib.rs::compile``.
     """

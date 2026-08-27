@@ -56,7 +56,7 @@ def compile_program(model, method):
     )
 
 def at(values, method):
-    model = eqiora.compile(source)
+    model = eqiora.compile(source=source)
     for name, value, original in zip(
         ("source_scale", "diffusion", "boundary_offset"), values, nominal
     ):
@@ -69,7 +69,7 @@ for method in (
     eqiora.ScalarEllipticMethod.FiniteElement,
     eqiora.ScalarEllipticMethod.FiniteVolume,
 ):
-    model = eqiora.compile(source)
+    model = eqiora.compile(source=source)
     program = compile_program(model, method)
     assert program.model_digest == model.digest
     assert program.input_shape == (3,)
@@ -294,7 +294,7 @@ for method in (
     else:
         raise AssertionError("an inadmissible Parameter point must fail closed")
 
-original = eqiora.compile(source)
+original = eqiora.compile(source=source)
 original_realization = eqiora.preview_realization(
     original,
     eqiora.ScalarElliptic(
@@ -302,7 +302,7 @@ original_realization = eqiora.preview_realization(
         cells_per_axis=6,
     ),
 )
-foreign = eqiora.compile(source.replace("diffusion: 1 = 1", "diffusion: 1 = 2"))
+foreign = eqiora.compile(source=source.replace("diffusion: 1 = 1", "diffusion: 1 = 2"))
 foreign_realization = eqiora.preview_realization(
     foreign,
     eqiora.ScalarElliptic(

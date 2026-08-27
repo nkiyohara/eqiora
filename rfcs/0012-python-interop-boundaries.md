@@ -93,7 +93,7 @@ ergonomic editor is implemented.
 The initial public surface is intentionally small:
 
 ```python
-model = eqiora.compile(source, filename="model.eq")
+model = eqiora.compile(source=source, filename="model.eq")
 result = eqiora.run(model, end_time=1.0, max_step=0.01)
 
 temperature = result["temperature"]

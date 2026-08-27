@@ -30,7 +30,7 @@ import sys
 
 assert "numpy" not in sys.modules
 result = eqiora.run(
-    eqiora.compile(decay_source),
+    eqiora.compile(source=decay_source),
     end_time=0.2,
     max_step=0.1,
 )
