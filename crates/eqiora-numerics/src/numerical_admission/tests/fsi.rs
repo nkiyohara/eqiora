@@ -156,8 +156,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     );
 }
 
-#[test]
-pub(super) fn registered_model_driven_common_mesh_admission_evidence() {
+pub(super) fn exercise_model_driven_common_mesh_admission_evidence() {
     scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh();
     admission_rejects_policy_and_resource_cross_wires();
     stokes_resolution_consumes_exact_source_owned_common_mesh();

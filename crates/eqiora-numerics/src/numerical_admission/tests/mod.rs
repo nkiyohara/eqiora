@@ -338,6 +338,11 @@ fn fsi_resources(geometry: &CanonicalGeometryV1) -> AuthenticatedCommonMesh {
 }
 
 mod fsi;
+
+#[test]
+fn registered_model_driven_common_mesh_admission_evidence() {
+    fsi::exercise_model_driven_common_mesh_admission_evidence();
+}
 mod mesh;
 mod plans;
 mod stokes;
