@@ -1,6 +1,6 @@
 id = "interfaces.python-pytorch-differentiation"
 status = "verified"
-scope = "installed-wheel-in-process-cpu-f64-pytorch-2-13-first-order-autograd"
+scope = "installed-wheel-common-plan-supplied-rectangle-2d-in-process-cpu-f64-pytorch-2-13-first-order-autograd"
 reference_kind = "eqiora-vjp-and-centered-finite-difference"
 
 capabilities = [
@@ -9,6 +9,7 @@ capabilities = [
   "python-pytorch-registered-vjp-autograd",
   "python-pytorch-fullgraph-compile",
   "python-pytorch-installed-wheel",
+  "python-pytorch-common-plan-bound-supplied-rectangle-2d",
 ]
 
 [problem]
@@ -25,6 +26,9 @@ exact_tested_torch = "2.13.0"
 functional_no_input_mutation = true
 fresh_non_aliasing_output = true
 static_program_identity = true
+static_program_identity_is_exact_common_plan = true
+supplied_rectangle_cartesian_mesh = true
+spatial_dimension = 2
 immutable_runtime_parameter_point = true
 registered_fake_kernel = true
 registered_first_order_vjp = true

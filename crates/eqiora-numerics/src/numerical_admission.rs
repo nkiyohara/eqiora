@@ -26,13 +26,21 @@ use crate::canonical_stokes::{
     transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
 };
 use crate::cartesian_elasticity::CartesianLinearElasticity2dSolution;
+use crate::cartesian_elliptic::{
+    finalize_scalar_elliptic_cartesian_fem, finalize_scalar_elliptic_cartesian_fvm,
+    linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
+    linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
+};
+use crate::common::{AssembledLinearizedRelation, SpatialDesignCoordinate};
+use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
 use crate::fluid::{
     CellCenteredPressureField2d, CellCenteredVelocityField2d, IncompressibleFlowScaleProfile2d,
     SimplicialMiniVelocityField2d, SteadyStokesGeometryBinding2d, SteadyStokesPressureReference2d,
 };
 use crate::scalar::{
-    ResolvedScalarEllipticCartesianSolution, ScalarEllipticCartesianModel,
-    solve_scalar_elliptic_cartesian_fem, solve_scalar_elliptic_cartesian_fvm,
+    CartesianScalarFieldLinearization, ResolvedScalarEllipticCartesianSolution,
+    ScalarEllipticCartesianModel, solve_scalar_elliptic_cartesian_fem,
+    solve_scalar_elliptic_cartesian_fvm,
 };
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::step_count::NonZeroStepCount;
@@ -44,19 +52,24 @@ use eqiora_artifact::{
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
+use eqiora_execution::{
+    AdmittedExecution, DeploymentBinding, ExecutionReceipt, HostExecutorDescriptor,
+};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_io_gmsh::{GmshImportLimits, GmshSimplexImporter, GmshSimplicialImport};
 use eqiora_meshing::{MeshEntity, MeshTopology, QuadratureRule};
 use eqiora_realization::{
-    DiscretizationMethod, FieldwiseRealizationRequest, MeshKind, MeshPolicy, NonlinearSolvePlan,
-    RealizationCapabilities, RealizationRevision, ResolvedFieldwiseRealization,
+    Discretization, DiscretizationMethod, ExecutionSchedule, FieldwiseRealizationRequest, MeshKind,
+    MeshPolicy, NonlinearSolvePlan, PortableRealizationGraph, QuadraturePolicy,
+    RealizationCapabilities, RealizationPlan, RealizationRequest, RealizationRequirements,
+    RealizationRevision, ResolvedFieldwiseRealization,
     ResolvedTransientCellCenteredIncompressibleFlowRealization,
-    ResolvedTransientFieldwiseRealization, SemanticRevision, Space, SpaceFamily,
-    SpatialDimensionSupport, TargetCapabilities,
+    ResolvedTransientFieldwiseRealization, SemanticRevision, SingleFieldOperatorClaim, Space,
+    SpaceFamily, SpatialDimensionSupport, Target, TargetCapabilities,
     TransientCellCenteredIncompressibleFlowCapabilities,
     TransientCellCenteredIncompressibleFlowRealizationRequest,
-    TransientFieldwiseRealizationRequest, VectorLayoutKind, resolve_fieldwise,
+    TransientFieldwiseRealizationRequest, VectorLayoutKind, resolve, resolve_fieldwise,
     resolve_transient_cell_centered_incompressible_flow, resolve_transient_fieldwise,
 };
 use eqiora_sem::KernelProgram;
@@ -69,6 +82,7 @@ use eqiora_solver::{
 use sha2::{Digest, Sha256};
 
 const APPLICATION_REALIZATION_REVISION: u64 = 134;
+const COMMON_SCALAR_REALIZATION_REVISION: u64 = 170;
 const TRANSIENT_REALIZATION_REVISION: u64 = 166;
 const COMMON_TRANSIENT_RESOLVER_EPOCH: u64 = 1;
 const TIME: DimExponents = DimExponents {
@@ -509,6 +523,7 @@ impl CommonState {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonScalarPlan {
     admission: NativeNumericalAdmission,
+    portable: PortableRealizationGraph,
     identity: String,
     model_id: String,
     model_revision: u64,
@@ -516,8 +531,31 @@ pub struct CommonScalarPlan {
     mesh_digest: String,
     correspondence_digest: String,
     production_digest: String,
+    field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
     field_id: String,
     cells: [usize; 2],
+}
+
+/// One accepted scalar Parameter point produced through an exact common Plan.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonScalarDifferentiationPoint {
+    relation: AssembledLinearizedRelation,
+    output: CartesianScalarFieldLinearization,
+    receipt: ExecutionReceipt,
+}
+
+impl CommonScalarDifferentiationPoint {
+    /// Consume the point into its relation, complete Field projection, and solve receipt.
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (
+        AssembledLinearizedRelation,
+        CartesianScalarFieldLinearization,
+        ExecutionReceipt,
+    ) {
+        (self.relation, self.output, self.receipt)
+    }
 }
 
 /// Opaque linear-elasticity Plan owning exact Model, Mesh, and policy state.
@@ -1580,6 +1618,95 @@ impl CommonElasticityPlan {
     }
 }
 
+fn resolve_common_scalar_portable(
+    admission: &NativeNumericalAdmission,
+    lowered: &ScalarEllipticCartesianModel,
+    mesh: &CartesianMeshEnvelopeV1,
+    cells: [usize; 2],
+) -> Result<PortableRealizationGraph, Diagnostic> {
+    let cells = cells
+        .map(|count| NonZeroUsize::new(count).expect("validated Cartesian cells are non-zero"));
+    let (method, space, quadrature) = match admission.spatial {
+        NativeSpatialPolicy::ScalarQ1 => (
+            DiscretizationMethod::ContinuousGalerkin,
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            QuadraturePolicy::GaussLegendre {
+                points_per_axis: NonZeroUsize::new(2).expect("two is non-zero"),
+            },
+        ),
+        NativeSpatialPolicy::ScalarTpfa => (
+            DiscretizationMethod::CellCenteredFiniteVolume,
+            Space::cell_constant(),
+            QuadraturePolicy::CellCentroid,
+        ),
+        NativeSpatialPolicy::ElasticityQ1
+        | NativeSpatialPolicy::StokesMiniP1(_)
+        | NativeSpatialPolicy::TransientMiniP1(_)
+        | NativeSpatialPolicy::TransientCellCentered(_) => {
+            return Err(invalid(
+                "common scalar portable graph received a non-scalar spatial policy",
+            ));
+        }
+    };
+    let solver = admission.linear.solver;
+    let plan = RealizationPlan::new(
+        space,
+        Discretization::new(
+            method,
+            MeshPolicy::SuppliedCartesian {
+                artifact: mesh.artifact_reference()?,
+                cells,
+            },
+            quadrature,
+        ),
+        solver,
+        Target::HostCpu {
+            threads: admission.linear.workers,
+        },
+        ExecutionSchedule::Offline,
+    )?;
+    admission.linear.capabilities.require_problem(
+        solver,
+        ScalarType::F64,
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+    )?;
+    let capabilities = RealizationCapabilities::cartesian_product(
+        [method],
+        [(
+            MeshKind::SuppliedCartesian,
+            SpatialDimensionSupport::exact(NonZeroUsize::new(2).expect("two is non-zero")),
+        )],
+        [VectorLayoutKind::Replicated],
+        SolverCapabilities::exact([SolverCapability {
+            algorithm: solver.algorithm(),
+            operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+            preconditioner: solver.preconditioner(),
+            reduction: solver.reduction(),
+            scalar_type: ScalarType::F64,
+        }])?,
+        TargetCapabilities::none().with_host_cpu(admission.linear.workers),
+    )?;
+    let resolved = resolve(
+        &RealizationRequest::explicit(
+            admission.program.model(),
+            SemanticRevision::new(admission.program.revision().0),
+            RealizationRevision::new(COMMON_SCALAR_REALIZATION_REVISION),
+            plan,
+        ),
+        RealizationRequirements::new(
+            NonZeroUsize::new(2).expect("two is non-zero"),
+            ScalarType::F64,
+            VectorLayoutKind::Replicated,
+        ),
+        &capabilities,
+    )?;
+    resolved.portable_graph(SingleFieldOperatorClaim::new(
+        lowered.domain_id(),
+        lowered.field_id(),
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+    ))
+}
+
 impl CommonScalarPlan {
     fn from_admission(
         model: &ModelEnvelope,
@@ -1614,7 +1741,9 @@ impl CommonScalarPlan {
                 "common scalar Plan admitted non-scalar mathematics",
             ));
         };
-        let field_id = lowered.field_id().ulid().to_string();
+        let portable = resolve_common_scalar_portable(&admission, lowered, mesh, cells)?;
+        let field = lowered.field_id();
+        let field_id = field.ulid().to_string();
         let mut identity_bytes = Vec::new();
         for value in [
             admission.model_digest(),
@@ -1635,6 +1764,7 @@ impl CommonScalarPlan {
         ));
         Ok(Self {
             admission,
+            portable,
             identity,
             model_id: model_reference.model().ulid().to_string(),
             model_revision: model_reference.semantic_revision().get(),
@@ -1642,6 +1772,7 @@ impl CommonScalarPlan {
             mesh_digest,
             correspondence_digest,
             production_digest,
+            field,
             field_id,
             cells,
         })
@@ -1650,6 +1781,181 @@ impl CommonScalarPlan {
     /// Execute solely from retained Plan state.
     pub fn run(&self) -> Result<ResolvedScalarEllipticCartesianSolution, Diagnostic> {
         self.admission.execute_scalar(&REFERENCE_LINEAR_SOLVER)
+    }
+
+    /// Accept one selected Parameter point through this Plan's exact supplied Mesh and policies.
+    ///
+    /// `values=None` selects the Model's canonical values. Otherwise only the ordered selected
+    /// Parameter values vary; Model structure and every numerical resource remain Plan-owned.
+    pub fn differentiate(
+        &self,
+        selected: &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>],
+        values: Option<&[f64]>,
+    ) -> Result<CommonScalarDifferentiationPoint, Diagnostic> {
+        self.admission.revalidate()?;
+        let RecognizedNativeModel::Scalar(template) = &self.admission.recognized else {
+            return Err(invalid(
+                "common scalar Plan lost its recognized mathematics",
+            ));
+        };
+        let selected_values = selected
+            .iter()
+            .map(|field| {
+                template
+                    .parameter_fields()
+                    .iter()
+                    .position(|candidate| candidate == field)
+                    .map(|index| template.parameter_values()[index])
+                    .ok_or_else(|| {
+                        invalid(
+                            "selected differentiable Parameter is frozen or absent from this Plan",
+                        )
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let bound = template
+            .bind_selected_parameters(selected, values.unwrap_or(selected_values.as_slice()))?;
+        let NativeMeshResources::Cartesian { mesh, .. } = &self.admission.resources else {
+            return Err(invalid(
+                "common scalar differentiation requires exact Cartesian resources",
+            ));
+        };
+        let mesh = mesh.mesh();
+        let source = |coordinates: &[f64]| bound.source().evaluate(coordinates).unwrap_or(f64::NAN);
+        let boundary = |coordinates: &[f64]| {
+            bound
+                .essential_boundary_jvp(
+                    coordinates,
+                    &vec![0.0; coordinates.len()],
+                    &vec![0.0; bound.parameter_fields().len()],
+                )
+                .map(|value| value.0)
+                .unwrap_or(f64::NAN)
+        };
+        let solver = self.admission.linear.solver;
+        let target = Target::HostCpu {
+            threads: NonZeroUsize::MIN,
+        };
+        let finalized = match self.admission.spatial {
+            NativeSpatialPolicy::ScalarQ1 => {
+                let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2)?;
+                let assembly = finalize_scalar_elliptic_cartesian_fem(
+                    mesh,
+                    bound.coefficient(),
+                    &source,
+                    &boundary,
+                    &quadrature,
+                    &REFERENCE_ASSEMBLY_BACKEND,
+                    None,
+                )?;
+                FinalizedScalarEllipticCartesianProblem::finite_element(
+                    self.portable.clone(),
+                    solver,
+                    VectorLayoutKind::Replicated,
+                    target,
+                    assembly,
+                )?
+            }
+            NativeSpatialPolicy::ScalarTpfa => {
+                let cell = QuadratureRule::tensor_product_gauss_legendre(2, 1)?;
+                let facet = QuadratureRule::gauss_legendre(1)?;
+                let assembly = finalize_scalar_elliptic_cartesian_fvm(
+                    mesh,
+                    bound.coefficient(),
+                    &source,
+                    &boundary,
+                    &cell,
+                    &facet,
+                    &REFERENCE_ASSEMBLY_BACKEND,
+                )?;
+                FinalizedScalarEllipticCartesianProblem::finite_volume(
+                    self.portable.clone(),
+                    solver,
+                    VectorLayoutKind::Replicated,
+                    target,
+                    assembly,
+                )?
+            }
+            NativeSpatialPolicy::ElasticityQ1
+            | NativeSpatialPolicy::StokesMiniP1(_)
+            | NativeSpatialPolicy::TransientMiniP1(_)
+            | NativeSpatialPolicy::TransientCellCentered(_) => {
+                return Err(invalid(
+                    "common scalar differentiation received a non-scalar spatial policy",
+                ));
+            }
+        };
+        let executor = HostExecutorDescriptor::new(
+            self.admission.linear.provider,
+            self.admission.linear.execution,
+            self.admission.linear.workers,
+            self.admission.linear.capabilities.clone(),
+        );
+        let binding = DeploymentBinding::bind_host(&self.portable, executor)?;
+        let admitted = AdmittedExecution::admit_host_linear(
+            &self.portable,
+            finalized.canonical_csr_system_view(),
+            binding,
+        )?;
+        let produced = REFERENCE_LINEAR_SOLVER.solve(&finalized.linear_problem()?, solver)?;
+        let accepted = admitted.accept(produced)?;
+        let (solution, receipt) = accepted.into_parts();
+        let solution = finalized.finish(solution)?;
+        let coordinates = selected
+            .iter()
+            .copied()
+            .map(SpatialDesignCoordinate::ModelParameter)
+            .collect::<Vec<_>>();
+        let (relation, output) = match &solution {
+            ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) => {
+                let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2)?;
+                (
+                    linearize_scalar_elliptic_cartesian_fem(
+                        &bound,
+                        mesh,
+                        solution,
+                        &quadrature,
+                        &coordinates,
+                    )?,
+                    linearize_scalar_elliptic_cartesian_fem_output(
+                        &bound,
+                        mesh,
+                        solution,
+                        &coordinates,
+                    )?,
+                )
+            }
+            ResolvedScalarEllipticCartesianSolution::FiniteVolume(solution) => {
+                let cell = QuadratureRule::tensor_product_gauss_legendre(2, 1)?;
+                let facet = QuadratureRule::gauss_legendre(1)?;
+                (
+                    linearize_scalar_elliptic_cartesian_fvm(
+                        &bound,
+                        mesh,
+                        solution,
+                        &cell,
+                        &facet,
+                        &coordinates,
+                    )?,
+                    linearize_scalar_elliptic_cartesian_fvm_output(
+                        &bound,
+                        mesh,
+                        solution,
+                        &coordinates,
+                    )?,
+                )
+            }
+        };
+        if relation.state_jacobian().agreement_fingerprint() != receipt.operator() {
+            return Err(invalid(
+                "common Plan solve receipt differs from its differentiated state system",
+            ));
+        }
+        Ok(CommonScalarDifferentiationPoint {
+            relation,
+            output,
+            receipt,
+        })
     }
 
     #[must_use]
@@ -1670,6 +1976,11 @@ impl CommonScalarPlan {
     #[must_use]
     pub fn model_digest(&self) -> &str {
         self.admission.model_digest()
+    }
+
+    /// Exact canonical Model artifact selected by this Plan.
+    pub fn model_reference(&self) -> Result<eqiora_artifact::ModelArtifactReference, Diagnostic> {
+        self.admission.model.artifact_reference()
     }
 
     #[must_use]
@@ -1695,6 +2006,12 @@ impl CommonScalarPlan {
     #[must_use]
     pub fn field_id(&self) -> &str {
         &self.field_id
+    }
+
+    /// Exact scalar Field represented by this Plan.
+    #[must_use]
+    pub const fn field(&self) -> eqiora_core::Id<eqiora_core::entity::kinds::Field> {
+        self.field
     }
 
     #[must_use]

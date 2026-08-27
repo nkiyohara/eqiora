@@ -207,6 +207,15 @@ impl PyPlan {
         }
     }
 
+    pub(crate) fn scalar_native(&self) -> Option<&CommonScalarPlan> {
+        match &self.native {
+            CommonPlanKind::Scalar(plan) => Some(plan),
+            CommonPlanKind::Elasticity(_)
+            | CommonPlanKind::SteadyStokes(_)
+            | CommonPlanKind::TransientFlow(_) => None,
+        }
+    }
+
     pub(crate) fn native(&self) -> &CommonPlanKind {
         &self.native
     }

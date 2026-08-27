@@ -136,5 +136,5 @@ Compile a program over an ordered parameter-coordinate set.
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/diff.py" kind="blob">bindings/python/python/eqiora/diff.py::compile</ExactSourceLink>
 
 ```python
-def compile(model: Model, realization: Realization, *, inputs: Sequence[ParameterRef], output: FieldRef) -> DifferentiableProgram: ...
+def compile(plan: Plan, *, inputs: Sequence[ParameterRef], output: FieldRef) -> DifferentiableProgram: ...
 ```

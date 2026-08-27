@@ -13,6 +13,9 @@ pub(crate) mod exact_package;
 pub(crate) mod connection_set_conformance;
 
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+pub(crate) mod common_scalar_plan;
+
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
 pub(crate) mod fixed_reference_fsi;
 
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.

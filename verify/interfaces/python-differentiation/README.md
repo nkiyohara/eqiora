@@ -1,17 +1,18 @@
 # Python accepted-point differentiation
 
-One opaque `DifferentiableProgram` binds an exact canonical Model artifact,
-one exact host-serial scalar-elliptic Realization, an ordered set of canonical
-Parameter identities, and one complete primary Field. Those selected
+One opaque `DifferentiableProgram` binds one exact host-serial common scalar
+Plan, its canonical Model artifact, its caller-supplied two-dimensional
+rectangular Cartesian Mesh, an ordered set of canonical Parameter identities,
+and the Plan's complete primary Field. The Plan admits Q1 FEM or cell-centred
+TPFA with a typed linear solve policy. Those selected
 Parameters form the program's explicit numerical input coordinates; unselected
 Parameters stay frozen at their canonical Model values. The canonical values
 are the default point. `evaluate(parameters)` accepts another complete point
-without mutating the Model, creating a child revision, or replacing the
-Realization.
+without mutating the Model, creating a child revision, or replacing the Plan.
 
 Each call returns a frozen opaque `DifferentiableEvaluation`. It owns its exact
 Parameter point, accepted primal, paired linearization, output projection, and
-execution receipt while retaining the program's static Model/Realization and
+execution receipt while retaining the program's static Model, Mesh, Plan, and
 role identity. Its `point`, `primal`, `jvp`, and `vjp` cannot be retargeted by a
 later evaluation of the same program. The registered case exercises an
 alternate point followed by the default point and mutates the original Python
@@ -36,8 +37,9 @@ recompiled centered finite differences and checks
 vertex and differentiates eliminated essential-boundary values directly;
 method-native free unknowns are never presented as the complete Field.
 
-The case also rejects foreign Model roles and Realizations, incomplete DLPack
-producers, foreign devices and CPU ordinals, wrong shapes, wrong dtypes,
+The case also rejects foreign or substituted Plans, Mesh/Model role mismatch,
+duplicate inputs, the retired Model-plus-Realization signature, incomplete
+DLPack producers, foreign devices and CPU ordinals, wrong shapes, wrong dtypes,
 non-native/non-contiguous inputs, and non-finite values. Normal and transposed
 solve orientation, solver policy, accepted residual, exact state-system
 identity, derivative implementation, and linearization reuse remain typed

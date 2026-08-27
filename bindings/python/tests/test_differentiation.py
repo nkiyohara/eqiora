@@ -7,18 +7,18 @@ import eqiora
 
 
 POISSON = """
-model python_differentiated_poisson {
-  domain square = box(0, 1, 0, 1);
-  domain x_lower = boundary(square, axis = 0, side = lower);
-  domain x_upper = boundary(square, axis = 0, side = upper);
-  domain y_lower = boundary(square, axis = 1, side = lower);
-  domain y_upper = boundary(square, axis = 1, side = upper);
+public component PythonDifferentiatedPoisson {
+  public support square: volume(ambient_dimension = 2);
+  public support x_lower: boundary(parent = square);
+  public support x_upper: boundary(parent = square);
+  public support y_lower: boundary(parent = square);
+  public support y_upper: boundary(parent = square);
   representation scalar_space = continuum;
   field potential on square as scalar_space: 1 = 0;
-  parameter diffusion: 1 = 1;
-  parameter wave_number: 1 / m = 3.141592653589793;
-  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;
-  parameter boundary_offset: 1 = 0;
+  public parameter diffusion: 1;
+  public parameter wave_number: 1 / m;
+  public parameter source_scale: 1 / m ^ 2;
+  public parameter boundary_offset: 1;
   relation balance continuous on square {
     -div(diffusion * grad(potential))
       - source_scale * sin(wave_number * coordinate(0))
@@ -30,6 +30,124 @@ model python_differentiated_poisson {
   relation y_upper_value continuous on y_upper { trace(potential) - boundary_offset = 0; }
 }
 """
+
+ELASTICITY = """
+public component MixedBoundaryElasticity {
+  public support region: volume(ambient_dimension = 2);
+  public support left: boundary(parent = region);
+  public support right: boundary(parent = region);
+  public support bottom: boundary(parent = region);
+  public support top: boundary(parent = region);
+  public parameter mu: kg / (m * s ^ 2);
+  public parameter lambda: kg / (m * s ^ 2);
+  public parameter length_scale: m;
+  representation space = continuum;
+  field displacement on region as space: m shape spatial_vector;
+  field load_potential on region as space: kg / (m * s ^ 2) = 0;
+  relation load continuous on region {
+    load_potential - 2 * mu * coordinate(0) / length_scale = 0;
+  }
+  relation balance continuous on region {
+    -div(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) - grad(load_potential) = 0;
+  }
+  relation left_fixed continuous on left { trace(displacement) = 0; }
+  relation right_free continuous on right {
+    normal(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) = 0;
+  }
+  relation bottom_free continuous on bottom {
+    normal(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) = 0;
+  }
+  relation top_free continuous on top {
+    normal(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) = 0;
+  }
+}
+"""
+
+
+def model_and_plan(method, *, diffusion: float = 1.0):
+    graph = eqiora.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+    geometry = graph.build(
+        rectangle,
+        named_topology={
+            "square": rectangle.region,
+            "x_lower": rectangle.boundaries[0],
+            "x_upper": rectangle.boundaries[1],
+            "y_lower": rectangle.boundaries[2],
+            "y_upper": rectangle.boundaries[3],
+        },
+    )
+    request = eqiora.meshing.MeshRequest(
+        eqiora.meshing.CartesianMesher(cells=(4, 4))
+    )
+    mesh_plan = eqiora.meshing.resolve(geometry, request)
+    mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+    model = eqiora.compile(
+        source=POISSON,
+        geometry=geometry,
+        parameters={
+            "diffusion": diffusion,
+            "wave_number": np.pi,
+            "source_scale": 2.0 * np.pi**2,
+            "boundary_offset": 0.0,
+        },
+    )
+    spatial = (
+        eqiora.fem.Q1()
+        if method == eqiora.ScalarEllipticMethod.FiniteElement
+        else eqiora.fvm.CellCenteredTpfa()
+    )
+    plan = eqiora.resolve(
+        model,
+        mesh=mesh,
+        spatial=spatial,
+        solve=eqiora.solve.Linear(
+            relative_tolerance=1.0e-10,
+            absolute_tolerance=1.0e-12,
+            maximum_iterations=10_000,
+        ),
+    )
+    return model, plan
+
+
+def elasticity_model_and_plan():
+    graph = eqiora.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+    geometry = graph.build(
+        rectangle,
+        named_topology={
+            "region": rectangle.region,
+            "left": rectangle.boundaries[0],
+            "right": rectangle.boundaries[1],
+            "bottom": rectangle.boundaries[2],
+            "top": rectangle.boundaries[3],
+        },
+    )
+    mesh_request = eqiora.meshing.MeshRequest(
+        eqiora.meshing.CartesianMesher(cells=(4, 4))
+    )
+    mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
+    mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+    model = eqiora.compile(
+        source=ELASTICITY,
+        geometry=geometry,
+        parameters={"mu": 2.0, "lambda": 3.0, "length_scale": 1.0},
+    )
+    plan = eqiora.resolve(
+        model,
+        mesh=mesh,
+        spatial=eqiora.fem.Q1(),
+        solve=eqiora.solve.Linear(
+            relative_tolerance=1.0e-10,
+            absolute_tolerance=1.0e-12,
+            maximum_iterations=10_000,
+        ),
+    )
+    return model, plan
 
 
 class DLPackProducer:
@@ -56,21 +174,16 @@ class DLPackProducer:
     ],
 )
 def test_public_diff_module_exposes_paired_complete_field_actions(method) -> None:
-    model = eqiora.compile(source=POISSON)
-    realization = eqiora.preview_realization(
-        model,
-        eqiora.ScalarElliptic(method=method, cells_per_axis=4),
-    )
+    model, plan = model_and_plan(method)
     inputs = (
         model.parameter("source_scale"),
         model.parameter("diffusion"),
         model.parameter("boundary_offset"),
     )
     program = eqiora.diff.compile(
-        model,
-        realization,
+        plan,
         inputs=inputs,
-        output=model.field("potential"),
+        output=plan.field,
     )
 
     direction = np.array([0.7, -0.2, 0.3], dtype=np.float64)
@@ -121,19 +234,11 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
 
 
 def test_diff_input_admission_is_explicit_and_model_bound() -> None:
-    model = eqiora.compile(source=POISSON)
-    realization = eqiora.preview_realization(
-        model,
-        eqiora.ScalarElliptic(
-            method=eqiora.ScalarEllipticMethod.FiniteElement,
-            cells_per_axis=4,
-        ),
-    )
+    model, plan = model_and_plan(eqiora.ScalarEllipticMethod.FiniteElement)
     program = eqiora.diff.compile(
-        model,
-        realization,
+        plan,
         inputs=(model.parameter("source_scale"),),
-        output=model.field("potential"),
+        output=plan.field,
     )
 
     direction = np.array([1.0], dtype=np.float64)
@@ -213,19 +318,40 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
         program.evaluate(np.zeros(2, dtype=np.float64))
     with pytest.raises(eqiora.ValidationError):
         eqiora.diff.compile(
-            model,
-            realization,
+            plan,
             inputs=iter((model.parameter("source_scale"),)),
-            output=model.field("potential"),
+            output=plan.field,
         )
 
-    foreign = eqiora.compile(
-        source=POISSON.replace("diffusion: 1 = 1", "diffusion: 1 = 2")
+    foreign, foreign_plan = model_and_plan(
+        eqiora.ScalarEllipticMethod.FiniteElement, diffusion=2.0
     )
     with pytest.raises(eqiora.ValidationError):
         eqiora.diff.compile(
-            foreign,
-            realization,
+            foreign_plan,
             inputs=(model.parameter("source_scale"),),
-            output=model.field("potential"),
+            output=plan.field,
+        )
+    with pytest.raises(eqiora.ValidationError, match="duplicate"):
+        eqiora.diff.compile(
+            plan,
+            inputs=(
+                model.parameter("source_scale"),
+                model.parameter("source_scale"),
+            ),
+            output=plan.field,
+        )
+    with pytest.raises(TypeError):
+        eqiora.diff.compile(
+            model,
+            plan,
+            inputs=(model.parameter("source_scale"),),
+            output=plan.field,
+        )
+    elasticity_model, elasticity_plan = elasticity_model_and_plan()
+    with pytest.raises(eqiora.ValidationError, match="2D scalar"):
+        eqiora.diff.compile(
+            elasticity_plan,
+            inputs=(elasticity_model.parameter("mu"),),
+            output=elasticity_plan.field,
         )

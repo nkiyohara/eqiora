@@ -317,26 +317,41 @@ partial result.
 
 Both optional adapters consume the same accepted, opaque
 `DifferentiableProgram`. They do not define a second model. This complete
-example constructs the spatial model and its matching realization before
+example constructs the Geometry, Mesh, Model, and matching common Plan before
 compiling the differentiable program:
 
 ```python
 import numpy as np
 
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+geometry = graph.build(rectangle, named_topology={
+    "square": rectangle.region,
+    "x_lower": rectangle.boundaries[0],
+    "x_upper": rectangle.boundaries[1],
+    "y_lower": rectangle.boundaries[2],
+    "y_upper": rectangle.boundaries[3],
+})
+mesh_request = eqiora.meshing.MeshRequest(
+    eqiora.meshing.CartesianMesher(cells=(4, 4))
+)
+mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
+mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+
 model = eqiora.compile(
     source="""
-    model differentiated_poisson {
-      domain square = box(0, 1, 0, 1);
-      domain x_lower = boundary(square, axis = 0, side = lower);
-      domain x_upper = boundary(square, axis = 0, side = upper);
-      domain y_lower = boundary(square, axis = 1, side = lower);
-      domain y_upper = boundary(square, axis = 1, side = upper);
+    public component DifferentiatedPoisson {
+      public support square: volume(ambient_dimension = 2);
+      public support x_lower: boundary(parent = square);
+      public support x_upper: boundary(parent = square);
+      public support y_lower: boundary(parent = square);
+      public support y_upper: boundary(parent = square);
       representation scalar_space = continuum;
       field potential on square as scalar_space: 1 = 0;
-      parameter diffusion: 1 = 1;
-      parameter wave_number: 1 / m = 3.141592653589793;
-      parameter source_scale: 1 / m ^ 2 = 19.739208802178716;
-      parameter boundary_offset: 1 = 0;
+      public parameter diffusion: 1;
+      public parameter wave_number: 1 / m;
+      public parameter source_scale: 1 / m ^ 2;
+      public parameter boundary_offset: 1;
       relation balance continuous on square {
         -div(diffusion * grad(potential))
           - source_scale * sin(wave_number * coordinate(0))
@@ -355,32 +370,41 @@ model = eqiora.compile(
         trace(potential) - boundary_offset = 0;
       }
     }
-    """
+    """,
+    geometry=geometry,
+    parameters={
+        "diffusion": 1.0,
+        "wave_number": np.pi,
+        "source_scale": 2.0 * np.pi**2,
+        "boundary_offset": 0.0,
+    },
 )
-realization = eqiora.preview_realization(
+plan = eqiora.resolve(
     model,
-    eqiora.ScalarElliptic(
-        method=eqiora.ScalarEllipticMethod.FiniteElement,
-        cells_per_axis=4,
+    mesh=mesh,
+    spatial=eqiora.fem.Q1(),
+    solve=eqiora.solve.Linear(
+        relative_tolerance=1.0e-10,
+        absolute_tolerance=1.0e-12,
+        maximum_iterations=10_000,
     ),
 )
 program = eqiora.diff.compile(
-    model,
-    realization,
+    plan,
     inputs=(
         model.parameter("source_scale"),
         model.parameter("diffusion"),
         model.parameter("boundary_offset"),
     ),
-    output=model.field("potential"),
+    output=plan.field,
 )
 point = np.array([19.739208802178716, 1.0, 0.0], dtype=np.float64)
 evaluation = program.evaluate(point)
 values = evaluation.primal().output.numpy(copy=False)
 ```
 
-The current path is host-CPU, rank-one `float64`, generated-Cartesian scalar
-elliptic Q1 FEM or TPFA FVM.
+The current Python path is host-CPU rank-one `float64` over an exact supplied
+rectangular 2D Cartesian Mesh, using scalar-elliptic Q1 FEM or TPFA FVM.
 
 PyTorch uses Eqiora's accepted VJP in backward:
 

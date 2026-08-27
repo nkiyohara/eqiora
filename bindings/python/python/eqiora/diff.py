@@ -31,17 +31,16 @@ __all__ = [
 ]
 
 
-def compile(model, realization, *, inputs, output):
+def compile(plan, *, inputs, output):
     """Compile one immutable program over an ordered Parameter coordinate set.
 
     ``program.evaluate(parameters)`` accepts another complete numerical point
-    without mutating the Model or Realization. Parameters, tangents, and
+    without mutating the Model or Plan. Parameters, tangents, and
     cotangents are exact CPU ``float64`` arrays.
     """
 
     return _compile_differentiable(
-        model,
-        realization,
+        plan,
         inputs=inputs,
         output=output,
     )

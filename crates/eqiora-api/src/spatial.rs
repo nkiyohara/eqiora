@@ -10,7 +10,6 @@ mod execution;
 mod field;
 mod plan;
 
-pub(crate) use execution::execute_bound_scalar_elliptic_point;
 pub use field::{
     CartesianFieldOrder, CartesianScalarFieldProjection, ScalarEllipticBalanceEvidence,
     ScalarEllipticRunResult, ScalarFieldLocation, ScalarFieldSummary,

@@ -1,4 +1,4 @@
-//! Exact Model/Realization-bound differentiable application programs.
+//! Exact common-Plan-bound differentiable application programs.
 
 use eqiora_artifact::ModelArtifactReference;
 use eqiora_core::diagnostic::codes;
@@ -10,17 +10,15 @@ use eqiora_differentiation::{
 use eqiora_execution::ExecutionReceipt;
 use eqiora_ir::{LinearizedOutput, LinearizedRelation};
 use eqiora_numerics::{
-    common::AssembledLinearizedRelation, common::SpatialDesignCoordinate,
-    scalar::CartesianScalarFieldLinearization, scalar::ScalarEllipticCartesianModel,
-    scalar::lower_scalar_elliptic_cartesian,
+    CommonScalarPlan, common::AssembledLinearizedRelation,
+    scalar::CartesianScalarFieldLinearization,
 };
 use eqiora_solver::{
     CanonicalCsrAgreementFingerprintV1, LinearSolveRequest, REFERENCE_LINEAR_SOLVER, SolveReport,
     SolverPlan,
 };
 
-use crate::spatial::execute_bound_scalar_elliptic_point;
-use crate::{ModelDocument, ScalarEllipticExecutionEnvironment, ScalarEllipticRunPlan};
+use crate::ModelDocument;
 
 /// Exact canonical Parameter selected from one immutable Model artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,7 +119,7 @@ pub enum DerivativeContract {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiableProgramIdentity {
     model: ModelArtifactReference,
-    realization_digest: String,
+    plan_identity: String,
     inputs: Vec<Id<kinds::Parameter>>,
     output: Id<kinds::Field>,
     input_dimension: usize,
@@ -139,10 +137,10 @@ impl DifferentiableProgramIdentity {
         &self.model
     }
 
-    /// Exact Realization artifact digest.
+    /// Exact common Plan identity.
     #[must_use]
-    pub fn realization_digest(&self) -> &str {
-        &self.realization_digest
+    pub fn plan_identity(&self) -> &str {
+        &self.plan_identity
     }
 
     /// Ordered canonical Parameter inputs.
@@ -199,7 +197,7 @@ impl DifferentiableProgramIdentity {
 /// The canonical Model stores the program's default values. A point binds
 /// only the Parameters promoted to program inputs; unselected Parameters stay
 /// frozen at their canonical values. Point values are coherent-SI `f64`
-/// scalars and never mutate the Model or Realization.
+/// scalars and never mutate the Model or Plan.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiableParameterPoint {
     inputs: Vec<Id<kinds::Parameter>>,
@@ -440,27 +438,25 @@ pub struct DifferentiableEvaluation {
 #[derive(Debug, Clone)]
 pub struct DifferentiableProgram {
     identity: DifferentiableProgramIdentity,
-    template: ScalarEllipticCartesianModel,
-    realization: ScalarEllipticRunPlan,
+    plan: CommonScalarPlan,
     default: DifferentiableEvaluation,
 }
 
 impl DifferentiableProgram {
-    /// Compile one exact Model/Realization program and accept its default point.
+    /// Compile one exact common-Plan program and accept its default point.
     ///
-    /// The current bounded slice admits one generated-Cartesian scalar
+    /// The current bounded slice admits one supplied-Cartesian scalar
     /// elliptic primary Field on host CPU `f64`. Selected Parameters become
     /// the program's ordered numerical inputs; all unselected Parameters stay
     /// frozen at their canonical Model values. Evaluating another point does
-    /// not mutate or replace the Model or Realization.
+    /// not mutate or replace the Model or Plan.
     ///
     /// # Errors
     /// Returns structured identity, role, capability, primal-solve, output, or
     /// linearization diagnostics. No program is published before its primal
     /// relation has been independently accepted.
     pub fn compile(
-        model: &ModelDocument,
-        realization: ScalarEllipticRunPlan,
+        plan: CommonScalarPlan,
         inputs: &[ModelParameterRef],
         output: &ModelFieldRef,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -469,17 +465,12 @@ impl DifferentiableProgram {
                 "differentiable program requires at least one selected Parameter",
             )));
         }
-        let model_reference = model.artifact_reference().map_err(single)?;
+        let model_reference = plan.model_reference().map_err(single)?;
         if output.model != model_reference
             || inputs.iter().any(|input| input.model != model_reference)
         {
             return Err(single(invalid(
                 "differentiable inputs and output must belong to the exact compiled Model artifact",
-            )));
-        }
-        if realization.model_digest() != model.digest().map_err(single)? {
-            return Err(single(invalid(
-                "differentiable Realization must reference the exact compiled Model artifact",
             )));
         }
         if inputs
@@ -492,43 +483,16 @@ impl DifferentiableProgram {
             )));
         }
 
-        let environment = realization.environment();
-        if environment != ScalarEllipticExecutionEnvironment::host_serial() {
+        if plan.field() != output.id {
             return Err(single(invalid(
-                "the first differentiable program boundary admits host-serial execution only",
+                "selected output is not the primary scalar Field of this Plan",
             )));
         }
-        if realization.requirements().spatial_dimension().get() != 2 {
-            return Err(single(invalid(
-                "the verified differentiable-program boundary admits exactly two spatial dimensions",
-            )));
-        }
-        let preflight = lower_scalar_elliptic_cartesian(model.program()).map_err(single)?;
-        if preflight.field_id() != output.id {
-            return Err(single(invalid(
-                "selected output is not the primary scalar Field of this Realization",
-            )));
-        }
-        if inputs
-            .iter()
-            .any(|input| !preflight.parameter_fields().contains(&input.id))
-        {
-            return Err(single(invalid(
-                "selected differentiable input is frozen or unsupported by this scalar-elliptic relation",
-            )));
-        }
-        let coordinates = inputs
-            .iter()
-            .map(|input| SpatialDesignCoordinate::ModelParameter(input.id))
-            .collect::<Vec<_>>();
-        let (accepted_point, receipt) =
-            execute_bound_scalar_elliptic_point(&realization, preflight.clone())?;
-        let (relation, field_output) = accepted_point.linearize(&coordinates).map_err(single)?;
-        if field_output.output_dimension() != realization.field_value_count() {
-            return Err(single(invalid(
-                "linearized output shape differs from the accepted Realization",
-            )));
-        }
+        let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();
+        let (relation, field_output, receipt) = plan
+            .differentiate(&selected, None)
+            .map_err(single)?
+            .into_parts();
 
         let residual_tolerance = receipt.report().residual_target();
         let accepted_linearization =
@@ -542,15 +506,15 @@ impl DifferentiableProgram {
         let primal_residual_norm = accepted_linearization.relation().primal_residual_norm();
         let identity = DifferentiableProgramIdentity {
             model: model_reference,
-            realization_digest: realization.key().to_owned(),
-            inputs: inputs.iter().map(|input| input.id).collect(),
+            plan_identity: plan.identity().to_owned(),
+            inputs: selected,
             output: output.id,
             input_dimension: relation.parameter_dimension(),
             output_dimension: field_output.output_dimension(),
             scalar_type: DifferentiableScalarType::F64,
             device: DifferentiableDevice::HostCpu,
             derivative: DerivativeContract::ImplicitFirstOrder,
-            solver: realization.realization().solver(),
+            solver: plan.linear(),
         };
         let point = DifferentiableParameterPoint {
             inputs: identity.inputs.clone(),
@@ -567,8 +531,7 @@ impl DifferentiableProgram {
         };
         Ok(Self {
             identity,
-            template: preflight,
-            realization,
+            plan,
             default,
         })
     }
@@ -615,20 +578,11 @@ impl DifferentiableProgram {
             return Ok(self.default.clone());
         }
 
-        let bound = self
-            .template
-            .bind_selected_parameters(&self.identity.inputs, parameters)
-            .map_err(single)?;
-        let (accepted_point, receipt) =
-            execute_bound_scalar_elliptic_point(&self.realization, bound)?;
-        let coordinates = self
-            .identity
-            .inputs
-            .iter()
-            .copied()
-            .map(SpatialDesignCoordinate::ModelParameter)
-            .collect::<Vec<_>>();
-        let (relation, output) = accepted_point.linearize(&coordinates).map_err(single)?;
+        let (relation, output, receipt) = self
+            .plan
+            .differentiate(&self.identity.inputs, Some(parameters))
+            .map_err(single)?
+            .into_parts();
         if relation.design_values().len() != parameters.len()
             || parameters
                 .iter()

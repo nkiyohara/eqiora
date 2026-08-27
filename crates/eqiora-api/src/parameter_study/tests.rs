@@ -1,30 +1,36 @@
 use std::cell::Cell;
+use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
+use eqiora_artifact::{
+    CartesianMeshCellsV1, GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
+    ModelEnvelope,
+};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_geometry::{PlanarOperationGraph, PlanarTopologyHandle};
+use eqiora_numerics::{
+    AuthenticatedCommonMesh, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
+    resolve_common_plan,
+};
 use eqiora_realization::RealizationRevision;
+use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 
 use super::{CompleteParameterStudy, ParameterStudyPlan};
-use crate::{
-    DifferentiableEvaluation, DifferentiableProgram, ModelDocument,
-    ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod,
-};
+use crate::{DifferentiableEvaluation, DifferentiableProgram, ModelDocument, ScalarEllipticMethod};
 
-const SOURCE: &str = r#"model differentiated_poisson_plane {
-  domain square = box(0, 1, 0, 1);
-  domain x_lower = boundary(square, axis = 0, side = lower);
-  domain x_upper = boundary(square, axis = 0, side = upper);
-  domain y_lower = boundary(square, axis = 1, side = lower);
-  domain y_upper = boundary(square, axis = 1, side = upper);
+const SOURCE: &str = r#"public component DifferentiatedPoisson {
+  public support square: volume(ambient_dimension = 2);
+  public support x_lower: boundary(parent = square);
+  public support x_upper: boundary(parent = square);
+  public support y_lower: boundary(parent = square);
+  public support y_upper: boundary(parent = square);
   representation scalar_space = continuum;
-
   field potential on square as scalar_space: 1 = 0;
-  parameter diffusion: 1 = 1;
-  parameter wave_number: 1 / m = 3.141592653589793;
-  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;
-  parameter boundary_offset: 1 = 0;
-
+  public parameter diffusion: 1;
+  public parameter wave_number: 1 / m;
+  public parameter source_scale: 1 / m ^ 2;
+  public parameter boundary_offset: 1;
   relation balance continuous on square {
     -div(diffusion * grad(potential))
       - source_scale
@@ -217,12 +223,11 @@ fn from_members_rejects_foreign_model_realization_method_program_and_point() {
     let members = accepted_members(&program, &CANONICAL_DIFFUSION);
 
     let foreign_source = SOURCE.replacen(
-        "model differentiated_poisson_plane",
-        "model foreign_differentiated_poisson_plane",
+        "component DifferentiatedPoisson",
+        "component ForeignDifferentiatedPoisson",
         1,
     );
-    let foreign_document =
-        ModelDocument::compile("foreign-bounded-parameter-study.eqi", &foreign_source).unwrap();
+    let foreign_document = document_from_source(&foreign_source);
     let foreign_model_program = program_for(
         &foreign_document,
         ScalarEllipticMethod::FiniteElement,
@@ -348,7 +353,7 @@ fn evaluator_returning_a_foreign_program_member_fails_before_the_next_point() {
 }
 
 fn fixture() -> (ModelDocument, DifferentiableProgram) {
-    let document = ModelDocument::compile("bounded-parameter-study.eqi", SOURCE).unwrap();
+    let document = document_from_source(SOURCE);
     let program = program_for(
         &document,
         ScalarEllipticMethod::FiniteElement,
@@ -364,22 +369,120 @@ fn program_for(
     revision: RealizationRevision,
     input_names: &[&str],
 ) -> DifferentiableProgram {
-    let environment = ScalarEllipticExecutionEnvironment::host_serial();
-    let intent = ScalarEllipticIntent::new(
-        revision,
-        method,
-        NonZeroUsize::new(12).unwrap(),
-        NonZeroUsize::MIN,
-    );
-    let plan = document
-        .preview_scalar_elliptic_run(intent, environment)
-        .unwrap();
+    let plan = plan_for(document, method, revision);
     let inputs = input_names
         .iter()
         .map(|name| document.parameter_ref(name).unwrap())
         .collect::<Vec<_>>();
-    let output = document.field_ref("potential").unwrap();
-    DifferentiableProgram::compile(document, plan, &inputs, &output).unwrap()
+    let output = document
+        .field_ref(&plan.field().ulid().to_string())
+        .unwrap();
+    DifferentiableProgram::compile(plan, &inputs, &output).unwrap()
+}
+
+fn document_from_source(source: &str) -> ModelDocument {
+    let graph = PlanarOperationGraph::new();
+    let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
+    let edges = rectangle.boundaries();
+    let geometry = graph
+        .build(
+            &rectangle,
+            &BTreeMap::from([
+                ("square".to_owned(), vec![rectangle.region().into()]),
+                (
+                    "x_lower".to_owned(),
+                    vec![PlanarTopologyHandle::from(edges[0])],
+                ),
+                (
+                    "x_upper".to_owned(),
+                    vec![PlanarTopologyHandle::from(edges[1])],
+                ),
+                (
+                    "y_lower".to_owned(),
+                    vec![PlanarTopologyHandle::from(edges[2])],
+                ),
+                (
+                    "y_upper".to_owned(),
+                    vec![PlanarTopologyHandle::from(edges[3])],
+                ),
+            ]),
+        )
+        .unwrap();
+    ModelDocument::compile_with_geometry(
+        "bounded-parameter-study.eqi",
+        source,
+        &geometry,
+        None,
+        &[
+            ("diffusion", 1.0),
+            ("wave_number", std::f64::consts::PI),
+            ("source_scale", 2.0 * std::f64::consts::PI.powi(2)),
+            ("boundary_offset", 0.0),
+        ],
+    )
+    .unwrap()
+}
+
+fn plan_for(
+    document: &ModelDocument,
+    method: ScalarEllipticMethod,
+    revision: RealizationRevision,
+) -> CommonScalarPlan {
+    let geometry = document
+        .geometry_authority
+        .first()
+        .expect("external fixture retains its exact Geometry")
+        .clone();
+    let cells = CartesianMeshCellsV1::new([12, 12]).unwrap();
+    let (mesh, correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
+            &geometry,
+            cells.cells(),
+        )
+        .unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
+        cells,
+        &geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+    let owner =
+        AuthenticatedCommonMesh::structured_cartesian(geometry, mesh, correspondence, production)
+            .unwrap();
+    let spatial = match method {
+        ScalarEllipticMethod::FiniteElement => CommonSpatialPolicy::Q1,
+        ScalarEllipticMethod::FiniteVolume => CommonSpatialPolicy::CellCenteredTpfa,
+    };
+    let relative_tolerance = if revision.get() == 21 {
+        1.0e-10
+    } else {
+        2.0e-10
+    };
+    let solver = SolverPlan::new(
+        LinearSolver::ConjugateGradient,
+        relative_tolerance,
+        1.0e-12,
+        NonZeroUsize::new(10_000).unwrap(),
+    )
+    .unwrap();
+    let model = ModelEnvelope::from_program(document.program()).unwrap();
+    resolve_common_plan(
+        &model,
+        owner,
+        spatial,
+        CommonSolvePolicy::Linear(solver),
+        None,
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap()
+    .project(
+        |plan| plan,
+        |_| panic!("scalar fixture resolved as elasticity"),
+        |_| panic!("scalar fixture resolved as Stokes"),
+        |_| panic!("scalar fixture resolved as transient flow"),
+    )
 }
 
 fn accepted_members(

@@ -16,14 +16,12 @@ from . import (
     DifferentiationMode as DifferentiationMode,
     FieldRef as FieldRef,
     LinearizationState as LinearizationState,
-    Model,
+    Plan,
     ParameterRef as ParameterRef,
-    Realization,
 )
 
 def compile(
-    model: Model,
-    realization: Realization,
+    plan: Plan,
     *,
     inputs: Sequence[ParameterRef],
     output: FieldRef,

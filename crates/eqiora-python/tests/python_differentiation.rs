@@ -2,22 +2,69 @@ use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyDictMethods};
 
-const POISSON: &str =
-    include_str!("../../../verify/differentiation/spatial-poisson-fem-fvm/models/poisson.eqi");
+const POISSON: &str = r#"
+public component PythonDifferentiatedPoisson {
+  public support square: volume(ambient_dimension = 2);
+  public support x_lower: boundary(parent = square);
+  public support x_upper: boundary(parent = square);
+  public support y_lower: boundary(parent = square);
+  public support y_upper: boundary(parent = square);
+  representation scalar_space = continuum;
+  field potential on square as scalar_space: 1 = 0;
+  public parameter diffusion: 1;
+  public parameter wave_number: 1 / m;
+  public parameter source_scale: 1 / m ^ 2;
+  public parameter boundary_offset: 1;
+  relation balance continuous on square {
+    -div(diffusion * grad(potential))
+      - source_scale * sin(wave_number * coordinate(0))
+        * sin(wave_number * coordinate(1)) = 0;
+  }
+  relation x_lower_value continuous on x_lower { trace(potential) - boundary_offset = 0; }
+  relation x_upper_value continuous on x_upper { trace(potential) - boundary_offset = 0; }
+  relation y_lower_value continuous on y_lower { trace(potential) - boundary_offset = 0; }
+  relation y_upper_value continuous on y_upper { trace(potential) - boundary_offset = 0; }
+}
+"#;
 
 #[test]
 fn python_differentiable_program_is_exact_paired_and_fail_closed() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
         let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+        let package_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../bindings/python/python/eqiora")
+            .canonicalize()?;
         let locals = PyDict::new(py);
-        locals.set_item("eqiora", native.bind(py))?;
+        locals.set_item("native", native.bind(py))?;
+        locals.set_item("package_directory", package_directory.to_string_lossy())?;
         locals.set_item("source", POISSON)?;
 
         py.run(
             c_str!(
                 r#"
+import importlib.util, pathlib, sys
 import numpy as np
+
+package_path = pathlib.Path(package_directory)
+spec = importlib.util.spec_from_file_location("eqiora", package_path / "__init__.py", submodule_search_locations=[str(package_path)])
+eqiora = importlib.util.module_from_spec(spec)
+sys.modules["eqiora"] = eqiora
+sys.modules["eqiora._eqiora"] = native
+spec.loader.exec_module(eqiora)
+
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+geometry = graph.build(rectangle, named_topology={
+    "square": rectangle.region,
+    "x_lower": rectangle.boundaries[0],
+    "x_upper": rectangle.boundaries[1],
+    "y_lower": rectangle.boundaries[2],
+    "y_upper": rectangle.boundaries[3],
+})
+mesh_request = eqiora.meshing.MeshRequest(eqiora.meshing.CartesianMesher(cells=(6, 6)))
+mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
+mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 
 direction = np.array([0.7, -0.2, 0.3], dtype=np.float64)
 step = 1.0e-5
@@ -37,39 +84,55 @@ class DLPackProducer:
         self.exports.append(dict(kwargs))
         return self.values.__dlpack__(**kwargs)
 
-def compile_program(model, method):
-    realization = eqiora.preview_realization(
-        model,
-        eqiora.ScalarElliptic(method=method, cells_per_axis=6),
+def make_model(values):
+    return eqiora.compile(
+        source=source,
+        geometry=geometry,
+        parameters=dict(zip(
+            ("source_scale", "diffusion", "boundary_offset"), values
+        )) | {"wave_number": np.pi},
     )
+
+def make_plan(model, method):
+    spatial = (
+        eqiora.fem.Q1()
+        if method == eqiora.ScalarEllipticMethod.FiniteElement
+        else eqiora.fvm.CellCenteredTpfa()
+    )
+    return eqiora.resolve(
+        model,
+        mesh=mesh,
+        spatial=spatial,
+        solve=eqiora.solve.Linear(
+            relative_tolerance=1e-10,
+            absolute_tolerance=1e-12,
+            maximum_iterations=10000,
+        ),
+    )
+
+def compile_program(model, method):
+    plan = make_plan(model, method)
     inputs = [
         model.parameter("source_scale"),
         model.parameter("diffusion"),
         model.parameter("boundary_offset"),
     ]
-    output = model.field("potential")
-    return eqiora._compile_differentiable(
-        model,
-        realization,
+    output = plan.field
+    return eqiora.diff.compile(
+        plan,
         inputs=inputs,
         output=output,
     )
 
 def at(values, method):
-    model = eqiora.compile(source=source)
-    for name, value, original in zip(
-        ("source_scale", "diffusion", "boundary_offset"), values, nominal
-    ):
-        if value != original:
-            model = model.commit(model.preview_value_edit(name, float(value)))
-    return compile_program(model, method).primal().output.numpy()
+    return compile_program(make_model(values), method).primal().output.numpy()
 
 nominal = np.array([19.739208802178716, 1.0, 0.0], dtype=np.float64)
 for method in (
     eqiora.ScalarEllipticMethod.FiniteElement,
     eqiora.ScalarEllipticMethod.FiniteVolume,
 ):
-    model = eqiora.compile(source=source)
+    model = make_model(nominal)
     program = compile_program(model, method)
     assert program.model_digest == model.digest
     assert program.input_shape == (3,)
@@ -215,7 +278,7 @@ for method in (
 
     recomputed = compile_program(model, method)
     assert recomputed.model_digest == program.model_digest
-    assert recomputed.realization_digest == program.realization_digest
+    assert recomputed.plan_identity == program.plan_identity
     assert (
         recomputed.primal().evidence.state_system_fingerprint
         == primal.evidence.state_system_fingerprint
@@ -294,28 +357,15 @@ for method in (
     else:
         raise AssertionError("an inadmissible Parameter point must fail closed")
 
-original = eqiora.compile(source=source)
-original_realization = eqiora.preview_realization(
-    original,
-    eqiora.ScalarElliptic(
-        method=eqiora.ScalarEllipticMethod.FiniteElement,
-        cells_per_axis=6,
-    ),
-)
-foreign = eqiora.compile(source=source.replace("diffusion: 1 = 1", "diffusion: 1 = 2"))
-foreign_realization = eqiora.preview_realization(
-    foreign,
-    eqiora.ScalarElliptic(
-        method=eqiora.ScalarEllipticMethod.FiniteElement,
-        cells_per_axis=6,
-    ),
-)
+original = make_model(nominal)
+original_plan = make_plan(original, eqiora.ScalarEllipticMethod.FiniteElement)
+foreign = make_model((nominal[0], 2.0, nominal[2]))
+foreign_plan = make_plan(foreign, eqiora.ScalarEllipticMethod.FiniteElement)
 try:
-    eqiora._compile_differentiable(
-        foreign,
-        foreign_realization,
+    eqiora.diff.compile(
+        foreign_plan,
         inputs=[original.parameter("source_scale")],
-        output=original.field("potential"),
+        output=original_plan.field,
     )
 except eqiora.ValidationError:
     pass
@@ -323,16 +373,27 @@ else:
     raise AssertionError("foreign semantic roles must fail closed")
 
 try:
-    eqiora._compile_differentiable(
-        original,
-        foreign_realization,
+    eqiora.diff.compile(
+        foreign_plan,
         inputs=[original.parameter("source_scale")],
-        output=original.field("potential"),
+        output=original_plan.field,
     )
 except eqiora.ValidationError:
     pass
 else:
-    raise AssertionError("foreign Realization must fail closed")
+    raise AssertionError("foreign Plan must fail closed")
+
+try:
+    eqiora.diff.compile(
+        original,
+        original_plan,
+        inputs=[original.parameter("source_scale")],
+        output=original_plan.field,
+    )
+except TypeError:
+    pass
+else:
+    raise AssertionError("the displaced two-object signature must be absent")
 
 for constructor in (
     eqiora.ParameterRef,

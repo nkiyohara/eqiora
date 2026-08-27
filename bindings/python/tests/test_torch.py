@@ -14,18 +14,18 @@ import eqiora.torch as eqtorch
 
 
 POISSON = """
-model pytorch_differentiated_poisson {
-  domain square = box(0, 1, 0, 1);
-  domain x_lower = boundary(square, axis = 0, side = lower);
-  domain x_upper = boundary(square, axis = 0, side = upper);
-  domain y_lower = boundary(square, axis = 1, side = lower);
-  domain y_upper = boundary(square, axis = 1, side = upper);
+public component PytorchDifferentiatedPoisson {
+  public support square: volume(ambient_dimension = 2);
+  public support x_lower: boundary(parent = square);
+  public support x_upper: boundary(parent = square);
+  public support y_lower: boundary(parent = square);
+  public support y_upper: boundary(parent = square);
   representation scalar_space = continuum;
   field potential on square as scalar_space: 1 = 0;
-  parameter diffusion: 1 = 1;
-  parameter wave_number: 1 / m = 3.141592653589793;
-  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;
-  parameter boundary_offset: 1 = 0;
+  public parameter diffusion: 1;
+  public parameter wave_number: 1 / m;
+  public parameter source_scale: 1 / m ^ 2;
+  public parameter boundary_offset: 1;
   relation balance continuous on square {
     -div(diffusion * grad(potential))
       - source_scale * sin(wave_number * coordinate(0))
@@ -55,20 +55,56 @@ assert "torch" not in sys.modules
 
 
 def differentiable_program(method) -> eqiora.DifferentiableProgram:
-    model = eqiora.compile(source=POISSON)
-    realization = eqiora.preview_realization(
+    graph = eqiora.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+    geometry = graph.build(
+        rectangle,
+        named_topology={
+            "square": rectangle.region,
+            "x_lower": rectangle.boundaries[0],
+            "x_upper": rectangle.boundaries[1],
+            "y_lower": rectangle.boundaries[2],
+            "y_upper": rectangle.boundaries[3],
+        },
+    )
+    mesh_plan = eqiora.meshing.resolve(
+        geometry,
+        eqiora.meshing.MeshRequest(eqiora.meshing.CartesianMesher(cells=(4, 4))),
+    )
+    mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+    model = eqiora.compile(
+        source=POISSON,
+        geometry=geometry,
+        parameters={
+            "diffusion": 1.0,
+            "wave_number": np.pi,
+            "source_scale": 2.0 * np.pi**2,
+            "boundary_offset": 0.0,
+        },
+    )
+    spatial = (
+        eqiora.fem.Q1()
+        if method == eqiora.ScalarEllipticMethod.FiniteElement
+        else eqiora.fvm.CellCenteredTpfa()
+    )
+    plan = eqiora.resolve(
         model,
-        eqiora.ScalarElliptic(method=method, cells_per_axis=4),
+        mesh=mesh,
+        spatial=spatial,
+        solve=eqiora.solve.Linear(
+            relative_tolerance=1.0e-10,
+            absolute_tolerance=1.0e-12,
+            maximum_iterations=10_000,
+        ),
     )
     return eqiora.diff.compile(
-        model,
-        realization,
+        plan,
         inputs=(
             model.parameter("source_scale"),
             model.parameter("diffusion"),
             model.parameter("boundary_offset"),
         ),
-        output=model.field("potential"),
+        output=plan.field,
     )
 
 

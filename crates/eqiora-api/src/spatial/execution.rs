@@ -8,7 +8,6 @@ use super::diagnostic::{capability_error, single};
 use super::plan::{
     ScalarEllipticExecutionEnvironment, ScalarEllipticRunCancellation, ScalarEllipticRunDirective,
     ScalarEllipticRunObserver, ScalarEllipticRunPlan, ScalarEllipticRunProgress,
-    UninterruptedScalarEllipticRun,
 };
 use crate::ModelDocument;
 use eqiora_artifact::{ExecutionProvenanceV1, ExecutionTopologyV1, RunManifestV2};
@@ -21,9 +20,8 @@ use eqiora_execution::{
 #[cfg(feature = "rayon")]
 use eqiora_numerics::scalar::finalize_resolved_scalar_elliptic_cartesian_with_assembly;
 use eqiora_numerics::{
-    scalar::AcceptedScalarEllipticParameterPoint, scalar::FinalizedScalarEllipticCartesianProblem,
-    scalar::FinalizedScalarEllipticParameterPoint, scalar::ResolvedScalarEllipticCartesianSolution,
-    scalar::ScalarEllipticCartesianModel, scalar::finalize_scalar_elliptic_parameter_point,
+    scalar::FinalizedScalarEllipticCartesianProblem,
+    scalar::ResolvedScalarEllipticCartesianSolution,
 };
 use eqiora_realization::{
     DiscretizationMethod, MeshKind, PortableRealizationGraph, RealizationCapabilities,
@@ -38,39 +36,6 @@ use eqiora_solver::{
 };
 use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
-
-pub(crate) fn execute_bound_scalar_elliptic_point(
-    plan: &ScalarEllipticRunPlan,
-    model: ScalarEllipticCartesianModel,
-) -> Result<(AcceptedScalarEllipticParameterPoint, ExecutionReceipt), Vec<Diagnostic>> {
-    if plan.environment != ScalarEllipticExecutionEnvironment::host_serial()
-        || plan.intent.workers != NonZeroUsize::MIN
-    {
-        return Err(single(capability_error(
-            "differentiable Parameter-point execution admits the host-serial adapter only",
-        )));
-    }
-    let binding = DeploymentBinding::bind_host(
-        &plan.portable,
-        host_executor(plan.environment, plan.intent.workers),
-    )
-    .map_err(single)?;
-    let finalized =
-        finalize_scalar_elliptic_parameter_point(model, &plan.resolved).map_err(single)?;
-    let mut observer = UninterruptedScalarEllipticRun;
-    let Some((solution, receipt)) = solve_finalized_linear_controlled(
-        binding,
-        &finalized,
-        &REFERENCE_LINEAR_SOLVER,
-        &mut observer,
-    )?
-    else {
-        unreachable!("the uninterrupted observer cannot request cancellation")
-    };
-    let solution = finalized.finish(solution).map_err(single)?;
-    validate_scalar_elliptic_solution(plan, solution.solution(), &receipt)?;
-    Ok((solution, receipt))
-}
 
 pub(super) fn validate_scalar_elliptic_solution(
     plan: &ScalarEllipticRunPlan,
@@ -263,23 +228,6 @@ pub(super) fn solve_finalized_controlled(
         return Ok(None);
     };
     Ok(Some((finalized.finish(solution).map_err(single)?, receipt)))
-}
-
-pub(super) fn solve_finalized_linear_controlled(
-    binding: DeploymentBinding,
-    finalized: &FinalizedScalarEllipticParameterPoint,
-    backend: &dyn LinearSolverBackend,
-    observer: &mut impl ScalarEllipticRunObserver,
-) -> Result<Option<(LinearSolution, ExecutionReceipt)>, Vec<Diagnostic>> {
-    solve_admitted_linear_controlled(
-        binding,
-        finalized.portable_realization(),
-        finalized.canonical_csr_system_view(),
-        finalized.linear_problem().map_err(single)?,
-        finalized.solver_plan(),
-        backend,
-        observer,
-    )
 }
 
 pub(super) fn solve_admitted_linear_controlled(

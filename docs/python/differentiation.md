@@ -2,17 +2,16 @@
 
 ## Framework-neutral accepted points
 
-`eqiora.diff` binds one exact Model, Realization, ordered Parameter coordinate
-set, and complete output Field:
+`eqiora.diff` binds one exact common Plan, ordered Parameter coordinate set,
+and complete output Field:
 
 ```python
 import numpy as np
 
 program = eqiora.diff.compile(
-    model,
-    realization,
+    plan,
     inputs=(model.parameter("source"),),
-    output=model.field("potential"),
+    output=plan.field,
 )
 
 evaluation = program.evaluate(np.array([1.5], dtype=np.float64))
@@ -23,15 +22,17 @@ vjp = evaluation.vjp(
 )
 ```
 
-The program's semantic and realization identity is static. Each evaluation
+The program's Model and Plan identity is static. Each evaluation
 owns an explicit complete numerical point and its paired accepted
-linearization without mutating the Model or replacing the Realization.
+linearization without mutating the Model or replacing the Plan.
 Unselected Parameters remain frozen at their canonical Model values.
 Retaining one evaluation while evaluating another point cannot retarget its
 primal, JVP, or VJP.
 
-The bounded path supports one generated-Cartesian scalar-elliptic primary
-Field, Q1 FEM or TPFA FVM, host-serial native `float64`. Point values,
+The bounded Python path accepts the exact supplied rectangular 2D Cartesian
+Mesh already owned by a common scalar Plan, with Q1 FEM or TPFA FVM and a
+linear host-serial native `float64` solve. Native scalar realization remains
+separately 1D--3D. Point values,
 tangents, and cotangents accept exact rank-one CPU arrays through the ownership
 contract described in
 [Execution, diagnostics, and arrays](execution-and-arrays.md).
@@ -124,4 +125,3 @@ sharding, accelerators, export, serialization, multiprocessing, and
 performance claims remain outside this slice.
 
 Importing base `eqiora` imports neither optional framework.
-
