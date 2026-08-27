@@ -4,8 +4,8 @@ use eqiora::api::StructuralSemanticFingerprint;
 use eqiora::artifact::ModelEnvelope;
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{
-    CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1, EDGE_DIMENSION,
-    FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion, VERTEX_DIMENSION,
+    CanonicalGeometryLimits, CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
+    PlanarFace, PlanarRegion, VERTEX_DIMENSION,
 };
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::typing::SpatialSupport;
@@ -379,7 +379,7 @@ fn assert_diagnostic_at(diagnostic: &Diagnostic, id: RawId) {
 fn closed_artifact_admission_reconstructs_support_for_typing_and_later_queries() {
     let geometry = square_with_hole();
     assert_eq!(hex_digest(geometry.digest_bytes()), FROZEN_DIGEST);
-    let geometry_ref = CanonicalGeometryRef::from(&geometry);
+    let geometry_ref = &geometry;
     assert_eq!(geometry_ref.ambient_dimension(), 2);
     assert_eq!(geometry_ref.topological_dimension(), 2);
     assert_eq!(geometry_ref.entity_set_dimension("fluid"), Some(2));
@@ -454,7 +454,7 @@ fn independent_exact_circular_hole_identity_enters_the_same_admission_seam() {
         "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
     );
 
-    let geometry_ref = CanonicalGeometryRef::from(&geometry);
+    let geometry_ref = &geometry;
     let (store, model, ids) = positive_model(geometry.digest_bytes(), "fluid", "cylinder", 2);
     let program =
         KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry_ref])
@@ -498,7 +498,7 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
     assert!(oracle_output.ends_with("OK\n"));
 
     let geometry = circular_hole_witness();
-    let reference = CanonicalGeometryRef::from(&geometry);
+    let reference = &geometry;
     let normal_bits = |name| {
         reference
             .constant_parent_outward_normal(name)
@@ -526,7 +526,7 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
     )
     .expect("two-member inlet remains valid exact geometry");
     assert_eq!(
-        CanonicalGeometryRef::from(&multi_edge_inlet).constant_parent_outward_normal("inlet"),
+        multi_edge_inlet.constant_parent_outward_normal("inlet"),
         None
     );
 
@@ -544,7 +544,7 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
         1.0e-12,
     )
     .expect("exact side identity does not depend on an author-supplied set name");
-    let renamed_reference = CanonicalGeometryRef::from(&renamed_sides);
+    let renamed_reference = &renamed_sides;
     assert_eq!(
         renamed_reference
             .constant_parent_outward_normal("left")
@@ -583,7 +583,7 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
         1.0e-12,
     )
     .expect("the witness names carry no side identity of their own");
-    let off_x_reference = CanonicalGeometryRef::from(&witness_names_off_the_x_sides);
+    let off_x_reference = &witness_names_off_the_x_sides;
     assert_eq!(
         off_x_reference.constant_parent_outward_normal("inlet"),
         None
@@ -601,13 +601,10 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
         1.0e-12,
     )
     .expect("a named rectangle corner remains valid exact geometry");
-    assert_eq!(
-        CanonicalGeometryRef::from(&vertex_set).constant_parent_outward_normal("pin"),
-        None
-    );
+    assert_eq!(vertex_set.constant_parent_outward_normal("pin"), None);
 
     let straight_edged = square_with_hole();
-    let straight_reference = CanonicalGeometryRef::from(&straight_edged);
+    let straight_reference = &straight_edged;
     assert_eq!(
         straight_reference.constant_parent_outward_normal("exterior"),
         None
@@ -629,10 +626,7 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
     .expect("straight-edged single-member inlet remains valid");
     let straight_inlet =
         CanonicalGeometryV1::from_region(&straight_inlet).expect("canonical straight inlet");
-    assert_eq!(
-        CanonicalGeometryRef::from(&straight_inlet).constant_parent_outward_normal("inlet"),
-        None
-    );
+    assert_eq!(straight_inlet.constant_parent_outward_normal("inlet"), None);
 }
 
 #[test]
@@ -910,8 +904,8 @@ fn artifact_bundle_is_exact_closed_and_independent_of_caller_order() {
         (hole.digest_bytes(), "fluid"),
         (filled.digest_bytes(), "body2"),
     ]);
-    let hole_ref = CanonicalGeometryRef::from(&hole);
-    let filled_ref = CanonicalGeometryRef::from(&filled);
+    let hole_ref = &hole;
+    let filled_ref = &filled;
     let forward = KernelProgram::from_snapshot_with_geometry(
         &store.snapshot(),
         model,
@@ -993,12 +987,9 @@ fn declaration_only_geometry_still_participates_in_bundle_closure_and_identity()
     assert_eq!(missing.len(), 1);
     assert!(missing[0].message().contains("missing canonical geometry"));
 
-    let admitted = KernelProgram::from_snapshot_with_geometry(
-        &store.snapshot(),
-        model,
-        &[CanonicalGeometryRef::from(&geometry)],
-    )
-    .expect("declaration entity set is proven");
+    let admitted =
+        KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&geometry])
+            .expect("declaration entity set is proven");
     assert_ne!(admitted, artifact_free);
 
     let admitted_model = ModelEnvelope::from_program(&admitted).expect("current Model");
@@ -1022,7 +1013,7 @@ fn declaration_only_geometry_still_participates_in_bundle_closure_and_identity()
 #[test]
 fn entity_set_dimension_and_parent_artifact_are_fail_closed() {
     let hole = square_with_hole();
-    let hole_ref = CanonicalGeometryRef::from(&hole);
+    let hole_ref = &hole;
 
     let (region_store, region_model, region_ids) =
         declaration_model([(hole.digest_bytes(), "hole")]);
@@ -1061,19 +1052,13 @@ fn entity_set_dimension_and_parent_artifact_are_fail_closed() {
     let forward = KernelProgram::from_snapshot_with_geometry(
         &cross_store.snapshot(),
         cross_model,
-        &[
-            CanonicalGeometryRef::from(&hole),
-            CanonicalGeometryRef::from(&filled),
-        ],
+        &[&hole, &filled],
     )
     .expect_err("B1 must resolve only against its own parent artifact");
     let reverse = KernelProgram::from_snapshot_with_geometry(
         &cross_store.snapshot(),
         cross_model,
-        &[
-            CanonicalGeometryRef::from(&filled),
-            CanonicalGeometryRef::from(&hole),
-        ],
+        &[&filled, &hole],
     )
     .expect_err("artifact order cannot change diagnostics");
     assert_eq!(forward, reverse);
@@ -1163,12 +1148,8 @@ fn one_artifact_can_prove_multiple_region_aliases() {
         (geometry.digest_bytes(), "body-a"),
         (geometry.digest_bytes(), "body-b"),
     ]);
-    KernelProgram::from_snapshot_with_geometry(
-        &store.snapshot(),
-        model,
-        &[CanonicalGeometryRef::from(&geometry)],
-    )
-    .expect("bundle closure is over distinct digests, not Domain count");
+    KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&geometry])
+        .expect("bundle closure is over distinct digests, not Domain count");
 }
 
 #[test]
@@ -1202,12 +1183,9 @@ fn domain_topology_fault_suppresses_secondary_entity_set_admission() {
             EdgeKind::BoundaryOf,
         )],
     );
-    let diagnostics = KernelProgram::from_snapshot_with_geometry(
-        &store.snapshot(),
-        model,
-        &[CanonicalGeometryRef::from(&geometry)],
-    )
-    .expect_err("a region cannot have a BoundaryOf parent");
+    let diagnostics =
+        KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&geometry])
+            .expect_err("a region cannot have a BoundaryOf parent");
     assert_eq!(diagnostics.len(), 1);
     assert!(
         diagnostics[0]
@@ -1250,12 +1228,9 @@ fn geometry_boundary_port_requires_an_embedding_contract_even_after_admission() 
         ],
         [(boundary.erase(), region.erase(), EdgeKind::BoundaryOf)],
     );
-    let diagnostics = KernelProgram::from_snapshot_with_geometry(
-        &store.snapshot(),
-        model,
-        &[CanonicalGeometryRef::from(&geometry)],
-    )
-    .expect_err("entity-set dimension does not invent boundary embedding facts");
+    let diagnostics =
+        KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&geometry])
+            .expect_err("entity-set dimension does not invent boundary embedding facts");
     let embedding = diagnostics
         .iter()
         .find(|diagnostic| {
@@ -1277,12 +1252,9 @@ fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
             boundary_set,
             std::iter::empty(),
         );
-        let program = KernelProgram::from_snapshot_with_geometry(
-            &store.snapshot(),
-            model,
-            &[CanonicalGeometryRef::from(&circular)],
-        )
-        .expect("artifact admission proves the exact circular boundary Relation scope");
+        let program =
+            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&circular])
+                .expect("artifact admission proves the exact circular boundary Relation scope");
         program
             .typed_relation_residual(ids.relation)
             .expect("the admitted circular boundary support remains available to typing");
@@ -1294,7 +1266,7 @@ fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
     let straight_program = KernelProgram::from_snapshot_with_geometry(
         &straight_store.snapshot(),
         straight_model,
-        &[CanonicalGeometryRef::from(&straight)],
+        &[&straight],
     )
     .expect("the straight-edged kind admits the same Relation scope");
     straight_program
@@ -1350,7 +1322,7 @@ fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
     KernelProgram::from_snapshot_with_geometry(
         &region_store.snapshot(),
         region_model,
-        &[CanonicalGeometryRef::from(&circular)],
+        &[&circular],
     )
     .expect("artifact admission also proves the parent region Relation scope");
     let region_diagnostics = KernelProgram::from_snapshot(&region_store.snapshot(), region_model)
@@ -1384,12 +1356,9 @@ fn geometry_boundary_relation_falsifiers_reach_the_claimed_consumer() {
             boundary_set,
             std::iter::empty(),
         );
-        let diagnostics = KernelProgram::from_snapshot_with_geometry(
-            &store.snapshot(),
-            model,
-            &[CanonicalGeometryRef::from(&circular)],
-        )
-        .expect_err("invalid parent-relative entity set must reject the scoped Relation");
+        let diagnostics =
+            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&circular])
+                .expect_err("invalid parent-relative entity set must reject the scoped Relation");
         let diagnostic = diagnostics
             .iter()
             .find(|diagnostic| diagnostic.message() == expected)
@@ -1408,19 +1377,13 @@ fn geometry_boundary_relation_falsifiers_reach_the_claimed_consumer() {
     let foreign_diagnostics = KernelProgram::from_snapshot_with_geometry(
         &foreign_store.snapshot(),
         foreign_model,
-        &[
-            CanonicalGeometryRef::from(&foreign),
-            CanonicalGeometryRef::from(&circular),
-        ],
+        &[&foreign, &circular],
     )
     .expect_err("same-named membership in a foreign artifact cannot prove the parent selection");
     let reverse_foreign_diagnostics = KernelProgram::from_snapshot_with_geometry(
         &foreign_store.snapshot(),
         foreign_model,
-        &[
-            CanonicalGeometryRef::from(&circular),
-            CanonicalGeometryRef::from(&foreign),
-        ],
+        &[&circular, &foreign],
     )
     .expect_err("artifact order cannot change the parent-relative rejection");
     assert_eq!(foreign_diagnostics, reverse_foreign_diagnostics);
@@ -1530,12 +1493,9 @@ fn admitted_geometry_boundary_field_keeps_its_embedding_diagnostic() {
             (field.erase(), representation.erase(), EdgeKind::DefinedOn),
         ],
     );
-    let diagnostics = KernelProgram::from_snapshot_with_geometry(
-        &store.snapshot(),
-        model,
-        &[CanonicalGeometryRef::from(&geometry)],
-    )
-    .expect_err("a Field still requires a non-Cartesian boundary embedding contract");
+    let diagnostics =
+        KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&geometry])
+            .expect_err("a Field still requires a non-Cartesian boundary embedding contract");
     let embedding = diagnostics
         .iter()
         .find(|diagnostic| {
@@ -1550,12 +1510,9 @@ fn admitted_geometry_boundary_field_keeps_its_embedding_diagnostic() {
 fn admitted_spatial_cartesian_field_extent_must_match_geometry_dimension() {
     let geometry = square_with_hole();
     let (store, model, ids) = positive_model(geometry.digest_bytes(), "fluid", "hole", 3);
-    let diagnostics = KernelProgram::from_snapshot_with_geometry(
-        &store.snapshot(),
-        model,
-        &[CanonicalGeometryRef::from(&geometry)],
-    )
-    .expect_err("3-vector cannot claim a two-dimensional spatial frame");
+    let diagnostics =
+        KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&geometry])
+            .expect_err("3-vector cannot claim a two-dimensional spatial frame");
     let extent = diagnostics
         .iter()
         .find(|diagnostic| {

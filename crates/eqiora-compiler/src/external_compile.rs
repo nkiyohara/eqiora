@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DynQuantity};
-use eqiora_geometry::{CanonicalGeometryRef, NamedEntitySet};
+use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora_lang::{ComponentItem, SupportSlotSyntax, TextRange, VisibilitySyntax, parse};
 use eqiora_schema::kernel::GeometryDigest;
 
@@ -203,7 +203,7 @@ impl CompiledModel {
         source: &str,
         model: &str,
         component: &str,
-        geometry: CanonicalGeometryRef<'_>,
+        geometry: &CanonicalGeometryV1,
         supports: &[(&str, &NamedEntitySet, Option<(&str, &NamedEntitySet)>)],
         parameters: &[(&str, DynQuantity)],
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -325,7 +325,7 @@ fn observe_external_name(
 )]
 fn validate_geometry_bindings(
     file: &str,
-    geometry: CanonicalGeometryRef<'_>,
+    geometry: &CanonicalGeometryV1,
     supports: &[(&str, &NamedEntitySet, Option<(&str, &NamedEntitySet)>)],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();

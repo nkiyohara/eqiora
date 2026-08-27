@@ -6,7 +6,7 @@ use eqiora_artifact::{
 use eqiora_compiler::CompiledModel;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DynQuantity};
-use eqiora_geometry::{CanonicalGeometryRef, CanonicalGeometryV1, NamedEntitySet};
+use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora_graph::{GraphStore, InMemoryGraphStore, Revision};
 use eqiora_sem::KernelProgram;
 
@@ -60,13 +60,7 @@ impl ModelDocument {
         parameters: &[(&str, DynQuantity)],
     ) -> Result<Self, Vec<Diagnostic>> {
         let compiled = CompiledModel::compile_external_component(
-            filename,
-            source,
-            model,
-            component,
-            CanonicalGeometryRef::from(geometry),
-            supports,
-            parameters,
+            filename, source, model, component, geometry, supports, parameters,
         )?;
         Self::accept_external_compiled(compiled, geometry)
     }
@@ -82,9 +76,8 @@ impl ModelDocument {
             .map_err(single_diagnostic)?;
         let mut store = InMemoryGraphStore::new();
         store.commit(transaction)?;
-        let geometry_ref = CanonicalGeometryRef::from(geometry);
         let program =
-            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry_ref])?;
+            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry])?;
         let artifact = AcceptedModelArtifact::from_program(&program).map_err(single_diagnostic)?;
         let bytes = artifact.canonical_json().map_err(single_diagnostic)?;
         let artifact = AcceptedModelArtifact::from_json(&bytes, ModelDecoderLimits::default())
@@ -96,7 +89,7 @@ impl ModelDocument {
             Revision(artifact.source_revision()),
         )?;
         let program =
-            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry_ref])?;
+            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry])?;
         if program.model() != reference.model()
             || program.revision().0 != reference.semantic_revision().get()
         {

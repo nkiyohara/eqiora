@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 
 use eqiora_geometry::{
-    CanonicalGeometryRef, CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION,
-    PlanarOperationGraph, PlanarTopologyHandle,
+    CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, PlanarOperationGraph, PlanarTopologyHandle,
 };
 
 fn named(
@@ -44,7 +43,7 @@ fn rectangle_publishes_direct_source_owned_topology() {
         Some(FACE_DIMENSION)
     );
     assert_eq!(geometry.entity_set_dimension("left"), Some(EDGE_DIMENSION));
-    let reference = CanonicalGeometryRef::from(&geometry);
+    let reference = &geometry;
     assert_eq!(
         ["left", "right", "bottom", "top"].map(|name| {
             reference

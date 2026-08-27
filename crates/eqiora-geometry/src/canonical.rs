@@ -82,109 +82,6 @@ enum CanonicalGeometryKind {
     PlanarAdjacentRectanglePartitionV1(CanonicalPlanarAdjacentRectanglePartitionV1),
 }
 
-/// Borrowed, kind-erased semantic facts from one canonical geometry.
-///
-/// This compatibility view can only borrow the common geometry owner. It
-/// exposes neither geometry content nor a constructor from caller-supplied
-/// digest and dimension facts.
-#[derive(Clone, Copy, PartialEq)]
-pub struct CanonicalGeometryRef<'a> {
-    geometry: &'a CanonicalGeometryV1,
-}
-
-impl<'a> From<&'a CanonicalGeometryV1> for CanonicalGeometryRef<'a> {
-    fn from(geometry: &'a CanonicalGeometryV1) -> Self {
-        Self { geometry }
-    }
-}
-
-impl fmt::Debug for CanonicalGeometryRef<'_> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("CanonicalGeometryRef")
-            .field("digest", &self.digest_bytes())
-            .field("ambient_dimension", &self.ambient_dimension())
-            .field("topological_dimension", &self.topological_dimension())
-            .finish_non_exhaustive()
-    }
-}
-
-impl CanonicalGeometryRef<'_> {
-    /// Complete domain-separated content identity.
-    #[must_use]
-    pub const fn digest_bytes(self) -> [u8; 32] {
-        self.geometry.digest_bytes()
-    }
-
-    /// Dimension of the physical coordinate embedding.
-    #[must_use]
-    pub const fn ambient_dimension(self) -> usize {
-        self.geometry.ambient_dimension()
-    }
-
-    /// Highest topological dimension represented by the geometry.
-    #[must_use]
-    pub const fn topological_dimension(self) -> usize {
-        self.geometry.topological_dimension()
-    }
-
-    /// Topological dimension of one exact entity-set name.
-    #[must_use]
-    pub fn entity_set_dimension(self, name: &str) -> Option<usize> {
-        self.geometry.entity_set_dimension(name)
-    }
-
-    /// Topological dimension of one selection borrowed from this exact
-    /// Geometry revision.
-    ///
-    /// A foreign, cloned, or stale selection returns `None` even when its name
-    /// and members happen to compare equal.
-    #[must_use]
-    #[doc(hidden)]
-    pub fn selection_dimension(self, selection: &NamedEntitySet) -> Option<usize> {
-        self.geometry
-            .owns_selection(selection)
-            .then_some(selection.dimension())
-    }
-
-    /// Whether two selections borrowed from this exact Geometry revision form
-    /// one admitted codimension-one boundary and full-dimensional parent.
-    #[must_use]
-    #[doc(hidden)]
-    pub fn selection_is_boundary_of(
-        self,
-        boundary: &NamedEntitySet,
-        region: &NamedEntitySet,
-    ) -> bool {
-        self.geometry.selection_is_boundary_of(boundary, region)
-    }
-
-    /// Exact constant parent-outward normal of one supported boundary set.
-    #[must_use]
-    pub fn constant_parent_outward_normal(self, name: &str) -> Option<[f64; 2]> {
-        self.geometry.constant_parent_outward_normal(name)
-    }
-
-    /// Whether four selections from this exact revision are the two
-    /// parent-relative spellings of its construction-owned internal interface.
-    #[must_use]
-    #[doc(hidden)]
-    pub fn selections_form_opposite_parent_interface(
-        self,
-        first_boundary: &str,
-        first_region: &str,
-        second_boundary: &str,
-        second_region: &str,
-    ) -> bool {
-        self.geometry.selections_form_opposite_parent_interface(
-            first_boundary,
-            first_region,
-            second_boundary,
-            second_region,
-        )
-    }
-}
-
 impl fmt::Debug for CanonicalGeometryV1 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -215,7 +112,13 @@ impl CanonicalGeometryV1 {
         self.entity_set(name).map(NamedEntitySet::dimension)
     }
 
-    fn selection_is_boundary_of(&self, boundary: &NamedEntitySet, region: &NamedEntitySet) -> bool {
+    #[doc(hidden)]
+    #[must_use]
+    pub fn selection_is_boundary_of(
+        &self,
+        boundary: &NamedEntitySet,
+        region: &NamedEntitySet,
+    ) -> bool {
         if !self.owns_selection(boundary)
             || !self.owns_selection(region)
             || boundary.dimension().checked_add(1) != Some(self.topological_dimension())
@@ -238,6 +141,13 @@ impl CanonicalGeometryV1 {
                 .iter()
                 .all(|edge| edge_has_selected_parent(geometry.region(), *edge, region.members())),
         }
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn selection_dimension(&self, selection: &NamedEntitySet) -> Option<usize> {
+        self.owns_selection(selection)
+            .then_some(selection.dimension())
     }
 
     fn owns_selection(&self, selection: &NamedEntitySet) -> bool {
@@ -284,7 +194,9 @@ impl CanonicalGeometryV1 {
         }
     }
 
-    fn selections_form_opposite_parent_interface(
+    #[doc(hidden)]
+    #[must_use]
+    pub fn selections_form_opposite_parent_interface(
         &self,
         first_boundary: &str,
         first_region: &str,

@@ -4,7 +4,6 @@ use std::num::NonZeroU16;
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
-use eqiora_geometry::CanonicalGeometryRef;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_realization::{RepresentedPhysicalField, SemanticRevision, SpaceFamily};
 use eqiora_schema::kernel::{DomainKind, KernelNode};
@@ -317,12 +316,11 @@ impl<'a> ValidatedCircularHoleFieldwiseContext<'a> {
         store
             .commit(transaction)
             .map_err(|diagnostics| authored_replay_error("commit", diagnostics))?;
-        let program = KernelProgram::from_snapshot_with_geometry(
-            &store.snapshot(),
-            model_id,
-            &[CanonicalGeometryRef::from(source)],
-        )
-        .map_err(|diagnostics| authored_replay_error("admit exact geometry into", diagnostics))?;
+        let program =
+            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model_id, &[source])
+                .map_err(|diagnostics| {
+                    authored_replay_error("admit exact geometry into", diagnostics)
+                })?;
         if program.model() != model_reference.model()
             || SemanticRevision::new(program.revision().0) != model_reference.semantic_revision()
         {

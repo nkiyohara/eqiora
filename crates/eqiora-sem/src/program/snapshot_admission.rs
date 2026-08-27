@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, OntologyId};
-use eqiora_geometry::CanonicalGeometryRef;
+use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::Snapshot;
 use eqiora_schema::Model;
 
@@ -54,7 +54,7 @@ impl KernelProgram {
     pub fn from_snapshot_with_geometry(
         snapshot: &Snapshot,
         model: OntologyId<Model>,
-        geometry: &[CanonicalGeometryRef<'_>],
+        geometry: &[&CanonicalGeometryV1],
     ) -> Result<Self, Vec<Diagnostic>> {
         Self::from_snapshot_impl(snapshot, model, Some(geometry))
     }
@@ -62,7 +62,7 @@ impl KernelProgram {
     fn from_snapshot_impl(
         snapshot: &Snapshot,
         model: OntologyId<Model>,
-        geometry: Option<&[CanonicalGeometryRef<'_>]>,
+        geometry: Option<&[&CanonicalGeometryV1]>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let raw_model = model.erase();
         let Some(view) = snapshot.ontology_view(&raw_model) else {

@@ -4697,8 +4697,8 @@ mod tests {
     };
     use eqiora_core::{DimExponents, DynQuantity};
     use eqiora_geometry::{
-        CadAuthoredGraph, CanonicalGeometryRef, ConstrainedRectangleV1, NamedEntitySet,
-        PlanarOperationGraph, PlanarTopologyHandle,
+        CadAuthoredGraph, ConstrainedRectangleV1, NamedEntitySet, PlanarOperationGraph,
+        PlanarTopologyHandle,
     };
     use eqiora_meshing::{CartesianMesh, MeshEntity, MeshQualityGate};
     use eqiora_solver::{
@@ -4792,24 +4792,15 @@ public component MixedBoundaryElasticity {
         parameters: &[(&str, DynQuantity)],
     ) -> ModelEnvelope {
         let compiled = CompiledModel::compile_external_component(
-            filename,
-            source,
-            model,
-            component,
-            CanonicalGeometryRef::from(geometry),
-            supports,
-            parameters,
+            filename, source, model, component, geometry, supports, parameters,
         )
         .unwrap();
         let (transaction, model, _) = compiled.into_parts();
         let mut store = InMemoryGraphStore::new();
         store.commit(transaction).unwrap();
-        let program = KernelProgram::from_snapshot_with_geometry(
-            &store.snapshot(),
-            model,
-            &[CanonicalGeometryRef::from(geometry)],
-        )
-        .unwrap();
+        let program =
+            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry])
+                .unwrap();
         ModelEnvelope::from_program(&program).unwrap()
     }
 

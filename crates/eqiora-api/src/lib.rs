@@ -59,7 +59,7 @@ use eqiora_artifact::{
 use eqiora_compiler::{CompiledModel, ModelSymbols};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
-use eqiora_geometry::{CanonicalGeometryRef, CanonicalGeometryV1};
+use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{GraphStore, InMemoryGraphStore, Revision};
 use eqiora_lang::ModelDraft;
 use eqiora_sem::KernelProgram;
@@ -265,11 +265,7 @@ impl ModelDocument {
             Revision(self.artifact.source_revision()),
         )
         .map_err(first_diagnostic)?;
-        let geometries = self
-            .geometry_authority
-            .iter()
-            .map(CanonicalGeometryRef::from)
-            .collect::<Vec<_>>();
+        let geometries = self.geometry_authority.iter().collect::<Vec<_>>();
         let program =
             KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &geometries)
                 .map_err(first_diagnostic)?;

@@ -5,7 +5,7 @@ use std::fmt::Write;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
-use eqiora_geometry::CanonicalGeometryRef;
+use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{Edge, EdgeKind};
 use eqiora_schema::kernel::typing::SpatialSupport;
 use eqiora_schema::kernel::{ConnectionSemantics, DomainKind, KernelNode, ValueFrame};
@@ -39,8 +39,8 @@ pub(crate) struct GeometryBoundaryJunction {
 /// against which those checks could run.
 pub(super) fn index_closed_bundle<'a>(
     nodes: &BTreeMap<RawId, KernelNode>,
-    supplied: &[CanonicalGeometryRef<'a>],
-) -> Result<BTreeMap<[u8; 32], CanonicalGeometryRef<'a>>, Vec<Diagnostic>> {
+    supplied: &[&'a CanonicalGeometryV1],
+) -> Result<BTreeMap<[u8; 32], &'a CanonicalGeometryV1>, Vec<Diagnostic>> {
     let mut required = BTreeMap::<[u8; 32], RawId>::new();
     for (&id, node) in nodes {
         let KernelNode::Domain(domain) = node else {
@@ -104,7 +104,7 @@ pub(super) fn admit_entity_sets(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
     invalid_domains: &BTreeSet<RawId>,
-    artifacts: &BTreeMap<[u8; 32], CanonicalGeometryRef<'_>>,
+    artifacts: &BTreeMap<[u8; 32], &CanonicalGeometryV1>,
 ) -> GeometryAdmission {
     let mut supports = BTreeMap::new();
     let mut boundary_embeddings = BTreeMap::new();
@@ -244,7 +244,7 @@ pub(super) fn admit_entity_sets(
 pub(super) fn admit_geometry_boundary_junctions(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
-    artifacts: &BTreeMap<[u8; 32], CanonicalGeometryRef<'_>>,
+    artifacts: &BTreeMap<[u8; 32], &CanonicalGeometryV1>,
     embeddings: &BTreeMap<RawId, GeometryBoundaryEmbedding>,
 ) -> (
     BTreeMap<RawId, GeometryBoundaryJunction>,

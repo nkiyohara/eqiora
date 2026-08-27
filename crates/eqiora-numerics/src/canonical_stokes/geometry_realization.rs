@@ -634,7 +634,8 @@ fn geometry_boundary(
         let outward = match entry.disposition {
             PhysicalBoundaryDisposition::TraceZero => None,
             PhysicalBoundaryDisposition::Prescribed(_) => Some(
-                eqiora_geometry::CanonicalGeometryRef::from(&binding.source)
+                binding
+                    .source
                     .constant_parent_outward_normal(name)
                     .ok_or_else(|| {
                         invalid(format!(

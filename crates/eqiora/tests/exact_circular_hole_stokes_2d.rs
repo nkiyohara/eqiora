@@ -9,8 +9,7 @@ use eqiora::artifact::{
     LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV2, RunManifestV2,
 };
 use eqiora::geometry::{
-    CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1, EDGE_DIMENSION,
-    FACE_DIMENSION, NamedEntitySet,
+    CanonicalGeometryLimits, CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
 };
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::meshing::{
@@ -337,17 +336,14 @@ fn replay_example_program(
             .next()
             .expect("Model commit diagnostic")
     })?;
-    KernelProgram::from_snapshot_with_geometry(
-        &store.snapshot(),
-        model_id,
-        &[CanonicalGeometryRef::from(source)],
+    KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model_id, &[source]).map_err(
+        |diagnostics| {
+            diagnostics
+                .into_iter()
+                .next()
+                .expect("Semantic replay diagnostic")
+        },
     )
-    .map_err(|diagnostics| {
-        diagnostics
-            .into_iter()
-            .next()
-            .expect("Semantic replay diagnostic")
-    })
 }
 
 fn assert_same_example_solution(
