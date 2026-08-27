@@ -1,17 +1,14 @@
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyDictMethods, PyModule};
-
-const SOURCE: &str = include_str!("../../../examples/steady-flow-past-cylinder.eqi");
+use pyo3::types::{PyDict, PyModule};
 
 #[test]
-fn python_exact_cylinder_stokes_uses_only_the_root_lifecycle() -> PyResult<()> {
+fn python_geometry_v2_uses_only_the_gmsh_product_path() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
         let module = public_module(py)?;
         let locals = PyDict::new(py);
         locals.set_item("eqiora", module)?;
-        locals.set_item("source_text", SOURCE)?;
         py.run(
             c_str!(
                 r#"
@@ -26,48 +23,34 @@ geometry = graph.build(fluid, named_topology={
     "walls": rectangle.boundaries[2:],
     "cylinder": circle.boundaries[0],
 })
-model = eqiora.compile(
-    source=source_text,
-    filename="steady-flow-past-cylinder.eqi",
-    geometry=geometry,
-    parameters={
-        "dynamic_viscosity": 0.001,
-        "zero_pressure": 0.0,
-        "inlet_speed": 0.3,
-        "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
-    },
-)
-mesh_request = eqiora.meshing.GmshMesher(
+provider = eqiora.meshing.GmshMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
 )
-mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
-mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
-plan = eqiora.resolve(
-    model,
-    mesh=mesh,
-    spatial=eqiora.fem.MiniP1(),
-    solve=eqiora.solve.Linear(
-        relative_tolerance=1e-6,
-        absolute_tolerance=1e-13,
-        maximum_iterations=10_000,
-    ),
-    scaling=None,
-)
-result = eqiora.run(plan)
-evidence = eqiora.fluid.steady_stokes_evidence(result)
-pressure = result.output(plan.pressure_field)
-assert result.model_digest == model.digest
-assert result.plan_key == plan.identity
-assert pressure.vertex_count == mesh.vertex_count
-assert evidence.plan_key == plan.identity
-assert evidence.solve.true_residual_norm <= evidence.solve.residual_target
-assert not hasattr(eqiora.fluid, "SteadyStokes")
-assert not hasattr(eqiora.fluid, "resolve")
+plan = eqiora.meshing.resolve(geometry, provider)
+assert plan.provider == provider
+assert plan.source_digest == geometry.digest
+assert plan.boundary_facets <= provider.maximum_boundary_facets
+assert len(plan.production_lineage_digest) == 64
+assert not hasattr(eqiora.meshing, "ReferenceMesher")
+assert not hasattr(eqiora.meshing, "GmshImport")
+assert not hasattr(eqiora.meshing, "import_gmsh")
+
+for invalid in (
+    lambda: eqiora.meshing.GmshMesher(maximum_boundary_error=0.0),
+    lambda: eqiora.meshing.GmshMesher(minimum_mean_ratio=0.0),
+    lambda: eqiora.meshing.GmshMesher(maximum_boundary_facets=7),
+):
+    try:
+        invalid()
+    except eqiora.ValidationError:
+        pass
+    else:
+        raise AssertionError("Gmsh policy accepted an invalid value")
 "#
             ),
-            None,
+            Some(&locals),
             Some(&locals),
         )
     })

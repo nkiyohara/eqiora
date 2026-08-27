@@ -44,9 +44,8 @@ omits it, rejects before constructing a Figure.
 
 `plot_fixed_reference_fsi` is withdrawn by this slice with no alias, shim, or
 deprecation path. The shared adapter surface also contains no `plot_pressure`;
-its static `Result` replacement through `plot_scalar_field` belongs to
-[`interfaces.python-exact-cylinder-pressure-still`](../python-exact-cylinder-pressure-still/README.md),
-not this Trajectory claim.
+its static `Result` replacement through `plot_scalar_field` is covered by
+ordinary installed-product tests, not this Trajectory claim.
 
 The predecessor FSI state, result, and one-call solve names are absent as well;
 the common `State`, common `Result`, explicit Plan execution, and

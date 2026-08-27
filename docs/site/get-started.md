@@ -75,14 +75,13 @@ checkout:
 git clone https://github.com/nkiyohara/eqiora.git
 cd eqiora
 cargo run --locked -p eqiora --example quickstart
-cargo run --locked -p eqiora --example poisson
+python examples/python/exact_cylinder_stokes.py
 ```
 
-`quickstart` compiles and runs the decay model above. `poisson` is the spatial
-counterpart: it compiles a 2D Poisson model, selects a finite-element
-Realization explicitly, runs it on the host CPU, and reports the L2 error
-against the exact solution. The [Examples](examples.md) page walks through it
-stage by stage.
+`quickstart` compiles and runs the decay model above. The exact-cylinder Python
+path is its spatial counterpart: it authors Geometry, compiles the
+equations-only component, resolves one typed root Plan, and runs it on the host
+CPU. The [Examples](examples.md) page walks through that lifecycle.
 
 Before relying on any numerical method or backend, trace its row in the
 [capability matrix](capabilities.md) to a registered evidence case.

@@ -7,7 +7,7 @@ The acceptance contract was derived independently before implementation.
 - `interfaces.python-mixed-boundary-elasticity-demo` owns the installed
   component/caller-Geometry composition and common Result boundary recorded by
   this dossier.
-- `interfaces.python-exact-cylinder-pressure-still` supplies the established
-  installed-wheel, optional-Matplotlib, headless Figure contract.
+- Ordinary installed Matplotlib tests supply the headless Figure product
+  contract; no retired pressure-still evidence is composed into this case.
 
 This case adds no structural expected value or tolerance.

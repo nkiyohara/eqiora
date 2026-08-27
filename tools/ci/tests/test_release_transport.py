@@ -47,27 +47,16 @@ ANYWIDGET_WHEEL_SHA256 = (
 BROWSERS_JSON_SHA256 = (
     "f306eed529599b1eaf2f8a85db9de2b23e1a3fe36c2b66434b7c9434fb627a99"
 )
-THREE_LICENSE_SHA256 = (
-    "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
-)
 ANYWIDGET_LICENSE_SHA256 = (
     "22c698b6e5f3878c292471980ffd352ee0fad053f9428c2281f34b5e28a6151f"
 )
 FRONTEND_PACKAGE_LOCK_SHA256 = (
-    "3f3dbc5711a4feb4499bee358f042a3a10b194824dcd9b9350212d75ec363416"
+    "c45ae0adea0b345fa3fc079a1613bbcfae6d87053284b6c3cc9c89c167192881"
 )
 INSTALL_SCRIPT_INVENTORY_SHA256 = (
-    "fbcb5664380f1ace34322bd129219741abdf9be79be17cb8861d57e2c6e4c4dc"
+    "c706e144c3250d27383c3e6799cdcc8ac0220c7dd1c7cc4a89e14953a0204503"
 )
 LIFECYCLE_SCRIPT_SOURCE_UNION = (
-    (
-        "node_modules/@tweenjs/tween.js",
-        "@tweenjs/tween.js",
-        "23.1.3",
-        "prepare",
-        "npm run build",
-        ("packument", "tarball"),
-    ),
     (
         "node_modules/fsevents",
         "fsevents",
@@ -104,12 +93,10 @@ LIFECYCLE_SCRIPT_SOURCE_UNION = (
 NOTEBOOK_CHECKS = frozenset(
     {
         "frontend:lock-integrity",
-        "frontend:license-notices",
+        "frontend:license-inventory",
         "frontend:bundle-byte-rebuild",
         "wheel-family:notebook-metadata",
         "cp313:notebook-anywidget-0.11.0",
-        "cp313:jupyterlab-4.6.2-bare-mesh",
-        "cp313:marimo-0.23.16-bare-mesh",
         "cp313:marimo-0.23.16-exact-cylinder-stokes",
         "cp313:notebook-managed-chromium-r1234",
         "cp313:notebook-no-external-network",
@@ -119,9 +106,6 @@ NOTEBOOK_CHECKS = frozenset(
 ASSET_BYTES = {
     "eqiora/_presentation/static/mesh-view.mjs": b"// synthetic oracle asset\n",
     "eqiora/_presentation/static/mesh-view.css": b"/* synthetic oracle asset */\n",
-    "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt": (
-        b"Synthetic Three.js notice used only by the release-schema oracle.\n"
-    ),
 }
 BASE_METADATA = b"""\
 Metadata-Version: 2.4
@@ -568,7 +552,7 @@ notebook = ["anywidget==0.11.0"]
         (
             {"name": name, "version": version}
             for name, version in {
-                **package_document["dependencies"],
+                **package_document.get("dependencies", {}),
                 **package_document["devDependencies"],
             }.items()
         ),
@@ -615,14 +599,8 @@ notebook = ["anywidget==0.11.0"]
                 "lifecycle_scripts": script_inventory.get(lock_path, []),
             }
         )
-    assert len(locked_packages) == 111
+    assert len(locked_packages) == 103
     module_graph = [
-        {
-            "output": "mesh-view.mjs",
-            "input": "node_modules/three/build/three.module.js",
-            "package": "three",
-            "version": "0.185.1",
-        },
         {
             "output": "mesh-view.mjs",
             "input": "src/mesh-view.ts",
@@ -672,10 +650,6 @@ notebook = ["anywidget==0.11.0"]
             for path, payload in ASSET_BYTES.items()
         },
         "licenses": {
-            "three@0.185.1": {
-                "expression": "MIT",
-                "source_license_sha256": THREE_LICENSE_SHA256,
-            },
             "anywidget@0.11.0": {
                 "expression": "MIT",
                 "source_license_sha256": ANYWIDGET_LICENSE_SHA256,
@@ -684,7 +658,6 @@ notebook = ["anywidget==0.11.0"]
         "runtime": {
             "python": "3.13",
             "anywidget": "0.11.0",
-            "jupyterlab": "4.6.2",
             "marimo": "0.23.16",
             "anywidget_wheel_sha256": ANYWIDGET_WHEEL_SHA256,
             "resolved_environment_sha256": structured_sha256(python_wheels),
@@ -773,22 +746,7 @@ notebook = ["anywidget==0.11.0"]
             "diff": [],
         },
         "licenses": {
-            "components": [
-                {
-                    "package": "three",
-                    "version": "0.185.1",
-                    "license_expression": "MIT",
-                    "source_license_path": "node_modules/three/LICENSE",
-                    "source_license_sha256": THREE_LICENSE_SHA256,
-                    "emitted_outputs": ["mesh-view.mjs"],
-                }
-            ],
-            "notice_path": (
-                "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt"
-            ),
-            "notice_sha256": frontend["assets"][
-                "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt"
-            ]["sha256"],
+            "components": [],
             "unmapped_emitted_modules": [],
         },
         "browser": {
@@ -1613,11 +1571,9 @@ class CandidateManifestTests(unittest.TestCase):
             ("sdist-missing", "sdist", "missing"),
             ("sdist-empty", "sdist", "empty"),
             ("sdist-extra", "sdist", "extra"),
-            ("sdist-modified-notice", "sdist", "notice"),
             ("wheel-missing", "wheel", "missing"),
             ("wheel-empty", "wheel", "empty"),
             ("wheel-extra", "wheel", "extra"),
-            ("wheel-modified-notice", "wheel", "notice"),
         )
         for name, artifact_kind, mutation in cases:
             with (
@@ -1629,9 +1585,6 @@ class CandidateManifestTests(unittest.TestCase):
                     complete_v3_candidate_document(root)
                 )
                 asset = "eqiora/_presentation/static/mesh-view.css"
-                notice = (
-                    "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt"
-                )
                 if artifact_kind == "wheel":
                     wheel = artifacts / document["artifacts"][1]["filename"]
                     if mutation == "missing":
@@ -1653,10 +1606,6 @@ class CandidateManifestTests(unittest.TestCase):
                                 "eqiora/_presentation/static/unreviewed.js": b"x"
                             },
                         )
-                    else:
-                        _rewrite_wheel(
-                            wheel, extra_members={notice: b"changed notice"}
-                        )
                 else:
                     sdist = artifacts / document["artifacts"][0]["filename"]
                     prefix = "eqiora-0.1.0a1/bindings/python/python/"
@@ -1677,18 +1626,11 @@ class CandidateManifestTests(unittest.TestCase):
                                 f"{prefix}eqiora/_presentation/static/unreviewed.js": b"x"
                             },
                         )
-                    else:
-                        _rewrite_sdist(
-                            sdist,
-                            replace_members={
-                                f"{prefix}{notice}": b"changed notice"
-                            },
-                        )
                 _bind_receipt(
                     manifest, artifacts, document, receipt_path, receipt
                 )
 
-                with self.assertRaisesRegex(ManifestError, "asset|notice|inventory"):
+                with self.assertRaisesRegex(ManifestError, "asset|inventory"):
                     load_candidate_family(
                         manifest,
                         artifacts,
@@ -1762,7 +1704,7 @@ class CandidateManifestTests(unittest.TestCase):
                 "eqiora/_presentation/static/mesh-view.css"
             ].__setitem__("mode", 0o644),
             "license-expression": lambda frontend: frontend["licenses"][
-                "three@0.185.1"
+                "anywidget@0.11.0"
             ].__setitem__("expression", "Apache-2.0"),
             "license-hash": lambda frontend: frontend["licenses"][
                 "anywidget@0.11.0"
@@ -2231,10 +2173,10 @@ class CandidateManifestTests(unittest.TestCase):
             receipt["clean_run_1"]["external_request_count_after_npm_ci"] = 1
 
         def external(receipt: dict) -> None:
-            receipt["build"]["externals"] = ["three"]
+            receipt["build"]["externals"] = ["unlisted-renderer"]
 
         def unmapped_license(receipt: dict) -> None:
-            receipt["licenses"]["unmapped_emitted_modules"] = ["three"]
+            receipt["licenses"]["unmapped_emitted_modules"] = ["unlisted-renderer"]
 
         mutations = {
             "nonregistry": nonregistry,
@@ -2273,16 +2215,11 @@ class CandidateManifestTests(unittest.TestCase):
                         h2_receipt=receipt_path,
                     )
 
-    def test_assets_notices_licenses_browser_and_python_host_are_candidate_bound(
+    def test_assets_browser_and_python_host_are_candidate_bound(
         self,
     ) -> None:
         mutations = (
-            ("notice-hash", ("licenses", "notice_sha256"), "0" * 64),
-            (
-                "three-license",
-                ("licenses", "components", 0, "source_license_sha256"),
-                "0" * 64,
-            ),
+            ("unmapped-license", ("licenses", "unmapped_emitted_modules"), ["x"]),
             ("browser-revision", ("browser", "revision"), "1235"),
             ("browser-version", ("browser", "browser_version"), "0"),
             ("python", ("python_host", "python"), "3.12"),

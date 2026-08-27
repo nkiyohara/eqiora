@@ -44,7 +44,7 @@ test.describe("exact-cylinder steady-Stokes Marimo composition", () => {
 		await identity("eqiora-stokes-mesh-plan", "MeshPlan");
 		await identity("eqiora-stokes-mesh", "Mesh");
 		await identity("eqiora-stokes-model", "Model");
-		await identity("eqiora-stokes-plan", "SteadyStokesPlan");
+		await identity("eqiora-stokes-plan", "Plan");
 		const run = await identity("eqiora-stokes-run", "Run");
 		const result = await identity("eqiora-stokes-result", "Result");
 		const evidence = await identity("eqiora-stokes-evidence", "SteadyStokesEvidence");

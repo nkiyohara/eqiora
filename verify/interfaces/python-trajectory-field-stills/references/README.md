@@ -12,9 +12,8 @@ at revision `0bf2d2059499c98c70d811aca59e524a8c2a3b0c`.
 - `interfaces.python-fixed-reference-fsi-demo` and
   `fsi.fixed-reference-monolithic-step-2d` own the admitted trajectory's
   physics, solver values, partition, and lineage.
-- `interfaces.python-exact-cylinder-pressure-still` and
-  `interfaces.python-mixed-boundary-elasticity-demo` own the existing
-  presentation conventions this case reuses: explicit connectivity, captured
+- `interfaces.python-mixed-boundary-elasticity-demo` and ordinary installed
+  Matplotlib tests own the presentation conventions this case reuses: explicit connectivity, captured
   public renderer inputs, canonical unique undirected edges, an explicit
   visible scale, and a headless caller-owned Figure.
 - Matplotlib's public `tripcolor`, `LineCollection`, and `Figure` contracts own

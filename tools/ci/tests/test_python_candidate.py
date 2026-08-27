@@ -70,7 +70,7 @@ EXACT_WHEEL_PAYLOAD_SHA256 = {
 EXACT_WHEEL_MEMBER = "eqiora-0.1.0a1.dist-info/WHEEL"
 EXACT_RECORD_MEMBER = "eqiora-0.1.0a1.dist-info/RECORD"
 PLAYWRIGHT_CORE_LOCK_SHA256 = (
-    "37dc93bb47a5a4e2f4e50ffb80a231bdd6400193f61d87e99e376eb95fcf25bf"
+    "d739363f768ff874f025ae0e4e2e90f327454981bc8870c34739dea5178ef35e"
 )
 PLAYWRIGHT_CORE_PACKAGE_SHA256 = (
     "07c47543631fef9508760365dee9fbe958c562093ec8d122543949ed231f233f"
@@ -89,17 +89,9 @@ PLAYWRIGHT_CORE_URL = (
     "https://registry.npmjs.org/playwright-core/-/playwright-core-1.62.1.tgz"
 )
 INSTALL_SCRIPT_INVENTORY_SHA256 = (
-    "fbcb5664380f1ace34322bd129219741abdf9be79be17cb8861d57e2c6e4c4dc"
+    "c706e144c3250d27383c3e6799cdcc8ac0220c7dd1c7cc4a89e14953a0204503"
 )
 LIFECYCLE_SCRIPT_SOURCE_UNION = (
-    (
-        "node_modules/@tweenjs/tween.js",
-        "@tweenjs/tween.js",
-        "23.1.3",
-        "prepare",
-        "npm run build",
-        ("packument", "tarball"),
-    ),
     (
         "node_modules/fsevents",
         "fsevents",
@@ -195,12 +187,10 @@ CONTENT_BOUND_RESOURCE_LIMITS = {
 }
 NOTEBOOK_PROFILE_CHECKS = (
     "frontend:lock-integrity",
-    "frontend:license-notices",
+    "frontend:license-inventory",
     "frontend:bundle-byte-rebuild",
     "wheel-family:notebook-metadata",
     "cp313:notebook-anywidget-0.11.0",
-    "cp313:jupyterlab-4.6.2-bare-mesh",
-    "cp313:marimo-0.23.16-bare-mesh",
     "cp313:marimo-0.23.16-exact-cylinder-stokes",
     "cp313:notebook-managed-chromium-r1234",
     "cp313:notebook-no-external-network",
@@ -778,7 +768,6 @@ N1 candidate
         notebook_assets = {
             "eqiora/_presentation/static/mesh-view.mjs": b"module\n",
             "eqiora/_presentation/static/mesh-view.css": b"style\n",
-            "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt": b"notice\n",
         }
         with tempfile.TemporaryDirectory() as temporary:
             wheel = Path(temporary) / exact_wheel_name("313")
@@ -1316,7 +1305,6 @@ N1 candidate
         expected = {
             "eqiora/_presentation/static/mesh-view.mjs": b"module\n",
             "eqiora/_presentation/static/mesh-view.css": b"style\n",
-            "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt": b"notice\n",
         }
         for mutation in ("missing", "empty", "extra", "modified"):
             with (
@@ -1563,9 +1551,8 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         gmsh_tests = tuple(
             tests / name
             for name in (
-                "test_circular_hole_chordal_mesh.py",
+                "test_gmsh_meshing.py",
                 "test_exact_cylinder_stokes_result.py",
-                "test_rich_mesh_display.py",
             )
         )
         gmsh_path = str(python.parent)
@@ -1607,8 +1594,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                         str(gmsh_tests[0]),
                         "--ignore",
                         str(gmsh_tests[1]),
-                        "--ignore",
-                        str(gmsh_tests[2]),
                     ],
                     cwd=workspace.consumer,
                 ),
@@ -2606,9 +2591,9 @@ write(JSON.stringify({calls,output,failure}));
                     "sha256": "c" * 64,
                 },
                 {
-                    "name": "jupyterlab",
-                    "version": "4.6.2",
-                    "filename": "jupyterlab-4.6.2-py3-none-any.whl",
+                    "name": "marimo",
+                    "version": "0.23.16",
+                    "filename": "marimo-0.23.16-py3-none-any.whl",
                     "sha256": "d" * 64,
                 },
             ),
@@ -2624,10 +2609,10 @@ write(JSON.stringify({calls,output,failure}));
                     },
                 ),
                 (
-                    "node_modules/three",
+                    "node_modules/unlisted-renderer",
                     {
-                        "name": "three",
-                        "version": "0.185.1",
+                        "name": "unlisted-renderer",
+                        "version": "9.9.9",
                         "description": "unchanged-manifest-peer-雪",
                     },
                 ),
@@ -2654,14 +2639,14 @@ write(JSON.stringify({calls,output,failure}));
                     },
                 ),
                 (
-                    "three",
+                    "unlisted-renderer",
                     {
-                        "name": "three",
+                        "name": "unlisted-renderer",
                         "description": "unchanged-packument-peer-雪",
                         "versions": {
-                            "0.185.1": {
-                                "name": "three",
-                                "version": "0.185.1",
+                            "9.9.9": {
+                                "name": "unlisted-renderer",
+                                "version": "9.9.9",
                             }
                         },
                     },
@@ -2903,7 +2888,7 @@ write(JSON.stringify({calls,output,failure}));
             }
             for item in locked
         ]
-        self.assertEqual(len(locked), 111)
+        self.assertEqual(len(locked), 103)
         self.assertEqual(len(locked), len(lock["packages"]) - 1)
         self.assertEqual(observed_inventory, expected_inventory)
         self.assertEqual(
@@ -3309,9 +3294,7 @@ write(JSON.stringify({calls,output,failure}));
                     2,
                 )
             for exact_host in (
-                ("-I", "-m", "jupyter", "lab"),
                 ("-I", "-m", "marimo", "run"),
-                ("npm", "run", "test:hosts", "--", "--project=jupyterlab-4.6.2"),
                 ("npm", "run", "test:hosts", "--", "--project=marimo-0.23.16"),
             ):
                 self.assertTrue(
@@ -5215,11 +5198,6 @@ write(JSON.stringify({calls,output,failure}));
                 ).hexdigest()
             }
             extracted = root / "extracted"
-            test_source = extracted / "bindings/python/tests/test_rich_mesh_display.py"
-            test_source.parent.mkdir(parents=True)
-            test_source.write_text(
-                "def test_placeholder():\n    pass\n", encoding="utf-8"
-            )
             exact_app = (
                 extracted / python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_APP
             )
@@ -5385,7 +5363,7 @@ write(JSON.stringify({calls,output,failure}));
             write.assert_not_called()
             self.assertEqual(
                 emitted,
-                list(NOTEBOOK_PROFILE_CHECKS[:7]),
+                list(NOTEBOOK_PROFILE_CHECKS[:5]),
             )
             self.assertIn(
                 (
@@ -5406,43 +5384,27 @@ write(JSON.stringify({calls,output,failure}));
                     f"{root / 'candidate.whl'}[gmsh,matplotlib,notebook]",
                     python_candidate_module.load_config().pytest,
                     "anywidget==0.11.0",
-                    "jupyterlab==4.6.2",
                     "marimo==0.23.16",
                 ],
                 run=checked,
             )
-            rich_runs = [
-                kwargs
-                for command, kwargs in run_calls
-                if command[2:5] == ("-m", "pytest", "-q")
-            ]
-            self.assertEqual(len(rich_runs), 1)
             popen_calls = popen.call_args_list
-            self.assertEqual(len(popen_calls), 3)
+            self.assertEqual(len(popen_calls), 1)
             self.assertEqual(
                 [tuple(call.args[0][2:5]) for call in popen_calls],
-                [
-                    ("-m", "jupyter", "lab"),
-                    ("-m", "marimo", "run"),
-                    ("-m", "marimo", "run"),
-                ],
+                [("-m", "marimo", "run")],
             )
+            self.assertEqual([call.args[0][0] for call in popen_calls], [str(python)])
             self.assertEqual(
-                [call.args[0][0] for call in popen_calls], [str(python)] * 3
-            )
-            self.assertEqual(
-                popen_calls[2].kwargs["cwd"],
+                popen_calls[0].kwargs["cwd"],
                 workspace.root / "exact-cylinder-stokes-marimo-positive",
             )
             expected_gmsh = str(
                 python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
             )
             environments = [
-                ("rich-mesh-pytest", rich_runs[0].get("extra_environment") or {}),
-                *(
-                    (f"host-popen-{index}", call.kwargs["env"])
-                    for index, call in enumerate(popen_calls)
-                ),
+                (f"host-popen-{index}", call.kwargs["env"])
+                for index, call in enumerate(popen_calls)
             ]
             for surface, environment in environments:
                 with self.subTest(notebook_environment=surface):
@@ -6596,19 +6558,17 @@ write(JSON.stringify({calls,output,failure}));
         executor = importlib.import_module("python_candidate_h2")
         notebook_checks = (
             "frontend:lock-integrity",
-            "frontend:license-notices",
+            "frontend:license-inventory",
             "frontend:bundle-byte-rebuild",
             "wheel-family:notebook-metadata",
             "cp313:notebook-anywidget-0.11.0",
-            "cp313:jupyterlab-4.6.2-bare-mesh",
-            "cp313:marimo-0.23.16-bare-mesh",
             "cp313:marimo-0.23.16-exact-cylinder-stokes",
             "cp313:notebook-managed-chromium-r1234",
             "cp313:notebook-no-external-network",
             "cp313:notebook-cleanup-and-mutation",
         )
-        dependent = notebook_checks[7:]
-        for omitted in notebook_checks[5:7]:
+        dependent = notebook_checks[6:]
+        for omitted in notebook_checks[5:6]:
             with (
                 self.subTest(omitted_host=omitted),
                 tempfile.TemporaryDirectory(dir=Path.home()) as temporary,
@@ -7312,12 +7272,10 @@ write(JSON.stringify({calls,output,failure}));
         profiles = importlib.import_module("python_candidate_profiles")
         check_names = (
             "frontend:lock-integrity",
-            "frontend:license-notices",
+            "frontend:license-inventory",
             "frontend:bundle-byte-rebuild",
             "wheel-family:notebook-metadata",
             "cp313:notebook-anywidget-0.11.0",
-            "cp313:jupyterlab-4.6.2-bare-mesh",
-            "cp313:marimo-0.23.16-bare-mesh",
             "cp313:marimo-0.23.16-exact-cylinder-stokes",
             "cp313:notebook-managed-chromium-r1234",
             "cp313:notebook-no-external-network",
@@ -7375,10 +7333,10 @@ class NotebookOwnedProcessDecisionTests(unittest.TestCase):
     The private decision seam consumes only observations fixed by the accepted
     Issue contract. Process discovery, stable handles, and signalling remain
     implementation choices. The registered installed-wheel profile, not these
-    synthetic inputs, owns the real JupyterLab and marimo positive.
+    synthetic inputs, owns the real marimo positive.
     """
 
-    SCENARIO = "jupyterlab-4.6.2"
+    SCENARIO = "marimo-0.23.16"
     DECISION_PARAMETERS = (
         "scenario",
         "primary_error",
@@ -7681,7 +7639,7 @@ class NotebookOwnedProcessDecisionTests(unittest.TestCase):
 
         reused_pid = dict(expected, start_time=121)
         foreign_role = dict(expected, role="foreign")
-        foreign_scenario = dict(expected, scenario="marimo-0.23.16")
+        foreign_scenario = dict(expected, scenario="foreign-notebook-host")
         for observed in (reused_pid, foreign_role, foreign_scenario, None):
             with self.subTest(observed=observed):
                 self.assertFalse(matches(expected=expected, observed=observed))
@@ -8056,12 +8014,12 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             identity_checks,
             [
                 (
-                    ("jupyterlab-4.6.2", "kernel", 4102, 908_172),
-                    ("jupyterlab-4.6.2", "kernel", 4102, 908_172),
+                    ("marimo-0.23.16", "kernel", 4102, 908_172),
+                    ("marimo-0.23.16", "kernel", 4102, 908_172),
                 ),
                 (
-                    ("jupyterlab-4.6.2", "kernel", 4102, 908_172),
-                    ("jupyterlab-4.6.2", "foreign", 4102, 908_173),
+                    ("marimo-0.23.16", "kernel", 4102, 908_172),
+                    ("marimo-0.23.16", "foreign", 4102, 908_173),
                 ),
             ],
         )
@@ -8196,10 +8154,14 @@ while True:
         fixture = extracted / "bindings/python/tests/fixtures/host.ipynb"
         fixture.parent.mkdir(parents=True)
         fixture.write_text("{}", encoding="utf-8")
-        rich_test = extracted / "bindings/python/tests/test_rich_mesh_display.py"
-        rich_test.parent.mkdir(parents=True, exist_ok=True)
-        rich_test.write_text("def test_placeholder():\n    pass\n", encoding="utf-8")
-
+        exact_app = extracted / python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_APP
+        exact_app.parent.mkdir(parents=True, exist_ok=True)
+        exact_app.write_text("import marimo\n", encoding="utf-8")
+        exact_mutant = (
+            extracted / python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_MUTANT
+        )
+        exact_mutant.parent.mkdir(parents=True, exist_ok=True)
+        exact_mutant.write_text("raise RuntimeError\n", encoding="utf-8")
         browser = root / "browser"
         browser.write_bytes(b"browser")
         npm = root / "npm"
@@ -8358,6 +8320,12 @@ while True:
             if tuple(argv[:4]) == ("npm", "run", "test:hosts", "--"):
                 if operation_error is not None:
                     raise operation_error
+            if any(Path(value).name == exact_mutant.name for value in argv):
+                raise subprocess.CalledProcessError(
+                    1,
+                    argv,
+                    output=python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_MUTANT_FAILURE,
+                )
             return ""
 
         def run_first_host(

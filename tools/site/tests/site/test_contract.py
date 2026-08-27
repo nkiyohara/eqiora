@@ -210,10 +210,6 @@ class CompleteContractTests(unittest.TestCase):
             case = artifact / "gallery/exact-cylinder-steady-stokes/index.html"
             raw = case.read_text(encoding="utf-8")
             self.assertIn(WITNESS_COPY, raw)
-            self.assertIn(
-                "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
-                raw,
-            )
             self.assertNotIn("104-triangle", raw)
             self.assertNotIn(
                 "verify/fluid/exact-circular-hole-stokes-2d/README.md",
@@ -229,25 +225,15 @@ class CompleteContractTests(unittest.TestCase):
 
     def test_01_exact_gmsh_publication_boundary_mutants_fail(self) -> None:
         mutations = {
-            "stale 104-triangle figure alt": (
+            "fixed-mesh figure alt": (
                 PRESSURE_ALT,
-                PRESSURE_ALT.replace("1,210-triangle", "104-triangle"),
-            ),
-            "stale reference-science attribution": (
-                "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
-                "verify/fluid/exact-circular-hole-stokes-2d/README.md",
+                PRESSURE_ALT.replace("current Gmsh mesh", "fixed Gmsh mesh"),
             ),
             "omitted Gmsh and interior-mesh boundary": (
                 WITNESS_COPY,
-                "Accepted mesh witness: 662 vertices, 1,210 affine triangles, "
-                "114 boundary facets partitioned inlet/outlet/walls/cylinder = "
-                "14/2/48/50.",
+                "The current Gmsh output is a fixed mesh and scientific oracle.",
             ),
         }
-        self.assertIn(
-            "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
-            CASE_EVIDENCE_PATHS,
-        )
         for label, (accepted, mutant) in mutations.items():
             with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)

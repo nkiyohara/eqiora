@@ -183,17 +183,6 @@ class CadAuthoredGraph:
         *,
         boolean_tolerance: float,
     ) -> CadAuthoredGraph: ...
-    def planar_circular_section(
-        self,
-        *,
-        classification_tolerance: float,
-        region: str,
-        x_lower: str,
-        x_upper: str,
-        y_lower: str,
-        y_upper: str,
-        hole: str,
-    ) -> Geometry: ...
     @property
     def canonical_bytes(self) -> bytes: ...
     @property

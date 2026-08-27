@@ -12,7 +12,7 @@ capabilities = [
 
 [problem]
 geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one radius-0.05 m circle centred at [0.2, 0.2] m"
-constructor = "CadAuthoredGraph.circular_through_cut(...).planar_circular_section(...) -> eqiora.geometry.Geometry"
+constructor = "GeometryGraph.rectangle/circle/subtract/build(exact handles) -> eqiora.geometry.Geometry"
 canonical_source = "examples/steady-flow-past-cylinder.geometry.json"
 region = "fluid, exact topological dimension 2"
 boundaries = "inlet, outlet, walls, and cylinder, exact topological dimension 1"

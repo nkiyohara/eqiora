@@ -204,13 +204,19 @@ fn transition_current_identities() -> BTreeSet<String> {
     let typed: Value = serde_json::from_slice(RETIRED_TYPED_EXECUTION_IDENTITIES).unwrap();
     [
         offline[concat!("model_", "digest")].as_str().unwrap(),
-        offline["edges"].as_array().unwrap().iter()
+        offline["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
             .find(|edge| edge["artifact"] == "compilation.json")
-            .and_then(|edge| edge["digest"].as_str()).unwrap(),
+            .and_then(|edge| edge["digest"].as_str())
+            .unwrap(),
         typed[concat!("model_", "sha256")].as_str().unwrap(),
         typed["package_compilation_sha256"].as_str().unwrap(),
     ]
-        .into_iter().map(str::to_owned).collect()
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
 }
 
 fn all_transition_current_artifact_identities() -> BTreeSet<String> {

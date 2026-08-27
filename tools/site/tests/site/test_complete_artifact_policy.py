@@ -23,26 +23,22 @@ LINE_RANGE_FRAGMENT = "1-325"
 BRAND_PATH = "/assets/eqiora-mark.BN8rmEAl.svg"
 PRESSURE_PATH = "/assets/exact-cylinder-pressure.C0ffee42.png"
 PRESSURE_ALT = (
-    "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder "
-    "demonstration, shown with a viridis color scale and the 1,210-triangle "
-    "affine mesh overlaid. Presentation image only; linked Result evidence "
-    "carries the numerical claim."
+    "Pressure in pascals for a 2D steady-Stokes exact-cylinder demonstration, "
+    "shown with a viridis color scale and its current Gmsh mesh overlaid. "
+    "Presentation image only; no numerical or mesh-output oracle."
 )
 PRESSURE_CAPTION = (
     "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at "
     "ea5f69a9ed6d9152912f905a75462bbf71cf7d99; presentation only, not validation."
 )
 PUBLIC_CLAIM = (
-    "One frozen 2D steady incompressible Stokes exact-cylinder demonstration on "
-    "the accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine "
-    "triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = "
-    "14/2/48/50, and 548 interior vertices; rendered from its accepted public "
-    "Result path and linked evidence."
+    "One presentation-only 2D steady incompressible Stokes exact-cylinder "
+    "demonstration rendered through exact Geometry, typed Gmsh policy, and the "
+    "root Result path; output counts, digests, numerical values, and pixels are "
+    "not independently verified."
 )
 WITNESS_COPY = (
-    "Accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine "
-    "triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = "
-    "14/2/48/50, and 548 interior vertices."
+    "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
 )
 RENDERED_SOURCE_SENTENCE = (
     "This website is a curated projection, not a parallel specification. "
@@ -63,12 +59,8 @@ SOURCE_PATHS = (
 EVIDENCE_PATHS = (
     "verify/artifacts/current-model-canonical-identity/README.md",
     "verify/fluid/packaged-steady-stokes-2d/README.md",
-    "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
     "verify/geometry/exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-circular-hole-chordal-mesh/README.md",
     "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-exact-cylinder-stokes-result/README.md",
-    "verify/interfaces/python-exact-cylinder-pressure-still/README.md",
     "verify/interfaces/python-exact-cylinder-stokes-marimo/README.md",
 )
 STAGES = (
@@ -238,11 +230,6 @@ def _case_body() -> str:
         links.append(_exact_link(relative, label))
     for relative in EVIDENCE_PATHS:
         label = Path(relative).parent.name + " dossier"
-        if (
-            relative
-            == "verify/interfaces/python-exact-cylinder-stokes-result/README.md"
-        ):
-            label = "Registered Plan-and-Run dossier"
         links.append(_exact_link(relative, label))
 
     sentinel = _exact_link(
@@ -276,21 +263,11 @@ relation incompressibility continuous on body {
         + links[
             len(SOURCE_PATHS)
             + EVIDENCE_PATHS.index(
-                "verify/interfaces/python-exact-cylinder-stokes-result/README.md"
+                "verify/interfaces/python-exact-cylinder-stokes-marimo/README.md"
             )
         ],
         f'<figure><img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}"><figcaption>'
-        f"{PRESSURE_CAPTION} "
-        + _exact_link(
-            "verify/interfaces/python-exact-cylinder-stokes-result/README.md",
-            "Result evidence",
-        )
-        + " "
-        + _exact_link(
-            "verify/interfaces/python-exact-cylinder-pressure-still/README.md",
-            "Pressure-still presentation case",
-        )
-        + "</figcaption></figure>",
+        f"{PRESSURE_CAPTION}</figcaption></figure>",
         f"<p>{PUBLIC_CLAIM}</p><p>{' '.join(NONCLAIMS)}</p>" + " ".join(links),
     )
     sections = "".join(
@@ -658,21 +635,9 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             lambda artifact: _replace(
                 artifact / case,
                 WITNESS_COPY,
-                "Accepted mesh witness: 662 vertices, 1,210 affine triangles, "
-                "114 boundary facets partitioned inlet/outlet/walls/cylinder = "
-                "14/2/48/50.",
+                "The current Gmsh output is a fixed mesh and scientific oracle.",
             ),
             "Cylinder route omits the accepted exact Gmsh CLI 4.15.2 mesh witness",
-        )
-        reject(
-            "old reference science replaces Gmsh evidence",
-            lambda artifact: _replace(
-                artifact / case,
-                "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
-                "verify/fluid/exact-circular-hole-stokes-2d/README.md",
-            ),
-            "Cylinder route omits exact-head source/evidence link "
-            "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
         )
         inline_math = _math("H")
         reject(

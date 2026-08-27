@@ -548,7 +548,9 @@ def build_plan(
         )
         if tier == "affected" and surfaces["rust"] and not direct:
             selected_packages = set(packages)
-        cases = changed_case_ids(paths).union(explicit_cases)
+        cases = changed_case_ids(paths).intersection(all_case_ids(root)).union(
+            explicit_cases
+        )
         ci_contract_lane = (
             ROOT_CARGO_LANE
             if "interfaces.python-distribution-candidate" in cases

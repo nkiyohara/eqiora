@@ -44,7 +44,7 @@ def cylinder() -> tuple[eqiora.Plan, eqiora.Result]:
             "cylinder": circle.boundaries[0],
         },
     )
-    request = eqiora.meshing.ReferenceMesher(
+    request = eqiora.meshing.GmshMesher(
             maximum_boundary_error=1.0e-4,
             minimum_mean_ratio=1.0e-5,
             maximum_boundary_facets=50,

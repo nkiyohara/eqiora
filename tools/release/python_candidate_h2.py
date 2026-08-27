@@ -40,7 +40,6 @@ ROOT = Path(__file__).resolve().parents[2]
 FRONTEND = Path("bindings/python/frontend")
 STATIC = Path("bindings/python/python/eqiora/_presentation/static")
 ASSET_PATHS = (
-    "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt",
     "eqiora/_presentation/static/mesh-view.css",
     "eqiora/_presentation/static/mesh-view.mjs",
 )
@@ -58,9 +57,6 @@ ANYWIDGET_WHEEL_SHA256 = (
 )
 ANYWIDGET_LICENSE_SHA256 = (
     "22c698b6e5f3878c292471980ffd352ee0fad053f9428c2281f34b5e28a6151f"
-)
-THREE_LICENSE_SHA256 = (
-    "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
 )
 BROWSERS_JSON_SHA256 = (
     "f306eed529599b1eaf2f8a85db9de2b23e1a3fe36c2b66434b7c9434fb627a99"
@@ -142,8 +138,6 @@ CONTENT_BOUND_RESOURCE_LIMITS = {
     "byte_steps": ABSTRACT_BYTE_STEPS_LIMIT,
 }
 DIRECT_PINS = {
-    "three": "0.185.1",
-    "@types/three": "0.185.4",
     "@anywidget/types": "0.4.0",
     "typescript": "7.0.2",
     "vite": "8.2.0",
@@ -903,10 +897,6 @@ def _stage_frontend_assets(extracted: Path, workspace: H2Workspace) -> None:
         if source.is_symlink() or not source.is_file():
             raise CandidateError(f"H2 Vite output is not one regular file: {name}")
         os.replace(source, destination / name)
-    notice = extracted / STATIC / "THIRD_PARTY_NOTICES.txt"
-    if notice.is_symlink() or not notice.is_file():
-        raise CandidateError("retained sdist omits the frontend third-party notice")
-    shutil.copy2(notice, destination / notice.name)
 
 
 def _clean_environment(extra: dict[str, str]) -> dict[str, str]:
@@ -1204,7 +1194,6 @@ def _acquire_python_wheels(
             "--dest",
             str(destination),
             "anywidget==0.11.0",
-            "jupyterlab==4.6.2",
             "marimo==0.23.16",
         ],
         cwd=workspace.root,
@@ -1247,7 +1236,7 @@ def _acquire_python_wheels(
             if version != "0.11.0" or file_sha256(path) != ANYWIDGET_WHEEL_SHA256:
                 raise CandidateError("H2 anywidget wheel identity differs")
             anywidget_license = license_sha
-    if not {"anywidget", "jupyterlab", "marimo"}.issubset(names):
+    if not {"anywidget", "marimo"}.issubset(names):
         raise CandidateError("H2 Python host resolution omits a frozen direct input")
     if anywidget_license != ANYWIDGET_LICENSE_SHA256:
         raise CandidateError("H2 anywidget license identity differs")
@@ -1841,10 +1830,10 @@ def _frontend_inputs(
         "engines"
     ) != {"node": "24.18.1"}:
         raise CandidateError("H2 frontend package manager identity differs")
-    dependencies = package.get("dependencies")
+    dependencies = package.get("dependencies", {})
     dev_dependencies = package.get("devDependencies")
     if (
-        dependencies != {"three": "0.185.1"}
+        dependencies != {}
         or not isinstance(dev_dependencies, dict)
         or {**dependencies, **dev_dependencies} != DIRECT_PINS
     ):
@@ -1861,7 +1850,7 @@ def _frontend_inputs(
     root_lock = lock["packages"].get("")
     if (
         not isinstance(root_lock, dict)
-        or root_lock.get("dependencies") != dependencies
+        or root_lock.get("dependencies", {}) != dependencies
         or root_lock.get("devDependencies") != dev_dependencies
     ):
         raise CandidateError("H2 frontend lock root differs from package.json")
@@ -2047,7 +2036,7 @@ def _module_graph(
             _utf8(str(item[key])) for key in ("output", "input", "package", "version")
         )
     )
-    if not records or {item["package"] for item in records} - {"eqiora", "three"}:
+    if not records or {item["package"] for item in records} != {"eqiora"}:
         raise CandidateError("H2 emitted module graph contains an unreviewed package")
     return tuple(records)
 
@@ -2236,15 +2225,6 @@ def observe_h2(
         runs[0].acquisition.package_packuments,
     )
     graph = _module_graph(workspaces[0], family.version)
-    three_license = workspaces[0].installation / "three/LICENSE"
-    if file_sha256(three_license) != THREE_LICENSE_SHA256:
-        raise CandidateError("H2 Three.js license identity differs")
-    notice = extracted / STATIC / "THIRD_PARTY_NOTICES.txt"
-    notice_bytes = notice.read_bytes()
-    if three_license.read_bytes() not in notice_bytes:
-        raise CandidateError(
-            "H2 notice does not reproduce the emitted Three.js license"
-        )
     libc_name, libc_version = platform.libc_ver()
     if (
         platform.system() != "Linux"
@@ -2321,18 +2301,7 @@ def observe_h2(
             "diff": [],
         },
         "licenses": {
-            "components": [
-                {
-                    "package": "three",
-                    "version": "0.185.1",
-                    "license_expression": "MIT",
-                    "source_license_path": "node_modules/three/LICENSE",
-                    "source_license_sha256": THREE_LICENSE_SHA256,
-                    "emitted_outputs": ["eqiora/_presentation/static/mesh-view.mjs"],
-                }
-            ],
-            "notice_path": "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt",
-            "notice_sha256": file_sha256(notice),
+            "components": [],
             "unmapped_emitted_modules": [],
         },
         "browser": {
@@ -2682,16 +2651,14 @@ def validate_h2_receipt(receipt: object) -> None:
         raise CandidateError("H2 receipt comparison is not exact equality")
     licenses = _keys(
         root["licenses"],
-        ("components", "notice_path", "notice_sha256", "unmapped_emitted_modules"),
+        ("components", "unmapped_emitted_modules"),
         "licenses",
     )
-    _relative_path(licenses["notice_path"])
-    if (
-        SHA256_RE.fullmatch(licenses["notice_sha256"]) is None
-        or licenses["unmapped_emitted_modules"] != []
-    ):
-        raise CandidateError("H2 receipt notice or mapping differs")
+    if licenses["unmapped_emitted_modules"] != []:
+        raise CandidateError("H2 receipt module mapping differs")
     components = _array(licenses["components"], "licenses.components")
+    if components:
+        raise CandidateError("H2 receipt emitted module licenses are not empty")
     for item in components:
         value = _keys(
             item,

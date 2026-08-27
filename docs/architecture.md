@@ -736,22 +736,14 @@ blocking. Scalar-elliptic execution exposes its accepted-boundary progress and
 cancellation contract; common ODE execution claims neither rather than
 fabricating a boundary.
 
-A separate bounded spatial path projects one typed `ScalarElliptic` request to
-the existing public application service. Allocation-free preview resolves the
-request against the exact Model and host-serial capability profile, then
-returns an opaque model-bound `Realization`; Python never mirrors the portable
-Realization graph or backend configuration. This decision precedes mesh,
-matrix, and solver allocation. Synchronous and awaitable execution replay that
-exact accepted plan through the same worker and return the complete accepted
-primary Field, balance, and independently verified linear-solve summaries.
-Three exact application phases report plan replay, finalized-system handoff,
-and accepted solution. Cancellation at any phase publishes no partial Result;
-the solve between the final two phases remains one atomic interval with no
-inferred percentage. Its persisted
-`RunManifestV2` records exact Model/Realization identity and actual execution
-provenance. The exact accepted-output fingerprint remains an L2 execution
-receipt rather than a durable Artifact digest, so the manifest output set is
-empty.
+The public spatial path is the physics-independent root resolver. A caller
+supplies one exact Model, its caller-owned Mesh, and typed spatial, solve,
+scaling, and temporal policies; resolution returns one Model-bound common
+`Plan`. Physics is recognized only from the Model. Synchronous and awaitable
+execution consume that Plan through the same worker and publish one common
+`Result`; typed physics observations project only from the exactly paired
+native execution output. Specialized scalar, fluid, and solid requests and
+model-plus-plan execution overloads are absent.
 
 These slices claim ordinary-GIL CPython 3.11--3.14, lazily materialized dense
 CPU NumPy for common explicit-ODE series and complete 1D--3D generated-

@@ -9,10 +9,6 @@ function exactLoopbackUrl(environmentName: string, fallback: string): string {
   return url.href;
 }
 
-const jupyterlabUrl = exactLoopbackUrl(
-  "EQIORA_JUPYTERLAB_URL",
-  "http://127.0.0.1:18888/lab/tree/bindings/python/tests/fixtures/rich_mesh_display/jupyterlab.ipynb",
-);
 const marimoUrl = exactLoopbackUrl("EQIORA_MARIMO_URL", "http://127.0.0.1:18889/");
 
 export default defineConfig({
@@ -38,10 +34,6 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    {
-      name: "jupyterlab-4.6.2",
-      use: { baseURL: jupyterlabUrl },
-    },
     {
       name: "marimo-0.23.16",
       use: { baseURL: marimoUrl },

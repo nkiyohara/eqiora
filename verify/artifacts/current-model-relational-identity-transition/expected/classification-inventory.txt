@@ -284,9 +284,6 @@ verify/interfaces/control-plane-compile-check/oracle/v2/schema/compile-v2.schema
 verify/interfaces/current-authoring-profile/case.toml
 verify/interfaces/current-authoring-profile/expected/profile.json
 verify/interfaces/python-control-plane/references/README.md
-verify/interfaces/python-exact-cylinder-stokes-result/README.md
-verify/interfaces/python-exact-cylinder-stokes-result/case.toml
-verify/interfaces/python-exact-cylinder-stokes-result/models/README.md
 verify/interfaces/python-fixed-reference-fsi-demo/case.toml
 verify/interfaces/studio-fixed-reference-fsi-demo/README.md
 verify/interfaces/studio-fixed-reference-fsi-demo/models/README.md

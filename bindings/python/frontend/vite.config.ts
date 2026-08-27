@@ -7,7 +7,7 @@ function includeStyles(): Plugin {
 		enforce: "pre",
 		transform(source, id) {
 			return id === entry
-				? `import "./mesh-view.css";\nimport "./trajectory-view.css";\n${source}`
+				? `import "./trajectory-view.css";\n${source}`
 				: undefined;
 		},
 	};

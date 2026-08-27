@@ -112,7 +112,7 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
     assert isinstance(result.fields, list)
     assert result.fields == [series]
     assert len(result) == 1
-    assert result.snapshots == ()
+    assert not hasattr(result, "snapshots")
     assert series.dimension == (0, 0, 0, 0, 0, 0, 0)
     time = series.time.numpy(copy=False)
     values = series.values.numpy(copy=False)
@@ -129,12 +129,10 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
     assert copied is not values
     assert copied.flags.writeable
 
-    with pytest.raises(KeyError):
-        result.field(field)
+    assert not hasattr(result, "field")
     with pytest.raises(KeyError):
         result.mesh(field)
-    with pytest.raises(eqiora.CapabilityError):
-        result.run_manifest()
+    assert not hasattr(result, "run_manifest")
     with pytest.raises(eqiora.CapabilityError):
         eqiora.fluid.steady_stokes_evidence(result)
 

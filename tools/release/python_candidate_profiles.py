@@ -62,10 +62,6 @@ PYTHON_TEST_RESOURCES = (
         "verify/fluid/flow-past-cylinder-mesh-family-private/"
         "references/primary-l0.msh"
     ),
-    Path(
-        "verify/fluid/exact-circular-hole-stokes-2d-gmsh/"
-        "routes/python/geometry.geo"
-    ),
 )
 
 COMPLETE_PROFILE_NAMES = (
@@ -84,12 +80,10 @@ COMPLETE_PROFILE_NAMES = (
 
 NOTEBOOK_CHECK_NAMES = (
     "frontend:lock-integrity",
-    "frontend:license-notices",
+    "frontend:license-inventory",
     "frontend:bundle-byte-rebuild",
     "wheel-family:notebook-metadata",
     "cp313:notebook-anywidget-0.11.0",
-    "cp313:jupyterlab-4.6.2-bare-mesh",
-    "cp313:marimo-0.23.16-bare-mesh",
     "cp313:marimo-0.23.16-exact-cylinder-stokes",
     "cp313:notebook-managed-chromium-r1234",
     "cp313:notebook-no-external-network",
@@ -530,9 +524,8 @@ def run_base_profile(
     gmsh_tests = tuple(
         tests / name
         for name in (
-            "test_circular_hole_chordal_mesh.py",
+            "test_gmsh_meshing.py",
             "test_exact_cylinder_stokes_result.py",
-            "test_rich_mesh_display.py",
         )
     )
     run(

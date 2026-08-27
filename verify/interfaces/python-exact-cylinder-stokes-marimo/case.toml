@@ -1,11 +1,11 @@
 id = "interfaces.python-exact-cylinder-stokes-marimo"
 status = "verified"
-scope = "installed-python-one-exact-cylinder-steady-stokes-marimo-composition"
-reference_kind = "accepted-owner-composition-plus-clean-candidate-marimo-reachability"
+scope = "installed-python-one-exact-cylinder-root-plan-marimo-composition"
+reference_kind = "current-product-composition-plus-clean-candidate-marimo-reachability"
 
 capabilities = [
   "python-exact-cylinder-steady-stokes-marimo-app",
-  "python-installed-candidate-marimo-scientific-composition",
+  "python-installed-candidate-marimo-root-plan-composition",
   "python-typed-stokes-summary-and-pressure-figure-flow",
 ]
 
@@ -21,16 +21,14 @@ application = "examples/python/exact_cylinder_stokes_marimo.py"
 entry = "marimo 0.23.16 checked-in Python application"
 environment = "exact Linux x86-64 CPython 3.13 candidate notebook profile"
 package = "one non-editable installed eqiora candidate with its exact notebook and Matplotlib extras"
-model = "installed eqiora/examples/steady-flow-past-cylinder.model.json package resource"
-composition = "exact Geometry -> typed mesh provider -> MeshPlan -> Mesh -> Model -> root Plan -> one Run -> common Result"
+model = "installed eqiora/examples/steady-flow-past-cylinder.eqi compiled with the caller Geometry"
+composition = "exact Geometry -> typed Gmsh provider -> MeshPlan -> Mesh -> compile component source -> Model -> root Plan -> one Run -> common Result"
 presentation = "typed identity and evidence summary plus the existing caller-owned pressure Figure"
 
 [oracle]
 geometry = "interfaces.python-exact-circular-hole-geometry"
-mesh = "interfaces.python-circular-hole-chordal-mesh"
-run_result_and_evidence = "interfaces.python-exact-cylinder-stokes-result"
-pressure_figure = "interfaces.python-exact-cylinder-pressure-still"
-science = "fluid.exact-circular-hole-stokes-2d-gmsh"
+product_path = "ordinary installed tests cover typed Gmsh meshing, root Plan execution, common Result output, and Matplotlib projection"
+registered_science = "none; the retired fixed-mesh dossiers grant no claim to current Gmsh output"
 new_scientific_values = false
 new_tolerances = false
 new_image_baseline = false
@@ -41,7 +39,7 @@ source = "exact canonical-app occurrence checks plus one precommitted repository
 canonical_checked_in_application = true
 discoverable_from_examples_readme = true
 installed_eqiora_import_only = true
-installed_model_resource_only = true
+installed_component_source_only = true
 exact_repository_example_helper_absent = true
 direct_call_inventory = "eqiora.submit=1; attribute .result=1; eqiora.run=0"
 geometry_mesh_plan_mesh_model_plan_run_result_types_visible = true
@@ -61,9 +59,9 @@ ordinary_positive_path_precedes_falsifiers = true
 missing_application = "source oracle rejects before candidate construction"
 repository_example_helper = "after the ordinary live app succeeds, the exact mutant importing examples.python.exact_cylinder_stokes fails under the same installed CPython 3.13 -I environment because its closed negative consumer contains only the mutant app"
 unrelated_negative_failure = "a denial other than ModuleNotFoundError for the exact examples helper cannot satisfy the falsifier"
-second_run = "after the canonical direct-call inventory passes, adding exact direct eqiora.run(model, plan=plan) changes only that inventory from (1,1,0) to (1,1,1) and rejects; aliases and dynamically constructed calls are not claimed"
+second_run = "after the canonical direct-call inventory passes, adding exact direct eqiora.run(stokes_plan) changes only that inventory from (1,1,0) to (1,1,1) and rejects; aliases and dynamically constructed calls are not claimed"
 missing_or_foreign_owner = "existing public Geometry, Mesh, Model, Plan, Run, Result, snapshot, and Field boundaries remain fail-closed"
-missing_installed_model = "the one ordinary app fails before readiness"
+missing_installed_source = "the one ordinary app fails before readiness"
 missing_matplotlib_or_marimo = "the exact candidate profile fails before readiness"
 hardcoded_identity = "the exact canonical app contains no literal SHA-256 identity"
 unrelated_text_only_success = "browser requires all live typed rows, equal Run/Result identity, unit-bearing evidence, and the Figure before readiness counts"
@@ -82,7 +80,8 @@ one_exact_model = true
 one_steady_stokes_run = true
 one_pressure_field = true
 one_pressure_figure = true
-new_geometry_mesh_or_scientific_meaning = false
+new_geometry_or_scientific_meaning = false
+fixed_mesh_output_or_scientific_oracle = false
 new_public_python_api = false
 new_private_message_or_scene_schema = false
 new_dependency_or_lockfile = false

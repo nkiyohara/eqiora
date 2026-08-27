@@ -22,7 +22,7 @@ def solve() -> tuple[eqiora.Result, eqiora.FieldRef]:
             "cylinder": circle.boundaries[0],
         },
     )
-    mesh_request = eqiora.meshing.ReferenceMesher(
+    mesh_request = eqiora.meshing.GmshMesher(
             maximum_boundary_error=1e-4,
             minimum_mean_ratio=1e-5,
             maximum_boundary_facets=50,

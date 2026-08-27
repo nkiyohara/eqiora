@@ -63,50 +63,6 @@ class GmshMesher:
     def __repr__(self) -> str: ...
 
 @final
-class ReferenceMesher:
-    """Select the deterministic in-process reference provider.
-
-    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyReferenceMesher``.
-    """
-    def __new__(
-        cls,
-        *,
-        maximum_boundary_error: float = ...,
-        minimum_mean_ratio: float = ...,
-        maximum_boundary_facets: int = ...,
-    ) -> Self: ...
-    @property
-    def maximum_boundary_error(self) -> float: ...
-    @property
-    def minimum_mean_ratio(self) -> float: ...
-    @property
-    def maximum_boundary_facets(self) -> int: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __repr__(self) -> str: ...
-
-@final
-class GmshImport:
-    """Policy for one caller-supplied, untracked Gmsh MSH image.
-
-    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyGmshImport``.
-    """
-    def __new__(
-        cls,
-        *,
-        maximum_boundary_error: float = ...,
-        minimum_mean_ratio: float = ...,
-        maximum_boundary_facets: int = ...,
-    ) -> Self: ...
-    @property
-    def maximum_boundary_error(self) -> float: ...
-    @property
-    def minimum_mean_ratio(self) -> float: ...
-    @property
-    def maximum_boundary_facets(self) -> int: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __repr__(self) -> str: ...
-
-@final
 class MeshPlan:
     """Complete provider choice bound to one exact geometry.
 
@@ -116,7 +72,7 @@ class MeshPlan:
     @property
     def source_digest(self) -> str: ...
     @property
-    def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher: ...
+    def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher: ...
     @property
     def production_lineage_bytes(self) -> bytes: ...
     @property
@@ -147,12 +103,6 @@ class Mesh:
     @property
     def production_lineage_digest(self) -> str: ...
     @property
-    def realization_digest(self) -> str: ...
-    @property
-    def external_import_manifest_bytes(self) -> bytes | None: ...
-    @property
-    def external_import_manifest_digest(self) -> str | None: ...
-    @property
     def canonical_bytes(self) -> bytes: ...
     @property
     def dimension(self) -> int: ...
@@ -178,7 +128,7 @@ class Mesh:
 
 def resolve(
     geometry: Geometry,
-    provider: AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher,
+    provider: AffineTriangleMesher | CartesianMesher | GmshMesher,
     /,
 ) -> MeshPlan:
     """Resolve a provider plan for the exact supplied geometry.
@@ -196,24 +146,4 @@ def generate(geometry: Geometry, /, *, plan: MeshPlan) -> Mesh:
 
     ...
 
-def import_gmsh(
-    geometry: Geometry,
-    source: bytes,
-    /,
-    *,
-    policy: GmshImport,
-) -> Mesh:
-    """Import one complete Gmsh MSH 4.1 image into the common Mesh.
-
-    The current boundary accepts affine two-dimensional triangles for the
-    supplied exact circular-hole Geometry. ``policy`` explicitly owns the
-    separately typed boundary-realization and quality policy. External source, adapter,
-    normalized-array, and accepted-Mesh identities are retained by
-    ``Mesh.external_import_manifest_bytes``.
-
-    Authority: ``crates/eqiora-python/src/meshing/mesh.rs::import_gmsh``.
-    """
-
-    ...
-
-__all__ = ["AffineTriangleMesher", "CartesianMesher", "GmshImport", "GmshMesher", "Mesh", "MeshPlan", "ReferenceMesher", "generate", "import_gmsh", "resolve"]
+__all__ = ["AffineTriangleMesher", "CartesianMesher", "GmshMesher", "Mesh", "MeshPlan", "generate", "resolve"]

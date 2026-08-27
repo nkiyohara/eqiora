@@ -12,7 +12,7 @@ The classification is by producer semantics, not by a closed fixture list.
 complete search, every classified entry, and the exact two-state transition
 contract below;
 [`expected/classification-inventory.txt`](expected/classification-inventory.txt)
-freezes its 306 exact candidate paths so the registered test can repeat the
+freezes its 303 exact candidate paths so the registered test can repeat the
 same repository sweep;
 [`expected/transition.json`](expected/transition.json) records the precommitted
 identities.
@@ -20,7 +20,7 @@ identities.
 ## What this case owns
 
 - the complete classification of every Model-bearing fixture, and exactly one
-  fate for each of the 306 candidate paths;
+  fate for each of the 303 candidate paths;
 - complete precommitted Model-epoch canonical bytes for the four deterministic
   fixtures, plus every historical downstream identity they imply;
 - four live expected-artifact projections in which exactly eight compilation,
@@ -48,16 +48,16 @@ by hand.
 | Set | Count | Meaning |
 | --- | --- | --- |
 | `retired` | 52 | disappears; present in every pre-reset state, absent in every post-reset one |
-| preserved | 264 | the rest of the frozen inventory; still exists afterwards, though an in-place migration may stop it matching the sweep |
+| preserved | 261 | the rest of the frozen inventory; still exists afterwards, though an in-place migration may stop it matching the sweep |
 | `required_post_reset` | 13 | the complete set of paths the reset may add: 11 byte-frozen promotions — 10 staged control-v2 targets plus the historical cylinder — and 2 existence-only unversioned Rust owners |
 | `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
 | `post_reset_admitted` | 37 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
-| `post_reset_fixture_admitted` | 28 | later exact evidence representations admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
-| accepted-byte-bound optional rows | 11 | exact alpha.3 site/source rows guarded by accepted raw SHA-256; permission remains optional and owns no input semantics |
+| `post_reset_fixture_admitted` | 27 | later exact evidence representations admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
+| accepted-byte-bound optional rows | 10 | exact alpha.3 site/source rows guarded by accepted raw SHA-256; permission remains optional and owns no input semantics |
 
-**52, 264 and 13 are not one partition of 306.** What partitions the inventory
-is 42 + 264: the retired paths that are inventory members, plus the preserved
+**52, 261 and 13 are not one partition of 303.** What partitions the inventory
+is 42 + 261: the retired paths that are inventory members, plus the preserved
 ones. The other ten retired paths carry no Model signal and were never members.
 The 13 required paths are post-reset additions and replacements: twelve did not
 exist before the reset, and the thirteenth,
@@ -181,20 +181,17 @@ science, producer, publication predicate, or test.
 
 The first 26 fixture rows retain their exact RFC 0085, subprocess-provider,
 Python-package, MCP, Stokes, collocated, and semantic-impact shapes and their
-aggregate 120 occurrences. The accepted minified Cylinder publication JSON is
-the twenty-seventh row: `delegated-current-owner-evidence`, one
-`model_digest` signal, 75 textual lower-hex-64 occurrences on its qualifying
-line, and accepted raw SHA-256
-`f5df7f5dd74abcac60776786e5863a9cfb81ab88855b9f77ee90c38decb61813`.
-The current typed-compilation identity fixture is the twenty-eighth row, with
-five exact compile-only identities. The aggregate is therefore 200.
+aggregate 120 occurrences. The current typed-compilation identity fixture is
+the twenty-seventh row, with five exact compile-only identities. The aggregate
+is therefore 125. The retired fixed-mesh Cylinder publication grants no
+replacement fixture admission.
 
 This permission is also containment-only and exact-path-only. Empty,
 singleton, all, and all-but-one subsets of both admission vectors remain valid.
 Deletion and wrong-path mutants cover every new row; representative Gallery,
 Python, interface, publication, tool, and test neighbors remain unclassified;
 category drift fails the ordered-row oracle; and inert byte drift reaches the
-digest gate for all eleven accepted-byte rows. Omitting, substituting,
+digest gate for all ten accepted-byte rows. Omitting, substituting,
 uppercasing, malforming, or shortening one accepted digest, or adding a digest
 to an older admission, fails without changing product bytes. None of these
 checks transfers ownership of publication identities or makes a later site path
@@ -334,7 +331,7 @@ is not an available move.
 
 ## Every candidate has exactly one fate
 
-`classification.json` names 116 of the 306 candidates in an entry and leaves the
+`classification.json` names 113 of the 303 candidates in an entry and leaves the
 other 190 to the `non-fixture-search-hit` remainder. A remainder is what keeps
 the classification complete without listing every path twice, and it is also
 where a classification can quietly say the wrong thing: "everything else

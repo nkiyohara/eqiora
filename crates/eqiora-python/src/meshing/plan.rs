@@ -11,7 +11,6 @@ use pyo3::types::{PyAny, PyBool, PyBytes, PyTuple};
 
 use super::gmsh;
 use super::request_error;
-use super::source_owned::SourceOwnedPlan;
 use crate::error::validation_error;
 use crate::geometry::{PyGeometry, digest_to_hex};
 use crate::panic_boundary;
@@ -66,59 +65,6 @@ impl PyGmshMesher {
 
     fn __repr__(&self) -> String {
         provider_repr("GmshMesher", self.policy)
-    }
-}
-
-/// Deterministic in-process reference provider selection.
-#[pyclass(
-    name = "ReferenceMesher",
-    module = "eqiora._eqiora",
-    frozen,
-    eq,
-    skip_from_py_object
-)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct PyReferenceMesher {
-    policy: PlanarMeshQualityV1,
-}
-
-#[pymethods]
-impl PyReferenceMesher {
-    #[new]
-    #[pyo3(signature = (*, maximum_boundary_error=1.0e-4, minimum_mean_ratio=1.0e-5, maximum_boundary_facets=50))]
-    fn new(
-        py: Python<'_>,
-        maximum_boundary_error: f64,
-        minimum_mean_ratio: f64,
-        maximum_boundary_facets: usize,
-    ) -> PyResult<Self> {
-        Ok(Self {
-            policy: validate_numerical_policy(
-                py,
-                maximum_boundary_error,
-                minimum_mean_ratio,
-                maximum_boundary_facets,
-            )?,
-        })
-    }
-
-    #[getter]
-    const fn maximum_boundary_error(&self) -> f64 {
-        self.policy.maximum_boundary_error_m()
-    }
-
-    #[getter]
-    const fn minimum_mean_ratio(&self) -> f64 {
-        self.policy.minimum_mean_ratio()
-    }
-
-    #[getter]
-    const fn maximum_boundary_facets(&self) -> usize {
-        self.policy.maximum_boundary_facets()
-    }
-
-    fn __repr__(&self) -> String {
-        provider_repr("ReferenceMesher", self.policy)
     }
 }
 
@@ -201,7 +147,6 @@ impl PyAffineTriangleMesher {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum MeshProviderPolicy {
     Gmsh(PyGmshMesher),
-    Reference(PyReferenceMesher),
     Cartesian(PyCartesianMesher),
     AffineTriangle(PyAffineTriangleMesher),
 }
@@ -220,14 +165,6 @@ impl MeshProviderPolicy {
                 mesh,
                 correspondence,
             ),
-            Self::Reference(provider) => {
-                MeshProductionLineageEnvelopeV1::from_planar_circular_hole_reference_v1_resources(
-                    provider.policy,
-                    geometry,
-                    mesh,
-                    correspondence,
-                )
-            }
             Self::Cartesian(_) => unreachable!("Cartesian lineage uses Cartesian resources"),
             Self::AffineTriangle(provider) => {
                 MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
@@ -254,13 +191,6 @@ impl MeshProviderPolicy {
                 mesh,
                 correspondence,
             ),
-            Self::Reference(provider) => lineage
-                .validate_against_planar_circular_hole_reference_v1_resources(
-                    provider.policy,
-                    geometry,
-                    mesh,
-                    correspondence,
-                ),
             Self::Cartesian(_) => unreachable!("Cartesian lineage uses Cartesian resources"),
             Self::AffineTriangle(provider) => lineage
                 .validate_against_affine_triangle_rectangle_v1_resources(
@@ -275,7 +205,6 @@ impl MeshProviderPolicy {
     fn to_python(self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match self {
             Self::Gmsh(provider) => Py::new(py, provider).map(Py::into_any),
-            Self::Reference(provider) => Py::new(py, provider).map(Py::into_any),
             Self::Cartesian(provider) => Py::new(py, provider).map(Py::into_any),
             Self::AffineTriangle(provider) => Py::new(py, provider).map(Py::into_any),
         }
@@ -284,77 +213,15 @@ impl MeshProviderPolicy {
     fn representation(self) -> String {
         match self {
             Self::Gmsh(provider) => provider.__repr__(),
-            Self::Reference(provider) => provider.__repr__(),
             Self::Cartesian(provider) => provider.__repr__(),
             Self::AffineTriangle(provider) => provider.__repr__(),
         }
     }
 }
 
-/// Explicit policy for a caller-supplied, untracked Gmsh MSH image.
-#[pyclass(
-    name = "GmshImport",
-    module = "eqiora._eqiora",
-    frozen,
-    eq,
-    skip_from_py_object
-)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct PyGmshImport {
-    pub(super) maximum_boundary_error: f64,
-    pub(super) minimum_mean_ratio: f64,
-    pub(super) maximum_boundary_facets: usize,
-}
-
-#[pymethods]
-impl PyGmshImport {
-    #[new]
-    #[pyo3(signature = (*, maximum_boundary_error=1.0e-4, minimum_mean_ratio=1.0e-5, maximum_boundary_facets=50))]
-    fn new(
-        py: Python<'_>,
-        maximum_boundary_error: f64,
-        minimum_mean_ratio: f64,
-        maximum_boundary_facets: usize,
-    ) -> PyResult<Self> {
-        let _ = validate_numerical_policy(
-            py,
-            maximum_boundary_error,
-            minimum_mean_ratio,
-            maximum_boundary_facets,
-        )?;
-        Ok(Self {
-            maximum_boundary_error,
-            minimum_mean_ratio,
-            maximum_boundary_facets,
-        })
-    }
-
-    #[getter]
-    const fn maximum_boundary_error(&self) -> f64 {
-        self.maximum_boundary_error
-    }
-    #[getter]
-    const fn minimum_mean_ratio(&self) -> f64 {
-        self.minimum_mean_ratio
-    }
-    #[getter]
-    const fn maximum_boundary_facets(&self) -> usize {
-        self.maximum_boundary_facets
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "GmshImport(maximum_boundary_error={}, minimum_mean_ratio={}, maximum_boundary_facets={})",
-            self.maximum_boundary_error, self.minimum_mean_ratio, self.maximum_boundary_facets,
-        )
-    }
-}
-
 fn extract_provider(py: Python<'_>, provider: &Bound<'_, PyAny>) -> PyResult<MeshProviderPolicy> {
     if let Ok(provider) = provider.extract::<PyRef<'_, PyGmshMesher>>() {
         Ok(MeshProviderPolicy::Gmsh(*provider))
-    } else if let Ok(provider) = provider.extract::<PyRef<'_, PyReferenceMesher>>() {
-        Ok(MeshProviderPolicy::Reference(*provider))
     } else if let Ok(provider) = provider.extract::<PyRef<'_, PyCartesianMesher>>() {
         Ok(MeshProviderPolicy::Cartesian(*provider))
     } else if let Ok(provider) = provider.extract::<PyRef<'_, PyAffineTriangleMesher>>() {
@@ -362,7 +229,7 @@ fn extract_provider(py: Python<'_>, provider: &Bound<'_, PyAny>) -> PyResult<Mes
     } else {
         Err(request_error(
             py,
-            "provider must be GmshMesher, ReferenceMesher, CartesianMesher, or AffineTriangleMesher",
+            "provider must be GmshMesher, CartesianMesher, or AffineTriangleMesher",
         ))
     }
 }
@@ -431,7 +298,6 @@ pub(super) struct PyMeshPlan {
 
 pub(super) enum ResolvedMeshPlan {
     Gmsh(Box<GmshPlan>),
-    SourceOwned(Box<SourceOwnedPlan>),
     Cartesian(Box<CartesianPlan>),
     AffineTriangle(Box<AffineTrianglePlan>),
 }
@@ -539,9 +405,6 @@ impl PyMeshPlan {
     fn boundary_facets(&self) -> usize {
         match &self.resolved {
             ResolvedMeshPlan::Gmsh(plan) => plan.generated.edge_facets[4].len(),
-            ResolvedMeshPlan::SourceOwned(plan) => plan
-                .boundary_facets()
-                .expect("an admitted source-owned plan retains its circular frontier"),
             ResolvedMeshPlan::Cartesian(plan) => {
                 let nx = plan
                     .mesh
@@ -575,9 +438,6 @@ impl PyMeshPlan {
                 .mesh()
                 .quality_report()
                 .minimum_mean_ratio()),
-            ResolvedMeshPlan::SourceOwned(plan) => {
-                Ok(plan.mesh.mesh().quality_report().minimum_mean_ratio())
-            }
             ResolvedMeshPlan::Cartesian(_) => Err(request_error(
                 py,
                 "achieved_minimum_mean_ratio is not defined for a Cartesian MeshPlan",
@@ -613,33 +473,14 @@ pub(super) fn resolve(
                 let policy = provider.policy;
                 let quality_gate = MeshQualityGate::new(policy.minimum_mean_ratio())
                     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-                let seed = SourceOwnedPlan::resolve(
-                    geometry.geometry(),
-                    policy.maximum_boundary_error_m(),
-                    policy.maximum_boundary_facets(),
-                    quality_gate,
-                )
-                .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
-                let generated =
-                    gmsh::generate(geometry.geometry(), &seed.correspondence, quality_gate)
-                        .map_err(|diagnostic| {
-                            validation_error(py, std::slice::from_ref(&diagnostic))
-                        })?;
+                let generated = gmsh::generate(geometry.geometry(), policy, quality_gate).map_err(
+                    |diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)),
+                )?;
                 ResolvedMeshPlan::Gmsh(Box::new(GmshPlan {
                     source: geometry.geometry().clone(),
                     generated,
                 }))
             }
-            MeshProviderPolicy::Reference(provider) => SourceOwnedPlan::resolve(
-                geometry.geometry(),
-                provider.policy.maximum_boundary_error_m(),
-                provider.policy.maximum_boundary_facets(),
-                MeshQualityGate::new(provider.policy.minimum_mean_ratio())
-                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
-            )
-            .map(Box::new)
-            .map(ResolvedMeshPlan::SourceOwned)
-            .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?,
             MeshProviderPolicy::Cartesian(provider) => {
                 let (mesh, correspondence) =
                     GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
@@ -674,18 +515,12 @@ pub(super) fn resolve(
             }
         };
         let production = match (&provider, &resolved) {
-            (
-                MeshProviderPolicy::Gmsh(_) | MeshProviderPolicy::Reference(_),
-                ResolvedMeshPlan::Gmsh(plan),
-            ) => provider.production_lineage(
-                geometry.geometry(),
-                &plan.generated.mesh,
-                &plan.generated.correspondence,
-            ),
-            (
-                MeshProviderPolicy::Gmsh(_) | MeshProviderPolicy::Reference(_),
-                ResolvedMeshPlan::SourceOwned(plan),
-            ) => provider.production_lineage(geometry.geometry(), &plan.mesh, &plan.correspondence),
+            (MeshProviderPolicy::Gmsh(_), ResolvedMeshPlan::Gmsh(plan)) => provider
+                .production_lineage(
+                    geometry.geometry(),
+                    &plan.generated.mesh,
+                    &plan.generated.correspondence,
+                ),
             (MeshProviderPolicy::Cartesian(provider), ResolvedMeshPlan::Cartesian(plan)) => {
                 MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
                     provider.policy,

@@ -3,7 +3,6 @@
 mod gmsh;
 mod mesh;
 mod plan;
-mod source_owned;
 
 use eqiora::Diagnostic;
 use eqiora::diagnostic::codes;
@@ -13,11 +12,8 @@ use pyo3::types::PyModule;
 use crate::error::validation_error;
 
 pub(crate) use mesh::PyMesh;
-use mesh::{generate, import_gmsh};
-use plan::{
-    PyAffineTriangleMesher, PyCartesianMesher, PyGmshImport, PyGmshMesher, PyMeshPlan,
-    PyReferenceMesher, resolve,
-};
+use mesh::generate;
+use plan::{PyAffineTriangleMesher, PyCartesianMesher, PyGmshMesher, PyMeshPlan, resolve};
 
 fn request_error(py: Python<'_>, message: impl Into<String>) -> PyErr {
     let diagnostic = Diagnostic::error(codes::INVALID_ARTIFACT, message);
@@ -26,14 +22,11 @@ fn request_error(py: Python<'_>, message: impl Into<String>) -> PyErr {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyGmshMesher>()?;
-    module.add_class::<PyGmshImport>()?;
-    module.add_class::<PyReferenceMesher>()?;
     module.add_class::<PyCartesianMesher>()?;
     module.add_class::<PyAffineTriangleMesher>()?;
     module.add_class::<PyMeshPlan>()?;
     module.add_class::<PyMesh>()?;
     module.add_function(wrap_pyfunction!(resolve, module)?)?;
     module.add_function(wrap_pyfunction!(generate, module)?)?;
-    module.add_function(wrap_pyfunction!(import_gmsh, module)?)?;
     Ok(())
 }

@@ -37,7 +37,6 @@ from candidate_manifest import (
     NPM_PACKAGE_INTEGRITY,
     PROFILE_CHECKS,
     REQUIRED_PROFILES,
-    THREE_LICENSE_SHA256,
     load_candidate_family,
     verify_artifacts,
 )
@@ -61,7 +60,6 @@ MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v3"
 NOTEBOOK_ASSET_PATHS = (
     "eqiora/_presentation/static/mesh-view.mjs",
     "eqiora/_presentation/static/mesh-view.css",
-    "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt",
 )
 EXACT_CYLINDER_STOKES_MARIMO_APP = Path(
     "examples/python/exact_cylinder_stokes_marimo.py"
@@ -1790,27 +1788,11 @@ def run_notebook_profile(
                 f"{wheel}[gmsh,matplotlib,notebook]",
                 config.pytest,
                 "anywidget==0.11.0",
-                "jupyterlab==4.6.2",
                 "marimo==0.23.16",
             ],
             run=checked_run,
         )
         workspace.consumer.mkdir(parents=True)
-        test_path = workspace.consumer / "test_rich_mesh_display.py"
-        shutil.copy2(extracted / "bindings/python/tests/test_rich_mesh_display.py", test_path)
-        gmsh_path = str(python.parent)
-        if inherited_path := os.environ.get("PATH"):
-            gmsh_path = os.pathsep.join((gmsh_path, inherited_path))
-        checked_run(
-            [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
-            cwd=workspace.consumer,
-            extra_environment={
-                "EQIORA_GMSH": str(
-                    python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
-                ),
-                "PATH": gmsh_path,
-            },
-        )
         state["python"] = python
 
     def served_source_tree() -> Path:
@@ -1911,22 +1893,14 @@ def run_notebook_profile(
         )
         served = served_source_tree() if source_root is None else source_root
         port = _reserve_loopback_port()
-        if project == "jupyterlab-4.6.2":
-            argv = [
-                str(python), "-I", "-m", "jupyter", "lab", "--no-browser",
-                "--ip=127.0.0.1", f"--port={port}", "--ServerApp.port_retries=0",
-                "--ServerApp.token=", "--ServerApp.password=",
-                "--ServerApp.answer_yes=True", f"--ServerApp.root_dir={served}",
-            ]
-            url_variable = "EQIORA_JUPYTERLAB_URL"
-            url_value = f"http://127.0.0.1:{port}/lab/tree/{fixture}"
-        else:
-            argv = [
-                str(python), "-I", "-m", "marimo", "run", str(served / fixture),
-                "--host", "127.0.0.1", "--port", str(port), "--headless",
-            ]
-            url_variable = "EQIORA_MARIMO_URL"
-            url_value = f"http://127.0.0.1:{port}/"
+        if project != "marimo-0.23.16":
+            raise CandidateError(f"unknown Notebook host project: {project}")
+        argv = [
+            str(python), "-I", "-m", "marimo", "run", str(served / fixture),
+            "--host", "127.0.0.1", "--port", str(port), "--headless",
+        ]
+        url_variable = "EQIORA_MARIMO_URL"
+        url_value = f"http://127.0.0.1:{port}/"
         process = subprocess.Popen(
             argv,
             cwd=served,
@@ -2200,19 +2174,17 @@ def run_notebook_profile(
             )
 
     def require_host_observation(name: str) -> None:
-        if not state.get("jupyterlab-4.6.2") or not state.get("marimo-0.23.16"):
+        if not state.get("marimo-0.23.16"):
             raise CandidateError(f"Notebook host observation is incomplete: {name}")
         if name == "browser" and not Path(state["browser-executable"]).is_file():
             raise CandidateError("accepted managed Chromium executable is missing")
 
     observations = (
         ("frontend:lock-integrity", lambda: require_frontend_binding("lock")),
-        ("frontend:license-notices", lambda: require_frontend_binding("licenses")),
+        ("frontend:license-inventory", lambda: require_frontend_binding("licenses")),
         ("frontend:bundle-byte-rebuild", lambda: require_frontend_binding("bundle")),
         ("wheel-family:notebook-metadata", lambda: require_frontend_binding("wheel")),
         ("cp313:notebook-anywidget-0.11.0", install_notebook),
-        ("cp313:jupyterlab-4.6.2-bare-mesh", lambda: run_host("jupyterlab-4.6.2", "bindings/python/tests/fixtures/rich_mesh_display/jupyterlab.ipynb")),
-        ("cp313:marimo-0.23.16-bare-mesh", lambda: run_host("marimo-0.23.16", "bindings/python/tests/fixtures/rich_mesh_display/marimo.py")),
         (EXACT_CYLINDER_STOKES_MARIMO_CHECK, run_exact_cylinder_stokes_marimo),
         ("cp313:notebook-managed-chromium-r1234", lambda: require_host_observation("browser")),
         ("cp313:notebook-no-external-network", lambda: require_host_observation("network")),
@@ -2551,10 +2523,6 @@ def derive_frontend_manifest(
         "npm_package_integrity": NPM_PACKAGE_INTEGRITY,
         "assets": assets,
         "licenses": {
-            "three@0.185.1": {
-                "expression": "MIT",
-                "source_license_sha256": THREE_LICENSE_SHA256,
-            },
             "anywidget@0.11.0": {
                 "expression": "MIT",
                 "source_license_sha256": ANYWIDGET_LICENSE_SHA256,
@@ -2563,7 +2531,6 @@ def derive_frontend_manifest(
         "runtime": {
             "python": "3.13",
             "anywidget": "0.11.0",
-            "jupyterlab": "4.6.2",
             "marimo": "0.23.16",
             "anywidget_wheel_sha256": ANYWIDGET_WHEEL_SHA256,
             "resolved_environment_sha256": python_host["resolved_environment_sha256"],

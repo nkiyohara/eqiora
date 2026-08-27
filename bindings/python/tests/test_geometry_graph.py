@@ -104,8 +104,7 @@ def test_foreign_deleted_stale_incomplete_and_mixed_handles_reject():
         graph.subtract(rectangle, tangent)
 
 
-def test_existing_specialized_surface_remains_for_the_later_atomic_migration():
+def test_cad_surface_remains_owned_by_the_distinct_three_dimensional_workflow():
     old = eqiora.geometry.CadAuthoredGraph
     assert hasattr(old, "rectangle_extrusion")
     assert hasattr(old, "circular_through_cut")
-    assert hasattr(old, "planar_circular_section")

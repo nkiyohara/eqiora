@@ -23,7 +23,7 @@ renderer = "eqiora.matplotlib.plot_deformed_field(result, field=plan.field('disp
 
 [oracle]
 scientific_case = "solid.mixed-boundary-elasticity-2d"
-matplotlib_case = "interfaces.python-exact-cylinder-pressure-still"
+matplotlib_contract = "ordinary installed Matplotlib product coverage; no registered presentation oracle"
 policy = "scientific values and tolerances remain unchanged and owned by the existing structural case; this case checks installed composition and typed ownership"
 
 [acceptance]

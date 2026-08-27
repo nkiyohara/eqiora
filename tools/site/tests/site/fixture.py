@@ -17,32 +17,24 @@ from typing import Mapping, Sequence
 SOURCE_SHA = "a" * 40
 REPOSITORY = Path(__file__).resolve().parents[4]
 PRESSURE_ALT = (
-    "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder "
-    "demonstration, shown with a viridis color scale and the 1,210-triangle "
-    "affine mesh overlaid. Presentation image only; linked Result evidence "
-    "carries the numerical claim."
+    "Pressure in pascals for a 2D steady-Stokes exact-cylinder demonstration, "
+    "shown with a viridis color scale and its current Gmsh mesh overlaid. "
+    "Presentation image only; no numerical or mesh-output oracle."
 )
 PUBLIC_CLAIM = (
-    "One frozen 2D steady incompressible Stokes exact-cylinder demonstration on "
-    "the accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine "
-    "triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = "
-    "14/2/48/50, and 548 interior vertices; rendered from its accepted public "
-    "Result path and linked evidence."
+    "One presentation-only 2D steady incompressible Stokes exact-cylinder "
+    "demonstration rendered through exact Geometry, typed Gmsh policy, and the "
+    "root Result path; output counts, digests, numerical values, and pixels are "
+    "not independently verified."
 )
 WITNESS_COPY = (
-    "Accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine "
-    "triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = "
-    "14/2/48/50, and 548 interior vertices."
+    "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
 )
 CASE_EVIDENCE_PATHS = (
     "verify/artifacts/current-model-canonical-identity/README.md",
     "verify/fluid/packaged-steady-stokes-2d/README.md",
-    "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
     "verify/geometry/exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-circular-hole-chordal-mesh/README.md",
     "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-exact-cylinder-stokes-result/README.md",
-    "verify/interfaces/python-exact-cylinder-pressure-still/README.md",
     "verify/interfaces/python-exact-cylinder-stokes-marimo/README.md",
 )
 NONCLAIMS = (
@@ -631,7 +623,7 @@ def _case_body() -> str:
 div(u) = 0</pre></section>
 <section><h2>Mesh and boundaries</h2><p>{WITNESS_COPY}</p></section>
 <section><h2>Submit and result</h2><p>One immutable SteadyStokes intent, resolve, submit, and Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes_marimo.py#L77-L95">Eqiora source form: canonical intent/submit/result cells</a></section>
-<section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION} <a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/verify/interfaces/python-exact-cylinder-stokes-result/README.md">Result evidence</a> <a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/verify/interfaces/python-exact-cylinder-pressure-still/README.md">Pressure-still presentation case</a></figcaption></figure><p>Presentation, not evidence.</p></section>
+<section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION}</figcaption></figure><p>Presentation, not evidence.</p></section>
 <section><h2>Verified and not claimed</h2><p>{nonclaims}</p>{_exact_links()}</section>"""
 
 

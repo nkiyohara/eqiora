@@ -42,10 +42,9 @@ NPM_PACKAGE_INTEGRITY = (
 )
 ANYWIDGET_WHEEL_SHA256 = "c574d9acc6503ad27b37a9acea48f957a8ba7c9c9876cfcb37898931c098ce9d"
 BROWSERS_JSON_SHA256 = "f306eed529599b1eaf2f8a85db9de2b23e1a3fe36c2b66434b7c9434fb627a99"
-THREE_LICENSE_SHA256 = "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
 ANYWIDGET_LICENSE_SHA256 = "22c698b6e5f3878c292471980ffd352ee0fad053f9428c2281f34b5e28a6151f"
 INSTALL_SCRIPT_INVENTORY_SHA256 = (
-    "fbcb5664380f1ace34322bd129219741abdf9be79be17cb8861d57e2c6e4c4dc"
+    "c706e144c3250d27383c3e6799cdcc8ac0220c7dd1c7cc4a89e14953a0204503"
 )
 PACKUMENT_INSTALL_SCRIPT_ADMISSIONS = (
     (
@@ -72,17 +71,14 @@ LIFECYCLE_SOURCES = frozenset({"lockfile", "packument", "tarball"})
 NOTEBOOK_ASSETS = (
     "eqiora/_presentation/static/mesh-view.mjs",
     "eqiora/_presentation/static/mesh-view.css",
-    "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt",
 )
 NOTEBOOK_CHECKS = frozenset(
     {
         "frontend:lock-integrity",
-        "frontend:license-notices",
+        "frontend:license-inventory",
         "frontend:bundle-byte-rebuild",
         "wheel-family:notebook-metadata",
         "cp313:notebook-anywidget-0.11.0",
-        "cp313:jupyterlab-4.6.2-bare-mesh",
-        "cp313:marimo-0.23.16-bare-mesh",
         "cp313:marimo-0.23.16-exact-cylinder-stokes",
         "cp313:notebook-managed-chromium-r1234",
         "cp313:notebook-no-external-network",
@@ -759,11 +755,10 @@ def _validate_frontend(value: Any) -> dict[str, Any]:
         _positive_integer(record["size"], f"asset {name}.size")
         _sha(record["sha256"], f"asset {name}.sha256")
     licenses = _exact_keys(
-        frontend.get("licenses"), {"three@0.185.1", "anywidget@0.11.0"},
+        frontend.get("licenses"), {"anywidget@0.11.0"},
         "build.frontend.licenses",
     )
     expected_licenses = {
-        "three@0.185.1": THREE_LICENSE_SHA256,
         "anywidget@0.11.0": ANYWIDGET_LICENSE_SHA256,
     }
     for name, expected_hash in expected_licenses.items():
@@ -772,11 +767,11 @@ def _validate_frontend(value: Any) -> dict[str, Any]:
             raise ManifestError(f"license identity drifted: {name}")
     runtime = _exact_keys(
         frontend.get("runtime"),
-        {"python", "anywidget", "jupyterlab", "marimo", "anywidget_wheel_sha256", "resolved_environment_sha256"},
+        {"python", "anywidget", "marimo", "anywidget_wheel_sha256", "resolved_environment_sha256"},
         "build.frontend.runtime",
     )
     expected_runtime = {
-        "python": "3.13", "anywidget": "0.11.0", "jupyterlab": "4.6.2",
+        "python": "3.13", "anywidget": "0.11.0",
         "marimo": "0.23.16", "anywidget_wheel_sha256": ANYWIDGET_WHEEL_SHA256,
     }
     for name, expected in expected_runtime.items():
@@ -1131,7 +1126,7 @@ def _validate_receipt(
             raise ManifestError("H2 build comparison is not PASS")
     if _string_array(comparison["diff"], "receipt.comparison.diff"):
         raise ManifestError("H2 build comparison records differences")
-    licenses = _exact_keys(receipt["licenses"], {"components", "notice_path", "notice_sha256", "unmapped_emitted_modules"}, "receipt.licenses")
+    licenses = _exact_keys(receipt["licenses"], {"components", "unmapped_emitted_modules"}, "receipt.licenses")
     components = []
     for raw_component in _array(licenses["components"], "receipt.licenses.components"):
         component = _exact_keys(raw_component, {"package", "version", "license_expression", "source_license_path", "source_license_sha256", "emitted_outputs"}, "receipt.licenses.component")
@@ -1142,10 +1137,8 @@ def _validate_receipt(
         _string_array(component["emitted_outputs"], "receipt.licenses.component.emitted_outputs")
         components.append(component)
     _sorted_unique(components, lambda item: (item["package"].encode(), item["version"].encode(), item["source_license_path"].encode()), "receipt.licenses.components")
-    if not any(item["package"] == "three" and item["version"] == "0.185.1" and item["license_expression"] == "MIT" and item["source_license_sha256"] == THREE_LICENSE_SHA256 for item in components):
-        raise ManifestError("H2 Three.js license mapping is incomplete")
-    if licenses["notice_path"] != NOTEBOOK_ASSETS[2] or licenses["notice_sha256"] != frontend["assets"][NOTEBOOK_ASSETS[2]]["sha256"]:
-        raise ManifestError("H2 notice identity differs from the candidate")
+    if components:
+        raise ManifestError("H2 emitted module license inventory is not empty")
     if _string_array(licenses["unmapped_emitted_modules"], "receipt.licenses.unmapped_emitted_modules"):
         raise ManifestError("H2 has an unmapped emitted module")
     browser = _exact_keys(receipt["browser"], {"playwright_test_integrity", "playwright_core_integrity", "browsers_json_sha256", "browser_name", "revision", "browser_version", "platform", "downloaded_archive_sha256", "executable_sha256"}, "receipt.browser")
@@ -1251,7 +1244,6 @@ def load_candidate_family(
         if check in NOTEBOOK_CHECKS
         or "notebook" in check.lower()
         or check.startswith("frontend:")
-        or check.startswith("cp313:jupyterlab-")
         or check.startswith("cp313:marimo-")
     }
     if notebook_named != NOTEBOOK_CHECKS:

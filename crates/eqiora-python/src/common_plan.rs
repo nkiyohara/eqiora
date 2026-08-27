@@ -1401,7 +1401,7 @@ source = graph.build(fluid, named_topology={
     "walls": rectangle.boundaries[2:],
     "cylinder": circle.boundaries[0],
 })
-mesher = package.meshing.ReferenceMesher(maximum_boundary_error=1e-4, minimum_mean_ratio=1e-5, maximum_boundary_facets=50)
+mesher = package.meshing.GmshMesher(maximum_boundary_error=1e-4, minimum_mean_ratio=1e-5, maximum_boundary_facets=50)
 mesh_plan = package.meshing.resolve(source, mesher)
 mesh = package.meshing.generate(source, plan=mesh_plan)
 "#),

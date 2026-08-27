@@ -809,42 +809,41 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
     let count_for_script = |script: &str| {
         selecting_cases
             .iter()
-            .find_map(|(key, cases)| match key {
+            .filter_map(|(key, cases)| match key {
                 ExecutionKey::PythonInstalledWheel {
                     script: candidate, ..
                 } if candidate == script => Some(cases.len()),
                 _ => None,
             })
-            .unwrap()
+            .sum::<usize>()
     };
-    assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 10);
-    assert_eq!(count_for_script("tools/ci/python_package_gate.py"), 8);
+    assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 8);
+    assert_eq!(count_for_script("tools/ci/python_package_gate.py"), 4);
     assert_eq!(count_for_script("tools/ci/python_gallery_gate.py"), 1);
 
     let mut distribution_cases = selecting_cases
         .iter()
-        .find_map(|(key, cases)| match key {
+        .filter_map(|(key, cases)| match key {
             ExecutionKey::PythonInstalledWheel { script, .. }
                 if script == "tools/ci/python_distribution_gate.py" =>
             {
-                Some(cases.iter().map(String::as_str).collect::<Vec<_>>())
+                Some(cases.iter().map(String::as_str))
             }
             _ => None,
         })
-        .unwrap();
+        .flatten()
+        .collect::<Vec<_>>();
     distribution_cases.sort_unstable();
     assert_eq!(
         distribution_cases,
         [
             "interfaces.python-distribution-candidate",
-            "interfaces.python-exact-cylinder-pressure-still",
             "interfaces.python-exact-cylinder-stokes-marimo",
             "interfaces.python-fixed-mesh-trajectory",
             "interfaces.python-fixed-reference-fsi-demo",
             "interfaces.python-jax-differentiation",
             "interfaces.python-mixed-boundary-elasticity-demo",
             "interfaces.python-pytorch-differentiation",
-            "interfaces.python-rich-mesh-display",
             "interfaces.python-trajectory-field-stills",
         ]
     );

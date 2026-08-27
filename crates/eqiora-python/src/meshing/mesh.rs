@@ -1,11 +1,8 @@
 //! Immutable accepted Mesh publication and NumPy projections.
 
-use std::sync::Mutex;
-
 use eqiora::Diagnostic;
 use eqiora::artifact::{
-    AcceptedCircularHoleChordalRealizationV1, CartesianMeshEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
+    CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
     SimplicialMeshEnvelopeV1,
 };
 use eqiora::diagnostic::codes;
@@ -15,31 +12,15 @@ use eqiora_numerics::AuthenticatedCommonMesh;
 use numpy::PyArray2;
 use pyo3::exceptions::{PyOverflowError, PyRuntimeError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBool, PyBytes, PyDict, PyTuple};
-use sha2::{Digest, Sha256};
+use pyo3::types::{PyAny, PyBytes, PyDict, PyTuple};
 
-use super::plan::{PyGmshImport, PyMeshPlan, ResolvedMeshPlan};
+use super::plan::{PyMeshPlan, ResolvedMeshPlan};
 use super::request_error;
 use crate::error::{diagnostic_error, validation_error};
 use crate::geometry::{PyGeometry, PyGeometrySelection, digest_to_hex};
 use crate::matrix::ReadOnlyMatrix;
-use crate::notebook_mime::{TEXT_MIME, WIDGET_MIME, select_mime_types};
+use crate::notebook_mime::{TEXT_MIME, select_mime_types};
 use crate::panic_boundary;
-
-const REFERENCE_SOURCE_DIGEST: &str =
-    "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9";
-const REFERENCE_CANONICAL_BYTES: usize = 42_388;
-const REFERENCE_CANONICAL_RAW_SHA256: &str =
-    "9d3c6211e6832aa5a5f7e99fa210058ff1b76eab7f1e99aaa7033c282d6e2dd2";
-const REFERENCE_MESH_DIGEST: &str =
-    "5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b";
-const REFERENCE_COORDINATES_SHA256: &str =
-    "42ea585f3facdc21fadf66435f37f1127bf926e6159c5ff1e4a345ba7268db3d";
-const REFERENCE_TRIANGLES_SHA256: &str =
-    "05a68c5630e68ed091e7da3bff07516a9ddf9345bc8319db108ac4004a7c6642";
-const MESH_DIGEST_DOMAIN: &[u8] = b"eqiora.simplicial-mesh-envelope/v1\0";
-const UNSUPPORTED_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: this N1 viewer supports only the exact accepted Gmsh 4.15.2 circular-hole Mesh (662 vertices, 1210 triangles).";
-const CORRUPT_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: the installed Eqiora Notebook presentation runtime or assets are incomplete. Reinstall eqiora[notebook].";
 
 /// Immutable source-bound accepted Mesh.
 #[pyclass(
@@ -55,20 +36,9 @@ pub(crate) struct PyMesh {
     canonical_bytes: Vec<u8>,
     coordinates: ReadOnlyMatrix<f64>,
     cells: ReadOnlyMatrix<u32>,
-    presentation: Mutex<PresentationState>,
-}
-
-enum PresentationState {
-    Empty,
-    Creating,
-    Ready(Py<PyAny>),
 }
 
 enum AcceptedMeshSource {
-    Chordal {
-        accepted: Box<AcceptedCircularHoleChordalRealizationV1>,
-        external_import: Option<Box<ExternalImportLineage>>,
-    },
     SourceOwned {
         geometry: Box<CanonicalGeometryV1>,
         mesh: Box<SimplicialMeshEnvelopeV1>,
@@ -85,7 +55,6 @@ enum AcceptedMeshSource {
 }
 
 enum SourceOwnedProviderObservation {
-    Reference,
     Gmsh4152 { output: Box<[u8]> },
     AffineTriangle,
 }
@@ -106,17 +75,11 @@ pub(crate) struct AuthenticatedAffineTriangleResources<'a> {
     pub(crate) production: &'a MeshProductionLineageEnvelopeV1,
 }
 
-struct ExternalImportLineage {
-    canonical_bytes: Vec<u8>,
-    digest: String,
-}
-
 struct MeshLineage {
     source_digest: String,
     realized_geometry_digest: String,
     mesh_digest: String,
     correspondence_digest: String,
-    realization_digest: Option<String>,
     dimension: usize,
     vertex_count: usize,
     cell_count: usize,
@@ -192,31 +155,6 @@ impl PyMesh {
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))
     }
 
-    /// Identity of the complete exact-source realization binding.
-    #[getter]
-    fn realization_digest(&self, py: Python<'_>) -> PyResult<&str> {
-        self.lineage.realization_digest.as_deref().ok_or_else(|| {
-            capability_error(
-                py,
-                "realization_digest is unavailable for a source-owned Geometry v2 Mesh",
-            )
-        })
-    }
-
-    /// Canonical external-import manifest, or None for non-imported Meshes.
-    #[getter]
-    fn external_import_manifest_bytes(&self, py: Python<'_>) -> Option<Py<PyBytes>> {
-        self.external_import()
-            .map(|lineage| PyBytes::new(py, &lineage.canonical_bytes).unbind())
-    }
-
-    /// Identity of the external-import manifest, or None otherwise.
-    #[getter]
-    fn external_import_manifest_digest(&self) -> Option<&str> {
-        self.external_import()
-            .map(|lineage| lineage.digest.as_str())
-    }
-
     /// Canonical bytes of the accepted common Mesh artifact.
     #[getter]
     fn canonical_bytes(&self, py: Python<'_>) -> Py<PyBytes> {
@@ -254,9 +192,6 @@ impl PyMesh {
     #[getter]
     fn minimum_mean_ratio(&self, py: Python<'_>) -> PyResult<f64> {
         match &self.source {
-            AcceptedMeshSource::Chordal { accepted, .. } => {
-                Ok(accepted.mesh().mesh().quality_report().minimum_mean_ratio())
-            }
             AcceptedMeshSource::SourceOwned { mesh, .. } => {
                 Ok(mesh.mesh().quality_report().minimum_mean_ratio())
             }
@@ -270,12 +205,6 @@ impl PyMesh {
     #[getter]
     fn selection_names(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         let names = match &self.source {
-            AcceptedMeshSource::Chordal { accepted, .. } => accepted
-                .source()
-                .entity_sets()
-                .iter()
-                .map(NamedEntitySet::name)
-                .collect::<Vec<_>>(),
             AcceptedMeshSource::SourceOwned { geometry, .. } => geometry
                 .entity_sets()
                 .iter()
@@ -314,11 +243,6 @@ impl PyMesh {
             ));
         };
         match &self.source {
-            AcceptedMeshSource::Chordal { accepted, .. } => accepted
-                .correspondence()
-                .region_entity_set_entities(accepted.realized_geometry(), name)
-                .and_then(|entities| validated_entity_count(entities, expected_dimension))
-                .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
             AcceptedMeshSource::SourceOwned {
                 geometry,
                 correspondence,
@@ -367,180 +291,14 @@ impl PyMesh {
             return Ok(output.unbind());
         }
 
-        let mesh = slf.get();
-        let representation = mesh.representation();
-        if !selected.contains(WIDGET_MIME) {
-            if selected.contains(TEXT_MIME) {
-                output.set_item(TEXT_MIME, representation)?;
-            }
-            return Ok(output.unbind());
-        }
-
-        if !mesh.is_exact_notebook_reference() {
-            if selected.contains(TEXT_MIME) {
-                output.set_item(
-                    TEXT_MIME,
-                    format!("{representation}\n{UNSUPPORTED_NOTEBOOK_MESSAGE}"),
-                )?;
-            }
-            return Ok(output.unbind());
-        }
-
-        let coordinates = mesh.coordinates.numpy(py)?;
-        let triangles = mesh.cells.numpy(py)?;
-        let token = PyDict::new(py);
-        token.set_item("source_digest", &mesh.lineage.source_digest)?;
-        token.set_item("canonical_bytes", PyBytes::new(py, &mesh.canonical_bytes))?;
-        token.set_item("canonical_raw_sha256", REFERENCE_CANONICAL_RAW_SHA256)?;
-        token.set_item("mesh_digest", &mesh.lineage.mesh_digest)?;
-        token.set_item("coordinates", coordinates.bind(py))?;
-        token.set_item("triangles", triangles.bind(py))?;
-        token.set_item("coordinates_sha256", REFERENCE_COORDINATES_SHA256)?;
-        token.set_item("triangles_sha256", REFERENCE_TRIANGLES_SHA256)?;
-
-        let current = {
-            let mut state = mesh
-                .presentation
-                .lock()
-                .map_err(|_| PyRuntimeError::new_err("Mesh presentation lock is poisoned"))?;
-            match std::mem::replace(&mut *state, PresentationState::Creating) {
-                PresentationState::Empty => None,
-                PresentationState::Ready(delegate) => Some(delegate),
-                PresentationState::Creating => {
-                    *state = PresentationState::Creating;
-                    if selected.contains(TEXT_MIME) {
-                        output.set_item(
-                            TEXT_MIME,
-                            format!("{representation}\n{CORRUPT_NOTEBOOK_MESSAGE}"),
-                        )?;
-                    }
-                    return Ok(output.unbind());
-                }
-            }
-        };
-
-        let outcome = call_presentation_adapter(py, slf.bind(py), &token, current.as_ref());
-        match outcome {
-            Ok(AdapterOutcome::Absent) => {
-                mesh.set_presentation_state(PresentationState::Empty)?;
-                if selected.contains(TEXT_MIME) {
-                    output.set_item(TEXT_MIME, representation)?;
-                }
-            }
-            Ok(AdapterOutcome::Unsupported) => {
-                if let Some(delegate) = current {
-                    close_delegate(py, &delegate);
-                }
-                mesh.set_presentation_state(PresentationState::Empty)?;
-                if selected.contains(TEXT_MIME) {
-                    output.set_item(
-                        TEXT_MIME,
-                        format!("{representation}\n{UNSUPPORTED_NOTEBOOK_MESSAGE}"),
-                    )?;
-                }
-            }
-            Ok(AdapterOutcome::Rich {
-                delegate,
-                widget_view,
-            }) => {
-                mesh.set_presentation_state(PresentationState::Ready(delegate))?;
-                if selected.contains(TEXT_MIME) {
-                    output.set_item(TEXT_MIME, representation)?;
-                }
-                output.set_item(WIDGET_MIME, widget_view)?;
-            }
-            Err(delegate) => {
-                if let Some(delegate) = delegate.or(current) {
-                    close_delegate(py, &delegate);
-                }
-                mesh.set_presentation_state(PresentationState::Empty)?;
-                if selected.contains(TEXT_MIME) {
-                    output.set_item(
-                        TEXT_MIME,
-                        format!("{representation}\n{CORRUPT_NOTEBOOK_MESSAGE}"),
-                    )?;
-                }
-            }
+        if selected.contains(TEXT_MIME) {
+            output.set_item(TEXT_MIME, slf.get().representation())?;
         }
         Ok(output.unbind())
     }
 }
 
 impl PyMesh {
-    fn from_accepted(
-        py: Python<'_>,
-        accepted: AcceptedCircularHoleChordalRealizationV1,
-    ) -> PyResult<Self> {
-        let mesh = accepted.mesh().mesh();
-        let dimension = accepted.mesh().dimension();
-        let vertex_count = mesh.vertices().len();
-        let cell_count = mesh.cells().len();
-        let (coordinates, cells) = project_simplicial_mesh(py, mesh, dimension)?;
-        let source_digest = digest_to_hex(&accepted.source().digest_bytes());
-        let realized_geometry_digest = accepted
-            .realized_geometry()
-            .digest()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
-            .to_string();
-        let mesh_digest = accepted
-            .mesh()
-            .digest()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
-            .to_string();
-        let correspondence_digest = accepted
-            .correspondence()
-            .digest()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
-            .to_string();
-        let realization_digest = accepted
-            .envelope()
-            .digest()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
-            .to_string();
-        let canonical_bytes = accepted
-            .mesh()
-            .canonical_json()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-
-        Ok(Self {
-            source: AcceptedMeshSource::Chordal {
-                accepted: Box::new(accepted),
-                external_import: None,
-            },
-            lineage: MeshLineage {
-                source_digest,
-                realized_geometry_digest,
-                mesh_digest,
-                correspondence_digest,
-                realization_digest: Some(realization_digest),
-                dimension,
-                vertex_count,
-                cell_count,
-            },
-            canonical_bytes,
-            coordinates,
-            cells,
-            presentation: Mutex::new(PresentationState::Empty),
-        })
-    }
-
-    fn from_source_owned(
-        py: Python<'_>,
-        plan: &super::source_owned::SourceOwnedPlan,
-        production: &MeshProductionLineageEnvelopeV1,
-    ) -> PyResult<Self> {
-        plan.revalidate(&plan.source)
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-        Self::from_source_parts(
-            py,
-            &plan.source,
-            &plan.mesh,
-            &plan.correspondence,
-            production,
-            SourceOwnedProviderObservation::Reference,
-        )
-    }
-
     fn from_source_owned_affine_triangle(
         py: Python<'_>,
         source: &CanonicalGeometryV1,
@@ -637,7 +395,6 @@ impl PyMesh {
                 realized_geometry_digest: source_digest,
                 mesh_digest,
                 correspondence_digest,
-                realization_digest: None,
                 dimension,
                 vertex_count,
                 cell_count,
@@ -645,7 +402,6 @@ impl PyMesh {
             canonical_bytes,
             coordinates,
             cells,
-            presentation: Mutex::new(PresentationState::Empty),
         })
     }
 
@@ -707,7 +463,6 @@ impl PyMesh {
                 realized_geometry_digest: source_digest,
                 mesh_digest,
                 correspondence_digest,
-                realization_digest: None,
                 dimension,
                 vertex_count,
                 cell_count,
@@ -715,7 +470,6 @@ impl PyMesh {
             canonical_bytes,
             coordinates,
             cells,
-            presentation: Mutex::new(PresentationState::Empty),
         };
         let authenticated = published
             .authenticated_cartesian_resources()
@@ -730,30 +484,6 @@ impl PyMesh {
         Ok(published)
     }
 
-    fn from_imported(py: Python<'_>, imported: super::gmsh::ImportedGmshMesh) -> PyResult<Self> {
-        let manifest_digest = imported
-            .manifest
-            .digest()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
-            .to_string();
-        let manifest_bytes = imported
-            .manifest
-            .canonical_json()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-        let mut mesh = Self::from_accepted(py, imported.accepted)?;
-        let AcceptedMeshSource::Chordal {
-            external_import, ..
-        } = &mut mesh.source
-        else {
-            unreachable!("from_accepted always publishes a chordal Mesh")
-        };
-        *external_import = Some(Box::new(ExternalImportLineage {
-            canonical_bytes: manifest_bytes,
-            digest: manifest_digest,
-        }));
-        Ok(mesh)
-    }
-
     fn representation(&self) -> String {
         format!(
             "Mesh(dimension={}, vertices={}, cells={}, digest={:?})",
@@ -764,39 +494,10 @@ impl PyMesh {
         )
     }
 
-    fn is_exact_notebook_reference(&self) -> bool {
-        if !matches!(self.source, AcceptedMeshSource::Chordal { .. })
-            || self.lineage.source_digest != REFERENCE_SOURCE_DIGEST
-            || self.canonical_bytes.len() != REFERENCE_CANONICAL_BYTES
-            || self.lineage.mesh_digest != REFERENCE_MESH_DIGEST
-        {
-            return false;
-        }
-        let raw = Sha256::digest(&self.canonical_bytes);
-        if hex_digest(&raw) != REFERENCE_CANONICAL_RAW_SHA256 {
-            return false;
-        }
-        let mut framed = Sha256::new();
-        framed.update(MESH_DIGEST_DOMAIN);
-        framed.update(&self.canonical_bytes);
-        hex_digest(&framed.finalize()) == REFERENCE_MESH_DIGEST
-    }
-
-    fn external_import(&self) -> Option<&ExternalImportLineage> {
-        match &self.source {
-            AcceptedMeshSource::Chordal {
-                external_import, ..
-            } => external_import.as_deref(),
-            AcceptedMeshSource::SourceOwned { .. } => None,
-            AcceptedMeshSource::SourceOwnedCartesian { .. } => None,
-        }
-    }
-
     fn production_lineage(&self) -> Option<&MeshProductionLineageEnvelopeV1> {
         match &self.source {
             AcceptedMeshSource::SourceOwned { production, .. } => Some(production),
             AcceptedMeshSource::SourceOwnedCartesian { production, .. } => Some(production),
-            AcceptedMeshSource::Chordal { .. } => None,
         }
     }
 
@@ -914,19 +615,6 @@ impl PyMesh {
             .map(Some),
             AcceptedMeshSource::SourceOwned {
                 geometry,
-                mesh,
-                correspondence,
-                production,
-                provider_observation: SourceOwnedProviderObservation::Reference,
-            } => AuthenticatedCommonMesh::planar_reference(
-                (**geometry).clone(),
-                (**mesh).clone(),
-                (**correspondence).clone(),
-                (**production).clone(),
-            )
-            .map(Some),
-            AcceptedMeshSource::SourceOwned {
-                geometry,
                 production,
                 provider_observation: SourceOwnedProviderObservation::Gmsh4152 { output },
                 ..
@@ -969,169 +657,8 @@ impl PyMesh {
                     Ok(None)
                 }
             }
-            AcceptedMeshSource::Chordal { .. } => Ok(None),
         }
     }
-
-    fn set_presentation_state(&self, next: PresentationState) -> PyResult<()> {
-        let mut state = self
-            .presentation
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("Mesh presentation lock is poisoned"))?;
-        *state = next;
-        Ok(())
-    }
-}
-
-/// Import one complete Gmsh MSH 4.1 image into the common accepted Mesh.
-#[pyfunction]
-#[pyo3(signature = (geometry, source, /, *, policy))]
-pub(super) fn import_gmsh(
-    py: Python<'_>,
-    geometry: &PyGeometry,
-    source: &[u8],
-    policy: PyRef<'_, PyGmshImport>,
-) -> PyResult<PyMesh> {
-    panic_boundary(py, || {
-        let geometry = geometry.geometry().clone();
-        let source = source.to_vec();
-        let policy = *policy;
-        let imported = py.detach(move || {
-            let quality_gate = eqiora::meshing::MeshQualityGate::new(policy.minimum_mean_ratio)?;
-            let reference = AcceptedCircularHoleChordalRealizationV1::from_reference(
-                &geometry,
-                policy.maximum_boundary_error,
-                policy.maximum_boundary_facets,
-                quality_gate,
-            )?;
-            super::gmsh::import(&source, &reference, quality_gate)
-        });
-        imported
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
-            .and_then(|imported| PyMesh::from_imported(py, imported))
-    })
-}
-
-enum AdapterOutcome {
-    Absent,
-    Unsupported,
-    Rich {
-        delegate: Py<PyAny>,
-        widget_view: Py<PyAny>,
-    },
-}
-
-fn call_presentation_adapter(
-    py: Python<'_>,
-    mesh: &Bound<'_, PyMesh>,
-    token: &Bound<'_, PyDict>,
-    current: Option<&Py<PyAny>>,
-) -> Result<AdapterOutcome, Option<Py<PyAny>>> {
-    let module = py.import("eqiora._presentation").map_err(|_| None)?;
-    let adapter = module.getattr("mesh_mimebundle").map_err(|_| None)?;
-    let current = current.map_or_else(|| py.None(), |value| value.clone_ref(py));
-    let result = adapter.call1((mesh, token, current)).map_err(|_| None)?;
-    let tuple = result.cast::<PyTuple>().map_err(|_| None)?;
-    if tuple.len() != 3 {
-        return Err(tuple.get_item(1).ok().map(Bound::unbind));
-    }
-    let status = tuple
-        .get_item(0)
-        .and_then(|value| value.extract::<String>())
-        .map_err(|_| tuple.get_item(1).ok().map(Bound::unbind))?;
-    if status == "absent"
-        && tuple.get_item(1).is_ok_and(|value| value.is_none())
-        && tuple.get_item(2).is_ok_and(|value| value.is_none())
-    {
-        return Ok(AdapterOutcome::Absent);
-    }
-    if status == "unsupported"
-        && tuple.get_item(1).is_ok_and(|value| value.is_none())
-        && tuple.get_item(2).is_ok_and(|value| value.is_none())
-    {
-        return Ok(AdapterOutcome::Unsupported);
-    }
-    if status != "rich" {
-        return Err(tuple.get_item(1).ok().and_then(|value| {
-            if value.is_none() {
-                None
-            } else {
-                Some(value.unbind())
-            }
-        }));
-    }
-    let delegate = tuple.get_item(1).map_err(|_| None)?;
-    if delegate.is_none() {
-        return Err(None);
-    }
-    let delegate = delegate.unbind();
-    let hook_result = tuple
-        .get_item(2)
-        .map_err(|_| Some(delegate.clone_ref(py)))?;
-    let hook_tuple = hook_result
-        .cast::<PyTuple>()
-        .map_err(|_| Some(delegate.clone_ref(py)))?;
-    if hook_tuple.len() != 2
-        || !hook_tuple
-            .get_item(1)
-            .is_ok_and(|value| value.is_instance_of::<PyDict>())
-    {
-        return Err(Some(delegate));
-    }
-    let data = hook_tuple
-        .get_item(0)
-        .map_err(|_| Some(delegate.clone_ref(py)))?
-        .cast_into::<PyDict>()
-        .map_err(|_| Some(delegate.clone_ref(py)))?;
-    let widget_view = data
-        .get_item(WIDGET_MIME)
-        .map_err(|_| Some(delegate.clone_ref(py)))?
-        .ok_or_else(|| Some(delegate.clone_ref(py)))?;
-    let widget = widget_view
-        .cast::<PyDict>()
-        .map_err(|_| Some(delegate.clone_ref(py)))?;
-    if widget.len() != 3
-        || widget
-            .get_item("version_major")
-            .ok()
-            .flatten()
-            .and_then(exact_u8)
-            != Some(2)
-        || widget
-            .get_item("version_minor")
-            .ok()
-            .flatten()
-            .and_then(exact_u8)
-            != Some(0)
-        || widget
-            .get_item("model_id")
-            .ok()
-            .flatten()
-            .and_then(|value| value.extract::<String>().ok())
-            .is_none_or(|model_id| model_id.is_empty())
-    {
-        return Err(Some(delegate));
-    }
-    Ok(AdapterOutcome::Rich {
-        delegate,
-        widget_view: widget_view.unbind(),
-    })
-}
-
-fn close_delegate(py: Python<'_>, delegate: &Py<PyAny>) {
-    let _ = delegate.bind(py).call_method0("close");
-}
-
-fn exact_u8(value: Bound<'_, PyAny>) -> Option<u8> {
-    if value.is_instance_of::<PyBool>() {
-        None
-    } else {
-        value.extract::<u8>().ok()
-    }
-}
-
-fn hex_digest(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn project_simplicial_mesh(
@@ -1286,20 +813,6 @@ pub(super) fn generate(
                 ));
             }
             Ok(published)
-        }
-        ResolvedMeshPlan::SourceOwned(resolved) => {
-            resolved
-                .revalidate(geometry.geometry())
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            plan.provider
-                .validate_production_lineage(
-                    &plan.production,
-                    &resolved.source,
-                    &resolved.mesh,
-                    &resolved.correspondence,
-                )
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            PyMesh::from_source_owned(py, resolved, &plan.production)
         }
         ResolvedMeshPlan::Cartesian(resolved) => {
             let super::plan::MeshProviderPolicy::Cartesian(provider) = plan.provider else {

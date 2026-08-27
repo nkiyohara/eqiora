@@ -24,17 +24,15 @@ DPI = 160
 PNG_SOFTWARE = "Eqiora exact-cylinder gallery publication v1"
 
 ALT_TEXT = (
-    "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder "
-    "demonstration, shown with a viridis color scale and the 1,210-triangle "
-    "affine mesh overlaid. Presentation image only; linked Result evidence "
-    "carries the numerical claim."
+    "Pressure in pascals for a 2D steady-Stokes exact-cylinder demonstration, "
+    "shown with a viridis color scale and its current Gmsh mesh overlaid. "
+    "Presentation image only; no numerical or mesh-output oracle."
 )
 PUBLIC_CLAIM = (
-    "one frozen 2D steady incompressible Stokes exact-cylinder demonstration on "
-    "the accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine "
-    "triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = "
-    "14/2/48/50, and 548 interior vertices; rendered from its accepted public "
-    "Result path and linked evidence."
+    "one presentation-only 2D steady incompressible Stokes exact-cylinder "
+    "demonstration rendered through exact Geometry, typed Gmsh policy, and the "
+    "root Result path; output counts, digests, numerical values, and pixels are "
+    "not independently verified."
 )
 NONCLAIMS = [
     "no arbitrary geometry or provider selection",
@@ -56,7 +54,6 @@ SOURCE_ROLES = {
     "examples/python/exact_cylinder_stokes_marimo.py": ["canonical-marimo-snippet"],
     "examples/steady-flow-past-cylinder.eqi": ["example-formula-owner"],
     "examples/steady-flow-past-cylinder.geometry.json": ["geometry"],
-    "examples/steady-flow-past-cylinder.model.json": ["model", "scientific-formula"],
     "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi": ["current-package-formula-owner"],
     "tools/site/produce_exact_cylinder_pressure.py": ["producer-command"],
     "verify/fluid/packaged-steady-stokes-2d/models/direct.eqi": ["packaged-stokes-formula"],
@@ -64,14 +61,10 @@ SOURCE_ROLES = {
 }
 CASE_ROLES = {
     "artifacts.current-model-canonical-identity": "evidence",
-    "fluid.exact-circular-hole-stokes-2d-gmsh": "evidence",
     "fluid.packaged-steady-stokes-2d": "evidence",
     "geometry.exact-circular-hole-geometry": "evidence",
-    "interfaces.python-circular-hole-chordal-mesh": "evidence",
     "interfaces.python-exact-circular-hole-geometry": "evidence",
-    "interfaces.python-exact-cylinder-pressure-still": "presentation-only",
     "interfaces.python-exact-cylinder-stokes-marimo": "evidence",
-    "interfaces.python-exact-cylinder-stokes-result": "evidence",
 }
 RECEIPT_CHECKS = [
     "canonical-payload-and-wrapper",
@@ -178,15 +171,6 @@ class PublicationFixture:
             target = self.root / case_path(case_id)
             target.parent.mkdir(parents=True, exist_ok=True)
             body = f'id = "{case_id}"\nstatus = "verified"\n'
-            if case_id == "interfaces.python-exact-cylinder-pressure-still":
-                body += (
-                    "\n[claim_boundary]\n"
-                    "media_admission = false\n"
-                    "durable_image_provenance = false\n"
-                    "reproducible_image_bytes = false\n"
-                    "exact_pixels_or_dimensions = false\n"
-                    "scientific_validation_from_pixels = false\n"
-                )
             target.write_text(body, encoding="utf-8")
             target.with_name("README.md").write_text(f"# Synthetic dossier for {case_id}\n", encoding="utf-8")
         subprocess.run(["git", "init", "-q", self.root], check=True)
@@ -276,24 +260,22 @@ class PublicationFixture:
             )
         digests = {
             "correspondence_digest": identity("correspondence"),
-            "evidence_run_digest": identity("run-manifest"),
+            "evidence_plan_key": identity("plan"),
             "geometry_digest": identity("geometry"),
             "mesh_digest": identity("mesh"),
             "model_digest": identity("model"),
-            "realization_digest": identity("realization"),
-            "run_manifest_digest": identity("run-manifest"),
+            "plan_identity": identity("plan"),
+            "result_plan_key": identity("plan"),
         }
         methods = {
-            "correspondence_digest": "Result.mesh(FieldRef).correspondence_digest",
-            "evidence_run_digest": "fluid.steady_stokes_evidence(Result).run_digest",
-            "geometry_digest": "Result.mesh(FieldRef).source_digest",
-            "mesh_digest": "Result.mesh(FieldRef).digest",
+            "correspondence_digest": "Plan.correspondence_digest",
+            "evidence_plan_key": "fluid.steady_stokes_evidence(Result).plan_key",
+            "geometry_digest": "Plan.geometry_digest",
+            "mesh_digest": "Plan.mesh_digest",
             "model_digest": "Result.model_digest",
-            "pressure_blocks": "Result.field(FieldRef).block_digests",
-            "pressure_output": "Result.run_manifest().output_digests",
-            "pressure_snapshot": "Result.field(FieldRef).digest",
-            "realization_digest": "Result.run_manifest().realization_digest",
-            "run_manifest_digest": "Result.run_manifest().digest",
+            "plan_identity": "Plan.identity",
+            "pressure_output": "Result.output(FieldRef)",
+            "result_plan_key": "Result.plan_key",
         }
         caption = (
             "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at "
@@ -327,28 +309,23 @@ class PublicationFixture:
                     },
                     {
                         "from": digests["model_digest"],
-                        "kind": "Model→Realization",
-                        "to": digests["realization_digest"],
+                        "kind": "Model→Plan",
+                        "to": digests["plan_identity"],
                     },
                     {
                         "from": digests["mesh_digest"],
-                        "kind": "Mesh→Realization",
-                        "to": digests["realization_digest"],
+                        "kind": "Mesh→Plan",
+                        "to": digests["plan_identity"],
                     },
                     {
-                        "from": digests["realization_digest"],
-                        "kind": "Realization→Run",
-                        "to": digests["run_manifest_digest"],
+                        "from": digests["plan_identity"],
+                        "kind": "Plan→ResultBinding",
+                        "to": digests["result_plan_key"],
                     },
                     {
-                        "from": digests["run_manifest_digest"],
-                        "kind": "Run→ResultEvidence",
-                        "to": digests["evidence_run_digest"],
-                    },
-                    {
-                        "from": digests["run_manifest_digest"],
-                        "kind": "Result→PressureSnapshot",
-                        "to": identity("pressure-snapshot"),
+                        "from": digests["result_plan_key"],
+                        "kind": "ResultBinding→Evidence",
+                        "to": digests["evidence_plan_key"],
                     },
                 ],
                 "identities": digests,
@@ -360,15 +337,14 @@ class PublicationFixture:
                     "frame_selection": "single steady result; temporal interval not applicable",
                     "mesh_digest": digests["mesh_digest"],
                     "model_digest": digests["model_digest"],
-                    "ordered_block_digests": [identity("block-0")],
-                    "ordered_output_digests": [identity("pressure-snapshot")],
-                    "snapshot_digest": identity("pressure-snapshot"),
+                    "components": 1,
+                    "vertex_count": 7,
                     "source_unit": "kg/(m*s^2)",
                     "value_range": {"maximum": 0.25, "minimum": -0.125},
                 },
-                "source_result": {
-                    "digest": digests["run_manifest_digest"],
-                    "digest_kind": "Result.run_manifest().digest",
+                "result_binding": {
+                    "identity": digests["result_plan_key"],
+                    "identity_kind": "Result.plan_key",
                 },
             },
             "media": {
@@ -449,7 +425,7 @@ class PublicationFixture:
                 "format": "png",
                 "mesh_overlay": True,
                 "no_crop_resize_reencode": True,
-                "normalization": "bound pressure snapshot minimum/maximum",
+                "normalization": "bound pressure output minimum/maximum",
                 "plot": "tripcolor",
                 "shading": "gouraud",
                 "title": "Exact-cylinder steady Stokes pressure",
@@ -460,24 +436,7 @@ class PublicationFixture:
                 "alt": ALT_TEXT,
                 "alt_sha256": sha(ALT_TEXT.encode()),
                 "caption": caption,
-                "caption_links": [
-                    {
-                        "case_id": "interfaces.python-exact-cylinder-stokes-result",
-                        "label": "Result evidence",
-                        "route": dossier_route(
-                            "interfaces.python-exact-cylinder-stokes-result",
-                            self.revision,
-                        ),
-                    },
-                    {
-                        "case_id": "interfaces.python-exact-cylinder-pressure-still",
-                        "label": "Pressure-still presentation case",
-                        "route": dossier_route(
-                            "interfaces.python-exact-cylinder-pressure-still",
-                            self.revision,
-                        ),
-                    },
-                ],
+                "caption_links": [],
                 "caption_sha256": sha(caption.encode()),
             },
         }

@@ -225,8 +225,8 @@ The installed Python `steady-flow-past-cylinder` example does not advance
 `fluid.flow-past-cylinder`: it is a bounded steady Stokes demonstration on one
 accepted affine mesh, with no Reynolds-number, wake, drag/lift-coefficient,
 Strouhal-number, convergence, benchmark, or validation claim. The former
-Studio application workflow is retired; the current composition evidence is
-`interfaces.python-exact-cylinder-stokes-result`.
+Studio application workflow and the fixed-mesh result dossier are retired;
+the installed example remains ordinary product coverage for the root Plan path.
 
 `fluid.taylor-green` is the smooth analytic or manufactured transient
 precursor. `fluid.taylor-green-breakdown-3d` is a separate numerical stress and

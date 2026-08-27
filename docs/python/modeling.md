@@ -104,27 +104,19 @@ not implement their operations:
 ```python
 import eqiora
 
-base_sketch = eqiora.geometry.CadAuthoredSketch.rectangle_xy(
-    x_bounds=(0.0, 2.2),
-    y_bounds=(0.0, 0.41),
-    plane_z=0.0,
-    modeling_tolerance=1e-10,
-)
-base = base_sketch.extrude_positive_z(depth=1.0)
-cut_sketch = eqiora.geometry.CadAuthoredSketch.circle_on_face(
-    base.face_handle("end-cap"),
-    center=(0.2, 0.2),
-    radius=0.05,
-)
-graph = base.through_cut(cut_sketch, boolean_tolerance=1e-10)
-geometry = graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid",
-    x_lower="inlet",
-    x_upper="outlet",
-    y_lower="walls",
-    y_upper="walls",
-    hole="cylinder",
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+circle = graph.circle(center=(0.2, 0.2), radius=0.05)
+fluid = graph.subtract(rectangle, circle)
+geometry = graph.build(
+    fluid,
+    named_topology={
+        "fluid": fluid.region,
+        "inlet": rectangle.boundaries[0],
+        "outlet": rectangle.boundaries[1],
+        "walls": rectangle.boundaries[2:],
+        "cylinder": circle.boundaries[0],
+    },
 )
 
 assert geometry.selection_dimension("fluid") == 2
@@ -133,9 +125,8 @@ print(geometry.digest)
 ```
 
 Rust owns validation, graph binding, operation order, canonical ordering,
-bytes, and both distinct identities. The sketch wrapper owns a native value,
-so dropping its source graph or face-handle wrapper does not invalidate it.
-Every coordinate, radius, depth, and CAD tolerance is a coherent-SI metre.
+bytes, and exact handle identity. Every coordinate and radius is a coherent-SI
+metre.
 The existing `CadAuthoredGraph.rectangle_extrusion` and
 `graph.circular_through_cut` signatures remain supported and produce the same
 canonical graphs. The 3D graph retains its explicit depth and CAD tolerances;
@@ -148,13 +139,12 @@ separate slices. Installed Python exposes the common `Geometry` projection
 only through the accepted authored graph; it does not publish a demo-shaped
 constructor.
 
-## Bounded Gmsh-backed chordal mesh
+## Bounded Gmsh mesh
 
-The matching meshing operation is an explicit Realization choice rather than a
-method on exact geometry:
+The matching meshing operation is an explicit typed provider choice:
 
 ```python
-request = eqiora.meshing.ReferenceMesher(
+request = eqiora.meshing.GmshMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
@@ -163,46 +153,23 @@ plan = eqiora.meshing.resolve(geometry, request)
 mesh = eqiora.meshing.generate(geometry, plan=plan)
 
 assert mesh.source_digest == geometry.digest
-assert plan.boundary_facets == 50
-assert mesh.selection_entity_count("cylinder") == 50
+assert plan.boundary_facets == mesh.selection_entity_count("cylinder")
 print(mesh.digest)
 ```
 
-Rust retains the exact source, chooses and measures the chordal approximation,
-invokes exact Gmsh 4.15.2, admits its MSH 4.1 linear triangles, and derives
+Rust retains the exact source, derives a bounded subdivision receipt directly
+from Geometry and policy, invokes exact Gmsh 4.15.2, admits its MSH 4.1 linear
+triangles, and derives
 realized named selections through the geometry-to-mesh correspondence.
 `canonical_bytes` and `digest` identify only the accepted inner simplicial
-mesh. The returned object retains the source, correspondence, and realization
-identities in the live process. Missing, wrong-version, failed, or invalid
+mesh. The returned object retains source, correspondence, Mesh, and
+provider-production identities. Missing, wrong-version, failed, or invalid
 Gmsh output rejects without falling back to the retired spoke mesh.
 
-An existing complete MSH 4.1 image can enter the same `Mesh` boundary without
-launching Gmsh:
-
-```python
-from pathlib import Path
-
-source = Path("accepted-cylinder.msh").read_bytes()
-mesh = eqiora.meshing.import_gmsh(geometry, source, request=request)
-
-assert mesh.source_digest == geometry.digest
-assert mesh.external_import_manifest_bytes is not None
-print(mesh.external_import_manifest_digest)
-```
-
-The immutable external-import manifest records the raw source SHA-256, exact
-Eqiora Gmsh adapter version, empty native-runtime stack, normalized Nodes and
-Elements array identities, and the accepted common Mesh identity. The same
-`request` explicitly supplies the chordal realization and quality policy.
-Generated and imported Meshes may therefore have identical coordinates,
-connectivity, and Mesh digest while only the imported Mesh carries source
-provenance.
-
-These bounded operations support the one rectangle-with-circular-hole family
-and affine 2D triangles. Import accepts complete ASCII or binary MSH 4.1 bytes;
-it does not add paths, fields, multiple pieces, 3D, curved elements, repair,
-renumbering equivalence, adaptive sizing, general Geometry matching, or
-cross-platform normalized-byte identity.
+This bounded operation supports the rectangle-with-circular-hole family and
+affine 2D triangles. It does not add caller-owned MSH import, paths, fields,
+multiple pieces, 3D, curved elements, repair, adaptive sizing, general Geometry
+matching, fixed output counts, or cross-platform byte identity.
 
 ## Exact-cylinder steady Stokes result
 
@@ -268,7 +235,7 @@ projection, drag/lift, transient flow, and FSI remain separate slices. The
 runnable file is
 [`examples/python/exact_cylinder_stokes.py`](../../examples/python/exact_cylinder_stokes.py).
 
-## Exact-cylinder pressure still
+## Exact-cylinder pressure rendering
 
 Install the Gmsh and Matplotlib adapters and ask the same runnable file to save
 the accepted pressure field:
@@ -310,46 +277,59 @@ model-bound Plan through the ordinary Run path:
 ```python
 from importlib.resources import files
 
-source = (
-    files(eqiora)
-    .joinpath("examples", "mixed-boundary-elasticity.eqi")
-    .read_text()
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+geometry = graph.build(
+    rectangle,
+    named_topology={
+        "body": rectangle.region,
+        "x_lower": rectangle.boundaries[0],
+        "x_upper": rectangle.boundaries[1],
+        "y_lower": rectangle.boundaries[2],
+        "y_upper": rectangle.boundaries[3],
+    },
 )
+mesh_plan = eqiora.meshing.resolve(
+    geometry,
+    eqiora.meshing.CartesianMesher(cells=(16, 16)),
+)
+mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 model = eqiora.compile(
-    source=source,
-    filename="mixed-boundary-elasticity.eqi",
+    path=files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi"),
+    geometry=geometry,
+    parameters={"mu": 3.0, "lambda": 0.0, "length_scale": 1.0},
 )
-intent = eqiora.solid.LinearElasticity(
-    cells_per_axis=16,
-    relative_tolerance=1.0e-12,
-    absolute_tolerance=1.0e-14,
-    maximum_iterations=10_000,
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=eqiora.fem.Q1(),
+    solve=eqiora.solve.Linear(
+        relative_tolerance=1.0e-10,
+        absolute_tolerance=1.0e-12,
+        maximum_iterations=10_000,
+    ),
 )
-plan = eqiora.solid.resolve(model, intent)
-run = eqiora.submit(model, plan=plan)
-result = run.result()
+result = eqiora.run(plan)
 
-displacement = model.field("displacement")
-snapshot = result.field(displacement)
-mesh = result.mesh(displacement)
+displacement = result.output(plan.field)
+mesh = displacement.mesh
 evidence = eqiora.solid.linear_elasticity_evidence(result)
 ```
 
-`LinearElasticity` is keyword-only and has no hidden defaults. The resolved
-`LinearElasticityPlan` exposes the effective generated-Cartesian Q1
-Realization, solver, backend, execution, and worker choices before a worker
-starts. Resolution admits only this already verified tuple and rejects other
+The root `Plan` exposes the exact caller-owned mesh, Q1 spatial policy, linear
+solver policy, backend, and execution placement before a worker starts.
+Resolution admits only supported typed policy combinations and rejects other
 values instead of silently falling back.
 
-The common `Result` owns one immutable vector `FieldSnapshot` selected by the
-caller's exact Model-bound `FieldRef`; `result.mesh(displacement)` returns its
-paired exact generated-Cartesian `Mesh`. Snapshot values, Mesh coordinates,
+The common `Result` owns one immutable vector `FieldOutput` selected by the
+Plan's exact Model-bound `FieldRef`; `displacement.mesh` is its paired exact
+caller-generated `Mesh`. Output values, Mesh coordinates,
 and Q1 connectivity lazily publish memoized, read-only NumPy views in one
-co-indexed canonical order. The typed `LinearElasticityEvidence` keeps the
-Run digest, reference-CG solve summary, assembly counts, constrained reaction,
+co-indexed canonical order. The typed elasticity observation keeps the
+Plan identity, reference-CG solve summary, assembly counts, constrained reaction,
 integrated body force, and exact bounds outside the common result transport.
-Model, Realization, Geometry, correspondence, Mesh, Snapshot, and Run identity
-remain Rust-owned and relationally exact. Stress, strain, traction recovery,
+Model, Geometry, correspondence, Mesh, Plan, and Result identity remain
+Rust-owned and relationally exact. Stress, strain, traction recovery,
 analytic error, other meshes, and general structural solving are not implied.
 
 The optional still displays original and explicitly scaled deformed edges:
@@ -359,17 +339,11 @@ import eqiora.matplotlib as eqplot
 
 figure = eqplot.plot_deformed_field(
     result,
-    field=displacement,
+    field=plan.field,
     scale=1.0,
 )
 figure.savefig("mixed-boundary-displacement.png")
 ```
-
-For one subsequent prerelease, `MixedBoundaryElasticityResult`,
-`solve_mixed_boundary_elasticity`, and `plot_displacement` remain only as
-warning-emitting compatibility shims that delegate to this path. They own no
-result storage, execution, lineage, plotting implementation, or evidence and
-are not the ordinary API.
 
 The complete runnable workflow is
 [`examples/python/mixed_boundary_elasticity.py`](../../examples/python/mixed_boundary_elasticity.py).
@@ -527,36 +501,15 @@ model = eqiora.Model.define(
 draft. Shape, frame, dimension, support, and residual validity remain Kernel
 decisions.
 
-## Bounded scalar-elliptic realization
+## Typed spatial Plan
 
-The accepted spatial model can enter a small typed realization surface without
-exposing the internal graph-shaped Realization IR:
-
-```python
-request = eqiora.ScalarElliptic(
-    method=eqiora.ScalarEllipticMethod.FiniteElement,
-    cells_per_axis=32,
-)
-realization = eqiora.preview_realization(model, request)
-result = eqiora.run(model, realization=realization)
-
-assert result.realization == realization
-print(result.field.logical_shape)
-print(result.balance.relative_imbalance)
-print(result.solve.true_residual_norm)
-values = result.values.numpy(copy=False)
-```
-
-`ScalarElliptic` is an unbound request. `preview_realization` resolves it
-against one exact model and the host-serial capability profile before
-numerical allocation. The resulting Realization is immutable and model-bound;
-foreign models and mismatched persisted run manifests fail closed.
-
-The current path supports generated Cartesian scalar elliptic systems in one
-through three dimensions. Q1 finite elements return complete vertex values,
-including eliminated essential-boundary values. TPFA finite volumes return
-primary cell-centred values. Both use canonical row-major flattening with the
-last physical axis varying fastest.
+Spatial execution uses the same root lifecycle as the examples above: author
+one concrete Geometry, resolve a typed meshing provider, compile an
+equations-only component with that Geometry, and call
+`eqiora.resolve(model, mesh=..., spatial=..., solve=...)`. The returned common
+`Plan` owns the exact Model, Mesh, and numerical policy identities; execution
+accepts only `eqiora.run(plan)` or `eqiora.submit(plan)`. Specialized scalar
+requests and model-plus-realization execution are absent.
 
 ## Exact revisions and current replay
 

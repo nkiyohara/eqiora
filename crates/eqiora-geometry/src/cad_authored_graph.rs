@@ -15,7 +15,7 @@ use crate::cad_authored_cut::{CircularThroughCut, GRAPH_SCHEMA_V2, decode_v2, en
 use crate::cad_authored_selection::{CadAuthoredFaceHandle, FaceKey, WireFaceSelectionV1};
 use crate::cad_authored_sketch::CadAuthoredSketch;
 use crate::canonical::{CANONICAL_ENCODING, WireLengthUnit, digest_with_schema};
-use crate::{AxisAlignedBox3, CadRepairDispositionV1, CanonicalGeometryV1, ConstrainedRectangleV1};
+use crate::{AxisAlignedBox3, CadRepairDispositionV1, ConstrainedRectangleV1};
 
 const GRAPH_SCHEMA_V1: &str = "eqiora.cad-authored-operation-graph-envelope/v1";
 const MAX_GRAPH_BYTES: usize = 4_096;
@@ -149,51 +149,6 @@ impl CadAuthoredGraph {
             GRAPH_SCHEMA_V2,
             bytes,
         ))
-    }
-
-    /// Derive one exact planar section from the admitted through-cut history.
-    ///
-    /// The section is the rectangle-minus-circle profile shared by every
-    /// transverse plane of the through-cut body. Extrusion depth, sketch-plane
-    /// placement, and modeling tolerance therefore do not enter its exact
-    /// planar identity. Geometry classification tolerance remains a separate
-    /// caller-owned value and is revalidated by the existing exact planar
-    /// owner rather than copied from either authored CAD tolerance.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` unless this graph contains the admitted circular
-    /// through-cut, or when the independently supplied planar tolerance or
-    /// semantic role names fail exact Geometry admission.
-    #[allow(clippy::too_many_arguments)]
-    pub fn planar_circular_section(
-        &self,
-        classification_tolerance_m: f64,
-        region: &str,
-        x_lower: &str,
-        x_upper: &str,
-        y_lower: &str,
-        y_upper: &str,
-        hole: &str,
-    ) -> Result<CanonicalGeometryV1, Diagnostic> {
-        let GraphKind::CircularThroughCut(cut) = self.kind else {
-            return Err(invalid(
-                "an exact planar circular section requires the admitted through-cut history",
-            ));
-        };
-        let (x_lower_m, x_upper_m) = self.core.sketch.x_bounds_m();
-        let (y_lower_m, y_upper_m) = self.core.sketch.y_bounds_m();
-        CanonicalGeometryV1::from_circular_hole_named_roles(
-            [[x_lower_m, x_upper_m], [y_lower_m, y_upper_m]],
-            cut.center_m(),
-            cut.radius_m(),
-            classification_tolerance_m,
-            region,
-            x_lower,
-            x_upper,
-            y_lower,
-            y_upper,
-            hole,
-        )
     }
 
     /// Decode either closed schema and reconstruct its one canonical byte form.

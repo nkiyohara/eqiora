@@ -123,6 +123,24 @@ class PackageSelectionTests(unittest.TestCase):
 
 
 class PlanTests(unittest.TestCase):
+    def test_affected_selects_live_changed_cases_but_not_deleted_cases(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "verify" / "interfaces" / "live" / "case.toml"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text('id = "interfaces.live"\n', encoding="utf-8")
+            plan = build_plan(
+                "affected",
+                [
+                    "verify/interfaces/live/README.md",
+                    "verify/interfaces/deleted/README.md",
+                ],
+                [],
+                workspace(),
+                root,
+            )
+        self.assertEqual(plan.cases, ("interfaces.live",))
+
     def test_periodic_msrv_checks_every_production_feature(self) -> None:
         plan = build_plan("periodic", [], [], workspace())
         msrv = next(item for item in plan.commands if item.label == "MSRV")

@@ -66,7 +66,7 @@ export const STAGES = [
 ] as const;
 
 export const SUPPORTED_STATEMENT =
-  'One frozen 2D steady incompressible Stokes exact-cylinder demonstration on the accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = 14/2/48/50, and 548 interior vertices; rendered from its accepted public Result path and linked evidence.';
+  'One presentation-only 2D steady incompressible Stokes exact-cylinder demonstration rendered through exact Geometry, typed Gmsh policy, and the root Result path; output counts, digests, numerical values, and pixels are not independently verified.';
 
 export const TABLE_SELECTORS = {
   generic: '.sl-markdown-content table:not(:where(.not-content *))',

@@ -43,10 +43,10 @@ geometry = graph.build(fluid, named_topology={
     "cylinder": circle.boundaries[0],
 })
 mesh_request = eqiora.meshing.GmshMesher(
-        maximum_boundary_error=1e-4,
-        minimum_mean_ratio=1e-5,
-        maximum_boundary_facets=50,
-    )
+    maximum_boundary_error=1e-4,
+    minimum_mean_ratio=1e-5,
+    maximum_boundary_facets=50,
+)
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
 mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 
@@ -81,7 +81,8 @@ print("net flux", evidence.net_flux, "m^2/s")
 This is deliberately one bounded case rather than a claim of general CFD. It
 shows the distinction Eqiora is built around: exact geometry and model meaning
 remain immutable, meshing and solver choices live in explicit resolved plans,
-and the returned evidence stays tied to the same Model, Mesh, Run, and Result
+and the returned evidence stays tied to the same Geometry, Model, Mesh, Plan,
+and Result
 lineage. [Walk through the pressure result](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
 or run the complete
 [`examples/python/exact_cylinder_stokes.py`](examples/python/exact_cylinder_stokes.py)
@@ -110,12 +111,13 @@ Eqiora treats block diagrams, state charts, PDEs, and acausal physical
 networks as views of the same small semantic kernel. A canonical model is a
 network of typed relations, activations, and signal or conserving
 connections. Numerical choices—mesh, discretization, solver, schedule, CPU,
-GPU, or distributed execution—belong to a separate **Realization**.
+GPU, or distributed execution—are typed policies resolved into an immutable
+**Plan**.
 
 That separation is enforced by one traceable path:
 
 ```text
-meaning → lowered contract → realization → adapter → evidence
+.eqi → compile(geometry) → resolve(typed policies) → Plan → Run / Result
 ```
 
 Source, Python, Studio, and future visual editors therefore create

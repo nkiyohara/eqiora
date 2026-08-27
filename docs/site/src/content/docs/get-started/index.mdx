@@ -89,10 +89,10 @@ Rust users can run the small public-facade orientation examples from a source ch
 git clone https://github.com/nkiyohara/eqiora.git
 cd eqiora
 cargo run --locked -p eqiora --example quickstart
-cargo run --locked -p eqiora --example poisson
+python examples/python/exact_cylinder_stokes.py
 ```
 
-`quickstart` remains the smallest semantic-kernel orientation example. `poisson` is its spatial counterpart: it compiles a 2D Poisson model, selects a finite-element Realization explicitly, runs it on the host CPU, and reports the L2 error against the exact solution. The [Examples](/examples/) page keeps those small Rust paths separate from the application-scale cylinder workflow above.
+`quickstart` remains the smallest semantic-kernel orientation example. The exact-cylinder Python path is its spatial counterpart: it authors Geometry, compiles the equations-only component, resolves one typed root Plan, and runs it on the host CPU. The [Examples](/examples/) page expands that workflow.
 
 <Aside type="caution" title="Check the bounded claim">
   Before relying on any numerical method or backend, trace its row in the [capability matrix](/capabilities/) to a registered evidence case.

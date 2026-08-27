@@ -15,12 +15,10 @@ published base quick start runs against every installed wheel, the framework
 quick starts run against that same CPython 3.13 wheel, and the copied
 exact-cylinder demo saves a headless pressure PNG from the Matplotlib profile.
 
-The N1 acceptance predicate adds one `notebook` projection on CPython 3.13. It
-pins anywidget 0.11.0, JupyterLab 4.6.2, marimo 0.23.16, Playwright 1.62.1, and
-managed Chromium revision 1234/browser 151.0.7922.34 on Linux x86-64. That
-projection is bounded to the already accepted external-Gmsh 4.15.2 circular-hole
-Mesh with 662 vertices and 1,210 triangles; its source digest, 42,388 canonical
-bytes, and public Mesh digest remain owned by the circular-hole Mesh case.
+The N1 acceptance predicate retains its pinned notebook-host and bounded process
+cleanup checks on CPython 3.13. The displaced exact-Mesh rich viewer and its
+fixed Gmsh output contract are no longer part of candidate admission; the
+provider-neutral trajectory presentation remains separately covered.
 
 Normal profiles retain ordinary dependency resolution. A separate CPython
 3.12 environment pins NumPy 2.1.0, replays the array-ownership/DLPack

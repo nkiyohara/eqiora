@@ -47,12 +47,12 @@ declares `torch>=2.13,<2.14`; this release verifies exactly PyTorch 2.13.0. It
 also verifies the exact JAX/JAXLIB 0.11.0 pair and Matplotlib 3.11.1 on
 CPython 3.13. The JAX extra requires Python 3.12 or newer.
 
-The exact `notebook` extra installs anywidget 0.11.0 and keeps the complete
-private Three.js frontend inside the Eqiora wheel. In the verified Linux
-x86-64 CPython 3.13 profile, a bare exact accepted 50-chord circular-hole
-`Mesh` renders interactively in JupyterLab 4.6.2 and marimo 0.23.16. The same
-private runtime includes an unverified product view for the accepted
-fixed-reference FSI `Trajectory`, with stored-state previous/next, playback,
+The exact `notebook` extra installs anywidget 0.11.0 and keeps the bundled
+trajectory frontend inside the Eqiora wheel. In the verified Linux x86-64
+CPython 3.13 profile, the exact-cylinder Geometry → Gmsh Mesh → root Plan
+workflow composes in marimo 0.23.16. The private runtime also includes an
+unverified product view for the accepted fixed-reference FSI `Trajectory`,
+with stored-state previous/next, playback,
 speed, time, and scalar-Field metadata without interpolation or Python
 writeback. Focused adapter and frontend tests cover that bounded Trajectory
 view; it adds no registered host-support claim. Other meshes, trajectories,
@@ -82,10 +82,10 @@ geometry = graph.build(fluid, named_topology={
     "cylinder": circle.boundaries[0],
 })
 mesh_request = eqiora.meshing.GmshMesher(
-        maximum_boundary_error=1e-4,
-        minimum_mean_ratio=1e-5,
-        maximum_boundary_facets=50,
-    )
+    maximum_boundary_error=1e-4,
+    minimum_mean_ratio=1e-5,
+    maximum_boundary_facets=50,
+)
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
 mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 
@@ -122,8 +122,8 @@ print("net flux", evidence.net_flux, "m^2/s")
 ```
 
 The exact Geometry and Model remain distinct from meshing and execution plans.
-The common `Result` retains their Mesh, Realization, Run, Field, and evidence
-lineage rather than returning an unowned array. This is one verified 2D
+The common `Result` retains their Geometry, Model, Mesh, Plan, Field, and
+observation lineage rather than returning an unowned array. This is one verified 2D
 steady-Stokes case, not general CFD; its precise boundary and the optional
 pressure plot are described in
 [Modeling and realization](https://eqiora.org/python/modeling/#exact-cylinder-steady-stokes-result).
@@ -153,33 +153,25 @@ attestation, durable report wire, scientific-evidence decision, or Studio
 workflow. The precise boundary is documented under
 [Modeling and realization](https://eqiora.org/python/modeling/#check-one-exact-package-structurally).
 
-The accepted exact-cylinder path now begins with explicit native-owned sketch
-composition:
+The accepted exact-cylinder path uses one planar GeometryGraph as the sole
+shape authority:
 
 ```python
-base_sketch = eqiora.geometry.CadAuthoredSketch.rectangle_xy(
-    x_bounds=(0.0, 2.2),
-    y_bounds=(0.0, 0.41),
-    plane_z=0.0,
-    modeling_tolerance=1e-10,
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+circle = graph.circle(center=(0.2, 0.2), radius=0.05)
+fluid = graph.subtract(rectangle, circle)
+geometry = graph.build(
+    fluid,
+    named_topology={
+        "fluid": fluid.region,
+        "inlet": rectangle.boundaries[0],
+        "outlet": rectangle.boundaries[1],
+        "walls": rectangle.boundaries[2:],
+        "cylinder": circle.boundaries[0],
+    },
 )
-base = base_sketch.extrude_positive_z(depth=1.0)
-cut_sketch = eqiora.geometry.CadAuthoredSketch.circle_on_face(
-    base.face_handle("end-cap"),
-    center=(0.2, 0.2),
-    radius=0.05,
-)
-graph = base.through_cut(cut_sketch, boolean_tolerance=1e-10)
-geometry = graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid",
-    x_lower="inlet",
-    x_upper="outlet",
-    y_lower="walls",
-    y_upper="walls",
-    hole="cylinder",
-)
-request = eqiora.meshing.ReferenceMesher(
+request = eqiora.meshing.GmshMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
@@ -258,7 +250,12 @@ Failures expose stable categories and structured diagnostics:
 
 ```python
 try:
-    eqiora.run(model, end_time=-1.0, max_step=0.01)
+    eqiora.run(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=-1.0,
+        output_times_s=(-1.0,),
+    )
 except eqiora.EqioraError as error:
     print(error.category)
     for diagnostic in error.diagnostics:
@@ -295,8 +292,13 @@ result evidence. The complete contract is in
 state machine and one materialized result:
 
 ```python
-async def simulate(model):
-    run = eqiora.submit(model, end_time=10.0, max_step=0.001)
+async def simulate(plan):
+    run = eqiora.submit(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=10.0,
+        output_times_s=(10.0,),
+    )
     try:
         print(run.status, run.progress)
         return await run

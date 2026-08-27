@@ -32,17 +32,15 @@ WIDTH, HEIGHT, DPI = 1280, 832, 160
 PNG_SOFTWARE = "Eqiora exact-cylinder gallery publication v1"
 
 ALT_TEXT = (
-    "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder "
-    "demonstration, shown with a viridis color scale and the 1,210-triangle "
-    "affine mesh overlaid. Presentation image only; linked Result evidence "
-    "carries the numerical claim."
+    "Pressure in pascals for a 2D steady-Stokes exact-cylinder demonstration, "
+    "shown with a viridis color scale and its current Gmsh mesh overlaid. "
+    "Presentation image only; no numerical or mesh-output oracle."
 )
 PUBLIC_CLAIM = (
-    "one frozen 2D steady incompressible Stokes exact-cylinder demonstration on "
-    "the accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine "
-    "triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = "
-    "14/2/48/50, and 548 interior vertices; "
-    "rendered from its accepted public Result path and linked evidence."
+    "one presentation-only 2D steady incompressible Stokes exact-cylinder "
+    "demonstration rendered through exact Geometry, typed Gmsh policy, and the "
+    "root Result path; output counts, digests, numerical values, and pixels are "
+    "not independently verified."
 )
 NONCLAIMS = (
     "no arbitrary geometry or provider selection|no 3D, curved, boundary-layer, or adaptive meshing|"
@@ -60,7 +58,6 @@ SOURCE_ROLES = {
     "examples/python/exact_cylinder_stokes_marimo.py": ["canonical-marimo-snippet"],
     "examples/steady-flow-past-cylinder.eqi": ["example-formula-owner"],
     "examples/steady-flow-past-cylinder.geometry.json": ["geometry"],
-    "examples/steady-flow-past-cylinder.model.json": ["model", "scientific-formula"],
     "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi": ["current-package-formula-owner"],
     "tools/site/produce_exact_cylinder_pressure.py": ["producer-command"],
     "verify/fluid/packaged-steady-stokes-2d/models/direct.eqi": ["packaged-stokes-formula"],
@@ -69,26 +66,20 @@ SOURCE_ROLES = {
 
 CASE_ROLES = {
     "artifacts.current-model-canonical-identity": "evidence",
-    "fluid.exact-circular-hole-stokes-2d-gmsh": "evidence",
     "fluid.packaged-steady-stokes-2d": "evidence",
     "geometry.exact-circular-hole-geometry": "evidence",
-    "interfaces.python-circular-hole-chordal-mesh": "evidence",
     "interfaces.python-exact-circular-hole-geometry": "evidence",
-    "interfaces.python-exact-cylinder-pressure-still": "presentation-only",
     "interfaces.python-exact-cylinder-stokes-marimo": "evidence",
-    "interfaces.python-exact-cylinder-stokes-result": "evidence",
 }
 LINEAGE_METHODS = {
-    "correspondence_digest": "Result.mesh(FieldRef).correspondence_digest",
-    "evidence_run_digest": "fluid.steady_stokes_evidence(Result).run_digest",
-    "geometry_digest": "Result.mesh(FieldRef).source_digest",
-    "mesh_digest": "Result.mesh(FieldRef).digest",
+    "correspondence_digest": "Plan.correspondence_digest",
+    "evidence_plan_key": "fluid.steady_stokes_evidence(Result).plan_key",
+    "geometry_digest": "Plan.geometry_digest",
+    "mesh_digest": "Plan.mesh_digest",
     "model_digest": "Result.model_digest",
-    "pressure_blocks": "Result.field(FieldRef).block_digests",
-    "pressure_output": "Result.run_manifest().output_digests",
-    "pressure_snapshot": "Result.field(FieldRef).digest",
-    "realization_digest": "Result.run_manifest().realization_digest",
-    "run_manifest_digest": "Result.run_manifest().digest",
+    "plan_identity": "Plan.identity",
+    "pressure_output": "Result.output(FieldRef)",
+    "result_plan_key": "Result.plan_key",
 }
 
 RECEIPT_CHECKS = (
@@ -347,22 +338,6 @@ def _check_cases(payload: dict[str, Any], root: Path, revision: str) -> None:
             _fail("case-manifest", f"invalid manifest for {case_id}: {error}")
         if document.get("id") != case_id:
             _fail("case-manifest", f"manifest id differs for {case_id}")
-        if case_id == "interfaces.python-exact-cylinder-pressure-still":
-            boundary = document.get("claim_boundary", {})
-            if type(boundary) is not dict:
-                _fail("case-manifest", "pressure-still claim_boundary must be a table")
-            for key in (
-                "media_admission",
-                "durable_image_provenance",
-                "reproducible_image_bytes",
-                "exact_pixels_or_dimensions",
-                "scientific_validation_from_pixels",
-            ):
-                if boundary.get(key) is not False:
-                    _fail(
-                        "presentation-boundary",
-                        f"pressure-still {key} must remain false",
-                    )
         if case_id in observed:
             _fail("case-set", f"duplicate case {case_id}")
         observed[case_id] = role
@@ -374,19 +349,19 @@ def _check_cases(payload: dict[str, Any], root: Path, revision: str) -> None:
 def _check_lineage(lineage: Any) -> None:
     item = _closed(
         lineage,
-        {"chain", "identities", "methods", "pressure", "source_result"},
+        {"chain", "identities", "methods", "pressure", "result_binding"},
         "lineage",
     )
     identities = _closed(
         item["identities"],
         {
             "correspondence_digest",
-            "evidence_run_digest",
+            "evidence_plan_key",
             "geometry_digest",
             "mesh_digest",
             "model_digest",
-            "realization_digest",
-            "run_manifest_digest",
+            "plan_identity",
+            "result_plan_key",
         },
         "lineage.identities",
     )
@@ -395,14 +370,16 @@ def _check_lineage(lineage: Any) -> None:
     methods = _closed(item["methods"], set(LINEAGE_METHODS), "lineage.methods")
     if methods != LINEAGE_METHODS:
         _fail("lineage-method", "lineage methods differ from the accepted public Result owners")
-    if identities["evidence_run_digest"] != identities["run_manifest_digest"]:
-        _fail("lineage", "ResultEvidence Run digest does not equal the Run manifest digest")
+    if identities["evidence_plan_key"] != identities["plan_identity"]:
+        _fail("lineage", "Result evidence does not bind the accepted Plan")
+    if identities["result_plan_key"] != identities["plan_identity"]:
+        _fail("lineage", "Result does not bind the accepted Plan")
 
-    source_result = _closed(item["source_result"], {"digest_kind", "digest"}, "lineage.source_result")
-    if source_result["digest_kind"] != "Result.run_manifest().digest":
-        _fail("lineage", "source Result must use Result.run_manifest().digest")
-    if source_result["digest"] != identities["run_manifest_digest"]:
-        _fail("lineage", "source Result digest does not bind run_manifest_digest")
+    result_binding = _closed(item["result_binding"], {"identity_kind", "identity"}, "lineage.result_binding")
+    if result_binding["identity_kind"] != "Result.plan_key":
+        _fail("lineage", "source Result must use its public Plan binding")
+    if result_binding["identity"] != identities["result_plan_key"]:
+        _fail("lineage", "source Result does not bind result_plan_key")
 
     pressure = _closed(
         item["pressure"],
@@ -413,9 +390,8 @@ def _check_lineage(lineage: Any) -> None:
             "frame_selection",
             "mesh_digest",
             "model_digest",
-            "ordered_block_digests",
-            "ordered_output_digests",
-            "snapshot_digest",
+            "components",
+            "vertex_count",
             "source_unit",
             "value_range",
         },
@@ -432,18 +408,11 @@ def _check_lineage(lineage: Any) -> None:
         if pressure[key] != value:
             _fail("lineage", f"pressure {key} differs")
     if pressure["mesh_digest"] != identities["mesh_digest"]:
-        _fail("lineage", "pressure snapshot mesh does not bind lineage mesh")
+        _fail("lineage", "pressure output mesh does not bind lineage mesh")
     if pressure["model_digest"] != identities["model_digest"]:
         _fail("lineage", "pressure FieldRef does not bind the Result Model")
-    _hex(pressure["snapshot_digest"], "lineage.pressure.snapshot_digest")
-    for key in ("ordered_block_digests", "ordered_output_digests"):
-        values = _list(pressure[key], f"lineage.pressure.{key}", 256)
-        if not values:
-            _fail("lineage", f"lineage.pressure.{key} must not be empty")
-        for index, digest in enumerate(values):
-            _hex(digest, f"lineage.pressure.{key}[{index}]")
-    if pressure["ordered_output_digests"] != [pressure["snapshot_digest"]]:
-        _fail("lineage", "Run manifest output order does not contain the one pressure snapshot")
+    if pressure["components"] != 1 or not isinstance(pressure["vertex_count"], int) or pressure["vertex_count"] <= 0:
+        _fail("lineage", "pressure output shape differs")
     value_range = _closed(pressure["value_range"], {"maximum", "minimum"}, "lineage.pressure.value_range")
     if _number(value_range["minimum"], "pressure minimum") > _number(value_range["maximum"], "pressure maximum"):
         _fail("lineage", "pressure value range is reversed")
@@ -465,32 +434,27 @@ def _check_lineage(lineage: Any) -> None:
         },
         {
             "from": identities["model_digest"],
-            "kind": "Model→Realization",
-            "to": identities["realization_digest"],
+            "kind": "Model→Plan",
+            "to": identities["plan_identity"],
         },
         {
             "from": identities["mesh_digest"],
-            "kind": "Mesh→Realization",
-            "to": identities["realization_digest"],
+            "kind": "Mesh→Plan",
+            "to": identities["plan_identity"],
         },
         {
-            "from": identities["realization_digest"],
-            "kind": "Realization→Run",
-            "to": identities["run_manifest_digest"],
+            "from": identities["plan_identity"],
+            "kind": "Plan→ResultBinding",
+            "to": identities["result_plan_key"],
         },
         {
-            "from": identities["run_manifest_digest"],
-            "kind": "Run→ResultEvidence",
-            "to": identities["evidence_run_digest"],
-        },
-        {
-            "from": identities["run_manifest_digest"],
-            "kind": "Result→PressureSnapshot",
-            "to": pressure["snapshot_digest"],
+            "from": identities["result_plan_key"],
+            "kind": "ResultBinding→Evidence",
+            "to": identities["evidence_plan_key"],
         },
     ]
     if item["chain"] != expected_chain:
-        _fail("lineage", "Model→Geometry→Mesh→Realization→Run→Result/pressure chain differs")
+        _fail("lineage", "Model→Geometry→Mesh→Plan→Result/evidence chain differs")
 
 
 def _paeth(left: int, above: int, upper_left: int) -> int:
@@ -670,18 +634,7 @@ def _check_text(payload: dict[str, Any], revision: str) -> None:
         _fail("text-digest", "alt-text digest differs")
     if _hex(item["caption_sha256"], "text.caption_sha256") != _sha(caption.encode("utf-8")):
         _fail("text-digest", "caption digest differs")
-    expected_links = [
-        {
-            "case_id": "interfaces.python-exact-cylinder-stokes-result",
-            "label": "Result evidence",
-            "route": _dossier_route("interfaces.python-exact-cylinder-stokes-result", revision),
-        },
-        {
-            "case_id": "interfaces.python-exact-cylinder-pressure-still",
-            "label": "Pressure-still presentation case",
-            "route": _dossier_route("interfaces.python-exact-cylinder-pressure-still", revision),
-        },
-    ]
+    expected_links: list[dict[str, str]] = []
     if item["caption_links"] != expected_links:
         _fail("text", "caption links differ")
 
@@ -780,7 +733,7 @@ def _check_renderer(payload: dict[str, Any]) -> None:
         "format": "png",
         "mesh_overlay": True,
         "no_crop_resize_reencode": True,
-        "normalization": "bound pressure snapshot minimum/maximum",
+        "normalization": "bound pressure output minimum/maximum",
         "plot": "tripcolor",
         "shading": "gouraud",
         "title": "Exact-cylinder steady Stokes pressure",

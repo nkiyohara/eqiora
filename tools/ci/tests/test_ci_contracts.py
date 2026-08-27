@@ -708,24 +708,14 @@ jobs:
         ).read_text(encoding="utf-8")
         require_definition_binding(current)
 
-    def test_rich_display_claim_names_candidate_level_bounded_host_teardown(
+    def test_distribution_claim_names_candidate_level_bounded_host_teardown(
         self,
     ) -> None:
-        rich_case = tomllib.loads(
-            (
-                REPOSITORY_ROOT / "verify/interfaces/python-rich-mesh-display/case.toml"
-            ).read_text(encoding="utf-8")
-        )
         distribution_case = tomllib.loads(
             (
                 REPOSITORY_ROOT
                 / "verify/interfaces/python-distribution-candidate/case.toml"
             ).read_text(encoding="utf-8")
-        )
-        claim = rich_case["acceptance"]
-        self.assertNotIn(
-            "host_shutdown_and_kernel_or_wrapper_finalization_exit_zero",
-            claim,
         )
         host_status = (
             "within timeout; accepts status 0 or exactly -SIGTERM only when the "
@@ -740,10 +730,6 @@ jobs:
             "failure still performs bounded cleanup and rejects with stable "
             "survivor or incomplete-observation diagnostics; no fixed-time "
             "survivor-disappearance claim"
-        )
-        self.assertEqual(
-            claim.get("candidate_host_teardown"),
-            teardown,
         )
         self.assertTrue(teardown.startswith(f"{host_status}; "))
         distribution = distribution_case["claim_boundary"]
@@ -1124,9 +1110,8 @@ class PythonPackageGateTests(unittest.TestCase):
         gmsh_evidence = tuple(
             str(tests / name)
             for name in (
-                "test_circular_hole_chordal_mesh.py",
+                "test_gmsh_meshing.py",
                 "test_exact_cylinder_stokes_result.py",
-                "test_rich_mesh_display.py",
             )
         )
         temporary = mock.MagicMock()
@@ -1152,12 +1137,7 @@ class PythonPackageGateTests(unittest.TestCase):
 
         expected_base_tail = [
             str(tests),
-            "--ignore",
-            gmsh_evidence[0],
-            "--ignore",
-            gmsh_evidence[1],
-            "--ignore",
-            gmsh_evidence[2],
+            *(argument for path in gmsh_evidence for argument in ("--ignore", path)),
         ]
         with self.subTest(path="uv"):
             commands = [call.args[0] for call in uv_calls]
@@ -1929,11 +1909,12 @@ class MiseTaskContractTests(unittest.TestCase):
             check=True,
             stdout=subprocess.PIPE,
         )
-        return [
+        documents = [
             REPOSITORY_ROOT / os.fsdecode(path)
             for path in completed.stdout.split(b"\0")
             if path
         ]
+        return [document for document in documents if document.is_file()]
 
     def test_direct_gate_markdown_presentation_mutations_fail_closed(self) -> None:
         forbidden = (
