@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
-import subprocess
-import sys
-import threading
-import time
+import math
 
 import numpy as np
 import pytest
@@ -23,19 +20,39 @@ model decay {
 }
 """
 
-OVERDETERMINED = """
-model overdetermined {
-  field x: 1 = 1;
-  relation first continuous { x = 0; }
-  relation second continuous { x = 0; }
-}
-"""
+
+def admitted() -> tuple[eqiora.Model, eqiora.FieldRef, eqiora.Plan, eqiora.State]:
+    model = eqiora.compile(source=DECAY)
+    field = model.field(model.field_ids[0])
+    plan = eqiora.resolve(
+        model,
+        temporal=eqiora.time.Tsitouras45(
+            initial_step_s=0.01,
+            relative_tolerance=1.0e-9,
+            absolute_tolerances={field: 1.0e-11},
+        ),
+    )
+    return model, field, plan, eqiora.State.initial(plan)
+
+
+def submit_decay(plan: eqiora.Plan, state: eqiora.State) -> eqiora.Run:
+    return eqiora.submit(
+        plan,
+        state=state,
+        until_s=0.2,
+        output_times_s=(0.1, 0.2),
+    )
 
 
 def test_sync_and_submitted_runs_share_one_result_contract() -> None:
-    model = eqiora.compile(source=DECAY)
-    synchronous = eqiora.run(model, end_time=0.2, max_step=0.1)
-    submitted = eqiora.submit(model, end_time=0.2, max_step=0.1)
+    model, field, plan, state = admitted()
+    synchronous = eqiora.run(
+        plan,
+        state=state,
+        until_s=0.2,
+        output_times_s=(0.1, 0.2),
+    )
+    submitted = submit_decay(plan, state)
     first = submitted.result()
     second = submitted.result()
 
@@ -55,122 +72,73 @@ def test_sync_and_submitted_runs_share_one_result_contract() -> None:
     assert submitted.model_digest == model.digest == first.model_digest
     assert submitted.model_revision == model.revision.number == first.model_revision
     assert submitted.plan_key == first.plan_key
-    assert submitted.adapter == first.adapter == "eqiora.reference"
+    assert submitted.adapter == first.adapter == "eqiora.time.diffsol"
+    assert submitted.adapter_version == first.adapter_version == "0.16.1"
     assert first.elapsed_seconds >= 0.0
     np.testing.assert_array_equal(
-        first["x"].time.numpy(), synchronous["x"].time.numpy()
+        first.series(field).time.numpy(), synchronous.series(field).time.numpy()
     )
     np.testing.assert_allclose(
-        first["x"].values.numpy(), synchronous["x"].values.numpy(), rtol=0.0, atol=0.0
+        first.series(field).values.numpy(),
+        np.exp(-np.array([0.1, 0.2])),
+        rtol=2.0e-8,
+        atol=2.0e-10,
     )
 
-    retained = first["x"].values.numpy()
-    del first, second, submitted, synchronous, model
+    retained = first.series(field).values.numpy()
+    del first, second, submitted, synchronous, model, plan, state
     gc.collect()
-    np.testing.assert_allclose(retained, [1.0, 1.0 / 1.1, 1.0 / 1.1**2])
-
-
-def test_result_wait_releases_the_gil() -> None:
-    model = eqiora.compile(source=DECAY)
-    submitted = eqiora.submit(model, end_time=0.2, max_step=2.0e-6)
-    ready = threading.Event()
-    observed_while_running: list[bool] = []
-
-    def advance_python() -> None:
-        ready.set()
-        time.sleep(0.02)
-        observed_while_running.append(not submitted.done)
-
-    observer = threading.Thread(target=advance_python)
-    observer.start()
-    assert ready.wait(timeout=1.0)
-    assert not submitted.done, "the GIL probe completed before its wait began"
-    submitted.result()
-    observer.join(timeout=2.0)
-
-    assert not observer.is_alive()
-    assert observed_while_running == [True], (
-        "the observer could not inspect a nonterminal Run while result() waited"
+    np.testing.assert_allclose(
+        retained,
+        np.exp(-np.array([0.1, 0.2])),
+        rtol=2.0e-8,
+        atol=2.0e-10,
     )
 
 
-def test_cancellation_is_typed_and_never_publishes_a_partial_result() -> None:
-    model = eqiora.compile(source=DECAY)
-    submitted = eqiora.submit(model, end_time=1.0, max_step=1.0e-6)
-    assert submitted.cancel() is True
-    assert submitted.cancel() is False
-
-    with pytest.raises(eqiora.CancellationError) as captured:
-        submitted.result()
-
-    assert captured.value.category == "cancellation"
-    assert captured.value.diagnostics[0].code == "EQ0506"
-    assert submitted.status == eqiora.RunStatus.Cancelled
-    assert submitted.done
-    assert submitted.cancellation is not None
-    assert submitted.cancellation.plan_key == submitted.plan_key
-    assert submitted.cancellation.progress == submitted.progress
-    assert submitted.cancellation.elapsed_seconds >= 0.0
-    assert submitted.history[-2:] == (
-        eqiora.RunStatus.Cancelling,
-        eqiora.RunStatus.Cancelled,
-    )
-
-
-def test_failure_and_zero_interval_have_unambiguous_terminal_authority() -> None:
-    invalid = eqiora.compile(source=OVERDETERMINED)
-    failed = eqiora.submit(invalid, end_time=0.1, max_step=0.1)
-    with pytest.raises(eqiora.ExecutionError) as captured:
-        failed.result()
-    assert captured.value.diagnostics[0].code == "EQ0503"
-    assert failed.status == eqiora.RunStatus.Failed
-    assert failed.done
-    assert failed.cancel() is False
-
-    zero = eqiora.submit(eqiora.compile(source=DECAY), end_time=0.0, max_step=0.1)
-    zero.result()
-    assert zero.status == eqiora.RunStatus.Completed
-    assert zero.progress is None
-
-
-def test_await_and_task_cancellation_do_not_redefine_native_cancellation() -> None:
-    async def exercise() -> None:
-        completed = eqiora.submit(
-            eqiora.compile(source=DECAY), end_time=0.2, max_step=0.1
+def test_common_ode_run_forms_are_exact_and_fail_closed() -> None:
+    _, _, plan, state = admitted()
+    with pytest.raises(TypeError, match="steps/output_steps"):
+        eqiora.submit(plan, state=state, steps=2, output_steps=(1, 2))
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.submit(
+            plan,
+            state=state,
+            until_s=0.2,
+            output_times_s=(0.2, 0.1),
         )
+    with pytest.raises(TypeError, match="requires state"):
+        eqiora.submit(plan, until_s=0.2, output_times_s=(0.2,))
+
+
+def test_await_and_task_cancellation_do_not_redefine_native_execution() -> None:
+    async def exercise() -> None:
+        _, field, plan, state = admitted()
+        completed = submit_decay(plan, state)
         result = await completed
         assert result is completed.result()
-
-        live = eqiora.submit(
-            eqiora.compile(source=DECAY), end_time=1.0, max_step=1.0e-6
+        assert result.series(field).values.numpy()[-1] == pytest.approx(
+            math.exp(-0.2), rel=2.0e-8, abs=2.0e-10
         )
+
+        _, _, live_plan, live_state = admitted()
+        live = submit_decay(live_plan, live_state)
         task = asyncio.ensure_future(live)
-        await asyncio.sleep(0)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
-        assert live.status not in (
-            eqiora.RunStatus.Cancelling,
-            eqiora.RunStatus.Cancelled,
-        )
-        assert live.cancel() is True
-        with pytest.raises(eqiora.CancellationError):
-            live.result()
+        assert live.result() is live.result()
+        assert live.status == eqiora.RunStatus.Completed
 
     asyncio.run(exercise())
 
 
-def test_dropping_a_live_handle_does_not_block_interpreter_exit() -> None:
-    program = f"""
-import eqiora
-model = eqiora.compile(source={DECAY!r})
-eqiora.submit(model, end_time=10.0, max_step=1.0e-7)
-"""
-    completed = subprocess.run(
-        [sys.executable, "-c", program],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=10.0,
-    )
-    assert completed.returncode == 0, completed.stderr
+def test_cancellation_claim_stops_at_the_available_adapter_boundary() -> None:
+    _, _, plan, state = admitted()
+    submitted = submit_decay(plan, state)
+    # Diffsol exposes no accepted-step callback through this seam. The Run must
+    # not claim a cancellation request that its worker cannot observe.
+    assert submitted.cancel() is False
+    result = submitted.result()
+    assert submitted.status == eqiora.RunStatus.Completed
+    assert result is submitted.result()

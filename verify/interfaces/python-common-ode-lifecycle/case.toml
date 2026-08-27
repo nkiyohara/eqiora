@@ -1,0 +1,34 @@
+id = "interfaces.python-common-ode-lifecycle"
+status = "verified"
+scope = "python-model-first-no-mesh-explicit-ode"
+reference_kind = "analytic-exponential-decay-and-public-api-falsifiers"
+
+capabilities = [
+  "python-root-common-ode-plan",
+  "python-model-owned-initial-state",
+  "python-tsitouras45-execution",
+  "python-exact-field-series",
+  "python-fresh-replay-resolver-parity",
+  "python-sync-async-result-parity",
+]
+
+[claim_boundary]
+equation_class = "explicit-ode"
+method = "tsitouras45"
+backend = "eqiora.time.diffsol@0.16.1"
+state_shape = "scalar-f64"
+requested_relative_tolerance = 1e-9
+requested_absolute_tolerance = 1e-11
+analytic_comparison_factor = 20
+adaptive_global_error_bound = false
+mesh = false
+bdf = false
+dae = false
+events = false
+sensitivities = false
+step_count_schedule = false
+mid_run_cancellation = false
+
+[evidence]
+package = "eqiora-python"
+test = "python_run_lifecycle"

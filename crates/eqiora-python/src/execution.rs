@@ -1,4 +1,4 @@
-//! Bounded Python lifecycle over the shared semantic reference executor.
+//! Bounded Python lifecycle over shared native worker execution.
 
 mod evidence;
 mod worker;
@@ -14,7 +14,7 @@ use eqiora::api::{
 };
 use eqiora::diagnostic::codes;
 use eqiora::{Diagnostic, GraphPath};
-use eqiora_numerics::{CommonState, CommonTransientRunRequest};
+use eqiora_numerics::{CommonOdeRunRequest, CommonState, CommonTransientRunRequest};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
@@ -106,6 +106,10 @@ enum NativeRunOutput {
     },
     CommonTransient {
         states: Vec<(usize, CommonState)>,
+        elapsed_seconds: f64,
+    },
+    CommonOde {
+        result: Box<eqiora_numerics::CommonOdeRunResult>,
         elapsed_seconds: f64,
     },
 }
@@ -539,45 +543,70 @@ pub(crate) struct PyRun {
     materialization: ResultMaterializationContext,
     shared: Arc<RunShared>,
     result_cache: Arc<ResultCache>,
+    cancellation_supported: bool,
 }
 
 impl PyRun {
     fn submit_common(
         py: Python<'_>,
         plan: Py<PyPlan>,
-        request: Option<CommonTransientRunRequest>,
+        request: Option<CommonRunRequest>,
     ) -> PyResult<Self> {
         let plan_ref = plan.borrow(py);
-        let (identity, job, thread_name) = match (plan_ref.native(), request) {
+        let (identity, job, thread_name, cancellation_supported) = match (
+            plan_ref.native(),
+            request,
+        ) {
+            (CommonPlanKind::Ode(_), Some(CommonRunRequest::Ode(request))) => (
+                RunIdentity::from_common_ode(&request),
+                NativeRunJob::CommonOde(request),
+                "eqiora-common-ode-run",
+                false,
+            ),
             (CommonPlanKind::Scalar(native), None) => (
                 RunIdentity::from_common_plan(native),
                 NativeRunJob::CommonScalar(native.clone()),
                 "eqiora-common-scalar-run",
+                true,
             ),
             (CommonPlanKind::Elasticity(native), None) => (
                 RunIdentity::from_common_elasticity(native),
                 NativeRunJob::CommonElasticity(native.clone()),
                 "eqiora-common-elasticity-run",
+                true,
             ),
             (CommonPlanKind::SteadyStokes(native), None) => (
                 RunIdentity::from_common_steady_stokes(native),
                 NativeRunJob::CommonSteadyStokes(native.clone()),
                 "eqiora-common-steady-stokes-run",
+                true,
             ),
-            (CommonPlanKind::TransientFlow(_), Some(request)) => (
+            (CommonPlanKind::TransientFlow(_), Some(CommonRunRequest::Transient(request))) => (
                 RunIdentity::from_common_transient(&request),
-                NativeRunJob::CommonTransient(Box::new(request)),
+                NativeRunJob::CommonTransient(request),
                 "eqiora-common-transient-run",
+                true,
             ),
             (CommonPlanKind::TransientFlow(_), None) => {
                 return Err(PyTypeError::new_err(
                     "transient submit requires State and one explicit horizon/output schedule family",
                 ));
             }
+            (CommonPlanKind::Ode(_), None) => {
+                return Err(PyTypeError::new_err(
+                    "ODE submit requires State, until_s, and output_times_s",
+                ));
+            }
+            (CommonPlanKind::TransientFlow(_), Some(CommonRunRequest::Ode(_))) => {
+                return Err(PyTypeError::new_err(
+                    "ODE Run request crossed a spatial transient Plan",
+                ));
+            }
             (
                 CommonPlanKind::Scalar(_)
                 | CommonPlanKind::Elasticity(_)
-                | CommonPlanKind::SteadyStokes(_),
+                | CommonPlanKind::SteadyStokes(_)
+                | CommonPlanKind::Ode(_),
                 Some(_),
             ) => {
                 return Err(PyTypeError::new_err(
@@ -591,6 +620,7 @@ impl PyRun {
             job,
             ResultMaterializationContext::CommonPlan { plan },
             thread_name,
+            cancellation_supported,
         )
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
@@ -614,6 +644,7 @@ impl PyRun {
             NativeRunJob::Reference { document, plan },
             ResultMaterializationContext::None,
             "eqiora-reference-run",
+            true,
         )
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
@@ -652,6 +683,7 @@ impl PyRun {
             },
             ResultMaterializationContext::None,
             "eqiora-scalar-elliptic-run",
+            true,
         )
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
@@ -670,6 +702,7 @@ impl PyRun {
                 mesh: plan.mesh(py),
             },
             "eqiora-steady-stokes-run",
+            true,
         )
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
@@ -686,6 +719,7 @@ impl PyRun {
             NativeRunJob::LinearElasticity(Box::new(plan.native().clone())),
             ResultMaterializationContext::None,
             "eqiora-linear-elasticity-run",
+            true,
         )
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
@@ -704,6 +738,7 @@ impl PyRun {
                 model: plan.model(py),
             },
             "eqiora-fixed-mesh-monolithic-fsi-run",
+            true,
         )
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
@@ -713,6 +748,7 @@ impl PyRun {
         job: NativeRunJob,
         materialization: ResultMaterializationContext,
         thread_name: &str,
+        cancellation_supported: bool,
     ) -> Result<Self, Vec<Diagnostic>> {
         let shared = Arc::new(RunShared::new());
         let worker_shared = Arc::clone(&shared);
@@ -734,8 +770,14 @@ impl PyRun {
             materialization,
             shared,
             result_cache: Arc::new(ResultCache::new()),
+            cancellation_supported,
         })
     }
+}
+
+enum CommonRunRequest {
+    Ode(Box<CommonOdeRunRequest>),
+    Transient(Box<CommonTransientRunRequest>),
 }
 
 #[pymethods]
@@ -794,11 +836,20 @@ impl PyRun {
         self.identity.adapter()
     }
 
-    /// Request cancellation at the next accepted execution-family boundary.
+    #[getter]
+    fn adapter_version(&self) -> &'static str {
+        self.identity.adapter_version()
+    }
+
+    /// Request cancellation at the next supported execution-family boundary.
     ///
-    /// Returns whether this call recorded a new request. A run can still
-    /// complete when its last accepted boundary won the race.
+    /// Returns false when this execution family exposes no accepted cancellation
+    /// boundary. Otherwise, a run can still complete when its last accepted
+    /// boundary won the race.
     fn cancel(&self) -> bool {
+        if !self.cancellation_supported {
+            return false;
+        }
         self.shared.request_cancellation()
     }
 
@@ -1013,6 +1064,23 @@ fn materialize_result(
                 "common transient Result lost its exact Plan",
             )),
         },
+        NativeRunOutput::CommonOde {
+            result,
+            elapsed_seconds,
+        } => match context {
+            ResultMaterializationContext::CommonPlan { plan } => {
+                crate::result::materialize_common_ode(
+                    py,
+                    plan.borrow(py),
+                    identity.clone(),
+                    elapsed_seconds,
+                    *result,
+                )
+                .and_then(|result| Py::new(py, result))
+                .map(Py::into_any)
+            }
+            _ => Err(internal_error(py, "common ODE Result lost its exact Plan")),
+        },
     }
 }
 
@@ -1029,7 +1097,29 @@ pub(crate) fn submit_plan(
 ) -> PyResult<PyRun> {
     panic_boundary(py, || {
         let plan_ref = plan.borrow(py);
-        let request = match plan_ref.transient_native() {
+        let request = if let Some(native_plan) = plan_ref.ode_native() {
+            let state = state.ok_or_else(|| {
+                PyTypeError::new_err("ODE submit requires state=State.initial(plan)")
+            })?;
+            let state = state.borrow();
+            let native_state = state.common_ode_native().ok_or_else(|| {
+                PyValueError::new_err("State is not a no-Mesh explicit ODE State")
+            })?;
+            if steps.is_some() || output_steps.is_some() {
+                return Err(PyTypeError::new_err(
+                    "ODE submit accepts only state, until_s, and output_times_s; steps/output_steps are unsupported",
+                ));
+            }
+            let until =
+                until_s.ok_or_else(|| PyTypeError::new_err("ODE submit requires until_s"))?;
+            let outputs = output_times_s
+                .ok_or_else(|| PyTypeError::new_err("ODE submit requires output_times_s"))?;
+            Some(CommonRunRequest::Ode(Box::new(
+                CommonOdeRunRequest::new(native_plan.clone(), native_state.clone(), until, outputs)
+                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
+            )))
+        } else {
+            match plan_ref.transient_native() {
             None => {
                 if state.is_some()
                     || until_s.is_some()
@@ -1082,6 +1172,7 @@ pub(crate) fn submit_plan(
                     }
                 }
             }
+        }.map(|request| CommonRunRequest::Transient(Box::new(request)))
         };
         drop(plan_ref);
         PyRun::submit_common(py, plan, request)

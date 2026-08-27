@@ -6,12 +6,17 @@ use std::num::NonZeroUsize;
 
 use eqiora::realization::NonlinearSolvePlan;
 use eqiora::solver::{LinearSolver, SolverPlan};
-use eqiora_numerics::{CommonBackwardEuler, CommonPressureGauge2d};
+use eqiora::{Id, kinds};
+use eqiora_numerics::{
+    CommonBackwardEuler, CommonPressureGauge2d, CommonTsitouras45, CommonTsitourasTolerance,
+};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBool, PyFloat, PyInt};
+use pyo3::types::{PyAny, PyBool, PyDict, PyFloat, PyInt};
+use ulid::Ulid;
 
 use crate::error::validation_error;
+use crate::model::PyModelFieldRef;
 
 /// Continuous tensor-product Q1 Galerkin spatial policy.
 #[pyclass(
@@ -216,6 +221,90 @@ impl PyBackwardEuler {
     }
 }
 
+/// Adaptive Tsitouras 5(4) policy with exact Field-bound SI tolerances.
+#[pyclass(
+    name = "Tsitouras45",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Debug)]
+pub(crate) struct PyTsitouras45 {
+    pub(super) native: CommonTsitouras45,
+    fields: Vec<Py<PyModelFieldRef>>,
+}
+
+impl PyTsitouras45 {
+    pub(super) fn belongs_to_model(&self, py: Python<'_>, model_digest: &str) -> bool {
+        self.fields
+            .iter()
+            .all(|field| field.borrow(py).exact_model_digest() == model_digest)
+    }
+}
+
+#[pymethods]
+impl PyTsitouras45 {
+    #[new]
+    #[pyo3(signature = (*, initial_step_s, relative_tolerance, absolute_tolerances))]
+    fn new(
+        py: Python<'_>,
+        #[pyo3(from_py_with = exact_time_float)] initial_step_s: f64,
+        #[pyo3(from_py_with = exact_time_float)] relative_tolerance: f64,
+        absolute_tolerances: &Bound<'_, PyDict>,
+    ) -> PyResult<Self> {
+        let mut native = Vec::with_capacity(absolute_tolerances.len());
+        let mut fields = Vec::with_capacity(absolute_tolerances.len());
+        for (field, value) in absolute_tolerances.iter() {
+            let field = field.extract::<Py<PyModelFieldRef>>().map_err(|_| {
+                PyTypeError::new_err(
+                    "absolute_tolerances keys must be exact eqiora.FieldRef values",
+                )
+            })?;
+            let value = exact_time_float(&value)?;
+            let id = Ulid::from_string(field.borrow(py).exact_id()).map_err(|_| {
+                PyTypeError::new_err("absolute_tolerances contains an invalid exact FieldRef")
+            })?;
+            native.push(
+                CommonTsitourasTolerance::new(Id::<kinds::Field>::from_ulid(id), value)
+                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
+            );
+            fields.push(field);
+        }
+        fields.sort_by_key(|field| field.borrow(py).exact_id().to_owned());
+        CommonTsitouras45::new(initial_step_s, relative_tolerance, native)
+            .map(|native| Self { native, fields })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
+    #[getter]
+    fn initial_step_s(&self) -> f64 {
+        self.native.initial_step_s()
+    }
+
+    #[getter]
+    fn relative_tolerance(&self) -> f64 {
+        self.native.relative_tolerance()
+    }
+
+    #[getter]
+    fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+        let result = PyDict::new(py);
+        for (field, tolerance) in self.fields.iter().zip(self.native.absolute_tolerances()) {
+            result.set_item(field.clone_ref(py), tolerance.value())?;
+        }
+        Ok(result.unbind())
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Tsitouras45(initial_step_s={}, relative_tolerance={}, fields={})",
+            self.initial_step_s(),
+            self.relative_tolerance(),
+            self.fields.len()
+        )
+    }
+}
+
 /// Bounded Newton policy owning exact nested linear controls.
 #[pyclass(
     name = "Newton",
@@ -356,4 +445,11 @@ fn exact_usize_extract(value: &Bound<'_, PyAny>) -> PyResult<usize> {
         .map_err(|_| {
             PyTypeError::new_err("nonlinear iteration bound must be a non-negative integer")
         })
+}
+
+fn exact_time_float(value: &Bound<'_, PyAny>) -> PyResult<f64> {
+    value
+        .cast::<PyFloat>()
+        .map(|value| value.value())
+        .map_err(|_| PyTypeError::new_err("time integration values must be floats"))
 }

@@ -32,6 +32,7 @@ use crate::cartesian_elliptic::{
     linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
 };
 use crate::common::{AssembledLinearizedRelation, SpatialDesignCoordinate};
+use crate::common_ode::{CommonOdePlan, CommonTsitouras45};
 use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
 use crate::fluid::{
     CellCenteredPressureField2d, CellCenteredVelocityField2d, IncompressibleFlowScaleProfile2d,
@@ -79,6 +80,7 @@ use eqiora_solver::{
     SERIAL_EXECUTION_PROVIDER, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
     SolverProvider,
 };
+use eqiora_time::TimeBackendIdentity;
 use sha2::{Digest, Sha256};
 
 const APPLICATION_REALIZATION_REVISION: u64 = 134;
@@ -166,6 +168,7 @@ pub struct ResolvedCommonPlan {
 
 #[derive(Debug, Clone, PartialEq)]
 enum ResolvedCommonPlanKind {
+    Ode(Box<CommonOdePlan>),
     Scalar(Box<CommonScalarPlan>),
     Elasticity(Box<CommonElasticityPlan>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
@@ -176,18 +179,32 @@ impl ResolvedCommonPlan {
     /// Project one already-resolved Plan without reopening capability selection.
     pub fn project<T>(
         self,
+        ode: impl FnOnce(CommonOdePlan) -> T,
         scalar: impl FnOnce(CommonScalarPlan) -> T,
         elasticity: impl FnOnce(CommonElasticityPlan) -> T,
         steady_stokes: impl FnOnce(CommonSteadyStokesPlan) -> T,
         transient_flow: impl FnOnce(CommonTransientFlowPlan) -> T,
     ) -> T {
         match self.kind {
+            ResolvedCommonPlanKind::Ode(plan) => ode(*plan),
             ResolvedCommonPlanKind::Scalar(plan) => scalar(*plan),
             ResolvedCommonPlanKind::Elasticity(plan) => elasticity(*plan),
             ResolvedCommonPlanKind::SteadyStokes(plan) => steady_stokes(*plan),
             ResolvedCommonPlanKind::TransientFlow(plan) => transient_flow(*plan),
         }
     }
+}
+
+/// Resolve one canonical no-Mesh explicit ODE through the common native Plan sum.
+pub fn resolve_common_ode_plan(
+    model: &ModelEnvelope,
+    kernel: &KernelProgram,
+    temporal: CommonTsitouras45,
+    backend: TimeBackendIdentity,
+) -> Result<ResolvedCommonPlan, Diagnostic> {
+    CommonOdePlan::resolve(model, kernel, temporal, backend).map(|plan| ResolvedCommonPlan {
+        kind: ResolvedCommonPlanKind::Ode(Box::new(plan)),
+    })
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -4102,6 +4119,7 @@ public component MixedBoundaryElasticity {
             )
             .unwrap()
             .project(
+                |_| panic!("spatial Model resolved as no-Mesh ODE"),
                 |plan| plan,
                 |_| panic!("scalar Model resolved as elasticity"),
                 |_| panic!("scalar Model resolved as another capability"),
@@ -4187,6 +4205,7 @@ public component MixedBoundaryElasticity {
             )
             .unwrap()
             .project(
+                |_| panic!("spatial Model resolved as no-Mesh ODE"),
                 |_| panic!("elasticity Model resolved as scalar"),
                 |plan| plan,
                 |_| panic!("elasticity Model resolved as Stokes"),
@@ -4524,6 +4543,7 @@ public component MixedBoundaryElasticity {
         )
         .unwrap()
         .project(
+            |_| panic!("spatial Model resolved as no-Mesh ODE"),
             |_| panic!("steady-Stokes Model resolved as another capability"),
             |_| panic!("steady-Stokes Model resolved as elasticity"),
             |plan| plan,
@@ -4540,6 +4560,7 @@ public component MixedBoundaryElasticity {
         )
         .unwrap()
         .project(
+            |_| panic!("spatial Model resolved as no-Mesh ODE"),
             |_| panic!("steady-Stokes Model resolved as another capability"),
             |_| panic!("steady-Stokes Model resolved as elasticity"),
             |plan| plan,
@@ -4649,6 +4670,7 @@ public component MixedBoundaryElasticity {
             )
             .unwrap()
             .project(
+                |_| panic!("spatial Model resolved as no-Mesh ODE"),
                 |_| panic!("transient Model resolved as scalar"),
                 |_| panic!("transient Model resolved as elasticity"),
                 |_| panic!("transient Model resolved as steady Stokes"),
@@ -4683,6 +4705,7 @@ public component MixedBoundaryElasticity {
         )
         .unwrap()
         .project(
+            |_| panic!("spatial Model resolved as no-Mesh ODE"),
             |_| panic!("transient Model resolved as scalar"),
             |_| panic!("transient Model resolved as elasticity"),
             |_| panic!("transient Model resolved as steady Stokes"),
@@ -4701,6 +4724,7 @@ public component MixedBoundaryElasticity {
         )
         .unwrap()
         .project(
+            |_| panic!("spatial Model resolved as no-Mesh ODE"),
             |_| panic!("transient Model resolved as scalar"),
             |_| panic!("transient Model resolved as elasticity"),
             |_| panic!("transient Model resolved as steady Stokes"),

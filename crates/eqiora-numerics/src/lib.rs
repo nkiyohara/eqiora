@@ -18,6 +18,7 @@ mod cartesian_fvm_geometry;
 mod cartesian_incompressible;
 mod cartesian_periodic_3d;
 mod cartesian_transport;
+mod common_ode;
 mod diffusion;
 mod discrete_block;
 mod discrete_space;
@@ -32,10 +33,15 @@ pub use canonical_stokes::{
     ScalingAuthority2d, ScalingComponent2d, ScalingComponentRecord2d, ScalingDependencies2d,
     ScalingMode2d, ScalingRule2d,
 };
+pub use common_ode::{
+    CommonOdePlan, CommonOdeRunRequest, CommonOdeRunResult, CommonOdeState, CommonTsitouras45,
+    CommonTsitourasTolerance,
+};
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonBackwardEuler, CommonElasticityPlan, CommonPressureGauge2d,
     CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy, CommonState, CommonSteadyStokesPlan,
-    CommonTransientFlowPlan, CommonTransientRunRequest, ResolvedCommonPlan, resolve_common_plan,
+    CommonTransientFlowPlan, CommonTransientRunRequest, ResolvedCommonPlan,
+    resolve_common_ode_plan, resolve_common_plan,
 };
 mod operator;
 mod physical_network;

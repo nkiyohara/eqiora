@@ -8,7 +8,8 @@ use eqiora::api::{
 use eqiora::artifact::{CanonicalModelArtifact, ModelEnvelope};
 use eqiora::diagnostic::codes;
 use eqiora_numerics::{
-    CommonElasticityPlan, CommonScalarPlan, CommonSteadyStokesPlan, CommonTransientRunRequest,
+    CommonElasticityPlan, CommonOdeRunRequest, CommonScalarPlan, CommonSteadyStokesPlan,
+    CommonTransientRunRequest,
 };
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -319,6 +320,18 @@ pub(crate) struct RunIdentity {
 }
 
 impl RunIdentity {
+    pub(crate) fn from_common_ode(request: &CommonOdeRunRequest) -> Self {
+        let plan = request.plan();
+        Self {
+            model_id: plan.model_id().to_owned(),
+            model_digest: plan.model_digest().to_owned(),
+            model_revision: plan.model_revision(),
+            plan_key: request.identity().to_owned(),
+            adapter: plan.backend().id().as_str(),
+            adapter_version: plan.backend().version().as_str(),
+        }
+    }
+
     pub(crate) fn from_common_plan(plan: &CommonScalarPlan) -> Self {
         Self {
             model_id: plan.model_id().to_owned(),

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import inspect
 
+import numpy as np
 import pytest
 
 import eqiora
@@ -97,7 +98,23 @@ model decay {
 
 
 def decayed_series() -> eqiora.Series:
-    return eqiora.run(eqiora.compile(source=DECAY), end_time=0.2, max_step=0.1)["x"]
+    model = eqiora.compile(source=DECAY)
+    field = model.field(model.field_ids[0])
+    plan = eqiora.resolve(
+        model,
+        temporal=eqiora.time.Tsitouras45(
+            initial_step_s=0.01,
+            relative_tolerance=1.0e-9,
+            absolute_tolerances={field: 1.0e-11},
+        ),
+    )
+    result = eqiora.run(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=0.2,
+        output_times_s=(0.05, 0.1, 0.2),
+    )
+    return result.series(field)
 
 
 def test_asarray_needs_no_method_call_and_stays_zero_copy() -> None:
@@ -108,7 +125,7 @@ def test_asarray_needs_no_method_call_and_stays_zero_copy() -> None:
     assert viewed.dtype == np.float64
     # The zero-copy view is the read-only one, so asarray must not have copied.
     assert not viewed.flags.writeable
-    assert viewed[0] == pytest.approx(1.0)
+    assert viewed[0] == pytest.approx(np.exp(-0.05), rel=2.0e-8)
 
 
 def test_asarray_honours_a_requested_dtype() -> None:
@@ -123,5 +140,5 @@ def test_a_series_iterates_time_and_value_pairs() -> None:
     series = decayed_series()
     samples = list(series)
     assert len(samples) == len(series)
-    assert samples[0] == (pytest.approx(0.0), pytest.approx(1.0))
-    assert [time for time, _ in samples] == pytest.approx([0.0, 0.1, 0.2])
+    assert samples[0] == (pytest.approx(0.05), pytest.approx(np.exp(-0.05), rel=2.0e-8))
+    assert [time for time, _ in samples] == pytest.approx([0.05, 0.1, 0.2])

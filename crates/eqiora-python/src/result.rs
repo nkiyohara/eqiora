@@ -104,6 +104,7 @@ impl PyFieldOutput {
 /// One read-only, field-local sampled series in SI units.
 #[pyclass(name = "Series", module = "eqiora._eqiora", frozen)]
 pub(crate) struct PySeries {
+    field: Option<Py<PyModelFieldRef>>,
     id: String,
     name: Option<String>,
     dimension: DimExponents,
@@ -113,6 +114,10 @@ pub(crate) struct PySeries {
 
 #[pymethods]
 impl PySeries {
+    #[getter]
+    fn field(&self, py: Python<'_>) -> Option<Py<PyModelFieldRef>> {
+        self.field.as_ref().map(|field| field.clone_ref(py))
+    }
     #[getter]
     fn id(&self) -> &str {
         &self.id
@@ -219,6 +224,12 @@ struct CommonTrajectoryResultPayload {
     trajectory: Py<PyTrajectory>,
 }
 
+struct CommonOdeResultPayload {
+    fields: Vec<Py<PySeries>>,
+    lookup: BTreeMap<String, usize>,
+    states: Vec<eqiora_numerics::CommonOdeState>,
+}
+
 enum ResultPayload {
     Series {
         fields: Vec<Py<PySeries>>,
@@ -229,6 +240,7 @@ enum ResultPayload {
     Scalar(ScalarResultPayload),
     CommonFields(CommonFieldResultPayload),
     CommonTrajectory(CommonTrajectoryResultPayload),
+    CommonOde(CommonOdeResultPayload),
 }
 
 /// One accepted execution occurrence with typed output relationships.
@@ -304,19 +316,43 @@ impl PyRunResult {
         self.elapsed_seconds
     }
 
-    /// Independently sampled semantic-reference series in stable Field order.
+    /// Independently sampled common-ODE series in canonical Field order.
     #[getter]
     fn fields(&self, py: Python<'_>) -> Vec<Py<PySeries>> {
         match &self.payload {
             ResultPayload::Series { fields, .. } => {
                 fields.iter().map(|field| field.clone_ref(py)).collect()
             }
+            ResultPayload::CommonOde(payload) => payload
+                .fields
+                .iter()
+                .map(|field| field.clone_ref(py))
+                .collect(),
             ResultPayload::Static(_)
             | ResultPayload::Trajectory(_)
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_) => Vec::new(),
             ResultPayload::CommonTrajectory(_) => Vec::new(),
         }
+    }
+
+    /// Select one no-Mesh scalar series by exact Model-bound Field identity.
+    #[pyo3(signature = (field, /))]
+    fn series(&self, py: Python<'_>, field: &PyModelFieldRef) -> PyResult<Py<PySeries>> {
+        if field.exact_model_digest() != self.identity.model_digest() {
+            return Err(PyValueError::new_err(
+                "FieldRef belongs to a different exact Model artifact",
+            ));
+        }
+        let ResultPayload::CommonOde(payload) = &self.payload else {
+            return Err(PyKeyError::new_err(field.exact_id().to_owned()));
+        };
+        let index = payload
+            .lookup
+            .get(field.exact_id())
+            .copied()
+            .ok_or_else(|| PyKeyError::new_err(field.exact_id().to_owned()))?;
+        Ok(payload.fields[index].clone_ref(py))
     }
 
     /// Static spatial observations in exact accepted output order.
@@ -332,7 +368,7 @@ impl PyRunResult {
             ResultPayload::Trajectory(_)
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_) => Vec::new(),
-            ResultPayload::CommonTrajectory(_) => Vec::new(),
+            ResultPayload::CommonTrajectory(_) | ResultPayload::CommonOde(_) => Vec::new(),
         };
         Ok(PyTuple::new(py, snapshots)?.unbind())
     }
@@ -346,7 +382,8 @@ impl PyRunResult {
             ResultPayload::Series { .. }
             | ResultPayload::Static(_)
             | ResultPayload::Scalar(_)
-            | ResultPayload::CommonFields(_) => Err(capability_error(
+            | ResultPayload::CommonFields(_)
+            | ResultPayload::CommonOde(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no spatial Trajectory",
             )),
@@ -438,7 +475,8 @@ impl PyRunResult {
             ResultPayload::Series { .. }
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_)
-            | ResultPayload::CommonTrajectory(_) => Err(capability_error(
+            | ResultPayload::CommonTrajectory(_)
+            | ResultPayload::CommonOde(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no durable Run manifest",
             )),
@@ -453,6 +491,7 @@ impl PyRunResult {
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_)
             | ResultPayload::CommonTrajectory(_) => 0,
+            ResultPayload::CommonOde(payload) => payload.fields.len(),
         }
     }
 
@@ -477,7 +516,8 @@ impl PyRunResult {
                 ResultPayload::Trajectory(_)
                 | ResultPayload::Scalar(_)
                 | ResultPayload::CommonFields(_)
-                | ResultPayload::CommonTrajectory(_) => 0,
+                | ResultPayload::CommonTrajectory(_)
+                | ResultPayload::CommonOde(_) => 0,
             },
             self.model_digest(),
             self.plan_key(),
@@ -486,6 +526,27 @@ impl PyRunResult {
 }
 
 impl PyRunResult {
+    pub(crate) fn plan_key_value(&self) -> &str {
+        self.identity.plan_key()
+    }
+    pub(crate) fn common_ode_state_at(
+        &self,
+        state_space_identity: &str,
+        time_s: f64,
+    ) -> Option<eqiora_numerics::CommonOdeState> {
+        let ResultPayload::CommonOde(payload) = &self.payload else {
+            return None;
+        };
+        payload
+            .states
+            .iter()
+            .find(|state| {
+                state.state_space_identity() == state_space_identity
+                    && state.time_s().to_bits() == time_s.to_bits()
+            })
+            .cloned()
+    }
+
     fn validate_scalar_field(&self, field: &PyModelFieldRef) -> PyResult<()> {
         if field.exact_model_digest() != self.identity.model_digest() {
             return Err(PyValueError::new_err(
@@ -770,10 +831,9 @@ impl PyRunResult {
                 py,
                 "this common Result does not fabricate a durable steady-Stokes evidence artifact",
             )),
-            ResultPayload::CommonTrajectory(_) => Err(capability_error(
-                py,
-                "this transient Result has no steady-Stokes evidence",
-            )),
+            ResultPayload::CommonTrajectory(_) | ResultPayload::CommonOde(_) => Err(
+                capability_error(py, "this transient Result has no steady-Stokes evidence"),
+            ),
         }
     }
 
@@ -791,7 +851,8 @@ impl PyRunResult {
             | ResultPayload::Trajectory(_)
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_)
-            | ResultPayload::CommonTrajectory(_) => Err(capability_error(
+            | ResultPayload::CommonTrajectory(_)
+            | ResultPayload::CommonOde(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no linear-elasticity evidence",
             )),
@@ -808,7 +869,8 @@ impl PyRunResult {
             | ResultPayload::Series { .. }
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_)
-            | ResultPayload::CommonTrajectory(_) => Err(capability_error(
+            | ResultPayload::CommonTrajectory(_)
+            | ResultPayload::CommonOde(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no fixed-mesh monolithic FSI evidence",
             )),
@@ -967,6 +1029,60 @@ pub(crate) fn materialize_common_transient(
     })
 }
 
+pub(crate) fn materialize_common_ode(
+    py: Python<'_>,
+    plan: PyRef<'_, PyPlan>,
+    identity: RunIdentity,
+    elapsed_seconds: f64,
+    result: eqiora_numerics::CommonOdeRunResult,
+) -> PyResult<PyRunResult> {
+    let CommonPlanKind::Ode(native) = plan.native() else {
+        return Err(PyRuntimeError::new_err(
+            "common ODE output crossed a different Plan",
+        ));
+    };
+    let states = result.states().to_vec();
+    let times = states
+        .iter()
+        .map(eqiora_numerics::CommonOdeState::time_s)
+        .collect::<Vec<_>>();
+    let mut fields = Vec::new();
+    let mut lookup = BTreeMap::new();
+    for (column, (field, dimension)) in native
+        .field_ids()
+        .zip(native.field_dimensions())
+        .enumerate()
+    {
+        let id = field.to_string();
+        let values = states.iter().map(|state| state.values()[column]).collect();
+        let series = Py::new(
+            py,
+            PySeries {
+                field: Some(Py::new(
+                    py,
+                    PyModelFieldRef::from_exact(native.model_digest().to_owned(), id.clone()),
+                )?),
+                id: id.clone(),
+                name: None,
+                dimension: *dimension,
+                time: PyArrayBuffer::from_owned_result(py, times.clone())?,
+                values: PyArrayBuffer::from_owned_result(py, values)?,
+            },
+        )?;
+        lookup.insert(id, fields.len());
+        fields.push(series);
+    }
+    Ok(PyRunResult {
+        identity,
+        elapsed_seconds,
+        payload: ResultPayload::CommonOde(CommonOdeResultPayload {
+            fields,
+            lookup,
+            states,
+        }),
+    })
+}
+
 pub(crate) fn result_into_python(
     py: Python<'_>,
     result: ReferenceRunResult,
@@ -987,6 +1103,7 @@ pub(crate) fn result_into_python(
         let field = Py::new(
             py,
             PySeries {
+                field: None,
                 id: id.clone(),
                 name: name.clone(),
                 dimension,

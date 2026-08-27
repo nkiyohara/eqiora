@@ -200,6 +200,7 @@ pub(crate) struct PyState {
     model: Option<Py<PyModel>>,
     mesh: Option<Py<PyMesh>>,
     native: Option<CommonState>,
+    ode_native: Option<eqiora_numerics::CommonOdeState>,
     plan_identity: Option<String>,
     source_request_identity: Option<String>,
     source_trajectory_identity: Option<String>,
@@ -259,6 +260,7 @@ impl PyState {
             model: Some(plan.model_handle(py)),
             mesh: Some(mesh),
             native: Some(native),
+            ode_native: None,
             plan_identity: Some(native_plan.identity().to_owned()),
             source_request_identity: source_request_identity.map(str::to_owned),
             source_trajectory_identity: source_trajectory_identity.map(str::to_owned),
@@ -274,6 +276,39 @@ impl PyState {
         self.native.as_ref()
     }
 
+    pub(crate) fn common_ode_native(&self) -> Option<&eqiora_numerics::CommonOdeState> {
+        self.ode_native.as_ref()
+    }
+
+    fn from_common_ode(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        native: eqiora_numerics::CommonOdeState,
+        source_request_identity: Option<&str>,
+    ) -> Self {
+        Self {
+            digest: native.identity().to_owned(),
+            model_digest: native.model_digest().to_owned(),
+            step: 0,
+            time_s: native.time_s(),
+            fields: Vec::new(),
+            field_lookup: native
+                .field_ids()
+                .iter()
+                .enumerate()
+                .map(|(index, field)| (field.to_string(), index))
+                .collect(),
+            model: Some(plan.model_handle(py)),
+            mesh: None,
+            native: None,
+            ode_native: Some(native.clone()),
+            plan_identity: plan.ode_native().map(|plan| plan.identity().to_owned()),
+            source_request_identity: source_request_identity.map(str::to_owned),
+            source_trajectory_identity: None,
+            source_kind: Some(native.source_kind()),
+        }
+    }
+
     pub(crate) const fn time_s_value(&self) -> f64 {
         self.time_s
     }
@@ -281,6 +316,18 @@ impl PyState {
 
 #[pymethods]
 impl PyState {
+    #[staticmethod]
+    #[pyo3(signature = (plan, /))]
+    fn initial(py: Python<'_>, plan: &crate::common_plan::PyPlan) -> PyResult<Self> {
+        let native_plan = plan.ode_native().ok_or_else(|| {
+            PyValueError::new_err("State.initial requires a no-Mesh explicit ODE Plan")
+        })?;
+        let state = native_plan
+            .initial_state()
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        Ok(Self::from_common_ode(py, plan, state, None))
+    }
+
     #[staticmethod]
     #[pyo3(signature = (plan, /, *, time_s=0.0))]
     fn zero(py: Python<'_>, plan: &crate::common_plan::PyPlan, time_s: f64) -> PyResult<Self> {
@@ -306,12 +353,21 @@ impl PyState {
                 "State.from_result time_s must be finite and non-negative",
             ));
         }
+        if let Some(native) = plan.ode_native() {
+            let state = result.common_ode_state_at(native.state_space_identity(), time_s)
+                .ok_or_else(|| PyValueError::new_err(
+                    "Result contains no State at time_s compatible with the exact ODE Plan state space"
+                ))?;
+            return Py::new(
+                py,
+                Self::from_common_ode(py, plan, state, Some(result.plan_key_value())),
+            );
+        }
         let native = plan
             .transient_native()
             .ok_or_else(|| PyValueError::new_err("State.from_result requires a transient Plan"))?;
-        let state_space_identity = native.state_space_identity();
         result
-            .common_state_at(py, &state_space_identity, time_s)
+            .common_state_at(py, &native.state_space_identity(), time_s)
             .ok_or_else(|| {
                 PyValueError::new_err(
                     "Result contains no State at time_s compatible with the exact Plan state space",
@@ -336,9 +392,14 @@ impl PyState {
 
     #[getter]
     fn state_space_identity(&self) -> &str {
-        self.native
-            .as_ref()
-            .map_or(self.digest.as_str(), CommonState::state_space_identity)
+        self.ode_native.as_ref().map_or_else(
+            || {
+                self.native
+                    .as_ref()
+                    .map_or(self.digest.as_str(), CommonState::state_space_identity)
+            },
+            eqiora_numerics::CommonOdeState::state_space_identity,
+        )
     }
 
     #[getter]
@@ -374,6 +435,38 @@ impl PyState {
     #[getter]
     fn fields(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         Ok(PyTuple::new(py, self.fields.iter().map(|field| field.clone_ref(py)))?.unbind())
+    }
+
+    #[getter]
+    fn field_refs(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let Some(native) = &self.ode_native else {
+            return Ok(PyTuple::empty(py).unbind());
+        };
+        PyTuple::new(
+            py,
+            native.field_ids().iter().map(|field| {
+                PyModelFieldRef::from_exact(self.model_digest.clone(), field.to_string())
+            }),
+        )
+        .map(|value| value.unbind())
+    }
+
+    #[pyo3(signature = (field, /))]
+    fn value(&self, field: &PyModelFieldRef) -> PyResult<f64> {
+        if field.exact_model_digest() != self.model_digest {
+            return Err(PyValueError::new_err(
+                "FieldRef belongs to a different exact Model artifact",
+            ));
+        }
+        let native = self.ode_native.as_ref().ok_or_else(|| {
+            PyValueError::new_err("State.value is available only for no-Mesh scalar ODE States")
+        })?;
+        let index = native
+            .field_ids()
+            .iter()
+            .position(|id| id.to_string() == field.exact_id())
+            .ok_or_else(|| PyKeyError::new_err(field.exact_id().to_owned()))?;
+        Ok(native.values()[index])
     }
 
     /// Select one complete Field observation by exact Model-bound identity.
@@ -825,6 +918,7 @@ impl PyTrajectory {
                     model: None,
                     mesh: None,
                     native: None,
+                    ode_native: None,
                     plan_identity: None,
                     source_request_identity: None,
                     source_trajectory_identity: None,

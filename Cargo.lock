@@ -978,10 +978,12 @@ dependencies = [
  "eqiora-ir",
  "eqiora-meshing",
  "eqiora-realization",
+ "eqiora-runtime",
  "eqiora-schema",
  "eqiora-sem",
  "eqiora-solver",
  "eqiora-spatial-distribution",
+ "eqiora-time",
  "serde_json",
  "sha2",
 ]
@@ -1011,6 +1013,7 @@ dependencies = [
  "pyo3",
  "rustix",
  "sha2",
+ "ulid",
 ]
 
 [[package]]

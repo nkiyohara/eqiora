@@ -15,28 +15,39 @@ python -m pip install eqiora==0.1.0a1
 
 ## Build and run a model
 
-This complete example creates immutable `Field`, `Parameter`, and `Relation`
-declarations, closes them into one native `Model`, and runs the shared native
-execution lifecycle:
+This complete example compiles an Eqiora model, resolves a typed adaptive time
+policy without inventing a Mesh, and runs the shared native lifecycle:
 
 ```python
 import eqiora
 
-state = eqiora.Field("state", initial=1.0)
-rate = eqiora.Parameter(
-    "rate",
-    value=1.0,
-    dimension=eqiora.Dimension(time=-1),
+model = eqiora.compile(source="""
+model decay {
+  field state: 1 = 1;
+  parameter rate: 1 / s = 1;
+  relation flow continuous {
+    derivative(state) + rate * state = 0;
+  }
+}
+""")
+state = model.field("state")
+plan = eqiora.resolve(
+    model,
+    temporal=eqiora.time.Tsitouras45(
+        initial_step_s=0.01,
+        relative_tolerance=1e-9,
+        absolute_tolerances={state: 1e-11},
+    ),
 )
-decay = eqiora.Relation(
-    "decay",
-    residual=eqiora.derivative(state) + rate * state,
+result = eqiora.run(
+    plan,
+    state=eqiora.State.initial(plan),
+    until_s=1.0,
+    output_times_s=(0.25, 0.5, 0.75, 1.0),
 )
-model = eqiora.Model.define("decay", state, rate, decay)
-
-result = eqiora.run(model, end_time=1.0, max_step=0.01)
-time = result["state"].time.numpy(copy=False)
-values = result["state"].values.numpy(copy=False)
+series = result.series(state)
+time = series.time.numpy(copy=False)
+values = series.values.numpy(copy=False)
 
 print(eqiora.__version__)
 print(model.digest)

@@ -9,11 +9,12 @@ use eqiora::api::{
     ScalarEllipticRunDirective, ScalarEllipticRunObserver, ScalarEllipticRunOutcome,
     ScalarEllipticRunPlan, ScalarEllipticRunProgress,
 };
+use eqiora::backends::diffsol::DiffsolTimeBackend;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
-    CommonElasticityPlan, CommonScalarPlan, CommonSpatialPolicy, CommonSteadyStokesPlan,
-    CommonTransientRunRequest,
+    CommonElasticityPlan, CommonOdeRunRequest, CommonOdeRunResult, CommonScalarPlan,
+    CommonSpatialPolicy, CommonSteadyStokesPlan, CommonTransientRunRequest,
 };
 
 use super::evidence::PyCommonTransientRunProgress;
@@ -108,6 +109,7 @@ pub(super) enum NativeRunJob {
     CommonElasticity(Box<CommonElasticityPlan>),
     CommonSteadyStokes(Box<CommonSteadyStokesPlan>),
     CommonTransient(Box<CommonTransientRunRequest>),
+    CommonOde(Box<CommonOdeRunRequest>),
 }
 
 enum NativeWorkerOutcome {
@@ -320,6 +322,19 @@ fn execute_job(
                     },
                 )),
             }
+        }
+        NativeRunJob::CommonOde(request) => {
+            let started = Instant::now();
+            let problem = request.problem().map_err(|diagnostic| vec![diagnostic])?;
+            let solution = DiffsolTimeBackend::new()
+                .solve(&problem, request.time_plan())
+                .map_err(|diagnostic| vec![diagnostic])?;
+            let result = CommonOdeRunResult::accept(&request, solution)
+                .map_err(|diagnostic| vec![diagnostic])?;
+            Ok(NativeWorkerOutcome::Completed(NativeRunOutput::CommonOde {
+                result: Box::new(result),
+                elapsed_seconds: started.elapsed().as_secs_f64(),
+            }))
         }
     }
 }

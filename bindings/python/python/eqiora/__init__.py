@@ -227,9 +227,9 @@ def check_package_conformance(
 def resolve(
     model: Model,
     *,
-    mesh: meshing.Mesh,
-    spatial,
-    solve: solve.Linear | solve.Newton,
+    mesh: meshing.Mesh | None = None,
+    spatial=None,
+    solve: solve.Linear | solve.Newton | None = None,
     scaling=None,
     temporal=None,
 ) -> Plan:
@@ -313,6 +313,10 @@ class Run:
     @property
     def adapter(self) -> str:
         return self._native.adapter
+
+    @property
+    def adapter_version(self) -> str:
+        return self._native.adapter_version
 
     def cancel(self) -> bool:
         return self._native.cancel()

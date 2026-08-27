@@ -93,9 +93,22 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
     assert reconstructed.to_json() == artifact
     assert reconstructed.digest == model.digest
 
-    result = eqiora.run(model, end_time=0.2, max_step=0.1)
-    series = result["x"]
-    assert result[series.id] is series
+    field = model.field(model.field_ids[0])
+    plan = eqiora.resolve(
+        model,
+        temporal=eqiora.time.Tsitouras45(
+            initial_step_s=0.01,
+            relative_tolerance=1.0e-9,
+            absolute_tolerances={field: 1.0e-11},
+        ),
+    )
+    result = eqiora.run(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=0.2,
+        output_times_s=(0.1, 0.2),
+    )
+    series = result.series(field)
     assert isinstance(result.fields, list)
     assert result.fields == [series]
     assert len(result) == 1
@@ -107,16 +120,15 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
     assert values is series.values.numpy(copy=False)
     assert series.values.device == "cpu"
     assert series.values.dtype == "float64"
-    assert series.values.shape == (3,)
-    assert np.array_equal(time, np.array([0.0, 0.1, 0.2]))
-    assert np.allclose(values, np.array([1.0, 1 / 1.1, 1 / 1.1**2]))
+    assert series.values.shape == (2,)
+    assert np.array_equal(time, np.array([0.1, 0.2]))
+    assert np.allclose(values, np.exp(-time), rtol=2.0e-8, atol=2.0e-10)
     assert not time.flags.writeable
     assert not values.flags.writeable
     copied = series.values.numpy(copy=True)
     assert copied is not values
     assert copied.flags.writeable
 
-    field = model.field("x")
     with pytest.raises(KeyError):
         result.field(field)
     with pytest.raises(KeyError):
@@ -129,7 +141,7 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
     del series, result, model
     gc.collect()
     assert time[-1] == pytest.approx(0.2)
-    assert values[-1] == pytest.approx(1 / 1.1**2)
+    assert values[-1] == pytest.approx(np.exp(-0.2), rel=2.0e-8)
 
 
 def test_diagnostics_are_structured() -> None:
@@ -142,10 +154,13 @@ def test_diagnostics_are_structured() -> None:
     assert diagnostic.message
     assert diagnostic.source_span is not None
 
-    model = eqiora.compile(source=SOURCE)
     with pytest.raises(eqiora.EqioraError) as caught:
-        eqiora.run(model, end_time=1.0, max_step=0.0)
-    assert caught.value.diagnostics[0].code == "EQ0501"
+        eqiora.time.Tsitouras45(
+            initial_step_s=0.0,
+            relative_tolerance=1.0e-9,
+            absolute_tolerances={eqiora.compile(source=SOURCE).field("x"): 1.0e-11},
+        )
+    assert caught.value.diagnostics[0].code == "EQ0807"
 
 
 def test_compile_request_fails_closed_before_entering_the_compiler() -> None:
@@ -212,14 +227,30 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
 
     model = eqiora.Model.define("decay", state, rate, flow)
     assert json.loads(model.to_json())["schema"] == "eqiora.model-envelope/v8"
-    result = eqiora.run(model, end_time=0.2, max_step=0.1)
+    field = model.field(model.field_ids[0])
+    plan = eqiora.resolve(
+        model,
+        temporal=eqiora.time.Tsitouras45(
+            initial_step_s=0.01,
+            relative_tolerance=1.0e-9,
+            absolute_tolerances={field: 1.0e-11},
+        ),
+    )
+    result = eqiora.run(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=0.2,
+        output_times_s=(0.1, 0.2),
+    )
 
     assert model.revision.number == 1
     assert state.dimension == eqiora.Dimension()
-    assert result["x"].dimension == state.dimension.exponents
+    assert result.series(field).dimension == state.dimension.exponents
     assert np.allclose(
-        result["x"].values.numpy(copy=False),
-        np.array([1.0, 1 / 1.1, 1 / 1.1**2]),
+        result.series(field).values.numpy(copy=False),
+        np.exp(-np.array([0.1, 0.2])),
+        rtol=2.0e-8,
+        atol=2.0e-10,
     )
 
 

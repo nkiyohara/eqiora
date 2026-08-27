@@ -2,7 +2,8 @@
 
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler``.
 """
-from typing import Self, final
+from typing import Mapping, Self, final
+from . import FieldRef
 
 @final
 class BackwardEuler:
@@ -15,4 +16,25 @@ class BackwardEuler:
     def step_s(self) -> float: ...
     def __repr__(self) -> str: ...
 
-__all__ = ["BackwardEuler"]
+@final
+class Tsitouras45:
+    """Adaptive explicit ODE integration with exact Field-bound SI tolerances.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyTsitouras45``.
+    """
+    def __new__(
+        cls,
+        *,
+        initial_step_s: float,
+        relative_tolerance: float,
+        absolute_tolerances: Mapping[FieldRef, float],
+    ) -> Self: ...
+    @property
+    def initial_step_s(self) -> float: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerances(self) -> dict[FieldRef, float]: ...
+    def __repr__(self) -> str: ...
+
+__all__ = ["BackwardEuler", "Tsitouras45"]

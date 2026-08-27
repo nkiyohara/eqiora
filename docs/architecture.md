@@ -727,15 +727,14 @@ manufactures source text nor assigns graph IDs before draft closure. Python
 and Studio without a generation argument. Historical Model bytes reject; replay
 does not sniff, retry, or migrate them. Both authoring paths cross the current
 bounded Transaction envelope, commit atomically, and reconstruct the immutable
-current Model envelope. The data
-plane groups the reference trajectory by
-Field so multirate/event samples retain their own time axes, keeps owned host
-`f64` vectors lazy until a read-only NumPy projection is requested, and makes
-copying explicit through `Array.numpy(copy=...)`. Synchronous and awaitable
-semantic-reference and bounded scalar-elliptic runs share one native lifecycle,
-detach from Python while blocking, expose one execution-family-specific
-single-slot progress snapshot, and observe explicit cancellation only at
-accepted boundaries without invoking Python callbacks from numerical loops.
+current Model envelope. The data plane groups common explicit-ODE samples by
+exact Field, keeps owned host `f64` vectors lazy until a read-only NumPy
+projection is requested, and makes copying explicit through
+`Array.numpy(copy=...)`. Synchronous and awaitable ODE and bounded
+scalar-elliptic runs use native worker lifecycles and detach from Python while
+blocking. Scalar-elliptic execution exposes its accepted-boundary progress and
+cancellation contract; common ODE execution claims neither rather than
+fabricating a boundary.
 
 A separate bounded spatial path projects one typed `ScalarElliptic` request to
 the existing public application service. Allocation-free preview resolves the
@@ -755,7 +754,7 @@ receipt rather than a durable Artifact digest, so the manifest output set is
 empty.
 
 These slices claim ordinary-GIL CPython 3.11--3.14, lazily materialized dense
-CPU NumPy for semantic-reference trajectories and complete 1D--3D generated-
+CPU NumPy for common explicit-ODE series and complete 1D--3D generated-
 Cartesian scalar-elliptic primary Fields, versioned copy-on-export DLPack
 snapshots, and one host-serial lifecycle for bounded FEM/FVM execution. The
 accepted-point differentiation adapter additionally admits exact CPU:0 DLPack

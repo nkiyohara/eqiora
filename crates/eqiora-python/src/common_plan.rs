@@ -1,14 +1,15 @@
-//! Root common Plan resolution over exact caller-owned Model and Mesh objects.
+//! Root common Plan resolution over an exact Model and applicable caller resources.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
+use eqiora::artifact::CanonicalModelArtifact;
 use eqiora::backends::faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
 use eqiora::realization::{Space, SpaceFamily};
 use eqiora::solver::{LinearSolver, REFERENCE_SOLVER_PROVIDER, ReductionPolicy, SolverPlan};
 use eqiora_numerics::{
-    CommonElasticityPlan, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
-    CommonSteadyStokesPlan, CommonTransientFlowPlan, resolve_common_plan,
+    CommonElasticityPlan, CommonOdePlan, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
+    CommonSteadyStokesPlan, CommonTransientFlowPlan, resolve_common_ode_plan, resolve_common_plan,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -21,7 +22,7 @@ use crate::model::{PyModel, PyModelFieldRef};
 mod policy;
 use policy::{
     PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyLinear, PyMiniP1, PyNewton,
-    PyPressureGauge2d, PyQ1,
+    PyPressureGauge2d, PyQ1, PyTsitouras45,
 };
 mod scaling;
 use scaling::{PyIncompressibleScales, PyIncompressibleScaling, PyIncompressibleScalingReceipt2d};
@@ -82,6 +83,7 @@ fn space_name(space: Space) -> &'static str {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum CommonPlanKind {
+    Ode(Box<CommonOdePlan>),
     Scalar(Box<CommonScalarPlan>),
     Elasticity(Box<CommonElasticityPlan>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
@@ -91,6 +93,7 @@ pub(crate) enum CommonPlanKind {
 impl CommonPlanKind {
     fn identity(&self) -> &str {
         match self {
+            Self::Ode(plan) => plan.identity(),
             Self::Scalar(plan) => plan.identity(),
             Self::Elasticity(plan) => plan.identity(),
             Self::SteadyStokes(plan) => plan.identity(),
@@ -99,6 +102,7 @@ impl CommonPlanKind {
     }
     fn model_id(&self) -> &str {
         match self {
+            Self::Ode(plan) => plan.model_id(),
             Self::Scalar(plan) => plan.model_id(),
             Self::Elasticity(plan) => plan.model_id(),
             Self::SteadyStokes(plan) => plan.model_id(),
@@ -107,6 +111,7 @@ impl CommonPlanKind {
     }
     fn model_digest(&self) -> &str {
         match self {
+            Self::Ode(plan) => plan.model_digest(),
             Self::Scalar(plan) => plan.model_digest(),
             Self::Elasticity(plan) => plan.model_digest(),
             Self::SteadyStokes(plan) => plan.model_digest(),
@@ -115,54 +120,61 @@ impl CommonPlanKind {
     }
     const fn model_revision(&self) -> u64 {
         match self {
+            Self::Ode(plan) => plan.model_revision(),
             Self::Scalar(plan) => plan.model_revision(),
             Self::Elasticity(plan) => plan.model_revision(),
             Self::SteadyStokes(plan) => plan.model_revision(),
             Self::TransientFlow(plan) => plan.model_revision(),
         }
     }
-    fn geometry_digest(&self) -> &str {
+    fn geometry_digest(&self) -> Option<&str> {
         match self {
-            Self::Scalar(plan) => plan.geometry_digest(),
-            Self::Elasticity(plan) => plan.geometry_digest(),
-            Self::SteadyStokes(plan) => plan.geometry_digest(),
-            Self::TransientFlow(plan) => plan.geometry_digest(),
+            Self::Ode(_) => None,
+            Self::Scalar(plan) => Some(plan.geometry_digest()),
+            Self::Elasticity(plan) => Some(plan.geometry_digest()),
+            Self::SteadyStokes(plan) => Some(plan.geometry_digest()),
+            Self::TransientFlow(plan) => Some(plan.geometry_digest()),
         }
     }
-    fn mesh_digest(&self) -> &str {
+    fn mesh_digest(&self) -> Option<&str> {
         match self {
-            Self::Scalar(plan) => plan.mesh_digest(),
-            Self::Elasticity(plan) => plan.mesh_digest(),
-            Self::SteadyStokes(plan) => plan.mesh_digest(),
-            Self::TransientFlow(plan) => plan.mesh_digest(),
+            Self::Ode(_) => None,
+            Self::Scalar(plan) => Some(plan.mesh_digest()),
+            Self::Elasticity(plan) => Some(plan.mesh_digest()),
+            Self::SteadyStokes(plan) => Some(plan.mesh_digest()),
+            Self::TransientFlow(plan) => Some(plan.mesh_digest()),
         }
     }
-    fn correspondence_digest(&self) -> &str {
+    fn correspondence_digest(&self) -> Option<&str> {
         match self {
-            Self::Scalar(plan) => plan.correspondence_digest(),
-            Self::Elasticity(plan) => plan.correspondence_digest(),
-            Self::SteadyStokes(plan) => plan.correspondence_digest(),
-            Self::TransientFlow(plan) => plan.correspondence_digest(),
+            Self::Ode(_) => None,
+            Self::Scalar(plan) => Some(plan.correspondence_digest()),
+            Self::Elasticity(plan) => Some(plan.correspondence_digest()),
+            Self::SteadyStokes(plan) => Some(plan.correspondence_digest()),
+            Self::TransientFlow(plan) => Some(plan.correspondence_digest()),
         }
     }
-    fn production_digest(&self) -> &str {
+    fn production_digest(&self) -> Option<&str> {
         match self {
-            Self::Scalar(plan) => plan.production_digest(),
-            Self::Elasticity(plan) => plan.production_digest(),
-            Self::SteadyStokes(plan) => plan.production_digest(),
-            Self::TransientFlow(plan) => plan.production_digest(),
+            Self::Ode(_) => None,
+            Self::Scalar(plan) => Some(plan.production_digest()),
+            Self::Elasticity(plan) => Some(plan.production_digest()),
+            Self::SteadyStokes(plan) => Some(plan.production_digest()),
+            Self::TransientFlow(plan) => Some(plan.production_digest()),
         }
     }
-    const fn effective_solver(&self) -> SolverPlan {
+    const fn effective_solver(&self) -> Option<SolverPlan> {
         match self {
-            Self::Scalar(plan) => plan.linear(),
-            Self::Elasticity(plan) => plan.linear(),
-            Self::SteadyStokes(plan) => plan.linear(),
-            Self::TransientFlow(plan) => plan.linear(),
+            Self::Ode(_) => None,
+            Self::Scalar(plan) => Some(plan.linear()),
+            Self::Elasticity(plan) => Some(plan.linear()),
+            Self::SteadyStokes(plan) => Some(plan.linear()),
+            Self::TransientFlow(plan) => Some(plan.linear()),
         }
     }
     fn realization_digest(&self) -> Option<&str> {
         match self {
+            Self::Ode(_) => None,
             Self::Scalar(_) => None,
             Self::Elasticity(_) => None,
             Self::SteadyStokes(plan) => Some(plan.realization_digest()),
@@ -177,16 +189,22 @@ enum SolveHandle {
     Newton(Py<PyNewton>),
 }
 
+#[derive(Debug)]
+enum TemporalHandle {
+    BackwardEuler(Py<PyBackwardEuler>),
+    Tsitouras45(Py<PyTsitouras45>),
+}
+
 /// Immutable common Plan owning one exact Model, Mesh, and effective policy set.
 #[pyclass(name = "Plan", module = "eqiora._eqiora", frozen, skip_from_py_object)]
 #[derive(Debug)]
 pub(crate) struct PyPlan {
     native: CommonPlanKind,
     model: Py<PyModel>,
-    mesh: Py<PyMesh>,
-    spatial: SpatialPolicy,
-    solve: SolveHandle,
-    temporal: Option<Py<PyBackwardEuler>>,
+    mesh: Option<Py<PyMesh>>,
+    spatial: Option<SpatialPolicy>,
+    solve: Option<SolveHandle>,
+    temporal: Option<TemporalHandle>,
 }
 
 impl PyPlan {
@@ -195,13 +213,24 @@ impl PyPlan {
     }
 
     pub(crate) fn mesh_handle(&self, py: Python<'_>) -> Py<PyMesh> {
-        self.mesh.clone_ref(py)
+        self.mesh
+            .as_ref()
+            .expect("spatial common Plan owns an exact Mesh")
+            .clone_ref(py)
+    }
+
+    pub(crate) fn ode_native(&self) -> Option<&CommonOdePlan> {
+        match &self.native {
+            CommonPlanKind::Ode(plan) => Some(plan),
+            _ => None,
+        }
     }
 
     pub(crate) fn transient_native(&self) -> Option<&CommonTransientFlowPlan> {
         match &self.native {
             CommonPlanKind::TransientFlow(plan) => Some(plan),
-            CommonPlanKind::Scalar(_)
+            CommonPlanKind::Ode(_)
+            | CommonPlanKind::Scalar(_)
             | CommonPlanKind::Elasticity(_)
             | CommonPlanKind::SteadyStokes(_) => None,
         }
@@ -210,7 +239,8 @@ impl PyPlan {
     pub(crate) fn scalar_native(&self) -> Option<&CommonScalarPlan> {
         match &self.native {
             CommonPlanKind::Scalar(plan) => Some(plan),
-            CommonPlanKind::Elasticity(_)
+            CommonPlanKind::Ode(_)
+            | CommonPlanKind::Elasticity(_)
             | CommonPlanKind::SteadyStokes(_)
             | CommonPlanKind::TransientFlow(_) => None,
         }
@@ -240,19 +270,19 @@ impl PyPlan {
         self.native.model_revision()
     }
     #[getter]
-    fn geometry_digest(&self) -> &str {
+    fn geometry_digest(&self) -> Option<&str> {
         self.native.geometry_digest()
     }
     #[getter]
-    fn mesh_digest(&self) -> &str {
+    fn mesh_digest(&self) -> Option<&str> {
         self.native.mesh_digest()
     }
     #[getter]
-    fn correspondence_digest(&self) -> &str {
+    fn correspondence_digest(&self) -> Option<&str> {
         self.native.correspondence_digest()
     }
     #[getter]
-    fn production_digest(&self) -> &str {
+    fn production_digest(&self) -> Option<&str> {
         self.native.production_digest()
     }
     #[getter]
@@ -264,8 +294,8 @@ impl PyPlan {
         self.model.clone_ref(py)
     }
     #[getter]
-    fn mesh(&self, py: Python<'_>) -> Py<PyMesh> {
-        self.mesh.clone_ref(py)
+    fn mesh(&self, py: Python<'_>) -> Option<Py<PyMesh>> {
+        self.mesh.as_ref().map(|mesh| mesh.clone_ref(py))
     }
     #[getter]
     fn field(&self) -> Option<PyModelFieldRef> {
@@ -278,13 +308,19 @@ impl PyPlan {
                 plan.model_digest().to_owned(),
                 plan.displacement_field_id().to_owned(),
             )),
-            CommonPlanKind::SteadyStokes(_) | CommonPlanKind::TransientFlow(_) => None,
+            CommonPlanKind::Ode(_)
+            | CommonPlanKind::SteadyStokes(_)
+            | CommonPlanKind::TransientFlow(_) => None,
         }
     }
     #[getter]
     fn fields(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         let model_digest = self.native.model_digest().to_owned();
         let fields = match &self.native {
+            CommonPlanKind::Ode(plan) => plan
+                .field_ids()
+                .map(|field| PyModelFieldRef::from_exact(model_digest.clone(), field.to_string()))
+                .collect(),
             CommonPlanKind::Scalar(plan) => vec![PyModelFieldRef::from_exact(
                 model_digest,
                 plan.field_id().to_owned(),
@@ -321,7 +357,9 @@ impl PyPlan {
                 plan.model_digest().to_owned(),
                 plan.velocity_field_id().to_owned(),
             )),
-            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => None,
+            CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
+                None
+            }
         }
     }
     #[getter]
@@ -335,40 +373,49 @@ impl PyPlan {
                 plan.model_digest().to_owned(),
                 plan.pressure_field_id().to_owned(),
             )),
-            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => None,
+            CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
+                None
+            }
         }
     }
     #[getter]
-    fn spatial(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        match self.spatial {
-            SpatialPolicy::Q1 => Py::new(py, PyQ1).map(Py::into_any),
-            SpatialPolicy::CellCenteredTpfa => Py::new(py, PyCellCenteredTpfa).map(Py::into_any),
-            SpatialPolicy::MiniP1 => Py::new(py, PyMiniP1).map(Py::into_any),
-            SpatialPolicy::CellCentered => Py::new(py, PyCellCentered).map(Py::into_any),
-        }
+    fn spatial(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        self.spatial
+            .map(|spatial| match spatial {
+                SpatialPolicy::Q1 => Py::new(py, PyQ1).map(Py::into_any),
+                SpatialPolicy::CellCenteredTpfa => {
+                    Py::new(py, PyCellCenteredTpfa).map(Py::into_any)
+                }
+                SpatialPolicy::MiniP1 => Py::new(py, PyMiniP1).map(Py::into_any),
+                SpatialPolicy::CellCentered => Py::new(py, PyCellCentered).map(Py::into_any),
+            })
+            .transpose()
     }
     #[getter]
-    fn solve(&self, py: Python<'_>) -> Py<PyAny> {
-        match &self.solve {
+    fn solve(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        self.solve.as_ref().map(|solve| match solve {
             SolveHandle::Linear(value) => value.clone_ref(py).into_any(),
             SolveHandle::Newton(value) => value.clone_ref(py).into_any(),
-        }
+        })
     }
     #[getter]
-    fn temporal(&self, py: Python<'_>) -> Option<Py<PyBackwardEuler>> {
-        self.temporal.as_ref().map(|value| value.clone_ref(py))
+    fn temporal(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        self.temporal.as_ref().map(|value| match value {
+            TemporalHandle::BackwardEuler(value) => value.clone_ref(py).into_any(),
+            TemporalHandle::Tsitouras45(value) => value.clone_ref(py).into_any(),
+        })
     }
     #[getter]
-    fn discretization(&self) -> &'static str {
-        self.spatial.discretization()
+    fn discretization(&self) -> Option<&'static str> {
+        self.spatial.map(SpatialPolicy::discretization)
     }
     #[getter]
     fn space(&self) -> Option<&'static str> {
         match self.native {
-            CommonPlanKind::TransientFlow(_) => None,
+            CommonPlanKind::Ode(_) | CommonPlanKind::TransientFlow(_) => None,
             CommonPlanKind::Scalar(_)
             | CommonPlanKind::Elasticity(_)
-            | CommonPlanKind::SteadyStokes(_) => Some(self.spatial.space()),
+            | CommonPlanKind::SteadyStokes(_) => self.spatial.map(SpatialPolicy::space),
         }
     }
     #[getter]
@@ -376,7 +423,9 @@ impl PyPlan {
         match &self.native {
             CommonPlanKind::SteadyStokes(plan) => Some(space_name(plan.velocity_space())),
             CommonPlanKind::TransientFlow(plan) => Some(space_name(plan.velocity_space())),
-            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => None,
+            CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
+                None
+            }
         }
     }
     #[getter]
@@ -384,37 +433,43 @@ impl PyPlan {
         match &self.native {
             CommonPlanKind::SteadyStokes(plan) => Some(space_name(plan.pressure_space())),
             CommonPlanKind::TransientFlow(plan) => Some(space_name(plan.pressure_space())),
-            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => None,
+            CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
+                None
+            }
         }
     }
     #[getter]
     fn pressure_gauge(&self) -> Option<PyPressureGauge2d> {
         match &self.native {
             CommonPlanKind::TransientFlow(plan) => Some(plan.gauge().into()),
-            CommonPlanKind::Scalar(_)
+            CommonPlanKind::Ode(_)
+            | CommonPlanKind::Scalar(_)
             | CommonPlanKind::Elasticity(_)
             | CommonPlanKind::SteadyStokes(_) => None,
         }
     }
     #[getter]
-    fn quadrature(&self) -> &'static str {
-        self.spatial.quadrature()
+    fn quadrature(&self) -> Option<&'static str> {
+        self.spatial.map(SpatialPolicy::quadrature)
     }
     #[getter]
-    fn mesh_kind(&self) -> &'static str {
+    fn mesh_kind(&self) -> Option<&'static str> {
         match &self.native {
-            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => "structured-cartesian",
-            CommonPlanKind::SteadyStokes(_) => "imported-affine-simplicial",
+            CommonPlanKind::Ode(_) => None,
+            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
+                Some("structured-cartesian")
+            }
+            CommonPlanKind::SteadyStokes(_) => Some("imported-affine-simplicial"),
             CommonPlanKind::TransientFlow(plan) => match plan.spatial() {
-                CommonSpatialPolicy::MiniP1 => "imported-affine-simplicial",
-                CommonSpatialPolicy::CellCentered => "supplied-cartesian",
+                CommonSpatialPolicy::MiniP1 => Some("imported-affine-simplicial"),
+                CommonSpatialPolicy::CellCentered => Some("supplied-cartesian"),
                 _ => unreachable!("closed transient spatial policy"),
             },
         }
     }
     #[getter]
-    const fn spatial_dimension(&self) -> usize {
-        2
+    fn spatial_dimension(&self) -> Option<usize> {
+        self.spatial.map(|_| 2)
     }
     #[getter]
     fn cells(&self) -> Option<(usize, usize)> {
@@ -427,7 +482,7 @@ impl PyPlan {
                 let [x, y] = plan.cells();
                 Some((x, y))
             }
-            CommonPlanKind::SteadyStokes(_) => None,
+            CommonPlanKind::Ode(_) | CommonPlanKind::SteadyStokes(_) => None,
             CommonPlanKind::TransientFlow(_) => None,
         }
     }
@@ -440,13 +495,14 @@ impl PyPlan {
         "replicated"
     }
     #[getter]
-    fn operator_properties(&self) -> &'static str {
+    fn operator_properties(&self) -> Option<&'static str> {
         match &self.native {
+            CommonPlanKind::Ode(_) => None,
             CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
-                "symmetric-positive-definite"
+                Some("symmetric-positive-definite")
             }
-            CommonPlanKind::SteadyStokes(_) => "symmetric-indefinite",
-            CommonPlanKind::TransientFlow(_) => "general",
+            CommonPlanKind::SteadyStokes(_) => Some("symmetric-indefinite"),
+            CommonPlanKind::TransientFlow(_) => Some("general"),
         }
     }
     #[getter]
@@ -454,28 +510,36 @@ impl PyPlan {
         "offline"
     }
     #[getter]
-    fn solver_algorithm(&self) -> &'static str {
-        match self.native.effective_solver().algorithm() {
-            LinearSolver::ConjugateGradient => "conjugate-gradient",
-            LinearSolver::MinimumResidual => "minimum-residual",
-            LinearSolver::BiConjugateGradientStabilized => "bicgstab",
-            LinearSolver::SparseLu => "sparse-lu",
+    fn solver_algorithm(&self) -> Option<&'static str> {
+        self.native
+            .effective_solver()
+            .map(|solver| match solver.algorithm() {
+                LinearSolver::ConjugateGradient => "conjugate-gradient",
+                LinearSolver::MinimumResidual => "minimum-residual",
+                LinearSolver::BiConjugateGradientStabilized => "bicgstab",
+                LinearSolver::SparseLu => "sparse-lu",
+            })
+    }
+    #[getter]
+    fn preconditioner(&self) -> Option<&'static str> {
+        match self.native {
+            CommonPlanKind::Ode(_) => None,
+            _ => Some("identity"),
         }
     }
     #[getter]
-    const fn preconditioner(&self) -> &'static str {
-        "identity"
-    }
-    #[getter]
-    fn reduction(&self) -> &'static str {
-        match self.native.effective_solver().reduction() {
-            ReductionPolicy::Reproducible => "reproducible",
-            ReductionPolicy::Fast => "fast",
-        }
+    fn reduction(&self) -> Option<&'static str> {
+        self.native
+            .effective_solver()
+            .map(|solver| match solver.reduction() {
+                ReductionPolicy::Reproducible => "reproducible",
+                ReductionPolicy::Fast => "fast",
+            })
     }
     #[getter]
     fn solver_backend(&self) -> &'static str {
         match &self.native {
+            CommonPlanKind::Ode(plan) => plan.backend().id().as_str(),
             CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
                 REFERENCE_SOLVER_PROVIDER.id().as_str()
             }
@@ -490,6 +554,7 @@ impl PyPlan {
     #[getter]
     fn solver_backend_version(&self) -> &'static str {
         match &self.native {
+            CommonPlanKind::Ode(plan) => plan.backend().version().as_str(),
             CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
                 REFERENCE_SOLVER_PROVIDER.implementation_version()
             }
@@ -522,7 +587,9 @@ impl PyPlan {
     #[getter]
     fn scaling(&self, py: Python<'_>) -> PyResult<Option<Py<PyIncompressibleScales>>> {
         match &self.native {
-            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => Ok(None),
+            CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
+                Ok(None)
+            }
             CommonPlanKind::SteadyStokes(plan) => {
                 Py::new(py, PyIncompressibleScales::from_native(plan.scales())).map(Some)
             }
@@ -537,7 +604,9 @@ impl PyPlan {
         py: Python<'_>,
     ) -> PyResult<Option<Py<PyIncompressibleScalingReceipt2d>>> {
         match &self.native {
-            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => Ok(None),
+            CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
+                Ok(None)
+            }
             CommonPlanKind::SteadyStokes(plan) => Py::new(
                 py,
                 PyIncompressibleScalingReceipt2d::from_native(plan.scaling_receipt().clone()),
@@ -573,23 +642,84 @@ impl PyPlan {
 }
 
 #[pyfunction(name = "_resolve_plan")]
-#[pyo3(signature = (model, /, *, mesh, spatial, solve, scaling=None, temporal=None))]
+#[pyo3(signature = (model, /, *, mesh=None, spatial=None, solve=None, scaling=None, temporal=None))]
 fn resolve_plan(
     py: Python<'_>,
     model: Py<PyModel>,
-    mesh: Py<PyMesh>,
-    spatial: &Bound<'_, PyAny>,
-    solve: &Bound<'_, PyAny>,
+    mesh: Option<Py<PyMesh>>,
+    spatial: Option<&Bound<'_, PyAny>>,
+    solve: Option<&Bound<'_, PyAny>>,
     scaling: Option<&Bound<'_, PyAny>>,
     temporal: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyPlan> {
-    let spatial = if spatial.extract::<PyRef<'_, PyQ1>>().is_ok() {
+    let ode_temporal = temporal.and_then(|value| value.extract::<Py<PyTsitouras45>>().ok());
+    if let Some(temporal_handle) = ode_temporal {
+        if mesh.is_some()
+            || spatial.is_some()
+            || solve.is_some()
+            || scaling.is_some_and(|value| !value.is_none())
+        {
+            return Err(PyTypeError::new_err(
+                "no-Mesh explicit ODE resolve accepts only model and temporal=eqiora.time.Tsitouras45(...)",
+            ));
+        }
+        let model_ref = model.borrow(py);
+        let artifact = model_ref.artifact();
+        let reference = artifact
+            .artifact_reference()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        let temporal_ref = temporal_handle.borrow(py);
+        if !temporal_ref.belongs_to_model(py, &reference.artifact().to_string()) {
+            return Err(PyTypeError::new_err(
+                "Tsitouras45 absolute_tolerances must use exact FieldRefs from this Model",
+            ));
+        }
+        let program = artifact
+            .to_program()
+            .map_err(|diagnostics| validation_error(py, &diagnostics))?;
+        let native = resolve_common_ode_plan(
+            artifact,
+            &program,
+            temporal_ref.native.clone(),
+            eqiora::backends::diffsol::DIFFSOL_TIME_BACKEND,
+        )
+        .map(|plan| {
+            plan.project(
+                |plan| CommonPlanKind::Ode(Box::new(plan)),
+                |plan| CommonPlanKind::Scalar(Box::new(plan)),
+                |plan| CommonPlanKind::Elasticity(Box::new(plan)),
+                |plan| CommonPlanKind::SteadyStokes(Box::new(plan)),
+                |plan| CommonPlanKind::TransientFlow(Box::new(plan)),
+            )
+        })
+        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        drop(temporal_ref);
+        drop(model_ref);
+        return Ok(PyPlan {
+            native,
+            model,
+            mesh: None,
+            spatial: None,
+            solve: None,
+            temporal: Some(TemporalHandle::Tsitouras45(temporal_handle)),
+        });
+    }
+
+    let mesh = mesh.ok_or_else(|| PyTypeError::new_err("spatial resolve requires mesh=Mesh"))?;
+    let spatial_value =
+        spatial.ok_or_else(|| PyTypeError::new_err("spatial resolve requires spatial policy"))?;
+    let solve =
+        solve.ok_or_else(|| PyTypeError::new_err("spatial resolve requires solve policy"))?;
+    let spatial = if spatial_value.extract::<PyRef<'_, PyQ1>>().is_ok() {
         SpatialPolicy::Q1
-    } else if spatial.extract::<PyRef<'_, PyCellCenteredTpfa>>().is_ok() {
+    } else if spatial_value
+        .extract::<PyRef<'_, PyCellCenteredTpfa>>()
+        .is_ok()
+    {
         SpatialPolicy::CellCenteredTpfa
-    } else if spatial.extract::<PyRef<'_, PyMiniP1>>().is_ok() {
+    } else if spatial_value.extract::<PyRef<'_, PyMiniP1>>().is_ok() {
         SpatialPolicy::MiniP1
-    } else if spatial.extract::<PyRef<'_, PyCellCentered>>().is_ok() {
+    } else if spatial_value.extract::<PyRef<'_, PyCellCentered>>().is_ok() {
         SpatialPolicy::CellCentered
     } else {
         return Err(PyTypeError::new_err(
@@ -636,7 +766,7 @@ fn resolve_plan(
                 PyTypeError::new_err("temporal must be eqiora.time.BackwardEuler or None")
             })?;
             let native = handle.borrow(py).native;
-            (Some(native), Some(handle))
+            (Some(native), Some(TemporalHandle::BackwardEuler(handle)))
         }
     };
     let model_ref = model.borrow(py);
@@ -658,6 +788,7 @@ fn resolve_plan(
     )
     .map(|plan| {
         plan.project(
+            |plan| CommonPlanKind::Ode(Box::new(plan)),
             |plan| CommonPlanKind::Scalar(Box::new(plan)),
             |plan| CommonPlanKind::Elasticity(Box::new(plan)),
             |plan| CommonPlanKind::SteadyStokes(Box::new(plan)),
@@ -665,7 +796,7 @@ fn resolve_plan(
         )
     })
     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-    if native.mesh_digest() != mesh_ref.exact_mesh_digest() {
+    if native.mesh_digest() != Some(mesh_ref.exact_mesh_digest()) {
         return Err(PyTypeError::new_err(
             "resolved Plan did not retain the exact caller Mesh occurrence",
         ));
@@ -684,6 +815,7 @@ fn resolve_plan(
             )?)
         }
         CommonPlanKind::Scalar(_)
+        | CommonPlanKind::Ode(_)
         | CommonPlanKind::Elasticity(_)
         | CommonPlanKind::SteadyStokes(_) => requested_solve_handle,
     };
@@ -692,9 +824,9 @@ fn resolve_plan(
     Ok(PyPlan {
         native,
         model,
-        mesh,
-        spatial,
-        solve: solve_handle,
+        mesh: Some(mesh),
+        spatial: Some(spatial),
+        solve: Some(solve_handle),
         temporal: temporal_handle,
     })
 }
@@ -708,6 +840,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyNewton>()?;
     module.add_class::<PyPressureGauge2d>()?;
     module.add_class::<PyBackwardEuler>()?;
+    module.add_class::<PyTsitouras45>()?;
     module.add_class::<PyPlan>()?;
     scaling::register(module)?;
     module.add_function(wrap_pyfunction!(resolve_plan, module)?)?;
