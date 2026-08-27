@@ -88,12 +88,21 @@ enum AcceptedMeshSource {
 enum SourceOwnedProviderObservation {
     Reference,
     Gmsh4152 { output: Box<[u8]> },
+    AffineTriangle,
 }
 
 /// Exact authenticated Cartesian resources admitted for downstream native consumers.
 pub(crate) struct AuthenticatedCartesianResources<'a> {
     pub(crate) geometry: &'a CanonicalGeometryV1,
     pub(crate) mesh: &'a CartesianMeshEnvelopeV1,
+    pub(crate) correspondence: &'a GeometryMeshCorrespondenceEnvelopeV1,
+    pub(crate) production: &'a MeshProductionLineageEnvelopeV1,
+}
+
+/// Exact replay-authenticated affine-triangle resources for native integration.
+pub(crate) struct AuthenticatedAffineTriangleResources<'a> {
+    pub(crate) geometry: &'a CanonicalGeometryV1,
+    pub(crate) mesh: &'a SimplicialMeshEnvelopeV1,
     pub(crate) correspondence: &'a GeometryMeshCorrespondenceEnvelopeV1,
     pub(crate) production: &'a MeshProductionLineageEnvelopeV1,
 }
@@ -301,6 +310,15 @@ impl PyMesh {
                 .region_entity_set_entities(accepted.realized_geometry(), name)
                 .and_then(|entities| validated_entity_count(entities, expected_dimension))
                 .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
+            AcceptedMeshSource::SourceOwned {
+                geometry,
+                correspondence,
+                provider_observation: SourceOwnedProviderObservation::AffineTriangle,
+                ..
+            } => correspondence
+                .planar_rectangle_v2_entity_set_entities(geometry, name)
+                .and_then(|entities| validated_entity_count(entities, expected_dimension))
+                .map_err(|diagnostic| validation_error(py, &[diagnostic])),
             AcceptedMeshSource::SourceOwned {
                 geometry,
                 correspondence,
@@ -513,6 +531,57 @@ impl PyMesh {
             production,
             SourceOwnedProviderObservation::Reference,
         )
+    }
+
+    fn from_source_owned_affine_triangle(
+        py: Python<'_>,
+        source: &CanonicalGeometryV1,
+        accepted_mesh: &SimplicialMeshEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        production: &MeshProductionLineageEnvelopeV1,
+    ) -> PyResult<Self> {
+        let policy = production.affine_triangle_cells().ok_or_else(|| {
+            request_error(
+                py,
+                "affine-triangle MeshPlan has a non-affine-triangle production policy",
+            )
+        })?;
+        correspondence
+            .validate_against_planar_rectangle_v2_affine_triangles(
+                source,
+                accepted_mesh,
+                policy.cells(),
+            )
+            .and_then(|()| {
+                production.validate_against_affine_triangle_rectangle_v1_resources(
+                    policy,
+                    source,
+                    accepted_mesh,
+                    correspondence,
+                )
+            })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        let published = Self::from_source_parts(
+            py,
+            source,
+            accepted_mesh,
+            correspondence,
+            production,
+            SourceOwnedProviderObservation::AffineTriangle,
+        )?;
+        let authenticated = published
+            .authenticated_affine_triangle_resources()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
+            .ok_or_else(|| {
+                PyRuntimeError::new_err("affine-triangle publication lost its exact resources")
+            })?;
+        let _ = (
+            authenticated.geometry,
+            authenticated.mesh,
+            authenticated.correspondence,
+            authenticated.production,
+        );
+        Ok(published)
     }
 
     fn from_source_parts(
@@ -841,6 +910,45 @@ impl PyMesh {
         }))
     }
 
+    /// Return only exact replay-authenticated affine-triangle resources.
+    pub(crate) fn authenticated_affine_triangle_resources(
+        &self,
+    ) -> Result<Option<AuthenticatedAffineTriangleResources<'_>>, Diagnostic> {
+        let AcceptedMeshSource::SourceOwned {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+            provider_observation: SourceOwnedProviderObservation::AffineTriangle,
+        } = &self.source
+        else {
+            return Ok(None);
+        };
+        let policy = production.affine_triangle_cells().ok_or_else(|| {
+            Diagnostic::error(
+                codes::INVALID_ARTIFACT,
+                "affine-triangle Mesh has a non-affine-triangle production policy",
+            )
+        })?;
+        correspondence.validate_against_planar_rectangle_v2_affine_triangles(
+            geometry,
+            mesh,
+            policy.cells(),
+        )?;
+        production.validate_against_affine_triangle_rectangle_v1_resources(
+            policy,
+            geometry,
+            mesh,
+            correspondence,
+        )?;
+        Ok(Some(AuthenticatedAffineTriangleResources {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        }))
+    }
+
     /// Reauthenticate this exact published occurrence for the common resolver.
     pub(crate) fn authenticated_common_mesh(
         &self,
@@ -886,6 +994,19 @@ impl PyMesh {
                 AuthenticatedCommonMesh::gmsh_4152((**geometry).clone(), policy, output.to_vec())
                     .map(Some)
             }
+            AcceptedMeshSource::SourceOwned {
+                geometry,
+                mesh,
+                correspondence,
+                production,
+                provider_observation: SourceOwnedProviderObservation::AffineTriangle,
+            } => AuthenticatedCommonMesh::affine_triangle_rectangle(
+                (**geometry).clone(),
+                (**mesh).clone(),
+                (**correspondence).clone(),
+                (**production).clone(),
+            )
+            .map(Some),
             AcceptedMeshSource::Chordal { .. } | AcceptedMeshSource::Cartesian => Ok(None),
         }
     }
@@ -1244,6 +1365,31 @@ pub(super) fn generate(
                 &plan.production,
             )
         }
+        ResolvedMeshPlan::AffineTriangle(resolved) => {
+            let super::plan::MeshProviderPolicy::AffineTriangle(provider) = plan.request.provider
+            else {
+                unreachable!("affine-triangle resolved plan retains affine-triangle provider")
+            };
+            resolved
+                .revalidate(geometry.geometry(), provider.policy)
+                .and_then(|()| {
+                    plan.production
+                        .validate_against_affine_triangle_rectangle_v1_resources(
+                            provider.policy,
+                            &resolved.source,
+                            &resolved.mesh,
+                            &resolved.correspondence,
+                        )
+                })
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            PyMesh::from_source_owned_affine_triangle(
+                py,
+                &resolved.source,
+                &resolved.mesh,
+                &resolved.correspondence,
+                &plan.production,
+            )
+        }
     })
 }
 
@@ -1266,6 +1412,11 @@ fn validated_entity_count(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
+    use eqiora::artifact::{AffineTriangleMeshCellsV1, GeometryMeshCorrespondenceEnvelopeV1};
+    use eqiora::geometry::{CanonicalGeometryV1, PlanarOperationGraph};
+
     use super::*;
 
     #[test]
@@ -1278,5 +1429,140 @@ mod tests {
             validated_entity_count(vec![MeshEntity::new(1, 0)], Some(1)).unwrap(),
             1
         );
+    }
+
+    fn rectangle(xmax: f64) -> CanonicalGeometryV1 {
+        let graph = PlanarOperationGraph::new();
+        let rectangle = graph.rectangle([0.0, xmax], [-1.0, 2.0]).unwrap();
+        let edges = rectangle.boundaries();
+        graph
+            .build(
+                &rectangle,
+                &BTreeMap::from([
+                    ("region".to_owned(), vec![rectangle.region().into()]),
+                    ("left".to_owned(), vec![edges[0].into()]),
+                    ("right".to_owned(), vec![edges[1].into()]),
+                    ("bottom".to_owned(), vec![edges[2].into()]),
+                    ("top".to_owned(), vec![edges[3].into()]),
+                ]),
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn affine_triangle_native_resource_view_reauthenticates_every_bound_resource() {
+        Python::initialize();
+        Python::attach(|py| {
+            let source = rectangle(2.0);
+            let policy = AffineTriangleMeshCellsV1::new([2, 3]).unwrap();
+            let (mesh, correspondence) =
+                GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
+                    &source,
+                    policy.cells(),
+                )
+                .unwrap();
+            let production =
+                MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+                    policy,
+                    &source,
+                    &mesh,
+                    &correspondence,
+                )
+                .unwrap();
+            let publish = || {
+                PyMesh::from_source_owned_affine_triangle(
+                    py,
+                    &source,
+                    &mesh,
+                    &correspondence,
+                    &production,
+                )
+                .unwrap()
+            };
+            let published = publish();
+            let authenticated = published
+                .authenticated_affine_triangle_resources()
+                .unwrap()
+                .unwrap();
+            assert_eq!(authenticated.geometry, &source);
+            assert_eq!(authenticated.mesh, &mesh);
+            assert_eq!(authenticated.correspondence, &correspondence);
+            assert_eq!(authenticated.production, &production);
+            assert!(published.authenticated_common_mesh().unwrap().is_some());
+
+            let foreign_geometry = rectangle(3.0);
+            let mut geometry_crosswire = publish();
+            let AcceptedMeshSource::SourceOwned { geometry, .. } = &mut geometry_crosswire.source
+            else {
+                unreachable!()
+            };
+            **geometry = foreign_geometry;
+            assert!(
+                geometry_crosswire
+                    .authenticated_affine_triangle_resources()
+                    .is_err()
+            );
+            assert!(geometry_crosswire.authenticated_common_mesh().is_err());
+
+            let alternate_policy = AffineTriangleMeshCellsV1::new([3, 2]).unwrap();
+            let (alternate_mesh, alternate_correspondence) =
+                GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
+                    &source,
+                    alternate_policy.cells(),
+                )
+                .unwrap();
+            let alternate_production =
+                MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+                    alternate_policy,
+                    &source,
+                    &alternate_mesh,
+                    &alternate_correspondence,
+                )
+                .unwrap();
+
+            let mut mesh_crosswire = publish();
+            let AcceptedMeshSource::SourceOwned { mesh, .. } = &mut mesh_crosswire.source else {
+                unreachable!()
+            };
+            **mesh = alternate_mesh;
+            assert!(
+                mesh_crosswire
+                    .authenticated_affine_triangle_resources()
+                    .is_err()
+            );
+            assert!(mesh_crosswire.authenticated_common_mesh().is_err());
+
+            let mut correspondence_crosswire = publish();
+            let AcceptedMeshSource::SourceOwned { correspondence, .. } =
+                &mut correspondence_crosswire.source
+            else {
+                unreachable!()
+            };
+            **correspondence = alternate_correspondence;
+            assert!(
+                correspondence_crosswire
+                    .authenticated_affine_triangle_resources()
+                    .is_err()
+            );
+            assert!(
+                correspondence_crosswire
+                    .authenticated_common_mesh()
+                    .is_err()
+            );
+
+            let mut production_crosswire = publish();
+            let AcceptedMeshSource::SourceOwned { production, .. } =
+                &mut production_crosswire.source
+            else {
+                unreachable!()
+            };
+            **production = alternate_production;
+            assert!(
+                production_crosswire
+                    .authenticated_affine_triangle_resources()
+                    .is_err()
+            );
+            assert!(production_crosswire.authenticated_common_mesh().is_err());
+        });
     }
 }

@@ -548,6 +548,12 @@ pub(super) enum NativeMeshResources {
         correspondence: GeometryMeshCorrespondenceEnvelopeV1,
         production: MeshProductionLineageEnvelopeV1,
     },
+    AffineTriangleSimplicial {
+        geometry: CanonicalGeometryV1,
+        mesh: SimplicialMeshEnvelopeV1,
+        correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+        production: MeshProductionLineageEnvelopeV1,
+    },
     GmshSimplicial {
         geometry: CanonicalGeometryV1,
         policy: eqiora_artifact::PlanarMeshQualityV1,
@@ -599,6 +605,23 @@ impl AuthenticatedCommonMesh {
         Ok(Self { resources })
     }
 
+    /// Authenticate and own one fixed-diagonal affine-triangle rectangle occurrence.
+    pub fn affine_triangle_rectangle(
+        geometry: CanonicalGeometryV1,
+        mesh: SimplicialMeshEnvelopeV1,
+        correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+        production: MeshProductionLineageEnvelopeV1,
+    ) -> Result<Self, Diagnostic> {
+        let resources = NativeMeshResources::AffineTriangleSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        };
+        validate_simplicial_resources(&resources)?;
+        Ok(Self { resources })
+    }
+
     /// Re-import and own one exact bounded Gmsh 4.15.2 provider observation.
     pub fn gmsh_4152(
         geometry: CanonicalGeometryV1,
@@ -615,6 +638,7 @@ impl NativeMeshResources {
         match self {
             Self::Cartesian { geometry, .. }
             | Self::ReferenceSimplicial { geometry, .. }
+            | Self::AffineTriangleSimplicial { geometry, .. }
             | Self::GmshSimplicial { geometry, .. } => geometry,
         }
     }
@@ -917,6 +941,12 @@ fn resource_digests(
             correspondence,
             production,
         }
+        | NativeMeshResources::AffineTriangleSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        }
         | NativeMeshResources::GmshSimplicial {
             geometry,
             mesh,
@@ -1129,6 +1159,27 @@ fn validate_simplicial_resources(resources: &NativeMeshResources) -> Result<(), 
                 correspondence,
             )?;
         }
+        NativeMeshResources::AffineTriangleSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        } => {
+            let policy = production.affine_triangle_cells().ok_or_else(|| {
+                invalid("affine-triangle resource has a non-affine-triangle production policy")
+            })?;
+            correspondence.validate_against_planar_rectangle_v2_affine_triangles(
+                geometry,
+                mesh,
+                policy.cells(),
+            )?;
+            production.validate_against_affine_triangle_rectangle_v1_resources(
+                policy,
+                geometry,
+                mesh,
+                correspondence,
+            )?;
+        }
         NativeMeshResources::GmshSimplicial {
             geometry,
             policy,
@@ -1149,6 +1200,7 @@ fn validate_simplicial_resources(resources: &NativeMeshResources) -> Result<(), 
     }
     let mesh = match resources {
         NativeMeshResources::ReferenceSimplicial { mesh, .. }
+        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
         | NativeMeshResources::GmshSimplicial { mesh, .. } => mesh,
         NativeMeshResources::Cartesian { .. } => unreachable!("rejected above"),
     };
@@ -1409,8 +1461,8 @@ mod tests {
     use std::fmt::Write as _;
 
     use eqiora_artifact::{
-        CartesianMeshCellsV1, GeometryDecoderLimits, GeometryMeshCorrespondenceEnvelopeV1,
-        MeshProductionLineageEnvelopeV1, PlanarMeshQualityV1,
+        AffineTriangleMeshCellsV1, CartesianMeshCellsV1, GeometryDecoderLimits,
+        GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1, PlanarMeshQualityV1,
     };
     use eqiora_core::{DimExponents, DynQuantity};
     use eqiora_geometry::{
@@ -1565,6 +1617,137 @@ public component PoissonRectangle {
                 ]),
             )
             .unwrap()
+    }
+
+    #[test]
+    fn affine_triangle_common_owner_reauthenticates_exact_resource_occurrence() {
+        let geometry = rectangle();
+        let policy = AffineTriangleMeshCellsV1::new([2, 3]).unwrap();
+        let (mesh, correspondence) =
+            GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
+                &geometry,
+                policy.cells(),
+            )
+            .unwrap();
+        let production =
+            MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+                policy,
+                &geometry,
+                &mesh,
+                &correspondence,
+            )
+            .unwrap();
+        let exact_owner = AuthenticatedCommonMesh::affine_triangle_rectangle(
+            geometry.clone(),
+            mesh.clone(),
+            correspondence.clone(),
+            production.clone(),
+        )
+        .unwrap();
+        let stokes_scales = IncompressibleFlowScaleProfile2d::new(
+            DynQuantity::new(
+                1.0,
+                DimExponents {
+                    length: 1,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+            DynQuantity::new(
+                1.0,
+                DimExponents {
+                    length: 1,
+                    time: -1,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+            DynQuantity::new(
+                1.0,
+                DimExponents {
+                    mass: 1,
+                    length: -1,
+                    time: -2,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        )
+        .unwrap();
+        assert!(
+            validate_resources(
+                NativeCapability::SteadyIncompressibleStokes,
+                NativeSpatialPolicy::StokesMiniP1(stokes_scales),
+                &exact_owner.resources,
+            )
+            .is_err(),
+            "#574 publishes physics-independent Mesh resources but does not admit Stokes"
+        );
+
+        let alternate_policy = AffineTriangleMeshCellsV1::new([3, 2]).unwrap();
+        let (alternate_mesh, alternate_correspondence) =
+            GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
+                &geometry,
+                alternate_policy.cells(),
+            )
+            .unwrap();
+        let alternate_production =
+            MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+                alternate_policy,
+                &geometry,
+                &alternate_mesh,
+                &alternate_correspondence,
+            )
+            .unwrap();
+        assert!(
+            AuthenticatedCommonMesh::affine_triangle_rectangle(
+                geometry.clone(),
+                alternate_mesh,
+                correspondence.clone(),
+                production.clone(),
+            )
+            .is_err()
+        );
+        assert!(
+            AuthenticatedCommonMesh::affine_triangle_rectangle(
+                geometry.clone(),
+                mesh.clone(),
+                alternate_correspondence,
+                production.clone(),
+            )
+            .is_err()
+        );
+        assert!(
+            AuthenticatedCommonMesh::affine_triangle_rectangle(
+                geometry.clone(),
+                mesh.clone(),
+                correspondence.clone(),
+                alternate_production,
+            )
+            .is_err()
+        );
+
+        let graph = PlanarOperationGraph::new();
+        let foreign_rectangle = graph.rectangle([0.0, 2.0], [0.0, 1.0]).unwrap();
+        let foreign_edges = foreign_rectangle.boundaries();
+        let foreign_geometry = graph
+            .build(
+                &foreign_rectangle,
+                &BTreeMap::from([
+                    ("region".to_owned(), vec![foreign_rectangle.region().into()]),
+                    ("left".to_owned(), vec![foreign_edges[0].into()]),
+                    ("right".to_owned(), vec![foreign_edges[1].into()]),
+                    ("bottom".to_owned(), vec![foreign_edges[2].into()]),
+                    ("top".to_owned(), vec![foreign_edges[3].into()]),
+                ]),
+            )
+            .unwrap();
+        assert!(
+            AuthenticatedCommonMesh::affine_triangle_rectangle(
+                foreign_geometry,
+                mesh,
+                correspondence,
+                production,
+            )
+            .is_err()
+        );
     }
 
     fn model(geometry: &CanonicalGeometryV1) -> ModelEnvelope {

@@ -1,8 +1,9 @@
 //! Immutable mesh intent and complete resolved provider choices.
 
 use eqiora::artifact::{
-    CartesianMeshCellsV1, CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    MeshProductionLineageEnvelopeV1, PlanarMeshQualityV1,
+    AffineTriangleMeshCellsV1, CartesianMeshCellsV1, CartesianMeshEnvelopeV1,
+    GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1, PlanarMeshQualityV1,
+    SimplicialMeshEnvelopeV1,
 };
 use eqiora::meshing::MeshQualityGate;
 use pyo3::prelude::*;
@@ -139,18 +140,7 @@ impl PyCartesianMesher {
     #[new]
     #[pyo3(signature = (*, cells))]
     fn new(py: Python<'_>, cells: &Bound<'_, PyTuple>) -> PyResult<Self> {
-        if cells.len() != 2 {
-            return Err(request_error(py, "cells must contain exactly (nx, ny)"));
-        }
-        let mut parsed = [0; 2];
-        for (axis, value) in cells.iter().enumerate() {
-            if value.is_instance_of::<PyBool>() {
-                return Err(request_error(py, "cells must contain positive integers"));
-            }
-            parsed[axis] = value
-                .extract::<usize>()
-                .map_err(|_| request_error(py, "cells must contain positive integers"))?;
-        }
+        let parsed = parse_cells(py, cells)?;
         let policy = CartesianMeshCellsV1::new(parsed)
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         Ok(Self { policy })
@@ -168,11 +158,52 @@ impl PyCartesianMesher {
     }
 }
 
+/// Deterministic fixed-diagonal affine-triangle provider selection.
+#[pyclass(
+    name = "AffineTriangleMesher",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    skip_from_py_object
+)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct PyAffineTriangleMesher {
+    pub(super) policy: AffineTriangleMeshCellsV1,
+}
+
+#[pymethods]
+impl PyAffineTriangleMesher {
+    #[new]
+    #[pyo3(signature = (*, cells))]
+    fn new(py: Python<'_>, cells: &Bound<'_, PyTuple>) -> PyResult<Self> {
+        let policy = AffineTriangleMeshCellsV1::new(parse_cells(py, cells)?)
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        Ok(Self { policy })
+    }
+
+    #[getter]
+    const fn cells(&self) -> (usize, usize) {
+        let [nx, ny] = self.policy.cells();
+        (nx, ny)
+    }
+
+    #[getter]
+    const fn diagonal(&self) -> &'static str {
+        self.policy.diagonal()
+    }
+
+    fn __repr__(&self) -> String {
+        let (nx, ny) = self.cells();
+        format!("AffineTriangleMesher(cells=({nx}, {ny}))")
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum MeshProviderPolicy {
     Gmsh(PyGmshMesher),
     Reference(PyReferenceMesher),
     Cartesian(PyCartesianMesher),
+    AffineTriangle(PyAffineTriangleMesher),
 }
 
 impl MeshProviderPolicy {
@@ -198,6 +229,14 @@ impl MeshProviderPolicy {
                 )
             }
             Self::Cartesian(_) => unreachable!("Cartesian lineage uses Cartesian resources"),
+            Self::AffineTriangle(provider) => {
+                MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+                    provider.policy,
+                    geometry,
+                    mesh,
+                    correspondence,
+                )
+            }
         }
     }
 
@@ -223,6 +262,13 @@ impl MeshProviderPolicy {
                     correspondence,
                 ),
             Self::Cartesian(_) => unreachable!("Cartesian lineage uses Cartesian resources"),
+            Self::AffineTriangle(provider) => lineage
+                .validate_against_affine_triangle_rectangle_v1_resources(
+                    provider.policy,
+                    geometry,
+                    mesh,
+                    correspondence,
+                ),
         }
     }
 
@@ -231,6 +277,7 @@ impl MeshProviderPolicy {
             Self::Gmsh(provider) => Py::new(py, provider).map(Py::into_any),
             Self::Reference(provider) => Py::new(py, provider).map(Py::into_any),
             Self::Cartesian(provider) => Py::new(py, provider).map(Py::into_any),
+            Self::AffineTriangle(provider) => Py::new(py, provider).map(Py::into_any),
         }
     }
 
@@ -239,6 +286,7 @@ impl MeshProviderPolicy {
             Self::Gmsh(provider) => provider.__repr__(),
             Self::Reference(provider) => provider.__repr__(),
             Self::Cartesian(provider) => provider.__repr__(),
+            Self::AffineTriangle(provider) => provider.__repr__(),
         }
     }
 }
@@ -326,10 +374,12 @@ impl PyMeshRequest {
             MeshProviderPolicy::Reference(*provider)
         } else if let Ok(provider) = provider.extract::<PyRef<'_, PyCartesianMesher>>() {
             MeshProviderPolicy::Cartesian(*provider)
+        } else if let Ok(provider) = provider.extract::<PyRef<'_, PyAffineTriangleMesher>>() {
+            MeshProviderPolicy::AffineTriangle(*provider)
         } else {
             return Err(request_error(
                 py,
-                "provider must be GmshMesher, ReferenceMesher, or CartesianMesher",
+                "provider must be GmshMesher, ReferenceMesher, CartesianMesher, or AffineTriangleMesher",
             ));
         };
         Ok(Self { provider })
@@ -343,6 +393,22 @@ impl PyMeshRequest {
     fn __repr__(&self) -> String {
         format!("MeshRequest({})", self.provider.representation())
     }
+}
+
+fn parse_cells(py: Python<'_>, cells: &Bound<'_, PyTuple>) -> PyResult<[usize; 2]> {
+    if cells.len() != 2 {
+        return Err(request_error(py, "cells must contain exactly (nx, ny)"));
+    }
+    let mut parsed = [0; 2];
+    for (axis, value) in cells.iter().enumerate() {
+        if value.is_instance_of::<PyBool>() {
+            return Err(request_error(py, "cells must contain positive integers"));
+        }
+        parsed[axis] = value
+            .extract::<usize>()
+            .map_err(|_| request_error(py, "cells must contain positive integers"))?;
+    }
+    Ok(parsed)
 }
 
 fn validate_numerical_policy(
@@ -395,6 +461,34 @@ pub(super) enum ResolvedMeshPlan {
     Gmsh(Box<GmshPlan>),
     SourceOwned(Box<SourceOwnedPlan>),
     Cartesian(Box<CartesianPlan>),
+    AffineTriangle(Box<AffineTrianglePlan>),
+}
+
+pub(super) struct AffineTrianglePlan {
+    pub(super) source: eqiora::geometry::CanonicalGeometryV1,
+    pub(super) mesh: SimplicialMeshEnvelopeV1,
+    pub(super) correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+}
+
+impl AffineTrianglePlan {
+    pub(super) fn revalidate(
+        &self,
+        geometry: &eqiora::geometry::CanonicalGeometryV1,
+        policy: AffineTriangleMeshCellsV1,
+    ) -> Result<(), eqiora::Diagnostic> {
+        if geometry != &self.source {
+            return Err(eqiora::Diagnostic::error(
+                eqiora::diagnostic::codes::INVALID_ARTIFACT,
+                "MeshPlan belongs to a different exact Geometry",
+            ));
+        }
+        self.correspondence
+            .validate_against_planar_rectangle_v2_affine_triangles(
+                &self.source,
+                &self.mesh,
+                policy.cells(),
+            )
+    }
 }
 
 pub(super) struct CartesianPlan {
@@ -485,6 +579,13 @@ impl PyMeshPlan {
                     .expect("validated y axis");
                 2 * (nx + ny)
             }
+            ResolvedMeshPlan::AffineTriangle(_) => {
+                let MeshProviderPolicy::AffineTriangle(provider) = self.request.provider else {
+                    unreachable!("affine-triangle plan retains affine-triangle provider")
+                };
+                let [nx, ny] = provider.policy.cells();
+                2 * (nx + ny)
+            }
         }
     }
 
@@ -505,6 +606,9 @@ impl PyMeshPlan {
                 py,
                 "achieved_minimum_mean_ratio is not defined for a Cartesian MeshPlan",
             )),
+            ResolvedMeshPlan::AffineTriangle(plan) => {
+                Ok(plan.mesh.mesh().quality_report().minimum_mean_ratio())
+            }
         }
     }
 
@@ -573,6 +677,19 @@ pub(super) fn resolve(
                     correspondence,
                 }))
             }
+            MeshProviderPolicy::AffineTriangle(provider) => {
+                let (mesh, correspondence) =
+                    GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
+                        geometry.geometry(),
+                        provider.policy.cells(),
+                    )
+                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+                ResolvedMeshPlan::AffineTriangle(Box::new(AffineTrianglePlan {
+                    source: geometry.geometry().clone(),
+                    mesh,
+                    correspondence,
+                }))
+            }
         };
         let production = match (&request.provider, &resolved) {
             (
@@ -599,6 +716,15 @@ pub(super) fn resolve(
                     &plan.correspondence,
                 )
             }
+            (
+                MeshProviderPolicy::AffineTriangle(provider),
+                ResolvedMeshPlan::AffineTriangle(plan),
+            ) => MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+                provider.policy,
+                geometry.geometry(),
+                &plan.mesh,
+                &plan.correspondence,
+            ),
             _ => unreachable!("resolved plan and closed provider policy remain paired"),
         };
         let production = production.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;

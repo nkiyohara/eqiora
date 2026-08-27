@@ -104,7 +104,8 @@ pub use json_preflight::JsonDecoderLimits;
 pub(crate) use json_preflight::check_json_limits;
 pub use mesh::{MeshDecoderLimits, SimplicialMeshEnvelopeV1};
 pub use mesh_production_lineage::{
-    CartesianMeshCellsV1, MeshProductionLineageEnvelopeV1, PlanarMeshQualityV1,
+    AffineTriangleMeshCellsV1, CartesianMeshCellsV1, MeshProductionLineageEnvelopeV1,
+    PlanarMeshQualityV1,
 };
 pub use mesh_revision_overlap::MeshRevisionOverlapEnvelopeV1;
 pub use model::ModelDecoderLimits;

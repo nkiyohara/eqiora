@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 14 module summaries and all 134 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 597 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 14 module summaries and all 135 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 599 signature-only entries under documented owning types**.
 
-Inventory: 14 modules, 153 literal public spellings, 134 canonical grouped declarations, 776 visible method signatures (597 non-dunder and 179 dunder), and 65 visible class assignments.
+Inventory: 14 modules, 154 literal public spellings, 135 canonical grouped declarations, 781 visible method signatures (599 non-dunder and 182 dunder), and 65 visible class assignments.
 
 Regenerate with:
 
@@ -1985,6 +1985,29 @@ Module authority: [`bindings/python/python/eqiora/meshing.py`](../../bindings/py
 
 Shipped stub: [`bindings/python/python/eqiora/meshing.pyi`](../../bindings/python/python/eqiora/meshing.pyi)
 
+<a id="api-eqiora-meshing-AffineTriangleMesher"></a>
+
+### `eqiora.meshing.AffineTriangleMesher`
+
+Select deterministic rectangle affine-triangle meshing.
+
+Every structured cell uses the provider-owned lower-left to upper-right
+diagonal; callers select only the positive subdivision counts.
+
+Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyAffineTriangleMesher`](../../crates/eqiora-python/src/meshing/plan.rs)
+
+```python
+@final
+class AffineTriangleMesher:
+    def __new__(cls, *, cells: tuple[int, int]) -> Self: ...
+    @property
+    def cells(self) -> tuple[int, int]: ...
+    @property
+    def diagonal(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+```
+
 <a id="api-eqiora-meshing-CartesianMesher"></a>
 
 ### `eqiora.meshing.CartesianMesher`
@@ -2110,7 +2133,7 @@ class MeshPlan:
     @property
     def source_digest(self) -> str: ...
     @property
-    def provider(self) -> CartesianMesher | GmshMesher | ReferenceMesher: ...
+    def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher: ...
     @property
     def request(self) -> MeshRequest: ...
     @property
@@ -2135,9 +2158,9 @@ Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyMeshRequest`](../../cra
 ```python
 @final
 class MeshRequest:
-    def __new__(cls, provider: CartesianMesher | GmshMesher | ReferenceMesher, /) -> Self: ...
+    def __new__(cls, provider: AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher, /) -> Self: ...
     @property
-    def provider(self) -> CartesianMesher | GmshMesher | ReferenceMesher: ...
+    def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __repr__(self) -> str: ...
 ```

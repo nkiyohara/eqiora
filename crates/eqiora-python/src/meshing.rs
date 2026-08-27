@@ -15,8 +15,8 @@ use crate::error::validation_error;
 pub(crate) use mesh::PyMesh;
 use mesh::{generate, import_gmsh};
 use plan::{
-    PyCartesianMesher, PyGmshImport, PyGmshMesher, PyMeshPlan, PyMeshRequest, PyReferenceMesher,
-    resolve,
+    PyAffineTriangleMesher, PyCartesianMesher, PyGmshImport, PyGmshMesher, PyMeshPlan,
+    PyMeshRequest, PyReferenceMesher, resolve,
 };
 
 fn request_error(py: Python<'_>, message: impl Into<String>) -> PyErr {
@@ -30,6 +30,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyGmshImport>()?;
     module.add_class::<PyReferenceMesher>()?;
     module.add_class::<PyCartesianMesher>()?;
+    module.add_class::<PyAffineTriangleMesher>()?;
     module.add_class::<PyMeshPlan>()?;
     module.add_class::<PyMesh>()?;
     module.add_function(wrap_pyfunction!(resolve, module)?)?;
