@@ -1819,7 +1819,7 @@ fvm_two = package.run(fvm, state=fvm_zero, steps=2, output_steps=(2,))
 assert fvm_two.trajectory.plan_identity == fvm.identity
 assert fvm_two.trajectory.realization_digest is None
 assert fvm_two.trajectory.request_identity == fvm_two.plan_key
-assert fvm_two.trajectory.run_digest is None
+assert fvm_two.trajectory.run_digest == fvm_two.plan_key
 fvm_first = package.run(fvm, state=fvm_zero, steps=1, output_steps=(1,))
 fvm_restart = package.State.from_result(fvm, fvm_first, time_s=0.01)
 fvm_second = package.run(fvm, state=fvm_restart, steps=1, output_steps=(1,))
