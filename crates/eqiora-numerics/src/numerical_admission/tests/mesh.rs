@@ -1,0 +1,499 @@
+use super::*;
+
+#[test]
+pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurrence() {
+    let geometry = rectangle();
+    let policy = AffineTriangleMeshCellsV1::new([2, 3]).unwrap();
+    let (mesh, correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
+            &geometry,
+            policy.cells(),
+        )
+        .unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+        policy,
+        &geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+    let exact_owner = AuthenticatedCommonMesh::affine_triangle_rectangle(
+        geometry.clone(),
+        mesh.clone(),
+        correspondence.clone(),
+        production.clone(),
+    )
+    .unwrap();
+    let stokes_scales = IncompressibleFlowScaleProfile2d::new(
+        DynQuantity::new(
+            1.0,
+            DimExponents {
+                length: 1,
+                ..DimExponents::DIMENSIONLESS
+            },
+        ),
+        DynQuantity::new(
+            1.0,
+            DimExponents {
+                length: 1,
+                time: -1,
+                ..DimExponents::DIMENSIONLESS
+            },
+        ),
+        DynQuantity::new(
+            1.0,
+            DimExponents {
+                mass: 1,
+                length: -1,
+                time: -2,
+                ..DimExponents::DIMENSIONLESS
+            },
+        ),
+    )
+    .unwrap();
+    assert!(
+        validate_resources(
+            NativeCapability::SteadyIncompressibleStokes,
+            NativeSpatialPolicy::StokesMiniP1(stokes_scales),
+            &exact_owner.resources,
+        )
+        .is_err(),
+        "#574 publishes physics-independent Mesh resources but does not admit Stokes"
+    );
+
+    let alternate_policy = AffineTriangleMeshCellsV1::new([3, 2]).unwrap();
+    let (alternate_mesh, alternate_correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
+            &geometry,
+            alternate_policy.cells(),
+        )
+        .unwrap();
+    let alternate_production =
+        MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+            alternate_policy,
+            &geometry,
+            &alternate_mesh,
+            &alternate_correspondence,
+        )
+        .unwrap();
+    assert!(
+        AuthenticatedCommonMesh::affine_triangle_rectangle(
+            geometry.clone(),
+            alternate_mesh,
+            correspondence.clone(),
+            production.clone(),
+        )
+        .is_err()
+    );
+    assert!(
+        AuthenticatedCommonMesh::affine_triangle_rectangle(
+            geometry.clone(),
+            mesh.clone(),
+            alternate_correspondence,
+            production.clone(),
+        )
+        .is_err()
+    );
+    assert!(
+        AuthenticatedCommonMesh::affine_triangle_rectangle(
+            geometry.clone(),
+            mesh.clone(),
+            correspondence.clone(),
+            alternate_production,
+        )
+        .is_err()
+    );
+
+    let graph = PlanarOperationGraph::new();
+    let foreign_rectangle = graph.rectangle([0.0, 2.0], [0.0, 1.0]).unwrap();
+    let foreign_edges = foreign_rectangle.boundaries();
+    let foreign_geometry = graph
+        .build(
+            &foreign_rectangle,
+            &BTreeMap::from([
+                ("region".to_owned(), vec![foreign_rectangle.region().into()]),
+                ("left".to_owned(), vec![foreign_edges[0].into()]),
+                ("right".to_owned(), vec![foreign_edges[1].into()]),
+                ("bottom".to_owned(), vec![foreign_edges[2].into()]),
+                ("top".to_owned(), vec![foreign_edges[3].into()]),
+            ]),
+        )
+        .unwrap();
+    assert!(
+        AuthenticatedCommonMesh::affine_triangle_rectangle(
+            foreign_geometry,
+            mesh,
+            correspondence,
+            production,
+        )
+        .is_err()
+    );
+}
+
+pub(super) fn model(geometry: &CanonicalGeometryV1) -> ModelEnvelope {
+    scalar_model_from_source(geometry, COMPONENT)
+}
+
+pub(super) fn scalar_model_from_source(
+    geometry: &CanonicalGeometryV1,
+    source: &str,
+) -> ModelEnvelope {
+    let region = geometry.entity_set("region").unwrap();
+    let supports = [
+        ("region", region, None),
+        (
+            "left",
+            geometry.entity_set("left").unwrap(),
+            Some(("region", region)),
+        ),
+        (
+            "right",
+            geometry.entity_set("right").unwrap(),
+            Some(("region", region)),
+        ),
+        (
+            "bottom",
+            geometry.entity_set("bottom").unwrap(),
+            Some(("region", region)),
+        ),
+        (
+            "top",
+            geometry.entity_set("top").unwrap(),
+            Some(("region", region)),
+        ),
+    ];
+    let parameters = [
+        (
+            "wave_number",
+            DynQuantity::new(
+                std::f64::consts::PI,
+                DimExponents {
+                    length: -1,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        ),
+        (
+            "source_scale",
+            DynQuantity::new(
+                2.0 * std::f64::consts::PI.powi(2),
+                DimExponents {
+                    length: -2,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        ),
+    ];
+    compile_model(
+        "poisson-rectangle.eqi",
+        source,
+        geometry,
+        "PoissonRectangleModel",
+        "PoissonRectangle",
+        &supports,
+        &parameters,
+    )
+}
+
+pub(super) fn elasticity_model(geometry: &CanonicalGeometryV1, mu: f64) -> ModelEnvelope {
+    let region = geometry.entity_set("region").unwrap();
+    let supports = [
+        ("region", region, None),
+        (
+            "left",
+            geometry.entity_set("left").unwrap(),
+            Some(("region", region)),
+        ),
+        (
+            "right",
+            geometry.entity_set("right").unwrap(),
+            Some(("region", region)),
+        ),
+        (
+            "bottom",
+            geometry.entity_set("bottom").unwrap(),
+            Some(("region", region)),
+        ),
+        (
+            "top",
+            geometry.entity_set("top").unwrap(),
+            Some(("region", region)),
+        ),
+    ];
+    let pressure = DimExponents {
+        mass: 1,
+        length: -1,
+        time: -2,
+        ..DimExponents::DIMENSIONLESS
+    };
+    let parameters = [
+        ("mu", DynQuantity::new(mu, pressure)),
+        ("lambda", DynQuantity::new(0.0, pressure)),
+        (
+            "length_scale",
+            DynQuantity::new(
+                1.0,
+                DimExponents {
+                    length: 1,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        ),
+    ];
+    compile_model(
+        "mixed-boundary-elasticity.eqi",
+        ELASTICITY_COMPONENT,
+        geometry,
+        "MixedBoundaryElasticityModel",
+        "MixedBoundaryElasticity",
+        &supports,
+        &parameters,
+    )
+}
+
+pub(super) fn resources(geometry: &CanonicalGeometryV1) -> AuthenticatedCommonMesh {
+    let cells = CartesianMeshCellsV1::new([2, 3]).unwrap();
+    let (mesh, correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
+            geometry,
+            cells.cells(),
+        )
+        .unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
+        cells,
+        geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+    AuthenticatedCommonMesh::structured_cartesian(
+        geometry.clone(),
+        mesh,
+        correspondence,
+        production,
+    )
+    .unwrap()
+}
+
+pub(super) fn affine_resources(geometry: &CanonicalGeometryV1) -> AuthenticatedCommonMesh {
+    let cells = AffineTriangleMeshCellsV1::new([2, 3]).unwrap();
+    let (mesh, correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
+            geometry,
+            cells.cells(),
+        )
+        .unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+        cells,
+        geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+    AuthenticatedCommonMesh::affine_triangle_rectangle(
+        geometry.clone(),
+        mesh,
+        correspondence,
+        production,
+    )
+    .unwrap()
+}
+
+pub(super) fn transient_model() -> ModelEnvelope {
+    let compiled = eqiora_compiler::compile("transient-direct.eqi", TRANSIENT_SOURCE)
+        .unwrap()
+        .pop()
+        .unwrap();
+    let (transaction, model, _) = compiled.into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    ModelEnvelope::from_program(&program).unwrap()
+}
+
+pub(super) fn gmsh_provider_output(
+    mesh: &SimplicialMeshEnvelopeV1,
+    source_edge_facets: &[Vec<usize>; 5],
+) -> Vec<u8> {
+    let native = mesh.mesh();
+    let vertex_count = native.vertices().len();
+    let boundary_count = source_edge_facets.iter().map(Vec::len).sum::<usize>();
+    let element_count = boundary_count + native.cells().len();
+    let mut output = String::from("$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n");
+    writeln!(output, "1 {vertex_count} 1 {vertex_count}").unwrap();
+    writeln!(output, "2 1 0 {vertex_count}").unwrap();
+    for tag in 1..=vertex_count {
+        writeln!(output, "{tag}").unwrap();
+    }
+    for coordinate in native.vertices() {
+        writeln!(output, "{:?} {:?} 0", coordinate[0], coordinate[1]).unwrap();
+    }
+    output.push_str("$EndNodes\n$Elements\n");
+    writeln!(output, "6 {element_count} 1 {element_count}").unwrap();
+    let mut element_tag = 1;
+    for (entity_tag, source_edge) in [(1, 4), (5, 2), (6, 1), (7, 3), (8, 0)] {
+        let facets = &source_edge_facets[source_edge];
+        writeln!(output, "1 {entity_tag} 1 {}", facets.len()).unwrap();
+        for &facet_index in facets {
+            let vertices = native
+                .entity_vertices(MeshEntity::new(1, facet_index))
+                .unwrap();
+            writeln!(
+                output,
+                "{element_tag} {} {}",
+                vertices[0].index() + 1,
+                vertices[1].index() + 1,
+            )
+            .unwrap();
+            element_tag += 1;
+        }
+    }
+    writeln!(output, "2 1 2 {}", native.cells().len()).unwrap();
+    for cell in native.cells() {
+        writeln!(
+            output,
+            "{element_tag} {} {} {}",
+            cell[0] + 1,
+            cell[1] + 1,
+            cell[2] + 1,
+        )
+        .unwrap();
+        element_tag += 1;
+    }
+    output.push_str("$EndElements\n");
+    assert_eq!(element_tag, element_count + 1);
+    output.into_bytes()
+}
+
+pub(super) fn linear() -> NativeLinearPolicy {
+    NativeLinearPolicy::exact(
+        SolverPlan::new(
+            LinearSolver::ConjugateGradient,
+            1.0e-10,
+            1.0e-13,
+            NonZeroUsize::new(1000).unwrap(),
+        )
+        .unwrap(),
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap()
+}
+
+pub(super) fn stokes_geometry() -> CanonicalGeometryV1 {
+    let predecessor = CadAuthoredGraph::new(
+        ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), 0.0).unwrap(),
+        1.0,
+        1.0e-10,
+    )
+    .unwrap();
+    let end_cap = predecessor.face_handle("end-cap").unwrap();
+    let x_lower = predecessor.face_handle("profile-x-lower").unwrap();
+    let x_upper = predecessor.face_handle("profile-x-upper").unwrap();
+    let y_lower = predecessor.face_handle("profile-y-lower").unwrap();
+    let y_upper = predecessor.face_handle("profile-y-upper").unwrap();
+    let graph = predecessor
+        .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
+        .unwrap();
+    let cut_wall = graph.face_handle("cut-wall").unwrap();
+    graph
+        .planar_result()
+        .unwrap()
+        .with_named_topology(&BTreeMap::from([
+            ("fluid".to_owned(), vec![end_cap]),
+            ("inlet".to_owned(), vec![x_lower]),
+            ("outlet".to_owned(), vec![x_upper]),
+            ("walls".to_owned(), vec![y_lower, y_upper]),
+            ("cylinder".to_owned(), vec![cut_wall]),
+        ]))
+        .unwrap()
+}
+
+pub(super) fn stokes_model(geometry: &CanonicalGeometryV1) -> ModelEnvelope {
+    stokes_model_from_source(geometry, STOKES_COMPONENT)
+}
+
+pub(super) fn stokes_model_from_source(
+    geometry: &CanonicalGeometryV1,
+    source: &str,
+) -> ModelEnvelope {
+    let fluid = geometry.entity_set("fluid").unwrap();
+    let supports = [
+        ("fluid", fluid, None),
+        (
+            "inlet",
+            geometry.entity_set("inlet").unwrap(),
+            Some(("fluid", fluid)),
+        ),
+        (
+            "outlet",
+            geometry.entity_set("outlet").unwrap(),
+            Some(("fluid", fluid)),
+        ),
+        (
+            "walls",
+            geometry.entity_set("walls").unwrap(),
+            Some(("fluid", fluid)),
+        ),
+        (
+            "cylinder",
+            geometry.entity_set("cylinder").unwrap(),
+            Some(("fluid", fluid)),
+        ),
+    ];
+    let parameters = [
+        (
+            "dynamic_viscosity",
+            DynQuantity::new(
+                0.001,
+                DimExponents {
+                    mass: 1,
+                    length: -1,
+                    time: -1,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        ),
+        (
+            "zero_pressure",
+            DynQuantity::new(
+                0.0,
+                DimExponents {
+                    mass: 1,
+                    length: -1,
+                    time: -2,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        ),
+        (
+            "inlet_speed",
+            DynQuantity::new(
+                0.3,
+                DimExponents {
+                    length: 1,
+                    time: -1,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        ),
+        (
+            "channel_height",
+            DynQuantity::new(
+                0.41,
+                DimExponents {
+                    length: 1,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        ),
+    ];
+    compile_model(
+        "steady-flow-past-cylinder.eqi",
+        source,
+        geometry,
+        "SteadyFlowPastCylinderModel",
+        "SteadyFlowPastCylinder",
+        &supports,
+        &parameters,
+    )
+}
