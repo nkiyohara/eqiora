@@ -91,10 +91,6 @@ pub struct RealizationArtifactReference {
     reduction: ReductionPolicy,
 }
 
-/// Compatibility alias for the former source-level name.
-#[deprecated(note = "use RealizationArtifactReference")]
-pub type RealizationArtifactReferenceV1 = RealizationArtifactReference;
-
 impl RealizationArtifactReference {
     #[allow(clippy::too_many_arguments)]
     pub(crate) const fn new(

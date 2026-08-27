@@ -122,12 +122,9 @@ pub use physical_exposure::{
 };
 pub use prescribed_dynamic_solid_provider_occurrence::PrescribedDynamicSolidProviderOccurrenceEnvelopeV1;
 pub use prescribed_dynamic_solid_realization::PrescribedDynamicSolidRealizationEnvelopeV1;
-pub use realization::{
-    LayoutArtifacts, LayoutArtifactsV1, RealizationDecoderLimits, RealizationEnvelopeV1,
-};
-#[allow(deprecated)]
+pub use realization::{LayoutArtifacts, RealizationDecoderLimits, RealizationEnvelopeV1};
 pub use realization_reference::{
-    CanonicalRealizationArtifact, RealizationArtifactReference, RealizationArtifactReferenceV1,
+    CanonicalRealizationArtifact, RealizationArtifactReference,
     ReplayableFixedTopologyAleRealizationArtifact,
 };
 pub use realization_v2::RealizationEnvelopeV2;
