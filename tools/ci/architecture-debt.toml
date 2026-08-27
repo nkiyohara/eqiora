@@ -549,7 +549,7 @@ ceiling = 52
 
 [[public_surface]]
 crate = "eqiora-numerics"
-ceiling = 309
+ceiling = 307
 reason = "predates the predicate; the largest crate, carrying one public entry point per hand-written physics slice"
 removal = "the FEM form-compiler lane replaces per-physics entry points with instance witness data; lower this with each entry point it deletes"
 
