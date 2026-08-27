@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 import eqiora
@@ -27,6 +28,12 @@ from matplotlib.axes import Axes  # noqa: E402
 from matplotlib.collections import LineCollection  # noqa: E402
 
 import eqiora.matplotlib as eqplot  # noqa: E402
+from test_fixed_reference_fsi import (  # noqa: E402
+    PARAMETERS as FSI_PARAMETERS,
+    admitted as admitted_fsi,
+    geometry_and_mesh as fsi_geometry_and_mesh,
+    initial as initial_fsi,
+)
 
 
 assert "matplotlib.pyplot" not in sys.modules
@@ -39,18 +46,18 @@ if EXPECTED_MATPLOTLIB_VERSION is not None:
 # (interfaces.python-fixed-mesh-trajectory, interfaces.python-fixed-reference-
 # fsi-demo). No solver value, extremum, or tolerance is frozen here.
 ACCEPTED_CELLS = (
-    (0, 1, 3),
-    (0, 3, 2),
-    (2, 3, 5),
-    (2, 5, 4),
-    (1, 6, 7),
-    (1, 7, 3),
-    (3, 7, 8),
-    (3, 8, 5),
+    (0, 3, 4),
+    (0, 4, 1),
+    (1, 4, 5),
+    (1, 5, 2),
+    (3, 6, 7),
+    (3, 7, 4),
+    (4, 7, 8),
+    (4, 8, 5),
 )
 ACCEPTED_VERTEX_SUPPORT = {
     "fluid_pressure": (0, 1, 2, 3, 4, 5),
-    "solid_displacement": (1, 3, 5, 6, 7, 8),
+    "solid_displacement": (3, 4, 5, 6, 7, 8),
 }
 ACCEPTED_SUPPORT_CELLS = {
     "fluid_pressure": (0, 1, 2, 3),
@@ -58,12 +65,12 @@ ACCEPTED_SUPPORT_CELLS = {
 }
 ACCEPTED_SUPPORT_EDGES = {
     "solid_displacement": (
-        (1, 3),
-        (1, 6),
-        (1, 7),
-        (3, 5),
+        (3, 4),
+        (3, 6),
         (3, 7),
-        (3, 8),
+        (4, 5),
+        (4, 7),
+        (4, 8),
         (5, 8),
         (6, 7),
         (7, 8),
@@ -176,67 +183,73 @@ def accepted_structural_result() -> tuple[eqiora.Model, eqiora.Result]:
     return model, eqiora.run(model, plan=plan)
 
 
-def fsi_source() -> str:
-    return (
-        files(eqiora)
-        .joinpath("examples", "fixed-reference-fsi.eqi")
-        .read_text(encoding="utf-8")
-    )
-
-
-def accepted_fsi_model() -> eqiora.Model:
-    return eqiora.compile(source=fsi_source(), filename="fixed-reference-fsi.eqi")
-
-
-def accepted_fsi_intent() -> Any:
-    return eqiora.fsi.FixedMeshMonolithic(
-        time_step_s=0.05,
-        steps=2,
-        initial_velocity_m_per_s=(0.0, 0.0),
-        initial_free_interface_displacement_m=(0.02, 0.0),
-        length_scale_m=2.0,
-        velocity_scale_m_per_s=0.5,
-        pressure_scale_pa=4.0,
-        relative_tolerance=1.0e-11,
-        absolute_tolerance=1.0e-13,
-        maximum_iterations=20_000,
-    )
-
-
-def foreign_fsi_model() -> eqiora.Model:
+def foreign_fsi_model() -> tuple[eqiora.Model, eqiora.Plan]:
     """Compile a structurally equivalent Model with a different exact digest.
 
     Independent compilation allocates fresh semantic field ids, so this fixture
     shows that structural equivalence alone never admits a `FieldRef`.
     """
 
-    return eqiora.compile(
-        source=fsi_source().replace("model Main {", "model IndependentMain {"),
-        filename="independent-fixed-reference-fsi.eqi",
+    geometry, mesh = fsi_geometry_and_mesh()
+    model = eqiora.compile(
+        path=files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi"),
+        geometry=geometry,
+        component="FixedReferenceFsi2d",
+        parameters={**FSI_PARAMETERS, "fluid_density": 4.0},
     )
-
-
-def revised_fsi_model(model: eqiora.Model) -> eqiora.Model:
-    """Commit a value edit: every semantic field id kept, a new exact Model.
-
-    This is the identical-id carrier that an independent compilation cannot
-    supply, so it shows that a field id string never admits a `FieldRef`
-    either. The revised Model is never solved and never plotted, so no
-    scientific value, extremum, or tolerance depends on the edited magnitude.
-    """
-
-    return model.commit(model.preview_value_edit("fluid_density", 3.0))
+    plan = eqiora.resolve(
+        model,
+        mesh=mesh,
+        spatial=(
+            eqiora.fem.MiniP1().at(model.domain("fluid")),
+            eqiora.fem.P1().at(model.domain("solid")),
+        ),
+        temporal=eqiora.time.BackwardEuler(0.05),
+        solve=eqiora.solve.Linear(
+            relative_tolerance=1e-11,
+            absolute_tolerance=1e-13,
+            maximum_iterations=20_000,
+        ),
+    )
+    return model, plan
 
 
 def accepted_fsi_trajectory() -> tuple[
     eqiora.Model,
+    eqiora.Plan,
     eqiora.Result,
     eqiora.trajectory.Trajectory,
 ]:
-    model = accepted_fsi_model()
-    plan = eqiora.fsi.resolve(model, accepted_fsi_intent())
-    result = eqiora.run(model, plan=plan)
-    return model, result, result.trajectory
+    model, mesh, plan = admitted_fsi()
+    result = eqiora.run(
+        plan,
+        state=initial_fsi(model, mesh, plan),
+        steps=2,
+        output_steps=(1, 2),
+    )
+    return model, plan, result, result.trajectory
+
+
+def fsi_field(plan: eqiora.Plan, name: str) -> eqiora.FieldRef:
+    return plan.fields[
+        {
+            "fluid_velocity": 0,
+            "fluid_pressure": 1,
+            "solid_velocity": 2,
+            "solid_displacement": 3,
+        }[name]
+    ]
+
+
+def expanded_vertex_values(
+    trajectory: eqiora.trajectory.Trajectory,
+    snapshot: eqiora.trajectory.FieldSnapshot,
+) -> npt.NDArray[np.float64]:
+    values = snapshot.values("vertex")
+    support = snapshot.support_indices("vertex")
+    expanded = np.zeros((len(trajectory.coordinates), *values.shape[1:]))
+    expanded[support] = values
+    return expanded
 
 
 @pytest.fixture(scope="module")
@@ -252,6 +265,7 @@ def structural() -> tuple[eqiora.Model, eqiora.Result]:
 @pytest.fixture(scope="module")
 def fsi() -> tuple[
     eqiora.Model,
+    eqiora.Plan,
     eqiora.Result,
     eqiora.trajectory.Trajectory,
 ]:
@@ -806,14 +820,14 @@ def test_withdrawn_demo_stills_are_absent_without_alias_shims_or_exports() -> No
 
 @pytest.mark.parametrize("step", ACCEPTED_STEPS)
 def test_scalar_still_draws_exactly_the_accepted_support_restriction(
-    fsi: tuple[eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory],
+    fsi: tuple[eqiora.Model, eqiora.Plan, eqiora.Result, eqiora.trajectory.Trajectory],
     step: int,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import matplotlib.pyplot as pyplot
 
-    model, _, trajectory = fsi
-    field = model.field("fluid_pressure")
+    _, plan, _, trajectory = fsi
+    field = fsi_field(plan, "fluid_pressure")
     snapshot = trajectory.state(step).field(field)
     support = ACCEPTED_VERTEX_SUPPORT["fluid_pressure"]
     cells = ACCEPTED_SUPPORT_CELLS["fluid_pressure"]
@@ -825,7 +839,7 @@ def test_scalar_still_draws_exactly_the_accepted_support_restriction(
     assert snapshot.associations == ("vertex",)
 
     coordinates = trajectory.coordinates.copy()
-    values = snapshot.values("vertex").copy()
+    values = expanded_vertex_values(trajectory, snapshot)
     restricted = values[list(support)]
     observed = capture_tripcolor(monkeypatch)
     registered_figures = pyplot.get_fignums()
@@ -870,14 +884,14 @@ def test_scalar_still_draws_exactly_the_accepted_support_restriction(
 @pytest.mark.parametrize("step", ACCEPTED_STEPS)
 @pytest.mark.parametrize("scale", [0.0, 1.0, 12.0])
 def test_deformed_still_draws_reference_and_scaled_support_edges(
-    fsi: tuple[eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory],
+    fsi: tuple[eqiora.Model, eqiora.Plan, eqiora.Result, eqiora.trajectory.Trajectory],
     step: int,
     scale: float,
 ) -> None:
     import matplotlib.pyplot as pyplot
 
-    model, _, trajectory = fsi
-    field = model.field("solid_displacement")
+    _, plan, _, trajectory = fsi
+    field = fsi_field(plan, "solid_displacement")
     snapshot = trajectory.state(step).field(field)
     support = ACCEPTED_VERTEX_SUPPORT["solid_displacement"]
     cells = ACCEPTED_SUPPORT_CELLS["solid_displacement"]
@@ -892,7 +906,7 @@ def test_deformed_still_draws_reference_and_scaled_support_edges(
     assert snapshot.associations == ("vertex",)
 
     coordinates = trajectory.coordinates.copy()
-    values = snapshot.values("vertex").copy()
+    values = expanded_vertex_values(trajectory, snapshot)
     selection = list(edges)
     expected_reference = coordinates[selection]
     expected_deformed = (coordinates + scale * values)[selection]
@@ -921,11 +935,11 @@ def test_deformed_still_draws_reference_and_scaled_support_edges(
     assert axes.get_aspect() == 1.0
 
 
-def test_deformed_still_defaults_to_unit_scale_and_separates_accepted_steps(
-    fsi: tuple[eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory],
+def test_deformed_still_defaults_to_unit_scale_and_addresses_accepted_steps(
+    fsi: tuple[eqiora.Model, eqiora.Plan, eqiora.Result, eqiora.trajectory.Trajectory],
 ) -> None:
-    model, _, trajectory = fsi
-    field = model.field("solid_displacement")
+    _, plan, _, trajectory = fsi
+    field = fsi_field(plan, "solid_displacement")
     selection = list(ACCEPTED_SUPPORT_EDGES["solid_displacement"])
     coordinates = trajectory.coordinates
 
@@ -933,50 +947,47 @@ def test_deformed_still_defaults_to_unit_scale_and_separates_accepted_steps(
     explicit = eqplot.plot_deformed_field(trajectory, step=1, field=field, scale=1.0)
     later = eqplot.plot_deformed_field(trajectory, step=2, field=field)
 
-    values = trajectory.state(1).field(field).values("vertex")
+    values = expanded_vertex_values(trajectory, trajectory.state(1).field(field))
     np.testing.assert_array_equal(
         wireframes(default)[1],
         (coordinates + 1.0 * values)[selection],
     )
     np.testing.assert_array_equal(wireframes(default)[1], wireframes(explicit)[1])
-    assert not np.array_equal(wireframes(default)[1], wireframes(later)[1])
+    later_values = expanded_vertex_values(
+        trajectory, trajectory.state(2).field(field)
+    )
+    np.testing.assert_array_equal(
+        wireframes(later)[1],
+        (coordinates + later_values)[selection],
+    )
 
 
 def test_stills_reject_foreign_identity_and_contract_violations_before_a_figure(
-    fsi: tuple[eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory],
+    fsi: tuple[eqiora.Model, eqiora.Plan, eqiora.Result, eqiora.trajectory.Trajectory],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    model, result, trajectory = fsi
-    pressure = model.field("fluid_pressure")
-    displacement = model.field("solid_displacement")
-    solid_velocity = model.field("solid_velocity")
-    fluid_velocity = model.field("fluid_velocity")
-    # Exact identity is the (Model artifact, field) pair, so two fixtures close
-    # it from both sides. An independent compilation of one source is
-    # structurally equivalent but allocates fresh semantic field ids, so
-    # structure is never an authority. A committed value edit keeps every
-    # semantic field id and changes only the exact Model artifact, so an id
-    # string is never an authority either.
-    foreign = foreign_fsi_model()
-    revised = revised_fsi_model(model)
-    assert model.structurally_equivalent(foreign)
+    model, plan, result, trajectory = fsi
+    pressure = fsi_field(plan, "fluid_pressure")
+    displacement = fsi_field(plan, "solid_displacement")
+    solid_velocity = fsi_field(plan, "solid_velocity")
+    fluid_velocity = fsi_field(plan, "fluid_velocity")
+    # Exact identity is the (Model artifact, field) pair. This separately
+    # compiled parameter mutant deliberately retains the same semantic Field
+    # IDs, so an ID alone supplies no accepted authority.
+    foreign, foreign_plan = foreign_fsi_model()
     assert model.digest != foreign.digest
-    assert model.digest != revised.digest
     assert trajectory.model_digest == model.digest == pressure.model_digest
-    assert set(model.field_ids).isdisjoint(foreign.field_ids)
+    assert model.field_ids == foreign.field_ids
     for name, accepted_field in (
         ("fluid_pressure", pressure),
         ("solid_displacement", displacement),
     ):
-        assert foreign.field(name).id != accepted_field.id
-        assert foreign.field(name).model_digest == foreign.digest
-        assert revised.field(name).id == accepted_field.id
-        assert revised.field(name).id in model.field_ids
-        assert revised.field(name).model_digest == revised.digest
-        assert foreign.field(name) != accepted_field
-        assert revised.field(name) != accepted_field
-        assert model.field(name) == accepted_field
-        assert hash(model.field(name)) == hash(accepted_field)
+        foreign_field = fsi_field(foreign_plan, name)
+        assert foreign_field.id == accepted_field.id
+        assert foreign_field.model_digest == foreign.digest
+        assert foreign_field != accepted_field
+        assert model.field(accepted_field.id) == accepted_field
+        assert hash(model.field(accepted_field.id)) == hash(accepted_field)
 
     # Only the SI length dimension separates solid_velocity from the admitted
     # deformation field, so rejecting it cannot be a shape check in disguise.
@@ -998,24 +1009,32 @@ def test_stills_reject_foreign_identity_and_contract_violations_before_a_figure(
             eqplot.plot_scalar_field(foreign_input, step=1, field=pressure)
         with pytest.raises(TypeError, match="Result|Trajectory"):
             eqplot.plot_deformed_field(foreign_input, step=1, field=displacement)
-    for other in (foreign, revised):
+    for other_pressure, other_displacement in ((
+        fsi_field(foreign_plan, "fluid_pressure"),
+        fsi_field(foreign_plan, "solid_displacement"),
+    ),):
         with pytest.raises(ValueError, match="different exact Model"):
             eqplot.plot_scalar_field(
                 trajectory,
                 step=1,
-                field=other.field("fluid_pressure"),
+                field=other_pressure,
             )
         with pytest.raises(ValueError, match="different exact Model"):
             eqplot.plot_deformed_field(
                 trajectory,
                 step=1,
-                field=other.field("solid_displacement"),
+                field=other_displacement,
             )
+    absent = next(
+        model.field(identifier)
+        for identifier in model.field_ids
+        if identifier not in {field.id for field in plan.fields}
+    )
     with pytest.raises(KeyError):
         eqplot.plot_scalar_field(
             trajectory,
             step=1,
-            field=model.field("fluid_load_potential"),
+            field=absent,
         )
     for absent in (0, 3):
         with pytest.raises(IndexError):
@@ -1039,10 +1058,10 @@ def test_stills_reject_foreign_identity_and_contract_violations_before_a_figure(
 
 
 def test_stills_leave_digests_arrays_and_support_membership_untouched(
-    fsi: tuple[eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory],
+    fsi: tuple[eqiora.Model, eqiora.Plan, eqiora.Result, eqiora.trajectory.Trajectory],
 ) -> None:
-    model, _, trajectory = fsi
-    fields = {name: model.field(name) for name in ACCEPTED_VERTEX_SUPPORT}
+    _, plan, _, trajectory = fsi
+    fields = {name: fsi_field(plan, name) for name in ACCEPTED_VERTEX_SUPPORT}
     snapshots = {
         (step, name): trajectory.state(step).field(field)
         for step in ACCEPTED_STEPS
@@ -1113,13 +1132,16 @@ def test_stills_are_headless_caller_owned_and_survive_trajectory_release(
 ) -> None:
     import matplotlib.pyplot as pyplot
 
-    model, result, trajectory = accepted_fsi_trajectory()
-    pressure = model.field("fluid_pressure")
-    displacement = model.field("solid_displacement")
+    _, plan, result, trajectory = accepted_fsi_trajectory()
+    pressure = fsi_field(plan, "fluid_pressure")
+    displacement = fsi_field(plan, "solid_displacement")
     selection = list(ACCEPTED_SUPPORT_EDGES["solid_displacement"])
     expected_deformed = (
         trajectory.coordinates
-        + 12.0 * trajectory.state(2).field(displacement).values("vertex")
+        + 12.0
+        * expanded_vertex_values(
+            trajectory, trajectory.state(2).field(displacement)
+        )
     )[selection]
 
     registered_figures = pyplot.get_fignums()
@@ -1139,7 +1161,7 @@ def test_stills_are_headless_caller_owned_and_survive_trajectory_release(
     assert pyplot.get_fignums() == registered_figures
     np.testing.assert_array_equal(wireframes(deformed)[1], wireframes(repeated)[1])
 
-    del model, result, trajectory, pressure, displacement
+    del plan, result, trajectory, pressure, displacement
     gc.collect()
 
     np.testing.assert_array_equal(wireframes(deformed)[1], expected_deformed)

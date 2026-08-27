@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 15 module summaries and all 142 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 635 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 15 module summaries and all 143 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 598 signature-only entries under documented owning types**.
 
-Inventory: 15 modules, 162 literal public spellings, 142 canonical grouped declarations, 831 visible method signatures (635 non-dunder and 196 dunder), and 67 visible class assignments.
+Inventory: 15 modules, 163 literal public spellings, 143 canonical grouped declarations, 796 visible method signatures (598 non-dunder and 198 dunder), and 67 visible class assignments.
 
 Regenerate with:
 
@@ -433,6 +433,25 @@ class Domain:
     def __hash__(self) -> int: ...
 ```
 
+<a id="api-eqiora-DomainRef"></a>
+
+### `eqiora.DomainRef`
+
+Exact canonical Domain selected from one immutable Model.
+
+Authority: [`crates/eqiora-python/src/model.rs::PyModelDomainRef`](../../crates/eqiora-python/src/model.rs)
+
+```python
+@final
+class DomainRef:
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def id(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
 <a id="api-eqiora-EqioraError"></a>
 
 ### `eqiora.EqioraError`
@@ -565,6 +584,22 @@ class FieldRef:
     def __hash__(self) -> int: ...
 ```
 
+<a id="api-eqiora-InitialField"></a>
+
+### `eqiora.InitialField`
+
+Immutable exact-Field-bound coherent-SI initial coefficients.
+
+Authority: [`crates/eqiora-python/src/trajectory.rs::PyInitialField`](../../crates/eqiora-python/src/trajectory.rs)
+
+```python
+@final
+class InitialField:
+    def __new__(cls, field: FieldRef, /, *, vertex_values: object | None=None, cell_values: object | None=None) -> InitialField: ...
+    @property
+    def field(self) -> FieldRef: ...
+```
+
 <a id="api-eqiora-InternalError"></a>
 
 ### `eqiora.InternalError`
@@ -658,6 +693,7 @@ class Model:
     def commit(self, edit: ValueEdit) -> Model: ...
     def parameter(self, selection: str) -> ParameterRef: ...
     def field(self, selection: str) -> FieldRef: ...
+    def domain(self, selection: str) -> DomainRef: ...
     def structurally_equivalent(self, other: Model) -> bool: ...
     @property
     def digest(self) -> str: ...
@@ -836,7 +872,7 @@ class Plan:
     @property
     def pressure_field(self) -> FieldRef | None: ...
     @property
-    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | None: ...
+    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None: ...
     @property
     def solve(self) -> solve.Linear | solve.Newton | None: ...
     @property
@@ -1391,7 +1427,7 @@ Authority: [`crates/eqiora-python/src/trajectory.rs::PyState`](../../crates/eqio
 @final
 class State:
     @staticmethod
-    def initial(plan: Plan, /) -> State: ...
+    def initial(plan: Plan, /, *, fields: tuple[InitialField, ...] | None=None, time_s: float | None=None) -> State: ...
     @staticmethod
     def zero(plan: Plan, /, *, time_s: float=0.0) -> State: ...
     @staticmethod
@@ -1651,7 +1687,7 @@ structural no-Mesh ODE paths reject spatial resources.
 Authority: [`bindings/python/python/eqiora/__init__.py::resolve`](../../bindings/python/python/eqiora/__init__.py)
 
 ```python
-def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
+def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-run"></a>
@@ -1742,7 +1778,7 @@ Authority: [`bindings/python/python/eqiora/fluid.py`](../../bindings/python/pyth
 
 **Module export.** Continue to [`eqiora.fsi`](#module-eqiora-fsi).
 
-Fixed-mesh monolithic FSI intent, plan, and typed evidence.
+Observation-only evidence for common FSI Results.
 
 Authority: [`bindings/python/python/eqiora/fsi.py`](../../bindings/python/python/eqiora/fsi.py)
 
@@ -2358,6 +2394,25 @@ Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyMiniP1`](../../cr
 @final
 class MiniP1:
     def __new__(cls) -> Self: ...
+    def at(self, domain: DomainRef, /) -> ScopedSpatialPolicy: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-fem-P1"></a>
+
+### `eqiora.fem.P1`
+
+Continuous simplex P1 Galerkin spatial policy.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyP1`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+```python
+@final
+class P1:
+    def __new__(cls) -> Self: ...
+    def at(self, domain: DomainRef, /) -> ScopedSpatialPolicy: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
@@ -2378,6 +2433,23 @@ class Q1:
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-fem-ScopedSpatialPolicy"></a>
+
+### `eqiora.fem.ScopedSpatialPolicy`
+
+One exact Model-Domain-bound spatial policy.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyScopedSpatialBinding`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+```python
+@final
+class ScopedSpatialPolicy:
+    @property
+    def domain(self) -> DomainRef: ...
+    @property
+    def method(self) -> str: ...
 ```
 
 <a id="module-eqiora-fvm"></a>
@@ -3028,63 +3100,25 @@ Authority: [`crates/eqiora-python/src/trajectory.rs::PyState`](../../crates/eqio
 
 ## `eqiora.fsi`
 
-Fixed-mesh monolithic FSI intent, plan, and typed evidence.
+Observation-only evidence for common FSI Results.
 
 Module authority: [`bindings/python/python/eqiora/fsi.py`](../../bindings/python/python/eqiora/fsi.py)
 
 Shipped stub: [`bindings/python/python/eqiora/fsi.pyi`](../../bindings/python/python/eqiora/fsi.pyi)
 
-<a id="api-eqiora-fsi-FixedMeshMonolithic"></a>
+<a id="api-eqiora-fsi-FsiEvidence"></a>
 
-### `eqiora.fsi.FixedMeshMonolithic`
+### `eqiora.fsi.FsiEvidence`
 
-Complete fixed-mesh monolithic FSI request with no hidden numerical state.
+Observation-only partition and per-State evidence for a common FSI Result.
 
-Authority: [`crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithic`](../../crates/eqiora-python/src/fsi.rs)
-
-```python
-@final
-class FixedMeshMonolithic:
-    def __new__(cls, *, time_step_s: float, steps: int, initial_velocity_m_per_s: tuple[float, float], initial_free_interface_displacement_m: tuple[float, float], length_scale_m: float, velocity_scale_m_per_s: float, pressure_scale_pa: float, relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int) -> FixedMeshMonolithic: ...
-    @property
-    def time_step_s(self) -> float: ...
-    @property
-    def steps(self) -> int: ...
-    @property
-    def initial_velocity_m_per_s(self) -> tuple[float, float]: ...
-    @property
-    def initial_free_interface_displacement_m(self) -> tuple[float, float]: ...
-    @property
-    def length_scale_m(self) -> float: ...
-    @property
-    def velocity_scale_m_per_s(self) -> float: ...
-    @property
-    def pressure_scale_pa(self) -> float: ...
-    @property
-    def relative_tolerance(self) -> float: ...
-    @property
-    def absolute_tolerance(self) -> float: ...
-    @property
-    def maximum_iterations(self) -> int: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-fsi-FixedMeshMonolithicEvidence"></a>
-
-### `eqiora.fsi.FixedMeshMonolithicEvidence`
-
-Typed evidence for one fixed-mesh monolithic FSI result.
-
-Authority: [`crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithicEvidence`](../../crates/eqiora-python/src/fsi.rs)
+Authority: [`crates/eqiora-python/src/fsi_evidence.rs::PyFsiEvidence`](../../crates/eqiora-python/src/fsi_evidence.rs)
 
 ```python
 @final
-class FixedMeshMonolithicEvidence:
+class FsiEvidence:
     @property
-    def trajectory_digest(self) -> str: ...
-    @property
-    def run_digest(self) -> str: ...
+    def request_identity(self) -> str: ...
     @property
     def fluid_cells(self) -> npt.NDArray[np.uint32]: ...
     @property
@@ -3092,104 +3126,21 @@ class FixedMeshMonolithicEvidence:
     @property
     def interface_facets(self) -> npt.NDArray[np.uint32]: ...
     @property
-    def states(self) -> tuple[FixedMeshMonolithicStateEvidence, FixedMeshMonolithicStateEvidence]: ...
-    def state(self, state: State, /) -> FixedMeshMonolithicStateEvidence: ...
-    @property
-    def case_ids(self) -> tuple[str, str]: ...
+    def states(self) -> tuple[FsiStateEvidence, ...]: ...
+    def state(self, state: State, /) -> FsiStateEvidence: ...
 ```
 
-<a id="api-eqiora-fsi-FixedMeshMonolithicPlan"></a>
+<a id="api-eqiora-fsi-FsiStateEvidence"></a>
 
-### `eqiora.fsi.FixedMeshMonolithicPlan`
+### `eqiora.fsi.FsiStateEvidence`
 
-Immutable fully resolved fixed-mesh monolithic FSI plan.
+Numerical observations for one exact accepted common FSI State.
 
-Authority: [`crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithicPlan`](../../crates/eqiora-python/src/fsi.rs)
+Authority: [`crates/eqiora-python/src/fsi_evidence.rs::PyFsiStateEvidence`](../../crates/eqiora-python/src/fsi_evidence.rs)
 
 ```python
 @final
-class FixedMeshMonolithicPlan:
-    @property
-    def model_digest(self) -> str: ...
-    @property
-    def semantic_revision(self) -> int: ...
-    @property
-    def geometry_digest(self) -> str: ...
-    @property
-    def correspondence_digest(self) -> str: ...
-    @property
-    def mesh_digest(self) -> str: ...
-    @property
-    def realization_digest(self) -> str: ...
-    @property
-    def realization_revision(self) -> int: ...
-    @property
-    def spatial_dimension(self) -> int: ...
-    @property
-    def coupling_method(self) -> str: ...
-    @property
-    def geometry_motion(self) -> str: ...
-    @property
-    def mesh_kind(self) -> str: ...
-    @property
-    def fluid_velocity_space(self) -> str: ...
-    @property
-    def fluid_pressure_space(self) -> str: ...
-    @property
-    def solid_velocity_space(self) -> str: ...
-    @property
-    def solid_displacement_space(self) -> str: ...
-    @property
-    def time_integrator(self) -> str: ...
-    @property
-    def time_step_s(self) -> float: ...
-    @property
-    def steps(self) -> int: ...
-    @property
-    def initial_velocity_m_per_s(self) -> tuple[float, float]: ...
-    @property
-    def initial_free_interface_displacement_m(self) -> tuple[float, float]: ...
-    @property
-    def length_scale_m(self) -> float: ...
-    @property
-    def velocity_scale_m_per_s(self) -> float: ...
-    @property
-    def pressure_scale_pa(self) -> float: ...
-    @property
-    def solver_algorithm(self) -> str: ...
-    @property
-    def preconditioner(self) -> str: ...
-    @property
-    def reduction(self) -> str: ...
-    @property
-    def relative_tolerance(self) -> float: ...
-    @property
-    def absolute_tolerance(self) -> float: ...
-    @property
-    def maximum_iterations(self) -> int: ...
-    @property
-    def solver_backend(self) -> str: ...
-    @property
-    def execution_adapter(self) -> str: ...
-    @property
-    def workers(self) -> int: ...
-    @property
-    def canonical_bytes(self) -> bytes: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-fsi-FixedMeshMonolithicStateEvidence"></a>
-
-### `eqiora.fsi.FixedMeshMonolithicStateEvidence`
-
-Solver and scientific observations for one accepted FSI state.
-
-Authority: [`crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithicStateEvidence`](../../crates/eqiora-python/src/fsi.rs)
-
-```python
-@final
-class FixedMeshMonolithicStateEvidence:
+class FsiStateEvidence:
     @property
     def state_digest(self) -> str: ...
     @property
@@ -3234,28 +3185,16 @@ class FixedMeshMonolithicStateEvidence:
     def assembly_targets(self) -> int: ...
 ```
 
-<a id="api-eqiora-fsi-fixed_mesh_monolithic_evidence"></a>
+<a id="api-eqiora-fsi-evidence"></a>
 
-### `eqiora.fsi.fixed_mesh_monolithic_evidence`
+### `eqiora.fsi.evidence`
 
-Select typed fixed-mesh monolithic evidence from its result.
+Select observation-only FSI evidence from an accepted common Result.
 
-Authority: [`crates/eqiora-python/src/fsi.rs::fixed_mesh_monolithic_evidence`](../../crates/eqiora-python/src/fsi.rs)
-
-```python
-def fixed_mesh_monolithic_evidence(result: Result, /) -> FixedMeshMonolithicEvidence: ...
-```
-
-<a id="api-eqiora-fsi-resolve"></a>
-
-### `eqiora.fsi.resolve`
-
-Resolve a complete FSI intent without executing it.
-
-Authority: [`crates/eqiora-python/src/fsi.rs::resolve`](../../crates/eqiora-python/src/fsi.rs)
+Authority: [`crates/eqiora-python/src/fsi_evidence.rs::evidence`](../../crates/eqiora-python/src/fsi_evidence.rs)
 
 ```python
-def resolve(model: Model, intent: FixedMeshMonolithic, /) -> FixedMeshMonolithicPlan: ...
+def evidence(result: Result, /) -> FsiEvidence: ...
 ```
 
 <a id="module-eqiora-solid"></a>

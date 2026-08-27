@@ -10,9 +10,9 @@ durable wire.
 Catalog declaration order is deliberately irrelevant, but the artifact DAG is
 closed: every referenced identity must resolve exactly once, every declared
 object must be used, state and Field ordering remains canonical, and the Run
-must contain exactly the final trajectory root as its sole output. The ordinary
-`FixedReferenceFsiResult2d` retains the same complete dependency set and crosses
-this replay boundary during its own validation.
+must contain exactly the final trajectory root as its sole output. The case
+constructs that accepted observation trajectory directly from the unchanged
+scientific support composition before replaying the complete dependency set.
 
 Run:
 

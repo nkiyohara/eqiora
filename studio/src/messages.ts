@@ -19,9 +19,6 @@ export const ENGLISH_MESSAGES = {
   "command.example.dc-drive.description":
     "Compile and execute the pinned three-package sampled DC-drive example.",
   "command.example.dc-drive.label": "Run DC-drive demo",
-  "command.example.fsi.description":
-    "Execute two verified fixed-reference fluid–structure interaction steps.",
-  "command.example.fsi.label": "Run FSI demo",
   "command.example.structural.description":
     "Execute the verified mixed-boundary 2D elasticity example.",
   "command.example.structural.label": "Run structural demo",
@@ -56,9 +53,6 @@ export const ENGLISH_MESSAGES = {
   "command.reason.complete-run": "Complete an accepted run first.",
   "command.reason.cylinder-running": "The exact-cylinder demonstration is already running.",
   "command.reason.dc-drive-running": "The packaged DC-drive demonstration is already running.",
-  "command.reason.fsi-running": "The fixed-reference FSI demonstration is already running.",
-  "command.reason.fsi-result-unavailable":
-    "Run the fixed-reference FSI example to view its accepted coupled trajectory.",
   "command.reason.structural-running": "The structural demonstration is already running.",
   "command.reason.structural-result-unavailable":
     "Run the structural example to view its accepted displacement.",
@@ -101,9 +95,6 @@ export const ENGLISH_MESSAGES = {
   "command.workspace.field.description":
     "Open the bounded field view for one accepted 2D scalar result.",
   "command.workspace.field.label": "Show field workspace",
-  "command.workspace.fsi.description":
-    "Open the bounded two-step coupled fluid–structure presentation.",
-  "command.workspace.fsi.label": "Show FSI workspace",
   "command.workspace.relations.description":
     "Show source, relation, inspector, diagnostics, and evidence projections.",
   "command.workspace.relations.label": "Show relations workspace",
@@ -125,9 +116,6 @@ export const ENGLISH_MESSAGES = {
   "workflow.dc-drive.description":
     "Inspect one pinned package closure, sampled trajectory, and exact Model/Run binding.",
   "workflow.dc-drive.label": "DC drive",
-  "workflow.fsi.description":
-    "Inspect two accepted fixed-reference fluid–structure steps, shared trace, balances, and immutable lineage.",
-  "workflow.fsi.label": "FSI",
   "workflow.reason.cad-loading": "The native runtime is resolving the exact CAD plan.",
   "workflow.reason.cad-stale": "The accepted CAD plan belongs to another Model revision.",
   "workflow.reason.cad-unavailable": "This canonical revision has no accepted bounded CAD plan.",
@@ -140,10 +128,6 @@ export const ENGLISH_MESSAGES = {
     "The native runtime is compiling, executing, and binding the packaged DC drive.",
   "workflow.reason.dc-drive-unavailable":
     "Run the packaged DC-drive demonstration to open this workflow.",
-  "workflow.reason.fsi-running":
-    "The native runtime is composing and solving two fixed-reference FSI steps.",
-  "workflow.reason.fsi-unavailable":
-    "Run the fixed-reference FSI demonstration to open this workflow.",
   "workflow.reason.structural-running":
     "The native runtime is resolving and solving the structural example.",
   "workflow.reason.structural-unavailable":

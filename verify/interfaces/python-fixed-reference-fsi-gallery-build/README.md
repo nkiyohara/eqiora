@@ -2,10 +2,11 @@
 
 This case verifies one private publication adapter over the already accepted
 two-state fixed-reference FSI trajectory. A checked-in ordinary Python script
-imports an installed `eqiora` wheel, compiles the packaged source, and consumes
-the same Rust-owned `FixedMeshMonolithic` Plan and common `Result` used by
-verification and Studio. Its typed FSI evidence is keyed by exact
-`State`. The script renders a lossless poster, VP9 WebM, H.264 MP4,
+imports an installed `eqiora` wheel, authors the adjacent Geometry and common
+Mesh, compiles the packaged component source, resolves the exact Model with
+scoped MINI/P1 and P1 policies, and consumes the common `Plan`, `State`, and
+`Result`. Its typed FSI evidence is keyed by exact `State`. The script renders
+a lossless poster, VP9 WebM, H.264 MP4,
 a distinct two-panel reduced-motion still, and a descriptive text alternative,
 then records complete source, lineage, scene, encoder, environment, and output
 identity in canonical private JSON.

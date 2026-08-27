@@ -9,7 +9,6 @@ use eqiora::artifact::{
     ValidatedFixedSpatialContextV1,
 };
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldPayload};
-use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
     fsi::ResolvedFixedReferenceFsiSolution2d, fsi::lower_fixed_reference_fsi_cartesian_2d,
 };
@@ -39,34 +38,8 @@ struct AcceptedTrajectory {
 fn two_accepted_fsi_steps_publish_one_immutable_reference_only_trajectory() {
     let document = direct_document();
     let accepted = accepted_trajectory_from(&document);
-    let shared = eqiora::api::FixedReferenceFsiResult2d::solve_reference(
-        &document,
-        &REFERENCE_LINEAR_SOLVER,
-    )
-    .expect("production application result consumes the oracle-owned direct Model");
     let context = fixed_context(&accepted);
     let fields = accepted.first_solution.fields();
-
-    assert_eq!(
-        shared.solutions()[0].vertex_velocity_coefficients(),
-        accepted.first_solution.vertex_velocity_coefficients()
-    );
-    assert_eq!(
-        shared.solutions()[1].vertex_velocity_coefficients(),
-        accepted.second_solution.vertex_velocity_coefficients()
-    );
-    assert_eq!(
-        shared.states()[0].digest().unwrap(),
-        accepted.first_state.digest().unwrap()
-    );
-    assert_eq!(
-        shared.states()[1].digest().unwrap(),
-        accepted.second_state.digest().unwrap()
-    );
-    assert_eq!(
-        shared.trajectory().digest().unwrap(),
-        accepted.final_root.digest().unwrap()
-    );
 
     assert!(accepted.first_solution.numerical_evidence().residual_norm() < 1.0e-9);
     assert!(
@@ -224,7 +197,6 @@ fn two_accepted_fsi_steps_publish_one_immutable_reference_only_trajectory() {
     final_run
         .validate_against(&accepted.execution.realization)
         .expect("the final Run remains valid against its exact Realization");
-    assert_eq!(shared.run().digest().unwrap(), final_run.digest().unwrap());
     let root_digest = accepted.final_root.digest().unwrap();
     assert!(final_run.outputs().contains(&root_digest));
     assert!(

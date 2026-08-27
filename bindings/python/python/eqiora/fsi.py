@@ -1,19 +1,13 @@
-"""Fixed-mesh monolithic FSI intent, Plan, and typed evidence."""
+"""Observation-only evidence for common FSI Results."""
 
 from ._eqiora import (
-    FixedMeshMonolithic,
-    FixedMeshMonolithicEvidence,
-    FixedMeshMonolithicPlan,
-    FixedMeshMonolithicStateEvidence,
-    fixed_mesh_monolithic_evidence,
-    resolve_fixed_mesh_monolithic as resolve,
+    FsiEvidence,
+    FsiStateEvidence,
+    evidence,
 )
 
 __all__ = [
-    "FixedMeshMonolithic",
-    "FixedMeshMonolithicEvidence",
-    "FixedMeshMonolithicPlan",
-    "FixedMeshMonolithicStateEvidence",
-    "fixed_mesh_monolithic_evidence",
-    "resolve",
+    "FsiEvidence",
+    "FsiStateEvidence",
+    "evidence",
 ]

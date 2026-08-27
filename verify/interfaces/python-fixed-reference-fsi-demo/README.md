@@ -1,14 +1,14 @@
 # Installed Python fixed-reference FSI demo
 
 This case verifies one installed-Python projection of the already accepted
-two-step fixed-reference FSI application. Python compiles the packaged
-byte-exact source through the current Model owner, resolves mandatory explicit
-`FixedMeshMonolithic` intent, and submits the model-bound Plan through the
-ordinary Run path used by Studio. The common `Result` retains the complete
-two-state `Trajectory`, relational Model → geometry → correspondence → mesh →
-Realization → state → trajectory → Run lineage, and solver-owned coupled
-fields. `fixed_mesh_monolithic_evidence(result)` retains the exhaustive
-partition and selects each state observation by exact `State`.
+fixed-reference FSI meaning through the root common lifecycle. Python authors
+the exact adjacent-partition Geometry, generates its authenticated common Mesh,
+compiles the equations-only Component, resolves exact Domain-scoped spatial,
+temporal, solve, and scaling policies, and supplies four exact-Field initial
+assignments. The common `Result` retains the selected two-state `Trajectory`
+and exact Model → Geometry → correspondence → Mesh → Realization → State →
+Trajectory → Run lineage. `eqiora.fsi.evidence(result)` retains only the
+partition and state-keyed numerical observations.
 
 Common scalar and deformed stills over this common Result's accepted
 `Trajectory` are

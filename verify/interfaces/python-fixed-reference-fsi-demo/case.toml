@@ -1,52 +1,51 @@
 id = "interfaces.python-fixed-reference-fsi-demo"
 status = "verified"
-scope = "one-installed-python-immutable-fixed-reference-monolithic-fsi-two-step-result"
-reference_kind = "shared-rust-plan-common-result-typed-evidence-lineage"
+scope = "one-installed-python-model-first-common-fixed-reference-monolithic-fsi-result"
+reference_kind = "root-common-plan-state-run-typed-observation-evidence-lineage"
 
 capabilities = [
-  "python-fixed-mesh-monolithic-fsi-plan-run",
+  "python-model-first-common-fsi-plan-state-run",
   "python-common-fsi-result-and-typed-evidence",
   "python-coupled-model-realization-run-state-trajectory-lineage",
   "python-read-only-coupled-interface-state-arrays",
 ]
 
 [problem]
-model = "one packaged byte-exact copy of verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi, compiled explicitly by Python through the current Model owner"
+model = "the installed equations-only FixedReferenceFsi2d Component compiled against the caller-authored exact adjacent-partition Geometry and explicit parameters"
 physics = "verified fixed-reference inertial-fluid linear-solid monolithic backward-Euler coupling"
 realization = "the existing fieldwise coupled multi-Domain plan over the exact 9-vertex 8-affine-triangle two-body mesh"
 accepted_steps = 2
-intent = "immutable keyword-only eqiora.fsi.FixedMeshMonolithic with every initial-state, time, scale, solver-tolerance, and iteration input explicit"
-resolution = "eqiora.fsi.resolve(model, intent) returns one exact-Model-bound FixedMeshMonolithicPlan before execution"
-entry_point = "eqiora.submit(model, plan=plan).result(), with eqiora.run(model, plan=plan) as the synchronous common-Result route"
+intent = "typed root policies: MiniP1.at(fluid), P1.at(solid), BackwardEuler, Linear, and automatic or complete manual coupled scaling"
+resolution = "eqiora.resolve(model, mesh=mesh, spatial=..., temporal=..., solve=..., scaling=...) returns one exact-Model-and-resource-bound common Plan"
+entry_point = "eqiora.submit(plan, state=State.initial(...), steps=2, output_steps=(1, 2)).result(), with eqiora.run(plan, ...) as the synchronous common-Result route"
 result_type = "immutable common eqiora.Result whose trajectory property returns the accepted Trajectory"
-evidence = "eqiora.fsi.fixed_mesh_monolithic_evidence(result), with exact State-keyed state evidence"
+evidence = "eqiora.fsi.evidence(result), with exact State-keyed observation evidence"
 presentation_successor = "interfaces.python-trajectory-field-stills owns common scalar and deformed stills over this common Result's accepted Trajectory"
 
 [oracle]
 scientific_case = "fsi.fixed-reference-monolithic-step-2d"
 trajectory_case = "artifacts.fixed-reference-fsi-spatial-trajectory"
-lineage_case = "interfaces.studio-fixed-reference-fsi-demo"
 equivalence_case = "interfaces.structural-semantic-fingerprint"
 model_admission = "structural semantic equivalence to the accepted current source, preserving the caller's current artifact identity; digest equality is neither required nor claimed"
-production_comparison = "the existing Rust scientific tests compare the production composition against the independent support composition for solver coefficients and for ordered two-state, state, trajectory, and Run lineage"
+production_comparison = "the Rust scientific test compares both automatic-default and complete-manual-scaling common-Plan steps against the unchanged independent support composition for vertex velocity, MINI bubbles, pressure, and displacement at the existing bound"
+common_worker_lineage = "the installed Python common-worker test independently proves caller-selected output order, exact snapshot Field identity, and Run request to Plan, initial State, output State, and Trajectory lineage; it does not compare lineage digests with the scientific support composition"
 thresholds = "restated only by reference from the registered scientific cases; never re-derived, tuned, or relaxed here"
 arrays = "coindexed partition, velocity, bubble, pressure-support, displacement, and interface-action arrays in coherent SI order"
 
 [acceptance]
 packaged_source_is_byte_exact = true
 caller_compiles_and_supplies_current_model = true
-intent_has_no_hidden_defaults = true
+typed_policy_and_initial_field_assignments_are_explicit = true
 plan_is_bound_to_the_exact_model_revision = true
-unsupported_intent_rejects_before_worker_creation = true
-studio_and_python_consume_one_production_rust_composition = true
+unsupported_policy_or_initial_state_rejects_before_worker_creation = true
 admission_is_structural_and_never_digest_equality = true
 caller_current_artifact_identity_is_retained_in_lineage = true
 structural_semantic_equivalence_is_the_claimed_criterion = true
 equal_exact_model_digest_is_not_claimed = true
-production_and_support_compositions_agree_in_existing_rust_tests = true
+production_and_support_physical_fields_agree_in_existing_rust_tests = true
 no_scientific_expected_value_tolerance_or_falsifier_changes = true
 exact_partition_is_nine_vertices_and_eight_triangles = true
-two_ordered_accepted_steps_are_exposed = true
+caller_selected_ordered_outputs_are_exposed = true
 run_result_is_the_common_result = true
 result_trajectory_is_memoized = true
 fsi_evidence_is_selected_by_exact_trajectory_state = true
@@ -83,7 +82,7 @@ solver_stopping_presented_as_physics_acceptance = "acceptance scalars and stoppi
 reauthored_or_relaxed_acceptance_threshold = "referenced scientific thresholds differ from their owning cases"
 mutable_or_result_owned_arrays = "array lifetime and writeability checks fail"
 eager_numpy_dependency = "isolated process imports NumPy before first array projection"
-surviving_predecessor_python_api = "FixedReferenceFsiStep, FixedReferenceFsiResult, or solve_fixed_reference_fsi remains reachable from the native module, Python facade, exports, shipped stub, generated API docs, or installed wheel"
+surviving_predecessor_python_api = "FixedMeshMonolithic, FixedMeshMonolithicPlan, fsi.resolve, specialized submit, or fixed_mesh_monolithic_evidence remains reachable from the native module, Python facade, exports, shipped stub, generated API docs, or installed wheel"
 ordinal_only_evidence_lookup = "state evidence accepts an ordinal or a State from another occurrence instead of the exact accepted State"
 
 [claim_boundary]
@@ -92,7 +91,7 @@ historical_generation_callable = false
 one_coupled_realization = "existing fieldwise coupled multi-Domain plan"
 intrinsic_dimension = 2
 fixed_reference_configuration_only = true
-two_consecutive_accepted_steps_only = true
+bounded_caller_selected_steps = true
 monolithic_single_step_coupling_only = true
 general_fsi = false
 same_time_iterative_or_partitioned_coupling = false

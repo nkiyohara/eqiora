@@ -3,15 +3,15 @@
 - `classification.json` — the complete producer-semantic classification of
   every Model-bearing fixture found by the repository search, with the search
   scope and method that produced it, and, under `search.transition`, the exact
-  two-state contract: the 44 retired paths, the 13 required post-reset targets
+  two-state contract: the 52 retired paths, the 13 required post-reset targets
   — 11 carrying a frozen promotion digest and 2 required by existence alone —
   the 40 invariant preserved-evidence paths, and the 1 promoted-evidence pair
   whose bytes survive at a different path. Every path there is exact; there is
   no glob, suffix rule, or directory allowance.
 - `classification.json` also declares, under `dispositions`, the seven fates an
   entry may assign, and gives exactly one of them to every path it names. The
-  229 candidates no entry names inherit the remainder's `migrate-in-place`,
-  which excludes retired paths by construction: all 34 retired inventory
+  220 candidates no entry names inherit the remainder's `migrate-in-place`,
+  which excludes retired paths by construction: all 42 retired inventory
   members are named explicitly, so no path the reset removes is described as
   migrating in place.
 - `classification.json` also declares, under

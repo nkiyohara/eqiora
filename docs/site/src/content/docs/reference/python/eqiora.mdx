@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **83** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **85** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -425,6 +425,25 @@ class Domain:
     def __hash__(self) -> int: ...
 ```
 
+<a id="api-eqiora-DomainRef"></a>
+
+## `DomainRef`
+
+Exact canonical Domain selected from one immutable Model.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/model.rs" kind="blob">crates/eqiora-python/src/model.rs::PyModelDomainRef</ExactSourceLink>
+
+```python
+@final
+class DomainRef:
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def id(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
 <a id="api-eqiora-EqioraError"></a>
 
 ## `EqioraError`
@@ -557,6 +576,22 @@ class FieldRef:
     def __hash__(self) -> int: ...
 ```
 
+<a id="api-eqiora-InitialField"></a>
+
+## `InitialField`
+
+Immutable exact-Field-bound coherent-SI initial coefficients.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/trajectory.rs" kind="blob">crates/eqiora-python/src/trajectory.rs::PyInitialField</ExactSourceLink>
+
+```python
+@final
+class InitialField:
+    def __new__(cls, field: FieldRef, /, *, vertex_values: object | None=None, cell_values: object | None=None) -> InitialField: ...
+    @property
+    def field(self) -> FieldRef: ...
+```
+
 <a id="api-eqiora-InternalError"></a>
 
 ## `InternalError`
@@ -650,6 +685,7 @@ class Model:
     def commit(self, edit: ValueEdit) -> Model: ...
     def parameter(self, selection: str) -> ParameterRef: ...
     def field(self, selection: str) -> FieldRef: ...
+    def domain(self, selection: str) -> DomainRef: ...
     def structurally_equivalent(self, other: Model) -> bool: ...
     @property
     def digest(self) -> str: ...
@@ -828,7 +864,7 @@ class Plan:
     @property
     def pressure_field(self) -> FieldRef | None: ...
     @property
-    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | None: ...
+    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None: ...
     @property
     def solve(self) -> solve.Linear | solve.Newton | None: ...
     @property
@@ -1383,7 +1419,7 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/trajectory.rs" kind="
 @final
 class State:
     @staticmethod
-    def initial(plan: Plan, /) -> State: ...
+    def initial(plan: Plan, /, *, fields: tuple[InitialField, ...] | None=None, time_s: float | None=None) -> State: ...
     @staticmethod
     def zero(plan: Plan, /, *, time_s: float=0.0) -> State: ...
     @staticmethod
@@ -1643,7 +1679,7 @@ structural no-Mesh ODE paths reject spatial resources.
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::resolve</ExactSourceLink>
 
 ```python
-def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
+def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-run"></a>
@@ -1734,7 +1770,7 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/fluid.py" kind="
 
 **Module export.** This spelling exposes the documented public module [`eqiora.fsi`](/reference/python/fsi/).
 
-Fixed-mesh monolithic FSI intent, plan, and typed evidence.
+Observation-only evidence for common FSI Results.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/fsi.py" kind="blob">bindings/python/python/eqiora/fsi.py</ExactSourceLink>
 

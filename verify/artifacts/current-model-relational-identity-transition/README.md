@@ -47,24 +47,24 @@ by hand.
 
 | Set | Count | Meaning |
 | --- | --- | --- |
-| `retired` | 44 | disappears; present in every pre-reset state, absent in every post-reset one |
-| preserved | 304 | the rest of the frozen inventory; still exists afterwards, though an in-place migration may stop it matching the sweep |
+| `retired` | 52 | disappears; present in every pre-reset state, absent in every post-reset one |
+| preserved | 296 | the rest of the frozen inventory; still exists afterwards, though an in-place migration may stop it matching the sweep |
 | `required_post_reset` | 13 | the complete set of paths the reset may add: 11 byte-frozen promotions — 10 staged control-v2 targets plus the historical cylinder — and 2 existence-only unversioned Rust owners |
 | `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
-| `post_reset_admitted` | 29 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
+| `post_reset_admitted` | 37 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
 | `post_reset_fixture_admitted` | 27 | later exact evidence representations admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
-| accepted-byte-bound optional rows | 13 | exact alpha.3 site/source rows guarded by accepted raw SHA-256; permission remains optional and owns no input semantics |
+| accepted-byte-bound optional rows | 12 | exact alpha.3 site/source rows guarded by accepted raw SHA-256; permission remains optional and owns no input semantics |
 
-**44, 304 and 13 are not one partition of 338.** What partitions the inventory
-is 34 + 304: the retired paths that are inventory members, plus the preserved
+**52, 296 and 13 are not one partition of 338.** What partitions the inventory
+is 42 + 296: the retired paths that are inventory members, plus the preserved
 ones. The other ten retired paths carry no Model signal and were never members.
 The 13 required paths are post-reset additions and replacements: twelve did not
 exist before the reset, and the thirteenth,
 `verify/interfaces/control-plane-compile-check/expected/contract.json`, is the
 one existing inventory member whose bytes the reset replaces in place.
 
-Thirty-four retired paths are inventory members: the historical Model and
+Forty-two retired paths are inventory members: the historical Model and
 Transaction generation modules `model_v2`--`model_v7` and
 `model_transaction_v2`--`model_transaction_v7`, the version-named current owners
 `model_v8.rs` and `model_transaction_v8.rs`, the exact-codec host
@@ -73,7 +73,9 @@ compatibility-only wire goldens, the Python `eqiora.compatibility` module and
 stub, the live control-v1 schema, the superseded v7 cylinder resource, and the
 four signal-bearing staged control-v2 files. The other ten carry no Model signal
 and so were never inventory members: the seven staged control-v2 request
-fixtures and the three live control-v1 request fixtures.
+fixtures and the three live control-v1 request fixtures. The eight additional
+inventory retirements are the displaced specialized Rust, Python, and Studio
+FSI lifecycle paths now replaced by the common Model-first Plan/State/Run path.
 
 ### Version-named owners retire; unversioned owners replace them
 
@@ -154,21 +156,21 @@ The transition is history; later work is admitted only as optional permission.
 The original seventeen identity-free rows cover the Python trajectory and
 Result surfaces, Cartesian Q1 snapshot and oracle, RFC 0085 standalone-solid
 surfaces, subprocess-provider surfaces, non-box transient oracle, and private
-MCP adapter. Twelve accepted alpha.3 site rows append in exact order:
+MCP adapter. Eleven accepted alpha.3 site rows append in exact order:
 
-- Cylinder gallery, control-v2 reference, MCP reference, and five generated
+- Cylinder gallery, control-v2 reference, MCP reference, and four generated
   Python reference pages, all `current-owner-assertion`;
 - Gallery publication checker and pressure producer, plus the publication
   fixture helper and predicate test, all `non-fixture-search-hit`.
 
 Every one carries its recorded ordered search signals and zero same-line
 Model-derived identity occurrences. `post_reset_admitted` therefore contains
-exactly 29 rows. A row is absent before the reset, optional after it, belongs to
+exactly 37 rows after nine exact common Plan/FSI source and test admissions. A row is absent before the reset, optional after it, belongs to
 no historical, required, promotion, classified, fixture, or oracle-exclusion
 set, and grants no sibling, stem, suffix, directory, generated-page, or tool
 family permission.
 
-The twelve new rows additionally bind the raw SHA-256 of their already accepted
+The eleven site rows additionally bind the raw SHA-256 of their already accepted
 complete bytes. The same one-time read derives signal order, occurrence count,
 and digest. Absence remains accepted; changed bytes with the same signal and
 count fail the digest gate and return to an independent oracle successor. The
@@ -330,8 +332,8 @@ is not an available move.
 
 ## Every candidate has exactly one fate
 
-`classification.json` names 110 of the 338 candidates in an entry and leaves the
-other 228 to the `non-fixture-search-hit` remainder. A remainder is what keeps
+`classification.json` names 118 of the 338 candidates in an entry and leaves the
+other 220 to the `non-fixture-search-hit` remainder. A remainder is what keeps
 the classification complete without listing every path twice, and it is also
 where a classification can quietly say the wrong thing: "everything else
 migrates in place" stops being true the moment a path the reset *removes* is
@@ -341,10 +343,11 @@ So `dispositions` declares the seven fates an entry may assign — `delete`,
 `rename-source`, `delegate`, `migrate`, `preserve-bytes`,
 `decompose-by-claim`, and the remainder's `migrate-in-place` — every
 path-bearing entry declares exactly one, and no path is named by two entries.
-All 34 retired inventory members are named explicitly: fifteen as
+All 42 retired inventory members are named explicitly: fifteen as
 compatibility-only deletions (the `v3`--`v7` generation modules, the
 exact-codec host with its two v1-only API tests, and the Python compatibility
-module with its stub), two as version-named current owners the reset *renames*,
+module with its stub), eight as the displaced application-shaped FSI lifecycle,
+two as version-named current owners the reset *renames*,
 two as the v2-named source files *decomposed by claim*, and fifteen by the
 fixture, delegated, and remaining mixed-claim entries. The remainder therefore
 excludes retired paths by construction, and both routes check that it does.

@@ -15,8 +15,7 @@ python examples/python/exact_cylinder_stokes.py
 python examples/python/exact_cylinder_stokes.py \
   --pressure-png exact-cylinder-pressure.png
 marimo run examples/python/exact_cylinder_stokes_marimo.py
-python examples/python/fixed_reference_fsi.py \
-  --fsi-png fixed-reference-fsi.png --step 2 --displacement-scale 12
+python examples/python/fixed_reference_fsi.py
 ```
 
 | Example | Source | What it shows |
@@ -27,7 +26,7 @@ python examples/python/fixed_reference_fsi.py \
 | `exact-cylinder-mesh` | [`python/exact_cylinder_mesh.py`](python/exact_cylinder_mesh.py) | From an installed `eqiora` package, explicitly realize the exact cylinder source as the bounded error-controlled chordal reference mesh and inspect Rust-derived selection counts. |
 | `exact-cylinder-stokes` | [`python/exact_cylinder_stokes.py`](python/exact_cylinder_stokes.py) | From an installed `eqiora` package, define the sole concrete Geometry in Python, compile it with the shipped equations-only `.eqi` Component, resolve the common MINI/P1 and linear-solve policies, inspect immutable pressure, solver, force, and flux evidence, and optionally save the pressure through `eqiora[gmsh,matplotlib]`. |
 | `exact-cylinder-stokes-marimo` | [`python/exact_cylinder_stokes_marimo.py`](python/exact_cylinder_stokes_marimo.py) | In Marimo, compose the same Python-authored Geometry, installed `.eqi` Component, Mesh, common root Plan, one Run and common Result, then inspect their live identities, typed evidence, and caller-owned pressure Figure. |
-| `fixed-reference-fsi` | [`python/fixed_reference_fsi.py`](python/fixed_reference_fsi.py) | From an installed `eqiora` package, resolve the explicit accepted fixed-mesh monolithic Plan, submit its Run, inspect the common Result/Trajectory and typed FSI evidence, and optionally render general pressure and deformed-field stills. |
+| `fixed-reference-fsi` | [`python/fixed_reference_fsi.py`](python/fixed_reference_fsi.py) | Author the adjacent Geometry in Python, compile the equations-only FSI Component, scope MINI/P1 and P1 to exact Model Domains, initialize four exact Fields, and run the common root Plan/State/Run lifecycle. |
 | `steady-flow-past-cylinder` | [`steady-flow-past-cylinder.eqi`](steady-flow-past-cylinder.eqi), [exact geometry](steady-flow-past-cylinder.geometry.json), [current Model](steady-flow-past-cylinder.model.json) | Python uses the equations-only `.eqi` plus Python Geometry above. Native Studio still replays the retained repository Model artifact until its application-shaped lifecycle is removed in #543; that JSON is not a Python package input. |
 
 General examples keep the Model, the Realization, and the Run visibly separate;

@@ -164,6 +164,25 @@ impl CanonicalGeometryRef<'_> {
     pub fn constant_parent_outward_normal(self, name: &str) -> Option<[f64; 2]> {
         self.geometry.constant_parent_outward_normal(name)
     }
+
+    /// Whether four selections from this exact revision are the two
+    /// parent-relative spellings of its construction-owned internal interface.
+    #[must_use]
+    #[doc(hidden)]
+    pub fn selections_form_opposite_parent_interface(
+        self,
+        first_boundary: &str,
+        first_region: &str,
+        second_boundary: &str,
+        second_region: &str,
+    ) -> bool {
+        self.geometry.selections_form_opposite_parent_interface(
+            first_boundary,
+            first_region,
+            second_boundary,
+            second_region,
+        )
+    }
 }
 
 impl fmt::Debug for CanonicalGeometryV1 {
@@ -262,6 +281,37 @@ impl CanonicalGeometryV1 {
             },
             CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
             CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_) => None,
+        }
+    }
+
+    fn selections_form_opposite_parent_interface(
+        &self,
+        first_boundary: &str,
+        first_region: &str,
+        second_boundary: &str,
+        second_region: &str,
+    ) -> bool {
+        let Some(first_boundary) = self.entity_set(first_boundary) else {
+            return false;
+        };
+        let Some(first_region) = self.entity_set(first_region) else {
+            return false;
+        };
+        let Some(second_boundary) = self.entity_set(second_boundary) else {
+            return false;
+        };
+        let Some(second_region) = self.entity_set(second_region) else {
+            return false;
+        };
+        match &self.kind {
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => geometry
+                .selections_form_opposite_parent_interface(
+                    first_boundary,
+                    first_region,
+                    second_boundary,
+                    second_region,
+                ),
+            _ => false,
         }
     }
     /// Derive canonical bytes and identity from one validated region.

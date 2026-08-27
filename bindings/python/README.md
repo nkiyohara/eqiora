@@ -238,18 +238,17 @@ the shared Rust application result, and renders original and scaled-deformed
 canonical Q1 edges. It is one bounded verified case, not a general structural
 solver or deformation viewer.
 
-The accepted fixed-reference FSI workflow follows the same rule. It resolves a
-fully explicit, immutable `FixedMeshMonolithic` intent before submitting the
-ordinary Run; both coupled time steps execute inside the shared Rust application
-service:
+The accepted fixed-reference FSI workflow uses the root common lifecycle. It
+authors the adjacent Geometry and Mesh in Python, compiles the equations-only
+Component, resolves exact Domain-scoped MINI/P1 and P1 policies with typed time,
+solve, and scaling policies, then initializes four exact Fields:
 
 ```console
-python examples/python/fixed_reference_fsi.py \
-  --fsi-png fixed-reference-fsi.png --step 2 --displacement-scale 12
+python examples/python/fixed_reference_fsi.py
 ```
 
 The common immutable `Result` exposes the ordered fields and lineage through its
-`Trajectory`, while `fixed_mesh_monolithic_evidence(result)` owns the accepted
+`Trajectory`, while `eqiora.fsi.evidence(result)` owns the accepted
 partition and FSI-specific solver/acceptance observations. The optional still
 uses only the general trajectory field adapters. This is one verified
 fixed-reference monolithic case, not general FSI, ALE or moving-mesh support, a

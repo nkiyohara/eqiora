@@ -1094,7 +1094,7 @@ fn the_frozen_transition_contract_partitions_the_repository() {
     );
 
     // Two states, one partition — and the partition is of the inventory, not of
-    // those three counts. 34 retired inventory paths and 304 preserved ones
+    // those three counts. 42 retired inventory paths and 296 preserved ones
     // cover the 338 candidates exactly; the other 10 retired paths carry no
     // search signal and were never inventory members, and the 13 required paths
     // are post-reset additions and one in-place replacement.

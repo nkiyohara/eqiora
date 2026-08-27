@@ -171,7 +171,7 @@ def _capture_exact_payload(trajectory: object, token: object) -> dict[str, objec
             or values.dtype != np.dtype(np.float64)
             or values.ndim != 1
             or values.flags.writeable
-            or len(values) != len(coordinates)
+            or len(values) != len(support)
             or not np.isfinite(values).all()
             or not bool(np.all(support < len(coordinates)))
         ):
@@ -191,7 +191,7 @@ def _capture_exact_payload(trajectory: object, token: object) -> dict[str, objec
             raise _AdmissionError
         steps.append(state.step)
         times.append(state.time_s)
-        value_arrays.append(values[support])
+        value_arrays.append(values)
 
     if (
         field_id is None

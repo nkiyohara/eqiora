@@ -8,13 +8,15 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 
 use eqiora::api::{
-    FixedReferenceFsiResult2d, ReferenceRunCancellation, ReferenceRunPlan, ReferenceRunProgress,
-    ReferenceRunResult, ScalarEllipticExecutionEnvironment, ScalarEllipticRunCancellation,
-    ScalarEllipticRunProgress, ScalarEllipticRunResult,
+    ReferenceRunCancellation, ReferenceRunPlan, ReferenceRunProgress, ReferenceRunResult,
+    ScalarEllipticExecutionEnvironment, ScalarEllipticRunCancellation, ScalarEllipticRunProgress,
+    ScalarEllipticRunResult,
 };
 use eqiora::diagnostic::codes;
 use eqiora::{Diagnostic, GraphPath};
-use eqiora_numerics::{CommonOdeRunRequest, CommonState, CommonTransientRunRequest};
+use eqiora_numerics::{
+    CommonFsiRunRequest, CommonOdeRunRequest, CommonState, CommonTransientRunRequest,
+};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
@@ -27,9 +29,6 @@ use crate::elasticity::{
 use crate::error::{
     cancellation_error, catch_native_panic, diagnostic_error, execution_error,
     internal_diagnostic_error, internal_error, panic_boundary, validation_error,
-};
-use crate::fsi::{
-    PyFixedMeshMonolithicPlan, materialize_result as materialize_fixed_mesh_monolithic,
 };
 use crate::meshing::PyMesh;
 use crate::realization::{PyRealization, PyScalarEllipticResult};
@@ -88,10 +87,6 @@ enum NativeRunOutput {
         result: Box<eqiora::api::MixedBoundaryElasticityResult2d>,
         elapsed_seconds: f64,
     },
-    FixedMeshMonolithic {
-        result: Box<FixedReferenceFsiResult2d>,
-        elapsed_seconds: f64,
-    },
     CommonScalar {
         result: Box<eqiora_numerics::scalar::ResolvedScalarEllipticCartesianSolution>,
         elapsed_seconds: f64,
@@ -117,7 +112,6 @@ enum NativeRunOutput {
 enum ResultMaterializationContext {
     None,
     SteadyStokes { mesh: Py<PyMesh> },
-    FixedMeshMonolithic { model: Py<PyModel> },
     CommonPlan { plan: Py<PyPlan> },
 }
 
@@ -587,9 +581,20 @@ impl PyRun {
                 "eqiora-common-transient-run",
                 true,
             ),
+            (CommonPlanKind::Fsi(_), Some(CommonRunRequest::Fsi(request))) => (
+                RunIdentity::from_common_fsi(&request),
+                NativeRunJob::CommonFsi(request),
+                "eqiora-common-fsi-run",
+                true,
+            ),
             (CommonPlanKind::TransientFlow(_), None) => {
                 return Err(PyTypeError::new_err(
                     "transient submit requires State and one explicit horizon/output schedule family",
+                ));
+            }
+            (CommonPlanKind::Fsi(_), None) => {
+                return Err(PyTypeError::new_err(
+                    "FSI submit requires State and one explicit horizon/output schedule family",
                 ));
             }
             (CommonPlanKind::Ode(_), None) => {
@@ -600,6 +605,15 @@ impl PyRun {
             (CommonPlanKind::TransientFlow(_), Some(CommonRunRequest::Ode(_))) => {
                 return Err(PyTypeError::new_err(
                     "ODE Run request crossed a spatial transient Plan",
+                ));
+            }
+            (
+                CommonPlanKind::Fsi(_),
+                Some(CommonRunRequest::Ode(_) | CommonRunRequest::Transient(_)),
+            )
+            | (CommonPlanKind::TransientFlow(_), Some(CommonRunRequest::Fsi(_))) => {
+                return Err(PyTypeError::new_err(
+                    "common Run request crossed an incompatible transient Plan",
                 ));
             }
             (
@@ -724,25 +738,6 @@ impl PyRun {
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
 
-    fn submit_fixed_mesh_monolithic(
-        py: Python<'_>,
-        model: &PyModel,
-        plan: &PyFixedMeshMonolithicPlan,
-    ) -> PyResult<Self> {
-        let identity = RunIdentity::from_fixed_mesh_monolithic(model.artifact(), plan.native())
-            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
-        Self::spawn(
-            identity,
-            NativeRunJob::FixedMeshMonolithic(Box::new(plan.native().clone())),
-            ResultMaterializationContext::FixedMeshMonolithic {
-                model: plan.model(py),
-            },
-            "eqiora-fixed-mesh-monolithic-fsi-run",
-            true,
-        )
-        .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
-    }
-
     fn spawn(
         identity: RunIdentity,
         job: NativeRunJob,
@@ -778,6 +773,7 @@ impl PyRun {
 enum CommonRunRequest {
     Ode(Box<CommonOdeRunRequest>),
     Transient(Box<CommonTransientRunRequest>),
+    Fsi(Box<CommonFsiRunRequest>),
 }
 
 #[pymethods]
@@ -950,7 +946,6 @@ fn materialize_result(
             .and_then(|result| Py::new(py, result))
             .map(Py::into_any),
             ResultMaterializationContext::None
-            | ResultMaterializationContext::FixedMeshMonolithic { .. }
             | ResultMaterializationContext::CommonPlan { .. } => Err(internal_error(
                 py,
                 "steady-Stokes Result lost its accepted Mesh context",
@@ -962,28 +957,6 @@ fn materialize_result(
         } => materialize_linear_elasticity(py, *result, identity.clone(), elapsed_seconds)
             .and_then(|result| Py::new(py, result))
             .map(Py::into_any),
-        NativeRunOutput::FixedMeshMonolithic {
-            result,
-            elapsed_seconds,
-        } => match context {
-            ResultMaterializationContext::FixedMeshMonolithic { model } => {
-                materialize_fixed_mesh_monolithic(
-                    py,
-                    *result,
-                    identity.clone(),
-                    elapsed_seconds,
-                    model.borrow(py),
-                )
-                .and_then(|result| Py::new(py, result))
-                .map(Py::into_any)
-            }
-            ResultMaterializationContext::None
-            | ResultMaterializationContext::SteadyStokes { .. }
-            | ResultMaterializationContext::CommonPlan { .. } => Err(internal_error(
-                py,
-                "fixed-mesh monolithic FSI Result lost its accepted Model context",
-            )),
-        },
         NativeRunOutput::CommonScalar {
             result,
             elapsed_seconds,
@@ -1118,61 +1091,68 @@ pub(crate) fn submit_plan(
                 CommonOdeRunRequest::new(native_plan.clone(), native_state.clone(), until, outputs)
                     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
             )))
+        } else if let Some(native_plan) = plan_ref.transient_native() {
+            let state = state.ok_or_else(|| {
+                PyTypeError::new_err("transient submit requires state=State(...)")
+            })?;
+            let state = state.borrow();
+            let native_state = state.common_native().ok_or_else(|| {
+                PyValueError::new_err("State is not a common transient restart State")
+            })?;
+            if native_state.state_space_identity() != native_plan.state_space_identity() {
+                return Err(PyValueError::new_err(
+                    "State belongs to a different exact common state space",
+                ));
+            }
+            let request = match (until_s, output_times_s, steps, output_steps) {
+                (Some(until), Some(outputs), None, None) => CommonTransientRunRequest::from_times(
+                    native_plan.clone(), native_state.clone(), until, outputs,
+                ),
+                (None, None, Some(steps), Some(outputs)) => CommonTransientRunRequest::from_steps(
+                    native_plan.clone(), native_state.clone(), steps, outputs,
+                ),
+                _ => return Err(PyTypeError::new_err(
+                    "transient submit requires exactly one complete until_s/output_times_s or steps/output_steps family",
+                )),
+            }.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            Some(CommonRunRequest::Transient(Box::new(request)))
+        } else if let Some(native_plan) = plan_ref.fsi_native() {
+            let state = state.ok_or_else(|| {
+                PyTypeError::new_err("FSI submit requires state=State.initial(plan, ...)")
+            })?;
+            let state = state.borrow();
+            let native_state = state
+                .common_native()
+                .ok_or_else(|| PyValueError::new_err("State is not a common FSI restart State"))?;
+            if native_state.state_space_identity() != native_plan.state_space_identity() {
+                return Err(PyValueError::new_err(
+                    "State belongs to a different exact common FSI state space",
+                ));
+            }
+            let request = match (until_s, output_times_s, steps, output_steps) {
+                (Some(until), Some(outputs), None, None) => CommonFsiRunRequest::from_times(
+                    native_plan.clone(), native_state.clone(), until, outputs,
+                ),
+                (None, None, Some(steps), Some(outputs)) => CommonFsiRunRequest::from_steps(
+                    native_plan.clone(), native_state.clone(), steps, outputs,
+                ),
+                _ => return Err(PyTypeError::new_err(
+                    "FSI submit requires exactly one complete until_s/output_times_s or steps/output_steps family",
+                )),
+            }.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            Some(CommonRunRequest::Fsi(Box::new(request)))
         } else {
-            match plan_ref.transient_native() {
-            None => {
-                if state.is_some()
-                    || until_s.is_some()
-                    || output_times_s.is_some()
-                    || steps.is_some()
-                    || output_steps.is_some()
-                {
-                    return Err(PyTypeError::new_err(
-                        "steady submit accepts Plan alone and no transient Run controls",
-                    ));
-                }
-                None
+            if state.is_some()
+                || until_s.is_some()
+                || output_times_s.is_some()
+                || steps.is_some()
+                || output_steps.is_some()
+            {
+                return Err(PyTypeError::new_err(
+                    "steady submit accepts Plan alone and no transient Run controls",
+                ));
             }
-            Some(native_plan) => {
-                let state = state.ok_or_else(|| {
-                    PyTypeError::new_err("transient submit requires state=State(...)")
-                })?;
-                let state = state.borrow();
-                let native_state = state.common_native().ok_or_else(|| {
-                    PyValueError::new_err("State is not a common transient restart State")
-                })?;
-                if native_state.state_space_identity() != native_plan.state_space_identity() {
-                    return Err(PyValueError::new_err(
-                        "State belongs to a different exact common state space",
-                    ));
-                }
-                match (until_s, output_times_s, steps, output_steps) {
-                    (Some(until), Some(outputs), None, None) => Some(
-                        CommonTransientRunRequest::from_times(
-                            native_plan.clone(),
-                            native_state.clone(),
-                            until,
-                            outputs,
-                        )
-                        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
-                    ),
-                    (None, None, Some(steps), Some(outputs)) => Some(
-                        CommonTransientRunRequest::from_steps(
-                            native_plan.clone(),
-                            native_state.clone(),
-                            steps,
-                            outputs,
-                        )
-                        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
-                    ),
-                    _ => {
-                        return Err(PyTypeError::new_err(
-                            "transient submit requires exactly one complete until_s/output_times_s or steps/output_steps family",
-                        ));
-                    }
-                }
-            }
-        }.map(|request| CommonRunRequest::Transient(Box::new(request)))
+            None
         };
         drop(plan_ref);
         PyRun::submit_common(py, plan, request)
@@ -1219,15 +1199,6 @@ pub(crate) fn submit_linear_elasticity(
     panic_boundary(py, || PyRun::submit_linear_elasticity(py, model, plan))
 }
 
-#[pyfunction]
-pub(crate) fn submit_fixed_mesh_monolithic(
-    py: Python<'_>,
-    model: &PyModel,
-    plan: &PyFixedMeshMonolithicPlan,
-) -> PyResult<PyRun> {
-    panic_boundary(py, || PyRun::submit_fixed_mesh_monolithic(py, model, plan))
-}
-
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyRunStatus>()?;
     module.add_class::<PyRunProgress>()?;
@@ -1241,7 +1212,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(submit_realization, module)?)?;
     module.add_function(wrap_pyfunction!(submit_steady_stokes, module)?)?;
     module.add_function(wrap_pyfunction!(submit_linear_elasticity, module)?)?;
-    module.add_function(wrap_pyfunction!(submit_fixed_mesh_monolithic, module)?)?;
     module.add_function(wrap_pyfunction!(submit_plan, module)?)?;
     Ok(())
 }

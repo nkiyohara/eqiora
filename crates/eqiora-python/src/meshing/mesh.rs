@@ -1043,6 +1043,14 @@ impl PyMesh {
                         (**production).clone(),
                     )
                     .map(Some)
+                } else if geometry.planar_adjacent_rectangle_partition().is_some() {
+                    AuthenticatedCommonMesh::adjacent_partition(
+                        (**geometry).clone(),
+                        (**mesh).clone(),
+                        (**correspondence).clone(),
+                        (**production).clone(),
+                    )
+                    .map(Some)
                 } else {
                     // The dependent execution slice adds the corresponding
                     // physics-independent common-admission variant.

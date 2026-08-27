@@ -161,6 +161,30 @@ impl CanonicalPlanarAdjacentRectanglePartitionV1 {
         &self.entity_sets
     }
 
+    pub(crate) fn selections_form_opposite_parent_interface(
+        &self,
+        left_boundary: &NamedEntitySet,
+        left_region: &NamedEntitySet,
+        right_boundary: &NamedEntitySet,
+        right_region: &NamedEntitySet,
+    ) -> bool {
+        let side = |boundary: &NamedEntitySet, region: &NamedEntitySet| match (
+            boundary.members(),
+            region.members(),
+        ) {
+            ([1], [0]) => Some(0_u8),
+            ([7], [1]) => Some(1_u8),
+            _ => None,
+        };
+        matches!(
+            (
+                side(left_boundary, left_region),
+                side(right_boundary, right_region)
+            ),
+            (Some(0), Some(1)) | (Some(1), Some(0))
+        )
+    }
+
     pub(crate) fn canonical_bytes(&self) -> &[u8] {
         &self.bytes
     }

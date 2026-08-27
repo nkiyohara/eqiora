@@ -138,10 +138,12 @@ fn document_and_plans_with_source(
         )
         .unwrap()
         .project(
+            |_| panic!("scalar fixture resolved as ODE"),
             |plan| plan,
             |_| panic!("scalar fixture resolved as elasticity"),
             |_| panic!("scalar fixture resolved as Stokes"),
             |_| panic!("scalar fixture resolved as transient flow"),
+            |_| panic!("scalar fixture resolved as FSI"),
         )
     };
     let q1 = resolve(owner.clone(), CommonSpatialPolicy::Q1);

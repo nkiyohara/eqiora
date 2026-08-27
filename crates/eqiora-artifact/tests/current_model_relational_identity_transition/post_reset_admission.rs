@@ -11,7 +11,7 @@ struct ExpectedAdmission {
     source: String,
 }
 
-const IDENTITY_FREE_PATH_ORDER: [&str; 29] = [
+const IDENTITY_FREE_PATH_ORDER: [&str; 37] = [
     "crates/eqiora-python/src/trajectory.rs",
     "bindings/python/python/eqiora/trajectory.pyi",
     "crates/eqiora-python/src/result.rs",
@@ -37,13 +37,33 @@ const IDENTITY_FREE_PATH_ORDER: [&str; 29] = [
     "docs/site/src/content/docs/reference/mcp/index.mdx",
     "docs/site/src/content/docs/reference/python/eqiora.mdx",
     "docs/site/src/content/docs/reference/python/fluid.mdx",
-    "docs/site/src/content/docs/reference/python/fsi.mdx",
     "docs/site/src/content/docs/reference/python/solid.mdx",
     "docs/site/src/content/docs/reference/python/trajectory.mdx",
     "tools/site/check_gallery_publication.py",
     "tools/site/produce_exact_cylinder_pressure.py",
     "tools/site/tests/gallery_publication/fixtures.py",
     "tools/site/tests/gallery_publication/test_predicate.py",
+    "bindings/python/tests/test_common_ode.py",
+    "crates/eqiora-numerics/src/common_ode.rs",
+    "crates/eqiora-numerics/src/numerical_admission.rs",
+    "crates/eqiora-python/src/common_plan.rs",
+    "crates/eqiora-python/src/common_plan/policy.rs",
+    "crates/eqiora-python/src/common_plan/scaling.rs",
+    "crates/eqiora-python/src/fsi_evidence.rs",
+    "crates/eqiora-python/tests/python_compile_geometry.rs",
+    "crates/eqiora/tests/fixed_reference_monolithic_fsi_step_2d.rs",
+];
+
+const COMMON_PLAN_IDENTITY_FREE_PATHS: [&str; 9] = [
+    "bindings/python/tests/test_common_ode.py",
+    "crates/eqiora-numerics/src/common_ode.rs",
+    "crates/eqiora-numerics/src/numerical_admission.rs",
+    "crates/eqiora-python/src/common_plan.rs",
+    "crates/eqiora-python/src/common_plan/policy.rs",
+    "crates/eqiora-python/src/common_plan/scaling.rs",
+    "crates/eqiora-python/src/fsi_evidence.rs",
+    "crates/eqiora-python/tests/python_compile_geometry.rs",
+    "crates/eqiora/tests/fixed_reference_monolithic_fsi_step_2d.rs",
 ];
 
 const FIXTURE_PATH_ORDER: [&str; 27] = [
@@ -93,15 +113,14 @@ type SiteAdmission = (
 );
 
 #[rustfmt::skip]
-const SITE_ADMISSIONS: [SiteAdmission; 13] = [
+const SITE_ADMISSIONS: [SiteAdmission; 12] = [
     ("docs/site/src/content/docs/gallery/exact-cylinder-steady-stokes.mdx", "current-owner-assertion", ("3c9bc27c7aa4e4b8836af021c1ae775d", "a9a1dc47229c0bb68a75743430b876bb"), "gallery.exact-cylinder-steady-stokes current-owner documentation", "the accepted Cylinder gallery projection names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; gallery science and prose remain owned by their accepted authorities."),
     ("docs/site/src/content/docs/reference/control-v2/index.mdx", "current-owner-assertion", ("71265ea8c47bcbf73c5d3d606311bec9", "05b3c4da3b39948eb744d3e3fa57e0f9"), "interfaces.control-plane-compile-check current-owner reference projection", "the accepted control-v2 reference projection names the current Model and Transaction schema families without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes."),
     ("docs/site/src/content/docs/reference/mcp/index.mdx", "current-owner-assertion", ("8aa18b3a0c67d23ebe31d380042551fb", "f9d61f9c5b9e78203aaabf2e44265aef"), "interfaces.mcp-stdio-compile-check current-owner reference projection", "the accepted MCP reference projection names the current Model and Transaction schema families without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes."),
-    ("docs/site/src/content/docs/reference/python/eqiora.mdx", "current-owner-assertion", ("962e184c67359ff1e3753cff704ae3a4", "b8093829ceb1ee446c93f12b4632e499"), "the accepted Python API reference projection", "the generated top-level Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
-    ("docs/site/src/content/docs/reference/python/fluid.mdx", "current-owner-assertion", ("97874be5371df59158beec442545e29b0", "2ef3956b028b7f515fe8354796ce2e6"), "the accepted Python API reference projection", "the generated fluid Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
-    ("docs/site/src/content/docs/reference/python/fsi.mdx", "current-owner-assertion", ("cc3cb3f8119883005f3dcbe63e5b9cc", "f01d2c2c1ab120669ad8c07f92b16e3e5"), "the accepted Python API reference projection", "the generated FSI Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
+    ("docs/site/src/content/docs/reference/python/eqiora.mdx", "current-owner-assertion", ("7a7eed1949d2aefeb1c201f658c2d33d", "9c97dbf9043ea1a50cb8ac3e36b5c375"), "the accepted Python API reference projection", "the generated top-level Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
+    ("docs/site/src/content/docs/reference/python/fluid.mdx", "current-owner-assertion", ("fe044dacc4f16c8926b6b1f466d79d2", "e430f1cc6a83e69f00ca87879e24f18bf"), "the accepted Python API reference projection", "the generated fluid Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
     ("docs/site/src/content/docs/reference/python/solid.mdx", "current-owner-assertion", ("8ada7c9fe856095da5334bdcde07a017", "48aee2d82dc201098695f03fd2c1a841"), "the accepted Python API reference projection", "the generated solid Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
-    ("docs/site/src/content/docs/reference/python/trajectory.mdx", "current-owner-assertion", ("faabff5c1b7c1b58d9a6da1f71ce4ce", "725c362c37bbcc351b3f44201bf13cddf"), "the accepted Python API reference projection", "the generated trajectory Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
+    ("docs/site/src/content/docs/reference/python/trajectory.mdx", "current-owner-assertion", ("34cb62d5acff70c0a23aa9865d2d9b36", "68a4105344464fa643ee34c0ea6e1d05"), "the accepted Python API reference projection", "the generated trajectory Python reference names `{edge}` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."),
     ("tools/site/check_gallery_publication.py", "non-fixture-search-hit", ("e9a27aeae4c77c951be9017faef0343", "a2e712aeedad92238249993b87967a150"), "the accepted Gallery publication checker", "the accepted checker names `{edge}` as a publication predicate field without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; predicate semantics remain owned by its accepted evidence."),
     ("tools/site/produce_exact_cylinder_pressure.py", "non-fixture-search-hit", ("e569129c5e0f1508cdaba79c7bdd9ed5", "d877e1aaae64e2315d776851bbdd92cc"), "the accepted exact-cylinder pressure producer", "the accepted producer names `{edge}` as an input lineage field without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; scientific and publication semantics remain with their accepted authorities."),
     ("tools/site/tests/gallery_publication/fixtures.py", "non-fixture-search-hit", ("7b88383809422f73dec1a6cf21d4e100", "6610b4b81917379abdd97a1134261a7b"), "the accepted Gallery publication fixture helper", "the accepted fixture helper names `{edge}` while constructing causal publication mutants and freezes no Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes."),
@@ -595,7 +614,7 @@ fn site_digest(admission: SiteAdmission) -> String {
 }
 
 fn site_identity_free() -> Vec<ExpectedAdmission> {
-    SITE_ADMISSIONS[..12]
+    SITE_ADMISSIONS[..11]
         .iter()
         .copied()
         .map(site_expected)
@@ -603,7 +622,7 @@ fn site_identity_free() -> Vec<ExpectedAdmission> {
 }
 
 fn site_fixture() -> ExpectedAdmission {
-    site_expected(SITE_ADMISSIONS[12])
+    site_expected(SITE_ADMISSIONS[11])
 }
 
 fn has_exact_accepted_digests(contract: &TransitionContract) -> bool {
@@ -674,6 +693,13 @@ fn all_identity_free_sources() -> Vec<(&'static str, String)> {
             .into_iter()
             .map(|row| (row.path, row.source)),
     );
+    sources.extend(COMMON_PLAN_IDENTITY_FREE_PATHS.iter().map(|path| {
+        (
+            *path,
+            fs::read_to_string(repository_root().join(path))
+                .unwrap_or_else(|error| panic!("common Plan admission `{path}`: {error}")),
+        )
+    }));
     sources
 }
 
@@ -699,7 +725,7 @@ fn accepted_site_paths_are_exact_optional_and_byte_bound() {
     for (index, admission) in SITE_ADMISSIONS.iter().copied().enumerate() {
         let (path, class, _, _, _) = admission;
         let digest = site_digest(admission);
-        let rows = if index < 12 {
+        let rows = if index < 11 {
             &contract.post_reset_admitted
         } else {
             &contract.post_reset_fixture_admitted
@@ -714,7 +740,7 @@ fn accepted_site_paths_are_exact_optional_and_byte_bound() {
     for (index, (path, _, _, _, _)) in SITE_ADMISSIONS.iter().copied().enumerate() {
         for wrong_path in [false, true] {
             let mut mutant = TransitionContract::from_classification();
-            let rows = if index < 12 {
+            let rows = if index < 11 {
                 &mut mutant.post_reset_admitted
             } else {
                 &mut mutant.post_reset_fixture_admitted
@@ -778,9 +804,9 @@ fn accepted_site_paths_are_exact_optional_and_byte_bound() {
     preexisting_digest.post_reset_admitted[0].accepted_sha256 = Some(first_digest);
     assert!(!has_exact_accepted_digests(&preexisting_digest));
 
-    for (index, admission) in SITE_ADMISSIONS.iter().copied().take(12).enumerate() {
+    for (index, admission) in SITE_ADMISSIONS.iter().copied().take(11).enumerate() {
         let mut category = TransitionContract::from_classification();
-        category.post_reset_admitted[index + 17].class = if index < 8 {
+        category.post_reset_admitted[index + 17].class = if index < 7 {
             "non-fixture-search-hit"
         } else {
             "current-owner-assertion"
@@ -865,7 +891,7 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .as_u64()
             .unwrap()
     );
-    assert_eq!(identity_free.len(), 29);
+    assert_eq!(identity_free.len(), 37);
     assert_eq!(fixtures.len(), 27);
     assert_eq!(
         contract
@@ -880,8 +906,8 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
     // inventory would claim it existed before the reset; listing one in
     // `required_post_reset` would make a later capability a transition gate.
     assert_eq!(contract.inventory.len(), 338);
-    assert_eq!(contract.retired.len(), 44);
-    assert_eq!(contract.preserved().len(), 304);
+    assert_eq!(contract.retired.len(), 52);
+    assert_eq!(contract.preserved().len(), 296);
     assert_eq!(contract.required_post_reset.len(), 13);
     assert_eq!(contract.preserved_evidence.len(), 40);
     for path in identity_free.union(&fixtures) {
@@ -949,9 +975,9 @@ fn admission_arrays_reject_row_reorder_and_duplicate_paths() {
             "identity-free",
             contract.post_reset_admitted.as_slice(),
             IDENTITY_FREE_PATH_ORDER.as_slice(),
-            27,
-            28,
-            28,
+            35,
+            36,
+            36,
         ),
         (
             "fixture",

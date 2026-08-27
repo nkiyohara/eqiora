@@ -19,7 +19,7 @@ use crate::common_plan::{CommonPlanKind, PyPlan};
 use crate::diagnostic_error;
 use crate::elasticity::PyLinearElasticityEvidence;
 use crate::execution::RunIdentity;
-use crate::fsi::PyFixedMeshMonolithicEvidence;
+use crate::fsi_evidence::PyFsiEvidence;
 use crate::meshing::PyMesh;
 use crate::model::PyModelFieldRef;
 use crate::realization::{PyLinearSolveSummary, PyRunManifest};
@@ -199,12 +199,6 @@ struct StaticResultPayload {
     evidence: StaticScientificEvidence,
 }
 
-struct TrajectoryResultPayload {
-    trajectory: Py<PyTrajectory>,
-    run_manifest: Py<PyRunManifest>,
-    evidence: Py<PyFixedMeshMonolithicEvidence>,
-}
-
 struct ScalarResultPayload {
     field_id: String,
     mesh: Py<PyMesh>,
@@ -222,6 +216,7 @@ struct CommonFieldResultPayload {
 
 struct CommonTrajectoryResultPayload {
     trajectory: Py<PyTrajectory>,
+    fsi_evidence: Option<Py<PyFsiEvidence>>,
 }
 
 struct CommonOdeResultPayload {
@@ -236,7 +231,6 @@ enum ResultPayload {
         lookup: BTreeMap<String, usize>,
     },
     Static(StaticResultPayload),
-    Trajectory(TrajectoryResultPayload),
     Scalar(ScalarResultPayload),
     CommonFields(CommonFieldResultPayload),
     CommonTrajectory(CommonTrajectoryResultPayload),
@@ -329,7 +323,6 @@ impl PyRunResult {
                 .map(|field| field.clone_ref(py))
                 .collect(),
             ResultPayload::Static(_)
-            | ResultPayload::Trajectory(_)
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_) => Vec::new(),
             ResultPayload::CommonTrajectory(_) => Vec::new(),
@@ -365,9 +358,7 @@ impl PyRunResult {
                 .iter()
                 .map(|output| output.snapshot.clone_ref(py))
                 .collect(),
-            ResultPayload::Trajectory(_)
-            | ResultPayload::Scalar(_)
-            | ResultPayload::CommonFields(_) => Vec::new(),
+            ResultPayload::Scalar(_) | ResultPayload::CommonFields(_) => Vec::new(),
             ResultPayload::CommonTrajectory(_) | ResultPayload::CommonOde(_) => Vec::new(),
         };
         Ok(PyTuple::new(py, snapshots)?.unbind())
@@ -377,7 +368,6 @@ impl PyRunResult {
     #[getter]
     fn trajectory(&self, py: Python<'_>) -> PyResult<Py<PyTrajectory>> {
         match &self.payload {
-            ResultPayload::Trajectory(payload) => Ok(payload.trajectory.clone_ref(py)),
             ResultPayload::CommonTrajectory(payload) => Ok(payload.trajectory.clone_ref(py)),
             ResultPayload::Series { .. }
             | ResultPayload::Static(_)
@@ -471,7 +461,6 @@ impl PyRunResult {
     fn run_manifest(&self, py: Python<'_>) -> PyResult<Py<PyRunManifest>> {
         match &self.payload {
             ResultPayload::Static(payload) => Ok(payload.run_manifest.clone_ref(py)),
-            ResultPayload::Trajectory(payload) => Ok(payload.run_manifest.clone_ref(py)),
             ResultPayload::Series { .. }
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_)
@@ -487,7 +476,6 @@ impl PyRunResult {
         match &self.payload {
             ResultPayload::Series { fields, .. } => fields.len(),
             ResultPayload::Static(_)
-            | ResultPayload::Trajectory(_)
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_)
             | ResultPayload::CommonTrajectory(_) => 0,
@@ -513,8 +501,7 @@ impl PyRunResult {
             match &self.payload {
                 ResultPayload::Series { .. } => 0,
                 ResultPayload::Static(payload) => payload.outputs.len(),
-                ResultPayload::Trajectory(_)
-                | ResultPayload::Scalar(_)
+                ResultPayload::Scalar(_)
                 | ResultPayload::CommonFields(_)
                 | ResultPayload::CommonTrajectory(_)
                 | ResultPayload::CommonOde(_) => 0,
@@ -777,9 +764,7 @@ impl PyRunResult {
     ) -> PyResult<&StaticFieldOutput> {
         if matches!(
             &self.payload,
-            ResultPayload::Trajectory(_)
-                | ResultPayload::CommonFields(_)
-                | ResultPayload::CommonTrajectory(_)
+            ResultPayload::CommonFields(_) | ResultPayload::CommonTrajectory(_)
         ) {
             return Err(capability_error(
                 py,
@@ -819,10 +804,6 @@ impl PyRunResult {
                 py,
                 "this Result occurrence has no steady-Stokes evidence",
             )),
-            ResultPayload::Trajectory(_) => Err(capability_error(
-                py,
-                "this Result occurrence has no steady-Stokes evidence",
-            )),
             ResultPayload::Scalar(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no steady-Stokes evidence",
@@ -848,7 +829,6 @@ impl PyRunResult {
             }) => Ok(evidence.clone_ref(py)),
             ResultPayload::Static(_)
             | ResultPayload::Series { .. }
-            | ResultPayload::Trajectory(_)
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_)
             | ResultPayload::CommonTrajectory(_)
@@ -859,20 +839,20 @@ impl PyRunResult {
         }
     }
 
-    pub(crate) fn fixed_mesh_monolithic_evidence(
-        &self,
-        py: Python<'_>,
-    ) -> PyResult<Py<PyFixedMeshMonolithicEvidence>> {
+    pub(crate) fn fsi_evidence(&self, py: Python<'_>) -> PyResult<Py<PyFsiEvidence>> {
         match &self.payload {
-            ResultPayload::Trajectory(payload) => Ok(payload.evidence.clone_ref(py)),
+            ResultPayload::CommonTrajectory(payload) => payload
+                .fsi_evidence
+                .as_ref()
+                .map(|evidence| evidence.clone_ref(py))
+                .ok_or_else(|| capability_error(py, "this transient Result has no FSI evidence")),
             ResultPayload::Static(_)
             | ResultPayload::Series { .. }
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_)
-            | ResultPayload::CommonTrajectory(_)
             | ResultPayload::CommonOde(_) => Err(capability_error(
                 py,
-                "this Result occurrence has no fixed-mesh monolithic FSI evidence",
+                "this Result occurrence has no FSI evidence",
             )),
         }
     }
@@ -915,24 +895,6 @@ impl PyRunResult {
                 lookup,
                 run_manifest: parts.run_manifest,
                 evidence: StaticScientificEvidence::LinearElasticity(evidence),
-            }),
-        }
-    }
-
-    pub(crate) fn from_fixed_mesh_monolithic_fsi(
-        identity: RunIdentity,
-        elapsed_seconds: f64,
-        trajectory: Py<PyTrajectory>,
-        run_manifest: Py<PyRunManifest>,
-        evidence: Py<PyFixedMeshMonolithicEvidence>,
-    ) -> Self {
-        Self {
-            identity,
-            elapsed_seconds,
-            payload: ResultPayload::Trajectory(TrajectoryResultPayload {
-                trajectory,
-                run_manifest,
-                evidence,
             }),
         }
     }
@@ -1013,7 +975,10 @@ pub(crate) fn materialize_common_transient(
     elapsed_seconds: f64,
     states: Vec<(usize, eqiora_numerics::CommonState)>,
 ) -> PyResult<PyRunResult> {
-    if !matches!(plan.native(), CommonPlanKind::TransientFlow(_)) {
+    if !matches!(
+        plan.native(),
+        CommonPlanKind::TransientFlow(_) | CommonPlanKind::Fsi(_)
+    ) {
         return Err(PyRuntimeError::new_err(
             "common transient output crossed a different Plan",
         ));
@@ -1022,10 +987,21 @@ pub(crate) fn materialize_common_transient(
         py,
         PyTrajectory::from_common(py, &plan, identity.plan_key(), states)?,
     )?;
+    let fsi_evidence = if matches!(plan.native(), CommonPlanKind::Fsi(_)) {
+        Some(Py::new(
+            py,
+            PyFsiEvidence::from_common(py, &plan, &trajectory.borrow(py), identity.plan_key())?,
+        )?)
+    } else {
+        None
+    };
     Ok(PyRunResult {
         identity,
         elapsed_seconds,
-        payload: ResultPayload::CommonTrajectory(CommonTrajectoryResultPayload { trajectory }),
+        payload: ResultPayload::CommonTrajectory(CommonTrajectoryResultPayload {
+            trajectory,
+            fsi_evidence,
+        }),
     })
 }
 

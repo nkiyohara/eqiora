@@ -3,6 +3,18 @@
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyQ1``.
 """
 from typing import Self, final
+from . import DomainRef
+
+@final
+class ScopedSpatialPolicy:
+    """One exact Model-Domain-bound spatial policy.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyScopedSpatialBinding``.
+    """
+    @property
+    def domain(self) -> DomainRef: ...
+    @property
+    def method(self) -> str: ...
 
 @final
 class Q1:
@@ -22,8 +34,21 @@ class MiniP1:
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyMiniP1``.
     """
     def __new__(cls) -> Self: ...
+    def at(self, domain: DomainRef, /) -> ScopedSpatialPolicy: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
 
-__all__ = ["MiniP1", "Q1"]
+@final
+class P1:
+    """Continuous simplex P1 Galerkin spatial policy.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyP1``.
+    """
+    def __new__(cls) -> Self: ...
+    def at(self, domain: DomainRef, /) -> ScopedSpatialPolicy: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+__all__ = ["MiniP1", "P1", "Q1", "ScopedSpatialPolicy"]

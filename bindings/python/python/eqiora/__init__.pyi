@@ -526,6 +526,36 @@ class FieldRef:
     def __hash__(self) -> int: ...
 
 @final
+class DomainRef:
+    """Exact canonical Domain selected from one immutable Model.
+
+    Authority: ``crates/eqiora-python/src/model.rs::PyModelDomainRef``.
+    """
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def id(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class InitialField:
+    """Immutable exact-Field-bound coherent-SI initial coefficients.
+
+    Authority: ``crates/eqiora-python/src/trajectory.rs::PyInitialField``.
+    """
+    def __new__(
+        cls,
+        field: FieldRef,
+        /,
+        *,
+        vertex_values: object | None = None,
+        cell_values: object | None = None,
+    ) -> InitialField: ...
+    @property
+    def field(self) -> FieldRef: ...
+
+@final
 class FieldOutput:
     """Immutable coefficients for one exact Model Field on one exact Mesh.
 
@@ -566,6 +596,7 @@ class Model:
     def commit(self, edit: ValueEdit) -> Model: ...
     def parameter(self, selection: str) -> ParameterRef: ...
     def field(self, selection: str) -> FieldRef: ...
+    def domain(self, selection: str) -> DomainRef: ...
     def structurally_equivalent(self, other: Model) -> bool: ...
     @property
     def digest(self) -> str: ...
@@ -625,7 +656,7 @@ class Plan:
     @property
     def pressure_field(self) -> FieldRef | None: ...
     @property
-    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | None: ...
+    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None: ...
     @property
     def solve(self) -> solve.Linear | solve.Newton | None: ...
     @property
@@ -690,7 +721,13 @@ class State:
     """
 
     @staticmethod
-    def initial(plan: Plan, /) -> State: ...
+    def initial(
+        plan: Plan,
+        /,
+        *,
+        fields: tuple[InitialField, ...] | None = None,
+        time_s: float | None = None,
+    ) -> State: ...
     @staticmethod
     def zero(plan: Plan, /, *, time_s: float = 0.0) -> State: ...
     @staticmethod
@@ -1431,7 +1468,7 @@ def resolve(
     model: Model,
     *,
     mesh: meshing.Mesh | None = None,
-    spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | None = None,
+    spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None = None,
     solve: solve.Linear | solve.Newton | None = None,
     scaling: fluid.IncompressibleScaling | None = None,
     temporal: time.BackwardEuler | time.Tsitouras45 | None = None,
@@ -1565,12 +1602,14 @@ __all__ = [
     "DifferentiationMode",
     "Dimension",
     "Domain",
+    "DomainRef",
     "EqioraError",
     "ExecutionError",
     "Expression",
     "Field",
     "FieldOutput",
     "FieldRef",
+    "InitialField",
     "InternalError",
     "LinearSolveSummary",
     "LinearizationState",

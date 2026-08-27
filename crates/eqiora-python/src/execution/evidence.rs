@@ -1,15 +1,14 @@
 use eqiora::Diagnostic;
 use eqiora::api::{
     ModelDocument, ReferenceRunCancellation, ReferenceRunPlan, ReferenceRunProgress,
-    ResolvedFixedMeshMonolithicFsiPlan2d, ResolvedLinearElasticityPlan2d,
-    ResolvedSteadyStokesPlan2d, ScalarEllipticRunCancellation, ScalarEllipticRunPlan,
-    ScalarEllipticRunProgress,
+    ResolvedLinearElasticityPlan2d, ResolvedSteadyStokesPlan2d, ScalarEllipticRunCancellation,
+    ScalarEllipticRunPlan, ScalarEllipticRunProgress,
 };
 use eqiora::artifact::{CanonicalModelArtifact, ModelEnvelope};
 use eqiora::diagnostic::codes;
 use eqiora_numerics::{
-    CommonElasticityPlan, CommonOdeRunRequest, CommonScalarPlan, CommonSteadyStokesPlan,
-    CommonTransientRunRequest,
+    CommonElasticityPlan, CommonFsiRunRequest, CommonOdeRunRequest, CommonScalarPlan,
+    CommonSteadyStokesPlan, CommonTransientRunRequest,
 };
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -377,6 +376,18 @@ impl RunIdentity {
         }
     }
 
+    pub(crate) fn from_common_fsi(request: &CommonFsiRunRequest) -> Self {
+        let plan = request.plan();
+        Self {
+            model_id: plan.model_id().to_owned(),
+            model_digest: plan.model_digest().to_owned(),
+            model_revision: plan.model_revision(),
+            plan_key: request.identity().to_owned(),
+            adapter: plan.execution_provider().id().as_str(),
+            adapter_version: plan.execution_provider().implementation_version(),
+        }
+    }
+
     pub(super) fn from_reference(
         document: &ModelDocument,
         plan: &ReferenceRunPlan,
@@ -457,35 +468,6 @@ impl RunIdentity {
             model_revision: reference.semantic_revision().get(),
             plan_key: format!(
                 "linear-elasticity-v1:{realization}:{}@{}",
-                solver.id().as_str(),
-                solver.implementation_version(),
-            ),
-            adapter: execution.id().as_str(),
-            adapter_version: execution.implementation_version(),
-        })
-    }
-
-    pub(super) fn from_fixed_mesh_monolithic(
-        model: &ModelEnvelope,
-        plan: &ResolvedFixedMeshMonolithicFsiPlan2d,
-    ) -> Result<Self, Diagnostic> {
-        let reference = model.artifact_reference()?;
-        let planned = plan.model().artifact_reference()?;
-        if reference != planned {
-            return Err(Diagnostic::error(
-                codes::INVALID_REALIZATION,
-                "the resolved fixed-mesh monolithic FSI Plan belongs to a different exact Model revision",
-            ));
-        }
-        let realization = plan.realization().digest()?;
-        let solver = plan.solver_provider();
-        let execution = plan.execution_provider();
-        Ok(Self {
-            model_id: reference.model().ulid().to_string(),
-            model_digest: reference.artifact().to_string(),
-            model_revision: reference.semantic_revision().get(),
-            plan_key: format!(
-                "fixed-mesh-monolithic-fsi-v1:{realization}:{}@{}",
                 solver.id().as_str(),
                 solver.implementation_version(),
             ),

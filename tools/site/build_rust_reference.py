@@ -21,14 +21,14 @@ ROOT = Path(__file__).resolve().parents[2]
 FACADE = ROOT / "api/eqiora-facade-v1.json"
 LANDING = ROOT / "docs/site/src/content/docs/reference/rust/index.mdx"
 FACADE_SCHEMA = "eqiora.facade-inventory/v1"
-FACADE_SHA256 = "101a1292c8c2195b8dfb17e542c548934b59a735c6dbf077aec347a0192539f6"
+FACADE_SHA256 = "85f5ecfc4333ea919ec07967bb2e9940ba300f5a9ce27c99bafd7c5591133865"
 EXPECTED_COUNTS = {
     "modules": 24,
     "stable_modules": 3,
     "transitional_modules": 21,
-    "items": 182,
+    "items": 179,
     "stable_items": 48,
-    "transitional_items": 134,
+    "transitional_items": 131,
 }
 PUBLIC_RUSTDOC_PREFIX = "/reference/rust/api/eqiora/"
 ALLOWED_SITE_LINKS = {"/favicon.svg", "/reference/rust/"}
@@ -776,9 +776,9 @@ def _render_landing(
         "",
         "| Surface | Stable | Transitional | Total |",
         "| --- | ---: | ---: | ---: |",
-        "| Public modules | 3 | 21 | 24 |",
-        "| Explicit exported items | 48 | 134 | 182 |",
-        "| Classified facade paths | 51 | 155 | **206** |",
+        f"| Public modules | {EXPECTED_COUNTS['stable_modules']} | {EXPECTED_COUNTS['transitional_modules']} | {EXPECTED_COUNTS['modules']} |",
+        f"| Explicit exported items | {EXPECTED_COUNTS['stable_items']} | {EXPECTED_COUNTS['transitional_items']} | {EXPECTED_COUNTS['items']} |",
+        f"| Classified facade paths | {EXPECTED_COUNTS['stable_modules'] + EXPECTED_COUNTS['stable_items']} | {EXPECTED_COUNTS['transitional_modules'] + EXPECTED_COUNTS['transitional_items']} | **{EXPECTED_COUNTS['modules'] + EXPECTED_COUNTS['items']}** |",
         "",
         "Classifications come from the checked facade inventory. Rustdoc remains compiler",
         "output; the inventory is the classification authority.",
@@ -786,7 +786,7 @@ def _render_landing(
         '- <ExactSourceLink kind="blob" path="api/eqiora-facade-v1.json">Facade inventory</ExactSourceLink>',
         '- <ExactSourceLink kind="blob" path="crates/eqiora/src/lib.rs">Facade source</ExactSourceLink>',
         "",
-        "## Public modules (24)",
+            f"## Public modules ({EXPECTED_COUNTS['modules']})",
         "",
         "| Module | Classification |",
         "| --- | --- |",
@@ -799,7 +799,7 @@ def _render_landing(
     lines.extend(
         [
             "",
-            "## Explicit exported items (182)",
+            f"## Explicit exported items ({EXPECTED_COUNTS['items']})",
             "",
             "| Item | Classification | Provider |",
             "| --- | --- | --- |",
@@ -893,7 +893,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(
         "Rust reference: staged complete facade rustdoc at "
-        f"{destination} ({len(modules)} modules + {len(items)} items = 206 paths)"
+        f"{destination} ({len(modules)} modules + {len(items)} items = "
+        f"{len(modules) + len(items)} paths)"
     )
     return 0
 

@@ -1,20 +1,12 @@
-"""Installed-wheel contract for the converged fixed-mesh monolithic FSI path.
-
-The registered FSI and trajectory evidence remains the sole scientific oracle.
-These tests move its existing observations from demo-owned DTOs onto an explicit
-Plan, common Result/Trajectory, and typed evidence without changing a value.
-"""
+"""Installed-wheel contract for Model-first common fixed-reference FSI."""
 
 from __future__ import annotations
 
 import gc
-import hashlib
-import json
 import subprocess
 import sys
 from importlib.resources import files
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pytest
@@ -22,261 +14,282 @@ import pytest
 import eqiora
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "fixed_reference_fsi.py"
-MODEL_RESOURCE = files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi")
-MODEL_SHA256 = "f4da68623779af8795653468a57c1957cc3595ef2c3e6c8c9c76688b4778a362"
+PARAMETERS = {
+    "fluid_density": 2.0,
+    "fluid_viscosity": 0.5,
+    "solid_density": 3.0,
+    "solid_mu": 4.0,
+    "solid_lambda": 2.0,
+    "zero_pressure": 0.0,
+}
 EXPECTED_CELLS = np.array(
     [
-        [0, 1, 3],
-        [0, 3, 2],
-        [2, 3, 5],
-        [2, 5, 4],
-        [1, 6, 7],
-        [1, 7, 3],
-        [3, 7, 8],
-        [3, 8, 5],
+        [0, 3, 4],
+        [0, 4, 1],
+        [1, 4, 5],
+        [1, 5, 2],
+        [3, 6, 7],
+        [3, 7, 4],
+        [4, 7, 8],
+        [4, 8, 5],
     ],
     dtype=np.uint32,
 )
-INTENT_ARGUMENTS: dict[str, Any] = {
-    "time_step_s": 0.05,
-    "steps": 2,
-    "initial_velocity_m_per_s": (0.0, 0.0),
-    "initial_free_interface_displacement_m": (0.02, 0.0),
-    "length_scale_m": 2.0,
-    "velocity_scale_m_per_s": 0.5,
-    "pressure_scale_pa": 4.0,
-    "relative_tolerance": 1.0e-11,
-    "absolute_tolerance": 1.0e-13,
-    "maximum_iterations": 20_000,
-}
-PLAN_PROPERTIES = (
-    "model_digest",
-    "semantic_revision",
-    "geometry_digest",
-    "correspondence_digest",
-    "mesh_digest",
-    "realization_digest",
-    "realization_revision",
-    "spatial_dimension",
-    "coupling_method",
-    "geometry_motion",
-    "mesh_kind",
-    "fluid_velocity_space",
-    "fluid_pressure_space",
-    "solid_velocity_space",
-    "solid_displacement_space",
-    "time_integrator",
-    *INTENT_ARGUMENTS,
-    "solver_algorithm",
-    "preconditioner",
-    "reduction",
-    "solver_backend",
-    "execution_adapter",
-    "workers",
-    "canonical_bytes",
-)
-RETIRED_NAMES = (
-    "FixedReferenceFsiStep",
-    "FixedReferenceFsiResult",
-    "solve_fixed_reference_fsi",
-)
-# Frozen dual-oracle support membership, wired verbatim from registered evidence.
-EXPECTED_SUPPORT = {
-    ("fluid_velocity", "vertex"): [0, 1, 2, 3, 4, 5],
-    ("fluid_velocity", "cell"): [0, 1, 2, 3],
-    ("fluid_pressure", "vertex"): [0, 1, 2, 3, 4, 5],
-    ("solid_displacement", "vertex"): [1, 3, 5, 6, 7, 8],
-    ("solid_velocity", "vertex"): [1, 3, 5, 6, 7, 8],
-}
 
 
-def accepted_model() -> eqiora.Model:
-    source = MODEL_RESOURCE.read_text(encoding="utf-8")
-    assert hashlib.sha256(source.encode()).hexdigest() == MODEL_SHA256
-    return eqiora.compile(
-        source=source,
-        filename="fixed-reference-fsi.eqi",
+def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
+    graph = eqiora.geometry.GeometryGraph()
+    fluid = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+    solid = graph.rectangle(x_bounds=(1.0, 2.0), y_bounds=(0.0, 1.0))
+    partition = graph.partition(
+        fluid, solid, interface=(fluid.boundaries[1], solid.boundaries[0])
+    )
+    geometry = graph.build(
+        partition,
+        named_topology={
+            "fluid": fluid.region,
+            "fluid_x_lower": fluid.boundaries[0],
+            "fluid_x_upper": fluid.boundaries[1],
+            "fluid_y_lower": fluid.boundaries[2],
+            "fluid_y_upper": fluid.boundaries[3],
+            "solid": solid.region,
+            "solid_x_lower": solid.boundaries[0],
+            "solid_x_upper": solid.boundaries[1],
+            "solid_y_lower": solid.boundaries[2],
+            "solid_y_upper": solid.boundaries[3],
+        },
+    )
+    request = eqiora.meshing.MeshRequest(
+        eqiora.meshing.AffineTriangleMesher(cells=(2, 2))
+    )
+    return geometry, eqiora.meshing.generate(
+        geometry, plan=eqiora.meshing.resolve(geometry, request)
     )
 
 
-def foreign_model() -> eqiora.Model:
-    source = MODEL_RESOURCE.read_text(encoding="utf-8").replace(
-        "parameter fluid_density: kg / m ^ 3 = 2;",
-        "parameter fluid_density: kg / m ^ 3 = 4;",
+def admitted() -> tuple[eqiora.Model, eqiora.meshing.Mesh, eqiora.Plan]:
+    geometry, mesh = geometry_and_mesh()
+    model = eqiora.compile(
+        path=files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi"),
+        geometry=geometry,
+        component="FixedReferenceFsi2d",
+        parameters=PARAMETERS,
     )
-    return eqiora.compile(source=source, filename="foreign-fsi.eqi")
+    plan = eqiora.resolve(
+        model,
+        mesh=mesh,
+        spatial=(
+            eqiora.fem.MiniP1().at(model.domain("fluid")),
+            eqiora.fem.P1().at(model.domain("solid")),
+        ),
+        temporal=eqiora.time.BackwardEuler(step_s=0.05),
+        solve=eqiora.solve.Linear(
+            relative_tolerance=1.0e-11,
+            absolute_tolerance=1.0e-13,
+            maximum_iterations=20_000,
+        ),
+        scaling=None,
+    )
+    return model, mesh, plan
 
 
-def revised_model(model: eqiora.Model) -> eqiora.Model:
-    return model.commit(model.preview_value_edit("fluid_density", 3.0))
+def linear(**overrides: float | int) -> eqiora.solve.Linear:
+    values = {
+        "relative_tolerance": 1.0e-11,
+        "absolute_tolerance": 1.0e-13,
+        "maximum_iterations": 20_000,
+    }
+    values.update(overrides)
+    return eqiora.solve.Linear(**values)
 
 
-def intent(**overrides: object) -> Any:
-    arguments = dict(INTENT_ARGUMENTS)
-    arguments.update(overrides)
-    return eqiora.fsi.FixedMeshMonolithic(**arguments)
+def initial(
+    model: eqiora.Model, mesh: eqiora.meshing.Mesh, plan: eqiora.Plan
+) -> eqiora.State:
+    coordinates = np.asarray(mesh.coordinates)
+    cells = np.asarray(mesh.cells)
+    fluid_vertices = np.flatnonzero(coordinates[:, 0] <= 1.0)
+    solid_vertices = np.flatnonzero(coordinates[:, 0] >= 1.0)
+    fluid_cells = np.flatnonzero(coordinates[cells, 0].mean(axis=1) < 1.0)
+    displacement = np.zeros((solid_vertices.size, 2))
+    interface_midpoint = np.flatnonzero(
+        (coordinates[solid_vertices, 0] == 1.0)
+        & (coordinates[solid_vertices, 1] == 0.5)
+    )
+    assert interface_midpoint.size == 1
+    displacement[interface_midpoint[0], 0] = 0.02
+    fluid_velocity, fluid_pressure, solid_velocity, solid_displacement = plan.fields
+    return eqiora.State.initial(
+        plan,
+        time_s=0.0,
+        fields=(
+            eqiora.InitialField(
+                fluid_velocity,
+                vertex_values=np.zeros((fluid_vertices.size, 2)),
+                cell_values=np.zeros((fluid_cells.size, 2)),
+            ),
+            eqiora.InitialField(
+                fluid_pressure,
+                vertex_values=np.full(fluid_vertices.size, 0.25),
+            ),
+            eqiora.InitialField(
+                solid_velocity,
+                vertex_values=np.zeros((solid_vertices.size, 2)),
+            ),
+            eqiora.InitialField(solid_displacement, vertex_values=displacement),
+        ),
+    )
 
 
-def resolve_plan(model: eqiora.Model, **overrides: object) -> Any:
-    return eqiora.fsi.resolve(model, intent(**overrides))
+def solved() -> tuple[eqiora.Model, eqiora.Plan, eqiora.Run, eqiora.Result]:
+    model, mesh, plan = admitted()
+    run = eqiora.submit(
+        plan, state=initial(model, mesh, plan), steps=2, output_steps=(1, 2)
+    )
+    return model, plan, run, run.result()
 
 
-def solve() -> tuple[eqiora.Model, Any, eqiora.Result, Any]:
-    model = accepted_model()
-    plan = resolve_plan(model)
-    run = eqiora.submit(model, plan=plan)
-    result = run.result()
-    return model, plan, result, eqiora.fsi.fixed_mesh_monolithic_evidence(result)
+def test_only_common_model_first_fsi_surface_is_public() -> None:
+    assert not hasattr(eqiora.fsi, "FixedMeshMonolithic")
+    assert not hasattr(eqiora.fsi, "FixedMeshMonolithicPlan")
+    assert not hasattr(eqiora.fsi, "resolve")
+    assert eqiora.fsi.__all__ == ["FsiEvidence", "FsiStateEvidence", "evidence"]
 
 
-@pytest.fixture(scope="module")
-def accepted() -> tuple[eqiora.Model, Any, eqiora.Result, Any]:
-    return solve()
-
-
-def test_intent_is_keyword_only_immutable_and_has_no_hidden_defaults() -> None:
-    requested = intent()
-    assert isinstance(requested, eqiora.fsi.FixedMeshMonolithic)
-    assert type(requested).__module__ == "eqiora._eqiora"
-    for name, value in INTENT_ARGUMENTS.items():
-        assert getattr(requested, name) == value
-        with pytest.raises(AttributeError):
-            setattr(requested, name, value)
-    assert requested == intent()
-    assert hash(requested) == hash(intent())
-    assert requested != intent(steps=1)
-
-    with pytest.raises(TypeError):
-        eqiora.fsi.FixedMeshMonolithic()
-    for omitted in INTENT_ARGUMENTS:
-        incomplete = {
-            name: value for name, value in INTENT_ARGUMENTS.items() if name != omitted
-        }
-        with pytest.raises(TypeError):
-            eqiora.fsi.FixedMeshMonolithic(**incomplete)
-    with pytest.raises(TypeError):
-        eqiora.fsi.FixedMeshMonolithic(*INTENT_ARGUMENTS.values())
-
-
-def test_resolved_plan_is_complete_inspectable_and_stable_before_execution() -> None:
-    model = accepted_model()
-    plan = resolve_plan(model)
-    observed = {name: getattr(plan, name) for name in PLAN_PROPERTIES}
-
-    assert isinstance(plan, eqiora.fsi.FixedMeshMonolithicPlan)
+def test_plan_binds_exact_model_mesh_scopes_provider_and_scaling_receipt() -> None:
+    model, mesh, plan = admitted()
+    assert plan.model is model
+    assert plan.mesh is mesh
     assert plan.model_digest == model.digest
-    assert plan.semantic_revision == model.revision.number == 1
-    assert plan.spatial_dimension == 2
-    for name, value in INTENT_ARGUMENTS.items():
-        assert getattr(plan, name) == value
-    for name in (
-        "coupling_method",
-        "geometry_motion",
-        "mesh_kind",
-        "fluid_velocity_space",
-        "fluid_pressure_space",
-        "solid_velocity_space",
-        "solid_displacement_space",
-        "time_integrator",
-        "solver_algorithm",
-        "preconditioner",
-        "reduction",
-        "solver_backend",
-        "execution_adapter",
-    ):
-        assert isinstance(getattr(plan, name), str) and getattr(plan, name)
-    assert plan.workers >= 1
-    assert isinstance(plan.canonical_bytes, bytes) and plan.canonical_bytes
-    for name in (
-        "model_digest",
-        "geometry_digest",
-        "correspondence_digest",
-        "mesh_digest",
-        "realization_digest",
-    ):
-        assert len(getattr(plan, name)) == 64
-
-    again = resolve_plan(model)
-    assert again == plan
-    assert hash(again) == hash(plan)
-    assert again.canonical_bytes == plan.canonical_bytes
-    result = eqiora.run(model, plan=plan)
-    assert type(result) is eqiora.Result
-    assert {name: getattr(plan, name) for name in PLAN_PROPERTIES} == observed
-    assert result.trajectory.realization_digest == plan.realization_digest
-    assert result.run_manifest().realization_digest == plan.realization_digest
-
-
-def test_result_retains_complete_relational_lineage(
-    accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
-) -> None:
-    model, plan, result, evidence = accepted
-    trajectory = result.trajectory
-    assert type(result) is eqiora.Result
-    assert trajectory.model_digest == model.revision.digest
-    assert result.model_revision == model.revision.number == 1
-    assert plan.realization_revision == 1
-    assert evidence.case_ids == (
-        "fsi.fixed-reference-monolithic-step-2d",
-        "artifacts.fixed-reference-fsi-spatial-trajectory",
+    assert plan.geometry_digest == mesh.source_digest
+    assert plan.mesh_digest == mesh.digest
+    assert plan.correspondence_digest == mesh.correspondence_digest
+    assert plan.production_digest == mesh.production_lineage_digest
+    assert plan.identity.startswith("common-fsi:") and len(plan.identity) == 75
+    assert len(plan.realization_digest) == 64
+    assert tuple(binding.domain for binding in plan.spatial) == (
+        model.domain("fluid"),
+        model.domain("solid"),
     )
-    state_digests = tuple(state.digest for state in trajectory.states)
-    assert len(state_digests) == 2
-    assert all(len(digest) == 64 for digest in state_digests)
-    assert len(trajectory.digest) == 64
+    assert plan.temporal.step_s == 0.05
+    assert plan.solve.maximum_iterations == 20_000
+    assert plan.scaling is not None
+    assert plan.scaling_receipt.production_digest == mesh.production_lineage_digest
+    assert plan.pressure_gauge is None
+    assert plan.solver_algorithm == "minimum-residual"
+    assert plan.solver_backend == "eqiora.reference"
+    assert plan.execution_provider == "eqiora.host.serial"
+    assert plan.placement == "host-serial"
+    assert len(set(plan.fields)) == 4
+    assert plan.fields[:2] == (plan.velocity_field, plan.pressure_field)
 
-    manifest = result.run_manifest()
-    assert result.run_manifest() is manifest
-    assert evidence.run_digest == manifest.digest == trajectory.run_digest
-    assert evidence.trajectory_digest == trajectory.digest
-    run = json.loads(manifest.to_json())
-    assert run["model_sha256"] == trajectory.model_digest
-    assert run["realization_sha256"] == trajectory.realization_digest
-    assert run["output_sha256"] == [trajectory.digest]
-    assert len(trajectory.run_digest) == 64
-    assert all(
-        len(digest) == 64
-        for digest in (
-            trajectory.geometry_digest,
-            trajectory.correspondence_digest,
-            trajectory.mesh_digest,
-            trajectory.realization_digest,
+
+def test_initial_state_is_exact_field_bound_complete_and_gauge_free() -> None:
+    model, mesh, plan = admitted()
+    state = initial(model, mesh, plan)
+    assert state.model is model
+    assert state.mesh is mesh
+    assert state.time_s == 0.0
+    np.testing.assert_array_equal(
+        state.field(plan.pressure_field).values("vertex"), 0.25
+    )
+    expected_displacement = np.zeros((6, 2))
+    expected_displacement[1, 0] = 0.02
+    np.testing.assert_array_equal(
+        state.field(plan.fields[3]).values("vertex"), expected_displacement
+    )
+    with pytest.raises(ValueError, match="time_s"):
+        eqiora.State.initial(plan, fields=())
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.State.initial(plan, time_s=0.0, fields=())
+    with pytest.raises(TypeError):
+        eqiora.InitialField(plan.pressure_field, values=[0.0])
+
+
+def test_common_worker_run_outputs_restart_and_observation_evidence() -> None:
+    model, mesh, plan = admitted()
+    state = initial(model, mesh, plan)
+    run = eqiora.submit(plan, state=state, steps=2, output_steps=(1, 2))
+    result = run.result()
+    assert run.status is eqiora.RunStatus.Completed
+    assert run.model_digest == model.digest
+    assert state.source_plan_identity == plan.identity
+    assert state.source_request_identity is None
+    trajectory = result.trajectory
+    outputs = trajectory.states
+    assert tuple(value.step for value in outputs) == (1, 2)
+    assert tuple(value.time_s for value in outputs) == (0.05, 0.10)
+    assert trajectory.plan_identity == plan.identity
+    assert trajectory.request_identity == run.plan_key
+    assert trajectory.run_digest == run.plan_key
+    for output in outputs:
+        assert output.source_plan_identity == plan.identity
+        assert output.source_request_identity == run.plan_key
+        assert output.source_trajectory_identity == trajectory.digest
+        assert tuple(snapshot.field for snapshot in output.fields) == plan.fields
+        for field, snapshot in zip(plan.fields, output.fields, strict=True):
+            assert output.field(field) is snapshot
+    evidence = eqiora.fsi.evidence(result)
+    assert len(evidence.states) == 2
+    assert evidence.states[-1].solve.algorithm == "minimum-residual"
+    assert (
+        evidence.states[-1].solve.true_residual_norm
+        <= evidence.states[-1].solve.residual_target
+    )
+    assert not evidence.fluid_cells.flags.writeable
+    assert not evidence.solid_cells.flags.writeable
+    assert not evidence.interface_facets.flags.writeable
+
+    fresh_plan = eqiora.resolve(
+        model,
+        mesh=mesh,
+        spatial=(
+            eqiora.fem.MiniP1().at(model.domain("fluid")),
+            eqiora.fem.P1().at(model.domain("solid")),
+        ),
+        temporal=eqiora.time.BackwardEuler(step_s=0.05),
+        solve=eqiora.solve.Linear(
+            relative_tolerance=1.0e-10,
+            absolute_tolerance=1.0e-12,
+            maximum_iterations=10_000,
+        ),
+        scaling=None,
+    )
+    restarted = eqiora.run(
+        fresh_plan, state=result.trajectory.states[-1], steps=1, output_steps=(1,)
+    )
+    assert restarted.trajectory.states[-1].time_s == pytest.approx(0.15)
+
+
+def test_scoped_domain_handles_reject_foreign_models() -> None:
+    model, mesh, _ = admitted()
+    foreign_geometry, _ = geometry_and_mesh()
+    foreign = eqiora.compile(
+        path=files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi"),
+        geometry=foreign_geometry,
+        component="FixedReferenceFsi2d",
+        parameters={**PARAMETERS, "fluid_density": 4.0},
+    )
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.resolve(
+            model,
+            mesh=mesh,
+            spatial=(
+                eqiora.fem.MiniP1().at(foreign.domain("fluid")),
+                eqiora.fem.P1().at(model.domain("solid")),
+            ),
+            temporal=eqiora.time.BackwardEuler(step_s=0.05),
+            solve=linear(),
         )
-    )
 
 
-def test_withdrawn_result_accessors_are_absent_without_alias_or_shim(
-    accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
-) -> None:
-    _, _, result, _ = accepted
-    stub = files(eqiora).joinpath("fsi.pyi").read_text(encoding="utf-8")
-    assert len(set(RETIRED_NAMES)) == len(RETIRED_NAMES) == 3
-    for name in RETIRED_NAMES:
-        assert not hasattr(eqiora.fsi, name)
-        with pytest.raises(AttributeError):
-            getattr(eqiora.fsi, name)
-        assert name not in dir(eqiora.fsi)
-        assert name not in eqiora.fsi.__all__
-        assert name not in stub
-    for name in (
-        "fluid_cells",
-        "solid_cells",
-        "interface_facets",
-        "states",
-        "case_ids",
-        "step",
-        "steps",
-    ):
-        assert not hasattr(result, name)
-
-
-def test_partition_and_ordered_step_arrays_are_complete_and_immutable(
-    accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
-) -> None:
-    model, _, result, evidence = accepted
+def test_observation_evidence_is_complete_immutable_and_state_bound() -> None:
+    _, plan, run, result = solved()
     trajectory = result.trajectory
+    evidence = eqiora.fsi.evidence(result)
+    assert run.result() is result
+    assert result.trajectory is trajectory
+    assert eqiora.fsi.evidence(result) is evidence
     assert trajectory.coordinates is trajectory.coordinates
     assert trajectory.cells is trajectory.cells
     assert evidence.fluid_cells is evidence.fluid_cells
@@ -287,63 +300,66 @@ def test_partition_and_ordered_step_arrays_are_complete_and_immutable(
     np.testing.assert_array_equal(trajectory.cells, EXPECTED_CELLS)
     np.testing.assert_array_equal(evidence.fluid_cells, [0, 1, 2, 3])
     np.testing.assert_array_equal(evidence.solid_cells, [4, 5, 6, 7])
-    np.testing.assert_array_equal(evidence.interface_facets, [[1, 3], [3, 5]])
-
+    np.testing.assert_array_equal(evidence.interface_facets, [[3, 4], [4, 5]])
     assert tuple(state.step for state in trajectory.states) == (1, 2)
     assert tuple(state.time_s for state in trajectory.states) == (0.05, 0.10)
+    assert trajectory.state(1) is trajectory.states[0]
+    assert trajectory.state(2) is trajectory.states[1]
+    with pytest.raises(IndexError):
+        trajectory.state(0)
     assert (
         tuple(evidence.state(state) for state in trajectory.states) == evidence.states
     )
 
-    velocity = model.field("fluid_velocity")
-    pressure = model.field("fluid_pressure")
-    displacement = model.field("solid_displacement")
     displacements: list[np.ndarray] = []
     for state in trajectory.states:
         state_evidence = evidence.state(state)
-        velocity_snapshot = state.field(velocity)
-        pressure_snapshot = state.field(pressure)
-        displacement_snapshot = state.field(displacement)
-        velocity_vertices = velocity_snapshot.values("vertex")
-        bubble_block = velocity_snapshot.values("cell")
-        bubble_velocity = bubble_block[evidence.fluid_cells]
-        pressure_vertices = pressure_snapshot.support_indices("vertex")
-        pressure_block = pressure_snapshot.values("vertex")
-        pressure_values = pressure_block[pressure_vertices]
-        displacement_values = displacement_snapshot.values("vertex")
+        assert evidence.state(state) is state_evidence
+        assert state_evidence.state_digest == state.digest
+        velocity = state.field(plan.fields[0])
+        assert state.field(plan.fields[0]) is velocity
+        pressure = state.field(plan.fields[1])
+        displacement = state.field(plan.fields[3])
+        velocity_vertices = velocity.values("vertex")
+        velocity_bubbles = velocity.values("cell")
+        pressure_support = pressure.support_indices("vertex")
+        pressure_values = pressure.values("vertex")
+        displacement_values = displacement.values("vertex")
         displacements.append(displacement_values)
         arrays = (
             velocity_vertices,
-            bubble_block,
-            pressure_vertices,
-            pressure_block,
+            velocity_bubbles,
+            pressure_support,
+            pressure_values,
             displacement_values,
             state_evidence.interface_vertices,
             state_evidence.fluid_action,
             state_evidence.solid_action,
             state_evidence.action_imbalance,
         )
-        assert velocity_snapshot.values("vertex") is velocity_vertices
-        assert pressure_snapshot.support_indices("vertex") is pressure_vertices
-        assert displacement_snapshot.values("vertex") is displacement_values
+        assert velocity.values("vertex") is velocity_vertices
+        assert velocity.values("cell") is velocity_bubbles
+        assert pressure.support_indices("vertex") is pressure_support
+        assert pressure.values("vertex") is pressure_values
+        assert displacement.values("vertex") is displacement_values
         assert state_evidence.interface_vertices is state_evidence.interface_vertices
         assert state_evidence.fluid_action is state_evidence.fluid_action
         assert state_evidence.solid_action is state_evidence.solid_action
         assert state_evidence.action_imbalance is state_evidence.action_imbalance
-        assert velocity_vertices.shape == (9, 2)
-        assert bubble_block.shape == (8, 2)
-        assert bubble_velocity.shape == (4, 2)
-        assert pressure_vertices.shape == (6,)
-        assert pressure_block.shape == (9,)
+        assert velocity_vertices.shape == (6, 2)
+        assert velocity_bubbles.shape == (4, 2)
+        assert pressure_support.shape == (6,)
         assert pressure_values.shape == (6,)
-        assert displacement_values.shape == (9, 2)
+        assert displacement_values.shape == (6, 2)
         assert state_evidence.interface_vertices.shape == (1,)
         assert state_evidence.fluid_action.shape == (1, 2)
         assert state_evidence.solid_action.shape == (1, 2)
         assert state_evidence.action_imbalance.shape == (1, 2)
-        np.testing.assert_array_equal(pressure_vertices, [0, 1, 2, 3, 4, 5])
-        np.testing.assert_array_equal(state_evidence.interface_vertices, [3])
-        np.testing.assert_array_equal(displacement_values[[0, 2, 4]], 0.0)
+        np.testing.assert_array_equal(pressure_support, [0, 1, 2, 3, 4, 5])
+        np.testing.assert_array_equal(state_evidence.interface_vertices, [4])
+        np.testing.assert_array_equal(
+            displacement.support_indices("vertex"), [3, 4, 5, 6, 7, 8]
+        )
         np.testing.assert_array_equal(
             state_evidence.fluid_action + state_evidence.solid_action,
             state_evidence.action_imbalance,
@@ -377,384 +393,137 @@ def test_partition_and_ordered_step_arrays_are_complete_and_immutable(
                 state_evidence.interface_action_imbalance_n_per_m,
             ]
         ).all()
-
     assert not np.array_equal(displacements[0], displacements[1])
 
 
-def test_general_trajectory_projects_exact_replayed_fields(
-    accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
-) -> None:
-    model, _, result, evidence = accepted
-    trajectory = result.trajectory
-    assert isinstance(trajectory, eqiora.trajectory.Trajectory)
-    assert result.trajectory is trajectory
-    assert trajectory.model_digest == model.revision.digest
-    assert all(
-        len(digest) == 64
-        for digest in (
-            trajectory.digest,
-            trajectory.geometry_digest,
-            trajectory.correspondence_digest,
-            trajectory.mesh_digest,
-            trajectory.realization_digest,
-            trajectory.run_digest,
-        )
+def test_evidence_state_lookup_is_bound_to_exact_result_occurrence() -> None:
+    model, plan, _, result = solved()
+    evidence = eqiora.fsi.evidence(result)
+    mesh = plan.mesh
+    assert mesh is not None
+    repeated = eqiora.run(
+        plan,
+        state=initial(model, mesh, plan),
+        steps=2,
+        output_steps=(1, 2),
     )
-    assert trajectory.dimension == 2
-    assert trajectory.coordinates is result.trajectory.coordinates
-    assert trajectory.cells is result.trajectory.cells
-    assert tuple(state.step for state in trajectory.states) == (1, 2)
-    assert tuple(state.time_s for state in trajectory.states) == (0.05, 0.10)
-    assert tuple(state.digest for state in trajectory.states) == (
-        trajectory.state(1).digest,
-        trajectory.state(2).digest,
-    )
-    assert trajectory.state(1) is trajectory.states[0]
-    assert trajectory.state(2) is trajectory.states[1]
-    with pytest.raises(IndexError):
-        trajectory.state(0)
-
-    velocity = model.field("fluid_velocity")
-    pressure = model.field("fluid_pressure")
-    displacement = model.field("solid_displacement")
-    solid_velocity = model.field("solid_velocity")
-    expected_fields = (velocity, pressure, displacement, solid_velocity)
-    accepted_field_order: tuple[eqiora.FieldRef, ...] | None = None
-    for state in trajectory.states:
-        state_fields = tuple(snapshot.field for snapshot in state.fields)
-        assert set(state_fields) == set(expected_fields)
-        assert tuple(field.id for field in state_fields) == tuple(
-            sorted(field.id for field in state_fields)
-        )
-        if accepted_field_order is None:
-            accepted_field_order = state_fields
-        else:
-            assert state_fields == accepted_field_order
-        assert state.field(velocity) is next(
-            snapshot for snapshot in state.fields if snapshot.field == velocity
-        )
-        assert state.field(pressure) is next(
-            snapshot for snapshot in state.fields if snapshot.field == pressure
-        )
-
-        velocity_snapshot = state.field(velocity)
-        assert isinstance(velocity_snapshot, eqiora.trajectory.FieldSnapshot)
-        assert velocity_snapshot.value_shape == (2,)
-        assert velocity_snapshot.dimension == (0, 1, -1, 0, 0, 0, 0)
-        assert velocity_snapshot.frame == "spatial-cartesian"
-        assert velocity_snapshot.associations == ("vertex", "cell")
-        assert tuple(role for role, _ in velocity_snapshot.block_digests) == (
-            "vertex",
-            "cell",
-        )
-        assert velocity_snapshot.values("vertex") is velocity_snapshot.values("vertex")
-        assert velocity_snapshot.values("vertex").shape == (9, 2)
-        velocity_cell_block = velocity_snapshot.values("cell")
-        assert velocity_cell_block.shape == (8, 2)
-        inactive_velocity_cells = velocity_cell_block[evidence.solid_cells]
-        np.testing.assert_array_equal(inactive_velocity_cells, 0.0)
-        assert not np.signbit(inactive_velocity_cells).any()
-
-        pressure_snapshot = state.field(pressure)
-        assert pressure_snapshot.value_shape == ()
-        assert pressure_snapshot.dimension == (1, -1, -2, 0, 0, 0, 0)
-        assert pressure_snapshot.frame == "invariant"
-        assert pressure_snapshot.associations == ("vertex",)
-        pressure_block = pressure_snapshot.values("vertex")
-        assert pressure_block.shape == (9,)
-        np.testing.assert_array_equal(
-            pressure_snapshot.support_indices("vertex"),
-            [0, 1, 2, 3, 4, 5],
-        )
-        inactive_pressure_vertices = pressure_block[[6, 7, 8]]
-        np.testing.assert_array_equal(inactive_pressure_vertices, 0.0)
-        assert not np.signbit(inactive_pressure_vertices).any()
-
-        displacement_snapshot = state.field(displacement)
-        assert displacement_snapshot.values("vertex").shape == (9, 2)
-        assert state.field(solid_velocity).associations == ("vertex",)
-
-
-def test_field_support_indices_expose_frozen_membership_without_disturbing_replay(
-    accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
-) -> None:
-    model, _, result, evidence = accepted
-    trajectory = result.trajectory
-    trajectory_digest_before = trajectory.digest
-    field_names = sorted({name for name, _ in EXPECTED_SUPPORT})
-    fields = {name: model.field(name) for name in field_names}
-    supports: dict[tuple[int, str, str], np.ndarray] = {}
-    for state in trajectory.states:
-        snapshots = {name: state.field(field) for name, field in fields.items()}
-        values_before = {
-            name: snapshot.values(snapshot.associations[0])
-            for name, snapshot in snapshots.items()
-        }
-        for (name, association), expected in EXPECTED_SUPPORT.items():
-            snapshot = snapshots[name]
-            support = snapshot.support_indices(association)
-            assert support is snapshot.support_indices(association)
-            assert support.dtype == np.uint32
-            assert support.ndim == 1
-            np.testing.assert_array_equal(support, expected)
-            np.testing.assert_array_equal(support, np.unique(support))
-            bound = (
-                trajectory.cells if association == "cell" else trajectory.coordinates
-            )
-            assert int(support.max()) < len(bound)
-            assert support.flags.writeable is False
-            with pytest.raises(ValueError):
-                support.flat[0] = support.flat[0]
-            with pytest.raises(ValueError):
-                support.setflags(write=True)
-            supports[(state.step, name, association)] = support
-        for name, snapshot in snapshots.items():
-            declared = set(snapshot.associations)
-            for absent in ({"vertex", "cell"} - declared) | {"unknown-association"}:
-                with pytest.raises(KeyError):
-                    snapshot.support_indices(absent)
-        for name, snapshot in snapshots.items():
-            assert state.field(fields[name]) is snapshot
-            association = snapshot.associations[0]
-            assert snapshot.values(association) is values_before[name]
-        assert snapshots["fluid_velocity"].values("vertex").shape == (9, 2)
-        assert snapshots["solid_displacement"].values("vertex").shape == (9, 2)
-    assert result.trajectory is trajectory
-    assert trajectory.digest == trajectory_digest_before
-
-    for key, association in EXPECTED_SUPPORT:
-        np.testing.assert_array_equal(
-            supports[(1, key, association)],
-            supports[(2, key, association)],
-        )
-    for state_step in (1, 2):
-        np.testing.assert_array_equal(
-            supports[(state_step, "fluid_velocity", "vertex")],
-            supports[(state_step, "fluid_pressure", "vertex")],
-        )
-        np.testing.assert_array_equal(
-            supports[(state_step, "solid_displacement", "vertex")],
-            supports[(state_step, "solid_velocity", "vertex")],
-        )
-
-    fluid_vertices = supports[(1, "fluid_velocity", "vertex")]
-    solid_vertices = supports[(1, "solid_displacement", "vertex")]
-    np.testing.assert_array_equal(
-        np.intersect1d(fluid_vertices, solid_vertices),
-        [1, 3, 5],
-    )
-    np.testing.assert_array_equal(
-        np.union1d(fluid_vertices, solid_vertices),
-        [0, 1, 2, 3, 4, 5, 6, 7, 8],
-    )
-
-    np.testing.assert_array_equal(
-        supports[(1, "fluid_pressure", "vertex")],
-        trajectory.state(1)
-        .field(model.field("fluid_pressure"))
-        .support_indices("vertex"),
-    )
-    np.testing.assert_array_equal(
-        supports[(1, "fluid_velocity", "cell")],
-        evidence.fluid_cells,
-    )
-    np.testing.assert_array_equal(
-        np.unique(evidence.interface_facets),
-        np.intersect1d(fluid_vertices, solid_vertices),
-    )
-
-
-def test_general_trajectory_rejects_foreign_fields_and_mutation(
-    accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
-) -> None:
-    model, _, result, _ = accepted
-    state = result.trajectory.state(1)
-    with pytest.raises(KeyError):
-        state.field(model.field("fluid_load_potential"))
-
-    source = MODEL_RESOURCE.read_text(encoding="utf-8").replace(
-        "model Main {",
-        "model IndependentMain {",
-    )
-    independent = eqiora.compile(
-        source=source, filename="independent-fixed-reference-fsi.eqi"
-    )
-    assert model.structurally_equivalent(independent)
-    assert model.digest != independent.digest
-    with pytest.raises(ValueError, match="different exact Model"):
-        state.field(independent.field("fluid_velocity"))
-
-    arrays = (
-        result.trajectory.coordinates,
-        result.trajectory.cells,
-        state.field(model.field("fluid_velocity")).values("vertex"),
-        state.field(model.field("fluid_velocity")).values("cell"),
-    )
-    for array in arrays:
-        assert array.flags.writeable is False
-        with pytest.raises(ValueError):
-            array.flat[0] = array.flat[0]
-        with pytest.raises(ValueError):
-            array.setflags(write=True)
-        assert np.asarray(array).view().flags.writeable is False
-    with pytest.raises(KeyError):
-        state.field(model.field("fluid_pressure")).values("cell")
-
-
-def test_independent_compilations_share_meaning_without_sharing_storage() -> None:
-    first_model = accepted_model()
-    second_model = accepted_model()
-    assert first_model is not second_model
-    assert first_model.structurally_equivalent(second_model)
-    assert first_model.structural_fingerprint == second_model.structural_fingerprint
-
-    first = eqiora.run(first_model, plan=resolve_plan(first_model))
-    second = eqiora.run(second_model, plan=resolve_plan(second_model))
-    assert first is not second
-    for name, association in (
-        ("fluid_velocity", "vertex"),
-        ("fluid_pressure", "vertex"),
-        ("solid_displacement", "vertex"),
-    ):
-        for ordinal in (1, 2):
-            left = first.trajectory.state(ordinal).field(first_model.field(name))
-            right = second.trajectory.state(ordinal).field(second_model.field(name))
-            left_values = left.values(association)
-            right_values = right.values(association)
-            np.testing.assert_array_equal(left_values, right_values)
-            assert not np.shares_memory(left_values, right_values)
-
-
-def test_array_owners_survive_result_and_step_deletion() -> None:
-    model = accepted_model()
-    result = eqiora.run(model, plan=resolve_plan(model))
-    trajectory = result.trajectory
-    state = trajectory.state(2)
-    evidence = eqiora.fsi.fixed_mesh_monolithic_evidence(result)
-    state_evidence = evidence.state(state)
-    arrays = (
-        trajectory.coordinates,
-        trajectory.cells,
-        state.field(model.field("fluid_velocity")).values("vertex"),
-        state.field(model.field("fluid_pressure")).values("vertex"),
-        state.field(model.field("solid_displacement")).values("vertex"),
-        state_evidence.fluid_action,
-    )
-    del state_evidence
-    del evidence
-    del state
-    del trajectory
-    del result
-    del model
-    gc.collect()
-    assert all(array.size > 0 and not array.flags.writeable for array in arrays)
-
-
-def test_foreign_current_meaning_is_rejected_before_execution() -> None:
-    foreign = foreign_model()
-    with pytest.raises(eqiora.ValidationError) as caught:
-        resolve_plan(foreign)
-    assert any(diagnostic.code == "EQ0807" for diagnostic in caught.value.diagnostics)
-
-
-def test_plan_is_bound_to_one_exact_model_before_worker_creation(
-    accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
-) -> None:
-    model, plan, _, _ = accepted
-    for foreign in (revised_model(model), foreign_model()):
-        assert foreign.digest != model.digest
-        for entry_point in (eqiora.submit, eqiora.run):
-            with pytest.raises(eqiora.ValidationError) as caught:
-                entry_point(foreign, plan=plan)
-            assert any(
-                diagnostic.code == "EQ0807" for diagnostic in caught.value.diagnostics
-            )
-
-
-def test_run_result_and_occurrence_projections_are_memoized(
-    accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
-) -> None:
-    model, plan, _, _ = accepted
-    run = eqiora.submit(model, plan=plan)
-    result = run.result()
-    assert run.result() is result
-    assert result.trajectory is result.trajectory
-    evidence = eqiora.fsi.fixed_mesh_monolithic_evidence(result)
-    assert eqiora.fsi.fixed_mesh_monolithic_evidence(result) is evidence
-    for state in result.trajectory.states:
-        assert evidence.state(state) is evidence.state(state)
-
-
-def test_trajectory_and_fsi_evidence_reject_unrelated_common_results() -> None:
-    state = eqiora.Field("x", initial=1.0)
-    model = eqiora.Model.define(
-        "hold",
-        state,
-        eqiora.Relation("hold", residual=eqiora.derivative(state)),
-    )
-    unrelated = eqiora.run(model, end_time=0.1, max_step=0.1)
-    with pytest.raises(eqiora.CapabilityError):
-        _ = unrelated.trajectory
-    with pytest.raises(eqiora.CapabilityError):
-        eqiora.fsi.fixed_mesh_monolithic_evidence(unrelated)
-    for wrong_type in (object(), model):
-        with pytest.raises(TypeError):
-            eqiora.fsi.fixed_mesh_monolithic_evidence(wrong_type)
-
-
-def test_trajectory_result_rejects_static_field_selection_explicitly(
-    accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
-) -> None:
-    model, _, result, _ = accepted
-    field = model.field("fluid_pressure")
-    for selector in (result.field, result.mesh):
-        with pytest.raises(eqiora.CapabilityError, match="Trajectory|static Field"):
-            selector(field)
-
-
-def test_evidence_state_lookup_is_bound_to_exact_occurrence_and_state(
-    accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
-) -> None:
-    model, plan, result, evidence = accepted
-    states = result.trajectory.states
-    assert tuple(item.state_digest for item in evidence.states) == tuple(
-        state.digest for state in states
-    )
-    assert tuple(evidence.state(state) for state in states) == evidence.states
-
-    repeated = eqiora.run(model, plan=plan)
     for foreign_state in repeated.trajectory.states:
         with pytest.raises(ValueError, match="different exact|occurrence|trajectory"):
             evidence.state(foreign_state)
-    other_model = accepted_model()
-    other = eqiora.run(other_model, plan=resolve_plan(other_model))
+    foreign_model = eqiora.compile(
+        source="""
+model decay {
+  field x: 1 = 1;
+  parameter rate: 1 / s = 1;
+  relation flow continuous { derivative(x) + rate * x = 0; }
+}
+"""
+    )
+    foreign_field = foreign_model.field(foreign_model.field_ids[0])
+    foreign_plan = eqiora.resolve(
+        foreign_model,
+        temporal=eqiora.time.Tsitouras45(
+            initial_step_s=0.01,
+            relative_tolerance=1.0e-9,
+            absolute_tolerances={foreign_field: 1.0e-11},
+        ),
+    )
     with pytest.raises(ValueError, match="different exact|occurrence|trajectory"):
-        evidence.state(other.trajectory.state(1))
+        evidence.state(eqiora.State.initial(foreign_plan))
     for wrong_type in (1, object(), result.trajectory):
         with pytest.raises(TypeError):
             evidence.state(wrong_type)
 
 
-def test_unsupported_intent_values_reject_during_resolution() -> None:
-    model = accepted_model()
-    for unsupported in (
-        {"time_step_s": 0.1},
-        {"steps": 1},
-        {"initial_velocity_m_per_s": (1.0, 0.0)},
-        {"initial_free_interface_displacement_m": (0.01, 0.0)},
-        {"length_scale_m": 1.0},
-        {"velocity_scale_m_per_s": 1.0},
-        {"pressure_scale_pa": 2.0},
-        {"relative_tolerance": 1.0e-10},
-        {"absolute_tolerance": 1.0e-12},
-        {"maximum_iterations": 10_000},
+def test_unrelated_common_result_rejects_fsi_evidence() -> None:
+    model = eqiora.compile(
+        source="""
+model decay {
+  field x: 1 = 1;
+  parameter rate: 1 / s = 1;
+  relation flow continuous { derivative(x) + rate * x = 0; }
+}
+"""
+    )
+    field = model.field(model.field_ids[0])
+    plan = eqiora.resolve(
+        model,
+        temporal=eqiora.time.Tsitouras45(
+            initial_step_s=0.01,
+            relative_tolerance=1.0e-9,
+            absolute_tolerances={field: 1.0e-11},
+        ),
+    )
+    unrelated = eqiora.run(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=0.1,
+        output_times_s=(0.1,),
+    )
+    with pytest.raises(eqiora.CapabilityError):
+        eqiora.fsi.evidence(unrelated)
+    for wrong_type in (object(), model):
+        with pytest.raises(TypeError):
+            eqiora.fsi.evidence(wrong_type)
+
+
+def test_independent_runs_do_not_share_observation_storage() -> None:
+    model, plan, _, first = solved()
+    mesh = plan.mesh
+    assert mesh is not None
+    second = eqiora.run(
+        plan,
+        state=initial(model, mesh, plan),
+        steps=2,
+        output_steps=(1, 2),
+    )
+    first_evidence = eqiora.fsi.evidence(first)
+    second_evidence = eqiora.fsi.evidence(second)
+    for field, association in (
+        (plan.velocity_field, "vertex"),
+        (plan.velocity_field, "cell"),
+        (plan.pressure_field, "vertex"),
+        (plan.fields[3], "vertex"),
     ):
-        with pytest.raises(eqiora.CapabilityError):
-            resolve_plan(model, **unsupported)
+        for left_state, right_state in zip(
+            first.trajectory.states, second.trajectory.states, strict=True
+        ):
+            left = left_state.field(field).values(association)
+            right = right_state.field(field).values(association)
+            np.testing.assert_array_equal(left, right)
+            assert not np.shares_memory(left, right)
+    for left, right in (
+        (first_evidence.fluid_cells, second_evidence.fluid_cells),
+        (
+            first_evidence.states[-1].fluid_action,
+            second_evidence.states[-1].fluid_action,
+        ),
+    ):
+        np.testing.assert_array_equal(left, right)
+        assert not np.shares_memory(left, right)
 
 
-def test_numpy_import_is_lazy_until_projection(tmp_path: Path) -> None:
-    script = tmp_path / "lazy_fsi_projection.py"
+def test_observation_arrays_survive_result_deletion() -> None:
+    model, plan, _, result = solved()
+    trajectory = result.trajectory
+    state = trajectory.states[-1]
+    evidence = eqiora.fsi.evidence(result)
+    state_evidence = evidence.state(state)
+    arrays = (
+        trajectory.coordinates,
+        trajectory.cells,
+        state.field(plan.velocity_field).values("vertex"),
+        state.field(plan.pressure_field).values("vertex"),
+        state.field(plan.fields[3]).values("vertex"),
+        state_evidence.fluid_action,
+    )
+    del state_evidence, evidence, state, trajectory, result, plan, model
+    gc.collect()
+    assert all(array.size > 0 and not array.flags.writeable for array in arrays)
+
+
+def test_numpy_import_is_lazy_until_observation_projection(tmp_path: Path) -> None:
+    script = tmp_path / "lazy_common_fsi_projection.py"
     script.write_text(
         """
 import sys
@@ -762,29 +531,53 @@ from importlib.resources import files
 import eqiora
 
 assert "numpy" not in sys.modules
-source = files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi").read_text()
-model = eqiora.compile(source=
-    source,
-    filename="fixed-reference-fsi.eqi",
+graph = eqiora.geometry.GeometryGraph()
+fluid = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+solid = graph.rectangle(x_bounds=(1.0, 2.0), y_bounds=(0.0, 1.0))
+partition = graph.partition(fluid, solid, interface=(fluid.boundaries[1], solid.boundaries[0]))
+geometry = graph.build(partition, named_topology={
+    "fluid": fluid.region, "fluid_x_lower": fluid.boundaries[0],
+    "fluid_x_upper": fluid.boundaries[1], "fluid_y_lower": fluid.boundaries[2],
+    "fluid_y_upper": fluid.boundaries[3], "solid": solid.region,
+    "solid_x_lower": solid.boundaries[0], "solid_x_upper": solid.boundaries[1],
+    "solid_y_lower": solid.boundaries[2], "solid_y_upper": solid.boundaries[3],
+})
+request = eqiora.meshing.MeshRequest(eqiora.meshing.AffineTriangleMesher(cells=(2, 2)))
+mesh = eqiora.meshing.generate(geometry, plan=eqiora.meshing.resolve(geometry, request))
+model = eqiora.compile(
+    path=files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi"),
+    geometry=geometry, component="FixedReferenceFsi2d",
+    parameters={"fluid_density": 2.0, "fluid_viscosity": 0.5,
+                "solid_density": 3.0, "solid_mu": 4.0,
+                "solid_lambda": 2.0, "zero_pressure": 0.0},
 )
-intent = eqiora.fsi.FixedMeshMonolithic(
-    time_step_s=0.05,
-    steps=2,
-    initial_velocity_m_per_s=(0.0, 0.0),
-    initial_free_interface_displacement_m=(0.02, 0.0),
-    length_scale_m=2.0,
-    velocity_scale_m_per_s=0.5,
-    pressure_scale_pa=4.0,
-    relative_tolerance=1.0e-11,
-    absolute_tolerance=1.0e-13,
-    maximum_iterations=20000,
+plan = eqiora.resolve(
+    model, mesh=mesh,
+    spatial=(eqiora.fem.MiniP1().at(model.domain("fluid")),
+             eqiora.fem.P1().at(model.domain("solid"))),
+    temporal=eqiora.time.BackwardEuler(step_s=0.05),
+    solve=eqiora.solve.Linear(relative_tolerance=1e-11,
+                              absolute_tolerance=1e-13,
+                              maximum_iterations=20000),
 )
-plan = eqiora.fsi.resolve(model, intent)
-result = eqiora.submit(model, plan=plan).result()
+fv, fp, sv, sd = plan.fields
+state = eqiora.State.initial(plan, time_s=0.0, fields=(
+    eqiora.InitialField(fv, vertex_values=[[0.0, 0.0]] * 6,
+                        cell_values=[[0.0, 0.0]] * 4),
+    eqiora.InitialField(fp, vertex_values=[0.25] * 6),
+    eqiora.InitialField(sv, vertex_values=[[0.0, 0.0]] * 6),
+    eqiora.InitialField(
+        sd,
+        vertex_values=[
+            [0.0, 0.0], [0.02, 0.0], [0.0, 0.0],
+            [0.0, 0.0], [0.0, 0.0], [0.0, 0.0],
+        ],
+    ),
+))
+result = eqiora.run(plan, state=state, steps=2, output_steps=(1, 2))
+evidence = eqiora.fsi.evidence(result)
 assert "numpy" not in sys.modules
-trajectory = result.trajectory
-assert "numpy" not in sys.modules
-_ = trajectory.coordinates
+_ = evidence.fluid_cells
 assert "numpy" in sys.modules
 """,
         encoding="utf-8",
@@ -797,22 +590,3 @@ assert "numpy" in sys.modules
         text=True,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
-
-
-def test_checked_in_python_demo_runs_with_packaged_model_resource() -> None:
-    if not PYTHON_DEMO.is_file():
-        pytest.skip("consumer tree does not carry the checked-in Python example")
-    completed = subprocess.run(
-        [sys.executable, "-I", str(PYTHON_DEMO)],
-        cwd=REPOSITORY_ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    assert completed.stderr == ""
-    lines = completed.stdout.splitlines()
-    assert len(lines) == 4
-    assert all(len(line) == 64 for line in lines[:2])
-    assert lines[2].startswith("step 1 at 0.05 s LinearSolveSummary(")
-    assert lines[3].startswith("step 2 at 0.1 s LinearSolveSummary(")

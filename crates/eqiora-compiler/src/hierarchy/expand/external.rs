@@ -132,6 +132,10 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 },
             );
             self.boundary_parents.insert(identity.full, parent);
+            // Exact external Geometry owns the boundary metric and orientation;
+            // retain the boundary contract while deferring Cartesian embedding
+            // validation to Geometry-aware semantic lowering.
+            self.boundary_embeddings.insert(identity.full, None);
             self.items.push(FlatItemBlueprint::Domain {
                 name: internal_name,
                 contract: LoweringDomainContract::ExternalGeometryBoundary {

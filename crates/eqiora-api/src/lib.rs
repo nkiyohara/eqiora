@@ -13,7 +13,6 @@ mod elasticity;
 mod external_data;
 mod external_spatial;
 mod fixed_mesh_trajectory;
-mod fixed_reference_fsi;
 mod geometry_edit;
 mod ml_dataset;
 pub mod package;
@@ -37,9 +36,6 @@ pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFinge
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
 pub use fixed_mesh_trajectory::FixedMeshFieldTrajectoryReplay2dV1;
-pub use fixed_reference_fsi::{
-    FixedMeshMonolithicFsiIntent2d, FixedReferenceFsiResult2d, ResolvedFixedMeshMonolithicFsiPlan2d,
-};
 pub use geometry_edit::{CartesianDomainEditPlan, CartesianDomainEditResult};
 pub use ml_dataset::*;
 pub use parameter_regeneration::{

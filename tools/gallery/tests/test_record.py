@@ -56,7 +56,7 @@ def fixture() -> tuple[
         "realization_digest": digest("realization"),
         "realization_revision": 4,
         "run_digest": "1" * 64,
-        "run_manifest_sha256": digest("run-manifest"),
+        "run_identity_sha256": digest("run-identity"),
         "state_digests": [digest("state-1"), digest("state-2")],
         "trajectory_digest": digest("trajectory"),
         "scientific_case_ids": list(EVIDENCE),

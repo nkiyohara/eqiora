@@ -407,30 +407,6 @@ test("never fabricates the native structural solve in browser preview", async ({
   await expectNoSeriousOrCriticalViolations(page);
 });
 
-test("never fabricates the native fixed-reference FSI solve in browser preview", async ({
-  page,
-}) => {
-  await page.goto("/");
-  const editor = page.getByRole("textbox", { name: "Eqiora model source" });
-  const acceptedSource = await editor.inputValue();
-
-  await executePaletteCommand(page, "run FSI demo", /Run FSI demo/);
-
-  await expect(
-    page.getByText(
-      "The fixed-reference FSI solve is available only in native Studio; browser preview does not fabricate scientific results.",
-      { exact: true },
-    ),
-  ).toBeVisible();
-  await expect(page.getByText("One trace. Two bodies.", { exact: false })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Relation view" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "FSI", exact: true })).toHaveCount(0);
-  await expect(page.locator(".document-name")).toHaveText("untitled.eqi");
-  await expect(page.getByText("Revision 1", { exact: true })).toBeVisible();
-  await expect(editor).toHaveValue(acceptedSource);
-  await expectNoSeriousOrCriticalViolations(page);
-});
-
 test("has no serious or critical automated WCAG 2.2 violations in primary states", async ({
   page,
 }) => {

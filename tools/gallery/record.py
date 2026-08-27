@@ -372,7 +372,7 @@ def _check_lineage(
         "realization_digest",
         "realization_revision",
         "run_digest",
-        "run_manifest_sha256",
+        "run_identity_sha256",
         "state_digests",
         "trajectory_digest",
         "scientific_case_ids",

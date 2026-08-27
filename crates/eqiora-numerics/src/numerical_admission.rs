@@ -11,6 +11,11 @@ use crate::canonical_elasticity::{
     IsotropicElasticityCartesianModel2d, finalize_isotropic_elasticity_cartesian_q1_on_mesh,
     lower_isotropic_elasticity_geometry_2d, recognize_isotropic_elasticity_geometry_mathematics,
 };
+use crate::canonical_fsi::{
+    FixedReferenceFsiCartesianModel2d, FixedReferenceFsiScaleProfile2d,
+    finalize_resolved_fixed_reference_fsi_step_2d, fixed_reference_fsi_plan_2d,
+    fixed_reference_fsi_requirements_2d, lower_fixed_reference_fsi_geometry_2d,
+};
 use crate::canonical_stokes::{
     CellCenteredNavierStokesInitialState2d, IncompressibleScalingReceipt2d,
     IncompressibleScalingRequest2d, ResolvedCellCenteredNavierStokesState2d,
@@ -20,7 +25,7 @@ use crate::canonical_stokes::{
     advance_resolved_transient_navier_stokes_mini_2d,
     lower_transient_incompressible_navier_stokes_cartesian_2d,
     recognize_steady_incompressible_stokes_geometry_mathematics,
-    resolve_complete_manual_incompressible_scaling_2d,
+    resolve_complete_manual_incompressible_scaling_2d, resolve_fixed_reference_fsi_scaling_2d,
     solve_resolved_steady_stokes_geometry_mini_2d, transient_navier_stokes_cell_centered_plan_2d,
     transient_navier_stokes_cell_centered_requirements_2d,
     transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
@@ -38,6 +43,9 @@ use crate::fluid::{
     CellCenteredPressureField2d, CellCenteredVelocityField2d, IncompressibleFlowScaleProfile2d,
     SimplicialMiniVelocityField2d, SteadyStokesGeometryBinding2d, SteadyStokesPressureReference2d,
 };
+use crate::fsi::{
+    FixedReferenceFsiPartition2d, FixedReferenceFsiState2d, ResolvedFixedReferenceFsiSolution2d,
+};
 use crate::scalar::{
     CartesianScalarFieldLinearization, ResolvedScalarEllipticCartesianSolution,
     ScalarEllipticCartesianModel, solve_scalar_elliptic_cartesian_fem,
@@ -47,8 +55,8 @@ use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::step_count::NonZeroStepCount;
 use eqiora_artifact::{
     CanonicalModelArtifact, CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    MeshProductionLineageEnvelopeV1, ModelEnvelope, RealizationEnvelopeV2,
-    SimplicialMeshEnvelopeV1,
+    LayoutArtifacts, MeshProductionLineageEnvelopeV1, ModelEnvelope, RealizationEnvelopeV2,
+    RealizationEnvelopeV3, SimplicialMeshEnvelopeV1,
 };
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_core::diagnostic::codes;
@@ -59,19 +67,21 @@ use eqiora_execution::{
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_io_gmsh::{GmshImportLimits, GmshSimplexImporter, GmshSimplicialImport};
-use eqiora_meshing::{MeshEntity, MeshTopology, QuadratureRule};
+use eqiora_meshing::{CellId, FacetId, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh};
 use eqiora_realization::{
-    Discretization, DiscretizationMethod, ExecutionSchedule, FieldwiseRealizationRequest, MeshKind,
-    MeshPolicy, NonlinearSolvePlan, PortableRealizationGraph, QuadraturePolicy,
-    RealizationCapabilities, RealizationPlan, RealizationRequest, RealizationRequirements,
-    RealizationRevision, ResolvedFieldwiseRealization,
+    CoupledFieldwiseRealizationRequest, Discretization, DiscretizationMethod, ExecutionSchedule,
+    FieldwiseRealizationRequest, MeshArtifactReference, MeshKind, MeshPolicy, NonlinearSolvePlan,
+    PortableRealizationGraph, QuadraturePolicy, RealizationCapabilities, RealizationPlan,
+    RealizationRequest, RealizationRequirements, RealizationRevision,
+    ResolvedCoupledFieldwiseRealization, ResolvedFieldwiseRealization,
     ResolvedTransientCellCenteredIncompressibleFlowRealization,
     ResolvedTransientFieldwiseRealization, SemanticRevision, SingleFieldOperatorClaim, Space,
     SpaceFamily, SpatialDimensionSupport, Target, TargetCapabilities,
     TransientCellCenteredIncompressibleFlowCapabilities,
     TransientCellCenteredIncompressibleFlowRealizationRequest,
-    TransientFieldwiseRealizationRequest, VectorLayoutKind, resolve, resolve_fieldwise,
-    resolve_transient_cell_centered_incompressible_flow, resolve_transient_fieldwise,
+    TransientFieldwiseRealizationRequest, VectorLayoutKind, resolve, resolve_coupled_fieldwise,
+    resolve_fieldwise, resolve_transient_cell_centered_incompressible_flow,
+    resolve_transient_fieldwise,
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
@@ -98,9 +108,124 @@ type TaggedMeshAssignments = (BTreeMap<u32, Vec<usize>>, BTreeMap<u32, Vec<usize
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommonSpatialPolicy {
     Q1,
+    P1,
     CellCenteredTpfa,
     MiniP1,
     CellCentered,
+}
+
+/// One exact Domain-scoped spatial policy binding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommonScopedSpatialPolicy {
+    model: eqiora_artifact::ArtifactDigest,
+    domain: eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+    policy: CommonSpatialPolicy,
+}
+
+impl CommonScopedSpatialPolicy {
+    #[must_use]
+    pub fn new(
+        model: eqiora_artifact::ArtifactDigest,
+        domain: eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+        policy: CommonSpatialPolicy,
+    ) -> Self {
+        Self {
+            model,
+            domain,
+            policy,
+        }
+    }
+    #[must_use]
+    pub const fn model(&self) -> &eqiora_artifact::ArtifactDigest {
+        &self.model
+    }
+    #[must_use]
+    pub const fn domain(&self) -> eqiora_core::Id<eqiora_core::entity::kinds::Domain> {
+        self.domain
+    }
+    #[must_use]
+    pub const fn policy(&self) -> CommonSpatialPolicy {
+        self.policy
+    }
+}
+
+/// Closed spatial request consumed by the one common Model-first resolver.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CommonSpatialRequest {
+    Uniform(CommonSpatialPolicy),
+    Scoped(Vec<CommonScopedSpatialPolicy>),
+}
+
+/// Immutable coherent-SI values for one supported exact Field association.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CommonInitialValues {
+    Scalar(Box<[f64]>),
+    Vector2(Box<[[f64; 2]]>),
+}
+
+/// One exact Model/Field-bound initial assignment with bounded associations.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonInitialField {
+    model: eqiora_artifact::ArtifactDigest,
+    field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    vertex: Option<CommonInitialValues>,
+    cell: Option<CommonInitialValues>,
+}
+
+impl CommonInitialField {
+    pub fn new(
+        model: eqiora_artifact::ArtifactDigest,
+        field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+        vertex: Option<CommonInitialValues>,
+        cell: Option<CommonInitialValues>,
+    ) -> Result<Self, Diagnostic> {
+        if vertex.is_none() && cell.is_none() {
+            return Err(invalid(
+                "InitialField requires vertex_values or cell_values",
+            ));
+        }
+        let finite = |values: &CommonInitialValues| match values {
+            CommonInitialValues::Scalar(values) => values.iter().all(|value| value.is_finite()),
+            CommonInitialValues::Vector2(values) => {
+                values.iter().flatten().all(|value| value.is_finite())
+            }
+        };
+        if vertex.as_ref().is_some_and(|values| !finite(values))
+            || cell.as_ref().is_some_and(|values| !finite(values))
+        {
+            return Err(invalid(
+                "InitialField values must be finite coherent-SI numbers",
+            ));
+        }
+        Ok(Self {
+            model,
+            field,
+            vertex,
+            cell,
+        })
+    }
+    #[must_use]
+    pub const fn model(&self) -> &eqiora_artifact::ArtifactDigest {
+        &self.model
+    }
+    #[must_use]
+    pub const fn field(&self) -> eqiora_core::Id<eqiora_core::entity::kinds::Field> {
+        self.field
+    }
+    #[must_use]
+    pub const fn vertex(&self) -> Option<&CommonInitialValues> {
+        self.vertex.as_ref()
+    }
+    #[must_use]
+    pub const fn cell(&self) -> Option<&CommonInitialValues> {
+        self.cell.as_ref()
+    }
+}
+
+impl From<CommonSpatialPolicy> for CommonSpatialRequest {
+    fn from(value: CommonSpatialPolicy) -> Self {
+        Self::Uniform(value)
+    }
 }
 
 /// Closed time integration policy requested from the common resolver.
@@ -173,6 +298,7 @@ enum ResolvedCommonPlanKind {
     Elasticity(Box<CommonElasticityPlan>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     TransientFlow(Box<CommonTransientFlowPlan>),
+    Fsi(Box<CommonFsiPlan>),
 }
 
 impl ResolvedCommonPlan {
@@ -184,6 +310,7 @@ impl ResolvedCommonPlan {
         elasticity: impl FnOnce(CommonElasticityPlan) -> T,
         steady_stokes: impl FnOnce(CommonSteadyStokesPlan) -> T,
         transient_flow: impl FnOnce(CommonTransientFlowPlan) -> T,
+        fsi: impl FnOnce(CommonFsiPlan) -> T,
     ) -> T {
         match self.kind {
             ResolvedCommonPlanKind::Ode(plan) => ode(*plan),
@@ -191,8 +318,39 @@ impl ResolvedCommonPlan {
             ResolvedCommonPlanKind::Elasticity(plan) => elasticity(*plan),
             ResolvedCommonPlanKind::SteadyStokes(plan) => steady_stokes(*plan),
             ResolvedCommonPlanKind::TransientFlow(plan) => transient_flow(*plan),
+            ResolvedCommonPlanKind::Fsi(plan) => fsi(*plan),
         }
     }
+}
+
+/// Opaque native fixed-reference FSI Plan owning exact common resources.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonFsiPlan {
+    model: ModelEnvelope,
+    canonical: FixedReferenceFsiCartesianModel2d,
+    resources: NativeMeshResources,
+    partition: FixedReferenceFsiPartition2d,
+    resolved: ResolvedCoupledFieldwiseRealization,
+    realization: RealizationEnvelopeV3,
+    scaling: FixedReferenceFsiScaleProfile2d,
+    scaling_receipt: IncompressibleScalingReceipt2d,
+    temporal: CommonBackwardEuler,
+    linear: SolverPlan,
+    solver_provider: SolverProvider,
+    solver_capabilities: SolverCapabilities,
+    execution_provider: ExecutionProvider,
+    workers: NonZeroUsize,
+    identity: String,
+    model_id: String,
+    model_revision: u64,
+    model_digest: String,
+    geometry_digest: String,
+    mesh_digest: String,
+    correspondence_digest: String,
+    production_digest: String,
+    realization_digest: String,
+    field_ids: [String; 4],
+    domain_ids: [String; 2],
 }
 
 /// Resolve one canonical no-Mesh explicit ODE through the common native Plan sum.
@@ -239,6 +397,11 @@ pub struct CommonTransientFlowPlan {
 enum CommonStateKind {
     MiniP1(Box<TransientNavierStokesInitialState2d>),
     CellCentered(Box<CellCenteredNavierStokesInitialState2d>),
+    Fsi {
+        state: Box<FixedReferenceFsiState2d>,
+        pressure: Box<[f64]>,
+        accepted: Option<Box<ResolvedFixedReferenceFsiSolution2d>>,
+    },
 }
 
 /// Opaque coherent-SI state for one exact common transient state space.
@@ -260,6 +423,115 @@ pub struct CommonTransientRunRequest {
     accepted_steps: NonZeroUsize,
     output_steps: Vec<usize>,
     identity: String,
+}
+
+/// Canonical common-worker request for one exact FSI Plan and State.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonFsiRunRequest {
+    plan: CommonFsiPlan,
+    state: CommonState,
+    accepted_steps: NonZeroUsize,
+    output_steps: Vec<usize>,
+    identity: String,
+}
+
+impl CommonFsiRunRequest {
+    pub fn from_steps(
+        plan: CommonFsiPlan,
+        state: CommonState,
+        steps: usize,
+        output_steps: Vec<usize>,
+    ) -> Result<Self, Diagnostic> {
+        let accepted_steps = NonZeroUsize::new(steps)
+            .ok_or_else(|| invalid("FSI Run steps must be strictly positive"))?;
+        Self::new(plan, state, accepted_steps, output_steps)
+    }
+
+    pub fn from_times(
+        plan: CommonFsiPlan,
+        state: CommonState,
+        until_s: f64,
+        output_times_s: Vec<f64>,
+    ) -> Result<Self, Diagnostic> {
+        let step_s = plan.temporal().step().value();
+        let accepted = exact_grid_index(state.time_s(), until_s, step_s, "until_s")?;
+        let outputs = output_times_s
+            .into_iter()
+            .map(|time| exact_grid_index(state.time_s(), time, step_s, "output_times_s"))
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::new(
+            plan,
+            state,
+            NonZeroUsize::new(accepted)
+                .ok_or_else(|| invalid("FSI Run horizon contains no accepted step"))?,
+            outputs,
+        )
+    }
+
+    fn new(
+        plan: CommonFsiPlan,
+        state: CommonState,
+        accepted_steps: NonZeroUsize,
+        output_steps: Vec<usize>,
+    ) -> Result<Self, Diagnostic> {
+        if state.state_space_identity() != plan.state_space_identity() {
+            return Err(invalid(
+                "FSI Run State belongs to an incompatible common state space",
+            ));
+        }
+        if output_steps.is_empty()
+            || output_steps.windows(2).any(|pair| pair[0] >= pair[1])
+            || output_steps
+                .iter()
+                .any(|step| *step == 0 || *step > accepted_steps.get())
+        {
+            return Err(invalid(
+                "FSI output_steps must be nonempty, strictly increasing, and within the horizon",
+            ));
+        }
+        let mut bytes = Vec::new();
+        push_framed(&mut bytes, plan.identity().as_bytes());
+        push_framed(&mut bytes, state.identity().as_bytes());
+        bytes.extend_from_slice(&(accepted_steps.get() as u64).to_be_bytes());
+        for output in &output_steps {
+            bytes.extend_from_slice(&(*output as u64).to_be_bytes());
+        }
+        let identity = hex_bytes(&Sha256::digest(
+            [
+                b"eqiora.common-fsi-run-request/v1\0".as_slice(),
+                bytes.as_slice(),
+            ]
+            .concat(),
+        ));
+        Ok(Self {
+            plan,
+            state,
+            accepted_steps,
+            output_steps,
+            identity,
+        })
+    }
+
+    #[must_use]
+    pub const fn plan(&self) -> &CommonFsiPlan {
+        &self.plan
+    }
+    #[must_use]
+    pub const fn state(&self) -> &CommonState {
+        &self.state
+    }
+    #[must_use]
+    pub const fn accepted_steps(&self) -> NonZeroUsize {
+        self.accepted_steps
+    }
+    #[must_use]
+    pub fn output_steps(&self) -> &[usize] {
+        &self.output_steps
+    }
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
 }
 
 impl CommonTransientRunRequest {
@@ -463,6 +735,24 @@ impl CommonState {
                     bytes.extend_from_slice(&value.to_bits().to_be_bytes());
                 }
             }
+            CommonStateKind::Fsi {
+                state, pressure, ..
+            } => {
+                push_framed(
+                    &mut bytes,
+                    b"fixed-reference-fsi/mini-p1+p1/backward-euler/v1",
+                );
+                for value in state
+                    .vertex_velocity()
+                    .iter()
+                    .flatten()
+                    .chain(state.fluid_cell_bubble_velocity().iter().flatten())
+                    .chain(pressure.iter())
+                    .chain(state.solid_displacement().iter().flatten())
+                {
+                    bytes.extend_from_slice(&value.to_bits().to_be_bytes());
+                }
+            }
         }
         let identity = hex_bytes(&Sha256::digest(
             [b"eqiora.common-state/v1\0".as_slice(), bytes.as_slice()].concat(),
@@ -500,6 +790,7 @@ impl CommonState {
         match &self.kind {
             CommonStateKind::MiniP1(state) => Some(state.velocity().vertex_values()),
             CommonStateKind::CellCentered(_) => None,
+            CommonStateKind::Fsi { state, .. } => Some(state.vertex_velocity()),
         }
     }
 
@@ -508,6 +799,7 @@ impl CommonState {
         match &self.kind {
             CommonStateKind::MiniP1(state) => state.velocity().cell_bubble_values(),
             CommonStateKind::CellCentered(state) => state.velocity().values(),
+            CommonStateKind::Fsi { state, .. } => state.fluid_cell_bubble_velocity(),
         }
     }
 
@@ -516,6 +808,7 @@ impl CommonState {
         match &self.kind {
             CommonStateKind::MiniP1(state) => Some(state.pressure().vertex_values()),
             CommonStateKind::CellCentered(_) => None,
+            CommonStateKind::Fsi { pressure, .. } => Some(pressure),
         }
     }
 
@@ -524,6 +817,23 @@ impl CommonState {
         match &self.kind {
             CommonStateKind::MiniP1(_) => None,
             CommonStateKind::CellCentered(state) => Some(state.pressure().values()),
+            CommonStateKind::Fsi { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub fn fsi_solid_displacement_values(&self) -> Option<&[[f64; 2]]> {
+        match &self.kind {
+            CommonStateKind::Fsi { state, .. } => Some(state.solid_displacement()),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn fsi_accepted_solution(&self) -> Option<&ResolvedFixedReferenceFsiSolution2d> {
+        match &self.kind {
+            CommonStateKind::Fsi { accepted, .. } => accepted.as_deref(),
+            _ => None,
         }
     }
 
@@ -532,6 +842,7 @@ impl CommonState {
         match &self.kind {
             CommonStateKind::MiniP1(_) => &[],
             CommonStateKind::CellCentered(state) => state.previous_face_volume_fluxes(),
+            CommonStateKind::Fsi { .. } => &[],
         }
     }
 }
@@ -616,13 +927,14 @@ pub struct CommonSteadyStokesPlan {
 pub fn resolve_common_plan(
     model: &ModelEnvelope,
     owner: AuthenticatedCommonMesh,
-    spatial: CommonSpatialPolicy,
+    spatial: impl Into<CommonSpatialRequest>,
     solve: CommonSolvePolicy,
     scaling: Option<IncompressibleScalingRequest2d>,
     temporal: Option<CommonBackwardEuler>,
     stokes_backend: &dyn LinearSolverBackend,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
     let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
+    let spatial = spatial.into();
     let requested_linear = match solve {
         CommonSolvePolicy::Linear(linear) | CommonSolvePolicy::Newton { linear, .. } => linear,
     };
@@ -651,6 +963,11 @@ pub fn resolve_common_plan(
                     "scalar-elliptic Model mathematics does not admit incompressible-flow scaling",
                 ));
             }
+            let CommonSpatialRequest::Uniform(spatial) = spatial else {
+                return Err(invalid(
+                    "scalar-elliptic mathematics does not admit Domain-scoped spatial policies",
+                ));
+            };
             let spatial = match spatial {
                 CommonSpatialPolicy::Q1 => NativeSpatialPolicy::ScalarQ1,
                 CommonSpatialPolicy::CellCenteredTpfa => NativeSpatialPolicy::ScalarTpfa,
@@ -662,6 +979,11 @@ pub fn resolve_common_plan(
                 CommonSpatialPolicy::CellCentered => {
                     return Err(invalid(
                         "scalar-elliptic Model mathematics is incompatible with incompressible CellCentered",
+                    ));
+                }
+                CommonSpatialPolicy::P1 => {
+                    return Err(invalid(
+                        "scalar-elliptic Model mathematics is incompatible with simplex P1",
                     ));
                 }
             };
@@ -687,6 +1009,11 @@ pub fn resolve_common_plan(
                     "linear-elasticity mathematics does not admit incompressible-flow scaling",
                 ));
             }
+            let CommonSpatialRequest::Uniform(spatial) = spatial else {
+                return Err(invalid(
+                    "linear-elasticity mathematics does not admit Domain-scoped spatial policies",
+                ));
+            };
             if spatial != CommonSpatialPolicy::Q1 {
                 return Err(invalid(
                     "linear-elasticity mathematics requires the admitted Cartesian Q1 policy",
@@ -710,6 +1037,11 @@ pub fn resolve_common_plan(
                     "steady-Stokes mathematics does not admit a temporal policy",
                 ));
             }
+            let CommonSpatialRequest::Uniform(spatial) = spatial else {
+                return Err(invalid(
+                    "steady-Stokes mathematics does not admit Domain-scoped spatial policies",
+                ));
+            };
             if spatial != CommonSpatialPolicy::MiniP1 {
                 return Err(invalid(
                     "steady-Stokes Model mathematics requires the admitted MINI/P1 policy",
@@ -740,6 +1072,11 @@ pub fn resolve_common_plan(
             })
         }
         NativeCapability::TransientIncompressibleFlow => {
+            let CommonSpatialRequest::Uniform(spatial) = spatial else {
+                return Err(invalid(
+                    "transient-flow mathematics does not admit Domain-scoped spatial policies",
+                ));
+            };
             let CommonSolvePolicy::Newton { nonlinear, linear } = solve else {
                 return Err(invalid(
                     "transient incompressible-flow mathematics requires Newton(linear=...) policy",
@@ -772,11 +1109,15 @@ pub fn resolve_common_plan(
                         "transient incompressible-flow mathematics requires MINI/P1 or CellCentered",
                     ));
                 }
+                CommonSpatialPolicy::P1 => return Err(invalid(
+                    "transient incompressible-flow mathematics does not admit standalone P1",
+                )),
             });
             let linear_backend: &dyn LinearSolverBackend = match spatial {
                 CommonSpatialPolicy::MiniP1 => stokes_backend,
                 CommonSpatialPolicy::CellCentered => &REFERENCE_LINEAR_SOLVER,
                 CommonSpatialPolicy::Q1 | CommonSpatialPolicy::CellCenteredTpfa => unreachable!(),
+                CommonSpatialPolicy::P1 => unreachable!(),
             };
             let linear = NativeLinearPolicy::exact(effective_linear, linear_backend)?;
             let native_spatial = match spatial {
@@ -787,6 +1128,7 @@ pub fn resolve_common_plan(
                     NativeSpatialPolicy::TransientCellCentered(scaling.scales())
                 }
                 CommonSpatialPolicy::Q1 | CommonSpatialPolicy::CellCenteredTpfa => unreachable!(),
+                CommonSpatialPolicy::P1 => unreachable!(),
             };
             let admission =
                 recognized.complete(native_spatial, linear, Some(temporal), Some(nonlinear))?;
@@ -795,6 +1137,633 @@ pub fn resolve_common_plan(
                     kind: ResolvedCommonPlanKind::TransientFlow(Box::new(plan)),
                 })
         }
+        NativeCapability::FixedReferenceFsi => {
+            let CommonSolvePolicy::Linear(linear) = solve else {
+                return Err(invalid(
+                    "fixed-reference FSI mathematics requires Linear solve policy",
+                ));
+            };
+            let temporal = temporal
+                .ok_or_else(|| invalid("fixed-reference FSI mathematics requires BackwardEuler"))?;
+            let CommonSpatialRequest::Scoped(bindings) = spatial else {
+                return Err(invalid(
+                    "fixed-reference FSI mathematics requires exact Domain-scoped spatial policies",
+                ));
+            };
+            let RecognizedNativeModel::Fsi(canonical) = &recognized.recognized else {
+                unreachable!("FSI capability owns recognized FSI meaning")
+            };
+            let expected = BTreeMap::from([
+                (canonical.fluid().domain(), CommonSpatialPolicy::MiniP1),
+                (canonical.solid().domain(), CommonSpatialPolicy::P1),
+            ]);
+            let mut actual = BTreeMap::new();
+            for binding in bindings {
+                if binding.model() != &model.digest()? {
+                    return Err(invalid(
+                        "FSI scoped spatial policy carries a foreign or stale exact Model reference",
+                    ));
+                }
+                if actual
+                    .insert(binding.domain().erase(), binding.policy())
+                    .is_some()
+                {
+                    return Err(invalid("FSI scoped spatial policy repeats one DomainRef"));
+                }
+            }
+            if actual != expected {
+                return Err(invalid(
+                    "FSI scoped spatial policies must completely and exclusively bind MiniP1 to fluid and P1 to solid",
+                ));
+            }
+            let effective_linear = SolverPlan::new(
+                LinearSolver::MinimumResidual,
+                linear.relative_tolerance(),
+                linear.absolute_tolerance(),
+                linear.maximum_iterations(),
+            )?
+            .with_preconditioner(PreconditionerPolicy::Identity)
+            .with_reduction(ReductionPolicy::Reproducible);
+            REFERENCE_LINEAR_SOLVER.capabilities().require_problem(
+                effective_linear,
+                ScalarType::F64,
+                LinearOperatorProperties::SymmetricIndefinite,
+            )?;
+            CommonFsiPlan::from_recognized(model, recognized, scaling, temporal, effective_linear)
+                .map(|plan| ResolvedCommonPlan {
+                    kind: ResolvedCommonPlanKind::Fsi(Box::new(plan)),
+                })
+        }
+    }
+}
+
+impl CommonFsiPlan {
+    fn from_recognized(
+        model: &ModelEnvelope,
+        recognized: RecognizedNativeAdmission,
+        scaling_request: Option<IncompressibleScalingRequest2d>,
+        temporal: CommonBackwardEuler,
+        linear: SolverPlan,
+    ) -> Result<Self, Diagnostic> {
+        let RecognizedNativeModel::Fsi(canonical) = &recognized.recognized else {
+            return Err(invalid("native FSI Plan requires recognized FSI meaning"));
+        };
+        let NativeMeshResources::AdjacentPartitionSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            ..
+        } = &recognized.resources
+        else {
+            return Err(invalid(
+                "native FSI Plan requires authenticated adjacent-partition simplicial resources",
+            ));
+        };
+        validate_simplicial_resources(&recognized.resources)?;
+        let native_mesh = mesh.mesh().clone();
+        let entities = |name: &str| {
+            correspondence.adjacent_rectangle_partition_entity_set_entities(geometry, name)
+        };
+        let region_set = |domain: eqiora_core::RawId| -> Result<&str, Diagnostic> {
+            match recognized.program.node(domain) {
+                Some(eqiora_schema::kernel::KernelNode::Domain(definition)) => {
+                    match definition.kind() {
+                        eqiora_schema::kernel::DomainKind::GeometryRegion {
+                            entity_set, ..
+                        } => Ok(entity_set),
+                        _ => Err(invalid("FSI canonical subdomain is not a GeometryRegion")),
+                    }
+                }
+                _ => Err(invalid(
+                    "FSI canonical subdomain identity is absent from the exact Model",
+                )),
+            }
+        };
+        let fluid_set = region_set(canonical.fluid().domain())?;
+        let solid_set = region_set(canonical.solid().domain())?;
+        let interface_set = match recognized
+            .program
+            .node(canonical.interface().fluid().boundary())
+        {
+            Some(eqiora_schema::kernel::KernelNode::Domain(definition)) => {
+                match definition.kind() {
+                    eqiora_schema::kernel::DomainKind::GeometryBoundary { entity_set } => {
+                        entity_set.as_str()
+                    }
+                    _ => return Err(invalid("FSI fluid interface is not a GeometryBoundary")),
+                }
+            }
+            _ => {
+                return Err(invalid(
+                    "FSI fluid interface boundary is absent from the exact Model",
+                ));
+            }
+        };
+        let fluid_cells = entities(fluid_set)?
+            .into_iter()
+            .filter(|entity| entity.dimension() == 2)
+            .map(|entity| CellId::new(entity.index()))
+            .collect();
+        let solid_cells = entities(solid_set)?
+            .into_iter()
+            .filter(|entity| entity.dimension() == 2)
+            .map(|entity| CellId::new(entity.index()))
+            .collect();
+        let interface_facets = entities(interface_set)?
+            .into_iter()
+            .filter(|entity| entity.dimension() == 1)
+            .map(|entity| FacetId::new(entity.index()))
+            .collect();
+        let partition = FixedReferenceFsiPartition2d::new(
+            &native_mesh,
+            fluid_cells,
+            solid_cells,
+            interface_facets,
+        )?;
+        let (geometry_artifact, mesh_artifact, correspondence_artifact, production_artifact) =
+            resource_artifact_digests(&recognized.resources)?;
+        let (bounds, _) = geometry
+            .planar_adjacent_rectangle_partition()
+            .ok_or_else(|| invalid("FSI scaling requires exact adjacent bounds"))?;
+        let resolved_scaling = resolve_fixed_reference_fsi_scaling_2d(
+            scaling_request,
+            model.digest()?,
+            geometry_artifact,
+            correspondence_artifact,
+            mesh_artifact,
+            production_artifact,
+            bounds[0],
+            canonical.solid().shear_modulus(),
+            canonical.solid().mass_density(),
+            canonical.fluid().mass_density(),
+        )?;
+        let flow_scales = resolved_scaling.scales();
+        let scaling_receipt = resolved_scaling.receipt().clone();
+        let scaling = FixedReferenceFsiScaleProfile2d::new(
+            flow_scales.length(),
+            flow_scales.velocity(),
+            flow_scales.pressure(),
+        )?;
+        let mesh_reference =
+            MeshArtifactReference::from_sha256(mesh.artifact_reference()?.sha256());
+        let realization_plan = fixed_reference_fsi_plan_2d(
+            canonical,
+            mesh_reference,
+            temporal.step(),
+            scaling,
+            linear,
+        )?;
+        let resolved = resolve_coupled_fieldwise(
+            &CoupledFieldwiseRealizationRequest::explicit(
+                recognized.program.model(),
+                SemanticRevision::new(canonical.semantic_revision()),
+                RealizationRevision::new(177),
+                realization_plan,
+            ),
+            fixed_reference_fsi_requirements_2d(canonical),
+            &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
+        )?;
+        let realization =
+            RealizationEnvelopeV3::from_resolved(model, &resolved, LayoutArtifacts::Replicated)?;
+        realization.validate_model_artifact(model)?;
+        realization.validate_mesh_artifact(mesh)?;
+        let reference = model.artifact_reference()?;
+        let solver_provider = REFERENCE_LINEAR_SOLVER.provider();
+        let solver_capabilities = REFERENCE_LINEAR_SOLVER.capabilities();
+        let execution_provider = SERIAL_EXECUTION_PROVIDER;
+        let workers = NonZeroUsize::MIN;
+        let model_id = reference.model().ulid().to_string();
+        let model_revision = reference.semantic_revision().get();
+        let model_digest = model.digest()?.to_string();
+        let (geometry_digest, mesh_digest, correspondence_digest, production_digest) =
+            resource_digests(&recognized.resources)?;
+        let field_ids = [
+            canonical.fluid().velocity().ulid().to_string(),
+            canonical.fluid().pressure().ulid().to_string(),
+            canonical.solid().velocity().ulid().to_string(),
+            canonical.solid().displacement().ulid().to_string(),
+        ];
+        let domain_ids = [
+            canonical.fluid().domain().ulid().to_string(),
+            canonical.solid().domain().ulid().to_string(),
+        ];
+        let mut identity_bytes = Vec::new();
+        let realization_digest = realization.digest()?.to_string();
+        let scaling_provenance_digest = scaling_receipt.provenance_digest().to_string();
+        for value in [
+            &model_digest,
+            &geometry_digest,
+            &mesh_digest,
+            &correspondence_digest,
+            &production_digest,
+            &realization_digest,
+            &scaling_provenance_digest,
+            solver_provider.id().as_str(),
+            solver_provider.implementation_version(),
+            execution_provider.id().as_str(),
+            execution_provider.implementation_version(),
+        ] {
+            push_framed(&mut identity_bytes, value.as_bytes());
+        }
+        identity_bytes.extend_from_slice(&temporal.step().value().to_bits().to_be_bytes());
+        let digest: [u8; 32] = Sha256::digest(identity_bytes).into();
+        let identity = format!("common-fsi:{}", hex_bytes(&digest));
+        Ok(Self {
+            model: model.clone(),
+            canonical: (**canonical).clone(),
+            resources: recognized.resources,
+            partition,
+            resolved,
+            realization,
+            scaling,
+            scaling_receipt,
+            temporal,
+            linear,
+            solver_provider,
+            solver_capabilities,
+            execution_provider,
+            workers,
+            identity,
+            model_id,
+            model_revision,
+            model_digest,
+            geometry_digest,
+            mesh_digest,
+            correspondence_digest,
+            production_digest,
+            realization_digest,
+            field_ids,
+            domain_ids,
+        })
+    }
+
+    fn mesh(&self) -> &SimplicialMesh {
+        let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = &self.resources else {
+            unreachable!("CommonFsiPlan owns adjacent simplicial resources")
+        };
+        mesh.mesh()
+    }
+
+    pub fn state_space_identity(&self) -> String {
+        let mut bytes = Vec::new();
+        for value in [
+            "fixed-reference-fsi/f64/replicated/mini-p1-fluid+p1-solid/shared-trace-quotient/gauge-free-pressure/backward-euler-velocity-displacement-history/v1",
+            self.model_digest.as_str(),
+            self.geometry_digest.as_str(),
+            self.mesh_digest.as_str(),
+            self.correspondence_digest.as_str(),
+            self.production_digest.as_str(),
+        ] {
+            push_framed(&mut bytes, value.as_bytes());
+        }
+        for value in self.field_ids.iter().chain(self.domain_ids.iter()) {
+            push_framed(&mut bytes, value.as_bytes());
+        }
+        hex_bytes(&Sha256::digest(bytes))
+    }
+
+    /// Admit complete exact-Field assignments for all four FSI Fields.
+    pub fn initial_state(
+        &self,
+        time_s: f64,
+        fields: Vec<CommonInitialField>,
+    ) -> Result<CommonState, Diagnostic> {
+        if fields.len() != 4 {
+            return Err(invalid(
+                "FSI State.initial requires exactly four complete InitialField assignments",
+            ));
+        }
+        let expected_model = self.model.digest()?;
+        let mut by_field = BTreeMap::new();
+        for field in fields {
+            if field.model() != &expected_model {
+                return Err(invalid(
+                    "InitialField belongs to a foreign or stale exact Model",
+                ));
+            }
+            if by_field
+                .insert(field.field().ulid().to_string(), field)
+                .is_some()
+            {
+                return Err(invalid("State.initial repeats one exact FieldRef"));
+            }
+        }
+        if by_field.keys().cloned().collect::<Vec<_>>()
+            != self
+                .field_ids
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>()
+        {
+            return Err(invalid(
+                "FSI State.initial assignments are not complete and exclusive for Plan.fields",
+            ));
+        }
+        let take_vector =
+            |field: &CommonInitialField, association: &str| -> Result<Vec<[f64; 2]>, Diagnostic> {
+                let values = match association {
+                    "vertex" => field.vertex(),
+                    "cell" => field.cell(),
+                    _ => unreachable!(),
+                };
+                match values {
+                    Some(CommonInitialValues::Vector2(values)) => Ok(values.to_vec()),
+                    Some(CommonInitialValues::Scalar(_)) => Err(invalid(format!(
+                        "FSI vector Field has scalar {association}_values"
+                    ))),
+                    None => Err(invalid(format!(
+                        "FSI vector Field omitted required {association}_values"
+                    ))),
+                }
+            };
+        let fluid_velocity = &by_field[&self.field_ids[0]];
+        let fluid_pressure = &by_field[&self.field_ids[1]];
+        let solid_velocity = &by_field[&self.field_ids[2]];
+        let solid_displacement = &by_field[&self.field_ids[3]];
+        let fluid_velocity_vertices = take_vector(fluid_velocity, "vertex")?;
+        let fluid_velocity_bubbles = take_vector(fluid_velocity, "cell")?;
+        let fluid_pressure_vertices = match fluid_pressure.vertex() {
+            Some(CommonInitialValues::Scalar(values)) => values.to_vec(),
+            _ => return Err(invalid("FSI pressure requires scalar vertex_values")),
+        };
+        if fluid_pressure.cell().is_some()
+            || solid_velocity.cell().is_some()
+            || solid_displacement.cell().is_some()
+        {
+            return Err(invalid(
+                "FSI P1 pressure/solid velocity/displacement reject unexpected cell_values",
+            ));
+        }
+        let solid_velocity_vertices = take_vector(solid_velocity, "vertex")?;
+        let solid_displacement_vertices = take_vector(solid_displacement, "vertex")?;
+        if fluid_velocity_vertices.len() != self.partition.fluid_vertices().len()
+            || fluid_velocity_bubbles.len() != self.partition.fluid_cells().len()
+            || fluid_pressure_vertices.len() != self.partition.fluid_vertices().len()
+            || solid_velocity_vertices.len() != self.partition.solid_vertices().len()
+            || solid_displacement_vertices.len() != self.partition.solid_vertices().len()
+        {
+            return Err(invalid(
+                "FSI InitialField cardinality differs from exact Field support and association",
+            ));
+        }
+        if fluid_velocity_vertices
+            .iter()
+            .flatten()
+            .chain(fluid_velocity_bubbles.iter().flatten())
+            .chain(fluid_pressure_vertices.iter())
+            .chain(solid_velocity_vertices.iter().flatten())
+            .chain(solid_displacement_vertices.iter().flatten())
+            .any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "FSI InitialField values must be finite coherent-SI numbers",
+            ));
+        }
+        let mut velocity = vec![[f64::NAN; 2]; self.mesh().vertices().len()];
+        for (vertex, value) in self
+            .partition
+            .fluid_vertices()
+            .iter()
+            .zip(fluid_velocity_vertices)
+        {
+            velocity[vertex.index()] = value;
+        }
+        for (vertex, value) in self
+            .partition
+            .solid_vertices()
+            .iter()
+            .zip(solid_velocity_vertices)
+        {
+            let slot = &mut velocity[vertex.index()];
+            if slot[0].is_finite() && *slot != value {
+                return Err(invalid(
+                    "fluid and solid initial velocity traces disagree on the shared interface quotient",
+                ));
+            }
+            *slot = value;
+        }
+        if velocity.iter().flatten().any(|value| !value.is_finite()) {
+            return Err(invalid(
+                "FSI velocity supports do not cover the complete shared vertex quotient",
+            ));
+        }
+        let mut displacement = vec![[0.0; 2]; self.mesh().vertices().len()];
+        for (vertex, value) in self
+            .partition
+            .solid_vertices()
+            .iter()
+            .zip(solid_displacement_vertices)
+        {
+            displacement[vertex.index()] = value;
+        }
+        let native = FixedReferenceFsiState2d::new(
+            self.mesh(),
+            &self.partition,
+            velocity,
+            fluid_velocity_bubbles,
+            displacement,
+        )?;
+        CommonState::new(
+            self.state_space_identity(),
+            time_s,
+            Arc::new(self.model.clone()),
+            Arc::new(self.resources.clone()),
+            CommonStateKind::Fsi {
+                state: Box::new(native),
+                pressure: fluid_pressure_vertices.into_boxed_slice(),
+                accepted: None,
+            },
+        )
+    }
+
+    /// Advance one exact accepted monolithic Backward-Euler transition.
+    pub fn advance(
+        &self,
+        state: &CommonState,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonState, Diagnostic> {
+        if state.state_space_identity() != self.state_space_identity() {
+            return Err(invalid(
+                "FSI State belongs to an incompatible common state space",
+            ));
+        }
+        if backend.provider() != self.solver_provider
+            || backend.capabilities() != self.solver_capabilities
+        {
+            return Err(invalid(
+                "FSI execution backend differs from admitted MINRES provider/capabilities",
+            ));
+        }
+        let CommonStateKind::Fsi {
+            state: previous, ..
+        } = &state.kind
+        else {
+            return Err(invalid("FSI Plan received a non-FSI common State"));
+        };
+        let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = &self.resources else {
+            unreachable!("FSI Plan owns adjacent resources")
+        };
+        let mesh_reference =
+            MeshArtifactReference::from_sha256(mesh.artifact_reference()?.sha256());
+        let solution = finalize_resolved_fixed_reference_fsi_step_2d(
+            &self.canonical,
+            &self.resolved,
+            mesh_reference,
+            mesh.mesh(),
+            &self.partition,
+            previous,
+        )?
+        .solve(backend)?;
+        let next = FixedReferenceFsiState2d::new(
+            mesh.mesh(),
+            &self.partition,
+            solution.vertex_velocity_coefficients().to_vec(),
+            solution.fluid_velocity_bubble_coefficients().to_vec(),
+            solution.solid_displacement_coefficients().to_vec(),
+        )?;
+        CommonState::new(
+            self.state_space_identity(),
+            state.time_s + self.temporal.step().value(),
+            Arc::new(self.model.clone()),
+            Arc::new(self.resources.clone()),
+            CommonStateKind::Fsi {
+                state: Box::new(next),
+                pressure: solution
+                    .fluid_pressure_coefficients()
+                    .to_vec()
+                    .into_boxed_slice(),
+                accepted: Some(Box::new(solution)),
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+    #[must_use]
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+    #[must_use]
+    pub const fn model_revision(&self) -> u64 {
+        self.model_revision
+    }
+    #[must_use]
+    pub fn model_digest(&self) -> &str {
+        &self.model_digest
+    }
+    #[must_use]
+    pub fn geometry_digest(&self) -> &str {
+        &self.geometry_digest
+    }
+    #[must_use]
+    pub fn mesh_digest(&self) -> &str {
+        &self.mesh_digest
+    }
+    #[must_use]
+    pub fn correspondence_digest(&self) -> &str {
+        &self.correspondence_digest
+    }
+    #[must_use]
+    pub fn production_digest(&self) -> &str {
+        &self.production_digest
+    }
+    #[must_use]
+    pub fn realization_digest(&self) -> &str {
+        &self.realization_digest
+    }
+    #[must_use]
+    pub const fn linear(&self) -> SolverPlan {
+        self.linear
+    }
+    #[must_use]
+    pub const fn solver_provider(&self) -> SolverProvider {
+        self.solver_provider
+    }
+    #[must_use]
+    pub const fn solver_capabilities(&self) -> &SolverCapabilities {
+        &self.solver_capabilities
+    }
+    #[must_use]
+    pub const fn execution_provider(&self) -> ExecutionProvider {
+        self.execution_provider
+    }
+    #[must_use]
+    pub const fn workers(&self) -> NonZeroUsize {
+        self.workers
+    }
+    #[must_use]
+    pub const fn temporal(&self) -> CommonBackwardEuler {
+        self.temporal
+    }
+    #[must_use]
+    pub const fn scaling(&self) -> FixedReferenceFsiScaleProfile2d {
+        self.scaling
+    }
+    #[must_use]
+    pub const fn scaling_receipt(&self) -> &IncompressibleScalingReceipt2d {
+        &self.scaling_receipt
+    }
+    #[must_use]
+    pub fn field_ids(&self) -> &[String; 4] {
+        &self.field_ids
+    }
+    #[must_use]
+    pub fn domain_ids(&self) -> &[String; 2] {
+        &self.domain_ids
+    }
+    #[must_use]
+    pub const fn realization(&self) -> &RealizationEnvelopeV3 {
+        &self.realization
+    }
+    #[must_use]
+    pub fn fluid_vertex_indices(&self) -> Vec<usize> {
+        self.partition
+            .fluid_vertices()
+            .iter()
+            .map(|id| id.index())
+            .collect()
+    }
+    #[must_use]
+    pub fn fluid_cell_indices(&self) -> Vec<usize> {
+        self.partition
+            .fluid_cells()
+            .iter()
+            .map(|id| id.index())
+            .collect()
+    }
+    #[must_use]
+    pub fn solid_cell_indices(&self) -> Vec<usize> {
+        self.partition
+            .solid_cells()
+            .iter()
+            .map(|id| id.index())
+            .collect()
+    }
+    #[must_use]
+    pub fn solid_vertex_indices(&self) -> Vec<usize> {
+        self.partition
+            .solid_vertices()
+            .iter()
+            .map(|id| id.index())
+            .collect()
+    }
+    #[must_use]
+    pub fn interface_facet_vertices(&self) -> Vec<[usize; 2]> {
+        self.partition
+            .interface_facets()
+            .iter()
+            .map(|facet| {
+                let vertices = self
+                    .mesh()
+                    .entity_vertices(MeshEntity::new(1, facet.index()))
+                    .expect("accepted FSI interface facet owns exact connectivity");
+                [vertices[0].index(), vertices[1].index()]
+            })
+            .collect()
     }
 }
 
@@ -1124,6 +2093,7 @@ impl CommonTransientFlowPlan {
                 }
             }
             NativeMeshResources::ReferenceSimplicial { .. }
+            | NativeMeshResources::AdjacentPartitionSimplicial { .. }
             | NativeMeshResources::GmshSimplicial { .. } => {
                 return Err(invalid(
                     "transient common Plan requires the exact caller affine-triangle or supplied-Cartesian envelope",
@@ -2066,6 +3036,7 @@ pub(super) enum NativeCapability {
     IsotropicElasticity,
     SteadyIncompressibleStokes,
     TransientIncompressibleFlow,
+    FixedReferenceFsi,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -2127,6 +3098,12 @@ pub(super) enum NativeMeshResources {
         production: MeshProductionLineageEnvelopeV1,
     },
     AffineTriangleSimplicial {
+        geometry: CanonicalGeometryV1,
+        mesh: SimplicialMeshEnvelopeV1,
+        correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+        production: MeshProductionLineageEnvelopeV1,
+    },
+    AdjacentPartitionSimplicial {
         geometry: CanonicalGeometryV1,
         mesh: SimplicialMeshEnvelopeV1,
         correspondence: GeometryMeshCorrespondenceEnvelopeV1,
@@ -2200,6 +3177,23 @@ impl AuthenticatedCommonMesh {
         Ok(Self { resources })
     }
 
+    /// Authenticate and own one fixed-diagonal adjacent-partition occurrence.
+    pub fn adjacent_partition(
+        geometry: CanonicalGeometryV1,
+        mesh: SimplicialMeshEnvelopeV1,
+        correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+        production: MeshProductionLineageEnvelopeV1,
+    ) -> Result<Self, Diagnostic> {
+        let resources = NativeMeshResources::AdjacentPartitionSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        };
+        validate_simplicial_resources(&resources)?;
+        Ok(Self { resources })
+    }
+
     /// Re-import and own one exact bounded Gmsh 4.15.2 provider observation.
     pub fn gmsh_4152(
         geometry: CanonicalGeometryV1,
@@ -2217,6 +3211,7 @@ impl NativeMeshResources {
             Self::Cartesian { geometry, .. }
             | Self::ReferenceSimplicial { geometry, .. }
             | Self::AffineTriangleSimplicial { geometry, .. }
+            | Self::AdjacentPartitionSimplicial { geometry, .. }
             | Self::GmshSimplicial { geometry, .. } => geometry,
         }
     }
@@ -2243,6 +3238,7 @@ enum RecognizedNativeModel {
     Elasticity(Box<IsotropicElasticityCartesianModel2d>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
+    Fsi(Box<FixedReferenceFsiCartesianModel2d>),
 }
 
 struct RecognizedNativeAdmission {
@@ -2262,8 +3258,9 @@ impl RecognizedNativeAdmission {
         let resources = owner.resources;
         let program = replay_program(model, resources.geometry())?;
         let transient = lower_transient_incompressible_navier_stokes_cartesian_2d(&program);
-        let capability = recognize_capability(&program, &transient)?;
-        let recognized = recognize_exact_model(capability, &program, &resources, transient)?;
+        let fsi = lower_fixed_reference_fsi_geometry_2d(&program, resources.geometry());
+        let capability = recognize_capability(&program, &transient, &fsi)?;
+        let recognized = recognize_exact_model(capability, &program, &resources, transient, fsi)?;
         let model_digest = model.digest()?.to_string();
         Ok(Self {
             model: model.clone(),
@@ -2576,6 +3573,12 @@ fn resource_digests(
             correspondence,
             production,
         }
+        | NativeMeshResources::AdjacentPartitionSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        }
         | NativeMeshResources::GmshSimplicial {
             geometry,
             mesh,
@@ -2632,6 +3635,12 @@ fn resource_artifact_digests(
             correspondence,
             production,
         }
+        | NativeMeshResources::AdjacentPartitionSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        }
         | NativeMeshResources::GmshSimplicial {
             geometry,
             mesh,
@@ -2656,6 +3665,7 @@ fn resource_artifact_digests(
 fn recognize_capability(
     program: &KernelProgram,
     transient: &Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
+    fsi: &Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
 ) -> Result<NativeCapability, Diagnostic> {
     let scalar = recognize_scalar_elliptic_geometry_mathematics(program);
     let elasticity = recognize_isotropic_elasticity_geometry_mathematics(program);
@@ -2665,6 +3675,7 @@ fn recognize_capability(
         elasticity.is_ok(),
         stokes.is_ok(),
         transient.is_ok(),
+        fsi.is_ok(),
     ];
     if recognized.into_iter().filter(|matched| *matched).count() > 1 {
         return Err(invalid(
@@ -2683,12 +3694,16 @@ fn recognize_capability(
     if transient.is_ok() {
         return Ok(NativeCapability::TransientIncompressibleFlow);
     }
+    if fsi.is_ok() {
+        return Ok(NativeCapability::FixedReferenceFsi);
+    }
     let scalar = scalar.unwrap_err();
     let elasticity = elasticity.unwrap_err();
     let stokes = stokes.unwrap_err();
     let transient = transient.as_ref().unwrap_err();
+    let fsi = fsi.as_ref().unwrap_err();
     Err(invalid(format!(
-        "Model mathematical meaning matches no native capability: scalar [{}: {}]; elasticity [{}: {}]; Stokes [{}: {}]; transient flow [{}: {}]",
+        "Model mathematical meaning matches no native capability: scalar [{}: {}]; elasticity [{}: {}]; Stokes [{}: {}]; transient flow [{}: {}]; FSI [{}: {}]",
         scalar.code(),
         scalar.message(),
         elasticity.code(),
@@ -2697,6 +3712,8 @@ fn recognize_capability(
         stokes.message(),
         transient.code(),
         transient.message(),
+        fsi.code(),
+        fsi.message(),
     )))
 }
 
@@ -2705,6 +3722,7 @@ fn recognize_exact_model(
     program: &KernelProgram,
     resources: &NativeMeshResources,
     transient: Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
+    fsi: Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
     match (capability, resources) {
         (
@@ -2775,6 +3793,10 @@ fn recognize_exact_model(
             }
             Ok(RecognizedNativeModel::Transient(Box::new(transient)))
         }
+        (
+            NativeCapability::FixedReferenceFsi,
+            NativeMeshResources::AdjacentPartitionSimplicial { .. },
+        ) => fsi.map(Box::new).map(RecognizedNativeModel::Fsi),
         _ => Err(invalid(
             "recognized Model capability and authenticated common Mesh kind are cross-wired",
         )),
@@ -2966,6 +3988,27 @@ fn validate_simplicial_resources(resources: &NativeMeshResources) -> Result<(), 
                 correspondence,
             )?;
         }
+        NativeMeshResources::AdjacentPartitionSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        } => {
+            let policy = production.affine_triangle_cells().ok_or_else(|| {
+                invalid("adjacent-partition resource has a non-affine-triangle production policy")
+            })?;
+            correspondence.validate_against_adjacent_rectangle_partition_affine_triangles(
+                geometry,
+                mesh,
+                policy.cells(),
+            )?;
+            production.validate_against_affine_triangle_rectangle_v1_resources(
+                policy,
+                geometry,
+                mesh,
+                correspondence,
+            )?;
+        }
         NativeMeshResources::GmshSimplicial {
             geometry,
             policy,
@@ -2987,6 +4030,7 @@ fn validate_simplicial_resources(resources: &NativeMeshResources) -> Result<(), 
     let mesh = match resources {
         NativeMeshResources::ReferenceSimplicial { mesh, .. }
         | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
+        | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }
         | NativeMeshResources::GmshSimplicial { mesh, .. } => mesh,
         NativeMeshResources::Cartesian { .. } => unreachable!("rejected above"),
     };
@@ -3400,6 +4444,7 @@ public component MixedBoundaryElasticity {
     const TRANSIENT_SOURCE: &str = include_str!(
         "../../../verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi"
     );
+    const FSI_COMPONENT: &str = include_str!("../../../examples/fixed-reference-fsi.eqi");
 
     type SupportBinding<'a> = (
         &'a str,
@@ -3530,6 +4575,136 @@ public component MixedBoundaryElasticity {
                 ]),
             )
             .unwrap()
+    }
+
+    fn fsi_geometry() -> CanonicalGeometryV1 {
+        let graph = PlanarOperationGraph::new();
+        let fluid = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
+        let solid = graph.rectangle([1.0, 2.0], [0.0, 1.0]).unwrap();
+        let fluid_edges = fluid.boundaries();
+        let solid_edges = solid.boundaries();
+        let partition = graph
+            .partition(&fluid, &solid, [fluid_edges[1], solid_edges[0]])
+            .unwrap();
+        graph
+            .build(
+                &partition,
+                &BTreeMap::from([
+                    ("fluid".to_owned(), vec![fluid.region().into()]),
+                    ("fluid_x_lower".to_owned(), vec![fluid_edges[0].into()]),
+                    ("fluid_x_upper".to_owned(), vec![fluid_edges[1].into()]),
+                    ("fluid_y_lower".to_owned(), vec![fluid_edges[2].into()]),
+                    ("fluid_y_upper".to_owned(), vec![fluid_edges[3].into()]),
+                    ("solid".to_owned(), vec![solid.region().into()]),
+                    ("solid_x_lower".to_owned(), vec![solid_edges[0].into()]),
+                    ("solid_x_upper".to_owned(), vec![solid_edges[1].into()]),
+                    ("solid_y_lower".to_owned(), vec![solid_edges[2].into()]),
+                    ("solid_y_upper".to_owned(), vec![solid_edges[3].into()]),
+                ]),
+            )
+            .unwrap()
+    }
+
+    fn fsi_model(geometry: &CanonicalGeometryV1) -> ModelEnvelope {
+        let fluid = geometry.entity_set("fluid").unwrap();
+        let solid = geometry.entity_set("solid").unwrap();
+        let supports = [
+            ("fluid", fluid, None),
+            (
+                "fluid_x_lower",
+                geometry.entity_set("fluid_x_lower").unwrap(),
+                Some(("fluid", fluid)),
+            ),
+            (
+                "fluid_x_upper",
+                geometry.entity_set("fluid_x_upper").unwrap(),
+                Some(("fluid", fluid)),
+            ),
+            (
+                "fluid_y_lower",
+                geometry.entity_set("fluid_y_lower").unwrap(),
+                Some(("fluid", fluid)),
+            ),
+            (
+                "fluid_y_upper",
+                geometry.entity_set("fluid_y_upper").unwrap(),
+                Some(("fluid", fluid)),
+            ),
+            ("solid", solid, None),
+            (
+                "solid_x_lower",
+                geometry.entity_set("solid_x_lower").unwrap(),
+                Some(("solid", solid)),
+            ),
+            (
+                "solid_x_upper",
+                geometry.entity_set("solid_x_upper").unwrap(),
+                Some(("solid", solid)),
+            ),
+            (
+                "solid_y_lower",
+                geometry.entity_set("solid_y_lower").unwrap(),
+                Some(("solid", solid)),
+            ),
+            (
+                "solid_y_upper",
+                geometry.entity_set("solid_y_upper").unwrap(),
+                Some(("solid", solid)),
+            ),
+        ];
+        let density = DimExponents {
+            mass: 1,
+            length: -3,
+            ..DimExponents::DIMENSIONLESS
+        };
+        let viscosity = DimExponents {
+            mass: 1,
+            length: -1,
+            time: -1,
+            ..DimExponents::DIMENSIONLESS
+        };
+        let pressure = DimExponents {
+            mass: 1,
+            length: -1,
+            time: -2,
+            ..DimExponents::DIMENSIONLESS
+        };
+        compile_model(
+            "fixed-reference-fsi.eqi",
+            FSI_COMPONENT,
+            geometry,
+            "FixedReferenceFsiModel",
+            "FixedReferenceFsi2d",
+            &supports,
+            &[
+                ("fluid_density", DynQuantity::new(2.0, density)),
+                ("fluid_viscosity", DynQuantity::new(0.5, viscosity)),
+                ("solid_density", DynQuantity::new(3.0, density)),
+                ("solid_mu", DynQuantity::new(4.0, pressure)),
+                ("solid_lambda", DynQuantity::new(2.0, pressure)),
+                ("zero_pressure", DynQuantity::new(0.0, pressure)),
+            ],
+        )
+    }
+
+    fn fsi_resources(geometry: &CanonicalGeometryV1) -> AuthenticatedCommonMesh {
+        let policy = AffineTriangleMeshCellsV1::new([2, 2]).unwrap();
+        let (mesh, correspondence) = GeometryMeshCorrespondenceEnvelopeV1::from_adjacent_rectangle_partition_affine_triangles(geometry, policy.cells()).unwrap();
+        let production =
+            MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+                policy,
+                geometry,
+                &mesh,
+                &correspondence,
+            )
+            .unwrap();
+        AuthenticatedCommonMesh::adjacent_partition(
+            geometry.clone(),
+            mesh,
+            correspondence,
+            production,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -4124,6 +5299,7 @@ public component MixedBoundaryElasticity {
                 |_| panic!("scalar Model resolved as elasticity"),
                 |_| panic!("scalar Model resolved as another capability"),
                 |_| panic!("scalar Model resolved as transient capability"),
+                |_| panic!("scalar Model resolved as FSI"),
             )
         };
         let q1 = resolve_scalar(CommonSpatialPolicy::Q1, linear);
@@ -4210,6 +5386,7 @@ public component MixedBoundaryElasticity {
                 |plan| plan,
                 |_| panic!("elasticity Model resolved as Stokes"),
                 |_| panic!("elasticity Model resolved as transient flow"),
+                |_| panic!("elasticity Model resolved as FSI"),
             )
         };
         let plan = resolve_elasticity(&model);
@@ -4402,7 +5579,14 @@ public component MixedBoundaryElasticity {
         let reaction_program = replay_program(&reaction, &geometry).unwrap();
         let reaction_transient =
             lower_transient_incompressible_navier_stokes_cartesian_2d(&reaction_program);
-        assert!(recognize_capability(&reaction_program, &reaction_transient).is_err());
+        assert!(
+            recognize_capability(
+                &reaction_program,
+                &reaction_transient,
+                &Err(invalid("not FSI"))
+            )
+            .is_err()
+        );
 
         let stokes_geometry = stokes_geometry();
         let non_stokes_source =
@@ -4411,7 +5595,14 @@ public component MixedBoundaryElasticity {
         let non_stokes_program = replay_program(&non_stokes, &stokes_geometry).unwrap();
         let non_stokes_transient =
             lower_transient_incompressible_navier_stokes_cartesian_2d(&non_stokes_program);
-        assert!(recognize_capability(&non_stokes_program, &non_stokes_transient).is_err());
+        assert!(
+            recognize_capability(
+                &non_stokes_program,
+                &non_stokes_transient,
+                &Err(invalid("not FSI"))
+            )
+            .is_err()
+        );
 
         let foreign = rectangle();
         let mut foreign_resources = resources(&foreign);
@@ -4548,6 +5739,7 @@ public component MixedBoundaryElasticity {
             |_| panic!("steady-Stokes Model resolved as elasticity"),
             |plan| plan,
             |_| panic!("steady-Stokes Model resolved as transient capability"),
+            |_| panic!("steady-Stokes Model resolved as FSI"),
         );
         let gmsh_common = resolve_common_plan(
             &model,
@@ -4565,6 +5757,7 @@ public component MixedBoundaryElasticity {
             |_| panic!("steady-Stokes Model resolved as elasticity"),
             |plan| plan,
             |_| panic!("steady-Stokes Model resolved as transient capability"),
+            |_| panic!("steady-Stokes Model resolved as FSI"),
         );
         assert_eq!(common.model_digest(), model.digest().unwrap().to_string());
         assert_eq!(common.mesh_digest(), mesh.digest().unwrap().to_string());
@@ -4675,6 +5868,7 @@ public component MixedBoundaryElasticity {
                 |_| panic!("transient Model resolved as elasticity"),
                 |_| panic!("transient Model resolved as steady Stokes"),
                 |plan| plan,
+                |_| panic!("transient Model resolved as FSI"),
             )
         };
         let mini = resolve(
@@ -4710,6 +5904,7 @@ public component MixedBoundaryElasticity {
             |_| panic!("transient Model resolved as elasticity"),
             |_| panic!("transient Model resolved as steady Stokes"),
             |plan| plan,
+            |_| panic!("transient Model resolved as FSI"),
         );
         let alternate_scaling =
             IncompressibleScalingRequest2d::from_si(Some(4.0), Some(5.0), Some(6.0)).unwrap();
@@ -4729,6 +5924,7 @@ public component MixedBoundaryElasticity {
             |_| panic!("transient Model resolved as elasticity"),
             |_| panic!("transient Model resolved as steady Stokes"),
             |plan| plan,
+            |_| panic!("transient Model resolved as FSI"),
         );
 
         assert_eq!(mini.identity(), mini_replay.identity());
@@ -4841,6 +6037,168 @@ public component MixedBoundaryElasticity {
                 CommonSpatialPolicy::MiniP1,
                 CommonSolvePolicy::newton(linear, nonlinear),
                 Some(scaling),
+                Some(temporal),
+                &ResolveOnlyBackend,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_pressure_gauge() {
+        use eqiora_core::{
+            Id,
+            entity::kinds::{Domain, Field},
+        };
+
+        let geometry = fsi_geometry();
+        let model = fsi_model(&geometry);
+        let resources = fsi_resources(&geometry);
+        let recognized = RecognizedNativeAdmission::recognize(&model, resources.clone()).unwrap();
+        let RecognizedNativeModel::Fsi(canonical) = &recognized.recognized else {
+            panic!("component FSI source was not recognized as FSI")
+        };
+        let fluid_domain = Id::<Domain>::from_ulid(canonical.fluid().domain().ulid());
+        let solid_domain = Id::<Domain>::from_ulid(canonical.solid().domain().ulid());
+        let field_ids = [
+            Id::<Field>::from_ulid(canonical.fluid().velocity().ulid()),
+            Id::<Field>::from_ulid(canonical.fluid().pressure().ulid()),
+            Id::<Field>::from_ulid(canonical.solid().velocity().ulid()),
+            Id::<Field>::from_ulid(canonical.solid().displacement().ulid()),
+        ];
+        let digest = model.digest().unwrap();
+        let scoped = CommonSpatialRequest::Scoped(vec![
+            CommonScopedSpatialPolicy::new(
+                digest.clone(),
+                fluid_domain,
+                CommonSpatialPolicy::MiniP1,
+            ),
+            CommonScopedSpatialPolicy::new(digest.clone(), solid_domain, CommonSpatialPolicy::P1),
+        ]);
+        let requested = SolverPlan::new(
+            LinearSolver::ConjugateGradient,
+            1.0e-11,
+            1.0e-13,
+            NonZeroUsize::new(20_000).unwrap(),
+        )
+        .unwrap();
+        let temporal = CommonBackwardEuler::from_seconds(0.05).unwrap();
+        let resolve = |scaling| {
+            resolve_common_plan(
+                &model,
+                resources.clone(),
+                scoped.clone(),
+                CommonSolvePolicy::Linear(requested),
+                scaling,
+                Some(temporal),
+                &ResolveOnlyBackend,
+            )
+            .unwrap()
+            .project(
+                |_| panic!("FSI resolved as ODE"),
+                |_| panic!("FSI resolved as scalar"),
+                |_| panic!("FSI resolved as elasticity"),
+                |_| panic!("FSI resolved as Stokes"),
+                |_| panic!("FSI resolved as transient flow"),
+                |plan| plan,
+            )
+        };
+        let automatic = resolve(None);
+        let manual = resolve(Some(
+            IncompressibleScalingRequest2d::from_si(
+                Some(2.0),
+                Some((4.0_f64 / 3.0).sqrt()),
+                Some(8.0 / 3.0),
+            )
+            .unwrap(),
+        ));
+        assert_ne!(
+            automatic.identity(),
+            manual.identity(),
+            "scaling provenance belongs to Plan identity"
+        );
+        assert_eq!(
+            automatic.state_space_identity(),
+            manual.state_space_identity()
+        );
+        assert!(automatic.scaling_receipt().production().is_some());
+        assert_eq!(
+            automatic.linear().algorithm(),
+            LinearSolver::MinimumResidual
+        );
+        assert_eq!(
+            automatic.solver_provider(),
+            REFERENCE_LINEAR_SOLVER.provider()
+        );
+
+        let fields = vec![
+            CommonInitialField::new(
+                digest.clone(),
+                field_ids[0],
+                Some(CommonInitialValues::Vector2(
+                    vec![[0.0; 2]; 6].into_boxed_slice(),
+                )),
+                Some(CommonInitialValues::Vector2(
+                    vec![[0.0; 2]; 4].into_boxed_slice(),
+                )),
+            )
+            .unwrap(),
+            CommonInitialField::new(
+                digest.clone(),
+                field_ids[1],
+                Some(CommonInitialValues::Scalar(
+                    vec![0.25; 6].into_boxed_slice(),
+                )),
+                None,
+            )
+            .unwrap(),
+            CommonInitialField::new(
+                digest.clone(),
+                field_ids[2],
+                Some(CommonInitialValues::Vector2(
+                    vec![[0.0; 2]; 6].into_boxed_slice(),
+                )),
+                None,
+            )
+            .unwrap(),
+            CommonInitialField::new(
+                digest.clone(),
+                field_ids[3],
+                Some(CommonInitialValues::Vector2(
+                    vec![[0.02, 0.0]; 6].into_boxed_slice(),
+                )),
+                None,
+            )
+            .unwrap(),
+        ];
+        let initial = automatic.initial_state(0.0, fields).unwrap();
+        assert!(
+            initial
+                .pressure_vertex_values()
+                .unwrap()
+                .iter()
+                .all(|value| *value == 0.25)
+        );
+        assert!(
+            CommonFsiRunRequest::from_steps(manual.clone(), initial.clone(), 1, vec![1]).is_ok()
+        );
+        let accepted = automatic
+            .advance(&initial, &REFERENCE_LINEAR_SOLVER)
+            .unwrap();
+        assert!(accepted.fsi_accepted_solution().is_some());
+
+        let foreign = eqiora_artifact::ArtifactDigest::from_sha256([7; 32]);
+        let foreign_scoped = CommonSpatialRequest::Scoped(vec![
+            CommonScopedSpatialPolicy::new(foreign, fluid_domain, CommonSpatialPolicy::MiniP1),
+            CommonScopedSpatialPolicy::new(digest, solid_domain, CommonSpatialPolicy::P1),
+        ]);
+        assert!(
+            resolve_common_plan(
+                &model,
+                resources,
+                foreign_scoped,
+                CommonSolvePolicy::Linear(requested),
+                None,
                 Some(temporal),
                 &ResolveOnlyBackend,
             )

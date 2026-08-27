@@ -8,19 +8,11 @@ export interface ExampleMenuProps {
   readonly availability: CommandAvailability;
   readonly cylinderRunning: boolean;
   readonly dcMotorStatus: ExampleStatus;
-  readonly fsiStatus: ExampleStatus;
   readonly structuralStatus: ExampleStatus;
   readonly onExecute: (command: CommandId) => void;
 }
 
 const EXAMPLES = [
-  {
-    command: "example.fsi",
-    glyph: "⇄",
-    idleLabel: "Fluid–structure interaction",
-    runningLabel: "Solving coupled steps…",
-    detail: "2 bodies · 1 shared trace · 2 accepted steps",
-  },
   {
     command: "example.structural",
     glyph: "⌗",
@@ -54,14 +46,12 @@ export function ExampleMenu({
   availability,
   cylinderRunning,
   dcMotorStatus,
-  fsiStatus,
   structuralStatus,
   onExecute,
 }: ExampleMenuProps) {
   const running = {
     "example.cylinder": cylinderRunning,
     "example.dc-drive": dcMotorStatus === "running",
-    "example.fsi": fsiStatus === "running",
     "example.structural": structuralStatus === "running",
   } as const;
   return (

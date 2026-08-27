@@ -427,8 +427,31 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     }
                 }
                 ComponentItem::BoundaryConnection(declaration) => {
-                    if let Err(error) = validate_boundary_connection(&self.scope, declaration) {
-                        self.diagnostics.push(error);
+                    match validate_boundary_connection(&self.scope, declaration) {
+                        Ok(Some(memberships)) if memberships.len() >= 2 => {
+                            match crate::connection_sets::ConnectionFragment::try_new(
+                                memberships,
+                                self.proof.connection_limits,
+                            ) {
+                                Ok(fragment) => {
+                                    self.proof.physical_connection_fragments.push(fragment);
+                                }
+                                Err(error) => self.diagnostics.push(source_error(
+                                    codes::LANGUAGE_LOWERING_ERROR,
+                                    self.scope.file,
+                                    declaration.range(),
+                                    format!(
+                                        "cannot retain exact boundary Connection class: {error}"
+                                    ),
+                                )),
+                            }
+                        }
+                        Ok(Some(memberships)) => self
+                            .proof
+                            .deferred_connection_memberships
+                            .extend(memberships),
+                        Ok(None) => {}
+                        Err(error) => self.diagnostics.push(error),
                     }
                 }
                 ComponentItem::Instance(_) => {}
@@ -507,6 +530,31 @@ component BoundaryLaw {{
         assert!(proof.relation_endpoints.is_empty());
         assert!(proof.physical_connection_fragments.is_empty());
         assert!(proof.local_physical_ports.is_empty());
+    }
+
+    #[test]
+    fn binderless_exact_boundary_connection_retains_its_component_class() {
+        let source = format!(
+            r#"{SCALAR_CONNECTOR}
+component Coupler {{
+  public support left_body: volume(ambient_dimension = 2);
+  public support left_face: boundary(parent = left_body);
+  public support right_body: volume(ambient_dimension = 2);
+  public support right_face: boundary(parent = right_body);
+  public port left: conserving BoundaryScalar over left_face;
+  public port right: conserving BoundaryScalar over right_face;
+  relation left_law continuous on left_face {{ trace(left) = 0; flux(left) = 0; }}
+  relation right_law continuous on right_face {{ trace(right) = 0; flux(right) = 0; }}
+  connect conserving left, right;
+}}
+"#
+        );
+        let proof = validate_component(&source, "Coupler")
+            .expect("binderless exact boundary Connection is typed");
+
+        assert_eq!(proof.physical_connection_fragments.len(), 1);
+        assert_eq!(proof.physical_connection_fragments[0].members().len(), 2);
+        assert!(proof.deferred_connection_memberships.is_empty());
     }
 
     #[test]

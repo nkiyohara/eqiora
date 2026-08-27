@@ -2,35 +2,22 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
-from importlib.resources import files
 
 import numpy as np
 import pytest
 
 import eqiora
 from eqiora._presentation import trajectory as presentation
+from test_fixed_reference_fsi import admitted, initial
 
 WIDGET_MIME = "application/vnd.jupyter.widget-view+json"
 TEXT_MIME = "text/plain"
 
 
 def supported_trajectory() -> eqiora.trajectory.Trajectory:
-    source = files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi").read_text()
-    model = eqiora.compile(source=source, filename="fixed-reference-fsi.eqi")
-    intent = eqiora.fsi.FixedMeshMonolithic(
-        time_step_s=0.05,
-        steps=2,
-        initial_velocity_m_per_s=(0.0, 0.0),
-        initial_free_interface_displacement_m=(0.02, 0.0),
-        length_scale_m=2.0,
-        velocity_scale_m_per_s=0.5,
-        pressure_scale_pa=4.0,
-        relative_tolerance=1.0e-11,
-        absolute_tolerance=1.0e-13,
-        maximum_iterations=20_000,
-    )
-    plan = eqiora.fsi.resolve(model, intent)
-    return eqiora.submit(model, plan=plan).result().trajectory
+    model, mesh, plan = admitted()
+    state = initial(model, mesh, plan)
+    return eqiora.run(plan, state=state, steps=2, output_steps=(1, 2)).trajectory
 
 
 def token(trajectory: eqiora.trajectory.Trajectory) -> dict[str, object]:
@@ -73,9 +60,7 @@ def test_adapter_captures_only_the_unique_consistent_scalar_vertex_field() -> No
         selected.append(candidates[0])
     assert payload["field_id"] == selected[0].field.id == selected[1].field.id
     expected = b"".join(
-        np.asarray(
-            field.values("vertex")[field.support_indices("vertex")], dtype="<f8"
-        ).tobytes()
+        np.asarray(field.values("vertex"), dtype="<f8").tobytes()
         for field in selected
     )
     assert payload["values_f64_le"] == expected

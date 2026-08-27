@@ -16,7 +16,7 @@ use pyo3::types::{PyAny, PyBool, PyDict, PyFloat, PyInt};
 use ulid::Ulid;
 
 use crate::error::validation_error;
-use crate::model::PyModelFieldRef;
+use crate::model::{PyModelDomainRef, PyModelFieldRef};
 
 /// Continuous tensor-product Q1 Galerkin spatial policy.
 #[pyclass(
@@ -61,8 +61,91 @@ impl PyMiniP1 {
         Self
     }
 
+    fn at(&self, domain: &PyModelDomainRef) -> PyScopedSpatialBinding {
+        PyScopedSpatialBinding {
+            domain: domain.clone(),
+            policy: ScopedSpatialKind::MiniP1,
+        }
+    }
+
     fn __repr__(&self) -> &'static str {
         "MiniP1()"
+    }
+}
+
+/// Continuous simplex P1 Galerkin spatial policy.
+#[pyclass(
+    name = "P1",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    from_py_object
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct PyP1;
+
+#[pymethods]
+impl PyP1 {
+    #[new]
+    const fn new() -> Self {
+        Self
+    }
+
+    fn at(&self, domain: &PyModelDomainRef) -> PyScopedSpatialBinding {
+        PyScopedSpatialBinding {
+            domain: domain.clone(),
+            policy: ScopedSpatialKind::P1,
+        }
+    }
+
+    fn __repr__(&self) -> &'static str {
+        "P1()"
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) enum ScopedSpatialKind {
+    MiniP1,
+    P1,
+}
+
+/// One exact Model-bound spatial policy assignment.
+#[pyclass(
+    name = "ScopedSpatialPolicy",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    skip_from_py_object
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct PyScopedSpatialBinding {
+    pub(super) domain: PyModelDomainRef,
+    pub(super) policy: ScopedSpatialKind,
+}
+
+#[pymethods]
+impl PyScopedSpatialBinding {
+    #[getter]
+    fn domain(&self) -> PyModelDomainRef {
+        self.domain.clone()
+    }
+
+    #[getter]
+    fn method(&self) -> &'static str {
+        match self.policy {
+            ScopedSpatialKind::MiniP1 => "mini-p1",
+            ScopedSpatialKind::P1 => "p1",
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "ScopedSpatialPolicy(method={:?}, domain={:?})",
+            self.method(),
+            self.domain.exact_id()
+        )
     }
 }
 

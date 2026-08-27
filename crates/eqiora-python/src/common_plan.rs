@@ -8,7 +8,8 @@ use eqiora::backends::faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
 use eqiora::realization::{Space, SpaceFamily};
 use eqiora::solver::{LinearSolver, REFERENCE_SOLVER_PROVIDER, ReductionPolicy, SolverPlan};
 use eqiora_numerics::{
-    CommonElasticityPlan, CommonOdePlan, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
+    CommonElasticityPlan, CommonFsiPlan, CommonOdePlan, CommonScalarPlan,
+    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSpatialRequest,
     CommonSteadyStokesPlan, CommonTransientFlowPlan, resolve_common_ode_plan, resolve_common_plan,
 };
 use pyo3::exceptions::PyTypeError;
@@ -21,8 +22,8 @@ use crate::model::{PyModel, PyModelFieldRef};
 
 mod policy;
 use policy::{
-    PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyLinear, PyMiniP1, PyNewton,
-    PyPressureGauge2d, PyQ1, PyTsitouras45,
+    PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyLinear, PyMiniP1, PyNewton, PyP1,
+    PyPressureGauge2d, PyQ1, PyScopedSpatialBinding, PyTsitouras45, ScopedSpatialKind,
 };
 mod scaling;
 use scaling::{PyIncompressibleScales, PyIncompressibleScaling, PyIncompressibleScalingReceipt2d};
@@ -35,15 +36,13 @@ enum SpatialPolicy {
     CellCentered,
 }
 
+#[derive(Debug)]
+enum SpatialHandle {
+    Uniform(SpatialPolicy),
+    Scoped(Vec<Py<PyScopedSpatialBinding>>),
+}
+
 impl SpatialPolicy {
-    const fn native(self) -> CommonSpatialPolicy {
-        match self {
-            Self::Q1 => CommonSpatialPolicy::Q1,
-            Self::CellCenteredTpfa => CommonSpatialPolicy::CellCenteredTpfa,
-            Self::MiniP1 => CommonSpatialPolicy::MiniP1,
-            Self::CellCentered => CommonSpatialPolicy::CellCentered,
-        }
-    }
     const fn discretization(self) -> &'static str {
         match self {
             Self::Q1 => "q1",
@@ -88,6 +87,7 @@ pub(crate) enum CommonPlanKind {
     Elasticity(Box<CommonElasticityPlan>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     TransientFlow(Box<CommonTransientFlowPlan>),
+    Fsi(Box<CommonFsiPlan>),
 }
 
 impl CommonPlanKind {
@@ -98,6 +98,7 @@ impl CommonPlanKind {
             Self::Elasticity(plan) => plan.identity(),
             Self::SteadyStokes(plan) => plan.identity(),
             Self::TransientFlow(plan) => plan.identity(),
+            Self::Fsi(plan) => plan.identity(),
         }
     }
     fn model_id(&self) -> &str {
@@ -107,6 +108,7 @@ impl CommonPlanKind {
             Self::Elasticity(plan) => plan.model_id(),
             Self::SteadyStokes(plan) => plan.model_id(),
             Self::TransientFlow(plan) => plan.model_id(),
+            Self::Fsi(plan) => plan.model_id(),
         }
     }
     fn model_digest(&self) -> &str {
@@ -116,6 +118,7 @@ impl CommonPlanKind {
             Self::Elasticity(plan) => plan.model_digest(),
             Self::SteadyStokes(plan) => plan.model_digest(),
             Self::TransientFlow(plan) => plan.model_digest(),
+            Self::Fsi(plan) => plan.model_digest(),
         }
     }
     const fn model_revision(&self) -> u64 {
@@ -125,6 +128,7 @@ impl CommonPlanKind {
             Self::Elasticity(plan) => plan.model_revision(),
             Self::SteadyStokes(plan) => plan.model_revision(),
             Self::TransientFlow(plan) => plan.model_revision(),
+            Self::Fsi(plan) => plan.model_revision(),
         }
     }
     fn geometry_digest(&self) -> Option<&str> {
@@ -134,6 +138,7 @@ impl CommonPlanKind {
             Self::Elasticity(plan) => Some(plan.geometry_digest()),
             Self::SteadyStokes(plan) => Some(plan.geometry_digest()),
             Self::TransientFlow(plan) => Some(plan.geometry_digest()),
+            Self::Fsi(plan) => Some(plan.geometry_digest()),
         }
     }
     fn mesh_digest(&self) -> Option<&str> {
@@ -143,6 +148,7 @@ impl CommonPlanKind {
             Self::Elasticity(plan) => Some(plan.mesh_digest()),
             Self::SteadyStokes(plan) => Some(plan.mesh_digest()),
             Self::TransientFlow(plan) => Some(plan.mesh_digest()),
+            Self::Fsi(plan) => Some(plan.mesh_digest()),
         }
     }
     fn correspondence_digest(&self) -> Option<&str> {
@@ -152,6 +158,7 @@ impl CommonPlanKind {
             Self::Elasticity(plan) => Some(plan.correspondence_digest()),
             Self::SteadyStokes(plan) => Some(plan.correspondence_digest()),
             Self::TransientFlow(plan) => Some(plan.correspondence_digest()),
+            Self::Fsi(plan) => Some(plan.correspondence_digest()),
         }
     }
     fn production_digest(&self) -> Option<&str> {
@@ -161,6 +168,7 @@ impl CommonPlanKind {
             Self::Elasticity(plan) => Some(plan.production_digest()),
             Self::SteadyStokes(plan) => Some(plan.production_digest()),
             Self::TransientFlow(plan) => Some(plan.production_digest()),
+            Self::Fsi(plan) => Some(plan.production_digest()),
         }
     }
     const fn effective_solver(&self) -> Option<SolverPlan> {
@@ -170,6 +178,7 @@ impl CommonPlanKind {
             Self::Elasticity(plan) => Some(plan.linear()),
             Self::SteadyStokes(plan) => Some(plan.linear()),
             Self::TransientFlow(plan) => Some(plan.linear()),
+            Self::Fsi(plan) => Some(plan.linear()),
         }
     }
     fn realization_digest(&self) -> Option<&str> {
@@ -179,6 +188,7 @@ impl CommonPlanKind {
             Self::Elasticity(_) => None,
             Self::SteadyStokes(plan) => Some(plan.realization_digest()),
             Self::TransientFlow(_) => None,
+            Self::Fsi(plan) => Some(plan.realization_digest()),
         }
     }
 }
@@ -202,7 +212,7 @@ pub(crate) struct PyPlan {
     native: CommonPlanKind,
     model: Py<PyModel>,
     mesh: Option<Py<PyMesh>>,
-    spatial: Option<SpatialPolicy>,
+    spatial: Option<SpatialHandle>,
     solve: Option<SolveHandle>,
     temporal: Option<TemporalHandle>,
 }
@@ -232,7 +242,15 @@ impl PyPlan {
             CommonPlanKind::Ode(_)
             | CommonPlanKind::Scalar(_)
             | CommonPlanKind::Elasticity(_)
-            | CommonPlanKind::SteadyStokes(_) => None,
+            | CommonPlanKind::SteadyStokes(_)
+            | CommonPlanKind::Fsi(_) => None,
+        }
+    }
+
+    pub(crate) fn fsi_native(&self) -> Option<&CommonFsiPlan> {
+        match &self.native {
+            CommonPlanKind::Fsi(plan) => Some(plan),
+            _ => None,
         }
     }
 
@@ -242,7 +260,8 @@ impl PyPlan {
             CommonPlanKind::Ode(_)
             | CommonPlanKind::Elasticity(_)
             | CommonPlanKind::SteadyStokes(_)
-            | CommonPlanKind::TransientFlow(_) => None,
+            | CommonPlanKind::TransientFlow(_)
+            | CommonPlanKind::Fsi(_) => None,
         }
     }
 
@@ -310,7 +329,8 @@ impl PyPlan {
             )),
             CommonPlanKind::Ode(_)
             | CommonPlanKind::SteadyStokes(_)
-            | CommonPlanKind::TransientFlow(_) => None,
+            | CommonPlanKind::TransientFlow(_)
+            | CommonPlanKind::Fsi(_) => None,
         }
     }
     #[getter]
@@ -343,6 +363,11 @@ impl PyPlan {
                 ),
                 PyModelFieldRef::from_exact(model_digest, plan.pressure_field_id().to_owned()),
             ],
+            CommonPlanKind::Fsi(plan) => plan
+                .field_ids()
+                .iter()
+                .map(|field| PyModelFieldRef::from_exact(model_digest.clone(), field.clone()))
+                .collect(),
         };
         Ok(PyTuple::new(py, fields)?.unbind())
     }
@@ -356,6 +381,10 @@ impl PyPlan {
             CommonPlanKind::TransientFlow(plan) => Some(PyModelFieldRef::from_exact(
                 plan.model_digest().to_owned(),
                 plan.velocity_field_id().to_owned(),
+            )),
+            CommonPlanKind::Fsi(plan) => Some(PyModelFieldRef::from_exact(
+                plan.model_digest().to_owned(),
+                plan.field_ids()[0].clone(),
             )),
             CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
                 None
@@ -373,6 +402,10 @@ impl PyPlan {
                 plan.model_digest().to_owned(),
                 plan.pressure_field_id().to_owned(),
             )),
+            CommonPlanKind::Fsi(plan) => Some(PyModelFieldRef::from_exact(
+                plan.model_digest().to_owned(),
+                plan.field_ids()[1].clone(),
+            )),
             CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
                 None
             }
@@ -381,13 +414,22 @@ impl PyPlan {
     #[getter]
     fn spatial(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
         self.spatial
+            .as_ref()
             .map(|spatial| match spatial {
-                SpatialPolicy::Q1 => Py::new(py, PyQ1).map(Py::into_any),
-                SpatialPolicy::CellCenteredTpfa => {
+                SpatialHandle::Uniform(SpatialPolicy::Q1) => Py::new(py, PyQ1).map(Py::into_any),
+                SpatialHandle::Uniform(SpatialPolicy::CellCenteredTpfa) => {
                     Py::new(py, PyCellCenteredTpfa).map(Py::into_any)
                 }
-                SpatialPolicy::MiniP1 => Py::new(py, PyMiniP1).map(Py::into_any),
-                SpatialPolicy::CellCentered => Py::new(py, PyCellCentered).map(Py::into_any),
+                SpatialHandle::Uniform(SpatialPolicy::MiniP1) => {
+                    Py::new(py, PyMiniP1).map(Py::into_any)
+                }
+                SpatialHandle::Uniform(SpatialPolicy::CellCentered) => {
+                    Py::new(py, PyCellCentered).map(Py::into_any)
+                }
+                SpatialHandle::Scoped(values) => {
+                    PyTuple::new(py, values.iter().map(|value| value.clone_ref(py)))
+                        .map(|value| value.unbind().into_any())
+                }
             })
             .transpose()
     }
@@ -407,15 +449,25 @@ impl PyPlan {
     }
     #[getter]
     fn discretization(&self) -> Option<&'static str> {
-        self.spatial.map(SpatialPolicy::discretization)
+        self.spatial.as_ref().map(|spatial| match spatial {
+            SpatialHandle::Uniform(value) => value.discretization(),
+            SpatialHandle::Scoped(_) => "mini-p1@fluid+p1@solid",
+        })
     }
     #[getter]
     fn space(&self) -> Option<&'static str> {
         match self.native {
-            CommonPlanKind::Ode(_) | CommonPlanKind::TransientFlow(_) => None,
+            CommonPlanKind::Ode(_) | CommonPlanKind::TransientFlow(_) | CommonPlanKind::Fsi(_) => {
+                None
+            }
             CommonPlanKind::Scalar(_)
             | CommonPlanKind::Elasticity(_)
-            | CommonPlanKind::SteadyStokes(_) => self.spatial.map(SpatialPolicy::space),
+            | CommonPlanKind::SteadyStokes(_) => {
+                self.spatial.as_ref().and_then(|spatial| match spatial {
+                    SpatialHandle::Uniform(value) => Some(value.space()),
+                    SpatialHandle::Scoped(_) => None,
+                })
+            }
         }
     }
     #[getter]
@@ -423,6 +475,7 @@ impl PyPlan {
         match &self.native {
             CommonPlanKind::SteadyStokes(plan) => Some(space_name(plan.velocity_space())),
             CommonPlanKind::TransientFlow(plan) => Some(space_name(plan.velocity_space())),
+            CommonPlanKind::Fsi(_) => Some("shared-vertex-p1 + fluid-cell-bubble"),
             CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
                 None
             }
@@ -433,6 +486,7 @@ impl PyPlan {
         match &self.native {
             CommonPlanKind::SteadyStokes(plan) => Some(space_name(plan.pressure_space())),
             CommonPlanKind::TransientFlow(plan) => Some(space_name(plan.pressure_space())),
+            CommonPlanKind::Fsi(_) => Some("continuous-lagrange-p1@fluid"),
             CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
                 None
             }
@@ -446,11 +500,15 @@ impl PyPlan {
             | CommonPlanKind::Scalar(_)
             | CommonPlanKind::Elasticity(_)
             | CommonPlanKind::SteadyStokes(_) => None,
+            CommonPlanKind::Fsi(_) => None,
         }
     }
     #[getter]
     fn quadrature(&self) -> Option<&'static str> {
-        self.spatial.map(SpatialPolicy::quadrature)
+        self.spatial.as_ref().map(|spatial| match spatial {
+            SpatialHandle::Uniform(value) => value.quadrature(),
+            SpatialHandle::Scoped(_) => "triangle-duffy-gauss-legendre-4-per-axis",
+        })
     }
     #[getter]
     fn mesh_kind(&self) -> Option<&'static str> {
@@ -465,11 +523,12 @@ impl PyPlan {
                 CommonSpatialPolicy::CellCentered => Some("supplied-cartesian"),
                 _ => unreachable!("closed transient spatial policy"),
             },
+            CommonPlanKind::Fsi(_) => Some("imported-adjacent-partition-affine-simplicial"),
         }
     }
     #[getter]
     fn spatial_dimension(&self) -> Option<usize> {
-        self.spatial.map(|_| 2)
+        self.spatial.as_ref().map(|_| 2)
     }
     #[getter]
     fn cells(&self) -> Option<(usize, usize)> {
@@ -484,6 +543,7 @@ impl PyPlan {
             }
             CommonPlanKind::Ode(_) | CommonPlanKind::SteadyStokes(_) => None,
             CommonPlanKind::TransientFlow(_) => None,
+            CommonPlanKind::Fsi(_) => None,
         }
     }
     #[getter]
@@ -503,6 +563,7 @@ impl PyPlan {
             }
             CommonPlanKind::SteadyStokes(_) => Some("symmetric-indefinite"),
             CommonPlanKind::TransientFlow(_) => Some("general"),
+            CommonPlanKind::Fsi(_) => Some("symmetric-indefinite"),
         }
     }
     #[getter]
@@ -549,6 +610,7 @@ impl PyPlan {
                 CommonSpatialPolicy::CellCentered => REFERENCE_SOLVER_PROVIDER.id().as_str(),
                 _ => unreachable!("closed transient spatial policy"),
             },
+            CommonPlanKind::Fsi(_) => REFERENCE_SOLVER_PROVIDER.id().as_str(),
         }
     }
     #[getter]
@@ -566,6 +628,7 @@ impl PyPlan {
                 }
                 _ => unreachable!("closed transient spatial policy"),
             },
+            CommonPlanKind::Fsi(_) => REFERENCE_SOLVER_PROVIDER.implementation_version(),
         }
     }
     #[getter]
@@ -596,6 +659,9 @@ impl PyPlan {
             CommonPlanKind::TransientFlow(plan) => {
                 Py::new(py, PyIncompressibleScales::from_native(plan.scales())).map(Some)
             }
+            CommonPlanKind::Fsi(plan) => {
+                Py::new(py, PyIncompressibleScales::from_fsi(plan.scaling())).map(Some)
+            }
         }
     }
     #[getter]
@@ -613,6 +679,11 @@ impl PyPlan {
             )
             .map(Some),
             CommonPlanKind::TransientFlow(plan) => Py::new(
+                py,
+                PyIncompressibleScalingReceipt2d::from_native(plan.scaling_receipt().clone()),
+            )
+            .map(Some),
+            CommonPlanKind::Fsi(plan) => Py::new(
                 py,
                 PyIncompressibleScalingReceipt2d::from_native(plan.scaling_receipt().clone()),
             )
@@ -690,6 +761,7 @@ fn resolve_plan(
                 |plan| CommonPlanKind::Elasticity(Box::new(plan)),
                 |plan| CommonPlanKind::SteadyStokes(Box::new(plan)),
                 |plan| CommonPlanKind::TransientFlow(Box::new(plan)),
+                |plan| CommonPlanKind::Fsi(Box::new(plan)),
             )
         })
         .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
@@ -710,20 +782,66 @@ fn resolve_plan(
         spatial.ok_or_else(|| PyTypeError::new_err("spatial resolve requires spatial policy"))?;
     let solve =
         solve.ok_or_else(|| PyTypeError::new_err("spatial resolve requires solve policy"))?;
-    let spatial = if spatial_value.extract::<PyRef<'_, PyQ1>>().is_ok() {
-        SpatialPolicy::Q1
+    let (spatial_request, spatial_handle) = if spatial_value.extract::<PyRef<'_, PyQ1>>().is_ok() {
+        (
+            CommonSpatialRequest::Uniform(CommonSpatialPolicy::Q1),
+            SpatialHandle::Uniform(SpatialPolicy::Q1),
+        )
     } else if spatial_value
         .extract::<PyRef<'_, PyCellCenteredTpfa>>()
         .is_ok()
     {
-        SpatialPolicy::CellCenteredTpfa
+        (
+            CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa),
+            SpatialHandle::Uniform(SpatialPolicy::CellCenteredTpfa),
+        )
     } else if spatial_value.extract::<PyRef<'_, PyMiniP1>>().is_ok() {
-        SpatialPolicy::MiniP1
+        (
+            CommonSpatialRequest::Uniform(CommonSpatialPolicy::MiniP1),
+            SpatialHandle::Uniform(SpatialPolicy::MiniP1),
+        )
     } else if spatial_value.extract::<PyRef<'_, PyCellCentered>>().is_ok() {
-        SpatialPolicy::CellCentered
+        (
+            CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered),
+            SpatialHandle::Uniform(SpatialPolicy::CellCentered),
+        )
+    } else if let Ok(tuple) = spatial_value.cast::<PyTuple>() {
+        if tuple.is_empty() {
+            return Err(PyTypeError::new_err(
+                "scoped spatial policy tuple must be nonempty",
+            ));
+        }
+        let mut native = Vec::with_capacity(tuple.len());
+        let mut handles = Vec::with_capacity(tuple.len());
+        for value in tuple.iter() {
+            let handle = value.extract::<Py<PyScopedSpatialBinding>>().map_err(|_| {
+                PyTypeError::new_err("scoped spatial tuples must contain only MiniP1.at(DomainRef) or P1.at(DomainRef)")
+            })?;
+            let binding = handle.borrow(py);
+            let model_digest = eqiora::artifact::ArtifactDigest::from_hex(
+                binding.domain.exact_model_digest().to_owned(),
+            )
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            let domain = ulid::Ulid::from_string(binding.domain.exact_id())
+                .map(eqiora::Id::<eqiora::kinds::Domain>::from_ulid)
+                .map_err(|_| {
+                    PyTypeError::new_err("DomainRef contains an invalid exact Domain ULID")
+                })?;
+            let policy = match binding.policy {
+                ScopedSpatialKind::MiniP1 => CommonSpatialPolicy::MiniP1,
+                ScopedSpatialKind::P1 => CommonSpatialPolicy::P1,
+            };
+            native.push(CommonScopedSpatialPolicy::new(model_digest, domain, policy));
+            drop(binding);
+            handles.push(handle);
+        }
+        (
+            CommonSpatialRequest::Scoped(native),
+            SpatialHandle::Scoped(handles),
+        )
     } else {
         return Err(PyTypeError::new_err(
-            "spatial must be eqiora.fem.Q1(), eqiora.fem.MiniP1(), eqiora.fvm.CellCenteredTpfa(), or eqiora.fvm.CellCentered()",
+            "spatial must be a supported uniform policy or an exact tuple of Domain-scoped policies",
         ));
     };
     let scaling = match scaling {
@@ -780,7 +898,7 @@ fn resolve_plan(
     let native = resolve_common_plan(
         model_ref.artifact(),
         owner,
-        spatial.native(),
+        spatial_request,
         solve_native,
         scaling,
         temporal_native,
@@ -793,6 +911,7 @@ fn resolve_plan(
             |plan| CommonPlanKind::Elasticity(Box::new(plan)),
             |plan| CommonPlanKind::SteadyStokes(Box::new(plan)),
             |plan| CommonPlanKind::TransientFlow(Box::new(plan)),
+            |plan| CommonPlanKind::Fsi(Box::new(plan)),
         )
     })
     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
@@ -814,6 +933,12 @@ fn resolve_plan(
                 PyNewton::from_native(linear, plan.nonlinear()),
             )?)
         }
+        CommonPlanKind::Fsi(plan) => SolveHandle::Linear(Py::new(
+            py,
+            PyLinear {
+                native: plan.linear(),
+            },
+        )?),
         CommonPlanKind::Scalar(_)
         | CommonPlanKind::Ode(_)
         | CommonPlanKind::Elasticity(_)
@@ -825,7 +950,7 @@ fn resolve_plan(
         native,
         model,
         mesh: Some(mesh),
-        spatial: Some(spatial),
+        spatial: Some(spatial_handle),
         solve: Some(solve_handle),
         temporal: temporal_handle,
     })
@@ -834,6 +959,8 @@ fn resolve_plan(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyQ1>()?;
     module.add_class::<PyMiniP1>()?;
+    module.add_class::<PyP1>()?;
+    module.add_class::<PyScopedSpatialBinding>()?;
     module.add_class::<PyCellCenteredTpfa>()?;
     module.add_class::<PyCellCentered>()?;
     module.add_class::<PyLinear>()?;

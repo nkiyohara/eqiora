@@ -33,6 +33,18 @@ PROFILE_ENVIRONMENT = {
     "PYTHONHASHSEED": "0",
     "MPLBACKEND": "Agg",
 }
+SCIENTIFIC_CASE_IDS = (
+    "fsi.fixed-reference-monolithic-step-2d",
+    "artifacts.fixed-reference-fsi-spatial-trajectory",
+)
+FSI_PARAMETERS = {
+    "fluid_density": 2.0,
+    "fluid_viscosity": 0.5,
+    "solid_density": 3.0,
+    "solid_mu": 4.0,
+    "solid_lambda": 2.0,
+    "zero_pressure": 0.0,
+}
 
 
 class BuildError(RuntimeError):
@@ -84,25 +96,39 @@ def build(
     model_source = (
         files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi").read_bytes()
     )
+    geometry, mesh = _geometry_and_mesh(eqiora)
     model = eqiora.compile(
-        source=model_source.decode("utf-8"), filename="fixed-reference-fsi.eqi"
+        source=model_source.decode("utf-8"),
+        filename="fixed-reference-fsi.eqi",
+        geometry=geometry,
+        component="FixedReferenceFsi2d",
+        parameters=FSI_PARAMETERS,
     )
-    intent = eqiora.fsi.FixedMeshMonolithic(
-        time_step_s=0.05,
+    plan = eqiora.resolve(
+        model,
+        mesh=mesh,
+        spatial=(
+            eqiora.fem.MiniP1().at(model.domain("fluid")),
+            eqiora.fem.P1().at(model.domain("solid")),
+        ),
+        temporal=eqiora.time.BackwardEuler(step_s=0.05),
+        solve=eqiora.solve.Linear(
+            relative_tolerance=1.0e-11,
+            absolute_tolerance=1.0e-13,
+            maximum_iterations=20_000,
+        ),
+        scaling=None,
+    )
+    state = _initial_state(eqiora, model, mesh, plan)
+    run = eqiora.submit(
+        plan,
+        state=state,
         steps=2,
-        initial_velocity_m_per_s=(0.0, 0.0),
-        initial_free_interface_displacement_m=(0.02, 0.0),
-        length_scale_m=2.0,
-        velocity_scale_m_per_s=0.5,
-        pressure_scale_pa=4.0,
-        relative_tolerance=1.0e-11,
-        absolute_tolerance=1.0e-13,
-        maximum_iterations=20_000,
+        output_steps=(1, 2),
     )
-    plan = eqiora.fsi.resolve(model, intent)
-    result = eqiora.submit(model, plan=plan).result()
-    evidence = eqiora.fsi.fixed_mesh_monolithic_evidence(result)
-    data = _scene_data(result, model, evidence)
+    result = run.result()
+    evidence = eqiora.fsi.evidence(result)
+    data = _scene_data(result, plan, evidence)
     profile = scene.make_profile(data)
     encoder = _encoder_identity()
 
@@ -147,7 +173,7 @@ def build(
     encoder["mp4_argv"] = _recorded_argv(mp4_argv, output_directory)
     encoder["profile_sha256"] = record.content_digest(encoder, "profile_sha256")
     scene_value = scene.scene_record(data, profile, frame_sequence_sha256)
-    lineage = _lineage(result, model, plan, evidence)
+    lineage = _lineage(result, model, plan, evidence, run)
     environment = _environment(eqiora, matplotlib)
     renderer = {
         "identity": "eqiora.gallery.private-fsi-renderer/1",
@@ -165,7 +191,7 @@ def build(
         "scene_module_path": SCENE_MODULE.relative_to(ROOT).as_posix(),
         "scene_module_sha256": record.sha256_file(SCENE_MODULE),
         "model_source_sha256": record.sha256_bytes(model_source),
-        "result_digest": evidence.run_digest,
+        "result_digest": result.trajectory.run_digest,
         "result_frame_input_sha256": _frame_input_digest(data),
         "eqiora_version": eqiora.__version__,
         "eqiora_module_is_installed": True,
@@ -265,12 +291,82 @@ def _matplotlib():
     return matplotlib
 
 
-def _scene_data(result: Any, model: Any, evidence: Any) -> scene.SceneData:
+def _geometry_and_mesh(eqiora: Any) -> tuple[Any, Any]:
+    graph = eqiora.geometry.GeometryGraph()
+    fluid = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+    solid = graph.rectangle(x_bounds=(1.0, 2.0), y_bounds=(0.0, 1.0))
+    partition = graph.partition(
+        fluid, solid, interface=(fluid.boundaries[1], solid.boundaries[0])
+    )
+    geometry = graph.build(
+        partition,
+        named_topology={
+            "fluid": fluid.region,
+            "fluid_x_lower": fluid.boundaries[0],
+            "fluid_x_upper": fluid.boundaries[1],
+            "fluid_y_lower": fluid.boundaries[2],
+            "fluid_y_upper": fluid.boundaries[3],
+            "solid": solid.region,
+            "solid_x_lower": solid.boundaries[0],
+            "solid_x_upper": solid.boundaries[1],
+            "solid_y_lower": solid.boundaries[2],
+            "solid_y_upper": solid.boundaries[3],
+        },
+    )
+    request = eqiora.meshing.MeshRequest(
+        eqiora.meshing.AffineTriangleMesher(cells=(2, 2))
+    )
+    mesh = eqiora.meshing.generate(
+        geometry, plan=eqiora.meshing.resolve(geometry, request)
+    )
+    return geometry, mesh
+
+
+def _initial_state(eqiora: Any, model: Any, mesh: Any, plan: Any) -> Any:
+    coordinates = np.asarray(mesh.coordinates)
+    cells = np.asarray(mesh.cells)
+    fluid_vertices = np.flatnonzero(coordinates[:, 0] <= 1.0)
+    solid_vertices = np.flatnonzero(coordinates[:, 0] >= 1.0)
+    fluid_cells = np.flatnonzero(coordinates[cells, 0].mean(axis=1) < 1.0)
+    displacement = np.zeros((solid_vertices.size, 2))
+    interface_midpoint = np.flatnonzero(
+        (coordinates[solid_vertices, 0] == 1.0)
+        & (coordinates[solid_vertices, 1] == 0.5)
+    )
+    if interface_midpoint.size != 1:
+        raise RuntimeError("accepted FSI mesh lost its exact interface midpoint")
+    displacement[interface_midpoint[0], 0] = 0.02
+    fluid_velocity, fluid_pressure, solid_velocity, solid_displacement = plan.fields
+    return eqiora.State.initial(
+        plan,
+        time_s=0.0,
+        fields=(
+            eqiora.InitialField(
+                fluid_velocity,
+                vertex_values=np.zeros((fluid_vertices.size, 2)),
+                cell_values=np.zeros((fluid_cells.size, 2)),
+            ),
+            eqiora.InitialField(
+                fluid_pressure, vertex_values=np.full(fluid_vertices.size, 0.25)
+            ),
+            eqiora.InitialField(
+                solid_velocity, vertex_values=np.zeros((solid_vertices.size, 2))
+            ),
+            eqiora.InitialField(solid_displacement, vertex_values=displacement),
+        ),
+    )
+
+
+def _scene_data(result: Any, plan: Any, evidence: Any) -> scene.SceneData:
     trajectory = result.trajectory
-    pressure_field = model.field("fluid_pressure")
-    displacement_field = model.field("solid_displacement")
+    _, pressure_field, _, displacement_field = plan.fields
     steps = tuple(
-        _accepted_step(state, pressure_field, displacement_field)
+        _accepted_step(
+            state,
+            pressure_field,
+            displacement_field,
+            vertex_count=len(trajectory.coordinates),
+        )
         for state in trajectory.states
     )
     if len(steps) != 2:
@@ -282,8 +378,8 @@ def _scene_data(result: Any, model: Any, evidence: Any) -> scene.SceneData:
         solid_cells=np.asarray(evidence.solid_cells).copy(),
         interface_facets=np.asarray(evidence.interface_facets).copy(),
         steps=(steps[0], steps[1]),
-        case_ids=tuple(evidence.case_ids),
-        run_digest=evidence.run_digest,
+        case_ids=SCIENTIFIC_CASE_IDS,
+        run_digest=trajectory.run_digest,
     )
 
 
@@ -291,6 +387,8 @@ def _accepted_step(
     state: Any,
     pressure_field: Any,
     displacement_field: Any,
+    *,
+    vertex_count: int,
 ) -> scene.AcceptedStep:
     pressure = state.field(pressure_field)
     pressure_vertices = np.asarray(pressure.support_indices("vertex"))
@@ -298,11 +396,19 @@ def _accepted_step(
         ordinal=int(state.step),
         time_s=float(state.time_s),
         pressure_vertices=pressure_vertices.copy(),
-        pressure=np.asarray(pressure.values("vertex"))[pressure_vertices].copy(),
-        displacement=np.asarray(
-            state.field(displacement_field).values("vertex")
-        ).copy(),
+        pressure=np.asarray(pressure.values("vertex")).copy(),
+        displacement=_expanded_vertex_values(
+            state.field(displacement_field), vertex_count=vertex_count
+        ),
     )
+
+
+def _expanded_vertex_values(snapshot: Any, *, vertex_count: int) -> np.ndarray:
+    support = np.asarray(snapshot.support_indices("vertex"))
+    values = np.asarray(snapshot.values("vertex"))
+    expanded = np.zeros((vertex_count, *values.shape[1:]), dtype=values.dtype)
+    expanded[support] = values
+    return expanded
 
 
 def _render_frames(
@@ -581,12 +687,29 @@ def _lineage(
     model: Any,
     plan: Any,
     evidence: Any,
+    run: Any,
 ) -> dict[str, object]:
     revision = model.revision
     trajectory = result.trajectory
     if int(revision.number) != int(result.model_revision):
         raise BuildError("compiled revision and accepted result revision disagree")
-    run_manifest = result.run_manifest()
+    if (
+        run.plan_key != trajectory.request_identity
+        or run.plan_key != trajectory.run_digest
+    ):
+        raise BuildError("common Run and accepted trajectory lineage disagree")
+    run_identity_sha256 = record.sha256_bytes(
+        record.canonical_bytes(
+            {
+                "adapter": run.adapter,
+                "adapter_version": run.adapter_version,
+                "model_revision": int(run.model_revision),
+                "plan_identity": plan.identity,
+                "request_identity": run.plan_key,
+                "revision_digest": revision.digest,
+            }
+        )
+    )
     return {
         "revision_digest": revision.digest,
         "semantic_revision": int(result.model_revision),
@@ -594,12 +717,12 @@ def _lineage(
         "correspondence_digest": trajectory.correspondence_digest,
         "mesh_digest": trajectory.mesh_digest,
         "realization_digest": trajectory.realization_digest,
-        "realization_revision": int(plan.realization_revision),
-        "run_digest": evidence.run_digest,
-        "run_manifest_sha256": record.sha256_bytes(run_manifest.to_json()),
+        "realization_revision": int(plan.model_revision),
+        "run_digest": trajectory.run_digest,
+        "run_identity_sha256": run_identity_sha256,
         "state_digests": [state.digest for state in trajectory.states],
         "trajectory_digest": trajectory.digest,
-        "scientific_case_ids": list(evidence.case_ids),
+        "scientific_case_ids": list(SCIENTIFIC_CASE_IDS),
     }
 
 

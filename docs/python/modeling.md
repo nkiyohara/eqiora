@@ -376,96 +376,66 @@ The complete runnable workflow is
 
 ## Fixed-mesh monolithic FSI result
 
-The installed package carries the accepted fixed-reference two-body FSI source.
-Python compiles it through the current Model path and resolves mandatory,
-explicit fixed-mesh monolithic intent before execution. The shared Rust
-application service owns the fixed mesh, coupled Realization, both consecutive
-monolithic steps, spatial states, trajectory, and final Run:
+The fixed-reference FSI path uses the same root lifecycle as every common
+numerical Plan. Python authors the adjacent two-region `Geometry`, generates
+its authenticated common `Mesh`, compiles the equations-only Component, and
+then supplies exact Model-bound spatial scopes:
 
 ```python
-source = (
-    files(eqiora)
-    .joinpath("examples", "fixed-reference-fsi.eqi")
-    .read_text()
-)
 model = eqiora.compile(
-    source=source,
-    filename="fixed-reference-fsi.eqi",
+    path=files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi"),
+    geometry=geometry,
+    component="FixedReferenceFsi2d",
+    parameters=parameters,
 )
-intent = eqiora.fsi.FixedMeshMonolithic(
-    time_step_s=0.05,
-    steps=2,
-    initial_velocity_m_per_s=(0.0, 0.0),
-    initial_free_interface_displacement_m=(0.02, 0.0),
-    length_scale_m=2.0,
-    velocity_scale_m_per_s=0.5,
-    pressure_scale_pa=4.0,
-    relative_tolerance=1.0e-11,
-    absolute_tolerance=1.0e-13,
-    maximum_iterations=20_000,
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=(
+        eqiora.fem.MiniP1().at(model.domain("fluid")),
+        eqiora.fem.P1().at(model.domain("solid")),
+    ),
+    temporal=eqiora.time.BackwardEuler(step_s=0.05),
+    solve=eqiora.solve.Linear(
+        relative_tolerance=1.0e-11,
+        absolute_tolerance=1.0e-13,
+        maximum_iterations=20_000,
+    ),
+    scaling=None,
 )
-plan = eqiora.fsi.resolve(model, intent)
-run = eqiora.submit(model, plan=plan)
-result = run.result()
-trajectory = result.trajectory
-evidence = eqiora.fsi.fixed_mesh_monolithic_evidence(result)
-
-assert tuple(state.step for state in trajectory.states) == (1, 2)
-assert not trajectory.coordinates.flags.writeable
-for state in trajectory.states:
-    state_evidence = evidence.state(state)
-    print(state.step, state.time_s, state_evidence.solve)
+state = eqiora.State.initial(
+    plan,
+    time_s=0.0,
+    fields=(
+        eqiora.InitialField(model.field("fluid_velocity"), vertex_values=..., cell_values=...),
+        eqiora.InitialField(model.field("fluid_pressure"), vertex_values=...),
+        eqiora.InitialField(model.field("solid_velocity"), vertex_values=...),
+        eqiora.InitialField(model.field("solid_displacement"), vertex_values=...),
+    ),
+)
+result = eqiora.run(plan, state=state, steps=2, output_steps=(1, 2))
+evidence = eqiora.fsi.evidence(result)
 ```
 
-`FixedMeshMonolithic` is keyword-only, immutable, and has no hidden numerical
-defaults. Its initial state explicitly applies zero velocity everywhere and
-the accepted displacement only at the free interface midpoint. The
-model-bound `FixedMeshMonolithicPlan` exposes the admitted fixed-reference
-geometry policy, affine-triangle spaces, backward-Euler time policy, monolithic
-coupling, scales, symmetric-indefinite solver, tolerances, backend, execution
-adapter, worker count, and state count before a worker starts. Resolution
-rejects every unsupported value and foreign Model meaning rather than falling
-back.
+`DomainRef`, `InitialField`, `Plan`, `State`, `Run`, `Result`, and `Trajectory`
+are common types. The Model decides that this is FSI; `eqiora.resolve` admits
+only the complete `MiniP1@fluid + P1@solid` partition and binds the actual
+Model, Geometry, Mesh, correspondence, production lineage, four exact Fields,
+backward Euler policy, full coupled scaling receipt, MINRES provider, and host
+placement. `scaling=None` requests automatic coupled scales; a complete
+`IncompressibleScaling` value makes them manual.
 
-The common `Result` returns the common `Trajectory`, which is the sole Python
-owner of the exact Model, Geometry, correspondence, Mesh, Realization, Run,
-ordered-state, and trajectory identities as well as the fixed reference
-coordinates, connectivity, and spatial fields. `FixedMeshMonolithicEvidence`
-owns the exhaustive fluid/solid/interface partition. Its exact
-`State` lookup returns the corresponding action, energy, residual,
-solve, and assembly observations without turning the state into a
-physics-specific property bag.
-
-The optional Matplotlib adapters select an exact Model-bound Field from an
-already accepted trajectory state. They restrict both values and topology to
-the Field's accepted support; deformation additionally requires a
-spatial-cartesian vector with the SI dimension of length:
-
-```python
-pressure_figure = eqplot.plot_scalar_field(
-    trajectory,
-    step=2,
-    field=model.field("fluid_pressure"),
-)
-pressure_figure.savefig("fixed-reference-pressure.png")
-
-deformed_figure = eqplot.plot_deformed_field(
-    trajectory,
-    step=2,
-    field=model.field("solid_displacement"),
-    scale=12,
-)
-deformed_figure.savefig("fixed-reference-deformed.png")
-```
+Initial coefficients are immutable, exact-Field assignments in coherent SI.
+They must be complete and association-correct; pressure has no auxiliary
+zero-mean restriction in this fixed-reference formulation. A compatible State
+can restart a freshly resolved Plan even when solve or scaling policies differ,
+while a foreign Model, Geometry, field, or state space is rejected.
 
 The complete runnable workflow is
 [`examples/python/fixed_reference_fsi.py`](../../examples/python/fixed_reference_fsi.py).
-It is one immutable fixed-reference 2D, affine-triangle, host-serial, two-step
-composition. It does not expose a general coupling graph, Python time loop,
-ALE or remeshing, partitioned iteration, stress/drag/lift derivation,
-animation, or scientific validation from pixels. Field names above are
-resolved by the caller's exact `Model`; the presentation adapters receive
-`FieldRef` values and never use names as field identity.
+It is one fixed-reference 2D affine-triangle monolithic formulation. It does not
+claim partitioned coupling, FVM/FEM transfer, ALE, remeshing, checkpointing,
+general multiphysics policy maps, or per-domain time and solve policies.
 
 ## Conserving connections
 

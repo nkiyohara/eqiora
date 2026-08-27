@@ -48,6 +48,27 @@ pub struct ModelFieldRef {
     id: Id<kinds::Field>,
 }
 
+/// Exact canonical Domain selected from one immutable Model artifact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelDomainRef {
+    model: ModelArtifactReference,
+    id: Id<kinds::Domain>,
+}
+
+impl ModelDomainRef {
+    /// Exact Model artifact owning this Domain.
+    #[must_use]
+    pub const fn model(&self) -> &ModelArtifactReference {
+        &self.model
+    }
+
+    /// Stable canonical Domain identity.
+    #[must_use]
+    pub const fn id(&self) -> Id<kinds::Domain> {
+        self.id
+    }
+}
+
 impl ModelFieldRef {
     /// Exact Model artifact owning this Field.
     #[must_use]
@@ -88,6 +109,17 @@ impl ModelDocument {
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Field"))?;
         Ok(ModelFieldRef {
+            model: self.artifact_reference()?,
+            id,
+        })
+    }
+
+    /// Resolve a source alias or exact ULID once into a Model-bound Domain.
+    pub fn domain_ref(&self, selection: &str) -> Result<ModelDomainRef, Diagnostic> {
+        let id = resolve_entity(self, selection, EntityKind::Domain)?
+            .downcast()
+            .ok_or_else(|| wrong_kind(selection, "Domain"))?;
+        Ok(ModelDomainRef {
             model: self.artifact_reference()?,
             id,
         })

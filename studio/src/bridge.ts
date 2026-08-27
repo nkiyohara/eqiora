@@ -22,7 +22,6 @@ import {
   EXAMPLE_SOURCE,
   SPATIAL_EXAMPLE_SOURCE,
 } from "./example";
-import type { FsiDemoRequest, FsiDemoResult } from "./fsi-demo-protocol";
 import {
   BRIDGE_PROTOCOL,
   type BridgeEnvelope,
@@ -97,7 +96,6 @@ export interface StudioBridge {
   ): Promise<BridgeEnvelope<SpatialRunResult>>;
   runCylinderDemo(request: CylinderDemoRequest): Promise<BridgeEnvelope<CylinderDemoResult>>;
   runDcMotorDemo(request: DcMotorDemoRequest): Promise<BridgeEnvelope<DcMotorDemoResult>>;
-  runFsiDemo(request: FsiDemoRequest): Promise<BridgeEnvelope<FsiDemoResult>>;
   runStructuralDemo(request: StructuralDemoRequest): Promise<BridgeEnvelope<StructuralDemoResult>>;
 }
 
@@ -327,9 +325,6 @@ const nativeBridge: StudioBridge = {
   },
   async runDcMotorDemo(request) {
     return nativeDemoBridge.runDcMotor(request);
-  },
-  async runFsiDemo(request) {
-    return nativeDemoBridge.runFsi(request);
   },
   async runStructuralDemo(request) {
     return nativeDemoBridge.runStructural(request);
@@ -1045,9 +1040,6 @@ const previewBridge: StudioBridge = {
   },
   async runDcMotorDemo(request) {
     return previewDemoBridge.runDcMotor(request);
-  },
-  async runFsiDemo(request) {
-    return previewDemoBridge.runFsi(request);
   },
   async runStructuralDemo(request) {
     return previewDemoBridge.runStructural(request);

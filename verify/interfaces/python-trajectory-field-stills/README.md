@@ -11,29 +11,28 @@ trajectory = result.trajectory
 pressure = eqplot.plot_scalar_field(
     trajectory,
     step=2,
-    field=model.field("fluid_pressure"),
+    field=plan.fields[1],
 )
 geometry = eqplot.plot_deformed_field(
     trajectory,
     step=2,
-    field=model.field("solid_displacement"),
+    field=plan.fields[3],
     scale=12.0,
 )
 ```
 
-Here `result` is the common `Result` returned by the explicit
-`FixedMeshMonolithic` Plan workflow in the Python modeling guide.
+Here `result` is the common `Result` returned by the root
+`compile -> resolve -> State.initial -> run` workflow in the Python modeling
+guide.
 
 The first admitted consumer is the exact fixed-mesh affine-triangle 2D FSI
 trajectory. Both calls admitted by this case take a `Trajectory` — not a
 common `Result` — and select their field by exact Model-bound `FieldRef`
 identity through `trajectory.state(step).field(field)`. Exact identity is the
-`(Model artifact, field)` pair, and two fixtures close it from both sides: an
-independent compilation of one source is structurally equivalent yet allocates
-fresh semantic field ids, and a committed value edit keeps every semantic field
-id while changing only the exact Model artifact. Neither structural
-equivalence nor a field id string is an authority, so a `FieldRef` from either
-Model is rejected before a Figure exists.
+`(Model artifact, field)` pair. The parameter-mutant fixture deliberately keeps
+the same semantic Field IDs while changing the exact Model digest, proving that
+an ID string alone is not authority; its `FieldRef` is rejected before a Figure
+exists.
 
 `plot_deformed_field` also has a static `Result` arm without `step`. That arm
 selects the bounded mixed-boundary displacement `FieldSnapshot` and exact

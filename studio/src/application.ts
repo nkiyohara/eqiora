@@ -25,7 +25,6 @@ export type WorkflowId =
   | "cylinder-stokes"
   | "packaged-dc-drive"
   | "structural-elasticity"
-  | "fixed-reference-fsi"
   | "cad-box"
   | "cad-authored";
 export type WorkspaceId =
@@ -33,7 +32,6 @@ export type WorkspaceId =
   | "field"
   | "trajectory"
   | "structure"
-  | "fsi"
   | "geometry"
   | "cad-authoring";
 
@@ -49,13 +47,11 @@ export type CommandId =
   | "workspace.field"
   | "workspace.trajectory"
   | "workspace.structure"
-  | "workspace.fsi"
   | "workspace.geometry"
   | "workspace.cad-authoring"
   | "example.cylinder"
   | "example.dc-drive"
   | "example.structural"
-  | "example.fsi"
   | "example.spatial"
   | "example.cad"
   | "focus.source"
@@ -76,8 +72,6 @@ export type FocusTarget =
   | "trajectory-sample-table"
   | "structural-viewport"
   | "structural-vertex-table"
-  | "fsi-viewport"
-  | "fsi-vertex-table"
   | "cad-viewport"
   | "cad-domain-table"
   | "cad-authored-workspace";
@@ -87,7 +81,6 @@ export type ElementFocusTarget = Exclude<FocusTarget, "source-editor" | "relatio
 export const CYLINDER_EVIDENCE_FOCUS_ID = "cylinder-evidence-inspector";
 export const DC_MOTOR_EVIDENCE_FOCUS_ID = "dc-drive-evidence-inspector";
 export const STRUCTURAL_EVIDENCE_FOCUS_ID = "structural-evidence-inspector";
-export const FSI_EVIDENCE_FOCUS_ID = "fsi-evidence-inspector";
 
 /**
  * Resolve registry focus to the one visible workflow-owned element.
@@ -118,9 +111,7 @@ export function resolveElementFocusId(
           ? DC_MOTOR_EVIDENCE_FOCUS_ID
           : activeWorkflow === "structural-elasticity"
             ? STRUCTURAL_EVIDENCE_FOCUS_ID
-            : activeWorkflow === "fixed-reference-fsi"
-              ? FSI_EVIDENCE_FOCUS_ID
-              : "evidence-inspector";
+            : "evidence-inspector";
     case "trajectory-viewport":
       return "trajectory-viewport";
     case "trajectory-sample-table":
@@ -129,10 +120,6 @@ export function resolveElementFocusId(
       return "structural-viewport";
     case "structural-vertex-table":
       return "structural-vertex-table";
-    case "fsi-viewport":
-      return "fsi-viewport";
-    case "fsi-vertex-table":
-      return "fsi-vertex-table";
     case "cad-viewport":
       return "cad-viewport";
     case "cad-domain-table":
@@ -180,10 +167,6 @@ export type SemanticAlternative =
   | Readonly<{
       kind: "structural-vertex-table";
       focusTarget: "structural-vertex-table";
-    }>
-  | Readonly<{
-      kind: "fsi-vertex-table";
-      focusTarget: "fsi-vertex-table";
     }>;
 
 export type ProjectionContract =
@@ -227,14 +210,6 @@ export type ProjectionContract =
       maximumCells: 256;
       components: 2;
       semanticAlternative: Extract<SemanticAlternative, { kind: "structural-vertex-table" }>;
-    }>
-  | Readonly<{
-      kind: "bounded-fixed-reference-fsi-trajectory-view";
-      maximumVertices: 9;
-      maximumTriangles: 8;
-      acceptedSteps: 2;
-      components: 2;
-      semanticAlternative: Extract<SemanticAlternative, { kind: "fsi-vertex-table" }>;
     }>
   | Readonly<{
       kind: "bounded-authored-cad-history";
@@ -288,15 +263,6 @@ type StructuralWorkflowDefinition = Readonly<{
   projection: Extract<ProjectionContract, { kind: "bounded-cartesian-displacement-grid-view" }>;
 }>;
 
-type FsiWorkflowDefinition = Readonly<{
-  id: "fixed-reference-fsi";
-  workspace: "fsi";
-  label: "workflow.fsi.label";
-  description: "workflow.fsi.description";
-  primaryFocus: "fsi-viewport";
-  projection: Extract<ProjectionContract, { kind: "bounded-fixed-reference-fsi-trajectory-view" }>;
-}>;
-
 type CadWorkflowDefinition = Readonly<{
   id: "cad-box";
   workspace: "geometry";
@@ -321,7 +287,6 @@ export type WorkflowDefinition =
   | CylinderWorkflowDefinition
   | DcMotorWorkflowDefinition
   | StructuralWorkflowDefinition
-  | FsiWorkflowDefinition
   | CadWorkflowDefinition
   | CadAuthoredWorkflowDefinition;
 
@@ -331,7 +296,6 @@ export type CadApplicationStatus = "idle" | "loading" | "ready" | "unavailable";
 export type CylinderApplicationStatus = "idle" | "running" | "ready" | "failed";
 export type DcMotorApplicationStatus = "idle" | "running" | "ready" | "failed";
 export type StructuralApplicationStatus = "idle" | "running" | "ready" | "failed";
-export type FsiApplicationStatus = "idle" | "running" | "ready" | "failed";
 
 export type CadApplicationInput = Readonly<{
   status: CadApplicationStatus;
@@ -348,7 +312,6 @@ export type ApplicationInputs = Readonly<{
   cylinderStatus: CylinderApplicationStatus;
   dcMotorStatus: DcMotorApplicationStatus;
   structuralStatus: StructuralApplicationStatus;
-  fsiStatus: FsiApplicationStatus;
   fieldWorkflow: "scalar-elliptic" | "cylinder-stokes" | null;
 }>;
 
@@ -405,17 +368,6 @@ function resolveAvailability(
       case "idle":
       case "failed":
         return unavailable("workflow.reason.structural-unavailable");
-    }
-  }
-  if (workflow.id === "fixed-reference-fsi") {
-    switch (inputs.fsiStatus) {
-      case "running":
-        return { kind: "loading", reason: "workflow.reason.fsi-running" };
-      case "ready":
-        return { kind: "available", reason: null };
-      case "idle":
-      case "failed":
-        return unavailable("workflow.reason.fsi-unavailable");
     }
   }
   const document = inputs.acceptedProjection;
@@ -491,15 +443,11 @@ export function resolveApplication(
   );
   const structuralAvailable =
     structural?.availability.kind === "available" || structural?.availability.kind === "loading";
-  const fsi = workflows.find((workflow) => workflow.definition.id === "fixed-reference-fsi");
-  const fsiAvailable =
-    fsi?.availability.kind === "available" || fsi?.availability.kind === "loading";
   const workspace =
     (requestedWorkspace === "geometry" && !geometryAvailable) ||
     (requestedWorkspace === "field" && !fieldAvailable) ||
     (requestedWorkspace === "trajectory" && !trajectoryAvailable) ||
-    (requestedWorkspace === "structure" && !structuralAvailable) ||
-    (requestedWorkspace === "fsi" && !fsiAvailable)
+    (requestedWorkspace === "structure" && !structuralAvailable)
       ? "relations"
       : requestedWorkspace;
   const spatial = workflows.find((workflow) => workflow.definition.id === "scalar-elliptic");
@@ -514,11 +462,9 @@ export function resolveApplication(
             ? "packaged-dc-drive"
             : workspace === "structure"
               ? "structural-elasticity"
-              : workspace === "fsi"
-                ? "fixed-reference-fsi"
-                : spatial?.availability.kind === "available"
-                  ? "scalar-elliptic"
-                  : "relations";
+              : spatial?.availability.kind === "available"
+                ? "scalar-elliptic"
+                : "relations";
   return {
     requestedWorkspace,
     workspace,
@@ -562,8 +508,6 @@ export type CommandFacts = Readonly<{
   dcMotorRunning: boolean;
   structuralAvailable: boolean;
   structuralRunning: boolean;
-  fsiAvailable: boolean;
-  fsiRunning: boolean;
   cadAvailability: WorkflowAvailability;
 }>;
 
@@ -682,7 +626,6 @@ export function resolveCommandAvailability(facts: CommandFacts): CommandAvailabi
       facts.structuralAvailable,
       "command.reason.structural-result-unavailable",
     ),
-    "workspace.fsi": commandState(facts.fsiAvailable, "command.reason.fsi-result-unavailable"),
     "workspace.geometry": commandState(cadEnabled, cadReason),
     "workspace.cad-authoring": { enabled: true, reason: null },
     "example.cylinder": commandState(!facts.cylinderRunning, "command.reason.cylinder-running"),
@@ -691,7 +634,6 @@ export function resolveCommandAvailability(facts: CommandFacts): CommandAvailabi
       !facts.structuralRunning,
       "command.reason.structural-running",
     ),
-    "example.fsi": commandState(!facts.fsiRunning, "command.reason.fsi-running"),
     "example.spatial": commandState(!facts.compiling, "command.reason.compiling"),
     "example.cad": commandState(!facts.compiling, "command.reason.compiling"),
     "focus.source": scoped("focus.source", { enabled: true, reason: null }),

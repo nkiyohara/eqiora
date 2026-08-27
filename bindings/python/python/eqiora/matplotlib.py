@@ -251,14 +251,19 @@ def _vertex_field_arrays(spatial, snapshot, *, cell_arity):
         if cell_arity == 4:
             raise ValueError("field stills require quadrilateral topology")
         raise ValueError("field stills received an unsupported topology contract")
-    if values.shape[0] != coordinates.shape[0]:
-        raise ValueError("field value shape does not match the spatial vertices")
     if support.ndim != 1 or support.size == 0:
         raise ValueError("vertex support must be one-dimensional and nonempty")
     if int(support.max()) >= coordinates.shape[0]:
         raise ValueError("vertex support exceeds the spatial coordinates")
     if not np.array_equal(support, np.unique(support)):
         raise ValueError("vertex support must be sorted and unique")
+    if values.shape[0] == support.shape[0]:
+        expanded_shape = (coordinates.shape[0], *values.shape[1:])
+        expanded = np.zeros(expanded_shape, dtype=values.dtype)
+        expanded[support] = values
+        values = expanded
+    elif values.shape[0] != coordinates.shape[0]:
+        raise ValueError("field value shape does not match its vertex support")
     if cells.size > 0 and int(cells.max()) >= coordinates.shape[0]:
         raise ValueError("cell topology exceeds the spatial coordinates")
 

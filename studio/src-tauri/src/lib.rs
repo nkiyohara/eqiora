@@ -10,7 +10,6 @@ mod cad_authored_export;
 mod compile;
 mod cylinder_demo;
 mod dc_motor_demo;
-mod fsi_demo;
 mod lifecycle;
 mod scalar_field;
 mod structural_demo;
@@ -2027,7 +2026,6 @@ pub fn run() {
             read_unstructured_field_chunk,
             cylinder_demo::run_cylinder_demo,
             dc_motor_demo::run_dc_motor_demo,
-            fsi_demo::run_fsi_demo,
             structural_demo::run_structural_demo,
             cancel_reference_run
         ])

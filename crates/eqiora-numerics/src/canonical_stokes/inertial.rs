@@ -193,6 +193,17 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d(
     domain: RawId,
     bounds: [[f64; 2]; 2],
 ) -> Result<LoweredInertialIncompressibleNewtonianSubdomain2d, Diagnostic> {
+    lower_inertial_incompressible_newtonian_subdomain_2d_with_boundaries(
+        program, domain, bounds, None,
+    )
+}
+
+pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundaries(
+    program: &KernelProgram,
+    domain: RawId,
+    bounds: [[f64; 2]; 2],
+    boundaries: Option<BTreeMap<(eqiora_schema::kernel::BoundarySide, usize), RawId>>,
+) -> Result<LoweredInertialIncompressibleNewtonianSubdomain2d, Diagnostic> {
     let (velocity, scalar_fields, representation) = exact_fields(program, domain)?;
     if scalar_fields.len() != 2 {
         return Err(lowering_error(
@@ -338,8 +349,20 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d(
     })?;
     require_positive_constant(&dynamic_viscosity, momentum_relation, "dynamic viscosity")?;
 
-    let lowered_boundary =
-        boundary::lower(program, domain, velocity, pressure, &dynamic_viscosity)?;
+    let lowered_boundary = match boundaries {
+        Some(boundaries) => boundary::lower_with_boundaries(
+            program,
+            domain,
+            velocity,
+            pressure,
+            &dynamic_viscosity,
+            boundaries
+                .into_iter()
+                .map(|((side, axis), id)| ((axis, side), id))
+                .collect(),
+        )?,
+        None => boundary::lower(program, domain, velocity, pressure, &dynamic_viscosity)?,
+    };
     let model = InertialIncompressibleNewtonianCartesianModel2d {
         domain,
         velocity,

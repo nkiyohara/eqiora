@@ -46,6 +46,7 @@ pub use dynamics::{
 pub(crate) use dynamics::{
     LoweredIsotropicElastodynamicsSubdomain, LoweredIsotropicElastodynamicsSubdomain2d,
     lower_isotropic_elastodynamics_subdomain, lower_isotropic_elastodynamics_subdomain_2d,
+    lower_isotropic_elastodynamics_subdomain_2d_with_boundaries,
 };
 pub use pair::{
     ConformingElasticityInterface2d, ConformingElasticityInterfaceSide2d,

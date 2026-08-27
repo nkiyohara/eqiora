@@ -5,10 +5,8 @@ import numpy.typing as npt
 
 import eqiora
 from eqiora.fsi import (
-    FixedMeshMonolithic,
-    FixedMeshMonolithicEvidence,
-    FixedMeshMonolithicPlan,
-    FixedMeshMonolithicStateEvidence,
+    FsiEvidence,
+    FsiStateEvidence,
 )
 from eqiora.meshing import Mesh
 from eqiora.solid import (
@@ -50,38 +48,19 @@ def check_native_modeling() -> None:
 
 
 def check_execution(
-    model: eqiora.Model,
-    realization: eqiora.Realization,
+    plan: eqiora.Plan,
+    state: eqiora.State,
     array: eqiora.Array,
 ) -> None:
-    assert_type(
-        eqiora.run(model, end_time=1.0, max_step=0.1),
-        eqiora.Result,
+    assert_type(eqiora.run(plan), eqiora.Result)
+    transient = eqiora.submit(
+        plan, state=state, until_s=1.0, output_times_s=(1.0,)
     )
-    assert_type(
-        eqiora.run(model, end_time=1.0, max_step=0.1, realization=None),
-        eqiora.Result,
-    )
-    assert_type(
-        eqiora.run(model, realization=realization),
-        eqiora.ScalarEllipticResult,
-    )
-
-    temporal = eqiora.submit(model, end_time=1.0, max_step=0.1)
-    spatial = eqiora.submit(model, realization=realization)
-    assert_type(temporal, eqiora.Run[eqiora.Result])
-    assert_type(spatial, eqiora.Run[eqiora.ScalarEllipticResult])
-    assert_type(temporal.result(), eqiora.Result)
-    assert_type(spatial.result(), eqiora.ScalarEllipticResult)
+    assert_type(transient, eqiora.Run[eqiora.Result])
+    assert_type(transient.result(), eqiora.Result)
     assert_type(array.numpy(copy=False), npt.NDArray[np.float64])
 
-    eqiora.run(model)  # type: ignore[call-overload]
-    eqiora.run(  # type: ignore[call-overload]
-        model,
-        end_time=1.0,
-        max_step=0.1,
-        realization=realization,
-    )
+    eqiora.run(plan, state=state)  # type: ignore[call-overload]
     eqiora.Run[eqiora.Result](object())  # type: ignore[arg-type]
 
 
@@ -109,52 +88,20 @@ def check_structural_result(model: eqiora.Model) -> None:
     assert_type(plan.scalar_type, str)
     assert_type(plan.vector_layout, str)
     assert_type(plan.coefficient_association, str)
-    assert_type(eqiora.submit(model, plan=plan), eqiora.Run[eqiora.Result])
-    result = eqiora.run(model, plan=plan)
-    assert_type(result, eqiora.Result)
-
-    displacement = model.field("displacement")
-    snapshot = result.field(displacement)
-    mesh = result.mesh(displacement)
-    assert_type(snapshot, FieldSnapshot)
-    assert_type(mesh, Mesh)
-    assert_type(snapshot.values("vertex"), npt.NDArray[np.float64])
-    assert_type(snapshot.support_indices("vertex"), npt.NDArray[np.uint32])
-    assert_type(mesh.coordinates, npt.NDArray[np.float64])
-    assert_type(mesh.cells, npt.NDArray[np.uint32])
-    assert_type(
-        eqiora.solid.linear_elasticity_evidence(result),
-        LinearElasticityEvidence,
-    )
-
     LinearElasticity(cells_per_axis=16)  # type: ignore[call-arg]
 
 
-def check_fsi_result(model: eqiora.Model) -> None:
-    intent = FixedMeshMonolithic(
-        time_step_s=0.05,
-        steps=2,
-        initial_velocity_m_per_s=(0.0, 0.0),
-        initial_free_interface_displacement_m=(0.02, 0.0),
-        length_scale_m=2.0,
-        velocity_scale_m_per_s=0.5,
-        pressure_scale_pa=4.0,
-        relative_tolerance=1.0e-11,
-        absolute_tolerance=1.0e-13,
-        maximum_iterations=20_000,
+def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
+    assert_type(plan, eqiora.Plan)
+    assert_type(plan.mesh_kind, str | None)
+    assert_type(plan.velocity_space, str | None)
+    assert_type(plan.pressure_space, str | None)
+    assert_type(plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | None)
+    assert_type(
+        eqiora.submit(plan, state=state, steps=2, output_steps=(1, 2)),
+        eqiora.Run[eqiora.Result],
     )
-    plan = eqiora.fsi.resolve(model, intent)
-    assert_type(plan, FixedMeshMonolithicPlan)
-    assert_type(plan.coupling_method, str)
-    assert_type(plan.geometry_motion, str)
-    assert_type(plan.mesh_kind, str)
-    assert_type(plan.fluid_velocity_space, str)
-    assert_type(plan.fluid_pressure_space, str)
-    assert_type(plan.solid_velocity_space, str)
-    assert_type(plan.solid_displacement_space, str)
-    assert_type(plan.time_integrator, str)
-    assert_type(eqiora.submit(model, plan=plan), eqiora.Run[eqiora.Result])
-    result = eqiora.run(model, plan=plan)
+    result = eqiora.run(plan, state=state, steps=2, output_steps=(1, 2))
     assert_type(result, eqiora.Result)
     assert_type(result.trajectory, Trajectory)
     assert_type(result.trajectory.coordinates, npt.NDArray[np.float64])
@@ -162,34 +109,29 @@ def check_fsi_result(model: eqiora.Model) -> None:
     assert_type(result.trajectory.states, tuple[State, ...])
     assert_type(result.trajectory.state(1).fields, tuple[FieldSnapshot, ...])
     assert_type(
-        result.trajectory.state(1).field(model.field(model.field_ids[0])),
+        result.trajectory.state(1).field(plan.fields[0]),
         FieldSnapshot,
     )
     assert_type(
         result.trajectory.state(1)
-        .field(model.field(model.field_ids[0]))
+        .field(plan.fields[0])
         .support_indices("vertex"),
         npt.NDArray[np.uint32],
     )
-    evidence = eqiora.fsi.fixed_mesh_monolithic_evidence(result)
-    assert_type(evidence, FixedMeshMonolithicEvidence)
+    evidence = eqiora.fsi.evidence(result)
+    assert_type(evidence, FsiEvidence)
     assert_type(
         evidence.state(result.trajectory.state(1)),
-        FixedMeshMonolithicStateEvidence,
+        FsiStateEvidence,
     )
     assert_type(evidence.fluid_cells, npt.NDArray[np.uint32])
     assert_type(evidence.solid_cells, npt.NDArray[np.uint32])
     assert_type(evidence.interface_facets, npt.NDArray[np.uint32])
     assert_type(
         evidence.states,
-        tuple[
-            FixedMeshMonolithicStateEvidence,
-            FixedMeshMonolithicStateEvidence,
-        ],
+        tuple[FsiStateEvidence, ...],
     )
     assert_type(
         evidence.state(result.trajectory.state(1)).fluid_action,
         npt.NDArray[np.float64],
     )
-
-    FixedMeshMonolithic()  # type: ignore[call-arg]

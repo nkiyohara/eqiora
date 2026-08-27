@@ -9,65 +9,27 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Fixed-mesh monolithic FSI intent, plan, and typed evidence.
+Observation-only evidence for common FSI Results.
 
 Module authority: <ExactSourceLink path="bindings/python/python/eqiora/fsi.py" kind="blob">bindings/python/python/eqiora/fsi.py</ExactSourceLink>
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/fsi.pyi" kind="blob">bindings/python/python/eqiora/fsi.pyi</ExactSourceLink>
 
-This module publishes **6** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **3** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
-<a id="api-eqiora-fsi-FixedMeshMonolithic"></a>
+<a id="api-eqiora-fsi-FsiEvidence"></a>
 
-## `FixedMeshMonolithic`
+## `FsiEvidence`
 
-Complete fixed-mesh monolithic FSI request with no hidden numerical state.
+Observation-only partition and per-State evidence for a common FSI Result.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/fsi.rs" kind="blob">crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithic</ExactSourceLink>
-
-```python
-@final
-class FixedMeshMonolithic:
-    def __new__(cls, *, time_step_s: float, steps: int, initial_velocity_m_per_s: tuple[float, float], initial_free_interface_displacement_m: tuple[float, float], length_scale_m: float, velocity_scale_m_per_s: float, pressure_scale_pa: float, relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int) -> FixedMeshMonolithic: ...
-    @property
-    def time_step_s(self) -> float: ...
-    @property
-    def steps(self) -> int: ...
-    @property
-    def initial_velocity_m_per_s(self) -> tuple[float, float]: ...
-    @property
-    def initial_free_interface_displacement_m(self) -> tuple[float, float]: ...
-    @property
-    def length_scale_m(self) -> float: ...
-    @property
-    def velocity_scale_m_per_s(self) -> float: ...
-    @property
-    def pressure_scale_pa(self) -> float: ...
-    @property
-    def relative_tolerance(self) -> float: ...
-    @property
-    def absolute_tolerance(self) -> float: ...
-    @property
-    def maximum_iterations(self) -> int: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-fsi-FixedMeshMonolithicEvidence"></a>
-
-## `FixedMeshMonolithicEvidence`
-
-Typed evidence for one fixed-mesh monolithic FSI result.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/fsi.rs" kind="blob">crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithicEvidence</ExactSourceLink>
+Authority: <ExactSourceLink path="crates/eqiora-python/src/fsi_evidence.rs" kind="blob">crates/eqiora-python/src/fsi_evidence.rs::PyFsiEvidence</ExactSourceLink>
 
 ```python
 @final
-class FixedMeshMonolithicEvidence:
+class FsiEvidence:
     @property
-    def trajectory_digest(self) -> str: ...
-    @property
-    def run_digest(self) -> str: ...
+    def request_identity(self) -> str: ...
     @property
     def fluid_cells(self) -> npt.NDArray[np.uint32]: ...
     @property
@@ -75,104 +37,21 @@ class FixedMeshMonolithicEvidence:
     @property
     def interface_facets(self) -> npt.NDArray[np.uint32]: ...
     @property
-    def states(self) -> tuple[FixedMeshMonolithicStateEvidence, FixedMeshMonolithicStateEvidence]: ...
-    def state(self, state: State, /) -> FixedMeshMonolithicStateEvidence: ...
-    @property
-    def case_ids(self) -> tuple[str, str]: ...
+    def states(self) -> tuple[FsiStateEvidence, ...]: ...
+    def state(self, state: State, /) -> FsiStateEvidence: ...
 ```
 
-<a id="api-eqiora-fsi-FixedMeshMonolithicPlan"></a>
+<a id="api-eqiora-fsi-FsiStateEvidence"></a>
 
-## `FixedMeshMonolithicPlan`
+## `FsiStateEvidence`
 
-Immutable fully resolved fixed-mesh monolithic FSI plan.
+Numerical observations for one exact accepted common FSI State.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/fsi.rs" kind="blob">crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithicPlan</ExactSourceLink>
+Authority: <ExactSourceLink path="crates/eqiora-python/src/fsi_evidence.rs" kind="blob">crates/eqiora-python/src/fsi_evidence.rs::PyFsiStateEvidence</ExactSourceLink>
 
 ```python
 @final
-class FixedMeshMonolithicPlan:
-    @property
-    def model_digest(self) -> str: ...
-    @property
-    def semantic_revision(self) -> int: ...
-    @property
-    def geometry_digest(self) -> str: ...
-    @property
-    def correspondence_digest(self) -> str: ...
-    @property
-    def mesh_digest(self) -> str: ...
-    @property
-    def realization_digest(self) -> str: ...
-    @property
-    def realization_revision(self) -> int: ...
-    @property
-    def spatial_dimension(self) -> int: ...
-    @property
-    def coupling_method(self) -> str: ...
-    @property
-    def geometry_motion(self) -> str: ...
-    @property
-    def mesh_kind(self) -> str: ...
-    @property
-    def fluid_velocity_space(self) -> str: ...
-    @property
-    def fluid_pressure_space(self) -> str: ...
-    @property
-    def solid_velocity_space(self) -> str: ...
-    @property
-    def solid_displacement_space(self) -> str: ...
-    @property
-    def time_integrator(self) -> str: ...
-    @property
-    def time_step_s(self) -> float: ...
-    @property
-    def steps(self) -> int: ...
-    @property
-    def initial_velocity_m_per_s(self) -> tuple[float, float]: ...
-    @property
-    def initial_free_interface_displacement_m(self) -> tuple[float, float]: ...
-    @property
-    def length_scale_m(self) -> float: ...
-    @property
-    def velocity_scale_m_per_s(self) -> float: ...
-    @property
-    def pressure_scale_pa(self) -> float: ...
-    @property
-    def solver_algorithm(self) -> str: ...
-    @property
-    def preconditioner(self) -> str: ...
-    @property
-    def reduction(self) -> str: ...
-    @property
-    def relative_tolerance(self) -> float: ...
-    @property
-    def absolute_tolerance(self) -> float: ...
-    @property
-    def maximum_iterations(self) -> int: ...
-    @property
-    def solver_backend(self) -> str: ...
-    @property
-    def execution_adapter(self) -> str: ...
-    @property
-    def workers(self) -> int: ...
-    @property
-    def canonical_bytes(self) -> bytes: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-fsi-FixedMeshMonolithicStateEvidence"></a>
-
-## `FixedMeshMonolithicStateEvidence`
-
-Solver and scientific observations for one accepted FSI state.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/fsi.rs" kind="blob">crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithicStateEvidence</ExactSourceLink>
-
-```python
-@final
-class FixedMeshMonolithicStateEvidence:
+class FsiStateEvidence:
     @property
     def state_digest(self) -> str: ...
     @property
@@ -217,26 +96,14 @@ class FixedMeshMonolithicStateEvidence:
     def assembly_targets(self) -> int: ...
 ```
 
-<a id="api-eqiora-fsi-fixed_mesh_monolithic_evidence"></a>
+<a id="api-eqiora-fsi-evidence"></a>
 
-## `fixed_mesh_monolithic_evidence`
+## `evidence`
 
-Select typed fixed-mesh monolithic evidence from its result.
+Select observation-only FSI evidence from an accepted common Result.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/fsi.rs" kind="blob">crates/eqiora-python/src/fsi.rs::fixed_mesh_monolithic_evidence</ExactSourceLink>
-
-```python
-def fixed_mesh_monolithic_evidence(result: Result, /) -> FixedMeshMonolithicEvidence: ...
-```
-
-<a id="api-eqiora-fsi-resolve"></a>
-
-## `resolve`
-
-Resolve a complete FSI intent without executing it.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/fsi.rs" kind="blob">crates/eqiora-python/src/fsi.rs::resolve</ExactSourceLink>
+Authority: <ExactSourceLink path="crates/eqiora-python/src/fsi_evidence.rs" kind="blob">crates/eqiora-python/src/fsi_evidence.rs::evidence</ExactSourceLink>
 
 ```python
-def resolve(model: Model, intent: FixedMeshMonolithic, /) -> FixedMeshMonolithicPlan: ...
+def evidence(result: Result, /) -> FsiEvidence: ...
 ```

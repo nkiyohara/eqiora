@@ -855,10 +855,6 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
             "interfaces.studio-exact-cylinder-stokes-demo",
         ],
         [
-            "artifacts.fixed-reference-fsi-spatial-trajectory",
-            "interfaces.studio-fixed-reference-fsi-demo",
-        ],
-        [
             "fsi.fixed-reference-monolithic-step-2d",
             "numerics.physics-neutral-discrete-block-system",
         ],

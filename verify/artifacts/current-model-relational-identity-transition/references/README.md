@@ -36,10 +36,10 @@ the historical Model reference embedded by that separately versioned family.
 It finally re-walks the repository with its own implementation of the candidate
 sweep — the frozen 338-path inventory is independent evidence only if a second
 route reproduces it — and checks the two-state transition contract. The counts
-are frozen individually and are not one partition: 44 retired, of which 34 are
-inventory members and 10 carry no search signal; 304 preserved; and 13 required
+are frozen individually and are not one partition: 52 retired, of which 42 are
+inventory members and 10 carry no search signal; 296 preserved; and 13 required
 after the reset, which are additions and one in-place replacement rather than
-inventory members. What partitions the 338 candidates is 34 + 304, and the route
+inventory members. What partitions the 338 candidates is 42 + 296, and the route
 checks that sum rather than restating the three headline numbers. It then checks
 that every retired path exists today, that the version-named source owners
 `model_v8.rs` and
@@ -68,8 +68,9 @@ about tests in general is inferred.
 
 Second, the fates: the seven-name disposition vocabulary is respelled here, every
 entry naming paths must declare one of them, no path may be named twice, and the
-229-path remainder plus the 109 explicitly classified paths must come to exactly
-338. It checks by name that the fifteen compatibility-only retired paths are
+220-path remainder plus the 118 explicitly classified paths must come to exactly
+338. It checks by name that the fifteen compatibility-only and eight displaced
+application-shaped FSI lifecycle paths are
 deleted; that `model_v2.rs` and `model_transaction_v2.rs` are decomposed by
 claim, with the historical branch deleted and the current v8 implementation
 migrating to `model_wire.rs` and `model_transaction_wire.rs` respectively; that
@@ -80,7 +81,7 @@ pairs and compared pairwise, so swapping the Model and Transaction targets fails
 this route as well as the Rust one; the parallel `paths`/`renames_to` arrays are
 accepted only because the classification declares their pairing positional, and
 this route zips them strictly and compares against the same frozen pairs. The
-nineteen formerly unnamed retired paths are re-counted here as 15 + 2 + 2.
+twenty-seven formerly unnamed retired paths are re-counted here as 23 + 2 + 2.
 
 ## The post-reset forbidden-token contract, derived twice
 

@@ -1269,8 +1269,9 @@ EXPECTED_DISPOSITIONS = [
 # A path the reset removes cannot survive in place, so these are the only fates
 # a retired inventory member may carry.
 RETIRED_DISPOSITIONS = {"delete", "rename-source", "delegate", "decompose-by-claim"}
-# The nineteen retired inventory paths no fixture entry named, and how they
-# divide: fifteen whose sole claim is a removed generation, two that host the
+# The twenty-seven retired inventory paths no fixture entry named, and how they
+# divide: fifteen whose sole claim is a removed generation, eight displaced
+# application-shaped FSI lifecycle paths, two that host the
 # current v8 implementation beside a removed generation and are therefore
 # decomposed by claim, and two version-named current owners the reset renames
 # rather than deletes. RFC 0083 is explicit that "the current implementation
@@ -1280,8 +1281,16 @@ EXPECTED_DELETED = [
     "bindings/python/python/eqiora/compatibility.py",
     "bindings/python/python/eqiora/compatibility.pyi",
     "crates/eqiora-api/src/codec.rs",
+    "crates/eqiora-api/src/fixed_reference_fsi.rs",
     "crates/eqiora-api/tests/control_compile_v1.rs",
     "crates/eqiora-api/tests/versioned_model_document.rs",
+    "crates/eqiora-python/src/fsi.rs",
+    "studio/src-tauri/src/fsi_demo/core.rs",
+    "studio/src/fsi-demo-protocol.ts",
+    "studio/src/fsi-demo-workspace.tsx",
+    "studio/src/fsi-demo.test.ts",
+    "verify/interfaces/studio-fixed-reference-fsi-demo/README.md",
+    "verify/interfaces/studio-fixed-reference-fsi-demo/models/README.md",
     *[f"crates/eqiora-artifact/src/model_v{n}.rs" for n in range(3, 8)],
     *[f"crates/eqiora-artifact/src/model_transaction_v{n}.rs" for n in range(3, 8)],
 ]
@@ -1393,16 +1402,16 @@ def check_inventory_dispositions() -> None:
         ),
         [],
     )
-    check("the fifteen deleted compatibility surfaces", len(EXPECTED_DELETED), 15)
+    check("the twenty-three deleted lifecycle surfaces", len(EXPECTED_DELETED), 23)
     check(
         "compatibility surfaces not marked deleted",
         sorted(path for path in EXPECTED_DELETED if fate.get(path) != "delete"),
         [],
     )
     check(
-        "the nineteen formerly unnamed retired paths",
+        "the twenty-seven formerly unnamed retired paths",
         len(EXPECTED_DELETED) + len(EXPECTED_DECOMPOSED) + len(EXPECTED_RENAME_PAIRS),
-        19,
+        27,
     )
     check(
         "the two version-named current owners are renamed, not deleted",

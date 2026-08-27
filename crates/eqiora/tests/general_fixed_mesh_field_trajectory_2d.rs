@@ -1,34 +1,85 @@
 use std::collections::BTreeMap;
 
-use eqiora::api::{
-    FixedMeshFieldTrajectoryReplay2dV1, FixedReferenceFsiResult2d,
-    snapshot_fixed_reference_fsi_solution_v1,
-};
+use eqiora::api::{FixedMeshFieldTrajectoryReplay2dV1, snapshot_fixed_reference_fsi_solution_v1};
 use eqiora::artifact::{
     ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, RunManifestV2,
     SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV1, SpatialTrajectoryEnvelopeV1,
     SpatialTrajectorySegmentEnvelopeV1, ValidatedFixedSpatialContextV1,
 };
 use eqiora::meshing::{DiscreteFieldAssociation, MeshQualityGate, SimplicialMesh};
-use eqiora::solver::REFERENCE_LINEAR_SOLVER;
-use support::fixed_reference_fsi::direct_document;
+use eqiora_numerics::fsi::{
+    ResolvedFixedReferenceFsiSolution2d, lower_fixed_reference_fsi_cartesian_2d,
+};
+use support::fixed_reference_fsi::{
+    ExecutionContext, SpatialContext, direct_document, execution_context, prestrained_state,
+    solve_step, spatial_context, state_from_solution,
+};
 
 mod support;
 
 struct AcceptedCatalog {
-    result: FixedReferenceFsiResult2d,
+    result: AcceptedObservationTrajectory,
     segments: Vec<SpatialTrajectorySegmentEnvelopeV1>,
     snapshots: Vec<FieldSnapshotEnvelopeV1>,
     blocks: Vec<DiscreteFieldEnvelopeV1>,
+}
+
+/// Observation-only test fixture over the low-level accepted artifacts. It is
+/// deliberately not an application Plan, Result, or public lifecycle.
+struct AcceptedObservationTrajectory {
+    spatial: SpatialContext,
+    execution: ExecutionContext,
+    solutions: [ResolvedFixedReferenceFsiSolution2d; 2],
+    states: Vec<SpatialStateEnvelopeV1>,
+    trajectory: SpatialTrajectoryEnvelopeV1,
+    run: RunManifestV2,
+}
+
+impl AcceptedObservationTrajectory {
+    fn model(&self) -> &eqiora::artifact::ModelEnvelope {
+        &self.spatial.model
+    }
+    fn realization(&self) -> &eqiora::artifact::RealizationEnvelopeV3 {
+        &self.execution.realization
+    }
+    fn geometry(&self) -> &eqiora::artifact::GeometryIdentityEnvelopeV1 {
+        &self.spatial.geometry
+    }
+    fn correspondence(&self) -> &eqiora::artifact::GeometryMeshCorrespondenceEnvelopeV1 {
+        &self.spatial.correspondence
+    }
+    fn mesh_artifact(&self) -> &SimplicialMeshEnvelopeV1 {
+        &self.spatial.mesh_artifact
+    }
+    fn solutions(&self) -> &[ResolvedFixedReferenceFsiSolution2d; 2] {
+        &self.solutions
+    }
+    fn states(&self) -> &[SpatialStateEnvelopeV1] {
+        &self.states
+    }
+    fn trajectory(&self) -> &SpatialTrajectoryEnvelopeV1 {
+        &self.trajectory
+    }
+    fn run(&self) -> &RunManifestV2 {
+        &self.run
+    }
 }
 
 #[test]
 fn complete_product_trajectory_replays_independently_of_catalog_order() {
     let catalog = accepted_catalog();
     let result = &catalog.result;
-    let product_replay = result
-        .trajectory_replay()
-        .expect("the ordinary FSI result retains every durable dependency");
+    let product_replay = replay(
+        &catalog,
+        result.mesh_artifact(),
+        result.trajectory(),
+        &catalog.segments,
+        result.states(),
+        &catalog.snapshots,
+        &catalog.blocks,
+        result.run(),
+    )
+    .expect("the ordinary FSI result retains every durable dependency");
     assert_eq!(
         product_replay.trajectory().digest().unwrap(),
         result.trajectory().digest().unwrap()
@@ -471,11 +522,34 @@ fn dimensional_physical_and_immutable_prefix_drift_fail_closed() {
 
 fn accepted_catalog() -> AcceptedCatalog {
     let document = direct_document();
-    let result = FixedReferenceFsiResult2d::solve_reference(&document, &REFERENCE_LINEAR_SOLVER)
-        .expect("the existing verified 2D FSI family produces one ordinary result");
-    let context = fixed_context(&result);
-    let snapshot_sets = result
-        .solutions()
+    let canonical = lower_fixed_reference_fsi_cartesian_2d(document.program())
+        .expect("fixed-reference FSI meaning lowers");
+    let spatial = spatial_context(document.program(), &canonical);
+    let execution = execution_context(document.program(), &canonical, &spatial);
+    let context = ValidatedFixedSpatialContextV1::new(
+        &spatial.model,
+        &execution.realization,
+        &spatial.geometry,
+        &spatial.correspondence,
+        &spatial.mesh_artifact,
+    )
+    .expect("observation fixture closes one exact spatial lineage");
+    let first = solve_step(
+        &canonical,
+        &spatial,
+        &execution,
+        &prestrained_state(&spatial),
+    )
+    .solution;
+    let second = solve_step(
+        &canonical,
+        &spatial,
+        &execution,
+        &state_from_solution(&spatial, &first),
+    )
+    .solution;
+    let solutions = [first, second];
+    let snapshot_sets = solutions
         .iter()
         .map(|solution| {
             snapshot_fixed_reference_fsi_solution_v1(&context, solution)
@@ -499,8 +573,23 @@ fn accepted_catalog() -> AcceptedCatalog {
         }),
         DiscreteFieldEnvelopeV1::digest,
     );
-    let segments = result
-        .states()
+    let dt = execution
+        .realization
+        .plan()
+        .unwrap()
+        .time_step()
+        .duration()
+        .value();
+    let states = snapshot_sets
+        .iter()
+        .enumerate()
+        .map(|(index, snapshots)| {
+            let step = u64::try_from(index + 1).expect("two observation steps fit u64");
+            SpatialStateEnvelopeV1::new(&context, step, step as f64 * dt, snapshots.snapshots())
+                .expect("complete accepted observation state")
+        })
+        .collect::<Vec<_>>();
+    let segments = states
         .iter()
         .map(|state| {
             SpatialTrajectorySegmentEnvelopeV1::new(&context, std::slice::from_ref(state))
@@ -510,11 +599,18 @@ fn accepted_catalog() -> AcceptedCatalog {
     let replayed_first = SpatialTrajectoryEnvelopeV1::start(&context, &segments[0]).unwrap();
     let replayed_final =
         SpatialTrajectoryEnvelopeV1::extend(&context, &replayed_first, &segments[1]).unwrap();
-    assert_eq!(
-        replayed_final.digest().unwrap(),
-        result.trajectory().digest().unwrap(),
-        "the general case consumes the existing scientific trajectory identity"
-    );
+    let run = execution
+        .run
+        .clone()
+        .with_output(replayed_final.digest().unwrap());
+    let result = AcceptedObservationTrajectory {
+        spatial,
+        execution,
+        solutions,
+        states,
+        trajectory: replayed_final,
+        run,
+    };
     AcceptedCatalog {
         result,
         segments,
@@ -523,7 +619,7 @@ fn accepted_catalog() -> AcceptedCatalog {
     }
 }
 
-fn fixed_context(result: &FixedReferenceFsiResult2d) -> ValidatedFixedSpatialContextV1<'_> {
+fn fixed_context(result: &AcceptedObservationTrajectory) -> ValidatedFixedSpatialContextV1<'_> {
     ValidatedFixedSpatialContextV1::new(
         result.model(),
         result.realization(),

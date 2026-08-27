@@ -123,6 +123,7 @@ fn lower_ale_fsi_cartesian<const D: usize>(
             program,
             boxes[solid_index].0,
             boxes[solid_index].1,
+            None,
         );
         if let (Ok(fluid), Ok(solid)) = (fluid, solid) {
             candidates.push((fluid, solid));

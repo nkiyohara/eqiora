@@ -4,17 +4,17 @@ use std::time::{Duration, Instant};
 use eqiora::Diagnostic;
 use eqiora::api::{
     ModelDocument, ReferenceRunDirective, ReferenceRunObserver, ReferenceRunOutcome,
-    ReferenceRunPlan, ReferenceRunProgress, ResolvedFixedMeshMonolithicFsiPlan2d,
-    ResolvedLinearElasticityPlan2d, ResolvedSteadyStokesPlan2d, ScalarEllipticExecutionEnvironment,
-    ScalarEllipticRunDirective, ScalarEllipticRunObserver, ScalarEllipticRunOutcome,
-    ScalarEllipticRunPlan, ScalarEllipticRunProgress,
+    ReferenceRunPlan, ReferenceRunProgress, ResolvedLinearElasticityPlan2d,
+    ResolvedSteadyStokesPlan2d, ScalarEllipticExecutionEnvironment, ScalarEllipticRunDirective,
+    ScalarEllipticRunObserver, ScalarEllipticRunOutcome, ScalarEllipticRunPlan,
+    ScalarEllipticRunProgress,
 };
 use eqiora::backends::diffsol::DiffsolTimeBackend;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
-    CommonElasticityPlan, CommonOdeRunRequest, CommonOdeRunResult, CommonScalarPlan,
-    CommonSpatialPolicy, CommonSteadyStokesPlan, CommonTransientRunRequest,
+    CommonElasticityPlan, CommonFsiRunRequest, CommonOdeRunRequest, CommonOdeRunResult,
+    CommonScalarPlan, CommonSpatialPolicy, CommonSteadyStokesPlan, CommonTransientRunRequest,
 };
 
 use super::evidence::PyCommonTransientRunProgress;
@@ -104,11 +104,11 @@ pub(super) enum NativeRunJob {
     },
     SteadyStokes(Box<ResolvedSteadyStokesPlan2d>),
     LinearElasticity(Box<ResolvedLinearElasticityPlan2d>),
-    FixedMeshMonolithic(Box<ResolvedFixedMeshMonolithicFsiPlan2d>),
     CommonScalar(Box<CommonScalarPlan>),
     CommonElasticity(Box<CommonElasticityPlan>),
     CommonSteadyStokes(Box<CommonSteadyStokesPlan>),
     CommonTransient(Box<CommonTransientRunRequest>),
+    CommonFsi(Box<CommonFsiRunRequest>),
     CommonOde(Box<CommonOdeRunRequest>),
 }
 
@@ -229,18 +229,6 @@ fn execute_job(
                 },
             ))
         }
-        NativeRunJob::FixedMeshMonolithic(plan) => {
-            let started = Instant::now();
-            let result = plan
-                .execute(&REFERENCE_LINEAR_SOLVER)
-                .map_err(|diagnostic| vec![diagnostic])?;
-            Ok(NativeWorkerOutcome::Completed(
-                NativeRunOutput::FixedMeshMonolithic {
-                    result: Box::new(result),
-                    elapsed_seconds: started.elapsed().as_secs_f64(),
-                },
-            ))
-        }
         NativeRunJob::CommonScalar(plan) => {
             let started = Instant::now();
             let result = plan.run().map_err(|diagnostic| vec![diagnostic])?;
@@ -289,6 +277,48 @@ fn execute_job(
                     }
                     _ => unreachable!("closed transient spatial policy"),
                 },
+                |accepted_steps, state| {
+                    if accepted_steps > 0 {
+                        shared.publish_progress(NativeRunProgress::CommonTransient(
+                            PyCommonTransientRunProgress {
+                                accepted_steps,
+                                maximum_steps,
+                                model_time_bits: state.time_s().to_bits(),
+                            },
+                        ));
+                    }
+                    shared.cancellation_requested()
+                },
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
+            match outcome {
+                AcceptedStepOutcome::Cancelled {
+                    accepted_steps,
+                    state,
+                } => Ok(NativeWorkerOutcome::Cancelled(
+                    NativeRunCancellation::CommonTransient {
+                        accepted_steps,
+                        maximum_steps,
+                        model_time_s: state.time_s(),
+                        request_identity: request.identity().to_owned(),
+                    },
+                )),
+                AcceptedStepOutcome::Completed(states) => Ok(NativeWorkerOutcome::Completed(
+                    NativeRunOutput::CommonTransient {
+                        states,
+                        elapsed_seconds: started.elapsed().as_secs_f64(),
+                    },
+                )),
+            }
+        }
+        NativeRunJob::CommonFsi(request) => {
+            let started = Instant::now();
+            let maximum_steps = request.accepted_steps().get();
+            let outcome = run_accepted_steps(
+                request.state().clone(),
+                maximum_steps,
+                request.output_steps(),
+                |state| request.plan().advance(&state, &REFERENCE_LINEAR_SOLVER),
                 |accepted_steps, state| {
                     if accepted_steps > 0 {
                         shared.publish_progress(NativeRunProgress::CommonTransient(

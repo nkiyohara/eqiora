@@ -89,7 +89,7 @@ pub(super) fn lower_dimension<const D: usize>(
     )
 }
 
-fn lower_dimension_with_boundaries<const D: usize>(
+pub(crate) fn lower_dimension_with_boundaries<const D: usize>(
     program: &KernelProgram,
     _domain: RawId,
     trace_field: RawId,
