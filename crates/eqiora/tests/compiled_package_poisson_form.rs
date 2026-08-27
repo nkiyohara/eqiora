@@ -4,7 +4,6 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use std::sync::Mutex;
 
 use eqiora::Diagnostic;
-use eqiora::api::{ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod};
 use eqiora::assembly::{
     AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan,
     AssemblyResult, AssemblyWork, LocalContribution, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
@@ -28,7 +27,8 @@ use eqiora::solver::{
 };
 use eqiora_meshing::CartesianMesh;
 use eqiora_numerics::scalar::{
-    CartesianQ1Field, ResolvedScalarEllipticCartesianSolution, lower_scalar_elliptic_cartesian,
+    ResolvedScalarEllipticCartesianSolution, lower_scalar_elliptic_cartesian,
+    solve_resolved_scalar_elliptic_cartesian,
     solve_resolved_scalar_elliptic_cartesian_with_assembly,
     solve_scalar_elliptic_cartesian_fem_with_assembly,
 };
@@ -41,31 +41,26 @@ const SHADOW_RELATIVE: f64 = 1.0e-15;
 const MAXIMUM_BALANCE: f64 = 2.0e-11;
 
 #[test]
-fn e2_actual_package_reaches_compiled_q1_and_retains_convergence_and_balance() {
+fn e2_actual_package_reaches_verification_only_q1_and_retains_convergence_and_balance() {
     let packaged = compile_package();
-    let environment = ScalarEllipticExecutionEnvironment::host_serial();
+    let program = packaged.model().program();
     let mut errors = Vec::new();
-    for (level, cells) in [4, 8, 16, 32].into_iter().enumerate() {
-        let intent = ScalarEllipticIntent::new(
-            RealizationRevision::new(level as u64),
-            ScalarEllipticMethod::FiniteElement,
-            NonZeroUsize::new(cells).unwrap(),
-            NonZeroUsize::MIN,
-        );
-        let plan = packaged
-            .model()
-            .preview_scalar_elliptic_run(intent, environment)
-            .unwrap();
-        let result = packaged
-            .model()
-            .run_scalar_elliptic_plan(plan, environment)
-            .unwrap();
-        assert!(result.balance().relative_imbalance() <= MAXIMUM_BALANCE);
-        let mesh = CartesianMesh::uniform(&[[0.0, 1.0], [0.0, 1.0]], &[cells, cells]).unwrap();
-        let field = CartesianQ1Field::new(mesh, result.field_values().to_vec()).unwrap();
+    for cells in [4, 8, 16, 32] {
+        let resolved = resolved(program, cells);
+        let (_, solution) =
+            solve_resolved_scalar_elliptic_cartesian(program, &resolved, &REFERENCE_LINEAR_SOLVER)
+                .unwrap();
+        let ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) = solution else {
+            panic!("Q1 Realization returned a non-FEM solution");
+        };
+        let source = solution.integrated_source();
+        let reaction = solution.boundary_reaction_sum();
+        let relative_imbalance = (reaction + source).abs() / (reaction.abs() + source.abs());
+        assert!(relative_imbalance <= MAXIMUM_BALANCE);
         let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 4).unwrap();
         errors.push(
-            field
+            solution
+                .field()
                 .l2_error(
                     &|point: &[f64]| (PI * point[0]).sin() * (PI * point[1]).sin(),
                     &quadrature,

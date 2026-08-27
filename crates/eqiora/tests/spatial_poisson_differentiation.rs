@@ -2,7 +2,7 @@ mod support;
 
 use std::num::{NonZeroU16, NonZeroUsize};
 
-use eqiora::api::{DifferentiableProgram, LinearizationState, ScalarEllipticMethod};
+use eqiora::api::{DifferentiableProgram, LinearizationState};
 use eqiora::differentiation::{AcceptedLinearization, adjoint_gradient, forward_sensitivity};
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::realization::{
@@ -18,7 +18,8 @@ use eqiora::solver::{
 };
 use eqiora::{Id, compiler::compile, entity::kinds};
 use eqiora_numerics::{
-    common::SpatialDesignCoordinate, scalar::ResolvedScalarEllipticCartesianSolution,
+    CommonSpatialPolicy, common::SpatialDesignCoordinate,
+    scalar::ResolvedScalarEllipticCartesianSolution,
     scalar::solve_and_linearize_resolved_scalar_elliptic_cartesian,
     scalar::solve_resolved_scalar_elliptic_cartesian,
 };
@@ -63,8 +64,8 @@ fn canonical_parameters_differentiate_through_fem_and_fvm() {
 #[test]
 fn accepted_application_program_publishes_complete_field_jvp_and_vjp() {
     for method in [
-        ScalarEllipticMethod::FiniteElement,
-        ScalarEllipticMethod::FiniteVolume,
+        CommonSpatialPolicy::Q1,
+        CommonSpatialPolicy::CellCenteredTpfa,
     ] {
         verify_application_program(method);
     }
@@ -73,8 +74,7 @@ fn accepted_application_program_publishes_complete_field_jvp_and_vjp() {
 #[test]
 fn application_program_is_not_published_without_an_accepted_primal() {
     let source = COMPONENT.replacen("source_scale * sin", "1e308 * source_scale * sin", 1);
-    let (document, plan) =
-        document_and_plan_with_source(ScalarEllipticMethod::FiniteElement, &source);
+    let (document, plan) = document_and_plan_with_source(CommonSpatialPolicy::Q1, &source);
     let inputs = [document.parameter_ref("source_scale").unwrap()];
     let output = document
         .field_ref(&plan.field().ulid().to_string())
@@ -84,7 +84,7 @@ fn application_program_is_not_published_without_an_accepted_primal() {
 
 #[test]
 fn application_program_admission_is_exactly_the_verified_two_dimensional_slice() {
-    let (_, plan) = document_and_plan(ScalarEllipticMethod::FiniteElement);
+    let (_, plan) = document_and_plan(CommonSpatialPolicy::Q1);
     assert_eq!(plan.cells(), [12, 12]);
 }
 
@@ -94,8 +94,7 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
         "diffusion * grad(potential)",
         "diffusion ^ 2 * grad(potential)",
     );
-    let (document, plan) =
-        document_and_plan_with_source(ScalarEllipticMethod::FiniteElement, &source);
+    let (document, plan) = document_and_plan_with_source(CommonSpatialPolicy::Q1, &source);
     let diffusion = document.parameter_ref("diffusion").unwrap();
     let output = document
         .field_ref(&plan.field().ulid().to_string())
@@ -128,7 +127,7 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
     );
 }
 
-fn verify_application_program(method: ScalarEllipticMethod) {
+fn verify_application_program(method: CommonSpatialPolicy) {
     let (document, plan) = document_and_plan(method);
     let source_scale = document.parameter_ref("source_scale").unwrap();
     let diffusion = document.parameter_ref("diffusion").unwrap();
@@ -144,8 +143,13 @@ fn verify_application_program(method: ScalarEllipticMethod) {
         &inputs.iter().map(|input| input.id()).collect::<Vec<_>>()
     );
     let field_value_count = match method {
-        ScalarEllipticMethod::FiniteElement => 13 * 13,
-        ScalarEllipticMethod::FiniteVolume => 12 * 12,
+        CommonSpatialPolicy::Q1 => 13 * 13,
+        CommonSpatialPolicy::CellCenteredTpfa => 12 * 12,
+        CommonSpatialPolicy::P1
+        | CommonSpatialPolicy::MiniP1
+        | CommonSpatialPolicy::CellCentered => {
+            panic!("this Cartesian fixture does not admit the requested policy")
+        }
     };
     assert_eq!(program.identity().output_dimension(), field_value_count);
 
@@ -483,7 +487,7 @@ fn perturbed_values(method: DiscretizationMethod, values: ParameterValues) -> Ve
     }
 }
 
-fn perturbed_field_values(method: ScalarEllipticMethod, values: ParameterValues) -> Vec<f64> {
+fn perturbed_field_values(method: CommonSpatialPolicy, values: ParameterValues) -> Vec<f64> {
     let source_scale = format!(
         "parameter source_scale: 1 / m ^ 2 = {:.17};",
         values.source_scale
@@ -499,8 +503,13 @@ fn perturbed_field_values(method: ScalarEllipticMethod, values: ParameterValues)
         .replacen(BOUNDARY_DECLARATION, &boundary, 1);
     let (program, _) = compile_program("perturbed-field-spatial-poisson.eqi", &source);
     let method = match method {
-        ScalarEllipticMethod::FiniteElement => DiscretizationMethod::ContinuousGalerkin,
-        ScalarEllipticMethod::FiniteVolume => DiscretizationMethod::CellCenteredFiniteVolume,
+        CommonSpatialPolicy::Q1 => DiscretizationMethod::ContinuousGalerkin,
+        CommonSpatialPolicy::CellCenteredTpfa => DiscretizationMethod::CellCenteredFiniteVolume,
+        CommonSpatialPolicy::P1
+        | CommonSpatialPolicy::MiniP1
+        | CommonSpatialPolicy::CellCentered => {
+            panic!("this Cartesian fixture does not admit the requested policy")
+        }
     };
     let (_, solution) = solve_resolved_scalar_elliptic_cartesian(
         &program,

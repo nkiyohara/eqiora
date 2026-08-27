@@ -8,7 +8,6 @@
 mod cad;
 pub mod control;
 mod differentiation;
-mod elasticity;
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 mod external_data;
 mod external_spatial;
@@ -19,19 +18,13 @@ pub mod package;
 mod parameter_regeneration;
 mod parameter_study;
 mod prescribed_dynamic_solid;
-mod reference_run;
 mod remeshing_trajectory;
-mod spatial;
 mod spatial_data;
-mod steady_stokes;
 mod transient_fluid;
 mod value_edit;
 
 pub use cad::*;
 pub use differentiation::*;
-pub use elasticity::{
-    LinearElasticityIntent2d, MixedBoundaryElasticityResult2d, ResolvedLinearElasticityPlan2d,
-};
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
@@ -48,7 +41,6 @@ pub use parameter_study::{
 pub use prescribed_dynamic_solid::{
     PrescribedDynamicSolidExternalProviderStateRun3d, PrescribedDynamicSolidStateRun3d,
 };
-pub use reference_run::*;
 pub use remeshing_trajectory::RemeshingTrajectoryReplayInputV1;
 #[cfg(feature = "hdf5")]
 pub use remeshing_trajectory::{
@@ -56,11 +48,7 @@ pub use remeshing_trajectory::{
     XdmfHdf5TrajectoryExportLimits, export_xdmf_hdf5_trajectory_v1,
     verify_xdmf_hdf5_trajectory_storage_v1,
 };
-pub use spatial::*;
 pub use spatial_data::*;
-pub use steady_stokes::{
-    CircularHoleSteadyStokesResult2d, ResolvedSteadyStokesPlan2d, SteadyStokesIntent2d,
-};
 pub use transient_fluid::*;
 pub use value_edit::{ValueEditPlan, ValueEditResult};
 
@@ -321,11 +309,7 @@ fn first_diagnostic(diagnostics: Vec<Diagnostic>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ModelDocument, ReferenceAcceptance, ReferenceExecutionPlacement,
-        ReferenceIntegrationMethod, ReferenceNonlinearMethod, ReferenceRunDirective,
-        ReferenceRunObserver, ReferenceRunOutcome, ReferenceRunPlan, ReferenceRunProgress,
-    };
+    use super::ModelDocument;
     use eqiora_artifact::ReplayableCanonicalModelArtifact;
     use eqiora_core::DimExponents;
     use eqiora_lang::{DraftExpression, DraftField, DraftParameter, DraftRelation, ModelDraft};
@@ -341,7 +325,7 @@ model decay {
 "#;
 
     #[test]
-    fn one_application_path_closes_compile_wire_artifact_and_run() {
+    fn one_model_path_closes_compile_wire_and_artifact() {
         let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
         let bytes = document.canonical_json().unwrap();
         let digest = document.digest().unwrap();
@@ -354,37 +338,6 @@ model decay {
         let diagnostics =
             ModelDocument::replay(&serde_json::to_vec(&zero_revision).unwrap()).unwrap_err();
         assert_eq!(diagnostics[0].code().0, "EQ0901");
-
-        let result = document.run_reference(0.2, 0.1).unwrap();
-        let evidence = *result.evidence();
-        assert_eq!(
-            evidence.plan().key(),
-            "eqiora.reference-plan/v1:3fc999999999999a:3fb999999999999a"
-        );
-        assert_eq!(
-            evidence.plan().integration_method(),
-            ReferenceIntegrationMethod::BackwardEuler
-        );
-        assert_eq!(
-            evidence.plan().nonlinear_method(),
-            ReferenceNonlinearMethod::DenseFiniteDifferenceNewton
-        );
-        assert_eq!(
-            evidence.plan().placement(),
-            ReferenceExecutionPlacement::HostSerial
-        );
-        assert_eq!(
-            evidence.plan().acceptance(),
-            ReferenceAcceptance::SemanticOracle
-        );
-        assert_eq!(evidence.field_count(), 1);
-        assert_eq!(evidence.sample_count(), 3);
-        assert_eq!(result.series().len(), 1);
-        let series = &result.series()[0];
-        assert_eq!(series.name(), Some("x"));
-        assert_eq!(series.time(), [0.0, 0.1, 0.2]);
-        assert_eq!(series.values().len(), 3);
-        assert!((series.values()[2] - 1.0 / 1.1_f64.powi(2)).abs() < 1.0e-15);
     }
 
     #[test]
@@ -410,17 +363,11 @@ model decay {
         assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
         assert_eq!(native.aliases().len(), 3);
 
-        let source_values = ModelDocument::compile("decay.eqi", SOURCE)
-            .unwrap()
-            .run_reference(0.2, 0.1)
-            .unwrap()
-            .series()[0]
-            .values()
-            .to_vec();
-        let native_values = native.run_reference(0.2, 0.1).unwrap().series()[0]
-            .values()
-            .to_vec();
-        assert_eq!(native_values, source_values);
+        let source = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
+        assert_eq!(
+            native.canonical_json().unwrap(),
+            source.canonical_json().unwrap()
+        );
     }
 
     #[test]
@@ -476,17 +423,11 @@ model pure_relation {
     }
 
     #[test]
-    fn invalid_source_and_run_policy_remain_structured_diagnostics() {
+    fn invalid_source_remains_a_structured_diagnostic() {
         let diagnostics =
             ModelDocument::compile("broken.eqi", "model broken { field ; }").unwrap_err();
         assert!(!diagnostics.is_empty());
         assert!(diagnostics[0].code().0.starts_with("EQ"));
-
-        let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
-        assert_eq!(
-            document.run_reference(1.0, 0.0).unwrap_err()[0].code().0,
-            "EQ0501"
-        );
     }
 
     #[test]
@@ -598,105 +539,6 @@ model pure_relation {
         assert_eq!(
             left.commit_value_edit(right_plan).unwrap_err()[0].code().0,
             "EQ0106"
-        );
-    }
-
-    #[test]
-    fn plan_key_distinguishes_exact_floating_point_requests() {
-        let baseline = ReferenceRunPlan::new(1.0, 0.1).unwrap();
-        let same = ReferenceRunPlan::new(1.0, 1.0e-1).unwrap();
-        let different = ReferenceRunPlan::new(1.0, f64::from_bits(0.1_f64.to_bits() + 1)).unwrap();
-
-        assert_eq!(baseline.key(), same.key());
-        assert_ne!(baseline.key(), different.key());
-    }
-
-    #[derive(Debug, Default)]
-    struct CancelAfterThreeAcceptedSteps {
-        observed: Vec<ReferenceRunProgress>,
-    }
-
-    impl ReferenceRunObserver for CancelAfterThreeAcceptedSteps {
-        fn observe(&mut self, progress: ReferenceRunProgress) -> ReferenceRunDirective {
-            self.observed.push(progress);
-            if progress.accepted_steps() >= 3 {
-                ReferenceRunDirective::Cancel
-            } else {
-                ReferenceRunDirective::Continue
-            }
-        }
-    }
-
-    #[test]
-    fn controlled_run_cancels_only_at_an_accepted_boundary() {
-        let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
-        let plan = ReferenceRunPlan::new(1.0, 0.1).unwrap();
-        let mut observer = CancelAfterThreeAcceptedSteps::default();
-
-        let outcome = document
-            .run_reference_plan_controlled(plan, &mut observer)
-            .unwrap();
-        let ReferenceRunOutcome::Cancelled(cancellation) = outcome else {
-            panic!("observer must cancel the run");
-        };
-
-        assert_eq!(
-            observer
-                .observed
-                .iter()
-                .map(|progress| progress.accepted_steps())
-                .collect::<Vec<_>>(),
-            [0, 1, 2, 3]
-        );
-        let progress = cancellation.progress();
-        assert_eq!(cancellation.plan(), plan);
-        assert_eq!(progress.accepted_steps(), 3);
-        assert_eq!(progress.end_time(), 1.0);
-        assert_eq!(progress.maximum_steps(), plan.config().max_steps());
-        assert!((progress.model_time() - 0.3).abs() <= f64::EPSILON);
-    }
-
-    #[derive(Debug, Default)]
-    struct RecordingObserver {
-        observed: Vec<ReferenceRunProgress>,
-    }
-
-    impl ReferenceRunObserver for RecordingObserver {
-        fn observe(&mut self, progress: ReferenceRunProgress) -> ReferenceRunDirective {
-            self.observed.push(progress);
-            ReferenceRunDirective::Continue
-        }
-    }
-
-    #[test]
-    fn controlled_completion_preserves_the_reference_result() {
-        let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
-        let plan = ReferenceRunPlan::new(0.4, 0.1).unwrap();
-        let expected = document.run_reference_plan(plan).unwrap();
-        let mut observer = RecordingObserver::default();
-
-        let outcome = document
-            .run_reference_plan_controlled(plan, &mut observer)
-            .unwrap();
-        let ReferenceRunOutcome::Completed(actual) = outcome else {
-            panic!("recording observer cannot cancel the run");
-        };
-
-        assert_eq!(actual.series(), expected.series());
-        assert_eq!(actual.evidence().plan(), expected.evidence().plan());
-        assert_eq!(
-            observer
-                .observed
-                .iter()
-                .map(|progress| progress.accepted_steps())
-                .collect::<Vec<_>>(),
-            [0, 1, 2, 3]
-        );
-        assert!(
-            observer
-                .observed
-                .windows(2)
-                .all(|pair| pair[0].model_time() < pair[1].model_time())
         );
     }
 }

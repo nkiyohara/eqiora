@@ -26,7 +26,6 @@ compatibility = "MixedBoundaryElasticityResult, solve_mixed_boundary_elasticity,
 
 [oracle]
 scientific_case = "solid.mixed-boundary-elasticity-2d"
-spatial_artifact_case = "artifacts.generated-cartesian-q1-spatial-output"
 lineage_case = "interfaces.studio-mixed-boundary-elasticity-demo"
 matplotlib_case = "interfaces.python-exact-cylinder-pressure-still"
 model_admission = "structural semantic equivalence to the accepted current source, preserving the caller's current artifact identity"

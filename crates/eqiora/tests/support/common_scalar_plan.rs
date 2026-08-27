@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
-use eqiora::api::{ModelDocument, ScalarEllipticMethod};
+use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     CartesianMeshCellsV1, GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
     ModelEnvelope,
@@ -38,22 +38,104 @@ public component DifferentiatedPoisson {
 }
 "#;
 
-pub(crate) fn document_and_plan(method: ScalarEllipticMethod) -> (ModelDocument, CommonScalarPlan) {
-    document_and_plan_with_source(method, COMPONENT)
+pub(crate) fn document_and_plan(spatial: CommonSpatialPolicy) -> (ModelDocument, CommonScalarPlan) {
+    document_and_plan_with_source(spatial, COMPONENT)
 }
 
 pub(crate) fn document_and_plans() -> (ModelDocument, CommonScalarPlan, CommonScalarPlan) {
     document_and_plans_with_source(COMPONENT)
 }
 
+pub(crate) fn plan_for_document(
+    document: &ModelDocument,
+    cells: usize,
+    spatial: CommonSpatialPolicy,
+) -> CommonScalarPlan {
+    let graph = PlanarOperationGraph::new();
+    let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
+    let edges = rectangle.boundaries();
+    let geometry = graph
+        .build(
+            &rectangle,
+            &BTreeMap::from([
+                ("square".to_owned(), vec![rectangle.region().into()]),
+                (
+                    "x_lower".to_owned(),
+                    vec![PlanarTopologyHandle::from(edges[0])],
+                ),
+                (
+                    "x_upper".to_owned(),
+                    vec![PlanarTopologyHandle::from(edges[1])],
+                ),
+                (
+                    "y_lower".to_owned(),
+                    vec![PlanarTopologyHandle::from(edges[2])],
+                ),
+                (
+                    "y_upper".to_owned(),
+                    vec![PlanarTopologyHandle::from(edges[3])],
+                ),
+            ]),
+        )
+        .unwrap();
+    let cells = CartesianMeshCellsV1::new([cells, cells]).unwrap();
+    let (mesh, correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
+            &geometry,
+            cells.cells(),
+        )
+        .unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
+        cells,
+        &geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+    let owner =
+        AuthenticatedCommonMesh::structured_cartesian(geometry, mesh, correspondence, production)
+            .unwrap();
+    let solver = SolverPlan::new(
+        LinearSolver::ConjugateGradient,
+        1.0e-10,
+        1.0e-12,
+        NonZeroUsize::new(10_000).unwrap(),
+    )
+    .unwrap();
+    let model = ModelEnvelope::from_program(document.program()).unwrap();
+    resolve_common_plan(
+        &model,
+        owner,
+        spatial,
+        CommonSolvePolicy::Linear(solver),
+        None,
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap()
+    .project(
+        |_| panic!("scalar fixture resolved as ODE"),
+        |plan| plan,
+        |_| panic!("scalar fixture resolved as elasticity"),
+        |_| panic!("scalar fixture resolved as Stokes"),
+        |_| panic!("scalar fixture resolved as transient flow"),
+        |_| panic!("scalar fixture resolved as FSI"),
+    )
+}
+
 pub(crate) fn document_and_plan_with_source(
-    method: ScalarEllipticMethod,
+    spatial: CommonSpatialPolicy,
     source: &str,
 ) -> (ModelDocument, CommonScalarPlan) {
     let (document, q1, tpfa) = document_and_plans_with_source(source);
-    let plan = match method {
-        ScalarEllipticMethod::FiniteElement => q1,
-        ScalarEllipticMethod::FiniteVolume => tpfa,
+    let plan = match spatial {
+        CommonSpatialPolicy::Q1 => q1,
+        CommonSpatialPolicy::CellCenteredTpfa => tpfa,
+        CommonSpatialPolicy::P1
+        | CommonSpatialPolicy::MiniP1
+        | CommonSpatialPolicy::CellCentered => {
+            panic!("this Cartesian fixture does not admit the requested policy")
+        }
     };
     (document, plan)
 }

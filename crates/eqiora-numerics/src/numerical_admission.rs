@@ -4541,8 +4541,11 @@ fn replay_program(
 ) -> Result<KernelProgram, Diagnostic> {
     let reference = model.artifact_reference()?;
     let (transaction, model_id) = model.to_transaction().map_err(first)?;
-    let mut store = InMemoryGraphStore::new();
-    store.commit(transaction).map_err(first)?;
+    let store = InMemoryGraphStore::restore_snapshot(
+        transaction,
+        eqiora_graph::Revision(reference.semantic_revision().get()),
+    )
+    .map_err(first)?;
     let snapshot = store.snapshot();
     let program = if model.requires_geometry_admission()? {
         KernelProgram::from_snapshot_with_geometry(&snapshot, model_id, &[geometry.into()])

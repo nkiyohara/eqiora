@@ -50,8 +50,8 @@ and the returned headless Figure remains caller-owned.
 
 Scientific meaning, expected values, and tolerances remain owned by
 [`solid.mixed-boundary-elasticity-2d`](../../solid/mixed-boundary-elasticity-2d/README.md).
-Exact generated spatial artifacts remain owned by
-[`artifacts.generated-cartesian-q1-spatial-output`](../../artifacts/generated-cartesian-q1-spatial-output/README.md).
+The common Result does not currently publish a durable displacement-snapshot
+or singleton-output Run artifact; the former artifact case is retired.
 The native Studio consumer remains
 [`interfaces.studio-mixed-boundary-elasticity-demo`](../studio-mixed-boundary-elasticity-demo/README.md).
 This case changes only the installed Python ownership path; it derives, tunes,

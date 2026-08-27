@@ -1,7 +1,7 @@
 id = "interfaces.agent-authored-model-change"
 status = "verified"
 scope = "offline-agent-proposed-exact-value-edit-through-independent-scientific-acceptance"
-reference_kind = "ordinary-public-control-edit-realization-run-and-evidence-composition"
+reference_kind = "ordinary-public-control-edit-replay-and-native-verification-composition"
 
 capabilities = [
   "offline-agent-proposed-model-change",
@@ -9,7 +9,7 @@ capabilities = [
   "immutable-atomic-child-revision",
   "ordinary-client-semantic-parity",
   "independent-scientific-acceptance",
-  "exact-model-realization-run-output-replay",
+  "exact-model-replay",
   "agent-authority-fail-closed",
 ]
 
@@ -24,9 +24,10 @@ exact_base_model_binding = true
 transaction_preview = true
 atomic_child_commit = true
 scalar_value_edit = true
-host_serial_fem = true
+verification_only_native_host_serial_fem = true
 independent_scientific_oracle = true
-persisted_run_manifest_v2 = true
+public_plan_or_run_lifecycle = false
+persisted_run_manifest = false
 durable_output_artifact = false
 general_model_synthesis = false
 human_approval_workflow = false

@@ -5,11 +5,11 @@ use std::collections::{BTreeSet, HashSet};
 use eqiora::Id;
 use eqiora::api::{
     CompleteParameterStudy, DifferentiableEvaluation, DifferentiableProgram, ModelDocument,
-    ParameterStudyPlan, ParameterStudyPointKey, ParameterStudyTerminalReport, ScalarEllipticMethod,
+    ParameterStudyPlan, ParameterStudyPointKey, ParameterStudyTerminalReport,
 };
 use eqiora::diagnostic::codes;
 use eqiora::entity::kinds;
-use eqiora_numerics::CommonScalarPlan;
+use eqiora_numerics::{CommonScalarPlan, CommonSpatialPolicy};
 use support::common_scalar_plan::{COMPONENT, document_and_plan_with_source, document_and_plans};
 
 const DEFAULT_POINT: [f64; 3] = [19.739208802178716, 1.0, 0.0];
@@ -27,7 +27,7 @@ struct Fixture {
 
 #[test]
 fn study_matches_separately_accepted_evaluations_in_canonical_order() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
     let expected = independently_evaluate(&fixture.program, &CANONICAL_DIFFUSION);
     let plan = ParameterStudyPlan::new(&fixture.program, fixture.diffusion, &PERMUTED_DIFFUSION)
         .expect("the frozen three-point inventory is admissible without evaluation");
@@ -72,7 +72,7 @@ fn study_matches_separately_accepted_evaluations_in_canonical_order() {
 
 #[test]
 fn every_caller_permutation_has_one_plan_and_one_member_order() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
     let expected = independently_evaluate(&fixture.program, &CANONICAL_DIFFUSION);
     let permutations = [
         [0.75, 1.0, 1.25],
@@ -99,7 +99,7 @@ fn every_caller_permutation_has_one_plan_and_one_member_order() {
 
 #[test]
 fn planning_rejects_every_frozen_inventory_and_identity_mutant() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
 
     assert!(
         ParameterStudyPlan::new(&fixture.program, fixture.diffusion, &[0.75, 1.0, 1.0]).is_err(),
@@ -133,7 +133,7 @@ fn planning_rejects_every_frozen_inventory_and_identity_mutant() {
     );
 
     let (foreign_document, _) = document_and_plan_with_source(
-        ScalarEllipticMethod::FiniteElement,
+        CommonSpatialPolicy::Q1,
         &COMPONENT.replacen(
             "component DifferentiatedPoisson",
             "component ForeignDifferentiatedPoisson",
@@ -165,7 +165,7 @@ fn planning_rejects_every_frozen_inventory_and_identity_mutant() {
 
 #[test]
 fn point_keys_use_parameter_identity_exact_bits_and_total_order() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
     let signed_zero_plan =
         ParameterStudyPlan::new(&fixture.program, fixture.diffusion, &[-0.0, 0.0, 1.0])
             .expect("planning is structural and retains both signed zeros");
@@ -227,7 +227,7 @@ fn point_keys_use_parameter_identity_exact_bits_and_total_order() {
 
 #[test]
 fn point_failure_is_terminal_and_preserves_original_diagnostics() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
     let failed_point = complete_point(-1.0);
     let original = fixture
         .program
@@ -255,7 +255,7 @@ fn point_failure_is_terminal_and_preserves_original_diagnostics() {
 
 #[test]
 fn cancellation_is_observed_only_before_or_between_point_evaluations() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
     let plan = ParameterStudyPlan::new(&fixture.program, fixture.diffusion, &PERMUTED_DIFFUSION)
         .expect("the reference plan is valid");
 
@@ -298,7 +298,7 @@ fn cancellation_is_observed_only_before_or_between_point_evaluations() {
 
 #[test]
 fn repeated_direct_point_evaluation_remains_isolated_around_an_alternate_point() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
     let first = fixture.program.evaluate(&complete_point(0.75)).unwrap();
     let alternate = fixture.program.evaluate(&complete_point(1.25)).unwrap();
     let repeated = fixture.program.evaluate(&complete_point(0.75)).unwrap();
@@ -310,15 +310,20 @@ fn repeated_direct_point_evaluation_remains_isolated_around_an_alternate_point()
     );
 }
 
-fn build_fixture(method: ScalarEllipticMethod) -> Fixture {
+fn build_fixture(spatial: CommonSpatialPolicy) -> Fixture {
     let (document, q1, tpfa) = document_and_plans();
     let source_scale = document.parameter_ref("source_scale").unwrap().id();
     let diffusion = document.parameter_ref("diffusion").unwrap().id();
     let boundary_offset = document.parameter_ref("boundary_offset").unwrap().id();
     let wave_number = document.parameter_ref("wave_number").unwrap().id();
-    let (primary, secondary) = match method {
-        ScalarEllipticMethod::FiniteElement => (q1, tpfa),
-        ScalarEllipticMethod::FiniteVolume => (tpfa, q1),
+    let (primary, secondary) = match spatial {
+        CommonSpatialPolicy::Q1 => (q1, tpfa),
+        CommonSpatialPolicy::CellCenteredTpfa => (tpfa, q1),
+        CommonSpatialPolicy::P1
+        | CommonSpatialPolicy::MiniP1
+        | CommonSpatialPolicy::CellCentered => {
+            panic!("this Cartesian fixture does not admit the requested policy")
+        }
     };
     let program = program_for(&document, primary);
     let fvm_program = program_for(&document, secondary);

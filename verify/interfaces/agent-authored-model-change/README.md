@@ -12,21 +12,20 @@ old value, and target. Atomic commit produces an immutable child through the
 same public operation used by an ordinary client. The base remains unchanged,
 and the two routes produce the same canonical child.
 
-The accepted child resolves the ordinary host-serial finite-element
-Realization and executes the existing scalar-elliptic application path. The
-registered oracle is a verification-only record, not a public agent or
-evidence schema. It independently checks the complete primary Field for the
-four-cell Poisson problem. A second proposal compiles, commits, resolves,
-solves, and satisfies algebraic and balance acceptance, but fails that
-scientific oracle. Solver success and agent claims therefore cannot admit it.
+The accepted child is replayed exactly, then this evidence case invokes the
+existing low-level native 1D finite-element numerical owner. That solve is a
+verification-only operation, not a public Plan, Run, agent, or evidence schema.
+The registered oracle independently checks the complete primary Field for the
+four-cell Poisson problem. A second proposal compiles, commits, solves, and
+satisfies algebraic acceptance, but fails that scientific oracle. Solver
+success and agent claims therefore cannot admit it.
 
-Exact Model, Realization, Run v2, complete Field values, and the sealed
-execution-output fingerprint replay. Falsifiers reject a stale plan, a plan
-from a different same-revision sibling Model even when its Transaction digest
-matches, a foreign Model/Realization binding, forged execution provenance,
-forged Run outputs, an unsupported worker request before numerical allocation,
-a no-op, and a non-finite edit. Every rejected mutation leaves the selected
-base unchanged.
+The exact edited Model and complete verification Field replay. Falsifiers
+reject a stale edit plan, a plan from a different same-revision sibling Model
+even when its Transaction digest matches, a no-op, a non-finite edit, and an
+edit of the wrong semantic entity. Every rejected mutation leaves the selected
+base unchanged. This case makes no public numerical lifecycle or persisted Run
+lineage claim.
 
 This slice adds no agent AST, DTO, transaction, Model schema, validator,
 artifact wire, direct store access, live language-model dependency, general

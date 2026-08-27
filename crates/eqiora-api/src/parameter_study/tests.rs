@@ -17,7 +17,7 @@ use eqiora_realization::RealizationRevision;
 use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 
 use super::{CompleteParameterStudy, ParameterStudyPlan};
-use crate::{DifferentiableEvaluation, DifferentiableProgram, ModelDocument, ScalarEllipticMethod};
+use crate::{DifferentiableEvaluation, DifferentiableProgram, ModelDocument};
 
 const SOURCE: &str = r#"public component DifferentiatedPoisson {
   public support square: volume(ambient_dimension = 2);
@@ -230,7 +230,7 @@ fn from_members_rejects_foreign_model_realization_method_program_and_point() {
     let foreign_document = document_from_source(&foreign_source);
     let foreign_model_program = program_for(
         &foreign_document,
-        ScalarEllipticMethod::FiniteElement,
+        CommonSpatialPolicy::Q1,
         RealizationRevision::new(21),
         &["source_scale", "diffusion", "boundary_offset"],
     );
@@ -245,7 +245,7 @@ fn from_members_rejects_foreign_model_realization_method_program_and_point() {
 
     let foreign_realization = program_for(
         &document,
-        ScalarEllipticMethod::FiniteElement,
+        CommonSpatialPolicy::Q1,
         RealizationRevision::new(22),
         &["source_scale", "diffusion", "boundary_offset"],
     );
@@ -257,7 +257,7 @@ fn from_members_rejects_foreign_model_realization_method_program_and_point() {
 
     let fvm = program_for(
         &document,
-        ScalarEllipticMethod::FiniteVolume,
+        CommonSpatialPolicy::CellCenteredTpfa,
         RealizationRevision::new(21),
         &["source_scale", "diffusion", "boundary_offset"],
     );
@@ -265,7 +265,7 @@ fn from_members_rejects_foreign_model_realization_method_program_and_point() {
 
     let foreign_parameter_order = program_for(
         &document,
-        ScalarEllipticMethod::FiniteElement,
+        CommonSpatialPolicy::Q1,
         RealizationRevision::new(21),
         &["diffusion", "source_scale", "boundary_offset"],
     );
@@ -322,7 +322,7 @@ fn evaluator_returning_a_foreign_program_member_fails_before_the_next_point() {
     let plan = ParameterStudyPlan::new(&program, diffusion, &PERMUTED_DIFFUSION).unwrap();
     let fvm = program_for(
         &document,
-        ScalarEllipticMethod::FiniteVolume,
+        CommonSpatialPolicy::CellCenteredTpfa,
         RealizationRevision::new(21),
         &["source_scale", "diffusion", "boundary_offset"],
     );
@@ -356,7 +356,7 @@ fn fixture() -> (ModelDocument, DifferentiableProgram) {
     let document = document_from_source(SOURCE);
     let program = program_for(
         &document,
-        ScalarEllipticMethod::FiniteElement,
+        CommonSpatialPolicy::Q1,
         RealizationRevision::new(21),
         &["source_scale", "diffusion", "boundary_offset"],
     );
@@ -365,11 +365,11 @@ fn fixture() -> (ModelDocument, DifferentiableProgram) {
 
 fn program_for(
     document: &ModelDocument,
-    method: ScalarEllipticMethod,
+    spatial: CommonSpatialPolicy,
     revision: RealizationRevision,
     input_names: &[&str],
 ) -> DifferentiableProgram {
-    let plan = plan_for(document, method, revision);
+    let plan = plan_for(document, spatial, revision);
     let inputs = input_names
         .iter()
         .map(|name| document.parameter_ref(name).unwrap())
@@ -425,7 +425,7 @@ fn document_from_source(source: &str) -> ModelDocument {
 
 fn plan_for(
     document: &ModelDocument,
-    method: ScalarEllipticMethod,
+    spatial: CommonSpatialPolicy,
     revision: RealizationRevision,
 ) -> CommonScalarPlan {
     let geometry = document
@@ -450,10 +450,6 @@ fn plan_for(
     let owner =
         AuthenticatedCommonMesh::structured_cartesian(geometry, mesh, correspondence, production)
             .unwrap();
-    let spatial = match method {
-        ScalarEllipticMethod::FiniteElement => CommonSpatialPolicy::Q1,
-        ScalarEllipticMethod::FiniteVolume => CommonSpatialPolicy::CellCenteredTpfa,
-    };
     let relative_tolerance = if revision.get() == 21 {
         1.0e-10
     } else {

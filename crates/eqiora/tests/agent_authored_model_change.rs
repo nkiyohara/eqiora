@@ -1,13 +1,17 @@
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU16, NonZeroUsize};
 
-use eqiora::api::{
-    ModelDocument, ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod,
-    ScalarEllipticRunResult,
-};
-use eqiora::artifact::{ArtifactDigest, ExecutionProvenanceV1, RunManifestV2};
+use eqiora::api::ModelDocument;
 use eqiora::control::{CompileOutcomeV2, CompileRequestV2, execute_compile_v2};
 use eqiora::diagnostic::codes;
-use eqiora::realization::RealizationRevision;
+use eqiora::realization::{
+    Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
+    RealizationCapabilities, RealizationPlan, RealizationRequest, RealizationRequirements,
+    RealizationRevision, SemanticRevision, Space, Target, VectorLayoutKind, resolve,
+};
+use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan};
+use eqiora_numerics::{
+    scalar::ResolvedScalarEllipticSolution1d, scalar::solve_resolved_scalar_elliptic_1d,
+};
 use serde::Deserialize;
 
 const SOURCE: &str =
@@ -64,29 +68,57 @@ fn compile_base() -> ModelDocument {
     document.expect("accepted compilation must expose one immutable Model")
 }
 
-fn intent(workers: usize) -> ScalarEllipticIntent {
-    ScalarEllipticIntent::new(
-        RealizationRevision::new(1),
-        ScalarEllipticMethod::FiniteElement,
-        NonZeroUsize::new(4).unwrap(),
-        NonZeroUsize::new(workers).unwrap(),
-    )
-}
-
 fn execute(
     document: &ModelDocument,
-    workers: usize,
-) -> Result<ScalarEllipticRunResult, Vec<eqiora::Diagnostic>> {
-    let environment = ScalarEllipticExecutionEnvironment::host_serial();
-    let plan = document.preview_scalar_elliptic_run(intent(workers), environment)?;
-    document.run_scalar_elliptic_plan(plan, environment)
+) -> Result<ResolvedScalarEllipticSolution1d, eqiora::Diagnostic> {
+    let plan = RealizationPlan::new(
+        Space::continuous_lagrange(NonZeroU16::MIN),
+        Discretization::new(
+            DiscretizationMethod::ContinuousGalerkin,
+            MeshPolicy::GeneratedUniform {
+                cells_per_axis: NonZeroUsize::new(4).unwrap(),
+            },
+            QuadraturePolicy::GaussLegendre {
+                points_per_axis: NonZeroUsize::new(2).unwrap(),
+            },
+        ),
+        SolverPlan::new(
+            LinearSolver::ConjugateGradient,
+            1.0e-12,
+            1.0e-14,
+            NonZeroUsize::new(128).unwrap(),
+        )?,
+        Target::HostCpu {
+            threads: NonZeroUsize::MIN,
+        },
+        ExecutionSchedule::Offline,
+    )?;
+    let realization = resolve(
+        &RealizationRequest::explicit(
+            document.program().model(),
+            SemanticRevision::new(document.program().revision().0),
+            RealizationRevision::new(1),
+            plan,
+        ),
+        RealizationRequirements::new(
+            NonZeroUsize::MIN,
+            ScalarType::F64,
+            VectorLayoutKind::Replicated,
+        ),
+        &RealizationCapabilities::scalar_elliptic_reference(),
+    )?;
+    solve_resolved_scalar_elliptic_1d(document.program(), &realization, &REFERENCE_LINEAR_SOLVER)
+        .map(|(_, result)| result)
 }
 
 fn verify_scientific_objective(
-    result: &ScalarEllipticRunResult,
+    result: &ResolvedScalarEllipticSolution1d,
     objective: &ScientificObjective,
 ) -> Result<(), String> {
-    let observed = result.field_values();
+    let ResolvedScalarEllipticSolution1d::FiniteElement(result) = result else {
+        return Err("the verification-only P1 policy returned a non-FEM solution".to_owned());
+    };
+    let observed = result.field().values();
     if observed.len() != objective.expected_field_values.len() {
         return Err(format!(
             "oracle expected {} values, execution produced {}",
@@ -160,10 +192,15 @@ fn offline_agent_proposal_uses_the_ordinary_exact_edit_and_execution_path() {
     assert_eq!(base.program().revision(), base_revision);
     assert_eq!(base.program().value(target).unwrap().value(), 1.0);
 
-    let accepted = execute(agent_change.document(), 1).unwrap();
+    let accepted = execute(agent_change.document()).unwrap();
     verify_scientific_objective(&accepted, &objective).unwrap();
-    assert!(accepted.balance().relative_imbalance() < 1.0e-12);
-    assert!(accepted.solve().true_residual_norm() <= accepted.solve().residual_target());
+    let ResolvedScalarEllipticSolution1d::FiniteElement(accepted_fem) = &accepted else {
+        panic!("the verification-only P1 policy returned a non-FEM solution");
+    };
+    assert!(
+        accepted_fem.solve_report().true_residual_norm()
+            <= accepted_fem.solve_report().residual_target()
+    );
 
     let child_bytes = agent_change.document().canonical_json().unwrap();
     let replayed_child = ModelDocument::replay(&child_bytes).unwrap();
@@ -173,45 +210,8 @@ fn offline_agent_proposal_uses_the_ordinary_exact_edit_and_execution_path() {
         agent_change.result_digest()
     );
 
-    let environment = ScalarEllipticExecutionEnvironment::host_serial();
-    let replayed_plan = replayed_child
-        .preview_scalar_elliptic_run(intent(1), environment)
-        .unwrap();
-    assert_eq!(
-        replayed_plan.artifact().canonical_json().unwrap(),
-        accepted.plan().artifact().canonical_json().unwrap()
-    );
-    assert_eq!(
-        replayed_plan.artifact().digest().unwrap(),
-        accepted.plan().artifact().digest().unwrap()
-    );
-    let replayed_result = replayed_child
-        .run_scalar_elliptic_plan(replayed_plan, environment)
-        .unwrap();
-    assert_eq!(
-        replayed_result.field_values(),
-        accepted.field_values(),
-        "exact replay must reproduce the complete accepted data plane"
-    );
-    assert_eq!(
-        replayed_result.receipt().output(),
-        accepted.receipt().output()
-    );
-    assert_eq!(
-        replayed_result.run_manifest().canonical_json().unwrap(),
-        accepted.run_manifest().canonical_json().unwrap()
-    );
-
-    let run_bytes = accepted.run_manifest().canonical_json().unwrap();
-    let replayed_run = accepted
-        .plan()
-        .replay_run_manifest(&run_bytes, Default::default())
-        .unwrap();
-    assert_eq!(replayed_run.canonical_json().unwrap(), run_bytes);
-    assert_eq!(
-        replayed_run.digest().unwrap(),
-        accepted.run_manifest().digest().unwrap()
-    );
+    let replayed_result = execute(&replayed_child).unwrap();
+    assert_eq!(replayed_result, accepted);
 }
 
 #[test]
@@ -228,10 +228,12 @@ fn independent_evidence_rejects_a_valid_but_scientifically_wrong_proposal() {
         .preview_value_edit(target, proposal.proposed_value_si)
         .unwrap();
     let candidate = base.commit_value_edit(plan).unwrap();
-    let result = execute(candidate.document(), 1).unwrap();
+    let result = execute(candidate.document()).unwrap();
 
-    assert!(result.balance().relative_imbalance() < 1.0e-12);
-    assert!(result.solve().true_residual_norm() <= result.solve().residual_target());
+    let ResolvedScalarEllipticSolution1d::FiniteElement(fem) = &result else {
+        panic!("the verification-only P1 policy returned a non-FEM solution");
+    };
+    assert!(fem.solve_report().true_residual_norm() <= fem.solve_report().residual_target());
     assert!(
         verify_scientific_objective(&result, &objective).is_err(),
         "solver acceptance cannot substitute for an independent scientific oracle"
@@ -281,59 +283,9 @@ fn stale_foreign_forged_and_unsupported_inputs_fail_closed() {
         codes::PRECONDITION_FAILED
     );
 
-    assert_eq!(
-        left.document()
-            .preview_scalar_elliptic_run(
-                intent(2),
-                ScalarEllipticExecutionEnvironment::host_serial(),
-            )
-            .unwrap_err()[0]
-            .code(),
-        codes::INVALID_REALIZATION
-    );
-
-    let accepted = execute(left.document(), 1).unwrap();
-    assert_eq!(
-        accepted
-            .plan()
-            .artifact()
-            .validate_model_artifact(&base.artifact_reference().unwrap())
-            .unwrap_err()
-            .code(),
-        codes::INVALID_ARTIFACT
-    );
-
-    let actual = accepted.run_manifest().execution();
-    let forged_execution = ExecutionProvenanceV1::new(
-        "example.forged-agent-adapter",
-        actual.adapter_version(),
-        actual.solver_backend(),
-        actual.solver_backend_version(),
-        actual.topology().unwrap(),
-        actual.reduction(),
-    )
-    .unwrap();
-    let forged_run = RunManifestV2::new(accepted.plan().artifact(), forged_execution).unwrap();
-    assert_eq!(
-        accepted
-            .plan()
-            .validate_run_manifest(&forged_run)
-            .unwrap_err()
-            .code(),
-        codes::INVALID_ARTIFACT
-    );
-
-    let forged_output = accepted
-        .run_manifest()
-        .clone()
-        .with_output(ArtifactDigest::from_hex("00".repeat(32)).unwrap());
-    assert_eq!(
-        accepted
-            .plan()
-            .validate_run_manifest(&forged_output)
-            .unwrap_err()
-            .code(),
-        codes::INVALID_ARTIFACT
+    assert_ne!(
+        execute(left.document()).unwrap(),
+        execute(right.document()).unwrap()
     );
 
     assert_eq!(

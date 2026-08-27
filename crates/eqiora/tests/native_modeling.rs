@@ -5,7 +5,7 @@ use eqiora::language::{DraftExpression, DraftField, DraftParameter, DraftRelatio
 const SOURCE: &str = include_str!("../../../verify/language/native-modeling/models/decay.eqi");
 
 #[test]
-fn native_and_source_models_share_structure_artifacts_and_execution() {
+fn native_and_source_models_share_structure_and_artifacts() {
     let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
     let rate = DraftParameter::new(
         "rate",
@@ -38,14 +38,6 @@ fn native_and_source_models_share_structure_artifacts_and_execution() {
     let reconstructed = eqiora::api::ModelDocument::replay(&bytes).unwrap();
     assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
     assert_eq!(reconstructed.digest().unwrap(), native.digest().unwrap());
-
-    let source_values = source.run_reference(0.3, 0.1).unwrap().series()[0]
-        .values()
-        .to_vec();
-    let native_values = native.run_reference(0.3, 0.1).unwrap().series()[0]
-        .values()
-        .to_vec();
-    assert_eq!(native_values, source_values);
 }
 
 #[test]
