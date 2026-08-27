@@ -11,8 +11,7 @@
     "noUncheckedIndexedAccess": false,
     "skipLibCheck": true,
     "strict": true,
-    "target": "ES2024",
-    "types": ["vitest/globals"]
+    "target": "ES2024"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["tests/**/*.ts", "playwright.config.ts"]
 }

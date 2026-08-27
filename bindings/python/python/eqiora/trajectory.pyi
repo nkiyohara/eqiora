@@ -3,7 +3,6 @@
 Authority: ``bindings/python/python/eqiora/trajectory.py``.
 """
 
-from collections.abc import Collection
 from typing import final
 
 import numpy as np
@@ -76,11 +75,6 @@ class Trajectory:
     @property
     def states(self) -> tuple[State, ...]: ...
     def state(self, step: int, /) -> State: ...
-    def _repr_mimebundle_(
-        self,
-        include: Collection[str] | None = None,
-        exclude: Collection[str] | None = None,
-    ) -> dict[str, object]: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 

@@ -76,10 +76,7 @@ COMPLETE_PROFILE_NAMES = (
 
 NOTEBOOK_CHECK_NAMES = (
     "frontend:lock-integrity",
-    "frontend:license-inventory",
-    "frontend:bundle-byte-rebuild",
-    "wheel-family:notebook-metadata",
-    "cp313:notebook-anywidget-0.11.0",
+    "frontend:dependency-inventory",
     "cp313:marimo-0.23.16-exact-cylinder-stokes",
     "cp313:notebook-managed-chromium-r1234",
     "cp313:notebook-no-external-network",
@@ -773,7 +770,7 @@ def run_full_typing_profile(
         interpreter=interpreter,
         environment=workspace.environment,
         requirements=[
-            f"{wheel}[torch,jax,matplotlib,notebook]",
+            f"{wheel}[torch,jax,matplotlib]",
             config.mypy,
             config.torch,
             *config.jax,

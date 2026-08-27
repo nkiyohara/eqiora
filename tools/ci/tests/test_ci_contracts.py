@@ -1313,11 +1313,10 @@ class ChangeClassificationTests(unittest.TestCase):
         self.assertFalse(studio["rust"])
         self.assertFalse(studio["dependency_policy"])
 
-    def test_private_python_frontend_selects_python_not_studio(self) -> None:
+    def test_python_marimo_host_selects_python_not_studio(self) -> None:
         for path in (
             "bindings/python/frontend/package-lock.json",
-            "bindings/python/frontend/src/mesh-view.ts",
-            "bindings/python/python/eqiora/_presentation/static/mesh-view.mjs",
+            "bindings/python/frontend/tests/exact-cylinder-stokes-marimo.spec.ts",
         ):
             with self.subTest(path=path):
                 selected = classify([path])

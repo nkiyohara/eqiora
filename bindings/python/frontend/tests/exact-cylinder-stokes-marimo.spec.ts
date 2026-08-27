@@ -1,5 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 
+declare const process: { env: Record<string, string | undefined> };
+
 const ENABLED = process.env.EQIORA_EXACT_CYLINDER_STOKES_MARIMO_ORACLE === "1";
 
 class RuntimeTraffic {

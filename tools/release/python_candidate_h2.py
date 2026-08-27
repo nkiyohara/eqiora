@@ -38,11 +38,6 @@ from python_candidate_common import (
 
 ROOT = Path(__file__).resolve().parents[2]
 FRONTEND = Path("bindings/python/frontend")
-STATIC = Path("bindings/python/python/eqiora/_presentation/static")
-ASSET_PATHS = (
-    "eqiora/_presentation/static/mesh-view.css",
-    "eqiora/_presentation/static/mesh-view.mjs",
-)
 CONTRACT_SHA256 = "3f3a9f1a5b54bf5b874d996c8807bbb7e88439737fd245d69e7a8aeb7a1a87c1"
 PROTECTED_BASE_SHA = "3dfb1086168afc6f9fb61f9ca43d21ca9953048b"
 NODE_VERSION = "v24.18.1"
@@ -51,12 +46,6 @@ NPM_VERSION = "11.16.0"
 NPM_INTEGRITY = (
     "sha512-A74XL8OxmcegZDMWPkWb5bEQppg8HdYwW3rBD2sPoS4UQHVajfaxBkqyzLeJ3wR0kZ+"
     "5xoTjItxXaF7eIXUsyw=="
-)
-ANYWIDGET_WHEEL_SHA256 = (
-    "c574d9acc6503ad27b37a9acea48f957a8ba7c9c9876cfcb37898931c098ce9d"
-)
-ANYWIDGET_LICENSE_SHA256 = (
-    "22c698b6e5f3878c292471980ffd352ee0fad053f9428c2281f34b5e28a6151f"
 )
 BROWSERS_JSON_SHA256 = (
     "f306eed529599b1eaf2f8a85db9de2b23e1a3fe36c2b66434b7c9434fb627a99"
@@ -102,9 +91,8 @@ LOCKED_PACKAGE_COUNT_LIMIT = 2_048
 LOCKED_PACKAGE_BYTES_LIMIT = 1_073_741_824
 PYTHON_WHEEL_COUNT_LIMIT = 256
 PYTHON_WHEEL_BYTES_LIMIT = 1_073_741_824
-BUILD_OUTPUT_BYTES_LIMIT = 16_777_216
 ABSTRACT_MEMBER_STEPS_LIMIT = 104_646
-ABSTRACT_BYTE_STEPS_LIMIT = 4_789_240_546
+ABSTRACT_BYTE_STEPS_LIMIT = 4_755_686_114
 CONTENT_BOUND_BROWSER_PROFILE = {
     "platform": "linux-x86_64",
     "browser": "Chromium Headless Shell 151.0.7922.34",
@@ -130,16 +118,12 @@ CONTENT_BOUND_RESOURCE_LIMITS = {
     "locked_package_bytes": LOCKED_PACKAGE_BYTES_LIMIT,
     "resolved_python_wheel_count": PYTHON_WHEEL_COUNT_LIMIT,
     "resolved_python_wheel_bytes": PYTHON_WHEEL_BYTES_LIMIT,
-    "build_output_bytes": BUILD_OUTPUT_BYTES_LIMIT,
     "host_scenarios": 2,
     "member_steps": ABSTRACT_MEMBER_STEPS_LIMIT,
     "byte_steps": ABSTRACT_BYTE_STEPS_LIMIT,
 }
 DIRECT_PINS = {
-    "@anywidget/types": "0.4.0",
     "typescript": "7.0.2",
-    "vite": "8.2.0",
-    "vitest": "4.1.10",
     "@biomejs/biome": "2.5.6",
     "@playwright/test": "1.62.1",
 }
@@ -147,7 +131,6 @@ CONFIG_NAMES = (
     "biome.json",
     "playwright.config.ts",
     "tsconfig.json",
-    "vite.config.ts",
 )
 ENVIRONMENT_ALLOWLIST = (
     "HOME",
@@ -222,7 +205,6 @@ class AcquiredInputs:
     playwright_test_integrity: str
     playwright_core_integrity: str
     python_wheels: tuple[dict[str, object], ...]
-    anywidget_license_sha256: str
     package_manifests: tuple[tuple[str, dict[str, Any]], ...]
     package_packuments: tuple[tuple[str, dict[str, Any]], ...]
     locked_package_bytes: int
@@ -233,9 +215,6 @@ class AcquiredInputs:
 
 @dataclass(frozen=True)
 class RunObservation:
-    inventory: tuple[dict[str, object], ...]
-    emitted_imports: tuple[str, ...]
-    source_maps: tuple[str, ...]
     external_request_count: int
     acquisition: AcquiredInputs
 
@@ -247,7 +226,6 @@ _ACQUISITION_IDENTITY_FIELDS = (
     "playwright_test_integrity",
     "playwright_core_integrity",
     "python_wheels",
-    "anywidget_license_sha256",
     "package_manifests",
     "package_packuments",
     "locked_package_bytes",
@@ -287,7 +265,6 @@ def require_content_bound_resources(observed: dict[str, object]) -> dict[str, in
         "source_bytes",
         "locked_package_count",
         "locked_package_bytes",
-        "build_output_bytes",
         "resolved_python_wheel_count",
         "resolved_python_wheel_bytes",
         "browser_archive_bytes",
@@ -348,7 +325,6 @@ def require_content_bound_resources(observed: dict[str, object]) -> dict[str, in
         "locked_package_bytes": CONTENT_BOUND_RESOURCE_LIMITS[
             "locked_package_bytes"
         ],
-        "build_output_bytes": CONTENT_BOUND_RESOURCE_LIMITS["build_output_bytes"],
         "resolved_python_wheel_count": CONTENT_BOUND_RESOURCE_LIMITS[
             "resolved_python_wheel_count"
         ],
@@ -388,7 +364,6 @@ def require_content_bound_resources(observed: dict[str, object]) -> dict[str, in
         int(observed["family_bytes"])
         + 2 * int(observed["source_bytes"])
         + 2 * int(observed["locked_package_bytes"])
-        + 2 * int(observed["build_output_bytes"])
         + int(observed["resolved_python_wheel_bytes"])
         + int(observed["browser_archive_bytes"])
         + int(observed["browser_extracted_regular_bytes"])
@@ -867,31 +842,8 @@ def run_frontend_commands(
         ["npm", "ci", "--ignore-scripts"],
         ["npm", "run", "typecheck"],
         ["npm", "run", "lint"],
-        ["npm", "run", "test"],
-        ["npm", "run", "build"],
     ):
         run(argv, cwd=workspace.frontend, extra_environment=environment)
-
-
-def _stage_frontend_assets(extracted: Path, workspace: H2Workspace) -> None:
-    observed = tuple(
-        path.relative_to(workspace.output).as_posix()
-        for path in sorted(
-            workspace.output.rglob("*"), key=lambda item: _utf8(str(item))
-        )
-        if path.is_file()
-    )
-    if observed == ASSET_PATHS:
-        return
-    if observed != ("mesh-view.css", "mesh-view.mjs"):
-        raise CandidateError("H2 build output differs from the Vite asset path set")
-    destination = workspace.output / "eqiora/_presentation/static"
-    destination.mkdir(parents=True)
-    for name in ("mesh-view.css", "mesh-view.mjs"):
-        source = workspace.output / name
-        if source.is_symlink() or not source.is_file():
-            raise CandidateError(f"H2 Vite output is not one regular file: {name}")
-        os.replace(source, destination / name)
 
 
 def _clean_environment(extra: dict[str, str]) -> dict[str, str]:
@@ -1124,7 +1076,7 @@ def _node_and_npm_identity(workspace: H2Workspace) -> tuple[Path, Path, Path]:
     return node, tarball, npm
 
 
-def _wheel_metadata(path: Path) -> tuple[str, str, str]:
+def _wheel_metadata(path: Path) -> tuple[str, str]:
     with zipfile.ZipFile(path) as archive:
         filename_parts = path.name.split("-")
         if len(filename_parts) < 5:
@@ -1139,25 +1091,12 @@ def _wheel_metadata(path: Path) -> tuple[str, str, str]:
         version = message.get("Version")
         if not name or not version:
             raise CandidateError(f"Python wheel omits name or version: {path.name}")
-        licenses = [
-            member
-            for member in archive.namelist()
-            if re.fullmatch(
-                rf"{re.escape(dist_info)}/licenses/(?:LICENSE|LICENSE\.txt)",
-                member,
-            )
-        ]
-        license_sha = ""
-        if name.lower() == "anywidget":
-            if len(licenses) != 1:
-                raise CandidateError("anywidget wheel must contain one license file")
-            license_sha = hashlib.sha256(archive.read(licenses[0])).hexdigest()
-        return name, version, license_sha
+        return name, version
 
 
 def _acquire_python_wheels(
     workspace: H2Workspace,
-) -> tuple[tuple[dict[str, object], ...], str, int]:
+) -> tuple[tuple[dict[str, object], ...], int]:
     interpreter_raw = shutil.which("python3.13")
     if interpreter_raw is None:
         raise CandidateError("H2 requires CPython 3.13 for the frozen host inputs")
@@ -1188,7 +1127,6 @@ def _acquire_python_wheels(
             "--only-binary=:all:",
             "--dest",
             str(destination),
-            "anywidget==0.11.0",
             "marimo==0.23.16",
         ],
         cwd=workspace.root,
@@ -1212,9 +1150,8 @@ def _acquire_python_wheels(
         raise CandidateError("H2 Python resolution exceeds the raw byte ceiling")
     records: list[dict[str, object]] = []
     names: set[str] = set()
-    anywidget_license = ""
     for path in paths:
-        name, version, license_sha = _wheel_metadata(path)
+        name, version = _wheel_metadata(path)
         normalized = re.sub(r"[-_.]+", "-", name).lower()
         if normalized in names:
             raise CandidateError(f"H2 Python resolution repeats {name}")
@@ -1227,16 +1164,10 @@ def _acquire_python_wheels(
                 "sha256": file_sha256(path),
             }
         )
-        if normalized == "anywidget":
-            if version != "0.11.0" or file_sha256(path) != ANYWIDGET_WHEEL_SHA256:
-                raise CandidateError("H2 anywidget wheel identity differs")
-            anywidget_license = license_sha
-    if not {"anywidget", "marimo"}.issubset(names):
+    if "marimo" not in names:
         raise CandidateError("H2 Python host resolution omits a frozen direct input")
-    if anywidget_license != ANYWIDGET_LICENSE_SHA256:
-        raise CandidateError("H2 anywidget license identity differs")
     records.sort(key=lambda item: _utf8(str(item["filename"])))
-    return tuple(records), anywidget_license, resolved_bytes
+    return tuple(records), resolved_bytes
 
 
 def _lock_entry(lock: dict[str, Any], path: str) -> dict[str, Any]:
@@ -1655,9 +1586,7 @@ def acquire_inputs(workspace: H2Workspace) -> AcquiredInputs:
         playwright_core,
         locked_package_bytes,
     ) = _prefetch_lock_packages(workspace, lock)
-    python_wheels, anywidget_license, python_wheel_bytes = _acquire_python_wheels(
-        workspace
-    )
+    python_wheels, python_wheel_bytes = _acquire_python_wheels(workspace)
     archive, executable, browser_platform, test_integrity, core_integrity = (
         _acquire_browser(workspace, node, lock, playwright_core)
     )
@@ -1674,7 +1603,6 @@ def acquire_inputs(workspace: H2Workspace) -> AcquiredInputs:
         playwright_test_integrity=test_integrity,
         playwright_core_integrity=core_integrity,
         python_wheels=python_wheels,
-        anywidget_license_sha256=anywidget_license,
         package_manifests=package_manifests,
         package_packuments=package_packuments,
         locked_package_bytes=locked_package_bytes,
@@ -1704,42 +1632,9 @@ def _observe_output(
         != acquisition.browser_executable_sha256
     ):
         raise CandidateError("H2 acquired browser changed during frontend execution")
-    output_paths = tuple(workspace.output.rglob("*"))
-    regular_outputs = tuple(path for path in output_paths if path.is_file())
-    if (
-        any(
-            path.is_symlink() or (not path.is_dir() and not path.is_file())
-            for path in output_paths
-        )
-        or sum(path.stat().st_size for path in regular_outputs)
-        > BUILD_OUTPUT_BYTES_LIMIT
-    ):
-        raise CandidateError("H2 build output is unsafe or exceeds its byte limit")
-    inventory = _regular_tree_inventory(workspace.output)
-    if tuple(str(item["relative_path"]) for item in inventory) != ASSET_PATHS:
-        raise CandidateError("H2 build output differs from the closed asset path set")
-    source_maps = tuple(
-        str(item["relative_path"])
-        for item in inventory
-        if str(item["relative_path"]).endswith(".map")
-    )
-    imports: set[str] = set()
-    for record in inventory:
-        path = workspace.output / str(record["relative_path"])
-        payload = path.read_bytes()
-        if path.suffix == ".css" and URL_RE.search(payload):
-            raise CandidateError(
-                f"H2 output retains an external URL: {record['relative_path']}"
-            )
-        if path.suffix in {".js", ".mjs"}:
-            text = payload.decode("utf-8")
-            imports.update(IMPORT_RE.findall(text))
-    if imports or source_maps:
-        raise CandidateError("H2 output retains an external import or source map")
+    if workspace.output.exists():
+        raise CandidateError("H2 host validation unexpectedly emitted build output")
     return RunObservation(
-        inventory,
-        tuple(sorted(imports, key=_utf8)),
-        source_maps,
         external_request_count,
         acquisition,
     )
@@ -1953,107 +1848,6 @@ def _frontend_inputs(
     return inventory, configs, pins, tuple(locked)
 
 
-def _resolve_module(root: Path, importer: Path, specifier: str) -> Path | None:
-    if specifier.startswith("."):
-        candidate = importer.parent / specifier
-        options = (
-            candidate,
-            candidate.with_suffix(".ts"),
-            candidate.with_suffix(".js"),
-            candidate / "index.ts",
-            candidate / "index.js",
-        )
-    else:
-        parts = specifier.split("/")
-        package_name = "/".join(parts[:2]) if specifier.startswith("@") else parts[0]
-        subpath = "/".join(parts[2:] if specifier.startswith("@") else parts[1:])
-        package_root = root / "node_modules" / package_name
-        manifest = json.loads(
-            (package_root / "package.json").read_text(encoding="utf-8")
-        )
-        if subpath:
-            mapped = manifest.get("exports", {}).get("./" + subpath, "./" + subpath)
-            if isinstance(mapped, dict):
-                mapped = mapped.get("import") or mapped.get("default")
-            candidate = package_root / str(mapped).removeprefix("./")
-        else:
-            candidate = package_root / str(
-                manifest.get("module") or manifest.get("main")
-            )
-        options = (candidate, candidate.with_suffix(".js"), candidate / "index.js")
-    return next((path.resolve() for path in options if path.is_file()), None)
-
-
-def _module_graph(
-    workspace: H2Workspace, version: str
-) -> tuple[dict[str, object], ...]:
-    root = workspace.frontend.resolve()
-    entry = root / "src/mesh-view.ts"
-    pending = [entry.resolve()]
-    visited: set[Path] = set()
-    records: list[dict[str, object]] = []
-    output = "eqiora/_presentation/static/mesh-view.mjs"
-    while pending:
-        path = pending.pop()
-        if path in visited:
-            continue
-        visited.add(path)
-        if not path.is_file() or not path.is_relative_to(root):
-            raise CandidateError(f"H2 module graph escaped its frontend: {path}")
-        relative = path.relative_to(root).as_posix()
-        if relative.startswith("node_modules/"):
-            suffix = relative.removeprefix("node_modules/")
-            parts = suffix.split("/")
-            package = "/".join(parts[:2]) if parts[0].startswith("@") else parts[0]
-            package_root = root / "node_modules" / package
-            package_version = json.loads(
-                (package_root / "package.json").read_text(encoding="utf-8")
-            )["version"]
-        else:
-            package = "eqiora"
-            package_version = version
-        records.append(
-            {
-                "output": output,
-                "input": _relative_path(relative),
-                "package": package,
-                "version": package_version,
-            }
-        )
-        text = path.read_text(encoding="utf-8")
-        for specifier in IMPORT_RE.findall(text):
-            resolved = _resolve_module(root, path, specifier)
-            if resolved is not None:
-                pending.append(resolved)
-    records.sort(
-        key=lambda item: tuple(
-            _utf8(str(item[key])) for key in ("output", "input", "package", "version")
-        )
-    )
-    if not records or {item["package"] for item in records} != {"eqiora"}:
-        raise CandidateError("H2 emitted module graph contains an unreviewed package")
-    return tuple(records)
-
-
-def _asset_equality(
-    extracted: Path, runs: tuple[RunObservation, RunObservation]
-) -> None:
-    if runs[0].inventory != runs[1].inventory:
-        raise CandidateError("H2 clean builds differ")
-    for relative in ASSET_PATHS:
-        built = runs[0].inventory[ASSET_PATHS.index(relative)]
-        committed = extracted / STATIC / Path(relative).name
-        if not committed.is_file() or committed.is_symlink():
-            raise CandidateError(f"retained sdist omits committed asset {relative}")
-        status = committed.stat()
-        if (
-            stat.S_IMODE(status.st_mode) != built["mode"]
-            or status.st_size != built["size"]
-            or file_sha256(committed) != built["sha256"]
-        ):
-            raise CandidateError(f"H2 rebuild differs from committed asset {relative}")
-
-
 def _acquisition_member_map(
     field: str, value: object
 ) -> dict[str, object] | None:
@@ -2147,7 +1941,6 @@ def _validate_abstract_resources(
     family_largest_member_bytes = max(
         (int(record["size"]) for record in family.inventory), default=0
     )
-    build_output_bytes = sum(int(record["size"]) for record in runs[0].inventory)
     locked_package_count = len(acquired.package_manifests)
     python_wheel_count = len(acquired.python_wheels)
     browser_records = _browser_archive_inventory(acquired.browser_archive)
@@ -2164,7 +1957,6 @@ def _validate_abstract_resources(
             "source_bytes": source_bytes,
             "locked_package_count": locked_package_count,
             "locked_package_bytes": acquired.locked_package_bytes,
-            "build_output_bytes": build_output_bytes,
             "resolved_python_wheel_count": python_wheel_count,
             "resolved_python_wheel_bytes": acquired.python_wheel_bytes,
             "browser_archive_bytes": acquired.browser_archive.stat().st_size,
@@ -2193,7 +1985,6 @@ def observe_h2(
     runs: tuple[RunObservation, RunObservation],
     source_date_epoch: int,
 ) -> dict[str, object]:
-    _asset_equality(extracted, runs)
     acquired_identities = tuple(
         tuple(getattr(run.acquisition, field) for field in _ACQUISITION_IDENTITY_FIELDS)
         for run in runs
@@ -2216,7 +2007,6 @@ def observe_h2(
         runs[0].acquisition.package_manifests,
         runs[0].acquisition.package_packuments,
     )
-    graph = _module_graph(workspaces[0], family.version)
     libc_name, libc_version = platform.libc_ver()
     if (
         platform.system() != "Linux"
@@ -2230,10 +2020,7 @@ def observe_h2(
             {
                 "isolated_directory_id": f"clean-run-{index}",
                 "npm_ci_exit": 0,
-                "build_exit": 0,
-                "output_inventory": list(run.inventory),
-                "emitted_imports": list(run.emitted_imports),
-                "source_maps": list(run.source_maps),
+                "validation_exit": 0,
                 "external_request_count_after_npm_ci": run.external_request_count,
             }
         )
@@ -2273,28 +2060,20 @@ def observe_h2(
             "config_inventory": list(configs),
             "direct_pins": list(pins),
             "locked_packages": list(locked),
-            "anywidget_wheel_sha256": ANYWIDGET_WHEEL_SHA256,
         },
-        "build": {
+        "validation": {
             "npm_ci_command_argv": ["npm", "ci", "--ignore-scripts"],
-            "exact_command_argv": ["npm", "run", "build"],
+            "offline_command_argv": [
+                ["npm", "run", "typecheck"],
+                ["npm", "run", "lint"],
+            ],
             "network_policy": "registry-only-during-npm-ci;offline-after",
-            "bundler_version": "8.2.0",
-            "bundler_module_graph": list(graph),
-            "externals": [],
         },
         "clean_run_1": run_records[0],
         "clean_run_2": run_records[1],
         "comparison": {
-            "complete_relative_path_set_equal": True,
-            "modes_equal": True,
-            "sizes_equal": True,
-            "sha256_bytes_equal": True,
+            "acquired_inputs_equal": True,
             "diff": [],
-        },
-        "licenses": {
-            "components": [],
-            "unmapped_emitted_modules": [],
         },
         "browser": {
             "playwright_test_integrity": acquired.playwright_test_integrity,
@@ -2372,11 +2151,10 @@ def validate_h2_receipt(receipt: object) -> None:
             "candidate",
             "environment",
             "inputs",
-            "build",
+            "validation",
             "clean_run_1",
             "clean_run_2",
             "comparison",
-            "licenses",
             "browser",
             "python_host",
         ),
@@ -2461,7 +2239,6 @@ def validate_h2_receipt(receipt: object) -> None:
             "config_inventory",
             "direct_pins",
             "locked_packages",
-            "anywidget_wheel_sha256",
         ),
         "inputs",
     )
@@ -2471,7 +2248,6 @@ def validate_h2_receipt(receipt: object) -> None:
     if (
         not _json_integer(inputs["lockfile_version"])
         or inputs["lockfile_version"] != 3
-        or inputs["anywidget_wheel_sha256"] != ANYWIDGET_WHEEL_SHA256
         or any(
             SHA256_RE.fullmatch(inputs[name]) is None
             for name in ("package_json_sha256", "package_lock_sha256")
@@ -2555,48 +2331,30 @@ def validate_h2_receipt(receipt: object) -> None:
     _sorted_unique(
         locked, lambda item: _utf8(item["lock_path"]), "inputs.locked_packages"
     )
-    build = _keys(
-        root["build"],
+    validation = _keys(
+        root["validation"],
         (
             "npm_ci_command_argv",
-            "exact_command_argv",
+            "offline_command_argv",
             "network_policy",
-            "bundler_version",
-            "bundler_module_graph",
-            "externals",
         ),
-        "build",
+        "validation",
     )
     if (
-        build["npm_ci_command_argv"] != ["npm", "ci", "--ignore-scripts"]
-        or build["exact_command_argv"] != ["npm", "run", "build"]
-        or build["network_policy"] != "registry-only-during-npm-ci;offline-after"
-        or build["bundler_version"] != "8.2.0"
-        or build["externals"] != []
+        validation["npm_ci_command_argv"] != ["npm", "ci", "--ignore-scripts"]
+        or validation["offline_command_argv"]
+        != [["npm", "run", "typecheck"], ["npm", "run", "lint"]]
+        or validation["network_policy"]
+        != "registry-only-during-npm-ci;offline-after"
     ):
-        raise CandidateError("H2 receipt build predicate differs")
-    graph = _array(build["bundler_module_graph"], "build.bundler_module_graph")
-    for item in graph:
-        value = _keys(item, ("output", "input", "package", "version"), "module_edge")
-        _relative_path(value["output"])
-        _relative_path(value["input"])
-    _sorted_unique(
-        graph,
-        lambda item: tuple(
-            _utf8(item[key]) for key in ("output", "input", "package", "version")
-        ),
-        "build.bundler_module_graph",
-    )
+        raise CandidateError("H2 receipt validation predicate differs")
     for index, name in enumerate(("clean_run_1", "clean_run_2"), 1):
         run = _keys(
             root[name],
             (
                 "isolated_directory_id",
                 "npm_ci_exit",
-                "build_exit",
-                "output_inventory",
-                "emitted_imports",
-                "source_maps",
+                "validation_exit",
                 "external_request_count_after_npm_ci",
             ),
             name,
@@ -2604,32 +2362,23 @@ def validate_h2_receipt(receipt: object) -> None:
         if (
             run["isolated_directory_id"] != f"clean-run-{index}"
             or not _json_integer(run["npm_ci_exit"])
-            or not _json_integer(run["build_exit"])
+            or not _json_integer(run["validation_exit"])
             or not _json_integer(run["external_request_count_after_npm_ci"])
             or run["npm_ci_exit"] != 0
-            or run["build_exit"] != 0
-            or run["emitted_imports"] != []
-            or run["source_maps"] != []
+            or run["validation_exit"] != 0
             or run["external_request_count_after_npm_ci"] != 0
         ):
             raise CandidateError(f"H2 receipt {name} is not PASS")
-        _validate_file_records(run["output_inventory"], f"{name}.output_inventory")
     comparison = _keys(
         root["comparison"],
         (
-            "complete_relative_path_set_equal",
-            "modes_equal",
-            "sizes_equal",
-            "sha256_bytes_equal",
+            "acquired_inputs_equal",
             "diff",
         ),
         "comparison",
     )
     comparison_flags = (
-        "complete_relative_path_set_equal",
-        "modes_equal",
-        "sizes_equal",
-        "sha256_bytes_equal",
+        "acquired_inputs_equal",
     )
     if (
         any(
@@ -2637,47 +2386,8 @@ def validate_h2_receipt(receipt: object) -> None:
             for name in comparison_flags
         )
         or comparison["diff"] != []
-        or root["clean_run_1"]["output_inventory"]
-        != root["clean_run_2"]["output_inventory"]
     ):
         raise CandidateError("H2 receipt comparison is not exact equality")
-    licenses = _keys(
-        root["licenses"],
-        ("components", "unmapped_emitted_modules"),
-        "licenses",
-    )
-    if licenses["unmapped_emitted_modules"] != []:
-        raise CandidateError("H2 receipt module mapping differs")
-    components = _array(licenses["components"], "licenses.components")
-    if components:
-        raise CandidateError("H2 receipt emitted module licenses are not empty")
-    for item in components:
-        value = _keys(
-            item,
-            (
-                "package",
-                "version",
-                "license_expression",
-                "source_license_path",
-                "source_license_sha256",
-                "emitted_outputs",
-            ),
-            "license_component",
-        )
-        _relative_path(value["source_license_path"])
-        if SHA256_RE.fullmatch(value["source_license_sha256"]) is None:
-            raise CandidateError("H2 receipt license hash is invalid")
-        for path in value["emitted_outputs"]:
-            _relative_path(path)
-    _sorted_unique(
-        components,
-        lambda item: (
-            _utf8(item["package"]),
-            _utf8(item["version"]),
-            _utf8(item["source_license_path"]),
-        ),
-        "licenses.components",
-    )
     browser = _keys(
         root["browser"],
         (
@@ -2864,7 +2574,6 @@ def execute_h2(*, expected_commit: str, artifacts: Path, out: Path) -> Path:
             if acquired is None:
                 observations.append(None)
             else:
-                _stage_frontend_assets(extracted, workspace)
                 observations.append(
                     _observe_output(workspace, acquired, external_requests)
                 )

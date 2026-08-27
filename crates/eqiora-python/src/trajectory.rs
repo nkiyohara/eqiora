@@ -10,17 +10,14 @@ use eqiora_numerics::{CommonInitialField, CommonInitialValues, CommonState};
 use numpy::{PyArray1, PyArray2};
 use pyo3::exceptions::{PyIndexError, PyKeyError, PyOverflowError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBool, PyDict, PyModule, PySequence, PyTuple};
+use pyo3::types::{PyBool, PyModule, PySequence, PyTuple};
 use sha2::{Digest, Sha256};
 
 use crate::matrix::{ReadOnlyMatrix, ReadOnlyVector};
 use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelFieldRef};
 mod field;
-mod presentation;
 use field::{PyFieldSnapshot, PyInitialField};
-
-use presentation::TrajectoryPresentation;
 #[pyclass(
     name = "State",
     module = "eqiora._eqiora",
@@ -432,7 +429,6 @@ pub(crate) struct PyTrajectory {
     states: Vec<Py<PyState>>,
     state_lookup: BTreeMap<u64, usize>,
     common_mesh: Option<Py<PyMesh>>,
-    presentation: TrajectoryPresentation,
 }
 
 impl PartialEq for PyTrajectory {
@@ -538,16 +534,6 @@ impl PyTrajectory {
             self.states.len()
         )
     }
-
-    #[pyo3(signature = (include=None, exclude=None))]
-    fn _repr_mimebundle_(
-        slf: Py<Self>,
-        py: Python<'_>,
-        include: Option<&Bound<'_, PyAny>>,
-        exclude: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Py<PyDict>> {
-        presentation::mimebundle(slf, py, include, exclude)
-    }
 }
 
 impl PyTrajectory {
@@ -641,7 +627,6 @@ impl PyTrajectory {
             states: projected,
             state_lookup,
             common_mesh: Some(mesh),
-            presentation: TrajectoryPresentation::default(),
         })
     }
 }

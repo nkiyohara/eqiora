@@ -1,5 +1,5 @@
 {
-  "name": "@eqiora/python-mesh-presentation",
+  "name": "@eqiora/python-marimo-host",
   "version": "0.1.0-alpha.3",
   "private": true,
   "type": "module",
@@ -8,19 +8,14 @@
     "node": "24.18.1"
   },
   "scripts": {
-    "build": "vite build --configLoader runner",
-    "format": "biome format --write src tests playwright.config.ts vite.config.ts",
-    "lint": "biome lint src tests playwright.config.ts vite.config.ts",
-    "test": "vitest run src",
+    "format": "biome format --write tests playwright.config.ts",
+    "lint": "biome lint tests playwright.config.ts",
     "test:hosts": "playwright test",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@anywidget/types": "0.4.0",
     "@biomejs/biome": "2.5.6",
     "@playwright/test": "1.62.1",
-    "typescript": "7.0.2",
-    "vite": "8.2.0",
-    "vitest": "4.1.10"
+    "typescript": "7.0.2"
   }
 }
