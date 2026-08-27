@@ -898,12 +898,6 @@ LEGACY_IDENTITY_FREE_ADMISSION_SHAPE = [
         ["model_sha256"],
         0,
     ),
-    (
-        "crates/eqiora/tests/generated_cartesian_q1_spatial_output.rs",
-        "non-fixture-search-hit",
-        ["model_sha256"],
-        0,
-    ),
 ]
 
 PROXIMATE_UNADMITTED_PATHS = [
@@ -1318,7 +1312,7 @@ EXPECTED_RENAMED = {source for source, _ in EXPECTED_RENAME_PAIRS}
 
 
 def check_inventory_dispositions() -> None:
-    """Every one of the 338 candidates has exactly one fate, and no retired
+    """Every one of the 306 candidates has exactly one fate, and no retired
     path is left to inherit the remainder's in-place migration."""
     print("Inventory dispositions")
     classification = frozen_classification()

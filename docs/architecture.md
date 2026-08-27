@@ -1783,11 +1783,12 @@ and return owned result data; the renderer never calls into numerical inner
 loops. RFC 0016 specifies the interaction, security, protocol, and verification
 contracts.
 
-Studio bridge v5 retains the native-resolved `ReferenceRunPlan` between editable
-model-time strings and execution. Its versioned exact-float key is previewed
-and replayed before work begins; React neither infers support nor translates a
-second solver configuration. Successful results project typed adapter,
-placement, method, tolerance, acceptance, timing, and output-count evidence.
+The former Studio-specific `ReferenceRunPlan` lifecycle is retired. Studio may
+present artifacts produced by the root Model-first
+`.eqi -> compile(Geometry) -> resolve(Model, Mesh, typed policies) -> Plan ->
+run/submit` lifecycle, but React neither infers support nor translates a second
+solver configuration. Any future Studio execution projection must preserve the
+root Plan and Run identities and earn claim-local evidence on that shared path.
 The local `eqiora.studio.workspace/v1` schema stores only digest-bound finite
 view coordinates and is decoded independently of model/artifact wires.
 Command definitions and availability are presentation data over the same

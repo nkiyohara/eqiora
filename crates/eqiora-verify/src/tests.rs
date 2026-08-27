@@ -849,16 +849,10 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
         ]
     );
 
-    for pair in [
-        [
-            "fluid.exact-circular-hole-stokes-2d",
-            "interfaces.studio-exact-cylinder-stokes-demo",
-        ],
-        [
-            "fsi.fixed-reference-monolithic-step-2d",
-            "numerics.physics-neutral-discrete-block-system",
-        ],
-    ] {
+    for pair in [[
+        "fsi.fixed-reference-monolithic-step-2d",
+        "numerics.physics-neutral-discrete-block-system",
+    ]] {
         assert!(selecting_cases.values().any(|cases| {
             pair.iter()
                 .all(|expected| cases.iter().any(|case| case == expected))

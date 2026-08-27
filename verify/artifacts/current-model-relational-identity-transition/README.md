@@ -4,7 +4,7 @@ RFC 0083 resets the Model artifact epoch. Changing the Model digest changes a
 downstream artifact **only** when that exact artifact embeds the Model
 reference. This case is the independent oracle that classifies every checked-in
 Model reference and preserves the exact alpha.1 Model-epoch observation. For
-five later live artifacts it separates that history from eleven release-owned
+four later live artifacts it separates that history from eight release-owned
 identities whose exact current values belong to their registered producer cases.
 
 The classification is by producer semantics, not by a closed fixture list.
@@ -12,7 +12,7 @@ The classification is by producer semantics, not by a closed fixture list.
 complete search, every classified entry, and the exact two-state transition
 contract below;
 [`expected/classification-inventory.txt`](expected/classification-inventory.txt)
-freezes its 338 exact candidate paths so the registered test can repeat the
+freezes its 306 exact candidate paths so the registered test can repeat the
 same repository sweep;
 [`expected/transition.json`](expected/transition.json) records the precommitted
 identities.
@@ -20,10 +20,10 @@ identities.
 ## What this case owns
 
 - the complete classification of every Model-bearing fixture, and exactly one
-  fate for each of the 338 candidate paths;
-- complete precommitted Model-epoch canonical bytes for the five deterministic
+  fate for each of the 306 candidate paths;
+- complete precommitted Model-epoch canonical bytes for the four deterministic
   fixtures, plus every historical downstream identity they imply;
-- five live expected-artifact projections in which exactly eleven compilation,
+- four live expected-artifact projections in which exactly eight compilation,
   Run, and binding identity pointers are release-owned and every other raw byte
   remains equal to the sealed alpha.1 history;
 - the canonical bytes of each downstream artifact whose identity changes, so
@@ -48,16 +48,16 @@ by hand.
 | Set | Count | Meaning |
 | --- | --- | --- |
 | `retired` | 52 | disappears; present in every pre-reset state, absent in every post-reset one |
-| preserved | 296 | the rest of the frozen inventory; still exists afterwards, though an in-place migration may stop it matching the sweep |
+| preserved | 264 | the rest of the frozen inventory; still exists afterwards, though an in-place migration may stop it matching the sweep |
 | `required_post_reset` | 13 | the complete set of paths the reset may add: 11 byte-frozen promotions — 10 staged control-v2 targets plus the historical cylinder — and 2 existence-only unversioned Rust owners |
 | `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
 | `post_reset_admitted` | 37 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
-| `post_reset_fixture_admitted` | 27 | later exact evidence representations admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
-| accepted-byte-bound optional rows | 12 | exact alpha.3 site/source rows guarded by accepted raw SHA-256; permission remains optional and owns no input semantics |
+| `post_reset_fixture_admitted` | 28 | later exact evidence representations admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
+| accepted-byte-bound optional rows | 11 | exact alpha.3 site/source rows guarded by accepted raw SHA-256; permission remains optional and owns no input semantics |
 
-**52, 296 and 13 are not one partition of 338.** What partitions the inventory
-is 42 + 296: the retired paths that are inventory members, plus the preserved
+**52, 264 and 13 are not one partition of 306.** What partitions the inventory
+is 42 + 264: the retired paths that are inventory members, plus the preserved
 ones. The other ten retired paths carry no Model signal and were never members.
 The 13 required paths are post-reset additions and replacements: twelve did not
 exist before the reset, and the thirteenth,
@@ -153,24 +153,24 @@ implementation choice is not an available move.
 ## Later signal-bearing paths are admitted by exact path, never required
 
 The transition is history; later work is admitted only as optional permission.
-The original seventeen identity-free rows cover the Python trajectory and
-Result surfaces, Cartesian Q1 snapshot and oracle, RFC 0085 standalone-solid
+The original sixteen identity-free rows cover the Python trajectory and
+Result surfaces, the Cartesian Q1 snapshot owner, RFC 0085 standalone-solid
 surfaces, subprocess-provider surfaces, non-box transient oracle, and private
-MCP adapter. Eleven accepted alpha.3 site rows append in exact order:
+MCP adapter. Ten accepted alpha.3 site rows append in exact order:
 
-- Cylinder gallery, control-v2 reference, MCP reference, and four generated
+- Cylinder gallery, control-v2 reference, MCP reference, and three generated
   Python reference pages, all `current-owner-assertion`;
 - Gallery publication checker and pressure producer, plus the publication
   fixture helper and predicate test, all `non-fixture-search-hit`.
 
 Every one carries its recorded ordered search signals and zero same-line
 Model-derived identity occurrences. `post_reset_admitted` therefore contains
-exactly 37 rows after nine exact common Plan/FSI source and test admissions. A row is absent before the reset, optional after it, belongs to
+exactly 37 rows after eleven exact common Plan/FSI/compile source and test admissions. A row is absent before the reset, optional after it, belongs to
 no historical, required, promotion, classified, fixture, or oracle-exclusion
 set, and grants no sibling, stem, suffix, directory, generated-page, or tool
 family permission.
 
-The eleven site rows additionally bind the raw SHA-256 of their already accepted
+The ten site rows additionally bind the raw SHA-256 of their already accepted
 complete bytes. The same one-time read derives signal order, occurrence count,
 and digest. Absence remains accepted; changed bytes with the same signal and
 count fail the digest gate and return to an independent oracle successor. The
@@ -182,18 +182,19 @@ science, producer, publication predicate, or test.
 The first 26 fixture rows retain their exact RFC 0085, subprocess-provider,
 Python-package, MCP, Stokes, collocated, and semantic-impact shapes and their
 aggregate 120 occurrences. The accepted minified Cylinder publication JSON is
-the twenty-seventh and final row: `delegated-current-owner-evidence`, one
+the twenty-seventh row: `delegated-current-owner-evidence`, one
 `model_digest` signal, 75 textual lower-hex-64 occurrences on its qualifying
 line, and accepted raw SHA-256
 `f5df7f5dd74abcac60776786e5863a9cfb81ab88855b9f77ee90c38decb61813`.
-The aggregate is therefore 195.
+The current typed-compilation identity fixture is the twenty-eighth row, with
+five exact compile-only identities. The aggregate is therefore 200.
 
 This permission is also containment-only and exact-path-only. Empty,
 singleton, all, and all-but-one subsets of both admission vectors remain valid.
 Deletion and wrong-path mutants cover every new row; representative Gallery,
 Python, interface, publication, tool, and test neighbors remain unclassified;
 category drift fails the ordered-row oracle; and inert byte drift reaches the
-digest gate for all thirteen accepted-byte rows. Omitting, substituting,
+digest gate for all eleven accepted-byte rows. Omitting, substituting,
 uppercasing, malforming, or shortening one accepted digest, or adding a digest
 to an older admission, fails without changing product bytes. None of these
 checks transfers ownership of publication identities or makes a later site path
@@ -226,7 +227,8 @@ historical offline compilation identity.
 
 Those current values come from the exact release-owned slots
 `offline-model-package.live` at `/compilation_digest` and
-`typed-execution-lineage.live` at `/package_compilation_sha256`. This case owns
+the live `packages.typed-compilation-lineage` compile-only authority at
+`/package_compilation_sha256`. This case owns
 their exact mapping, counts, immutability, and causal stale, substitution,
 omission, addition, duplication/collapse, signal, and same-line mutants. It does
 not own either exact current value: semantic correctness remains with Role C and
@@ -332,8 +334,8 @@ is not an available move.
 
 ## Every candidate has exactly one fate
 
-`classification.json` names 118 of the 338 candidates in an entry and leaves the
-other 220 to the `non-fixture-search-hit` remainder. A remainder is what keeps
+`classification.json` names 116 of the 306 candidates in an entry and leaves the
+other 190 to the `non-fixture-search-hit` remainder. A remainder is what keeps
 the classification complete without listing every path twice, and it is also
 where a classification can quietly say the wrong thing: "everything else
 migrates in place" stops being true the moment a path the reset *removes* is

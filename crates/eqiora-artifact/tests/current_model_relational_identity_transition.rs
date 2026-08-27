@@ -1,8 +1,8 @@
 //! Independent oracle for RFC 0083's relational identity transition.
 //!
 //! The sealed transition tree remains the byte-exact alpha.1 Model-epoch
-//! observation. Five live expected artifacts may later differ from that history
-//! only at eleven fixed release-owned compilation, Run, and binding pointers;
+//! observation. Four live expected artifacts may later differ from that history
+//! only at eight fixed release-owned compilation, Run, and binding pointers;
 //! this case owns every other raw byte but not those pointers' current values.
 //! Historical identities remain derived from committed canonical artifacts.
 //! Bridges, retained goldens, moving-spatial lineage, and the complete path
@@ -37,7 +37,6 @@ const CLASSIFICATION_INVENTORY: &str = include_str!(concat!(
     "expected/classification-inventory.txt"
 ));
 const RETAINED_REALIZATION_V4: &[u8] = oracle!("expected/retained/realization-v4.json");
-
 const CURRENT_MODEL_SCHEMA: &str = "eqiora.model-envelope/v8";
 const CANONICAL_ENCODING: &str = "eqiora.canonical-json/v1";
 const BRIDGE_GENERATION: SemanticFingerprintGeneration = SemanticFingerprintGeneration::V2;
@@ -51,7 +50,7 @@ struct Deterministic {
     artifacts: &'static [(&'static str, &'static [u8])],
 }
 
-const DETERMINISTIC: [Deterministic; 5] = [
+const DETERMINISTIC: [Deterministic; 4] = [
     Deterministic {
         name: "packaged-dc-motor-controller",
         model: oracle!("expected/deterministic/packaged-dc-motor-controller/model.json"),
@@ -105,32 +104,6 @@ const DETERMINISTIC: [Deterministic; 5] = [
             (
                 "run-binding.json",
                 oracle!("expected/deterministic/offline-model-package/run-binding.json"),
-            ),
-        ],
-    },
-    Deterministic {
-        name: "typed-execution-lineage",
-        model: oracle!("expected/deterministic/typed-execution-lineage/model.json"),
-        historical: oracle!("expected/deterministic/typed-execution-lineage/identities.json"),
-        live: include_bytes!(
-            "../../../verify/packages/typed-execution-lineage/expected/identities.json"
-        ),
-        artifacts: &[
-            (
-                "compilation.json",
-                oracle!("expected/deterministic/typed-execution-lineage/compilation.json"),
-            ),
-            (
-                "realization.json",
-                oracle!("expected/deterministic/typed-execution-lineage/realization.json"),
-            ),
-            (
-                "run.json",
-                oracle!("expected/deterministic/typed-execution-lineage/run.json"),
-            ),
-            (
-                "binding.json",
-                oracle!("expected/deterministic/typed-execution-lineage/binding.json"),
             ),
         ],
     },
@@ -234,7 +207,7 @@ struct ReleaseProjection {
     pointers: &'static [&'static str],
 }
 
-const RELEASE_PROJECTION: [ReleaseProjection; 5] = [
+const RELEASE_PROJECTION: [ReleaseProjection; 4] = [
     ReleaseProjection {
         fixture: "composed-model-package",
         path: "verify/packages/composed-model-package/expected/identities.json",
@@ -246,16 +219,6 @@ const RELEASE_PROJECTION: [ReleaseProjection; 5] = [
         path: "verify/packages/offline-model-package/expected/identities.json",
         bytes: 944,
         pointers: &["/compilation_digest", "/run_digest", "/run_binding_digest"],
-    },
-    ReleaseProjection {
-        fixture: "typed-execution-lineage",
-        path: "verify/packages/typed-execution-lineage/expected/identities.json",
-        bytes: 791,
-        pointers: &[
-            "/package_compilation_sha256",
-            "/run_sha256",
-            "/package_execution_binding_sha256",
-        ],
     },
     ReleaseProjection {
         fixture: "packaged-dc-motor-controller",
@@ -917,13 +880,9 @@ fn live_release_projection_refuses_the_complete_mutant_matrix() {
             "/model_digest",
             Some("b7de1eb8e21f9989cb1da97b41c59c6f3e0084d36ae44a3f29337c221338d91b"),
         ),
-        (2, "/package_semantic_sha256", None),
-        (2, "/source_bundle_sha256", None),
-        (2, "/resolution_sha256", None),
-        (2, "/realization_sha256", None),
-        (4, "/provenance/trajectory_sha256", None),
-        (4, "/provenance/geometry_identity_sha256", None),
-        (4, "/provenance/correspondence_sha256", None),
+        (3, "/provenance/trajectory_sha256", None),
+        (3, "/provenance/geometry_identity_sha256", None),
+        (3, "/provenance/correspondence_sha256", None),
     ] {
         let projection = &RELEASE_PROJECTION[index];
         let fixture = release_fixture(projection);
@@ -945,7 +904,7 @@ fn live_release_projection_refuses_the_complete_mutant_matrix() {
         );
     }
 
-    let ale = release_fixture(&RELEASE_PROJECTION[4]);
+    let ale = release_fixture(&RELEASE_PROJECTION[3]);
     for (old, new) in [
         ("0.5002500000003046", "0.5002500000003047"),
         ("0.02126735054320236", "0.02126735054320237"),
@@ -955,7 +914,7 @@ fn live_release_projection_refuses_the_complete_mutant_matrix() {
         replace_exact_once(&mut bytes, old, new);
         must_refuse(
             &RELEASE_PROJECTION,
-            Some((RELEASE_PROJECTION[4].path, bytes)),
+            Some((RELEASE_PROJECTION[3].path, bytes)),
         );
     }
     let order_old = "\"name\":\"Eqiora.Electrical.Basic\",\"version\":\"0.1.0\"";
@@ -1634,7 +1593,6 @@ fn the_classification_is_complete_and_labelled() {
         "hybrid.packaged-dc-motor-controller",
         "packages.composed-model-package",
         "packages.offline-model-package",
-        "packages.typed-execution-lineage",
         "artifacts.realization-run-wire",
         "numerics.canonical-cartesian-poisson-cuda",
         "numerics.canonical-cartesian-poisson-mpi",

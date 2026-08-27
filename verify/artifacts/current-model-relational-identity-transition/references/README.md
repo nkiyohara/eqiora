@@ -34,12 +34,12 @@ canonical bytes in the `eqiora.realization-envelope/v4` domain. It never decodes
 the historical Model reference embedded by that separately versioned family.
 
 It finally re-walks the repository with its own implementation of the candidate
-sweep — the frozen 338-path inventory is independent evidence only if a second
+sweep — the frozen 306-path inventory is independent evidence only if a second
 route reproduces it — and checks the two-state transition contract. The counts
 are frozen individually and are not one partition: 52 retired, of which 42 are
-inventory members and 10 carry no search signal; 296 preserved; and 13 required
+inventory members and 10 carry no search signal; 264 preserved; and 13 required
 after the reset, which are additions and one in-place replacement rather than
-inventory members. What partitions the 338 candidates is 42 + 296, and the route
+inventory members. What partitions the 306 candidates is 42 + 264, and the route
 checks that sum rather than restating the three headline numbers. It then checks
 that every retired path exists today, that the version-named source owners
 `model_v8.rs` and
@@ -68,8 +68,8 @@ about tests in general is inferred.
 
 Second, the fates: the seven-name disposition vocabulary is respelled here, every
 entry naming paths must declare one of them, no path may be named twice, and the
-220-path remainder plus the 118 explicitly classified paths must come to exactly
-338. It checks by name that the fifteen compatibility-only and eight displaced
+190-path remainder plus the 116 explicitly classified paths must come to exactly
+306. It checks by name that the fifteen compatibility-only and eight displaced
 application-shaped FSI lifecycle paths are
 deleted; that `model_v2.rs` and `model_transaction_v2.rs` are decomposed by
 claim, with the historical branch deleted and the current v8 implementation

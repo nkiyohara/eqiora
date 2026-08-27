@@ -10,7 +10,7 @@
   no glob, suffix rule, or directory allowance.
 - `classification.json` also declares, under `dispositions`, the seven fates an
   entry may assign, and gives exactly one of them to every path it names. The
-  220 candidates no entry names inherit the remainder's `migrate-in-place`,
+  190 candidates no entry names inherit the remainder's `migrate-in-place`,
   which excludes retired paths by construction: all 42 retired inventory
   members are named explicitly, so no path the reset removes is described as
   migrating in place.
@@ -24,8 +24,8 @@
   carries — 98 of the 102, with `from_program_v2`, `from_json_v2`,
   `from_transaction_v2`, and `digest_v2` absent and forbidden prospectively.
 - `classification.json` also declares two disjoint containment-only successor
-  permissions. `post_reset_admitted` contains exactly 17 identity-free
-  classified paths — the unchanged 5 existing rows, the exact 4 RFC 0085 rows,
+  permissions. `post_reset_admitted` originally contains exactly 16 identity-free
+  classified paths — the unchanged 4 existing rows, the exact 4 RFC 0085 rows,
   the exact 6 source/test/derivation/provider/documentation rows for
   `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`, the exact
   private non-box transient oracle path, and the exact private `eqiora-mcp`
@@ -52,7 +52,7 @@
   identity-free or `post_reset_classified` set and weakens no zero-identity
   predicate. There is no glob, directory, suffix, stem, inferred sibling, or
   proximity admission.
-- `classification-inventory.txt` — the sorted, exact 338-path output of that
+- `classification-inventory.txt` — the sorted, exact 306-path output of that
   executable candidate sweep; it contains no glob or inferred path. The sweep
   excludes two exact files, declared in `search.excluded_paths`: this case's own
   integration-test root and the private support module it includes. Every other

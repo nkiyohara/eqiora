@@ -5,8 +5,8 @@
     "method": "the registered Rust oracle recursively scans the repository root for Model/Transaction schema literals, persisted Model digest/reference spellings, exact-codec or versioned-envelope producer tokens, and same-line lower-hex-64 literals with Model/Transaction language; only .git, the generated directory names `target`, `node_modules`, `dist`, and `__pycache__`, the two trees in `excluded_trees`, and the two exact files in `excluded_paths` are excluded",
     "definition": "a Model-bearing fixture is a checked-in file that carries Model artifact bytes, a Model artifact digest, or an assertion pinning a Model artifact identity; search hits that are product surfaces or source/package identities are classified but are not promoted into the identity-delta class",
     "inventory": "expected/classification-inventory.txt",
-    "candidate_path_count": 338,
-    "classified_inventory_path_count": 118,
+    "candidate_path_count": 306,
+    "classified_inventory_path_count": 116,
     "excluded_trees": [
       "verify/artifacts/current-model-relational-identity-transition",
       "bindings/python/python/eqiora/examples"
@@ -24,10 +24,10 @@
       "unchanged_from_the_accepted_contract": "no new path discovered by a recorded search signal or same-line Model-derived identity may appear in either state by inference; `required_post_reset` is the complete set of paths the reset is permitted to add, and of those only `schemas/control/compile-v2.schema.json`, the promoted historical v1 schema copy, the promoted historical cylinder resource, and the two unversioned Rust wire owners carry a search signal. A discoverable path created later, by work the reset did not do, enters only through an exact amendment to this frozen record: identity-free surfaces through `post_reset_admitted`, exact fixtures through `post_reset_fixture_admitted`, and mixed or source/package identity evidence through `post_reset_classified`. None is inferred by the state predicate, a glob, a directory, or proximity.",
       "escape": "an implementation that needs another new discoverable path, another declared scope exclusion, or that cannot retire a listed path, stops and returns the delta to this oracle. Widening a set here to admit an implementation choice is not an available move.",
       "ownership_of_the_unversioned_wire_owners": "the reset folds the retired `model_v8.rs` and `model_transaction_v8.rs` wrappers together with the surviving current encoding into `crates/eqiora-artifact/src/model_wire.rs` and `crates/eqiora-artifact/src/model_transaction_wire.rs`. This gives the exact current persisted wire an unversioned product owner without growing the already-large `model.rs` and `model_transaction.rs`. Their existence is required; their content is not frozen here, because this oracle does not own the current encoding — `artifacts.current-model-canonical-identity` does.",
-      "counts": "52, 296 and 13 are not one partition of 338. What partitions the inventory is 42 + 296: the 42 retired paths that are inventory members plus the 296 preserved ones. The other 10 retired paths carry no search signal and were never members. The 13 required paths are post-reset additions and replacements, not inventory members: 12 are created by the reset, and `verify/interfaces/control-plane-compile-check/expected/contract.json` is the one existing member whose bytes are replaced in place. Of the 13, 11 carry a frozen promotion digest — 10 staged control-v2 sources plus the historical cylinder — and 2 are required by existence alone.",
+      "counts": "52, 264 and 13 are not one partition of 306. What partitions the inventory is 42 + 264: the 42 retired paths that are inventory members plus the 264 preserved ones. The other 10 retired paths carry no search signal and were never members. The 13 required paths are post-reset additions and replacements, not inventory members: 12 are created by the reset, and `verify/interfaces/control-plane-compile-check/expected/contract.json` is the one existing member whose bytes are replaced in place. Of the 13, 11 carry a frozen promotion digest — 10 staged control-v2 sources plus the historical cylinder — and 2 are required by existence alone.",
       "retired_path_count": 52,
       "retired_inside_the_inventory_count": 42,
-      "preserved_path_count": 296,
+      "preserved_path_count": 264,
       "required_post_reset_path_count": 13,
       "retired": [
         "bindings/python/python/eqiora/compatibility.py",
@@ -251,8 +251,8 @@
       "promoted_evidence_note": "each entry names one evidence file whose bytes survive and whose owner changes. `pre_reset` is a member of `retired`, `post_reset` is a member of `required_post_reset`, and a `promotion` row freezes the exact bytes carried across. Deleting the bytes rather than moving them fails as a substituted promotion, not as a missing path.",
       "post_reset_admitted_contract": "an identity-free classified path created after the reset is admitted by exact path and by nothing else. Admission is containment-only: it adds the path to what the post-reset discovered set may contain and never requires the path to exist, so a post-reset state carrying none of the admitted paths is accepted exactly as it was before this amendment. An admitted path that does exist must carry exactly the search signals recorded for it and must freeze no Model-derived lower-hex-64 identity literal; an admitted path present in the pre-reset state is refused as mid-flight, because admission describes a path the reset did not create and the pre-reset tree did not have.",
       "post_reset_admitted_is_not_membership": "no admitted path joins `inventory`, `retired`, `retired_outside_inventory`, `required_post_reset`, `required_post_reset_without_frozen_bytes`, `preserved_evidence`, `promoted_evidence`, or any `promotion` row, and no count above moves. Listing one in the inventory would claim it existed before the reset; listing one in `required_post_reset` would claim the reset created it and would make a later capability mandatory for acceptance. Both are false.",
-      "post_reset_admitted_exactness": "these seventeen paths and no others. An eighteenth identity-free signal-bearing path is not admitted by proximity, by sharing their directory, by sharing a `trajectory`, `result`, Cartesian snapshot, prescribed-solid, provider, protocol, MCP, RFC, documentation, non-box transient, test, or derivation name, or by any suffix rule — it is refused as an unclassified candidate and returned to this oracle, exactly as an unlisted path was before this amendment. There is no glob here either.",
-      "post_reset_admitted_note": "hosted whole-tree transition gates found the first five after the reset. The first two arrived when the general trajectory owner of the Python surface was split out of its FSI-specific host; the third is the common installed-Python static Result owner exercised by the registered `interfaces.python-exact-cylinder-stokes-result` evidence. Those three are ordinary current-owner consumers of `model_digest`. The fourth is the low-level Cartesian Q1 Field snapshot artifact owner, whose `model_sha256` is a relational artifact edge; the fifth is its independent generated-Cartesian spatial-output oracle, which checks and mutates that key without pinning a value. RFC 0085 pre-admits four more identity-free classified search hits: the accepted RFC, the standalone-solid Realization source owner, the independent Rust exact-artifact oracle, and its independent derivation route. The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` evidence pre-admits exactly six further current-Model hits: the provider-occurrence artifact owner, protocol-control owner, independent Rust oracle, independent derivation, positive Python provider, and current-owner documentation. The registered `fluid.non-box-transient-navier-stokes-2d-private` oracle adds one exact `model_digest` assertion that derives the digest from accepted source bytes rather than pinning it. The private `eqiora-mcp` tool adapter adds one exact production path carrying the current Model and Transaction schema signals in order with zero Model-derived identity literals. Every path freezes zero Model identity literals. This case bounds the exact signal each may carry and owns none of the files' content.",
+      "post_reset_admitted_exactness": "these 37 exact paths and no others. Any additional identity-free signal-bearing path is refused as an unclassified candidate; no proximity, directory, stem, suffix, sibling, or glob rule grants admission.",
+      "post_reset_admitted_note": "hosted whole-tree transition gates found the first four after the reset. The first two arrived when the general trajectory owner of the Python surface was split out of its FSI-specific host; the third is the common installed-Python static Result owner exercised by the registered `interfaces.python-exact-cylinder-stokes-result` evidence. Those three are ordinary current-owner consumers of `model_digest`. The fourth is the low-level Cartesian Q1 Field snapshot artifact owner, whose `model_sha256` is a relational artifact edge. Its former generated-Cartesian spatial-output oracle was retired and grants no replacement admission. RFC 0085 pre-admits four more identity-free classified search hits: the accepted RFC, the standalone-solid Realization source owner, the independent Rust exact-artifact oracle, and its independent derivation route. The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` evidence pre-admits exactly six further current-Model hits: the provider-occurrence artifact owner, protocol-control owner, independent Rust oracle, independent derivation, positive Python provider, and current-owner documentation. The registered `fluid.non-box-transient-navier-stokes-2d-private` oracle adds one exact `model_digest` assertion that derives the digest from accepted source bytes rather than pinning it. The private `eqiora-mcp` tool adapter adds one exact production path carrying the current Model and Transaction schema signals in order with zero Model-derived identity literals. Every path freezes zero Model identity literals. This case bounds the exact signal each may carry and owns none of the files' content.",
       "post_reset_admitted_path_count": 37,
       "post_reset_admitted": [
         {
@@ -294,16 +294,6 @@
           "identity_literals": 0,
           "owner": "the Cartesian Q1 Field snapshot artifact owner",
           "note": "the low-level content-addressed Cartesian Q1 Field snapshot added after the Model epoch reset. `model_sha256` is the exact relational edge to the caller-owned current Model artifact; the module serializes, exposes, and validates the digest without freezing any Model identity literal. It is neither a reset product nor a required transition path."
-        },
-        {
-          "path": "crates/eqiora/tests/generated_cartesian_q1_spatial_output.rs",
-          "class": "non-fixture-search-hit",
-          "signals": [
-            "model_sha256"
-          ],
-          "identity_literals": 0,
-          "owner": "artifacts.generated-cartesian-q1-spatial-output independent oracle",
-          "note": "the independent oracle for the generated Cartesian spatial-output artifact added after the Model epoch reset. It names `model_sha256` as a canonical snapshot key and stale-link mutant, but every expected identity is derived from the live accepted result and no Model identity literal is frozen. It is neither a reset product nor a required transition path."
         },
         {
           "path": "rfcs/0085-standalone-prescribed-dynamic-solid-artifacts.md",
@@ -446,7 +436,7 @@
           "class": "current-owner-assertion",
           "signals": ["model_digest"],
           "identity_literals": 0,
-          "accepted_sha256": "7a7eed1949d2aefeb1c201f658c2d33d9c97dbf9043ea1a50cb8ac3e36b5c375",
+          "accepted_sha256": "7d10aab2c6fb2e2ed2961c68d0426dd4393c989714d4b22c4e7da25edb8299a7",
           "owner": "the accepted Python API reference projection",
           "note": "the generated top-level Python reference names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."
         },
@@ -455,18 +445,9 @@
           "class": "current-owner-assertion",
           "signals": ["model_digest"],
           "identity_literals": 0,
-          "accepted_sha256": "fe044dacc4f16c8926b6b1f466d79d2e430f1cc6a83e69f00ca87879e24f18bf",
+          "accepted_sha256": "3ea35b1497ec6fc1a4b60e206b575dd18b4db806b0d898e82b9852bd8c3929b6",
           "owner": "the accepted Python API reference projection",
           "note": "the generated fluid Python reference names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."
-        },
-        {
-          "path": "docs/site/src/content/docs/reference/python/solid.mdx",
-          "class": "current-owner-assertion",
-          "signals": ["model_digest"],
-          "identity_literals": 0,
-          "accepted_sha256": "8ada7c9fe856095da5334bdcde07a01748aee2d82dc201098695f03fd2c1a841",
-          "owner": "the accepted Python API reference projection",
-          "note": "the generated solid Python reference names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."
         },
         {
           "path": "docs/site/src/content/docs/reference/python/trajectory.mdx",
@@ -584,13 +565,29 @@
           "identity_literals": 0,
           "owner": "fsi.fixed-reference-monolithic-step-2d independent common-path oracle",
           "note": "the common-path FSI oracle names `model_digest` in exact Plan, State, and Run lineage comparisons and derives every identity live rather than freezing a Model-derived literal."
+        },
+        {
+          "path": "crates/eqiora/tests/common_elasticity_mesh_output.rs",
+          "class": "non-fixture-search-hit",
+          "signals": ["model_digest"],
+          "identity_literals": 0,
+          "owner": "common elasticity Mesh/Result structural oracle",
+          "note": "the common elasticity oracle compares the accepted Plan Model digest with its caller-owned Model and freezes no Model-derived identity literal."
+        },
+        {
+          "path": "crates/eqiora/tests/typed_package_compilation_lineage.rs",
+          "class": "current-owner-assertion",
+          "signals": ["model_sha256"],
+          "identity_literals": 0,
+          "owner": "packages.typed-compilation-lineage independent compile-only oracle",
+          "note": "the compile-only package oracle names the expected Model identity key while deriving the value from its independently owned fixture; this source freezes no Model-derived literal and claims no execution lifecycle."
         }
       ],
       "post_reset_fixture_admitted_contract": "a later exact evidence representation is admitted through a second containment-only permission, by exact path and by nothing else. Each path is optional after the reset, absent before it, and if present must carry exactly its recorded ordered search-signal list and exact same-line Model/Transaction-bearing lower-hex-64 occurrence count together with its declared fixture class, owner, and note. An empty signal list normally requires a positive count; the four filename-ordered zero-count semantic-impact JSONL rows are admitted only as exact members of the same externally owned nine-file runtime representation as its five 17-count rows. Every non-overlapping matching occurrence is counted, including multiple identities on one qualifying line. This permission joins no historical frozen, promotion, identity-free, classified, or required set and does not weaken `post_reset_admitted`'s zero-identity predicate.",
       "post_reset_fixture_admitted_is_not_membership": "no fixture-admitted path joins `inventory`, `retired`, `retired_outside_inventory`, `required_post_reset`, `required_post_reset_without_frozen_bytes`, `preserved_evidence`, `promoted_evidence`, any `promotion` row, `post_reset_admitted`, or `post_reset_classified`, and no historical or later-classified count moves. A fixture path belongs only to this exact optional permission.",
-      "post_reset_fixture_admitted_exactness": "these twenty-six files and no others. Another digest filename in the same store, the admitted path with a backup or alternate suffix, a nested or sibling store, another package-conformance fixture, a copied or sibling MCP tool-definition file, another Stokes sealed-input version or location, a sibling or nested collocated test, a copied or sibling case manifest, an old, sibling, copied, nested, backup, or alternate-extension semantic-impact source or fixture path, or a path merely below any named evidence directory is unclassified unless another exact row is precommitted. There is no glob, directory, suffix, stem, or proximity rule.",
-      "post_reset_fixture_admitted_note": "RFC 0085 delegates ten exact canonical expected bytes to `artifacts.prescribed-dynamic-solid-state-run-3d`: the Model fixture carries the current Model schema search signal and no same-line Model-derived identity literal, while Geometry, Realization, four FieldSnapshot, two State, and Run fixtures each carry exactly one same-line `model_sha256` lower-hex-64 literal. The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` evidence delegates provider-occurrence with thirteen and Run with four same-line `model_sha256` identity-literal occurrences. The independent `interfaces.python-package-conformance` oracle adds exactly one source-or-package-identity release path with an empty search-signal list and two same-line identity occurrences; release bytes and identities remain owned there, and this admission creates no raw release-wire predicate. The independent `interfaces.mcp-stdio-compile-check` oracle adds its exact tool-definition snapshot with the current Model and Transaction schema signals in order and zero Model-derived identity literals. The `geometry.stokes-dissipation-profile-2d` independent evidence authority adds one exact minified sealed-input path with no recorded search token and five source, contract, and review SHA-256 identities on its single `scientific_model`-bearing line; those are source identities rather than Model artifact identities. The `fluid.cartesian-periodic-collocated-view-3d` independent structural oracle and its registered case manifest each add one exact path with no recorded search token and one same-line occurrence of the same accepted current Model artifact identity. The `quality.semantic-impact-cargo-authority` independent exact-record oracle externalizes its runtime payload into nine filename-ordered JSONL fixtures, each with no recorded search token and observed same-line lower-hex-64 occurrence counts 17, 17, 17, 0, 0, 0, 0, 17, and 17. The 85 occurrences are Cargo, source, package, and revision records on Model/Transaction-bearing serialized authority lines, not current Model artifact identities; the old Rust host now has no signal or occurrence and receives no permission. Externalization moved text placement without changing the JSONL bytes consumed at runtime or any scientific meaning. The aggregate is 120. This transition case owns only the twenty-six exact optional admission shapes, not their bytes or identities.",
-      "post_reset_fixture_admitted_path_count": 27,
+      "post_reset_fixture_admitted_exactness": "these 28 exact files and no others. A copied, nested, sibling, backup, alternate-extension, or merely nearby fixture is unclassified unless another exact row is precommitted; there is no glob, directory, suffix, stem, or proximity rule.",
+      "post_reset_fixture_admitted_note": "The 28 optional rows preserve the exact independently owned RFC 0085, subprocess-provider, package-conformance, MCP, Stokes, collocated, semantic-impact, Gallery publication, and typed compile-only fixture shapes. Their recorded same-line identity counts total 200. This transition case owns only each exact path, search shape, class, owner, note, and occurrence count—not the fixture bytes, values, or scientific semantics.",
+      "post_reset_fixture_admitted_path_count": 28,
       "post_reset_fixture_admitted": [
         {
           "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/model.json",
@@ -811,10 +808,18 @@
           "accepted_sha256": "f5df7f5dd74abcac60776786e5863a9cfb81ab88855b9f77ee90c38decb61813",
           "owner": "gallery.exact-cylinder-steady-stokes accepted publication evidence",
           "note": "the accepted minified publication projection names `model_digest` and contains 75 same-line lower-hex-64 occurrences. Admission owns only this exact path, observed shape, category, and accepted bytes; scientific, source, package, renderer, receipt, and publication identities remain owned by the accepted Gallery authorities."
+        },
+        {
+          "path": "verify/packages/typed-compilation-lineage/expected/identities.json",
+          "class": "delegated-current-owner-evidence",
+          "signals": ["model_sha256"],
+          "identity_literals": 5,
+          "owner": "packages.typed-compilation-lineage independent compile-only oracle",
+          "note": "the current compile-only identity fixture carries five exact package, source, resolution, Model, and compilation identities on its `model_sha256` line. Admission owns only this exact path, signal, and occurrence count; the registered package oracle owns the values and compile-only claim."
         }
       ],
       "post_reset_classified_contract": "identity-bearing evidence created after the reset is classified by exact path and by nothing else. Classification is containment-only and never makes a later capability a condition of accepting the reset. A present path must reproduce its complete recorded search-token inventory, same-line lower-hex search-signal count, and lower-hex-64 literal multiset; a missing signal, extra signal, substituted identity, or additional identity returns the path to this oracle.",
-      "post_reset_classified_is_not_membership": "no later-classified path joins `inventory`, `retired`, `retired_outside_inventory`, `required_post_reset`, `required_post_reset_without_frozen_bytes`, `preserved_evidence`, `promoted_evidence`, `post_reset_admitted`, `post_reset_fixture_admitted`, or any `promotion` row. The historical counts, the 17-path identity-free admission, and the 26-path fixture admission with 120 aggregate occurrences remain disjoint; the later classification itself remains exactly 3 paths, 2 mixed assertion surfaces, 1 source/package-only path, and 8 current Model-derived identity literals.",
+      "post_reset_classified_is_not_membership": "no later-classified path joins `inventory`, `retired`, `retired_outside_inventory`, `required_post_reset`, `required_post_reset_without_frozen_bytes`, `preserved_evidence`, `promoted_evidence`, `post_reset_admitted`, `post_reset_fixture_admitted`, or any `promotion` row. The 37-path identity-free admission and 28-path fixture admission with 200 aggregate occurrences remain disjoint; the later classification itself remains exactly 3 paths, 2 mixed assertion surfaces, 1 source/package-only path, and 8 current Model-derived identity literals.",
       "post_reset_classified_exactness": "these three paths and no others. The two API-oracle surfaces decompose their migrating current Model/package-artifact assertions from immutable source, release, and resolution identities that migrate in place. The minified stored release is source/package identity only. A sibling test or release receives no classification by directory, stem, extension, or proximity.",
       "post_reset_classified_path_count": 3,
       "post_reset_classified_mixed_assertion_surface_count": 2,
@@ -1213,7 +1218,7 @@
     "decompose-by-claim": "the file carries several claims with different fates; each entry in `claims` carries its own disposition",
     "migrate-in-place": "the path or claim survives in place and contributes no Model-derived identity transition here. Immutable source/package identities may remain byte-stable under this disposition. The identity-free inventory remainder inherits it, and only paths that survive may: no retired path is left to it."
   },
-  "disposition_completeness": "every entry naming at least one path declares exactly one disposition from the vocabulary above, no path is named by two entries, and every one of the 338 inventory paths therefore has exactly one fate: 118 from an entry and 220 from the remainder rule.",
+  "disposition_completeness": "every entry naming at least one path declares exactly one disposition from the vocabulary above, no path is named by two entries, and every one of the 306 inventory paths therefore has exactly one fate: 116 from an entry and 190 from the remainder rule.",
   "entries": [
     {
       "class": "deterministic-current-model-bytes",
@@ -1240,15 +1245,6 @@
       "paths": ["verify/packages/offline-model-package/expected/identities.json"],
       "producer": "crates/eqiora/tests/offline_model_package.rs",
       "identity_literals": 4,
-      "owned_here": true
-    },
-    {
-      "class": "deterministic-current-model-bytes",
-      "case": "packages.typed-execution-lineage",
-      "disposition": "migrate",
-      "paths": ["verify/packages/typed-execution-lineage/expected/identities.json"],
-      "producer": "crates/eqiora/tests/typed_package_execution_lineage.rs",
-      "identity_literals": 5,
       "owned_here": true
     },
     {
@@ -1326,8 +1322,7 @@
         "verify/interfaces/python-exact-cylinder-stokes-result/README.md",
         "verify/interfaces/python-exact-cylinder-stokes-result/models/README.md",
         "bindings/python/tests/test_exact_cylinder_stokes_result.py",
-        "crates/eqiora-python/tests/python_exact_cylinder_stokes_result.rs",
-        "crates/eqiora-api/src/steady_stokes.rs"
+        "crates/eqiora-python/tests/python_exact_cylinder_stokes_result.rs"
       ],
       "identity_literals": 0,
       "owner": "artifacts.current-model-canonical-identity",
@@ -1771,7 +1766,7 @@
       "disposition": "migrate-in-place",
       "inventory_remainder": true,
       "excludes_retired": true,
-      "path_count": 220,
+      "path_count": 190,
       "identity_literals": 0,
       "note": "every candidate path in classification-inventory.txt not named by an entry above is a product declaration, consumer, test harness, or documentation search hit; it receives no identity literal and remains subject to current-owner migration rather than deletion. The rule excludes retired paths by construction: all 42 retired inventory members are named by an entry above — 15 as compatibility-only deletions, 8 as the displaced application-shaped FSI lifecycle, 2 as version-named current owners the reset renames, 2 as the v2-named source files decomposed by claim because they host the current v8 implementation, and 15 by the fixture, delegated, and remaining mixed-claim entries — so no path this remainder covers is one the reset removes."
     }
