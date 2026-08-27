@@ -18,6 +18,8 @@ use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelFieldRef};
 mod field;
 use field::{PyFieldSnapshot, PyInitialField};
+
+/// Immutable installed-Python projection of one state in a common execution.
 #[pyclass(
     name = "State",
     module = "eqiora._eqiora",
@@ -404,8 +406,8 @@ impl PyState {
 
 /// Immutable installed-Python projection of one accepted trajectory.
 ///
-/// Common transient execution and accepted fixed-mesh replay both retain their
-/// exact owning lineage without fabricating a Realization artifact.
+/// Common transient execution retains its exact owning lineage without
+/// fabricating a separate application-shaped result artifact.
 #[pyclass(
     name = "Trajectory",
     module = "eqiora._eqiora",
