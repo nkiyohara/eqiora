@@ -33,18 +33,16 @@ admission seam must establish the relationship without either failure mode.
 
 ### Kind-erased geometry facts
 
-`eqiora-geometry::CanonicalGeometryRef<'a>` is a borrowed opaque value that can
-only be constructed from a canonical geometry owned by the geometry crate. It
-projects:
+`eqiora-geometry::CanonicalGeometryV1` is the sole opaque canonical geometry
+owner. Semantic admission borrows that owner directly and projects:
 
 - the derived digest bytes;
 - ambient and topological dimensions; and
 - an exact entity-set name's dimension, when present.
 
-It exposes no coordinates, topology indices, canonical bytes, concrete
-geometry kind, or public constructor from independent facts. Its private kind
-may add exact-circle, Cartesian-box, curve, or 3D variants without changing
-`eqiora-sem`.
+This admission seam exposes no constructor from independent facts. Its private
+kind may add exact-circle, Cartesian-box, curve, or 3D variants without
+changing `eqiora-sem`; the old borrowed compatibility projection was removed.
 
 ### Exact closed bundle
 
@@ -99,11 +97,9 @@ geometry remains kernel-neutral and has no reverse dependency. This transitively
 reaches `eqiora-meshing` through RFC 0049, but no mesh type or direct meshing
 dependency enters `eqiora-sem`.
 
-The geometry public-surface ceiling rises from 32 to 33 for the single opaque
-borrowed reference. The deletion condition is to lower it if the canonical
-geometry value itself becomes the kind-erased stable fact projection. No
-public trait, provider, registry, owned geometry enum, or semantic
-geometry-kind switch is introduced.
+The canonical geometry value itself is the kind-erased stable fact projection.
+No borrowed compatibility view, public trait, provider, registry, second owned
+geometry enum, or semantic geometry-kind switch is introduced.
 
 ## Compatibility
 

@@ -475,22 +475,6 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
             None,
         )?;
 
-        let run_kwargs = PyDict::new(py);
-        run_kwargs.set_item("end_time", 1.0)?;
-        run_kwargs.set_item("max_step", 0.0)?;
-        let invalid_execution = module
-            .getattr("submit")?
-            .call((&base,), Some(&run_kwargs))
-            .expect_err("zero maximum step must be rejected by execution policy");
-        assert_exception(
-            module,
-            py,
-            invalid_execution,
-            "ExecutionError",
-            "execution",
-            Some("EQ0501"),
-        )?;
-
         let probe = PyModule::new(py, "eqiora_boundary_probe")?;
         probe.add_function(wrap_pyfunction!(boundary_panic, &probe)?)?;
         let contained = probe

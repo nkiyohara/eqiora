@@ -123,14 +123,14 @@ rejected rather than normalized at the trust boundary.
 
 ## Semantic admission
 
-`CanonicalGeometryRef` gains one private enum variant and one safe conversion
-from the new canonical owner. Its public projection remains only:
+`CanonicalGeometryV1` gains one private enum variant. Semantic admission
+borrows the canonical owner directly and projects only:
 
 - derived digest;
 - ambient and topological dimensions, both two; and
 - the dimension of an exact named entity set.
 
-No accessor or constructor from independent facts is added. RFC 0080's exact
+No compatibility view or constructor from independent facts is added. RFC 0080's exact
 closed-bundle, parent-relative boundary selection, derived support retention,
 and artifact-free behavior therefore apply without a change in `eqiora-sem`.
 A geometry boundary physical Port remains rejected because entity-set
