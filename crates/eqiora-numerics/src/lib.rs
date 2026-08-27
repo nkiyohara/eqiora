@@ -27,6 +27,11 @@ mod form_compiler;
 mod jacobian_audit;
 mod linearized_output;
 mod numerical_admission;
+pub use canonical_stokes::{
+    IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d, ScalingAuthorities2d,
+    ScalingAuthority2d, ScalingComponent2d, ScalingComponentRecord2d, ScalingDependencies2d,
+    ScalingMode2d, ScalingRule2d,
+};
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonScalarPlan, CommonSpatialPolicy, CommonSteadyStokesPlan,
     ResolvedCommonPlan, resolve_common_plan,

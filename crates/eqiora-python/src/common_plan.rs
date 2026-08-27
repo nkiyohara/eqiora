@@ -21,6 +21,8 @@ use crate::result::PyRunResult;
 
 mod policy;
 use policy::{PyCellCenteredTpfa, PyLinear, PyMiniP1, PyQ1};
+mod scaling;
+use scaling::{PyIncompressibleScales, PyIncompressibleScaling, PyIncompressibleScalingReceipt2d};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SpatialPolicy {
@@ -121,6 +123,12 @@ impl CommonPlanKind {
             Self::SteadyStokes(plan) => plan.linear(),
         }
     }
+    fn realization_digest(&self) -> Option<&str> {
+        match self {
+            Self::Scalar(_) => None,
+            Self::SteadyStokes(plan) => Some(plan.realization_digest()),
+        }
+    }
 }
 
 /// Immutable common Plan owning one exact Model, Mesh, and effective policy set.
@@ -173,6 +181,10 @@ impl PyPlan {
     #[getter]
     fn production_digest(&self) -> &str {
         self.native.production_digest()
+    }
+    #[getter]
+    fn realization_digest(&self) -> Option<&str> {
+        self.native.realization_digest()
     }
     #[getter]
     fn model(&self, py: Python<'_>) -> Py<PyModel> {
@@ -345,8 +357,27 @@ impl PyPlan {
         1
     }
     #[getter]
-    const fn scaling(&self) -> Option<()> {
-        None
+    fn scaling(&self, py: Python<'_>) -> PyResult<Option<Py<PyIncompressibleScales>>> {
+        match &self.native {
+            CommonPlanKind::Scalar(_) => Ok(None),
+            CommonPlanKind::SteadyStokes(plan) => {
+                Py::new(py, PyIncompressibleScales::from_native(plan.scales())).map(Some)
+            }
+        }
+    }
+    #[getter]
+    fn scaling_receipt(
+        &self,
+        py: Python<'_>,
+    ) -> PyResult<Option<Py<PyIncompressibleScalingReceipt2d>>> {
+        match &self.native {
+            CommonPlanKind::Scalar(_) => Ok(None),
+            CommonPlanKind::SteadyStokes(plan) => Py::new(
+                py,
+                PyIncompressibleScalingReceipt2d::from_native(plan.scaling_receipt().clone()),
+            )
+            .map(Some),
+        }
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
@@ -391,11 +422,20 @@ fn resolve_plan(
             "spatial must be eqiora.fem.Q1(), eqiora.fem.MiniP1(), or eqiora.fvm.CellCenteredTpfa()",
         ));
     };
-    if scaling.is_some_and(|value| !value.is_none()) {
-        return Err(PyTypeError::new_err(
-            "typed scaling overrides are not admitted for this capability; omit scaling or pass None",
-        ));
-    }
+    let scaling = match scaling {
+        None => None,
+        Some(value) if value.is_none() => None,
+        Some(value) => Some(
+            value
+                .extract::<PyRef<'_, PyIncompressibleScaling>>()
+                .map_err(|_| {
+                    PyTypeError::new_err(
+                        "scaling must be eqiora.fluid.IncompressibleScaling or None",
+                    )
+                })?
+                .native(),
+        ),
+    };
     let solve_ref = solve.borrow(py);
     let model_ref = model.borrow(py);
     let mesh_ref = mesh.borrow(py);
@@ -410,6 +450,7 @@ fn resolve_plan(
         owner,
         spatial.native(),
         solve_ref.native,
+        scaling,
         &FaerLinearSolver,
     )
     .map(|plan| {
@@ -494,6 +535,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyCellCenteredTpfa>()?;
     module.add_class::<PyLinear>()?;
     module.add_class::<PyPlan>()?;
+    scaling::register(module)?;
     module.add_function(wrap_pyfunction!(resolve_plan, module)?)?;
     module.add_function(wrap_pyfunction!(run_plan, module)?)?;
     Ok(())
@@ -795,6 +837,7 @@ assert fresh_plan.identity != q1.identity
 assert q1.identity != tpfa.identity
 assert q1.cells == (2, 3)
 assert q1.scaling is None
+assert q1.scaling_receipt is None
 assert q1.solve is linear
 q1_result = package.run(q1)
 tpfa_result = package.run(tpfa)
@@ -823,6 +866,13 @@ except package.ValidationError:
     pass
 else:
     raise AssertionError("MINI/P1 selected Stokes physics for a scalar Model")
+try:
+    package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear,
+                    scaling=package.fluid.IncompressibleScaling())
+except package.ValidationError:
+    pass
+else:
+    raise AssertionError("flow scaling was admitted for scalar Model mathematics")
 
 foreign_rectangle = graph.rectangle(x_bounds=(0.0, 2.0), y_bounds=(0.0, 1.0))
 foreign_source = graph.build(foreign_rectangle, named_topology={
@@ -912,13 +962,113 @@ mesh = package.meshing.generate(source, plan=mesh_plan)
 linear = package.solve.Linear(relative_tolerance=1e-6, absolute_tolerance=1e-13, maximum_iterations=10000)
 plan = package.resolve(model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear)
 explicit_none = package.resolve(model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear, scaling=None)
+all_auto_request = package.fluid.IncompressibleScaling()
+all_auto = package.resolve(model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear, scaling=all_auto_request)
+partial_equal = package.resolve(
+    model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear,
+    scaling=package.fluid.IncompressibleScaling(length_m=0.41),
+)
+partial_changed = package.resolve(
+    model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear,
+    scaling=package.fluid.IncompressibleScaling(length_m=0.82),
+)
+manual_equal = package.resolve(
+    model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear,
+    scaling=package.fluid.IncompressibleScaling(
+        length_m=0.41,
+        velocity_m_per_s=0.3,
+        pressure_pa=0.001 * 0.3 / 0.41,
+    ),
+)
 replayed = package.replay(model.to_json())
 replayed_plan = package.resolve(replayed, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear)
 fresh_plan = package.resolve(fresh_model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear)
-assert plan.identity == explicit_none.identity == replayed_plan.identity == fresh_plan.identity
+assert plan.identity == explicit_none.identity == all_auto.identity == replayed_plan.identity == fresh_plan.identity
+assert all_auto_request == package.fluid.IncompressibleScaling()
+assert all_auto_request.length_m is None
+assert all_auto_request.velocity_m_per_s is None
+assert all_auto_request.pressure_pa is None
 assert plan.model is model
 assert plan.mesh is mesh
 assert plan.mesh_digest == mesh.digest
+assert plan.realization_digest is not None
+assert plan.realization_digest == partial_equal.realization_digest == manual_equal.realization_digest
+assert partial_changed.realization_digest != plan.realization_digest
+assert partial_equal.identity != plan.identity
+assert manual_equal.identity != plan.identity
+assert partial_equal.identity != manual_equal.identity
+assert plan.scaling.length_m == 0.41
+assert plan.scaling.velocity_m_per_s == 0.3
+assert plan.scaling.pressure_pa == 0.001 * 0.3 / 0.41
+assert partial_changed.scaling.length_m == 0.82
+assert partial_changed.scaling.velocity_m_per_s == 0.3
+assert partial_changed.scaling.pressure_pa == 0.001 * 0.3 / 0.82
+assert partial_equal.scaling.pressure_pa == plan.scaling.pressure_pa
+assert manual_equal.scaling.pressure_pa == plan.scaling.pressure_pa
+receipt = plan.scaling_receipt
+partial_receipt = partial_equal.scaling_receipt
+manual_receipt = manual_equal.scaling_receipt
+assert receipt.model_digest == plan.model_digest
+assert receipt.geometry_digest == plan.geometry_digest
+assert receipt.correspondence_digest == plan.correspondence_digest
+assert receipt.mesh_digest == plan.mesh_digest
+assert len(receipt.components) == 5
+component = package.fluid.IncompressibleScalingComponent2d
+mode = package.fluid.IncompressibleScalingMode
+rule = package.fluid.IncompressibleScalingRule2d
+authority = package.fluid.IncompressibleScalingAuthorityKind
+assert tuple(record.component for record in receipt.components) == (
+    component.Length, component.Velocity, component.Pressure,
+    component.Gauge, component.WeakFunctional,
+)
+assert receipt.length.dimension == (0, 1, 0, 0, 0, 0, 0)
+assert receipt.velocity.dimension == (0, 1, -1, 0, 0, 0, 0)
+assert receipt.pressure.dimension == (1, -1, -2, 0, 0, 0, 0)
+assert receipt.gauge.dimension == (0, 0, -1, 0, 0, 0, 0)
+assert receipt.weak_functional.dimension == (1, 1, -3, 0, 0, 0, 0)
+assert (receipt.length.mode, receipt.velocity.mode, receipt.pressure.mode,
+        receipt.gauge.mode, receipt.weak_functional.mode) == (
+    mode.Automatic, mode.Automatic, mode.Derived, mode.Derived, mode.Derived,
+)
+assert receipt.length.rule == rule.ExactChannelHeightV1
+assert receipt.velocity.rule == rule.ExactInletMaximumV1
+assert receipt.pressure.rule == rule.ViscousStokesPressureV1
+assert receipt.gauge.rule == rule.GaugeRateV1
+assert receipt.weak_functional.rule == rule.WeakFunctionalV1
+assert receipt.length.dependencies == ()
+assert receipt.velocity.dependencies == ()
+assert receipt.pressure.dependencies == (component.Length, component.Velocity)
+assert receipt.gauge.dependencies == (component.Velocity, component.Length)
+assert receipt.weak_functional.dependencies == (component.Pressure, component.Velocity, component.Length)
+assert receipt.length.authorities[0].kind == authority.ExactGeometrySpan
+assert receipt.length.authorities[0].axis == 1
+assert receipt.length.authorities[0].bounds_m == (0.0, 0.41)
+assert receipt.velocity.authorities[1].kind == authority.ModelInletMaximum
+assert receipt.pressure.authorities[0].kind == authority.ModelDynamicViscosity
+assert receipt.gauge.authorities == ()
+assert receipt.weak_functional.authorities == ()
+assert partial_receipt.length.mode == mode.Manual
+assert partial_receipt.velocity.mode == mode.Automatic
+assert partial_receipt.pressure.mode == mode.Derived
+assert partial_receipt.length.authorities[0].kind == authority.ManualRequest
+assert manual_receipt.length.mode == mode.Manual
+assert manual_receipt.velocity.mode == mode.Manual
+assert manual_receipt.pressure.mode == mode.Manual
+assert receipt.provenance_digest != partial_receipt.provenance_digest
+assert receipt.provenance_digest != manual_receipt.provenance_digest
+assert partial_receipt.provenance_digest != manual_receipt.provenance_digest
+try:
+    plan.scaling.length_m = 1.0
+except AttributeError:
+    pass
+else:
+    raise AssertionError("effective scaling was mutable")
+try:
+    receipt.components += (receipt.length,)
+except AttributeError:
+    pass
+else:
+    raise AssertionError("scaling receipt was mutable")
 assert plan.discretization == "mini-p1"
 assert plan.mesh_kind == "imported-affine-simplicial"
 assert plan.operator_properties == "symmetric-indefinite"
@@ -931,6 +1081,8 @@ result = package.run(plan)
 assert isinstance(result, package.Result)
 assert result.model_digest == plan.model_digest
 assert result.plan_key == plan.identity
+assert package.run(partial_equal).plan_key == partial_equal.identity
+assert package.run(manual_equal).plan_key == manual_equal.identity
 assert len(plan.fields) == 2
 assert plan.fields == (plan.velocity_field, plan.pressure_field)
 assert plan.field is None
@@ -980,6 +1132,15 @@ except TypeError:
     pass
 else:
     raise AssertionError("untyped scaling reached Plan publication")
+for invalid in (True, False, 1, 0.0, -0.0, -1.0, float("nan"), float("inf"), -float("inf"), "auto", {}):
+    try:
+        package.fluid.IncompressibleScaling(length_m=invalid)
+    except (TypeError, package.ValidationError):
+        pass
+    else:
+        raise AssertionError(f"invalid scaling component was admitted: {invalid!r}")
+assert not hasattr(package, "AUTO")
+assert not hasattr(package.fluid, "AUTO")
 "#),
                 None,
                 Some(&locals),

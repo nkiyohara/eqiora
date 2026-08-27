@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 14 module summaries and all 125 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 562 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 14 module summaries and all 134 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 597 signature-only entries under documented owning types**.
 
-Inventory: 14 modules, 144 literal public spellings, 125 canonical grouped declarations, 730 visible method signatures (562 non-dunder and 168 dunder), and 47 visible class assignments.
+Inventory: 14 modules, 153 literal public spellings, 134 canonical grouped declarations, 776 visible method signatures (597 non-dunder and 179 dunder), and 65 visible class assignments.
 
 Regenerate with:
 
@@ -818,6 +818,8 @@ class Plan:
     @property
     def production_digest(self) -> str: ...
     @property
+    def realization_digest(self) -> str | None: ...
+    @property
     def model(self) -> Model: ...
     @property
     def mesh(self) -> meshing.Mesh: ...
@@ -872,7 +874,9 @@ class Plan:
     @property
     def workers(self) -> int: ...
     @property
-    def scaling(self) -> None: ...
+    def scaling(self) -> fluid.IncompressibleScales | None: ...
+    @property
+    def scaling_receipt(self) -> fluid.IncompressibleScalingReceipt2d | None: ...
     def __repr__(self) -> str: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
@@ -1542,7 +1546,7 @@ Resolve an exact Model and caller-owned Mesh into a common Plan.
 Authority: [`bindings/python/python/eqiora/__init__.py::resolve`](../../bindings/python/python/eqiora/__init__.py)
 
 ```python
-def resolve(model: Model, *, mesh: meshing.Mesh, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa, solve: solve.Linear, scaling: None=None) -> Plan: ...
+def resolve(model: Model, *, mesh: meshing.Mesh, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa, solve: solve.Linear, scaling: fluid.IncompressibleScaling | None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-run"></a>
@@ -2315,6 +2319,220 @@ Narrow fluid applications composed by Eqiora's shared native layer.
 Module authority: [`bindings/python/python/eqiora/fluid.py`](../../bindings/python/python/eqiora/fluid.py)
 
 Shipped stub: [`bindings/python/python/eqiora/fluid.pyi`](../../bindings/python/python/eqiora/fluid.pyi)
+
+<a id="api-eqiora-fluid-IncompressibleScales"></a>
+
+### `eqiora.fluid.IncompressibleScales`
+
+Immutable effective 2D incompressible scales owned by a resolved Plan.
+
+Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScales`](../../crates/eqiora-python/src/common_plan/scaling.rs)
+
+```python
+@final
+class IncompressibleScales:
+    @property
+    def length_m(self) -> float: ...
+    @property
+    def velocity_m_per_s(self) -> float: ...
+    @property
+    def pressure_pa(self) -> float: ...
+    @property
+    def gauge_per_s(self) -> float: ...
+    @property
+    def weak_functional_w(self) -> float: ...
+```
+
+<a id="api-eqiora-fluid-IncompressibleScaling"></a>
+
+### `eqiora.fluid.IncompressibleScaling`
+
+Optional manual components for exact-cylinder incompressible scaling.
+
+`None` leaves that component under deterministic resolver ownership.
+
+Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScaling`](../../crates/eqiora-python/src/common_plan/scaling.rs)
+
+```python
+@final
+class IncompressibleScaling:
+    def __new__(cls, *, length_m: float | None=None, velocity_m_per_s: float | None=None, pressure_pa: float | None=None) -> IncompressibleScaling: ...
+    @property
+    def length_m(self) -> float | None: ...
+    @property
+    def velocity_m_per_s(self) -> float | None: ...
+    @property
+    def pressure_pa(self) -> float | None: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-fluid-IncompressibleScalingAuthority2d"></a>
+
+### `eqiora.fluid.IncompressibleScalingAuthority2d`
+
+Immutable typed authoritative observation.
+
+Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyScalingAuthority2d`](../../crates/eqiora-python/src/common_plan/scaling.rs)
+
+```python
+@final
+class IncompressibleScalingAuthority2d:
+    @property
+    def kind(self) -> IncompressibleScalingAuthorityKind: ...
+    @property
+    def axis(self) -> int | None: ...
+    @property
+    def bounds_m(self) -> tuple[float, float] | None: ...
+    @property
+    def coordinate_m(self) -> tuple[float, float] | None: ...
+    @property
+    def outward_normal(self) -> tuple[float, float] | None: ...
+    @property
+    def velocity_m_per_s(self) -> tuple[float, float] | None: ...
+    @property
+    def dynamic_viscosity_pa_s(self) -> float | None: ...
+```
+
+<a id="api-eqiora-fluid-IncompressibleScalingAuthorityKind"></a>
+
+### `eqiora.fluid.IncompressibleScalingAuthorityKind`
+
+Closed kind of authoritative scaling observation.
+
+Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyScalingAuthorityKind`](../../crates/eqiora-python/src/common_plan/scaling.rs)
+
+```python
+@final
+class IncompressibleScalingAuthorityKind:
+    ManualRequest: ClassVar[IncompressibleScalingAuthorityKind]
+    ExactGeometrySpan: ClassVar[IncompressibleScalingAuthorityKind]
+    ModelInletMaximum: ClassVar[IncompressibleScalingAuthorityKind]
+    ModelDynamicViscosity: ClassVar[IncompressibleScalingAuthorityKind]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-fluid-IncompressibleScalingComponent2d"></a>
+
+### `eqiora.fluid.IncompressibleScalingComponent2d`
+
+Closed intrinsic-2D scaling component.
+
+Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyScalingComponent2d`](../../crates/eqiora-python/src/common_plan/scaling.rs)
+
+```python
+@final
+class IncompressibleScalingComponent2d:
+    Length: ClassVar[IncompressibleScalingComponent2d]
+    Velocity: ClassVar[IncompressibleScalingComponent2d]
+    Pressure: ClassVar[IncompressibleScalingComponent2d]
+    Gauge: ClassVar[IncompressibleScalingComponent2d]
+    WeakFunctional: ClassVar[IncompressibleScalingComponent2d]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-fluid-IncompressibleScalingComponentRecord2d"></a>
+
+### `eqiora.fluid.IncompressibleScalingComponentRecord2d`
+
+Immutable effective value and provenance for one component.
+
+Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyScalingComponentRecord2d`](../../crates/eqiora-python/src/common_plan/scaling.rs)
+
+```python
+@final
+class IncompressibleScalingComponentRecord2d:
+    @property
+    def component(self) -> IncompressibleScalingComponent2d: ...
+    @property
+    def value(self) -> float: ...
+    @property
+    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    @property
+    def mode(self) -> IncompressibleScalingMode: ...
+    @property
+    def rule(self) -> IncompressibleScalingRule2d: ...
+    @property
+    def dependencies(self) -> tuple[IncompressibleScalingComponent2d, ...]: ...
+    @property
+    def authorities(self) -> tuple[IncompressibleScalingAuthority2d, ...]: ...
+```
+
+<a id="api-eqiora-fluid-IncompressibleScalingMode"></a>
+
+### `eqiora.fluid.IncompressibleScalingMode`
+
+Closed provenance mode for one effective scaling component.
+
+Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyScalingMode`](../../crates/eqiora-python/src/common_plan/scaling.rs)
+
+```python
+@final
+class IncompressibleScalingMode:
+    Manual: ClassVar[IncompressibleScalingMode]
+    Automatic: ClassVar[IncompressibleScalingMode]
+    Derived: ClassVar[IncompressibleScalingMode]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-fluid-IncompressibleScalingReceipt2d"></a>
+
+### `eqiora.fluid.IncompressibleScalingReceipt2d`
+
+Immutable five-component receipt with exact resource lineage.
+
+Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScalingReceipt2d`](../../crates/eqiora-python/src/common_plan/scaling.rs)
+
+```python
+@final
+class IncompressibleScalingReceipt2d:
+    @property
+    def provenance_digest(self) -> str: ...
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def geometry_digest(self) -> str: ...
+    @property
+    def correspondence_digest(self) -> str: ...
+    @property
+    def mesh_digest(self) -> str: ...
+    @property
+    def length(self) -> IncompressibleScalingComponentRecord2d: ...
+    @property
+    def velocity(self) -> IncompressibleScalingComponentRecord2d: ...
+    @property
+    def pressure(self) -> IncompressibleScalingComponentRecord2d: ...
+    @property
+    def gauge(self) -> IncompressibleScalingComponentRecord2d: ...
+    @property
+    def weak_functional(self) -> IncompressibleScalingComponentRecord2d: ...
+    @property
+    def components(self) -> tuple[IncompressibleScalingComponentRecord2d, ...]: ...
+```
+
+<a id="api-eqiora-fluid-IncompressibleScalingRule2d"></a>
+
+### `eqiora.fluid.IncompressibleScalingRule2d`
+
+Closed rule used to resolve one intrinsic-2D component.
+
+Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyScalingRule2d`](../../crates/eqiora-python/src/common_plan/scaling.rs)
+
+```python
+@final
+class IncompressibleScalingRule2d:
+    ManualOverrideV1: ClassVar[IncompressibleScalingRule2d]
+    ExactChannelHeightV1: ClassVar[IncompressibleScalingRule2d]
+    ExactInletMaximumV1: ClassVar[IncompressibleScalingRule2d]
+    ViscousStokesPressureV1: ClassVar[IncompressibleScalingRule2d]
+    GaugeRateV1: ClassVar[IncompressibleScalingRule2d]
+    WeakFunctionalV1: ClassVar[IncompressibleScalingRule2d]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
 
 <a id="api-eqiora-fluid-SteadyStokes"></a>
 

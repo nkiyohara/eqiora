@@ -7,8 +7,8 @@ use crate::canonical::{
     lower_scalar_elliptic_cartesian_with_resources, recognize_scalar_elliptic_geometry_mathematics,
 };
 use crate::canonical_stokes::{
-    IncompressibleScalingRequest2d, ResolvedIncompressibleScaling2d,
-    recognize_steady_incompressible_stokes_geometry_mathematics,
+    IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d,
+    ResolvedIncompressibleScaling2d, recognize_steady_incompressible_stokes_geometry_mathematics,
     solve_resolved_steady_stokes_geometry_mini_2d,
 };
 use crate::fluid::{IncompressibleFlowScaleProfile2d, SteadyStokesGeometryBinding2d};
@@ -102,6 +102,7 @@ pub struct CommonSteadyStokesPlan {
     resolved: ResolvedFieldwiseRealization,
     realization: RealizationEnvelopeV2,
     scaling: ResolvedIncompressibleScaling2d,
+    realization_digest: String,
     identity: String,
     model_id: String,
     model_revision: u64,
@@ -121,6 +122,7 @@ pub fn resolve_common_plan(
     owner: AuthenticatedCommonMesh,
     spatial: CommonSpatialPolicy,
     solve: SolverPlan,
+    scaling: Option<IncompressibleScalingRequest2d>,
     stokes_backend: &dyn LinearSolverBackend,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
     let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
@@ -134,6 +136,11 @@ pub fn resolve_common_plan(
     }
     match recognized.capability {
         NativeCapability::ScalarElliptic => {
+            if scaling.is_some() {
+                return Err(invalid(
+                    "scalar-elliptic Model mathematics does not admit incompressible-flow scaling",
+                ));
+            }
             let spatial = match spatial {
                 CommonSpatialPolicy::Q1 => NativeSpatialPolicy::ScalarQ1,
                 CommonSpatialPolicy::CellCenteredTpfa => NativeSpatialPolicy::ScalarTpfa,
@@ -158,8 +165,7 @@ pub fn resolve_common_plan(
             let RecognizedNativeModel::Stokes(binding) = &recognized.recognized else {
                 unreachable!("steady-Stokes capability recognition returns a Stokes binding")
             };
-            let scaling = binding
-                .resolve_incompressible_scaling(model, None::<IncompressibleScalingRequest2d>)?;
+            let scaling = binding.resolve_incompressible_scaling(model, scaling)?;
             let effective_solve = SolverPlan::new(
                 LinearSolver::SparseLu,
                 solve.relative_tolerance(),
@@ -208,6 +214,7 @@ impl CommonSteadyStokesPlan {
             .zip(pressure_field_id)
             .ok_or_else(|| invalid("steady-Stokes Plan omitted its MINI/P1 Field identities"))?;
         let realization_digest = realization.digest()?.to_string();
+        let scaling_provenance_digest = scaling.receipt().provenance_digest();
         let mut identity_bytes = Vec::new();
         for value in [
             admission.model_digest(),
@@ -217,7 +224,7 @@ impl CommonSteadyStokesPlan {
             production_digest.as_str(),
             realization_digest.as_str(),
             admission.policy_identity(),
-            "automatic-exact-cylinder-stokes-scaling/v1",
+            scaling_provenance_digest.as_str(),
         ] {
             push_framed(&mut identity_bytes, value.as_bytes());
         }
@@ -234,6 +241,7 @@ impl CommonSteadyStokesPlan {
             resolved,
             realization,
             scaling,
+            realization_digest,
             identity,
             model_id: model_reference.model().ulid().to_string(),
             model_revision: model_reference.semantic_revision().get(),
@@ -307,8 +315,12 @@ impl CommonSteadyStokesPlan {
     pub fn production_digest(&self) -> &str {
         &self.production_digest
     }
-    pub fn realization_digest(&self) -> Result<String, Diagnostic> {
-        self.realization.digest().map(|digest| digest.to_string())
+    pub fn realization_digest(&self) -> &str {
+        &self.realization_digest
+    }
+    #[must_use]
+    pub const fn scaling_receipt(&self) -> &IncompressibleScalingReceipt2d {
+        self.scaling.receipt()
     }
     #[must_use]
     pub fn velocity_field_id(&self) -> &str {
@@ -1912,6 +1924,7 @@ public component PoissonRectangle {
                 resources(&geometry),
                 spatial,
                 solve,
+                None,
                 &ResolveOnlyBackend,
             )
             .unwrap()
@@ -1953,6 +1966,7 @@ public component PoissonRectangle {
                     NonZeroUsize::new(10_000).unwrap(),
                 )
                 .unwrap(),
+                None,
                 &ResolveOnlyBackend,
             )
             .is_err()
@@ -1963,6 +1977,7 @@ public component PoissonRectangle {
                 resources(&geometry),
                 CommonSpatialPolicy::MiniP1,
                 linear,
+                None,
                 &ResolveOnlyBackend,
             )
             .is_err()
@@ -2265,6 +2280,20 @@ public component PoissonRectangle {
             resources.clone(),
             CommonSpatialPolicy::MiniP1,
             solver,
+            None,
+            &ResolveOnlyBackend,
+        )
+        .unwrap()
+        .project(
+            |_| panic!("steady-Stokes Model resolved as another capability"),
+            |plan| plan,
+        );
+        let gmsh_common = resolve_common_plan(
+            &model,
+            exact_gmsh,
+            CommonSpatialPolicy::MiniP1,
+            solver,
+            None,
             &ResolveOnlyBackend,
         )
         .unwrap()
@@ -2285,6 +2314,23 @@ public component PoissonRectangle {
         assert_eq!(
             common.scales().pressure().value().to_bits(),
             (0.001_f64 * 0.3 / 0.41).to_bits()
+        );
+        assert_eq!(
+            [
+                common.scales().length().value().to_bits(),
+                common.scales().velocity().value().to_bits(),
+                common.scales().pressure().value().to_bits(),
+                common.scales().gauge().value().to_bits(),
+                common.scales().weak_functional().value().to_bits(),
+            ],
+            [
+                gmsh_common.scales().length().value().to_bits(),
+                gmsh_common.scales().velocity().value().to_bits(),
+                gmsh_common.scales().pressure().value().to_bits(),
+                gmsh_common.scales().gauge().value().to_bits(),
+                gmsh_common.scales().weak_functional().value().to_bits(),
+            ],
+            "reference and Gmsh occurrences of one exact source must resolve bit-equal automatic scales",
         );
         assert_eq!(common.linear().algorithm(), LinearSolver::SparseLu);
         assert_eq!(common.linear().reduction(), ReductionPolicy::Fast);

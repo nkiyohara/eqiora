@@ -95,6 +95,8 @@ fn every_manual_automatic_l_u_p_disposition_has_exact_receipt_pruning() {
                 receipt.component(component).mode(),
                 if manual_mask & bit != 0 {
                     ScalingMode2d::Manual
+                } else if component == ScalingComponent2d::Pressure {
+                    ScalingMode2d::Derived
                 } else {
                     ScalingMode2d::Automatic
                 },

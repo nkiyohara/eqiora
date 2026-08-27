@@ -1,11 +1,10 @@
 //! Private automatic scaling owned by the authenticated exact-cylinder binding.
 
-#![allow(dead_code)]
-
 use eqiora_artifact::{ArtifactDigest, ModelEnvelope};
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_sem::KernelProgram;
+use sha2::{Digest, Sha256};
 
 use super::{SteadyStokesGeometryBinding2d, invalid};
 use crate::canonical_stokes::api::StokesBoundaryKey2d;
@@ -28,13 +27,26 @@ const PRESSURE: DimExponents = DimExponents {
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(crate) struct IncompressibleScalingRequest2d {
+pub struct IncompressibleScalingRequest2d {
     length: Option<DynQuantity>,
     velocity: Option<DynQuantity>,
     pressure: Option<DynQuantity>,
 }
 
 impl IncompressibleScalingRequest2d {
+    /// Construct a coherent-SI manual/automatic component request.
+    pub fn from_si(
+        length_m: Option<f64>,
+        velocity_m_per_s: Option<f64>,
+        pressure_pa: Option<f64>,
+    ) -> Result<Self, Diagnostic> {
+        Self::new(
+            length_m.map(|value| DynQuantity::new(value, LENGTH)),
+            velocity_m_per_s.map(|value| DynQuantity::new(value, VELOCITY)),
+            pressure_pa.map(|value| DynQuantity::new(value, PRESSURE)),
+        )
+    }
+
     pub(super) fn new(
         length: Option<DynQuantity>,
         velocity: Option<DynQuantity>,
@@ -49,43 +61,91 @@ impl IncompressibleScalingRequest2d {
             pressure,
         })
     }
+
+    /// Optional manual characteristic length in metres.
+    #[must_use]
+    pub const fn length_m(self) -> Option<f64> {
+        match self.length {
+            Some(value) => Some(value.value()),
+            None => None,
+        }
+    }
+
+    /// Optional manual characteristic velocity in metres per second.
+    #[must_use]
+    pub const fn velocity_m_per_s(self) -> Option<f64> {
+        match self.velocity {
+            Some(value) => Some(value.value()),
+            None => None,
+        }
+    }
+
+    /// Optional manual characteristic pressure in pascals.
+    #[must_use]
+    pub const fn pressure_pa(self) -> Option<f64> {
+        match self.pressure {
+            Some(value) => Some(value.value()),
+            None => None,
+        }
+    }
 }
 
+/// Closed intrinsic-2D incompressible scaling component.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum ScalingComponent2d {
+pub enum ScalingComponent2d {
+    /// Characteristic length `L`.
     Length,
+    /// Characteristic velocity `U`.
     Velocity,
+    /// Characteristic pressure `P`.
     Pressure,
+    /// Derived gauge/gradient scale `G = U/L`.
     Gauge,
+    /// Derived intrinsic-2D weak-functional scale `Theta = P U L`.
     WeakFunctional,
 }
 
+/// Closed provenance mode for an effective component.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum ScalingMode2d {
+pub enum ScalingMode2d {
+    /// Supplied by the typed request.
     Manual,
+    /// Obtained from an admitted capability-owned observation.
     Automatic,
+    /// Computed from already resolved dependencies.
     Derived,
 }
 
+/// Versioned closed rule that resolved one intrinsic-2D component.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum ScalingRule2d {
+pub enum ScalingRule2d {
+    /// Manual override rule v1.
     ManualOverrideV1,
+    /// Exact source-Geometry channel-height rule v1.
     ExactChannelHeightV1,
+    /// Exact Model-owned inlet maximum rule v1.
     ExactInletMaximumV1,
+    /// Viscous steady-Stokes pressure rule v1.
     ViscousStokesPressureV1,
+    /// Derived gauge-rate rule v1.
     GaugeRateV1,
+    /// Derived intrinsic-2D weak-functional rule v1.
     WeakFunctionalV1,
 }
 
+/// Fixed ordered dependency shape for one component record.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum ScalingDependencies2d {
+pub enum ScalingDependencies2d {
+    /// No component dependencies.
     None,
+    /// Exactly two ordered component dependencies.
     Two([ScalingComponent2d; 2]),
+    /// Exactly three ordered component dependencies.
     Three([ScalingComponent2d; 3]),
 }
 
 impl ScalingDependencies2d {
-    pub(super) const fn as_slice(&self) -> &[ScalingComponent2d] {
+    pub const fn as_slice(&self) -> &[ScalingComponent2d] {
         match self {
             Self::None => &[],
             Self::Two(values) => values,
@@ -94,33 +154,49 @@ impl ScalingDependencies2d {
     }
 }
 
+/// One closed authoritative observation used by scaling resolution.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum ScalingAuthority2d {
+pub enum ScalingAuthority2d {
+    /// The typed manual request.
     ManualRequest,
+    /// Exact source-Geometry span on one axis.
     ExactGeometrySpan {
+        /// Zero-based Geometry axis.
         axis: usize,
+        /// Exact lower coordinate in metres.
         lower_m: f64,
+        /// Exact upper coordinate in metres.
         upper_m: f64,
     },
+    /// Model-owned prescribed inlet maximum observation.
     ModelInletMaximum {
+        /// Exact evaluation coordinate in metres.
         coordinate_m: [f64; 2],
+        /// Exact authenticated outward normal.
         outward_normal: [f64; 2],
+        /// Evaluated velocity in metres per second.
         velocity_m_per_s: [f64; 2],
     },
+    /// Model-owned dynamic viscosity observation.
     ModelDynamicViscosity {
+        /// Dynamic viscosity in pascal-seconds.
         dynamic_viscosity_pa_s: f64,
     },
 }
 
+/// Fixed closed authority inventory for one component record.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum ScalingAuthorities2d {
+pub enum ScalingAuthorities2d {
+    /// No external observation; dependencies are the authority.
     None,
+    /// Exactly one ordered authority.
     One([ScalingAuthority2d; 1]),
+    /// Exactly two ordered authorities.
     Two([ScalingAuthority2d; 2]),
 }
 
 impl ScalingAuthorities2d {
-    pub(super) const fn as_slice(&self) -> &[ScalingAuthority2d] {
+    pub const fn as_slice(&self) -> &[ScalingAuthority2d] {
         match self {
             Self::None => &[],
             Self::One(values) => values,
@@ -129,8 +205,9 @@ impl ScalingAuthorities2d {
     }
 }
 
+/// Immutable resolver-owned record for one effective component.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct ScalingComponentRecord2d {
+pub struct ScalingComponentRecord2d {
     component: ScalingComponent2d,
     value: DynQuantity,
     mode: ScalingMode2d,
@@ -140,33 +217,34 @@ pub(super) struct ScalingComponentRecord2d {
 }
 
 impl ScalingComponentRecord2d {
-    pub(super) const fn component(self) -> ScalingComponent2d {
+    pub const fn component(self) -> ScalingComponent2d {
         self.component
     }
 
-    pub(super) const fn value(self) -> DynQuantity {
+    pub const fn value(self) -> DynQuantity {
         self.value
     }
 
-    pub(super) const fn mode(self) -> ScalingMode2d {
+    pub const fn mode(self) -> ScalingMode2d {
         self.mode
     }
 
-    pub(super) const fn rule(self) -> ScalingRule2d {
+    pub const fn rule(self) -> ScalingRule2d {
         self.rule
     }
 
-    pub(super) const fn dependencies(self) -> ScalingDependencies2d {
+    pub const fn dependencies(self) -> ScalingDependencies2d {
         self.dependencies
     }
 
-    pub(super) const fn authorities(self) -> ScalingAuthorities2d {
+    pub const fn authorities(self) -> ScalingAuthorities2d {
         self.authorities
     }
 }
 
+/// Fixed resolver-owned intrinsic-2D incompressible scaling receipt.
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct IncompressibleScalingReceipt2d {
+pub struct IncompressibleScalingReceipt2d {
     model: ArtifactDigest,
     geometry: ArtifactDigest,
     correspondence: ArtifactDigest,
@@ -175,31 +253,76 @@ pub(super) struct IncompressibleScalingReceipt2d {
 }
 
 impl IncompressibleScalingReceipt2d {
-    pub(super) const fn model(&self) -> &ArtifactDigest {
+    pub const fn model(&self) -> &ArtifactDigest {
         &self.model
     }
 
-    pub(super) const fn geometry(&self) -> &ArtifactDigest {
+    pub const fn geometry(&self) -> &ArtifactDigest {
         &self.geometry
     }
 
-    pub(super) const fn correspondence(&self) -> &ArtifactDigest {
+    pub const fn correspondence(&self) -> &ArtifactDigest {
         &self.correspondence
     }
 
-    pub(super) const fn mesh(&self) -> &ArtifactDigest {
+    pub const fn mesh(&self) -> &ArtifactDigest {
         &self.mesh
     }
 
-    pub(super) const fn components(&self) -> &[ScalingComponentRecord2d; 5] {
+    pub const fn components(&self) -> &[ScalingComponentRecord2d; 5] {
         &self.components
     }
 
-    pub(super) const fn component(
-        &self,
-        component: ScalingComponent2d,
-    ) -> ScalingComponentRecord2d {
+    pub const fn component(&self, component: ScalingComponent2d) -> ScalingComponentRecord2d {
         self.components[component as usize]
+    }
+
+    /// Deterministic identity of the exact request provenance and lineage.
+    #[must_use]
+    pub fn provenance_digest(&self) -> ArtifactDigest {
+        let mut bytes = Vec::new();
+        for digest in [
+            &self.model,
+            &self.geometry,
+            &self.correspondence,
+            &self.mesh,
+        ] {
+            push_framed(&mut bytes, digest.as_str().as_bytes());
+        }
+        for record in self.components {
+            bytes.push(component_code(record.component));
+            bytes.extend_from_slice(&record.value.value().to_bits().to_be_bytes());
+            let dimension = record.value.dim();
+            bytes.extend_from_slice(&[
+                dimension.mass as u8,
+                dimension.length as u8,
+                dimension.time as u8,
+                dimension.current as u8,
+                dimension.temperature as u8,
+                dimension.amount as u8,
+                dimension.luminous_intensity as u8,
+                mode_code(record.mode),
+                rule_code(record.rule),
+            ]);
+            bytes.push(record.dependencies.as_slice().len() as u8);
+            for dependency in record.dependencies.as_slice() {
+                bytes.push(component_code(*dependency));
+            }
+            bytes.push(record.authorities.as_slice().len() as u8);
+            for authority in record.authorities.as_slice() {
+                encode_authority(&mut bytes, *authority);
+            }
+        }
+        ArtifactDigest::from_sha256(
+            Sha256::digest(
+                [
+                    b"eqiora.incompressible-scaling-receipt-2d/v1\0".as_slice(),
+                    bytes.as_slice(),
+                ]
+                .concat(),
+            )
+            .into(),
+        )
     }
 }
 
@@ -214,7 +337,7 @@ impl ResolvedIncompressibleScaling2d {
         self.scales
     }
 
-    pub(super) const fn receipt(&self) -> &IncompressibleScalingReceipt2d {
+    pub(crate) const fn receipt(&self) -> &IncompressibleScalingReceipt2d {
         &self.receipt
     }
 }
@@ -313,7 +436,7 @@ impl SteadyStokesGeometryBinding2d {
                         positive(self.model.dynamic_viscosity(), "Model dynamic viscosity")?;
                     (
                         DynQuantity::new(viscosity * velocity.value() / length.value(), PRESSURE),
-                        ScalingMode2d::Automatic,
+                        ScalingMode2d::Derived,
                         ScalingRule2d::ViscousStokesPressureV1,
                         ScalingDependencies2d::Two([
                             ScalingComponent2d::Length,
@@ -460,6 +583,75 @@ fn validate_component(
         )));
     }
     positive(value.value(), label).map(|_| ())
+}
+
+fn push_framed(bytes: &mut Vec<u8>, value: &[u8]) {
+    bytes.extend_from_slice(&(value.len() as u64).to_be_bytes());
+    bytes.extend_from_slice(value);
+}
+
+const fn component_code(value: ScalingComponent2d) -> u8 {
+    match value {
+        ScalingComponent2d::Length => 0,
+        ScalingComponent2d::Velocity => 1,
+        ScalingComponent2d::Pressure => 2,
+        ScalingComponent2d::Gauge => 3,
+        ScalingComponent2d::WeakFunctional => 4,
+    }
+}
+
+const fn mode_code(value: ScalingMode2d) -> u8 {
+    match value {
+        ScalingMode2d::Manual => 0,
+        ScalingMode2d::Automatic => 1,
+        ScalingMode2d::Derived => 2,
+    }
+}
+
+const fn rule_code(value: ScalingRule2d) -> u8 {
+    match value {
+        ScalingRule2d::ManualOverrideV1 => 0,
+        ScalingRule2d::ExactChannelHeightV1 => 1,
+        ScalingRule2d::ExactInletMaximumV1 => 2,
+        ScalingRule2d::ViscousStokesPressureV1 => 3,
+        ScalingRule2d::GaugeRateV1 => 4,
+        ScalingRule2d::WeakFunctionalV1 => 5,
+    }
+}
+
+fn encode_authority(bytes: &mut Vec<u8>, authority: ScalingAuthority2d) {
+    match authority {
+        ScalingAuthority2d::ManualRequest => bytes.push(0),
+        ScalingAuthority2d::ExactGeometrySpan {
+            axis,
+            lower_m,
+            upper_m,
+        } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&(axis as u64).to_be_bytes());
+            bytes.extend_from_slice(&lower_m.to_bits().to_be_bytes());
+            bytes.extend_from_slice(&upper_m.to_bits().to_be_bytes());
+        }
+        ScalingAuthority2d::ModelInletMaximum {
+            coordinate_m,
+            outward_normal,
+            velocity_m_per_s,
+        } => {
+            bytes.push(2);
+            for value in [coordinate_m, outward_normal, velocity_m_per_s]
+                .into_iter()
+                .flatten()
+            {
+                bytes.extend_from_slice(&value.to_bits().to_be_bytes());
+            }
+        }
+        ScalingAuthority2d::ModelDynamicViscosity {
+            dynamic_viscosity_pa_s,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&dynamic_viscosity_pa_s.to_bits().to_be_bytes());
+        }
+    }
 }
 
 const fn record(

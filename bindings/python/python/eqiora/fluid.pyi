@@ -3,10 +3,178 @@
 Authority: ``bindings/python/python/eqiora/fluid.py``.
 """
 
-from typing import final
+from typing import ClassVar, final
 
 from . import LinearSolveSummary, Model, Result
 from .meshing import Mesh
+
+@final
+class IncompressibleScaling:
+    """Optional manual components for exact-cylinder incompressible scaling.
+
+    ``None`` leaves that component under deterministic resolver ownership.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScaling``.
+    """
+
+    def __new__(
+        cls,
+        *,
+        length_m: float | None = None,
+        velocity_m_per_s: float | None = None,
+        pressure_pa: float | None = None,
+    ) -> IncompressibleScaling: ...
+    @property
+    def length_m(self) -> float | None: ...
+    @property
+    def velocity_m_per_s(self) -> float | None: ...
+    @property
+    def pressure_pa(self) -> float | None: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class IncompressibleScales:
+    """Immutable effective 2D incompressible scales owned by a resolved Plan.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScales``.
+    """
+
+    @property
+    def length_m(self) -> float: ...
+    @property
+    def velocity_m_per_s(self) -> float: ...
+    @property
+    def pressure_pa(self) -> float: ...
+    @property
+    def gauge_per_s(self) -> float: ...
+    @property
+    def weak_functional_w(self) -> float: ...
+
+@final
+class IncompressibleScalingComponent2d:
+    """Closed intrinsic-2D scaling component.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingComponent2d``.
+    """
+    Length: ClassVar[IncompressibleScalingComponent2d]
+    Velocity: ClassVar[IncompressibleScalingComponent2d]
+    Pressure: ClassVar[IncompressibleScalingComponent2d]
+    Gauge: ClassVar[IncompressibleScalingComponent2d]
+    WeakFunctional: ClassVar[IncompressibleScalingComponent2d]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class IncompressibleScalingMode:
+    """Closed provenance mode for one effective scaling component.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingMode``.
+    """
+    Manual: ClassVar[IncompressibleScalingMode]
+    Automatic: ClassVar[IncompressibleScalingMode]
+    Derived: ClassVar[IncompressibleScalingMode]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class IncompressibleScalingRule2d:
+    """Closed rule used to resolve one intrinsic-2D component.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingRule2d``.
+    """
+    ManualOverrideV1: ClassVar[IncompressibleScalingRule2d]
+    ExactChannelHeightV1: ClassVar[IncompressibleScalingRule2d]
+    ExactInletMaximumV1: ClassVar[IncompressibleScalingRule2d]
+    ViscousStokesPressureV1: ClassVar[IncompressibleScalingRule2d]
+    GaugeRateV1: ClassVar[IncompressibleScalingRule2d]
+    WeakFunctionalV1: ClassVar[IncompressibleScalingRule2d]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class IncompressibleScalingAuthorityKind:
+    """Closed kind of authoritative scaling observation.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingAuthorityKind``.
+    """
+    ManualRequest: ClassVar[IncompressibleScalingAuthorityKind]
+    ExactGeometrySpan: ClassVar[IncompressibleScalingAuthorityKind]
+    ModelInletMaximum: ClassVar[IncompressibleScalingAuthorityKind]
+    ModelDynamicViscosity: ClassVar[IncompressibleScalingAuthorityKind]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class IncompressibleScalingAuthority2d:
+    """Immutable typed authoritative observation.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingAuthority2d``.
+    """
+    @property
+    def kind(self) -> IncompressibleScalingAuthorityKind: ...
+    @property
+    def axis(self) -> int | None: ...
+    @property
+    def bounds_m(self) -> tuple[float, float] | None: ...
+    @property
+    def coordinate_m(self) -> tuple[float, float] | None: ...
+    @property
+    def outward_normal(self) -> tuple[float, float] | None: ...
+    @property
+    def velocity_m_per_s(self) -> tuple[float, float] | None: ...
+    @property
+    def dynamic_viscosity_pa_s(self) -> float | None: ...
+
+@final
+class IncompressibleScalingComponentRecord2d:
+    """Immutable effective value and provenance for one component.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingComponentRecord2d``.
+    """
+    @property
+    def component(self) -> IncompressibleScalingComponent2d: ...
+    @property
+    def value(self) -> float: ...
+    @property
+    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    @property
+    def mode(self) -> IncompressibleScalingMode: ...
+    @property
+    def rule(self) -> IncompressibleScalingRule2d: ...
+    @property
+    def dependencies(self) -> tuple[IncompressibleScalingComponent2d, ...]: ...
+    @property
+    def authorities(self) -> tuple[IncompressibleScalingAuthority2d, ...]: ...
+
+@final
+class IncompressibleScalingReceipt2d:
+    """Immutable five-component receipt with exact resource lineage.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScalingReceipt2d``.
+    """
+    @property
+    def provenance_digest(self) -> str: ...
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def geometry_digest(self) -> str: ...
+    @property
+    def correspondence_digest(self) -> str: ...
+    @property
+    def mesh_digest(self) -> str: ...
+    @property
+    def length(self) -> IncompressibleScalingComponentRecord2d: ...
+    @property
+    def velocity(self) -> IncompressibleScalingComponentRecord2d: ...
+    @property
+    def pressure(self) -> IncompressibleScalingComponentRecord2d: ...
+    @property
+    def gauge(self) -> IncompressibleScalingComponentRecord2d: ...
+    @property
+    def weak_functional(self) -> IncompressibleScalingComponentRecord2d: ...
+    @property
+    def components(self) -> tuple[IncompressibleScalingComponentRecord2d, ...]: ...
 
 @final
 class SteadyStokes:
@@ -155,6 +323,15 @@ def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence:
     ...
 
 __all__ = [
+    "IncompressibleScales",
+    "IncompressibleScaling",
+    "IncompressibleScalingAuthority2d",
+    "IncompressibleScalingAuthorityKind",
+    "IncompressibleScalingComponent2d",
+    "IncompressibleScalingComponentRecord2d",
+    "IncompressibleScalingMode",
+    "IncompressibleScalingReceipt2d",
+    "IncompressibleScalingRule2d",
     "SteadyStokes",
     "SteadyStokesEvidence",
     "SteadyStokesPlan",
