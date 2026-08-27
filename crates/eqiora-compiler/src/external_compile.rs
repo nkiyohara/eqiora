@@ -175,7 +175,7 @@ impl CompiledModel {
             source,
             "Main",
             selected.name(),
-            geometry.into(),
+            geometry,
             &supports,
             &dimensioned,
         )
@@ -477,7 +477,7 @@ mod tests {
             "not valid source",
             "Root",
             "Law",
-            (&geometry).into(),
+            &geometry,
             &supports,
             &[],
         )
@@ -500,7 +500,7 @@ mod tests {
             "not valid source",
             "Root",
             "Law",
-            (&geometry).into(),
+            &geometry,
             &[],
             &parameters,
         )
@@ -524,7 +524,7 @@ mod tests {
             "not valid source",
             "Root",
             "Law",
-            (&geometry).into(),
+            &geometry,
             &supports,
             parameters,
         )
@@ -554,7 +554,7 @@ mod tests {
             "not valid source",
             &oversized,
             "Law",
-            (&geometry).into(),
+            &geometry,
             &[],
             &[],
         )

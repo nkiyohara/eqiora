@@ -13,7 +13,7 @@ pub(crate) fn replay_program(
     .map_err(first)?;
     let snapshot = store.snapshot();
     let program = if model.requires_geometry_admission()? {
-        KernelProgram::from_snapshot_with_geometry(&snapshot, model_id, &[geometry.into()])
+        KernelProgram::from_snapshot_with_geometry(&snapshot, model_id, &[geometry])
             .map_err(first)?
     } else {
         KernelProgram::from_snapshot(&snapshot, model_id).map_err(first)?

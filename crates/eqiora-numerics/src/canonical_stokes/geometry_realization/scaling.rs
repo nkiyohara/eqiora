@@ -751,7 +751,7 @@ fn replay_model(
     let (transaction, model_id) = model.to_transaction().map_err(first_diagnostic)?;
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).map_err(first_diagnostic)?;
-    KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model_id, &[source.into()])
+    KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model_id, &[source])
         .map_err(first_diagnostic)
 }
 
