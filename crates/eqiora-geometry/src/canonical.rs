@@ -211,7 +211,8 @@ impl CanonicalGeometryV1 {
                 .iter()
                 .all(|edge| edge_has_selected_parent(topology, *edge, region.members())),
             CanonicalGeometryKind::CircularHolePlanarV1(_)
-            | CanonicalGeometryKind::PlanarCircularHoleV2(_) => region.members() == [0],
+            | CanonicalGeometryKind::PlanarCircularHoleV2(_)
+            | CanonicalGeometryKind::PlanarRectangleV2(_) => region.members() == [0],
         }
     }
 
