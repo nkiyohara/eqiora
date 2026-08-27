@@ -37,6 +37,7 @@ from local_verify import (  # noqa: E402
     local_changed_paths,
     reverse_dependency_closure,
     run_plan,
+    selected_case_ids,
 )
 from check_docs import check as check_docs  # noqa: E402
 from verification_scheduler import (  # noqa: E402
@@ -121,6 +122,21 @@ class PackageSelectionTests(unittest.TestCase):
             {"packages.example"},
         )
 
+    def test_deleted_changed_case_cannot_reenter_through_explicit_selection(
+        self,
+    ) -> None:
+        self.assertEqual(
+            selected_case_ids(
+                [
+                    "verify/interfaces/live/README.md",
+                    "verify/interfaces/deleted/case.toml",
+                ],
+                ["interfaces.deleted", "interfaces.explicit"],
+                ["interfaces.live"],
+            ),
+            {"interfaces.live", "interfaces.explicit"},
+        )
+
 
 class PlanTests(unittest.TestCase):
     def test_affected_selects_live_changed_cases_but_not_deleted_cases(self) -> None:
@@ -135,7 +151,7 @@ class PlanTests(unittest.TestCase):
                     "verify/interfaces/live/README.md",
                     "verify/interfaces/deleted/README.md",
                 ],
-                [],
+                ["interfaces.deleted"],
                 workspace(),
                 root,
             )
