@@ -4,7 +4,7 @@
 //! Operations retain exact construction meaning and non-persisted topology
 //! lineage; only a completed named Geometry receives canonical content identity.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -12,8 +12,9 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
 use crate::{
-    CanonicalGeometryV1, CanonicalPlanarCircularHoleGeometryV2, CanonicalPlanarRectangleGeometryV2,
-    EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
+    CanonicalGeometryV1, CanonicalPlanarAdjacentRectanglePartitionV1,
+    CanonicalPlanarCircularHoleGeometryV2, CanonicalPlanarRectangleGeometryV2, EDGE_DIMENSION,
+    FACE_DIMENSION, NamedEntitySet,
 };
 
 static NEXT_GRAPH_OWNER: AtomicU64 = AtomicU64::new(1);
@@ -106,6 +107,66 @@ impl PlanarOperationGraph {
         }))
     }
 
+    /// Join exactly two axis-aligned rectangles across one explicitly named,
+    /// complete, oppositely oriented construction edge.
+    pub fn partition(
+        &self,
+        left: &PlanarOperation,
+        right: &PlanarOperation,
+        interface: [PlanarBoundaryHandle; 2],
+    ) -> Result<PlanarOperation, Diagnostic> {
+        self.require_owner(left)?;
+        self.require_owner(right)?;
+        let OperationKind::Rectangle {
+            bounds: left_bounds,
+        } = left.kind
+        else {
+            return Err(invalid("partition inputs must be rectangle operations"));
+        };
+        let OperationKind::Rectangle {
+            bounds: right_bounds,
+        } = right.kind
+        else {
+            return Err(invalid("partition inputs must be rectangle operations"));
+        };
+        if interface[0].owner != self.owner || interface[1].owner != self.owner {
+            return Err(invalid(
+                "partition interface belongs to a foreign construction graph",
+            ));
+        }
+        let expected = [
+            PlanarBoundaryHandle {
+                owner: self.owner,
+                operation: left.operation,
+                source: BoundarySource::Rectangle(1),
+            },
+            PlanarBoundaryHandle {
+                owner: self.owner,
+                operation: right.operation,
+                source: BoundarySource::Rectangle(0),
+            },
+        ];
+        if interface != expected {
+            return Err(invalid(
+                "partition interface must be the left x-upper and right x-lower handles in parent order",
+            ));
+        }
+        if left_bounds[0][1] != right_bounds[0][0]
+            || left_bounds[1] != right_bounds[1]
+            || left_bounds[0][0] >= right_bounds[0][1]
+        {
+            return Err(invalid(
+                "partition rectangles must share one complete coincident vertical edge without a gap or overlap",
+            ));
+        }
+        Ok(self.operation(OperationKind::Partition {
+            bounds: [[left_bounds[0][0], right_bounds[0][1]], left_bounds[1]],
+            interface_x: left_bounds[0][1],
+            left_operation: left.operation,
+            right_operation: right.operation,
+        }))
+    }
+
     /// Publish one completed operation with one atomic semantic-name mapping.
     pub fn build(
         &self,
@@ -128,6 +189,26 @@ impl PlanarOperationGraph {
             }
             sets.push(NamedEntitySet::new(name, dimension, members));
         }
+        if matches!(operation.kind, OperationKind::Partition { .. }) {
+            let memberships = sets
+                .iter()
+                .flat_map(|set| {
+                    set.members()
+                        .iter()
+                        .map(move |&member| (set.dimension(), member))
+                })
+                .collect::<Vec<_>>();
+            let unique = memberships.iter().copied().collect::<BTreeSet<_>>();
+            let expected = (0..8)
+                .map(|edge| (EDGE_DIMENSION, edge))
+                .chain((0..2).map(|face| (FACE_DIMENSION, face)))
+                .collect::<BTreeSet<_>>();
+            if unique != expected || memberships.len() != expected.len() {
+                return Err(invalid(
+                    "partition naming must cover both regions and every parent-relative interface/exterior boundary exactly once",
+                ));
+            }
+        }
         match operation.kind {
             OperationKind::Rectangle { bounds } => {
                 CanonicalPlanarRectangleGeometryV2::new(bounds, sets)
@@ -140,6 +221,12 @@ impl PlanarOperationGraph {
                 ..
             } => CanonicalPlanarCircularHoleGeometryV2::new(bounds, center, radius, sets)
                 .map(CanonicalGeometryV1::from_planar_circular_hole_v2),
+            OperationKind::Partition {
+                bounds,
+                interface_x,
+                ..
+            } => CanonicalPlanarAdjacentRectanglePartitionV1::new(bounds, interface_x, sets)
+                .map(CanonicalGeometryV1::from_planar_adjacent_rectangle_partition_v1),
             OperationKind::Circle { .. } => Err(invalid(
                 "a circle operation alone does not define an admitted planar region",
             )),
@@ -222,6 +309,44 @@ impl PlanarOperationGraph {
             (OperationKind::Subtract { .. }, PlanarTopologyHandle::Region(_)) => Err(invalid(
                 "predecessor region handle was deleted by subtraction",
             )),
+            (
+                OperationKind::Partition {
+                    left_operation,
+                    right_operation,
+                    ..
+                },
+                PlanarTopologyHandle::Region(handle),
+            ) => {
+                if handle.operation == *left_operation && handle.source == RegionSource::Rectangle {
+                    Ok(0)
+                } else if handle.operation == *right_operation
+                    && handle.source == RegionSource::Rectangle
+                {
+                    Ok(1)
+                } else {
+                    Err(invalid(
+                        "region handle is stale or absent from the partition result",
+                    ))
+                }
+            }
+            (
+                OperationKind::Partition {
+                    left_operation,
+                    right_operation,
+                    ..
+                },
+                PlanarTopologyHandle::Boundary(handle),
+            ) => match (handle.operation, handle.source) {
+                (operation, BoundarySource::Rectangle(member)) if operation == *left_operation => {
+                    Ok([3, 1, 0, 2][member])
+                }
+                (operation, BoundarySource::Rectangle(member)) if operation == *right_operation => {
+                    Ok([7, 5, 4, 6][member])
+                }
+                _ => Err(invalid(
+                    "boundary handle is stale or absent from the partition result",
+                )),
+            },
             _ => Err(invalid(
                 "topology handle is stale or absent from this result",
             )),
@@ -245,6 +370,7 @@ impl PlanarOperation {
             OperationKind::Rectangle { .. } => RegionSource::Rectangle,
             OperationKind::Circle { .. } => RegionSource::Circle,
             OperationKind::Subtract { .. } => RegionSource::Subtract,
+            OperationKind::Partition { .. } => RegionSource::Partition,
         };
         PlanarRegionHandle {
             owner: self.owner,
@@ -274,6 +400,7 @@ impl PlanarOperation {
                 BoundarySource::Subtract(3),
                 BoundarySource::Subtract(4),
             ],
+            OperationKind::Partition { .. } => &[],
         };
         sources
             .iter()
@@ -303,6 +430,12 @@ enum OperationKind {
         rectangle_operation: u64,
         circle_operation: u64,
     },
+    Partition {
+        bounds: [[f64; 2]; 2],
+        interface_x: f64,
+        left_operation: u64,
+        right_operation: u64,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -310,6 +443,7 @@ enum RegionSource {
     Rectangle,
     Circle,
     Subtract,
+    Partition,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

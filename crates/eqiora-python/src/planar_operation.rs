@@ -102,6 +102,35 @@ impl PyGeometryGraph {
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))
     }
 
+    #[pyo3(signature = (left, right, /, *, interface))]
+    fn partition(
+        &self,
+        py: Python<'_>,
+        left: &PyGeometryOperation,
+        right: &PyGeometryOperation,
+        interface: &Bound<'_, PyTuple>,
+    ) -> PyResult<PyGeometryOperation> {
+        if interface.len() != 2 {
+            return Err(PyTypeError::new_err(
+                "interface must contain exactly two boundary handles in parent order",
+            ));
+        }
+        let first = interface
+            .get_item(0)?
+            .extract::<PyRef<'_, PyGeometryBoundaryHandle>>()?;
+        let second = interface
+            .get_item(1)?
+            .extract::<PyRef<'_, PyGeometryBoundaryHandle>>()?;
+        self.graph
+            .partition(
+                &left.operation,
+                &right.operation,
+                [first.handle, second.handle],
+            )
+            .map(|operation| PyGeometryOperation { operation })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
     #[pyo3(signature = (operation, /, *, named_topology))]
     fn build(
         &self,

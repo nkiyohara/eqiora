@@ -73,6 +73,14 @@ class GeometryGraph:
         rectangle: GeometryOperation,
         circle: GeometryOperation,
     ) -> GeometryOperation: ...
+    def partition(
+        self,
+        left: GeometryOperation,
+        right: GeometryOperation,
+        /,
+        *,
+        interface: tuple[GeometryBoundaryHandle, GeometryBoundaryHandle],
+    ) -> GeometryOperation: ...
     def build(
         self,
         operation: GeometryOperation,

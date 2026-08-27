@@ -331,10 +331,13 @@ impl PyMesh {
                 correspondence,
                 provider_observation: SourceOwnedProviderObservation::AffineTriangle,
                 ..
-            } => correspondence
-                .planar_rectangle_v2_entity_set_entities(geometry, name)
-                .and_then(|entities| validated_entity_count(entities, expected_dimension))
-                .map_err(|diagnostic| validation_error(py, &[diagnostic])),
+            } => (if geometry.planar_rectangle_bounds().is_some() {
+                correspondence.planar_rectangle_v2_entity_set_entities(geometry, name)
+            } else {
+                correspondence.adjacent_rectangle_partition_entity_set_entities(geometry, name)
+            })
+            .and_then(|entities| validated_entity_count(entities, expected_dimension))
+            .map_err(|diagnostic| validation_error(py, &[diagnostic])),
             AcceptedMeshSource::SourceOwned {
                 geometry,
                 correspondence,
@@ -562,21 +565,28 @@ impl PyMesh {
                 "affine-triangle MeshPlan has a non-affine-triangle production policy",
             )
         })?;
-        correspondence
-            .validate_against_planar_rectangle_v2_affine_triangles(
+        (if source.planar_rectangle_bounds().is_some() {
+            correspondence.validate_against_planar_rectangle_v2_affine_triangles(
                 source,
                 accepted_mesh,
                 policy.cells(),
             )
-            .and_then(|()| {
-                production.validate_against_affine_triangle_rectangle_v1_resources(
-                    policy,
-                    source,
-                    accepted_mesh,
-                    correspondence,
-                )
-            })
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        } else {
+            correspondence.validate_against_adjacent_rectangle_partition_affine_triangles(
+                source,
+                accepted_mesh,
+                policy.cells(),
+            )
+        })
+        .and_then(|()| {
+            production.validate_against_affine_triangle_rectangle_v1_resources(
+                policy,
+                source,
+                accepted_mesh,
+                correspondence,
+            )
+        })
+        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         let published = Self::from_source_parts(
             py,
             source,
@@ -946,11 +956,19 @@ impl PyMesh {
                 "affine-triangle Mesh has a non-affine-triangle production policy",
             )
         })?;
-        correspondence.validate_against_planar_rectangle_v2_affine_triangles(
-            geometry,
-            mesh,
-            policy.cells(),
-        )?;
+        if geometry.planar_rectangle_bounds().is_some() {
+            correspondence.validate_against_planar_rectangle_v2_affine_triangles(
+                geometry,
+                mesh,
+                policy.cells(),
+            )?;
+        } else {
+            correspondence.validate_against_adjacent_rectangle_partition_affine_triangles(
+                geometry,
+                mesh,
+                policy.cells(),
+            )?;
+        }
         production.validate_against_affine_triangle_rectangle_v1_resources(
             policy,
             geometry,
@@ -1016,13 +1034,21 @@ impl PyMesh {
                 correspondence,
                 production,
                 provider_observation: SourceOwnedProviderObservation::AffineTriangle,
-            } => AuthenticatedCommonMesh::affine_triangle_rectangle(
-                (**geometry).clone(),
-                (**mesh).clone(),
-                (**correspondence).clone(),
-                (**production).clone(),
-            )
-            .map(Some),
+            } => {
+                if geometry.planar_rectangle_bounds().is_some() {
+                    AuthenticatedCommonMesh::affine_triangle_rectangle(
+                        (**geometry).clone(),
+                        (**mesh).clone(),
+                        (**correspondence).clone(),
+                        (**production).clone(),
+                    )
+                    .map(Some)
+                } else {
+                    // The dependent execution slice adds the corresponding
+                    // physics-independent common-admission variant.
+                    Ok(None)
+                }
+            }
             AcceptedMeshSource::Chordal { .. } | AcceptedMeshSource::Cartesian => Ok(None),
         }
     }

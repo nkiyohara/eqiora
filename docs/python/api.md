@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 15 module summaries and all 142 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 634 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 15 module summaries and all 142 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 635 signature-only entries under documented owning types**.
 
-Inventory: 15 modules, 162 literal public spellings, 142 canonical grouped declarations, 830 visible method signatures (634 non-dunder and 196 dunder), and 67 visible class assignments.
+Inventory: 15 modules, 162 literal public spellings, 142 canonical grouped declarations, 831 visible method signatures (635 non-dunder and 196 dunder), and 67 visible class assignments.
 
 Regenerate with:
 
@@ -2018,6 +2018,7 @@ class GeometryGraph:
     def rectangle(self, *, x_bounds: tuple[float, float], y_bounds: tuple[float, float]) -> GeometryOperation: ...
     def circle(self, *, center: tuple[float, float], radius: float) -> GeometryOperation: ...
     def subtract(self, rectangle: GeometryOperation, circle: GeometryOperation) -> GeometryOperation: ...
+    def partition(self, left: GeometryOperation, right: GeometryOperation, /, *, interface: tuple[GeometryBoundaryHandle, GeometryBoundaryHandle]) -> GeometryOperation: ...
     def build(self, operation: GeometryOperation, /, *, named_topology: Mapping[str, GeometryRegionHandle | GeometryBoundaryHandle | Sequence[GeometryRegionHandle | GeometryBoundaryHandle]]) -> Geometry: ...
 ```
 

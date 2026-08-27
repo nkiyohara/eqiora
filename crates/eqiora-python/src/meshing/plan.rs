@@ -482,12 +482,21 @@ impl AffineTrianglePlan {
                 "MeshPlan belongs to a different exact Geometry",
             ));
         }
-        self.correspondence
-            .validate_against_planar_rectangle_v2_affine_triangles(
-                &self.source,
-                &self.mesh,
-                policy.cells(),
-            )
+        if self.source.planar_rectangle_bounds().is_some() {
+            self.correspondence
+                .validate_against_planar_rectangle_v2_affine_triangles(
+                    &self.source,
+                    &self.mesh,
+                    policy.cells(),
+                )
+        } else {
+            self.correspondence
+                .validate_against_adjacent_rectangle_partition_affine_triangles(
+                    &self.source,
+                    &self.mesh,
+                    policy.cells(),
+                )
+        }
     }
 }
 
@@ -678,12 +687,18 @@ pub(super) fn resolve(
                 }))
             }
             MeshProviderPolicy::AffineTriangle(provider) => {
-                let (mesh, correspondence) =
+                let generated = if geometry.geometry().planar_rectangle_bounds().is_some() {
                     GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
                         geometry.geometry(),
                         provider.policy.cells(),
                     )
-                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+                } else {
+                    GeometryMeshCorrespondenceEnvelopeV1::from_adjacent_rectangle_partition_affine_triangles(
+                        geometry.geometry(), provider.policy.cells(),
+                    )
+                };
+                let (mesh, correspondence) =
+                    generated.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
                 ResolvedMeshPlan::AffineTriangle(Box::new(AffineTrianglePlan {
                     source: geometry.geometry().clone(),
                     mesh,

@@ -176,3 +176,101 @@ fn foreign_deleted_stale_incomplete_and_mixed_handles_fail_closed() {
     let tangent = graph.circle([0.05, 0.2], 0.05).unwrap();
     assert!(graph.subtract(&rectangle, &tangent).is_err());
 }
+
+#[test]
+fn explicit_adjacent_partition_owns_both_parents_and_complete_frontiers() {
+    let graph = PlanarOperationGraph::new();
+    let left = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
+    let right = graph.rectangle([1.0, 2.0], [0.0, 1.0]).unwrap();
+    let left_edges = left.boundaries();
+    let right_edges = right.boundaries();
+    let partition = graph
+        .partition(&left, &right, [left_edges[1], right_edges[0]])
+        .unwrap();
+    let geometry = graph
+        .build(
+            &partition,
+            &named([
+                ("fluid", vec![left.region().into()]),
+                ("solid", vec![right.region().into()]),
+                (
+                    "interface",
+                    vec![left_edges[1].into(), right_edges[0].into()],
+                ),
+                ("inlet", vec![left_edges[0].into()]),
+                ("outlet", vec![right_edges[1].into()]),
+                (
+                    "walls",
+                    vec![
+                        left_edges[2].into(),
+                        left_edges[3].into(),
+                        right_edges[2].into(),
+                        right_edges[3].into(),
+                    ],
+                ),
+            ]),
+        )
+        .unwrap();
+    let region = geometry.region().unwrap();
+    assert_eq!(
+        region.vertices(),
+        &[
+            [0.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 0.0],
+            [1.0, 1.0],
+            [2.0, 0.0],
+            [2.0, 1.0]
+        ]
+    );
+    assert_eq!(region.faces()[0].outer(), [0, 2, 3, 1]);
+    assert_eq!(region.faces()[1].outer(), [2, 4, 5, 3]);
+    assert_eq!(geometry.entity_set("interface").unwrap().members(), [1, 7]);
+    assert_eq!(geometry.classification_tolerance_m(), None);
+    assert_eq!(
+        CanonicalGeometryV1::decode_planar_adjacent_rectangle_partition_v1_canonical(
+            geometry.canonical_bytes(),
+            Default::default(),
+        )
+        .unwrap(),
+        geometry,
+    );
+    let changed_orientation = std::str::from_utf8(geometry.canonical_bytes())
+        .unwrap()
+        .replace("opposite-parent-outward", "same-direction");
+    assert!(
+        CanonicalGeometryV1::decode_planar_adjacent_rectangle_partition_v1_canonical(
+            changed_orientation.as_bytes(),
+            Default::default(),
+        )
+        .is_err()
+    );
+
+    assert!(
+        graph
+            .partition(&left, &right, [right_edges[0], left_edges[1]])
+            .is_err()
+    );
+    let gap = graph.rectangle([1.25, 2.0], [0.0, 1.0]).unwrap();
+    assert!(
+        graph
+            .partition(&left, &gap, [left_edges[1], gap.boundaries()[0]])
+            .is_err()
+    );
+    let overlap = graph.rectangle([0.75, 2.0], [0.0, 1.0]).unwrap();
+    assert!(
+        graph
+            .partition(&left, &overlap, [left_edges[1], overlap.boundaries()[0]])
+            .is_err()
+    );
+
+    let incomplete = named([
+        ("fluid", vec![left.region().into()]),
+        ("solid", vec![right.region().into()]),
+        (
+            "interface",
+            vec![left_edges[1].into(), right_edges[0].into()],
+        ),
+    ]);
+    assert!(graph.build(&partition, &incomplete).is_err());
+}

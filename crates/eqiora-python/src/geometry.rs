@@ -106,11 +106,29 @@ impl PyGeometry {
     /// Exact Cartesian bounds, one pair per coordinate axis, in metres.
     #[getter]
     fn bounds(&self) -> ((f64, f64), (f64, f64)) {
-        let [[x_lower, x_upper], [y_lower, y_upper]] = *self
+        let bounds = self
             .geometry
             .planar_rectangle_bounds()
             .or_else(|| self.geometry.circular_hole_bounds())
+            .copied()
+            .or_else(|| {
+                self.geometry
+                    .planar_adjacent_rectangle_partition()
+                    .map(|(bounds, _)| *bounds)
+            })
+            .or_else(|| {
+                let vertices = self.geometry.region()?.vertices();
+                let mut bounds = [[f64::INFINITY, f64::NEG_INFINITY]; 2];
+                for vertex in vertices {
+                    for axis in 0..2 {
+                        bounds[axis][0] = bounds[axis][0].min(vertex[axis]);
+                        bounds[axis][1] = bounds[axis][1].max(vertex[axis]);
+                    }
+                }
+                Some(bounds)
+            })
             .expect("the admitted planar Geometry has exact Cartesian bounds");
+        let [[x_lower, x_upper], [y_lower, y_upper]] = bounds;
         ((x_lower, x_upper), (y_lower, y_upper))
     }
 
