@@ -5,7 +5,7 @@ the new Marimo app. It composes these already accepted owners without changing
 or copying their expected values:
 
 - `interfaces.python-exact-circular-hole-geometry` for Geometry;
-- `interfaces.python-circular-hole-chordal-mesh` for MeshRequest, MeshPlan,
+- `interfaces.python-circular-hole-chordal-mesh` for the typed provider, MeshPlan,
   Mesh, exact-source binding, and realized selection meaning;
 - `interfaces.python-exact-cylinder-stokes-result` for the installed Model,
   typed Plan, one Run, common Result, pressure Field, and typed evidence;

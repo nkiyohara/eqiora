@@ -16,7 +16,7 @@ pub(crate) use mesh::PyMesh;
 use mesh::{generate, import_gmsh};
 use plan::{
     PyAffineTriangleMesher, PyCartesianMesher, PyGmshImport, PyGmshMesher, PyMeshPlan,
-    PyMeshRequest, PyReferenceMesher, resolve,
+    PyReferenceMesher, resolve,
 };
 
 fn request_error(py: Python<'_>, message: impl Into<String>) -> PyErr {
@@ -25,7 +25,6 @@ fn request_error(py: Python<'_>, message: impl Into<String>) -> PyErr {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<PyMeshRequest>()?;
     module.add_class::<PyGmshMesher>()?;
     module.add_class::<PyGmshImport>()?;
     module.add_class::<PyReferenceMesher>()?;

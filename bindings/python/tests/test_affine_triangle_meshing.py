@@ -22,7 +22,7 @@ def rectangle(xmax: float = 2.0) -> eqiora.geometry.Geometry:
 
 def test_affine_triangle_mesher_publishes_exact_source_owned_common_mesh() -> None:
     provider = eqiora.meshing.AffineTriangleMesher(cells=(2, 3))
-    request = eqiora.meshing.MeshRequest(provider)
+    request = provider
     source = rectangle()
     plan = eqiora.meshing.resolve(source, request)
     mesh = eqiora.meshing.generate(source, plan=plan)

@@ -3,7 +3,7 @@
 This case composes already accepted owners into one narrow user path:
 
 ```text
-exact circular-hole Geometry + explicit MeshRequest + complete MSH 4.1 bytes
+exact circular-hole Geometry + explicit GmshImport policy + complete MSH 4.1 bytes
   -> bounded Gmsh simplex importer
   -> common simplicial Mesh
   -> complete Geometry-to-Mesh correspondence
@@ -14,7 +14,7 @@ exact circular-hole Geometry + explicit MeshRequest + complete MSH 4.1 bytes
 ```
 
 `eqiora.meshing.import_gmsh` takes bytes, not a path, and does not launch
-Gmsh. `MeshRequest` supplies every boundary-realization and quality choice.
+Gmsh. `GmshImport` supplies every boundary-realization and quality choice.
 The returned object is the same `Mesh` used by generated paths. Its
 `external_import_manifest_bytes` and `external_import_manifest_digest`
 properties retain the canonical source-to-normalized-array-to-Mesh assertion;

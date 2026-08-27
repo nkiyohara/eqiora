@@ -13,7 +13,7 @@ capabilities = [
 
 [problem]
 geometry = "accepted straight-chordal DFG 2.2 m by 0.41 m rectangle with one 50-chord radius-0.05 m hole centred at [0.2, 0.2] m"
-entry_path = "MeshRequest -> eqiora.meshing.resolve -> external Gmsh CLI 4.15.2 -> MeshPlan -> eqiora.meshing.generate -> Mesh"
+entry_path = "GmshMesher -> eqiora.meshing.resolve -> external Gmsh CLI 4.15.2 -> MeshPlan -> eqiora.meshing.generate -> Mesh"
 result_type = "immutable eqiora.meshing.Mesh"
 maximum_boundary_error_m = 1e-4
 minimum_mean_ratio = 1e-5

@@ -62,7 +62,7 @@ geometry = graph.build(rectangle, named_topology={
     "y_lower": rectangle.boundaries[2],
     "y_upper": rectangle.boundaries[3],
 })
-mesh_request = eqiora.meshing.MeshRequest(eqiora.meshing.CartesianMesher(cells=(6, 6)))
+mesh_request = eqiora.meshing.CartesianMesher(cells=(6, 6))
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
 mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 

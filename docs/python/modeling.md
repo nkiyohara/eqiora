@@ -154,7 +154,7 @@ The matching meshing operation is an explicit Realization choice rather than a
 method on exact geometry:
 
 ```python
-request = eqiora.meshing.MeshRequest(
+request = eqiora.meshing.ReferenceMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,

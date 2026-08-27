@@ -81,9 +81,7 @@ def model_and_plan(method, *, diffusion: float = 1.0):
             "y_upper": rectangle.boundaries[3],
         },
     )
-    request = eqiora.meshing.MeshRequest(
-        eqiora.meshing.CartesianMesher(cells=(4, 4))
-    )
+    request = eqiora.meshing.CartesianMesher(cells=(4, 4))
     mesh_plan = eqiora.meshing.resolve(geometry, request)
     mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
     model = eqiora.compile(
@@ -127,9 +125,7 @@ def elasticity_model_and_plan():
             "top": rectangle.boundaries[3],
         },
     )
-    mesh_request = eqiora.meshing.MeshRequest(
-        eqiora.meshing.CartesianMesher(cells=(4, 4))
-    )
+    mesh_request = eqiora.meshing.CartesianMesher(cells=(4, 4))
     mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
     mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
     model = eqiora.compile(

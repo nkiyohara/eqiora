@@ -4,7 +4,7 @@ This case freezes one deliberately narrow installed-Python path:
 
 ```text
 exact circular-hole Geometry
-  -> MeshRequest
+  -> GmshMesher
   -> eqiora.meshing.resolve
   -> external Gmsh CLI exactly 4.15.2
   -> immutable MeshPlan containing the inspected mesh

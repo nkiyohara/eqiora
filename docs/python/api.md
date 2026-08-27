@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 15 module summaries and all 121 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 479 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 15 module summaries and all 120 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 477 signature-only entries under documented owning types**.
 
-Inventory: 15 modules, 145 literal public spellings, 121 canonical grouped declarations, 653 visible method signatures (479 non-dunder and 174 dunder), and 60 visible class assignments.
+Inventory: 15 modules, 144 literal public spellings, 120 canonical grouped declarations, 648 visible method signatures (477 non-dunder and 171 dunder), and 60 visible class assignments.
 
 Regenerate with:
 
@@ -2018,8 +2018,6 @@ class MeshPlan:
     @property
     def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher: ...
     @property
-    def request(self) -> MeshRequest: ...
-    @property
     def production_lineage_bytes(self) -> bytes: ...
     @property
     def production_lineage_digest(self) -> str: ...
@@ -2027,24 +2025,6 @@ class MeshPlan:
     def boundary_facets(self) -> int: ...
     @property
     def achieved_minimum_mean_ratio(self) -> float: ...
-    def __repr__(self) -> str: ...
-```
-
-<a id="api-eqiora-meshing-MeshRequest"></a>
-
-### `eqiora.meshing.MeshRequest`
-
-Immutable caller intent for one admitted mesh provider.
-
-Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyMeshRequest`](../../crates/eqiora-python/src/meshing/plan.rs)
-
-```python
-@final
-class MeshRequest:
-    def __new__(cls, provider: AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher, /) -> Self: ...
-    @property
-    def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher: ...
-    def __eq__(self, other: object, /) -> bool: ...
     def __repr__(self) -> str: ...
 ```
 
@@ -2109,7 +2089,7 @@ Resolve a provider plan for the exact supplied geometry.
 Authority: [`crates/eqiora-python/src/meshing/plan.rs::resolve`](../../crates/eqiora-python/src/meshing/plan.rs)
 
 ```python
-def resolve(geometry: Geometry, request: MeshRequest, /) -> MeshPlan: ...
+def resolve(geometry: Geometry, provider: AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher, /) -> MeshPlan: ...
 ```
 
 <a id="module-eqiora-fem"></a>

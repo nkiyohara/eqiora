@@ -86,7 +86,7 @@ def _geometry(**overrides: object) -> object:
 
 def _mesh(authored: object | None = None) -> object:
     source = _geometry() if authored is None else authored
-    request = eqiora.meshing.MeshRequest(
+    request = eqiora.meshing.ReferenceMesher(
         maximum_boundary_error=1e-4,
         minimum_mean_ratio=1e-5,
         maximum_boundary_facets=50,

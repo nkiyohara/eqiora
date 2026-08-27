@@ -32,13 +32,11 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
             "cylinder": circle.boundaries[0],
         },
     )
-    request = eqiora.meshing.MeshRequest(
-        eqiora.meshing.ReferenceMesher(
+    request = eqiora.meshing.ReferenceMesher(
             maximum_boundary_error=1.0e-4,
             minimum_mean_ratio=1.0e-5,
             maximum_boundary_facets=50,
         )
-    )
     mesh_plan = eqiora.meshing.resolve(geometry, request)
     return geometry, eqiora.meshing.generate(geometry, plan=mesh_plan)
 

@@ -299,7 +299,7 @@ def _solve_once(eqiora: Any) -> tuple[Any, Any, Any, Any, Any, Any, Any]:
         y_upper="walls",
         hole="cylinder",
     )
-    request = eqiora.meshing.MeshRequest(
+    request = eqiora.meshing.ReferenceMesher(
         maximum_boundary_error=1e-4,
         minimum_mean_ratio=1e-5,
         maximum_boundary_facets=50,

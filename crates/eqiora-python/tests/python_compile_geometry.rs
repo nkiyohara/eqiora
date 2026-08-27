@@ -35,11 +35,11 @@ model = eqiora.compile(source=source_text, filename="cylinder.eqi", geometry=geo
 explicit = eqiora.compile(source=source_text, filename="renamed.eqi", geometry=geometry, parameters=parameters, component="SteadyFlowPastCylinder")
 assert model.digest == explicit.digest
 replayed = eqiora.replay(model.to_json())
-request = eqiora.meshing.MeshRequest(eqiora.meshing.ReferenceMesher(
+request = eqiora.meshing.ReferenceMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
-))
+)
 mesh_plan = eqiora.meshing.resolve(geometry, request)
 mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 linear = eqiora.solve.Linear(relative_tolerance=1e-6, absolute_tolerance=1e-13, maximum_iterations=10000)

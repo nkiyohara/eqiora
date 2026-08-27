@@ -28,9 +28,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
             "solid_y_upper": solid.boundaries[3],
         },
     )
-    request = eqiora.meshing.MeshRequest(
-        eqiora.meshing.AffineTriangleMesher(cells=(2, 2))
-    )
+    request = eqiora.meshing.AffineTriangleMesher(cells=(2, 2))
     mesh_plan = eqiora.meshing.resolve(geometry, request)
     return geometry, eqiora.meshing.generate(geometry, plan=mesh_plan)
 

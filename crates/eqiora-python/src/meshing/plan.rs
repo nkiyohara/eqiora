@@ -350,48 +350,20 @@ impl PyGmshImport {
     }
 }
 
-/// Immutable caller intent for the currently admitted planar mesh provider.
-#[pyclass(
-    name = "MeshRequest",
-    module = "eqiora._eqiora",
-    frozen,
-    eq,
-    skip_from_py_object
-)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct PyMeshRequest {
-    pub(super) provider: MeshProviderPolicy,
-}
-
-#[pymethods]
-impl PyMeshRequest {
-    #[new]
-    #[pyo3(signature = (provider, /))]
-    fn new(py: Python<'_>, provider: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let provider = if let Ok(provider) = provider.extract::<PyRef<'_, PyGmshMesher>>() {
-            MeshProviderPolicy::Gmsh(*provider)
-        } else if let Ok(provider) = provider.extract::<PyRef<'_, PyReferenceMesher>>() {
-            MeshProviderPolicy::Reference(*provider)
-        } else if let Ok(provider) = provider.extract::<PyRef<'_, PyCartesianMesher>>() {
-            MeshProviderPolicy::Cartesian(*provider)
-        } else if let Ok(provider) = provider.extract::<PyRef<'_, PyAffineTriangleMesher>>() {
-            MeshProviderPolicy::AffineTriangle(*provider)
-        } else {
-            return Err(request_error(
-                py,
-                "provider must be GmshMesher, ReferenceMesher, CartesianMesher, or AffineTriangleMesher",
-            ));
-        };
-        Ok(Self { provider })
-    }
-
-    #[getter]
-    fn provider(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        self.provider.to_python(py)
-    }
-
-    fn __repr__(&self) -> String {
-        format!("MeshRequest({})", self.provider.representation())
+fn extract_provider(py: Python<'_>, provider: &Bound<'_, PyAny>) -> PyResult<MeshProviderPolicy> {
+    if let Ok(provider) = provider.extract::<PyRef<'_, PyGmshMesher>>() {
+        Ok(MeshProviderPolicy::Gmsh(*provider))
+    } else if let Ok(provider) = provider.extract::<PyRef<'_, PyReferenceMesher>>() {
+        Ok(MeshProviderPolicy::Reference(*provider))
+    } else if let Ok(provider) = provider.extract::<PyRef<'_, PyCartesianMesher>>() {
+        Ok(MeshProviderPolicy::Cartesian(*provider))
+    } else if let Ok(provider) = provider.extract::<PyRef<'_, PyAffineTriangleMesher>>() {
+        Ok(MeshProviderPolicy::AffineTriangle(*provider))
+    } else {
+        Err(request_error(
+            py,
+            "provider must be GmshMesher, ReferenceMesher, CartesianMesher, or AffineTriangleMesher",
+        ))
     }
 }
 
@@ -452,7 +424,7 @@ fn provider_repr(name: &str, policy: PlanarMeshQualityV1) -> String {
 )]
 pub(super) struct PyMeshPlan {
     source_digest: String,
-    pub(super) request: PyMeshRequest,
+    pub(super) provider: MeshProviderPolicy,
     pub(super) production: MeshProductionLineageEnvelopeV1,
     pub(super) resolved: ResolvedMeshPlan,
 }
@@ -541,12 +513,7 @@ impl PyMeshPlan {
 
     #[getter]
     fn provider(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        self.request.provider.to_python(py)
-    }
-
-    #[getter]
-    fn request(&self, py: Python<'_>) -> PyResult<Py<PyMeshRequest>> {
-        Py::new(py, self.request)
+        self.provider.to_python(py)
     }
 
     /// Canonical provider occurrence retained by the resolved plan.
@@ -589,7 +556,7 @@ impl PyMeshPlan {
                 2 * (nx + ny)
             }
             ResolvedMeshPlan::AffineTriangle(_) => {
-                let MeshProviderPolicy::AffineTriangle(provider) = self.request.provider else {
+                let MeshProviderPolicy::AffineTriangle(provider) = self.provider else {
                     unreachable!("affine-triangle plan retains affine-triangle provider")
                 };
                 let [nx, ny] = provider.policy.cells();
@@ -624,7 +591,7 @@ impl PyMeshPlan {
     fn __repr__(&self) -> String {
         format!(
             "MeshPlan(provider={}, source_digest={:?}, boundary_facets={})",
-            self.request.provider.representation(),
+            self.provider.representation(),
             self.source_digest,
             self.boundary_facets(),
         )
@@ -633,15 +600,15 @@ impl PyMeshPlan {
 
 /// Resolve one complete provider plan for the exact supplied Geometry.
 #[pyfunction]
-#[pyo3(signature = (geometry, request, /))]
+#[pyo3(signature = (geometry, provider, /))]
 pub(super) fn resolve(
     py: Python<'_>,
     geometry: &PyGeometry,
-    request: PyRef<'_, PyMeshRequest>,
+    provider: &Bound<'_, PyAny>,
 ) -> PyResult<PyMeshPlan> {
     panic_boundary(py, || {
-        let request = *request;
-        let resolved = match request.provider {
+        let provider = extract_provider(py, provider)?;
+        let resolved = match provider {
             MeshProviderPolicy::Gmsh(provider) => {
                 let policy = provider.policy;
                 let quality_gate = MeshQualityGate::new(policy.minimum_mean_ratio())
@@ -706,11 +673,11 @@ pub(super) fn resolve(
                 }))
             }
         };
-        let production = match (&request.provider, &resolved) {
+        let production = match (&provider, &resolved) {
             (
                 MeshProviderPolicy::Gmsh(_) | MeshProviderPolicy::Reference(_),
                 ResolvedMeshPlan::Gmsh(plan),
-            ) => request.provider.production_lineage(
+            ) => provider.production_lineage(
                 geometry.geometry(),
                 &plan.generated.mesh,
                 &plan.generated.correspondence,
@@ -718,11 +685,7 @@ pub(super) fn resolve(
             (
                 MeshProviderPolicy::Gmsh(_) | MeshProviderPolicy::Reference(_),
                 ResolvedMeshPlan::SourceOwned(plan),
-            ) => request.provider.production_lineage(
-                geometry.geometry(),
-                &plan.mesh,
-                &plan.correspondence,
-            ),
+            ) => provider.production_lineage(geometry.geometry(), &plan.mesh, &plan.correspondence),
             (MeshProviderPolicy::Cartesian(provider), ResolvedMeshPlan::Cartesian(plan)) => {
                 MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
                     provider.policy,
@@ -745,7 +708,7 @@ pub(super) fn resolve(
         let production = production.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         Ok(PyMeshPlan {
             source_digest: digest_to_hex(&geometry.geometry().digest_bytes()),
-            request,
+            provider,
             production,
             resolved,
         })

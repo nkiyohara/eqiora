@@ -30,9 +30,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
             "y_upper": rectangle.boundaries[3],
         },
     )
-    request = eqiora.meshing.MeshRequest(
-        eqiora.meshing.CartesianMesher(cells=(16, 16))
-    )
+    request = eqiora.meshing.CartesianMesher(cells=(16, 16))
     plan = eqiora.meshing.resolve(geometry, request)
     return geometry, eqiora.meshing.generate(geometry, plan=plan)
 

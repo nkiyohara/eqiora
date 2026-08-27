@@ -22,7 +22,7 @@ entry = "marimo 0.23.16 checked-in Python application"
 environment = "exact Linux x86-64 CPython 3.13 candidate notebook profile"
 package = "one non-editable installed eqiora candidate with its exact notebook and Matplotlib extras"
 model = "installed eqiora/examples/steady-flow-past-cylinder.model.json package resource"
-composition = "exact Geometry -> MeshRequest -> MeshPlan -> Mesh -> Model -> SteadyStokes -> SteadyStokesPlan -> one Run -> common Result"
+composition = "exact Geometry -> typed mesh provider -> MeshPlan -> Mesh -> Model -> root Plan -> one Run -> common Result"
 presentation = "typed identity and evidence summary plus the existing caller-owned pressure Figure"
 
 [oracle]

@@ -30,7 +30,7 @@ def rectangle(xmax=2.0):
 provider = eqiora.meshing.CartesianMesher(cells=(2, 3))
 assert provider.cells == (2, 3)
 assert repr(provider) == "CartesianMesher(cells=(2, 3))"
-request = eqiora.meshing.MeshRequest(provider)
+request = provider
 source = rectangle()
 plan = eqiora.meshing.resolve(source, request)
 assert plan.provider == provider

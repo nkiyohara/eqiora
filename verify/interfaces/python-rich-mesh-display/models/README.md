@@ -6,7 +6,7 @@ path already verified by
 `interfaces.python-circular-hole-chordal-mesh`.
 
 Both Notebook fixtures construct that accepted Mesh through
-`CadAuthoredGraph -> Geometry -> MeshRequest -> resolve -> generate`. They do
+`CadAuthoredGraph -> Geometry -> typed provider -> resolve -> generate`. They do
 not vendor canonical Mesh bytes, reconstruct topology, call a renderer wrapper,
 or substitute a raw-array object. The distinct same-shape source mutant is
 constructed through the same producer with swapped inlet/outlet source roles;

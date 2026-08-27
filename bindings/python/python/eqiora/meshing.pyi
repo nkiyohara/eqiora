@@ -107,19 +107,6 @@ class GmshImport:
     def __repr__(self) -> str: ...
 
 @final
-class MeshRequest:
-    """Immutable caller intent for one admitted mesh provider.
-
-    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyMeshRequest``.
-    """
-
-    def __new__(cls, provider: AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher, /) -> Self: ...
-    @property
-    def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __repr__(self) -> str: ...
-
-@final
 class MeshPlan:
     """Complete provider choice bound to one exact geometry.
 
@@ -130,8 +117,6 @@ class MeshPlan:
     def source_digest(self) -> str: ...
     @property
     def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher: ...
-    @property
-    def request(self) -> MeshRequest: ...
     @property
     def production_lineage_bytes(self) -> bytes: ...
     @property
@@ -191,7 +176,11 @@ class Mesh:
     ) -> dict[str, object]: ...
     def __repr__(self) -> str: ...
 
-def resolve(geometry: Geometry, request: MeshRequest, /) -> MeshPlan:
+def resolve(
+    geometry: Geometry,
+    provider: AffineTriangleMesher | CartesianMesher | GmshMesher | ReferenceMesher,
+    /,
+) -> MeshPlan:
     """Resolve a provider plan for the exact supplied geometry.
 
     Authority: ``crates/eqiora-python/src/meshing/plan.rs::resolve``.
@@ -227,4 +216,4 @@ def import_gmsh(
 
     ...
 
-__all__ = ["AffineTriangleMesher", "CartesianMesher", "GmshImport", "GmshMesher", "Mesh", "MeshPlan", "MeshRequest", "ReferenceMesher", "generate", "import_gmsh", "resolve"]
+__all__ = ["AffineTriangleMesher", "CartesianMesher", "GmshImport", "GmshMesher", "Mesh", "MeshPlan", "ReferenceMesher", "generate", "import_gmsh", "resolve"]

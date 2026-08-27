@@ -313,9 +313,7 @@ def _geometry_and_mesh(eqiora: Any) -> tuple[Any, Any]:
             "solid_y_upper": solid.boundaries[3],
         },
     )
-    request = eqiora.meshing.MeshRequest(
-        eqiora.meshing.AffineTriangleMesher(cells=(2, 2))
-    )
+    request = eqiora.meshing.AffineTriangleMesher(cells=(2, 2))
     mesh = eqiora.meshing.generate(
         geometry, plan=eqiora.meshing.resolve(geometry, request)
     )

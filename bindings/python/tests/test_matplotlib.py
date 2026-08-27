@@ -44,13 +44,11 @@ def cylinder() -> tuple[eqiora.Plan, eqiora.Result]:
             "cylinder": circle.boundaries[0],
         },
     )
-    request = eqiora.meshing.MeshRequest(
-        eqiora.meshing.ReferenceMesher(
+    request = eqiora.meshing.ReferenceMesher(
             maximum_boundary_error=1.0e-4,
             minimum_mean_ratio=1.0e-5,
             maximum_boundary_facets=50,
         )
-    )
     mesh_plan = eqiora.meshing.resolve(geometry, request)
     mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
     model = eqiora.compile(
@@ -90,9 +88,7 @@ def elasticity() -> tuple[eqiora.Plan, eqiora.Result]:
             "y_upper": rectangle.boundaries[3],
         },
     )
-    request = eqiora.meshing.MeshRequest(
-        eqiora.meshing.CartesianMesher(cells=(16, 16))
-    )
+    request = eqiora.meshing.CartesianMesher(cells=(16, 16))
     mesh_plan = eqiora.meshing.resolve(geometry, request)
     mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
     model = eqiora.compile(

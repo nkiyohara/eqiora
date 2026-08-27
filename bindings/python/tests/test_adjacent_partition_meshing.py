@@ -35,7 +35,7 @@ def partition_geometry(fluid_name: str = "fluid") -> eqiora.geometry.Geometry:
 def test_exact_adjacent_partition_publishes_one_source_owned_common_mesh() -> None:
     source = partition_geometry()
     provider = eqiora.meshing.AffineTriangleMesher(cells=(2, 2))
-    plan = eqiora.meshing.resolve(source, eqiora.meshing.MeshRequest(provider))
+    plan = eqiora.meshing.resolve(source, provider)
     mesh = eqiora.meshing.generate(source, plan=plan)
 
     assert source.bounds == ((0.0, 2.0), (0.0, 1.0))
@@ -102,12 +102,12 @@ def test_partition_rejects_wrong_interface_incomplete_ownership_and_crosswire() 
     source = partition_geometry()
     plan = eqiora.meshing.resolve(
         source,
-        eqiora.meshing.MeshRequest(eqiora.meshing.AffineTriangleMesher(cells=(2, 2))),
+        eqiora.meshing.AffineTriangleMesher(cells=(2, 2)),
     )
     with pytest.raises(eqiora.ValidationError):
         eqiora.meshing.generate(partition_geometry("liquid"), plan=plan)
     with pytest.raises(eqiora.ValidationError):
         eqiora.meshing.resolve(
             source,
-            eqiora.meshing.MeshRequest(eqiora.meshing.AffineTriangleMesher(cells=(1, 2))),
+            eqiora.meshing.AffineTriangleMesher(cells=(1, 2)),
         )

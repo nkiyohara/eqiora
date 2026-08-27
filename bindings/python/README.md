@@ -81,13 +81,11 @@ geometry = graph.build(fluid, named_topology={
     "walls": rectangle.boundaries[2:4],
     "cylinder": circle.boundaries[0],
 })
-mesh_request = eqiora.meshing.MeshRequest(
-    eqiora.meshing.GmshMesher(
+mesh_request = eqiora.meshing.GmshMesher(
         maximum_boundary_error=1e-4,
         minimum_mean_ratio=1e-5,
         maximum_boundary_facets=50,
     )
-)
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
 mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 
@@ -181,7 +179,7 @@ geometry = graph.planar_circular_section(
     y_upper="walls",
     hole="cylinder",
 )
-request = eqiora.meshing.MeshRequest(
+request = eqiora.meshing.ReferenceMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
@@ -331,10 +329,8 @@ geometry = graph.build(rectangle, named_topology={
     "y_lower": rectangle.boundaries[2],
     "y_upper": rectangle.boundaries[3],
 })
-mesh_request = eqiora.meshing.MeshRequest(
-    eqiora.meshing.CartesianMesher(cells=(4, 4))
-)
-mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
+mesh_provider = eqiora.meshing.CartesianMesher(cells=(4, 4))
+mesh_plan = eqiora.meshing.resolve(geometry, mesh_provider)
 mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 
 model = eqiora.compile(

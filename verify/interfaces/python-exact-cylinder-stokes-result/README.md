@@ -14,10 +14,9 @@ model = eqiora.compile(
     geometry=geometry,
     parameters={...},
 )
-mesh = eqiora.mesh(
-    geometry,
-    eqiora.MeshRequest(provider=eqiora.ReferenceMesher(...)),
-)
+mesh_provider = eqiora.meshing.ReferenceMesher(...)
+mesh_plan = eqiora.meshing.resolve(geometry, mesh_provider)
+mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 plan = eqiora.resolve(
     model,
     mesh=mesh,

@@ -31,7 +31,7 @@ provider = eqiora.meshing.AffineTriangleMesher(cells=(2, 3))
 assert provider.cells == (2, 3)
 assert provider.diagonal == "lower-left-to-upper-right"
 assert repr(provider) == "AffineTriangleMesher(cells=(2, 3))"
-request = eqiora.meshing.MeshRequest(provider)
+request = provider
 source = rectangle()
 plan = eqiora.meshing.resolve(source, request)
 assert plan.provider == provider

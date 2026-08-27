@@ -120,7 +120,7 @@ geometry = graph.planar_circular_section(
     y_upper="walls",
     hole="cylinder",
 )
-request = eqiora.meshing.MeshRequest(
+request = eqiora.meshing.ReferenceMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
@@ -161,13 +161,13 @@ def geometry(**overrides: object) -> object:
     )
 
 
-def request(
+def provider(
     *,
     maximum_boundary_error: float = REQUESTED_MAX_BOUNDARY_ERROR,
     minimum_mean_ratio: float = REQUIRED_MINIMUM_MEAN_RATIO,
     maximum_boundary_facets: int = 50,
 ) -> object:
-    return eqiora.meshing.MeshRequest(
+    return eqiora.meshing.ReferenceMesher(
         maximum_boundary_error=maximum_boundary_error,
         minimum_mean_ratio=minimum_mean_ratio,
         maximum_boundary_facets=maximum_boundary_facets,
@@ -184,7 +184,7 @@ def resolve_plan(
     source = geometry() if authored is None else authored
     return eqiora.meshing.resolve(
         source,
-        request(
+        provider(
             maximum_boundary_error=maximum_boundary_error,
             minimum_mean_ratio=minimum_mean_ratio,
             maximum_boundary_facets=maximum_boundary_facets,
@@ -213,7 +213,7 @@ def import_l0(authored: object | None = None, source: bytes | None = None) -> ob
     return eqiora.meshing.import_gmsh(
         geometry() if authored is None else authored,
         IMPORTED_L0_MESH.read_bytes() if source is None else source,
-        request=request(
+        policy=eqiora.meshing.GmshImport(
             maximum_boundary_error=4.0e-3,
             maximum_boundary_facets=8,
         ),
@@ -385,9 +385,9 @@ def test_gmsh_mesh_replays_the_frozen_public_artifact() -> None:
         {name: count for name, count in SELECTION_COUNTS.items() if name != "fluid"}
     )
 
-    assert plan.request.maximum_boundary_error == REQUESTED_MAX_BOUNDARY_ERROR
-    assert plan.request.minimum_mean_ratio == REQUIRED_MINIMUM_MEAN_RATIO
-    assert plan.request.maximum_boundary_facets == 50
+    assert plan.provider.maximum_boundary_error == REQUESTED_MAX_BOUNDARY_ERROR
+    assert plan.provider.minimum_mean_ratio == REQUIRED_MINIMUM_MEAN_RATIO
+    assert plan.provider.maximum_boundary_facets == 50
     assert plan.boundary_evaluation_allowance == BOUNDARY_EVALUATION_ALLOWANCE
     assert plan.boundary_error_bound <= REQUESTED_MAX_BOUNDARY_ERROR
     assert math.isclose(
@@ -398,7 +398,7 @@ def test_gmsh_mesh_replays_the_frozen_public_artifact() -> None:
     )
     assert plan.achieved_minimum_mean_ratio == MINIMUM_MEAN_RATIO
     assert mesh.minimum_mean_ratio == MINIMUM_MEAN_RATIO
-    assert mesh.minimum_mean_ratio >= plan.request.minimum_mean_ratio
+    assert mesh.minimum_mean_ratio >= plan.provider.minimum_mean_ratio
     assert mesh.external_import_manifest_bytes is None
     assert mesh.external_import_manifest_digest is None
     assert affine_quality_observations(mesh) == (
@@ -867,12 +867,12 @@ def test_every_nonexact_gmsh_version_is_structured_validation_without_fallback(
 
 def test_mesh_wrapper_is_immutable() -> None:
     source = geometry()
-    request_value = request()
-    plan = eqiora.meshing.resolve(source, request_value)
+    provider_value = provider()
+    plan = eqiora.meshing.resolve(source, provider_value)
     mesh = realize()
 
     with pytest.raises(AttributeError):
-        request_value.maximum_boundary_error = 0.1
+        provider_value.maximum_boundary_error = 0.1
     with pytest.raises(AttributeError):
         plan.source_digest = "0" * 64
     with pytest.raises(AttributeError):
@@ -935,8 +935,8 @@ def test_mesh_policy_is_distinct_from_geometry_classification_tolerance() -> Non
 
     assert fine_classification.source_digest != coarse_classification.source_digest
     assert fine_classification.digest == coarse_classification.digest
-    assert fine_plan.request.maximum_boundary_error == (
-        coarse_plan.request.maximum_boundary_error
+    assert fine_plan.provider.maximum_boundary_error == (
+        coarse_plan.provider.maximum_boundary_error
     )
     assert fine_plan.boundary_facets == coarse_plan.boundary_facets
     assert fine_plan.boundary_error_bound == coarse_plan.boundary_error_bound
@@ -962,7 +962,6 @@ def test_meshing_surface_uses_common_boundaries_without_overclaiming() -> None:
     for supported in (
         "Mesh",
         "MeshPlan",
-        "MeshRequest",
         "generate",
         "import_gmsh",
         "resolve",

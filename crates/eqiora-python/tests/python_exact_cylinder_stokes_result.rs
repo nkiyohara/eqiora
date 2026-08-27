@@ -37,11 +37,11 @@ model = eqiora.compile(
         "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
     },
 )
-mesh_request = eqiora.meshing.MeshRequest(eqiora.meshing.ReferenceMesher(
+mesh_request = eqiora.meshing.ReferenceMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
-))
+)
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
 mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 plan = eqiora.resolve(

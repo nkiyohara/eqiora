@@ -179,7 +179,7 @@ The bounded realization requests at most 50 circular-boundary facets, then
 resolves and generates the source-bound mesh:
 
 ```python
-mesh_request = eqiora.meshing.MeshRequest(
+mesh_request = eqiora.meshing.ReferenceMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,

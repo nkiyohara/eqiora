@@ -1247,7 +1247,7 @@ pub(super) fn generate(
                     "MeshPlan belongs to a different exact Geometry",
                 ));
             }
-            let super::plan::MeshProviderPolicy::Gmsh(provider) = plan.request.provider else {
+            let super::plan::MeshProviderPolicy::Gmsh(provider) = plan.provider else {
                 unreachable!("Gmsh resolved plan retains Gmsh provider policy")
             };
             super::gmsh::revalidate_generated(
@@ -1256,8 +1256,7 @@ pub(super) fn generate(
                 provider.policy,
             )
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            plan.request
-                .provider
+            plan.provider
                 .validate_production_lineage(
                     &plan.production,
                     &resolved.source,
@@ -1292,8 +1291,7 @@ pub(super) fn generate(
             resolved
                 .revalidate(geometry.geometry())
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            plan.request
-                .provider
+            plan.provider
                 .validate_production_lineage(
                     &plan.production,
                     &resolved.source,
@@ -1304,7 +1302,7 @@ pub(super) fn generate(
             PyMesh::from_source_owned(py, resolved, &plan.production)
         }
         ResolvedMeshPlan::Cartesian(resolved) => {
-            let super::plan::MeshProviderPolicy::Cartesian(provider) = plan.request.provider else {
+            let super::plan::MeshProviderPolicy::Cartesian(provider) = plan.provider else {
                 unreachable!("Cartesian resolved plan retains Cartesian provider policy")
             };
             resolved
@@ -1328,8 +1326,7 @@ pub(super) fn generate(
             )
         }
         ResolvedMeshPlan::AffineTriangle(resolved) => {
-            let super::plan::MeshProviderPolicy::AffineTriangle(provider) = plan.request.provider
-            else {
+            let super::plan::MeshProviderPolicy::AffineTriangle(provider) = plan.provider else {
                 unreachable!("affine-triangle resolved plan retains affine-triangle provider")
             };
             resolved

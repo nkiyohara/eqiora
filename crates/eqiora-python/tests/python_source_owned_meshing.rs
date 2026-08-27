@@ -41,7 +41,7 @@ reference_provider = eqiora.meshing.ReferenceMesher(
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
 )
-request = eqiora.meshing.MeshRequest(reference_provider)
+request = reference_provider
 source = geometry()
 plan = eqiora.meshing.resolve(source, request)
 same_plan = eqiora.meshing.resolve(source, request)
@@ -96,7 +96,7 @@ gmsh_provider = eqiora.meshing.GmshMesher(
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
 )
-gmsh_request = eqiora.meshing.MeshRequest(gmsh_provider)
+gmsh_request = gmsh_provider
 gmsh_plan = eqiora.meshing.resolve(source, gmsh_request)
 assert gmsh_plan.provider == gmsh_provider
 assert gmsh_plan.boundary_facets == plan.boundary_facets <= 50
