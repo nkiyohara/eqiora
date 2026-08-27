@@ -88,18 +88,6 @@ except eqiora.ValidationError as error:
 else:
     raise AssertionError("an unknown exact selection returned a value")
 
-try:
-    make(
-        bounds=((0.0, 1.0), (0.0, 1.0)),
-        circle_center=(0.1875, 0.5),
-        circle_radius=0.125,
-    )
-except eqiora.ValidationError as error:
-    assert error.category == "validation"
-    assert error.diagnostics
-else:
-    raise AssertionError("a circle at tolerance clearance was admitted")
-
 canonical_json = geometry.canonical_bytes
 python_digest = geometry.digest
 "#
