@@ -8,7 +8,7 @@ ordinary Run path used by Studio. The common `Result` retains the complete
 two-state `Trajectory`, relational Model → geometry → correspondence → mesh →
 Realization → state → trajectory → Run lineage, and solver-owned coupled
 fields. `fixed_mesh_monolithic_evidence(result)` retains the exhaustive
-partition and selects each state observation by exact `TrajectoryState`.
+partition and selects each state observation by exact `State`.
 
 Common scalar and deformed stills over this common Result's accepted
 `Trajectory` are

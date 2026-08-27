@@ -2,7 +2,6 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::time::Instant;
 
 use eqiora::backends::faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
 use eqiora::realization::{Space, SpaceFamily};
@@ -15,11 +14,9 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyModule, PyTuple};
 
-use crate::error::{execution_error, validation_error};
-use crate::execution::RunIdentity;
+use crate::error::validation_error;
 use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelFieldRef};
-use crate::result::PyRunResult;
 
 mod policy;
 use policy::{
@@ -84,7 +81,7 @@ fn space_name(space: Space) -> &'static str {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum CommonPlanKind {
+pub(crate) enum CommonPlanKind {
     Scalar(Box<CommonScalarPlan>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     TransientFlow(Box<CommonTransientFlowPlan>),
@@ -182,8 +179,23 @@ pub(crate) struct PyPlan {
 }
 
 impl PyPlan {
+    pub(crate) fn model_handle(&self, py: Python<'_>) -> Py<PyModel> {
+        self.model.clone_ref(py)
+    }
+
     pub(crate) fn mesh_handle(&self, py: Python<'_>) -> Py<PyMesh> {
         self.mesh.clone_ref(py)
+    }
+
+    pub(crate) fn transient_native(&self) -> Option<&CommonTransientFlowPlan> {
+        match &self.native {
+            CommonPlanKind::TransientFlow(plan) => Some(plan),
+            CommonPlanKind::Scalar(_) | CommonPlanKind::SteadyStokes(_) => None,
+        }
+    }
+
+    pub(crate) fn native(&self) -> &CommonPlanKind {
+        &self.native
     }
 }
 
@@ -642,65 +654,6 @@ fn resolve_plan(
     })
 }
 
-#[pyfunction(name = "_run_plan")]
-#[pyo3(signature = (plan, /))]
-fn run_plan(py: Python<'_>, plan: &PyPlan) -> PyResult<PyRunResult> {
-    let native = plan.native.clone();
-    match native {
-        CommonPlanKind::Scalar(native) => {
-            let (run, elapsed) = py
-                .detach(move || {
-                    let started = Instant::now();
-                    native.run().map(|run| (run, started.elapsed()))
-                })
-                .map_err(|diagnostic| execution_error(py, &[diagnostic]))?;
-            let CommonPlanKind::Scalar(native) = &plan.native else {
-                unreachable!()
-            };
-            let identity = RunIdentity::from_common_plan(native);
-            PyRunResult::from_common_scalar(
-                py,
-                identity,
-                plan.mesh_handle(py),
-                native.field_id().to_owned(),
-                native.cells(),
-                elapsed,
-                run,
-            )
-        }
-        CommonPlanKind::SteadyStokes(native) => {
-            let (run, elapsed) = py
-                .detach(move || {
-                    let started = Instant::now();
-                    native
-                        .run(&FaerLinearSolver)
-                        .map(|run| (run, started.elapsed()))
-                })
-                .map_err(|diagnostic| execution_error(py, &[diagnostic]))?;
-            let CommonPlanKind::SteadyStokes(native) = &plan.native else {
-                unreachable!()
-            };
-            let identity = RunIdentity::from_common_steady_stokes(native);
-            PyRunResult::from_common_steady_stokes(
-                py,
-                identity,
-                plan.mesh_handle(py),
-                native.velocity_field_id().to_owned(),
-                native.pressure_field_id().to_owned(),
-                elapsed,
-                run,
-            )
-        }
-        CommonPlanKind::TransientFlow(_) => Err(crate::diagnostic_error(
-            py,
-            &[eqiora::Diagnostic::error(
-                eqiora::diagnostic::codes::NOT_IMPLEMENTED,
-                "transient Plan execution belongs to the State/horizon API and is not available in this resolution slice",
-            )],
-        )),
-    }
-}
-
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyQ1>()?;
     module.add_class::<PyMiniP1>()?;
@@ -713,7 +666,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPlan>()?;
     scaling::register(module)?;
     module.add_function(wrap_pyfunction!(resolve_plan, module)?)?;
-    module.add_function(wrap_pyfunction!(run_plan, module)?)?;
     Ok(())
 }
 
@@ -1258,6 +1210,12 @@ assert plan.solver_backend == "eqiora.faer"
 assert plan.solve is linear
 result = package.run(plan)
 assert isinstance(result, package.Result)
+try:
+    package.State.zero(plan)
+except ValueError:
+    pass
+else:
+    raise AssertionError("State.zero admitted a steady Plan")
 assert result.model_digest == plan.model_digest
 assert result.plan_key == plan.identity
 assert package.run(partial_equal).plan_key == partial_equal.identity
@@ -1337,7 +1295,7 @@ assert not hasattr(package.fluid, "AUTO")
     }
 
     #[test]
-    fn root_plan_resolves_transient_flow_without_exposing_execution_state() -> PyResult<()> {
+    fn root_plan_resolves_and_runs_transient_flow_through_common_state() -> PyResult<()> {
         Python::initialize();
         Python::attach(|py| {
             let native = pyo3::wrap_pymodule!(crate::_eqiora)(py);
@@ -1373,7 +1331,7 @@ source = graph.build(rectangle, named_topology={
 })
 affine_plan = package.meshing.resolve(source, package.meshing.MeshRequest(package.meshing.AffineTriangleMesher(cells=(2, 3))))
 affine = package.meshing.generate(source, plan=affine_plan)
-cartesian_plan = package.meshing.resolve(source, package.meshing.MeshRequest(package.meshing.CartesianMesher(cells=(2, 3))))
+cartesian_plan = package.meshing.resolve(source, package.meshing.MeshRequest(package.meshing.CartesianMesher(cells=(4, 4))))
 cartesian = package.meshing.generate(source, plan=cartesian_plan)
 linear = package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=2000)
 newton = package.solve.Newton(linear=linear)
@@ -1484,12 +1442,104 @@ for kwargs in (
         pass
     else:
         raise AssertionError(f"invalid Newton controls admitted: {kwargs}")
+mini_zero = package.State.zero(mini)
+assert mini_zero.time_s == 0.0
+assert mini_zero.mesh is affine
+assert mini_zero.model is model
+assert mini_zero.source_plan_identity == mini.identity
+assert mini_zero.source_request_identity is None
+assert mini_zero.source_trajectory_identity is None
+assert mini_zero.source_kind == "zero"
+assert len(mini_zero.fields) == 2
+assert mini_zero.field(mini.velocity_field).associations == ("vertex", "cell")
+assert mini_zero.field(mini.pressure_field).associations == ("vertex",)
+
+mini_one_sync = package.run(mini, state=mini_zero, steps=1, output_steps=(1,))
+mini_one_async = package.submit(mini, state=mini_zero, steps=1, output_steps=(1,)).result()
+assert mini_one_sync.trajectory.digest == mini_one_async.trajectory.digest
+mini_one_time = package.run(mini, state=mini_zero, until_s=0.01, output_times_s=(0.01,))
+assert mini_one_sync.trajectory.digest == mini_one_time.trajectory.digest
+mini_two = package.run(mini, state=mini_zero, steps=2, output_steps=(1, 2))
+assert tuple(state.step for state in mini_two.trajectory.states) == (1, 2)
+assert tuple(state.time_s for state in mini_two.trajectory.states) == (0.01, 0.02)
+mini_restart = package.State.from_result(custom, mini_one_sync, time_s=0.01)
+assert mini_restart.state_space_identity == mini_zero.state_space_identity
+assert mini_restart.source_plan_identity == mini.identity
+assert mini_restart.source_request_identity == mini_one_sync.plan_key
+assert mini_restart.source_trajectory_identity == mini_one_sync.trajectory.digest
+assert mini_restart.source_kind == "result"
+assert mini_restart.mesh is affine
+assert mini_restart.field(mini.velocity_field).values("vertex").flags.writeable is False
+
+fvm_zero = package.State.zero(fvm)
+assert fvm_zero.mesh is cartesian
+assert fvm_zero.field(fvm.velocity_field).associations == ("cell",)
+assert fvm_zero.field(fvm.pressure_field).associations == ("cell",)
+fvm_two = package.run(fvm, state=fvm_zero, steps=2, output_steps=(2,))
+assert fvm_two.trajectory.plan_identity == fvm.identity
+assert fvm_two.trajectory.realization_digest is None
+assert fvm_two.trajectory.request_identity == fvm_two.plan_key
+assert fvm_two.trajectory.run_digest is None
+fvm_first = package.run(fvm, state=fvm_zero, steps=1, output_steps=(1,))
+fvm_restart = package.State.from_result(fvm, fvm_first, time_s=0.01)
+fvm_second = package.run(fvm, state=fvm_restart, steps=1, output_steps=(1,))
+assert fvm_two.trajectory.states[0] == fvm_second.trajectory.states[0]
+alternate_scaling = package.fluid.IncompressibleScaling(length_m=2.0, velocity_m_per_s=4.0, pressure_pa=6.0)
+fvm_alternate = package.resolve(
+    model, mesh=cartesian, spatial=package.fvm.CellCentered(), solve=newton,
+    scaling=alternate_scaling, temporal=temporal,
+)
+assert fvm_alternate.identity != fvm.identity
+fvm_second_alternate = package.run(
+    fvm_alternate, state=fvm_restart, steps=1, output_steps=(1,),
+)
+assert fvm_second_alternate.trajectory.states[0] == fvm_second.trajectory.states[0]
+
+for invalid_time in (float("nan"), float("inf"), -1.0, -0.0):
+    try:
+        package.State.zero(mini, time_s=invalid_time)
+    except (ValueError, package.ValidationError):
+        pass
+    else:
+        raise AssertionError(f"invalid zero-State time was admitted: {invalid_time!r}")
+for invalid_operation in range(6):
+    try:
+        if invalid_operation == 0:
+            package.submit(fvm, state=mini_zero, steps=1, output_steps=(1,))
+        elif invalid_operation == 1:
+            package.State.from_result(fvm, mini_one_sync, time_s=0.01)
+        elif invalid_operation == 2:
+            package.submit(mini, state=mini_zero, steps=2, output_steps=(0,))
+        elif invalid_operation == 3:
+            package.submit(mini, state=mini_zero, steps=2, output_steps=(1, 1))
+        elif invalid_operation == 4:
+            package.submit(mini, state=mini_zero, steps=2, output_steps=(3,))
+        else:
+            package.submit(mini, state=mini_zero, until_s=0.015, output_times_s=(0.01,))
+    except (ValueError, package.ValidationError):
+        pass
+    else:
+        raise AssertionError("foreign State or invalid exact schedule was admitted")
+
+for kwargs in (
+    {},
+    dict(state=mini_zero),
+    dict(state=mini_zero, steps=1),
+    dict(state=mini_zero, output_steps=(1,)),
+    dict(state=mini_zero, steps=1, output_steps=(1,), until_s=0.01, output_times_s=(0.01,)),
+):
+    try:
+        package.submit(mini, **kwargs)
+    except TypeError:
+        pass
+    else:
+        raise AssertionError(f"incomplete or mixed transient Run controls admitted: {kwargs}")
 try:
-    package.run(mini)
-except package.CapabilityError:
+    package.submit(model=model, end_time=0.01, max_step=0.01)
+except TypeError:
     pass
 else:
-    raise AssertionError("transient resolution slice exposed execution")
+    raise AssertionError("legacy root submit form remained callable")
 "#),
                 None,
                 Some(&locals),

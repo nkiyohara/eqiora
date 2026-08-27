@@ -12,6 +12,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule, PyTuple};
 
 use crate::array::PyArrayBuffer;
+use crate::common_plan::{CommonPlanKind, PyPlan};
 use crate::diagnostic_error;
 use crate::elasticity::PyLinearElasticityEvidence;
 use crate::execution::RunIdentity;
@@ -20,7 +21,7 @@ use crate::meshing::PyMesh;
 use crate::model::PyModelFieldRef;
 use crate::realization::{PyLinearSolveSummary, PyRunManifest};
 use crate::steady_stokes::PySteadyStokesEvidence;
-use crate::trajectory::{PyFieldSnapshot, PyTrajectory};
+use crate::trajectory::{PyFieldSnapshot, PyState, PyTrajectory};
 
 /// Immutable coefficients for one exact Model Field on one exact Mesh.
 #[pyclass(
@@ -211,6 +212,10 @@ struct CommonFieldResultPayload {
     solve: Py<PyLinearSolveSummary>,
 }
 
+struct CommonTrajectoryResultPayload {
+    trajectory: Py<PyTrajectory>,
+}
+
 enum ResultPayload {
     Series {
         fields: Vec<Py<PySeries>>,
@@ -220,6 +225,7 @@ enum ResultPayload {
     Trajectory(TrajectoryResultPayload),
     Scalar(ScalarResultPayload),
     CommonFields(CommonFieldResultPayload),
+    CommonTrajectory(CommonTrajectoryResultPayload),
 }
 
 /// One accepted execution occurrence with typed output relationships.
@@ -237,6 +243,29 @@ pub(crate) struct PyRunResult {
 
 #[pymethods]
 impl PyRunResult {
+    pub(crate) fn common_state_at(
+        &self,
+        py: Python<'_>,
+        state_space_identity: &str,
+        time_s: f64,
+    ) -> Option<Py<PyState>> {
+        let ResultPayload::CommonTrajectory(payload) = &self.payload else {
+            return None;
+        };
+        payload
+            .trajectory
+            .borrow(py)
+            .state_handles(py)
+            .into_iter()
+            .find(|state| {
+                let state = state.borrow(py);
+                state
+                    .common_native()
+                    .is_some_and(|native| native.state_space_identity() == state_space_identity)
+                    && state.time_s_value().to_bits() == time_s.to_bits()
+            })
+    }
+
     #[getter]
     fn model_id(&self) -> &str {
         self.identity.model_id()
@@ -283,6 +312,7 @@ impl PyRunResult {
             | ResultPayload::Trajectory(_)
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_) => Vec::new(),
+            ResultPayload::CommonTrajectory(_) => Vec::new(),
         }
     }
 
@@ -299,6 +329,7 @@ impl PyRunResult {
             ResultPayload::Trajectory(_)
             | ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_) => Vec::new(),
+            ResultPayload::CommonTrajectory(_) => Vec::new(),
         };
         Ok(PyTuple::new(py, snapshots)?.unbind())
     }
@@ -308,6 +339,7 @@ impl PyRunResult {
     fn trajectory(&self, py: Python<'_>) -> PyResult<Py<PyTrajectory>> {
         match &self.payload {
             ResultPayload::Trajectory(payload) => Ok(payload.trajectory.clone_ref(py)),
+            ResultPayload::CommonTrajectory(payload) => Ok(payload.trajectory.clone_ref(py)),
             ResultPayload::Series { .. }
             | ResultPayload::Static(_)
             | ResultPayload::Scalar(_)
@@ -402,7 +434,8 @@ impl PyRunResult {
             ResultPayload::Trajectory(payload) => Ok(payload.run_manifest.clone_ref(py)),
             ResultPayload::Series { .. }
             | ResultPayload::Scalar(_)
-            | ResultPayload::CommonFields(_) => Err(capability_error(
+            | ResultPayload::CommonFields(_)
+            | ResultPayload::CommonTrajectory(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no durable Run manifest",
             )),
@@ -415,7 +448,8 @@ impl PyRunResult {
             ResultPayload::Static(_)
             | ResultPayload::Trajectory(_)
             | ResultPayload::Scalar(_)
-            | ResultPayload::CommonFields(_) => 0,
+            | ResultPayload::CommonFields(_)
+            | ResultPayload::CommonTrajectory(_) => 0,
         }
     }
 
@@ -439,7 +473,8 @@ impl PyRunResult {
                 ResultPayload::Static(payload) => payload.outputs.len(),
                 ResultPayload::Trajectory(_)
                 | ResultPayload::Scalar(_)
-                | ResultPayload::CommonFields(_) => 0,
+                | ResultPayload::CommonFields(_)
+                | ResultPayload::CommonTrajectory(_) => 0,
             },
             self.model_digest(),
             self.plan_key(),
@@ -628,7 +663,9 @@ impl PyRunResult {
     ) -> PyResult<&StaticFieldOutput> {
         if matches!(
             &self.payload,
-            ResultPayload::Trajectory(_) | ResultPayload::CommonFields(_)
+            ResultPayload::Trajectory(_)
+                | ResultPayload::CommonFields(_)
+                | ResultPayload::CommonTrajectory(_)
         ) {
             return Err(capability_error(
                 py,
@@ -680,6 +717,10 @@ impl PyRunResult {
                 py,
                 "this common Result does not fabricate a durable steady-Stokes evidence artifact",
             )),
+            ResultPayload::CommonTrajectory(_) => Err(capability_error(
+                py,
+                "this transient Result has no steady-Stokes evidence",
+            )),
         }
     }
 
@@ -696,7 +737,8 @@ impl PyRunResult {
             | ResultPayload::Series { .. }
             | ResultPayload::Trajectory(_)
             | ResultPayload::Scalar(_)
-            | ResultPayload::CommonFields(_) => Err(capability_error(
+            | ResultPayload::CommonFields(_)
+            | ResultPayload::CommonTrajectory(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no linear-elasticity evidence",
             )),
@@ -712,7 +754,8 @@ impl PyRunResult {
             ResultPayload::Static(_)
             | ResultPayload::Series { .. }
             | ResultPayload::Scalar(_)
-            | ResultPayload::CommonFields(_) => Err(capability_error(
+            | ResultPayload::CommonFields(_)
+            | ResultPayload::CommonTrajectory(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no fixed-mesh monolithic FSI evidence",
             )),
@@ -778,6 +821,75 @@ impl PyRunResult {
             }),
         }
     }
+}
+
+pub(crate) fn materialize_common_scalar(
+    py: Python<'_>,
+    plan: PyRef<'_, PyPlan>,
+    identity: RunIdentity,
+    elapsed_seconds: f64,
+    result: ResolvedScalarEllipticCartesianSolution,
+) -> PyResult<PyRunResult> {
+    let CommonPlanKind::Scalar(native) = plan.native() else {
+        return Err(PyRuntimeError::new_err(
+            "common scalar output crossed a different Plan",
+        ));
+    };
+    PyRunResult::from_common_scalar(
+        py,
+        identity,
+        plan.mesh_handle(py),
+        native.field_id().to_owned(),
+        native.cells(),
+        Duration::from_secs_f64(elapsed_seconds),
+        result,
+    )
+}
+
+pub(crate) fn materialize_common_steady_stokes(
+    py: Python<'_>,
+    plan: PyRef<'_, PyPlan>,
+    identity: RunIdentity,
+    elapsed_seconds: f64,
+    result: SteadyStokesMiniSolution2d,
+) -> PyResult<PyRunResult> {
+    let CommonPlanKind::SteadyStokes(native) = plan.native() else {
+        return Err(PyRuntimeError::new_err(
+            "common steady-Stokes output crossed a different Plan",
+        ));
+    };
+    PyRunResult::from_common_steady_stokes(
+        py,
+        identity,
+        plan.mesh_handle(py),
+        native.velocity_field_id().to_owned(),
+        native.pressure_field_id().to_owned(),
+        Duration::from_secs_f64(elapsed_seconds),
+        result,
+    )
+}
+
+pub(crate) fn materialize_common_transient(
+    py: Python<'_>,
+    plan: PyRef<'_, PyPlan>,
+    identity: RunIdentity,
+    elapsed_seconds: f64,
+    states: Vec<(usize, eqiora_numerics::CommonState)>,
+) -> PyResult<PyRunResult> {
+    if !matches!(plan.native(), CommonPlanKind::TransientFlow(_)) {
+        return Err(PyRuntimeError::new_err(
+            "common transient output crossed a different Plan",
+        ));
+    }
+    let trajectory = Py::new(
+        py,
+        PyTrajectory::from_common(py, &plan, identity.plan_key(), states)?,
+    )?;
+    Ok(PyRunResult {
+        identity,
+        elapsed_seconds,
+        payload: ResultPayload::CommonTrajectory(CommonTrajectoryResultPayload { trajectory }),
+    })
 }
 
 pub(crate) fn result_into_python(

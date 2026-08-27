@@ -6,7 +6,7 @@ that does not implement them, from the public bounded claim registered as
 at revision `0bf2d2059499c98c70d811aca59e524a8c2a3b0c`.
 
 - `interfaces.python-fixed-mesh-trajectory` owns the accepted `Trajectory`,
-  `TrajectoryState`, and `FieldSnapshot` projection, its exact Model-bound
+  `State`, and `FieldSnapshot` projection, its exact Model-bound
   `FieldRef` selection, its whole-mesh zero-extended coefficient blocks, and
   its exact support membership.
 - `interfaces.python-fixed-reference-fsi-demo` and

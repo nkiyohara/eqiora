@@ -129,6 +129,22 @@ impl PyMesh {
         &self.lineage.mesh_digest
     }
 
+    pub(crate) fn coordinate_array(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
+        self.coordinates.numpy(py)
+    }
+
+    pub(crate) fn cell_array(&self, py: Python<'_>) -> PyResult<Py<PyArray2<u32>>> {
+        self.cells.numpy(py)
+    }
+
+    pub(crate) fn source_digest_value(&self) -> &str {
+        &self.lineage.source_digest
+    }
+
+    pub(crate) fn correspondence_digest_value(&self) -> &str {
+        &self.lineage.correspondence_digest
+    }
+
     /// Exact Geometry identity retained by the source binding.
     #[getter]
     fn source_digest(&self) -> &str {

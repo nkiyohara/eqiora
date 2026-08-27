@@ -70,7 +70,7 @@ are recorded here.
 
 - Removed the unreleased Python `FixedReferenceFsiStep`,
   `FixedReferenceFsiResult`, and `solve_fixed_reference_fsi(...)` names. Exact
-  spatial Fields now live only on `TrajectoryState`/`FieldSnapshot`, while
+  spatial Fields now live only on `State`/`FieldSnapshot`, while
   partition, interface, energy, residual, solve, and assembly observations are
   selected through `fixed_mesh_monolithic_evidence(result)`.
 

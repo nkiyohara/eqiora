@@ -11,7 +11,11 @@ use eqiora::api::{
 };
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
+use eqiora_numerics::{
+    CommonScalarPlan, CommonSpatialPolicy, CommonSteadyStokesPlan, CommonTransientRunRequest,
+};
 
+use super::evidence::PyCommonTransientRunProgress;
 use super::{
     NativeRunCancellation, NativeRunOutput, NativeRunProgress, RunFailure, RunShared, RunTerminal,
 };
@@ -99,11 +103,54 @@ pub(super) enum NativeRunJob {
     SteadyStokes(Box<ResolvedSteadyStokesPlan2d>),
     LinearElasticity(Box<ResolvedLinearElasticityPlan2d>),
     FixedMeshMonolithic(Box<ResolvedFixedMeshMonolithicFsiPlan2d>),
+    CommonScalar(Box<CommonScalarPlan>),
+    CommonSteadyStokes(Box<CommonSteadyStokesPlan>),
+    CommonTransient(Box<CommonTransientRunRequest>),
 }
 
 enum NativeWorkerOutcome {
     Completed(NativeRunOutput),
     Cancelled(NativeRunCancellation),
+}
+
+enum AcceptedStepOutcome<S> {
+    Completed(Vec<(usize, S)>),
+    Cancelled { accepted_steps: usize, state: S },
+}
+
+/// Private deterministic controller seam for accepted-step scheduling.
+///
+/// The controller is observed only before step one and after a fully accepted
+/// step. Production supplies the shared cancellation flag; tests inject exact
+/// boundary decisions without racing a worker thread or creating a public event API.
+fn run_accepted_steps<S: Clone, E>(
+    initial: S,
+    maximum_steps: usize,
+    output_steps: &[usize],
+    mut advance: impl FnMut(S) -> Result<S, E>,
+    mut cancel_at_boundary: impl FnMut(usize, &S) -> bool,
+) -> Result<AcceptedStepOutcome<S>, E> {
+    let mut state = initial;
+    if cancel_at_boundary(0, &state) {
+        return Ok(AcceptedStepOutcome::Cancelled {
+            accepted_steps: 0,
+            state,
+        });
+    }
+    let mut outputs = Vec::with_capacity(output_steps.len());
+    for accepted_steps in 1..=maximum_steps {
+        state = advance(state)?;
+        if output_steps.binary_search(&accepted_steps).is_ok() {
+            outputs.push((accepted_steps, state.clone()));
+        }
+        if cancel_at_boundary(accepted_steps, &state) {
+            return Ok(AcceptedStepOutcome::Cancelled {
+                accepted_steps,
+                state,
+            });
+        }
+    }
+    Ok(AcceptedStepOutcome::Completed(outputs))
 }
 
 fn execute_job(
@@ -190,6 +237,78 @@ fn execute_job(
                 },
             ))
         }
+        NativeRunJob::CommonScalar(plan) => {
+            let started = Instant::now();
+            let result = plan.run().map_err(|diagnostic| vec![diagnostic])?;
+            Ok(NativeWorkerOutcome::Completed(
+                NativeRunOutput::CommonScalar {
+                    result: Box::new(result),
+                    elapsed_seconds: started.elapsed().as_secs_f64(),
+                },
+            ))
+        }
+        NativeRunJob::CommonSteadyStokes(plan) => {
+            let started = Instant::now();
+            let result = plan
+                .run(&FaerLinearSolver)
+                .map_err(|diagnostic| vec![diagnostic])?;
+            Ok(NativeWorkerOutcome::Completed(
+                NativeRunOutput::CommonSteadyStokes {
+                    result: Box::new(result),
+                    elapsed_seconds: started.elapsed().as_secs_f64(),
+                },
+            ))
+        }
+        NativeRunJob::CommonTransient(request) => {
+            let started = Instant::now();
+            let maximum_steps = request.accepted_steps().get();
+            let outcome = run_accepted_steps(
+                request.state().clone(),
+                maximum_steps,
+                request.output_steps(),
+                |state| match request.plan().spatial() {
+                    CommonSpatialPolicy::MiniP1 => {
+                        request.plan().advance_one(&state, &FaerLinearSolver)
+                    }
+                    CommonSpatialPolicy::CellCentered => {
+                        request.plan().advance_one(&state, &REFERENCE_LINEAR_SOLVER)
+                    }
+                    _ => unreachable!("closed transient spatial policy"),
+                },
+                |accepted_steps, state| {
+                    if accepted_steps > 0 {
+                        shared.publish_progress(NativeRunProgress::CommonTransient(
+                            PyCommonTransientRunProgress {
+                                accepted_steps,
+                                maximum_steps,
+                                model_time_bits: state.time_s().to_bits(),
+                            },
+                        ));
+                    }
+                    shared.cancellation_requested()
+                },
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
+            match outcome {
+                AcceptedStepOutcome::Cancelled {
+                    accepted_steps,
+                    state,
+                } => Ok(NativeWorkerOutcome::Cancelled(
+                    NativeRunCancellation::CommonTransient {
+                        accepted_steps,
+                        maximum_steps,
+                        model_time_s: state.time_s(),
+                        request_identity: request.identity().to_owned(),
+                    },
+                )),
+                AcceptedStepOutcome::Completed(states) => Ok(NativeWorkerOutcome::Completed(
+                    NativeRunOutput::CommonTransient {
+                        states,
+                        elapsed_seconds: started.elapsed().as_secs_f64(),
+                    },
+                )),
+            }
+        }
     }
 }
 
@@ -214,7 +333,7 @@ pub(super) fn run_worker(job: NativeRunJob, shared: Arc<RunShared>) {
 
 #[cfg(test)]
 mod tests {
-    use super::progress_publication_due;
+    use super::{AcceptedStepOutcome, progress_publication_due, run_accepted_steps};
 
     #[test]
     fn progress_policy_coalesces_until_the_interval_or_cancellation() {
@@ -231,5 +350,33 @@ mod tests {
             false
         ));
         assert!(progress_publication_due(Some(start), start, true));
+    }
+
+    #[test]
+    fn injected_controller_cancels_only_at_exact_accepted_boundaries() {
+        for cancellation_boundary in [0, 1] {
+            let mut observed = Vec::new();
+            let outcome = run_accepted_steps(
+                0_u64,
+                3,
+                &[1, 2, 3],
+                |state| Ok::<_, ()>(state + 1),
+                |accepted, state| {
+                    observed.push((accepted, *state));
+                    accepted == cancellation_boundary
+                },
+            )
+            .unwrap();
+            let AcceptedStepOutcome::Cancelled {
+                accepted_steps,
+                state,
+            } = outcome
+            else {
+                panic!("injected cancellation returned partial success")
+            };
+            assert_eq!(accepted_steps, cancellation_boundary);
+            assert_eq!(state, cancellation_boundary as u64);
+            assert_eq!(observed.last(), Some(&(cancellation_boundary, state)));
+        }
     }
 }

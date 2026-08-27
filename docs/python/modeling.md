@@ -421,7 +421,7 @@ owner of the exact Model, Geometry, correspondence, Mesh, Realization, Run,
 ordered-state, and trajectory identities as well as the fixed reference
 coordinates, connectivity, and spatial fields. `FixedMeshMonolithicEvidence`
 owns the exhaustive fluid/solid/interface partition. Its exact
-`TrajectoryState` lookup returns the corresponding action, energy, residual,
+`State` lookup returns the corresponding action, energy, residual,
 solve, and assembly observations without turning the state into a
 physics-specific property bag.
 

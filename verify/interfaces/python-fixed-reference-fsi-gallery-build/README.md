@@ -5,7 +5,7 @@ two-state fixed-reference FSI trajectory. A checked-in ordinary Python script
 imports an installed `eqiora` wheel, compiles the packaged source, and consumes
 the same Rust-owned `FixedMeshMonolithic` Plan and common `Result` used by
 verification and Studio. Its typed FSI evidence is keyed by exact
-`TrajectoryState`. The script renders a lossless poster, VP9 WebM, H.264 MP4,
+`State`. The script renders a lossless poster, VP9 WebM, H.264 MP4,
 a distinct two-panel reduced-motion still, and a descriptive text alternative,
 then records complete source, lineage, scene, encoder, environment, and output
 identity in canonical private JSON.

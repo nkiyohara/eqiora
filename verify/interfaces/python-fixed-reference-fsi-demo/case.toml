@@ -19,7 +19,7 @@ intent = "immutable keyword-only eqiora.fsi.FixedMeshMonolithic with every initi
 resolution = "eqiora.fsi.resolve(model, intent) returns one exact-Model-bound FixedMeshMonolithicPlan before execution"
 entry_point = "eqiora.submit(model, plan=plan).result(), with eqiora.run(model, plan=plan) as the synchronous common-Result route"
 result_type = "immutable common eqiora.Result whose trajectory property returns the accepted Trajectory"
-evidence = "eqiora.fsi.fixed_mesh_monolithic_evidence(result), with exact TrajectoryState-keyed state evidence"
+evidence = "eqiora.fsi.fixed_mesh_monolithic_evidence(result), with exact State-keyed state evidence"
 presentation_successor = "interfaces.python-trajectory-field-stills owns common scalar and deformed stills over this common Result's accepted Trajectory"
 
 [oracle]
@@ -84,7 +84,7 @@ reauthored_or_relaxed_acceptance_threshold = "referenced scientific thresholds d
 mutable_or_result_owned_arrays = "array lifetime and writeability checks fail"
 eager_numpy_dependency = "isolated process imports NumPy before first array projection"
 surviving_predecessor_python_api = "FixedReferenceFsiStep, FixedReferenceFsiResult, or solve_fixed_reference_fsi remains reachable from the native module, Python facade, exports, shipped stub, generated API docs, or installed wheel"
-ordinal_only_evidence_lookup = "state evidence accepts an ordinal or a TrajectoryState from another occurrence instead of the exact accepted TrajectoryState"
+ordinal_only_evidence_lookup = "state evidence accepts an ordinal or a State from another occurrence instead of the exact accepted State"
 
 [claim_boundary]
 one_current_model = true

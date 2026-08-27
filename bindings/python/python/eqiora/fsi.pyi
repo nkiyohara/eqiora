@@ -9,7 +9,7 @@ import numpy as np
 import numpy.typing as npt
 
 from . import LinearSolveSummary, Model, Result
-from .trajectory import TrajectoryState
+from .trajectory import State
 
 @final
 class FixedMeshMonolithic:
@@ -204,7 +204,7 @@ class FixedMeshMonolithicEvidence:
     ) -> tuple[FixedMeshMonolithicStateEvidence, FixedMeshMonolithicStateEvidence]: ...
     def state(
         self,
-        state: TrajectoryState,
+        state: State,
         /,
     ) -> FixedMeshMonolithicStateEvidence: ...
     @property

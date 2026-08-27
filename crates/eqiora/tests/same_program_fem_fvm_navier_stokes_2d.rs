@@ -3,7 +3,7 @@
 use std::num::NonZeroUsize;
 
 use eqiora::api::TransientNavierStokesReference2d;
-use eqiora::artifact::SimplicialMeshEnvelopeV1;
+use eqiora::artifact::{CartesianMeshEnvelopeV1, SimplicialMeshEnvelopeV1};
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::meshing::{MeshQualityGate, MeshTopology, SimplicialMesh};
 use eqiora::realization::{
@@ -256,10 +256,13 @@ fn run_fem(program: &KernelProgram) -> ResolvedTransientNavierStokesTrajectory2d
 
 fn run_fvm(program: &KernelProgram) -> ResolvedCellCenteredNavierStokesTrajectory2d {
     let model = lower_transient_incompressible_navier_stokes_cartesian_2d(program).unwrap();
+    let mesh = CartesianMesh::uniform(model.bounds(), &[CELLS_PER_AXIS; 2]).unwrap();
+    let mesh_envelope = CartesianMeshEnvelopeV1::from_mesh(&mesh).unwrap();
     let plan = transient_navier_stokes_cell_centered_plan_2d(
         &model,
-        MeshPolicy::GeneratedUniform {
-            cells_per_axis: NonZeroUsize::new(CELLS_PER_AXIS).unwrap(),
+        MeshPolicy::SuppliedCartesian {
+            artifact: mesh_envelope.artifact_reference().unwrap(),
+            cells: [NonZeroUsize::new(CELLS_PER_AXIS).unwrap(); 2],
         },
         scales(),
         DynQuantity::new(TIME_STEP, TIME),
@@ -279,7 +282,6 @@ fn run_fvm(program: &KernelProgram) -> ResolvedCellCenteredNavierStokesTrajector
         &fvm_capabilities(),
     )
     .unwrap();
-    let mesh = CartesianMesh::uniform(model.bounds(), &[CELLS_PER_AXIS; 2]).unwrap();
     let initial = CellCenteredNavierStokesInitialState2d::new(
         &model,
         DynQuantity::new(0.0, TIME),
@@ -290,11 +292,13 @@ fn run_fvm(program: &KernelProgram) -> ResolvedCellCenteredNavierStokesTrajector
         .unwrap(),
         CellCenteredPressureField2d::new(mesh, vec![0.0; CELLS_PER_AXIS * CELLS_PER_AXIS]).unwrap(),
         0.0,
+        vec![0.0; 2 * CELLS_PER_AXIS * CELLS_PER_AXIS + 2 * CELLS_PER_AXIS],
     )
     .unwrap();
     advance_resolved_transient_navier_stokes_cell_centered_2d(
         program,
         &resolved,
+        &mesh_envelope,
         initial,
         TransientNavierStokesRun2d::new(NonZeroStepCount::new(NonZeroUsize::MIN)),
         &REFERENCE_LINEAR_SOLVER,
@@ -339,7 +343,7 @@ fn fvm_capabilities() -> TransientCellCenteredIncompressibleFlowCapabilities {
         RealizationCapabilities::cartesian_product(
             [DiscretizationMethod::CellCenteredFiniteVolume],
             [(
-                MeshKind::GeneratedCartesian,
+                MeshKind::SuppliedCartesian,
                 SpatialDimensionSupport::exact(NonZeroUsize::new(2).unwrap()),
             )],
             [VectorLayoutKind::Replicated],

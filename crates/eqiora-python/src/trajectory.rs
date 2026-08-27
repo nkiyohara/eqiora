@@ -12,13 +12,16 @@ use eqiora::artifact::{
 };
 use eqiora::kernel::ValueFrame;
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldShape};
+use eqiora_numerics::CommonState;
 use numpy::{PyArray1, PyArray2};
 use pyo3::exceptions::{PyIndexError, PyKeyError, PyOverflowError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict, PyModule, PyTuple};
+use sha2::{Digest, Sha256};
 
 use crate::diagnostic_error;
 use crate::matrix::{ReadOnlyMatrix, ReadOnlyVector};
+use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelFieldRef};
 mod presentation;
 
@@ -180,37 +183,44 @@ impl PyFieldSnapshot {
 
 /// One accepted physical state in exact trajectory order.
 #[pyclass(
-    name = "TrajectoryState",
+    name = "State",
     module = "eqiora._eqiora",
     frozen,
     eq,
     hash,
     skip_from_py_object
 )]
-pub(crate) struct PyTrajectoryState {
+pub(crate) struct PyState {
     digest: String,
     model_digest: String,
     step: u64,
     time_s: f64,
     fields: Vec<Py<PyFieldSnapshot>>,
     field_lookup: BTreeMap<String, usize>,
+    model: Option<Py<PyModel>>,
+    mesh: Option<Py<PyMesh>>,
+    native: Option<CommonState>,
+    plan_identity: Option<String>,
+    source_request_identity: Option<String>,
+    source_trajectory_identity: Option<String>,
+    source_kind: Option<&'static str>,
 }
 
-impl PartialEq for PyTrajectoryState {
+impl PartialEq for PyState {
     fn eq(&self, other: &Self) -> bool {
         self.digest == other.digest
     }
 }
 
-impl Eq for PyTrajectoryState {}
+impl Eq for PyState {}
 
-impl Hash for PyTrajectoryState {
+impl Hash for PyState {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.digest.hash(state);
     }
 }
 
-impl PyTrajectoryState {
+impl PyState {
     pub(crate) fn digest_value(&self) -> &str {
         &self.digest
     }
@@ -218,10 +228,97 @@ impl PyTrajectoryState {
     pub(crate) fn model_digest_value(&self) -> &str {
         &self.model_digest
     }
+
+    pub(crate) fn from_common(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        native: CommonState,
+        step: u64,
+        source_request_identity: Option<&str>,
+        source_trajectory_identity: Option<&str>,
+    ) -> PyResult<Self> {
+        let native_plan = plan
+            .transient_native()
+            .expect("common State requires a transient Plan");
+        let mesh = plan.mesh_handle(py);
+        let mesh_digest = mesh.borrow(py).exact_mesh_digest().to_owned();
+        let velocity =
+            PyFieldSnapshot::from_common_velocity(py, native_plan, &native, &mesh_digest)?;
+        let pressure =
+            PyFieldSnapshot::from_common_pressure(py, native_plan, &native, &mesh_digest)?;
+        let mut field_lookup = BTreeMap::new();
+        field_lookup.insert(native_plan.velocity_field_id().to_owned(), 0);
+        field_lookup.insert(native_plan.pressure_field_id().to_owned(), 1);
+        Ok(Self {
+            digest: native.identity().to_owned(),
+            model_digest: native_plan.model_digest().to_owned(),
+            step,
+            time_s: native.time_s(),
+            fields: vec![Py::new(py, velocity)?, Py::new(py, pressure)?],
+            field_lookup,
+            model: Some(plan.model_handle(py)),
+            mesh: Some(mesh),
+            native: Some(native),
+            plan_identity: Some(native_plan.identity().to_owned()),
+            source_request_identity: source_request_identity.map(str::to_owned),
+            source_trajectory_identity: source_trajectory_identity.map(str::to_owned),
+            source_kind: Some(if source_request_identity.is_some() {
+                "result"
+            } else {
+                "zero"
+            }),
+        })
+    }
+
+    pub(crate) fn common_native(&self) -> Option<&CommonState> {
+        self.native.as_ref()
+    }
+
+    pub(crate) const fn time_s_value(&self) -> f64 {
+        self.time_s
+    }
 }
 
 #[pymethods]
-impl PyTrajectoryState {
+impl PyState {
+    #[staticmethod]
+    #[pyo3(signature = (plan, /, *, time_s=0.0))]
+    fn zero(py: Python<'_>, plan: &crate::common_plan::PyPlan, time_s: f64) -> PyResult<Self> {
+        let native_plan = plan.transient_native().ok_or_else(|| {
+            PyValueError::new_err("State.zero requires an admitted transient Plan")
+        })?;
+        let state = native_plan
+            .zero_state(time_s)
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        Self::from_common(py, plan, state, 0, None, None)
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (plan, result, /, *, time_s))]
+    fn from_result(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        result: &crate::result::PyRunResult,
+        time_s: f64,
+    ) -> PyResult<Py<PyState>> {
+        if !time_s.is_finite() || time_s < 0.0 {
+            return Err(PyValueError::new_err(
+                "State.from_result time_s must be finite and non-negative",
+            ));
+        }
+        let native = plan
+            .transient_native()
+            .ok_or_else(|| PyValueError::new_err("State.from_result requires a transient Plan"))?;
+        let state_space_identity = native.state_space_identity();
+        result
+            .common_state_at(py, &state_space_identity, time_s)
+            .ok_or_else(|| {
+                PyValueError::new_err(
+                    "Result contains no State at time_s compatible with the exact Plan state space",
+                )
+            })
+    }
+
     #[getter]
     fn digest(&self) -> &str {
         &self.digest
@@ -235,6 +332,43 @@ impl PyTrajectoryState {
     #[getter]
     const fn time_s(&self) -> f64 {
         self.time_s
+    }
+
+    #[getter]
+    fn state_space_identity(&self) -> &str {
+        self.native
+            .as_ref()
+            .map_or(self.digest.as_str(), CommonState::state_space_identity)
+    }
+
+    #[getter]
+    fn mesh(&self, py: Python<'_>) -> Option<Py<PyMesh>> {
+        self.mesh.as_ref().map(|mesh| mesh.clone_ref(py))
+    }
+
+    #[getter]
+    fn model(&self, py: Python<'_>) -> Option<Py<PyModel>> {
+        self.model.as_ref().map(|model| model.clone_ref(py))
+    }
+
+    #[getter]
+    fn source_plan_identity(&self) -> Option<&str> {
+        self.plan_identity.as_deref()
+    }
+
+    #[getter]
+    fn source_request_identity(&self) -> Option<&str> {
+        self.source_request_identity.as_deref()
+    }
+
+    #[getter]
+    fn source_trajectory_identity(&self) -> Option<&str> {
+        self.source_trajectory_identity.as_deref()
+    }
+
+    #[getter]
+    const fn source_kind(&self) -> Option<&'static str> {
+        self.source_kind
     }
 
     #[getter]
@@ -260,7 +394,7 @@ impl PyTrajectoryState {
 
     fn __repr__(&self) -> String {
         format!(
-            "TrajectoryState(step={}, time_s={}, digest={:?})",
+            "State(step={}, time_s={}, digest={:?})",
             self.step, self.time_s, self.digest,
         )
     }
@@ -268,9 +402,8 @@ impl PyTrajectoryState {
 
 /// Immutable installed-Python projection of one accepted trajectory.
 ///
-/// The public name is general while the current constructor is deliberately
-/// narrow: only the accepted fixed-mesh affine-triangle 2D V1 replay can
-/// produce this value.
+/// Common transient execution and accepted fixed-mesh replay both retain their
+/// exact owning lineage without fabricating a Realization artifact.
 #[pyclass(
     name = "Trajectory",
     module = "eqiora._eqiora",
@@ -284,13 +417,16 @@ pub(crate) struct PyTrajectory {
     geometry_digest: String,
     correspondence_digest: String,
     mesh_digest: String,
-    realization_digest: String,
-    run_digest: String,
+    realization_digest: Option<String>,
+    plan_identity: Option<String>,
+    run_digest: Option<String>,
+    request_identity: Option<String>,
     trajectory_digest: String,
     coordinates: ReadOnlyMatrix<f64>,
     cells: ReadOnlyMatrix<u32>,
-    states: Vec<Py<PyTrajectoryState>>,
+    states: Vec<Py<PyState>>,
     state_lookup: BTreeMap<u64, usize>,
+    common_mesh: Option<Py<PyMesh>>,
     presentation: TrajectoryPresentation,
 }
 
@@ -331,13 +467,23 @@ impl PyTrajectory {
     }
 
     #[getter]
-    fn realization_digest(&self) -> &str {
-        &self.realization_digest
+    fn realization_digest(&self) -> Option<&str> {
+        self.realization_digest.as_deref()
     }
 
     #[getter]
-    fn run_digest(&self) -> &str {
-        &self.run_digest
+    fn plan_identity(&self) -> Option<&str> {
+        self.plan_identity.as_deref()
+    }
+
+    #[getter]
+    fn run_digest(&self) -> Option<&str> {
+        self.run_digest.as_deref()
+    }
+
+    #[getter]
+    fn request_identity(&self) -> Option<&str> {
+        self.request_identity.as_deref()
     }
 
     #[getter]
@@ -352,12 +498,18 @@ impl PyTrajectory {
 
     #[getter]
     fn coordinates(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
-        self.coordinates.numpy(py)
+        match &self.common_mesh {
+            Some(mesh) => mesh.borrow(py).coordinate_array(py),
+            None => self.coordinates.numpy(py),
+        }
     }
 
     #[getter]
     fn cells(&self, py: Python<'_>) -> PyResult<Py<PyArray2<u32>>> {
-        self.cells.numpy(py)
+        match &self.common_mesh {
+            Some(mesh) => mesh.borrow(py).cell_array(py),
+            None => self.cells.numpy(py),
+        }
     }
 
     #[getter]
@@ -367,7 +519,7 @@ impl PyTrajectory {
 
     /// Select one accepted state by its exact step ordinal.
     #[pyo3(signature = (step, /))]
-    fn state(&self, py: Python<'_>, step: u64) -> PyResult<Py<PyTrajectoryState>> {
+    fn state(&self, py: Python<'_>, step: u64) -> PyResult<Py<PyState>> {
         let index = self.state_lookup.get(&step).copied().ok_or_else(|| {
             PyIndexError::new_err(format!("trajectory has no accepted step {step}"))
         })?;
@@ -402,11 +554,76 @@ impl PyTrajectory {
         &self.model_digest
     }
 
-    pub(crate) fn state_handles(&self, py: Python<'_>) -> Vec<Py<PyTrajectoryState>> {
+    pub(crate) fn state_handles(&self, py: Python<'_>) -> Vec<Py<PyState>> {
         self.states
             .iter()
             .map(|state| state.clone_ref(py))
             .collect()
+    }
+
+    pub(crate) fn from_common(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        run_identity: &str,
+        states: Vec<(usize, CommonState)>,
+    ) -> PyResult<Self> {
+        let native = plan.transient_native().ok_or_else(|| {
+            PyRuntimeError::new_err("common Trajectory requires a transient Plan")
+        })?;
+        let mesh = plan.mesh_handle(py);
+        let mesh_ref = mesh.borrow(py);
+        let trajectory_digest = {
+            let mut hasher = Sha256::new();
+            hasher.update(b"eqiora.common-trajectory/v1\0");
+            hasher.update(run_identity.as_bytes());
+            for (_, state) in &states {
+                hasher.update(state.identity().as_bytes());
+            }
+            hex_sha256(hasher.finalize().as_slice())
+        };
+        let mut state_lookup = BTreeMap::new();
+        let mut projected = Vec::with_capacity(states.len());
+        for (step, state) in states {
+            let step = u64::try_from(step)
+                .map_err(|_| PyOverflowError::new_err("accepted step exceeds Python u64"))?;
+            if state_lookup.insert(step, projected.len()).is_some() {
+                return Err(PyRuntimeError::new_err(
+                    "common Trajectory contains a duplicate output step",
+                ));
+            }
+            projected.push(Py::new(
+                py,
+                PyState::from_common(
+                    py,
+                    plan,
+                    state,
+                    step,
+                    Some(run_identity),
+                    Some(&trajectory_digest),
+                )?,
+            )?);
+        }
+        let geometry_digest = mesh_ref.source_digest_value().to_owned();
+        let correspondence_digest = mesh_ref.correspondence_digest_value().to_owned();
+        let mesh_digest = mesh_ref.exact_mesh_digest().to_owned();
+        drop(mesh_ref);
+        Ok(Self {
+            model_digest: native.model_digest().to_owned(),
+            geometry_digest,
+            correspondence_digest,
+            mesh_digest,
+            realization_digest: None,
+            plan_identity: Some(native.identity().to_owned()),
+            run_digest: None,
+            request_identity: Some(run_identity.to_owned()),
+            trajectory_digest,
+            coordinates: ReadOnlyMatrix::new(0, 2, Vec::new()),
+            cells: ReadOnlyMatrix::new(0, 0, Vec::new()),
+            states: projected,
+            state_lookup,
+            common_mesh: Some(mesh),
+            presentation: TrajectoryPresentation::default(),
+        })
     }
 
     pub(crate) fn from_replay(
@@ -598,13 +815,20 @@ impl PyTrajectory {
             }
             states.push(Py::new(
                 py,
-                PyTrajectoryState {
+                PyState {
                     digest,
                     model_digest: model_digest.clone(),
                     step: state.step(),
                     time_s: state.time_s(),
                     fields,
                     field_lookup,
+                    model: None,
+                    mesh: None,
+                    native: None,
+                    plan_identity: None,
+                    source_request_identity: None,
+                    source_trajectory_identity: None,
+                    source_kind: None,
                 },
             )?);
         }
@@ -614,19 +838,120 @@ impl PyTrajectory {
             geometry_digest: first.geometry_artifact().to_string(),
             correspondence_digest: first.correspondence_artifact().to_string(),
             mesh_digest,
-            realization_digest: first.realization_artifact().to_string(),
-            run_digest: artifact_digest(py, run.digest())?,
+            realization_digest: Some(first.realization_artifact().to_string()),
+            plan_identity: None,
+            run_digest: Some(artifact_digest(py, run.digest())?),
+            request_identity: None,
             trajectory_digest,
             coordinates: ReadOnlyMatrix::new(vertex_count, 2, coordinates),
             cells: ReadOnlyMatrix::new(cell_count, 3, cells),
             states,
             state_lookup,
+            common_mesh: None,
             presentation: TrajectoryPresentation::default(),
         })
     }
 }
 
 impl PyFieldSnapshot {
+    fn from_common_velocity(
+        py: Python<'_>,
+        plan: &eqiora_numerics::CommonTransientFlowPlan,
+        state: &CommonState,
+        mesh_digest: &str,
+    ) -> PyResult<Self> {
+        const VELOCITY: DimExponents = DimExponents {
+            length: 1,
+            time: -1,
+            ..DimExponents::DIMENSIONLESS
+        };
+        let mut blocks = Vec::new();
+        if let Some(values) = state.velocity_vertex_values() {
+            blocks.push(common_vector_block("vertex", values)?);
+        }
+        blocks.push(common_vector_block("cell", state.velocity_cell_values())?);
+        Self::from_common_parts(
+            py,
+            plan,
+            mesh_digest,
+            plan.velocity_field_id(),
+            VELOCITY,
+            vec![2],
+            "spatial-cartesian",
+            blocks,
+        )
+    }
+
+    fn from_common_pressure(
+        py: Python<'_>,
+        plan: &eqiora_numerics::CommonTransientFlowPlan,
+        state: &CommonState,
+        mesh_digest: &str,
+    ) -> PyResult<Self> {
+        const PRESSURE: DimExponents = DimExponents {
+            mass: 1,
+            length: -1,
+            time: -2,
+            ..DimExponents::DIMENSIONLESS
+        };
+        let block = match (state.pressure_vertex_values(), state.pressure_cell_values()) {
+            (Some(values), None) => common_scalar_block("vertex", values)?,
+            (None, Some(values)) => common_scalar_block("cell", values)?,
+            _ => {
+                return Err(PyRuntimeError::new_err(
+                    "common pressure State lost its exact coefficient association",
+                ));
+            }
+        };
+        Self::from_common_parts(
+            py,
+            plan,
+            mesh_digest,
+            plan.pressure_field_id(),
+            PRESSURE,
+            Vec::new(),
+            "invariant",
+            vec![block],
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn from_common_parts(
+        py: Python<'_>,
+        plan: &eqiora_numerics::CommonTransientFlowPlan,
+        mesh_digest: &str,
+        field_id: &str,
+        dimension: DimExponents,
+        value_shape: Vec<u32>,
+        frame: &'static str,
+        blocks: Vec<ProjectedBlock>,
+    ) -> PyResult<Self> {
+        let mut hasher = Sha256::new();
+        hasher.update(b"eqiora.common-field-snapshot/v1\0");
+        hasher.update(plan.model_digest().as_bytes());
+        hasher.update(mesh_digest.as_bytes());
+        hasher.update(field_id.as_bytes());
+        for block in &blocks {
+            hasher.update(block.digest.as_bytes());
+        }
+        let digest = hex_sha256(hasher.finalize().as_slice());
+        let field = Py::new(
+            py,
+            PyModelFieldRef::from_exact(plan.model_digest().to_owned(), field_id.to_owned()),
+        )?;
+        Ok(Self {
+            digest,
+            mesh_digest: mesh_digest.to_owned(),
+            field,
+            field_id: field_id.to_owned(),
+            support_domain_id: plan.domain_id(),
+            dimension,
+            value_shape,
+            frame,
+            blocks,
+        })
+    }
+
     /// Project one already validated authored static scalar observation.
     pub(crate) fn from_authored_scalar(
         py: Python<'_>,
@@ -751,6 +1076,55 @@ impl PyFieldSnapshot {
     }
 }
 
+fn common_vector_block(association: &'static str, values: &[[f64; 2]]) -> PyResult<ProjectedBlock> {
+    let coefficients = values.iter().flatten().copied().collect::<Vec<_>>();
+    common_block(
+        association,
+        &coefficients.clone(),
+        ProjectedValues::Vector(ReadOnlyMatrix::new(values.len(), 2, coefficients)),
+        values.len(),
+    )
+}
+
+fn common_scalar_block(association: &'static str, values: &[f64]) -> PyResult<ProjectedBlock> {
+    common_block(
+        association,
+        values,
+        ProjectedValues::Scalar(ReadOnlyVector::new(values.to_vec())),
+        values.len(),
+    )
+}
+
+fn common_block(
+    association: &'static str,
+    coefficients: &[f64],
+    values: ProjectedValues,
+    count: usize,
+) -> PyResult<ProjectedBlock> {
+    let support_indices = (0..count)
+        .map(|index| {
+            u32::try_from(index)
+                .map_err(|_| PyOverflowError::new_err("Field support index exceeds Python uint32"))
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let mut hasher = Sha256::new();
+    hasher.update(b"eqiora.common-field-block/v1\0");
+    hasher.update(association.as_bytes());
+    for value in coefficients {
+        hasher.update(value.to_bits().to_be_bytes());
+    }
+    Ok(ProjectedBlock {
+        association,
+        digest: hex_sha256(hasher.finalize().as_slice()),
+        values,
+        support_indices: Arc::new(ReadOnlyVector::new(support_indices)),
+    })
+}
+
+fn hex_sha256(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 fn artifact_digest(
     py: Python<'_>,
     value: Result<ArtifactDigest, eqiora::Diagnostic>,
@@ -776,7 +1150,7 @@ const fn frame_name(value: ValueFrame) -> &'static str {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyFieldSnapshot>()?;
-    module.add_class::<PyTrajectoryState>()?;
+    module.add_class::<PyState>()?;
     module.add_class::<PyTrajectory>()?;
     Ok(())
 }

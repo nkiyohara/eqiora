@@ -7,7 +7,7 @@ The first consumer is the common `Result.trajectory` returned after the
 accepted fixed-mesh monolithic FSI Plan runs; Python does not reconstruct
 artifact order, field meaning, units, support, or numerical blocks.
 
-`Trajectory`, `TrajectoryState`, and `FieldSnapshot` are general product names,
+`Trajectory`, `State`, and `FieldSnapshot` are general product names,
 but the admitted constructor remains deliberately narrow: fixed-step V1 states
 over one affine-triangle 2D mesh. Field values preserve separate Vertex and Cell
 coefficient blocks as memoized read-only NumPy arrays. Typed FSI evidence keeps

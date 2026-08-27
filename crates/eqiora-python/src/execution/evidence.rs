@@ -7,7 +7,7 @@ use eqiora::api::{
 };
 use eqiora::artifact::{CanonicalModelArtifact, ModelEnvelope};
 use eqiora::diagnostic::codes;
-use eqiora_numerics::{CommonScalarPlan, CommonSteadyStokesPlan};
+use eqiora_numerics::{CommonScalarPlan, CommonSteadyStokesPlan, CommonTransientRunRequest};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -139,6 +139,63 @@ pub(crate) enum PyScalarEllipticRunProgress {
     PlanReplayed,
     SystemFinalized,
     SolutionAccepted,
+}
+
+/// Last fully accepted common transient step boundary.
+#[pyclass(
+    name = "TransientRunProgress",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    from_py_object
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct PyCommonTransientRunProgress {
+    pub(crate) accepted_steps: usize,
+    pub(crate) maximum_steps: usize,
+    pub(crate) model_time_bits: u64,
+}
+
+#[pymethods]
+impl PyCommonTransientRunProgress {
+    #[getter]
+    const fn accepted_steps(&self) -> usize {
+        self.accepted_steps
+    }
+    #[getter]
+    const fn maximum_steps(&self) -> usize {
+        self.maximum_steps
+    }
+    #[getter]
+    fn model_time_s(&self) -> f64 {
+        f64::from_bits(self.model_time_bits)
+    }
+}
+
+/// Exact accepted common transient boundary where cancellation terminated.
+#[pyclass(
+    name = "TransientRunCancellation",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Debug, Clone)]
+pub(crate) struct PyCommonTransientRunCancellation {
+    pub(crate) progress: PyCommonTransientRunProgress,
+    pub(crate) request_identity: String,
+}
+
+#[pymethods]
+impl PyCommonTransientRunCancellation {
+    #[getter]
+    fn progress(&self) -> PyCommonTransientRunProgress {
+        self.progress.clone()
+    }
+    #[getter]
+    fn request_identity(&self) -> &str {
+        &self.request_identity
+    }
 }
 
 impl From<ScalarEllipticRunProgress> for PyScalarEllipticRunProgress {
@@ -277,6 +334,18 @@ impl RunIdentity {
             model_digest: plan.model_digest().to_owned(),
             model_revision: plan.model_revision(),
             plan_key: plan.identity().to_owned(),
+            adapter: eqiora::solver::SERIAL_EXECUTION_PROVIDER.id().as_str(),
+            adapter_version: eqiora::solver::SERIAL_EXECUTION_PROVIDER.implementation_version(),
+        }
+    }
+
+    pub(crate) fn from_common_transient(request: &CommonTransientRunRequest) -> Self {
+        let plan = request.plan();
+        Self {
+            model_id: plan.model_id().to_owned(),
+            model_digest: plan.model_digest().to_owned(),
+            model_revision: plan.model_revision(),
+            plan_key: request.identity().to_owned(),
             adapter: eqiora::solver::SERIAL_EXECUTION_PROVIDER.id().as_str(),
             adapter_version: eqiora::solver::SERIAL_EXECUTION_PROVIDER.implementation_version(),
         }

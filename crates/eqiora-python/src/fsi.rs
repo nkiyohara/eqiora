@@ -20,7 +20,7 @@ use crate::model::PyModel;
 use crate::panic_boundary;
 use crate::realization::{PyLinearSolveSummary, PyRunManifest};
 use crate::result::PyRunResult;
-use crate::trajectory::{PyTrajectory, PyTrajectoryState};
+use crate::trajectory::{PyState, PyTrajectory};
 
 /// Complete fixed-mesh monolithic FSI request with no hidden numerical state.
 #[pyclass(
@@ -572,7 +572,7 @@ pub(crate) struct PyFixedMeshMonolithicEvidence {
     fluid_cells: ReadOnlyVector<u32>,
     solid_cells: ReadOnlyVector<u32>,
     interface_facets: ReadOnlyMatrix<u32>,
-    state_owners: [Py<PyTrajectoryState>; 2],
+    state_owners: [Py<PyState>; 2],
     states: [Py<PyFixedMeshMonolithicStateEvidence>; 2],
     case_ids: [&'static str; 2],
 }
@@ -614,11 +614,11 @@ impl PyFixedMeshMonolithicEvidence {
     fn state(
         &self,
         py: Python<'_>,
-        state: &Bound<'_, PyTrajectoryState>,
+        state: &Bound<'_, PyState>,
     ) -> PyResult<Py<PyFixedMeshMonolithicStateEvidence>> {
         if state.borrow().model_digest_value() != self.model_digest {
             return Err(PyValueError::new_err(
-                "TrajectoryState belongs to a different exact Model artifact",
+                "State belongs to a different exact Model artifact",
             ));
         }
         let position = self
@@ -626,11 +626,11 @@ impl PyFixedMeshMonolithicEvidence {
             .iter()
             .position(|owner| owner.bind(py).is(state))
             .ok_or_else(|| {
-                PyValueError::new_err("TrajectoryState belongs to a different Result occurrence")
+                PyValueError::new_err("State belongs to a different Result occurrence")
             })?;
         if state.borrow().digest_value() != self.states[position].borrow(py).state_digest {
             return Err(PyValueError::new_err(
-                "TrajectoryState identity differs from its accepted FSI evidence",
+                "State identity differs from its accepted FSI evidence",
             ));
         }
         Ok(self.states[position].clone_ref(py))
@@ -682,7 +682,7 @@ impl PyFixedMeshMonolithicEvidence {
                 })?);
             }
         }
-        let state_owners: [Py<PyTrajectoryState>; 2] = trajectory
+        let state_owners: [Py<PyState>; 2] = trajectory
             .state_handles(py)
             .try_into()
             .map_err(|_| PyValueError::new_err("accepted FSI trajectory must have two states"))?;

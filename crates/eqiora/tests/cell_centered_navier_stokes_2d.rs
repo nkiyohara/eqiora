@@ -1,7 +1,8 @@
 use std::f64::consts::PI;
 use std::num::NonZeroUsize;
 
-use eqiora::meshing::{MeshEntity, MeshTopology};
+use eqiora::artifact::CartesianMeshEnvelopeV1;
+use eqiora::meshing::{MeshEntity, MeshGeometry, MeshTopology};
 use eqiora::realization::{
     DiscretizationMethod, MeshKind, MeshPolicy, NonlinearSolvePlan, RealizationCapabilities,
     RealizationRevision, SemanticRevision, SpatialDimensionSupport, TargetCapabilities,
@@ -141,10 +142,13 @@ fn run_case(
     )
     .unwrap()
     .with_reduction(ReductionPolicy::Reproducible);
+    let mesh = CartesianMesh::uniform(model.bounds(), &[4, 4]).unwrap();
+    let mesh_envelope = CartesianMeshEnvelopeV1::from_mesh(&mesh).unwrap();
     let plan = transient_navier_stokes_cell_centered_plan_2d(
         &model,
-        MeshPolicy::GeneratedUniform {
-            cells_per_axis: NonZeroUsize::new(4).unwrap(),
+        MeshPolicy::SuppliedCartesian {
+            artifact: mesh_envelope.artifact_reference().unwrap(),
+            cells: [NonZeroUsize::new(4).unwrap(); 2],
         },
         scales,
         DynQuantity::new(time_step, TIME),
@@ -164,7 +168,6 @@ fn run_case(
         &capabilities(),
     )
     .unwrap();
-    let mesh = CartesianMesh::uniform(model.bounds(), &[4, 4]).unwrap();
     let streamfunction = (0..mesh.entity_count(2).unwrap())
         .map(|cell| {
             let center = mesh.entity_center(MeshEntity::new(2, cell)).unwrap();
@@ -181,19 +184,48 @@ fn run_case(
         })
         .collect::<Vec<_>>();
     let velocity_values = transformed_velocity(&mesh, &base_velocity, transform);
+    let history = physical_face_volume_fluxes(&mesh, &velocity_values);
     let velocity = CellCenteredVelocityField2d::new(mesh.clone(), velocity_values).unwrap();
     let pressure = CellCenteredPressureField2d::new(mesh, vec![0.0; 16]).unwrap();
+    assert!(
+        CellCenteredNavierStokesInitialState2d::new(
+            &model,
+            DynQuantity::new(0.0, TIME),
+            velocity.clone(),
+            pressure.clone(),
+            0.0,
+            Vec::new(),
+        )
+        .is_err(),
+        "missing method history was admitted",
+    );
+    let mut corrupt_history = history.clone();
+    corrupt_history[0] = f64::NAN;
+    assert!(
+        CellCenteredNavierStokesInitialState2d::new(
+            &model,
+            DynQuantity::new(0.0, TIME),
+            velocity.clone(),
+            pressure.clone(),
+            0.0,
+            corrupt_history,
+        )
+        .is_err(),
+        "non-finite method history was admitted",
+    );
     let initial = CellCenteredNavierStokesInitialState2d::new(
         &model,
         DynQuantity::new(0.0, TIME),
         velocity,
         pressure,
         0.0,
+        history,
     )
     .unwrap();
     let trajectory = advance_resolved_transient_navier_stokes_cell_centered_2d(
         document.program(),
         &resolved,
+        &mesh_envelope,
         initial,
         TransientNavierStokesRun2d::new(NonZeroStepCount::new(NonZeroUsize::new(steps).unwrap())),
         &REFERENCE_LINEAR_SOLVER,
@@ -202,6 +234,30 @@ fn run_case(
     assert_eq!(trajectory.model(), &model);
     assert_eq!(trajectory.realization(), &resolved);
     trajectory
+}
+
+fn physical_face_volume_fluxes(mesh: &CartesianMesh, velocity: &[[f64; 2]]) -> Vec<f64> {
+    (0..mesh.entity_count(1).unwrap())
+        .map(|index| {
+            let facet = MeshEntity::new(1, index);
+            let free_axes = mesh.entity_free_axes(facet).unwrap();
+            let normal_axis = (0..2)
+                .find(|axis| free_axes.binary_search(axis).is_err())
+                .unwrap();
+            let adjacent = mesh.incidence(facet, 2).unwrap();
+            let measure = 2.0 * mesh.geometry_map(facet).unwrap().measure_scale();
+            match adjacent.as_slice() {
+                [first, second] => {
+                    measure
+                        * 0.5
+                        * (velocity[first.entity.index()][normal_axis]
+                            + velocity[second.entity.index()][normal_axis])
+                }
+                [_] => 0.0,
+                _ => unreachable!("Cartesian facet has one or two adjacent cells"),
+            }
+        })
+        .collect()
 }
 
 fn assert_accepted(trajectory: &ResolvedCellCenteredNavierStokesTrajectory2d) {
@@ -359,7 +415,7 @@ fn capabilities() -> TransientCellCenteredIncompressibleFlowCapabilities {
         RealizationCapabilities::cartesian_product(
             [DiscretizationMethod::CellCenteredFiniteVolume],
             [(
-                MeshKind::GeneratedCartesian,
+                MeshKind::SuppliedCartesian,
                 SpatialDimensionSupport::exact(NonZeroUsize::new(2).unwrap()),
             )],
             [VectorLayoutKind::Replicated],

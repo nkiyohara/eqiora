@@ -60,6 +60,9 @@ from ._eqiora import (
     ScalarFieldLocation,
     ScalarFieldSummary,
     Series,
+    State,
+    TransientRunCancellation,
+    TransientRunProgress,
     StructuralSemanticFingerprint,
     ValidationError,
     ValueEdit,
@@ -72,15 +75,10 @@ from ._eqiora import (
     grad,
     preview_realization,
     replay,
-    submit as _submit,
-    submit_realization as _submit_realization,
-    submit_fixed_mesh_monolithic as _submit_fixed_mesh_monolithic,
-    submit_linear_elasticity as _submit_linear_elasticity,
-    submit_steady_stokes as _submit_steady_stokes,
+    submit_plan as _submit_plan,
     through,
     trace,
     _resolve_plan,
-    _run_plan,
 )
 
 from . import diff
@@ -168,6 +166,9 @@ __all__ = [
     "ScalarFieldLocation",
     "ScalarFieldSummary",
     "Series",
+    "State",
+    "TransientRunCancellation",
+    "TransientRunProgress",
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",
@@ -198,9 +199,6 @@ __all__ = [
     "time",
     "trajectory",
 ]
-
-
-_MISSING = object()
 
 
 def check_package_conformance(
@@ -247,55 +245,25 @@ def resolve(
     )
 
 
-def run(plan: Plan) -> Result:
-    """Execute solely from one immutable common Plan."""
-
-    return _run_plan(plan)
-
-
-def _submit_native(
-    operation: str,
-    model: Model,
+def run(
+    plan: Plan,
     *,
-    end_time,
-    max_step,
-    realization: Realization | None,
-    plan,
-) -> _NativeRun:
-    """Validate one public request shape before crossing the native boundary."""
+    state: State | None = None,
+    until_s: float | None = None,
+    output_times_s: tuple[float, ...] | None = None,
+    steps: int | None = None,
+    output_steps: tuple[int, ...] | None = None,
+) -> Result:
+    """Execute one accepted common request synchronously."""
 
-    has_end_time = end_time is not _MISSING
-    has_max_step = max_step is not _MISSING
-
-    if plan is not _MISSING:
-        if realization is not None or has_end_time or has_max_step:
-            raise TypeError(
-                f"{operation} accepts plan alone; realization, end_time, and "
-                "max_step belong to other execution forms"
-            )
-        if isinstance(plan, fluid.SteadyStokesPlan):
-            return _submit_steady_stokes(model, plan)
-        if isinstance(plan, fsi.FixedMeshMonolithicPlan):
-            return _submit_fixed_mesh_monolithic(model, plan)
-        if isinstance(plan, solid.LinearElasticityPlan):
-            return _submit_linear_elasticity(model, plan)
-        raise TypeError(f"{operation} received an unsupported Plan type")
-
-    if realization is not None:
-        if has_end_time or has_max_step:
-            raise TypeError(
-                f"{operation} accepts realization alone; end_time and max_step "
-                "belong to the reference time-integration form"
-            )
-        return _submit_realization(model, realization)
-
-    if not has_end_time or not has_max_step:
-        raise TypeError(
-            f"{operation} requires either realization=..., plan=..., or both "
-            "end_time=... and max_step=..."
-        )
-
-    return _submit(model, end_time=end_time, max_step=max_step)
+    return submit(
+        plan,
+        state=state,
+        until_s=until_s,
+        output_times_s=output_times_s,
+        steps=steps,
+        output_steps=output_steps,
+    ).result()
 
 
 class Run:
@@ -371,22 +339,21 @@ class Run:
 
 
 def submit(
-    model: Model,
+    plan: Plan,
     *,
-    end_time=_MISSING,
-    max_step=_MISSING,
-    realization: Realization | None = None,
-    plan=_MISSING,
+    state: State | None = None,
+    until_s: float | None = None,
+    output_times_s: tuple[float, ...] | None = None,
+    steps: int | None = None,
+    output_steps: tuple[int, ...] | None = None,
 ) -> Run:
-    """Submit exactly one accepted temporal or spatial request shape."""
+    """Submit exactly one steady or transient common request shape."""
 
-    return Run(
-        _submit_native(
-            "submit()",
-            model,
-            end_time=end_time,
-            max_step=max_step,
-            realization=realization,
-            plan=plan,
-        )
-    )
+    return Run(_submit_plan(
+        plan,
+        state=state,
+        until_s=until_s,
+        output_times_s=output_times_s,
+        steps=steps,
+        output_steps=output_steps,
+    ))

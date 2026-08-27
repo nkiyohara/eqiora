@@ -16,7 +16,7 @@ from eqiora.solid import (
     LinearElasticityEvidence,
     LinearElasticityPlan,
 )
-from eqiora.trajectory import FieldSnapshot, Trajectory, TrajectoryState
+from eqiora.trajectory import FieldSnapshot, Trajectory, State
 
 
 def check_native_modeling() -> None:
@@ -159,7 +159,7 @@ def check_fsi_result(model: eqiora.Model) -> None:
     assert_type(result.trajectory, Trajectory)
     assert_type(result.trajectory.coordinates, npt.NDArray[np.float64])
     assert_type(result.trajectory.cells, npt.NDArray[np.uint32])
-    assert_type(result.trajectory.states, tuple[TrajectoryState, ...])
+    assert_type(result.trajectory.states, tuple[State, ...])
     assert_type(result.trajectory.state(1).fields, tuple[FieldSnapshot, ...])
     assert_type(
         result.trajectory.state(1).field(model.field(model.field_ids[0])),

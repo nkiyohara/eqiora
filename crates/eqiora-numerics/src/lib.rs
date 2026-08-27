@@ -34,8 +34,8 @@ pub use canonical_stokes::{
 };
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonBackwardEuler, CommonPressureGauge2d, CommonScalarPlan,
-    CommonSolvePolicy, CommonSpatialPolicy, CommonSteadyStokesPlan, CommonTransientFlowPlan,
-    ResolvedCommonPlan, resolve_common_plan,
+    CommonSolvePolicy, CommonSpatialPolicy, CommonState, CommonSteadyStokesPlan,
+    CommonTransientFlowPlan, CommonTransientRunRequest, ResolvedCommonPlan, resolve_common_plan,
 };
 mod operator;
 mod physical_network;

@@ -125,6 +125,21 @@ impl TransientNavierStokesInitialState2d {
             pressure_reference,
         })
     }
+
+    #[must_use]
+    pub const fn velocity(&self) -> &SimplicialMiniVelocityField2d {
+        &self.velocity
+    }
+
+    #[must_use]
+    pub const fn pressure(&self) -> &SimplicialP1Field {
+        &self.pressure
+    }
+
+    #[must_use]
+    pub const fn pressure_reference(&self) -> super::SteadyStokesPressureReference2d {
+        self.pressure_reference
+    }
 }
 
 /// One accepted coherent-SI transient state with exact semantic provenance.
@@ -652,7 +667,7 @@ fn reconstruct_state(
     })
 }
 
-pub(super) fn require_complete_zero_trace(
+pub(crate) fn require_complete_zero_trace(
     model: &TransientIncompressibleNavierStokesCartesianModel2d,
 ) -> Result<(), Diagnostic> {
     let entries = model.boundary_inventory().entries().collect::<Vec<_>>();

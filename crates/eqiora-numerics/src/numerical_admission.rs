@@ -2,13 +2,18 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 use crate::canonical::{
     lower_scalar_elliptic_cartesian_with_resources, recognize_scalar_elliptic_geometry_mathematics,
 };
 use crate::canonical_stokes::{
-    IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d,
-    ResolvedIncompressibleScaling2d, TransientIncompressibleNavierStokesCartesianModel2d,
+    CellCenteredNavierStokesInitialState2d, IncompressibleScalingReceipt2d,
+    IncompressibleScalingRequest2d, ResolvedCellCenteredNavierStokesState2d,
+    ResolvedIncompressibleScaling2d, ResolvedTransientNavierStokesState2d,
+    TransientIncompressibleNavierStokesCartesianModel2d, TransientNavierStokesInitialState2d,
+    TransientNavierStokesRun2d, advance_resolved_transient_navier_stokes_cell_centered_2d,
+    advance_resolved_transient_navier_stokes_mini_2d,
     lower_transient_incompressible_navier_stokes_cartesian_2d,
     recognize_steady_incompressible_stokes_geometry_mathematics,
     resolve_complete_manual_incompressible_scaling_2d,
@@ -16,11 +21,16 @@ use crate::canonical_stokes::{
     transient_navier_stokes_cell_centered_requirements_2d,
     transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
 };
-use crate::fluid::{IncompressibleFlowScaleProfile2d, SteadyStokesGeometryBinding2d};
+use crate::fluid::{
+    CellCenteredPressureField2d, CellCenteredVelocityField2d, IncompressibleFlowScaleProfile2d,
+    SimplicialMiniVelocityField2d, SteadyStokesGeometryBinding2d, SteadyStokesPressureReference2d,
+};
 use crate::scalar::{
     ResolvedScalarEllipticCartesianSolution, ScalarEllipticCartesianModel,
     solve_scalar_elliptic_cartesian_fem, solve_scalar_elliptic_cartesian_fvm,
 };
+use crate::simplicial_elliptic::SimplicialP1Field;
+use crate::step_count::NonZeroStepCount;
 use eqiora_artifact::{
     CanonicalModelArtifact, CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
     MeshProductionLineageEnvelopeV1, ModelEnvelope, RealizationEnvelopeV2,
@@ -183,6 +193,307 @@ pub struct CommonTransientFlowPlan {
     velocity_space: Space,
     pressure_space: Space,
     gauge: CommonPressureGauge2d,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum CommonStateKind {
+    MiniP1(Box<TransientNavierStokesInitialState2d>),
+    CellCentered(Box<CellCenteredNavierStokesInitialState2d>),
+}
+
+/// Opaque coherent-SI state for one exact common transient state space.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonState {
+    state_space_identity: String,
+    identity: String,
+    time_s: f64,
+    model: Arc<ModelEnvelope>,
+    resources: Arc<NativeMeshResources>,
+    kind: CommonStateKind,
+}
+
+/// Canonical private execution request for one exact transient Plan and State.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonTransientRunRequest {
+    plan: CommonTransientFlowPlan,
+    state: CommonState,
+    accepted_steps: NonZeroUsize,
+    output_steps: Vec<usize>,
+    identity: String,
+}
+
+impl CommonTransientRunRequest {
+    /// Canonicalize a step-count horizon and explicit accepted-step outputs.
+    pub fn from_steps(
+        plan: CommonTransientFlowPlan,
+        state: CommonState,
+        steps: usize,
+        output_steps: Vec<usize>,
+    ) -> Result<Self, Diagnostic> {
+        let accepted_steps = NonZeroUsize::new(steps)
+            .ok_or_else(|| invalid("transient Run steps must be strictly positive"))?;
+        Self::new(plan, state, accepted_steps, output_steps)
+    }
+
+    /// Canonicalize an exact Backward-Euler time horizon and output-time grid.
+    pub fn from_times(
+        plan: CommonTransientFlowPlan,
+        state: CommonState,
+        until_s: f64,
+        output_times_s: Vec<f64>,
+    ) -> Result<Self, Diagnostic> {
+        if !until_s.is_finite() || until_s <= state.time_s() {
+            return Err(invalid(
+                "transient Run until_s must be finite and later than State.time_s",
+            ));
+        }
+        if output_times_s.is_empty()
+            || output_times_s.iter().any(|value| !value.is_finite())
+            || output_times_s.windows(2).any(|pair| pair[0] >= pair[1])
+        {
+            return Err(invalid(
+                "output_times_s must be finite, nonempty, and strictly increasing",
+            ));
+        }
+        let step_s = plan.temporal().step().value();
+        let accepted_steps = exact_grid_index(state.time_s(), until_s, step_s, "until_s")?;
+        let output_steps = output_times_s
+            .into_iter()
+            .map(|time| exact_grid_index(state.time_s(), time, step_s, "output_times_s"))
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::new(
+            plan,
+            state,
+            NonZeroUsize::new(accepted_steps)
+                .ok_or_else(|| invalid("transient Run horizon contains no accepted step"))?,
+            output_steps,
+        )
+    }
+
+    fn new(
+        plan: CommonTransientFlowPlan,
+        state: CommonState,
+        accepted_steps: NonZeroUsize,
+        output_steps: Vec<usize>,
+    ) -> Result<Self, Diagnostic> {
+        if state.state_space_identity() != plan.state_space_identity() {
+            return Err(invalid(
+                "transient Run State belongs to a different exact common state space",
+            ));
+        }
+        if output_steps.is_empty()
+            || output_steps.windows(2).any(|pair| pair[0] >= pair[1])
+            || output_steps
+                .iter()
+                .any(|step| *step == 0 || *step > accepted_steps.get())
+        {
+            return Err(invalid(
+                "output_steps must be nonempty, strictly increasing accepted-step indices within the inclusive horizon",
+            ));
+        }
+        let mut bytes = Vec::new();
+        push_framed(&mut bytes, plan.identity().as_bytes());
+        push_framed(&mut bytes, state.identity().as_bytes());
+        let accepted_steps_u64 = u64::try_from(accepted_steps.get())
+            .map_err(|_| invalid("transient Run horizon exceeds canonical u64 identity range"))?;
+        bytes.extend_from_slice(&accepted_steps_u64.to_be_bytes());
+        for step in &output_steps {
+            let step = u64::try_from(*step).map_err(|_| {
+                invalid("transient Run output index exceeds canonical u64 identity range")
+            })?;
+            bytes.extend_from_slice(&step.to_be_bytes());
+        }
+        bytes.extend_from_slice(&1_u64.to_be_bytes());
+        let identity = hex_bytes(&Sha256::digest(
+            [
+                b"eqiora.common-transient-run-request/v1\0".as_slice(),
+                bytes.as_slice(),
+            ]
+            .concat(),
+        ));
+        Ok(Self {
+            plan,
+            state,
+            accepted_steps,
+            output_steps,
+            identity,
+        })
+    }
+
+    #[must_use]
+    pub const fn plan(&self) -> &CommonTransientFlowPlan {
+        &self.plan
+    }
+    #[must_use]
+    pub const fn state(&self) -> &CommonState {
+        &self.state
+    }
+    #[must_use]
+    pub const fn accepted_steps(&self) -> NonZeroUsize {
+        self.accepted_steps
+    }
+    #[must_use]
+    pub fn output_steps(&self) -> &[usize] {
+        &self.output_steps
+    }
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+}
+
+fn exact_grid_index(
+    start_s: f64,
+    target_s: f64,
+    step_s: f64,
+    label: &str,
+) -> Result<usize, Diagnostic> {
+    if !target_s.is_finite() || target_s <= start_s {
+        return Err(invalid(format!(
+            "{label} values must be finite and later than State.time_s"
+        )));
+    }
+    let raw = (target_s - start_s) / step_s;
+    if !raw.is_finite() || raw < 1.0 || raw.fract() != 0.0 || raw > usize::MAX as f64 {
+        return Err(invalid(format!(
+            "{label} values must align exactly to the Plan Backward-Euler grid"
+        )));
+    }
+    let index = raw as usize;
+    let reconstructed = start_s + step_s * index as f64;
+    if reconstructed.to_bits() != target_s.to_bits() {
+        return Err(invalid(format!(
+            "{label} values must align exactly to the Plan Backward-Euler grid"
+        )));
+    }
+    Ok(index)
+}
+
+impl CommonState {
+    fn new(
+        state_space_identity: String,
+        time_s: f64,
+        model: Arc<ModelEnvelope>,
+        resources: Arc<NativeMeshResources>,
+        kind: CommonStateKind,
+    ) -> Result<Self, Diagnostic> {
+        if !time_s.is_finite() || time_s < 0.0 || time_s.to_bits() == (-0.0_f64).to_bits() {
+            return Err(invalid("State time_s must be finite and non-negative"));
+        }
+        let mut bytes = Vec::new();
+        push_framed(&mut bytes, state_space_identity.as_bytes());
+        bytes.extend_from_slice(&time_s.to_bits().to_be_bytes());
+        match &kind {
+            CommonStateKind::MiniP1(state) => {
+                push_framed(&mut bytes, b"mini-p1/backward-euler/no-extra-history/v1");
+                for value in state
+                    .velocity()
+                    .vertex_values()
+                    .iter()
+                    .flatten()
+                    .chain(state.velocity().cell_bubble_values().iter().flatten())
+                    .chain(state.pressure().vertex_values())
+                {
+                    bytes.extend_from_slice(&value.to_bits().to_be_bytes());
+                }
+                match state.pressure_reference() {
+                    SteadyStokesPressureReference2d::ZeroIntegral { multiplier } => {
+                        push_framed(&mut bytes, b"zero-integral");
+                        bytes.extend_from_slice(&multiplier.to_bits().to_be_bytes());
+                    }
+                    SteadyStokesPressureReference2d::BoundaryTraction => {
+                        push_framed(&mut bytes, b"boundary-traction");
+                    }
+                }
+            }
+            CommonStateKind::CellCentered(state) => {
+                push_framed(
+                    &mut bytes,
+                    b"cell-centered/backward-euler/bdf1-previous-accepted-face-volume-flux/v1",
+                );
+                for value in state
+                    .velocity()
+                    .values()
+                    .iter()
+                    .flatten()
+                    .chain(state.pressure().values())
+                    .chain(std::iter::once(&state.gauge_multiplier()))
+                    .chain(state.previous_face_volume_fluxes())
+                {
+                    bytes.extend_from_slice(&value.to_bits().to_be_bytes());
+                }
+            }
+        }
+        let identity = hex_bytes(&Sha256::digest(
+            [b"eqiora.common-state/v1\0".as_slice(), bytes.as_slice()].concat(),
+        ));
+        Ok(Self {
+            state_space_identity,
+            identity,
+            time_s,
+            model,
+            resources,
+            kind,
+        })
+    }
+
+    /// Exact identity of Model, Mesh, complete fields/spaces, gauge, layout, and history schema.
+    #[must_use]
+    pub fn state_space_identity(&self) -> &str {
+        &self.state_space_identity
+    }
+
+    /// Content identity of this exact accepted state occurrence.
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+
+    /// Exact coherent-SI model time.
+    #[must_use]
+    pub const fn time_s(&self) -> f64 {
+        self.time_s
+    }
+
+    #[must_use]
+    pub fn velocity_vertex_values(&self) -> Option<&[[f64; 2]]> {
+        match &self.kind {
+            CommonStateKind::MiniP1(state) => Some(state.velocity().vertex_values()),
+            CommonStateKind::CellCentered(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn velocity_cell_values(&self) -> &[[f64; 2]] {
+        match &self.kind {
+            CommonStateKind::MiniP1(state) => state.velocity().cell_bubble_values(),
+            CommonStateKind::CellCentered(state) => state.velocity().values(),
+        }
+    }
+
+    #[must_use]
+    pub fn pressure_vertex_values(&self) -> Option<&[f64]> {
+        match &self.kind {
+            CommonStateKind::MiniP1(state) => Some(state.pressure().vertex_values()),
+            CommonStateKind::CellCentered(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn pressure_cell_values(&self) -> Option<&[f64]> {
+        match &self.kind {
+            CommonStateKind::MiniP1(_) => None,
+            CommonStateKind::CellCentered(state) => Some(state.pressure().values()),
+        }
+    }
+
+    #[cfg(test)]
+    fn method_history_values(&self) -> &[f64] {
+        match &self.kind {
+            CommonStateKind::MiniP1(_) => &[],
+            CommonStateKind::CellCentered(state) => state.previous_face_volume_fluxes(),
+        }
+    }
 }
 
 /// Opaque common scalar Plan owning authenticated Model, Mesh, and policy state.
@@ -820,6 +1131,13 @@ impl CommonTransientFlowPlan {
         &self.pressure_field_id
     }
     #[must_use]
+    pub fn domain_id(&self) -> String {
+        match &self.admission.recognized {
+            RecognizedNativeModel::Transient(model) => model.domain().ulid().to_string(),
+            _ => unreachable!("common transient Plan retains transient Model meaning"),
+        }
+    }
+    #[must_use]
     pub const fn velocity_space(&self) -> Space {
         self.velocity_space
     }
@@ -838,6 +1156,242 @@ impl CommonTransientFlowPlan {
             CommonTransientResolvedSpatial::CellCentered(_) => CommonSpatialPolicy::CellCentered,
         }
     }
+
+    /// Identity of the complete restartable state space, excluding solve and Run controls.
+    #[must_use]
+    pub fn state_space_identity(&self) -> String {
+        let mut bytes = Vec::new();
+        for value in [
+            self.model_digest(),
+            self.geometry_digest(),
+            self.mesh_digest(),
+            self.correspondence_digest(),
+            self.production_digest(),
+            self.velocity_field_id(),
+            self.pressure_field_id(),
+            "f64",
+            "replicated",
+        ] {
+            push_framed(&mut bytes, value.as_bytes());
+        }
+        push_framed(&mut bytes, space_identity(self.velocity_space()));
+        push_framed(&mut bytes, space_identity(self.pressure_space()));
+        push_framed(
+            &mut bytes,
+            match self.gauge() {
+                CommonPressureGauge2d::ZeroIntegral => b"zero-integral",
+                CommonPressureGauge2d::BoundaryTraction => b"boundary-traction",
+            },
+        );
+        push_framed(
+            &mut bytes,
+            match self.spatial() {
+                CommonSpatialPolicy::MiniP1 => b"mini-p1/backward-euler/no-extra-history/v1",
+                CommonSpatialPolicy::CellCentered => {
+                    b"cell-centered/backward-euler/bdf1-previous-accepted-face-volume-flux/v1"
+                }
+                _ => unreachable!("closed transient spatial policy"),
+            },
+        );
+        hex_bytes(&Sha256::digest(
+            [
+                b"eqiora.common-state-space/v1\0".as_slice(),
+                bytes.as_slice(),
+            ]
+            .concat(),
+        ))
+    }
+
+    /// Construct the sole explicit homogeneous-zero bootstrap for this transient Plan.
+    pub fn zero_state(&self, time_s: f64) -> Result<CommonState, Diagnostic> {
+        self.admission.revalidate()?;
+        let RecognizedNativeModel::Transient(model) = &self.admission.recognized else {
+            return Err(invalid("State.zero requires a transient Plan"));
+        };
+        crate::canonical_stokes::require_complete_zero_trace(model)?;
+        let time = DynQuantity::new(time_s, TIME);
+        let kind = match (&self.resolved, &self.admission.resources) {
+            (
+                CommonTransientResolvedSpatial::MiniP1(_),
+                NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
+            ) => {
+                let mesh_data = mesh.mesh().clone();
+                let vertex_count = mesh_data.vertices().len();
+                let cell_count = mesh_data.entity_count(2).ok_or_else(|| {
+                    invalid("affine-triangle transient Mesh omitted two-dimensional cells")
+                })?;
+                let reference = match self.gauge {
+                    CommonPressureGauge2d::ZeroIntegral => {
+                        SteadyStokesPressureReference2d::ZeroIntegral { multiplier: 0.0 }
+                    }
+                    CommonPressureGauge2d::BoundaryTraction => {
+                        SteadyStokesPressureReference2d::BoundaryTraction
+                    }
+                };
+                CommonStateKind::MiniP1(Box::new(TransientNavierStokesInitialState2d::new(
+                    model,
+                    time,
+                    mesh.artifact_reference()?,
+                    SimplicialMiniVelocityField2d::new(
+                        mesh_data.clone(),
+                        vec![[0.0; 2]; vertex_count],
+                        vec![[0.0; 2]; cell_count],
+                    )?,
+                    SimplicialP1Field::new(mesh_data, vec![0.0; vertex_count])?,
+                    reference,
+                )?))
+            }
+            (
+                CommonTransientResolvedSpatial::CellCentered(_),
+                NativeMeshResources::Cartesian { mesh, .. },
+            ) => {
+                let mesh_data = mesh.mesh().clone();
+                let cell_count = mesh_data.entity_count(2).ok_or_else(|| {
+                    invalid("Cartesian transient Mesh omitted two-dimensional cells")
+                })?;
+                let facet_count =
+                    crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d(&mesh_data)?
+                        .1
+                        .len();
+                CommonStateKind::CellCentered(Box::new(
+                    CellCenteredNavierStokesInitialState2d::new(
+                        model,
+                        time,
+                        CellCenteredVelocityField2d::new(
+                            mesh_data.clone(),
+                            vec![[0.0; 2]; cell_count],
+                        )?,
+                        CellCenteredPressureField2d::new(mesh_data, vec![0.0; cell_count])?,
+                        0.0,
+                        vec![0.0; facet_count],
+                    )?,
+                ))
+            }
+            _ => {
+                return Err(invalid(
+                    "transient Plan lost its exact caller Mesh envelope",
+                ));
+            }
+        };
+        CommonState::new(
+            self.state_space_identity(),
+            time_s,
+            Arc::new(self.admission.model.clone()),
+            Arc::new(self.admission.resources.clone()),
+            kind,
+        )
+    }
+
+    /// Advance exactly one accepted Backward-Euler step from a compatible complete State.
+    pub fn advance_one(
+        &self,
+        state: &CommonState,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonState, Diagnostic> {
+        self.admission.revalidate()?;
+        if state.state_space_identity != self.state_space_identity() {
+            return Err(invalid(
+                "State belongs to a different exact common state space",
+            ));
+        }
+        if backend.provider() != self.admission.linear.provider
+            || backend.capabilities() != self.admission.linear.capabilities
+        {
+            return Err(invalid(
+                "transient execution backend differs from the admitted provider or capabilities",
+            ));
+        }
+        let run = TransientNavierStokesRun2d::new(NonZeroStepCount::new(NonZeroUsize::MIN));
+        let next_kind = match (&self.resolved, &self.admission.resources, &state.kind) {
+            (
+                CommonTransientResolvedSpatial::MiniP1(resolved),
+                NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
+                CommonStateKind::MiniP1(initial),
+            ) => {
+                let trajectory = advance_resolved_transient_navier_stokes_mini_2d(
+                    &self.admission.program,
+                    resolved,
+                    mesh,
+                    initial.as_ref().clone(),
+                    run,
+                    backend,
+                )?;
+                let accepted = trajectory
+                    .states()
+                    .last()
+                    .ok_or_else(|| invalid("MINI transient step returned no accepted State"))?;
+                CommonStateKind::MiniP1(Box::new(mini_initial_from_resolved(self, mesh, accepted)?))
+            }
+            (
+                CommonTransientResolvedSpatial::CellCentered(resolved),
+                NativeMeshResources::Cartesian { mesh, .. },
+                CommonStateKind::CellCentered(initial),
+            ) => {
+                let trajectory = advance_resolved_transient_navier_stokes_cell_centered_2d(
+                    &self.admission.program,
+                    resolved,
+                    mesh,
+                    initial.as_ref().clone(),
+                    run,
+                    backend,
+                )?;
+                let accepted = trajectory.states().last().ok_or_else(|| {
+                    invalid("cell-centered transient step returned no accepted State")
+                })?;
+                CommonStateKind::CellCentered(Box::new(cell_centered_initial_from_resolved(
+                    self, accepted,
+                )?))
+            }
+            _ => {
+                return Err(invalid(
+                    "State method history is incompatible with this Plan",
+                ));
+            }
+        };
+        let next_time = state.time_s + self.temporal.step().value();
+        CommonState::new(
+            self.state_space_identity(),
+            next_time,
+            Arc::clone(&state.model),
+            Arc::clone(&state.resources),
+            next_kind,
+        )
+    }
+}
+
+fn mini_initial_from_resolved(
+    plan: &CommonTransientFlowPlan,
+    mesh: &SimplicialMeshEnvelopeV1,
+    state: &ResolvedTransientNavierStokesState2d,
+) -> Result<TransientNavierStokesInitialState2d, Diagnostic> {
+    let RecognizedNativeModel::Transient(model) = &plan.admission.recognized else {
+        return Err(invalid("transient Plan lost recognized Model meaning"));
+    };
+    TransientNavierStokesInitialState2d::new(
+        model,
+        state.time(),
+        mesh.artifact_reference()?,
+        state.velocity().clone(),
+        state.pressure().clone(),
+        state.pressure_reference(),
+    )
+}
+
+fn cell_centered_initial_from_resolved(
+    plan: &CommonTransientFlowPlan,
+    state: &ResolvedCellCenteredNavierStokesState2d,
+) -> Result<CellCenteredNavierStokesInitialState2d, Diagnostic> {
+    let RecognizedNativeModel::Transient(model) = &plan.admission.recognized else {
+        return Err(invalid("transient Plan lost recognized Model meaning"));
+    };
+    CellCenteredNavierStokesInitialState2d::new(
+        model,
+        state.time(),
+        state.velocity().clone(),
+        state.pressure().clone(),
+        state.gauge_multiplier(),
+        state.previous_face_volume_fluxes().to_vec(),
+    )
 }
 
 fn transient_realization_capabilities(
@@ -3419,6 +3973,23 @@ public component PoissonRectangle {
             |_| panic!("transient Model resolved as steady Stokes"),
             |plan| plan,
         );
+        let alternate_scaling =
+            IncompressibleScalingRequest2d::from_si(Some(4.0), Some(5.0), Some(6.0)).unwrap();
+        let fvm_alternate_scaling = resolve_common_plan(
+            &model,
+            resources(&geometry),
+            CommonSpatialPolicy::CellCentered,
+            CommonSolvePolicy::newton(linear, nonlinear),
+            Some(alternate_scaling),
+            Some(temporal),
+            &ResolveOnlyBackend,
+        )
+        .unwrap()
+        .project(
+            |_| panic!("transient Model resolved as scalar"),
+            |_| panic!("transient Model resolved as steady Stokes"),
+            |plan| plan,
+        );
 
         assert_eq!(mini.identity(), mini_replay.identity());
         assert_ne!(mini.identity(), fvm.identity());
@@ -3449,6 +4020,43 @@ public component PoissonRectangle {
         );
         assert_eq!(mini.linear().reduction(), ReductionPolicy::Fast);
         assert_eq!(fvm.linear().reduction(), ReductionPolicy::Reproducible);
+
+        let mini_zero = mini.zero_state(0.0).unwrap();
+        let fvm_zero = fvm.zero_state(0.0).unwrap();
+        assert_eq!(mini_zero.velocity_vertex_values().unwrap().len(), 12);
+        assert_eq!(mini_zero.velocity_cell_values().len(), 12);
+        assert_eq!(mini_zero.pressure_vertex_values().unwrap().len(), 12);
+        assert!(mini_zero.method_history_values().is_empty());
+        assert_eq!(fvm_zero.velocity_cell_values().len(), 6);
+        assert_eq!(fvm_zero.pressure_cell_values().unwrap().len(), 6);
+        assert!(!fvm_zero.method_history_values().is_empty());
+        assert_eq!(custom.state_space_identity(), mini.state_space_identity());
+        assert_eq!(
+            fvm_alternate_scaling.state_space_identity(),
+            fvm.state_space_identity(),
+            "coherent-SI State compatibility excludes numerical scaling",
+        );
+        assert!(CommonTransientRunRequest::from_steps(
+            custom.clone(),
+            mini_zero.clone(),
+            2,
+            vec![1, 2],
+        )
+        .is_ok());
+        assert!(
+            CommonTransientRunRequest::from_steps(mini.clone(), fvm_zero, 1, vec![1],).is_err()
+        );
+        let by_steps =
+            CommonTransientRunRequest::from_steps(mini.clone(), mini_zero.clone(), 2, vec![1, 2])
+                .unwrap();
+        let by_times =
+            CommonTransientRunRequest::from_times(mini.clone(), mini_zero, 0.02, vec![0.01, 0.02])
+                .unwrap();
+        assert_eq!(by_steps.identity(), by_times.identity());
+        assert!(
+            CommonTransientRunRequest::from_steps(mini, by_times.state().clone(), 2, vec![2, 1],)
+                .is_err()
+        );
 
         assert!(
             resolve_common_plan(

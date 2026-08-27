@@ -13,7 +13,7 @@ capabilities = [
 [problem]
 source = "the complete fixed-mesh 2D V1 trajectory replay accepted by artifacts.general-fixed-mesh-field-trajectory-2d"
 proving_consumer = "eqiora.Result.trajectory from the accepted eqiora.fsi.FixedMeshMonolithic Plan execution"
-projection = "eqiora.trajectory.Trajectory, TrajectoryState, and FieldSnapshot"
+projection = "eqiora.trajectory.Trajectory, State, and FieldSnapshot"
 mesh = "one immutable affine-triangle 2D mesh shared by every accepted state"
 fields = "complete semantic Field inventory with exact support, coherent-SI dimension, shape, frame, and Vertex/Cell coefficient associations"
 
@@ -55,7 +55,7 @@ support_from_values = "membership inferred from nonzero coefficient locations dr
 support_renumbering = "local or compressed indices replace exact global canonical mesh-entity indices"
 support_association_confusion = "Vertex and Cell memberships are exchanged, absent associations return data, or an unknown association returns an empty array"
 support_owner_rebuild = "repeated access on one FieldSnapshot allocates an equivalent support array instead of returning the same object"
-fsi_field_or_evidence_drift = "the common Trajectory field blocks or exact TrajectoryState-keyed FSI evidence differ from the accepted replay"
+fsi_field_or_evidence_drift = "the common Trajectory field blocks or exact State-keyed FSI evidence differ from the accepted replay"
 surviving_predecessor_result = "FixedReferenceFsiStep or FixedReferenceFsiResult remains as a second Python trajectory or state owner"
 mutable_array = "assignment, writeability re-enable, or an ordinary NumPy view permits mutation"
 reprojection = "repeated access rebuilds Python owners or complete arrays"

@@ -50,7 +50,7 @@ its static `Result` replacement through `plot_scalar_field` belongs to
 not this Trajectory claim.
 
 The predecessor FSI state, result, and one-call solve names are absent as well;
-the common `TrajectoryState`, common `Result`, explicit Plan execution, and
+the common `State`, common `Result`, explicit Plan execution, and
 typed evidence are their only product successors.
 
 For one subsequent prerelease, `plot_displacement` remains only as an

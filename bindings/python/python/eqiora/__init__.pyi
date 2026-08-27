@@ -33,6 +33,11 @@ from . import solve as solve
 from . import time as time
 from . import trajectory as trajectory
 
+#: Opaque coherent-SI restart State for common transient execution.
+#:
+#: Authority: ``crates/eqiora-python/src/trajectory.rs::PyState``.
+State = trajectory.State
+
 _Float64Array = npt.NDArray[np.float64]
 
 __version__: str
@@ -1201,6 +1206,32 @@ class ScalarEllipticRunCancellation:
     @property
     def plan_key(self) -> str: ...
 
+@final
+class TransientRunProgress:
+    """Last fully accepted common transient step boundary.
+
+    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunProgress``.
+    """
+
+    @property
+    def accepted_steps(self) -> int: ...
+    @property
+    def maximum_steps(self) -> int: ...
+    @property
+    def model_time_s(self) -> float: ...
+
+@final
+class TransientRunCancellation:
+    """Exact accepted common transient boundary where cancellation terminated.
+
+    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunCancellation``.
+    """
+
+    @property
+    def progress(self) -> TransientRunProgress: ...
+    @property
+    def request_identity(self) -> str: ...
+
 _RunResultT = TypeVar(
     "_RunResultT",
     Result,
@@ -1219,11 +1250,11 @@ class Run(Generic[_RunResultT]):
     @property
     def history(self) -> tuple[RunStatus, ...]: ...
     @property
-    def progress(self) -> RunProgress | ScalarEllipticRunProgress | None: ...
+    def progress(self) -> RunProgress | ScalarEllipticRunProgress | TransientRunProgress | None: ...
     @property
     def cancellation(
         self,
-    ) -> RunCancellation | ScalarEllipticRunCancellation | None: ...
+    ) -> RunCancellation | ScalarEllipticRunCancellation | TransientRunCancellation | None: ...
     @property
     def done(self) -> bool: ...
     @property
@@ -1362,8 +1393,9 @@ def resolve(
 
     ...
 
+@overload
 def run(plan: Plan) -> Result:
-    """Execute solely from one immutable common Plan.
+    """Execute one steady or explicitly bounded transient common Plan synchronously.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::run``.
     """
@@ -1371,49 +1403,38 @@ def run(plan: Plan) -> Result:
     ...
 
 @overload
-def submit(
-    model: Model,
+def run(
+    plan: Plan,
     *,
-    end_time: float,
-    max_step: float,
-    realization: None = None,
-) -> Run[Result]:
-    """Submit one accepted temporal, spatial, or plan request shape.
+    state: State,
+    until_s: float,
+    output_times_s: tuple[float, ...],
+) -> Result:
+    """Execute one steady or explicitly bounded transient common Plan synchronously.
 
-    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
+    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
     """
 
     ...
 
 @overload
-def submit(model: Model, *, realization: Realization) -> Run[ScalarEllipticResult]:
-    """Submit one accepted temporal, spatial, or plan request shape.
+def run(
+    plan: Plan,
+    *,
+    state: State,
+    steps: int,
+    output_steps: tuple[int, ...],
+) -> Result:
+    """Execute one steady or explicitly bounded transient common Plan synchronously.
 
-    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
+    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
     """
 
     ...
 
 @overload
-def submit(
-    model: Model,
-    *,
-    plan: fluid.SteadyStokesPlan,
-) -> Run[Result]:
-    """Submit one accepted temporal, spatial, or plan request shape.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
-    """
-
-    ...
-
-@overload
-def submit(
-    model: Model,
-    *,
-    plan: solid.LinearElasticityPlan,
-) -> Run[Result]:
-    """Submit one accepted temporal, spatial, or plan request shape.
+def submit(plan: Plan) -> Run[Result]:
+    """Submit one steady or explicitly bounded transient common Plan.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
     """
@@ -1422,11 +1443,28 @@ def submit(
 
 @overload
 def submit(
-    model: Model,
+    plan: Plan,
     *,
-    plan: fsi.FixedMeshMonolithicPlan,
+    state: State,
+    until_s: float,
+    output_times_s: tuple[float, ...],
 ) -> Run[Result]:
-    """Submit one accepted temporal, spatial, or plan request shape.
+    """Submit one steady or explicitly bounded transient common Plan.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
+    """
+
+    ...
+
+@overload
+def submit(
+    plan: Plan,
+    *,
+    state: State,
+    steps: int,
+    output_steps: tuple[int, ...],
+) -> Run[Result]:
+    """Submit one steady or explicitly bounded transient common Plan.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
     """
@@ -1507,6 +1545,9 @@ __all__ = [
     "ScalarFieldLocation",
     "ScalarFieldSummary",
     "Series",
+    "State",
+    "TransientRunCancellation",
+    "TransientRunProgress",
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",

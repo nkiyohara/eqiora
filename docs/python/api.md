@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 15 module summaries and all 139 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 609 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 15 module summaries and all 142 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 625 signature-only entries under documented owning types**.
 
-Inventory: 15 modules, 158 literal public spellings, 139 canonical grouped declarations, 803 visible method signatures (609 non-dunder and 194 dunder), and 67 visible class assignments.
+Inventory: 15 modules, 161 literal public spellings, 142 canonical grouped declarations, 819 visible method signatures (625 non-dunder and 194 dunder), and 67 visible class assignments.
 
 Regenerate with:
 
@@ -1056,9 +1056,9 @@ class Run(Generic[_RunResultT]):
     @property
     def history(self) -> tuple[RunStatus, ...]: ...
     @property
-    def progress(self) -> RunProgress | ScalarEllipticRunProgress | None: ...
+    def progress(self) -> RunProgress | ScalarEllipticRunProgress | TransientRunProgress | None: ...
     @property
-    def cancellation(self) -> RunCancellation | ScalarEllipticRunCancellation | None: ...
+    def cancellation(self) -> RunCancellation | ScalarEllipticRunCancellation | TransientRunCancellation | None: ...
     @property
     def done(self) -> bool: ...
     @property
@@ -1370,6 +1370,54 @@ class Series:
     def __iter__(self) -> Iterator[tuple[float, float]]: ...
 ```
 
+<a id="api-eqiora-State"></a>
+
+### `eqiora.State`
+
+Opaque coherent-SI restart State for common transient execution.
+
+Authority: [`crates/eqiora-python/src/trajectory.rs::PyState`](../../crates/eqiora-python/src/trajectory.rs)
+
+```python
+State = trajectory.State
+```
+
+<a id="api-eqiora-TransientRunCancellation"></a>
+
+### `eqiora.TransientRunCancellation`
+
+Exact accepted common transient boundary where cancellation terminated.
+
+Authority: [`crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunCancellation`](../../crates/eqiora-python/src/execution/evidence.rs)
+
+```python
+@final
+class TransientRunCancellation:
+    @property
+    def progress(self) -> TransientRunProgress: ...
+    @property
+    def request_identity(self) -> str: ...
+```
+
+<a id="api-eqiora-TransientRunProgress"></a>
+
+### `eqiora.TransientRunProgress`
+
+Last fully accepted common transient step boundary.
+
+Authority: [`crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunProgress`](../../crates/eqiora-python/src/execution/evidence.rs)
+
+```python
+@final
+class TransientRunProgress:
+    @property
+    def accepted_steps(self) -> int: ...
+    @property
+    def maximum_steps(self) -> int: ...
+    @property
+    def model_time_s(self) -> float: ...
+```
+
 <a id="api-eqiora-StructuralSemanticFingerprint"></a>
 
 ### `eqiora.StructuralSemanticFingerprint`
@@ -1561,37 +1609,38 @@ def resolve(model: Model, *, mesh: meshing.Mesh, spatial: fem.Q1 | fem.MiniP1 | 
 
 ### `eqiora.run`
 
-Execute solely from one immutable common Plan.
+Execute one steady or explicitly bounded transient common Plan synchronously.
 
 Authority: [`bindings/python/python/eqiora/__init__.py::run`](../../bindings/python/python/eqiora/__init__.py)
 
 ```python
+@overload
 def run(plan: Plan) -> Result: ...
+
+@overload
+def run(plan: Plan, *, state: State, until_s: float, output_times_s: tuple[float, ...]) -> Result: ...
+
+@overload
+def run(plan: Plan, *, state: State, steps: int, output_steps: tuple[int, ...]) -> Result: ...
 ```
 
 <a id="api-eqiora-submit"></a>
 
 ### `eqiora.submit`
 
-Submit one accepted temporal, spatial, or plan request shape.
+Submit one steady or explicitly bounded transient common Plan.
 
 Authority: [`bindings/python/python/eqiora/__init__.py::submit`](../../bindings/python/python/eqiora/__init__.py)
 
 ```python
 @overload
-def submit(model: Model, *, end_time: float, max_step: float, realization: None=None) -> Run[Result]: ...
+def submit(plan: Plan) -> Run[Result]: ...
 
 @overload
-def submit(model: Model, *, realization: Realization) -> Run[ScalarEllipticResult]: ...
+def submit(plan: Plan, *, state: State, until_s: float, output_times_s: tuple[float, ...]) -> Run[Result]: ...
 
 @overload
-def submit(model: Model, *, plan: fluid.SteadyStokesPlan) -> Run[Result]: ...
-
-@overload
-def submit(model: Model, *, plan: solid.LinearElasticityPlan) -> Run[Result]: ...
-
-@overload
-def submit(model: Model, *, plan: fsi.FixedMeshMonolithicPlan) -> Run[Result]: ...
+def submit(plan: Plan, *, state: State, steps: int, output_steps: tuple[int, ...]) -> Run[Result]: ...
 ```
 
 <a id="api-eqiora-through"></a>
@@ -2872,9 +2921,13 @@ class Trajectory:
     @property
     def mesh_digest(self) -> str: ...
     @property
-    def realization_digest(self) -> str: ...
+    def realization_digest(self) -> str | None: ...
     @property
-    def run_digest(self) -> str: ...
+    def plan_identity(self) -> str | None: ...
+    @property
+    def run_digest(self) -> str | None: ...
+    @property
+    def request_identity(self) -> str | None: ...
     @property
     def digest(self) -> str: ...
     @property
@@ -2884,23 +2937,23 @@ class Trajectory:
     @property
     def cells(self) -> npt.NDArray[np.uint32]: ...
     @property
-    def states(self) -> tuple[TrajectoryState, ...]: ...
-    def state(self, step: int, /) -> TrajectoryState: ...
+    def states(self) -> tuple[State, ...]: ...
+    def state(self, step: int, /) -> State: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```
 
-<a id="api-eqiora-trajectory-TrajectoryState"></a>
+<a id="api-eqiora-trajectory-State"></a>
 
-### `eqiora.trajectory.TrajectoryState`
+### `eqiora.trajectory.State`
 
 Accepted physical state in exact trajectory order.
 
-Authority: [`crates/eqiora-python/src/trajectory.rs::PyTrajectoryState`](../../crates/eqiora-python/src/trajectory.rs)
+Authority: [`crates/eqiora-python/src/trajectory.rs::PyState`](../../crates/eqiora-python/src/trajectory.rs)
 
 ```python
 @final
-class TrajectoryState:
+class State:
     @property
     def digest(self) -> str: ...
     @property
@@ -2909,6 +2962,24 @@ class TrajectoryState:
     def time_s(self) -> float: ...
     @property
     def fields(self) -> tuple[FieldSnapshot, ...]: ...
+    @property
+    def state_space_identity(self) -> str: ...
+    @property
+    def mesh(self) -> Mesh | None: ...
+    @property
+    def model(self) -> Model | None: ...
+    @property
+    def source_plan_identity(self) -> str | None: ...
+    @property
+    def source_request_identity(self) -> str | None: ...
+    @property
+    def source_trajectory_identity(self) -> str | None: ...
+    @property
+    def source_kind(self) -> str | None: ...
+    @staticmethod
+    def zero(plan: Plan, /, *, time_s: float=0.0) -> State: ...
+    @staticmethod
+    def from_result(plan: Plan, result: Result, /, *, time_s: float) -> State: ...
     def field(self, field: FieldRef, /) -> FieldSnapshot: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
@@ -2983,7 +3054,7 @@ class FixedMeshMonolithicEvidence:
     def interface_facets(self) -> npt.NDArray[np.uint32]: ...
     @property
     def states(self) -> tuple[FixedMeshMonolithicStateEvidence, FixedMeshMonolithicStateEvidence]: ...
-    def state(self, state: TrajectoryState, /) -> FixedMeshMonolithicStateEvidence: ...
+    def state(self, state: State, /) -> FixedMeshMonolithicStateEvidence: ...
     @property
     def case_ids(self) -> tuple[str, str]: ...
 ```
