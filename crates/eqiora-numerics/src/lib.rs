@@ -38,11 +38,13 @@ pub use common_ode::{
     CommonTsitourasTolerance,
 };
 pub use numerical_admission::{
-    AuthenticatedCommonMesh, CommonBackwardEuler, CommonElasticityPlan, CommonFsiPlan,
-    CommonFsiRunRequest, CommonInitialField, CommonInitialValues, CommonPressureGauge2d,
-    CommonScalarPlan, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy,
-    CommonSpatialRequest, CommonState, CommonSteadyStokesPlan, CommonTransientFlowPlan,
-    CommonTransientRunRequest, ResolvedCommonPlan, resolve_common_ode_plan, resolve_common_plan,
+    AuthenticatedCommonMesh, CommonBackwardEuler, CommonElasticityObservation,
+    CommonElasticityPlan, CommonElasticityRunOutput, CommonFsiPlan, CommonFsiRunRequest,
+    CommonInitialField, CommonInitialValues, CommonPressureGauge2d, CommonScalarPlan,
+    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSpatialRequest,
+    CommonState, CommonSteadyStokesObservation, CommonSteadyStokesPlan,
+    CommonSteadyStokesRunOutput, CommonTransientFlowPlan, CommonTransientRunRequest,
+    ResolvedCommonPlan, resolve_common_ode_plan, resolve_common_plan,
 };
 mod operator;
 mod physical_network;

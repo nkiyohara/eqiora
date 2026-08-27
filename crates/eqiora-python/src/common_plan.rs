@@ -1317,12 +1317,7 @@ assert q1_result.plan_key == q1.identity
 assert q1_result.mesh(q1.field) is mesh
 assert q1_result.logical_shape == (3, 4)
 assert len(q1_result.values) == 12
-try:
-    q1_result.run_manifest()
-except package.CapabilityError:
-    pass
-else:
-    raise AssertionError("common scalar Result fabricated a durable Run artifact")
+assert not hasattr(q1_result, "run_manifest")
 assert tpfa_result.logical_shape == (2, 3)
 assert len(tpfa_result.values) == 6
 try:
@@ -1550,6 +1545,10 @@ assert plan.solver_backend == "eqiora.faer"
 assert plan.solve is linear
 result = package.run(plan)
 assert isinstance(result, package.Result)
+stokes_evidence = package.fluid.steady_stokes_evidence(result)
+assert isinstance(stokes_evidence, package.fluid.SteadyStokesEvidence)
+assert stokes_evidence.plan_key == result.plan_key
+assert stokes_evidence.exact_bounds == ((0.0, 2.2), (0.0, 0.41))
 try:
     package.State.zero(plan)
 except ValueError:
@@ -1957,6 +1956,10 @@ assert plan.reduction == "reproducible"
 assert plan.placement == "host-serial" and plan.workers == 1
 
 result = package.run(plan)
+elasticity_evidence = package.solid.linear_elasticity_evidence(result)
+assert isinstance(elasticity_evidence, package.solid.LinearElasticityEvidence)
+assert elasticity_evidence.plan_key == result.plan_key
+assert elasticity_evidence.exact_bounds == ((0.0, 1.0), (0.0, 1.0))
 output = result.output(plan.field)
 assert output.field == plan.field
 assert output.mesh is mesh

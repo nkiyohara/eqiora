@@ -11,10 +11,7 @@ from ._eqiora import (
     IncompressibleScalingReceipt2d,
     IncompressibleScalingRule2d,
     PressureGauge2d,
-    SteadyStokes,
     SteadyStokesEvidence,
-    SteadyStokesPlan,
-    resolve_steady_stokes as resolve,
     steady_stokes_evidence,
 )
 
@@ -29,9 +26,6 @@ __all__ = [
     "IncompressibleScalingReceipt2d",
     "IncompressibleScalingRule2d",
     "PressureGauge2d",
-    "SteadyStokes",
     "SteadyStokesEvidence",
-    "SteadyStokesPlan",
-    "resolve",
     "steady_stokes_evidence",
 ]

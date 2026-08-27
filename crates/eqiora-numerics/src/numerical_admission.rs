@@ -87,8 +87,8 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     ExecutionProvider, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
     LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    SERIAL_EXECUTION_PROVIDER, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
-    SolverProvider,
+    SERIAL_EXECUTION_PROVIDER, ScalarType, SolveReport, SolverCapabilities, SolverCapability,
+    SolverPlan, SolverProvider,
 };
 use eqiora_time::TimeBackendIdentity;
 use sha2::{Digest, Sha256};
@@ -921,6 +921,167 @@ pub struct CommonSteadyStokesPlan {
     pressure_field_id: String,
     velocity_space: Space,
     pressure_space: Space,
+}
+
+/// Plan-authenticated scientific observations for one common steady-Stokes solve.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonSteadyStokesObservation {
+    pressure_minimum: f64,
+    pressure_maximum: f64,
+    exact_bounds: [[f64; 2]; 2],
+    cylinder_force_on_fluid: [f64; 2],
+    inlet_flux: f64,
+    outlet_flux: f64,
+    net_flux: f64,
+    constrained_reaction: [f64; 2],
+    integrated_body_force: [f64; 2],
+    integrated_boundary_traction: [f64; 2],
+    momentum_closure: [f64; 2],
+    solve: SolveReport,
+    continuity_residual_norm: f64,
+}
+
+/// Exact paired output produced by one common steady-Stokes Plan execution.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonSteadyStokesRunOutput {
+    plan_identity: String,
+    solution: crate::fluid::SteadyStokesMiniSolution2d,
+    observation: CommonSteadyStokesObservation,
+}
+
+impl CommonSteadyStokesRunOutput {
+    #[must_use]
+    pub fn plan_identity(&self) -> &str {
+        &self.plan_identity
+    }
+
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (
+        crate::fluid::SteadyStokesMiniSolution2d,
+        CommonSteadyStokesObservation,
+    ) {
+        (self.solution, self.observation)
+    }
+}
+
+impl CommonSteadyStokesObservation {
+    #[must_use]
+    pub const fn pressure_minimum(&self) -> f64 {
+        self.pressure_minimum
+    }
+    #[must_use]
+    pub const fn pressure_maximum(&self) -> f64 {
+        self.pressure_maximum
+    }
+    #[must_use]
+    pub const fn exact_bounds(&self) -> [[f64; 2]; 2] {
+        self.exact_bounds
+    }
+    #[must_use]
+    pub const fn cylinder_force_on_fluid(&self) -> [f64; 2] {
+        self.cylinder_force_on_fluid
+    }
+    #[must_use]
+    pub const fn inlet_flux(&self) -> f64 {
+        self.inlet_flux
+    }
+    #[must_use]
+    pub const fn outlet_flux(&self) -> f64 {
+        self.outlet_flux
+    }
+    #[must_use]
+    pub const fn net_flux(&self) -> f64 {
+        self.net_flux
+    }
+    #[must_use]
+    pub const fn constrained_reaction(&self) -> [f64; 2] {
+        self.constrained_reaction
+    }
+    #[must_use]
+    pub const fn integrated_body_force(&self) -> [f64; 2] {
+        self.integrated_body_force
+    }
+    #[must_use]
+    pub const fn integrated_boundary_traction(&self) -> [f64; 2] {
+        self.integrated_boundary_traction
+    }
+    #[must_use]
+    pub const fn momentum_closure(&self) -> [f64; 2] {
+        self.momentum_closure
+    }
+    #[must_use]
+    pub const fn solve(&self) -> &SolveReport {
+        &self.solve
+    }
+    #[must_use]
+    pub const fn continuity_residual_norm(&self) -> f64 {
+        self.continuity_residual_norm
+    }
+}
+
+/// Plan-authenticated scientific observations for one common elasticity solve.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonElasticityObservation {
+    constrained_reaction: [f64; 2],
+    integrated_body_force: [f64; 2],
+    assembly_packets: usize,
+    assembly_targets: usize,
+    solve: SolveReport,
+    exact_bounds: [[f64; 2]; 2],
+}
+
+/// Exact paired output produced by one common elasticity Plan execution.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonElasticityRunOutput {
+    plan_identity: String,
+    solution: CartesianLinearElasticity2dSolution,
+    observation: CommonElasticityObservation,
+}
+
+impl CommonElasticityRunOutput {
+    #[must_use]
+    pub fn plan_identity(&self) -> &str {
+        &self.plan_identity
+    }
+
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (
+        CartesianLinearElasticity2dSolution,
+        CommonElasticityObservation,
+    ) {
+        (self.solution, self.observation)
+    }
+}
+
+impl CommonElasticityObservation {
+    #[must_use]
+    pub const fn constrained_reaction(&self) -> [f64; 2] {
+        self.constrained_reaction
+    }
+    #[must_use]
+    pub const fn integrated_body_force(&self) -> [f64; 2] {
+        self.integrated_body_force
+    }
+    #[must_use]
+    pub const fn assembly_packets(&self) -> usize {
+        self.assembly_packets
+    }
+    #[must_use]
+    pub const fn assembly_targets(&self) -> usize {
+        self.assembly_targets
+    }
+    #[must_use]
+    pub const fn solve(&self) -> &SolveReport {
+        &self.solve
+    }
+    #[must_use]
+    pub const fn exact_bounds(&self) -> [[f64; 2]; 2] {
+        self.exact_bounds
+    }
 }
 
 /// Resolve Model mathematics first, then admit the requested numerical policies.
@@ -1866,6 +2027,121 @@ impl CommonSteadyStokesPlan {
         Ok(solution)
     }
 
+    /// Project scientific observations only after reauthenticating this Plan's roles.
+    fn observe(
+        &self,
+        solution: &crate::fluid::SteadyStokesMiniSolution2d,
+    ) -> Result<CommonSteadyStokesObservation, Diagnostic> {
+        self.admission.revalidate()?;
+        if solution.velocity_field().ulid().to_string() != self.velocity_field_id
+            || solution.pressure_field().ulid().to_string() != self.pressure_field_id
+            || solution.scales() != self.scaling.scales()
+        {
+            return Err(invalid(
+                "steady-Stokes observation crossed a different Plan or effective scaling",
+            ));
+        }
+        for role in ["cylinder", "inlet", "outlet", "walls"] {
+            if self.binding.entities(role)?.is_empty() {
+                return Err(invalid(format!(
+                    "steady-Stokes observation role `{role}` has no authenticated support"
+                )));
+            }
+        }
+        let bounds = self
+            .admission
+            .resources
+            .geometry()
+            .circular_hole_bounds()
+            .copied()
+            .ok_or_else(|| invalid("steady-Stokes observation requires circular-hole Geometry"))?;
+        let pressure = solution.pressure().vertex_values();
+        let pressure_minimum = pressure
+            .iter()
+            .copied()
+            .min_by(f64::total_cmp)
+            .ok_or_else(|| invalid("steady-Stokes observation has no pressure values"))?;
+        let pressure_maximum = pressure
+            .iter()
+            .copied()
+            .max_by(f64::total_cmp)
+            .ok_or_else(|| invalid("steady-Stokes observation has no pressure values"))?;
+        let cylinder_force_on_fluid =
+            solution
+                .named_boundary_reaction("cylinder")
+                .ok_or_else(|| {
+                    invalid("steady-Stokes solution omitted authenticated cylinder reaction")
+                })?;
+        let inlet_flux = solution
+            .named_boundary_flux("inlet")
+            .ok_or_else(|| invalid("steady-Stokes solution omitted authenticated inlet flux"))?;
+        let outlet_flux = solution
+            .named_boundary_flux("outlet")
+            .ok_or_else(|| invalid("steady-Stokes solution omitted authenticated outlet flux"))?;
+        let constrained_reaction = solution.boundary_reaction();
+        let integrated_body_force = solution.integrated_body_force();
+        let integrated_boundary_traction = solution.integrated_boundary_traction();
+        let momentum_closure = std::array::from_fn(|component| {
+            constrained_reaction[component]
+                + integrated_body_force[component]
+                + integrated_boundary_traction[component]
+        });
+        let net_flux = inlet_flux + outlet_flux;
+        let continuity_residual_norm = solution.dimensionless_solution().continuity_residual_norm();
+        if bounds
+            .iter()
+            .flatten()
+            .copied()
+            .chain([
+                pressure_minimum,
+                pressure_maximum,
+                inlet_flux,
+                outlet_flux,
+                net_flux,
+            ])
+            .chain(cylinder_force_on_fluid)
+            .chain(constrained_reaction)
+            .chain(integrated_body_force)
+            .chain(integrated_boundary_traction)
+            .chain(momentum_closure)
+            .chain([continuity_residual_norm])
+            .any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "steady-Stokes observation contains a non-finite value",
+            ));
+        }
+        Ok(CommonSteadyStokesObservation {
+            pressure_minimum,
+            pressure_maximum,
+            exact_bounds: bounds,
+            cylinder_force_on_fluid,
+            inlet_flux,
+            outlet_flux,
+            net_flux,
+            constrained_reaction,
+            integrated_body_force,
+            integrated_boundary_traction,
+            momentum_closure,
+            solve: solution.dimensionless_solution().solve_report().clone(),
+            continuity_residual_norm,
+        })
+    }
+
+    /// Execute and authenticate observations without exposing a re-pairing seam.
+    pub fn run_observed(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonSteadyStokesRunOutput, Diagnostic> {
+        let solution = self.run(backend)?;
+        let observation = self.observe(&solution)?;
+        Ok(CommonSteadyStokesRunOutput {
+            plan_identity: self.identity.clone(),
+            solution,
+            observation,
+        })
+    }
+
     #[must_use]
     pub fn identity(&self) -> &str {
         &self.identity
@@ -2557,6 +2833,57 @@ impl CommonElasticityPlan {
 
     pub fn run(&self) -> Result<CartesianLinearElasticity2dSolution, Diagnostic> {
         self.admission.execute_elasticity(&REFERENCE_LINEAR_SOLVER)
+    }
+
+    /// Project scientific observations through this exact admitted Plan.
+    fn observe(
+        &self,
+        solution: &CartesianLinearElasticity2dSolution,
+    ) -> Result<CommonElasticityObservation, Diagnostic> {
+        self.admission.revalidate()?;
+        let bounds = self
+            .admission
+            .resources
+            .geometry()
+            .planar_rectangle_bounds()
+            .copied()
+            .ok_or_else(|| {
+                invalid("linear-elasticity observation requires rectangular Geometry")
+            })?;
+        let constrained_reaction = solution.boundary_reaction();
+        let integrated_body_force = solution.integrated_body_force();
+        if bounds
+            .iter()
+            .flatten()
+            .copied()
+            .chain(constrained_reaction)
+            .chain(integrated_body_force)
+            .any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "linear-elasticity observation contains a non-finite value",
+            ));
+        }
+        let assembly = solution.assembly_report();
+        Ok(CommonElasticityObservation {
+            constrained_reaction,
+            integrated_body_force,
+            assembly_packets: assembly.packet_count(),
+            assembly_targets: assembly.target_count(),
+            solve: solution.solve_report().clone(),
+            exact_bounds: bounds,
+        })
+    }
+
+    /// Execute and authenticate observations without exposing a re-pairing seam.
+    pub fn run_observed(&self) -> Result<CommonElasticityRunOutput, Diagnostic> {
+        let solution = self.run()?;
+        let observation = self.observe(&solution)?;
+        Ok(CommonElasticityRunOutput {
+            plan_identity: self.identity.clone(),
+            solution,
+            observation,
+        })
     }
 
     #[must_use]
@@ -5758,6 +6085,29 @@ public component MixedBoundaryElasticity {
             |plan| plan,
             |_| panic!("steady-Stokes Model resolved as transient capability"),
             |_| panic!("steady-Stokes Model resolved as FSI"),
+        );
+        let relabelled_common = resolve_common_plan(
+            &model,
+            relabelled_gmsh,
+            CommonSpatialPolicy::MiniP1,
+            CommonSolvePolicy::Linear(solver),
+            None,
+            None,
+            &ResolveOnlyBackend,
+        )
+        .unwrap()
+        .project(
+            |_| panic!("spatial Model resolved as no-Mesh ODE"),
+            |_| panic!("steady-Stokes Model resolved as another capability"),
+            |_| panic!("steady-Stokes Model resolved as elasticity"),
+            |plan| plan,
+            |_| panic!("steady-Stokes Model resolved as transient capability"),
+            |_| panic!("steady-Stokes Model resolved as FSI"),
+        );
+        assert_ne!(
+            relabelled_common.identity(),
+            gmsh_common.identity(),
+            "provider role/support drift retained the same exact Plan identity",
         );
         assert_eq!(common.model_digest(), model.digest().unwrap().to_string());
         assert_eq!(common.mesh_digest(), mesh.digest().unwrap().to_string());

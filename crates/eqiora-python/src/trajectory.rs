@@ -68,6 +68,15 @@ impl PyInitialField {
     fn field(&self, py: Python<'_>) -> Py<PyModelFieldRef> {
         self.field.clone_ref(py)
     }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "InitialField(field={:?}, vertex_values={}, cell_values={})",
+            self.native.field().to_string(),
+            self.native.vertex().is_some(),
+            self.native.cell().is_some(),
+        )
+    }
 }
 
 fn extract_initial_values(value: &Bound<'_, PyAny>) -> PyResult<CommonInitialValues> {

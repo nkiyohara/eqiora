@@ -43,24 +43,12 @@ from ._eqiora import (
     ParameterRef,
     Plan,
     PhysicalDomain,
-    Realization,
     Representation,
     Relation,
     Result,
     Revision,
-    RunManifest,
     Run as _NativeRun,
-    RunCancellation,
-    RunProgress,
     RunStatus,
-    ScalarElliptic,
-    ScalarEllipticBalance,
-    ScalarEllipticMethod,
-    ScalarEllipticResult,
-    ScalarEllipticRunCancellation,
-    ScalarEllipticRunProgress,
-    ScalarFieldLocation,
-    ScalarFieldSummary,
     Series,
     State,
     TransientRunCancellation,
@@ -75,7 +63,6 @@ from ._eqiora import (
     derivative,
     div,
     grad,
-    preview_realization,
     replay,
     submit_plan as _submit_plan,
     through,
@@ -151,24 +138,12 @@ __all__ = [
     "ParameterRef",
     "PhysicalDomain",
     "Plan",
-    "Realization",
     "Representation",
     "Relation",
     "Result",
     "Revision",
     "Run",
-    "RunManifest",
-    "RunCancellation",
-    "RunProgress",
     "RunStatus",
-    "ScalarElliptic",
-    "ScalarEllipticBalance",
-    "ScalarEllipticMethod",
-    "ScalarEllipticResult",
-    "ScalarEllipticRunCancellation",
-    "ScalarEllipticRunProgress",
-    "ScalarFieldLocation",
-    "ScalarFieldSummary",
     "Series",
     "State",
     "TransientRunCancellation",
@@ -184,7 +159,6 @@ __all__ = [
     "derivative",
     "div",
     "grad",
-    "preview_realization",
     "replay",
     "resolve",
     "run",
@@ -327,12 +301,12 @@ class Run:
 
     def result(
         self,
-    ) -> Result | ScalarEllipticResult:
+    ) -> Result:
         return self._native.result()
 
     async def _wait(
         self,
-    ) -> Result | ScalarEllipticResult:
+    ) -> Result:
         import asyncio
 
         while not self.done:

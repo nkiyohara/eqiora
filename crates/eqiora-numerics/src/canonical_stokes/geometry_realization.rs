@@ -175,7 +175,7 @@ impl SteadyStokesGeometryBinding2d {
         steady_stokes_mini_plan_for_model_2d(&self.model, mesh, scales, solver)
     }
 
-    fn entities(&self, name: &str) -> Result<&[MeshEntity], Diagnostic> {
+    pub(crate) fn entities(&self, name: &str) -> Result<&[MeshEntity], Diagnostic> {
         self.entity_sets
             .get(name)
             .map(Vec::as_slice)
