@@ -275,15 +275,9 @@ impl PlanarOperationGraph {
                     )),
                 }
             }
-            (
-                OperationKind::Subtract {
-                    rectangle_operation,
-                    circle_operation,
-                    ..
-                },
-                PlanarTopologyHandle::Region(handle),
-            ) if handle.operation == target.operation
-                && handle.source == RegionSource::Subtract =>
+            (OperationKind::Subtract { .. }, PlanarTopologyHandle::Region(handle))
+                if handle.operation == target.operation
+                    && handle.source == RegionSource::Subtract =>
             {
                 Ok(0)
             }
