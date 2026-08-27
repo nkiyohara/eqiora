@@ -179,6 +179,9 @@ impl RealizationEnvelopeV4 {
             eqiora_realization::MeshPolicy::GeneratedUniform { .. } => Err(invalid_artifact(
                 "fixed-topology ALE realization must reference one imported simplex mesh",
             )),
+            eqiora_realization::MeshPolicy::SuppliedCartesian { .. } => Err(invalid_artifact(
+                "fixed-topology ALE realization does not admit a supplied Cartesian mesh",
+            )),
         }
     }
 

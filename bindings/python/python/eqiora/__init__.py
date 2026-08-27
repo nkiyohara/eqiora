@@ -3,7 +3,7 @@
 import os
 from typing import NamedTuple
 
-from . import fem, fluid, fsi, fvm, geometry, meshing, solid, solve, trajectory
+from . import fem, fluid, fsi, fvm, geometry, meshing, solid, solve, time, trajectory
 
 from ._eqiora import (
     __version__,
@@ -195,6 +195,7 @@ __all__ = [
     "meshing",
     "solid",
     "solve",
+    "time",
     "trajectory",
 ]
 
@@ -230,8 +231,9 @@ def resolve(
     *,
     mesh: meshing.Mesh,
     spatial,
-    solve: solve.Linear,
+    solve: solve.Linear | solve.Newton,
     scaling=None,
+    temporal=None,
 ) -> Plan:
     """Resolve an exact Model and caller-owned Mesh into an immutable common Plan."""
 
@@ -241,6 +243,7 @@ def resolve(
         spatial=spatial,
         solve=solve,
         scaling=scaling,
+        temporal=temporal,
     )
 
 

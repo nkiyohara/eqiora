@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 
 use eqiora::meshing::{MeshEntity, MeshTopology};
 use eqiora::realization::{
-    DiscretizationMethod, MeshKind, NonlinearSolvePlan, RealizationCapabilities,
+    DiscretizationMethod, MeshKind, MeshPolicy, NonlinearSolvePlan, RealizationCapabilities,
     RealizationRevision, SemanticRevision, SpatialDimensionSupport, TargetCapabilities,
     TransientCellCenteredIncompressibleFlowCapabilities,
     TransientCellCenteredIncompressibleFlowRealizationRequest, VectorLayoutKind,
@@ -143,7 +143,9 @@ fn run_case(
     .with_reduction(ReductionPolicy::Reproducible);
     let plan = transient_navier_stokes_cell_centered_plan_2d(
         &model,
-        NonZeroUsize::new(4).unwrap(),
+        MeshPolicy::GeneratedUniform {
+            cells_per_axis: NonZeroUsize::new(4).unwrap(),
+        },
         scales,
         DynQuantity::new(time_step, TIME),
         NonlinearSolvePlan::new(1.0e-9, 1.0e-11, NonZeroUsize::new(16).unwrap(), 12).unwrap(),

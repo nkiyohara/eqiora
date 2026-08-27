@@ -375,12 +375,20 @@ pub fn transient_navier_stokes_cell_centered_requirements_2d(
 /// choices. No alternate coupling or pressure correction is substituted.
 pub fn transient_navier_stokes_cell_centered_plan_2d(
     model: &TransientIncompressibleNavierStokesCartesianModel2d,
-    cells_per_axis: NonZeroUsize,
+    mesh: MeshPolicy,
     scales: IncompressibleFlowScaleProfile2d,
     time_step: DynQuantity,
     nonlinear: NonlinearSolvePlan,
     solver: SolverPlan,
 ) -> Result<TransientCellCenteredIncompressibleFlowRealizationPlan, Diagnostic> {
+    if !matches!(
+        mesh,
+        MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. }
+    ) {
+        return Err(invalid_realization(
+            "collocated flow requires a Cartesian mesh policy",
+        ));
+    }
     let velocity = velocity_id(model);
     let pressure = pressure_id(model);
     let momentum = momentum_id(model);
@@ -394,7 +402,7 @@ pub fn transient_navier_stokes_cell_centered_plan_2d(
         [AlgebraicConstraint::ZeroIntegral { field: pressure }],
         Discretization::new(
             DiscretizationMethod::CellCenteredFiniteVolume,
-            MeshPolicy::GeneratedUniform { cells_per_axis },
+            mesh,
             QuadraturePolicy::CellCentroid,
         ),
     )
@@ -481,6 +489,11 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
         MeshPolicy::ImportedSimplicial { .. } => {
             return Err(invalid_realization(
                 "collocated flow requires generated Cartesian cells",
+            ));
+        }
+        MeshPolicy::SuppliedCartesian { .. } => {
+            return Err(invalid_realization(
+                "supplied-Cartesian transient execution requires the exact caller envelope",
             ));
         }
     };

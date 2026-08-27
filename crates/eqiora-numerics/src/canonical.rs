@@ -1218,6 +1218,11 @@ fn solve_resolved_scalar_elliptic_1d_impl(
                 "interval v0 execution requires a generated uniform mesh",
             ));
         }
+        MeshPolicy::SuppliedCartesian { .. } => {
+            return Err(invalid_realization(
+                "interval execution does not admit a supplied Cartesian mesh",
+            ));
+        }
     };
     let solver = LinearSolveRequest::new(backend, selection.solver);
     let [start, end] = model.interval();
@@ -1522,6 +1527,11 @@ pub fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
                 "Cartesian v0 execution requires a generated uniform mesh; use the simplicial realization entry point for an imported mesh",
             ));
         }
+        MeshPolicy::SuppliedCartesian { .. } => {
+            return Err(invalid_realization(
+                "legacy Cartesian execution does not admit a supplied mesh",
+            ));
+        }
     };
     let mesh = CartesianMesh::uniform(model.bounds(), &vec![cells; model.dimension()])?;
     let source = |coordinates: &[f64]| model.source().evaluate(coordinates).unwrap_or(f64::NAN);
@@ -1722,6 +1732,11 @@ pub fn solve_resolved_scalar_elliptic_simplicial_with_assembly(
                 "simplicial execution requires an imported mesh policy",
             ));
         }
+        MeshPolicy::SuppliedCartesian { .. } => {
+            return Err(invalid_realization(
+                "simplicial execution does not admit a supplied Cartesian mesh",
+            ));
+        }
     };
     if expected_artifact != mesh_artifact {
         return Err(invalid_realization(
@@ -1876,6 +1891,11 @@ fn linearize_accepted_scalar_elliptic_cartesian(
         MeshPolicy::ImportedSimplicial { .. } => {
             return Err(invalid_realization(
                 "Cartesian linearization requires the generated mesh used by its successful primal solve",
+            ));
+        }
+        MeshPolicy::SuppliedCartesian { .. } => {
+            return Err(invalid_realization(
+                "legacy Cartesian linearization does not admit a supplied mesh",
             ));
         }
     };

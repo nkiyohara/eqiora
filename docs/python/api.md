@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 14 module summaries and all 135 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 599 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 15 module summaries and all 139 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 609 signature-only entries under documented owning types**.
 
-Inventory: 14 modules, 154 literal public spellings, 135 canonical grouped declarations, 781 visible method signatures (599 non-dunder and 182 dunder), and 65 visible class assignments.
+Inventory: 15 modules, 158 literal public spellings, 139 canonical grouped declarations, 803 visible method signatures (609 non-dunder and 194 dunder), and 67 visible class assignments.
 
 Regenerate with:
 
@@ -832,13 +832,21 @@ class Plan:
     @property
     def pressure_field(self) -> FieldRef | None: ...
     @property
-    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa: ...
+    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered: ...
     @property
-    def solve(self) -> solve.Linear: ...
+    def solve(self) -> solve.Linear | solve.Newton: ...
+    @property
+    def temporal(self) -> time.BackwardEuler | None: ...
     @property
     def discretization(self) -> str: ...
     @property
-    def space(self) -> str: ...
+    def space(self) -> str | None: ...
+    @property
+    def velocity_space(self) -> str | None: ...
+    @property
+    def pressure_space(self) -> str | None: ...
+    @property
+    def pressure_gauge(self) -> fluid.PressureGauge2d | None: ...
     @property
     def quadrature(self) -> str: ...
     @property
@@ -1546,7 +1554,7 @@ Resolve an exact Model and caller-owned Mesh into a common Plan.
 Authority: [`bindings/python/python/eqiora/__init__.py::resolve`](../../bindings/python/python/eqiora/__init__.py)
 
 ```python
-def resolve(model: Model, *, mesh: meshing.Mesh, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa, solve: solve.Linear, scaling: fluid.IncompressibleScaling | None=None) -> Plan: ...
+def resolve(model: Model, *, mesh: meshing.Mesh, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered, solve: solve.Linear | solve.Newton, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-run"></a>
@@ -2283,6 +2291,23 @@ Module authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyCellCenter
 
 Shipped stub: [`bindings/python/python/eqiora/fvm.pyi`](../../bindings/python/python/eqiora/fvm.pyi)
 
+<a id="api-eqiora-fvm-CellCentered"></a>
+
+### `eqiora.fvm.CellCentered`
+
+Collocated cell-centred incompressible-flow spatial policy.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyCellCentered`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+```python
+@final
+class CellCentered:
+    def __new__(cls) -> Self: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
 <a id="api-eqiora-fvm-CellCenteredTpfa"></a>
 
 ### `eqiora.fvm.CellCenteredTpfa`
@@ -2330,6 +2355,60 @@ class Linear:
     def maximum_iterations(self) -> int: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-solve-Newton"></a>
+
+### `eqiora.solve.Newton`
+
+Bounded Newton policy owning exact nested linear controls.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyNewton`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+```python
+@final
+class Newton:
+    def __new__(cls, *, linear: Linear, relative_tolerance: float=1e-09, absolute_tolerance: float=1e-11, maximum_iterations: int=16, maximum_line_search_steps: int=12) -> Self: ...
+    @property
+    def linear(self) -> Linear: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerance(self) -> float: ...
+    @property
+    def maximum_iterations(self) -> int: ...
+    @property
+    def maximum_line_search_steps(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="module-eqiora-time"></a>
+
+## `eqiora.time`
+
+Closed temporal policies projected by the native Eqiora resolver.
+
+Module authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+Shipped stub: [`bindings/python/python/eqiora/time.pyi`](../../bindings/python/python/eqiora/time.pyi)
+
+<a id="api-eqiora-time-BackwardEuler"></a>
+
+### `eqiora.time.BackwardEuler`
+
+Positive Backward-Euler operator step.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+```python
+@final
+class BackwardEuler:
+    def __new__(cls, step_s: float, /) -> Self: ...
+    @property
+    def step_s(self) -> float: ...
     def __repr__(self) -> str: ...
 ```
 
@@ -2553,6 +2632,23 @@ class IncompressibleScalingRule2d:
     ViscousStokesPressureV1: ClassVar[IncompressibleScalingRule2d]
     GaugeRateV1: ClassVar[IncompressibleScalingRule2d]
     WeakFunctionalV1: ClassVar[IncompressibleScalingRule2d]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-fluid-PressureGauge2d"></a>
+
+### `eqiora.fluid.PressureGauge2d`
+
+Closed pressure representative selected by transient resolution.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyPressureGauge2d`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+```python
+@final
+class PressureGauge2d:
+    ZeroIntegral: ClassVar[PressureGauge2d]
+    BoundaryTraction: ClassVar[PressureGauge2d]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```

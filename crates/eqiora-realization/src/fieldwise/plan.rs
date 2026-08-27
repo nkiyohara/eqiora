@@ -103,7 +103,7 @@ impl FieldwiseRealizationPlan {
             }),
             (
                 DiscretizationMethod::CellCenteredFiniteVolume,
-                MeshPolicy::GeneratedUniform { .. },
+                MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. },
                 QuadraturePolicy::CellCentroid,
             ) => self
                 .spatial
@@ -114,7 +114,7 @@ impl FieldwiseRealizationPlan {
         };
         if !admitted {
             return Err(invalid_realization(
-                "field-wise realization requires either continuous Galerkin with an imported affine-simplex mesh, Duffy triangle quadrature, and continuous spaces, or cell-centered finite volume with a generated uniform Cartesian mesh, cell-centroid quadrature, and cell-constant spaces",
+                "field-wise realization requires either continuous Galerkin with an imported affine-simplex mesh, Duffy triangle quadrature, and continuous spaces, or cell-centered finite volume with a generated or supplied Cartesian mesh, cell-centroid quadrature, and cell-constant spaces",
             ));
         }
         if matches!(self.schedule, ExecutionSchedule::RealTime { .. })

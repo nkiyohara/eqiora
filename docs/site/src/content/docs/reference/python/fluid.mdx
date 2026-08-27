@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/fluid.py"
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/fluid.pyi" kind="blob">bindings/python/python/eqiora/fluid.pyi</ExactSourceLink>
 
-This module publishes **14** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **15** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-fluid-IncompressibleScales"></a>
 
@@ -227,6 +227,23 @@ class IncompressibleScalingRule2d:
     ViscousStokesPressureV1: ClassVar[IncompressibleScalingRule2d]
     GaugeRateV1: ClassVar[IncompressibleScalingRule2d]
     WeakFunctionalV1: ClassVar[IncompressibleScalingRule2d]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-fluid-PressureGauge2d"></a>
+
+## `PressureGauge2d`
+
+Closed pressure representative selected by transient resolution.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyPressureGauge2d</ExactSourceLink>
+
+```python
+@final
+class PressureGauge2d:
+    ZeroIntegral: ClassVar[PressureGauge2d]
+    BoundaryTraction: ClassVar[PressureGauge2d]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```

@@ -7,7 +7,7 @@ use eqiora::artifact::SimplicialMeshEnvelopeV1;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::meshing::{MeshQualityGate, MeshTopology, SimplicialMesh};
 use eqiora::realization::{
-    DiscretizationMethod, MeshKind, NonlinearSolvePlan, RealizationCapabilities,
+    DiscretizationMethod, MeshKind, MeshPolicy, NonlinearSolvePlan, RealizationCapabilities,
     RealizationRevision, SemanticRevision, SpatialDimensionSupport, TargetCapabilities,
     TransientCellCenteredIncompressibleFlowCapabilities,
     TransientCellCenteredIncompressibleFlowRealizationRequest, VectorLayoutKind,
@@ -258,7 +258,9 @@ fn run_fvm(program: &KernelProgram) -> ResolvedCellCenteredNavierStokesTrajector
     let model = lower_transient_incompressible_navier_stokes_cartesian_2d(program).unwrap();
     let plan = transient_navier_stokes_cell_centered_plan_2d(
         &model,
-        NonZeroUsize::new(CELLS_PER_AXIS).unwrap(),
+        MeshPolicy::GeneratedUniform {
+            cells_per_axis: NonZeroUsize::new(CELLS_PER_AXIS).unwrap(),
+        },
         scales(),
         DynQuantity::new(TIME_STEP, TIME),
         nonlinear_plan(),

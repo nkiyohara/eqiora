@@ -30,6 +30,7 @@ from . import geometry as geometry
 from . import meshing as meshing
 from . import solid as solid
 from . import solve as solve
+from . import time as time
 from . import trajectory as trajectory
 
 _Float64Array = npt.NDArray[np.float64]
@@ -620,13 +621,21 @@ class Plan:
     @property
     def pressure_field(self) -> FieldRef | None: ...
     @property
-    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa: ...
+    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered: ...
     @property
-    def solve(self) -> solve.Linear: ...
+    def solve(self) -> solve.Linear | solve.Newton: ...
+    @property
+    def temporal(self) -> time.BackwardEuler | None: ...
     @property
     def discretization(self) -> str: ...
     @property
-    def space(self) -> str: ...
+    def space(self) -> str | None: ...
+    @property
+    def velocity_space(self) -> str | None: ...
+    @property
+    def pressure_space(self) -> str | None: ...
+    @property
+    def pressure_gauge(self) -> fluid.PressureGauge2d | None: ...
     @property
     def quadrature(self) -> str: ...
     @property
@@ -1341,9 +1350,10 @@ def resolve(
     model: Model,
     *,
     mesh: meshing.Mesh,
-    spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa,
-    solve: solve.Linear,
+    spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered,
+    solve: solve.Linear | solve.Newton,
     scaling: fluid.IncompressibleScaling | None = None,
+    temporal: time.BackwardEuler | None = None,
 ) -> Plan:
     """Resolve an exact Model and caller-owned Mesh into a common Plan.
 

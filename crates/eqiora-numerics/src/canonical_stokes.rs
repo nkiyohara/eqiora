@@ -20,6 +20,7 @@ mod support;
 pub use api::{SteadyIncompressibleStokesCartesianModel2d, SteadyStokesNormalPressure2d};
 pub(crate) use boundary::LoweredStokesBoundary;
 pub(crate) use geometry_realization::scaling::ResolvedIncompressibleScaling2d;
+pub(crate) use geometry_realization::scaling::resolve_complete_manual_incompressible_scaling_2d;
 pub use geometry_realization::scaling::{
     IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d, ScalingAuthorities2d,
     ScalingAuthority2d, ScalingComponent2d, ScalingComponentRecord2d, ScalingDependencies2d,

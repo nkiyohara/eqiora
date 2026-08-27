@@ -106,6 +106,17 @@ class IncompressibleScalingAuthorityKind:
     def __hash__(self) -> int: ...
 
 @final
+class PressureGauge2d:
+    """Closed pressure representative selected by transient resolution.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyPressureGauge2d``.
+    """
+    ZeroIntegral: ClassVar[PressureGauge2d]
+    BoundaryTraction: ClassVar[PressureGauge2d]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
 class IncompressibleScalingAuthority2d:
     """Immutable typed authoritative observation.
 
@@ -332,6 +343,7 @@ __all__ = [
     "IncompressibleScalingMode",
     "IncompressibleScalingReceipt2d",
     "IncompressibleScalingRule2d",
+    "PressureGauge2d",
     "SteadyStokes",
     "SteadyStokesEvidence",
     "SteadyStokesPlan",

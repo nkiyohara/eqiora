@@ -8,8 +8,13 @@ use crate::canonical::{
 };
 use crate::canonical_stokes::{
     IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d,
-    ResolvedIncompressibleScaling2d, recognize_steady_incompressible_stokes_geometry_mathematics,
-    solve_resolved_steady_stokes_geometry_mini_2d,
+    ResolvedIncompressibleScaling2d, TransientIncompressibleNavierStokesCartesianModel2d,
+    lower_transient_incompressible_navier_stokes_cartesian_2d,
+    recognize_steady_incompressible_stokes_geometry_mathematics,
+    resolve_complete_manual_incompressible_scaling_2d,
+    solve_resolved_steady_stokes_geometry_mini_2d, transient_navier_stokes_cell_centered_plan_2d,
+    transient_navier_stokes_cell_centered_requirements_2d,
+    transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
 };
 use crate::fluid::{IncompressibleFlowScaleProfile2d, SteadyStokesGeometryBinding2d};
 use crate::scalar::{
@@ -21,16 +26,22 @@ use eqiora_artifact::{
     MeshProductionLineageEnvelopeV1, ModelEnvelope, RealizationEnvelopeV2,
     SimplicialMeshEnvelopeV1,
 };
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_io_gmsh::{GmshImportLimits, GmshSimplexImporter, GmshSimplicialImport};
 use eqiora_meshing::{MeshEntity, MeshTopology, QuadratureRule};
 use eqiora_realization::{
-    DiscretizationMethod, FieldwiseRealizationRequest, MeshKind, RealizationCapabilities,
-    RealizationRevision, ResolvedFieldwiseRealization, SemanticRevision, Space, SpaceFamily,
-    SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind, resolve_fieldwise,
+    DiscretizationMethod, FieldwiseRealizationRequest, MeshKind, MeshPolicy, NonlinearSolvePlan,
+    RealizationCapabilities, RealizationRevision, ResolvedFieldwiseRealization,
+    ResolvedTransientCellCenteredIncompressibleFlowRealization,
+    ResolvedTransientFieldwiseRealization, SemanticRevision, Space, SpaceFamily,
+    SpatialDimensionSupport, TargetCapabilities,
+    TransientCellCenteredIncompressibleFlowCapabilities,
+    TransientCellCenteredIncompressibleFlowRealizationRequest,
+    TransientFieldwiseRealizationRequest, VectorLayoutKind, resolve_fieldwise,
+    resolve_transient_cell_centered_incompressible_flow, resolve_transient_fieldwise,
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
@@ -42,6 +53,12 @@ use eqiora_solver::{
 use sha2::{Digest, Sha256};
 
 const APPLICATION_REALIZATION_REVISION: u64 = 134;
+const TRANSIENT_REALIZATION_REVISION: u64 = 166;
+const COMMON_TRANSIENT_RESOLVER_EPOCH: u64 = 1;
+const TIME: DimExponents = DimExponents {
+    time: 1,
+    ..DimExponents::DIMENSIONLESS
+};
 const POLICY_DOMAIN: &[u8] = b"eqiora.private-native-numerical-admission/v1\0";
 type TaggedMeshAssignments = (BTreeMap<u32, Vec<usize>>, BTreeMap<u32, Vec<usize>>);
 
@@ -51,6 +68,64 @@ pub enum CommonSpatialPolicy {
     Q1,
     CellCenteredTpfa,
     MiniP1,
+    CellCentered,
+}
+
+/// Closed time integration policy requested from the common resolver.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CommonBackwardEuler {
+    step: DynQuantity,
+}
+
+impl CommonBackwardEuler {
+    /// Construct one positive coherent-SI operator step.
+    pub fn from_seconds(step_s: f64) -> Result<Self, Diagnostic> {
+        if !step_s.is_finite() || step_s <= 0.0 || step_s.to_bits() == (-0.0_f64).to_bits() {
+            return Err(invalid(
+                "BackwardEuler step_s must be finite and strictly positive",
+            ));
+        }
+        Ok(Self {
+            step: DynQuantity::new(step_s, TIME),
+        })
+    }
+
+    /// Exact physical duration of one operator construction.
+    #[must_use]
+    pub const fn step(self) -> DynQuantity {
+        self.step
+    }
+}
+
+/// Closed linear or Newton/linear hierarchy requested from the common resolver.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CommonSolvePolicy {
+    /// One linear solve for a steady linearized problem.
+    Linear(SolverPlan),
+    /// One bounded Newton policy owning its nested linear controls.
+    Newton {
+        /// Nonlinear convergence/globalization policy.
+        nonlinear: NonlinearSolvePlan,
+        /// Nested linear controls.
+        linear: SolverPlan,
+    },
+}
+
+impl CommonSolvePolicy {
+    /// Construct one admitted bounded Newton policy around exact linear controls.
+    #[must_use]
+    pub const fn newton(linear: SolverPlan, nonlinear: NonlinearSolvePlan) -> Self {
+        Self::Newton { nonlinear, linear }
+    }
+}
+
+/// Pressure representative retained by an admitted transient Plan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommonPressureGauge2d {
+    /// Pressure is represented by one zero-integral constraint.
+    ZeroIntegral,
+    /// Natural traction determines the absolute pressure representative.
+    BoundaryTraction,
 }
 
 /// Opaque result of Model-first common numerical resolution.
@@ -63,6 +138,7 @@ pub struct ResolvedCommonPlan {
 enum ResolvedCommonPlanKind {
     Scalar(Box<CommonScalarPlan>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
+    TransientFlow(Box<CommonTransientFlowPlan>),
 }
 
 impl ResolvedCommonPlan {
@@ -71,12 +147,42 @@ impl ResolvedCommonPlan {
         self,
         scalar: impl FnOnce(CommonScalarPlan) -> T,
         steady_stokes: impl FnOnce(CommonSteadyStokesPlan) -> T,
+        transient_flow: impl FnOnce(CommonTransientFlowPlan) -> T,
     ) -> T {
         match self.kind {
             ResolvedCommonPlanKind::Scalar(plan) => scalar(*plan),
             ResolvedCommonPlanKind::SteadyStokes(plan) => steady_stokes(*plan),
+            ResolvedCommonPlanKind::TransientFlow(plan) => transient_flow(*plan),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum CommonTransientResolvedSpatial {
+    MiniP1(ResolvedTransientFieldwiseRealization),
+    CellCentered(ResolvedTransientCellCenteredIncompressibleFlowRealization),
+}
+
+/// Opaque transient-flow Plan owning exact caller resources and numerical policy.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonTransientFlowPlan {
+    admission: NativeNumericalAdmission,
+    resolved: CommonTransientResolvedSpatial,
+    scaling: ResolvedIncompressibleScaling2d,
+    temporal: CommonBackwardEuler,
+    nonlinear: NonlinearSolvePlan,
+    identity: String,
+    model_id: String,
+    model_revision: u64,
+    geometry_digest: String,
+    mesh_digest: String,
+    correspondence_digest: String,
+    production_digest: String,
+    velocity_field_id: String,
+    pressure_field_id: String,
+    velocity_space: Space,
+    pressure_space: Space,
+    gauge: CommonPressureGauge2d,
 }
 
 /// Opaque common scalar Plan owning authenticated Model, Mesh, and policy state.
@@ -121,14 +227,18 @@ pub fn resolve_common_plan(
     model: &ModelEnvelope,
     owner: AuthenticatedCommonMesh,
     spatial: CommonSpatialPolicy,
-    solve: SolverPlan,
+    solve: CommonSolvePolicy,
     scaling: Option<IncompressibleScalingRequest2d>,
+    temporal: Option<CommonBackwardEuler>,
     stokes_backend: &dyn LinearSolverBackend,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
     let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
-    if solve.algorithm() != LinearSolver::ConjugateGradient
-        || solve.preconditioner() != PreconditionerPolicy::Identity
-        || solve.reduction() != ReductionPolicy::Reproducible
+    let requested_linear = match solve {
+        CommonSolvePolicy::Linear(linear) | CommonSolvePolicy::Newton { linear, .. } => linear,
+    };
+    if requested_linear.algorithm() != LinearSolver::ConjugateGradient
+        || requested_linear.preconditioner() != PreconditionerPolicy::Identity
+        || requested_linear.reduction() != ReductionPolicy::Reproducible
     {
         return Err(invalid(
             "common Linear request must contain identity-preconditioned reproducible controls",
@@ -136,6 +246,16 @@ pub fn resolve_common_plan(
     }
     match recognized.capability {
         NativeCapability::ScalarElliptic => {
+            let CommonSolvePolicy::Linear(solve) = solve else {
+                return Err(invalid(
+                    "scalar-elliptic mathematics requires Linear solve policy",
+                ));
+            };
+            if temporal.is_some() {
+                return Err(invalid(
+                    "steady scalar-elliptic mathematics does not admit a temporal policy",
+                ));
+            }
             if scaling.is_some() {
                 return Err(invalid(
                     "scalar-elliptic Model mathematics does not admit incompressible-flow scaling",
@@ -149,14 +269,29 @@ pub fn resolve_common_plan(
                         "scalar-elliptic Model mathematics is incompatible with MINI/P1",
                     ));
                 }
+                CommonSpatialPolicy::CellCentered => {
+                    return Err(invalid(
+                        "scalar-elliptic Model mathematics is incompatible with incompressible CellCentered",
+                    ));
+                }
             };
             let linear = NativeLinearPolicy::exact(solve, &REFERENCE_LINEAR_SOLVER)?;
-            let admission = recognized.complete(spatial, linear)?;
+            let admission = recognized.complete(spatial, linear, None, None)?;
             CommonScalarPlan::from_admission(model, admission).map(|plan| ResolvedCommonPlan {
                 kind: ResolvedCommonPlanKind::Scalar(Box::new(plan)),
             })
         }
         NativeCapability::SteadyIncompressibleStokes => {
+            let CommonSolvePolicy::Linear(solve) = solve else {
+                return Err(invalid(
+                    "steady-Stokes mathematics requires Linear solve policy",
+                ));
+            };
+            if temporal.is_some() {
+                return Err(invalid(
+                    "steady-Stokes mathematics does not admit a temporal policy",
+                ));
+            }
             if spatial != CommonSpatialPolicy::MiniP1 {
                 return Err(invalid(
                     "steady-Stokes Model mathematics requires the admitted MINI/P1 policy",
@@ -174,13 +309,73 @@ pub fn resolve_common_plan(
             )?
             .with_reduction(ReductionPolicy::Fast);
             let linear = NativeLinearPolicy::exact(effective_solve, stokes_backend)?;
-            let admission =
-                recognized.complete(NativeSpatialPolicy::StokesMiniP1(scaling.scales()), linear)?;
+            let admission = recognized.complete(
+                NativeSpatialPolicy::StokesMiniP1(scaling.scales()),
+                linear,
+                None,
+                None,
+            )?;
             CommonSteadyStokesPlan::from_admission(model, admission, scaling).map(|plan| {
                 ResolvedCommonPlan {
                     kind: ResolvedCommonPlanKind::SteadyStokes(Box::new(plan)),
                 }
             })
+        }
+        NativeCapability::TransientIncompressibleFlow => {
+            let CommonSolvePolicy::Newton { nonlinear, linear } = solve else {
+                return Err(invalid(
+                    "transient incompressible-flow mathematics requires Newton(linear=...) policy",
+                ));
+            };
+            let temporal = temporal.ok_or_else(|| {
+                invalid("transient incompressible-flow mathematics requires BackwardEuler")
+            })?;
+            let (geometry, mesh, correspondence, _) =
+                resource_artifact_digests(&recognized.resources)?;
+            let scaling = resolve_complete_manual_incompressible_scaling_2d(
+                scaling,
+                model.digest()?,
+                geometry,
+                correspondence,
+                mesh,
+            )?;
+            let effective_linear = SolverPlan::new(
+                LinearSolver::BiConjugateGradientStabilized,
+                linear.relative_tolerance(),
+                linear.absolute_tolerance(),
+                linear.maximum_iterations(),
+            )?
+            .with_preconditioner(PreconditionerPolicy::Identity)
+            .with_reduction(match spatial {
+                CommonSpatialPolicy::MiniP1 => ReductionPolicy::Fast,
+                CommonSpatialPolicy::CellCentered => ReductionPolicy::Reproducible,
+                CommonSpatialPolicy::Q1 | CommonSpatialPolicy::CellCenteredTpfa => {
+                    return Err(invalid(
+                        "transient incompressible-flow mathematics requires MINI/P1 or CellCentered",
+                    ));
+                }
+            });
+            let linear_backend: &dyn LinearSolverBackend = match spatial {
+                CommonSpatialPolicy::MiniP1 => stokes_backend,
+                CommonSpatialPolicy::CellCentered => &REFERENCE_LINEAR_SOLVER,
+                CommonSpatialPolicy::Q1 | CommonSpatialPolicy::CellCenteredTpfa => unreachable!(),
+            };
+            let linear = NativeLinearPolicy::exact(effective_linear, linear_backend)?;
+            let native_spatial = match spatial {
+                CommonSpatialPolicy::MiniP1 => {
+                    NativeSpatialPolicy::TransientMiniP1(scaling.scales())
+                }
+                CommonSpatialPolicy::CellCentered => {
+                    NativeSpatialPolicy::TransientCellCentered(scaling.scales())
+                }
+                CommonSpatialPolicy::Q1 | CommonSpatialPolicy::CellCenteredTpfa => unreachable!(),
+            };
+            let admission =
+                recognized.complete(native_spatial, linear, Some(temporal), Some(nonlinear))?;
+            CommonTransientFlowPlan::from_admission(model, admission, scaling, temporal, nonlinear)
+                .map(|plan| ResolvedCommonPlan {
+                    kind: ResolvedCommonPlanKind::TransientFlow(Box::new(plan)),
+                })
         }
     }
 }
@@ -192,6 +387,7 @@ impl CommonSteadyStokesPlan {
         scaling: ResolvedIncompressibleScaling2d,
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
+        let model_id = model_reference.model().ulid().to_string();
         let binding = admission.stokes_binding()?;
         let (resolved, realization, velocity_space, pressure_space) =
             admission.resolve_stokes(&binding)?;
@@ -243,7 +439,7 @@ impl CommonSteadyStokesPlan {
             scaling,
             realization_digest,
             identity,
-            model_id: model_reference.model().ulid().to_string(),
+            model_id,
             model_revision: model_reference.semantic_revision().get(),
             geometry_digest,
             mesh_digest,
@@ -346,6 +542,327 @@ impl CommonSteadyStokesPlan {
     pub const fn linear(&self) -> SolverPlan {
         self.admission.linear.solver
     }
+}
+
+impl CommonTransientFlowPlan {
+    fn from_admission(
+        model: &ModelEnvelope,
+        admission: NativeNumericalAdmission,
+        scaling: ResolvedIncompressibleScaling2d,
+        temporal: CommonBackwardEuler,
+        nonlinear: NonlinearSolvePlan,
+    ) -> Result<Self, Diagnostic> {
+        let model_reference = model.artifact_reference()?;
+        let model_id = model_reference.model().ulid().to_string();
+        let RecognizedNativeModel::Transient(transient) = &admission.recognized else {
+            return Err(invalid(
+                "transient Plan admission omitted recognized transient Model meaning",
+            ));
+        };
+        let velocity_field_id = transient.velocity().ulid().to_string();
+        let pressure_field_id = transient.pressure().ulid().to_string();
+        let solver = admission.linear.solver;
+        let (resolved, velocity_space, pressure_space, gauge) =
+            match (admission.spatial, &admission.resources) {
+                (
+                    NativeSpatialPolicy::TransientMiniP1(scales),
+                    NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
+                ) => {
+                    let plan = transient_navier_stokes_mini_plan_2d(
+                        transient,
+                        mesh.artifact_reference()?,
+                        scales,
+                        temporal.step(),
+                        nonlinear,
+                        solver,
+                    )?;
+                    let capabilities = transient_realization_capabilities(
+                        DiscretizationMethod::ContinuousGalerkin,
+                        MeshKind::ImportedAffineSimplicial,
+                        solver,
+                        &admission.linear.capabilities,
+                    )?;
+                    let resolved = resolve_transient_fieldwise(
+                        &TransientFieldwiseRealizationRequest::explicit(
+                            admission.program.model(),
+                            SemanticRevision::new(admission.program.revision().0),
+                            RealizationRevision::new(TRANSIENT_REALIZATION_REVISION),
+                            plan,
+                        ),
+                        transient_navier_stokes_fieldwise_requirements_2d(transient),
+                        &capabilities,
+                    )?;
+                    let gauge = if resolved
+                        .plan()
+                        .fieldwise()
+                        .spatial()
+                        .constraints()
+                        .is_empty()
+                    {
+                        CommonPressureGauge2d::BoundaryTraction
+                    } else {
+                        CommonPressureGauge2d::ZeroIntegral
+                    };
+                    (
+                        CommonTransientResolvedSpatial::MiniP1(resolved),
+                        Space::simplex_p1_bubble(),
+                        Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                        gauge,
+                    )
+                }
+                (
+                    NativeSpatialPolicy::TransientCellCentered(scales),
+                    NativeMeshResources::Cartesian { mesh, .. },
+                ) => {
+                    let artifact = mesh.artifact_reference()?;
+                    let cells =
+                        [
+                            NonZeroUsize::new(mesh.mesh().axis_cell_count(0).ok_or_else(|| {
+                                invalid("supplied Cartesian mesh omitted x cells")
+                            })?)
+                            .ok_or_else(|| invalid("supplied Cartesian x cell count is zero"))?,
+                            NonZeroUsize::new(mesh.mesh().axis_cell_count(1).ok_or_else(|| {
+                                invalid("supplied Cartesian mesh omitted y cells")
+                            })?)
+                            .ok_or_else(|| invalid("supplied Cartesian y cell count is zero"))?,
+                        ];
+                    let plan = transient_navier_stokes_cell_centered_plan_2d(
+                        transient,
+                        MeshPolicy::SuppliedCartesian { artifact, cells },
+                        scales,
+                        temporal.step(),
+                        nonlinear,
+                        solver,
+                    )?;
+                    let capabilities = transient_realization_capabilities(
+                        DiscretizationMethod::CellCenteredFiniteVolume,
+                        MeshKind::SuppliedCartesian,
+                        solver,
+                        &admission.linear.capabilities,
+                    )?;
+                    let resolved = resolve_transient_cell_centered_incompressible_flow(
+                        &TransientCellCenteredIncompressibleFlowRealizationRequest::explicit(
+                            admission.program.model(),
+                            SemanticRevision::new(admission.program.revision().0),
+                            RealizationRevision::new(TRANSIENT_REALIZATION_REVISION),
+                            plan,
+                        ),
+                        transient_navier_stokes_cell_centered_requirements_2d(transient),
+                        &TransientCellCenteredIncompressibleFlowCapabilities::new(capabilities),
+                    )?;
+                    (
+                        CommonTransientResolvedSpatial::CellCentered(resolved),
+                        Space::cell_constant(),
+                        Space::cell_constant(),
+                        CommonPressureGauge2d::ZeroIntegral,
+                    )
+                }
+                _ => {
+                    return Err(invalid(
+                        "transient spatial policy and exact caller Mesh are cross-wired",
+                    ));
+                }
+            };
+        let (geometry_digest, mesh_digest, correspondence_digest, production_digest) =
+            resource_digests(&admission.resources)?;
+        let receipt_digest = scaling.receipt().provenance_digest();
+        let mut identity_bytes = Vec::new();
+        for value in [
+            admission.model_digest(),
+            model_id.as_str(),
+            geometry_digest.as_str(),
+            mesh_digest.as_str(),
+            correspondence_digest.as_str(),
+            production_digest.as_str(),
+            admission.policy_identity(),
+            receipt_digest.as_str(),
+            velocity_field_id.as_str(),
+            pressure_field_id.as_str(),
+        ] {
+            push_framed(&mut identity_bytes, value.as_bytes());
+        }
+        identity_bytes.extend_from_slice(&model_reference.semantic_revision().get().to_be_bytes());
+        identity_bytes.extend_from_slice(&TRANSIENT_REALIZATION_REVISION.to_be_bytes());
+        identity_bytes.extend_from_slice(&COMMON_TRANSIENT_RESOLVER_EPOCH.to_be_bytes());
+        match &admission.resources {
+            NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
+                push_framed(&mut identity_bytes, b"imported-affine-simplicial");
+                push_framed(
+                    &mut identity_bytes,
+                    mesh.artifact_reference()?.sha256().as_slice(),
+                );
+            }
+            NativeMeshResources::Cartesian { mesh, .. } => {
+                push_framed(&mut identity_bytes, b"supplied-cartesian");
+                push_framed(
+                    &mut identity_bytes,
+                    mesh.artifact_reference()?.sha256().as_slice(),
+                );
+                for axis in 0..2 {
+                    let count = mesh.mesh().axis_cell_count(axis).ok_or_else(|| {
+                        invalid("supplied Cartesian transient Mesh omitted an axis")
+                    })?;
+                    identity_bytes.extend_from_slice(&count.to_be_bytes());
+                }
+            }
+            NativeMeshResources::ReferenceSimplicial { .. }
+            | NativeMeshResources::GmshSimplicial { .. } => {
+                return Err(invalid(
+                    "transient common Plan requires the exact caller affine-triangle or supplied-Cartesian envelope",
+                ));
+            }
+        }
+        push_framed(&mut identity_bytes, space_identity(velocity_space));
+        push_framed(&mut identity_bytes, space_identity(pressure_space));
+        push_framed(
+            &mut identity_bytes,
+            match gauge {
+                CommonPressureGauge2d::ZeroIntegral => b"zero-integral",
+                CommonPressureGauge2d::BoundaryTraction => b"boundary-traction",
+            },
+        );
+        for discriminant in [
+            b"f64".as_slice(),
+            b"replicated".as_slice(),
+            b"general-operator".as_slice(),
+            b"host-cpu".as_slice(),
+            b"host-serial".as_slice(),
+            b"offline".as_slice(),
+        ] {
+            push_framed(&mut identity_bytes, discriminant);
+        }
+        let identity = hex_bytes(&Sha256::digest(
+            [
+                b"eqiora.common-transient-flow-plan/v1\0".as_slice(),
+                identity_bytes.as_slice(),
+            ]
+            .concat(),
+        ));
+        Ok(Self {
+            admission,
+            resolved,
+            scaling,
+            temporal,
+            nonlinear,
+            identity,
+            model_id,
+            model_revision: model_reference.semantic_revision().get(),
+            geometry_digest,
+            mesh_digest,
+            correspondence_digest,
+            production_digest,
+            velocity_field_id,
+            pressure_field_id,
+            velocity_space,
+            pressure_space,
+            gauge,
+        })
+    }
+
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+    #[must_use]
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+    #[must_use]
+    pub const fn model_revision(&self) -> u64 {
+        self.model_revision
+    }
+    #[must_use]
+    pub fn model_digest(&self) -> &str {
+        self.admission.model_digest()
+    }
+    #[must_use]
+    pub fn geometry_digest(&self) -> &str {
+        &self.geometry_digest
+    }
+    #[must_use]
+    pub fn mesh_digest(&self) -> &str {
+        &self.mesh_digest
+    }
+    #[must_use]
+    pub fn correspondence_digest(&self) -> &str {
+        &self.correspondence_digest
+    }
+    #[must_use]
+    pub fn production_digest(&self) -> &str {
+        &self.production_digest
+    }
+    #[must_use]
+    pub const fn scaling_receipt(&self) -> &IncompressibleScalingReceipt2d {
+        self.scaling.receipt()
+    }
+    #[must_use]
+    pub const fn scales(&self) -> IncompressibleFlowScaleProfile2d {
+        self.scaling.scales()
+    }
+    #[must_use]
+    pub const fn temporal(&self) -> CommonBackwardEuler {
+        self.temporal
+    }
+    #[must_use]
+    pub const fn nonlinear(&self) -> NonlinearSolvePlan {
+        self.nonlinear
+    }
+    #[must_use]
+    pub const fn linear(&self) -> SolverPlan {
+        self.admission.linear.solver
+    }
+    #[must_use]
+    pub fn velocity_field_id(&self) -> &str {
+        &self.velocity_field_id
+    }
+    #[must_use]
+    pub fn pressure_field_id(&self) -> &str {
+        &self.pressure_field_id
+    }
+    #[must_use]
+    pub const fn velocity_space(&self) -> Space {
+        self.velocity_space
+    }
+    #[must_use]
+    pub const fn pressure_space(&self) -> Space {
+        self.pressure_space
+    }
+    #[must_use]
+    pub const fn gauge(&self) -> CommonPressureGauge2d {
+        self.gauge
+    }
+    #[must_use]
+    pub const fn spatial(&self) -> CommonSpatialPolicy {
+        match self.resolved {
+            CommonTransientResolvedSpatial::MiniP1(_) => CommonSpatialPolicy::MiniP1,
+            CommonTransientResolvedSpatial::CellCentered(_) => CommonSpatialPolicy::CellCentered,
+        }
+    }
+}
+
+fn transient_realization_capabilities(
+    method: DiscretizationMethod,
+    mesh: MeshKind,
+    solver: SolverPlan,
+    backend: &SolverCapabilities,
+) -> Result<RealizationCapabilities, Diagnostic> {
+    backend.require_problem(solver, ScalarType::F64, LinearOperatorProperties::General)?;
+    RealizationCapabilities::cartesian_product(
+        [method],
+        [(
+            mesh,
+            SpatialDimensionSupport::exact(NonZeroUsize::new(2).expect("two")),
+        )],
+        [VectorLayoutKind::Replicated],
+        SolverCapabilities::exact([SolverCapability {
+            algorithm: solver.algorithm(),
+            operator_properties: LinearOperatorProperties::General,
+            preconditioner: solver.preconditioner(),
+            reduction: solver.reduction(),
+            scalar_type: ScalarType::F64,
+        }])?,
+        TargetCapabilities::none().with_host_cpu(NonZeroUsize::MIN),
+    )
 }
 
 impl CommonScalarPlan {
@@ -478,6 +995,10 @@ impl CommonScalarPlan {
             NativeSpatialPolicy::StokesMiniP1(_) => {
                 unreachable!("common scalar Plan cannot own Stokes policy")
             }
+            NativeSpatialPolicy::TransientMiniP1(_)
+            | NativeSpatialPolicy::TransientCellCentered(_) => {
+                unreachable!("common scalar Plan cannot own transient-flow policy")
+            }
         }
     }
 
@@ -491,6 +1012,7 @@ impl CommonScalarPlan {
 pub(super) enum NativeCapability {
     ScalarElliptic,
     SteadyIncompressibleStokes,
+    TransientIncompressibleFlow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -498,6 +1020,8 @@ pub(super) enum NativeSpatialPolicy {
     ScalarQ1,
     ScalarTpfa,
     StokesMiniP1(IncompressibleFlowScaleProfile2d),
+    TransientMiniP1(IncompressibleFlowScaleProfile2d),
+    TransientCellCentered(IncompressibleFlowScaleProfile2d),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -655,12 +1179,15 @@ pub(super) struct NativeNumericalAdmission {
     spatial: NativeSpatialPolicy,
     linear: NativeLinearPolicy,
     policy_identity: String,
+    temporal: Option<CommonBackwardEuler>,
+    nonlinear: Option<NonlinearSolvePlan>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 enum RecognizedNativeModel {
     Scalar(Box<ScalarEllipticCartesianModel>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
+    Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
 }
 
 struct RecognizedNativeAdmission {
@@ -679,8 +1206,9 @@ impl RecognizedNativeAdmission {
     ) -> Result<Self, Diagnostic> {
         let resources = owner.resources;
         let program = replay_program(model, resources.geometry())?;
-        let capability = recognize_capability(&program)?;
-        let recognized = recognize_exact_model(capability, &program, &resources)?;
+        let transient = lower_transient_incompressible_navier_stokes_cartesian_2d(&program);
+        let capability = recognize_capability(&program, &transient)?;
+        let recognized = recognize_exact_model(capability, &program, &resources, transient)?;
         let model_digest = model.digest()?.to_string();
         Ok(Self {
             model: model.clone(),
@@ -696,10 +1224,12 @@ impl RecognizedNativeAdmission {
         self,
         spatial: NativeSpatialPolicy,
         linear: NativeLinearPolicy,
+        temporal: Option<CommonBackwardEuler>,
+        nonlinear: Option<NonlinearSolvePlan>,
     ) -> Result<NativeNumericalAdmission, Diagnostic> {
         require_policy_compatibility(self.capability, spatial, &linear)?;
         validate_resources(self.capability, spatial, &self.resources)?;
-        let policy_identity = policy_identity(spatial, &linear);
+        let policy_identity = policy_identity(spatial, &linear, temporal, nonlinear);
         Ok(NativeNumericalAdmission {
             model: self.model,
             model_digest: self.model_digest,
@@ -710,28 +1240,35 @@ impl RecognizedNativeAdmission {
             spatial,
             linear,
             policy_identity,
+            temporal,
+            nonlinear,
         })
     }
 }
 
 impl NativeNumericalAdmission {
+    #[cfg(test)]
     pub(super) fn admit(
         model: &ModelEnvelope,
         owner: AuthenticatedCommonMesh,
         spatial: NativeSpatialPolicy,
         linear: NativeLinearPolicy,
     ) -> Result<Self, Diagnostic> {
-        RecognizedNativeAdmission::recognize(model, owner)?.complete(spatial, linear)
+        RecognizedNativeAdmission::recognize(model, owner)?.complete(spatial, linear, None, None)
     }
 
     pub(super) fn revalidate(&self) -> Result<(), Diagnostic> {
-        let replayed = Self::admit(
+        let replayed = RecognizedNativeAdmission::recognize(
             &self.model,
             AuthenticatedCommonMesh {
                 resources: self.resources.clone(),
             },
+        )?
+        .complete(
             self.spatial,
             self.linear.clone(),
+            self.temporal,
+            self.nonlinear,
         )?;
         if &replayed != self {
             return Err(invalid(
@@ -916,6 +1453,10 @@ impl NativeNumericalAdmission {
             NativeSpatialPolicy::StokesMiniP1(_) => Err(invalid(
                 "scalar execution received a steady-Stokes spatial policy",
             )),
+            NativeSpatialPolicy::TransientMiniP1(_)
+            | NativeSpatialPolicy::TransientCellCentered(_) => Err(invalid(
+                "scalar execution received a transient-flow spatial policy",
+            )),
         }
     }
 }
@@ -968,21 +1509,83 @@ fn resource_digests(
     ))
 }
 
-fn recognize_capability(program: &KernelProgram) -> Result<NativeCapability, Diagnostic> {
+fn resource_artifact_digests(
+    resources: &NativeMeshResources,
+) -> Result<
+    (
+        eqiora_artifact::ArtifactDigest,
+        eqiora_artifact::ArtifactDigest,
+        eqiora_artifact::ArtifactDigest,
+        eqiora_artifact::ArtifactDigest,
+    ),
+    Diagnostic,
+> {
+    let (geometry, mesh, correspondence, production) = match resources {
+        NativeMeshResources::Cartesian {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        } => (
+            geometry,
+            mesh.digest()?,
+            correspondence.digest()?,
+            production.digest()?,
+        ),
+        NativeMeshResources::ReferenceSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        }
+        | NativeMeshResources::AffineTriangleSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        }
+        | NativeMeshResources::GmshSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+            ..
+        } => (
+            geometry,
+            mesh.digest()?,
+            correspondence.digest()?,
+            production.digest()?,
+        ),
+    };
+    Ok((
+        eqiora_artifact::ArtifactDigest::from_sha256(geometry.digest_bytes()),
+        mesh,
+        correspondence,
+        production,
+    ))
+}
+
+fn recognize_capability(
+    program: &KernelProgram,
+    transient: &Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
+) -> Result<NativeCapability, Diagnostic> {
     let scalar = recognize_scalar_elliptic_geometry_mathematics(program);
     let stokes = recognize_steady_incompressible_stokes_geometry_mathematics(program);
-    match (scalar, stokes) {
-        (Ok(()), Err(_)) => Ok(NativeCapability::ScalarElliptic),
-        (Err(_), Ok(())) => Ok(NativeCapability::SteadyIncompressibleStokes),
-        (Ok(()), Ok(())) => Err(invalid(
+    match (scalar, stokes, transient) {
+        (Ok(()), Err(_), Err(_)) => Ok(NativeCapability::ScalarElliptic),
+        (Err(_), Ok(()), Err(_)) => Ok(NativeCapability::SteadyIncompressibleStokes),
+        (Err(_), Err(_), Ok(_)) => Ok(NativeCapability::TransientIncompressibleFlow),
+        (Ok(()), Ok(()), _) | (Ok(()), _, Ok(_)) | (_, Ok(()), Ok(_)) => Err(invalid(
             "Model mathematical meaning is ambiguous across native capabilities",
         )),
-        (Err(scalar), Err(stokes)) => Err(invalid(format!(
-            "Model mathematical meaning matches no native capability: scalar [{}: {}]; Stokes [{}: {}]",
+        (Err(scalar), Err(stokes), Err(transient)) => Err(invalid(format!(
+            "Model mathematical meaning matches no native capability: scalar [{}: {}]; Stokes [{}: {}]; transient flow [{}: {}]",
             scalar.code(),
             scalar.message(),
             stokes.code(),
             stokes.message(),
+            transient.code(),
+            transient.message(),
         ))),
     }
 }
@@ -991,6 +1594,7 @@ fn recognize_exact_model(
     capability: NativeCapability,
     program: &KernelProgram,
     resources: &NativeMeshResources,
+    transient: Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
     match (capability, resources) {
         (
@@ -1028,6 +1632,28 @@ fn recognize_exact_model(
         )
         .map(Box::new)
         .map(RecognizedNativeModel::Stokes),
+        (NativeCapability::TransientIncompressibleFlow, _) => {
+            let transient = transient?;
+            let exact_bounds = resources
+                .geometry()
+                .planar_rectangle_bounds()
+                .ok_or_else(|| {
+                    invalid("transient flow requires an exact planar rectangle Geometry")
+                })?;
+            if !exact_bounds
+                .iter()
+                .zip(transient.bounds())
+                .all(|(caller, model)| {
+                    caller[0].to_bits() == model[0].to_bits()
+                        && caller[1].to_bits() == model[1].to_bits()
+                })
+            {
+                return Err(invalid(
+                    "caller Mesh Geometry bounds differ from Model-owned transient Domain",
+                ));
+            }
+            Ok(RecognizedNativeModel::Transient(Box::new(transient)))
+        }
         _ => Err(invalid(
             "recognized Model capability and authenticated common Mesh kind are cross-wired",
         )),
@@ -1054,6 +1680,24 @@ fn require_policy_compatibility(
             LinearOperatorProperties::SymmetricIndefinite,
             PreconditionerPolicy::Identity,
             ReductionPolicy::Fast,
+        ),
+        (
+            NativeCapability::TransientIncompressibleFlow,
+            NativeSpatialPolicy::TransientMiniP1(_),
+        ) => (
+            LinearSolver::BiConjugateGradientStabilized,
+            LinearOperatorProperties::General,
+            PreconditionerPolicy::Identity,
+            ReductionPolicy::Fast,
+        ),
+        (
+            NativeCapability::TransientIncompressibleFlow,
+            NativeSpatialPolicy::TransientCellCentered(_),
+        ) => (
+            LinearSolver::BiConjugateGradientStabilized,
+            LinearOperatorProperties::General,
+            PreconditionerPolicy::Identity,
+            ReductionPolicy::Reproducible,
         ),
         _ => {
             return Err(invalid(
@@ -1093,6 +1737,16 @@ fn validate_resources(
             resources @ (NativeMeshResources::ReferenceSimplicial { .. }
             | NativeMeshResources::GmshSimplicial { .. }),
         ) => validate_simplicial_resources(resources),
+        (
+            NativeCapability::TransientIncompressibleFlow,
+            NativeSpatialPolicy::TransientMiniP1(_),
+            resources @ NativeMeshResources::AffineTriangleSimplicial { .. },
+        ) => validate_simplicial_resources(resources),
+        (
+            NativeCapability::TransientIncompressibleFlow,
+            NativeSpatialPolicy::TransientCellCentered(_),
+            resources @ NativeMeshResources::Cartesian { .. },
+        ) => validate_cartesian_resources(resources),
         _ => Err(invalid(
             "Model capability, spatial policy, and common Mesh kind are cross-wired",
         )),
@@ -1386,9 +2040,13 @@ fn replay_program(
     let (transaction, model_id) = model.to_transaction().map_err(first)?;
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).map_err(first)?;
-    let program =
-        KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model_id, &[geometry.into()])
-            .map_err(first)?;
+    let snapshot = store.snapshot();
+    let program = if model.requires_geometry_admission()? {
+        KernelProgram::from_snapshot_with_geometry(&snapshot, model_id, &[geometry.into()])
+            .map_err(first)?
+    } else {
+        KernelProgram::from_snapshot(&snapshot, model_id).map_err(first)?
+    };
     if program.model() != reference.model()
         || program.revision().0 != reference.semantic_revision().get()
     {
@@ -1399,7 +2057,12 @@ fn replay_program(
     Ok(program)
 }
 
-fn policy_identity(spatial: NativeSpatialPolicy, linear: &NativeLinearPolicy) -> String {
+fn policy_identity(
+    spatial: NativeSpatialPolicy,
+    linear: &NativeLinearPolicy,
+    temporal: Option<CommonBackwardEuler>,
+    nonlinear: Option<NonlinearSolvePlan>,
+) -> String {
     let mut bytes = Vec::new();
     match spatial {
         NativeSpatialPolicy::ScalarQ1 => bytes.extend_from_slice(b"scalar-q1"),
@@ -1410,10 +2073,36 @@ fn policy_identity(spatial: NativeSpatialPolicy, linear: &NativeLinearPolicy) ->
             bytes.extend_from_slice(&scales.velocity().value().to_bits().to_be_bytes());
             bytes.extend_from_slice(&scales.pressure().value().to_bits().to_be_bytes());
         }
+        NativeSpatialPolicy::TransientMiniP1(scales)
+        | NativeSpatialPolicy::TransientCellCentered(scales) => {
+            bytes.extend_from_slice(match spatial {
+                NativeSpatialPolicy::TransientMiniP1(_) => b"transient-mini-p1",
+                NativeSpatialPolicy::TransientCellCentered(_) => b"transient-cell-centered",
+                _ => unreachable!(),
+            });
+            bytes.extend_from_slice(&scales.length().value().to_bits().to_be_bytes());
+            bytes.extend_from_slice(&scales.velocity().value().to_bits().to_be_bytes());
+            bytes.extend_from_slice(&scales.pressure().value().to_bits().to_be_bytes());
+        }
     }
-    bytes.extend_from_slice(format!("{:?}", linear.solver.algorithm()).as_bytes());
-    bytes.extend_from_slice(format!("{:?}", linear.solver.preconditioner()).as_bytes());
-    bytes.extend_from_slice(format!("{:?}", linear.solver.reduction()).as_bytes());
+    if let Some(temporal) = temporal {
+        bytes.extend_from_slice(&temporal.step().value().to_bits().to_be_bytes());
+    }
+    if let Some(nonlinear) = nonlinear {
+        bytes.extend_from_slice(&nonlinear.relative_tolerance().to_bits().to_be_bytes());
+        bytes.extend_from_slice(&nonlinear.absolute_tolerance().to_bits().to_be_bytes());
+        bytes.extend_from_slice(&nonlinear.maximum_iterations().get().to_be_bytes());
+        bytes.extend_from_slice(&nonlinear.maximum_line_search_steps().to_be_bytes());
+    }
+    push_framed(
+        &mut bytes,
+        linear_solver_identity(linear.solver.algorithm()),
+    );
+    push_framed(
+        &mut bytes,
+        preconditioner_identity(linear.solver.preconditioner()),
+    );
+    push_framed(&mut bytes, reduction_identity(linear.solver.reduction()));
     bytes.extend_from_slice(&linear.solver.relative_tolerance().to_bits().to_be_bytes());
     bytes.extend_from_slice(&linear.solver.absolute_tolerance().to_bits().to_be_bytes());
     bytes.extend_from_slice(&linear.solver.maximum_iterations().get().to_be_bytes());
@@ -1436,9 +2125,43 @@ fn policy_identity(spatial: NativeSpatialPolicy, linear: &NativeLinearPolicy) ->
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+const fn linear_solver_identity(value: LinearSolver) -> &'static [u8] {
+    match value {
+        LinearSolver::ConjugateGradient => b"conjugate-gradient",
+        LinearSolver::MinimumResidual => b"minimum-residual",
+        LinearSolver::BiConjugateGradientStabilized => b"bicgstab",
+        LinearSolver::SparseLu => b"sparse-lu",
+    }
+}
+
+const fn preconditioner_identity(value: PreconditionerPolicy) -> &'static [u8] {
+    match value {
+        PreconditionerPolicy::Identity => b"identity",
+        PreconditionerPolicy::Jacobi => b"jacobi",
+    }
+}
+
+const fn reduction_identity(value: ReductionPolicy) -> &'static [u8] {
+    match value {
+        ReductionPolicy::Reproducible => b"reproducible",
+        ReductionPolicy::Fast => b"fast",
+    }
+}
+
 fn push_framed(target: &mut Vec<u8>, value: &[u8]) {
     target.extend_from_slice(&value.len().to_be_bytes());
     target.extend_from_slice(value);
+}
+
+fn space_identity(space: Space) -> &'static [u8] {
+    match space.family() {
+        SpaceFamily::SimplexP1Bubble => b"simplex-p1-bubble",
+        SpaceFamily::CellConstant => b"cell-constant",
+        SpaceFamily::ContinuousLagrange { order } if order.get() == 1 => b"continuous-lagrange-p1",
+        SpaceFamily::ContinuousLagrange { .. } => {
+            unreachable!("closed common transient resolver only admits continuous P1")
+        }
+    }
 }
 
 fn hex_bytes(bytes: &[u8]) -> String {
@@ -1462,7 +2185,8 @@ mod tests {
 
     use eqiora_artifact::{
         AffineTriangleMeshCellsV1, CartesianMeshCellsV1, GeometryDecoderLimits,
-        GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1, PlanarMeshQualityV1,
+        GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1, ModelDecoderLimits,
+        PlanarMeshQualityV1,
     };
     use eqiora_core::{DimExponents, DynQuantity};
     use eqiora_geometry::{
@@ -1503,6 +2227,9 @@ public component PoissonRectangle {
 
     const STOKES_COMPONENT: &str =
         include_str!("../../eqiora-api/src/steady_stokes/accepted_component.eqi");
+    const TRANSIENT_SOURCE: &str = include_str!(
+        "../../../verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi"
+    );
 
     type SupportBinding<'a> = (
         &'a str,
@@ -1550,13 +2277,29 @@ public component PoissonRectangle {
         }
 
         fn capabilities(&self) -> SolverCapabilities {
-            SolverCapabilities::exact([SolverCapability {
-                algorithm: LinearSolver::SparseLu,
-                operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-                preconditioner: PreconditionerPolicy::Identity,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            }])
+            SolverCapabilities::exact([
+                SolverCapability {
+                    algorithm: LinearSolver::SparseLu,
+                    operator_properties: LinearOperatorProperties::SymmetricIndefinite,
+                    preconditioner: PreconditionerPolicy::Identity,
+                    reduction: ReductionPolicy::Fast,
+                    scalar_type: ScalarType::F64,
+                },
+                SolverCapability {
+                    algorithm: LinearSolver::BiConjugateGradientStabilized,
+                    operator_properties: LinearOperatorProperties::General,
+                    preconditioner: PreconditionerPolicy::Identity,
+                    reduction: ReductionPolicy::Fast,
+                    scalar_type: ScalarType::F64,
+                },
+                SolverCapability {
+                    algorithm: LinearSolver::BiConjugateGradientStabilized,
+                    operator_properties: LinearOperatorProperties::General,
+                    preconditioner: PreconditionerPolicy::Identity,
+                    reduction: ReductionPolicy::Reproducible,
+                    scalar_type: ScalarType::F64,
+                },
+            ])
             .unwrap()
         }
 
@@ -1836,6 +2579,43 @@ public component PoissonRectangle {
         .unwrap()
     }
 
+    fn affine_resources(geometry: &CanonicalGeometryV1) -> AuthenticatedCommonMesh {
+        let cells = AffineTriangleMeshCellsV1::new([2, 3]).unwrap();
+        let (mesh, correspondence) =
+            GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
+                geometry,
+                cells.cells(),
+            )
+            .unwrap();
+        let production =
+            MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+                cells,
+                geometry,
+                &mesh,
+                &correspondence,
+            )
+            .unwrap();
+        AuthenticatedCommonMesh::affine_triangle_rectangle(
+            geometry.clone(),
+            mesh,
+            correspondence,
+            production,
+        )
+        .unwrap()
+    }
+
+    fn transient_model() -> ModelEnvelope {
+        let compiled = eqiora_compiler::compile("transient-direct.eqi", TRANSIENT_SOURCE)
+            .unwrap()
+            .pop()
+            .unwrap();
+        let (transaction, model, _) = compiled.into_parts();
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+        ModelEnvelope::from_program(&program).unwrap()
+    }
+
     fn gmsh_provider_output(
         mesh: &SimplicialMeshEnvelopeV1,
         source_edge_facets: &[Vec<usize>; 5],
@@ -2106,7 +2886,8 @@ public component PoissonRectangle {
                 &model,
                 resources(&geometry),
                 spatial,
-                solve,
+                CommonSolvePolicy::Linear(solve),
+                None,
                 None,
                 &ResolveOnlyBackend,
             )
@@ -2114,6 +2895,7 @@ public component PoissonRectangle {
             .project(
                 |plan| plan,
                 |_| panic!("scalar Model resolved as another capability"),
+                |_| panic!("scalar Model resolved as transient capability"),
             )
         };
         let q1 = resolve_scalar(CommonSpatialPolicy::Q1, linear);
@@ -2142,13 +2924,16 @@ public component PoissonRectangle {
                 &model,
                 resources(&geometry),
                 CommonSpatialPolicy::Q1,
-                SolverPlan::new(
-                    LinearSolver::MinimumResidual,
-                    1.0e-10,
-                    1.0e-12,
-                    NonZeroUsize::new(10_000).unwrap(),
-                )
-                .unwrap(),
+                CommonSolvePolicy::Linear(
+                    SolverPlan::new(
+                        LinearSolver::MinimumResidual,
+                        1.0e-10,
+                        1.0e-12,
+                        NonZeroUsize::new(10_000).unwrap(),
+                    )
+                    .unwrap()
+                ),
+                None,
                 None,
                 &ResolveOnlyBackend,
             )
@@ -2159,7 +2944,8 @@ public component PoissonRectangle {
                 &model,
                 resources(&geometry),
                 CommonSpatialPolicy::MiniP1,
-                linear,
+                CommonSolvePolicy::Linear(linear),
+                None,
                 None,
                 &ResolveOnlyBackend,
             )
@@ -2330,14 +3116,18 @@ public component PoissonRectangle {
         );
         let reaction = scalar_model_from_source(&geometry, &reaction_source);
         let reaction_program = replay_program(&reaction, &geometry).unwrap();
-        assert!(recognize_capability(&reaction_program).is_err());
+        let reaction_transient =
+            lower_transient_incompressible_navier_stokes_cartesian_2d(&reaction_program);
+        assert!(recognize_capability(&reaction_program, &reaction_transient).is_err());
 
         let stokes_geometry = stokes_geometry();
         let non_stokes_source =
             STOKES_COMPONENT.replace("div(velocity) = 0;", "pressure - zero_pressure = 0;");
         let non_stokes = stokes_model_from_source(&stokes_geometry, &non_stokes_source);
         let non_stokes_program = replay_program(&non_stokes, &stokes_geometry).unwrap();
-        assert!(recognize_capability(&non_stokes_program).is_err());
+        let non_stokes_transient =
+            lower_transient_incompressible_navier_stokes_cartesian_2d(&non_stokes_program);
+        assert!(recognize_capability(&non_stokes_program, &non_stokes_transient).is_err());
 
         let foreign = rectangle();
         let mut foreign_resources = resources(&foreign);
@@ -2462,7 +3252,8 @@ public component PoissonRectangle {
             &model,
             resources.clone(),
             CommonSpatialPolicy::MiniP1,
-            solver,
+            CommonSolvePolicy::Linear(solver),
+            None,
             None,
             &ResolveOnlyBackend,
         )
@@ -2470,12 +3261,14 @@ public component PoissonRectangle {
         .project(
             |_| panic!("steady-Stokes Model resolved as another capability"),
             |plan| plan,
+            |_| panic!("steady-Stokes Model resolved as transient capability"),
         );
         let gmsh_common = resolve_common_plan(
             &model,
             exact_gmsh,
             CommonSpatialPolicy::MiniP1,
-            solver,
+            CommonSolvePolicy::Linear(solver),
+            None,
             None,
             &ResolveOnlyBackend,
         )
@@ -2483,6 +3276,7 @@ public component PoissonRectangle {
         .project(
             |_| panic!("steady-Stokes Model resolved as another capability"),
             |plan| plan,
+            |_| panic!("steady-Stokes Model resolved as transient capability"),
         );
         assert_eq!(common.model_digest(), model.digest().unwrap().to_string());
         assert_eq!(common.mesh_digest(), mesh.digest().unwrap().to_string());
@@ -2556,9 +3350,161 @@ public component PoissonRectangle {
     }
 
     #[test]
+    fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_resources() {
+        let geometry = rectangle();
+        let model = transient_model();
+        let replayed = ModelEnvelope::from_json(
+            &model.canonical_json().unwrap(),
+            ModelDecoderLimits::default(),
+        )
+        .unwrap();
+        let linear = SolverPlan::new(
+            LinearSolver::ConjugateGradient,
+            1.0e-10,
+            1.0e-12,
+            NonZeroUsize::new(2_000).unwrap(),
+        )
+        .unwrap();
+        let temporal = CommonBackwardEuler::from_seconds(0.01).unwrap();
+        let nonlinear =
+            NonlinearSolvePlan::new(1.0e-9, 1.0e-11, NonZeroUsize::new(16).unwrap(), 12).unwrap();
+        let scaling =
+            IncompressibleScalingRequest2d::from_si(Some(1.0), Some(2.0), Some(3.0)).unwrap();
+        let resolve = |model: &ModelEnvelope, owner, spatial| {
+            resolve_common_plan(
+                model,
+                owner,
+                spatial,
+                CommonSolvePolicy::newton(linear, nonlinear),
+                Some(scaling),
+                Some(temporal),
+                &ResolveOnlyBackend,
+            )
+            .unwrap()
+            .project(
+                |_| panic!("transient Model resolved as scalar"),
+                |_| panic!("transient Model resolved as steady Stokes"),
+                |plan| plan,
+            )
+        };
+        let mini = resolve(
+            &model,
+            affine_resources(&geometry),
+            CommonSpatialPolicy::MiniP1,
+        );
+        let mini_replay = resolve(
+            &replayed,
+            affine_resources(&geometry),
+            CommonSpatialPolicy::MiniP1,
+        );
+        let fvm = resolve(
+            &model,
+            resources(&geometry),
+            CommonSpatialPolicy::CellCentered,
+        );
+        let custom_nonlinear =
+            NonlinearSolvePlan::new(2.0e-9, 3.0e-11, NonZeroUsize::new(19).unwrap(), 7).unwrap();
+        let custom = resolve_common_plan(
+            &model,
+            affine_resources(&geometry),
+            CommonSpatialPolicy::MiniP1,
+            CommonSolvePolicy::newton(linear, custom_nonlinear),
+            Some(scaling),
+            Some(temporal),
+            &ResolveOnlyBackend,
+        )
+        .unwrap()
+        .project(
+            |_| panic!("transient Model resolved as scalar"),
+            |_| panic!("transient Model resolved as steady Stokes"),
+            |plan| plan,
+        );
+
+        assert_eq!(mini.identity(), mini_replay.identity());
+        assert_ne!(mini.identity(), fvm.identity());
+        assert_ne!(mini.identity(), custom.identity());
+        assert_eq!(custom.nonlinear(), custom_nonlinear);
+        assert_eq!(mini.model_digest(), model.digest().unwrap().to_string());
+        assert_eq!(mini.velocity_field_id(), fvm.velocity_field_id());
+        assert_eq!(mini.pressure_field_id(), fvm.pressure_field_id());
+        assert_eq!(mini.velocity_space().family(), SpaceFamily::SimplexP1Bubble);
+        assert!(
+            matches!(mini.pressure_space().family(), SpaceFamily::ContinuousLagrange { order } if order.get() == 1)
+        );
+        assert_eq!(fvm.velocity_space().family(), SpaceFamily::CellConstant);
+        assert_eq!(fvm.pressure_space().family(), SpaceFamily::CellConstant);
+        assert_eq!(mini.temporal().step().value().to_bits(), 0.01_f64.to_bits());
+        assert_eq!(mini.scales().length().value().to_bits(), 1.0_f64.to_bits());
+        assert_eq!(
+            mini.scales().velocity().value().to_bits(),
+            2.0_f64.to_bits()
+        );
+        assert_eq!(
+            mini.scales().pressure().value().to_bits(),
+            3.0_f64.to_bits()
+        );
+        assert_eq!(
+            mini.linear().algorithm(),
+            LinearSolver::BiConjugateGradientStabilized
+        );
+        assert_eq!(mini.linear().reduction(), ReductionPolicy::Fast);
+        assert_eq!(fvm.linear().reduction(), ReductionPolicy::Reproducible);
+
+        assert!(
+            resolve_common_plan(
+                &model,
+                affine_resources(&geometry),
+                CommonSpatialPolicy::MiniP1,
+                CommonSolvePolicy::Linear(linear),
+                Some(scaling),
+                Some(temporal),
+                &ResolveOnlyBackend,
+            )
+            .is_err()
+        );
+        assert!(
+            resolve_common_plan(
+                &model,
+                affine_resources(&geometry),
+                CommonSpatialPolicy::MiniP1,
+                CommonSolvePolicy::newton(linear, nonlinear),
+                Some(IncompressibleScalingRequest2d::from_si(Some(1.0), None, Some(3.0)).unwrap()),
+                Some(temporal),
+                &ResolveOnlyBackend,
+            )
+            .is_err()
+        );
+        assert!(
+            resolve_common_plan(
+                &model,
+                affine_resources(&geometry),
+                CommonSpatialPolicy::MiniP1,
+                CommonSolvePolicy::newton(linear, nonlinear),
+                Some(scaling),
+                None,
+                &ResolveOnlyBackend,
+            )
+            .is_err()
+        );
+        assert!(
+            resolve_common_plan(
+                &model,
+                resources(&geometry),
+                CommonSpatialPolicy::MiniP1,
+                CommonSolvePolicy::newton(linear, nonlinear),
+                Some(scaling),
+                Some(temporal),
+                &ResolveOnlyBackend,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn registered_model_driven_common_mesh_admission_evidence() {
         scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh();
         admission_rejects_policy_and_resource_cross_wires();
         stokes_resolution_consumes_exact_source_owned_common_mesh();
+        transient_common_plan_resolves_exact_mini_and_supplied_cartesian_resources();
     }
 }

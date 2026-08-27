@@ -88,7 +88,7 @@ impl RealizationPlan {
             | (
                 DiscretizationMethod::CellCenteredFiniteVolume,
                 SpaceFamily::CellConstant,
-                MeshPolicy::GeneratedUniform { .. },
+                MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. },
                 QuadraturePolicy::CellCentroid,
             ) => {}
             (
@@ -104,7 +104,7 @@ impl RealizationPlan {
             }
             (DiscretizationMethod::CellCenteredFiniteVolume, _, _, _) => {
                 return Err(invalid_realization(
-                    "cell-centered finite volume requires a generated Cartesian mesh, cell-constant space, and centroid quadrature in v0",
+                    "cell-centered finite volume requires a generated or supplied Cartesian mesh, cell-constant space, and centroid quadrature in v0",
                 ));
             }
         }

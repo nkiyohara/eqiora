@@ -198,6 +198,9 @@ impl RealizationEnvelopeV2 {
     pub fn mesh_artifact(&self) -> Result<Option<ArtifactDigest>, Diagnostic> {
         Ok(match self.plan()?.spatial().discretization().mesh() {
             eqiora_realization::MeshPolicy::GeneratedUniform { .. } => None,
+            eqiora_realization::MeshPolicy::SuppliedCartesian { artifact, .. } => {
+                Some(ArtifactDigest::from_sha256(artifact.sha256()))
+            }
             eqiora_realization::MeshPolicy::ImportedSimplicial { artifact } => {
                 Some(ArtifactDigest::from_sha256(artifact.sha256()))
             }

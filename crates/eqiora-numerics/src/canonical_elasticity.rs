@@ -494,6 +494,11 @@ fn require_resolved_cartesian_elasticity_q1_plan_2d(
                 "2D elasticity reference execution requires a generated Cartesian mesh",
             ));
         }
+        MeshPolicy::SuppliedCartesian { .. } => {
+            return Err(invalid_realization(
+                "2D elasticity reference execution does not admit a supplied Cartesian mesh",
+            ));
+        }
     };
     let QuadraturePolicy::GaussLegendre { points_per_axis } = plan.discretization().quadrature()
     else {

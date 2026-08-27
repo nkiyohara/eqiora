@@ -525,6 +525,85 @@ impl SteadyStokesGeometryBinding2d {
     }
 }
 
+pub(crate) fn resolve_complete_manual_incompressible_scaling_2d(
+    request: Option<IncompressibleScalingRequest2d>,
+    model: ArtifactDigest,
+    geometry: ArtifactDigest,
+    correspondence: ArtifactDigest,
+    mesh: ArtifactDigest,
+) -> Result<ResolvedIncompressibleScaling2d, Diagnostic> {
+    let request = request.ok_or_else(|| {
+        invalid("transient incompressible flow requires complete manual L/U/P scaling")
+    })?;
+    let (Some(length), Some(velocity), Some(pressure)) =
+        (request.length, request.velocity, request.pressure)
+    else {
+        return Err(invalid(
+            "transient incompressible flow requires complete manual L/U/P scaling",
+        ));
+    };
+    let scales = IncompressibleFlowScaleProfile2d::new(length, velocity, pressure)?;
+    let manual_authority = ScalingAuthorities2d::One([ScalingAuthority2d::ManualRequest]);
+    Ok(ResolvedIncompressibleScaling2d {
+        scales,
+        receipt: IncompressibleScalingReceipt2d {
+            model,
+            geometry,
+            correspondence,
+            mesh,
+            components: [
+                record(
+                    ScalingComponent2d::Length,
+                    scales.length(),
+                    ScalingMode2d::Manual,
+                    ScalingRule2d::ManualOverrideV1,
+                    ScalingDependencies2d::None,
+                    manual_authority,
+                ),
+                record(
+                    ScalingComponent2d::Velocity,
+                    scales.velocity(),
+                    ScalingMode2d::Manual,
+                    ScalingRule2d::ManualOverrideV1,
+                    ScalingDependencies2d::None,
+                    manual_authority,
+                ),
+                record(
+                    ScalingComponent2d::Pressure,
+                    scales.pressure(),
+                    ScalingMode2d::Manual,
+                    ScalingRule2d::ManualOverrideV1,
+                    ScalingDependencies2d::None,
+                    manual_authority,
+                ),
+                record(
+                    ScalingComponent2d::Gauge,
+                    scales.gauge(),
+                    ScalingMode2d::Derived,
+                    ScalingRule2d::GaugeRateV1,
+                    ScalingDependencies2d::Two([
+                        ScalingComponent2d::Velocity,
+                        ScalingComponent2d::Length,
+                    ]),
+                    ScalingAuthorities2d::None,
+                ),
+                record(
+                    ScalingComponent2d::WeakFunctional,
+                    scales.weak_functional(),
+                    ScalingMode2d::Derived,
+                    ScalingRule2d::WeakFunctionalV1,
+                    ScalingDependencies2d::Three([
+                        ScalingComponent2d::Pressure,
+                        ScalingComponent2d::Velocity,
+                        ScalingComponent2d::Length,
+                    ]),
+                    ScalingAuthorities2d::None,
+                ),
+            ],
+        },
+    })
+}
+
 fn replay_model(
     model: &ModelEnvelope,
     source: &eqiora_geometry::CanonicalGeometryV1,
