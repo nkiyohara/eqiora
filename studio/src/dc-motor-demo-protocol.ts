@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { BRIDGE_PROTOCOL } from "./protocol";
-import { artifactDigestSchema } from "./unstructured-field-protocol";
+import { artifactDigestSchema, BRIDGE_PROTOCOL } from "./protocol";
 
 export const DC_MOTOR_DEMO_PROTOCOL = "eqiora.studio.packaged-dc-drive-demo/v1" as const;
 export const DC_MOTOR_DEMO_ID = "packaged-dc-motor-control" as const;

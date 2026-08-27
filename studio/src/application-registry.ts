@@ -1,39 +1,6 @@
 import type { CommandDefinition, WorkflowDefinition } from "./application";
-import {
-  CAD_V1_SEMANTIC_ENTITY_COUNT,
-  CAD_V1_TRIANGLE_COUNT,
-  CAD_V1_VERTEX_COUNT,
-} from "./cad-protocol";
-import { MAX_PROJECTION_EDGE_COUNT, MAX_PROJECTION_NODE_COUNT } from "./protocol";
-import { SCALAR_FIELD_VALUES_PER_CHUNK } from "./scalar-field-protocol";
-import { MAX_SPATIAL_ENTITY_COUNT } from "./spatial-protocol";
-import {
-  UNSTRUCTURED_FIELD_ITEMS_PER_CHUNK,
-  UNSTRUCTURED_FIELD_MAX_TRIANGLE_COUNT,
-} from "./unstructured-field-protocol";
 
-const RELATION_WORKFLOWS = ["relations", "scalar-elliptic"] as const;
-const ALL_WORKFLOWS = [
-  "relations",
-  "scalar-elliptic",
-  "cylinder-stokes",
-  "packaged-dc-drive",
-  "structural-elasticity",
-  "cad-box",
-  "cad-authored",
-] as const;
-const EVIDENCE_WORKFLOWS = [
-  "relations",
-  "scalar-elliptic",
-  "cylinder-stokes",
-  "packaged-dc-drive",
-  "structural-elasticity",
-] as const;
-
-/**
- * Closed command metadata. Entries are data only: execution remains in the
- * exhaustive application adapter.
- */
+const ALL = ["relations", "packaged-dc-drive", "cad-box", "cad-authored"] as const;
 export const COMMAND_REGISTRY = [
   {
     id: "model.compile",
@@ -42,7 +9,7 @@ export const COMMAND_REGISTRY = [
     description: "command.model.compile.description",
     shortcut: "Ctrl/⌘ Enter",
     focusTarget: null,
-    workflows: ALL_WORKFLOWS,
+    workflows: ALL,
   },
   {
     id: "edit.commit",
@@ -51,7 +18,7 @@ export const COMMAND_REGISTRY = [
     description: "command.edit.commit.description",
     shortcut: null,
     focusTarget: null,
-    workflows: RELATION_WORKFLOWS,
+    workflows: ["relations"],
   },
   {
     id: "history.undo",
@@ -60,7 +27,7 @@ export const COMMAND_REGISTRY = [
     description: "command.history.undo.description",
     shortcut: "Ctrl/⌘ Z",
     focusTarget: null,
-    workflows: ALL_WORKFLOWS,
+    workflows: ALL,
   },
   {
     id: "history.redo",
@@ -69,25 +36,7 @@ export const COMMAND_REGISTRY = [
     description: "command.history.redo.description",
     shortcut: "Ctrl/⌘ ⇧ Z",
     focusTarget: null,
-    workflows: ALL_WORKFLOWS,
-  },
-  {
-    id: "run.execute",
-    group: "execution",
-    label: "command.run.execute.label",
-    description: "command.run.execute.description",
-    shortcut: null,
-    focusTarget: null,
-    workflows: RELATION_WORKFLOWS,
-  },
-  {
-    id: "run.cancel",
-    group: "execution",
-    label: "command.run.cancel.label",
-    description: "command.run.cancel.description",
-    shortcut: null,
-    focusTarget: null,
-    workflows: RELATION_WORKFLOWS,
+    workflows: ALL,
   },
   {
     id: "view.reflow",
@@ -96,7 +45,7 @@ export const COMMAND_REGISTRY = [
     description: "command.view.reflow.description",
     shortcut: null,
     focusTarget: null,
-    workflows: RELATION_WORKFLOWS,
+    workflows: ["relations"],
   },
   {
     id: "workspace.relations",
@@ -105,34 +54,7 @@ export const COMMAND_REGISTRY = [
     description: "command.workspace.relations.description",
     shortcut: null,
     focusTarget: "relation-view",
-    workflows: ALL_WORKFLOWS,
-  },
-  {
-    id: "workspace.geometry",
-    group: "view",
-    label: "command.workspace.geometry.label",
-    description: "command.workspace.geometry.description",
-    shortcut: null,
-    focusTarget: "cad-viewport",
-    workflows: ALL_WORKFLOWS,
-  },
-  {
-    id: "workspace.cad-authoring",
-    group: "view",
-    label: "command.workspace.cad-authoring.label",
-    description: "command.workspace.cad-authoring.description",
-    shortcut: null,
-    focusTarget: "cad-authored-workspace",
-    workflows: ALL_WORKFLOWS,
-  },
-  {
-    id: "workspace.field",
-    group: "view",
-    label: "command.workspace.field.label",
-    description: "command.workspace.field.description",
-    shortcut: null,
-    focusTarget: "field-viewport",
-    workflows: ALL_WORKFLOWS,
+    workflows: ALL,
   },
   {
     id: "workspace.trajectory",
@@ -141,25 +63,25 @@ export const COMMAND_REGISTRY = [
     description: "command.workspace.trajectory.description",
     shortcut: null,
     focusTarget: "trajectory-viewport",
-    workflows: ALL_WORKFLOWS,
+    workflows: ALL,
   },
   {
-    id: "workspace.structure",
+    id: "workspace.geometry",
     group: "view",
-    label: "command.workspace.structure.label",
-    description: "command.workspace.structure.description",
+    label: "command.workspace.geometry.label",
+    description: "command.workspace.geometry.description",
     shortcut: null,
-    focusTarget: "structural-viewport",
-    workflows: ALL_WORKFLOWS,
+    focusTarget: "cad-viewport",
+    workflows: ALL,
   },
   {
-    id: "example.cylinder",
-    group: "model",
-    label: "command.example.cylinder.label",
-    description: "command.example.cylinder.description",
+    id: "workspace.cad-authoring",
+    group: "view",
+    label: "command.workspace.cad-authoring.label",
+    description: "command.workspace.cad-authoring.description",
     shortcut: null,
-    focusTarget: null,
-    workflows: ALL_WORKFLOWS,
+    focusTarget: "cad-authored-workspace",
+    workflows: ALL,
   },
   {
     id: "example.dc-drive",
@@ -168,25 +90,7 @@ export const COMMAND_REGISTRY = [
     description: "command.example.dc-drive.description",
     shortcut: null,
     focusTarget: null,
-    workflows: ALL_WORKFLOWS,
-  },
-  {
-    id: "example.structural",
-    group: "model",
-    label: "command.example.structural.label",
-    description: "command.example.structural.description",
-    shortcut: null,
-    focusTarget: null,
-    workflows: ALL_WORKFLOWS,
-  },
-  {
-    id: "example.spatial",
-    group: "model",
-    label: "command.example.spatial.label",
-    description: "command.example.spatial.description",
-    shortcut: null,
-    focusTarget: null,
-    workflows: ALL_WORKFLOWS,
+    workflows: ALL,
   },
   {
     id: "example.cad",
@@ -195,7 +99,7 @@ export const COMMAND_REGISTRY = [
     description: "command.example.cad.description",
     shortcut: null,
     focusTarget: null,
-    workflows: ALL_WORKFLOWS,
+    workflows: ALL,
   },
   {
     id: "focus.source",
@@ -204,7 +108,7 @@ export const COMMAND_REGISTRY = [
     description: "command.focus.source.description",
     shortcut: null,
     focusTarget: "source-editor",
-    workflows: RELATION_WORKFLOWS,
+    workflows: ["relations"],
   },
   {
     id: "focus.relation",
@@ -213,7 +117,7 @@ export const COMMAND_REGISTRY = [
     description: "command.focus.relation.description",
     shortcut: null,
     focusTarget: "relation-view",
-    workflows: RELATION_WORKFLOWS,
+    workflows: ["relations"],
   },
   {
     id: "focus.inspector",
@@ -222,7 +126,7 @@ export const COMMAND_REGISTRY = [
     description: "command.focus.inspector.description",
     shortcut: null,
     focusTarget: "selection-inspector",
-    workflows: ALL_WORKFLOWS,
+    workflows: ALL,
   },
   {
     id: "focus.evidence",
@@ -231,14 +135,9 @@ export const COMMAND_REGISTRY = [
     description: "command.focus.evidence.description",
     shortcut: null,
     focusTarget: "evidence-inspector",
-    workflows: EVIDENCE_WORKFLOWS,
+    workflows: ["packaged-dc-drive"],
   },
 ] as const satisfies readonly CommandDefinition[];
-
-/**
- * Exhaustive compiled-in presentation registry. It is not package discovery,
- * a plugin ABI, or an authority for canonical model meaning.
- */
 export const WORKFLOW_REGISTRY = [
   {
     id: "relations",
@@ -246,50 +145,6 @@ export const WORKFLOW_REGISTRY = [
     label: "workflow.relations.label",
     description: "workflow.relations.description",
     primaryFocus: "relation-view",
-    projection: {
-      kind: "semantic-relation-graph",
-      maximumNodes: MAX_PROJECTION_NODE_COUNT,
-      maximumEdges: MAX_PROJECTION_EDGE_COUNT,
-      semanticAlternative: {
-        kind: "semantic-outline",
-        focusTarget: "source-editor",
-      },
-    },
-  },
-  {
-    id: "scalar-elliptic",
-    workspace: "relations",
-    label: "workflow.spatial.label",
-    description: "workflow.spatial.description",
-    primaryFocus: "relation-view",
-    projection: {
-      kind: "bounded-scalar-field-view",
-      maximumFieldValues: MAX_SPATIAL_ENTITY_COUNT,
-      transfer: "explicit-owned-host-copy",
-      valuesPerChunk: SCALAR_FIELD_VALUES_PER_CHUNK,
-      semanticAlternative: {
-        kind: "field-value-table",
-        focusTarget: "field-value-table",
-      },
-    },
-  },
-  {
-    id: "cylinder-stokes",
-    workspace: "field",
-    label: "workflow.cylinder.label",
-    description: "workflow.cylinder.description",
-    primaryFocus: "field-viewport",
-    projection: {
-      kind: "bounded-unstructured-p1-field-view",
-      maximumVertices: MAX_SPATIAL_ENTITY_COUNT,
-      maximumTriangles: UNSTRUCTURED_FIELD_MAX_TRIANGLE_COUNT,
-      transfer: "explicit-owned-host-copy",
-      itemsPerChunk: UNSTRUCTURED_FIELD_ITEMS_PER_CHUNK,
-      semanticAlternative: {
-        kind: "field-value-table",
-        focusTarget: "field-value-table",
-      },
-    },
   },
   {
     id: "packaged-dc-drive",
@@ -297,32 +152,6 @@ export const WORKFLOW_REGISTRY = [
     label: "workflow.dc-drive.label",
     description: "workflow.dc-drive.description",
     primaryFocus: "trajectory-viewport",
-    projection: {
-      kind: "bounded-sampled-trajectory-view",
-      maximumSamples: 101,
-      maximumCommits: 11,
-      semanticAlternative: {
-        kind: "trajectory-sample-table",
-        focusTarget: "trajectory-sample-table",
-      },
-    },
-  },
-  {
-    id: "structural-elasticity",
-    workspace: "structure",
-    label: "workflow.structural.label",
-    description: "workflow.structural.description",
-    primaryFocus: "structural-viewport",
-    projection: {
-      kind: "bounded-cartesian-displacement-grid-view",
-      maximumVertices: 289,
-      maximumCells: 256,
-      components: 2,
-      semanticAlternative: {
-        kind: "structural-vertex-table",
-        focusTarget: "structural-vertex-table",
-      },
-    },
   },
   {
     id: "cad-box",
@@ -330,16 +159,6 @@ export const WORKFLOW_REGISTRY = [
     label: "workflow.cad.label",
     description: "workflow.cad.description",
     primaryFocus: "cad-viewport",
-    projection: {
-      kind: "bounded-cad-triangle-view",
-      maximumVertices: CAD_V1_VERTEX_COUNT,
-      maximumTriangles: CAD_V1_TRIANGLE_COUNT,
-      maximumEntities: CAD_V1_SEMANTIC_ENTITY_COUNT,
-      semanticAlternative: {
-        kind: "domain-table",
-        focusTarget: "cad-domain-table",
-      },
-    },
   },
   {
     id: "cad-authored",
@@ -347,11 +166,5 @@ export const WORKFLOW_REGISTRY = [
     label: "workflow.cad-authored.label",
     description: "workflow.cad-authored.description",
     primaryFocus: "cad-authored-workspace",
-    projection: {
-      kind: "bounded-authored-cad-history",
-      maximumOperations: 8,
-      maximumFaces: 7,
-      canonicalBytes: "opaque-native-owner-replay",
-    },
   },
 ] as const satisfies readonly WorkflowDefinition[];

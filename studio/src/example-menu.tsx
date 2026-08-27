@@ -6,33 +6,17 @@ type ExampleStatus = "idle" | "running" | "ready" | "failed";
 
 export interface ExampleMenuProps {
   readonly availability: CommandAvailability;
-  readonly cylinderRunning: boolean;
   readonly dcMotorStatus: ExampleStatus;
-  readonly structuralStatus: ExampleStatus;
   readonly onExecute: (command: CommandId) => void;
 }
 
 const EXAMPLES = [
-  {
-    command: "example.structural",
-    glyph: "⌗",
-    idleLabel: "Elastic panel",
-    runningLabel: "Solving structure…",
-    detail: "2D Q1 displacement · reaction evidence",
-  },
   {
     command: "example.dc-drive",
     glyph: "⌁",
     idleLabel: "Sampled DC drive",
     runningLabel: "Running DC drive…",
     detail: "3 packages · 100 steps · held control",
-  },
-  {
-    command: "example.cylinder",
-    glyph: "◯",
-    idleLabel: "Exact-cylinder Stokes",
-    runningLabel: "Solving cylinder…",
-    detail: "Exact source · bounded pressure field",
   },
 ] as const satisfies readonly {
   command: Extract<CommandId, `example.${string}`>;
@@ -42,17 +26,9 @@ const EXAMPLES = [
   detail: string;
 }[];
 
-export function ExampleMenu({
-  availability,
-  cylinderRunning,
-  dcMotorStatus,
-  structuralStatus,
-  onExecute,
-}: ExampleMenuProps) {
+export function ExampleMenu({ availability, dcMotorStatus, onExecute }: ExampleMenuProps) {
   const running = {
-    "example.cylinder": cylinderRunning,
     "example.dc-drive": dcMotorStatus === "running",
-    "example.structural": structuralStatus === "running",
   } as const;
   return (
     <details className="example-menu">

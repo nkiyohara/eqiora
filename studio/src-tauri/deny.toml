@@ -39,8 +39,8 @@ unsound = "all"
 # Eqiora Studio or the pinned Tauri/GTK graph. Remove this exception on any
 # glib/Tauri boundary change or when a fixed compatible release is available.
 #
-# The accepted exact-cylinder solve uses the pinned faer 0.24.4 adapter, whose
-# gemm/pulp graph retains paste 1.0.15. RUSTSEC-2024-0436 is an unmaintained
+# The pinned Eqiora numerical graph uses faer 0.24.4, whose gemm/pulp graph
+# retains paste 1.0.15. RUSTSEC-2024-0436 is an unmaintained
 # notice without a safe upgrade, not a reported vulnerability. Remove this
 # exception when the accepted faer graph no longer resolves paste.
 #
