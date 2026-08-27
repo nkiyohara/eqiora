@@ -109,10 +109,9 @@ each migration closes.
 
 The control plane may carry small descriptors, artifact references, evidence
 summaries, diagnostics, and capability decisions. Scientific arrays, mesh
-connectivity, Field snapshots, and trajectories remain the data plane owned by
-[RFC 0051](0051-durable-spatial-state-and-trajectory.md). A control response
-references those durable objects; it never embeds them merely to avoid a
-second transport.
+connectivity, Field snapshots, and trajectories remain the data plane. A
+control response references those durable objects; it never embeds them merely
+to avoid a second transport.
 
 This separation is semantic, not size-only. A small mesh is still data-plane
 content, and a large diagnostic list is still rejected by the control

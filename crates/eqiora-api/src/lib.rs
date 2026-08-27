@@ -16,7 +16,6 @@ mod ml_dataset;
 pub mod package;
 mod parameter_regeneration;
 mod parameter_study;
-mod prescribed_dynamic_solid;
 mod remeshing_trajectory;
 mod spatial_data;
 mod transient_fluid;
@@ -35,9 +34,6 @@ pub use parameter_regeneration::{
 pub use parameter_study::{
     CompleteParameterStudy, ParameterStudyPlan, ParameterStudyPointKey,
     ParameterStudyTerminalReport,
-};
-pub use prescribed_dynamic_solid::{
-    PrescribedDynamicSolidExternalProviderStateRun3d, PrescribedDynamicSolidStateRun3d,
 };
 pub use remeshing_trajectory::RemeshingTrajectoryReplayInputV1;
 #[cfg(feature = "hdf5")]

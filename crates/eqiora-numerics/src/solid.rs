@@ -23,6 +23,3 @@ pub use crate::cartesian_elasticity::{
     solve_cartesian_q1_linear_elasticity_2d_with_assembly,
 };
 pub use crate::finalized_spatial::FinalizedIsotropicElasticityCartesian2dProblem;
-pub use crate::prescribed_dynamic_solid::{
-    AcceptedPrescribedDynamicSolidStep3d, PrescribedDynamicSolidReference3d,
-};

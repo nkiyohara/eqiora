@@ -1258,54 +1258,17 @@ case is the claim boundary. It does not imply advection, multiple steps,
 partitioned coupling, moving meshes, GPU/MPI, nonlinear solids, or
 sensitivities.
 
-## Durable fixed-spatial observations
+## Durable moving spatial observations
 
-RFC 0051 closes one storage-independent result DAG over the fixed-reference
-FSI path. A borrowed `ValidatedFixedSpatialContextV1` replays the sealed Model
-boundary and validates exact Realization, geometry, correspondence, mesh, and
-the Realization-owned represented physical-Field inventory once. It is a
-runtime proof token, not another wire artifact or a universal context object.
+`DiscreteFieldEnvelopeV1` and `FieldSnapshotEnvelopeV1` remain the shared numeric and semantic leaves for current moving and remeshing results. They retain exact Model, Realization, geometry, correspondence, mesh, Field, support, dimension, shape, frame, association, and coefficient-block lineage.
 
-`DiscreteFieldEnvelopeV1` remains the numeric leaf. A
-`FieldSnapshotEnvelopeV1` binds one exact Semantic Field, support Domain,
-coherent-SI dimension, shape, frame, and complete canonical coefficient-block
-signature to those leaves. P1 uses a Vertex block; MINI velocity retains both
-Vertex and Cell-bubble blocks. Whole-mesh ordering remains canonical, with
-positive zero outside the exact support closure. The FSI L4 projection checks
-persisted fluid/solid vertex blocks directly on the conforming interface.
+`SpatialStateEnvelopeV2` and `SpatialTrajectoryEnvelopeV2` own fixed-topology ALE continuation. `SpatialStateEnvelopeV3` and `SpatialTrajectoryEnvelopeV3` add explicit remesh origins, overlap and transfer receipts, and exact V2 source-prefix ancestry. The retired fixed-mesh V1 context, State, trajectory, Dataset view, and application-specific fixed-reference projection are absent; fixed-domain execution publishes through the common Model → Plan → Run/Result path.
 
-Generated hypercube output currently crosses a narrower sibling wire:
-`eqiora.cartesian-q1-field-snapshot-envelope/v1`. It binds normalized inline
-vertex coefficients to the exact Model, global-space Realization, Geometry,
-correspondence, Cartesian Mesh, Field, support, and physical tuple, and replays
-the generated-uniform mesh from body bounds before admission. This is a bridge
-for scalar and fixed-vector Q1 output, not a second universal Field hierarchy;
-it should fold into the common snapshot owner when that owner can retain
-hypercube basis and exact generated-mesh linkage without simplex assumptions.
+`DiscreteFieldStorageEnvelopeV1` remains a low-level optional chunking projection over canonical leaf bytes. It does not enter logical Field, moving State, trajectory, or ML Dataset identity.
 
-`SpatialStateEnvelopeV1` contains the complete represented physical-Field
-inventory at one accepted fixed-step coordinate. Constraint multipliers,
-reduced vectors, residual workspaces, and backend reports remain outside the
-physical state. Nonempty state segments and immutable prefix roots form a
-bounded trajectory index with exact resources, strict coordinates, checked
-aggregate state count, and partial reference traversal. The final trajectory
-is an ordinary exact Run output; no spatial-specific provenance edge repeats
-that fact.
-
-`DatasetViewEnvelopeV1` is an identity-only selection of exact trajectory
-states and Field identities and copies no numerical values. Optional
-`DiscreteFieldStorageEnvelopeV1` chunks canonical leaf bytes without entering
-logical Field, state, trajectory, or Dataset identity. Rechunking therefore
-changes storage identity but not physical content. The registered
-[`artifacts.fixed-reference-fsi-spatial-trajectory`](../verify/artifacts/fixed-reference-fsi-spatial-trajectory/README.md)
-case proves two genuine accepted steps, immutable extension, sparse traversal,
-foreign-lineage rejection, and missing/substituted storage failure. Variable
-step, restart, ALE/remeshing, HDF5/XDMF, visualization conventions, and richer
-Dataset transforms remain separate contracts.
-
-[RFC 0067](../rfcs/0067-derived-ml-dataset.md) adds a distinct
-`MlDatasetEnvelopeV1`; it does not widen the identity-only Dataset view. The
-manifest derives one strict-time sequence from an exact V2-to-V3 trajectory:
+[RFC 0067](../rfcs/0067-derived-ml-dataset.md) defines the current
+`MlDatasetEnvelopeV1` over V2/V3 trajectories. The manifest derives one
+strict-time sequence from an exact V2-to-V3 trajectory:
 the V3 remesh target replaces the equal-time V2 source tip. Typed descriptors
 retain feature/target role, window offset, Field, support Domain, coherent-SI
 dimension, value shape, and frame. Every sample retains exact state, snapshot,
@@ -1595,16 +1558,6 @@ runner-kind filters are applied only after complete registry validation.
 Neither target form admits a shell command, free-form arguments, a working
 directory, or a host-specific path.
 
-The bounded prescribed-dynamic-solid E1 provider composition does not change
-`RunManifestV2`, `ExecutionProvenanceV1`, or the direct singleton-output State
-Run. L4 accepts only an application-created already-connected child, validates
-and consumes one bounded session, and publishes no owner on failure. L3 records
-provider, adapter, projection, request, candidate, transcript, admission, and
-accepted-State roles in a separate occurrence artifact; the E1 Run contains
-exactly that occurrence and the unchanged accepted State. Launch authority and
-general external-operator meaning remain outside this boundary; see
-[External boundary provider](external-boundary-provider.md).
-
 The original bounded package path composes with `RunManifestV1` through
 `PackageRunBindingV1`, a separate canonical sidecar containing the shared
 Model digest, exact package-compilation digest, closed Run schema, and canonical
@@ -1648,7 +1601,7 @@ adjacent field and import-provenance boundary. `eqiora-meshing` owns one
 immutable, entity-major `DiscreteFieldPayload`
 checked against `MeshTopology`: Vertex or top-dimensional Cell association,
 Scalar or fixed Vector shape, checked counts, finite canonical `f64` values,
-and positive-zero normalization. `DiscreteFieldEnvelopeV1` binds that
+and positive-zero normalization. `DiscreteFieldEnvelopeV1` binds the
 payload specifically to the exact `SimplicialMeshEnvelopeV1`; no other typed
 mesh artifact family exists yet. `ExternalImportManifestV1` separately retains
 an ordered source, resolved-array, adapter, runtime, selection, and

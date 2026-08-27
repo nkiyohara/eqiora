@@ -7,7 +7,6 @@
   (`verified`)
 - Depends on: [RFC 0049](0049-geometry-identity-and-mesh-correspondence.md),
   [RFC 0050](0050-fixed-reference-monolithic-fsi.md), [RFC
-  0051](0051-durable-spatial-state-and-trajectory.md), [RFC
   0053](0053-discrete-block-system.md), and [RFC
   0058](0058-portable-realization-and-execution-graphs.md)
 
@@ -229,9 +228,8 @@ GCL, geometry quality, and model-time progression before exposing Fields.
 
 ## Artifact DAG and moving trajectory
 
-Fixed `SpatialStateEnvelopeV1` and trajectory v1 remain fixed-geometry
-contracts. Their `geometry_sha256`, `correspondence_sha256`, and `mesh_sha256`
-fields are not reinterpreted.
+Moving State and trajectory wires own their geometry generation explicitly;
+the retired fixed-mesh V1 contracts are not reinterpreted.
 
 The moving artifact DAG is acyclic:
 

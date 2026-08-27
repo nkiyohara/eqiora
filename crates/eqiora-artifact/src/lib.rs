@@ -32,8 +32,6 @@ mod model_transaction;
 mod model_transaction_wire;
 mod model_wire;
 mod physical_exposure;
-mod prescribed_dynamic_solid_provider_occurrence;
-mod prescribed_dynamic_solid_realization;
 mod realization;
 mod realization_reference;
 mod realization_v2;
@@ -120,8 +118,6 @@ pub use physical_exposure::{
     PhysicalExposureObservationBindingV1, PhysicalExposureProjectionV1, PhysicalExposureQuantityV1,
     PhysicalExposureSourceOriginV1, PhysicalExposureSourceSpanV1,
 };
-pub use prescribed_dynamic_solid_provider_occurrence::PrescribedDynamicSolidProviderOccurrenceEnvelopeV1;
-pub use prescribed_dynamic_solid_realization::PrescribedDynamicSolidRealizationEnvelopeV1;
 pub use realization::{LayoutArtifacts, RealizationDecoderLimits, RealizationEnvelopeV1};
 pub use realization_reference::{
     CanonicalRealizationArtifact, RealizationArtifactReference,
@@ -149,12 +145,11 @@ pub use semantic_fingerprint::{
     SemanticFingerprintGeneration, StructuralSemanticFingerprint, structurally_equivalent,
 };
 pub use spatial_data::{
-    DatasetViewEnvelopeV1, DiscreteFieldStorageEnvelopeV1, FieldSnapshotEnvelopeV1,
-    MlDatasetChannelStatisticsV1, MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1,
-    MlDatasetEnvelopeV1, MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1,
-    MlDatasetSampleSplitV1, MlDatasetSampleV1, MlDatasetStateKindV1, MlDatasetStateReferenceV1,
-    SpatialStateEnvelopeV1, SpatialTrajectoryEnvelopeV1, SpatialTrajectorySegmentEnvelopeV1,
-    StorageChunkSha256V1, StorageChunkV1, TrajectoryDecoderLimits, ValidatedFixedSpatialContextV1,
+    DiscreteFieldStorageEnvelopeV1, FieldSnapshotEnvelopeV1, MlDatasetChannelStatisticsV1,
+    MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1, MlDatasetEnvelopeV1,
+    MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1, MlDatasetSampleSplitV1,
+    MlDatasetSampleV1, MlDatasetStateKindV1, MlDatasetStateReferenceV1, StorageChunkSha256V1,
+    StorageChunkV1, TrajectoryDecoderLimits,
 };
 pub use spatial_state_v2::{SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2};
 pub use spatial_state_v3::{SpatialStateEnvelopeV3, SpatialStateOriginKindV3};

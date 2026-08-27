@@ -1,12 +1,5 @@
 //! Immutable spatial trajectory manifests.
 
-mod common;
-mod root;
-mod segment;
-
-pub use root::SpatialTrajectoryEnvelopeV1;
-pub use segment::SpatialTrajectorySegmentEnvelopeV1;
-
 /// Semantic work budgets shared by immutable trajectory and derived-view artifacts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrajectoryDecoderLimits {
@@ -24,8 +17,6 @@ pub struct TrajectoryDecoderLimits {
     pub max_trajectory_segments: usize,
     /// Maximum accepted states summarized by one complete trajectory root.
     pub max_trajectory_states: usize,
-    /// Maximum Field selections in one derived Dataset view.
-    pub max_dataset_view_fields: usize,
 }
 
 impl Default for TrajectoryDecoderLimits {
@@ -38,7 +29,6 @@ impl Default for TrajectoryDecoderLimits {
             max_trajectory_segment_states: 100_000,
             max_trajectory_segments: 100_000,
             max_trajectory_states: 1_000_000,
-            max_dataset_view_fields: 100_000,
         }
     }
 }

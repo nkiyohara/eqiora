@@ -122,9 +122,7 @@ const ORACLE_FILES: [&str; 2] = [
 ///
 /// Unlike `ORACLE_FILES`, these siblings deliberately carry no searched
 /// spelling, remain visible to the sweep, and need no exclusion permission.
-const NON_SIGNAL_ORACLE_FILES: [&str; 2] = [
-    "crates/eqiora-artifact/tests/current_model_relational_identity_transition/\
-     post_reset_admission.rs",
+const NON_SIGNAL_ORACLE_FILES: [&str; 1] = [
     "crates/eqiora-artifact/tests/current_model_relational_identity_transition/\
      post_reset_classification.rs",
 ];
@@ -1984,9 +1982,6 @@ fn a_clean_post_reset_product_source_is_accepted_and_a_private_branch_is_refused
         );
     }
 }
-
-#[path = "post_reset_admission.rs"]
-mod post_reset_admission;
 
 #[path = "post_reset_classification.rs"]
 mod post_reset_classification;

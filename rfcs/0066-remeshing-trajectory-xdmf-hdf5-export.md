@@ -3,9 +3,8 @@
 - Status: Implemented and verified
 - Authors: Eqiora contributors
 - Created: 2026-07-22
-- Depends on: [RFC 0025](0025-discrete-field-and-import-provenance.md),
-  [RFC 0051](0051-durable-spatial-state-and-trajectory.md), and [RFC
-  0065](0065-remeshing-correspondence-and-transfer.md)
+- Depends on: [RFC 0025](0025-discrete-field-and-import-provenance.md) and
+  [RFC 0065](0065-remeshing-correspondence-and-transfer.md)
 
 ## Summary
 

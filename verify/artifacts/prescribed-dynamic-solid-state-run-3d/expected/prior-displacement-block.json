@@ -1,1 +1,0 @@
-{"schema":"eqiora.discrete-field-envelope/v1","encoding":"eqiora.canonical-json/v1","mesh_sha256":"ff6f0d68acb005514c13e1e1bd8a9df6780b869661c0598dad40bbe627cd9fc8","association":"vertex","component_shape":{"kind":"vector","components":3},"entity_count":9,"values":[0.0,0.0,0.0,0.01,0.0,0.0,0.0,0.0,0.0,0.01,0.0,0.0,0.0,0.0,0.0,0.01,0.0,0.0,0.0,0.0,0.0,0.01,0.0,0.0,0.005,0.0,0.0]}
