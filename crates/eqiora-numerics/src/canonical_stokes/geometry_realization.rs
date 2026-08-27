@@ -37,7 +37,7 @@ use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundaryFacet2d,
 };
 
-mod scaling;
+pub(crate) mod scaling;
 
 const DIMENSION: usize = 2;
 const REQUIRED_BOUNDARY_SETS: [&str; 4] = ["cylinder", "inlet", "outlet", "walls"];

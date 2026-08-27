@@ -1,6 +1,6 @@
 """Closed finite-volume spatial policies.
 
-Authority: ``crates/eqiora-python/src/common_plan.rs::PyCellCenteredTpfa``.
+Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyCellCenteredTpfa``.
 """
 from typing import Self, final
 
@@ -8,7 +8,7 @@ from typing import Self, final
 class CellCenteredTpfa:
     """Cell-centred orthogonal two-point-flux spatial policy.
 
-    Authority: ``crates/eqiora-python/src/common_plan.rs::PyCellCenteredTpfa``.
+    Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyCellCenteredTpfa``.
     """
     def __new__(cls) -> Self: ...
     def __eq__(self, other: object, /) -> bool: ...

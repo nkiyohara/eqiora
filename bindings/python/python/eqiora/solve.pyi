@@ -1,14 +1,14 @@
 """Closed algebraic solve policies.
 
-Authority: ``crates/eqiora-python/src/common_plan.rs::PyLinear``.
+Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
 """
 from typing import Self, final
 
 @final
 class Linear:
-    """Admitted host-serial reproducible CG solve policy.
+    """Linear-solve controls resolved against Model-owned operator meaning.
 
-    Authority: ``crates/eqiora-python/src/common_plan.rs::PyLinear``.
+    Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
     """
     def __new__(
         cls,
@@ -17,12 +17,6 @@ class Linear:
         absolute_tolerance: float,
         maximum_iterations: int,
     ) -> Self: ...
-    @property
-    def algorithm(self) -> str: ...
-    @property
-    def preconditioner(self) -> str: ...
-    @property
-    def reduction(self) -> str: ...
     @property
     def relative_tolerance(self) -> float: ...
     @property

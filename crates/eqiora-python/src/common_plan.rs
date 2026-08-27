@@ -2,14 +2,16 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::num::NonZeroUsize;
 use std::time::Instant;
 
-use eqiora::solver::{LinearSolver, REFERENCE_SOLVER_PROVIDER, SolverPlan};
-use eqiora_numerics::{CommonScalarPlan, CommonScalarSpatialPolicy};
+use eqiora::backends::faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
+use eqiora::solver::{LinearSolver, REFERENCE_SOLVER_PROVIDER, ReductionPolicy, SolverPlan};
+use eqiora_numerics::{
+    CommonScalarPlan, CommonSpatialPolicy, CommonSteadyStokesPlan, resolve_common_plan,
+};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyModule};
+use pyo3::types::{PyAny, PyModule, PyTuple};
 
 use crate::error::{execution_error, validation_error};
 use crate::execution::RunIdentity;
@@ -17,166 +19,106 @@ use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelFieldRef};
 use crate::result::PyRunResult;
 
-/// Continuous tensor-product Q1 Galerkin spatial policy.
-#[pyclass(
-    name = "Q1",
-    module = "eqiora._eqiora",
-    frozen,
-    eq,
-    hash,
-    from_py_object
-)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct PyQ1;
-
-#[pymethods]
-impl PyQ1 {
-    #[new]
-    const fn new() -> Self {
-        Self
-    }
-
-    fn __repr__(&self) -> &'static str {
-        "Q1()"
-    }
-}
-
-/// Cell-centred orthogonal two-point-flux finite-volume spatial policy.
-#[pyclass(
-    name = "CellCenteredTpfa",
-    module = "eqiora._eqiora",
-    frozen,
-    eq,
-    hash,
-    from_py_object
-)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct PyCellCenteredTpfa;
-
-#[pymethods]
-impl PyCellCenteredTpfa {
-    #[new]
-    const fn new() -> Self {
-        Self
-    }
-
-    fn __repr__(&self) -> &'static str {
-        "CellCenteredTpfa()"
-    }
-}
-
-/// Closed host-serial reproducible CG policy for this scalar slice.
-#[pyclass(
-    name = "Linear",
-    module = "eqiora._eqiora",
-    frozen,
-    skip_from_py_object
-)]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct PyLinear {
-    native: SolverPlan,
-}
-
-#[pymethods]
-impl PyLinear {
-    #[new]
-    #[pyo3(signature = (*, relative_tolerance, absolute_tolerance, maximum_iterations))]
-    fn new(
-        py: Python<'_>,
-        relative_tolerance: f64,
-        absolute_tolerance: f64,
-        maximum_iterations: usize,
-    ) -> PyResult<Self> {
-        let maximum_iterations = NonZeroUsize::new(maximum_iterations)
-            .ok_or_else(|| PyTypeError::new_err("maximum_iterations must be a positive integer"))?;
-        SolverPlan::new(
-            LinearSolver::ConjugateGradient,
-            relative_tolerance,
-            absolute_tolerance,
-            maximum_iterations,
-        )
-        .map(|native| Self { native })
-        .map_err(|diagnostic| validation_error(py, &[diagnostic]))
-    }
-
-    #[getter]
-    const fn algorithm(&self) -> &'static str {
-        "conjugate-gradient"
-    }
-    #[getter]
-    const fn preconditioner(&self) -> &'static str {
-        "identity"
-    }
-    #[getter]
-    const fn reduction(&self) -> &'static str {
-        "reproducible"
-    }
-    #[getter]
-    fn relative_tolerance(&self) -> f64 {
-        self.native.relative_tolerance()
-    }
-    #[getter]
-    fn absolute_tolerance(&self) -> f64 {
-        self.native.absolute_tolerance()
-    }
-    #[getter]
-    fn maximum_iterations(&self) -> usize {
-        self.native.maximum_iterations().get()
-    }
-
-    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
-        other
-            .extract::<PyRef<'_, Self>>()
-            .is_ok_and(|other| self.native == other.native)
-    }
-
-    fn __hash__(&self) -> isize {
-        let mut hasher = DefaultHasher::new();
-        self.relative_tolerance().to_bits().hash(&mut hasher);
-        self.absolute_tolerance().to_bits().hash(&mut hasher);
-        self.maximum_iterations().hash(&mut hasher);
-        hasher.finish() as isize
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "Linear(relative_tolerance={}, absolute_tolerance={}, maximum_iterations={})",
-            self.relative_tolerance(),
-            self.absolute_tolerance(),
-            self.maximum_iterations()
-        )
-    }
-}
+mod policy;
+use policy::{PyCellCenteredTpfa, PyLinear, PyMiniP1, PyQ1};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SpatialPolicy {
     Q1,
     CellCenteredTpfa,
+    MiniP1,
 }
 
 impl SpatialPolicy {
-    const fn bridge(self) -> CommonScalarSpatialPolicy {
+    const fn native(self) -> CommonSpatialPolicy {
         match self {
-            Self::Q1 => CommonScalarSpatialPolicy::Q1,
-            Self::CellCenteredTpfa => CommonScalarSpatialPolicy::CellCenteredTpfa,
+            Self::Q1 => CommonSpatialPolicy::Q1,
+            Self::CellCenteredTpfa => CommonSpatialPolicy::CellCenteredTpfa,
+            Self::MiniP1 => CommonSpatialPolicy::MiniP1,
         }
     }
     const fn discretization(self) -> &'static str {
         match self {
             Self::Q1 => "q1",
             Self::CellCenteredTpfa => "cell-centered-tpfa",
+            Self::MiniP1 => "mini-p1",
         }
     }
     const fn space(self) -> &'static str {
         match self {
             Self::Q1 => "continuous-lagrange-q1",
             Self::CellCenteredTpfa => "cell-constant",
+            Self::MiniP1 => "(simplex-p1-bubble)^2/continuous-lagrange-p1",
         }
     }
     const fn quadrature(self) -> &'static str {
         match self {
             Self::Q1 => "gauss-legendre-2-per-axis",
             Self::CellCenteredTpfa => "cell-centroid/facet-midpoint",
+            Self::MiniP1 => "triangle-duffy-gauss-legendre-3-per-axis",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum CommonPlanKind {
+    Scalar(Box<CommonScalarPlan>),
+    SteadyStokes(Box<CommonSteadyStokesPlan>),
+}
+
+impl CommonPlanKind {
+    fn identity(&self) -> &str {
+        match self {
+            Self::Scalar(plan) => plan.identity(),
+            Self::SteadyStokes(plan) => plan.identity(),
+        }
+    }
+    fn model_id(&self) -> &str {
+        match self {
+            Self::Scalar(plan) => plan.model_id(),
+            Self::SteadyStokes(plan) => plan.model_id(),
+        }
+    }
+    fn model_digest(&self) -> &str {
+        match self {
+            Self::Scalar(plan) => plan.model_digest(),
+            Self::SteadyStokes(plan) => plan.model_digest(),
+        }
+    }
+    const fn model_revision(&self) -> u64 {
+        match self {
+            Self::Scalar(plan) => plan.model_revision(),
+            Self::SteadyStokes(plan) => plan.model_revision(),
+        }
+    }
+    fn geometry_digest(&self) -> &str {
+        match self {
+            Self::Scalar(plan) => plan.geometry_digest(),
+            Self::SteadyStokes(plan) => plan.geometry_digest(),
+        }
+    }
+    fn mesh_digest(&self) -> &str {
+        match self {
+            Self::Scalar(plan) => plan.mesh_digest(),
+            Self::SteadyStokes(plan) => plan.mesh_digest(),
+        }
+    }
+    fn correspondence_digest(&self) -> &str {
+        match self {
+            Self::Scalar(plan) => plan.correspondence_digest(),
+            Self::SteadyStokes(plan) => plan.correspondence_digest(),
+        }
+    }
+    fn production_digest(&self) -> &str {
+        match self {
+            Self::Scalar(plan) => plan.production_digest(),
+            Self::SteadyStokes(plan) => plan.production_digest(),
+        }
+    }
+    const fn effective_solver(&self) -> SolverPlan {
+        match self {
+            Self::Scalar(plan) => plan.linear(),
+            Self::SteadyStokes(plan) => plan.linear(),
         }
     }
 }
@@ -185,7 +127,7 @@ impl SpatialPolicy {
 #[pyclass(name = "Plan", module = "eqiora._eqiora", frozen, skip_from_py_object)]
 #[derive(Debug)]
 pub(crate) struct PyPlan {
-    native: CommonScalarPlan,
+    native: CommonPlanKind,
     model: Py<PyModel>,
     mesh: Py<PyMesh>,
     spatial: SpatialPolicy,
@@ -193,9 +135,6 @@ pub(crate) struct PyPlan {
 }
 
 impl PyPlan {
-    pub(crate) const fn native(&self) -> &CommonScalarPlan {
-        &self.native
-    }
     pub(crate) fn mesh_handle(&self, py: Python<'_>) -> Py<PyMesh> {
         self.mesh.clone_ref(py)
     }
@@ -244,17 +183,59 @@ impl PyPlan {
         self.mesh.clone_ref(py)
     }
     #[getter]
-    fn field(&self) -> PyModelFieldRef {
-        PyModelFieldRef::from_exact(
-            self.native.model_digest().to_owned(),
-            self.native.field_id().to_owned(),
-        )
+    fn field(&self) -> Option<PyModelFieldRef> {
+        let CommonPlanKind::Scalar(plan) = &self.native else {
+            return None;
+        };
+        Some(PyModelFieldRef::from_exact(
+            plan.model_digest().to_owned(),
+            plan.field_id().to_owned(),
+        ))
+    }
+    #[getter]
+    fn fields(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let model_digest = self.native.model_digest().to_owned();
+        let fields = match &self.native {
+            CommonPlanKind::Scalar(plan) => vec![PyModelFieldRef::from_exact(
+                model_digest,
+                plan.field_id().to_owned(),
+            )],
+            CommonPlanKind::SteadyStokes(plan) => vec![
+                PyModelFieldRef::from_exact(
+                    model_digest.clone(),
+                    plan.velocity_field_id().to_owned(),
+                ),
+                PyModelFieldRef::from_exact(model_digest, plan.pressure_field_id().to_owned()),
+            ],
+        };
+        Ok(PyTuple::new(py, fields)?.unbind())
+    }
+    #[getter]
+    fn velocity_field(&self) -> Option<PyModelFieldRef> {
+        let CommonPlanKind::SteadyStokes(plan) = &self.native else {
+            return None;
+        };
+        Some(PyModelFieldRef::from_exact(
+            plan.model_digest().to_owned(),
+            plan.velocity_field_id().to_owned(),
+        ))
+    }
+    #[getter]
+    fn pressure_field(&self) -> Option<PyModelFieldRef> {
+        let CommonPlanKind::SteadyStokes(plan) = &self.native else {
+            return None;
+        };
+        Some(PyModelFieldRef::from_exact(
+            plan.model_digest().to_owned(),
+            plan.pressure_field_id().to_owned(),
+        ))
     }
     #[getter]
     fn spatial(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match self.spatial {
             SpatialPolicy::Q1 => Py::new(py, PyQ1).map(Py::into_any),
             SpatialPolicy::CellCenteredTpfa => Py::new(py, PyCellCenteredTpfa).map(Py::into_any),
+            SpatialPolicy::MiniP1 => Py::new(py, PyMiniP1).map(Py::into_any),
         }
     }
     #[getter]
@@ -274,17 +255,25 @@ impl PyPlan {
         self.spatial.quadrature()
     }
     #[getter]
-    const fn mesh_kind(&self) -> &'static str {
-        "structured-cartesian"
+    fn mesh_kind(&self) -> &'static str {
+        match self.native {
+            CommonPlanKind::Scalar(_) => "structured-cartesian",
+            CommonPlanKind::SteadyStokes(_) => "imported-affine-simplicial",
+        }
     }
     #[getter]
     const fn spatial_dimension(&self) -> usize {
         2
     }
     #[getter]
-    fn cells(&self) -> (usize, usize) {
-        let [x, y] = self.native.cells();
-        (x, y)
+    fn cells(&self) -> Option<(usize, usize)> {
+        match &self.native {
+            CommonPlanKind::Scalar(plan) => {
+                let [x, y] = plan.cells();
+                Some((x, y))
+            }
+            CommonPlanKind::SteadyStokes(_) => None,
+        }
     }
     #[getter]
     const fn scalar_type(&self) -> &'static str {
@@ -295,32 +284,49 @@ impl PyPlan {
         "replicated"
     }
     #[getter]
-    const fn operator_properties(&self) -> &'static str {
-        "symmetric-positive-definite"
+    fn operator_properties(&self) -> &'static str {
+        match self.native {
+            CommonPlanKind::Scalar(_) => "symmetric-positive-definite",
+            CommonPlanKind::SteadyStokes(_) => "symmetric-indefinite",
+        }
     }
     #[getter]
     const fn schedule(&self) -> &'static str {
         "offline"
     }
     #[getter]
-    const fn solver_algorithm(&self) -> &'static str {
-        "conjugate-gradient"
+    fn solver_algorithm(&self) -> &'static str {
+        match self.native.effective_solver().algorithm() {
+            LinearSolver::ConjugateGradient => "conjugate-gradient",
+            LinearSolver::MinimumResidual => "minimum-residual",
+            LinearSolver::BiConjugateGradientStabilized => "bicgstab",
+            LinearSolver::SparseLu => "sparse-lu",
+        }
     }
     #[getter]
     const fn preconditioner(&self) -> &'static str {
         "identity"
     }
     #[getter]
-    const fn reduction(&self) -> &'static str {
-        "reproducible"
+    fn reduction(&self) -> &'static str {
+        match self.native.effective_solver().reduction() {
+            ReductionPolicy::Reproducible => "reproducible",
+            ReductionPolicy::Fast => "fast",
+        }
     }
     #[getter]
-    const fn solver_backend(&self) -> &'static str {
-        REFERENCE_SOLVER_PROVIDER.id().as_str()
+    fn solver_backend(&self) -> &'static str {
+        match self.native {
+            CommonPlanKind::Scalar(_) => REFERENCE_SOLVER_PROVIDER.id().as_str(),
+            CommonPlanKind::SteadyStokes(_) => FAER_SOLVER_PROVIDER.id().as_str(),
+        }
     }
     #[getter]
-    const fn solver_backend_version(&self) -> &'static str {
-        REFERENCE_SOLVER_PROVIDER.implementation_version()
+    fn solver_backend_version(&self) -> &'static str {
+        match self.native {
+            CommonPlanKind::Scalar(_) => REFERENCE_SOLVER_PROVIDER.implementation_version(),
+            CommonPlanKind::SteadyStokes(_) => FAER_SOLVER_PROVIDER.implementation_version(),
+        }
     }
     #[getter]
     const fn execution_provider(&self) -> &'static str {
@@ -365,23 +371,31 @@ impl PyPlan {
 }
 
 #[pyfunction(name = "_resolve_plan")]
-#[pyo3(signature = (model, /, *, mesh, spatial, solve))]
+#[pyo3(signature = (model, /, *, mesh, spatial, solve, scaling=None))]
 fn resolve_plan(
     py: Python<'_>,
     model: Py<PyModel>,
     mesh: Py<PyMesh>,
     spatial: &Bound<'_, PyAny>,
     solve: Py<PyLinear>,
+    scaling: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyPlan> {
     let spatial = if spatial.extract::<PyRef<'_, PyQ1>>().is_ok() {
         SpatialPolicy::Q1
     } else if spatial.extract::<PyRef<'_, PyCellCenteredTpfa>>().is_ok() {
         SpatialPolicy::CellCenteredTpfa
+    } else if spatial.extract::<PyRef<'_, PyMiniP1>>().is_ok() {
+        SpatialPolicy::MiniP1
     } else {
         return Err(PyTypeError::new_err(
-            "spatial must be eqiora.fem.Q1() or eqiora.fvm.CellCenteredTpfa()",
+            "spatial must be eqiora.fem.Q1(), eqiora.fem.MiniP1(), or eqiora.fvm.CellCenteredTpfa()",
         ));
     };
+    if scaling.is_some_and(|value| !value.is_none()) {
+        return Err(PyTypeError::new_err(
+            "typed scaling overrides are not admitted for this capability; omit scaling or pass None",
+        ));
+    }
     let solve_ref = solve.borrow(py);
     let model_ref = model.borrow(py);
     let mesh_ref = mesh.borrow(py);
@@ -391,12 +405,19 @@ fn resolve_plan(
         .ok_or_else(|| {
             PyTypeError::new_err("mesh must be an authenticated caller-owned common Mesh")
         })?;
-    let native = CommonScalarPlan::resolve(
+    let native = resolve_common_plan(
         model_ref.artifact(),
         owner,
-        spatial.bridge(),
+        spatial.native(),
         solve_ref.native,
+        &FaerLinearSolver,
     )
+    .map(|plan| {
+        plan.project(
+            |plan| CommonPlanKind::Scalar(Box::new(plan)),
+            |plan| CommonPlanKind::SteadyStokes(Box::new(plan)),
+        )
+    })
     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
     if native.mesh_digest() != mesh_ref.exact_mesh_digest() {
         return Err(PyTypeError::new_err(
@@ -419,26 +440,57 @@ fn resolve_plan(
 #[pyo3(signature = (plan, /))]
 fn run_plan(py: Python<'_>, plan: &PyPlan) -> PyResult<PyRunResult> {
     let native = plan.native.clone();
-    let (run, elapsed) = py
-        .detach(move || {
-            let started = Instant::now();
-            native.run().map(|run| (run, started.elapsed()))
-        })
-        .map_err(|diagnostic| execution_error(py, &[diagnostic]))?;
-    let identity = RunIdentity::from_common_plan(plan.native());
-    PyRunResult::from_common_scalar(
-        py,
-        identity,
-        plan.mesh_handle(py),
-        plan.native.field_id().to_owned(),
-        plan.native.cells(),
-        elapsed,
-        run,
-    )
+    match native {
+        CommonPlanKind::Scalar(native) => {
+            let (run, elapsed) = py
+                .detach(move || {
+                    let started = Instant::now();
+                    native.run().map(|run| (run, started.elapsed()))
+                })
+                .map_err(|diagnostic| execution_error(py, &[diagnostic]))?;
+            let CommonPlanKind::Scalar(native) = &plan.native else {
+                unreachable!()
+            };
+            let identity = RunIdentity::from_common_plan(native);
+            PyRunResult::from_common_scalar(
+                py,
+                identity,
+                plan.mesh_handle(py),
+                native.field_id().to_owned(),
+                native.cells(),
+                elapsed,
+                run,
+            )
+        }
+        CommonPlanKind::SteadyStokes(native) => {
+            let (run, elapsed) = py
+                .detach(move || {
+                    let started = Instant::now();
+                    native
+                        .run(&FaerLinearSolver)
+                        .map(|run| (run, started.elapsed()))
+                })
+                .map_err(|diagnostic| execution_error(py, &[diagnostic]))?;
+            let CommonPlanKind::SteadyStokes(native) = &plan.native else {
+                unreachable!()
+            };
+            let identity = RunIdentity::from_common_steady_stokes(native);
+            PyRunResult::from_common_steady_stokes(
+                py,
+                identity,
+                plan.mesh_handle(py),
+                native.velocity_field_id().to_owned(),
+                native.pressure_field_id().to_owned(),
+                elapsed,
+                run,
+            )
+        }
+    }
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyQ1>()?;
+    module.add_class::<PyMiniP1>()?;
     module.add_class::<PyCellCenteredTpfa>()?;
     module.add_class::<PyLinear>()?;
     module.add_class::<PyPlan>()?;
@@ -485,6 +537,9 @@ public component PoissonRectangle {
   relation top_value continuous on top { trace(potential) = 0; }
 }
 "#;
+
+    const STOKES_COMPONENT: &str =
+        include_str!("../../eqiora-api/src/steady_stokes/accepted_component.eqi");
 
     type SupportBinding<'a> = (
         &'a str,
@@ -572,6 +627,90 @@ public component PoissonRectangle {
             geometry,
             "PoissonRectangleModel",
             "PoissonRectangle",
+            &supports,
+            &parameters,
+        )
+        .unwrap()
+    }
+
+    fn stokes_document(geometry: &CanonicalGeometryV1) -> ModelDocument {
+        let fluid = geometry.entity_set("fluid").unwrap();
+        let supports: [SupportBinding<'_>; 5] = [
+            ("fluid", fluid, None),
+            (
+                "inlet",
+                geometry.entity_set("inlet").unwrap(),
+                Some(("fluid", fluid)),
+            ),
+            (
+                "outlet",
+                geometry.entity_set("outlet").unwrap(),
+                Some(("fluid", fluid)),
+            ),
+            (
+                "walls",
+                geometry.entity_set("walls").unwrap(),
+                Some(("fluid", fluid)),
+            ),
+            (
+                "cylinder",
+                geometry.entity_set("cylinder").unwrap(),
+                Some(("fluid", fluid)),
+            ),
+        ];
+        let parameters = [
+            (
+                "dynamic_viscosity",
+                DynQuantity::new(
+                    0.001,
+                    DimExponents {
+                        mass: 1,
+                        length: -1,
+                        time: -1,
+                        ..DimExponents::DIMENSIONLESS
+                    },
+                ),
+            ),
+            (
+                "zero_pressure",
+                DynQuantity::new(
+                    0.0,
+                    DimExponents {
+                        mass: 1,
+                        length: -1,
+                        time: -2,
+                        ..DimExponents::DIMENSIONLESS
+                    },
+                ),
+            ),
+            (
+                "inlet_speed",
+                DynQuantity::new(
+                    0.3,
+                    DimExponents {
+                        length: 1,
+                        time: -1,
+                        ..DimExponents::DIMENSIONLESS
+                    },
+                ),
+            ),
+            (
+                "channel_height",
+                DynQuantity::new(
+                    0.41,
+                    DimExponents {
+                        length: 1,
+                        ..DimExponents::DIMENSIONLESS
+                    },
+                ),
+            ),
+        ];
+        ModelDocument::compile_external_component(
+            "steady-flow-past-cylinder.eqi",
+            STOKES_COMPONENT,
+            geometry,
+            "SteadyFlowPastCylinderModel",
+            "SteadyFlowPastCylinder",
             &supports,
             &parameters,
         )
@@ -678,6 +817,12 @@ except package.ValidationError:
     pass
 else:
     raise AssertionError("foreign Model was admitted against the caller Mesh")
+try:
+    package.resolve(model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear)
+except package.ValidationError:
+    pass
+else:
+    raise AssertionError("MINI/P1 selected Stokes physics for a scalar Model")
 
 foreign_rectangle = graph.rectangle(x_bounds=(0.0, 2.0), y_bounds=(0.0, 1.0))
 foreign_source = graph.build(foreign_rectangle, named_topology={
@@ -701,6 +846,140 @@ except TypeError:
     pass
 else:
     raise AssertionError("root run retained a Model-shaped compatibility path")
+"#),
+                None,
+                Some(&locals),
+            )
+        })
+    }
+
+    #[test]
+    fn root_plan_resolves_model_owned_steady_stokes_with_automatic_scaling() -> PyResult<()> {
+        Python::initialize();
+        Python::attach(|py| {
+            let native = pyo3::wrap_pymodule!(crate::_eqiora)(py);
+            let package_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../bindings/python/python/eqiora")
+                .canonicalize()?;
+            let locals = PyDict::new(py);
+            locals.set_item("native", native.bind(py))?;
+            locals.set_item("package_directory", package_directory.to_string_lossy())?;
+            py.run(
+                c_str!(r#"
+import importlib.util, pathlib, sys
+package_path = pathlib.Path(package_directory)
+spec = importlib.util.spec_from_file_location("eqiora", package_path / "__init__.py", submodule_search_locations=[str(package_path)])
+package = importlib.util.module_from_spec(spec)
+sys.modules["eqiora"] = package
+sys.modules["eqiora._eqiora"] = native
+spec.loader.exec_module(package)
+
+graph = package.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+circle = graph.circle(center=(0.2, 0.2), radius=0.05)
+fluid = graph.subtract(rectangle, circle)
+source = graph.build(fluid, named_topology={
+    "fluid": fluid.region,
+    "inlet": rectangle.boundaries[0],
+    "outlet": rectangle.boundaries[1],
+    "walls": rectangle.boundaries[2:],
+    "cylinder": circle.boundaries[0],
+})
+mesher = package.meshing.ReferenceMesher(maximum_boundary_error=1e-4, minimum_mean_ratio=1e-5, maximum_boundary_facets=50)
+mesh_plan = package.meshing.resolve(source, package.meshing.MeshRequest(mesher))
+mesh = package.meshing.generate(source, plan=mesh_plan)
+"#),
+                None,
+                Some(&locals),
+            )?;
+            let geometry = locals
+                .get_item("source")?
+                .unwrap()
+                .extract::<PyRef<'_, PyGeometry>>()?
+                .geometry()
+                .clone();
+            let model = PyModel::from_document(py, stokes_document(&geometry))?;
+            let fresh_model = PyModel::from_document(py, stokes_document(&geometry))?;
+            let foreign_model = PyModel::from_document(
+                py,
+                scalar_document(&rectangle_geometry(1.0), 2.0 * std::f64::consts::PI.powi(2)),
+            )?;
+            locals.set_item("model", Py::new(py, model)?)?;
+            locals.set_item("fresh_model", Py::new(py, fresh_model)?)?;
+            locals.set_item("foreign_model", Py::new(py, foreign_model)?)?;
+            py.run(
+                c_str!(r#"
+linear = package.solve.Linear(relative_tolerance=1e-6, absolute_tolerance=1e-13, maximum_iterations=10000)
+plan = package.resolve(model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear)
+explicit_none = package.resolve(model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear, scaling=None)
+replayed = package.replay(model.to_json())
+replayed_plan = package.resolve(replayed, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear)
+fresh_plan = package.resolve(fresh_model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear)
+assert plan.identity == explicit_none.identity == replayed_plan.identity == fresh_plan.identity
+assert plan.model is model
+assert plan.mesh is mesh
+assert plan.mesh_digest == mesh.digest
+assert plan.discretization == "mini-p1"
+assert plan.mesh_kind == "imported-affine-simplicial"
+assert plan.operator_properties == "symmetric-indefinite"
+assert plan.solver_algorithm == "sparse-lu"
+assert plan.preconditioner == "identity"
+assert plan.reduction == "fast"
+assert plan.solver_backend == "eqiora.faer"
+assert plan.solve is linear
+result = package.run(plan)
+assert isinstance(result, package.Result)
+assert result.model_digest == plan.model_digest
+assert result.plan_key == plan.identity
+assert len(plan.fields) == 2
+assert plan.fields == (plan.velocity_field, plan.pressure_field)
+assert plan.field is None
+assert not hasattr(result, "outputs")
+velocity = result.output(plan.velocity_field)
+pressure = result.output(plan.pressure_field)
+assert result.mesh(plan.velocity_field) is mesh
+assert result.mesh(plan.pressure_field) is mesh
+assert velocity.field == plan.velocity_field
+assert pressure.field == plan.pressure_field
+assert velocity.mesh is pressure.mesh is mesh
+assert velocity.dimension == (0, 1, -1, 0, 0, 0, 0)
+assert velocity.components == 2
+assert velocity.vertex_count == mesh.vertex_count
+assert len(velocity.vertex_values) == mesh.vertex_count * 2
+assert velocity.cell_bubble_count == mesh.cell_count
+assert len(velocity.cell_bubble_values) == mesh.cell_count * 2
+assert pressure.dimension == (1, -1, -2, 0, 0, 0, 0)
+assert pressure.components == 1
+assert pressure.vertex_count == mesh.vertex_count
+assert len(pressure.vertex_values) == mesh.vertex_count
+assert pressure.cell_bubble_count == 0
+assert pressure.cell_bubble_values is None
+assert result.solve.algorithm == "sparse-lu"
+foreign_field = foreign_model.field(foreign_model.field_ids[0])
+try:
+    result.output(foreign_field)
+except ValueError:
+    pass
+else:
+    raise AssertionError("foreign exact FieldRef selected a common output")
+try:
+    result.output("pressure")
+except TypeError:
+    pass
+else:
+    raise AssertionError("string/name lookup selected a common output")
+try:
+    package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
+except package.ValidationError:
+    pass
+else:
+    raise AssertionError("Stokes Model selected scalar physics through a spatial policy")
+try:
+    package.resolve(model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear, scaling=object())
+except TypeError:
+    pass
+else:
+    raise AssertionError("untyped scaling reached Plan publication")
 "#),
                 None,
                 Some(&locals),

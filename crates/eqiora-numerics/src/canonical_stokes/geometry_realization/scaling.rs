@@ -28,7 +28,7 @@ const PRESSURE: DimExponents = DimExponents {
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct IncompressibleScalingRequest2d {
+pub(crate) struct IncompressibleScalingRequest2d {
     length: Option<DynQuantity>,
     velocity: Option<DynQuantity>,
     pressure: Option<DynQuantity>,
@@ -204,13 +204,13 @@ impl IncompressibleScalingReceipt2d {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct ResolvedIncompressibleScaling2d {
+pub(crate) struct ResolvedIncompressibleScaling2d {
     scales: IncompressibleFlowScaleProfile2d,
     receipt: IncompressibleScalingReceipt2d,
 }
 
 impl ResolvedIncompressibleScaling2d {
-    pub(super) const fn scales(&self) -> IncompressibleFlowScaleProfile2d {
+    pub(crate) const fn scales(&self) -> IncompressibleFlowScaleProfile2d {
         self.scales
     }
 
@@ -222,7 +222,7 @@ impl ResolvedIncompressibleScaling2d {
 impl SteadyStokesGeometryBinding2d {
     /// Resolve the closed exact-cylinder scaling family after this binding has
     /// authenticated Model meaning and the Geometry/correspondence/Mesh chain.
-    pub(super) fn resolve_incompressible_scaling(
+    pub(crate) fn resolve_incompressible_scaling(
         &self,
         model: &ModelEnvelope,
         request: Option<IncompressibleScalingRequest2d>,

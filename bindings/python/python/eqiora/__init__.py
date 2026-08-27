@@ -31,6 +31,7 @@ from ._eqiora import (
     ExecutionError,
     Expression,
     Field,
+    FieldOutput,
     FieldRef,
     InternalError,
     LinearSolveSummary,
@@ -136,6 +137,7 @@ __all__ = [
     "ExecutionError",
     "Expression",
     "Field",
+    "FieldOutput",
     "FieldRef",
     "InternalError",
     "LinearSolveSummary",
@@ -223,10 +225,23 @@ def check_package_conformance(
     )
 
 
-def resolve(model: Model, *, mesh: meshing.Mesh, spatial, solve: solve.Linear) -> Plan:
+def resolve(
+    model: Model,
+    *,
+    mesh: meshing.Mesh,
+    spatial,
+    solve: solve.Linear,
+    scaling=None,
+) -> Plan:
     """Resolve an exact Model and caller-owned Mesh into an immutable common Plan."""
 
-    return _resolve_plan(model, mesh=mesh, spatial=spatial, solve=solve)
+    return _resolve_plan(
+        model,
+        mesh=mesh,
+        spatial=spatial,
+        solve=solve,
+        scaling=scaling,
+    )
 
 
 def run(plan: Plan) -> Result:

@@ -28,7 +28,8 @@ mod jacobian_audit;
 mod linearized_output;
 mod numerical_admission;
 pub use numerical_admission::{
-    AuthenticatedCommonMesh, CommonScalarPlan, CommonScalarSpatialPolicy,
+    AuthenticatedCommonMesh, CommonScalarPlan, CommonSpatialPolicy, CommonSteadyStokesPlan,
+    ResolvedCommonPlan, resolve_common_plan,
 };
 mod operator;
 mod physical_network;

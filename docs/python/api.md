@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 14 module summaries and all 121 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 520 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 14 module summaries and all 125 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 562 signature-only entries under documented owning types**.
 
-Inventory: 14 modules, 140 literal public spellings, 121 canonical grouped declarations, 681 visible method signatures (520 non-dunder and 161 dunder), and 47 visible class assignments.
+Inventory: 14 modules, 144 literal public spellings, 125 canonical grouped declarations, 730 visible method signatures (562 non-dunder and 168 dunder), and 47 visible class assignments.
 
 Regenerate with:
 
@@ -517,6 +517,35 @@ class Field:
     def __bool__(self) -> bool: ...
 ```
 
+<a id="api-eqiora-FieldOutput"></a>
+
+### `eqiora.FieldOutput`
+
+Immutable coefficients for one exact Model Field on one exact Mesh.
+
+Authority: [`crates/eqiora-python/src/result.rs::PyFieldOutput`](../../crates/eqiora-python/src/result.rs)
+
+```python
+@final
+class FieldOutput:
+    @property
+    def field(self) -> FieldRef: ...
+    @property
+    def mesh(self) -> meshing.Mesh: ...
+    @property
+    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    @property
+    def components(self) -> int: ...
+    @property
+    def vertex_count(self) -> int: ...
+    @property
+    def vertex_values(self) -> Array: ...
+    @property
+    def cell_bubble_count(self) -> int: ...
+    @property
+    def cell_bubble_values(self) -> Array | None: ...
+```
+
 <a id="api-eqiora-FieldRef"></a>
 
 ### `eqiora.FieldRef`
@@ -761,6 +790,94 @@ class PhysicalDomain:
     def through_dimension(self) -> Dimension: ...
 ```
 
+<a id="api-eqiora-Plan"></a>
+
+### `eqiora.Plan`
+
+Immutable common numerical Plan owning an exact Model and Mesh.
+
+Authority: [`crates/eqiora-python/src/common_plan.rs::PyPlan`](../../crates/eqiora-python/src/common_plan.rs)
+
+```python
+@final
+class Plan:
+    @property
+    def identity(self) -> str: ...
+    @property
+    def model_id(self) -> str: ...
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def model_revision(self) -> int: ...
+    @property
+    def geometry_digest(self) -> str: ...
+    @property
+    def mesh_digest(self) -> str: ...
+    @property
+    def correspondence_digest(self) -> str: ...
+    @property
+    def production_digest(self) -> str: ...
+    @property
+    def model(self) -> Model: ...
+    @property
+    def mesh(self) -> meshing.Mesh: ...
+    @property
+    def field(self) -> FieldRef | None: ...
+    @property
+    def fields(self) -> tuple[FieldRef, ...]: ...
+    @property
+    def velocity_field(self) -> FieldRef | None: ...
+    @property
+    def pressure_field(self) -> FieldRef | None: ...
+    @property
+    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa: ...
+    @property
+    def solve(self) -> solve.Linear: ...
+    @property
+    def discretization(self) -> str: ...
+    @property
+    def space(self) -> str: ...
+    @property
+    def quadrature(self) -> str: ...
+    @property
+    def mesh_kind(self) -> str: ...
+    @property
+    def spatial_dimension(self) -> int: ...
+    @property
+    def cells(self) -> tuple[int, int] | None: ...
+    @property
+    def scalar_type(self) -> str: ...
+    @property
+    def vector_layout(self) -> str: ...
+    @property
+    def operator_properties(self) -> str: ...
+    @property
+    def schedule(self) -> str: ...
+    @property
+    def solver_algorithm(self) -> str: ...
+    @property
+    def preconditioner(self) -> str: ...
+    @property
+    def reduction(self) -> str: ...
+    @property
+    def solver_backend(self) -> str: ...
+    @property
+    def solver_backend_version(self) -> str: ...
+    @property
+    def execution_provider(self) -> str: ...
+    @property
+    def execution_provider_version(self) -> str: ...
+    @property
+    def placement(self) -> str: ...
+    @property
+    def workers(self) -> int: ...
+    @property
+    def scaling(self) -> None: ...
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
 <a id="api-eqiora-Realization"></a>
 
 ### `eqiora.Realization`
@@ -880,6 +997,7 @@ class Result:
     def logical_shape(self) -> tuple[int, int]: ...
     @property
     def solve(self) -> LinearSolveSummary: ...
+    def output(self, field: FieldRef, /) -> FieldOutput: ...
     def field(self, field: FieldRef, /) -> trajectory.FieldSnapshot: ...
     def mesh(self, field: FieldRef, /) -> meshing.Mesh: ...
     @property
@@ -1413,6 +1531,18 @@ Authority: [`crates/eqiora-python/src/lib.rs::replay`](../../crates/eqiora-pytho
 
 ```python
 def replay(data: bytes) -> Model: ...
+```
+
+<a id="api-eqiora-resolve"></a>
+
+### `eqiora.resolve`
+
+Resolve an exact Model and caller-owned Mesh into a common Plan.
+
+Authority: [`bindings/python/python/eqiora/__init__.py::resolve`](../../bindings/python/python/eqiora/__init__.py)
+
+```python
+def resolve(model: Model, *, mesh: meshing.Mesh, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa, solve: solve.Linear, scaling: None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-run"></a>
@@ -2078,9 +2208,26 @@ def resolve(geometry: Geometry, request: MeshRequest, /) -> MeshPlan: ...
 
 Closed finite-element spatial policies.
 
-Module authority: [`crates/eqiora-python/src/common_plan.rs::PyQ1`](../../crates/eqiora-python/src/common_plan.rs)
+Module authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyQ1`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 Shipped stub: [`bindings/python/python/eqiora/fem.pyi`](../../bindings/python/python/eqiora/fem.pyi)
+
+<a id="api-eqiora-fem-MiniP1"></a>
+
+### `eqiora.fem.MiniP1`
+
+Mixed MINI velocity and continuous P1 pressure spatial policy.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyMiniP1`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+```python
+@final
+class MiniP1:
+    def __new__(cls) -> Self: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
 
 <a id="api-eqiora-fem-Q1"></a>
 
@@ -2088,7 +2235,7 @@ Shipped stub: [`bindings/python/python/eqiora/fem.pyi`](../../bindings/python/py
 
 Continuous tensor-product Q1 Galerkin spatial policy.
 
-Authority: [`crates/eqiora-python/src/common_plan.rs::PyQ1`](../../crates/eqiora-python/src/common_plan.rs)
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyQ1`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 ```python
 @final
@@ -2105,7 +2252,7 @@ class Q1:
 
 Closed finite-volume spatial policies.
 
-Module authority: [`crates/eqiora-python/src/common_plan.rs::PyCellCenteredTpfa`](../../crates/eqiora-python/src/common_plan.rs)
+Module authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyCellCenteredTpfa`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 Shipped stub: [`bindings/python/python/eqiora/fvm.pyi`](../../bindings/python/python/eqiora/fvm.pyi)
 
@@ -2115,7 +2262,7 @@ Shipped stub: [`bindings/python/python/eqiora/fvm.pyi`](../../bindings/python/py
 
 Cell-centred orthogonal two-point-flux spatial policy.
 
-Authority: [`crates/eqiora-python/src/common_plan.rs::PyCellCenteredTpfa`](../../crates/eqiora-python/src/common_plan.rs)
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyCellCenteredTpfa`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 ```python
 @final
@@ -2132,7 +2279,7 @@ class CellCenteredTpfa:
 
 Closed algebraic solve policies.
 
-Module authority: [`crates/eqiora-python/src/common_plan.rs::PyLinear`](../../crates/eqiora-python/src/common_plan.rs)
+Module authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyLinear`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 Shipped stub: [`bindings/python/python/eqiora/solve.pyi`](../../bindings/python/python/eqiora/solve.pyi)
 
@@ -2140,20 +2287,14 @@ Shipped stub: [`bindings/python/python/eqiora/solve.pyi`](../../bindings/python/
 
 ### `eqiora.solve.Linear`
 
-Admitted host-serial reproducible CG solve policy.
+Linear-solve controls resolved against Model-owned operator meaning.
 
-Authority: [`crates/eqiora-python/src/common_plan.rs::PyLinear`](../../crates/eqiora-python/src/common_plan.rs)
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyLinear`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 ```python
 @final
 class Linear:
     def __new__(cls, *, relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int) -> Self: ...
-    @property
-    def algorithm(self) -> str: ...
-    @property
-    def preconditioner(self) -> str: ...
-    @property
-    def reduction(self) -> str: ...
     @property
     def relative_tolerance(self) -> float: ...
     @property

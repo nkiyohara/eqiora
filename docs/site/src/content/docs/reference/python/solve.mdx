@@ -11,7 +11,7 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 Closed algebraic solve policies.
 
-Module authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan.rs" kind="blob">crates/eqiora-python/src/common_plan.rs::PyLinear</ExactSourceLink>
+Module authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyLinear</ExactSourceLink>
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/solve.pyi" kind="blob">bindings/python/python/eqiora/solve.pyi</ExactSourceLink>
 
@@ -21,20 +21,14 @@ This module publishes **1** literal `__all__` spellings. Member entries below ar
 
 ## `Linear`
 
-Admitted host-serial reproducible CG solve policy.
+Linear-solve controls resolved against Model-owned operator meaning.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan.rs" kind="blob">crates/eqiora-python/src/common_plan.rs::PyLinear</ExactSourceLink>
+Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyLinear</ExactSourceLink>
 
 ```python
 @final
 class Linear:
     def __new__(cls, *, relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int) -> Self: ...
-    @property
-    def algorithm(self) -> str: ...
-    @property
-    def preconditioner(self) -> str: ...
-    @property
-    def reduction(self) -> str: ...
     @property
     def relative_tolerance(self) -> float: ...
     @property

@@ -1,17 +1,16 @@
 //! Private Model-driven admission of exact common Mesh resources and numerical policy.
 
-#![allow(
-    dead_code,
-    reason = "private #556 producer seam is consumed by the immediately stacked root Plan"
-)]
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroUsize;
 
 use crate::canonical::{
     lower_scalar_elliptic_cartesian_with_resources, recognize_scalar_elliptic_geometry_mathematics,
 };
-use crate::canonical_stokes::recognize_steady_incompressible_stokes_geometry_mathematics;
+use crate::canonical_stokes::{
+    IncompressibleScalingRequest2d, ResolvedIncompressibleScaling2d,
+    recognize_steady_incompressible_stokes_geometry_mathematics,
+    solve_resolved_steady_stokes_geometry_mini_2d,
+};
 use crate::fluid::{IncompressibleFlowScaleProfile2d, SteadyStokesGeometryBinding2d};
 use crate::scalar::{
     ResolvedScalarEllipticCartesianSolution, ScalarEllipticCartesianModel,
@@ -46,11 +45,38 @@ const APPLICATION_REALIZATION_REVISION: u64 = 134;
 const POLICY_DOMAIN: &[u8] = b"eqiora.private-native-numerical-admission/v1\0";
 type TaggedMeshAssignments = (BTreeMap<u32, Vec<usize>>, BTreeMap<u32, Vec<usize>>);
 
-/// Closed scalar spatial choice for the common Plan.
+/// Closed spatial choice requested from the Model-first common resolver.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CommonScalarSpatialPolicy {
+pub enum CommonSpatialPolicy {
     Q1,
     CellCenteredTpfa,
+    MiniP1,
+}
+
+/// Opaque result of Model-first common numerical resolution.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResolvedCommonPlan {
+    kind: ResolvedCommonPlanKind,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ResolvedCommonPlanKind {
+    Scalar(Box<CommonScalarPlan>),
+    SteadyStokes(Box<CommonSteadyStokesPlan>),
+}
+
+impl ResolvedCommonPlan {
+    /// Project one already-resolved Plan without reopening capability selection.
+    pub fn project<T>(
+        self,
+        scalar: impl FnOnce(CommonScalarPlan) -> T,
+        steady_stokes: impl FnOnce(CommonSteadyStokesPlan) -> T,
+    ) -> T {
+        match self.kind {
+            ResolvedCommonPlanKind::Scalar(plan) => scalar(*plan),
+            ResolvedCommonPlanKind::SteadyStokes(plan) => steady_stokes(*plan),
+        }
+    }
 }
 
 /// Opaque common scalar Plan owning authenticated Model, Mesh, and policy state.
@@ -68,13 +94,252 @@ pub struct CommonScalarPlan {
     cells: [usize; 2],
 }
 
-impl CommonScalarPlan {
-    /// Resolve one exact caller-owned Cartesian common Mesh and Model.
-    pub fn resolve(
+/// Opaque steady-Stokes Plan owning one authenticated exact-cylinder occurrence.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonSteadyStokesPlan {
+    admission: NativeNumericalAdmission,
+    binding: SteadyStokesGeometryBinding2d,
+    resolved: ResolvedFieldwiseRealization,
+    realization: RealizationEnvelopeV2,
+    scaling: ResolvedIncompressibleScaling2d,
+    identity: String,
+    model_id: String,
+    model_revision: u64,
+    geometry_digest: String,
+    mesh_digest: String,
+    correspondence_digest: String,
+    production_digest: String,
+    velocity_field_id: String,
+    pressure_field_id: String,
+    velocity_space: Space,
+    pressure_space: Space,
+}
+
+/// Resolve Model mathematics first, then admit the requested numerical policies.
+pub fn resolve_common_plan(
+    model: &ModelEnvelope,
+    owner: AuthenticatedCommonMesh,
+    spatial: CommonSpatialPolicy,
+    solve: SolverPlan,
+    stokes_backend: &dyn LinearSolverBackend,
+) -> Result<ResolvedCommonPlan, Diagnostic> {
+    let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
+    if solve.algorithm() != LinearSolver::ConjugateGradient
+        || solve.preconditioner() != PreconditionerPolicy::Identity
+        || solve.reduction() != ReductionPolicy::Reproducible
+    {
+        return Err(invalid(
+            "common Linear request must contain identity-preconditioned reproducible controls",
+        ));
+    }
+    match recognized.capability {
+        NativeCapability::ScalarElliptic => {
+            let spatial = match spatial {
+                CommonSpatialPolicy::Q1 => NativeSpatialPolicy::ScalarQ1,
+                CommonSpatialPolicy::CellCenteredTpfa => NativeSpatialPolicy::ScalarTpfa,
+                CommonSpatialPolicy::MiniP1 => {
+                    return Err(invalid(
+                        "scalar-elliptic Model mathematics is incompatible with MINI/P1",
+                    ));
+                }
+            };
+            let linear = NativeLinearPolicy::exact(solve, &REFERENCE_LINEAR_SOLVER)?;
+            let admission = recognized.complete(spatial, linear)?;
+            CommonScalarPlan::from_admission(model, admission).map(|plan| ResolvedCommonPlan {
+                kind: ResolvedCommonPlanKind::Scalar(Box::new(plan)),
+            })
+        }
+        NativeCapability::SteadyIncompressibleStokes => {
+            if spatial != CommonSpatialPolicy::MiniP1 {
+                return Err(invalid(
+                    "steady-Stokes Model mathematics requires the admitted MINI/P1 policy",
+                ));
+            }
+            let RecognizedNativeModel::Stokes(binding) = &recognized.recognized else {
+                unreachable!("steady-Stokes capability recognition returns a Stokes binding")
+            };
+            let scaling = binding
+                .resolve_incompressible_scaling(model, None::<IncompressibleScalingRequest2d>)?;
+            let effective_solve = SolverPlan::new(
+                LinearSolver::SparseLu,
+                solve.relative_tolerance(),
+                solve.absolute_tolerance(),
+                solve.maximum_iterations(),
+            )?
+            .with_reduction(ReductionPolicy::Fast);
+            let linear = NativeLinearPolicy::exact(effective_solve, stokes_backend)?;
+            let admission =
+                recognized.complete(NativeSpatialPolicy::StokesMiniP1(scaling.scales()), linear)?;
+            CommonSteadyStokesPlan::from_admission(model, admission, scaling).map(|plan| {
+                ResolvedCommonPlan {
+                    kind: ResolvedCommonPlanKind::SteadyStokes(Box::new(plan)),
+                }
+            })
+        }
+    }
+}
+
+impl CommonSteadyStokesPlan {
+    fn from_admission(
         model: &ModelEnvelope,
-        owner: AuthenticatedCommonMesh,
-        spatial: CommonScalarSpatialPolicy,
-        solver: SolverPlan,
+        admission: NativeNumericalAdmission,
+        scaling: ResolvedIncompressibleScaling2d,
+    ) -> Result<Self, Diagnostic> {
+        let model_reference = model.artifact_reference()?;
+        let binding = admission.stokes_binding()?;
+        let (resolved, realization, velocity_space, pressure_space) =
+            admission.resolve_stokes(&binding)?;
+        let (geometry_digest, mesh_digest, correspondence_digest, production_digest) =
+            resource_digests(admission.resources())?;
+        let mut velocity_field_id = None;
+        let mut pressure_field_id = None;
+        for field in resolved.plan().spatial().field_spaces() {
+            match field.space().family() {
+                SpaceFamily::SimplexP1Bubble => {
+                    velocity_field_id = Some(field.field().ulid().to_string());
+                }
+                SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN => {
+                    pressure_field_id = Some(field.field().ulid().to_string());
+                }
+                _ => {}
+            }
+        }
+        let (velocity_field_id, pressure_field_id) = velocity_field_id
+            .zip(pressure_field_id)
+            .ok_or_else(|| invalid("steady-Stokes Plan omitted its MINI/P1 Field identities"))?;
+        let realization_digest = realization.digest()?.to_string();
+        let mut identity_bytes = Vec::new();
+        for value in [
+            admission.model_digest(),
+            geometry_digest.as_str(),
+            mesh_digest.as_str(),
+            correspondence_digest.as_str(),
+            production_digest.as_str(),
+            realization_digest.as_str(),
+            admission.policy_identity(),
+            "automatic-exact-cylinder-stokes-scaling/v1",
+        ] {
+            push_framed(&mut identity_bytes, value.as_bytes());
+        }
+        let identity = hex_bytes(&Sha256::digest(
+            [
+                b"eqiora.common-steady-stokes-plan/v1\0".as_slice(),
+                identity_bytes.as_slice(),
+            ]
+            .concat(),
+        ));
+        Ok(Self {
+            admission,
+            binding,
+            resolved,
+            realization,
+            scaling,
+            identity,
+            model_id: model_reference.model().ulid().to_string(),
+            model_revision: model_reference.semantic_revision().get(),
+            geometry_digest,
+            mesh_digest,
+            correspondence_digest,
+            production_digest,
+            velocity_field_id,
+            pressure_field_id,
+            velocity_space,
+            pressure_space,
+        })
+    }
+
+    /// Execute solely from the state retained by this Plan.
+    pub fn run(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<crate::fluid::SteadyStokesMiniSolution2d, Diagnostic> {
+        self.admission.revalidate()?;
+        if backend.provider() != self.admission.linear.provider
+            || backend.capabilities() != self.admission.linear.capabilities
+        {
+            return Err(invalid(
+                "steady-Stokes execution backend differs from the admitted provider or capabilities",
+            ));
+        }
+        let solution = solve_resolved_steady_stokes_geometry_mini_2d(
+            &self.admission.program,
+            &self.resolved,
+            &self.binding,
+            backend,
+        )?;
+        if solution.scales() != self.scaling.scales() {
+            return Err(invalid(
+                "steady-Stokes execution changed the Plan-owned effective scaling",
+            ));
+        }
+        Ok(solution)
+    }
+
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+    #[must_use]
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+    #[must_use]
+    pub const fn model_revision(&self) -> u64 {
+        self.model_revision
+    }
+    #[must_use]
+    pub fn model_digest(&self) -> &str {
+        self.admission.model_digest()
+    }
+    #[must_use]
+    pub fn geometry_digest(&self) -> &str {
+        &self.geometry_digest
+    }
+    #[must_use]
+    pub fn mesh_digest(&self) -> &str {
+        &self.mesh_digest
+    }
+    #[must_use]
+    pub fn correspondence_digest(&self) -> &str {
+        &self.correspondence_digest
+    }
+    #[must_use]
+    pub fn production_digest(&self) -> &str {
+        &self.production_digest
+    }
+    pub fn realization_digest(&self) -> Result<String, Diagnostic> {
+        self.realization.digest().map(|digest| digest.to_string())
+    }
+    #[must_use]
+    pub fn velocity_field_id(&self) -> &str {
+        &self.velocity_field_id
+    }
+    #[must_use]
+    pub fn pressure_field_id(&self) -> &str {
+        &self.pressure_field_id
+    }
+    #[must_use]
+    pub const fn velocity_space(&self) -> Space {
+        self.velocity_space
+    }
+    #[must_use]
+    pub const fn pressure_space(&self) -> Space {
+        self.pressure_space
+    }
+    #[must_use]
+    pub const fn scales(&self) -> IncompressibleFlowScaleProfile2d {
+        self.scaling.scales()
+    }
+    #[must_use]
+    pub const fn linear(&self) -> SolverPlan {
+        self.admission.linear.solver
+    }
+}
+
+impl CommonScalarPlan {
+    fn from_admission(
+        model: &ModelEnvelope,
+        admission: NativeNumericalAdmission,
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
         let NativeMeshResources::Cartesian {
@@ -82,7 +347,7 @@ impl CommonScalarPlan {
             mesh,
             correspondence,
             production,
-        } = &owner.resources
+        } = &admission.resources
         else {
             return Err(invalid(
                 "scalar Q1/TPFA common Plan requires an authenticated Cartesian Mesh",
@@ -100,20 +365,6 @@ impl CommonScalarPlan {
                 .axis_cell_count(1)
                 .ok_or_else(|| invalid("common Plan Mesh omitted y-axis cells"))?,
         ];
-        let spatial = match spatial {
-            CommonScalarSpatialPolicy::Q1 => NativeSpatialPolicy::ScalarQ1,
-            CommonScalarSpatialPolicy::CellCenteredTpfa => NativeSpatialPolicy::ScalarTpfa,
-        };
-        if solver.algorithm() != LinearSolver::ConjugateGradient
-            || solver.preconditioner() != PreconditionerPolicy::Identity
-            || solver.reduction() != ReductionPolicy::Reproducible
-        {
-            return Err(invalid(
-                "common scalar Plan requires conjugate-gradient/identity/reproducible linear policy",
-            ));
-        }
-        let linear = NativeLinearPolicy::exact(solver, &REFERENCE_LINEAR_SOLVER)?;
-        let admission = NativeNumericalAdmission::admit(model, owner, spatial, linear)?;
         let RecognizedNativeModel::Scalar(lowered) = &admission.recognized else {
             return Err(invalid(
                 "common scalar Plan admitted non-scalar mathematics",
@@ -208,10 +459,10 @@ impl CommonScalarPlan {
     }
 
     #[must_use]
-    pub fn spatial(&self) -> CommonScalarSpatialPolicy {
+    pub fn spatial(&self) -> CommonSpatialPolicy {
         match self.admission.spatial {
-            NativeSpatialPolicy::ScalarQ1 => CommonScalarSpatialPolicy::Q1,
-            NativeSpatialPolicy::ScalarTpfa => CommonScalarSpatialPolicy::CellCenteredTpfa,
+            NativeSpatialPolicy::ScalarQ1 => CommonSpatialPolicy::Q1,
+            NativeSpatialPolicy::ScalarTpfa => CommonSpatialPolicy::CellCenteredTpfa,
             NativeSpatialPolicy::StokesMiniP1(_) => {
                 unreachable!("common scalar Plan cannot own Stokes policy")
             }
@@ -268,10 +519,6 @@ impl NativeLinearPolicy {
             execution: SERIAL_EXECUTION_PROVIDER,
             workers: NonZeroUsize::MIN,
         })
-    }
-
-    pub(super) const fn solver(&self) -> SolverPlan {
-        self.solver
     }
 }
 
@@ -380,21 +627,25 @@ enum RecognizedNativeModel {
     Stokes(Box<SteadyStokesGeometryBinding2d>),
 }
 
-impl NativeNumericalAdmission {
-    pub(super) fn admit(
+struct RecognizedNativeAdmission {
+    model: ModelEnvelope,
+    model_digest: String,
+    program: KernelProgram,
+    capability: NativeCapability,
+    recognized: RecognizedNativeModel,
+    resources: NativeMeshResources,
+}
+
+impl RecognizedNativeAdmission {
+    fn recognize(
         model: &ModelEnvelope,
         owner: AuthenticatedCommonMesh,
-        spatial: NativeSpatialPolicy,
-        linear: NativeLinearPolicy,
     ) -> Result<Self, Diagnostic> {
         let resources = owner.resources;
         let program = replay_program(model, resources.geometry())?;
         let capability = recognize_capability(&program)?;
-        require_policy_compatibility(capability, spatial, &linear)?;
-        validate_resources(capability, spatial, &resources)?;
         let recognized = recognize_exact_model(capability, &program, &resources)?;
         let model_digest = model.digest()?.to_string();
-        let policy_identity = policy_identity(spatial, &linear);
         Ok(Self {
             model: model.clone(),
             model_digest,
@@ -402,10 +653,39 @@ impl NativeNumericalAdmission {
             capability,
             recognized,
             resources,
+        })
+    }
+
+    fn complete(
+        self,
+        spatial: NativeSpatialPolicy,
+        linear: NativeLinearPolicy,
+    ) -> Result<NativeNumericalAdmission, Diagnostic> {
+        require_policy_compatibility(self.capability, spatial, &linear)?;
+        validate_resources(self.capability, spatial, &self.resources)?;
+        let policy_identity = policy_identity(spatial, &linear);
+        Ok(NativeNumericalAdmission {
+            model: self.model,
+            model_digest: self.model_digest,
+            program: self.program,
+            capability: self.capability,
+            recognized: self.recognized,
+            resources: self.resources,
             spatial,
             linear,
             policy_identity,
         })
+    }
+}
+
+impl NativeNumericalAdmission {
+    pub(super) fn admit(
+        model: &ModelEnvelope,
+        owner: AuthenticatedCommonMesh,
+        spatial: NativeSpatialPolicy,
+        linear: NativeLinearPolicy,
+    ) -> Result<Self, Diagnostic> {
+        RecognizedNativeAdmission::recognize(model, owner)?.complete(spatial, linear)
     }
 
     pub(super) fn revalidate(&self) -> Result<(), Diagnostic> {
@@ -425,6 +705,7 @@ impl NativeNumericalAdmission {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(super) const fn model(&self) -> &ModelEnvelope {
         &self.model
     }
@@ -437,24 +718,16 @@ impl NativeNumericalAdmission {
         &self.policy_identity
     }
 
+    #[cfg(test)]
     pub(super) const fn capability(&self) -> NativeCapability {
         self.capability
-    }
-
-    pub(super) const fn linear(&self) -> &NativeLinearPolicy {
-        &self.linear
     }
 
     pub(super) const fn resources(&self) -> &NativeMeshResources {
         &self.resources
     }
 
-    pub(super) const fn spatial(&self) -> NativeSpatialPolicy {
-        self.spatial
-    }
-
     pub(super) fn stokes_binding(&self) -> Result<SteadyStokesGeometryBinding2d, Diagnostic> {
-        self.revalidate()?;
         let RecognizedNativeModel::Stokes(binding) = &self.recognized else {
             return Err(invalid(
                 "native numerical admission does not own recognized steady-Stokes meaning",
@@ -609,6 +882,48 @@ impl NativeNumericalAdmission {
             )),
         }
     }
+}
+
+fn resource_digests(
+    resources: &NativeMeshResources,
+) -> Result<(String, String, String, String), Diagnostic> {
+    let (geometry, mesh, correspondence, production) = match resources {
+        NativeMeshResources::Cartesian {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        } => (
+            geometry,
+            mesh.digest()?,
+            correspondence.digest()?,
+            production.digest()?,
+        ),
+        NativeMeshResources::ReferenceSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+        }
+        | NativeMeshResources::GmshSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            production,
+            ..
+        } => (
+            geometry,
+            mesh.digest()?,
+            correspondence.digest()?,
+            production.digest()?,
+        ),
+    };
+    Ok((
+        hex_bytes(&geometry.digest_bytes()),
+        mesh.to_string(),
+        correspondence.to_string(),
+        production.to_string(),
+    ))
 }
 
 fn recognize_capability(program: &KernelProgram) -> Result<NativeCapability, Diagnostic> {
@@ -1591,31 +1906,25 @@ public component PoissonRectangle {
             NonZeroUsize::new(10_000).unwrap(),
         )
         .unwrap();
-        let q1 = CommonScalarPlan::resolve(
-            &model,
-            resources(&geometry),
-            CommonScalarSpatialPolicy::Q1,
-            linear,
-        )
-        .unwrap();
-        let repeat = CommonScalarPlan::resolve(
-            &model,
-            resources(&geometry),
-            CommonScalarSpatialPolicy::Q1,
-            linear,
-        )
-        .unwrap();
-        let tpfa = CommonScalarPlan::resolve(
-            &model,
-            resources(&geometry),
-            CommonScalarSpatialPolicy::CellCenteredTpfa,
-            linear,
-        )
-        .unwrap();
-        let alternate_tolerance = CommonScalarPlan::resolve(
-            &model,
-            resources(&geometry),
-            CommonScalarSpatialPolicy::Q1,
+        let resolve_scalar = |spatial, solve| {
+            resolve_common_plan(
+                &model,
+                resources(&geometry),
+                spatial,
+                solve,
+                &ResolveOnlyBackend,
+            )
+            .unwrap()
+            .project(
+                |plan| plan,
+                |_| panic!("scalar Model resolved as another capability"),
+            )
+        };
+        let q1 = resolve_scalar(CommonSpatialPolicy::Q1, linear);
+        let repeat = resolve_scalar(CommonSpatialPolicy::Q1, linear);
+        let tpfa = resolve_scalar(CommonSpatialPolicy::CellCenteredTpfa, linear);
+        let alternate_tolerance = resolve_scalar(
+            CommonSpatialPolicy::Q1,
             SolverPlan::new(
                 LinearSolver::ConjugateGradient,
                 1.0e-9,
@@ -1623,8 +1932,7 @@ public component PoissonRectangle {
                 NonZeroUsize::new(10_000).unwrap(),
             )
             .unwrap(),
-        )
-        .unwrap();
+        );
 
         assert_eq!(q1.identity(), repeat.identity());
         assert_ne!(q1.identity(), tpfa.identity());
@@ -1634,10 +1942,10 @@ public component PoissonRectangle {
         assert_eq!(q1.run().unwrap().into_primary_field_values().len(), 12);
         assert_eq!(tpfa.run().unwrap().into_primary_field_values().len(), 6);
         assert!(
-            CommonScalarPlan::resolve(
+            resolve_common_plan(
                 &model,
                 resources(&geometry),
-                CommonScalarSpatialPolicy::Q1,
+                CommonSpatialPolicy::Q1,
                 SolverPlan::new(
                     LinearSolver::MinimumResidual,
                     1.0e-10,
@@ -1645,6 +1953,17 @@ public component PoissonRectangle {
                     NonZeroUsize::new(10_000).unwrap(),
                 )
                 .unwrap(),
+                &ResolveOnlyBackend,
+            )
+            .is_err()
+        );
+        assert!(
+            resolve_common_plan(
+                &model,
+                resources(&geometry),
+                CommonSpatialPolicy::MiniP1,
+                linear,
+                &ResolveOnlyBackend,
             )
             .is_err()
         );
@@ -1934,46 +2253,58 @@ public component PoissonRectangle {
             production,
         )
         .unwrap();
-        let scales = IncompressibleFlowScaleProfile2d::new(
-            DynQuantity::new(
-                0.41,
-                DimExponents {
-                    length: 1,
-                    ..DimExponents::DIMENSIONLESS
-                },
-            ),
-            DynQuantity::new(
-                0.3,
-                DimExponents {
-                    length: 1,
-                    time: -1,
-                    ..DimExponents::DIMENSIONLESS
-                },
-            ),
-            DynQuantity::new(
-                0.001 * 0.3 / 0.41,
-                DimExponents {
-                    mass: 1,
-                    length: -1,
-                    time: -2,
-                    ..DimExponents::DIMENSIONLESS
-                },
-            ),
-        )
-        .unwrap();
         let solver = SolverPlan::new(
-            LinearSolver::SparseLu,
+            LinearSolver::ConjugateGradient,
             1.0e-6,
             1.0e-13,
             NonZeroUsize::new(10_000).unwrap(),
         )
+        .unwrap();
+        let common = resolve_common_plan(
+            &model,
+            resources.clone(),
+            CommonSpatialPolicy::MiniP1,
+            solver,
+            &ResolveOnlyBackend,
+        )
         .unwrap()
-        .with_reduction(ReductionPolicy::Fast);
+        .project(
+            |_| panic!("steady-Stokes Model resolved as another capability"),
+            |plan| plan,
+        );
+        assert_eq!(common.model_digest(), model.digest().unwrap().to_string());
+        assert_eq!(common.mesh_digest(), mesh.digest().unwrap().to_string());
+        assert_eq!(
+            common.scales().length().value().to_bits(),
+            0.41_f64.to_bits()
+        );
+        assert_eq!(
+            common.scales().velocity().value().to_bits(),
+            0.3_f64.to_bits()
+        );
+        assert_eq!(
+            common.scales().pressure().value().to_bits(),
+            (0.001_f64 * 0.3 / 0.41).to_bits()
+        );
+        assert_eq!(common.linear().algorithm(), LinearSolver::SparseLu);
+        assert_eq!(common.linear().reduction(), ReductionPolicy::Fast);
+        assert_eq!(
+            common.linear().relative_tolerance(),
+            solver.relative_tolerance()
+        );
+        assert_eq!(
+            common.linear().absolute_tolerance(),
+            solver.absolute_tolerance()
+        );
+        assert_eq!(
+            common.linear().maximum_iterations(),
+            solver.maximum_iterations()
+        );
         let admission = NativeNumericalAdmission::admit(
             &model,
             resources,
-            NativeSpatialPolicy::StokesMiniP1(scales),
-            NativeLinearPolicy::exact(solver, &ResolveOnlyBackend).unwrap(),
+            NativeSpatialPolicy::StokesMiniP1(common.scales()),
+            NativeLinearPolicy::exact(common.linear(), &ResolveOnlyBackend).unwrap(),
         )
         .unwrap();
         assert_eq!(

@@ -525,6 +525,30 @@ class FieldRef:
     def __hash__(self) -> int: ...
 
 @final
+class FieldOutput:
+    """Immutable coefficients for one exact Model Field on one exact Mesh.
+
+    Authority: ``crates/eqiora-python/src/result.rs::PyFieldOutput``.
+    """
+
+    @property
+    def field(self) -> FieldRef: ...
+    @property
+    def mesh(self) -> meshing.Mesh: ...
+    @property
+    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    @property
+    def components(self) -> int: ...
+    @property
+    def vertex_count(self) -> int: ...
+    @property
+    def vertex_values(self) -> Array: ...
+    @property
+    def cell_bubble_count(self) -> int: ...
+    @property
+    def cell_bubble_values(self) -> Array | None: ...
+
+@final
 class Model:
     """Immutable canonical model artifact, admitted when semantically closed.
 
@@ -586,9 +610,15 @@ class Plan:
     @property
     def mesh(self) -> meshing.Mesh: ...
     @property
-    def field(self) -> FieldRef: ...
+    def field(self) -> FieldRef | None: ...
     @property
-    def spatial(self) -> fem.Q1 | fvm.CellCenteredTpfa: ...
+    def fields(self) -> tuple[FieldRef, ...]: ...
+    @property
+    def velocity_field(self) -> FieldRef | None: ...
+    @property
+    def pressure_field(self) -> FieldRef | None: ...
+    @property
+    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa: ...
     @property
     def solve(self) -> solve.Linear: ...
     @property
@@ -602,7 +632,7 @@ class Plan:
     @property
     def spatial_dimension(self) -> int: ...
     @property
-    def cells(self) -> tuple[int, int]: ...
+    def cells(self) -> tuple[int, int] | None: ...
     @property
     def scalar_type(self) -> str: ...
     @property
@@ -1074,6 +1104,7 @@ class Result:
     def logical_shape(self) -> tuple[int, int]: ...
     @property
     def solve(self) -> LinearSolveSummary: ...
+    def output(self, field: FieldRef, /) -> FieldOutput: ...
     def field(self, field: FieldRef, /) -> trajectory.FieldSnapshot: ...
     def mesh(self, field: FieldRef, /) -> meshing.Mesh: ...
     @property
@@ -1306,8 +1337,9 @@ def resolve(
     model: Model,
     *,
     mesh: meshing.Mesh,
-    spatial: fem.Q1 | fvm.CellCenteredTpfa,
+    spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa,
     solve: solve.Linear,
+    scaling: None = None,
 ) -> Plan:
     """Resolve an exact Model and caller-owned Mesh into a common Plan.
 
@@ -1430,6 +1462,7 @@ __all__ = [
     "ExecutionError",
     "Expression",
     "Field",
+    "FieldOutput",
     "FieldRef",
     "InternalError",
     "LinearSolveSummary",
@@ -1440,6 +1473,7 @@ __all__ = [
     "Parameter",
     "ParameterRef",
     "PhysicalDomain",
+    "Plan",
     "Realization",
     "Representation",
     "Relation",
@@ -1472,6 +1506,7 @@ __all__ = [
     "grad",
     "preview_realization",
     "replay",
+    "resolve",
     "run",
     "submit",
     "through",
