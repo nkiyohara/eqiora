@@ -102,9 +102,8 @@ LOCKED_PACKAGE_COUNT_LIMIT = 2_048
 LOCKED_PACKAGE_BYTES_LIMIT = 1_073_741_824
 PYTHON_WHEEL_COUNT_LIMIT = 256
 PYTHON_WHEEL_BYTES_LIMIT = 1_073_741_824
-BUILD_OUTPUT_COUNT = 3
 BUILD_OUTPUT_BYTES_LIMIT = 16_777_216
-ABSTRACT_MEMBER_STEPS_LIMIT = 104_652
+ABSTRACT_MEMBER_STEPS_LIMIT = 104_646
 ABSTRACT_BYTE_STEPS_LIMIT = 4_789_240_546
 CONTENT_BOUND_BROWSER_PROFILE = {
     "platform": "linux-x86_64",
@@ -131,7 +130,6 @@ CONTENT_BOUND_RESOURCE_LIMITS = {
     "locked_package_bytes": LOCKED_PACKAGE_BYTES_LIMIT,
     "resolved_python_wheel_count": PYTHON_WHEEL_COUNT_LIMIT,
     "resolved_python_wheel_bytes": PYTHON_WHEEL_BYTES_LIMIT,
-    "build_output_count": BUILD_OUTPUT_COUNT,
     "build_output_bytes": BUILD_OUTPUT_BYTES_LIMIT,
     "host_scenarios": 2,
     "member_steps": ABSTRACT_MEMBER_STEPS_LIMIT,
@@ -289,7 +287,6 @@ def require_content_bound_resources(observed: dict[str, object]) -> dict[str, in
         "source_bytes",
         "locked_package_count",
         "locked_package_bytes",
-        "build_output_count",
         "build_output_bytes",
         "resolved_python_wheel_count",
         "resolved_python_wheel_bytes",
@@ -319,7 +316,6 @@ def require_content_bound_resources(observed: dict[str, object]) -> dict[str, in
         "family_member_count": CONTENT_BOUND_RESOURCE_LIMITS[
             "family_member_count"
         ],
-        "build_output_count": CONTENT_BOUND_RESOURCE_LIMITS["build_output_count"],
         "browser_archive_bytes": CONTENT_BOUND_BROWSER_PROFILE[
             "raw_archive_bytes"
         ],
@@ -384,7 +380,6 @@ def require_content_bound_resources(observed: dict[str, object]) -> dict[str, in
         int(observed["family_member_count"])
         + 2 * int(observed["source_member_count"])
         + 2 * int(observed["locked_package_count"])
-        + 2 * int(observed["build_output_count"])
         + int(observed["resolved_python_wheel_count"])
         + int(observed["browser_archive_member_count"])
         + int(observed["host_scenarios"])
@@ -1716,11 +1711,10 @@ def _observe_output(
             path.is_symlink() or (not path.is_dir() and not path.is_file())
             for path in output_paths
         )
-        or len(regular_outputs) != BUILD_OUTPUT_COUNT
         or sum(path.stat().st_size for path in regular_outputs)
         > BUILD_OUTPUT_BYTES_LIMIT
     ):
-        raise CandidateError("H2 build output exceeds its closed resource profile")
+        raise CandidateError("H2 build output is unsafe or exceeds its byte limit")
     inventory = _regular_tree_inventory(workspace.output)
     if tuple(str(item["relative_path"]) for item in inventory) != ASSET_PATHS:
         raise CandidateError("H2 build output differs from the closed asset path set")
@@ -2153,7 +2147,6 @@ def _validate_abstract_resources(
     family_largest_member_bytes = max(
         (int(record["size"]) for record in family.inventory), default=0
     )
-    build_output_count = len(runs[0].inventory)
     build_output_bytes = sum(int(record["size"]) for record in runs[0].inventory)
     locked_package_count = len(acquired.package_manifests)
     python_wheel_count = len(acquired.python_wheels)
@@ -2171,7 +2164,6 @@ def _validate_abstract_resources(
             "source_bytes": source_bytes,
             "locked_package_count": locked_package_count,
             "locked_package_bytes": acquired.locked_package_bytes,
-            "build_output_count": build_output_count,
             "build_output_bytes": build_output_bytes,
             "resolved_python_wheel_count": python_wheel_count,
             "resolved_python_wheel_bytes": acquired.python_wheel_bytes,

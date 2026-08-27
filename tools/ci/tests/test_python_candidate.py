@@ -179,10 +179,9 @@ CONTENT_BOUND_RESOURCE_LIMITS = {
     "locked_package_bytes": 1_073_741_824,
     "resolved_python_wheel_count": 256,
     "resolved_python_wheel_bytes": 1_073_741_824,
-    "build_output_count": 3,
     "build_output_bytes": 16_777_216,
     "host_scenarios": 2,
-    "member_steps": 104_652,
+    "member_steps": 104_646,
     "byte_steps": 4_789_240_546,
 }
 NOTEBOOK_PROFILE_CHECKS = (
@@ -1528,9 +1527,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 mock.patch.object(
                     profiles, "prepare_mixed_boundary_elasticity_demo_consumer"
                 ),
-                mock.patch.object(
-                    profiles, "prepare_fixed_reference_fsi_demo_consumer"
-                ),
                 mock.patch.object(profiles, "assert_installed_origin"),
                 mock.patch.object(profiles, "assert_matplotlib_is_optional"),
                 mock.patch.object(profiles, "run_public_smoke", new=public_smoke),
@@ -1565,7 +1561,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 "cp311:base-and-numpy",
                 "cp311:packaged-exact-cylinder-model-demo",
                 "cp311:packaged-mixed-boundary-elasticity-demo",
-                "cp311:packaged-fixed-reference-fsi-demo",
                 "cp311:async-and-cancellation",
                 "cp311:strict-base-typing",
                 "cp311:public-smoke-base",
@@ -2129,7 +2124,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 "Scripts/python.exe" if os.name == "nt" else "bin/python"
             )
             demos = tuple(
-                workspace.consumer / name for name in ("exact.py", "mixed.py", "fsi.py")
+                workspace.consumer / name for name in ("exact.py", "mixed.py")
             )
             install = mock.Mock(return_value=python)
 
@@ -2153,11 +2148,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                     "prepare_mixed_boundary_elasticity_demo_consumer",
                     return_value=demos[1],
                 ),
-                mock.patch.object(
-                    profiles,
-                    "prepare_fixed_reference_fsi_demo_consumer",
-                    return_value=demos[2],
-                ),
                 mock.patch.dict(
                     os.environ,
                     {"EQIORA_GMSH": "/ambient/gmsh", "PATH": "/ambient/bin"},
@@ -2180,7 +2170,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                     "cp313:matplotlib",
                     "cp313:packaged-exact-cylinder-pressure-demo",
                     "cp313:packaged-mixed-boundary-displacement-demo",
-                    "cp313:packaged-fixed-reference-fsi-still",
                 ],
             )
             install.assert_called_once_with(
@@ -2200,7 +2189,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                     ("-m", "pytest"),
                     (str(demos[0]), "--pressure-png"),
                     (str(demos[1]), "--displacement-png"),
-                    (str(demos[2]), "--fsi-png"),
                 ],
             )
             expected_environment = {
@@ -3059,7 +3047,6 @@ write(JSON.stringify({calls,output,failure}));
             "source_bytes": 536_870_912,
             "locked_package_count": 2_047,
             "locked_package_bytes": 1_073_741_824,
-            "build_output_count": 3,
             "build_output_bytes": 16_777_216,
             "resolved_python_wheel_count": 256,
             "resolved_python_wheel_bytes": 1_073_741_824,
@@ -3092,20 +3079,20 @@ write(JSON.stringify({calls,output,failure}));
         equality = executor.require_content_bound_resources(dict(observed))
         self.assertEqual(
             equality,
-            {"member_steps": 104_650, "byte_steps": 4_789_240_546},
+            {"member_steps": 104_644, "byte_steps": 4_789_240_546},
         )
         alternate_equality = dict(observed)
         alternate_equality["source_member_count"] = 49_999
         alternate_equality["locked_package_count"] = 2_048
         self.assertEqual(
             executor.require_content_bound_resources(alternate_equality),
-            {"member_steps": 104_650, "byte_steps": 4_789_240_546},
+            {"member_steps": 104_644, "byte_steps": 4_789_240_546},
         )
         aggregate_equality = dict(observed)
         aggregate_equality["locked_package_count"] = 2_048
         self.assertEqual(
             executor.require_content_bound_resources(aggregate_equality),
-            {"member_steps": 104_652, "byte_steps": 4_789_240_546},
+            {"member_steps": 104_646, "byte_steps": 4_789_240_546},
         )
 
         component_maxima = {
@@ -3117,7 +3104,6 @@ write(JSON.stringify({calls,output,failure}));
             "source_bytes": 536_870_912,
             "locked_package_count": 2_048,
             "locked_package_bytes": 1_073_741_824,
-            "build_output_count": 3,
             "build_output_bytes": 16_777_216,
             "resolved_python_wheel_count": 256,
             "resolved_python_wheel_bytes": 1_073_741_824,
@@ -3147,7 +3133,6 @@ write(JSON.stringify({calls,output,failure}));
 
         for name in (
             "family_member_count",
-            "build_output_count",
             "browser_archive_bytes",
             "browser_archive_member_count",
             "browser_extracted_regular_bytes",
@@ -6254,7 +6239,6 @@ write(JSON.stringify({calls,output,failure}));
                 f"cp{compact}:base-and-numpy",
                 f"cp{compact}:packaged-exact-cylinder-model-demo",
                 f"cp{compact}:packaged-mixed-boundary-elasticity-demo",
-                f"cp{compact}:packaged-fixed-reference-fsi-demo",
                 f"cp{compact}:async-and-cancellation",
                 f"cp{compact}:strict-base-typing",
                 f"cp{compact}:public-smoke-base",
@@ -6275,7 +6259,6 @@ write(JSON.stringify({calls,output,failure}));
             "cp313:matplotlib",
             "cp313:packaged-exact-cylinder-pressure-demo",
             "cp313:packaged-mixed-boundary-displacement-demo",
-            "cp313:packaged-fixed-reference-fsi-still",
             "cp313:complete-public-typing",
         )
 

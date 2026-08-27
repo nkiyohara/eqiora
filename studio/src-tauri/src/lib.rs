@@ -269,6 +269,7 @@ impl DocumentCache {
         self.documents.get(digest).cloned()
     }
 
+    #[cfg(test)]
     fn contains(&self, digest: &str) -> bool {
         self.documents.contains_key(digest)
     }
@@ -510,30 +511,6 @@ fn load_document(
             "the requested canonical revision is not loaded; compile it again",
         ))
     })
-}
-
-fn require_document_loaded(
-    state: &State<'_, AppState>,
-    digest: &str,
-) -> Result<(), ProjectionError> {
-    let contains = state
-        .documents
-        .lock()
-        .map_err(|_| {
-            Box::new(studio_error(
-                "ST0001",
-                "native document cache is unavailable",
-            ))
-        })?
-        .contains(digest);
-    if contains {
-        Ok(())
-    } else {
-        Err(Box::new(studio_error(
-            "ST0004",
-            "the requested canonical revision is not loaded; compile it again",
-        )))
-    }
 }
 
 fn validate_value_edit_controls(

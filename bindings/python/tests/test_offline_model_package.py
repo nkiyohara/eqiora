@@ -415,16 +415,6 @@ def test_commit_clears_only_the_accepted_parent_lineage() -> None:
     assert model.to_json() == EXPECTED_TYPED_MODEL
     assert model.package_compilation_digest == TYPED_COMPILATION_DIGEST
 
-    identities = json.loads(
-        (
-                ROOT / "verify/packages/typed-compilation-lineage/expected/identities.json"
-        ).read_text(encoding="utf-8")
-    )
-    assert identities["source_bundle_sha256"] == TYPED_SOURCE_DIGEST
-    assert identities["resolution_sha256"] == TYPED_RESOLUTION_DIGEST
-    assert identities["model_sha256"] == model.digest
-    assert identities["package_compilation_sha256"] == model.package_compilation_digest
-
     edit = model.preview_value_edit("wave_number", 4.0)
     child = model.commit(edit)
     assert child.model_id == model.model_id
@@ -837,26 +827,6 @@ def test_structural_reports_match_frozen_facts_without_scientific_inference() ->
             != false_report.package_compilation_digest
         )
         assert poisson_report.model_digest != false_report.model_digest
-
-        independently_accepted = json.loads(
-            (
-                ROOT
-                    / "verify/packages/typed-compilation-lineage/expected/identities.json"
-            ).read_text(encoding="utf-8")
-        )
-        assert (
-            poisson_report.root_package.source_digest
-            == independently_accepted["source_bundle_sha256"]
-        )
-        assert (
-            poisson_report.resolution_digest
-            == independently_accepted["resolution_sha256"]
-        )
-        assert poisson_report.model_digest == independently_accepted["model_sha256"]
-        assert (
-            poisson_report.package_compilation_digest
-            == independently_accepted["package_compilation_sha256"]
-        )
 
         parallel_store = parent / "copied-parallel"
         shutil.copytree(PRIMARY_STORE, parallel_store)

@@ -29,6 +29,8 @@ const GMSH_VERSION: &str = "4.15.2";
 const GMSH_ENV: &str = "EQIORA_GMSH";
 const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 const PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
+const PROCESS_FILE_LIMIT_FLOOR_BYTES: usize = 1024 * 1024;
+const FAILURE_DETAIL_LIMIT_BYTES: usize = 4096;
 type TaggedMeshAssignments = (BTreeMap<u32, Vec<usize>>, BTreeMap<u32, Vec<usize>>);
 
 static SCRATCH_NONCE: AtomicU64 = AtomicU64::new(0);
@@ -53,6 +55,7 @@ pub(super) fn generate(
 
     let geometry_path = scratch.path().join("mesh.geo");
     let mesh_path = scratch.path().join("mesh.msh");
+    let stderr_path = scratch.path().join("generation.stderr");
     let generated_geometry = geometry_script(source, policy)?;
     fs::write(&geometry_path, generated_geometry.script).map_err(|error| {
         invalid_import(format!("cannot write the Gmsh geometry input: {error}"))
@@ -67,11 +70,15 @@ pub(super) fn generate(
         .arg(&mesh_path)
         .args(["-format", "msh41", "-v", "2"])
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stderr(Stdio::from(File::create(&stderr_path).map_err(
+            |error| invalid_import(format!("cannot create Gmsh diagnostic output: {error}")),
+        )?));
     let status = run_with_timeout(command, PROCESS_TIMEOUT)?;
     if !status.success() {
-        return Err(invalid_import(format!(
-            "Gmsh {GMSH_VERSION} failed with status {status}"
+        return Err(invalid_import(process_failure(
+            &format!("Gmsh {GMSH_VERSION}"),
+            status,
+            &stderr_path,
         )));
     }
 
@@ -241,18 +248,26 @@ fn gmsh_executable() -> Result<OsString, Diagnostic> {
 
 fn require_version(executable: &OsStr, scratch: &Path) -> Result<(), Diagnostic> {
     let output_path = scratch.join("version.txt");
+    let stderr_path = scratch.join("version.stderr");
     let output = File::create(&output_path)
         .map_err(|error| invalid_import(format!("cannot create Gmsh version output: {error}")))?;
     let mut command = bounded_output_command(executable, 65);
     command
         .arg("--version")
         .stdout(Stdio::from(output))
-        .stderr(Stdio::null());
+        .stderr(Stdio::from(File::create(&stderr_path).map_err(
+            |error| {
+                invalid_import(format!(
+                    "cannot create Gmsh version diagnostic output: {error}"
+                ))
+            },
+        )?));
     let status = run_with_timeout(command, VERSION_TIMEOUT)?;
     if !status.success() {
-        return Err(invalid_import(format!(
-            "Gmsh version check failed with status {}",
-            status
+        return Err(invalid_import(process_failure(
+            "Gmsh version check",
+            status,
+            &stderr_path,
         )));
     }
     let stdout = read_bounded_output(
@@ -300,7 +315,12 @@ fn bounded_output_command(executable: &OsStr, max_bytes: usize) -> Command {
     #[cfg(unix)]
     {
         const FILE_LIMIT_BLOCK_BYTES: usize = 512;
-        let blocks = max_bytes.div_ceil(FILE_LIMIT_BLOCK_BYTES);
+        // The PyPI Gmsh CLI is a Python entry point. Leave enough process-wide
+        // headroom for interpreter cache/support files while enforcing the
+        // narrower semantic limit when the requested output is read below.
+        let blocks = max_bytes
+            .max(PROCESS_FILE_LIMIT_FLOOR_BYTES)
+            .div_ceil(FILE_LIMIT_BLOCK_BYTES);
         let mut command = Command::new("/bin/sh");
         command
             .args([
@@ -316,6 +336,20 @@ fn bounded_output_command(executable: &OsStr, max_bytes: usize) -> Command {
     {
         let _ = max_bytes;
         Command::new(executable)
+    }
+}
+
+fn process_failure(label: &str, status: ExitStatus, stderr_path: &Path) -> String {
+    let detail = fs::read(stderr_path)
+        .ok()
+        .map(|bytes| {
+            let retained = &bytes[..bytes.len().min(FAILURE_DETAIL_LIMIT_BYTES)];
+            String::from_utf8_lossy(retained).trim().to_owned()
+        })
+        .filter(|detail| !detail.is_empty());
+    match detail {
+        Some(detail) => format!("{label} failed with status {status}: {detail}"),
+        None => format!("{label} failed with status {status}"),
     }
 }
 

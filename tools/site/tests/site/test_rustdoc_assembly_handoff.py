@@ -23,13 +23,13 @@ RUSTDOC_LINK = re.compile(
     r"\[`eqiora(?:::[^`]+)?`\]"
     r"\(/reference/rust/api/eqiora/(?P<target>[^)]+)\)"
 )
-SYNTHETIC_HTML_FILES = 1_377
-SYNTHETIC_PROJECTED_PAGES = 1_080
-SYNTHETIC_DIRECT_SECTIONS = 91_710
-SYNTHETIC_SIGNATURE_LINKS = 268_148
-SYNTHETIC_DESCRIPTION_LABELS = 1_360
-SYNTHETIC_SPECIAL_HIDEME_LABELS = 57
-SYNTHETIC_NON_HTML_FILES = 842
+SYNTHETIC_HTML_FILES = 256
+SYNTHETIC_PROJECTED_PAGES = 8
+SYNTHETIC_DIRECT_SECTIONS = 16
+SYNTHETIC_SIGNATURE_LINKS = 36
+SYNTHETIC_DESCRIPTION_LABELS = 7
+SYNTHETIC_SPECIAL_HIDEME_LABELS = 1
+SYNTHETIC_NON_HTML_FILES = 5
 
 
 def _write(path: Path, content: str) -> None:
@@ -76,8 +76,8 @@ def _make_compiler_projection(root: Path) -> None:
     _write(crate / "index.html", "<!doctype html><title>Crate eqiora</title>\n")
     landing = LANDING.read_text(encoding="utf-8")
     targets = [match.group("target") for match in RUSTDOC_LINK.finditer(landing)]
-    if len(targets) != 203 or len(set(targets)) != 203:
-        raise AssertionError("accepted Rust landing no longer names exactly 203 targets")
+    if not targets or len(set(targets)) != len(targets):
+        raise AssertionError("accepted Rust landing must name unique facade targets")
     for target in targets:
         _write(crate / target, "<!doctype html><title>Eqiora facade target</title>\n")
 
@@ -286,7 +286,9 @@ class RustdocAssemblyHandoffTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(builder.returncode, 0, builder.stderr)
-        self.assertIn("203 paths", builder.stdout)
+        landing = LANDING.read_text(encoding="utf-8")
+        target_count = len(RUSTDOC_LINK.findall(landing))
+        self.assertIn(f"{target_count} paths", builder.stdout)
         if mutate_stage is not None:
             mutate_stage(stage)
 

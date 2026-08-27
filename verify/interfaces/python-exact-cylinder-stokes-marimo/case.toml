@@ -22,8 +22,8 @@ entry = "marimo 0.23.16 checked-in Python application"
 environment = "exact Linux x86-64 CPython 3.13 candidate notebook profile"
 package = "one non-editable installed eqiora candidate with its exact notebook and Matplotlib extras"
 model = "installed eqiora/examples/steady-flow-past-cylinder.eqi compiled with the caller Geometry"
-composition = "exact Geometry -> typed Gmsh provider -> MeshPlan -> Mesh -> compile component source -> Model -> root Plan -> one Run -> common Result"
-presentation = "typed identity and evidence summary plus the existing caller-owned pressure Figure"
+composition = "exact Geometry -> typed Gmsh provider -> MeshPlan -> Mesh -> compile component source -> Model -> root Plan -> direct run -> common Result"
+presentation = "typed identity summary plus the existing caller-owned pressure Figure"
 
 [oracle]
 geometry = "interfaces.python-exact-circular-hole-geometry"
@@ -32,7 +32,7 @@ registered_science = "none; the retired fixed-mesh dossiers grant no claim to cu
 new_scientific_values = false
 new_tolerances = false
 new_image_baseline = false
-browser = "independent live Marimo DOM readiness, typed carrier names, relational Run/Result identity, unit labels, and nonempty Figure observation"
+browser = "independent live Marimo DOM readiness, typed carrier names, and nonempty Figure observation"
 source = "exact canonical-app occurrence checks plus one precommitted repository-helper mutant executed after the live positive"
 
 [acceptance]
@@ -41,11 +41,8 @@ discoverable_from_examples_readme = true
 installed_eqiora_import_only = true
 installed_component_source_only = true
 exact_repository_example_helper_absent = true
-direct_call_inventory = "eqiora.submit=1; attribute .result=1; eqiora.run=0"
-geometry_mesh_plan_mesh_model_plan_run_result_types_visible = true
-typed_steady_stokes_evidence_visible = true
-pressure_force_flux_units_visible = true
-run_and_result_identity_equal_relationally = true
+direct_call_inventory = "eqiora.submit=0; attribute .result=0; eqiora.run=1"
+geometry_mesh_plan_mesh_model_plan_result_types_visible = true
 caller_owned_pressure_figure_visible_and_nonempty = true
 positive_consumer_recursive_inventory = ["exact_cylinder_stokes_marimo.py"]
 negative_consumer_recursive_inventory = ["exact_cylinder_stokes_marimo_repository_helper_mutant.py"]
@@ -59,12 +56,12 @@ ordinary_positive_path_precedes_falsifiers = true
 missing_application = "source oracle rejects before candidate construction"
 repository_example_helper = "after the ordinary live app succeeds, the exact mutant importing examples.python.exact_cylinder_stokes fails under the same installed CPython 3.13 -I environment because its closed negative consumer contains only the mutant app"
 unrelated_negative_failure = "a denial other than ModuleNotFoundError for the exact examples helper cannot satisfy the falsifier"
-second_run = "after the canonical direct-call inventory passes, adding exact direct eqiora.run(stokes_plan) changes only that inventory from (1,1,0) to (1,1,1) and rejects; aliases and dynamically constructed calls are not claimed"
-missing_or_foreign_owner = "existing public Geometry, Mesh, Model, Plan, Run, Result, snapshot, and Field boundaries remain fail-closed"
+second_run = "after the canonical direct-call inventory passes, adding exact direct eqiora.run(stokes_plan) changes only that inventory from (0,0,1) to (0,0,2) and rejects; aliases and dynamically constructed calls are not claimed"
+missing_or_foreign_owner = "existing public Geometry, Mesh, Model, Plan, Result, snapshot, and Field boundaries remain fail-closed"
 missing_installed_source = "the one ordinary app fails before readiness"
 missing_matplotlib_or_marimo = "the exact candidate profile fails before readiness"
 hardcoded_identity = "the exact canonical app contains no literal SHA-256 identity"
-unrelated_text_only_success = "browser requires all live typed rows, equal Run/Result identity, unit-bearing evidence, and the Figure before readiness counts"
+unrelated_text_only_success = "browser requires all live typed rows and the Figure before readiness counts"
 blank_figure = "browser requires a visible image with positive decoded natural dimensions"
 
 [claim_boundary]

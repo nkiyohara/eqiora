@@ -225,7 +225,6 @@ pub(crate) struct PyRunResult {
     payload: ResultPayload,
 }
 
-#[pymethods]
 impl PyRunResult {
     pub(crate) fn common_state_at(
         &self,
@@ -249,7 +248,10 @@ impl PyRunResult {
                     && state.time_s_value().to_bits() == time_s.to_bits()
             })
     }
+}
 
+#[pymethods]
+impl PyRunResult {
     #[getter]
     fn model_id(&self) -> &str {
         self.identity.model_id()
@@ -402,19 +404,16 @@ impl PyRunResult {
         self.common_output(py, field)
     }
 
-    fn __len__(&self) -> usize {
-        match &self.payload {
+    fn __repr__(&self) -> String {
+        let fields = match &self.payload {
             ResultPayload::Scalar(_)
             | ResultPayload::CommonFields(_)
             | ResultPayload::CommonTrajectory(_) => 0,
             ResultPayload::CommonOde(payload) => payload.fields.len(),
-        }
-    }
-
-    fn __repr__(&self) -> String {
+        };
         format!(
             "Result(fields={}, model_digest={:?}, plan_key={:?})",
-            self.__len__(),
+            fields,
             self.model_digest(),
             self.plan_key(),
         )
@@ -522,12 +521,12 @@ impl PyRunResult {
         py: Python<'_>,
         identity: RunIdentity,
         mesh: Py<PyMesh>,
-        velocity_field_id: String,
-        pressure_field_id: String,
+        field_ids: (String, String),
         elapsed: Duration,
         run: SteadyStokesMiniSolution2d,
         observation: CommonSteadyStokesObservation,
     ) -> PyResult<Self> {
+        let (velocity_field_id, pressure_field_id) = field_ids;
         let evidence = Py::new(
             py,
             PySteadyStokesEvidence::from_common(py, identity.plan_key(), &observation)?,
@@ -782,8 +781,10 @@ pub(crate) fn materialize_common_steady_stokes(
         py,
         identity,
         plan.mesh_handle(py),
-        native.velocity_field_id().to_owned(),
-        native.pressure_field_id().to_owned(),
+        (
+            native.velocity_field_id().to_owned(),
+            native.pressure_field_id().to_owned(),
+        ),
         Duration::from_secs_f64(elapsed_seconds),
         result,
         observation,

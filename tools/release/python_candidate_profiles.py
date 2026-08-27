@@ -36,10 +36,6 @@ MIXED_BOUNDARY_ELASTICITY_DEMO = Path("examples/python/mixed_boundary_elasticity
 MIXED_BOUNDARY_REPOSITORY_SOURCE = Path(
     "verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi"
 )
-FIXED_REFERENCE_FSI_DEMO = Path("examples/python/fixed_reference_fsi.py")
-FIXED_REFERENCE_FSI_REPOSITORY_SOURCE = Path(
-    "verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi"
-)
 PYTHON_TEST_FIXTURES = (
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
@@ -439,16 +435,6 @@ def prepare_mixed_boundary_elasticity_demo_consumer(
     )
 
 
-def prepare_fixed_reference_fsi_demo_consumer(extracted: Path, run_root: Path) -> Path:
-    return _copy_demo(
-        extracted,
-        run_root,
-        FIXED_REFERENCE_FSI_DEMO,
-        FIXED_REFERENCE_FSI_REPOSITORY_SOURCE,
-        "fixed-reference FSI",
-    )
-
-
 def assert_matplotlib_is_optional(
     python: Path,
     run_root: Path,
@@ -516,7 +502,6 @@ def run_base_profile(
     tests, typecheck = prepare_base_consumer_tree(extracted, workspace.consumer)
     prepare_exact_cylinder_demo_consumer(extracted, workspace.consumer)
     prepare_mixed_boundary_elasticity_demo_consumer(extracted, workspace.consumer)
-    prepare_fixed_reference_fsi_demo_consumer(extracted, workspace.consumer)
     assert_installed_origin(
         python, wheel, workspace.consumer, config.python_version, run=run
     )
@@ -589,7 +574,6 @@ def run_base_profile(
         f"cp{compact}:base-and-numpy",
         f"cp{compact}:packaged-exact-cylinder-model-demo",
         f"cp{compact}:packaged-mixed-boundary-elasticity-demo",
-        f"cp{compact}:packaged-fixed-reference-fsi-demo",
         f"cp{compact}:async-and-cancellation",
         f"cp{compact}:strict-base-typing",
         f"cp{compact}:public-smoke-base",
@@ -673,19 +657,6 @@ def run_optional_profile(
             ["--displacement-png", "{destination}", "--scale", "1"],
             "installed mixed-boundary Matplotlib demo",
         ),
-        (
-            prepare_fixed_reference_fsi_demo_consumer(extracted, workspace.consumer),
-            "fixed-reference-fsi.png",
-            [
-                "--fsi-png",
-                "{destination}",
-                "--step",
-                "2",
-                "--displacement-scale",
-                "12",
-            ],
-            "installed fixed-reference FSI Matplotlib demo",
-        ),
     )
     for demo, filename, arguments, description in destinations:
         destination = workspace.consumer / filename
@@ -709,7 +680,6 @@ def run_optional_profile(
         f"cp{compact}:matplotlib",
         f"cp{compact}:packaged-exact-cylinder-pressure-demo",
         f"cp{compact}:packaged-mixed-boundary-displacement-demo",
-        f"cp{compact}:packaged-fixed-reference-fsi-still",
     ]
 
 

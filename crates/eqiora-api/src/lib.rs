@@ -11,7 +11,6 @@ mod differentiation;
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 mod external_data;
 mod external_spatial;
-mod fixed_mesh_trajectory;
 mod geometry_edit;
 mod ml_dataset;
 pub mod package;
@@ -28,7 +27,6 @@ pub use differentiation::*;
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
-pub use fixed_mesh_trajectory::FixedMeshFieldTrajectoryReplay2dV1;
 pub use geometry_edit::{CartesianDomainEditPlan, CartesianDomainEditResult};
 pub use ml_dataset::*;
 pub use parameter_regeneration::{
@@ -341,7 +339,7 @@ model decay {
     }
 
     #[test]
-    fn native_definition_closes_the_same_artifact_and_execution_path() {
+    fn native_definition_closes_an_equivalent_independent_artifact() {
         let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
         let rate = DraftParameter::new(
             "rate",
@@ -364,9 +362,11 @@ model decay {
         assert_eq!(native.aliases().len(), 3);
 
         let source = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
+        assert_ne!(native.digest().unwrap(), source.digest().unwrap());
+        assert!(native.structurally_equivalent(&source).unwrap());
         assert_eq!(
-            native.canonical_json().unwrap(),
-            source.canonical_json().unwrap()
+            native.structural_fingerprint().unwrap(),
+            source.structural_fingerprint().unwrap()
         );
     }
 

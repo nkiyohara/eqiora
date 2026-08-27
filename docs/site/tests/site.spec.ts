@@ -22,7 +22,7 @@ test('required routes, semantic stages, controls, and 404 are real static surfac
   await expect(page.getByRole('banner').getByRole('link', { name: 'Eqiora', exact: true })).toHaveAttribute('href', '/');
   await expect(page.getByRole('link', { name: 'Get started', exact: true })).toHaveAttribute('href', '/get-started/');
   await expect(page.getByRole('link', { name: 'Explore gallery', exact: true })).toHaveAttribute('href', '/gallery/');
-  await expect(page.getByRole('img', { name: /Pressure in pascals for the frozen 2D/i })).toBeVisible();
+  await expect(page.getByRole('img', { name: /Pressure in pascals for a 2D steady-Stokes exact-cylinder/i })).toBeVisible();
   await assertAccessibleTooltip(
     page,
     page.getByRole('button', { name: /search/i }).filter({ visible: true }).first(),
@@ -100,7 +100,7 @@ test('JavaScript-disabled core remains navigable and mathematically complete', a
   }
   await page.goto('/gallery/exact-cylinder-steady-stokes/');
   await assertSemanticStages(page);
-  await expect(page.getByRole('img', { name: /Pressure in pascals for the frozen 2D/i })).toBeVisible();
+  await expect(page.getByRole('img', { name: /Pressure in pascals for a 2D steady-Stokes exact-cylinder/i })).toBeVisible();
   expect(await page.locator('math').count()).toBeGreaterThanOrEqual(2);
   expect(await page.locator('.katex-html').count()).toBeGreaterThanOrEqual(2);
   await assertVisibleSourceFallback(page);

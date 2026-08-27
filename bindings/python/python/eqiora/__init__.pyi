@@ -612,6 +612,8 @@ class Model:
     def field_ids(self) -> list[str]: ...
     @property
     def parameter_ids(self) -> list[str]: ...
+    @property
+    def domain_ids(self) -> list[str]: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -1033,7 +1035,6 @@ class Result:
     def mesh(self, field: FieldRef, /) -> meshing.Mesh: ...
     @property
     def trajectory(self) -> trajectory.Trajectory: ...
-    def __len__(self) -> int: ...
 
 @final
 class RunStatus:
@@ -1239,22 +1240,14 @@ def resolve(
 
     ...
 
-@overload
-def run(plan: Plan) -> Result:
-    """Execute one steady or explicitly bounded transient common Plan synchronously.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
-    """
-
-    ...
-
-@overload
 def run(
     plan: Plan,
     *,
-    state: State,
-    until_s: float,
-    output_times_s: tuple[float, ...],
+    state: State | None = None,
+    until_s: float | None = None,
+    output_times_s: tuple[float, ...] | None = None,
+    steps: int | None = None,
+    output_steps: tuple[int, ...] | None = None,
 ) -> Result:
     """Execute one steady or explicitly bounded transient common Plan synchronously.
 
@@ -1263,52 +1256,14 @@ def run(
 
     ...
 
-@overload
-def run(
-    plan: Plan,
-    *,
-    state: State,
-    steps: int,
-    output_steps: tuple[int, ...],
-) -> Result:
-    """Execute one steady or explicitly bounded transient common Plan synchronously.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
-    """
-
-    ...
-
-@overload
-def submit(plan: Plan) -> Run[Result]:
-    """Submit one steady or explicitly bounded transient common Plan.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
-    """
-
-    ...
-
-@overload
 def submit(
     plan: Plan,
     *,
-    state: State,
-    until_s: float,
-    output_times_s: tuple[float, ...],
-) -> Run[Result]:
-    """Submit one steady or explicitly bounded transient common Plan.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
-    """
-
-    ...
-
-@overload
-def submit(
-    plan: Plan,
-    *,
-    state: State,
-    steps: int,
-    output_steps: tuple[int, ...],
+    state: State | None = None,
+    until_s: float | None = None,
+    output_times_s: tuple[float, ...] | None = None,
+    steps: int | None = None,
+    output_steps: tuple[int, ...] | None = None,
 ) -> Run[Result]:
     """Submit one steady or explicitly bounded transient common Plan.
 

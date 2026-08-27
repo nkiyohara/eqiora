@@ -342,7 +342,6 @@ def candidate_document(
             "cp311:installed-wheel",
             "cp311:base-and-numpy",
             "cp311:packaged-mixed-boundary-elasticity-demo",
-            "cp311:packaged-fixed-reference-fsi-demo",
             "cp311:async-and-cancellation",
             "cp311:strict-base-typing",
             "cp311:public-smoke-base",
@@ -350,7 +349,6 @@ def candidate_document(
             "cp312:installed-wheel",
             "cp312:base-and-numpy",
             "cp312:packaged-mixed-boundary-elasticity-demo",
-            "cp312:packaged-fixed-reference-fsi-demo",
             "cp312:async-and-cancellation",
             "cp312:strict-base-typing",
             "cp312:public-smoke-base",
@@ -359,7 +357,6 @@ def candidate_document(
             "cp313:installed-wheel",
             "cp313:base-and-numpy",
             "cp313:packaged-mixed-boundary-elasticity-demo",
-            "cp313:packaged-fixed-reference-fsi-demo",
             "cp313:async-and-cancellation",
             "cp313:strict-base-typing",
             "cp313:public-smoke-base",
@@ -367,7 +364,6 @@ def candidate_document(
             "cp314:installed-wheel",
             "cp314:base-and-numpy",
             "cp314:packaged-mixed-boundary-elasticity-demo",
-            "cp314:packaged-fixed-reference-fsi-demo",
             "cp314:async-and-cancellation",
             "cp314:strict-base-typing",
             "cp314:public-smoke-base",
@@ -379,7 +375,6 @@ def candidate_document(
             "cp313:public-smoke-jax",
             "cp313:packaged-exact-cylinder-pressure-demo",
             "cp313:packaged-mixed-boundary-displacement-demo",
-            "cp313:packaged-fixed-reference-fsi-still",
             "cp313:complete-public-typing",
         ],
     }
@@ -1985,6 +1980,10 @@ class CandidateManifestTests(unittest.TestCase):
                 manifest, artifacts, document, receipt_path, receipt = (
                     complete_v3_candidate_document(root)
                 )
+                if path == ("licenses", "components", 0) and not receipt["licenses"][
+                    "components"
+                ]:
+                    continue
                 target = locate(receipt, path)
                 target["unreviewed"] = True  # type: ignore[index]
                 receipt_bytes = canonical_json_bytes(receipt)

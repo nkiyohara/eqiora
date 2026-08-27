@@ -92,22 +92,19 @@ def _(eqiora, mesh, model):
 
 @app.cell
 def _(eqiora, stokes_plan):
-    run = eqiora.submit(stokes_plan)
-    result = run.result()
-    return result, run
+    result = eqiora.run(stokes_plan)
+    return (result,)
 
 
 @app.cell
-def _(eqiora, eqplot, result, stokes_plan):
+def _(eqplot, result, stokes_plan):
     pressure = result.output(stokes_plan.pressure_field)
-    evidence = eqiora.fluid.steady_stokes_evidence(result)
     pressure_figure = eqplot.plot_scalar_field(result, field=stokes_plan.pressure_field)
-    return evidence, pressure, pressure_figure
+    return pressure, pressure_figure
 
 
 @app.cell
 def _(
-    evidence,
     geometry,
     mesh,
     mesh_plan,
@@ -115,10 +112,8 @@ def _(
     model,
     pressure,
     result,
-    run,
     stokes_plan,
 ):
-    run_identity = evidence.run_digest
     result_identity = result.plan_key
     summary = mo.md(
         f"""
@@ -137,19 +132,9 @@ def _(
         <div data-testid="eqiora-stokes-plan">
           {type(stokes_plan).__name__} {stokes_plan.realization_digest}
         </div>
-        <div data-testid="eqiora-stokes-run">
-          {type(run).__name__} {run_identity}
-        </div>
         <div data-testid="eqiora-stokes-result">
           {type(result).__name__} {result_identity};
           pressure vertices {pressure.vertex_count}
-        </div>
-        <div data-testid="eqiora-stokes-evidence">
-          {type(evidence).__name__};
-          pressure {evidence.pressure_minimum} to {evidence.pressure_maximum} Pa;
-          force {evidence.cylinder_force_on_fluid} N/m;
-          flux {evidence.net_flux} m^2/s;
-          solve {evidence.solve}
         </div>
         """
     )

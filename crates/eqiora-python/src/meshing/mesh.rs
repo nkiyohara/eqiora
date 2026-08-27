@@ -85,7 +85,6 @@ struct MeshLineage {
     cell_count: usize,
 }
 
-#[pymethods]
 impl PyMesh {
     pub(crate) fn exact_mesh_digest(&self) -> &str {
         &self.lineage.mesh_digest
@@ -106,7 +105,10 @@ impl PyMesh {
     pub(crate) fn correspondence_digest_value(&self) -> &str {
         &self.lineage.correspondence_digest
     }
+}
 
+#[pymethods]
+impl PyMesh {
     /// Exact Geometry identity retained by the source binding.
     #[getter]
     fn source_digest(&self) -> &str {

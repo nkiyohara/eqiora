@@ -129,7 +129,7 @@ fn one_transport_neutral_operation_owns_both_adapters() {
 
     let python = rust_function(PYTHON_ADAPTER_SOURCE, "fn compile(");
     assert_eq!(
-        python.matches("ModelDocument::compile").count(),
+        python.matches("ModelDocument::compile(").count(),
         1,
         "Python compile must invoke the transport-neutral operation exactly once"
     );

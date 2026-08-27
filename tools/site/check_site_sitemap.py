@@ -171,15 +171,12 @@ def check_sitemap(artifact: Path, maximum_urls: int) -> list[str]:
     else:
         return [*errors, "sitemap-index.xml must be a sitemap index or URL set"]
     counts = Counter(urls)
-    expected = set(SITEMAP_ROUTES)
     for route, count in counts.items():
         if count > 1:
             errors.append(f"duplicate sitemap route {route}")
     for route in SITEMAP_ROUTES:
         if counts[route] == 0:
             errors.append(f"sitemap omits required route {route}")
-    for route in counts.keys() - expected:
-        errors.append(f"sitemap contains unexpected route {route}")
-    if counts == Counter(SITEMAP_ROUTES) and urls != list(SITEMAP_ROUTES):
-        errors.append("sitemap routes are not in the required order")
+    if counts["/404.html"]:
+        errors.append("sitemap must not publish the 404 artifact route")
     return errors

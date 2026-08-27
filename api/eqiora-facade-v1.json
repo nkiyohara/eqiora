@@ -113,7 +113,6 @@
         { "name": "PrescribedDynamicSolidExternalProviderStateRun3d", "from": "eqiora_api::PrescribedDynamicSolidExternalProviderStateRun3d" },
         { "name": "PrescribedDynamicSolidStateRun3d", "from": "eqiora_api::PrescribedDynamicSolidStateRun3d" },
         { "name": "RemeshingTrajectoryReplayInputV1", "from": "eqiora_api::RemeshingTrajectoryReplayInputV1" },
-        { "name": "FixedMeshFieldTrajectoryReplay2dV1", "from": "eqiora_api::FixedMeshFieldTrajectoryReplay2dV1" },
         { "name": "ValueEditPlan", "from": "eqiora_api::ValueEditPlan" },
         { "name": "TransientNavierStokesInitialCondition2d", "from": "eqiora_api::TransientNavierStokesInitialCondition2d" },
         { "name": "TransientNavierStokesReference2d", "from": "eqiora_api::TransientNavierStokesReference2d" },

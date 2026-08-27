@@ -66,10 +66,10 @@ def _require_one_direct_run(source: str) -> None:
         if node.func.attr == "result":
             result += 1
     observed = (submit, result, run)
-    if observed != (1, 1, 0):
+    if observed != (0, 0, 1):
         raise AssertionError(
             "canonical app direct calls must be "
-            f"eqiora.submit=1, .result=1, eqiora.run=0; observed {observed}"
+            f"eqiora.submit=0, .result=0, eqiora.run=1; observed {observed}"
         )
 
 
@@ -80,7 +80,7 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
 
         # This is an exact-source check for the one canonical app, not a generic
         # Python import, file-access, or isolation policy.
-        self.assertEqual(source.count("steady_stokes_evidence("), 1)
+        self.assertEqual(source.count("steady_stokes_evidence("), 0)
         self.assertEqual(source.count("plot_scalar_field("), 1)
         self.assertEqual(source.count("files(eqiora)"), 1)
         self.assertNotIn(
@@ -97,9 +97,7 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             "eqiora-stokes-mesh",
             "eqiora-stokes-model",
             "eqiora-stokes-plan",
-            "eqiora-stokes-run",
             "eqiora-stokes-result",
-            "eqiora-stokes-evidence",
             "EQIORA_EXACT_CYLINDER_STOKES_READY",
         ):
             self.assertIn(marker, source)
@@ -108,7 +106,7 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
         second_run_mutant = source + "\neqiora.run(stokes_plan)\n"
         with self.assertRaisesRegex(
             AssertionError,
-            r"eqiora\.submit=1, \.result=1, eqiora\.run=0; observed \(1, 1, 1\)",
+            r"eqiora\.submit=0, \.result=0, eqiora\.run=1; observed \(0, 0, 2\)",
         ):
             _require_one_direct_run(second_run_mutant)
 

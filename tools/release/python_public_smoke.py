@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import importlib.metadata
 import sys
 
@@ -110,22 +109,6 @@ def differentiable_program(eqiora):
     )
 
 
-async def await_result(eqiora, plan):
-    run = eqiora.submit(
-        plan,
-        state=eqiora.State.initial(plan),
-        until_s=0.2,
-        output_times_s=(0.1, 0.2),
-    )
-    result = await run
-    assert run.done
-    progress = run.progress
-    assert isinstance(progress, eqiora.RunProgress)
-    assert 0.0 <= progress.model_time <= progress.end_time == 0.2
-    assert 0 <= progress.accepted_steps <= progress.maximum_steps
-    return result
-
-
 def base_smoke(expected_version: str) -> None:
     before = set(sys.modules)
     import eqiora
@@ -154,9 +137,6 @@ def base_smoke(expected_version: str) -> None:
     owned = series.values.numpy(copy=True)
     assert owned.flags.writeable
     assert owned.base is None
-
-    awaited = asyncio.run(await_result(eqiora, plan))
-    assert awaited.series(field).values.numpy(copy=False)[-1] > 0.0
 
     try:
         eqiora.run(

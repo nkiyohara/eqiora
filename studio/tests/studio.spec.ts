@@ -8,7 +8,9 @@ async function executePaletteCommand(page: Page, query: string, name: RegExp) {
 }
 test("projects and inspects the compiler-owned model", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("Browser preview", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText(
+    "browser preview demonstrates interaction and layout only",
+  );
   await expect(page.getByRole("heading", { name: "Relation view" })).toBeVisible();
   await page.getByRole("button", { name: /decay Relation/ }).click();
   await expect(page.getByRole("heading", { name: "decay", exact: true })).toBeVisible();

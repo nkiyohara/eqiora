@@ -955,16 +955,13 @@ solid.prescribed-dynamic-solid-step-3d
 artifacts.prescribed-dynamic-solid-state-run-3d
 artifacts.realization-run-wire
 artifacts.fixed-reference-fsi-spatial-trajectory
-artifacts.general-fixed-mesh-field-trajectory-2d
-artifacts.current-model-relational-identity-transition
-packages.typed-execution-lineage
 fsi.fixed-topology-ale-monolithic-3d
 ```
 
 The new case owns only the exact standalone lineage in this RFC. Existing
-cases prove that Run V2, fixed-mesh State/Field behavior, current-Model
-relational identity, typed package execution lineage, and ALE families remain
-unchanged.
+cases prove that Run V2, State/Field behavior, and ALE families remain
+unchanged. Retired whole-tree and fixed-mesh replay cases are not carried as
+compatibility evidence.
 
 ## Alternatives considered
 

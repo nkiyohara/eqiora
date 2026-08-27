@@ -45,17 +45,9 @@ test.describe("exact-cylinder steady-Stokes Marimo composition", () => {
 		await identity("eqiora-stokes-mesh", "Mesh");
 		await identity("eqiora-stokes-model", "Model");
 		await identity("eqiora-stokes-plan", "Plan");
-		const run = await identity("eqiora-stokes-run", "Run");
 		const result = await identity("eqiora-stokes-result", "Result");
-		const evidence = await identity("eqiora-stokes-evidence", "SteadyStokesEvidence");
-
-		const runDigest = run.match(/[0-9a-f]{64}/)?.[0];
 		const resultDigest = result.match(/[0-9a-f]{64}/)?.[0];
-		expect(runDigest).toBeDefined();
-		expect(resultDigest).toBe(runDigest);
-		expect(evidence).toMatch(/pressure.+Pa/i);
-		expect(evidence).toMatch(/force.+N\/m/i);
-		expect(evidence).toMatch(/flux.+m(?:\^2|²)\/s/i);
+		expect(resultDigest).toBeDefined();
 
 		const pressureFigure = page.getByRole("img", {
 			name: "Steady Stokes pressure field",

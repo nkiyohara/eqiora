@@ -817,9 +817,8 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
             })
             .sum::<usize>()
     };
-    assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 8);
+    assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 5);
     assert_eq!(count_for_script("tools/ci/python_package_gate.py"), 4);
-    assert_eq!(count_for_script("tools/ci/python_gallery_gate.py"), 1);
 
     let mut distribution_cases = selecting_cases
         .iter()
@@ -839,24 +838,20 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
         [
             "interfaces.python-distribution-candidate",
             "interfaces.python-exact-cylinder-stokes-marimo",
-            "interfaces.python-fixed-mesh-trajectory",
-            "interfaces.python-fixed-reference-fsi-demo",
             "interfaces.python-jax-differentiation",
             "interfaces.python-mixed-boundary-elasticity-demo",
             "interfaces.python-pytorch-differentiation",
-            "interfaces.python-trajectory-field-stills",
         ]
     );
 
-    for pair in [[
+    let pair = [
         "fsi.fixed-reference-monolithic-step-2d",
         "numerics.physics-neutral-discrete-block-system",
-    ]] {
-        assert!(selecting_cases.values().any(|cases| {
-            pair.iter()
-                .all(|expected| cases.iter().any(|case| case == expected))
-        }));
-    }
+    ];
+    assert!(selecting_cases.values().any(|cases| {
+        pair.iter()
+            .all(|expected| cases.iter().any(|case| case == expected))
+    }));
 }
 
 #[test]

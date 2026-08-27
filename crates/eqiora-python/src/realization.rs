@@ -15,6 +15,7 @@ use pyo3::types::PyModule;
     hash,
     from_py_object
 )]
+/// Accepted reason for linear-solve convergence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum PyConvergenceReason {
     InitialResidualSatisfied,
@@ -36,6 +37,7 @@ impl From<ConvergenceReason> for PyConvergenceReason {
     frozen,
     skip_from_py_object
 )]
+/// Bounded projection of one accepted linear-solve report.
 #[derive(Debug, Clone)]
 pub(crate) struct PyLinearSolveSummary {
     backend: String,

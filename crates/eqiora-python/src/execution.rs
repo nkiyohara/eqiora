@@ -51,23 +51,23 @@ impl NativeRunProgress {
 
 #[derive(Debug)]
 enum NativeRunOutput {
-    CommonScalar {
+    Scalar {
         result: Box<eqiora_numerics::scalar::ResolvedScalarEllipticCartesianSolution>,
         elapsed_seconds: f64,
     },
-    CommonElasticity {
+    Elasticity {
         result: Box<eqiora_numerics::CommonElasticityRunOutput>,
         elapsed_seconds: f64,
     },
-    CommonSteadyStokes {
+    SteadyStokes {
         result: Box<eqiora_numerics::CommonSteadyStokesRunOutput>,
         elapsed_seconds: f64,
     },
-    CommonTransient {
+    Transient {
         states: Vec<(usize, CommonState)>,
         elapsed_seconds: f64,
     },
-    CommonOde {
+    Ode {
         result: Box<eqiora_numerics::CommonOdeRunResult>,
         elapsed_seconds: f64,
     },
@@ -495,37 +495,37 @@ impl PyRun {
         ) {
             (CommonPlanKind::Ode(_), Some(CommonRunRequest::Ode(request))) => (
                 RunIdentity::from_common_ode(&request),
-                NativeRunJob::CommonOde(request),
+                NativeRunJob::Ode(request),
                 "eqiora-common-ode-run",
                 false,
             ),
             (CommonPlanKind::Scalar(native), None) => (
                 RunIdentity::from_common_plan(native),
-                NativeRunJob::CommonScalar(native.clone()),
+                NativeRunJob::Scalar(native.clone()),
                 "eqiora-common-scalar-run",
                 true,
             ),
             (CommonPlanKind::Elasticity(native), None) => (
                 RunIdentity::from_common_elasticity(native),
-                NativeRunJob::CommonElasticity(native.clone()),
+                NativeRunJob::Elasticity(native.clone()),
                 "eqiora-common-elasticity-run",
                 true,
             ),
             (CommonPlanKind::SteadyStokes(native), None) => (
                 RunIdentity::from_common_steady_stokes(native),
-                NativeRunJob::CommonSteadyStokes(native.clone()),
+                NativeRunJob::SteadyStokes(native.clone()),
                 "eqiora-common-steady-stokes-run",
                 true,
             ),
             (CommonPlanKind::TransientFlow(_), Some(CommonRunRequest::Transient(request))) => (
                 RunIdentity::from_common_transient(&request),
-                NativeRunJob::CommonTransient(request),
+                NativeRunJob::Transient(request),
                 "eqiora-common-transient-run",
                 true,
             ),
             (CommonPlanKind::Fsi(_), Some(CommonRunRequest::Fsi(request))) => (
                 RunIdentity::from_common_fsi(&request),
-                NativeRunJob::CommonFsi(request),
+                NativeRunJob::Fsi(request),
                 "eqiora-common-fsi-run",
                 true,
             ),
@@ -770,7 +770,7 @@ fn materialize_result(
 ) -> PyResult<Py<PyAny>> {
     let ResultMaterializationContext::CommonPlan { plan } = context;
     match result {
-        NativeRunOutput::CommonScalar {
+        NativeRunOutput::Scalar {
             result,
             elapsed_seconds,
         } => crate::result::materialize_common_scalar(
@@ -782,7 +782,7 @@ fn materialize_result(
         )
         .and_then(|result| Py::new(py, result))
         .map(Py::into_any),
-        NativeRunOutput::CommonElasticity {
+        NativeRunOutput::Elasticity {
             result,
             elapsed_seconds,
         } => crate::result::materialize_common_elasticity(
@@ -794,7 +794,7 @@ fn materialize_result(
         )
         .and_then(|result| Py::new(py, result))
         .map(Py::into_any),
-        NativeRunOutput::CommonSteadyStokes {
+        NativeRunOutput::SteadyStokes {
             result,
             elapsed_seconds,
         } => crate::result::materialize_common_steady_stokes(
@@ -806,7 +806,7 @@ fn materialize_result(
         )
         .and_then(|result| Py::new(py, result))
         .map(Py::into_any),
-        NativeRunOutput::CommonTransient {
+        NativeRunOutput::Transient {
             states,
             elapsed_seconds,
         } => crate::result::materialize_common_transient(
@@ -818,7 +818,7 @@ fn materialize_result(
         )
         .and_then(|result| Py::new(py, result))
         .map(Py::into_any),
-        NativeRunOutput::CommonOde {
+        NativeRunOutput::Ode {
             result,
             elapsed_seconds,
         } => crate::result::materialize_common_ode(

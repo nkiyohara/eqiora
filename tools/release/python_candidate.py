@@ -699,11 +699,6 @@ prepare_exact_cylinder_demo_consumer = (
 prepare_mixed_boundary_elasticity_demo_consumer = (
     candidate_profiles.prepare_mixed_boundary_elasticity_demo_consumer
 )
-prepare_fixed_reference_fsi_demo_consumer = (
-    candidate_profiles.prepare_fixed_reference_fsi_demo_consumer
-)
-
-
 def run_public_smoke(
     *,
     python: Path,

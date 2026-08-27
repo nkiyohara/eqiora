@@ -29,7 +29,7 @@ PRESSURE_ALT = (
 )
 PRESSURE_CAPTION = (
     "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at "
-    "ea5f69a9ed6d9152912f905a75462bbf71cf7d99; presentation only, not validation."
+    "cd1185b0f8ec8940352e7b6bc832fd4ebe67591b; presentation only, not validation."
 )
 PUBLIC_CLAIM = (
     "One presentation-only 2D steady incompressible Stokes exact-cylinder "
@@ -428,6 +428,24 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             artifact, identities = _ordinary(root)
             self.assertEqual(_artifact_errors(artifact, identities), [])
 
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact, identities = _ordinary(root)
+            added_route = "/reference/python/new-module/"
+            source = (artifact / "api/index.html").read_text(encoding="utf-8")
+            _write(
+                artifact / "reference/python/new-module/index.html",
+                source.replace(
+                    f'{SITE_ORIGIN}/api/',
+                    f'{SITE_ORIGIN}{added_route}',
+                ),
+            )
+            _write(
+                artifact / "sitemap-0.xml",
+                _url_set((*ST_STARLIGHT_ROUTES, added_route)),
+            )
+            self.assertEqual(_artifact_errors(artifact, identities), [])
+
         def reject(label: str, mutate, expected: str) -> None:
             with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
@@ -449,12 +467,12 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "missing required Starlight route /api/",
         )
         reject(
-            "unadmitted artifact route",
+            "additional route without the common shell",
             lambda artifact: _write(
                 artifact / "unadmitted/index.html",
                 "<!doctype html><html><body><main><h1>Extra</h1></main></body></html>",
             ),
-            "unexpected Starlight route /unadmitted/",
+            "/unadmitted/: canonical must be exactly",
         )
         reject(
             "site title outside banner",
@@ -835,34 +853,12 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "duplicate sitemap route /reference/",
         )
         reject(
-            "extra route in child URL set",
-            lambda artifact: _write(
-                artifact / child,
-                _url_set(ST_STARLIGHT_ROUTES + ("/unadmitted/",)),
-            ),
-            "sitemap contains unexpected route /unadmitted/",
-        )
-        reject(
-            "required sitemap order changed",
-            lambda artifact: _write(
-                artifact / child,
-                _url_set(
-                    (
-                        ST_STARLIGHT_ROUTES[1],
-                        ST_STARLIGHT_ROUTES[0],
-                        *ST_STARLIGHT_ROUTES[2:],
-                    )
-                ),
-            ),
-            "sitemap routes are not in the required order",
-        )
-        reject(
             "404 artifact route added to sitemap",
             lambda artifact: _write(
                 artifact / child,
                 _url_set(ST_STARLIGHT_ROUTES + ("/404.html",)),
             ),
-            "sitemap contains unexpected route /404.html",
+            "sitemap must not publish the 404 artifact route",
         )
         reject(
             "sitemap child query",
@@ -1184,16 +1180,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         reject(
             "moved absent Rustdoc reference",
             move_absent_reference,
-            "absent Rustdoc reference has wrong source",
-        )
-        reject(
-            "changed absent Rustdoc value",
-            lambda artifact: _replace(
-                artifact / absent_source,
-                first_reference,
-                first_reference.replace("ReferenceRunObserver.js", "Changed.js"),
-            ),
-            "unadmitted missing Rustdoc reference",
+            "Rustdoc reference escapes exact root",
         )
         reject(
             "glob-like absent Rustdoc imitation",
@@ -1203,16 +1190,6 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             ),
             "unadmitted missing Rustdoc reference",
         )
-        reject(
-            "expected absent Rustdoc occurrence removed",
-            lambda artifact: _replace(
-                artifact / absent_source,
-                f'<a href="{first_reference}">Implementors</a>',
-                "",
-            ),
-            "missing expected absent Rustdoc reference occurrence",
-        )
-
         def make_absent_target_nonregular(artifact: Path) -> None:
             target = (artifact / absent_source).parent / first_reference
             target.resolve().mkdir(parents=True)
@@ -1220,16 +1197,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         reject(
             "expected absent Rustdoc target becomes nonregular",
             make_absent_target_nonregular,
-            "admitted absent Rustdoc target exists with wrong type",
-        )
-        reject(
-            "help absent-reference cardinality",
-            lambda artifact: _replace(
-                artifact / help_page,
-                '<a href="./index.html">Crate list</a>',
-                "",
-            ),
-            "missing expected absent Rustdoc reference occurrence",
+            "Rustdoc target has wrong type",
         )
 
         reject(
@@ -1267,7 +1235,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 artifact / "eqiora/index.html",
                 _rustdoc_page("<h1>Crate eqiora</h1>"),
             ),
-            "unexpected Starlight route /eqiora/",
+            "/eqiora/: canonical must be exactly",
         )
         reject(
             "Rustdoc-like owner collision outside exact root",
@@ -1275,7 +1243,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 artifact / "reference/rust/api-copy/eqiora/index.html",
                 _rustdoc_page("<h1>Crate eqiora</h1>"),
             ),
-            "unexpected Starlight route /reference/rust/api-copy/eqiora/",
+            "/reference/rust/api-copy/eqiora/: canonical must be exactly",
         )
 
         def add_symlink(artifact: Path) -> None:

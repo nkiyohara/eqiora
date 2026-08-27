@@ -111,7 +111,7 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
     series = result.series(field)
     assert isinstance(result.fields, list)
     assert result.fields == [series]
-    assert len(result) == 1
+    assert len(result.fields) == 1
     assert not hasattr(result, "snapshots")
     assert series.dimension == (0, 0, 0, 0, 0, 0, 0)
     time = series.time.numpy(copy=False)

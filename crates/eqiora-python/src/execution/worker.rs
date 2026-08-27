@@ -18,12 +18,12 @@ use crate::error::catch_native_panic;
 
 #[derive(Debug)]
 pub(super) enum NativeRunJob {
-    CommonScalar(Box<CommonScalarPlan>),
-    CommonElasticity(Box<CommonElasticityPlan>),
-    CommonSteadyStokes(Box<CommonSteadyStokesPlan>),
-    CommonTransient(Box<CommonTransientRunRequest>),
-    CommonFsi(Box<CommonFsiRunRequest>),
-    CommonOde(Box<CommonOdeRunRequest>),
+    Scalar(Box<CommonScalarPlan>),
+    Elasticity(Box<CommonElasticityPlan>),
+    SteadyStokes(Box<CommonSteadyStokesPlan>),
+    Transient(Box<CommonTransientRunRequest>),
+    Fsi(Box<CommonFsiRunRequest>),
+    Ode(Box<CommonOdeRunRequest>),
 }
 
 enum NativeWorkerOutcome {
@@ -76,39 +76,37 @@ fn execute_job(
     shared: &Arc<RunShared>,
 ) -> Result<NativeWorkerOutcome, Vec<Diagnostic>> {
     match job {
-        NativeRunJob::CommonScalar(plan) => {
+        NativeRunJob::Scalar(plan) => {
             let started = Instant::now();
             let result = plan.run().map_err(|diagnostic| vec![diagnostic])?;
-            Ok(NativeWorkerOutcome::Completed(
-                NativeRunOutput::CommonScalar {
-                    result: Box::new(result),
-                    elapsed_seconds: started.elapsed().as_secs_f64(),
-                },
-            ))
+            Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Scalar {
+                result: Box::new(result),
+                elapsed_seconds: started.elapsed().as_secs_f64(),
+            }))
         }
-        NativeRunJob::CommonElasticity(plan) => {
+        NativeRunJob::Elasticity(plan) => {
             let started = Instant::now();
             let result = plan.run_observed().map_err(|diagnostic| vec![diagnostic])?;
             Ok(NativeWorkerOutcome::Completed(
-                NativeRunOutput::CommonElasticity {
+                NativeRunOutput::Elasticity {
                     result: Box::new(result),
                     elapsed_seconds: started.elapsed().as_secs_f64(),
                 },
             ))
         }
-        NativeRunJob::CommonSteadyStokes(plan) => {
+        NativeRunJob::SteadyStokes(plan) => {
             let started = Instant::now();
             let result = plan
                 .run_observed(&FaerLinearSolver)
                 .map_err(|diagnostic| vec![diagnostic])?;
             Ok(NativeWorkerOutcome::Completed(
-                NativeRunOutput::CommonSteadyStokes {
+                NativeRunOutput::SteadyStokes {
                     result: Box::new(result),
                     elapsed_seconds: started.elapsed().as_secs_f64(),
                 },
             ))
         }
-        NativeRunJob::CommonTransient(request) => {
+        NativeRunJob::Transient(request) => {
             let started = Instant::now();
             let maximum_steps = request.accepted_steps().get();
             let outcome = run_accepted_steps(
@@ -150,15 +148,15 @@ fn execute_job(
                         request_identity: request.identity().to_owned(),
                     },
                 )),
-                AcceptedStepOutcome::Completed(states) => Ok(NativeWorkerOutcome::Completed(
-                    NativeRunOutput::CommonTransient {
+                AcceptedStepOutcome::Completed(states) => {
+                    Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Transient {
                         states,
                         elapsed_seconds: started.elapsed().as_secs_f64(),
-                    },
-                )),
+                    }))
+                }
             }
         }
-        NativeRunJob::CommonFsi(request) => {
+        NativeRunJob::Fsi(request) => {
             let started = Instant::now();
             let maximum_steps = request.accepted_steps().get();
             let outcome = run_accepted_steps(
@@ -192,15 +190,15 @@ fn execute_job(
                         request_identity: request.identity().to_owned(),
                     },
                 )),
-                AcceptedStepOutcome::Completed(states) => Ok(NativeWorkerOutcome::Completed(
-                    NativeRunOutput::CommonTransient {
+                AcceptedStepOutcome::Completed(states) => {
+                    Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Transient {
                         states,
                         elapsed_seconds: started.elapsed().as_secs_f64(),
-                    },
-                )),
+                    }))
+                }
             }
         }
-        NativeRunJob::CommonOde(request) => {
+        NativeRunJob::Ode(request) => {
             let started = Instant::now();
             let problem = request.problem().map_err(|diagnostic| vec![diagnostic])?;
             let solution = DiffsolTimeBackend::new()
@@ -208,7 +206,7 @@ fn execute_job(
                 .map_err(|diagnostic| vec![diagnostic])?;
             let result = CommonOdeRunResult::accept(&request, solution)
                 .map_err(|diagnostic| vec![diagnostic])?;
-            Ok(NativeWorkerOutcome::Completed(NativeRunOutput::CommonOde {
+            Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Ode {
                 result: Box::new(result),
                 elapsed_seconds: started.elapsed().as_secs_f64(),
             }))

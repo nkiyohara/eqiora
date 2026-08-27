@@ -12,12 +12,11 @@ __all__ = (
 )
 
 PRESSURE_ALT = "Pressure in pascals for a 2D steady-Stokes exact-cylinder demonstration, shown with a viridis color scale and its current Gmsh mesh overlaid. Presentation image only; no numerical or mesh-output oracle."
-PRESSURE_CAPTION = "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at ea5f69a9ed6d9152912f905a75462bbf71cf7d99; presentation only, not validation."
+PRESSURE_CAPTION = "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at cd1185b0f8ec8940352e7b6bc832fd4ebe67591b; presentation only, not validation."
 PUBLIC_CLAIM = "One presentation-only 2D steady incompressible Stokes exact-cylinder demonstration rendered through exact Geometry, typed Gmsh policy, and the root Result path; output counts, digests, numerical values, and pixels are not independently verified."
 WITNESS_COPY = "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
 RENDERED_SOURCE_SENTENCE = "This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository’s architecture, RFCs, capability matrix, and validated verify manifests."
 REFERENCE_BOUNDARY = "API presence is neither capability evidence nor maturity."
-EVIDENCE_LABELS = {"Geometry evidence", "Marimo workflow"}
 STAGES = (
     ("problem-setup", "1", "Problem setup"),
     ("model-definition", "2", "Eqiora model definition"),
@@ -461,11 +460,8 @@ def _check_case(
         expected = source_base + relative
         if expected not in hrefs:
             report(f"Cylinder route omits exact-head source/evidence link {relative}")
-    labels = {label for _, label in page.anchors}
-    if PRESSURE_CAPTION not in page.visible_text or not EVIDENCE_LABELS <= labels:
-        report(
-            "Cylinder route omits the exact admitted caption or its two visible evidence links"
-        )
+    if PRESSURE_CAPTION not in page.visible_text:
+        report("Cylinder route omits the exact admitted caption")
     return errors
 
 

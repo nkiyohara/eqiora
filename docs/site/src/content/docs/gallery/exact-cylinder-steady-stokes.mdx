@@ -6,8 +6,11 @@ description: A six-stage static walkthrough of one frozen 2D steady incompressib
 import { Aside } from '@astrojs/starlight/components';
 import NotebookStage from '../../../components/gallery/NotebookStage.astro';
 import ClaimBoundary from '../../../components/gallery/ClaimBoundary.astro';
+import ResultFigure from '../../../components/gallery/ResultFigure.astro';
 import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
 import geometryDiagram from '../../../assets/gallery/exact-cylinder-geometry.svg';
+import pressureImage from '../../../assets/gallery/exact-cylinder-pressure.png';
+import publication from '../../../data/gallery/exact-cylinder-steady-stokes.publication.json';
 
 **Static walkthrough · canonical Marimo source available**
 
@@ -15,7 +18,7 @@ import geometryDiagram from '../../../assets/gallery/exact-cylinder-geometry.svg
 
 This page follows one frozen demonstration from exact authored geometry to a
 common `Result`. It does not execute a notebook or solve in the browser. The
-The checked-in source shows the installed workflow. Source links and evidence
+checked-in source shows the installed workflow. Source links and evidence
 dossiers resolve through the exact site build revision; none follows a branch.
 
 <NotebookStage id="problem-setup" step={1} title="Problem setup" emoji="🧭">
@@ -188,6 +191,8 @@ and typed error/facet policy, then lets locked Gmsh 4.15.2 own the emitted
 straight-edged mesh. Output counts are deliberately not a public or scientific
 oracle. This walkthrough makes no mesh-convergence or PDE-convergence claim.
 
+The current Gmsh output is presentation input, not a fixed mesh or scientific oracle.
+
 </Aside>
 
 <ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L54-L63">canonical Marimo mesh cell</ExactSourceLink>
@@ -251,9 +256,17 @@ evidence = eqiora.fluid.steady_stokes_evidence(result)
 pressure_figure = eqplot.plot_scalar_field(result, field=plan.pressure_field)
 ```
 
-The gallery image will be regenerated from this current public path after the
-source migration is committed. It is presentation only: color and pixel values
-are not validation and do not establish flow quality.
+<ResultFigure
+  src={pressureImage.src}
+  alt={publication.publication_payload.text.alt}
+  caption={publication.publication_payload.text.caption}
+  units="Pa"
+  sourcePath="examples/python/exact_cylinder_stokes.py"
+  sourceLabel="View the runnable pressure example"
+/>
+
+Color and pixel values are presentation only. They are not validation and do
+not establish flow quality.
 
 </NotebookStage>
 
@@ -262,6 +275,7 @@ are not validation and do not establish flow quality.
 <ClaimBoundary
   title="Verified boundary"
   supported={[
+    'One presentation-only 2D steady incompressible Stokes exact-cylinder demonstration rendered through exact Geometry, typed Gmsh policy, and the root Result path; output counts, digests, numerical values, and pixels are not independently verified.',
     'Exact Geometry and a typed Gmsh policy resolve to a source-owned Mesh whose complete named correspondence and provider lineage are retained.',
     'The same Mesh enters the root Model → Plan → Run/Result lifecycle.',
   ]}

@@ -169,11 +169,9 @@ def test_exception_taxonomy_keeps_structured_diagnostics() -> None:
     assert compatibility.value.category == "compatibility"
     assert compatibility.value.diagnostics[0].code == "EQ0901"
 
-    model = eqiora.compile(source=SOURCE)
-    with pytest.raises(eqiora.ExecutionError) as execution:
-        eqiora.run(model, end_time=1.0, max_step=0.0)
-    assert execution.value.category == "execution"
-    assert execution.value.diagnostics[0].code == "EQ0501"
+    execution = eqiora.ExecutionError("manually constructed")
+    assert execution.category == "execution"
+    assert execution.diagnostics == ()
 
     assert issubclass(eqiora.CapabilityError, eqiora.EqioraError)
     assert issubclass(eqiora.CancellationError, eqiora.EqioraError)

@@ -56,7 +56,6 @@ def check_execution(
     assert_type(transient.result(), eqiora.Result)
     assert_type(array.numpy(copy=False), npt.NDArray[np.float64])
 
-    eqiora.run(plan, state=state)  # type: ignore[call-overload]
     eqiora.Run[eqiora.Result](object())  # type: ignore[arg-type]
 
 
