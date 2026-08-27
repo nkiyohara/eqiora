@@ -423,8 +423,9 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                 if str(root / "candidate.whl") in requirement
             )
             self.assertTrue(candidate_requirements)
+            self.assertIn("gmsh", "\n".join(candidate_requirements))
             self.assertIn("matplotlib", "\n".join(candidate_requirements))
-            self.assertIn("notebook", "\n".join(candidate_requirements))
+            self.assertNotIn("notebook", "\n".join(candidate_requirements))
 
             positive_launches = [
                 (argv, cwd)
