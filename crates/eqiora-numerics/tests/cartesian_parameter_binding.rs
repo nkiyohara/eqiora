@@ -5,8 +5,7 @@ use eqiora_core::Id;
 use eqiora_core::entity::kinds;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_numerics::{
-    common::SpatialDesignCoordinate, scalar::finalize_lowered_scalar_elliptic_cartesian,
-    scalar::finalize_resolved_scalar_elliptic_cartesian,
+    common::SpatialDesignCoordinate, scalar::finalize_resolved_scalar_elliptic_cartesian,
     scalar::finalize_scalar_elliptic_parameter_point, scalar::lower_scalar_elliptic_cartesian,
 };
 use eqiora_realization::{
@@ -75,14 +74,19 @@ fn selected_parameter_binding_is_immutable_and_reuses_the_exact_finalizer() {
 
     let (lowered_by_legacy_entry, legacy) =
         finalize_resolved_scalar_elliptic_cartesian(&program, &resolved).unwrap();
-    let finalized_p0 = finalize_lowered_scalar_elliptic_cartesian(&p0, &resolved).unwrap();
-    let finalized_p1 = finalize_lowered_scalar_elliptic_cartesian(&p1, &resolved).unwrap();
-    let finalized_p0_again =
-        finalize_lowered_scalar_elliptic_cartesian(&p0_again, &resolved).unwrap();
+    let finalized_p0 = finalize_scalar_elliptic_parameter_point(p0, &resolved).unwrap();
+    let finalized_p1 = finalize_scalar_elliptic_parameter_point(p1, &resolved).unwrap();
+    let finalized_p0_again = finalize_scalar_elliptic_parameter_point(p0_again, &resolved).unwrap();
 
     assert_eq!(lowered_by_legacy_entry, base);
-    assert_eq!(legacy, finalized_p0);
-    assert_eq!(finalized_p0_again, finalized_p0);
+    assert_eq!(
+        legacy.canonical_csr_system_view(),
+        finalized_p0.canonical_csr_system_view()
+    );
+    assert_eq!(
+        finalized_p0_again.canonical_csr_system_view(),
+        finalized_p0.canonical_csr_system_view()
+    );
     assert_ne!(
         finalized_p1.canonical_csr_system_view().right_hand_side(),
         finalized_p0.canonical_csr_system_view().right_hand_side()
@@ -128,7 +132,7 @@ fn lowered_model_retains_its_exact_model_revision_for_finalization() {
     let foreign_resolved = resolve_plan(&foreign_program);
 
     assert!(
-        finalize_lowered_scalar_elliptic_cartesian(&model, &foreign_resolved).is_err(),
+        finalize_scalar_elliptic_parameter_point(model, &foreign_resolved).is_err(),
         "a lowered model must not be cross-wired to a foreign Realization"
     );
 }
