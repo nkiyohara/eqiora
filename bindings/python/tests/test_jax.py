@@ -96,7 +96,7 @@ def differentiable_program(
     )
     spatial = (
         eqiora.fem.Q1()
-        if method == eqiora.ScalarEllipticMethod.FiniteElement
+        if method == eqiora.fem.Q1()
         else eqiora.fvm.CellCenteredTpfa()
     )
     plan = eqiora.resolve(
@@ -126,8 +126,8 @@ def differentiable_program(
 @pytest.mark.parametrize(
     "method",
     [
-        eqiora.ScalarEllipticMethod.FiniteElement,
-        eqiora.ScalarEllipticMethod.FiniteVolume,
+        eqiora.fem.Q1(),
+        eqiora.fvm.CellCenteredTpfa(),
     ],
 )
 def test_eager_primal_jvp_and_vjp_match_framework_neutral_actions(method) -> None:
@@ -194,8 +194,8 @@ def test_eager_primal_jvp_and_vjp_match_framework_neutral_actions(method) -> Non
 @pytest.mark.parametrize(
     "method",
     [
-        eqiora.ScalarEllipticMethod.FiniteElement,
-        eqiora.ScalarEllipticMethod.FiniteVolume,
+        eqiora.fem.Q1(),
+        eqiora.fvm.CellCenteredTpfa(),
     ],
 )
 def test_jitted_primal_gradient_and_jvp_use_typed_custom_calls(method) -> None:
@@ -271,7 +271,7 @@ def test_jitted_primal_gradient_and_jvp_use_typed_custom_calls(method) -> None:
 
 
 def test_zero_actions_and_compiled_executable_lifetime_are_safe() -> None:
-    program = differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+    program = differentiable_program(eqiora.fem.Q1())
     solve = eqjax.bind(program)
     parameters = jnp.array([17.0, 1.2, 0.1], dtype=jnp.float64)
     zero_tangent = jnp.zeros(solve.input_shape, dtype=jnp.float64)
@@ -316,7 +316,7 @@ def test_zero_actions_and_compiled_executable_lifetime_are_safe() -> None:
 )
 def test_abstract_inputs_fail_before_native_execution(parameters, error) -> None:
     solve = eqjax.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     with pytest.raises(error):
         solve(parameters)
@@ -324,7 +324,7 @@ def test_abstract_inputs_fail_before_native_execution(parameters, error) -> None
 
 def test_nonfinite_and_unknown_program_identity_fail_closed() -> None:
     solve = eqjax.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     nonfinite = jnp.array([17.0, jnp.nan, 0.1], dtype=jnp.float64)
     with pytest.raises(jax.errors.JaxRuntimeError, match="finite"):
@@ -356,7 +356,7 @@ def test_sharded_input_is_rejected_without_implicit_gather() -> None:
         pytest.skip("the JAX evidence gate supplies two host devices")
     solve = eqjax.bind(
         differentiable_program(
-            eqiora.ScalarEllipticMethod.FiniteElement,
+            eqiora.fem.Q1(),
             include_wave_number=True,
         )
     )
@@ -379,7 +379,7 @@ def test_one_host_cpu_ordinal_is_preserved_without_transfer() -> None:
     if len(jax.devices("cpu")) < 2:
         pytest.skip("the JAX evidence gate supplies two host devices")
     solve = eqjax.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     device = jax.devices("cpu")[1]
     parameters = jax.device_put(
@@ -403,7 +403,7 @@ def test_one_host_cpu_ordinal_is_preserved_without_transfer() -> None:
 
 def test_unsupported_transformations_fail_explicitly() -> None:
     solve = eqjax.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     parameters = jnp.array([17.0, 1.2, 0.1], dtype=jnp.float64)
     tangent = jnp.array([0.3, -0.2, 0.4], dtype=jnp.float64)
@@ -430,7 +430,7 @@ def test_unsupported_transformations_fail_explicitly() -> None:
 
 
 def test_registration_identity_is_deterministic_and_deduplicated() -> None:
-    program = differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+    program = differentiable_program(eqiora.fem.Q1())
     first = eqjax.bind(program)
     second = eqjax.bind(program)
     assert first._program_key == second._program_key
@@ -440,7 +440,7 @@ def test_registration_identity_is_deterministic_and_deduplicated() -> None:
 
 def test_bound_program_configuration_is_immutable() -> None:
     solve = eqjax.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     with pytest.raises(AttributeError, match="immutable"):
         solve._program_key = "0" * 64

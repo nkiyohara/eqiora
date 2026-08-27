@@ -84,7 +84,7 @@ def differentiable_program(method) -> eqiora.DifferentiableProgram:
     )
     spatial = (
         eqiora.fem.Q1()
-        if method == eqiora.ScalarEllipticMethod.FiniteElement
+        if method == eqiora.fem.Q1()
         else eqiora.fvm.CellCenteredTpfa()
     )
     plan = eqiora.resolve(
@@ -111,8 +111,8 @@ def differentiable_program(method) -> eqiora.DifferentiableProgram:
 @pytest.mark.parametrize(
     "method",
     [
-        eqiora.ScalarEllipticMethod.FiniteElement,
-        eqiora.ScalarEllipticMethod.FiniteVolume,
+        eqiora.fem.Q1(),
+        eqiora.fvm.CellCenteredTpfa(),
     ],
 )
 def test_functional_operator_matches_native_primal_and_vjp(method) -> None:
@@ -158,7 +158,7 @@ def test_functional_operator_matches_native_primal_and_vjp(method) -> None:
 
 def test_autograd_is_repeatable_and_zero_cotangent_is_exact() -> None:
     operator = eqtorch.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     parameters = torch.tensor(
         [17.0, 1.2, 0.1],
@@ -184,7 +184,7 @@ def test_autograd_is_repeatable_and_zero_cotangent_is_exact() -> None:
 
 def test_double_backward_is_an_explicit_nonclaim() -> None:
     operator = eqtorch.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     parameters = torch.tensor(
         [17.0, 1.2, 0.1],
@@ -203,8 +203,8 @@ def test_double_backward_is_an_explicit_nonclaim() -> None:
 @pytest.mark.parametrize(
     "method",
     [
-        eqiora.ScalarEllipticMethod.FiniteElement,
-        eqiora.ScalarEllipticMethod.FiniteVolume,
+        eqiora.fem.Q1(),
+        eqiora.fvm.CellCenteredTpfa(),
     ],
 )
 def test_registration_passes_opcheck_gradcheck_and_fullgraph_compile(method) -> None:
@@ -271,14 +271,14 @@ def test_registration_passes_opcheck_gradcheck_and_fullgraph_compile(method) -> 
 )
 def test_inputs_fail_closed_before_or_at_native_admission(parameters, error) -> None:
     operator = eqtorch.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     with pytest.raises(error):
         operator(parameters)
 
 
 def test_registry_is_identity_deduplicated_and_retained_for_backward() -> None:
-    program = differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+    program = differentiable_program(eqiora.fem.Q1())
     first = eqtorch.bind(program)
     second = eqtorch.bind(program)
     assert first._token == second._token
@@ -299,7 +299,7 @@ def test_unknown_or_mismatched_tokens_fail_closed() -> None:
         eqtorch._solve(parameters, "not-a-token", 3, 25)
 
     operator = eqtorch.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     with pytest.raises(RuntimeError, match="metadata"):
         eqtorch._solve(parameters, operator._token, 3, operator.output_shape[0] + 1)

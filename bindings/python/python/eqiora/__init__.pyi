@@ -762,120 +762,6 @@ class State:
     def __hash__(self) -> int: ...
 
 @final
-class ScalarEllipticMethod:
-    """Numerical family for one bounded scalar-elliptic request.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarEllipticMethod``.
-    """
-
-    FiniteElement: ClassVar[ScalarEllipticMethod]
-    FiniteVolume: ClassVar[ScalarEllipticMethod]
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
-class ScalarElliptic:
-    """Unbound typed scalar-elliptic request, not realization identity.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarElliptic``.
-    """
-
-    def __new__(
-        cls,
-        *,
-        method: ScalarEllipticMethod,
-        cells_per_axis: int,
-        realization_revision: int = 1,
-    ) -> Self: ...
-    @property
-    def method(self) -> ScalarEllipticMethod: ...
-    @property
-    def cells_per_axis(self) -> int: ...
-    @property
-    def realization_revision(self) -> int: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
-class Realization:
-    """Exact model-bound capability-admitted portable realization.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyRealization``.
-    """
-
-    @property
-    def digest(self) -> str: ...
-    @property
-    def model_digest(self) -> str: ...
-    @property
-    def realization_revision(self) -> int: ...
-    @property
-    def method(self) -> ScalarEllipticMethod: ...
-    @property
-    def cells_per_axis(self) -> int: ...
-    @property
-    def workers(self) -> int: ...
-    @property
-    def cell_count(self) -> int: ...
-    @property
-    def field_value_count(self) -> int: ...
-    @property
-    def spatial_dimension(self) -> int: ...
-    @property
-    def field_logical_shape(self) -> tuple[int, ...]: ...
-    @property
-    def field_bounds(self) -> tuple[tuple[float, float], ...]: ...
-    def to_json(self) -> bytes: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
-class ScalarFieldLocation:
-    """Vertex or cell-centre meaning of a scalar field summary.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarFieldLocation``.
-    """
-
-    Vertex: ClassVar[ScalarFieldLocation]
-    CellCenter: ClassVar[ScalarFieldLocation]
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
-class ScalarFieldSummary:
-    """Bounded accepted field summary; arrays remain on the data plane.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarFieldSummary``.
-    """
-
-    @property
-    def location(self) -> ScalarFieldLocation: ...
-    @property
-    def spatial_dimension(self) -> int: ...
-    @property
-    def logical_shape(self) -> tuple[int, ...]: ...
-    @property
-    def value_count(self) -> int: ...
-    @property
-    def minimum(self) -> float: ...
-    @property
-    def maximum(self) -> float: ...
-
-@final
-class ScalarEllipticBalance:
-    """Accepted continuous scalar-elliptic balance evidence.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarEllipticBalance``.
-    """
-
-    @property
-    def boundary_total(self) -> float: ...
-    @property
-    def integrated_source(self) -> float: ...
-    @property
-    def relative_imbalance(self) -> float: ...
-
-@final
 class ConvergenceReason:
     """Accepted reason for linear-solve convergence.
 
@@ -1089,65 +975,6 @@ class DifferentiableProgram:
     ) -> DifferentiableVjp: ...
 
 @final
-class RunManifest:
-    """Persisted exact run-v2 manifest linked to an accepted realization.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyRunManifest``.
-    """
-
-    @staticmethod
-    def from_json(data: bytes, *, realization: Realization) -> RunManifest: ...
-    @property
-    def digest(self) -> str: ...
-    @property
-    def model_digest(self) -> str: ...
-    @property
-    def realization_digest(self) -> str: ...
-    @property
-    def semantic_revision(self) -> int: ...
-    @property
-    def output_digests(self) -> list[str]: ...
-    @property
-    def adapter(self) -> str: ...
-    @property
-    def adapter_version(self) -> str: ...
-    @property
-    def solver_backend(self) -> str: ...
-    @property
-    def solver_backend_version(self) -> str: ...
-    @property
-    def workers(self) -> int: ...
-    @property
-    def reduction(self) -> str: ...
-    def to_json(self) -> bytes: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
-class ScalarEllipticResult:
-    """Accepted scalar-elliptic result with producer/verifier evidence.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarEllipticResult``.
-    """
-
-    @property
-    def realization(self) -> Realization: ...
-    @property
-    def run_manifest(self) -> RunManifest: ...
-    @property
-    def elapsed_seconds(self) -> float: ...
-    @property
-    def field(self) -> ScalarFieldSummary: ...
-    @property
-    def values(self) -> Array: ...
-    @property
-    def balance(self) -> ScalarEllipticBalance: ...
-    @property
-    def solve(self) -> LinearSolveSummary: ...
-    @property
-    def output_fingerprint(self) -> str: ...
-
-@final
 class Series:
     """Read-only field-local sampled series in SI units.
 
@@ -1193,7 +1020,6 @@ class Result:
     @property
     def fields(self) -> list[Series]: ...
     @property
-    def snapshots(self) -> tuple[trajectory.FieldSnapshot, ...]: ...
     @property
     def values(self) -> Array: ...
     @property
@@ -1204,13 +1030,10 @@ class Result:
     def solve(self) -> LinearSolveSummary: ...
     def output(self, field: FieldRef, /) -> FieldOutput: ...
     def series(self, field: FieldRef, /) -> Series: ...
-    def field(self, field: FieldRef, /) -> trajectory.FieldSnapshot: ...
     def mesh(self, field: FieldRef, /) -> meshing.Mesh: ...
     @property
     def trajectory(self) -> trajectory.Trajectory: ...
-    def run_manifest(self) -> RunManifest: ...
     def __len__(self) -> int: ...
-    def __getitem__(self, key: str, /) -> Series: ...
 
 @final
 class RunStatus:
@@ -1229,63 +1052,6 @@ class RunStatus:
     Failed: ClassVar[RunStatus]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
-
-@final
-class RunProgress:
-    """Last coalesced fully accepted semantic-execution boundary.
-
-    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyRunProgress``.
-    """
-
-    @property
-    def model_time(self) -> float: ...
-    @property
-    def end_time(self) -> float: ...
-    @property
-    def accepted_steps(self) -> int: ...
-    @property
-    def maximum_steps(self) -> int: ...
-
-@final
-class RunCancellation:
-    """Exact accepted boundary where cooperative cancellation terminated.
-
-    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyRunCancellation``.
-    """
-
-    @property
-    def progress(self) -> RunProgress: ...
-    @property
-    def elapsed_seconds(self) -> float: ...
-    @property
-    def plan_key(self) -> str: ...
-
-@final
-class ScalarEllipticRunProgress:
-    """Last fully accepted scalar-elliptic application phase.
-
-    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyScalarEllipticRunProgress``.
-    """
-
-    PlanReplayed: ClassVar[ScalarEllipticRunProgress]
-    SystemFinalized: ClassVar[ScalarEllipticRunProgress]
-    SolutionAccepted: ClassVar[ScalarEllipticRunProgress]
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
-class ScalarEllipticRunCancellation:
-    """Exact scalar-elliptic phase where cancellation terminated.
-
-    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyScalarEllipticRunCancellation``.
-    """
-
-    @property
-    def progress(self) -> ScalarEllipticRunProgress: ...
-    @property
-    def elapsed_seconds(self) -> float: ...
-    @property
-    def plan_key(self) -> str: ...
 
 @final
 class TransientRunProgress:
@@ -1313,11 +1079,7 @@ class TransientRunCancellation:
     @property
     def request_identity(self) -> str: ...
 
-_RunResultT = TypeVar(
-    "_RunResultT",
-    Result,
-    ScalarEllipticResult,
-)
+_RunResultT = TypeVar("_RunResultT", bound=Result)
 
 class Run(Generic[_RunResultT]):
     """Awaitable owner of one native execution occurrence.
@@ -1331,11 +1093,11 @@ class Run(Generic[_RunResultT]):
     @property
     def history(self) -> tuple[RunStatus, ...]: ...
     @property
-    def progress(self) -> RunProgress | ScalarEllipticRunProgress | TransientRunProgress | None: ...
+    def progress(self) -> TransientRunProgress | None: ...
     @property
     def cancellation(
         self,
-    ) -> RunCancellation | ScalarEllipticRunCancellation | TransientRunCancellation | None: ...
+    ) -> TransientRunCancellation | None: ...
     @property
     def done(self) -> bool: ...
     @property
@@ -1444,14 +1206,6 @@ def grad(value: _ExpressionLike) -> Expression:
     """Return the spatial gradient of a symbolic expression.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::grad``.
-    """
-
-    ...
-
-def preview_realization(model: Model, request: ScalarElliptic) -> Realization:
-    """Resolve a request before numerical allocation.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::preview_realization``.
     """
 
     ...
@@ -1601,8 +1355,8 @@ __all__ = [
     "DifferentiationEvidence",
     "DifferentiationMode",
     "Dimension",
-    "Domain",
     "DomainRef",
+    "Domain",
     "EqioraError",
     "ExecutionError",
     "Expression",
@@ -1620,24 +1374,12 @@ __all__ = [
     "ParameterRef",
     "PhysicalDomain",
     "Plan",
-    "Realization",
     "Representation",
     "Relation",
     "Result",
     "Revision",
     "Run",
-    "RunManifest",
-    "RunCancellation",
-    "RunProgress",
     "RunStatus",
-    "ScalarElliptic",
-    "ScalarEllipticBalance",
-    "ScalarEllipticMethod",
-    "ScalarEllipticResult",
-    "ScalarEllipticRunCancellation",
-    "ScalarEllipticRunProgress",
-    "ScalarFieldLocation",
-    "ScalarFieldSummary",
     "Series",
     "State",
     "TransientRunCancellation",
@@ -1653,7 +1395,6 @@ __all__ = [
     "derivative",
     "div",
     "grad",
-    "preview_realization",
     "replay",
     "resolve",
     "run",
@@ -1661,10 +1402,14 @@ __all__ = [
     "through",
     "trace",
     "diff",
+    "fem",
     "fluid",
     "fsi",
+    "fvm",
     "geometry",
     "meshing",
     "solid",
+    "solve",
+    "time",
     "trajectory",
 ]

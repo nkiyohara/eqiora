@@ -4,8 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 const EXACT_CYLINDER_SOURCE: &str = "../../examples/steady-flow-past-cylinder.eqi";
-const MIXED_BOUNDARY_ELASTICITY_MODEL: &str =
-    "../../verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi";
+const MIXED_BOUNDARY_ELASTICITY_MODEL: &str = "../../examples/mixed-boundary-elasticity.eqi";
 const FIXED_REFERENCE_FSI_MODEL: &str = "../../examples/fixed-reference-fsi.eqi";
 
 fn main() -> Result<(), Box<dyn Error>> {

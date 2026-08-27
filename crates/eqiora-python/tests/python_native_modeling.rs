@@ -1,9 +1,5 @@
-use std::num::NonZeroUsize;
-
 use eqiora::EntityKind;
-use eqiora::api::{ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod};
 use eqiora::kernel::KernelNode;
-use eqiora::realization::RealizationRevision;
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods, PyModule};
@@ -130,14 +126,6 @@ model source_decay {
             source_scalar.structural_fingerprint().unwrap()
         );
         assert!(scalar.structurally_equivalent(&source_scalar).unwrap());
-        let result = scalar.run_reference(0.2, 0.1).unwrap();
-        let series = result.series();
-        assert_eq!(series.len(), 1);
-        assert_eq!(series[0].time(), &[0.0, 0.1, 0.2]);
-        assert_eq!(series[0].values()[0], 1.0);
-        assert!((series[0].values()[1] - 1.0 / 1.1).abs() < 1.0e-14);
-        assert!((series[0].values()[2] - 1.0 / 1.1_f64.powi(2)).abs() < 1.0e-14);
-
         let physical = replay_python_model(&locals, "physical_model");
         let source_physical = eqiora::api::ModelDocument::compile(
             "source-physical.eqi",
@@ -208,21 +196,6 @@ model source_physical {
             spatial.structural_fingerprint().unwrap(),
             source_spatial.structural_fingerprint().unwrap()
         );
-        let environment = ScalarEllipticExecutionEnvironment::host_serial();
-        let plan = spatial
-            .preview_scalar_elliptic_run(
-                ScalarEllipticIntent::new(
-                    RealizationRevision::new(1),
-                    ScalarEllipticMethod::FiniteElement,
-                    NonZeroUsize::new(4).unwrap(),
-                    NonZeroUsize::MIN,
-                ),
-                environment,
-            )
-            .unwrap();
-        let result = spatial.run_scalar_elliptic_plan(plan, environment).unwrap();
-        assert_eq!(result.field().value_count(), 5);
-
         assert_eq!(
             locals
                 .get_item("component")?

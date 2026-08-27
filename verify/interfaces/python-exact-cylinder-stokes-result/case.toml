@@ -1,165 +1,69 @@
 id = "interfaces.python-exact-cylinder-stokes-result"
 status = "verified"
-scope = "installed-python-one-exact-cylinder-steady-stokes-typed-result"
-reference_kind = "composition-of-dual-independent-fluid-oracle-and-independent-lineage-replay"
+scope = "installed-python-root-plan-exact-cylinder-steady-stokes-result"
+reference_kind = "composition-of-existing-fluid-oracle-and-common-model-first-lifecycle"
 
 capabilities = [
-  "python-exact-cylinder-steady-stokes-run",
-  "python-typed-steady-stokes-intent-and-resolved-plan",
-  "python-common-static-result-for-exact-cylinder-steady-stokes",
-  "python-common-pressure-field-snapshot-and-support-mesh",
-  "python-model-realization-run-snapshot-lineage",
-  "python-result-owner-independent-read-only-matrix-views",
+  "python-component-source-and-caller-geometry-compilation",
+  "python-root-steady-stokes-plan-run",
+  "python-common-pressure-field-output",
+  "python-typed-steady-stokes-observation",
+  "python-fresh-and-replayed-model-resolver-equivalence",
 ]
 
 [problem]
-model = "one packaged byte-exact copy of the accepted current steady-flow-past-cylinder Model envelope, supplied explicitly to the bounded solve"
-geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one exact radius-0.05 m circle centred at [0.2, 0.2] m"
-realization = "the accepted exact-source-owned Gmsh 4.15.2 mesh of the 50-chord region, with 662 vertices and 1210 linear triangles"
-physics = "steady coherent-SI MINI/P1 Stokes"
-intent = "immutable eqiora.fluid.SteadyStokes with six mandatory readable arguments"
-entry_point = "eqiora.fluid.resolve then eqiora.submit(model, plan=...) or eqiora.run(model, plan=...)"
-plan_type = "immutable eqiora.fluid.SteadyStokesPlan bound to the exact Model and accepted Mesh lineage"
-result_type = "immutable common eqiora.Result with one FieldSnapshot and its exact accepted Mesh"
-scientific_evidence = "eqiora.fluid.steady_stokes_evidence(result) returns the memoized bounded steady-Stokes observations"
-retired_surfaces = "eqiora.fluid.solve_exact_cylinder_stokes, eqiora.fluid.CircularHoleSteadyStokesResult, and eqiora.matplotlib.plot_pressure are absent from the final runtime, __all__, and stubs"
+source = "the packaged component-only steady-flow-past-cylinder .eqi source"
+geometry = "one Python GeometryGraph-authored rectangle-minus-exact-circle with named boundary supports"
+mesh = "the accepted deterministic 50-chord ReferenceMesher realization"
+physics = "steady coherent-SI MINI/P1 Stokes, determined by the Model"
+lifecycle = ".eqi -> eqiora.compile(geometry=...) -> eqiora.resolve(model, mesh, MiniP1, Linear, scaling=None) -> Plan -> eqiora.run(plan)"
+result = "common eqiora.Result selected by the exact Plan-owned pressure FieldRef"
+observation = "eqiora.fluid.steady_stokes_evidence(result) projects the native Plan-authenticated observation"
 
 [oracle]
-fluid_case = "fluid.exact-circular-hole-stokes-2d-gmsh"
-model_case = "artifacts.current-model-canonical-identity"
+scientific_case = "fluid.exact-circular-hole-stokes-2d-gmsh"
 geometry_case = "interfaces.python-exact-circular-hole-geometry"
 mesh_case = "interfaces.python-circular-hole-chordal-mesh"
 numeric_route = "verify/fluid/exact-circular-hole-stokes-2d-gmsh/routes/python/result.json"
-digest_policy = "source, mesh, and model identities are frozen; produced realization, snapshot, and run identities are replayed relationally from canonical public bytes"
-
-[expected]
-model_digest = "8bc5155bc1b64ed37f7a2ac010a966e1619091a118e6cf7806dbdf9621977146"
-canonical_model_bytes = 16797
-canonical_model_raw_sha256 = "672016cb80683fb1448adab79d7c8f6a2fdda22f92c6df2d82b684bd5e65e099"
-packaged_model_bytes = 16798
-packaged_model_raw_sha256 = "5c5c7924d6efe624a4b4df5f03f2fab03e423fc2ebafb658ba8ad050a7496387"
-semantic_revision = 1
-source_digest = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
-mesh_digest = "5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b"
-realization_revision = 133
-vertices = 662
-triangles = 1210
-pressure_values = 662
-pressure_probes = 6
-circle_segments = 50
-relative_tolerance = 1e-6
-absolute_tolerance = 1e-13
-maximum_iterations = 10000
-residual_target = 6.138485578780151e-6
-length_scale_m = 0.41
-velocity_scale_m_per_s = 0.3
-pressure_scale_pa = 0.0007317073170731707
-spatial_dimension = 2
-velocity_space = "simplex-p1-bubble"
-pressure_space = "continuous-lagrange-1"
-solver_algorithm = "sparse-lu"
-preconditioner = "identity"
-reduction = "fast"
-solver_backend = "eqiora.faer"
-workers = 1
-plan_properties = 23
-intent_arguments = 6
+policy = "scientific values and tolerances remain owned by the independent fluid case; this interface case checks composition and typed ownership"
 
 [acceptance]
-six_mandatory_readable_intent_arguments = true
-intent_is_immutable_with_value_equality_and_hash = true
-invalid_nonfinite_or_nonpositive_intent_fails_closed = true
-resolved_plan_publishes_every_effective_value_before_submission = true
-frozen_velocity_and_pressure_space_spellings_are_exact = true
-plan_identities_equal_the_revalidated_run_evidence = true
-plan_canonical_bytes_are_the_existing_realization_envelope = true
-resolution_is_deterministic_and_owner_lifetime_independent = true
-submit_run_await_and_repeated_result_share_one_occurrence = true
-cancellation_is_honest_and_never_partial = true
-retired_solve_entry_point_absent_from_runtime_and_stubs = true
-common_result_field_snapshot_and_mesh_owners = true
-typed_memoized_steady_stokes_evidence_selector = true
-demo_specific_result_and_pressure_plot_absent = true
-caller_supplies_current_model_bytes = true
-one_packaged_current_model_resource_is_byte_exact = true
-installed_test_reads_only_the_package_resource = true
-only_frozen_semantic_model_is_admitted = true
-geometry_and_mesh_ownership_fail_closed = true
-canonical_binding_and_run_bytes_replay_to_public_digests = true
-complete_pressure_and_support_mesh_are_coindexed = true
-pressure_array_index_bounds_fail_closed = true
-pressure_flux_reaction_balance_and_residual_oracles = true
-immutable_result_identity_is_run_identity = true
-matrix_views_are_memoized_read_only_and_owner_independent = true
-numpy_import_is_lazy_until_matrix_materialization = true
-isolated_installed_package_program = true
-checked_in_python_demo_with_newline_terminated_model = true
-registered_installed_wheel_evidence = true
-supplementary_clean_distribution_consumer_demo = true
-supplementary_embedded_pyo3_public_package_boundary = true
+caller_geometry_is_the_only_concrete_geometry_authority = true
+component_source_contains_no_concrete_box_or_duplicate_geometry = true
+root_resolver_accepts_fresh_and_replayed_models = true
+plan_publishes_exact_pressure_field_selector = true
+common_result_field_output_is_coindexed_with_accepted_mesh = true
+steady_stokes_observation_is_plan_authenticated = true
+observation_flux_and_momentum_relationships_are_finite = true
+foreign_field_and_cross_physics_observation_reject = true
+displaced_fluid_intent_plan_and_resolver_are_absent = true
+installed_demo_uses_only_the_installed_component_source = true
 
 [falsifiers]
-malformed_current_model = "CompatibilityError with EQ0901 before solve"
-foreign_source_revision = "same semantic digest but rejected by frozen source ownership with EQ0807"
-foreign_geometry_owner = "same inner mesh identity cannot substitute a different exact source owner"
-swapped_boundary_roles = "same inner mesh identity cannot substitute a different authored boundary meaning"
-coarse_mesh = "different topology and approximation policy rejected before solve"
-quality_policy_plateau = "same topology coordinates with a different mesh artifact identity rejected before solve"
-optional_intent_argument = "omitting any one of the six arguments must raise TypeError, never default"
-normalized_invalid_intent = "zero, negative, and nonfinite scalars and nonpositive iteration limits raise ValidationError instead of being clamped"
-silent_intent_fallback = "any changed mandatory value raises CapabilityError during resolve, before a Run or worker exists"
-hidden_effective_value = "every frozen Plan property is readable before submission and equals the Run-revalidated value"
-renamed_discretization_space = "either published space name differing from its frozen spelling fails the installed-wheel, isolated-package, and embedded programs"
-fabricated_plan_canonical_bytes = "killed by independent schema-domain-separated digest replay against realization_digest"
-ambient_resolution = "an independently rebuilt Model and Mesh must resolve to an equal Plan with equal canonical bytes"
-plan_owner_lifetime = "deleting the Python Model and a sibling Plan must not invalidate the retained Plan or its submission"
-foreign_model_at_submission = "a shape-equal Model with a foreign source revision is rejected with EQ0807 before a worker"
-duplicate_solve = "repeated result() returns the identical memoized object; sync, await, and run() agree on run_digest"
-partial_cancellation_output = "cancellation either raises CancellationError EQ0506 or returns the whole accepted Result"
-retained_removed_entry_point = "solve_exact_cylinder_stokes present in the runtime module, __all__, native module, or fluid.pyi"
-retained_demo_result_type = "CircularHoleSteadyStokesResult present in the runtime module, __all__, native module, or fluid.pyi"
-retained_demo_plot = "plot_pressure present in eqiora.matplotlib runtime, __all__, or stub"
-foreign_same_id_field = "a FieldRef with the accepted Field ULID but a different exact Model artifact selects a snapshot or Mesh"
-noncanonical_model_bytes = "pretty JSON is admitted by the current decoder and must replay to the same run identity"
-hardcoded_generated_digests = "killed by independent digest replay from public canonical binding and run bytes"
-result_owned_matrix_lifetime = "killed by retaining all views after deleting Result and forcing collection"
-array_index_bounds = "negative one replays the final scalar; an isize-sized negative index, len, and an isize-sized positive index are rejected with IndexError"
-eager_numpy_dependency = "killed in both isolated installed-package and embedded-native programs"
-missing_or_changed_packaged_model = "installed-wheel tests require the exact current canonical payload plus its newline-terminated 16798-byte resource"
-repository_model_dependency = "distribution consumer copies only the demo and runs it with no repository Model file"
+duplicate_geometry_authority = "the .eqi source regains a concrete box or circle definition"
+foreign_field = "a FieldRef not owned by the exact Plan selects pressure output"
+foreign_observation = "steady-Stokes observation accepts an elasticity Result"
+fresh_replay_split = "fresh and replayed equal Models require different resolver semantics"
+hidden_application_resolver = "SteadyStokes, SteadyStokesPlan, or fluid.resolve reappears"
+nonfinite_derived_observation = "finite operands overflow during native flux or momentum aggregation without rejection"
+repository_resource_dependency = "the installed demo requires a repository Model JSON or private rewrite"
 
 [claim_boundary]
-one_frozen_model = true
-one_packaged_current_model_artifact = true
-general_packaged_model_catalog = false
-general_packaged_model_loader = false
 one_exact_geometry = true
-one_exact_gmsh_4_15_2_realization = true
+one_reference_mesh = true
 steady_stokes_only = true
 intrinsic_dimension = 2
-affine_triangles_only = true
-complete_pressure_p1_field = true
-common_static_result = true
-common_field_snapshot = true
-common_mesh_pairing = true
+common_pressure_field_output = true
+typed_native_observation = true
+general_fluid_authoring = false
+general_meshing_choice = false
 velocity_or_bubble_projection = false
-general_model_or_fluid_authoring = false
-generic_solver_or_meshing_choice = false
-curved_elements = false
 drag_or_lift_coefficient = false
 visualization = false
 mesh_or_pde_convergence = false
 navier_stokes_or_transient = false
 fsi = false
-performance_or_scale = false
-cross_platform_bit_identity = false
-linux_x86_64_exact_mesh_witness_only = true
-one_accepted_intent_and_plan_tuple = true
-alternate_solver_backend_or_topology_selection = false
-general_plan_or_realization_unification = false
-durable_plan_wire_or_provider_registry = false
-frozen_velocity_or_pressure_space_spelling = true
-mid_solve_cancellation_boundary = false
+cross_platform_mesh_byte_identity = false
 
 [evidence]
 runner = "python-installed-wheel"

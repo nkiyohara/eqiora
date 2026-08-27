@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 15 module summaries and all 143 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 598 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 15 module summaries and all 121 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 479 signature-only entries under documented owning types**.
 
-Inventory: 15 modules, 163 literal public spellings, 143 canonical grouped declarations, 796 visible method signatures (598 non-dunder and 198 dunder), and 67 visible class assignments.
+Inventory: 15 modules, 145 literal public spellings, 121 canonical grouped declarations, 653 visible method signatures (479 non-dunder and 174 dunder), and 60 visible class assignments.
 
 Regenerate with:
 
@@ -405,6 +405,25 @@ class Dimension:
     def __ne__(self, other: object, /) -> bool: ...
 ```
 
+<a id="api-eqiora-DomainRef"></a>
+
+### `eqiora.DomainRef`
+
+Exact canonical Domain selected from one immutable Model.
+
+Authority: [`crates/eqiora-python/src/model.rs::PyModelDomainRef`](../../crates/eqiora-python/src/model.rs)
+
+```python
+@final
+class DomainRef:
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def id(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
 <a id="api-eqiora-Domain"></a>
 
 ### `eqiora.Domain`
@@ -429,25 +448,6 @@ class Domain:
     def axis(self) -> int | None: ...
     @property
     def side(self) -> BoundarySide | None: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-DomainRef"></a>
-
-### `eqiora.DomainRef`
-
-Exact canonical Domain selected from one immutable Model.
-
-Authority: [`crates/eqiora-python/src/model.rs::PyModelDomainRef`](../../crates/eqiora-python/src/model.rs)
-
-```python
-@final
-class DomainRef:
-    @property
-    def model_digest(self) -> str: ...
-    @property
-    def id(self) -> str: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```
@@ -930,44 +930,6 @@ class Plan:
     def __hash__(self) -> int: ...
 ```
 
-<a id="api-eqiora-Realization"></a>
-
-### `eqiora.Realization`
-
-Exact model-bound capability-admitted portable realization.
-
-Authority: [`crates/eqiora-python/src/realization.rs::PyRealization`](../../crates/eqiora-python/src/realization.rs)
-
-```python
-@final
-class Realization:
-    @property
-    def digest(self) -> str: ...
-    @property
-    def model_digest(self) -> str: ...
-    @property
-    def realization_revision(self) -> int: ...
-    @property
-    def method(self) -> ScalarEllipticMethod: ...
-    @property
-    def cells_per_axis(self) -> int: ...
-    @property
-    def workers(self) -> int: ...
-    @property
-    def cell_count(self) -> int: ...
-    @property
-    def field_value_count(self) -> int: ...
-    @property
-    def spatial_dimension(self) -> int: ...
-    @property
-    def field_logical_shape(self) -> tuple[int, ...]: ...
-    @property
-    def field_bounds(self) -> tuple[tuple[float, float], ...]: ...
-    def to_json(self) -> bytes: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
 <a id="api-eqiora-Representation"></a>
 
 ### `eqiora.Representation`
@@ -1040,7 +1002,6 @@ class Result:
     @property
     def fields(self) -> list[Series]: ...
     @property
-    def snapshots(self) -> tuple[trajectory.FieldSnapshot, ...]: ...
     @property
     def values(self) -> Array: ...
     @property
@@ -1051,13 +1012,10 @@ class Result:
     def solve(self) -> LinearSolveSummary: ...
     def output(self, field: FieldRef, /) -> FieldOutput: ...
     def series(self, field: FieldRef, /) -> Series: ...
-    def field(self, field: FieldRef, /) -> trajectory.FieldSnapshot: ...
     def mesh(self, field: FieldRef, /) -> meshing.Mesh: ...
     @property
     def trajectory(self) -> trajectory.Trajectory: ...
-    def run_manifest(self) -> RunManifest: ...
     def __len__(self) -> int: ...
-    def __getitem__(self, key: str, /) -> Series: ...
 ```
 
 <a id="api-eqiora-Revision"></a>
@@ -1097,9 +1055,9 @@ class Run(Generic[_RunResultT]):
     @property
     def history(self) -> tuple[RunStatus, ...]: ...
     @property
-    def progress(self) -> RunProgress | ScalarEllipticRunProgress | TransientRunProgress | None: ...
+    def progress(self) -> TransientRunProgress | None: ...
     @property
-    def cancellation(self) -> RunCancellation | ScalarEllipticRunCancellation | TransientRunCancellation | None: ...
+    def cancellation(self) -> TransientRunCancellation | None: ...
     @property
     def done(self) -> bool: ...
     @property
@@ -1117,86 +1075,6 @@ class Run(Generic[_RunResultT]):
     def cancel(self) -> bool: ...
     def result(self) -> _RunResultT: ...
     def __await__(self) -> Generator[Any, None, _RunResultT]: ...
-```
-
-<a id="api-eqiora-RunManifest"></a>
-
-### `eqiora.RunManifest`
-
-Persisted exact run-v2 manifest linked to an accepted realization.
-
-Authority: [`crates/eqiora-python/src/realization.rs::PyRunManifest`](../../crates/eqiora-python/src/realization.rs)
-
-```python
-@final
-class RunManifest:
-    @staticmethod
-    def from_json(data: bytes, *, realization: Realization) -> RunManifest: ...
-    @property
-    def digest(self) -> str: ...
-    @property
-    def model_digest(self) -> str: ...
-    @property
-    def realization_digest(self) -> str: ...
-    @property
-    def semantic_revision(self) -> int: ...
-    @property
-    def output_digests(self) -> list[str]: ...
-    @property
-    def adapter(self) -> str: ...
-    @property
-    def adapter_version(self) -> str: ...
-    @property
-    def solver_backend(self) -> str: ...
-    @property
-    def solver_backend_version(self) -> str: ...
-    @property
-    def workers(self) -> int: ...
-    @property
-    def reduction(self) -> str: ...
-    def to_json(self) -> bytes: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-RunCancellation"></a>
-
-### `eqiora.RunCancellation`
-
-Exact accepted boundary where cooperative cancellation terminated.
-
-Authority: [`crates/eqiora-python/src/execution/evidence.rs::PyRunCancellation`](../../crates/eqiora-python/src/execution/evidence.rs)
-
-```python
-@final
-class RunCancellation:
-    @property
-    def progress(self) -> RunProgress: ...
-    @property
-    def elapsed_seconds(self) -> float: ...
-    @property
-    def plan_key(self) -> str: ...
-```
-
-<a id="api-eqiora-RunProgress"></a>
-
-### `eqiora.RunProgress`
-
-Last coalesced fully accepted semantic-execution boundary.
-
-Authority: [`crates/eqiora-python/src/execution/evidence.rs::PyRunProgress`](../../crates/eqiora-python/src/execution/evidence.rs)
-
-```python
-@final
-class RunProgress:
-    @property
-    def model_time(self) -> float: ...
-    @property
-    def end_time(self) -> float: ...
-    @property
-    def accepted_steps(self) -> int: ...
-    @property
-    def maximum_steps(self) -> int: ...
 ```
 
 <a id="api-eqiora-RunStatus"></a>
@@ -1220,172 +1098,6 @@ class RunStatus:
     Failed: ClassVar[RunStatus]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-ScalarElliptic"></a>
-
-### `eqiora.ScalarElliptic`
-
-Unbound typed scalar-elliptic request, not realization identity.
-
-Authority: [`crates/eqiora-python/src/realization.rs::PyScalarElliptic`](../../crates/eqiora-python/src/realization.rs)
-
-```python
-@final
-class ScalarElliptic:
-    def __new__(cls, *, method: ScalarEllipticMethod, cells_per_axis: int, realization_revision: int=1) -> Self: ...
-    @property
-    def method(self) -> ScalarEllipticMethod: ...
-    @property
-    def cells_per_axis(self) -> int: ...
-    @property
-    def realization_revision(self) -> int: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-ScalarEllipticBalance"></a>
-
-### `eqiora.ScalarEllipticBalance`
-
-Accepted continuous scalar-elliptic balance evidence.
-
-Authority: [`crates/eqiora-python/src/realization.rs::PyScalarEllipticBalance`](../../crates/eqiora-python/src/realization.rs)
-
-```python
-@final
-class ScalarEllipticBalance:
-    @property
-    def boundary_total(self) -> float: ...
-    @property
-    def integrated_source(self) -> float: ...
-    @property
-    def relative_imbalance(self) -> float: ...
-```
-
-<a id="api-eqiora-ScalarEllipticMethod"></a>
-
-### `eqiora.ScalarEllipticMethod`
-
-Numerical family for one bounded scalar-elliptic request.
-
-Authority: [`crates/eqiora-python/src/realization.rs::PyScalarEllipticMethod`](../../crates/eqiora-python/src/realization.rs)
-
-```python
-@final
-class ScalarEllipticMethod:
-    FiniteElement: ClassVar[ScalarEllipticMethod]
-    FiniteVolume: ClassVar[ScalarEllipticMethod]
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-ScalarEllipticResult"></a>
-
-### `eqiora.ScalarEllipticResult`
-
-Accepted scalar-elliptic result with producer/verifier evidence.
-
-Authority: [`crates/eqiora-python/src/realization.rs::PyScalarEllipticResult`](../../crates/eqiora-python/src/realization.rs)
-
-```python
-@final
-class ScalarEllipticResult:
-    @property
-    def realization(self) -> Realization: ...
-    @property
-    def run_manifest(self) -> RunManifest: ...
-    @property
-    def elapsed_seconds(self) -> float: ...
-    @property
-    def field(self) -> ScalarFieldSummary: ...
-    @property
-    def values(self) -> Array: ...
-    @property
-    def balance(self) -> ScalarEllipticBalance: ...
-    @property
-    def solve(self) -> LinearSolveSummary: ...
-    @property
-    def output_fingerprint(self) -> str: ...
-```
-
-<a id="api-eqiora-ScalarEllipticRunCancellation"></a>
-
-### `eqiora.ScalarEllipticRunCancellation`
-
-Exact scalar-elliptic phase where cancellation terminated.
-
-Authority: [`crates/eqiora-python/src/execution/evidence.rs::PyScalarEllipticRunCancellation`](../../crates/eqiora-python/src/execution/evidence.rs)
-
-```python
-@final
-class ScalarEllipticRunCancellation:
-    @property
-    def progress(self) -> ScalarEllipticRunProgress: ...
-    @property
-    def elapsed_seconds(self) -> float: ...
-    @property
-    def plan_key(self) -> str: ...
-```
-
-<a id="api-eqiora-ScalarEllipticRunProgress"></a>
-
-### `eqiora.ScalarEllipticRunProgress`
-
-Last fully accepted scalar-elliptic application phase.
-
-Authority: [`crates/eqiora-python/src/execution/evidence.rs::PyScalarEllipticRunProgress`](../../crates/eqiora-python/src/execution/evidence.rs)
-
-```python
-@final
-class ScalarEllipticRunProgress:
-    PlanReplayed: ClassVar[ScalarEllipticRunProgress]
-    SystemFinalized: ClassVar[ScalarEllipticRunProgress]
-    SolutionAccepted: ClassVar[ScalarEllipticRunProgress]
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-ScalarFieldLocation"></a>
-
-### `eqiora.ScalarFieldLocation`
-
-Vertex or cell-centre meaning of a scalar field summary.
-
-Authority: [`crates/eqiora-python/src/realization.rs::PyScalarFieldLocation`](../../crates/eqiora-python/src/realization.rs)
-
-```python
-@final
-class ScalarFieldLocation:
-    Vertex: ClassVar[ScalarFieldLocation]
-    CellCenter: ClassVar[ScalarFieldLocation]
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-ScalarFieldSummary"></a>
-
-### `eqiora.ScalarFieldSummary`
-
-Bounded accepted field summary; arrays remain on the data plane.
-
-Authority: [`crates/eqiora-python/src/realization.rs::PyScalarFieldSummary`](../../crates/eqiora-python/src/realization.rs)
-
-```python
-@final
-class ScalarFieldSummary:
-    @property
-    def location(self) -> ScalarFieldLocation: ...
-    @property
-    def spatial_dimension(self) -> int: ...
-    @property
-    def logical_shape(self) -> tuple[int, ...]: ...
-    @property
-    def value_count(self) -> int: ...
-    @property
-    def minimum(self) -> float: ...
-    @property
-    def maximum(self) -> float: ...
 ```
 
 <a id="api-eqiora-Series"></a>
@@ -1649,18 +1361,6 @@ Authority: [`crates/eqiora-python/src/modeling.rs::grad`](../../crates/eqiora-py
 def grad(value: _ExpressionLike) -> Expression: ...
 ```
 
-<a id="api-eqiora-preview_realization"></a>
-
-### `eqiora.preview_realization`
-
-Resolve a request before numerical allocation.
-
-Authority: [`crates/eqiora-python/src/realization.rs::preview_realization`](../../crates/eqiora-python/src/realization.rs)
-
-```python
-def preview_realization(model: Model, request: ScalarElliptic) -> Realization: ...
-```
-
 <a id="api-eqiora-replay"></a>
 
 ### `eqiora.replay`
@@ -1762,6 +1462,16 @@ Accepted implicit differentiation over exact Eqiora programs.
 
 Authority: [`bindings/python/python/eqiora/diff.py`](../../bindings/python/python/eqiora/diff.py)
 
+<a id="api-eqiora-fem"></a>
+
+### `eqiora.fem`
+
+**Module export.** Continue to [`eqiora.fem`](#module-eqiora-fem).
+
+Closed finite-element spatial policies.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyQ1`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
 <a id="api-eqiora-fluid"></a>
 
 ### `eqiora.fluid`
@@ -1781,6 +1491,16 @@ Authority: [`bindings/python/python/eqiora/fluid.py`](../../bindings/python/pyth
 Observation-only evidence for common FSI Results.
 
 Authority: [`bindings/python/python/eqiora/fsi.py`](../../bindings/python/python/eqiora/fsi.py)
+
+<a id="api-eqiora-fvm"></a>
+
+### `eqiora.fvm`
+
+**Module export.** Continue to [`eqiora.fvm`](#module-eqiora-fvm).
+
+Closed finite-volume spatial policies.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyCellCenteredTpfa`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 <a id="api-eqiora-geometry"></a>
 
@@ -1811,6 +1531,26 @@ Authority: [`bindings/python/python/eqiora/meshing.py`](../../bindings/python/py
 Typed structural intents, plans, and scientific evidence.
 
 Authority: [`bindings/python/python/eqiora/solid.py`](../../bindings/python/python/eqiora/solid.py)
+
+<a id="api-eqiora-solve"></a>
+
+### `eqiora.solve`
+
+**Module export.** Continue to [`eqiora.solve`](#module-eqiora-solve).
+
+Closed algebraic solve policies.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyLinear`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+<a id="api-eqiora-time"></a>
+
+### `eqiora.time`
+
+**Module export.** Continue to [`eqiora.time`](#module-eqiora-time).
+
+Closed temporal policies projected by the native Eqiora resolver.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 <a id="api-eqiora-trajectory"></a>
 
@@ -2845,34 +2585,6 @@ class PressureGauge2d:
     def __hash__(self) -> int: ...
 ```
 
-<a id="api-eqiora-fluid-SteadyStokes"></a>
-
-### `eqiora.fluid.SteadyStokes`
-
-Complete steady-Stokes request with no hidden numerical defaults.
-
-Authority: [`crates/eqiora-python/src/steady_stokes.rs::PySteadyStokes`](../../crates/eqiora-python/src/steady_stokes.rs)
-
-```python
-@final
-class SteadyStokes:
-    def __new__(cls, *, length_scale_m: float, velocity_scale_m_per_s: float, pressure_scale_pa: float, relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int) -> SteadyStokes: ...
-    @property
-    def length_scale_m(self) -> float: ...
-    @property
-    def velocity_scale_m_per_s(self) -> float: ...
-    @property
-    def pressure_scale_pa(self) -> float: ...
-    @property
-    def relative_tolerance(self) -> float: ...
-    @property
-    def absolute_tolerance(self) -> float: ...
-    @property
-    def maximum_iterations(self) -> int: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
 <a id="api-eqiora-fluid-SteadyStokesEvidence"></a>
 
 ### `eqiora.fluid.SteadyStokesEvidence`
@@ -2885,7 +2597,7 @@ Authority: [`crates/eqiora-python/src/steady_stokes.rs::PySteadyStokesEvidence`]
 @final
 class SteadyStokesEvidence:
     @property
-    def run_digest(self) -> str: ...
+    def plan_key(self) -> str: ...
     @property
     def pressure_minimum(self) -> float: ...
     @property
@@ -2912,79 +2624,6 @@ class SteadyStokesEvidence:
     def solve(self) -> LinearSolveSummary: ...
     @property
     def continuity_residual_norm(self) -> float: ...
-```
-
-<a id="api-eqiora-fluid-SteadyStokesPlan"></a>
-
-### `eqiora.fluid.SteadyStokesPlan`
-
-Immutable steady-Stokes plan resolved before submission.
-
-Authority: [`crates/eqiora-python/src/steady_stokes.rs::PySteadyStokesPlan`](../../crates/eqiora-python/src/steady_stokes.rs)
-
-```python
-@final
-class SteadyStokesPlan:
-    @property
-    def model_digest(self) -> str: ...
-    @property
-    def semantic_revision(self) -> int: ...
-    @property
-    def geometry_digest(self) -> str: ...
-    @property
-    def correspondence_digest(self) -> str: ...
-    @property
-    def mesh_digest(self) -> str: ...
-    @property
-    def realization_digest(self) -> str: ...
-    @property
-    def realization_revision(self) -> int: ...
-    @property
-    def spatial_dimension(self) -> int: ...
-    @property
-    def velocity_space(self) -> str: ...
-    @property
-    def pressure_space(self) -> str: ...
-    @property
-    def length_scale_m(self) -> float: ...
-    @property
-    def velocity_scale_m_per_s(self) -> float: ...
-    @property
-    def pressure_scale_pa(self) -> float: ...
-    @property
-    def solver_algorithm(self) -> str: ...
-    @property
-    def preconditioner(self) -> str: ...
-    @property
-    def reduction(self) -> str: ...
-    @property
-    def relative_tolerance(self) -> float: ...
-    @property
-    def absolute_tolerance(self) -> float: ...
-    @property
-    def maximum_iterations(self) -> int: ...
-    @property
-    def solver_backend(self) -> str: ...
-    @property
-    def execution_adapter(self) -> str: ...
-    @property
-    def workers(self) -> int: ...
-    @property
-    def canonical_bytes(self) -> bytes: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-fluid-resolve"></a>
-
-### `eqiora.fluid.resolve`
-
-Resolve a steady-Stokes intent without executing it.
-
-Authority: [`crates/eqiora-python/src/steady_stokes.rs::resolve`](../../crates/eqiora-python/src/steady_stokes.rs)
-
-```python
-def resolve(model: Model, intent: SteadyStokes, /, *, mesh: Mesh) -> SteadyStokesPlan: ...
 ```
 
 <a id="api-eqiora-fluid-steady_stokes_evidence"></a>
@@ -3207,30 +2846,6 @@ Module authority: [`bindings/python/python/eqiora/solid.py`](../../bindings/pyth
 
 Shipped stub: [`bindings/python/python/eqiora/solid.pyi`](../../bindings/python/python/eqiora/solid.pyi)
 
-<a id="api-eqiora-solid-LinearElasticity"></a>
-
-### `eqiora.solid.LinearElasticity`
-
-Complete linear-elasticity request without hidden numerical defaults.
-
-Authority: [`crates/eqiora-python/src/elasticity.rs::PyLinearElasticity`](../../crates/eqiora-python/src/elasticity.rs)
-
-```python
-@final
-class LinearElasticity:
-    def __new__(cls, *, cells_per_axis: int, relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int) -> LinearElasticity: ...
-    @property
-    def cells_per_axis(self) -> int: ...
-    @property
-    def relative_tolerance(self) -> float: ...
-    @property
-    def absolute_tolerance(self) -> float: ...
-    @property
-    def maximum_iterations(self) -> int: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
 <a id="api-eqiora-solid-LinearElasticityEvidence"></a>
 
 ### `eqiora.solid.LinearElasticityEvidence`
@@ -3243,7 +2858,7 @@ Authority: [`crates/eqiora-python/src/elasticity.rs::PyLinearElasticityEvidence`
 @final
 class LinearElasticityEvidence:
     @property
-    def run_digest(self) -> str: ...
+    def plan_key(self) -> str: ...
     @property
     def constrained_reaction(self) -> tuple[float, float]: ...
     @property
@@ -3258,89 +2873,6 @@ class LinearElasticityEvidence:
     def exact_bounds(self) -> tuple[tuple[float, float], tuple[float, float]]: ...
 ```
 
-<a id="api-eqiora-solid-LinearElasticityPlan"></a>
-
-### `eqiora.solid.LinearElasticityPlan`
-
-Immutable linear-elasticity plan resolved before submission.
-
-Authority: [`crates/eqiora-python/src/elasticity.rs::PyLinearElasticityPlan`](../../crates/eqiora-python/src/elasticity.rs)
-
-```python
-@final
-class LinearElasticityPlan:
-    @property
-    def model_digest(self) -> str: ...
-    @property
-    def semantic_revision(self) -> int: ...
-    @property
-    def geometry_digest(self) -> str: ...
-    @property
-    def correspondence_digest(self) -> str: ...
-    @property
-    def mesh_digest(self) -> str: ...
-    @property
-    def realization_digest(self) -> str: ...
-    @property
-    def realization_revision(self) -> int: ...
-    @property
-    def spatial_dimension(self) -> int: ...
-    @property
-    def cells_per_axis(self) -> int: ...
-    @property
-    def discretization_method(self) -> str: ...
-    @property
-    def mesh_kind(self) -> str: ...
-    @property
-    def mesh_policy(self) -> str: ...
-    @property
-    def field_space(self) -> str: ...
-    @property
-    def quadrature(self) -> str: ...
-    @property
-    def quadrature_points_per_axis(self) -> int: ...
-    @property
-    def scalar_type(self) -> str: ...
-    @property
-    def vector_layout(self) -> str: ...
-    @property
-    def coefficient_association(self) -> str: ...
-    @property
-    def solver_algorithm(self) -> str: ...
-    @property
-    def preconditioner(self) -> str: ...
-    @property
-    def reduction(self) -> str: ...
-    @property
-    def relative_tolerance(self) -> float: ...
-    @property
-    def absolute_tolerance(self) -> float: ...
-    @property
-    def maximum_iterations(self) -> int: ...
-    @property
-    def solver_backend(self) -> str: ...
-    @property
-    def execution_adapter(self) -> str: ...
-    @property
-    def workers(self) -> int: ...
-    @property
-    def canonical_bytes(self) -> bytes: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-<a id="api-eqiora-solid-MixedBoundaryElasticityResult"></a>
-
-### `eqiora.solid.MixedBoundaryElasticityResult`
-
-Deprecated alias for the common `Result` type.
-
-Authority: [`bindings/python/python/eqiora/solid.py::__getattr__`](../../bindings/python/python/eqiora/solid.py)
-
-```python
-MixedBoundaryElasticityResult = Result
-```
-
 <a id="api-eqiora-solid-linear_elasticity_evidence"></a>
 
 ### `eqiora.solid.linear_elasticity_evidence`
@@ -3351,30 +2883,6 @@ Authority: [`crates/eqiora-python/src/elasticity.rs::linear_elasticity_evidence`
 
 ```python
 def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence: ...
-```
-
-<a id="api-eqiora-solid-resolve"></a>
-
-### `eqiora.solid.resolve`
-
-Resolve a structural intent without executing it.
-
-Authority: [`crates/eqiora-python/src/elasticity.rs::resolve`](../../crates/eqiora-python/src/elasticity.rs)
-
-```python
-def resolve(model: Model, intent: LinearElasticity, /) -> LinearElasticityPlan: ...
-```
-
-<a id="api-eqiora-solid-solve_mixed_boundary_elasticity"></a>
-
-### `eqiora.solid.solve_mixed_boundary_elasticity`
-
-Delegate the legacy solve to the explicit plan and result path.
-
-Authority: [`bindings/python/python/eqiora/solid.py::solve_mixed_boundary_elasticity`](../../bindings/python/python/eqiora/solid.py)
-
-```python
-def solve_mixed_boundary_elasticity(model: Model, /) -> Result: ...
 ```
 
 <a id="module-eqiora-matplotlib"></a>
@@ -3401,18 +2909,6 @@ def plot_deformed_field(trajectory: Trajectory, /, *, step: int, field: FieldRef
 
 @overload
 def plot_deformed_field(result: Result, /, *, field: FieldRef, scale: float=1.0) -> Figure: ...
-```
-
-<a id="api-eqiora-matplotlib-plot_displacement"></a>
-
-### `eqiora.matplotlib.plot_displacement`
-
-Deprecated delegation to `plot_deformed_field`.
-
-Authority: [`bindings/python/python/eqiora/matplotlib.py::plot_displacement`](../../bindings/python/python/eqiora/matplotlib.py)
-
-```python
-def plot_displacement(result: Result, /, *, scale: float=1.0) -> Figure: ...
 ```
 
 <a id="api-eqiora-matplotlib-plot_scalar_field"></a>

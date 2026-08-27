@@ -4,8 +4,8 @@ use std::sync::Mutex;
 
 use eqiora::Diagnostic;
 use eqiora::artifact::{
-    AcceptedCircularHoleChordalRealizationV1, CartesianMeshEnvelopeV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1, RealizationEnvelopeV1,
+    AcceptedCircularHoleChordalRealizationV1, CartesianMeshEnvelopeV1,
+    GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
     SimplicialMeshEnvelopeV1,
 };
 use eqiora::diagnostic::codes;
@@ -82,7 +82,6 @@ enum AcceptedMeshSource {
         correspondence: Box<GeometryMeshCorrespondenceEnvelopeV1>,
         production: Box<MeshProductionLineageEnvelopeV1>,
     },
-    Cartesian,
 }
 
 enum SourceOwnedProviderObservation {
@@ -261,12 +260,10 @@ impl PyMesh {
             AcceptedMeshSource::SourceOwned { mesh, .. } => {
                 Ok(mesh.mesh().quality_report().minimum_mean_ratio())
             }
-            AcceptedMeshSource::SourceOwnedCartesian { .. } | AcceptedMeshSource::Cartesian => {
-                Err(capability_error(
-                    py,
-                    "minimum_mean_ratio is not defined for this Cartesian Mesh",
-                ))
-            }
+            AcceptedMeshSource::SourceOwnedCartesian { .. } => Err(capability_error(
+                py,
+                "minimum_mean_ratio is not defined for this Cartesian Mesh",
+            )),
         }
     }
 
@@ -289,10 +286,6 @@ impl PyMesh {
                 .iter()
                 .map(NamedEntitySet::name)
                 .collect::<Vec<_>>(),
-            AcceptedMeshSource::Cartesian => {
-                // This accepted Cartesian Mesh publishes no named selections.
-                Vec::new()
-            }
         };
         Ok(PyTuple::new(py, names)?.unbind())
     }
@@ -354,10 +347,6 @@ impl PyMesh {
                 .planar_rectangle_v2_entity_set_entities(geometry, name)
                 .and_then(|entities| validated_entity_count(entities, expected_dimension))
                 .map_err(|diagnostic| validation_error(py, &[diagnostic])),
-            AcceptedMeshSource::Cartesian => Err(capability_error(
-                py,
-                "this Cartesian Mesh publishes no named selection membership",
-            )),
         }
     }
 
@@ -765,82 +754,6 @@ impl PyMesh {
         Ok(mesh)
     }
 
-    pub(crate) fn from_cartesian(
-        py: Python<'_>,
-        geometry: GeometryIdentityEnvelopeV1,
-        mesh: CartesianMeshEnvelopeV1,
-        correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-        realization: RealizationEnvelopeV1,
-    ) -> PyResult<Self> {
-        let dimension = mesh.dimension();
-        let native = mesh.mesh();
-        let vertex_count = native
-            .entity_count(0)
-            .ok_or_else(|| PyRuntimeError::new_err("Cartesian Mesh omitted its vertices"))?;
-        let cell_count = native.entity_count(dimension).ok_or_else(|| {
-            PyRuntimeError::new_err("Cartesian Mesh omitted its top-dimensional cells")
-        })?;
-        let (coordinates, cells) =
-            project_cartesian_mesh(py, native, dimension, vertex_count, cell_count)?;
-        let geometry_digest = geometry
-            .digest()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
-            .to_string();
-        let mesh_digest = mesh
-            .digest()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
-            .to_string();
-        let correspondence_digest = correspondence
-            .digest()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
-            .to_string();
-        let realization_digest = realization
-            .digest()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
-            .to_string();
-        let canonical_bytes = mesh
-            .canonical_json()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-        Ok(Self {
-            source: AcceptedMeshSource::Cartesian,
-            lineage: MeshLineage {
-                source_digest: geometry_digest.clone(),
-                realized_geometry_digest: geometry_digest,
-                mesh_digest,
-                correspondence_digest,
-                realization_digest: Some(realization_digest),
-                dimension,
-                vertex_count,
-                cell_count,
-            },
-            canonical_bytes,
-            coordinates,
-            cells,
-            presentation: Mutex::new(PresentationState::Empty),
-        })
-    }
-
-    pub(crate) fn accepted_chordal(
-        &self,
-        py: Python<'_>,
-    ) -> PyResult<&AcceptedCircularHoleChordalRealizationV1> {
-        match &self.source {
-            AcceptedMeshSource::Chordal { accepted, .. } => Ok(accepted),
-            AcceptedMeshSource::SourceOwned { .. } => Err(capability_error(
-                py,
-                "this operation requires the legacy accepted affine-triangle realization",
-            )),
-            AcceptedMeshSource::SourceOwnedCartesian { .. } => Err(capability_error(
-                py,
-                "this operation requires an accepted affine-triangle Mesh",
-            )),
-            AcceptedMeshSource::Cartesian => Err(capability_error(
-                py,
-                "this operation requires an accepted affine-triangle Mesh",
-            )),
-        }
-    }
-
     fn representation(&self) -> String {
         format!(
             "Mesh(dimension={}, vertices={}, cells={}, digest={:?})",
@@ -876,7 +789,6 @@ impl PyMesh {
             } => external_import.as_deref(),
             AcceptedMeshSource::SourceOwned { .. } => None,
             AcceptedMeshSource::SourceOwnedCartesian { .. } => None,
-            AcceptedMeshSource::Cartesian => None,
         }
     }
 
@@ -884,7 +796,7 @@ impl PyMesh {
         match &self.source {
             AcceptedMeshSource::SourceOwned { production, .. } => Some(production),
             AcceptedMeshSource::SourceOwnedCartesian { production, .. } => Some(production),
-            AcceptedMeshSource::Chordal { .. } | AcceptedMeshSource::Cartesian => None,
+            AcceptedMeshSource::Chordal { .. } => None,
         }
     }
 
@@ -1057,7 +969,7 @@ impl PyMesh {
                     Ok(None)
                 }
             }
-            AcceptedMeshSource::Chordal { .. } | AcceptedMeshSource::Cartesian => Ok(None),
+            AcceptedMeshSource::Chordal { .. } => Ok(None),
         }
     }
 

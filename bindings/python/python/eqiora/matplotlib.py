@@ -1,7 +1,6 @@
 """Matplotlib presentation adapters for accepted Eqiora results."""
 
 import math
-import warnings
 
 import numpy as np
 
@@ -23,36 +22,10 @@ from .solid import linear_elasticity_evidence
 
 __all__ = [
     "plot_deformed_field",
-    "plot_displacement",
     "plot_scalar_field",
 ]
 
 _MISSING = object()
-
-
-def plot_displacement(
-    result: Result,
-    /,
-    *,
-    scale: float = 1.0,
-) -> Figure:
-    """Deprecated delegation to :func:`plot_deformed_field`."""
-
-    if not isinstance(result, Result):
-        raise TypeError("plot_displacement() requires eqiora.Result")
-    warnings.warn(
-        "plot_displacement() is deprecated; use plot_deformed_field() instead",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    snapshots = result.snapshots
-    if len(snapshots) != 1:
-        raise ValueError("plot_displacement() requires one static Field snapshot")
-    return plot_deformed_field(
-        result,
-        field=snapshots[0].field,
-        scale=scale,
-    )
 
 
 def plot_scalar_field(
@@ -71,10 +44,10 @@ def plot_scalar_field(
         bounds = evidence.exact_bounds
         minimum = evidence.pressure_minimum
         maximum = evidence.pressure_maximum
-        snapshot = trajectory.field(field)
-        spatial = trajectory.mesh(field)
+        output = trajectory.output(field)
+        spatial = output.mesh
         state = None
-        scalar_label = _result_scalar_label(snapshot.dimension)
+        scalar_label = _result_scalar_label(output.dimension)
     elif isinstance(trajectory, Trajectory):
         if step is _MISSING:
             raise TypeError("plot_scalar_field() requires step for Trajectory")
@@ -87,15 +60,18 @@ def plot_scalar_field(
             "plot_scalar_field() requires eqiora.Result or eqiora.trajectory.Trajectory"
         )
 
-    if snapshot.value_shape != ():
-        raise ValueError("plot_scalar_field() requires scalar value shape ()")
-    if snapshot.frame != "invariant":
-        raise ValueError("plot_scalar_field() requires the invariant frame")
-    coordinates, triangles, values, support = _vertex_field_arrays(
-        spatial,
-        snapshot,
-        cell_arity=3,
-    )
+    if state is None:
+        if output.components != 1:
+            raise ValueError("plot_scalar_field() requires one scalar component")
+        coordinates, triangles, values, support = _static_field_arrays(output, cell_arity=3)
+    else:
+        if snapshot.value_shape != ():
+            raise ValueError("plot_scalar_field() requires scalar value shape ()")
+        if snapshot.frame != "invariant":
+            raise ValueError("plot_scalar_field() requires the invariant frame")
+        coordinates, triangles, values, support = _vertex_field_arrays(
+            spatial, snapshot, cell_arity=3
+        )
     restricted = values[support]
     if state is not None:
         minimum = float(restricted.min())
@@ -158,8 +134,8 @@ def plot_deformed_field(
         # The current static vector arm is the accepted structural Result. This
         # typed selection rejects scalar and temporal Results before rendering.
         linear_elasticity_evidence(trajectory)
-        snapshot = trajectory.field(field)
-        spatial = trajectory.mesh(field)
+        output = trajectory.output(field)
+        spatial = output.mesh
         state = None
         cell_arity = 4
     elif isinstance(trajectory, Trajectory):
@@ -173,20 +149,26 @@ def plot_deformed_field(
             "plot_deformed_field() requires eqiora.Result or eqiora.trajectory.Trajectory"
         )
 
-    if snapshot.value_shape != (spatial.dimension,):
-        raise ValueError(
-            "plot_deformed_field() value shape must match the spatial dimension"
+    if state is None:
+        if output.components != spatial.dimension:
+            raise ValueError("plot_deformed_field() components must match the spatial dimension")
+        if output.dimension != (0, 1, 0, 0, 0, 0, 0):
+            raise ValueError("plot_deformed_field() requires the SI length dimension")
+        coordinates, cells, values, support = _static_field_arrays(
+            output, cell_arity=cell_arity
         )
-    if snapshot.frame != "spatial-cartesian":
-        raise ValueError("plot_deformed_field() requires the spatial-cartesian frame")
-    if snapshot.dimension != (0, 1, 0, 0, 0, 0, 0):
-        raise ValueError("plot_deformed_field() requires the SI length dimension")
-
-    coordinates, cells, values, support = _vertex_field_arrays(
-        spatial,
-        snapshot,
-        cell_arity=cell_arity,
-    )
+    else:
+        if snapshot.value_shape != (spatial.dimension,):
+            raise ValueError(
+                "plot_deformed_field() value shape must match the spatial dimension"
+            )
+        if snapshot.frame != "spatial-cartesian":
+            raise ValueError("plot_deformed_field() requires the spatial-cartesian frame")
+        if snapshot.dimension != (0, 1, 0, 0, 0, 0, 0):
+            raise ValueError("plot_deformed_field() requires the SI length dimension")
+        coordinates, cells, values, support = _vertex_field_arrays(
+            spatial, snapshot, cell_arity=cell_arity
+        )
     edges = _cell_edges(cells)
     edge_indices = list(edges)
     deformed = coordinates + scale * values
@@ -233,6 +215,24 @@ def _trajectory_snapshot(trajectory, step, field):
         raise TypeError("field stills require eqiora.trajectory.Trajectory")
     state = trajectory.state(step)
     return state, state.field(field)
+
+
+def _static_field_arrays(output, *, cell_arity):
+    spatial = output.mesh
+    coordinates = spatial.coordinates
+    cells = spatial.cells
+    values = output.vertex_values.numpy(copy=False)
+    if output.components > 1:
+        values = values.reshape(output.vertex_count, output.components)
+    support = np.arange(output.vertex_count, dtype=np.uint32)
+    if spatial.dimension != 2 or coordinates.ndim != 2 or coordinates.shape[1] != 2:
+        raise ValueError("field stills require two-dimensional coordinates")
+    if cells.ndim != 2 or cells.shape[1] != cell_arity:
+        topology = "affine triangle" if cell_arity == 3 else "quadrilateral"
+        raise ValueError(f"field stills require {topology} topology")
+    if values.shape[0] != output.vertex_count:
+        raise ValueError("vertex values differ from their declared support")
+    return coordinates, cells, values, support
 
 
 def _vertex_field_arrays(spatial, snapshot, *, cell_arity):

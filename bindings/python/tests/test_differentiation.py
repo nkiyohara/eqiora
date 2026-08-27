@@ -98,7 +98,7 @@ def model_and_plan(method, *, diffusion: float = 1.0):
     )
     spatial = (
         eqiora.fem.Q1()
-        if method == eqiora.ScalarEllipticMethod.FiniteElement
+        if method == eqiora.fem.Q1()
         else eqiora.fvm.CellCenteredTpfa()
     )
     plan = eqiora.resolve(
@@ -169,8 +169,8 @@ class DLPackProducer:
 @pytest.mark.parametrize(
     "method",
     [
-        eqiora.ScalarEllipticMethod.FiniteElement,
-        eqiora.ScalarEllipticMethod.FiniteVolume,
+        eqiora.fem.Q1(),
+        eqiora.fvm.CellCenteredTpfa(),
     ],
 )
 def test_public_diff_module_exposes_paired_complete_field_actions(method) -> None:
@@ -234,7 +234,7 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
 
 
 def test_diff_input_admission_is_explicit_and_model_bound() -> None:
-    model, plan = model_and_plan(eqiora.ScalarEllipticMethod.FiniteElement)
+    model, plan = model_and_plan(eqiora.fem.Q1())
     program = eqiora.diff.compile(
         plan,
         inputs=(model.parameter("source_scale"),),
@@ -324,7 +324,7 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
         )
 
     foreign, foreign_plan = model_and_plan(
-        eqiora.ScalarEllipticMethod.FiniteElement, diffusion=2.0
+        eqiora.fem.Q1(), diffusion=2.0
     )
     with pytest.raises(eqiora.ValidationError):
         eqiora.diff.compile(

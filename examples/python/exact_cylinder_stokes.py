@@ -23,7 +23,7 @@ def solve() -> tuple[eqiora.Result, eqiora.FieldRef]:
         },
     )
     mesh_request = eqiora.meshing.MeshRequest(
-        eqiora.meshing.GmshMesher(
+        eqiora.meshing.ReferenceMesher(
             maximum_boundary_error=1e-4,
             minimum_mean_ratio=1e-5,
             maximum_boundary_facets=50,

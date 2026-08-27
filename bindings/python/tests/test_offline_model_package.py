@@ -111,12 +111,15 @@ EXPECTED_EQIORA_ALL = [
     "DifferentiationEvidence",
     "DifferentiationMode",
     "Dimension",
+    "DomainRef",
     "Domain",
     "EqioraError",
     "ExecutionError",
     "Expression",
     "Field",
+    "FieldOutput",
     "FieldRef",
+    "InitialField",
     "InternalError",
     "LinearSolveSummary",
     "LinearizationState",
@@ -126,25 +129,17 @@ EXPECTED_EQIORA_ALL = [
     "Parameter",
     "ParameterRef",
     "PhysicalDomain",
-    "Realization",
+    "Plan",
     "Representation",
     "Relation",
     "Result",
     "Revision",
     "Run",
-    "RunManifest",
-    "RunCancellation",
-    "RunProgress",
     "RunStatus",
-    "ScalarElliptic",
-    "ScalarEllipticBalance",
-    "ScalarEllipticMethod",
-    "ScalarEllipticResult",
-    "ScalarEllipticRunCancellation",
-    "ScalarEllipticRunProgress",
-    "ScalarFieldLocation",
-    "ScalarFieldSummary",
     "Series",
+    "State",
+    "TransientRunCancellation",
+    "TransientRunProgress",
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",
@@ -156,18 +151,22 @@ EXPECTED_EQIORA_ALL = [
     "derivative",
     "div",
     "grad",
-    "preview_realization",
     "replay",
+    "resolve",
     "run",
     "submit",
     "through",
     "trace",
     "diff",
+    "fem",
     "fluid",
     "fsi",
+    "fvm",
     "geometry",
     "meshing",
     "solid",
+    "solve",
+    "time",
     "trajectory",
 ]
 
@@ -418,7 +417,7 @@ def test_commit_clears_only_the_accepted_parent_lineage() -> None:
 
     identities = json.loads(
         (
-            ROOT / "verify/packages/typed-execution-lineage/expected/identities.json"
+                ROOT / "verify/packages/typed-compilation-lineage/expected/identities.json"
         ).read_text(encoding="utf-8")
     )
     assert identities["source_bundle_sha256"] == TYPED_SOURCE_DIGEST
@@ -842,7 +841,7 @@ def test_structural_reports_match_frozen_facts_without_scientific_inference() ->
         independently_accepted = json.loads(
             (
                 ROOT
-                / "verify/packages/typed-execution-lineage/expected/identities.json"
+                    / "verify/packages/typed-compilation-lineage/expected/identities.json"
             ).read_text(encoding="utf-8")
         )
         assert (

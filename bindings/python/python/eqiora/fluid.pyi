@@ -5,8 +5,7 @@ Authority: ``bindings/python/python/eqiora/fluid.py``.
 
 from typing import ClassVar, final
 
-from . import LinearSolveSummary, Model, Result
-from .meshing import Mesh
+from . import LinearSolveSummary, Result
 
 @final
 class IncompressibleScaling:
@@ -188,94 +187,6 @@ class IncompressibleScalingReceipt2d:
     def components(self) -> tuple[IncompressibleScalingComponentRecord2d, ...]: ...
 
 @final
-class SteadyStokes:
-    """Complete steady-Stokes request with no hidden numerical defaults.
-
-    Authority: ``crates/eqiora-python/src/steady_stokes.rs::PySteadyStokes``.
-    """
-
-    def __new__(
-        cls,
-        *,
-        length_scale_m: float,
-        velocity_scale_m_per_s: float,
-        pressure_scale_pa: float,
-        relative_tolerance: float,
-        absolute_tolerance: float,
-        maximum_iterations: int,
-    ) -> SteadyStokes: ...
-    @property
-    def length_scale_m(self) -> float: ...
-    @property
-    def velocity_scale_m_per_s(self) -> float: ...
-    @property
-    def pressure_scale_pa(self) -> float: ...
-    @property
-    def relative_tolerance(self) -> float: ...
-    @property
-    def absolute_tolerance(self) -> float: ...
-    @property
-    def maximum_iterations(self) -> int: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
-class SteadyStokesPlan:
-    """Immutable steady-Stokes plan resolved before submission.
-
-    Authority: ``crates/eqiora-python/src/steady_stokes.rs::PySteadyStokesPlan``.
-    """
-
-    @property
-    def model_digest(self) -> str: ...
-    @property
-    def semantic_revision(self) -> int: ...
-    @property
-    def geometry_digest(self) -> str: ...
-    @property
-    def correspondence_digest(self) -> str: ...
-    @property
-    def mesh_digest(self) -> str: ...
-    @property
-    def realization_digest(self) -> str: ...
-    @property
-    def realization_revision(self) -> int: ...
-    @property
-    def spatial_dimension(self) -> int: ...
-    @property
-    def velocity_space(self) -> str: ...
-    @property
-    def pressure_space(self) -> str: ...
-    @property
-    def length_scale_m(self) -> float: ...
-    @property
-    def velocity_scale_m_per_s(self) -> float: ...
-    @property
-    def pressure_scale_pa(self) -> float: ...
-    @property
-    def solver_algorithm(self) -> str: ...
-    @property
-    def preconditioner(self) -> str: ...
-    @property
-    def reduction(self) -> str: ...
-    @property
-    def relative_tolerance(self) -> float: ...
-    @property
-    def absolute_tolerance(self) -> float: ...
-    @property
-    def maximum_iterations(self) -> int: ...
-    @property
-    def solver_backend(self) -> str: ...
-    @property
-    def execution_adapter(self) -> str: ...
-    @property
-    def workers(self) -> int: ...
-    @property
-    def canonical_bytes(self) -> bytes: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
 class SteadyStokesEvidence:
     """Scientific evidence selected from an accepted steady-Stokes result.
 
@@ -283,7 +194,7 @@ class SteadyStokesEvidence:
     """
 
     @property
-    def run_digest(self) -> str: ...
+    def plan_key(self) -> str: ...
     @property
     def pressure_minimum(self) -> float: ...
     @property
@@ -311,20 +222,6 @@ class SteadyStokesEvidence:
     @property
     def continuity_residual_norm(self) -> float: ...
 
-def resolve(
-    model: Model,
-    intent: SteadyStokes,
-    /,
-    *,
-    mesh: Mesh,
-) -> SteadyStokesPlan:
-    """Resolve a steady-Stokes intent without executing it.
-
-    Authority: ``crates/eqiora-python/src/steady_stokes.rs::resolve``.
-    """
-
-    ...
-
 def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence:
     """Select typed steady-Stokes evidence from its accepted result.
 
@@ -344,9 +241,6 @@ __all__ = [
     "IncompressibleScalingReceipt2d",
     "IncompressibleScalingRule2d",
     "PressureGauge2d",
-    "SteadyStokes",
     "SteadyStokesEvidence",
-    "SteadyStokesPlan",
-    "resolve",
     "steady_stokes_evidence",
 ]

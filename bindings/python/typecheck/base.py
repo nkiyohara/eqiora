@@ -9,11 +9,7 @@ from eqiora.fsi import (
     FsiStateEvidence,
 )
 from eqiora.meshing import Mesh
-from eqiora.solid import (
-    LinearElasticity,
-    LinearElasticityEvidence,
-    LinearElasticityPlan,
-)
+from eqiora.solid import LinearElasticityEvidence
 from eqiora.trajectory import FieldSnapshot, Trajectory, State
 
 
@@ -68,27 +64,14 @@ class _InvalidModelSubclass(eqiora.Model):  # type: ignore[misc]
     pass
 
 
-def check_structural_result(model: eqiora.Model) -> None:
-    # Accepted reference tuple; its native authority is
-    # `crates/eqiora-api/src/elasticity.rs::require_supported_intent`.
-    intent = LinearElasticity(
-        cells_per_axis=16,
-        relative_tolerance=1.0e-12,
-        absolute_tolerance=1.0e-14,
-        maximum_iterations=10_000,
+def check_structural_result(plan: eqiora.Plan, result: eqiora.Result) -> None:
+    assert_type(plan, eqiora.Plan)
+    assert_type(plan.mesh_kind, str | None)
+    assert_type(plan.space, str | None)
+    assert_type(
+        eqiora.solid.linear_elasticity_evidence(result),
+        LinearElasticityEvidence,
     )
-    plan = eqiora.solid.resolve(model, intent)
-    assert_type(plan, LinearElasticityPlan)
-    assert_type(plan.discretization_method, str)
-    assert_type(plan.mesh_kind, str)
-    assert_type(plan.mesh_policy, str)
-    assert_type(plan.field_space, str)
-    assert_type(plan.quadrature, str)
-    assert_type(plan.quadrature_points_per_axis, int)
-    assert_type(plan.scalar_type, str)
-    assert_type(plan.vector_layout, str)
-    assert_type(plan.coefficient_association, str)
-    LinearElasticity(cells_per_axis=16)  # type: ignore[call-arg]
 
 
 def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:

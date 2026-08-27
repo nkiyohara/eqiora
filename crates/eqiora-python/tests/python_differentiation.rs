@@ -96,7 +96,7 @@ def make_model(values):
 def make_plan(model, method):
     spatial = (
         eqiora.fem.Q1()
-        if method == eqiora.ScalarEllipticMethod.FiniteElement
+        if method == eqiora.fem.Q1()
         else eqiora.fvm.CellCenteredTpfa()
     )
     return eqiora.resolve(
@@ -129,15 +129,15 @@ def at(values, method):
 
 nominal = np.array([19.739208802178716, 1.0, 0.0], dtype=np.float64)
 for method in (
-    eqiora.ScalarEllipticMethod.FiniteElement,
-    eqiora.ScalarEllipticMethod.FiniteVolume,
+    eqiora.fem.Q1(),
+    eqiora.fvm.CellCenteredTpfa(),
 ):
     model = make_model(nominal)
     program = compile_program(model, method)
     assert program.model_digest == model.digest
     assert program.input_shape == (3,)
     assert program.output_shape == (
-        49 if method == eqiora.ScalarEllipticMethod.FiniteElement else 36,
+        49 if method == eqiora.fem.Q1() else 36,
     )
     assert program.dtype == "float64"
     assert program.device == "cpu:0"
@@ -215,7 +215,7 @@ for method in (
     )) / (2.0 * step)
     np.testing.assert_allclose(jvp.output.numpy(), primal.output.numpy(), rtol=0, atol=0)
     np.testing.assert_allclose(jvp.tangent.numpy(), finite, rtol=7.0e-7, atol=5.0e-10)
-    if method == eqiora.ScalarEllipticMethod.FiniteElement:
+    if method == eqiora.fem.Q1():
         boundary = np.concatenate(
             [
                 np.arange(7),
@@ -358,9 +358,9 @@ for method in (
         raise AssertionError("an inadmissible Parameter point must fail closed")
 
 original = make_model(nominal)
-original_plan = make_plan(original, eqiora.ScalarEllipticMethod.FiniteElement)
+original_plan = make_plan(original, eqiora.fem.Q1())
 foreign = make_model((nominal[0], 2.0, nominal[2]))
-foreign_plan = make_plan(foreign, eqiora.ScalarEllipticMethod.FiniteElement)
+foreign_plan = make_plan(foreign, eqiora.fem.Q1())
 try:
     eqiora.diff.compile(
         foreign_plan,

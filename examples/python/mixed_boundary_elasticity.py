@@ -7,27 +7,40 @@ from pathlib import Path
 import eqiora
 
 
-def solve() -> tuple[eqiora.Model, eqiora.Result]:
-    source = (
-        files(eqiora)
-        .joinpath("examples", "mixed-boundary-elasticity.eqi")
-        .read_text(encoding="utf-8")
+def solve() -> tuple[eqiora.Plan, eqiora.Result]:
+    graph = eqiora.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+    geometry = graph.build(
+        rectangle,
+        named_topology={
+            "body": rectangle.region,
+            "x_lower": rectangle.boundaries[0],
+            "x_upper": rectangle.boundaries[1],
+            "y_lower": rectangle.boundaries[2],
+            "y_upper": rectangle.boundaries[3],
+        },
     )
+    mesh_request = eqiora.meshing.MeshRequest(
+        eqiora.meshing.CartesianMesher(cells=(16, 16))
+    )
+    mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
+    mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
     model = eqiora.compile(
-        source=source,
-        filename="mixed-boundary-elasticity.eqi",
+        path=files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi"),
+        geometry=geometry,
+        parameters={"mu": 3.0, "lambda": 0.0, "length_scale": 1.0},
     )
-    # This checked-in reference case follows the tuple enforced by
-    # `crates/eqiora-api/src/elasticity.rs::require_supported_intent`.
-    intent = eqiora.solid.LinearElasticity(
-        cells_per_axis=16,
-        relative_tolerance=1.0e-12,
-        absolute_tolerance=1.0e-14,
-        maximum_iterations=10_000,
+    plan = eqiora.resolve(
+        model,
+        mesh=mesh,
+        spatial=eqiora.fem.Q1(),
+        solve=eqiora.solve.Linear(
+            relative_tolerance=1.0e-10,
+            absolute_tolerance=1.0e-12,
+            maximum_iterations=10_000,
+        ),
     )
-    plan = eqiora.solid.resolve(model, intent)
-    run = eqiora.submit(model, plan=plan)
-    return model, run.result()
+    return plan, eqiora.run(plan)
 
 
 def main() -> None:
@@ -45,9 +58,9 @@ def main() -> None:
     )
     arguments = parser.parse_args()
 
-    model, result = solve()
+    plan, result = solve()
     evidence = eqiora.solid.linear_elasticity_evidence(result)
-    print(result.run_manifest().digest)
+    print(result.plan_key)
     print(evidence.solve)
     print("constrained reaction", evidence.constrained_reaction, "N")
     print("integrated body force", evidence.integrated_body_force, "N")
@@ -56,7 +69,7 @@ def main() -> None:
 
         figure = eqplot.plot_deformed_field(
             result,
-            field=model.field("displacement"),
+            field=plan.field,
             scale=arguments.scale,
         )
         figure.savefig(arguments.displacement_png, dpi=160)
