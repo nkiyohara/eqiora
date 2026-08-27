@@ -12,7 +12,8 @@ use eqiora::api::{
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
-    CommonScalarPlan, CommonSpatialPolicy, CommonSteadyStokesPlan, CommonTransientRunRequest,
+    CommonElasticityPlan, CommonScalarPlan, CommonSpatialPolicy, CommonSteadyStokesPlan,
+    CommonTransientRunRequest,
 };
 
 use super::evidence::PyCommonTransientRunProgress;
@@ -104,6 +105,7 @@ pub(super) enum NativeRunJob {
     LinearElasticity(Box<ResolvedLinearElasticityPlan2d>),
     FixedMeshMonolithic(Box<ResolvedFixedMeshMonolithicFsiPlan2d>),
     CommonScalar(Box<CommonScalarPlan>),
+    CommonElasticity(Box<CommonElasticityPlan>),
     CommonSteadyStokes(Box<CommonSteadyStokesPlan>),
     CommonTransient(Box<CommonTransientRunRequest>),
 }
@@ -242,6 +244,16 @@ fn execute_job(
             let result = plan.run().map_err(|diagnostic| vec![diagnostic])?;
             Ok(NativeWorkerOutcome::Completed(
                 NativeRunOutput::CommonScalar {
+                    result: Box::new(result),
+                    elapsed_seconds: started.elapsed().as_secs_f64(),
+                },
+            ))
+        }
+        NativeRunJob::CommonElasticity(plan) => {
+            let started = Instant::now();
+            let result = plan.run().map_err(|diagnostic| vec![diagnostic])?;
+            Ok(NativeWorkerOutcome::Completed(
+                NativeRunOutput::CommonElasticity {
                     result: Box::new(result),
                     elapsed_seconds: started.elapsed().as_secs_f64(),
                 },

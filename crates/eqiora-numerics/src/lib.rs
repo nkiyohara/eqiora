@@ -33,8 +33,8 @@ pub use canonical_stokes::{
     ScalingMode2d, ScalingRule2d,
 };
 pub use numerical_admission::{
-    AuthenticatedCommonMesh, CommonBackwardEuler, CommonPressureGauge2d, CommonScalarPlan,
-    CommonSolvePolicy, CommonSpatialPolicy, CommonState, CommonSteadyStokesPlan,
+    AuthenticatedCommonMesh, CommonBackwardEuler, CommonElasticityPlan, CommonPressureGauge2d,
+    CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy, CommonState, CommonSteadyStokesPlan,
     CommonTransientFlowPlan, CommonTransientRunRequest, ResolvedCommonPlan, resolve_common_plan,
 };
 mod operator;

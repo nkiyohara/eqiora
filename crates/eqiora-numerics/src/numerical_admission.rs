@@ -7,6 +7,10 @@ use std::sync::Arc;
 use crate::canonical::{
     lower_scalar_elliptic_cartesian_with_resources, recognize_scalar_elliptic_geometry_mathematics,
 };
+use crate::canonical_elasticity::{
+    IsotropicElasticityCartesianModel2d, finalize_isotropic_elasticity_cartesian_q1_on_mesh,
+    lower_isotropic_elasticity_geometry_2d, recognize_isotropic_elasticity_geometry_mathematics,
+};
 use crate::canonical_stokes::{
     CellCenteredNavierStokesInitialState2d, IncompressibleScalingReceipt2d,
     IncompressibleScalingRequest2d, ResolvedCellCenteredNavierStokesState2d,
@@ -21,6 +25,7 @@ use crate::canonical_stokes::{
     transient_navier_stokes_cell_centered_requirements_2d,
     transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
 };
+use crate::cartesian_elasticity::CartesianLinearElasticity2dSolution;
 use crate::fluid::{
     CellCenteredPressureField2d, CellCenteredVelocityField2d, IncompressibleFlowScaleProfile2d,
     SimplicialMiniVelocityField2d, SteadyStokesGeometryBinding2d, SteadyStokesPressureReference2d,
@@ -36,6 +41,7 @@ use eqiora_artifact::{
     MeshProductionLineageEnvelopeV1, ModelEnvelope, RealizationEnvelopeV2,
     SimplicialMeshEnvelopeV1,
 };
+use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_geometry::CanonicalGeometryV1;
@@ -147,6 +153,7 @@ pub struct ResolvedCommonPlan {
 #[derive(Debug, Clone, PartialEq)]
 enum ResolvedCommonPlanKind {
     Scalar(Box<CommonScalarPlan>),
+    Elasticity(Box<CommonElasticityPlan>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     TransientFlow(Box<CommonTransientFlowPlan>),
 }
@@ -156,11 +163,13 @@ impl ResolvedCommonPlan {
     pub fn project<T>(
         self,
         scalar: impl FnOnce(CommonScalarPlan) -> T,
+        elasticity: impl FnOnce(CommonElasticityPlan) -> T,
         steady_stokes: impl FnOnce(CommonSteadyStokesPlan) -> T,
         transient_flow: impl FnOnce(CommonTransientFlowPlan) -> T,
     ) -> T {
         match self.kind {
             ResolvedCommonPlanKind::Scalar(plan) => scalar(*plan),
+            ResolvedCommonPlanKind::Elasticity(plan) => elasticity(*plan),
             ResolvedCommonPlanKind::SteadyStokes(plan) => steady_stokes(*plan),
             ResolvedCommonPlanKind::TransientFlow(plan) => transient_flow(*plan),
         }
@@ -511,6 +520,21 @@ pub struct CommonScalarPlan {
     cells: [usize; 2],
 }
 
+/// Opaque linear-elasticity Plan owning exact Model, Mesh, and policy state.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonElasticityPlan {
+    admission: NativeNumericalAdmission,
+    identity: String,
+    model_id: String,
+    model_revision: u64,
+    geometry_digest: String,
+    mesh_digest: String,
+    correspondence_digest: String,
+    production_digest: String,
+    displacement_field_id: String,
+    cells: [usize; 2],
+}
+
 /// Opaque steady-Stokes Plan owning one authenticated exact-cylinder occurrence.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonSteadyStokesPlan {
@@ -590,6 +614,34 @@ pub fn resolve_common_plan(
             let admission = recognized.complete(spatial, linear, None, None)?;
             CommonScalarPlan::from_admission(model, admission).map(|plan| ResolvedCommonPlan {
                 kind: ResolvedCommonPlanKind::Scalar(Box::new(plan)),
+            })
+        }
+        NativeCapability::IsotropicElasticity => {
+            let CommonSolvePolicy::Linear(solve) = solve else {
+                return Err(invalid(
+                    "linear-elasticity mathematics requires Linear solve policy",
+                ));
+            };
+            if temporal.is_some() {
+                return Err(invalid(
+                    "steady linear-elasticity mathematics does not admit a temporal policy",
+                ));
+            }
+            if scaling.is_some() {
+                return Err(invalid(
+                    "linear-elasticity mathematics does not admit incompressible-flow scaling",
+                ));
+            }
+            if spatial != CommonSpatialPolicy::Q1 {
+                return Err(invalid(
+                    "linear-elasticity mathematics requires the admitted Cartesian Q1 policy",
+                ));
+            }
+            let linear = NativeLinearPolicy::exact(solve, &REFERENCE_LINEAR_SOLVER)?;
+            let admission =
+                recognized.complete(NativeSpatialPolicy::ElasticityQ1, linear, None, None)?;
+            CommonElasticityPlan::from_admission(model, admission).map(|plan| ResolvedCommonPlan {
+                kind: ResolvedCommonPlanKind::Elasticity(Box::new(plan)),
             })
         }
         NativeCapability::SteadyIncompressibleStokes => {
@@ -1419,6 +1471,115 @@ fn transient_realization_capabilities(
     )
 }
 
+impl CommonElasticityPlan {
+    fn from_admission(
+        model: &ModelEnvelope,
+        admission: NativeNumericalAdmission,
+    ) -> Result<Self, Diagnostic> {
+        let model_reference = model.artifact_reference()?;
+        let NativeMeshResources::Cartesian { mesh, .. } = &admission.resources else {
+            return Err(invalid(
+                "linear-elasticity common Plan requires an authenticated Cartesian Mesh",
+            ));
+        };
+        let cells = [
+            mesh.mesh()
+                .axis_cell_count(0)
+                .ok_or_else(|| invalid("elasticity Plan Mesh omitted x-axis cells"))?,
+            mesh.mesh()
+                .axis_cell_count(1)
+                .ok_or_else(|| invalid("elasticity Plan Mesh omitted y-axis cells"))?,
+        ];
+        let RecognizedNativeModel::Elasticity(lowered) = &admission.recognized else {
+            return Err(invalid(
+                "common elasticity Plan omitted recognized elasticity meaning",
+            ));
+        };
+        let displacement_field_id = lowered.displacement().ulid().to_string();
+        let (geometry_digest, mesh_digest, correspondence_digest, production_digest) =
+            resource_digests(admission.resources())?;
+        let mut identity_bytes = Vec::new();
+        for value in [
+            admission.model_digest(),
+            geometry_digest.as_str(),
+            mesh_digest.as_str(),
+            correspondence_digest.as_str(),
+            production_digest.as_str(),
+            admission.policy_identity(),
+        ] {
+            push_framed(&mut identity_bytes, value.as_bytes());
+        }
+        let identity = hex_bytes(&Sha256::digest(
+            [
+                b"eqiora.common-linear-elasticity-plan/v1\0".as_slice(),
+                identity_bytes.as_slice(),
+            ]
+            .concat(),
+        ));
+        Ok(Self {
+            admission,
+            identity,
+            model_id: model_reference.model().ulid().to_string(),
+            model_revision: model_reference.semantic_revision().get(),
+            geometry_digest,
+            mesh_digest,
+            correspondence_digest,
+            production_digest,
+            displacement_field_id,
+            cells,
+        })
+    }
+
+    pub fn run(&self) -> Result<CartesianLinearElasticity2dSolution, Diagnostic> {
+        self.admission.execute_elasticity(&REFERENCE_LINEAR_SOLVER)
+    }
+
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+    #[must_use]
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+    #[must_use]
+    pub const fn model_revision(&self) -> u64 {
+        self.model_revision
+    }
+    #[must_use]
+    pub fn model_digest(&self) -> &str {
+        self.admission.model_digest()
+    }
+    #[must_use]
+    pub fn geometry_digest(&self) -> &str {
+        &self.geometry_digest
+    }
+    #[must_use]
+    pub fn mesh_digest(&self) -> &str {
+        &self.mesh_digest
+    }
+    #[must_use]
+    pub fn correspondence_digest(&self) -> &str {
+        &self.correspondence_digest
+    }
+    #[must_use]
+    pub fn production_digest(&self) -> &str {
+        &self.production_digest
+    }
+    #[must_use]
+    pub fn displacement_field_id(&self) -> &str {
+        &self.displacement_field_id
+    }
+    #[must_use]
+    pub const fn cells(&self) -> [usize; 2] {
+        self.cells
+    }
+    #[must_use]
+    pub const fn linear(&self) -> SolverPlan {
+        self.admission.linear.solver
+    }
+}
+
 impl CommonScalarPlan {
     fn from_admission(
         model: &ModelEnvelope,
@@ -1546,6 +1707,9 @@ impl CommonScalarPlan {
         match self.admission.spatial {
             NativeSpatialPolicy::ScalarQ1 => CommonSpatialPolicy::Q1,
             NativeSpatialPolicy::ScalarTpfa => CommonSpatialPolicy::CellCenteredTpfa,
+            NativeSpatialPolicy::ElasticityQ1 => {
+                unreachable!("common scalar Plan cannot own elasticity policy")
+            }
             NativeSpatialPolicy::StokesMiniP1(_) => {
                 unreachable!("common scalar Plan cannot own Stokes policy")
             }
@@ -1565,6 +1729,7 @@ impl CommonScalarPlan {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum NativeCapability {
     ScalarElliptic,
+    IsotropicElasticity,
     SteadyIncompressibleStokes,
     TransientIncompressibleFlow,
 }
@@ -1573,6 +1738,7 @@ pub(super) enum NativeCapability {
 pub(super) enum NativeSpatialPolicy {
     ScalarQ1,
     ScalarTpfa,
+    ElasticityQ1,
     StokesMiniP1(IncompressibleFlowScaleProfile2d),
     TransientMiniP1(IncompressibleFlowScaleProfile2d),
     TransientCellCentered(IncompressibleFlowScaleProfile2d),
@@ -1740,6 +1906,7 @@ pub(super) struct NativeNumericalAdmission {
 #[derive(Debug, Clone, PartialEq)]
 enum RecognizedNativeModel {
     Scalar(Box<ScalarEllipticCartesianModel>),
+    Elasticity(Box<IsotropicElasticityCartesianModel2d>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
 }
@@ -2004,6 +2171,9 @@ impl NativeNumericalAdmission {
                 )
                 .map(ResolvedScalarEllipticCartesianSolution::FiniteVolume)
             }
+            NativeSpatialPolicy::ElasticityQ1 => Err(invalid(
+                "scalar execution received an elasticity spatial policy",
+            )),
             NativeSpatialPolicy::StokesMiniP1(_) => Err(invalid(
                 "scalar execution received a steady-Stokes spatial policy",
             )),
@@ -2012,6 +2182,36 @@ impl NativeNumericalAdmission {
                 "scalar execution received a transient-flow spatial policy",
             )),
         }
+    }
+
+    pub(super) fn execute_elasticity(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CartesianLinearElasticity2dSolution, Diagnostic> {
+        self.revalidate()?;
+        if backend.provider() != self.linear.provider
+            || backend.capabilities() != self.linear.capabilities
+        {
+            return Err(invalid(
+                "elasticity execution backend differs from admitted provider or capabilities",
+            ));
+        }
+        let NativeMeshResources::Cartesian { mesh, .. } = &self.resources else {
+            return Err(invalid("elasticity execution requires Cartesian resources"));
+        };
+        let RecognizedNativeModel::Elasticity(lowered) = &self.recognized else {
+            return Err(invalid(
+                "native numerical admission does not own recognized elasticity meaning",
+            ));
+        };
+        let finalized = finalize_isotropic_elasticity_cartesian_q1_on_mesh(
+            lowered,
+            mesh.mesh(),
+            self.linear.solver,
+            &REFERENCE_ASSEMBLY_BACKEND,
+        )?;
+        let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
+        finalized.finish(solved)
     }
 }
 
@@ -2124,24 +2324,46 @@ fn recognize_capability(
     transient: &Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
 ) -> Result<NativeCapability, Diagnostic> {
     let scalar = recognize_scalar_elliptic_geometry_mathematics(program);
+    let elasticity = recognize_isotropic_elasticity_geometry_mathematics(program);
     let stokes = recognize_steady_incompressible_stokes_geometry_mathematics(program);
-    match (scalar, stokes, transient) {
-        (Ok(()), Err(_), Err(_)) => Ok(NativeCapability::ScalarElliptic),
-        (Err(_), Ok(()), Err(_)) => Ok(NativeCapability::SteadyIncompressibleStokes),
-        (Err(_), Err(_), Ok(_)) => Ok(NativeCapability::TransientIncompressibleFlow),
-        (Ok(()), Ok(()), _) | (Ok(()), _, Ok(_)) | (_, Ok(()), Ok(_)) => Err(invalid(
+    let recognized = [
+        scalar.is_ok(),
+        elasticity.is_ok(),
+        stokes.is_ok(),
+        transient.is_ok(),
+    ];
+    if recognized.into_iter().filter(|matched| *matched).count() > 1 {
+        return Err(invalid(
             "Model mathematical meaning is ambiguous across native capabilities",
-        )),
-        (Err(scalar), Err(stokes), Err(transient)) => Err(invalid(format!(
-            "Model mathematical meaning matches no native capability: scalar [{}: {}]; Stokes [{}: {}]; transient flow [{}: {}]",
-            scalar.code(),
-            scalar.message(),
-            stokes.code(),
-            stokes.message(),
-            transient.code(),
-            transient.message(),
-        ))),
+        ));
     }
+    if scalar.is_ok() {
+        return Ok(NativeCapability::ScalarElliptic);
+    }
+    if elasticity.is_ok() {
+        return Ok(NativeCapability::IsotropicElasticity);
+    }
+    if stokes.is_ok() {
+        return Ok(NativeCapability::SteadyIncompressibleStokes);
+    }
+    if transient.is_ok() {
+        return Ok(NativeCapability::TransientIncompressibleFlow);
+    }
+    let scalar = scalar.unwrap_err();
+    let elasticity = elasticity.unwrap_err();
+    let stokes = stokes.unwrap_err();
+    let transient = transient.as_ref().unwrap_err();
+    Err(invalid(format!(
+        "Model mathematical meaning matches no native capability: scalar [{}: {}]; elasticity [{}: {}]; Stokes [{}: {}]; transient flow [{}: {}]",
+        scalar.code(),
+        scalar.message(),
+        elasticity.code(),
+        elasticity.message(),
+        stokes.code(),
+        stokes.message(),
+        transient.code(),
+        transient.message(),
+    )))
 }
 
 fn recognize_exact_model(
@@ -2164,6 +2386,17 @@ fn recognize_exact_model(
                 .map(Box::new)
                 .map(RecognizedNativeModel::Scalar)
         }
+        (
+            NativeCapability::IsotropicElasticity,
+            NativeMeshResources::Cartesian {
+                geometry,
+                mesh,
+                correspondence,
+                ..
+            },
+        ) => lower_isotropic_elasticity_geometry_2d(program, geometry, mesh, correspondence)
+            .map(Box::new)
+            .map(RecognizedNativeModel::Elasticity),
         (
             NativeCapability::SteadyIncompressibleStokes,
             NativeMeshResources::ReferenceSimplicial {
@@ -2229,6 +2462,12 @@ fn require_policy_compatibility(
             PreconditionerPolicy::Identity,
             ReductionPolicy::Reproducible,
         ),
+        (NativeCapability::IsotropicElasticity, NativeSpatialPolicy::ElasticityQ1) => (
+            LinearSolver::ConjugateGradient,
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+            PreconditionerPolicy::Identity,
+            ReductionPolicy::Reproducible,
+        ),
         (NativeCapability::SteadyIncompressibleStokes, NativeSpatialPolicy::StokesMiniP1(_)) => (
             LinearSolver::SparseLu,
             LinearOperatorProperties::SymmetricIndefinite,
@@ -2283,6 +2522,11 @@ fn validate_resources(
         (
             NativeCapability::ScalarElliptic,
             NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa,
+            resources @ NativeMeshResources::Cartesian { .. },
+        ) => validate_cartesian_resources(resources),
+        (
+            NativeCapability::IsotropicElasticity,
+            NativeSpatialPolicy::ElasticityQ1,
             resources @ NativeMeshResources::Cartesian { .. },
         ) => validate_cartesian_resources(resources),
         (
@@ -2621,6 +2865,7 @@ fn policy_identity(
     match spatial {
         NativeSpatialPolicy::ScalarQ1 => bytes.extend_from_slice(b"scalar-q1"),
         NativeSpatialPolicy::ScalarTpfa => bytes.extend_from_slice(b"scalar-tpfa"),
+        NativeSpatialPolicy::ElasticityQ1 => bytes.extend_from_slice(b"elasticity-q1"),
         NativeSpatialPolicy::StokesMiniP1(scales) => {
             bytes.extend_from_slice(b"stokes-mini-p1");
             bytes.extend_from_slice(&scales.length().value().to_bits().to_be_bytes());
@@ -2781,6 +3026,43 @@ public component PoissonRectangle {
 
     const STOKES_COMPONENT: &str =
         include_str!("../../eqiora-api/src/steady_stokes/accepted_component.eqi");
+    const ELASTICITY_COMPONENT: &str = r#"
+public component MixedBoundaryElasticity {
+  public support region: volume(ambient_dimension = 2);
+  public support left: boundary(parent = region);
+  public support right: boundary(parent = region);
+  public support bottom: boundary(parent = region);
+  public support top: boundary(parent = region);
+  public parameter mu: kg / (m * s ^ 2);
+  public parameter lambda: kg / (m * s ^ 2);
+  public parameter length_scale: m;
+  representation space = continuum;
+  field displacement on region as space: m shape spatial_vector;
+  field load_potential on region as space: kg / (m * s ^ 2) = 0;
+  relation load continuous on region {
+    load_potential - 2 * mu * coordinate(0) / length_scale = 0;
+  }
+  relation balance continuous on region {
+    -div(
+      2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))
+    ) - grad(load_potential) = 0;
+  }
+  relation left_fixed continuous on left { trace(displacement) = 0; }
+  relation right_free continuous on right {
+    normal(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) = 0;
+  }
+  relation bottom_free continuous on bottom {
+    normal(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) = 0;
+  }
+  relation top_free continuous on top {
+    normal(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) = 0;
+  }
+}
+"#;
     const TRANSIENT_SOURCE: &str = include_str!(
         "../../../verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi"
     );
@@ -3104,6 +3386,62 @@ public component PoissonRectangle {
             geometry,
             "PoissonRectangleModel",
             "PoissonRectangle",
+            &supports,
+            &parameters,
+        )
+    }
+
+    fn elasticity_model(geometry: &CanonicalGeometryV1, mu: f64) -> ModelEnvelope {
+        let region = geometry.entity_set("region").unwrap();
+        let supports = [
+            ("region", region, None),
+            (
+                "left",
+                geometry.entity_set("left").unwrap(),
+                Some(("region", region)),
+            ),
+            (
+                "right",
+                geometry.entity_set("right").unwrap(),
+                Some(("region", region)),
+            ),
+            (
+                "bottom",
+                geometry.entity_set("bottom").unwrap(),
+                Some(("region", region)),
+            ),
+            (
+                "top",
+                geometry.entity_set("top").unwrap(),
+                Some(("region", region)),
+            ),
+        ];
+        let pressure = DimExponents {
+            mass: 1,
+            length: -1,
+            time: -2,
+            ..DimExponents::DIMENSIONLESS
+        };
+        let parameters = [
+            ("mu", DynQuantity::new(mu, pressure)),
+            ("lambda", DynQuantity::new(0.0, pressure)),
+            (
+                "length_scale",
+                DynQuantity::new(
+                    1.0,
+                    DimExponents {
+                        length: 1,
+                        ..DimExponents::DIMENSIONLESS
+                    },
+                ),
+            ),
+        ];
+        compile_model(
+            "mixed-boundary-elasticity.eqi",
+            ELASTICITY_COMPONENT,
+            geometry,
+            "MixedBoundaryElasticityModel",
+            "MixedBoundaryElasticity",
             &supports,
             &parameters,
         )
@@ -3448,6 +3786,7 @@ public component PoissonRectangle {
             .unwrap()
             .project(
                 |plan| plan,
+                |_| panic!("scalar Model resolved as elasticity"),
                 |_| panic!("scalar Model resolved as another capability"),
                 |_| panic!("scalar Model resolved as transient capability"),
             )
@@ -3499,6 +3838,61 @@ public component PoissonRectangle {
                 resources(&geometry),
                 CommonSpatialPolicy::MiniP1,
                 CommonSolvePolicy::Linear(linear),
+                None,
+                None,
+                &ResolveOnlyBackend,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
+        let geometry = rectangle();
+        let model = elasticity_model(&geometry, 3.0);
+        let alternate_material = elasticity_model(&geometry, 4.0);
+        let solve = SolverPlan::new(
+            LinearSolver::ConjugateGradient,
+            1.0e-10,
+            1.0e-12,
+            NonZeroUsize::new(10_000).unwrap(),
+        )
+        .unwrap();
+        let resolve_elasticity = |model: &ModelEnvelope| {
+            resolve_common_plan(
+                model,
+                resources(&geometry),
+                CommonSpatialPolicy::Q1,
+                CommonSolvePolicy::Linear(solve),
+                None,
+                None,
+                &ResolveOnlyBackend,
+            )
+            .unwrap()
+            .project(
+                |_| panic!("elasticity Model resolved as scalar"),
+                |plan| plan,
+                |_| panic!("elasticity Model resolved as Stokes"),
+                |_| panic!("elasticity Model resolved as transient flow"),
+            )
+        };
+        let plan = resolve_elasticity(&model);
+        let repeat = resolve_elasticity(&model);
+        let alternate = resolve_elasticity(&alternate_material);
+        assert_eq!(plan.identity(), repeat.identity());
+        assert_ne!(plan.identity(), alternate.identity());
+        assert_eq!(plan.model_digest(), model.digest().unwrap().to_string());
+        assert_eq!(plan.cells(), [2, 3]);
+        let result = plan.run().unwrap();
+        assert_eq!(result.displacement().mesh().axis_cell_count(0), Some(2));
+        assert_eq!(result.displacement().mesh().axis_cell_count(1), Some(3));
+        assert_eq!(result.displacement().values().len(), 24);
+        assert!(
+            resolve_common_plan(
+                &model,
+                resources(&geometry),
+                CommonSpatialPolicy::CellCenteredTpfa,
+                CommonSolvePolicy::Linear(solve),
                 None,
                 None,
                 &ResolveOnlyBackend,
@@ -3814,6 +4208,7 @@ public component PoissonRectangle {
         .unwrap()
         .project(
             |_| panic!("steady-Stokes Model resolved as another capability"),
+            |_| panic!("steady-Stokes Model resolved as elasticity"),
             |plan| plan,
             |_| panic!("steady-Stokes Model resolved as transient capability"),
         );
@@ -3829,6 +4224,7 @@ public component PoissonRectangle {
         .unwrap()
         .project(
             |_| panic!("steady-Stokes Model resolved as another capability"),
+            |_| panic!("steady-Stokes Model resolved as elasticity"),
             |plan| plan,
             |_| panic!("steady-Stokes Model resolved as transient capability"),
         );
@@ -3937,6 +4333,7 @@ public component PoissonRectangle {
             .unwrap()
             .project(
                 |_| panic!("transient Model resolved as scalar"),
+                |_| panic!("transient Model resolved as elasticity"),
                 |_| panic!("transient Model resolved as steady Stokes"),
                 |plan| plan,
             )
@@ -3970,6 +4367,7 @@ public component PoissonRectangle {
         .unwrap()
         .project(
             |_| panic!("transient Model resolved as scalar"),
+            |_| panic!("transient Model resolved as elasticity"),
             |_| panic!("transient Model resolved as steady Stokes"),
             |plan| plan,
         );
@@ -3987,6 +4385,7 @@ public component PoissonRectangle {
         .unwrap()
         .project(
             |_| panic!("transient Model resolved as scalar"),
+            |_| panic!("transient Model resolved as elasticity"),
             |_| panic!("transient Model resolved as steady Stokes"),
             |plan| plan,
         );

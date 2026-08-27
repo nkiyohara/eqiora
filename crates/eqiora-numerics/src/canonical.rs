@@ -741,7 +741,7 @@ pub(crate) fn lower_scalar_elliptic_cartesian_with_resources(
     correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
 ) -> Result<ScalarEllipticCartesianModel, Diagnostic> {
     let (domain, bounds, boundary_domains) =
-        scalar_geometry_cartesian_support(program, geometry, mesh, correspondence)?;
+        geometry_rectangle_cartesian_support(program, geometry, mesh, correspondence)?;
     lower_scalar_elliptic_cartesian_support(program, domain, bounds, boundary_domains)
 }
 
@@ -871,9 +871,10 @@ fn lower_scalar_elliptic_cartesian_support(
     })
 }
 
-type ScalarCartesianSupport = (RawId, Vec<[f64; 2]>, BTreeMap<(usize, BoundarySide), RawId>);
+pub(crate) type ScalarCartesianSupport =
+    (RawId, Vec<[f64; 2]>, BTreeMap<(usize, BoundarySide), RawId>);
 
-fn scalar_geometry_cartesian_support(
+pub(crate) fn geometry_rectangle_cartesian_support(
     program: &KernelProgram,
     geometry: &CanonicalGeometryV1,
     mesh: &CartesianMeshEnvelopeV1,
@@ -882,7 +883,7 @@ fn scalar_geometry_cartesian_support(
     let bounds = geometry.planar_rectangle_bounds().ok_or_else(|| {
         model_lowering_error(
             program,
-            "geometry-backed scalar elliptic lowering requires exact PlanarRectangleV2",
+            "geometry-backed Cartesian lowering requires exact PlanarRectangleV2",
         )
     })?;
     let regions = program
@@ -900,7 +901,7 @@ fn scalar_geometry_cartesian_support(
         return Err(model_lowering_error(
             program,
             format!(
-                "geometry-backed scalar elliptic lowering requires one GeometryRegion, found {}",
+                "geometry-backed Cartesian lowering requires one GeometryRegion, found {}",
                 regions.len()
             ),
         ));

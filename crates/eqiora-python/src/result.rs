@@ -5,7 +5,10 @@ use std::time::Duration;
 
 use eqiora::api::ReferenceRunResult;
 use eqiora::diagnostic::codes;
-use eqiora::numerics::{ResolvedScalarEllipticCartesianSolution, SteadyStokesMiniSolution2d};
+use eqiora::numerics::{
+    CartesianLinearElasticity2dSolution, ResolvedScalarEllipticCartesianSolution,
+    SteadyStokesMiniSolution2d,
+};
 use eqiora::{Diagnostic, DimExponents};
 use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -656,6 +659,56 @@ impl PyRunResult {
         })
     }
 
+    pub(crate) fn from_common_elasticity(
+        py: Python<'_>,
+        identity: RunIdentity,
+        mesh: Py<PyMesh>,
+        displacement_field_id: String,
+        elapsed: Duration,
+        run: CartesianLinearElasticity2dSolution,
+    ) -> PyResult<Self> {
+        let values = run.displacement().values().to_vec();
+        if !values.len().is_multiple_of(2) {
+            return Err(PyRuntimeError::new_err(
+                "elasticity displacement coefficients disagree with two-component FieldOutput metadata",
+            ));
+        }
+        let vertex_count = values.len() / 2;
+        let solve = Py::new(py, PyLinearSolveSummary::from_report(run.solve_report()))?;
+        let field = Py::new(
+            py,
+            PyModelFieldRef::from_exact(
+                identity.model_digest().to_owned(),
+                displacement_field_id.clone(),
+            ),
+        )?;
+        let displacement = Py::new(
+            py,
+            PyFieldOutput {
+                field,
+                mesh,
+                dimension: DimExponents {
+                    length: 1,
+                    ..DimExponents::DIMENSIONLESS
+                },
+                components: 2,
+                vertex_values: PyArrayBuffer::from_owned_result(py, values)?,
+                vertex_count,
+                cell_bubble_values: None,
+                cell_bubble_count: 0,
+            },
+        )?;
+        Ok(Self {
+            identity,
+            elapsed_seconds: elapsed.as_secs_f64(),
+            payload: ResultPayload::CommonFields(CommonFieldResultPayload {
+                outputs: vec![displacement],
+                lookup: BTreeMap::from([(displacement_field_id, 0)]),
+                solve,
+            }),
+        })
+    }
+
     fn static_output(
         &self,
         py: Python<'_>,
@@ -864,6 +917,28 @@ pub(crate) fn materialize_common_steady_stokes(
         plan.mesh_handle(py),
         native.velocity_field_id().to_owned(),
         native.pressure_field_id().to_owned(),
+        Duration::from_secs_f64(elapsed_seconds),
+        result,
+    )
+}
+
+pub(crate) fn materialize_common_elasticity(
+    py: Python<'_>,
+    plan: PyRef<'_, PyPlan>,
+    identity: RunIdentity,
+    elapsed_seconds: f64,
+    result: CartesianLinearElasticity2dSolution,
+) -> PyResult<PyRunResult> {
+    let CommonPlanKind::Elasticity(native) = plan.native() else {
+        return Err(PyRuntimeError::new_err(
+            "common elasticity output crossed a different Plan",
+        ));
+    };
+    PyRunResult::from_common_elasticity(
+        py,
+        identity,
+        plan.mesh_handle(py),
+        native.displacement_field_id().to_owned(),
         Duration::from_secs_f64(elapsed_seconds),
         result,
     )

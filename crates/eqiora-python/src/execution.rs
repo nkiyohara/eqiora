@@ -96,6 +96,10 @@ enum NativeRunOutput {
         result: Box<eqiora_numerics::scalar::ResolvedScalarEllipticCartesianSolution>,
         elapsed_seconds: f64,
     },
+    CommonElasticity {
+        result: Box<eqiora_numerics::solid::CartesianLinearElasticity2dSolution>,
+        elapsed_seconds: f64,
+    },
     CommonSteadyStokes {
         result: Box<eqiora_numerics::fluid::SteadyStokesMiniSolution2d>,
         elapsed_seconds: f64,
@@ -550,6 +554,11 @@ impl PyRun {
                 NativeRunJob::CommonScalar(native.clone()),
                 "eqiora-common-scalar-run",
             ),
+            (CommonPlanKind::Elasticity(native), None) => (
+                RunIdentity::from_common_elasticity(native),
+                NativeRunJob::CommonElasticity(native.clone()),
+                "eqiora-common-elasticity-run",
+            ),
             (CommonPlanKind::SteadyStokes(native), None) => (
                 RunIdentity::from_common_steady_stokes(native),
                 NativeRunJob::CommonSteadyStokes(native.clone()),
@@ -565,7 +574,12 @@ impl PyRun {
                     "transient submit requires State and one explicit horizon/output schedule family",
                 ));
             }
-            (CommonPlanKind::Scalar(_) | CommonPlanKind::SteadyStokes(_), Some(_)) => {
+            (
+                CommonPlanKind::Scalar(_)
+                | CommonPlanKind::Elasticity(_)
+                | CommonPlanKind::SteadyStokes(_),
+                Some(_),
+            ) => {
                 return Err(PyTypeError::new_err(
                     "steady submit accepts Plan alone and no transient Run controls",
                 ));
@@ -937,6 +951,26 @@ fn materialize_result(
             _ => Err(internal_error(
                 py,
                 "common scalar Result lost its exact Plan",
+            )),
+        },
+        NativeRunOutput::CommonElasticity {
+            result,
+            elapsed_seconds,
+        } => match context {
+            ResultMaterializationContext::CommonPlan { plan } => {
+                crate::result::materialize_common_elasticity(
+                    py,
+                    plan.borrow(py),
+                    identity.clone(),
+                    elapsed_seconds,
+                    *result,
+                )
+                .and_then(|result| Py::new(py, result))
+                .map(Py::into_any)
+            }
+            _ => Err(internal_error(
+                py,
+                "common elasticity Result lost its exact Plan",
             )),
         },
         NativeRunOutput::CommonSteadyStokes {

@@ -2,10 +2,12 @@
 
 use std::collections::BTreeSet;
 
+use eqiora_artifact::{CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1};
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, GraphPath, RawId, ValueShape};
+use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::EdgeKind;
 use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
 use eqiora_meshing::QuadratureRule;
@@ -29,7 +31,7 @@ use crate::cartesian_elasticity::{
 };
 use crate::finalized_spatial::FinalizedIsotropicElasticityCartesian2dProblem;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
-use eqiora_meshing::CartesianMesh;
+use eqiora_meshing::{CartesianMesh, MeshTopology};
 
 mod block;
 mod boundary;
@@ -206,9 +208,91 @@ pub fn lower_isotropic_elasticity_cartesian_2d(
     program: &KernelProgram,
 ) -> Result<IsotropicElasticityCartesianModel2d, Diagnostic> {
     let (domain, bounds) = unique_box_2d(program)?;
-    let lowered = lower_isotropic_elasticity_subdomain_2d(program, domain, bounds)?;
+    let lowered =
+        lower_isotropic_elasticity_subdomain_2d_with_boundaries(program, domain, bounds, None)?;
     require_closed_elasticity_models(program, std::slice::from_ref(&lowered))?;
     Ok(lowered.model)
+}
+
+pub(crate) fn lower_isotropic_elasticity_geometry_2d(
+    program: &KernelProgram,
+    geometry: &CanonicalGeometryV1,
+    mesh: &CartesianMeshEnvelopeV1,
+    correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+) -> Result<IsotropicElasticityCartesianModel2d, Diagnostic> {
+    let (domain, bounds, boundaries) = crate::canonical::geometry_rectangle_cartesian_support(
+        program,
+        geometry,
+        mesh,
+        correspondence,
+    )?;
+    let bounds: [[f64; 2]; 2] = bounds
+        .try_into()
+        .map_err(|_| model_lowering_error(program, "elasticity requires two rectangle axes"))?;
+    let lowered = lower_isotropic_elasticity_subdomain_2d_with_boundaries(
+        program,
+        domain,
+        bounds,
+        Some(boundaries),
+    )?;
+    require_closed_elasticity_models(program, std::slice::from_ref(&lowered))?;
+    Ok(lowered.model)
+}
+
+pub(crate) fn recognize_isotropic_elasticity_geometry_mathematics(
+    program: &KernelProgram,
+) -> Result<(), Diagnostic> {
+    let regions = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
+            {
+                Some(domain.id().erase())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [domain] = regions.as_slice() else {
+        return Err(model_lowering_error(
+            program,
+            "geometry-backed elasticity recognition requires exactly one GeometryRegion",
+        ));
+    };
+    let boundaries = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(boundary)
+                if matches!(boundary.kind(), DomainKind::GeometryBoundary { .. })
+                    && crate::canonical::boundary_parent(program, boundary.id().erase())
+                        == Some(*domain) =>
+            {
+                Some(boundary.id().erase())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if boundaries.len() != 4 {
+        return Err(lowering_error(
+            *domain,
+            "geometry-backed 2D elasticity recognition requires four boundary supports",
+        ));
+    }
+    let sides = [
+        (0, BoundarySide::Lower),
+        (0, BoundarySide::Upper),
+        (1, BoundarySide::Lower),
+        (1, BoundarySide::Upper),
+    ];
+    let boundary_map = sides.into_iter().zip(boundaries).collect();
+    let lowered = lower_isotropic_elasticity_subdomain_2d_with_boundaries(
+        program,
+        *domain,
+        [[0.0, 1.0], [0.0, 1.0]],
+        Some(boundary_map),
+    )?;
+    require_closed_elasticity_models(program, std::slice::from_ref(&lowered))?;
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -221,6 +305,15 @@ fn lower_isotropic_elasticity_subdomain_2d(
     program: &KernelProgram,
     domain: RawId,
     bounds: [[f64; 2]; 2],
+) -> Result<LoweredIsotropicElasticitySubdomain2d, Diagnostic> {
+    lower_isotropic_elasticity_subdomain_2d_with_boundaries(program, domain, bounds, None)
+}
+
+fn lower_isotropic_elasticity_subdomain_2d_with_boundaries(
+    program: &KernelProgram,
+    domain: RawId,
+    bounds: [[f64; 2]; 2],
+    boundaries: Option<std::collections::BTreeMap<(usize, BoundarySide), RawId>>,
 ) -> Result<LoweredIsotropicElasticitySubdomain2d, Diagnostic> {
     let (displacement, load_potential) = exact_fields(program, domain)?;
     let volume_relations = relations_on(program, domain);
@@ -274,14 +367,25 @@ fn lower_isotropic_elasticity_subdomain_2d(
         displacement,
         balance_relation,
     )?;
-    let boundary_inventory = boundary::lower(
-        program,
-        domain,
-        displacement,
-        displacement,
-        &two_mu,
-        &lambda,
-    )?;
+    let boundary_inventory = match boundaries {
+        Some(boundaries) => boundary::lower_with_boundaries(
+            program,
+            domain,
+            displacement,
+            displacement,
+            &two_mu,
+            &lambda,
+            boundaries,
+        )?,
+        None => boundary::lower(
+            program,
+            domain,
+            displacement,
+            displacement,
+            &two_mu,
+            &lambda,
+        )?,
+    };
     let shear_modulus = two_mu.multiply(ScalarSpatialExpression::constant(2, 0.5));
     let Some(shear_value) = shear_modulus.constant_value() else {
         return Err(lowering_error(
@@ -424,15 +528,33 @@ pub fn finalize_resolved_isotropic_elasticity_cartesian_2d_with_assembly(
 > {
     let execution = require_resolved_cartesian_elasticity_q1_plan_2d(program, resolved)?;
     let model = lower_isotropic_elasticity_cartesian_2d(program)?;
-    let essential_sides = cartesian_essential_sides(&model)?;
     let mesh = CartesianMesh::uniform(model.bounds(), &[execution.cells; 2])?;
-    let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, execution.points_per_axis)?;
-    let finalized = FinalizedIsotropicElasticityCartesian2dProblem::new(
+    let finalized = finalize_isotropic_elasticity_cartesian_q1_on_mesh(
+        &model,
+        &mesh,
         execution.solver,
-        execution.vector_layout,
-        execution.target,
+        assembly,
+    )?;
+    Ok((model, finalized))
+}
+
+pub(crate) fn finalize_isotropic_elasticity_cartesian_q1_on_mesh(
+    model: &IsotropicElasticityCartesianModel2d,
+    mesh: &CartesianMesh,
+    solver: eqiora_solver::SolverPlan,
+    assembly: &dyn AssemblyBackend,
+) -> Result<FinalizedIsotropicElasticityCartesian2dProblem, Diagnostic> {
+    require_two_dimensional_exact_bounds(mesh, model.bounds())?;
+    let essential_sides = cartesian_essential_sides(model)?;
+    let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2)?;
+    FinalizedIsotropicElasticityCartesian2dProblem::new(
+        solver,
+        VectorLayoutKind::Replicated,
+        Target::HostCpu {
+            threads: std::num::NonZeroUsize::MIN,
+        },
         finalize_cartesian_q1_linear_elasticity_2d(
-            &mesh,
+            mesh,
             model.shear_modulus(),
             model.first_lame_parameter(),
             model.load_potential_expression(),
@@ -440,8 +562,34 @@ pub fn finalize_resolved_isotropic_elasticity_cartesian_2d_with_assembly(
             essential_sides,
             assembly,
         )?,
-    )?;
-    Ok((model, finalized))
+    )
+}
+
+fn require_two_dimensional_exact_bounds(
+    mesh: &CartesianMesh,
+    bounds: &[[f64; 2]; 2],
+) -> Result<(), Diagnostic> {
+    if mesh.topological_dimension() != 2 {
+        return Err(invalid_realization(
+            "Cartesian Q1 elasticity requires an exact two-dimensional supplied Mesh",
+        ));
+    }
+    for (axis, expected) in bounds.iter().enumerate() {
+        let coordinates = mesh
+            .axis_coordinates(axis)
+            .ok_or_else(|| invalid_realization("supplied Mesh omitted a Cartesian axis"))?;
+        let observed = [coordinates[0], coordinates[coordinates.len() - 1]];
+        if !observed
+            .iter()
+            .zip(expected)
+            .all(|(observed, expected)| observed.to_bits() == expected.to_bits())
+        {
+            return Err(invalid_realization(
+                "supplied Cartesian Mesh bounds differ from exact elasticity Model bounds",
+            ));
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy)]

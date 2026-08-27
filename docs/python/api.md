@@ -796,6 +796,10 @@ class PhysicalDomain:
 
 Immutable common numerical Plan owning an exact Model and Mesh.
 
+The Model alone determines the admitted physics. For the bounded elasticity
+path, `field` and `fields` expose only the exact displacement FieldRef;
+load-potential and reaction observations are not generic result Fields.
+
 Authority: [`crates/eqiora-python/src/common_plan.rs::PyPlan`](../../crates/eqiora-python/src/common_plan.rs)
 
 ```python
@@ -1598,6 +1602,10 @@ def replay(data: bytes) -> Model: ...
 ### `eqiora.resolve`
 
 Resolve an exact Model and caller-owned Mesh into a common Plan.
+
+Typed spatial and solve policies select numerics, never physics. The
+resolved Plan retains the exact caller Model and Mesh and execution does
+not regenerate or substitute either resource.
 
 Authority: [`bindings/python/python/eqiora/__init__.py::resolve`](../../bindings/python/python/eqiora/__init__.py)
 

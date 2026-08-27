@@ -38,13 +38,34 @@ pub(super) fn lower(
     volume_two_mu: &ScalarSpatialExpression,
     volume_lambda: &ScalarSpatialExpression,
 ) -> Result<LoweredElasticityBoundary2d, Diagnostic> {
-    lower_dimension::<2>(
+    lower_with_boundaries(
         program,
         domain,
         trace_field,
         stress_displacement,
         volume_two_mu,
         volume_lambda,
+        exact_cartesian_boundaries::<2>(program, domain)?,
+    )
+}
+
+pub(super) fn lower_with_boundaries(
+    program: &KernelProgram,
+    domain: RawId,
+    trace_field: RawId,
+    stress_displacement: RawId,
+    volume_two_mu: &ScalarSpatialExpression,
+    volume_lambda: &ScalarSpatialExpression,
+    exact_boundaries: BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), RawId>,
+) -> Result<LoweredElasticityBoundary2d, Diagnostic> {
+    lower_dimension_with_boundaries::<2>(
+        program,
+        domain,
+        trace_field,
+        stress_displacement,
+        volume_two_mu,
+        volume_lambda,
+        exact_boundaries,
     )
 }
 
@@ -57,6 +78,26 @@ pub(super) fn lower_dimension<const D: usize>(
     volume_lambda: &ScalarSpatialExpression,
 ) -> Result<LoweredElasticityBoundary<D>, Diagnostic> {
     let exact_boundaries = exact_cartesian_boundaries::<D>(program, domain)?;
+    lower_dimension_with_boundaries(
+        program,
+        domain,
+        trace_field,
+        stress_displacement,
+        volume_two_mu,
+        volume_lambda,
+        exact_boundaries,
+    )
+}
+
+fn lower_dimension_with_boundaries<const D: usize>(
+    program: &KernelProgram,
+    _domain: RawId,
+    trace_field: RawId,
+    stress_displacement: RawId,
+    volume_two_mu: &ScalarSpatialExpression,
+    volume_lambda: &ScalarSpatialExpression,
+    exact_boundaries: BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), RawId>,
+) -> Result<LoweredElasticityBoundary<D>, Diagnostic> {
     let mut entries = BTreeMap::new();
     let mut admitted_relations = BTreeSet::new();
     let mut boundary_relations = BTreeSet::new();

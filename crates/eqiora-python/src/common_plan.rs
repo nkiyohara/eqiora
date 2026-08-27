@@ -7,8 +7,8 @@ use eqiora::backends::faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
 use eqiora::realization::{Space, SpaceFamily};
 use eqiora::solver::{LinearSolver, REFERENCE_SOLVER_PROVIDER, ReductionPolicy, SolverPlan};
 use eqiora_numerics::{
-    CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy, CommonSteadyStokesPlan,
-    CommonTransientFlowPlan, resolve_common_plan,
+    CommonElasticityPlan, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
+    CommonSteadyStokesPlan, CommonTransientFlowPlan, resolve_common_plan,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -83,6 +83,7 @@ fn space_name(space: Space) -> &'static str {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum CommonPlanKind {
     Scalar(Box<CommonScalarPlan>),
+    Elasticity(Box<CommonElasticityPlan>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     TransientFlow(Box<CommonTransientFlowPlan>),
 }
@@ -91,6 +92,7 @@ impl CommonPlanKind {
     fn identity(&self) -> &str {
         match self {
             Self::Scalar(plan) => plan.identity(),
+            Self::Elasticity(plan) => plan.identity(),
             Self::SteadyStokes(plan) => plan.identity(),
             Self::TransientFlow(plan) => plan.identity(),
         }
@@ -98,6 +100,7 @@ impl CommonPlanKind {
     fn model_id(&self) -> &str {
         match self {
             Self::Scalar(plan) => plan.model_id(),
+            Self::Elasticity(plan) => plan.model_id(),
             Self::SteadyStokes(plan) => plan.model_id(),
             Self::TransientFlow(plan) => plan.model_id(),
         }
@@ -105,6 +108,7 @@ impl CommonPlanKind {
     fn model_digest(&self) -> &str {
         match self {
             Self::Scalar(plan) => plan.model_digest(),
+            Self::Elasticity(plan) => plan.model_digest(),
             Self::SteadyStokes(plan) => plan.model_digest(),
             Self::TransientFlow(plan) => plan.model_digest(),
         }
@@ -112,6 +116,7 @@ impl CommonPlanKind {
     const fn model_revision(&self) -> u64 {
         match self {
             Self::Scalar(plan) => plan.model_revision(),
+            Self::Elasticity(plan) => plan.model_revision(),
             Self::SteadyStokes(plan) => plan.model_revision(),
             Self::TransientFlow(plan) => plan.model_revision(),
         }
@@ -119,6 +124,7 @@ impl CommonPlanKind {
     fn geometry_digest(&self) -> &str {
         match self {
             Self::Scalar(plan) => plan.geometry_digest(),
+            Self::Elasticity(plan) => plan.geometry_digest(),
             Self::SteadyStokes(plan) => plan.geometry_digest(),
             Self::TransientFlow(plan) => plan.geometry_digest(),
         }
@@ -126,6 +132,7 @@ impl CommonPlanKind {
     fn mesh_digest(&self) -> &str {
         match self {
             Self::Scalar(plan) => plan.mesh_digest(),
+            Self::Elasticity(plan) => plan.mesh_digest(),
             Self::SteadyStokes(plan) => plan.mesh_digest(),
             Self::TransientFlow(plan) => plan.mesh_digest(),
         }
@@ -133,6 +140,7 @@ impl CommonPlanKind {
     fn correspondence_digest(&self) -> &str {
         match self {
             Self::Scalar(plan) => plan.correspondence_digest(),
+            Self::Elasticity(plan) => plan.correspondence_digest(),
             Self::SteadyStokes(plan) => plan.correspondence_digest(),
             Self::TransientFlow(plan) => plan.correspondence_digest(),
         }
@@ -140,6 +148,7 @@ impl CommonPlanKind {
     fn production_digest(&self) -> &str {
         match self {
             Self::Scalar(plan) => plan.production_digest(),
+            Self::Elasticity(plan) => plan.production_digest(),
             Self::SteadyStokes(plan) => plan.production_digest(),
             Self::TransientFlow(plan) => plan.production_digest(),
         }
@@ -147,6 +156,7 @@ impl CommonPlanKind {
     const fn effective_solver(&self) -> SolverPlan {
         match self {
             Self::Scalar(plan) => plan.linear(),
+            Self::Elasticity(plan) => plan.linear(),
             Self::SteadyStokes(plan) => plan.linear(),
             Self::TransientFlow(plan) => plan.linear(),
         }
@@ -154,6 +164,7 @@ impl CommonPlanKind {
     fn realization_digest(&self) -> Option<&str> {
         match self {
             Self::Scalar(_) => None,
+            Self::Elasticity(_) => None,
             Self::SteadyStokes(plan) => Some(plan.realization_digest()),
             Self::TransientFlow(_) => None,
         }
@@ -190,7 +201,9 @@ impl PyPlan {
     pub(crate) fn transient_native(&self) -> Option<&CommonTransientFlowPlan> {
         match &self.native {
             CommonPlanKind::TransientFlow(plan) => Some(plan),
-            CommonPlanKind::Scalar(_) | CommonPlanKind::SteadyStokes(_) => None,
+            CommonPlanKind::Scalar(_)
+            | CommonPlanKind::Elasticity(_)
+            | CommonPlanKind::SteadyStokes(_) => None,
         }
     }
 
@@ -247,13 +260,17 @@ impl PyPlan {
     }
     #[getter]
     fn field(&self) -> Option<PyModelFieldRef> {
-        let CommonPlanKind::Scalar(plan) = &self.native else {
-            return None;
-        };
-        Some(PyModelFieldRef::from_exact(
-            plan.model_digest().to_owned(),
-            plan.field_id().to_owned(),
-        ))
+        match &self.native {
+            CommonPlanKind::Scalar(plan) => Some(PyModelFieldRef::from_exact(
+                plan.model_digest().to_owned(),
+                plan.field_id().to_owned(),
+            )),
+            CommonPlanKind::Elasticity(plan) => Some(PyModelFieldRef::from_exact(
+                plan.model_digest().to_owned(),
+                plan.displacement_field_id().to_owned(),
+            )),
+            CommonPlanKind::SteadyStokes(_) | CommonPlanKind::TransientFlow(_) => None,
+        }
     }
     #[getter]
     fn fields(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
@@ -262,6 +279,10 @@ impl PyPlan {
             CommonPlanKind::Scalar(plan) => vec![PyModelFieldRef::from_exact(
                 model_digest,
                 plan.field_id().to_owned(),
+            )],
+            CommonPlanKind::Elasticity(plan) => vec![PyModelFieldRef::from_exact(
+                model_digest,
+                plan.displacement_field_id().to_owned(),
             )],
             CommonPlanKind::SteadyStokes(plan) => vec![
                 PyModelFieldRef::from_exact(
@@ -291,7 +312,7 @@ impl PyPlan {
                 plan.model_digest().to_owned(),
                 plan.velocity_field_id().to_owned(),
             )),
-            CommonPlanKind::Scalar(_) => None,
+            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => None,
         }
     }
     #[getter]
@@ -305,7 +326,7 @@ impl PyPlan {
                 plan.model_digest().to_owned(),
                 plan.pressure_field_id().to_owned(),
             )),
-            CommonPlanKind::Scalar(_) => None,
+            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => None,
         }
     }
     #[getter]
@@ -336,9 +357,9 @@ impl PyPlan {
     fn space(&self) -> Option<&'static str> {
         match self.native {
             CommonPlanKind::TransientFlow(_) => None,
-            CommonPlanKind::Scalar(_) | CommonPlanKind::SteadyStokes(_) => {
-                Some(self.spatial.space())
-            }
+            CommonPlanKind::Scalar(_)
+            | CommonPlanKind::Elasticity(_)
+            | CommonPlanKind::SteadyStokes(_) => Some(self.spatial.space()),
         }
     }
     #[getter]
@@ -346,7 +367,7 @@ impl PyPlan {
         match &self.native {
             CommonPlanKind::SteadyStokes(plan) => Some(space_name(plan.velocity_space())),
             CommonPlanKind::TransientFlow(plan) => Some(space_name(plan.velocity_space())),
-            CommonPlanKind::Scalar(_) => None,
+            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => None,
         }
     }
     #[getter]
@@ -354,14 +375,16 @@ impl PyPlan {
         match &self.native {
             CommonPlanKind::SteadyStokes(plan) => Some(space_name(plan.pressure_space())),
             CommonPlanKind::TransientFlow(plan) => Some(space_name(plan.pressure_space())),
-            CommonPlanKind::Scalar(_) => None,
+            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => None,
         }
     }
     #[getter]
     fn pressure_gauge(&self) -> Option<PyPressureGauge2d> {
         match &self.native {
             CommonPlanKind::TransientFlow(plan) => Some(plan.gauge().into()),
-            CommonPlanKind::Scalar(_) | CommonPlanKind::SteadyStokes(_) => None,
+            CommonPlanKind::Scalar(_)
+            | CommonPlanKind::Elasticity(_)
+            | CommonPlanKind::SteadyStokes(_) => None,
         }
     }
     #[getter]
@@ -371,7 +394,7 @@ impl PyPlan {
     #[getter]
     fn mesh_kind(&self) -> &'static str {
         match &self.native {
-            CommonPlanKind::Scalar(_) => "structured-cartesian",
+            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => "structured-cartesian",
             CommonPlanKind::SteadyStokes(_) => "imported-affine-simplicial",
             CommonPlanKind::TransientFlow(plan) => match plan.spatial() {
                 CommonSpatialPolicy::MiniP1 => "imported-affine-simplicial",
@@ -391,6 +414,10 @@ impl PyPlan {
                 let [x, y] = plan.cells();
                 Some((x, y))
             }
+            CommonPlanKind::Elasticity(plan) => {
+                let [x, y] = plan.cells();
+                Some((x, y))
+            }
             CommonPlanKind::SteadyStokes(_) => None,
             CommonPlanKind::TransientFlow(_) => None,
         }
@@ -406,7 +433,9 @@ impl PyPlan {
     #[getter]
     fn operator_properties(&self) -> &'static str {
         match &self.native {
-            CommonPlanKind::Scalar(_) => "symmetric-positive-definite",
+            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
+                "symmetric-positive-definite"
+            }
             CommonPlanKind::SteadyStokes(_) => "symmetric-indefinite",
             CommonPlanKind::TransientFlow(_) => "general",
         }
@@ -438,7 +467,9 @@ impl PyPlan {
     #[getter]
     fn solver_backend(&self) -> &'static str {
         match &self.native {
-            CommonPlanKind::Scalar(_) => REFERENCE_SOLVER_PROVIDER.id().as_str(),
+            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
+                REFERENCE_SOLVER_PROVIDER.id().as_str()
+            }
             CommonPlanKind::SteadyStokes(_) => FAER_SOLVER_PROVIDER.id().as_str(),
             CommonPlanKind::TransientFlow(plan) => match plan.spatial() {
                 CommonSpatialPolicy::MiniP1 => FAER_SOLVER_PROVIDER.id().as_str(),
@@ -450,7 +481,9 @@ impl PyPlan {
     #[getter]
     fn solver_backend_version(&self) -> &'static str {
         match &self.native {
-            CommonPlanKind::Scalar(_) => REFERENCE_SOLVER_PROVIDER.implementation_version(),
+            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
+                REFERENCE_SOLVER_PROVIDER.implementation_version()
+            }
             CommonPlanKind::SteadyStokes(_) => FAER_SOLVER_PROVIDER.implementation_version(),
             CommonPlanKind::TransientFlow(plan) => match plan.spatial() {
                 CommonSpatialPolicy::MiniP1 => FAER_SOLVER_PROVIDER.implementation_version(),
@@ -480,7 +513,7 @@ impl PyPlan {
     #[getter]
     fn scaling(&self, py: Python<'_>) -> PyResult<Option<Py<PyIncompressibleScales>>> {
         match &self.native {
-            CommonPlanKind::Scalar(_) => Ok(None),
+            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => Ok(None),
             CommonPlanKind::SteadyStokes(plan) => {
                 Py::new(py, PyIncompressibleScales::from_native(plan.scales())).map(Some)
             }
@@ -495,7 +528,7 @@ impl PyPlan {
         py: Python<'_>,
     ) -> PyResult<Option<Py<PyIncompressibleScalingReceipt2d>>> {
         match &self.native {
-            CommonPlanKind::Scalar(_) => Ok(None),
+            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => Ok(None),
             CommonPlanKind::SteadyStokes(plan) => Py::new(
                 py,
                 PyIncompressibleScalingReceipt2d::from_native(plan.scaling_receipt().clone()),
@@ -617,6 +650,7 @@ fn resolve_plan(
     .map(|plan| {
         plan.project(
             |plan| CommonPlanKind::Scalar(Box::new(plan)),
+            |plan| CommonPlanKind::Elasticity(Box::new(plan)),
             |plan| CommonPlanKind::SteadyStokes(Box::new(plan)),
             |plan| CommonPlanKind::TransientFlow(Box::new(plan)),
         )
@@ -640,7 +674,9 @@ fn resolve_plan(
                 PyNewton::from_native(linear, plan.nonlinear()),
             )?)
         }
-        CommonPlanKind::Scalar(_) | CommonPlanKind::SteadyStokes(_) => requested_solve_handle,
+        CommonPlanKind::Scalar(_)
+        | CommonPlanKind::Elasticity(_)
+        | CommonPlanKind::SteadyStokes(_) => requested_solve_handle,
     };
     drop(mesh_ref);
     drop(model_ref);
@@ -710,6 +746,41 @@ public component PoissonRectangle {
 
     const STOKES_COMPONENT: &str =
         include_str!("../../eqiora-api/src/steady_stokes/accepted_component.eqi");
+    const ELASTICITY_COMPONENT: &str = r#"
+public component MixedBoundaryElasticity {
+  public support region: volume(ambient_dimension = 2);
+  public support left: boundary(parent = region);
+  public support right: boundary(parent = region);
+  public support bottom: boundary(parent = region);
+  public support top: boundary(parent = region);
+  public parameter mu: kg / (m * s ^ 2);
+  public parameter lambda: kg / (m * s ^ 2);
+  public parameter length_scale: m;
+  representation space = continuum;
+  field displacement on region as space: m shape spatial_vector;
+  field load_potential on region as space: kg / (m * s ^ 2) = 0;
+  relation load continuous on region {
+    load_potential - 2 * mu * coordinate(0) / length_scale = 0;
+  }
+  relation balance continuous on region {
+    -div(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) - grad(load_potential) = 0;
+  }
+  relation left_fixed continuous on left { trace(displacement) = 0; }
+  relation right_free continuous on right {
+    normal(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) = 0;
+  }
+  relation bottom_free continuous on bottom {
+    normal(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) = 0;
+  }
+  relation top_free continuous on top {
+    normal(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) = 0;
+  }
+}
+"#;
     const TRANSIENT_SOURCE: &str = include_str!(
         "../../../verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi"
     );
@@ -1540,6 +1611,146 @@ except TypeError:
     pass
 else:
     raise AssertionError("legacy root submit form remained callable")
+"#),
+                None,
+                Some(&locals),
+            )
+        })
+    }
+
+    #[test]
+    fn installed_root_common_elasticity_uses_exact_caller_mesh_and_field() -> PyResult<()> {
+        Python::initialize();
+        Python::attach(|py| {
+            let native = pyo3::wrap_pymodule!(crate::_eqiora)(py);
+            let package_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../bindings/python/python/eqiora")
+                .canonicalize()?;
+            let locals = PyDict::new(py);
+            locals.set_item("native", native.bind(py))?;
+            locals.set_item("package_directory", package_directory.to_string_lossy())?;
+            locals.set_item("elasticity_source", ELASTICITY_COMPONENT)?;
+            py.run(
+                c_str!(r#"
+import importlib.util, pathlib, sys
+package_path = pathlib.Path(package_directory)
+spec = importlib.util.spec_from_file_location("eqiora", package_path / "__init__.py", submodule_search_locations=[str(package_path)])
+package = importlib.util.module_from_spec(spec)
+sys.modules["eqiora"] = package
+sys.modules["eqiora._eqiora"] = native
+spec.loader.exec_module(package)
+
+graph = package.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+geometry = graph.build(rectangle, named_topology={
+    "region": rectangle.region,
+    "left": rectangle.boundaries[0],
+    "right": rectangle.boundaries[1],
+    "bottom": rectangle.boundaries[2],
+    "top": rectangle.boundaries[3],
+})
+mesher = package.meshing.CartesianMesher(cells=(2, 3))
+mesh_plan = package.meshing.resolve(geometry, package.meshing.MeshRequest(mesher))
+mesh = package.meshing.generate(geometry, plan=mesh_plan)
+model = package.compile(
+    source=elasticity_source,
+    filename="elasticity.eqi",
+    geometry=geometry,
+    parameters={"mu": 3.0, "lambda": 0.0, "length_scale": 1.0},
+)
+replayed = package.replay(model.to_json())
+alternate = package.compile(
+    source=elasticity_source,
+    filename="alternate-elasticity.eqi",
+    geometry=geometry,
+    parameters={"mu": 4.0, "lambda": 0.0, "length_scale": 1.0},
+)
+linear = package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=10000)
+plan = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
+replayed_plan = package.resolve(replayed, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
+alternate_plan = package.resolve(alternate, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
+assert plan.identity == replayed_plan.identity
+assert alternate_plan.identity != plan.identity
+assert alternate_plan.model_digest == alternate.digest
+assert plan.model is model
+assert plan.mesh is mesh
+assert plan.field == model.field(plan.field.id)
+assert plan.fields == (plan.field,)
+assert plan.velocity_field is None and plan.pressure_field is None
+assert plan.cells == (2, 3)
+assert plan.spatial == package.fem.Q1()
+assert plan.solve is linear
+assert plan.scaling is None and plan.scaling_receipt is None
+assert plan.temporal is None
+assert plan.solver_algorithm == "conjugate-gradient"
+assert plan.preconditioner == "identity"
+assert plan.reduction == "reproducible"
+assert plan.placement == "host-serial" and plan.workers == 1
+
+result = package.run(plan)
+output = result.output(plan.field)
+assert output.field == plan.field
+assert output.mesh is mesh
+assert output.components == 2
+assert output.vertex_count == 12
+assert len(output.vertex_values) == 24
+assert output.dimension == (0, 1, 0, 0, 0, 0, 0)
+assert output.cell_bubble_values is None and output.cell_bubble_count == 0
+assert result.mesh(plan.field) is mesh
+assert package.submit(plan).result().output(plan.field).vertex_count == 12
+
+load_potential_id = model.field_ids[0]
+if load_potential_id == plan.field.id:
+    load_potential_id = model.field_ids[1]
+load_potential = model.field(load_potential_id)
+try:
+    result.output(load_potential)
+except KeyError:
+    pass
+else:
+    raise AssertionError("load potential escaped as an elasticity Result Field")
+try:
+    result.output("displacement")
+except TypeError:
+    pass
+else:
+    raise AssertionError("string Field lookup was admitted")
+try:
+    result.output(alternate_plan.field)
+except ValueError:
+    pass
+else:
+    raise AssertionError("foreign exact FieldRef was admitted")
+
+foreign_rectangle = graph.rectangle(x_bounds=(0.0, 2.0), y_bounds=(0.0, 1.0))
+foreign_geometry = graph.build(foreign_rectangle, named_topology={
+    "region": foreign_rectangle.region,
+    "left": foreign_rectangle.boundaries[0],
+    "right": foreign_rectangle.boundaries[1],
+    "bottom": foreign_rectangle.boundaries[2],
+    "top": foreign_rectangle.boundaries[3],
+})
+foreign_mesh_plan = package.meshing.resolve(foreign_geometry, package.meshing.MeshRequest(mesher))
+foreign_mesh = package.meshing.generate(foreign_geometry, plan=foreign_mesh_plan)
+triangle_plan = package.meshing.resolve(
+    geometry,
+    package.meshing.MeshRequest(package.meshing.AffineTriangleMesher(cells=(2, 3))),
+)
+triangle_mesh = package.meshing.generate(geometry, plan=triangle_plan)
+for kwargs in (
+    dict(mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=linear),
+    dict(mesh=triangle_mesh, spatial=package.fem.Q1(), solve=linear),
+    dict(mesh=foreign_mesh, spatial=package.fem.Q1(), solve=linear),
+    dict(mesh=mesh, spatial=package.fem.Q1(), solve=package.solve.Newton(linear=linear)),
+    dict(mesh=mesh, spatial=package.fem.Q1(), solve=linear, temporal=package.time.BackwardEuler(0.1)),
+    dict(mesh=mesh, spatial=package.fem.Q1(), solve=linear, scaling=package.fluid.IncompressibleScaling()),
+):
+    try:
+        package.resolve(model, **kwargs)
+    except package.ValidationError:
+        pass
+    else:
+        raise AssertionError(f"elasticity cross-wire was admitted: {kwargs}")
 "#),
                 None,
                 Some(&locals),
