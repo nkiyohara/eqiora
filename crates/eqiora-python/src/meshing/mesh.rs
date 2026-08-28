@@ -12,14 +12,13 @@ use eqiora_numerics::AuthenticatedCommonMesh;
 use numpy::PyArray2;
 use pyo3::exceptions::{PyOverflowError, PyRuntimeError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes, PyDict, PyTuple};
+use pyo3::types::{PyAny, PyBytes, PyTuple};
 
 use super::plan::{PyMeshPlan, ResolvedMeshPlan};
 use super::request_error;
 use crate::error::{diagnostic_error, validation_error};
 use crate::geometry::{PyGeometry, PyGeometrySelection, digest_to_hex};
 use crate::matrix::ReadOnlyMatrix;
-use crate::notebook_mime::{TEXT_MIME, select_mime_types};
 use crate::panic_boundary;
 
 /// Immutable source-bound accepted Mesh.
@@ -278,25 +277,6 @@ impl PyMesh {
 
     fn __repr__(&self, _py: Python<'_>) -> PyResult<String> {
         Ok(self.representation())
-    }
-
-    #[pyo3(signature = (include=None, exclude=None))]
-    fn _repr_mimebundle_(
-        slf: Py<Self>,
-        py: Python<'_>,
-        include: Option<&Bound<'_, PyAny>>,
-        exclude: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Py<PyDict>> {
-        let selected = select_mime_types(py, include, exclude)?;
-        let output = PyDict::new(py);
-        if selected.is_empty() {
-            return Ok(output.unbind());
-        }
-
-        if selected.contains(TEXT_MIME) {
-            output.set_item(TEXT_MIME, slf.get().representation())?;
-        }
-        Ok(output.unbind())
     }
 }
 
