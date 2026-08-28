@@ -614,38 +614,17 @@ h1[data-page-title] {
 }
 
 /* ---------------------------------------------------------------------------
- * KaTeX: build-time HTML+MathML, labelled overflow region, readable source
+ * KaTeX: build-time HTML+MathML with unobtrusive local overflow
  * ------------------------------------------------------------------------- */
 
 .eqiora-math-region {
-  position: relative;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 0 var(--eq-space-4) var(--eq-space-3);
-  border: 1px solid var(--eq-color-border);
-  border-radius: var(--eq-radius-cell);
-  background-color: var(--eq-color-surface);
+  margin-block: var(--eq-space-6);
+  padding: var(--eq-space-1) 0 var(--eq-space-2);
   scrollbar-width: thin;
   scrollbar-color: var(--eq-color-border-strong) transparent;
   -webkit-overflow-scrolling: touch;
-}
-
-/* Visible label row that stays pinned while a wide equation scrolls. */
-.eqiora-math-region::before {
-  content: attr(aria-label);
-  position: sticky;
-  left: 0;
-  display: block;
-  margin: 0 calc(-1 * var(--eq-space-4)) var(--eq-space-2);
-  padding: 0.3rem var(--eq-space-4);
-  border-bottom: 1px solid var(--eq-color-border);
-  background-color: var(--eq-color-surface-muted);
-  color: var(--eq-color-text-muted);
-  font-size: var(--eq-text-micro);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  line-height: 1.5;
 }
 
 .eqiora-math-region:focus-visible {
@@ -654,7 +633,7 @@ h1[data-page-title] {
 }
 
 .eqiora-math-region .katex-display {
-  margin: var(--eq-space-2) 0;
+  margin: 0;
   overflow: visible;
 }
 
@@ -708,7 +687,6 @@ h1[data-page-title] {
   header.header,
   nav.sidebar .sidebar-pane,
   .right-sidebar,
-  .eqiora-math-region,
   .sl-markdown-content pre:not(:where(.expressive-code *)) {
     border-color: CanvasText;
   }
@@ -741,8 +719,7 @@ h1[data-page-title] {
     outline: 3px solid Highlight;
   }
 
-  .expressive-code .frame.has-code-region-label:not(.is-terminal) > .header,
-  .eqiora-math-region::before {
+  .expressive-code .frame.has-code-region-label:not(.is-terminal) > .header {
     border-color: CanvasText;
     background: Canvas;
     color: CanvasText;

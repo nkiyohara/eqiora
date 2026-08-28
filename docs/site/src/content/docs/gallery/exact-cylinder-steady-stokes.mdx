@@ -90,7 +90,7 @@ Eqiora source below, not a new formulation.
 
 **Eqiora source form**
 
-```text
+```eqiora
 relation momentum continuous on body {
   -div(
     2 * dynamic_viscosity * symmetric_part(grad(velocity))
@@ -145,7 +145,7 @@ cylinder use $\boldsymbol{u}=0$.
 
 **Eqiora source form**
 
-```text
+```eqiora
 relation inlet_profile_definition continuous on body {
   inlet_profile
     - 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
