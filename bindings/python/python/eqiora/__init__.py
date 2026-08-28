@@ -369,11 +369,13 @@ def submit(
 ) -> Run:
     """Submit exactly one steady or transient common request shape."""
 
-    return Run(_submit_plan(
-        plan,
-        state=state,
-        until_s=until_s,
-        output_times_s=output_times_s,
-        steps=steps,
-        output_steps=output_steps,
-    ))
+    return Run(
+        _submit_plan(
+            plan,
+            state=state,
+            until_s=until_s,
+            output_times_s=output_times_s,
+            steps=steps,
+            output_steps=output_steps,
+        )
+    )
