@@ -622,7 +622,7 @@ def _case_body() -> str:
 -div(sigma(u,p)) - grad(phi) = 0
 div(u) = 0</pre></section>
 <section><h2>Mesh and boundaries</h2><p>{WITNESS_COPY}</p></section>
-<section><h2>Submit and result</h2><p>One immutable SteadyStokes intent, resolve, submit, and Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes_marimo.py#L77-L95">Eqiora source form: canonical intent/submit/result cells</a></section>
+<section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes_marimo.py#L77-L96">Eqiora source form: canonical resolve/run/result cells</a></section>
 <section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION}</figcaption></figure><p>Presentation, not evidence.</p></section>
 <section><h2>Verified and not claimed</h2><p>{nonclaims}</p>{_exact_links()}</section>"""
 

@@ -234,8 +234,8 @@ def _case_body() -> str:
 
     sentinel = _exact_link(
         "examples/python/exact_cylinder_stokes_marimo.py",
-        "Eqiora source form: canonical intent/submit/result cells",
-        "#L77-L95",
+        "Eqiora source form: canonical resolve/run/result cells",
+        "#L77-L96",
     )
 
     source_form = """<p><strong>Eqiora source form</strong></p><pre>relation momentum continuous on body {
@@ -715,11 +715,11 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
 
         accepted_link = _exact_link(
             "examples/python/exact_cylinder_stokes_marimo.py",
-            "Eqiora source form: canonical intent/submit/result cells",
-            "#L77-L95",
+            "Eqiora source form: canonical resolve/run/result cells",
+            "#L77-L96",
         )
         accepted_href = accepted_link.split('href="', 1)[1].split('"', 1)[0]
-        accepted_label = "Eqiora source form: canonical intent/submit/result cells"
+        accepted_label = "Eqiora source form: canonical resolve/run/result cells"
         link_mutants = (
             ("empty", f'<a href="">{accepted_label}</a>'),
             ("fragment-only", f'<a href="#model-definition">{accepted_label}</a>'),
@@ -746,8 +746,8 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 "navigation link became an action control",
             )
         for label, replacement in (
-            ("missing lines", accepted_href.removesuffix("#L77-L95")),
-            ("wrong lines", accepted_href.replace("#L77-L95", "#L76-L95")),
+            ("missing lines", accepted_href.removesuffix("#L77-L96")),
+            ("wrong lines", accepted_href.replace("#L77-L96", "#L76-L96")),
             (
                 "wrong exact head",
                 accepted_href.replace(SOURCE_SHA, "b" * 40),
@@ -758,7 +758,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 lambda artifact, replacement=replacement: _replace(
                     artifact / case, accepted_href, replacement
                 ),
-                "accepted source-form sentinel must be the exact-head L77-L95 anchor",
+                "accepted source-form sentinel must be the exact-head L77-L96 anchor",
             )
 
         for phrase in NONCLAIMS:

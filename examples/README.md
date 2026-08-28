@@ -30,11 +30,11 @@ python examples/python/fixed_reference_fsi.py
 | `fixed-reference-fsi` | [`python/fixed_reference_fsi.py`](python/fixed_reference_fsi.py) | Author the adjacent Geometry in Python, compile the equations-only FSI Component, scope MINI/P1 and P1 to exact Model Domains, initialize four exact Fields, and run the common root Plan/State/Run lifecycle. |
 | `steady-flow-past-cylinder` | [`steady-flow-past-cylinder.eqi`](steady-flow-past-cylinder.eqi), [exact geometry](steady-flow-past-cylinder.geometry.json) | Python supplies the sole concrete Geometry to the equations-only `.eqi`, then uses the common root Plan lifecycle. The retained JSON artifacts serve historical verification only. |
 
-General examples keep the Model, typed numerical Plan, and Run visibly separate;
+Examples keep the Model, typed numerical Plan, and execution visibly separate;
 their mesh, discretization, solver, and placement choices remain explicit. The
-exact-cylinder Stokes example instead names one closed reference application
-whose complete configuration is frozen behind that narrow operation. It is not
-a default Realization for other fluid problems.
+exact-cylinder Stokes example uses that same common lifecycle with one bounded
+Geometry, Gmsh, MINI/P1, and linear-solve configuration. It is not a default
+Realization for other fluid problems.
 
 The [Poisson walkthrough](../docs/site/examples.md) explains what each stage
 means and what the reported evidence does and does not establish.

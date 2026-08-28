@@ -387,9 +387,9 @@ def _check_case(
             "gallery walkthrough",
         )
     )
-    admitted_label = "Eqiora source form: canonical intent/submit/result cells"
+    admitted_label = "Eqiora source form: canonical resolve/run/result cells"
     source_base = f"https://github.com/nkiyohara/eqiora/blob/{source_sha}/"
-    admitted_href = source_base + CASE_SOURCE_PATHS[0] + "#L77-L95"
+    admitted_href = source_base + CASE_SOURCE_PATHS[0] + "#L77-L96"
     sentinels: list[tuple[str, dict[str, str], str, str]] = []
     for tag, attrs, label in page.interactives:
         names = page.id_text
@@ -421,7 +421,7 @@ def _check_case(
                 report("Cylinder route navigation link became an action control")
             elif href != admitted_href:
                 report(
-                    "Cylinder route accepted source-form sentinel must be the exact-head L77-L95 anchor"
+                    "Cylinder route accepted source-form sentinel must be the exact-head L77-L96 anchor"
                 )
             continue
         navigation = stage_navigation or (
