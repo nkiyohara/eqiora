@@ -19,6 +19,9 @@ test('inline and block math expose HTML, MathML, source fallback, and local over
   await assertVisibleSourceFallback(page);
   const regions = page.getByRole('region', { name: /equation/i });
   expect(await regions.count()).toBeGreaterThan(0);
+  await expect(regions.first()).toHaveCSS('border-top-style', 'none');
+  await expect(regions.first()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  expect(await regions.first().evaluate((element) => getComputedStyle(element, '::before').content)).toBe('none');
   for (let offset = 0; offset < (await regions.count()); offset += 1) {
     const observation = await regions.nth(offset).evaluate((element) => {
       const box = element.getBoundingClientRect();
