@@ -30,11 +30,9 @@ use eqiora_solver::{
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::cartesian_elliptic::{
     ScalarEllipticCartesianFemSolution, ScalarEllipticCartesianFvmSolution,
+    finalize_scalar_elliptic_cartesian_fem, finalize_scalar_elliptic_cartesian_fvm,
     linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
     linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
-};
-use crate::cartesian_elliptic::{
-    finalize_scalar_elliptic_cartesian_fem, finalize_scalar_elliptic_cartesian_fvm,
 };
 use crate::elliptic::{
     ScalarBoundaryCondition1d, ScalarBoundaryPair1d, ScalarEllipticSolution1d,
