@@ -294,7 +294,7 @@ pub(crate) fn require_policy_compatibility(
             NativeCapability::TransientIncompressibleFlow,
             NativeSpatialPolicy::TransientMiniP1(_),
         ) => (
-            LinearSolver::BiConjugateGradientStabilized,
+            LinearSolver::SparseLu,
             LinearOperatorProperties::General,
             PreconditionerPolicy::Identity,
             ReductionPolicy::Fast,

@@ -119,10 +119,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         mini.scales().pressure().value().to_bits(),
         3.0_f64.to_bits()
     );
-    assert_eq!(
-        mini.linear().algorithm(),
-        LinearSolver::BiConjugateGradientStabilized
-    );
+    assert_eq!(mini.linear().algorithm(), LinearSolver::SparseLu);
     assert_eq!(mini.linear().reduction(), ReductionPolicy::Fast);
     assert_eq!(fvm.linear().reduction(), ReductionPolicy::Reproducible);
 

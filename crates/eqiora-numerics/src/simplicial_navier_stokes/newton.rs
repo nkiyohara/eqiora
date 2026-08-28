@@ -2,7 +2,7 @@ use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::Diagnostic;
 use eqiora_ir::{LinearizedRelation, RelationTangent};
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
-use eqiora_solver::{LinearProblem, LinearSolverBackend};
+use eqiora_solver::LinearSolverBackend;
 
 use super::acceptance::{NewtonEvidence, accept_step, require_consistent_initial_state};
 use super::api::{
@@ -222,23 +222,26 @@ where
 
     let mut reports = Vec::new();
     for iteration in 1..=plan.maximum_newton_iterations().get() {
-        let linear_problem = LinearProblem::new(
-            current.relation.state_jacobian(),
-            current.relation.right_hand_side(),
-            eqiora_solver::LinearOperatorProperties::General,
-        )?
-        .with_initial_guess(&point)?;
+        let right_hand_side = current
+            .residual
+            .iter()
+            .map(|value| -value)
+            .collect::<Vec<_>>();
+        let linear_problem = current
+            .relation
+            .state_jacobian()
+            .linear_problem_with_right_hand_side(&right_hand_side)?;
         let solution = solver.solve(&linear_problem, plan.linear_solver())?;
         reports.push(solution.report().clone());
-        let proposed = solution.values();
+        let correction = solution.values();
         let previous_norm = current.residual_norm()?;
         let mut accepted = None;
         let mut scale = 1.0;
         for _ in 0..=plan.maximum_line_search_steps() {
             let candidate = point
                 .iter()
-                .zip(proposed)
-                .map(|(point, proposed)| point + scale * (proposed - point))
+                .zip(correction)
+                .map(|(point, correction)| point + scale * correction)
                 .collect::<Vec<_>>();
             let assembled = assemble_step_linearization(
                 mesh,
