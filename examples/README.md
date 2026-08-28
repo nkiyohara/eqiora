@@ -10,6 +10,7 @@ Run them from the repository root:
 cargo run --locked -p eqiora --example quickstart
 python examples/python/exact_cylinder_geometry.py
 python examples/python/exact_cylinder_mesh.py
+python examples/python/steady_cylinder_source.py > steady-cylinder-authored.eqi
 python examples/python/exact_cylinder_stokes.py
 python examples/python/exact_cylinder_stokes.py \
   --pressure-png exact-cylinder-pressure.png
@@ -31,6 +32,7 @@ python examples/python/fixed_reference_fsi.py
 | `poisson` | [`packages/org.example.poisson`](../packages/org.example.poisson/) | Compile a 2D Poisson model and exercise its verification-only native reference solve. |
 | `exact-cylinder-geometry` | [`python/exact_cylinder_geometry.py`](python/exact_cylinder_geometry.py) | From an installed `eqiora` package, author the exact rectangle-with-one-circular-hole identity and inspect its fixed-role named selections. |
 | `exact-cylinder-mesh` | [`python/exact_cylinder_mesh.py`](python/exact_cylinder_mesh.py) | From an installed `eqiora` package, realize the exact cylinder source with typed Gmsh policy and inspect Rust-derived selection counts. |
+| `steady-cylinder-source` | [`python/steady_cylinder_source.py`](python/steady_cylinder_source.py) | From an installed `eqiora` package, author the complete equations-only steady-cylinder Component as bounded `eqiora.lang.Source` values and emit readable deterministic `.eqi` through the same compiler ingress used by hand-written source. |
 | `exact-cylinder-stokes` | [`python/exact_cylinder_stokes.py`](python/exact_cylinder_stokes.py) | From an installed `eqiora` package, define the sole concrete Geometry in Python, compile it with the shipped equations-only `.eqi` Component, resolve the common MINI/P1 and linear-solve policies, inspect immutable pressure, solver, force, and flux evidence, and optionally save the pressure through `eqiora[gmsh,matplotlib]`. |
 | `exact-cylinder-stokes-marimo` | [`python/exact_cylinder_stokes_marimo.py`](python/exact_cylinder_stokes_marimo.py) | In Marimo, compose the same Python-authored Geometry, installed `.eqi` Component, Mesh, common root Plan, and direct `run` Result, then inspect their live identities and caller-owned pressure Figure. |
 | `exact-cylinder-stokes-jupyter` | [`python/exact_cylinder_stokes_jupyter.ipynb`](python/exact_cylinder_stokes_jupyter.ipynb) | In Jupyter, compose the same public Geometry, installed `.eqi` Component, Mesh, common root Plan, direct `run` Result, identity summary, and caller-owned pressure Figure without a rich-Mesh widget. |
