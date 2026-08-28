@@ -87,13 +87,16 @@ class MixedBoundaryElasticityGalleryTests(unittest.TestCase):
             shutil.copyfile(RECORD, record)
             shutil.copyfile(MEDIA, media)
             self.assertFalse((archive / ".git").exists())
+            authority = Path(
+                os.environ.get(checker.GIT_OBJECT_REPOSITORY_VARIABLE, ROOT)
+            ).resolve(strict=True)
             head = (
-                checker._git(ROOT, "rev-parse", "--verify", "HEAD^{commit}")
+                checker._git(authority, "rev-parse", "--verify", "HEAD^{commit}")
                 .decode("ascii")
                 .strip()
             )
             environment = {
-                checker.GIT_OBJECT_REPOSITORY_VARIABLE: str(ROOT),
+                checker.GIT_OBJECT_REPOSITORY_VARIABLE: str(authority),
                 checker.SOURCE_SHA_VARIABLE: head,
             }
             with mock.patch.dict(os.environ, environment, clear=False):
