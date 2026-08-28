@@ -29,7 +29,7 @@ if EXPECTED_MATPLOTLIB_VERSION is not None:
     assert matplotlib.__version__ == EXPECTED_MATPLOTLIB_VERSION
 
 
-def cylinder() -> tuple[eqiora.Plan, eqiora.Result]:
+def cylinder():
     graph = eqiora.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
     circle = graph.circle(center=(0.2, 0.2), radius=0.05)
@@ -72,7 +72,7 @@ def cylinder() -> tuple[eqiora.Plan, eqiora.Result]:
         ),
         scaling=None,
     )
-    return plan, eqiora.run(plan)
+    return geometry, mesh, plan, eqiora.run(plan)
 
 
 def elasticity() -> tuple[eqiora.Plan, eqiora.Result]:
@@ -110,8 +110,76 @@ def elasticity() -> tuple[eqiora.Plan, eqiora.Result]:
 
 
 @pytest.fixture(scope="module")
-def scalar() -> tuple[eqiora.Plan, eqiora.Result]:
+def cylinder_case():
     return cylinder()
+
+
+@pytest.fixture(scope="module")
+def scalar(cylinder_case) -> tuple[eqiora.Plan, eqiora.Result]:
+    _, _, plan, result = cylinder_case
+    return plan, result
+
+
+@pytest.fixture(scope="module")
+def transient_vorticity(cylinder_case):
+    geometry, mesh, steady_plan, steady_result = cylinder_case
+    model = eqiora.compile(
+        path=files(eqiora).joinpath("examples", "transient-flow-past-cylinder.eqi"),
+        geometry=geometry,
+        parameters={
+            "density": 1.0,
+            "dynamic_viscosity": 0.001,
+            "zero_pressure": 0.0,
+            "inlet_speed": 0.3,
+            "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
+        },
+    )
+    linear = eqiora.solve.Linear(
+        relative_tolerance=1.0e-6,
+        absolute_tolerance=1.0e-9,
+        maximum_iterations=20_000,
+    )
+    plan = eqiora.resolve(
+        model,
+        mesh=mesh,
+        spatial=eqiora.fem.MiniP1(),
+        temporal=eqiora.time.BackwardEuler(0.0001),
+        solve=eqiora.solve.Newton(linear=linear),
+        scaling=eqiora.fluid.IncompressibleScaling(
+            length_m=0.41,
+            velocity_m_per_s=0.3,
+            pressure_pa=0.09,
+        ),
+    )
+    steady_velocity = steady_result.output(steady_plan.velocity_field)
+    steady_pressure = steady_result.output(steady_plan.pressure_field)
+    state = eqiora.State.initial(
+        plan,
+        time_s=0.0,
+        fields=(
+            eqiora.InitialField(
+                plan.velocity_field,
+                vertex_values=np.asarray(steady_velocity.vertex_values).reshape(
+                    mesh.vertex_count, 2
+                ),
+                cell_values=np.asarray(steady_velocity.cell_bubble_values).reshape(
+                    mesh.cell_count, 2
+                ),
+            ),
+            eqiora.InitialField(
+                plan.pressure_field,
+                vertex_values=np.asarray(steady_pressure.vertex_values),
+            ),
+        ),
+    )
+    result = eqiora.run(plan, state=state, steps=1, output_steps=(1,))
+    wake_state = result.trajectory.state(1)
+    return (
+        plan,
+        result,
+        wake_state.curl(plan.velocity_field),
+        state.curl(plan.velocity_field),
+    )
 
 
 @pytest.fixture(scope="module")
@@ -147,6 +215,48 @@ def test_scalar_field_uses_exact_plan_field_output(
     np.testing.assert_array_equal(observed["cells"], expected_cells)
     np.testing.assert_array_equal(observed["values"], expected_values)
     assert figure.axes[1].get_ylabel() == "Pressure [Pa]"
+
+
+def test_cell_scalar_uses_exact_derived_snapshot_and_diverging_scale(
+    transient_vorticity,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, result, vorticity, initial_vorticity = transient_vorticity
+    trajectory = result.trajectory
+    support = vorticity.support_indices("cell")
+    expected_cells = trajectory.cells[support]
+    expected_values = vorticity.values("cell")
+    observed: dict[str, object] = {}
+    original = Axes.tripcolor
+
+    def capture(axes: Axes, *args: object, **kwargs: object):
+        observed["values"] = np.asarray(kwargs["facecolors"]).copy()
+        observed["cells"] = np.asarray(kwargs["triangles"]).copy()
+        observed["shading"] = kwargs["shading"]
+        observed["cmap"] = kwargs["cmap"]
+        observed["vmin"] = kwargs["vmin"]
+        observed["vmax"] = kwargs["vmax"]
+        return original(axes, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "tripcolor", capture)
+    figure = eqplot.plot_scalar_field(
+        trajectory,
+        step=1,
+        field=vorticity,
+    )
+
+    np.testing.assert_array_equal(observed["cells"], expected_cells)
+    np.testing.assert_array_equal(observed["values"], expected_values)
+    assert observed["shading"] == "flat"
+    assert observed["cmap"] == "coolwarm"
+    assert observed["vmin"] == -observed["vmax"]
+    assert figure.axes[1].get_ylabel() == "Vorticity [s^-1]"
+    assert "step 1" in figure.axes[0].get_title()
+
+    with pytest.raises(ValueError, match="different accepted State"):
+        eqplot.plot_scalar_field(trajectory, step=1, field=initial_vorticity)
+    with pytest.raises(TypeError, match="requires a Trajectory"):
+        eqplot.plot_scalar_field(result, field=vorticity)
 
 
 def test_deformed_field_uses_exact_plan_field_output(

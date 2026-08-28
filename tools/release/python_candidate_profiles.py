@@ -353,6 +353,7 @@ assert "eqiora/py.typed" in files
 assert "eqiora/__init__.pyi" in files
 assert "eqiora/fsi.pyi" in files
 assert "eqiora/examples/fixed-reference-fsi.eqi" in files
+assert "eqiora/examples/transient-flow-past-cylinder.eqi" in files
 for retired in (
     "FixedReferenceFsiStep",
     "FixedReferenceFsiResult",

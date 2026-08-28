@@ -16,7 +16,7 @@ except ModuleNotFoundError as error:
         "install eqiora[matplotlib]"
     ) from error
 
-from ._eqiora import FieldRef, Result, Trajectory
+from ._eqiora import DerivedFieldSnapshot, FieldRef, Result, Trajectory
 from .fluid import steady_stokes_evidence
 from .solid import linear_elasticity_evidence
 
@@ -33,13 +33,17 @@ def plot_scalar_field(
     /,
     *,
     step=_MISSING,
-    field: FieldRef,
+    field: FieldRef | DerivedFieldSnapshot,
 ) -> Figure:
-    """Plot one exact invariant vertex scalar from an accepted result or trajectory."""
+    """Plot one accepted vertex field or cell-associated derived scalar."""
 
     if isinstance(trajectory, Result):
         if step is not _MISSING:
             raise TypeError("plot_scalar_field() does not accept step for Result")
+        if isinstance(field, DerivedFieldSnapshot):
+            raise TypeError(
+                "plot_scalar_field() requires a Trajectory for a derived snapshot"
+            )
         evidence = steady_stokes_evidence(trajectory)
         bounds = evidence.exact_bounds
         minimum = evidence.pressure_minimum
@@ -47,14 +51,23 @@ def plot_scalar_field(
         output = trajectory.output(field)
         spatial = output.mesh
         state = None
+        scalar_kind = "vertex"
         scalar_label = _result_scalar_label(output.dimension)
     elif isinstance(trajectory, Trajectory):
         if step is _MISSING:
             raise TypeError("plot_scalar_field() requires step for Trajectory")
-        state, snapshot = _trajectory_snapshot(trajectory, step, field)
+        state = trajectory.state(step)
         spatial = trajectory
         bounds = None
-        scalar_label = f"Value [{_coherent_si_unit(snapshot.dimension)}]"
+        if isinstance(field, DerivedFieldSnapshot):
+            snapshot = field
+            _validate_derived_snapshot(trajectory, state, snapshot)
+            scalar_label = f"Vorticity [{_coherent_si_unit(snapshot.dimension)}]"
+            scalar_kind = "cell"
+        else:
+            snapshot = state.field(field)
+            scalar_label = f"Value [{_coherent_si_unit(snapshot.dimension)}]"
+            scalar_kind = "vertex"
     else:
         raise TypeError(
             "plot_scalar_field() requires eqiora.Result or eqiora.trajectory.Trajectory"
@@ -64,15 +77,22 @@ def plot_scalar_field(
         if output.components != 1:
             raise ValueError("plot_scalar_field() requires one scalar component")
         coordinates, triangles, values, support = _static_field_arrays(output, cell_arity=3)
+        restricted = values[support]
     else:
-        if snapshot.value_shape != ():
-            raise ValueError("plot_scalar_field() requires scalar value shape ()")
-        if snapshot.frame != "invariant":
-            raise ValueError("plot_scalar_field() requires the invariant frame")
-        coordinates, triangles, values, support = _vertex_field_arrays(
-            spatial, snapshot, cell_arity=3
-        )
-    restricted = values[support]
+        if scalar_kind == "cell":
+            coordinates, triangles, values, support = _cell_field_arrays(
+                spatial, snapshot, cell_arity=3
+            )
+            restricted = values
+        else:
+            if snapshot.value_shape != ():
+                raise ValueError("plot_scalar_field() requires scalar value shape ()")
+            if snapshot.frame != "invariant":
+                raise ValueError("plot_scalar_field() requires the invariant frame")
+            coordinates, triangles, values, support = _vertex_field_arrays(
+                spatial, snapshot, cell_arity=3
+            )
+            restricted = values[support]
     if state is not None:
         minimum = float(restricted.min())
         maximum = float(restricted.max())
@@ -80,16 +100,29 @@ def plot_scalar_field(
     figure = Figure(figsize=(8.0, 5.2), facecolor="#ffffff")
     axes = figure.add_axes((0.09, 0.13, 0.76, 0.76))
     axes.set_facecolor("#f8fafc")
-    scalar = axes.tripcolor(
-        coordinates[:, 0],
-        coordinates[:, 1],
-        values,
-        triangles=triangles,
-        shading="gouraud",
-        cmap="viridis",
-        vmin=minimum,
-        vmax=maximum,
-    )
+    if state is not None and scalar_kind == "cell":
+        magnitude = max(abs(minimum), abs(maximum))
+        scalar = axes.tripcolor(
+            coordinates[:, 0],
+            coordinates[:, 1],
+            triangles=triangles,
+            facecolors=values,
+            shading="flat",
+            cmap="coolwarm",
+            vmin=-magnitude if magnitude > 0.0 else None,
+            vmax=magnitude if magnitude > 0.0 else None,
+        )
+    else:
+        scalar = axes.tripcolor(
+            coordinates[:, 0],
+            coordinates[:, 1],
+            values,
+            triangles=triangles,
+            shading="gouraud",
+            cmap="viridis",
+            vmin=minimum,
+            vmax=maximum,
+        )
     axes.triplot(
         coordinates[:, 0],
         coordinates[:, 1],
@@ -99,8 +132,12 @@ def plot_scalar_field(
         alpha=0.3,
     )
     if state is not None:
-        _set_field_axes_bounds(axes, coordinates[support])
-        axes.set_title(f"Scalar field — step {state.step}, t = {state.time_s:g} s")
+        if scalar_kind == "cell":
+            _set_field_axes_bounds(axes, coordinates[np.unique(triangles)])
+            axes.set_title(f"Vorticity — step {state.step}, t = {state.time_s:g} s")
+        else:
+            _set_field_axes_bounds(axes, coordinates[support])
+            axes.set_title(f"Scalar field — step {state.step}, t = {state.time_s:g} s")
     else:
         (x_minimum, x_maximum), (y_minimum, y_maximum) = bounds
         axes.set_xlim(x_minimum, x_maximum)
@@ -215,6 +252,47 @@ def _trajectory_snapshot(trajectory, step, field):
         raise TypeError("field stills require eqiora.trajectory.Trajectory")
     state = trajectory.state(step)
     return state, state.field(field)
+
+
+def _validate_derived_snapshot(trajectory, state, snapshot):
+    if snapshot.source_state_digest != state.digest:
+        raise ValueError("derived snapshot belongs to a different accepted State")
+    if snapshot.mesh_digest != trajectory.mesh_digest:
+        raise ValueError("derived snapshot belongs to a different exact Mesh")
+    if snapshot.operator != "curl":
+        raise ValueError("plot_scalar_field() does not support this derived operator")
+    if snapshot.value_shape != ():
+        raise ValueError("plot_scalar_field() requires scalar value shape ()")
+    if snapshot.frame != "spatial-axial":
+        raise ValueError("derived curl requires the spatial-axial frame")
+
+
+def _cell_field_arrays(spatial, snapshot, *, cell_arity):
+    if snapshot.associations != ("cell",):
+        raise ValueError("derived field stills require exactly one cell association")
+
+    coordinates = spatial.coordinates
+    cells = spatial.cells
+    values = snapshot.values("cell")
+    support = snapshot.support_indices("cell")
+    if spatial.dimension != 2 or coordinates.ndim != 2 or coordinates.shape[1] != 2:
+        raise ValueError("field stills require two-dimensional coordinates")
+    if cells.ndim != 2 or cells.shape[1] != cell_arity:
+        raise ValueError("field stills require affine triangle topology")
+    if support.ndim != 1 or support.size == 0:
+        raise ValueError("cell support must be one-dimensional and nonempty")
+    if int(support.max()) >= cells.shape[0]:
+        raise ValueError("cell support exceeds the spatial topology")
+    if not np.array_equal(support, np.unique(support)):
+        raise ValueError("cell support must be sorted and unique")
+    if cells.size > 0 and int(cells.max()) >= coordinates.shape[0]:
+        raise ValueError("cell topology exceeds the spatial coordinates")
+    admitted_cells = cells[support]
+    if values.shape == (cells.shape[0],):
+        values = values[support]
+    elif values.shape != (support.shape[0],):
+        raise ValueError("field value shape does not match its cell support")
+    return coordinates, admitted_cells, values, support
 
 
 def _static_field_arrays(output, *, cell_arity):

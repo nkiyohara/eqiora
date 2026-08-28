@@ -37,13 +37,13 @@ def plot_deformed_field(result: Result, /, *, field: FieldRef, scale: float=1.0)
 
 ## `plot_scalar_field`
 
-Plot one invariant vertex scalar from a result or trajectory.
+Plot one accepted vertex field or cell-associated derived scalar.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/matplotlib.py" kind="blob">bindings/python/python/eqiora/matplotlib.py::plot_scalar_field</ExactSourceLink>
 
 ```python
 @overload
-def plot_scalar_field(trajectory: Trajectory, /, *, step: int, field: FieldRef) -> Figure: ...
+def plot_scalar_field(trajectory: Trajectory, /, *, step: int, field: FieldRef | DerivedFieldSnapshot) -> Figure: ...
 
 @overload
 def plot_scalar_field(result: Result, /, *, field: FieldRef) -> Figure: ...
