@@ -3,7 +3,7 @@ title: Transient cylinder-flow startup
 description: An explicitly unverified ten-step startup walkthrough through the ordinary Eqiora lifecycle.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, LinkButton } from '@astrojs/starlight/components';
 import NotebookStage from '../../../components/gallery/NotebookStage.astro';
 import ClaimBoundary from '../../../components/gallery/ClaimBoundary.astro';
 import ResultFigure from '../../../components/gallery/ResultFigure.astro';
@@ -12,6 +12,10 @@ import poster from '../../../assets/gallery/transient-cylinder-startup-poster.pn
 import reducedMotion from '../../../assets/gallery/transient-cylinder-startup-reduced-motion.png';
 import startupWebm from '../../../assets/gallery/transient-cylinder-startup.webm';
 import startupMp4 from '../../../assets/gallery/transient-cylinder-startup.mp4';
+
+export const colabRelease = /^0\.1\.0a([0-9]+)$/u.exec(process.env.EQIORA_SITE_PYTHON_VERSION ?? '');
+export const colabReady = colabRelease !== null && Number(colabRelease[1]) >= 4;
+export const colabUrl = `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${process.env.EQIORA_SITE_SOURCE_SHA}/examples/python/transient_cylinder_wake_jupyter.ipynb`;
 
 **Unverified product example · Python, Marimo, and Jupyter**
 
@@ -113,6 +117,14 @@ result = eqiora.run(
 
 <ExactSourceLink path="examples/python/transient_cylinder_wake_marimo.py" kind="blob">Open the Marimo app</ExactSourceLink>
 · <ExactSourceLink path="examples/python/transient_cylinder_wake_jupyter.ipynb" kind="blob">Open the Jupyter notebook</ExactSourceLink>
+
+{colabReady && (
+  <LinkButton href={colabUrl} variant="primary">Open in Colab</LinkButton>
+)}
+
+The Colab entry is published beginning with the `0.1.0a4` documentation build. It
+opens this exact GitHub notebook in the user's ephemeral runtime and does not
+depend on maintainer-owned Drive state.
 
 </NotebookStage>
 

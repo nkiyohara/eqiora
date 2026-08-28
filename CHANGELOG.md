@@ -33,7 +33,9 @@ are recorded here.
   presents that same product Result through a poster, WebM/MP4, first/final
   reduced-motion still, and visible text description. It remains largely
   symmetric startup flow, not a developed wake, and adds no benchmark values,
-  tolerances, or scientific acceptance claim.
+  tolerances, or scientific acceptance claim. Its GitHub-backed Jupyter source
+  also becomes an Open in Colab entry only in the `0.1.0a4` documentation build;
+  a clean runtime installs the pinned release without maintainer-owned Drive state.
 
 - Transient `State.curl(velocity_field)` now derives an immutable typed
   cell-average vorticity snapshot from accepted two-dimensional MINI velocity,

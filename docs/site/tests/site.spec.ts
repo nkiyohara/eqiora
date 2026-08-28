@@ -110,6 +110,21 @@ test('transient cylinder startup publishes accessible caller-owned motion', asyn
   expect(external).toEqual([]);
 });
 
+test('transient cylinder Colab launch remains release-gated', async ({ page }) => {
+  await page.goto('/gallery/transient-cylinder-startup/');
+  const launch = page.getByRole('link', { name: 'Open in Colab', exact: true });
+  const release = process.env.EQIORA_SITE_PYTHON_VERSION;
+  if (/^0\.1\.0a([4-9]|[1-9][0-9]+)$/u.test(release ?? '')) {
+    const sourceSha = process.env.EQIORA_SITE_SOURCE_SHA;
+    await expect(launch).toHaveAttribute(
+      'href',
+      `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${sourceSha}/examples/python/transient_cylinder_wake_jupyter.ipynb`,
+    );
+  } else {
+    await expect(launch).toHaveCount(0);
+  }
+});
+
 test('Pagefind returns one representative from every frozen reference family', async ({ page }) => {
   const external = await rejectExternalRequests(page);
   await page.goto('/');

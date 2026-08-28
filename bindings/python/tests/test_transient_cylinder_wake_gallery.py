@@ -110,6 +110,11 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
             self.assertEqual(cell["outputs"], [])
             compile("".join(cell["source"]), NOTEBOOK.as_posix(), "exec")
 
+        self.assertIn('find_spec("eqiora") is None', self.notebook_source)
+        self.assertIn('"eqiora[gmsh,matplotlib]==0.1.0a4"', self.notebook_source)
+        self.assertIn("subprocess.run(", self.notebook_source)
+        self.assertNotIn("drive.mount", self.notebook_source)
+
     def test_three_sources_use_only_the_current_public_route(self) -> None:
         for source in (
             self.plain_source,
@@ -191,6 +196,9 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         self.assertNotIn("autoplay", page)
         self.assertIn("eq-gallery-motion__still", page)
         self.assertIn("startup-motion-description", page)
+        self.assertIn("colab.research.google.com/github/nkiyohara/eqiora/blob/", page)
+        self.assertIn("Number(colabRelease[1]) >= 4", page)
+        self.assertIn("does not\ndepend on maintainer-owned Drive state", page)
         self.assertIn("prefers-reduced-motion: reduce", styles)
         self.assertIn("trajectory.states", producer)
         self.assertNotIn("verify/", producer)
