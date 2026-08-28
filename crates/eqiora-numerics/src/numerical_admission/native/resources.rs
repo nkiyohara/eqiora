@@ -156,7 +156,7 @@ pub(crate) fn validate_simplicial_resources(
 
 pub(crate) fn derive_gmsh_resources(
     geometry: CanonicalGeometryV1,
-    policy: eqiora_artifact::PlanarMeshQualityV1,
+    policy: eqiora_artifact::GmshMeshPolicyV1,
     provider_output: Vec<u8>,
 ) -> Result<NativeMeshResources, Diagnostic> {
     CanonicalGeometryV1::decode_planar_circular_hole_v2_canonical(

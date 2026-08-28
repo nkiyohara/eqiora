@@ -1,9 +1,6 @@
 //! Immutable mesh intent and complete resolved provider choices.
 
-use eqiora::artifact::{
-    AffineTriangleMeshCellsV1, CartesianMeshCellsV1, MeshProductionLineageEnvelopeV1,
-    PlanarMeshQualityV1,
-};
+use eqiora::artifact::{AffineTriangleMeshCellsV1, CartesianMeshCellsV1};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyTuple};
 
@@ -23,46 +20,65 @@ use crate::panic_boundary;
 )]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct PyGmshMesher {
-    pub(super) policy: PlanarMeshQualityV1,
+    pub(super) maximum_boundary_error: f64,
+    pub(super) minimum_mean_ratio: f64,
+    pub(super) maximum_boundary_facets: usize,
+    pub(super) maximum_target_size: Option<f64>,
 }
 
 #[pymethods]
 impl PyGmshMesher {
     #[new]
-    #[pyo3(signature = (*, maximum_boundary_error=1.0e-4, minimum_mean_ratio=1.0e-5, maximum_boundary_facets=50))]
+    #[pyo3(signature = (*, maximum_boundary_error=1.0e-4, maximum_target_size=None, minimum_mean_ratio=1.0e-5, maximum_boundary_facets=50))]
     fn new(
         py: Python<'_>,
         maximum_boundary_error: f64,
+        maximum_target_size: Option<f64>,
         minimum_mean_ratio: f64,
         maximum_boundary_facets: usize,
     ) -> PyResult<Self> {
-        Ok(Self {
-            policy: validate_numerical_policy(
+        if maximum_target_size.is_some_and(|value| !value.is_finite() || value <= 0.0) {
+            return Err(request_error(
                 py,
-                maximum_boundary_error,
-                minimum_mean_ratio,
-                maximum_boundary_facets,
-            )?,
+                "maximum_target_size must be None or a finite positive value",
+            ));
+        }
+        validate_numerical_policy(
+            py,
+            maximum_boundary_error,
+            minimum_mean_ratio,
+            maximum_boundary_facets,
+        )?;
+        Ok(Self {
+            maximum_boundary_error,
+            minimum_mean_ratio,
+            maximum_boundary_facets,
+            maximum_target_size,
         })
     }
 
     #[getter]
     const fn maximum_boundary_error(&self) -> f64 {
-        self.policy.maximum_boundary_error_m()
+        self.maximum_boundary_error
     }
 
     #[getter]
     const fn minimum_mean_ratio(&self) -> f64 {
-        self.policy.minimum_mean_ratio()
+        self.minimum_mean_ratio
     }
 
     #[getter]
     const fn maximum_boundary_facets(&self) -> usize {
-        self.policy.maximum_boundary_facets()
+        self.maximum_boundary_facets
+    }
+
+    #[getter]
+    const fn maximum_target_size(&self) -> Option<f64> {
+        self.maximum_target_size
     }
 
     fn __repr__(&self) -> String {
-        provider_repr("GmshMesher", self.policy)
+        provider_repr(*self)
     }
 }
 
@@ -150,31 +166,6 @@ pub(super) enum MeshProviderPolicy {
 }
 
 impl MeshProviderPolicy {
-    pub(super) fn production_lineage(
-        self,
-        geometry: &eqiora::geometry::CanonicalGeometryV1,
-        mesh: &eqiora::artifact::SimplicialMeshEnvelopeV1,
-        correspondence: &eqiora::artifact::GeometryMeshCorrespondenceEnvelopeV1,
-    ) -> Result<MeshProductionLineageEnvelopeV1, eqiora::Diagnostic> {
-        match self {
-            Self::Gmsh(provider) => MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
-                provider.policy,
-                geometry,
-                mesh,
-                correspondence,
-            ),
-            Self::Cartesian(_) => unreachable!("Cartesian lineage uses Cartesian resources"),
-            Self::AffineTriangle(provider) => {
-                MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-                    provider.policy,
-                    geometry,
-                    mesh,
-                    correspondence,
-                )
-            }
-        }
-    }
-
     fn to_python(self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match self {
             Self::Gmsh(provider) => Py::new(py, provider).map(Py::into_any),
@@ -228,27 +219,34 @@ fn validate_numerical_policy(
     maximum_boundary_error: f64,
     minimum_mean_ratio: f64,
     maximum_boundary_facets: usize,
-) -> PyResult<PlanarMeshQualityV1> {
+) -> PyResult<()> {
     if !maximum_boundary_error.is_finite() || maximum_boundary_error <= 0.0 {
         return Err(request_error(
             py,
             "maximum_boundary_error must be finite and positive",
         ));
     }
-    PlanarMeshQualityV1::new(
-        maximum_boundary_error,
-        minimum_mean_ratio,
-        maximum_boundary_facets,
-    )
-    .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))
+    eqiora::meshing::MeshQualityGate::new(minimum_mean_ratio)
+        .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
+    if maximum_boundary_facets < 8 {
+        return Err(request_error(
+            py,
+            "maximum_boundary_facets must be at least eight",
+        ));
+    }
+    Ok(())
 }
 
-fn provider_repr(name: &str, policy: PlanarMeshQualityV1) -> String {
+fn provider_repr(provider: PyGmshMesher) -> String {
+    let maximum_target_size = provider
+        .maximum_target_size
+        .map_or_else(|| "None".to_owned(), |value| value.to_string());
     format!(
-        "{name}(maximum_boundary_error={}, minimum_mean_ratio={}, maximum_boundary_facets={})",
-        policy.maximum_boundary_error_m(),
-        policy.minimum_mean_ratio(),
-        policy.maximum_boundary_facets(),
+        "GmshMesher(maximum_boundary_error={}, maximum_target_size={}, minimum_mean_ratio={}, maximum_boundary_facets={})",
+        provider.maximum_boundary_error,
+        maximum_target_size,
+        provider.minimum_mean_ratio,
+        provider.maximum_boundary_facets,
     )
 }
 
@@ -323,10 +321,14 @@ pub(super) fn resolve(
         let provider = extract_provider(py, provider)?;
         let planned = match provider {
             MeshProviderPolicy::Gmsh(provider) => {
-                let sizing =
-                    gmsh::plan(geometry.geometry(), provider.policy).map_err(|diagnostic| {
-                        validation_error(py, std::slice::from_ref(&diagnostic))
-                    })?;
+                let sizing = gmsh::plan(
+                    geometry.geometry(),
+                    provider.maximum_boundary_error,
+                    provider.minimum_mean_ratio,
+                    provider.maximum_boundary_facets,
+                    provider.maximum_target_size,
+                )
+                .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
                 PlannedMesh::Gmsh(sizing)
             }
             MeshProviderPolicy::Cartesian(provider) => {

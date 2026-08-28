@@ -148,11 +148,13 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
             "plot_scalar_field(",
         )
         for source in (self.notebook_source, self.marimo_source):
+            self.assertIn("maximum_target_size=0.05", source)
             cursor = 0
             for marker in ordered_markers:
                 cursor = source.index(marker, cursor) + len(marker)
 
     def test_plain_script_contains_the_same_computational_path(self) -> None:
+        self.assertIn("maximum_target_size=0.05", self.plain_source)
         plain_calls = call_inventory(self.plain_source, PLAIN.as_posix())
         for call, count in PRESENTATION_CALLS.items():
             expected = 2 if call == "result.trajectory.state" else count

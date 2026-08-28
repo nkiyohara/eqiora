@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 16 module summaries and all 134 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 510 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 16 module summaries and all 134 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 511 signature-only entries under documented owning types**.
 
-Inventory: 16 modules, 159 literal public spellings, 134 canonical grouped declarations, 691 visible method signatures (510 non-dunder and 181 dunder), and 65 visible class assignments.
+Inventory: 16 modules, 159 literal public spellings, 134 canonical grouped declarations, 692 visible method signatures (511 non-dunder and 181 dunder), and 65 visible class assignments.
 
 Regenerate with:
 
@@ -2123,9 +2123,11 @@ Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyGmshMesher`](../../crat
 ```python
 @final
 class GmshMesher:
-    def __new__(cls, *, maximum_boundary_error: float=..., minimum_mean_ratio: float=..., maximum_boundary_facets: int=...) -> Self: ...
+    def __new__(cls, *, maximum_boundary_error: float=..., maximum_target_size: float | None=..., minimum_mean_ratio: float=..., maximum_boundary_facets: int=...) -> Self: ...
     @property
     def maximum_boundary_error(self) -> float: ...
+    @property
+    def maximum_target_size(self) -> float | None: ...
     @property
     def minimum_mean_ratio(self) -> float: ...
     @property

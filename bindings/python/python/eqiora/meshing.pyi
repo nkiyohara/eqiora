@@ -49,11 +49,14 @@ class GmshMesher:
         cls,
         *,
         maximum_boundary_error: float = ...,
+        maximum_target_size: float | None = ...,
         minimum_mean_ratio: float = ...,
         maximum_boundary_facets: int = ...,
     ) -> Self: ...
     @property
     def maximum_boundary_error(self) -> float: ...
+    @property
+    def maximum_target_size(self) -> float | None: ...
     @property
     def minimum_mean_ratio(self) -> float: ...
     @property

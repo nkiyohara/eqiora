@@ -75,7 +75,7 @@ pub(super) enum NativeMeshResources {
     },
     GmshSimplicial {
         geometry: CanonicalGeometryV1,
-        policy: eqiora_artifact::PlanarMeshQualityV1,
+        policy: eqiora_artifact::GmshMeshPolicyV1,
         provider_output: Box<[u8]>,
         mesh: SimplicialMeshEnvelopeV1,
         correspondence: GeometryMeshCorrespondenceEnvelopeV1,
@@ -144,7 +144,7 @@ impl AuthenticatedCommonMesh {
     /// Re-import and own one exact bounded Gmsh 4.15.2 provider observation.
     pub fn gmsh_4152(
         geometry: CanonicalGeometryV1,
-        policy: eqiora_artifact::PlanarMeshQualityV1,
+        policy: eqiora_artifact::GmshMeshPolicyV1,
         provider_output: Vec<u8>,
     ) -> Result<Self, Diagnostic> {
         let resources = derive_gmsh_resources(geometry, policy, provider_output)?;
