@@ -117,12 +117,67 @@ impl AffineTriangleMeshCellsV1 {
     }
 }
 
-/// Exact effective numerical policy shared by the two current planar providers.
+/// Boundary approximation and acceptance policy used by the Gmsh provider.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlanarMeshQualityV1 {
     maximum_boundary_error_m: f64,
     minimum_mean_ratio: f64,
     maximum_boundary_facets: usize,
+}
+
+/// Ownership of the effective global Gmsh characteristic target size.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GmshTargetSizeOwnershipV1 {
+    /// The provider derived the target from the exact Geometry.
+    Automatic,
+    /// The caller supplied the target explicitly.
+    Explicit,
+}
+
+/// Complete effective numerical policy of one Gmsh mesh production.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GmshMeshPolicyV1 {
+    quality: PlanarMeshQualityV1,
+    maximum_target_size_m: f64,
+    maximum_target_size_ownership: GmshTargetSizeOwnershipV1,
+}
+
+impl GmshMeshPolicyV1 {
+    /// Construct one complete effective Gmsh policy.
+    pub fn new(
+        quality: PlanarMeshQualityV1,
+        maximum_target_size_m: f64,
+        maximum_target_size_ownership: GmshTargetSizeOwnershipV1,
+    ) -> Result<Self, Diagnostic> {
+        if !maximum_target_size_m.is_finite() || maximum_target_size_m <= 0.0 {
+            return Err(invalid_artifact(
+                "Gmsh maximum target size must be finite and positive",
+            ));
+        }
+        Ok(Self {
+            quality,
+            maximum_target_size_m,
+            maximum_target_size_ownership,
+        })
+    }
+
+    /// Effective boundary and quality policy.
+    #[must_use]
+    pub const fn quality(self) -> PlanarMeshQualityV1 {
+        self.quality
+    }
+
+    /// Effective global Gmsh characteristic target-size ceiling in metres.
+    #[must_use]
+    pub const fn maximum_target_size_m(self) -> f64 {
+        self.maximum_target_size_m
+    }
+
+    /// Whether the target was provider-derived or caller-supplied.
+    #[must_use]
+    pub const fn maximum_target_size_ownership(self) -> GmshTargetSizeOwnershipV1 {
+        self.maximum_target_size_ownership
+    }
 }
 
 impl PlanarMeshQualityV1 {
@@ -190,7 +245,7 @@ impl MeshProductionLineageEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` if a resource digest cannot be constructed.
     pub fn from_gmsh_4152_resources(
-        policy: PlanarMeshQualityV1,
+        policy: GmshMeshPolicyV1,
         geometry: &CanonicalGeometryV1,
         mesh: &SimplicialMeshEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
@@ -210,7 +265,7 @@ impl MeshProductionLineageEnvelopeV1 {
     /// Returns `EQ0901` if a resource digest cannot be constructed.
     fn from_resources(
         provider: MeshProductionProvider,
-        policy: PlanarMeshQualityV1,
+        policy: GmshMeshPolicyV1,
         geometry: &CanonicalGeometryV1,
         mesh: &SimplicialMeshEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
@@ -223,9 +278,9 @@ impl MeshProductionLineageEnvelopeV1 {
                     identity: provider.identity().to_owned(),
                     version: provider.version().to_owned(),
                 },
-                effective_policy: WireEffectivePolicyV1::PlanarMeshQuality(
-                    WirePlanarMeshQualityV1::try_from(policy)?,
-                ),
+                effective_policy: WireEffectivePolicyV1::GmshMesh(WireGmshMeshPolicyV1::try_from(
+                    policy,
+                )?),
                 geometry_sha256: ArtifactDigest::from_sha256(geometry.digest_bytes()).to_string(),
                 mesh_sha256: mesh.digest()?.to_string(),
                 correspondence_sha256: correspondence.digest()?.to_string(),
@@ -315,7 +370,7 @@ impl MeshProductionLineageEnvelopeV1 {
     fn validate_against_resources(
         &self,
         provider: MeshProductionProvider,
-        policy: PlanarMeshQualityV1,
+        policy: GmshMeshPolicyV1,
         geometry: &CanonicalGeometryV1,
         mesh: &SimplicialMeshEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
@@ -335,7 +390,7 @@ impl MeshProductionLineageEnvelopeV1 {
     /// Returns `EQ0901` if policy or any bound resource differs.
     pub fn validate_against_gmsh_4152_resources(
         &self,
-        policy: PlanarMeshQualityV1,
+        policy: GmshMeshPolicyV1,
         geometry: &CanonicalGeometryV1,
         mesh: &SimplicialMeshEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
@@ -403,9 +458,9 @@ impl MeshProductionLineageEnvelopeV1 {
 
     /// Exact effective numerical policy reconstructed from the canonical wire.
     #[must_use]
-    pub fn planar_mesh_quality(&self) -> Option<PlanarMeshQualityV1> {
+    pub fn gmsh_mesh_policy(&self) -> Option<GmshMeshPolicyV1> {
         match self.wire.effective_policy {
-            WireEffectivePolicyV1::PlanarMeshQuality(policy) => policy.to_policy().ok(),
+            WireEffectivePolicyV1::GmshMesh(policy) => policy.to_policy().ok(),
             WireEffectivePolicyV1::CartesianCells(_)
             | WireEffectivePolicyV1::AffineTriangleCells(_) => None,
         }
@@ -416,8 +471,9 @@ impl MeshProductionLineageEnvelopeV1 {
     pub fn cartesian_cells(&self) -> Option<CartesianMeshCellsV1> {
         match self.wire.effective_policy {
             WireEffectivePolicyV1::CartesianCells(policy) => policy.to_policy().ok(),
-            WireEffectivePolicyV1::PlanarMeshQuality(_)
-            | WireEffectivePolicyV1::AffineTriangleCells(_) => None,
+            WireEffectivePolicyV1::GmshMesh(_) | WireEffectivePolicyV1::AffineTriangleCells(_) => {
+                None
+            }
         }
     }
 
@@ -426,8 +482,7 @@ impl MeshProductionLineageEnvelopeV1 {
     pub fn affine_triangle_cells(&self) -> Option<AffineTriangleMeshCellsV1> {
         match self.wire.effective_policy {
             WireEffectivePolicyV1::AffineTriangleCells(policy) => policy.to_policy().ok(),
-            WireEffectivePolicyV1::PlanarMeshQuality(_)
-            | WireEffectivePolicyV1::CartesianCells(_) => None,
+            WireEffectivePolicyV1::GmshMesh(_) | WireEffectivePolicyV1::CartesianCells(_) => None,
         }
     }
 
@@ -464,7 +519,7 @@ impl MeshProductionLineageEnvelopeV1 {
             (provider, self.wire.effective_policy),
             (
                 MeshProductionProvider::Gmsh4152,
-                WireEffectivePolicyV1::PlanarMeshQuality(_)
+                WireEffectivePolicyV1::GmshMesh(_)
             ) | (
                 MeshProductionProvider::StructuredCartesianV1,
                 WireEffectivePolicyV1::CartesianCells(_)
@@ -521,16 +576,18 @@ struct WireProviderV1 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WirePlanarMeshQualityV1 {
+struct WireGmshMeshPolicyV1 {
     maximum_boundary_error_m: f64,
     minimum_mean_ratio: f64,
     maximum_boundary_facets: u64,
+    maximum_target_size_m: f64,
+    maximum_target_size_ownership: WireGmshTargetSizeOwnershipV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 enum WireEffectivePolicyV1 {
-    PlanarMeshQuality(WirePlanarMeshQualityV1),
+    GmshMesh(WireGmshMeshPolicyV1),
     CartesianCells(WireCartesianCellsV1),
     AffineTriangleCells(WireAffineTriangleCellsV1),
 }
@@ -538,11 +595,18 @@ enum WireEffectivePolicyV1 {
 impl WireEffectivePolicyV1 {
     fn validate(self) -> Result<(), Diagnostic> {
         match self {
-            Self::PlanarMeshQuality(policy) => policy.to_policy().map(|_| ()),
+            Self::GmshMesh(policy) => policy.to_policy().map(|_| ()),
             Self::CartesianCells(policy) => policy.to_policy().map(|_| ()),
             Self::AffineTriangleCells(policy) => policy.to_policy().map(|_| ()),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum WireGmshTargetSizeOwnershipV1 {
+    Automatic,
+    Explicit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -617,26 +681,40 @@ impl WireCartesianCellsV1 {
     }
 }
 
-impl TryFrom<PlanarMeshQualityV1> for WirePlanarMeshQualityV1 {
+impl TryFrom<GmshMeshPolicyV1> for WireGmshMeshPolicyV1 {
     type Error = Diagnostic;
 
-    fn try_from(policy: PlanarMeshQualityV1) -> Result<Self, Self::Error> {
+    fn try_from(policy: GmshMeshPolicyV1) -> Result<Self, Self::Error> {
+        let quality = policy.quality;
         Ok(Self {
-            maximum_boundary_error_m: policy.maximum_boundary_error_m,
-            minimum_mean_ratio: policy.minimum_mean_ratio,
-            maximum_boundary_facets: u64::try_from(policy.maximum_boundary_facets)
+            maximum_boundary_error_m: quality.maximum_boundary_error_m,
+            minimum_mean_ratio: quality.minimum_mean_ratio,
+            maximum_boundary_facets: u64::try_from(quality.maximum_boundary_facets)
                 .map_err(|_| invalid_artifact("maximum boundary facets exceeds portable u64"))?,
+            maximum_target_size_m: policy.maximum_target_size_m,
+            maximum_target_size_ownership: match policy.maximum_target_size_ownership {
+                GmshTargetSizeOwnershipV1::Automatic => WireGmshTargetSizeOwnershipV1::Automatic,
+                GmshTargetSizeOwnershipV1::Explicit => WireGmshTargetSizeOwnershipV1::Explicit,
+            },
         })
     }
 }
 
-impl WirePlanarMeshQualityV1 {
-    fn to_policy(self) -> Result<PlanarMeshQualityV1, Diagnostic> {
-        PlanarMeshQualityV1::new(
+impl WireGmshMeshPolicyV1 {
+    fn to_policy(self) -> Result<GmshMeshPolicyV1, Diagnostic> {
+        let quality = PlanarMeshQualityV1::new(
             self.maximum_boundary_error_m,
             self.minimum_mean_ratio,
             usize::try_from(self.maximum_boundary_facets)
                 .map_err(|_| invalid_artifact("maximum boundary facets exceeds local usize"))?,
+        )?;
+        GmshMeshPolicyV1::new(
+            quality,
+            self.maximum_target_size_m,
+            match self.maximum_target_size_ownership {
+                WireGmshTargetSizeOwnershipV1::Automatic => GmshTargetSizeOwnershipV1::Automatic,
+                WireGmshTargetSizeOwnershipV1::Explicit => GmshTargetSizeOwnershipV1::Explicit,
+            },
         )
     }
 }

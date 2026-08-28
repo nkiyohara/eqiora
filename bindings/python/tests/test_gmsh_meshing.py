@@ -27,8 +27,8 @@ def geometry(*, x_max: float = 2.2, center: tuple[float, float] = (0.2, 0.2)) ->
     )
 
 
-def provider(**changes: float | int) -> eqiora.meshing.GmshMesher:
-    values: dict[str, float | int] = {
+def provider(**changes: float | int | None) -> eqiora.meshing.GmshMesher:
+    values: dict[str, float | int | None] = {
         "maximum_boundary_error": 1.0e-4,
         "minimum_mean_ratio": 1.0e-5,
         "maximum_boundary_facets": 50,
@@ -61,6 +61,14 @@ def test_gmsh_plan_publishes_complete_source_owned_mesh(monkeypatch: pytest.Monk
     assert not hasattr(plan, "production_lineage_digest")
     lineage = json.loads(mesh.production_lineage_bytes)
     assert lineage["provider"] == {"identity": "eqiora.gmsh-cli", "version": "4.15.2"}
+    assert lineage["effective_policy"] == {
+        "kind": "gmsh-mesh",
+        "maximum_boundary_error_m": 1.0e-4,
+        "minimum_mean_ratio": 1.0e-5,
+        "maximum_boundary_facets": 50,
+        "maximum_target_size_m": 0.2,
+        "maximum_target_size_ownership": "automatic",
+    }
 
     coordinates = mesh.coordinates
     cells = mesh.cells
@@ -101,17 +109,51 @@ def test_gmsh_plan_replay_and_crosswire_are_fail_closed(monkeypatch: pytest.Monk
         first.selection_entity_count(foreign.selection("cylinder"))
 
 
+def test_explicit_target_size_is_replayable_and_strictly_denser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EQIORA_GMSH", "gmsh")
+    source = geometry()
+    automatic_provider = provider()
+    explicit_provider = provider(maximum_target_size=0.05)
+    assert automatic_provider.maximum_target_size is None
+    assert explicit_provider.maximum_target_size == 0.05
+
+    automatic = eqiora.meshing.generate(
+        source,
+        plan=eqiora.meshing.resolve(source, automatic_provider),
+    )
+    explicit_plan = eqiora.meshing.resolve(source, explicit_provider)
+    explicit = eqiora.meshing.generate(source, plan=explicit_plan)
+    replayed = eqiora.meshing.generate(source, plan=explicit_plan)
+
+    assert explicit.cell_count > automatic.cell_count
+    assert explicit.vertex_count > automatic.vertex_count
+    assert replayed.digest == explicit.digest
+    lineage = json.loads(explicit.production_lineage_bytes)
+    assert lineage["effective_policy"]["maximum_target_size_m"] == 0.05
+    assert lineage["effective_policy"]["maximum_target_size_ownership"] == "explicit"
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
         {"maximum_boundary_error": 0.0},
+        {"maximum_target_size": 0.0},
+        {"maximum_target_size": float("nan")},
+        {"maximum_target_size": float("inf")},
         {"minimum_mean_ratio": 0.0},
         {"maximum_boundary_facets": 7},
     ],
 )
-def test_gmsh_policy_rejects_invalid_values(kwargs: dict[str, float | int]) -> None:
+def test_gmsh_policy_rejects_invalid_values(kwargs: dict[str, float | int | None]) -> None:
     with pytest.raises(eqiora.ValidationError):
         provider(**kwargs)
+
+
+def test_gmsh_plan_rejects_target_smaller_than_boundary_chord() -> None:
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.meshing.resolve(geometry(), provider(maximum_target_size=0.001))
 
 
 def test_reference_and_import_products_are_absent() -> None:

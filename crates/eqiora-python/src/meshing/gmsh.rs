@@ -16,7 +16,8 @@ use std::os::unix::process::CommandExt as _;
 
 use eqiora::Diagnostic;
 use eqiora::artifact::{
-    GeometryMeshCorrespondenceEnvelopeV1, PlanarMeshQualityV1, SimplicialMeshEnvelopeV1,
+    GeometryMeshCorrespondenceEnvelopeV1, GmshMeshPolicyV1, GmshTargetSizeOwnershipV1,
+    PlanarMeshQualityV1, SimplicialMeshEnvelopeV1,
 };
 use eqiora::diagnostic::codes;
 use eqiora::geometry::CanonicalGeometryV1;
@@ -42,10 +43,11 @@ pub(super) struct GeneratedGmshMesh {
 pub(super) fn generate(
     source: &CanonicalGeometryV1,
     policy: PlanarMeshQualityV1,
+    maximum_target_size: Option<f64>,
     sizing: GmshSizingReceipt,
     quality_gate: MeshQualityGate,
 ) -> Result<GeneratedGmshMesh, Diagnostic> {
-    if sizing_receipt(source, policy)? != sizing {
+    if sizing_receipt(source, policy, maximum_target_size)? != sizing {
         return Err(invalid_import(
             "Gmsh MeshPlan sizing differs from the exact Geometry and provider policy",
         ));
@@ -251,24 +253,31 @@ pub(super) struct GmshSizingReceipt {
     straight_segments: [usize; 4],
     minimum_size_m: f64,
     maximum_size_m: f64,
+    policy: GmshMeshPolicyV1,
 }
 
 impl GmshSizingReceipt {
     pub(super) const fn circle_segments(self) -> usize {
         self.circle_segments
     }
+
+    pub(super) const fn policy(self) -> GmshMeshPolicyV1 {
+        self.policy
+    }
 }
 
 pub(super) fn plan(
     source: &CanonicalGeometryV1,
     policy: PlanarMeshQualityV1,
+    maximum_target_size: Option<f64>,
 ) -> Result<GmshSizingReceipt, Diagnostic> {
-    sizing_receipt(source, policy)
+    sizing_receipt(source, policy, maximum_target_size)
 }
 
 fn sizing_receipt(
     source: &CanonicalGeometryV1,
     policy: PlanarMeshQualityV1,
+    maximum_target_size: Option<f64>,
 ) -> Result<GmshSizingReceipt, Diagnostic> {
     let radius = source
         .circular_hole_radius_m()
@@ -301,15 +310,19 @@ fn sizing_receipt(
         )));
     }
     let minimum_size_m = 2.0 * radius * (std::f64::consts::PI / circle_segments as f64).sin();
-    let maximum_size_m = 4.0 * radius;
-    if !minimum_size_m.is_finite()
-        || minimum_size_m <= 0.0
-        || !maximum_size_m.is_finite()
-        || maximum_size_m < minimum_size_m
-    {
+    let (maximum_size_m, ownership) = maximum_target_size.map_or_else(
+        || (4.0 * radius, GmshTargetSizeOwnershipV1::Automatic),
+        |value| (value, GmshTargetSizeOwnershipV1::Explicit),
+    );
+    if !minimum_size_m.is_finite() || minimum_size_m <= 0.0 || !maximum_size_m.is_finite() {
         return Err(invalid_import(
             "Gmsh derived target size must be finite and positive",
         ));
+    }
+    if maximum_size_m < minimum_size_m {
+        return Err(invalid_import(format!(
+            "Gmsh maximum target size {maximum_size_m} m is smaller than the {minimum_size_m} m chord required by the circular-boundary error policy",
+        )));
     }
     let [[x_min, x_max], [y_min, y_max]] = source
         .circular_hole_bounds()
@@ -336,6 +349,7 @@ fn sizing_receipt(
         ],
         minimum_size_m,
         maximum_size_m,
+        policy: GmshMeshPolicyV1::new(policy, maximum_size_m, ownership)?,
     })
 }
 
@@ -550,7 +564,7 @@ mod tests {
         let source = circular_hole([[0.0, 2.2], [0.0, 0.41]], [0.2, 0.2], 0.05);
         let error = sagitta_m(0.05, 20);
         let policy = PlanarMeshQualityV1::new(error, 1.0e-5, 50).unwrap();
-        let receipt = sizing_receipt(&source, policy).unwrap();
+        let receipt = sizing_receipt(&source, policy, None).unwrap();
         assert_eq!(receipt.circle_segments, 20);
         assert!(sagitta_m(0.05, receipt.circle_segments) <= error);
         assert!(sagitta_m(0.05, receipt.circle_segments - 1) > error);
@@ -558,7 +572,9 @@ mod tests {
         let stricter =
             PlanarMeshQualityV1::new(f64::from_bits(error.to_bits() - 1), 1.0e-5, 50).unwrap();
         assert_eq!(
-            sizing_receipt(&source, stricter).unwrap().circle_segments,
+            sizing_receipt(&source, stricter, None)
+                .unwrap()
+                .circle_segments,
             21
         );
     }
@@ -567,20 +583,54 @@ mod tests {
     fn sizing_uses_exact_nondefault_geometry_and_policy() {
         let source = circular_hole([[-1.0, 3.0], [-2.0, 1.0]], [0.5, -0.5], 0.2);
         let policy = PlanarMeshQualityV1::new(2.0e-3, 2.0e-5, 64).unwrap();
-        let receipt = sizing_receipt(&source, policy).unwrap();
+        let receipt = sizing_receipt(&source, policy, None).unwrap();
         assert!(receipt.circle_segments >= 8);
         assert_eq!(receipt.straight_segments[0], receipt.straight_segments[1]);
         assert_eq!(receipt.straight_segments[2], receipt.straight_segments[3]);
         assert!(receipt.straight_segments[2] > receipt.straight_segments[0]);
 
         let alternate = circular_hole([[-1.0, 4.0], [-2.0, 1.0]], [0.5, -0.5], 0.2);
-        assert_ne!(receipt, sizing_receipt(&alternate, policy).unwrap());
+        assert_ne!(receipt, sizing_receipt(&alternate, policy, None).unwrap());
+    }
+
+    #[test]
+    fn sizing_retains_automatic_and_explicit_target_ownership() {
+        let source = circular_hole([[0.0, 2.2], [0.0, 0.41]], [0.2, 0.2], 0.05);
+        let quality = PlanarMeshQualityV1::new(1.0e-4, 1.0e-5, 50).unwrap();
+
+        let automatic = sizing_receipt(&source, quality, None).unwrap();
+        assert_eq!(automatic.policy().quality(), quality);
+        assert_eq!(automatic.policy().maximum_target_size_m(), 0.2);
+        assert_eq!(
+            automatic.policy().maximum_target_size_ownership(),
+            GmshTargetSizeOwnershipV1::Automatic
+        );
+
+        let explicit = sizing_receipt(&source, quality, Some(0.05)).unwrap();
+        assert_eq!(explicit.policy().maximum_target_size_m(), 0.05);
+        assert_eq!(
+            explicit.policy().maximum_target_size_ownership(),
+            GmshTargetSizeOwnershipV1::Explicit
+        );
+        assert!(explicit.straight_segments[2] > automatic.straight_segments[2]);
+        assert!(
+            geometry_script(&source, explicit)
+                .unwrap()
+                .contains("Mesh.MeshSizeMax = 0.05;")
+        );
     }
 
     #[test]
     fn sizing_rejects_policy_that_cannot_admit_the_circle() {
         let source = circular_hole([[0.0, 2.2], [0.0, 0.41]], [0.2, 0.2], 0.05);
         let policy = PlanarMeshQualityV1::new(1.0e-6, 1.0e-5, 8).unwrap();
-        assert!(sizing_receipt(&source, policy).is_err());
+        assert!(sizing_receipt(&source, policy, None).is_err());
+    }
+
+    #[test]
+    fn sizing_rejects_target_below_required_boundary_chord() {
+        let source = circular_hole([[0.0, 2.2], [0.0, 0.41]], [0.2, 0.2], 0.05);
+        let quality = PlanarMeshQualityV1::new(1.0e-4, 1.0e-5, 50).unwrap();
+        assert!(sizing_receipt(&source, quality, Some(0.001)).is_err());
     }
 }

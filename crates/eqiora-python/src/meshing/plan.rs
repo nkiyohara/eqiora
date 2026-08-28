@@ -1,9 +1,6 @@
 //! Immutable mesh intent and complete resolved provider choices.
 
-use eqiora::artifact::{
-    AffineTriangleMeshCellsV1, CartesianMeshCellsV1, MeshProductionLineageEnvelopeV1,
-    PlanarMeshQualityV1,
-};
+use eqiora::artifact::{AffineTriangleMeshCellsV1, CartesianMeshCellsV1, PlanarMeshQualityV1};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyTuple};
 
@@ -24,18 +21,26 @@ use crate::panic_boundary;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct PyGmshMesher {
     pub(super) policy: PlanarMeshQualityV1,
+    pub(super) maximum_target_size: Option<f64>,
 }
 
 #[pymethods]
 impl PyGmshMesher {
     #[new]
-    #[pyo3(signature = (*, maximum_boundary_error=1.0e-4, minimum_mean_ratio=1.0e-5, maximum_boundary_facets=50))]
+    #[pyo3(signature = (*, maximum_boundary_error=1.0e-4, maximum_target_size=None, minimum_mean_ratio=1.0e-5, maximum_boundary_facets=50))]
     fn new(
         py: Python<'_>,
         maximum_boundary_error: f64,
+        maximum_target_size: Option<f64>,
         minimum_mean_ratio: f64,
         maximum_boundary_facets: usize,
     ) -> PyResult<Self> {
+        if maximum_target_size.is_some_and(|value| !value.is_finite() || value <= 0.0) {
+            return Err(request_error(
+                py,
+                "maximum_target_size must be None or a finite positive value",
+            ));
+        }
         Ok(Self {
             policy: validate_numerical_policy(
                 py,
@@ -43,6 +48,7 @@ impl PyGmshMesher {
                 minimum_mean_ratio,
                 maximum_boundary_facets,
             )?,
+            maximum_target_size,
         })
     }
 
@@ -61,8 +67,13 @@ impl PyGmshMesher {
         self.policy.maximum_boundary_facets()
     }
 
+    #[getter]
+    const fn maximum_target_size(&self) -> Option<f64> {
+        self.maximum_target_size
+    }
+
     fn __repr__(&self) -> String {
-        provider_repr("GmshMesher", self.policy)
+        provider_repr(self.policy, self.maximum_target_size)
     }
 }
 
@@ -150,31 +161,6 @@ pub(super) enum MeshProviderPolicy {
 }
 
 impl MeshProviderPolicy {
-    pub(super) fn production_lineage(
-        self,
-        geometry: &eqiora::geometry::CanonicalGeometryV1,
-        mesh: &eqiora::artifact::SimplicialMeshEnvelopeV1,
-        correspondence: &eqiora::artifact::GeometryMeshCorrespondenceEnvelopeV1,
-    ) -> Result<MeshProductionLineageEnvelopeV1, eqiora::Diagnostic> {
-        match self {
-            Self::Gmsh(provider) => MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
-                provider.policy,
-                geometry,
-                mesh,
-                correspondence,
-            ),
-            Self::Cartesian(_) => unreachable!("Cartesian lineage uses Cartesian resources"),
-            Self::AffineTriangle(provider) => {
-                MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-                    provider.policy,
-                    geometry,
-                    mesh,
-                    correspondence,
-                )
-            }
-        }
-    }
-
     fn to_python(self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match self {
             Self::Gmsh(provider) => Py::new(py, provider).map(Py::into_any),
@@ -243,10 +229,13 @@ fn validate_numerical_policy(
     .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))
 }
 
-fn provider_repr(name: &str, policy: PlanarMeshQualityV1) -> String {
+fn provider_repr(policy: PlanarMeshQualityV1, maximum_target_size: Option<f64>) -> String {
+    let maximum_target_size =
+        maximum_target_size.map_or_else(|| "None".to_owned(), |value| value.to_string());
     format!(
-        "{name}(maximum_boundary_error={}, minimum_mean_ratio={}, maximum_boundary_facets={})",
+        "GmshMesher(maximum_boundary_error={}, maximum_target_size={}, minimum_mean_ratio={}, maximum_boundary_facets={})",
         policy.maximum_boundary_error_m(),
+        maximum_target_size,
         policy.minimum_mean_ratio(),
         policy.maximum_boundary_facets(),
     )
@@ -323,10 +312,12 @@ pub(super) fn resolve(
         let provider = extract_provider(py, provider)?;
         let planned = match provider {
             MeshProviderPolicy::Gmsh(provider) => {
-                let sizing =
-                    gmsh::plan(geometry.geometry(), provider.policy).map_err(|diagnostic| {
-                        validation_error(py, std::slice::from_ref(&diagnostic))
-                    })?;
+                let sizing = gmsh::plan(
+                    geometry.geometry(),
+                    provider.policy,
+                    provider.maximum_target_size,
+                )
+                .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
                 PlannedMesh::Gmsh(sizing)
             }
             MeshProviderPolicy::Cartesian(provider) => {

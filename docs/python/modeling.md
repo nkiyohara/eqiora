@@ -189,6 +189,7 @@ The matching meshing operation is an explicit typed provider choice:
 ```python
 request = eqiora.meshing.GmshMesher(
     maximum_boundary_error=1e-4,
+    maximum_target_size=0.05,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
 )
@@ -205,6 +206,10 @@ subdivision receipt directly from Geometry and policy without launching Gmsh or
 constructing cells. `generate` then invokes exact Gmsh 4.15.2 once for that
 call, admits its MSH 4.1 linear triangles, and derives
 realized named selections through the geometry-to-mesh correspondence.
+`maximum_target_size=None` leaves the global characteristic-size ceiling to the
+provider; a finite positive value makes that ceiling caller-owned. The resolved
+value and its automatic/explicit ownership are retained in production lineage.
+It is a Gmsh characteristic target, not a guarantee on every realized edge.
 `canonical_bytes` and `digest` identify only the accepted inner simplicial
 mesh. The returned object retains source, correspondence, Mesh, and
 provider-production identities. Missing, wrong-version, failed, or invalid
@@ -212,7 +217,7 @@ Gmsh output rejects without falling back to the retired spoke mesh.
 
 This bounded operation supports the rectangle-with-circular-hole family and
 affine 2D triangles. It does not add caller-owned MSH import, paths, fields,
-multiple pieces, 3D, curved elements, repair, adaptive sizing, general Geometry
+multiple pieces, 3D, curved elements, repair, local or adaptive sizing, general Geometry
 matching, fixed output counts, or cross-platform byte identity.
 
 ## Exact-cylinder steady Stokes result

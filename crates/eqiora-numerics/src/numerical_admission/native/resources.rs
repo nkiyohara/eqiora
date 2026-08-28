@@ -156,7 +156,7 @@ pub(crate) fn validate_simplicial_resources(
 
 pub(crate) fn derive_gmsh_resources(
     geometry: CanonicalGeometryV1,
-    policy: eqiora_artifact::PlanarMeshQualityV1,
+    policy: eqiora_artifact::GmshMeshPolicyV1,
     provider_output: Vec<u8>,
 ) -> Result<NativeMeshResources, Diagnostic> {
     CanonicalGeometryV1::decode_planar_circular_hole_v2_canonical(
@@ -164,7 +164,7 @@ pub(crate) fn derive_gmsh_resources(
         eqiora_geometry::CanonicalGeometryLimits::default(),
     )
     .map_err(|_| invalid("Gmsh provider observation requires exact planar circular-hole v2"))?;
-    let quality = eqiora_meshing::MeshQualityGate::new(policy.minimum_mean_ratio())?;
+    let quality = eqiora_meshing::MeshQualityGate::new(policy.quality().minimum_mean_ratio())?;
     let import_policy = Msh41Policy::ascii_with_entity_assignments(2, quality)?;
     let mut assignments = BTreeMap::new();
     let mesh = import_msh41(

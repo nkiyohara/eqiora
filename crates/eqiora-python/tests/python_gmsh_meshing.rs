@@ -30,6 +30,7 @@ provider = eqiora.meshing.GmshMesher(
 )
 plan = eqiora.meshing.resolve(geometry, provider)
 assert plan.provider == provider
+assert provider.maximum_target_size is None
 assert plan.source_digest == geometry.digest
 assert plan.boundary_facets <= provider.maximum_boundary_facets
 assert not hasattr(plan, "production_lineage_digest")
@@ -41,6 +42,8 @@ for invalid in (
     lambda: eqiora.meshing.GmshMesher(maximum_boundary_error=0.0),
     lambda: eqiora.meshing.GmshMesher(minimum_mean_ratio=0.0),
     lambda: eqiora.meshing.GmshMesher(maximum_boundary_facets=7),
+    lambda: eqiora.meshing.GmshMesher(maximum_target_size=0.0),
+    lambda: eqiora.meshing.GmshMesher(maximum_target_size=float("nan")),
 ):
     try:
         invalid()

@@ -53,6 +53,7 @@ def _(eqiora):
 def _(eqiora, geometry):
     mesh_request = eqiora.meshing.GmshMesher(
         maximum_boundary_error=1.0e-4,
+        maximum_target_size=0.05,
         minimum_mean_ratio=1.0e-5,
         maximum_boundary_facets=50,
     )

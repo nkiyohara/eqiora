@@ -601,10 +601,10 @@ impl PyMesh {
                 provider_observation: SourceOwnedProviderObservation::Gmsh4152 { output },
                 ..
             } => {
-                let policy = production.planar_mesh_quality().ok_or_else(|| {
+                let policy = production.gmsh_mesh_policy().ok_or_else(|| {
                     Diagnostic::error(
                         codes::INVALID_ARTIFACT,
-                        "Gmsh common Mesh has a non-planar production policy",
+                        "Gmsh common Mesh has a non-Gmsh production policy",
                     )
                 })?;
                 AuthenticatedCommonMesh::gmsh_4152((**geometry).clone(), policy, output.to_vec())
@@ -760,13 +760,21 @@ pub(super) fn generate(
                 let quality_gate =
                     eqiora::meshing::MeshQualityGate::new(provider.policy.minimum_mean_ratio())
                         .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-                let generated =
-                    super::gmsh::generate(&plan.source, provider.policy, *sizing, quality_gate)
-                        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-                let production = plan
-                    .provider
-                    .production_lineage(&plan.source, &generated.mesh, &generated.correspondence)
-                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+                let generated = super::gmsh::generate(
+                    &plan.source,
+                    provider.policy,
+                    provider.maximum_target_size,
+                    *sizing,
+                    quality_gate,
+                )
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+                let production = MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
+                    sizing.policy(),
+                    &plan.source,
+                    &generated.mesh,
+                    &generated.correspondence,
+                )
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
                 let published = PyMesh::from_source_parts(
                     py,
                     &plan.source,
