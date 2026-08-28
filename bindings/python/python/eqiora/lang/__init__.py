@@ -25,6 +25,7 @@ _MAX_EXPRESSION_NODES = 4096
 _MAX_DOC_BYTES = 16_384
 _MAX_OUTPUT_BYTES = 8 * 1024 * 1024
 _CREATE = object()
+_MISSING = object()
 
 
 class SourceError(ValueError):
@@ -34,10 +35,10 @@ class SourceError(ValueError):
 class _Shape:
     __slots__ = ("_text",)
 
-    def __init__(self, token: object, text: str) -> None:
-        if token is not _CREATE:
+    def __init__(self, _token: object = _MISSING, _text: str = "") -> None:
+        if _token is not _CREATE:
             raise TypeError("shapes are provided by eqiora.lang")
-        object.__setattr__(self, "_text", text)
+        object.__setattr__(self, "_text", _text)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("shape values are immutable")
@@ -53,30 +54,30 @@ class Expression:
 
     def __init__(
         self,
-        token: object,
-        text: str,
-        owner: object | None,
-        depth: int,
-        nodes: int,
-        precedence: int,
+        _token: object = _MISSING,
+        _text: str = "",
+        _owner: object | None = None,
+        _depth: int = 0,
+        _nodes: int = 0,
+        _precedence: int = 0,
     ) -> None:
-        if token is not _CREATE:
+        if _token is not _CREATE:
             raise TypeError(
                 "expressions are created by eqiora.lang declarations and operators"
             )
-        if depth > _MAX_EXPRESSION_DEPTH:
+        if _depth > _MAX_EXPRESSION_DEPTH:
             raise SourceError(
                 f"expression depth exceeds the {_MAX_EXPRESSION_DEPTH}-node nesting limit"
             )
-        if nodes > _MAX_EXPRESSION_NODES:
+        if _nodes > _MAX_EXPRESSION_NODES:
             raise SourceError(
                 f"expression exceeds the {_MAX_EXPRESSION_NODES}-node limit"
             )
-        object.__setattr__(self, "_text", text)
-        object.__setattr__(self, "_owner", owner)
-        object.__setattr__(self, "_depth", depth)
-        object.__setattr__(self, "_nodes", nodes)
-        object.__setattr__(self, "_precedence", precedence)
+        object.__setattr__(self, "_text", _text)
+        object.__setattr__(self, "_owner", _owner)
+        object.__setattr__(self, "_depth", _depth)
+        object.__setattr__(self, "_nodes", _nodes)
+        object.__setattr__(self, "_precedence", _precedence)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Expression values are immutable")
@@ -138,16 +139,21 @@ class Support:
     __slots__ = ("_component", "_kind", "_name", "_owner")
 
     def __init__(
-        self, token: object, owner: object, component: object, name: str, kind: str
+        self,
+        _token: object = _MISSING,
+        _owner: object = _MISSING,
+        _component: object = _MISSING,
+        _name: str = "",
+        _kind: str = "",
     ) -> None:
-        if token is not _CREATE:
+        if _token is not _CREATE:
             raise TypeError(
                 "supports are created by Component.volume() or Component.boundary()"
             )
-        object.__setattr__(self, "_owner", owner)
-        object.__setattr__(self, "_component", component)
-        object.__setattr__(self, "_name", name)
-        object.__setattr__(self, "_kind", kind)
+        object.__setattr__(self, "_owner", _owner)
+        object.__setattr__(self, "_component", _component)
+        object.__setattr__(self, "_name", _name)
+        object.__setattr__(self, "_kind", _kind)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Support handles are immutable")
@@ -312,15 +318,20 @@ class Component:
     )
 
     def __init__(
-        self, token: object, source: Source, name: str, doc: object | None
+        self,
+        _token: object = _MISSING,
+        _source: Source | None = None,
+        _name_value: str = "",
+        _doc_value: object | None = None,
     ) -> None:
-        if token is not _CREATE:
+        if _token is not _CREATE:
             raise TypeError("components are created by Source.component()")
-        self._source = source
-        self._owner = source._owner
+        assert _source is not None
+        self._source = _source
+        self._owner = _source._owner
         self._component_token = object()
-        self._name = _name(name)
-        self._doc = _doc(doc)
+        self._name = _name(_name_value)
+        self._doc = _doc(_doc_value)
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._parameters: list[tuple[str, Unit, tuple[str, ...]]] = []

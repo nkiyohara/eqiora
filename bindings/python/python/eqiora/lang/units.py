@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 _CREATE_UNIT = object()
+_MISSING_UNIT = object()
 
 
 class Unit:
@@ -11,10 +12,10 @@ class Unit:
     __slots__ = ("_text",)
     _text: str
 
-    def __init__(self, token: object, text: str) -> None:
-        if token is not _CREATE_UNIT:
+    def __init__(self, _token: object = _MISSING_UNIT, _text: str = "") -> None:
+        if _token is not _CREATE_UNIT:
             raise TypeError("units are composed from eqiora.lang.units base values")
-        object.__setattr__(self, "_text", text)
+        object.__setattr__(self, "_text", _text)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Unit values are immutable")
