@@ -57,6 +57,33 @@ test('required routes, semantic stages, controls, and 404 are real static surfac
   expect(external).toEqual([]);
 });
 
+test('mixed-boundary elasticity is a static source-traced second gallery surface', async ({ page }) => {
+  const sourceSha = process.env.EQIORA_SITE_SOURCE_SHA;
+  expect(sourceSha).toMatch(/^[0-9a-f]{40}$/u);
+  const external = await rejectExternalRequests(page);
+  await page.goto('/gallery/');
+  const card = page.getByRole('link', { name: /Mixed-boundary linear elasticity/i });
+  await expect(card).toHaveAttribute('href', '/gallery/mixed-boundary-elasticity/');
+  await card.click();
+  await expect(page).toHaveURL(/\/gallery\/mixed-boundary-elasticity\/$/);
+  await expect(
+    page.getByRole('img', {
+      name: /Reference and deformed meshes for the bounded 2D mixed-boundary/i,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText('Presentation, not evidence.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open the Marimo surface', exact: true })).toHaveAttribute(
+    'href',
+    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/mixed_boundary_elasticity_marimo.py`,
+  );
+  await expect(page.getByRole('link', { name: 'Open the Jupyter surface', exact: true })).toHaveAttribute(
+    'href',
+    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/mixed_boundary_elasticity_jupyter.ipynb`,
+  );
+  await assertNoFakeExecutionControls(page);
+  expect(external).toEqual([]);
+});
+
 test('Pagefind returns one representative from every frozen reference family', async ({ page }) => {
   const external = await rejectExternalRequests(page);
   await page.goto('/');

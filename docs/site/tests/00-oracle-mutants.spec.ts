@@ -100,7 +100,7 @@ test('00 official browser and every synthetic ordinary control pass first', asyn
   await page.setContent(
     positive.replace(
       '</main>',
-      '<a href="#submit-and-result">Stage 4 Submit and result</a><a href="https://github.com/nkiyohara/eqiora/blob/4fc67a9fc94aeedd44a4ace31d406ac949c81f12/examples/python/exact_cylinder_stokes_marimo.py#L77-L95">Eqiora source form: canonical intent/submit/result cells</a></main>',
+      '<a href="#submit-and-result">Stage 4 Submit and result</a><a href="https://github.com/nkiyohara/eqiora/blob/4fc67a9fc94aeedd44a4ace31d406ac949c81f12/examples/python/exact_cylinder_stokes_marimo.py#L77-L96">Eqiora source form: canonical resolve/run/result cells</a></main>',
     ),
   );
   await assertNoFakeExecutionControls(page);
@@ -680,7 +680,7 @@ test('05 stable route-partition order, duplicate, and missing mutants are causal
 
   {
     const ordinary = createOrdinaryRoutePlan();
-    expect(assertOrdinaryRoutePlan(ordinary)).toHaveLength(34);
+    expect(assertOrdinaryRoutePlan(ordinary)).toHaveLength(35);
     const mutant = {
       A: [...ordinary.A, '/evidence/'],
       B: [...ordinary.B],
@@ -691,7 +691,7 @@ test('05 stable route-partition order, duplicate, and missing mutants are causal
 
   {
     const ordinary = createOrdinaryRoutePlan();
-    expect(assertOrdinaryRoutePlan(ordinary)).toHaveLength(34);
+    expect(assertOrdinaryRoutePlan(ordinary)).toHaveLength(35);
     const mutant = { A: ordinary.A.slice(1), B: [...ordinary.B], C: [...ordinary.C] };
     expect(() => assertOrdinaryRoutePlan(mutant)).toThrow('ORDER-MISSING: /evidence/');
   }

@@ -82,6 +82,7 @@ STARLIGHT_ROUTES = {
     "/examples/": "examples/index.html",
     "/gallery/": "gallery/index.html",
     "/gallery/exact-cylinder-steady-stokes/": "gallery/exact-cylinder-steady-stokes/index.html",
+    "/gallery/mixed-boundary-elasticity/": "gallery/mixed-boundary-elasticity/index.html",
     "/get-started/": "get-started/index.html",
     "/python/": "python/index.html",
     "/python/differentiation/": "python/differentiation/index.html",

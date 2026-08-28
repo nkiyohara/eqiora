@@ -28,6 +28,7 @@ export const SITE_ROUTES = [
   '/examples/',
   '/gallery/',
   '/gallery/exact-cylinder-steady-stokes/',
+  '/gallery/mixed-boundary-elasticity/',
   '/get-started/',
   '/python/',
   '/python/differentiation/',
@@ -116,8 +117,8 @@ export function createOrdinaryRoutePlan(): OrdinaryRoutePlan {
 
 export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly string[] {
   if (REFERENCE_START < 1) throw new Error('route authority missing /reference/');
-  if (SITE_ROUTES.length !== 34 || new Set(SITE_ROUTES).size !== 34) {
-    throw new Error('route authority is not 34 unique entries');
+  if (SITE_ROUTES.length !== 35 || new Set(SITE_ROUTES).size !== 35) {
+    throw new Error('route authority is not 35 unique entries');
   }
   const entries = (['A', 'B', 'C'] as const).flatMap((chunk) =>
     plan[chunk].map((route) => ({ chunk, route })),
@@ -135,7 +136,7 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
   if (missing) throw new Error(`ORDER-MISSING: ${missing}`);
 
   const expected = createOrdinaryRoutePlan();
-  const cardinalities = { A: 1, B: 14, C: 19 } as const;
+  const cardinalities = { A: 1, B: 15, C: 19 } as const;
   for (const chunk of ['A', 'B', 'C'] as const) {
     if (plan[chunk].length !== cardinalities[chunk]) {
       throw new Error(`ORDER-CARDINALITY ${chunk}: ${plan[chunk].length}`);
@@ -147,12 +148,12 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
       throw new Error(`ORDER-REORDER ${chunk}`);
     }
   }
-  if (entries.length !== 34 || seen.size !== 34) {
-    throw new Error('ORDER-UNION is not exactly 34 entries');
+  if (entries.length !== 35 || seen.size !== 35) {
+    throw new Error('ORDER-UNION is not exactly 35 entries');
   }
 
   const byRoute = new Map(entries.map((entry) => [entry.route, entry]));
-  if (byRoute.size !== 34) throw new Error('ORDER-CANONICAL duplicate identity');
+  if (byRoute.size !== 35) throw new Error('ORDER-CANONICAL duplicate identity');
   const canonical = SITE_ROUTES.map((route) => {
     const entry = byRoute.get(route);
     if (!entry) throw new Error(`ORDER-CANONICAL missing: ${route}`);

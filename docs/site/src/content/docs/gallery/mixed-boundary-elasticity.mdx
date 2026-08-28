@@ -1,0 +1,158 @@
+---
+title: Mixed-boundary linear elasticity
+description: A static walkthrough of one bounded common-lifecycle displacement result.
+---
+
+import NotebookStage from '../../../components/gallery/NotebookStage.astro';
+import ClaimBoundary from '../../../components/gallery/ClaimBoundary.astro';
+import ResultFigure from '../../../components/gallery/ResultFigure.astro';
+import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
+import displacementImage from '../../../assets/gallery/mixed-boundary-elasticity-displacement.png';
+import publication from '../../../data/gallery/mixed-boundary-elasticity.publication.json';
+
+**Static walkthrough · shared Python, Marimo, and Jupyter workflow**
+
+[Gallery](/gallery/)
+
+This page presents one accepted bounded elasticity result. It does not solve in
+the browser. The visible deformation is caller-owned presentation, and the
+reference mesh remains visible as a text-labelled comparison.
+
+<NotebookStage id="elasticity-problem" step={1} title="Problem and boundaries" emoji="🧱">
+
+Python authors the sole concrete $1\,\mathrm{m}\times1\,\mathrm{m}$ rectangle.
+The left edge has zero displacement; the right, lower, and upper edges have
+zero traction. A $16\times16$ caller-owned Cartesian mesh realizes the domain.
+
+```python
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+geometry = graph.build(
+    rectangle,
+    named_topology={
+        "body": rectangle.region,
+        "x_lower": rectangle.boundaries[0],
+        "x_upper": rectangle.boundaries[1],
+        "y_lower": rectangle.boundaries[2],
+        "y_upper": rectangle.boundaries[3],
+    },
+)
+```
+
+<ExactSourceLink path="examples/python/mixed_boundary_elasticity.py" kind="blob" fragment="L10-L25">Shared installed-Python geometry and mesh workflow</ExactSourceLink>
+
+</NotebookStage>
+
+<NotebookStage id="elasticity-model" step={2} title="Eqiora model definition" emoji="🧩">
+
+The `.eqi` Component owns displacement, material parameters, load potential,
+equilibrium, and the four abstract supports. With displacement
+$\boldsymbol{u}$, shear modulus $\mu$, Lamé coefficient $\lambda$, and length
+$\ell$, its stress and load are
+
+$$
+\boldsymbol{\sigma}(\boldsymbol{u})
+=2\mu\,\operatorname{sym}(\nabla\boldsymbol{u})
++\lambda\,\operatorname{div}(\boldsymbol{u})\boldsymbol{I},
+\qquad q=\frac{2\mu x}{\ell}.
+$$
+
+The balance relation is
+
+$$
+-\nabla\!\cdot\boldsymbol{\sigma}(\boldsymbol{u})-\nabla q=0.
+$$
+
+<ExactSourceLink path="examples/mixed-boundary-elasticity.eqi" kind="blob">Eqiora component source</ExactSourceLink>
+
+</NotebookStage>
+
+<NotebookStage id="elasticity-plan" step={3} title="Typed numerical plan" emoji="🔷">
+
+The root resolver reads physics from the compiled `Model`. Python supplies Q1
+spatial policy and one explicit linear-solve policy; neither selects a separate
+elasticity application type.
+
+```python
+model = eqiora.compile(
+    path=files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi"),
+    geometry=geometry,
+    parameters={"mu": 3.0, "lambda": 0.0, "length_scale": 1.0},
+)
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=eqiora.fem.Q1(),
+    solve=eqiora.solve.Linear(...),
+)
+```
+
+<ExactSourceLink path="examples/python/mixed_boundary_elasticity.py" kind="blob" fragment="L26-L40">Shared compile and resolve workflow</ExactSourceLink>
+
+</NotebookStage>
+
+<NotebookStage id="elasticity-result" step={4} title="Run and common Result" emoji="▶">
+
+The shared function executes one direct root lifecycle and returns the exact
+Plan together with its common Result:
+
+```python
+return plan, eqiora.run(plan)
+```
+
+The displacement is selected only by the Plan-owned field handle:
+
+```python
+displacement = result.output(plan.field)
+```
+
+The thin notebook surfaces reuse that function; they do not restate geometry,
+physics, mesh generation, or solve policy.
+
+<ExactSourceLink path="examples/python/mixed_boundary_elasticity_marimo.py" kind="blob">Open the Marimo surface</ExactSourceLink>
+· <ExactSourceLink path="examples/python/mixed_boundary_elasticity_jupyter.ipynb" kind="blob">Open the Jupyter surface</ExactSourceLink>
+
+</NotebookStage>
+
+<NotebookStage id="elasticity-presentation" step={5} title="Displacement presentation" emoji="📐">
+
+<ResultFigure
+  src={displacementImage.src}
+  alt={publication.publication_payload.text.alt}
+  caption={publication.publication_payload.text.caption}
+  units="m"
+  sourcePath="examples/python/mixed_boundary_elasticity.py"
+  sourceFragment="L65-L74"
+  sourceLabel="View the caller-owned plotting path"
+/>
+
+The dashed mesh is the reference geometry. The orange mesh adds the displacement
+with visible scale 1. The scale changes only presentation, never the Result.
+The static image contains no motion; the full alt text and this paragraph remain
+available when images are unavailable.
+
+</NotebookStage>
+
+<NotebookStage id="elasticity-boundary" step={6} title="Verified and not claimed" emoji="✅">
+
+<ClaimBoundary
+  title="Verified boundary"
+  supported={[
+    'One bounded 2D mixed-boundary linear-elasticity workflow reaches a common Result and a caller-owned displacement figure through the root lifecycle.',
+    'The installed product case checks the caller Geometry, common Plan/Result composition, Plan-owned displacement projection, and headless plot.',
+    'The structural case independently owns the accepted scientific values and tolerances; publication does not derive them from pixels.',
+  ]}
+  notClaimed={[
+    'No general elasticity or arbitrary boundary data.',
+    'No stress, strain, or traction recovery from the common Result.',
+    'No unstructured, high-order, three-dimensional, nonlinear, or dynamic structure.',
+    'No convergence, performance, or production-scale claim.',
+    'No exact pixels or scientific validation from rendering.',
+  ]}
+/>
+
+<ExactSourceLink path="verify/interfaces/python-mixed-boundary-elasticity-demo/README.md" kind="blob">Installed-product dossier</ExactSourceLink>
+· <ExactSourceLink path="verify/solid/mixed-boundary-elasticity-2d/README.md" kind="blob">Scientific evidence dossier</ExactSourceLink>
+· [Browse the evidence catalog](/evidence/)
+
+</NotebookStage>

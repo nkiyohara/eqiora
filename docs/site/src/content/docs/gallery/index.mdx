@@ -6,6 +6,8 @@ description: Source-traced, static walkthroughs built from admitted Eqiora resul
 import GalleryGrid from '../../../components/gallery/GalleryGrid.astro';
 import pressureImage from '../../../assets/gallery/exact-cylinder-pressure.png';
 import publication from '../../../data/gallery/exact-cylinder-steady-stokes.publication.json';
+import displacementImage from '../../../assets/gallery/mixed-boundary-elasticity-displacement.png';
+import elasticityPublication from '../../../data/gallery/mixed-boundary-elasticity.publication.json';
 
 Explore bounded demonstrations from model definition to a linked result. Gallery
 media helps explain a run; it does not replace the registered evidence behind the
@@ -21,6 +23,14 @@ claim.
       imageAlt: publication.publication_payload.text.alt,
       tags: ['Python', '2D', 'steady Stokes'],
       featured: true,
+    },
+    {
+      href: '/gallery/mixed-boundary-elasticity/',
+      title: 'Mixed-boundary linear elasticity',
+      description: 'One bounded caller-Geometry → common Plan → Result walkthrough with a caller-owned displacement figure.',
+      imageSrc: displacementImage.src,
+      imageAlt: elasticityPublication.publication_payload.text.alt,
+      tags: ['Python', '2D', 'linear elasticity'],
     },
   ]}
 />

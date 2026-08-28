@@ -51,12 +51,12 @@ async function assertCylinderContent(page: Page): Promise<void> {
   ).toHaveAttribute('href', '#submit-and-result');
   await expect(
     page.getByRole('link', {
-      name: 'Eqiora source form: canonical intent/submit/result cells',
+      name: 'Eqiora source form: canonical resolve/run/result cells',
       exact: true,
     }),
   ).toHaveAttribute(
     'href',
-    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/exact_cylinder_stokes_marimo.py#L77-L95`,
+    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/exact_cylinder_stokes_marimo.py#L77-L96`,
   );
   await assertNoFakeExecutionControls(page);
 }
@@ -188,7 +188,7 @@ test('00D exact real Rustdoc Diagnostic ordinary chunk is complete and green', a
   test.setTimeout(300_000);
   const plan = createOrdinaryRoutePlan();
   expect(assertOrdinaryRoutePlan(plan)).toEqual([...SITE_ROUTES]);
-  expect(ROUTES).toHaveLength(35);
+  expect(ROUTES).toHaveLength(36);
   const context = await browser.newContext({
     baseURL: BASE_URL,
     locale: 'en-GB',
@@ -249,6 +249,8 @@ test('01 honest 320px O-1 through O-4 composition and retained interaction contr
 
   await page.emulateMedia({ colorScheme: 'light', forcedColors: 'none', reducedMotion: 'reduce' });
   await page.goto('/gallery/exact-cylinder-steady-stokes/');
+  await assertReducedMotion(page);
+  await page.goto('/gallery/mixed-boundary-elasticity/');
   await assertReducedMotion(page);
   expect(external).toEqual([]);
   await context.close();
