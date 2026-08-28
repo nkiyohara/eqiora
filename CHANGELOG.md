@@ -8,6 +8,10 @@ are recorded here.
 
 ### Changed
 
+- Geometry-backed transient MINI/P1 flow now advances a nonzero cylinder-wake
+  state through correction-form Newton. The resolver uses direct sparse LU for
+  the bounded saddle-point Jacobian while preserving its canonical CSR lineage.
+
 - Removed the application-shaped `TransientNavierStokesReference2d` facade and
   its hand-built fixed-mesh evidence. Transient product work now converges on
   the common `Geometry -> Mesh -> Model -> Plan -> State -> Run -> Result`

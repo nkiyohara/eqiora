@@ -32,12 +32,12 @@ pub struct MiniNavierStokesStepPlan2d {
 }
 
 impl MiniNavierStokesStepPlan2d {
-    /// Validate one host-reference backward-Euler/Newton--Krylov plan.
+    /// Validate one host-reference backward-Euler/Newton plan.
     ///
     /// # Errors
     /// Returns `EQ0801` for non-positive physical/time data and `EQ0807` when
     /// the linear policy is not serial identity-preconditioned fast-reduction
-    /// BiCGSTAB. Production preconditioning is intentionally a later claim.
+    /// sparse LU. Production preconditioning is intentionally a later claim.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         density: f64,
@@ -76,7 +76,7 @@ impl MiniNavierStokesStepPlan2d {
                 "bounded reference line search admits at most 64 halvings",
             ));
         }
-        if linear_solver.algorithm() != LinearSolver::BiConjugateGradientStabilized
+        if linear_solver.algorithm() != LinearSolver::SparseLu
             || linear_solver.preconditioner() != PreconditionerPolicy::Identity
             || linear_solver.reduction() != ReductionPolicy::Fast
             || target
@@ -85,7 +85,7 @@ impl MiniNavierStokesStepPlan2d {
                 })
         {
             return Err(invalid(
-                "bounded MINI Navier--Stokes requires serial-host identity-preconditioned fast-reduction BiCGSTAB",
+                "bounded MINI Navier--Stokes requires serial-host identity-preconditioned fast-reduction sparse LU",
             ));
         }
         Ok(Self {

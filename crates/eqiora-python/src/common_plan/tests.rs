@@ -804,12 +804,9 @@ source = graph.build(fluid, named_topology={
             .extract::<PyRef<'_, PyGeometry>>()?
             .geometry()
             .clone();
-        let model =
-            PyModel::from_document(py, transient_cylinder_document_with_speed(&geometry, 0.0))?;
-        let wake_model = PyModel::from_document(py, transient_cylinder_document(&geometry))?;
-        let steady_model = PyModel::from_document(py, stokes_document_with_speed(&geometry, 0.0))?;
+        let model = PyModel::from_document(py, transient_cylinder_document(&geometry))?;
+        let steady_model = PyModel::from_document(py, stokes_document_with_speed(&geometry, 0.3))?;
         locals.set_item("model", Py::new(py, model)?)?;
-        locals.set_item("wake_model", Py::new(py, wake_model)?)?;
         locals.set_item("steady_model", Py::new(py, steady_model)?)?;
         py.run(
             c_str!(r#"
@@ -824,8 +821,8 @@ steady_plan = package.resolve(
     solve=linear,
     scaling=package.fluid.IncompressibleScaling(
         length_m=0.41,
-        velocity_m_per_s=0.03,
-        pressure_pa=0.001 * 0.03 / 0.41,
+        velocity_m_per_s=0.3,
+        pressure_pa=0.001 * 0.3 / 0.41,
     ),
 )
 steady_result = package.run(steady_plan)
@@ -833,18 +830,6 @@ steady_velocity = steady_result.output(steady_plan.velocity_field)
 steady_pressure = steady_result.output(steady_plan.pressure_field)
 plan = package.resolve(
     model,
-    mesh=mesh,
-    spatial=package.fem.MiniP1(),
-    solve=package.solve.Newton(linear=linear),
-    temporal=package.time.BackwardEuler(0.0001),
-    scaling=package.fluid.IncompressibleScaling(
-        length_m=0.41,
-        velocity_m_per_s=0.03,
-        pressure_pa=1.0 * 0.03 * 0.03,
-    ),
-)
-wake_plan = package.resolve(
-    wake_model,
     mesh=mesh,
     spatial=package.fem.MiniP1(),
     solve=package.solve.Newton(linear=linear),
@@ -871,12 +856,13 @@ state = package.State.initial(
     ),
 )
 assert plan.model is model and plan.mesh is mesh
-assert wake_plan.model is wake_model and wake_plan.mesh is mesh
 assert plan.pressure_gauge is package.fluid.PressureGauge2d.BoundaryTraction
+assert np.max(np.abs(np.asarray(steady_velocity.vertex_values))) > 0.0
 assert state.field(plan.velocity_field).associations == ("vertex", "cell")
 result = package.run(plan, state=state, steps=1, output_steps=(1,))
 assert len(result.trajectory.states) == 1
 assert result.trajectory.states[0].time_s == 0.0001
+assert np.max(np.abs(result.trajectory.states[0].field(plan.velocity_field).values("vertex"))) > 0.0
 "#),
             None,
             Some(&locals),
@@ -968,7 +954,8 @@ assert mini.pressure_gauge is package.fluid.PressureGauge2d.ZeroIntegral
 assert fvm.pressure_gauge is package.fluid.PressureGauge2d.ZeroIntegral
 assert mini.mesh_kind == "imported-affine-simplicial"
 assert fvm.mesh_kind == "supplied-cartesian"
-assert mini.solver_algorithm == fvm.solver_algorithm == "bicgstab"
+assert mini.solver_algorithm == "sparse-lu"
+assert fvm.solver_algorithm == "bicgstab"
 assert mini.reduction == "fast" and fvm.reduction == "reproducible"
 assert mini.solver_backend == "eqiora.faer"
 assert fvm.solver_backend == "eqiora.reference"

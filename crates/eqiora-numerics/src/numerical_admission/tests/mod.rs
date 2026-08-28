@@ -129,6 +129,13 @@ impl LinearSolverBackend for ResolveOnlyBackend {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                algorithm: LinearSolver::SparseLu,
+                operator_properties: LinearOperatorProperties::General,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            },
+            SolverCapability {
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
                 preconditioner: PreconditionerPolicy::Identity,

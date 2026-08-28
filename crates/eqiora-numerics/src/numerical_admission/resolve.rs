@@ -170,25 +170,31 @@ pub fn resolve_common_plan(
                 correspondence,
                 mesh,
             )?;
-            let effective_linear = SolverPlan::new(
-                LinearSolver::BiConjugateGradientStabilized,
-                linear.relative_tolerance(),
-                linear.absolute_tolerance(),
-                linear.maximum_iterations(),
-            )?
-            .with_preconditioner(PreconditionerPolicy::Identity)
-            .with_reduction(match spatial {
-                CommonSpatialPolicy::MiniP1 => ReductionPolicy::Fast,
-                CommonSpatialPolicy::CellCentered => ReductionPolicy::Reproducible,
+            let (algorithm, reduction) = match spatial {
+                CommonSpatialPolicy::MiniP1 => (LinearSolver::SparseLu, ReductionPolicy::Fast),
+                CommonSpatialPolicy::CellCentered => (
+                    LinearSolver::BiConjugateGradientStabilized,
+                    ReductionPolicy::Reproducible,
+                ),
                 CommonSpatialPolicy::Q1 | CommonSpatialPolicy::CellCenteredTpfa => {
                     return Err(invalid(
                         "transient incompressible-flow mathematics requires MINI/P1 or CellCentered",
                     ));
                 }
-                CommonSpatialPolicy::P1 => return Err(invalid(
-                    "transient incompressible-flow mathematics does not admit standalone P1",
-                )),
-            });
+                CommonSpatialPolicy::P1 => {
+                    return Err(invalid(
+                        "transient incompressible-flow mathematics does not admit standalone P1",
+                    ));
+                }
+            };
+            let effective_linear = SolverPlan::new(
+                algorithm,
+                linear.relative_tolerance(),
+                linear.absolute_tolerance(),
+                linear.maximum_iterations(),
+            )?
+            .with_preconditioner(PreconditionerPolicy::Identity)
+            .with_reduction(reduction);
             let linear_backend: &dyn LinearSolverBackend = match spatial {
                 CommonSpatialPolicy::MiniP1 => stokes_backend,
                 CommonSpatialPolicy::CellCentered => &REFERENCE_LINEAR_SOLVER,

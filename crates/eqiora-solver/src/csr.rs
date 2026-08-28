@@ -264,6 +264,22 @@ impl CanonicalCsrSystemView {
         LinearProblem::from_canonical(self)
     }
 
+    /// Borrow this captured coefficient system with a caller-supplied right-hand side.
+    ///
+    /// This preserves the exact canonical CSR coefficient source for direct
+    /// backends while allowing correction, sensitivity, and adjoint solves to
+    /// bind a right-hand side distinct from the captured primal one.
+    ///
+    /// # Errors
+    /// Returns `EQ0802` when `right_hand_side` has the wrong length or contains
+    /// a non-finite value.
+    pub fn linear_problem_with_right_hand_side<'a>(
+        &'a self,
+        right_hand_side: &'a [f64],
+    ) -> Result<LinearProblem<'a>, Diagnostic> {
+        LinearProblem::from_oriented_canonical(self, self, right_hand_side)
+    }
+
     fn apply_range(
         &self,
         rows: Range<usize>,
@@ -636,6 +652,31 @@ mod tests {
         assert_ne!(&actual, storage.unrelated_action(&[1.0, 2.0]).as_slice());
         assert_eq!(view.agreement_fingerprint(), original);
         assert_eq!(view.linear_problem().unwrap().right_hand_side(), [2.0, 8.0]);
+    }
+
+    #[test]
+    fn alternate_right_hand_side_preserves_the_exact_canonical_source() {
+        let storage = AdversarialStorage {
+            values: vec![2.0, 4.0],
+            hidden_action_scale: 99.0,
+        };
+        let view = CanonicalCsrSystemView::new(
+            &storage,
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+        )
+        .unwrap();
+        let correction = [-1.0, 3.0];
+        let problem = view
+            .linear_problem_with_right_hand_side(&correction)
+            .unwrap();
+
+        assert_eq!(problem.right_hand_side(), correction);
+        assert!(std::ptr::eq(problem.canonical_csr_system().unwrap(), &view));
+        assert!(view.linear_problem_with_right_hand_side(&[1.0]).is_err());
+        assert!(
+            view.linear_problem_with_right_hand_side(&[1.0, f64::NAN])
+                .is_err()
+        );
     }
 
     #[test]
