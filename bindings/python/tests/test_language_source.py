@@ -185,3 +185,8 @@ def test_canonical_compiler_owns_expression_shape_diagnostics() -> None:
             parameters=PARAMETERS,
         )
     assert error.value.diagnostics
+    assert any(
+        diagnostic.source_span is not None
+        and diagnostic.source_span[0] == "<python-source>"
+        for diagnostic in error.value.diagnostics
+    )

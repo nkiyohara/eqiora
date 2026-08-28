@@ -207,6 +207,11 @@ try:
     )
 except eqiora.ValidationError as error:
     assert error.diagnostics
+    assert any(
+        diagnostic.source_span is not None
+        and diagnostic.source_span[0] == "<python-source>"
+        for diagnostic in error.diagnostics
+    )
 else:
     raise AssertionError("a shape-invalid generated source passed the canonical compiler")
 "#
