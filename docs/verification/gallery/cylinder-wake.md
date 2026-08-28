@@ -4,10 +4,24 @@ Implement and publish this first as an **Unverified product example**. Promote i
 claim-local candidate, independent oracle, falsifiers, and acceptance requirements pass under
 RFC 0089; evidence work must not block the earlier product path.
 
-Status: future-state experience contract. It does not advance
-`fluid.flow-past-cylinder`.
+Status: the unverified product path now executes one nonzero accepted step and
+is available as matching plain-Python, Marimo, and Jupyter sources. It does not
+advance the scientific `fluid.flow-past-cylinder` claim.
 
-## Responsibility and public claim
+## Current unverified product boundary
+
+The checked-in sources compose one Python-authored channel-minus-circle
+Geometry, Gmsh common Mesh, packaged steady and transient `.eqi` Components,
+typed numerical policies, a steady nonzero bootstrap, one transient accepted
+State, typed cell-average vorticity, and a caller-owned Figure. They retain
+Geometry, Mesh, Model, Plan, Trajectory, State, Field, unit, support, and
+operator lineage and label the result as unverified.
+
+This is not yet a developed wake: it has no multi-step periodic trajectory,
+cylinder force, pressure probes, animation, benchmark value, tolerance,
+convergence result, or scientific acceptance.
+
+## Target experience and future public claim
 
 The film shows that one exact channel-minus-circle Model executes as transient
 incompressible Navier--Stokes flow, reaches a resolved periodic laminar wake,

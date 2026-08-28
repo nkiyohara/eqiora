@@ -8,6 +8,12 @@ are recorded here.
 
 ### Changed
 
+- Added one explicitly unverified transient-cylinder product example with
+  matching plain-Python, Marimo, and clean Jupyter sources. All three compose
+  the same installed-package Geometry, Gmsh Mesh, steady bootstrap, transient
+  Plan/State/Run, typed cell-average vorticity, and caller-owned Figure path;
+  they add no benchmark values, tolerances, or scientific acceptance claim.
+
 - Transient `State.curl(velocity_field)` now derives an immutable typed
   cell-average vorticity snapshot from accepted two-dimensional MINI velocity,
   retaining exact State, Field, Mesh, support, unit, and operator lineage.
