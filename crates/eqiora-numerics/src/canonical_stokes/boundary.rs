@@ -56,10 +56,6 @@ pub(super) struct LoweredNamedStokesBoundary2d {
     pub(super) prescribed_velocity_traces: BTreeMap<String, SteadyStokesPrescribedVelocityTrace2d>,
     pub(super) prescribed_velocity_fields: BTreeSet<RawId>,
     pub(super) prescribed_velocity_definitions: BTreeSet<RawId>,
-    pub(super) normal_velocity_expressions: BTreeMap<String, ScalarSpatialExpression>,
-    pub(super) normal_velocity_coefficients: BTreeMap<String, (RawId, RawId)>,
-    pub(super) normal_velocity_fields: BTreeSet<RawId>,
-    pub(super) normal_velocity_definitions: BTreeSet<RawId>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
     pub(super) ports: BTreeSet<RawId>,
     pub(super) connections: BTreeSet<RawId>,
@@ -83,7 +79,6 @@ struct LoweredBoundaryEntries<K> {
 
 struct NormalVelocityProjection<K> {
     expressions: BTreeMap<K, ScalarSpatialExpression>,
-    coefficients: BTreeMap<K, (RawId, RawId)>,
     fields: BTreeSet<RawId>,
     definitions: BTreeSet<RawId>,
 }
@@ -246,17 +241,12 @@ pub(super) fn lower_named_with_stress(
         exact_boundaries,
         stress_form,
     )?;
-    let normal_velocity = normal_velocity_projection(&lowered.prescribed_velocity_traces);
     Ok(LoweredNamedStokesBoundary2d {
         entries: lowered.entries,
         normal_pressure_sources: lowered.normal_pressure_sources,
         prescribed_velocity_traces: lowered.prescribed_velocity_traces,
         prescribed_velocity_fields: lowered.prescribed_velocity_fields,
         prescribed_velocity_definitions: lowered.prescribed_velocity_definitions,
-        normal_velocity_expressions: normal_velocity.expressions,
-        normal_velocity_coefficients: normal_velocity.coefficients,
-        normal_velocity_fields: normal_velocity.fields,
-        normal_velocity_definitions: normal_velocity.definitions,
         boundary_relations: lowered.boundary_relations,
         ports: lowered.ports,
         connections: lowered.connections,
@@ -269,7 +259,6 @@ fn normal_velocity_projection<K: Clone + Ord>(
     traces: &BTreeMap<K, SteadyStokesPrescribedVelocityTrace2d>,
 ) -> NormalVelocityProjection<K> {
     let mut expressions = BTreeMap::new();
-    let mut coefficients = BTreeMap::new();
     let mut fields = BTreeSet::new();
     let mut definitions = BTreeSet::new();
     for (key, trace) in traces {
@@ -281,14 +270,12 @@ fn normal_velocity_projection<K: Clone + Ord>(
         } = trace
         {
             expressions.insert(key.clone(), expression.clone());
-            coefficients.insert(key.clone(), (*coefficient_field, *definition_relation));
             fields.insert(*coefficient_field);
             definitions.insert(*definition_relation);
         }
     }
     NormalVelocityProjection {
         expressions,
-        coefficients,
         fields,
         definitions,
     }
@@ -953,9 +940,6 @@ fn require_matching_stress(
             match context.stress_form {
                 IncompressibleStressForm::SymmetricNewtonian => {
                     "boundary traction must use the exact incompressible Newtonian stress"
-                }
-                IncompressibleStressForm::DfgNonsymmetric => {
-                    "DFG boundary traction must use the exact nonsymmetric stress"
                 }
             },
         )

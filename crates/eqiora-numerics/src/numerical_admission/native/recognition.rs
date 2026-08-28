@@ -15,13 +15,7 @@ pub(crate) fn resource_digests(
             correspondence.digest()?,
             production.digest()?,
         ),
-        NativeMeshResources::ReferenceSimplicial {
-            geometry,
-            mesh,
-            correspondence,
-            production,
-        }
-        | NativeMeshResources::AffineTriangleSimplicial {
+        NativeMeshResources::AffineTriangleSimplicial {
             geometry,
             mesh,
             correspondence,
@@ -77,13 +71,7 @@ pub(crate) fn resource_artifact_digests(
             correspondence.digest()?,
             production.digest()?,
         ),
-        NativeMeshResources::ReferenceSimplicial {
-            geometry,
-            mesh,
-            correspondence,
-            production,
-        }
-        | NativeMeshResources::AffineTriangleSimplicial {
+        NativeMeshResources::AffineTriangleSimplicial {
             geometry,
             mesh,
             correspondence,
@@ -205,13 +193,7 @@ pub(crate) fn recognize_exact_model(
             .map(RecognizedNativeModel::Elasticity),
         (
             NativeCapability::SteadyIncompressibleStokes,
-            NativeMeshResources::ReferenceSimplicial {
-                geometry,
-                mesh,
-                correspondence,
-                ..
-            }
-            | NativeMeshResources::GmshSimplicial {
+            NativeMeshResources::GmshSimplicial {
                 geometry,
                 mesh,
                 correspondence,

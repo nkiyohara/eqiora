@@ -7,22 +7,18 @@ analytic cardinalities are twelve vertex values for Q1 and six cell values for
 TPFA; their effective policy identities must differ while the caller Model
 digest remains exact.
 
-The same private core admits the authored steady incompressible Stokes Model
-over the deterministic source-owned common simplicial Mesh, resolves MINI/P1,
-and retains that exact Mesh digest in the existing Realization. This case does
-not execute or make a scientific claim about the Stokes solution.
+The same private core admits bounded transient incompressible Models over
+caller-owned affine-triangle and Cartesian resources, resolving MINI/P1 and
+cell-centered policies without changing Model meaning.
 
 Causal negatives replace scalar diffusion with an algebraic reaction, remove
-incompressibility from an otherwise Stokes-shaped Model, cross-wire the scalar
+incompressibility from an otherwise flow-shaped Model, cross-wire the scalar
 Model with MINI/P1, independently substitute algorithm, preconditioner, and
 reduction, reject a negative-zero tolerance, and attempt execution through a
 foreign solver provider. Resource
 falsifiers replace the exact Geometry, substitute a same-cardinality Cartesian
 Mesh with different axes, swap left/right source-facet assignments, mutate
-production provider and correspondence identity, and mutate the retained Gmsh
-provider output/tag observation. A foreign tag inventory rejects; a correlated
-source-tag relabelling becomes a distinct authenticated occurrence with distinct
-correspondence and production identities. Repeated identical admission
+production provider and correspondence identity. Repeated identical admission
 has one policy identity; changing method or provider changes it.
 
 The case does not claim a public root API, durable Plan/Run lineage, arbitrary

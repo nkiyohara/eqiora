@@ -311,60 +311,6 @@ pub(super) fn transient_model() -> ModelEnvelope {
     ModelEnvelope::from_program(&program).unwrap()
 }
 
-pub(super) fn gmsh_provider_output(
-    mesh: &SimplicialMeshEnvelopeV1,
-    source_edge_facets: &[Vec<usize>; 5],
-) -> Vec<u8> {
-    let native = mesh.mesh();
-    let vertex_count = native.vertices().len();
-    let boundary_count = source_edge_facets.iter().map(Vec::len).sum::<usize>();
-    let element_count = boundary_count + native.cells().len();
-    let mut output = String::from("$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n");
-    writeln!(output, "1 {vertex_count} 1 {vertex_count}").unwrap();
-    writeln!(output, "2 1 0 {vertex_count}").unwrap();
-    for tag in 1..=vertex_count {
-        writeln!(output, "{tag}").unwrap();
-    }
-    for coordinate in native.vertices() {
-        writeln!(output, "{:?} {:?} 0", coordinate[0], coordinate[1]).unwrap();
-    }
-    output.push_str("$EndNodes\n$Elements\n");
-    writeln!(output, "6 {element_count} 1 {element_count}").unwrap();
-    let mut element_tag = 1;
-    for (entity_tag, source_edge) in [(1, 4), (5, 2), (6, 1), (7, 3), (8, 0)] {
-        let facets = &source_edge_facets[source_edge];
-        writeln!(output, "1 {entity_tag} 1 {}", facets.len()).unwrap();
-        for &facet_index in facets {
-            let vertices = native
-                .entity_vertices(MeshEntity::new(1, facet_index))
-                .unwrap();
-            writeln!(
-                output,
-                "{element_tag} {} {}",
-                vertices[0].index() + 1,
-                vertices[1].index() + 1,
-            )
-            .unwrap();
-            element_tag += 1;
-        }
-    }
-    writeln!(output, "2 1 2 {}", native.cells().len()).unwrap();
-    for cell in native.cells() {
-        writeln!(
-            output,
-            "{element_tag} {} {} {}",
-            cell[0] + 1,
-            cell[1] + 1,
-            cell[2] + 1,
-        )
-        .unwrap();
-        element_tag += 1;
-    }
-    output.push_str("$EndElements\n");
-    assert_eq!(element_tag, element_count + 1);
-    output.into_bytes()
-}
-
 pub(super) fn linear() -> NativeLinearPolicy {
     NativeLinearPolicy::exact(
         SolverPlan::new(
@@ -406,10 +352,6 @@ pub(super) fn stokes_geometry() -> CanonicalGeometryV1 {
             ("cylinder".to_owned(), vec![cut_wall]),
         ]))
         .unwrap()
-}
-
-pub(super) fn stokes_model(geometry: &CanonicalGeometryV1) -> ModelEnvelope {
-    stokes_model_from_source(geometry, STOKES_COMPONENT)
 }
 
 pub(super) fn stokes_model_from_source(

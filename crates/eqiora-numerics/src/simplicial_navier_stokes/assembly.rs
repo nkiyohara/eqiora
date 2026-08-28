@@ -285,9 +285,6 @@ where
                 FixedDomainViscousForm::SymmetricNewtonian => {
                     cell.residual(&geometry, cell_quadrature)?
                 }
-                FixedDomainViscousForm::DfgNonsymmetric => {
-                    cell.residual_dfg(&geometry, cell_quadrature)?
-                }
             }
         } else if packet < step.constraint_end {
             let cell = MeshEntity::new(DIMENSION, packet - step.cell_count);
@@ -368,9 +365,6 @@ where
             let linearization = match viscous_form {
                 FixedDomainViscousForm::SymmetricNewtonian => {
                     cell.linearize(&geometry, cell_quadrature)?
-                }
-                FixedDomainViscousForm::DfgNonsymmetric => {
-                    cell.linearize_dfg(&geometry, cell_quadrature)?
                 }
             };
             let residual = linearization.residual().to_vec();

@@ -19,8 +19,7 @@ pub(crate) fn validate_resources(
         (
             NativeCapability::SteadyIncompressibleStokes,
             NativeSpatialPolicy::StokesMiniP1(_),
-            resources @ (NativeMeshResources::ReferenceSimplicial { .. }
-            | NativeMeshResources::GmshSimplicial { .. }),
+            resources @ NativeMeshResources::GmshSimplicial { .. },
         ) => validate_simplicial_resources(resources),
         (
             NativeCapability::TransientIncompressibleFlow,
@@ -80,28 +79,6 @@ pub(crate) fn validate_simplicial_resources(
     resources: &NativeMeshResources,
 ) -> Result<(), Diagnostic> {
     match resources {
-        NativeMeshResources::ReferenceSimplicial {
-            geometry,
-            mesh,
-            correspondence,
-            production,
-        } => {
-            let policy = production.planar_mesh_quality().ok_or_else(|| {
-                invalid("reference simplicial resource has a non-planar production policy")
-            })?;
-            correspondence.validate_against_planar_circular_hole_v2_reference(
-                geometry,
-                mesh,
-                policy.maximum_boundary_error_m(),
-                policy.maximum_boundary_facets(),
-            )?;
-            production.validate_against_planar_circular_hole_reference_v1_resources(
-                policy,
-                geometry,
-                mesh,
-                correspondence,
-            )?;
-        }
         NativeMeshResources::AffineTriangleSimplicial {
             geometry,
             mesh,
@@ -163,8 +140,7 @@ pub(crate) fn validate_simplicial_resources(
         }
     }
     let mesh = match resources {
-        NativeMeshResources::ReferenceSimplicial { mesh, .. }
-        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
+        NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
         | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }
         | NativeMeshResources::GmshSimplicial { mesh, .. } => mesh,
         NativeMeshResources::Cartesian { .. } => unreachable!("rejected above"),

@@ -18,8 +18,6 @@ use crate::{
     ValidatedMovingSpatialContextV2, check_json_limits, invalid_artifact,
 };
 
-use super::context::ValidatedCircularHoleFieldwiseContext;
-
 const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v1";
 
 /// The common validated lineage needed to construct the unchanged V1
@@ -517,51 +515,6 @@ impl<M: ReplayableCanonicalModelArtifact, R: ReplayableFixedTopologyAleRealizati
         field: Id<kinds::Field>,
     ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
         ValidatedMovingSpatialContextV2::realized_field_space(self, field)
-    }
-}
-
-impl ValidatedFieldSnapshotContext for ValidatedCircularHoleFieldwiseContext<'_> {
-    fn model_reference(&self) -> &ModelArtifactReference {
-        ValidatedCircularHoleFieldwiseContext::model_reference(self)
-    }
-
-    fn program(&self) -> &eqiora_sem::KernelProgram {
-        ValidatedCircularHoleFieldwiseContext::program(self)
-    }
-
-    fn realization_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
-        self.realization().digest()
-    }
-
-    fn geometry_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
-        self.geometry().digest()
-    }
-
-    fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
-        ValidatedCircularHoleFieldwiseContext::correspondence(self)
-    }
-
-    fn mesh(&self) -> &SimplicialMeshEnvelopeV1 {
-        ValidatedCircularHoleFieldwiseContext::mesh(self)
-    }
-
-    fn active_cells(&self, domain: Id<kinds::Domain>) -> Result<Vec<usize>, Diagnostic> {
-        ValidatedCircularHoleFieldwiseContext::active_cells(self, domain)
-    }
-
-    fn realized_field_space(
-        &self,
-        field: Id<kinds::Field>,
-    ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
-        let spatial = self.realization().plan()?.spatial().clone();
-        let binding = spatial
-            .field_spaces()
-            .iter()
-            .find(|binding| binding.field() == field)
-            .ok_or_else(|| {
-                invalid_artifact("Field snapshot Field is absent from the exact Realization")
-            })?;
-        Ok((spatial.domain(), binding.space().family()))
     }
 }
 

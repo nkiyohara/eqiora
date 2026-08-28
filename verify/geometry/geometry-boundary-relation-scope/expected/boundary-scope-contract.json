@@ -113,7 +113,6 @@
     ["Structural fingerprints unchanged", "verify/interfaces/structural-semantic-fingerprint"],
     ["Straight-edged wire/digest unchanged", "verify/geometry/authored-planar-geometry-artifact"],
     ["Circular-hole wire/digest unchanged", "verify/geometry/exact-circular-hole-geometry"],
-    ["Chordal reference mesh unchanged", "verify/geometry/circular-hole-chordal-reference-mesh"],
     ["Bundle closure and parent lookup kept", "verify/geometry/geometry-backed-semantic-admission"]
   ],
 

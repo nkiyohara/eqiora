@@ -34,7 +34,7 @@ CONTRACT = CASE / "expected" / "boundary-scope-contract.json"
 
 # Freezing the fixture digest outside the fixture is what stops a later lane
 # from widening the table and calling the widened table "the oracle".
-CONTRACT_SHA256 = "6dc106a8fe682b998c05bfd03eb75240f8904e57e988cdde08f4ff21499706ac"
+CONTRACT_SHA256 = "89155d8173b32bd0c6417340440e35ec6ef7546a2977a7faadf2b5dd780db2b2"
 
 CIRCULAR_HOLE = "circular-hole-planar-v1"
 UNFROZEN = "unfrozen"

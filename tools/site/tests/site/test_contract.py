@@ -211,14 +211,6 @@ class CompleteContractTests(unittest.TestCase):
             raw = case.read_text(encoding="utf-8")
             self.assertIn(WITNESS_COPY, raw)
             self.assertNotIn("104-triangle", raw)
-            self.assertNotIn(
-                "verify/fluid/exact-circular-hole-stokes-2d/README.md",
-                raw,
-            )
-            self.assertNotIn(
-                "verify/geometry/circular-hole-chordal-reference-mesh/README.md",
-                raw,
-            )
             self.assertEqual(
                 checker.check_site(root, artifact, SOURCE_SHA, identities), []
             )

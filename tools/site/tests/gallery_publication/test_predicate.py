@@ -198,7 +198,7 @@ class GalleryPublicationPredicateTests(unittest.TestCase):
             for item in self.fixture.payload["evidence_cases"]
             if item["id"] == "interfaces.python-exact-cylinder-stokes-marimo"
         )
-        case["id"] = "fluid.exact-circular-hole-stokes-2d"
+        case["id"] = "fluid.unregistered-retired-cylinder-case"
         case["manifest_path"] = case_path(case["id"])
         self.fixture.refresh_and_write_external()
         self._assert_rejected("case-set")

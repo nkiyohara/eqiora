@@ -20,7 +20,7 @@ manylinux x86-64:
 python -m pip install "eqiora[gmsh]==0.1.0a3"
 ```
 
-Build an exact rectangle-with-circular-hole geometry, resolve its chordal mesh,
+Build an exact rectangle-with-circular-hole geometry, resolve its Gmsh mesh,
 run the accepted steady-Stokes application, and inspect typed evidence from the
 immutable `Result`:
 
