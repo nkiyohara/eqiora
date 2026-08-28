@@ -25,8 +25,8 @@ are recorded here.
   failed Gmsh executions reject explicitly; the former reference-mesh fallback
   is not retained.
 
-- The exact-cylinder Result, Notebook mesh view, and Gallery pressure image now
-  use the accepted 662-vertex, 1,210-triangle Gmsh realization. This does not
+- The exact-cylinder Result and Gallery pressure image now use the accepted
+  662-vertex, 1,210-triangle Gmsh realization. This does not
   claim arbitrary geometry, curved elements, adaptive sizing, or cross-platform
   generated-mesh byte identity.
 

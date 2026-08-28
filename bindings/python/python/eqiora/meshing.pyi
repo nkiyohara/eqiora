@@ -3,7 +3,6 @@
 Authority: ``bindings/python/python/eqiora/meshing.py``.
 """
 
-from collections.abc import Collection
 from typing import Self, final
 
 import numpy as np
@@ -119,11 +118,6 @@ class Mesh:
     @property
     def selection_names(self) -> tuple[str, ...]: ...
     def selection_entity_count(self, name: str | GeometrySelection) -> int: ...
-    def _repr_mimebundle_(
-        self,
-        include: Collection[str] | None = None,
-        exclude: Collection[str] | None = None,
-    ) -> dict[str, object]: ...
     def __repr__(self) -> str: ...
 
 def resolve(
