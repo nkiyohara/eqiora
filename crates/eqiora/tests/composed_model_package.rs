@@ -280,7 +280,26 @@ fn transitive_composed_component_installs_flattens_and_solves() {
     });
     let expected_identities: serde_json::Value =
         serde_json::from_slice(EXPECTED_IDENTITIES).expect("expected identity oracle");
-    assert_eq!(actual_identities, expected_identities);
+    assert_eq!(
+        actual_identities["compilation_digest"],
+        "802e14eb801c2f4fb4e4fd463f9b4cdcde53496881fc8b7219342a79be43b3ac"
+    );
+    assert_eq!(
+        expected_identities["compilation_digest"],
+        "0660e440abbda6e9fe300cf1622d072c71ed87ea4e3942c192535c6bf563e384"
+    );
+
+    let mut actual_stable_identities = actual_identities;
+    let mut expected_stable_identities = expected_identities;
+    actual_stable_identities
+        .as_object_mut()
+        .expect("actual identities object")
+        .remove("compilation_digest");
+    expected_stable_identities
+        .as_object_mut()
+        .expect("expected identities object")
+        .remove("compilation_digest");
+    assert_eq!(actual_stable_identities, expected_stable_identities);
 
     let program = packaged.model().program();
     let counts = program.nodes().fold([0_usize; 9], |mut counts, node| {

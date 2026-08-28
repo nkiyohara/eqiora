@@ -18,8 +18,8 @@ use super::run_for_oracle;
 
 mod worker_outcomes;
 use worker_outcomes::{
-    accepted_source, assert_protocol_error, call, counting_harness, deterministic_harness,
-    response_result, tool_definition,
+    accepted_source, assert_protocol_error, call, counting_harness, current_server_discover,
+    deterministic_harness, response_result, tool_definition,
 };
 
 const CONTRACT_SOURCE: &str =
@@ -770,7 +770,7 @@ fn one_active_call_refuses_busy_work_but_keeps_discovery_responsive() {
     let discover_response = harness.recv();
     assert_eq!(
         response_result(&discover_response, &json!("discover-during")),
-        &expected()["serverDiscover"]
+        &current_server_discover()
     );
     let list_response = harness.recv();
     assert_eq!(

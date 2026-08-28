@@ -8,6 +8,12 @@ use eqiora::api::{ModelDocument, SemanticFingerprintGeneration};
 use eqiora::{Diagnostic, Severity};
 use serde_json::{Map, Value, json};
 
+#[path = "mcp_stdio_compile_check/release_identity.rs"]
+mod release_identity;
+use release_identity::{
+    assert_frozen_release_identity, expected, frozen_expected, tool_definition,
+};
+
 const CONTRACT_SOURCE: &str =
     include_str!("../../../verify/interfaces/mcp-stdio-compile-check/expected/contract.json");
 const TOOL_DEFINITION_SOURCE: &str = include_str!(
@@ -35,14 +41,6 @@ const WORKER_OUTCOMES_SOURCE: &str =
 const PROTECTED_TRANSITION_OBSERVER_SOURCE: &str = include_str!(
     "../../eqiora-artifact/tests/current_model_relational_identity_transition/transition_contract.rs"
 );
-
-fn expected() -> Value {
-    serde_json::from_str(CONTRACT_SOURCE).expect("frozen MCP contract JSON")
-}
-
-fn tool_definition() -> Value {
-    serde_json::from_str(TOOL_DEFINITION_SOURCE).expect("frozen tool-definition JSON")
-}
 
 fn timeout(name: &str) -> Duration {
     Duration::from_millis(
@@ -761,11 +759,13 @@ fn cfg_test_immediately_gates(source: &str, item: &str) -> bool {
 #[test]
 fn frozen_snapshots_and_static_route_are_closed() {
     let expected = expected();
+    let frozen = frozen_expected();
     let tool = tool_definition();
     assert_eq!(
         expected["schema"],
         "eqiora.verify.mcp-stdio-compile-check/v1"
     );
+    assert_frozen_release_identity(&frozen);
     assert_eq!(env!("CARGO_PKG_VERSION"), expected["serverInfo"]["version"]);
     assert_eq!(
         MODELS_README_SOURCE,

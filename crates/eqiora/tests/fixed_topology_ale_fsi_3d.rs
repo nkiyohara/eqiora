@@ -458,11 +458,29 @@ fn publish_moving_artifact_dag(fixture: &Fixture, trajectory: &AleFsiTrajectory3
         &spatial_states,
         &final_root,
     );
-    let expected: serde_json::Value = serde_json::from_str(include_str!(
+    let mut expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../verify/fsi/fixed-topology-ale-monolithic-3d/expected/accepted-trajectory.json"
     ))
     .unwrap();
-    assert_eq!(public_asset, expected);
+    assert_eq!(
+        public_asset["provenance"]["run_sha256"],
+        "05910053c31ed03c3b8f64c2198270f3faa5899f2a11d3a74467858bef872565"
+    );
+    assert_eq!(
+        expected["provenance"]["run_sha256"],
+        "3611d999a3d6187c6bb1b911ab87159be2b02bcff3de1b2220e92dca30f7a447"
+    );
+
+    let mut current_without_run_identity = public_asset;
+    current_without_run_identity["provenance"]
+        .as_object_mut()
+        .expect("current provenance object")
+        .remove("run_sha256");
+    expected["provenance"]
+        .as_object_mut()
+        .expect("expected provenance object")
+        .remove("run_sha256");
+    assert_eq!(current_without_run_identity, expected);
 }
 
 fn assert_geometry_state_v3_replay_falsifiers(

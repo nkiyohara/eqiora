@@ -6,6 +6,8 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.1.0a4] - 2026-08-28
+
 ### Added
 
 - Added bounded installed-Python `eqiora.lang.Source` authoring for the complete
@@ -60,6 +62,21 @@ are recorded here.
   concrete shape. The exact-cylinder example now follows this route through
   the common root `resolve` / `run` lifecycle. No positional compatibility
   overload or application-specific binding path is retained.
+
+- Root `eqiora.resolve(model, ...)` now owns Model-driven steady and transient
+  flow planning with caller-owned Geometry and Mesh and typed spatial, solve,
+  scaling, and time policies. Mesh resolution is planning-only; generation
+  produces the accepted Mesh.
+
+- Gmsh sizing is one complete mesher-owned policy with an explicit global
+  volume target. The common Geometry and Mesh lifecycles replace the retired
+  rich-Mesh notebook display and legacy fixed-mesh cylinder stacks.
+
+- The Studio packaged DC-drive protocol no longer presents frozen a3 lineage
+  as verification of the current release. Its v2 payload labels the current
+  compilation, Run, and binding lineage unverified while retaining the a3 case
+  identifier as historical attribution; product execution no longer depends
+  on an embedded verification manifest.
 
 ## [0.1.0a3] - 2026-08-23
 
@@ -205,7 +222,8 @@ Detailed claims and nonclaims are the responsibility of the
 [capability matrix](docs/capability-matrix.md) and registered
 [`verify/`](verify/) cases rather than this summary.
 
-[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a3...HEAD
+[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a4...HEAD
+[0.1.0a4]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a4
 [0.1.0a3]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a3
 [0.1.0a2]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a2
 [0.1.0a1]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a1

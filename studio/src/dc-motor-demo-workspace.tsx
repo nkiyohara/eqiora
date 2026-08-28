@@ -215,14 +215,15 @@ export function DcMotorDemoWorkspace({ result }: DcMotorDemoWorkspaceProps) {
           <section className="dc-drive__attribution" aria-labelledby="dc-drive-evidence-heading">
             <span className="eyebrow">Scientific attribution</span>
             <h2 id="dc-drive-evidence-heading">{DC_MOTOR_SCIENTIFIC_CASE}</h2>
-            <span className="dc-drive__case-status">registered case · verified</span>
+            <span className="dc-drive__case-status">current release lineage · unverified</span>
             <p>
               Production trajectory: current, speed, and held (zero-order-hold) voltage command. No
               quantity on this view is recomputed by the application.
             </p>
             <p>
-              Energy and power balance for this Model is verified by registered case{" "}
-              <code>{DC_MOTOR_SCIENTIFIC_CASE}</code>; it is not recomputed in this payload.
+              Registered case <code>{DC_MOTOR_SCIENTIFIC_CASE}</code> preserves historical a3
+              evidence only. It does not verify this release&apos;s compilation, Run, or binding
+              lineage, and no energy or power claim is made for this payload.
             </p>
             <small>
               Typed physical port samples are retained by the production execution but deliberately

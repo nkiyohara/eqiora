@@ -1147,20 +1147,32 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
         expected["compilation_digest"]
             .as_str()
             .expect("compilation digest"),
+        "8759c2db7f978e0b975cd94f3de73051765e100145bb664ef570853692d463aa"
+    );
+    assert_eq!(
         packaged
             .compilation()
             .digest()
             .expect("compilation digest")
-            .to_hex()
+            .to_hex(),
+        "fdfb05fcf95c920d57ce8cd23dc81c613ceab2d75359b1eb4462797d7d97b2b2"
     );
     assert_eq!(
         expected["run_digest"].as_str().expect("run digest"),
-        run.digest().expect("run digest").as_str()
+        "1795c90532dfd35be43bdf16b6eea614c252bcad5abf0bf545271aca93314cb6"
+    );
+    assert_eq!(
+        run.digest().expect("run digest").as_str(),
+        "30793c291c1de91ec5624713381e2d4797c6d64372acb799e725e4872c965fe5"
     );
     assert_eq!(
         expected["run_binding_digest"]
             .as_str()
             .expect("run binding digest"),
-        binding.digest().expect("binding digest").to_hex()
+        "efd81995a3f312846432fb4b43dca7f060a408de8fc45619d17b9b07a0382460"
+    );
+    assert_eq!(
+        binding.digest().expect("binding digest").to_hex(),
+        "5e7b08553d5e6bfd81a9f3e638e84291e19f3f7f05486b60fc639e2b7cd6abe1"
     );
 }

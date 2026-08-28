@@ -1,7 +1,21 @@
 # Release notes
 
-Eqiora `0.1.0a3` is the current public alpha. It establishes a coherent public
+Eqiora `0.1.0a4` is the current public alpha. It establishes a coherent public
 identity and a bounded compatibility policy; it is not a stable-1.0 promise.
+
+## 0.1.0a4
+
+The ordinary installed-Python path now compiles Eqiora source against
+caller-owned Geometry, resolves typed numerical policies into a common Plan,
+and runs both steady and transient flow through common Result and Trajectory
+owners. The release includes an accessible, GitHub-backed Colab gallery for a
+bounded transient cylinder startup. That gallery is explicitly unverified: it
+does not claim benchmark acceptance, convergence, developed vortex shedding,
+or validated force values.
+
+The Studio packaged DC-drive example remains executable, but its current a4
+compilation, Run, and binding lineage is explicitly unverified. Its registered
+a3 case is historical attribution and is not silently promoted to this release.
 
 ## 0.1.0a3
 

@@ -93,9 +93,10 @@ fn objective(name: &str) -> SolverPlanningObjective {
 fn assert_solver_provider(actual: SolverProvider, expected: &Value) {
     assert_eq!(actual.id().as_str(), expected["id"].as_str().unwrap());
     assert_eq!(
-        actual.implementation_version(),
-        expected["implementation_version"].as_str().unwrap()
+        expected["implementation_version"].as_str(),
+        Some("0.1.0-alpha.3")
     );
+    assert_eq!(actual.implementation_version(), env!("CARGO_PKG_VERSION"));
     let expected_libraries = expected["libraries"].as_array().unwrap();
     assert_eq!(actual.libraries().len(), expected_libraries.len());
     for (actual, expected) in actual.libraries().iter().zip(expected_libraries) {
@@ -107,9 +108,10 @@ fn assert_solver_provider(actual: SolverProvider, expected: &Value) {
 fn assert_execution_provider(actual: ExecutionProvider, expected: &Value) {
     assert_eq!(actual.id().as_str(), expected["id"].as_str().unwrap());
     assert_eq!(
-        actual.implementation_version(),
-        expected["implementation_version"].as_str().unwrap()
+        expected["implementation_version"].as_str(),
+        Some("0.1.0-alpha.3")
     );
+    assert_eq!(actual.implementation_version(), env!("CARGO_PKG_VERSION"));
     assert!(actual.libraries().is_empty());
     assert!(expected["libraries"].as_array().unwrap().is_empty());
 }

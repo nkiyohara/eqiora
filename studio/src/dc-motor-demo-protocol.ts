@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { artifactDigestSchema, BRIDGE_PROTOCOL } from "./protocol";
 
-export const DC_MOTOR_DEMO_PROTOCOL = "eqiora.studio.packaged-dc-drive-demo/v1" as const;
+export const DC_MOTOR_DEMO_PROTOCOL = "eqiora.studio.packaged-dc-drive-demo/v2" as const;
 export const DC_MOTOR_DEMO_ID = "packaged-dc-motor-control" as const;
 export const DC_MOTOR_SCIENTIFIC_CASE = "hybrid.packaged-dc-motor-controller" as const;
 
@@ -114,7 +114,7 @@ export const dcMotorDemoResultSchema = z
     evidence: z
       .object({
         caseId: z.literal(DC_MOTOR_SCIENTIFIC_CASE),
-        status: z.literal("verified"),
+        status: z.literal("historical-a3-only"),
         physicalPortSamplesPresented: z.literal(false),
       })
       .strict(),
