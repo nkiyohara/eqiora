@@ -1365,6 +1365,16 @@ Authority: [`crates/eqiora-python/src/modeling.rs::grad`](../../crates/eqiora-py
 def grad(value: _ExpressionLike) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang"></a>
+
+### `eqiora.lang`
+
+**Module export.** Continue to [`eqiora.lang`](#module-eqiora-lang).
+
+Bounded Python authoring for deterministic Eqiora Language source.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py`](../../bindings/python/python/eqiora/lang/__init__.py)
+
 <a id="api-eqiora-replay"></a>
 
 ### `eqiora.replay`
@@ -1501,16 +1511,6 @@ Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyCellCenteredTpfa`
 Bounded exact geometry values owned by the native implementation.
 
 Authority: [`bindings/python/python/eqiora/geometry.py`](../../bindings/python/python/eqiora/geometry.py)
-
-<a id="api-eqiora-lang"></a>
-
-### `eqiora.lang`
-
-**Module export.** Continue to [`eqiora.lang`](#module-eqiora-lang).
-
-Bounded Python authoring for deterministic Eqiora Language source.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 <a id="api-eqiora-meshing"></a>
 
