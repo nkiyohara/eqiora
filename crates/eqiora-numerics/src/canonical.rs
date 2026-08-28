@@ -1373,11 +1373,10 @@ pub fn solve_resolved_scalar_elliptic_cartesian_with_assembly(
 /// Finalize one resolved Cartesian scalar-elliptic realization for an
 /// independently selected linear execution adapter.
 ///
-/// This is the default-assembly form of
-/// [`finalize_resolved_scalar_elliptic_cartesian_with_assembly`]. It performs
-/// canonical lowering, plan validation, mesh construction, local-operator
-/// evaluation, constraint handling, and deterministic sparse finalization,
-/// but deliberately does not select or invoke a solver backend.
+/// This is the default-assembly form of the explicit-assembly finalizer. It
+/// performs canonical lowering, plan validation, mesh construction,
+/// local-operator evaluation, constraint handling, and deterministic sparse
+/// finalization, but deliberately does not select or invoke a solver backend.
 ///
 /// # Errors
 /// Preserves exact lowering, Realization, discretization, and assembly
@@ -1462,7 +1461,7 @@ pub fn finalize_lowered_scalar_elliptic_cartesian(
 /// and is the only model that can later linearize the accepted solution.
 ///
 /// # Errors
-/// Preserves [`finalize_lowered_scalar_elliptic_cartesian`] diagnostics.
+/// Preserves the lowered scalar-elliptic finalizer's diagnostics.
 pub fn finalize_scalar_elliptic_parameter_point(
     model: ScalarEllipticCartesianModel,
     resolved: &ResolvedRealization,
@@ -1479,7 +1478,7 @@ pub fn finalize_scalar_elliptic_parameter_point(
 /// explicit assembly adapter.
 ///
 /// # Errors
-/// Preserves [`finalize_lowered_scalar_elliptic_cartesian`] diagnostics and the
+/// Preserves the lowered scalar-elliptic finalizer's diagnostics and the
 /// selected assembly backend's complete-operation diagnostics.
 pub fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
     model: &ScalarEllipticCartesianModel,
