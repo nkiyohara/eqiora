@@ -9,6 +9,8 @@ import hashlib
 import json
 import math
 import os
+import re
+import shutil
 import stat
 import struct
 import subprocess
@@ -65,6 +67,19 @@ ELASTICITY_CASE_ROLES = {
 }
 
 MAX_JSON_BYTES, MAX_MEDIA_BYTES = 512 * 1024, 16 * 1024 * 1024
+GIT_OBJECT_REPOSITORY_VARIABLE = "EQIORA_SITE_GIT_OBJECT_REPOSITORY"
+SOURCE_SHA_VARIABLE = "EQIORA_SITE_SOURCE_SHA"
+_GIT_EXECUTABLE = Path(shutil.which("git", path=os.defpath) or "/usr/bin/git").resolve()
+_GIT_ENVIRONMENT = {
+    "LC_ALL": "C",
+    "LANG": "C",
+    "TZ": "UTC",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": os.devnull,
+    "GIT_OPTIONAL_LOCKS": "0",
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_NO_REPLACE_OBJECTS": "1",
+}
 WIDTH, HEIGHT, DPI = 1280, 832, 160
 PNG_SOFTWARE = "Eqiora exact-cylinder gallery publication v1"
 
@@ -266,8 +281,22 @@ def _relative(value: Any, label: str) -> str:
 def _git(root: Path, *arguments: str) -> bytes:
     try:
         result = subprocess.run(
-            ["git", "-C", os.fspath(root), *arguments],
+            [
+                os.fspath(_GIT_EXECUTABLE),
+                "--no-replace-objects",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "gc.auto=0",
+                "-c",
+                "maintenance.auto=false",
+                "-C",
+                os.fspath(root),
+                *arguments,
+            ],
             check=False,
+            env=_GIT_ENVIRONMENT,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=30,
@@ -278,6 +307,44 @@ def _git(root: Path, *arguments: str) -> bytes:
         detail = result.stderr.decode("utf-8", "replace").strip()
         _fail("source-git", f"git {' '.join(arguments)} failed: {detail}")
     return result.stdout
+
+
+def _git_object_repository(source_root: Path) -> Path:
+    raw = os.environ.get(GIT_OBJECT_REPOSITORY_VARIABLE)
+    if raw is None:
+        authority = source_root
+    else:
+        candidate = Path(raw)
+        if not candidate.is_absolute():
+            _fail("source-git", "Git object repository must be absolute")
+        try:
+            authority = candidate.resolve(strict=True)
+        except OSError as error:
+            _fail("source-git", f"Git object repository is unavailable: {error}")
+        if candidate != authority:
+            _fail("source-git", "Git object repository path must be canonical")
+        if not authority.is_dir() or candidate.is_symlink():
+            _fail("source-git", "Git object repository must be a real directory")
+        if os.path.lexists(source_root / ".git"):
+            _fail("source-git", "archive source unexpectedly contains .git")
+        if authority == source_root or authority.is_relative_to(source_root):
+            _fail("source-git", "Git object repository overlaps archive source")
+
+    top_level = _git(authority, "rev-parse", "--show-toplevel").decode(
+        "utf-8", "strict"
+    )
+    if top_level != f"{authority}\n":
+        _fail("source-git", "Git object repository top level differs")
+    head = _git(authority, "rev-parse", "--verify", "HEAD^{commit}").decode(
+        "ascii", "strict"
+    ).strip()
+    expected_head = os.environ.get(SOURCE_SHA_VARIABLE)
+    if expected_head is not None:
+        if re.fullmatch(r"[0-9a-f]{40}", expected_head) is None:
+            _fail("source-git", "site source SHA is malformed")
+        if head != expected_head:
+            _fail("source-git", "Git object repository HEAD differs from site source SHA")
+    return authority
 
 
 def _source_blob(root: Path, revision: str, path: str) -> bytes:
@@ -296,7 +363,10 @@ def _check_source(wrapper: dict[str, Any], payload: dict[str, Any], root: Path) 
     try:
         subprocess.run(
             [
-                "git",
+                os.fspath(_GIT_EXECUTABLE),
+                "--no-replace-objects",
+                "-c",
+                "core.fsmonitor=false",
                 "-C",
                 os.fspath(root),
                 "merge-base",
@@ -305,6 +375,8 @@ def _check_source(wrapper: dict[str, Any], payload: dict[str, Any], root: Path) 
                 "HEAD",
             ],
             check=True,
+            env=_GIT_ENVIRONMENT,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=30,
@@ -902,6 +974,7 @@ def check_publication(
     root = repository_root.resolve()
     if not root.is_dir():
         _fail("path", "repository root is not a directory")
+    git_root = _git_object_repository(root)
     wrapper, _ = _load_canonical(record_path, "publication record")
     payload = wrapper.get("publication_payload")
     if type(payload) is not dict:
@@ -921,8 +994,8 @@ def check_publication(
         "publication_payload",
     )
     _check_wrapper(wrapper, payload)
-    _check_source(wrapper, payload, root)
-    _check_cases(payload, root, wrapper["source_revision"])
+    _check_source(wrapper, payload, git_root)
+    _check_cases(payload, git_root, wrapper["source_revision"])
     _check_lineage(payload["lineage"])
     _check_text(payload, wrapper["source_revision"])
     _check_renderer(payload)
@@ -952,6 +1025,7 @@ def check_elasticity_publication(
     root = repository_root.resolve()
     if not root.is_dir():
         _fail("path", "repository root is not a directory")
+    git_root = _git_object_repository(root)
     wrapper, _ = _load_canonical(record_path, "elasticity publication record")
     _closed(
         wrapper,
@@ -988,13 +1062,26 @@ def check_elasticity_publication(
 
     revision = _hex(wrapper["source_revision"], "source_revision", 40)
     tree = _hex(wrapper["source_tree"], "source_tree", 40)
-    if _git(root, "rev-parse", "--verify", f"{revision}^{{commit}}").strip().decode() != revision:
+    if _git(git_root, "rev-parse", "--verify", f"{revision}^{{commit}}").strip().decode() != revision:
         _fail("source-revision", "elasticity source revision does not resolve exactly")
-    if _git(root, "rev-parse", f"{revision}^{{tree}}").strip().decode() != tree:
+    if _git(git_root, "rev-parse", f"{revision}^{{tree}}").strip().decode() != tree:
         _fail("source-tree", "elasticity source tree differs")
     ancestry = subprocess.run(
-        ["git", "-C", os.fspath(root), "merge-base", "--is-ancestor", revision, "HEAD"],
+        [
+            os.fspath(_GIT_EXECUTABLE),
+            "--no-replace-objects",
+            "-c",
+            "core.fsmonitor=false",
+            "-C",
+            os.fspath(git_root),
+            "merge-base",
+            "--is-ancestor",
+            revision,
+            "HEAD",
+        ],
         check=False,
+        env=_GIT_ENVIRONMENT,
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         timeout=30,
@@ -1010,7 +1097,7 @@ def check_elasticity_publication(
         roles = _list(item["roles"], f"elasticity source_files[{index}].roles", 2)
         if not roles or any(type(role) is not str for role in roles):
             _fail("source-set", "elasticity source roles are invalid")
-        if item["sha256"] != _sha(_source_blob(root, revision, path)):
+        if item["sha256"] != _sha(_source_blob(git_root, revision, path)):
             _fail("source-digest", f"elasticity source digest differs for {path}")
         observed_sources[path] = roles
     if list(observed_sources) != sorted(ELASTICITY_SOURCE_ROLES) or observed_sources != ELASTICITY_SOURCE_ROLES:
@@ -1032,7 +1119,7 @@ def check_elasticity_publication(
             _fail("case-set", f"elasticity case binding differs for {case_id}")
         if item["dossier_route"] != _dossier_route(case_id, revision):
             _fail("case-route", f"elasticity dossier route differs for {case_id}")
-        if item["manifest_sha256"] != _sha(_source_blob(root, revision, manifest)):
+        if item["manifest_sha256"] != _sha(_source_blob(git_root, revision, manifest)):
             _fail("case-digest", f"elasticity manifest digest differs for {case_id}")
         observed_cases[case_id] = item["role"]
     if list(observed_cases) != sorted(ELASTICITY_CASE_ROLES) or observed_cases != ELASTICITY_CASE_ROLES:

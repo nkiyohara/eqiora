@@ -3,10 +3,13 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
+import os
+import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -73,6 +76,43 @@ class MixedBoundaryElasticityGalleryTests(unittest.TestCase):
         self.assertEqual(result["entry_id"], "mixed-boundary-elasticity")
         self.assertEqual(result["status"], "accepted")
         self.assertEqual(result["mode"], "verify-installed")
+
+    def test_git_absent_archive_uses_authenticated_object_repository(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            archive = Path(temporary) / "source"
+            record = archive / checker.ELASTICITY_RECORD
+            media = archive / checker.ELASTICITY_MEDIA
+            record.parent.mkdir(parents=True)
+            media.parent.mkdir(parents=True)
+            shutil.copyfile(RECORD, record)
+            shutil.copyfile(MEDIA, media)
+            self.assertFalse((archive / ".git").exists())
+            head = (
+                checker._git(ROOT, "rev-parse", "--verify", "HEAD^{commit}")
+                .decode("ascii")
+                .strip()
+            )
+            environment = {
+                checker.GIT_OBJECT_REPOSITORY_VARIABLE: str(ROOT),
+                checker.SOURCE_SHA_VARIABLE: head,
+            }
+            with mock.patch.dict(os.environ, environment, clear=False):
+                result = checker.check_elasticity_publication(
+                    repository_root=archive,
+                    record_path=record,
+                    media_path=media,
+                )
+            self.assertEqual(result["status"], "accepted")
+
+            environment[checker.SOURCE_SHA_VARIABLE] = "0" * 40
+            with mock.patch.dict(os.environ, environment, clear=False):
+                with self.assertRaises(checker.AdmissionError) as raised:
+                    checker.check_elasticity_publication(
+                        repository_root=archive,
+                        record_path=record,
+                        media_path=media,
+                    )
+            self.assertEqual(raised.exception.code, "source-git")
 
     def test_claim_widening_and_foreign_lineage_are_rejected(self) -> None:
         for label, mutate, code in (
