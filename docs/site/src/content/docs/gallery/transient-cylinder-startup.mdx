@@ -14,7 +14,9 @@ import startupWebm from '../../../assets/gallery/transient-cylinder-startup.webm
 import startupMp4 from '../../../assets/gallery/transient-cylinder-startup.mp4';
 
 export const colabRelease = /^0\.1\.0a([0-9]+)$/u.exec(process.env.EQIORA_SITE_PYTHON_VERSION ?? '');
-export const colabReady = colabRelease !== null && Number(colabRelease[1]) >= 4;
+export const colabMinimumSerial = 4;
+export const colabMinimumRelease = `0.1.0a${colabMinimumSerial}`;
+export const colabReady = colabRelease !== null && Number(colabRelease[1]) >= colabMinimumSerial;
 export const colabUrl = `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${process.env.EQIORA_SITE_SOURCE_SHA}/examples/python/transient_cylinder_wake_jupyter.ipynb`;
 
 **Unverified product example · Python, Marimo, and Jupyter**
@@ -122,8 +124,9 @@ result = eqiora.run(
   <LinkButton href={colabUrl} variant="primary">Open in Colab</LinkButton>
 )}
 
-The Colab entry is published beginning with the `0.1.0a4` documentation build. It
-opens this exact GitHub notebook in the user's ephemeral runtime and does not
+The Colab entry is published beginning with the <code>{colabMinimumRelease}</code>
+documentation build. It opens this exact GitHub notebook in the user's ephemeral
+runtime and does not
 depend on maintainer-owned Drive state.
 
 </NotebookStage>
