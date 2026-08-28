@@ -102,40 +102,6 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn advance_dfg_simplicial_mini_navier_stokes_2d_with_assembly<F, B>(
-    mesh: &SimplicialMesh,
-    boundary: &SimplicialMiniStokesBoundary2d,
-    essential_velocity: &B,
-    body_force: &F,
-    initial: SimplicialMiniNavierStokesState2d,
-    step_count: NonZeroStepCount,
-    plan: MiniNavierStokesStepPlan2d,
-    cell_quadrature: &QuadratureRule,
-    facet_quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
-    solver: &dyn LinearSolverBackend,
-) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
-    advance_with_viscous_form(
-        mesh,
-        boundary,
-        essential_velocity,
-        body_force,
-        initial,
-        step_count,
-        plan,
-        cell_quadrature,
-        facet_quadrature,
-        assembly,
-        solver,
-        FixedDomainViscousForm::DfgNonsymmetric,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
 fn advance_with_viscous_form<F, B>(
     mesh: &SimplicialMesh,
     boundary: &SimplicialMiniStokesBoundary2d,

@@ -16,7 +16,7 @@ normals = "exact circular-hole family single-member x-lower [-1.0, 0.0] and x-up
 
 [oracle]
 source = "standalone symbolic Python rule model authored before production implementation"
-contract_sha256 = "6dc106a8fe682b998c05bfd03eb75240f8904e57e988cdde08f4ff21499706ac"
+contract_sha256 = "89155d8173b32bd0c6417340440e35ec6ef7546a2977a7faadf2b5dd780db2b2"
 requirements = 16
 scenarios = 15
 accepted = 8

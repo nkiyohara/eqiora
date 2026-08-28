@@ -19,7 +19,6 @@ pub use api::{
     MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d,
     SimplicialMiniNavierStokesStepEvidence2d, SimplicialMiniNavierStokesTrajectory2d,
 };
-pub(crate) use newton::advance_dfg_simplicial_mini_navier_stokes_2d_with_assembly;
 pub use newton::{
     advance_simplicial_mini_navier_stokes_2d,
     advance_simplicial_mini_navier_stokes_2d_with_assembly,

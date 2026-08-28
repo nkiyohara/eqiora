@@ -491,7 +491,6 @@ pub(super) struct TransientVolume<const D: usize> {
     pub(super) normal_velocity_fields: BTreeSet<RawId>,
     pub(super) representation: RawId,
     pub(super) volume_relations: Vec<RawId>,
-    pub(super) stress_form: IncompressibleStressForm,
 }
 
 pub(super) fn lower_transient_volume<const D: usize>(
@@ -503,13 +502,6 @@ pub(super) fn lower_transient_volume<const D: usize>(
         domain,
         IncompressibleStressForm::SymmetricNewtonian,
     )
-}
-
-pub(super) fn lower_dfg_transient_volume<const D: usize>(
-    program: &KernelProgram,
-    domain: RawId,
-) -> Result<TransientVolume<D>, Diagnostic> {
-    lower_transient_volume_with_stress(program, domain, IncompressibleStressForm::DfgNonsymmetric)
 }
 
 fn lower_transient_volume_with_stress<const D: usize>(
@@ -671,7 +663,6 @@ fn lower_transient_volume_with_stress<const D: usize>(
             momentum_relation,
             match stress_form {
                 IncompressibleStressForm::SymmetricNewtonian => "fluid stress must be exactly `2 * mu * symmetric_part(grad(velocity)) - isotropic_lift(pressure)`",
-                IncompressibleStressForm::DfgNonsymmetric => "DFG fluid stress must be exactly `mu * grad(velocity) - isotropic_lift(pressure)`",
             },
         )
     })?;
@@ -690,7 +681,6 @@ fn lower_transient_volume_with_stress<const D: usize>(
         normal_velocity_fields,
         representation,
         volume_relations,
-        stress_form,
     })
 }
 

@@ -61,12 +61,6 @@ pub(super) enum NativeMeshResources {
         correspondence: GeometryMeshCorrespondenceEnvelopeV1,
         production: MeshProductionLineageEnvelopeV1,
     },
-    ReferenceSimplicial {
-        geometry: CanonicalGeometryV1,
-        mesh: SimplicialMeshEnvelopeV1,
-        correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-        production: MeshProductionLineageEnvelopeV1,
-    },
     AffineTriangleSimplicial {
         geometry: CanonicalGeometryV1,
         mesh: SimplicialMeshEnvelopeV1,
@@ -110,23 +104,6 @@ impl AuthenticatedCommonMesh {
             production,
         };
         validate_cartesian_resources(&resources)?;
-        Ok(Self { resources })
-    }
-
-    /// Authenticate and own one deterministic reference simplicial occurrence.
-    pub fn planar_reference(
-        geometry: CanonicalGeometryV1,
-        mesh: SimplicialMeshEnvelopeV1,
-        correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-        production: MeshProductionLineageEnvelopeV1,
-    ) -> Result<Self, Diagnostic> {
-        let resources = NativeMeshResources::ReferenceSimplicial {
-            geometry,
-            mesh,
-            correspondence,
-            production,
-        };
-        validate_simplicial_resources(&resources)?;
         Ok(Self { resources })
     }
 
@@ -179,7 +156,6 @@ impl NativeMeshResources {
     pub(super) fn geometry(&self) -> &CanonicalGeometryV1 {
         match self {
             Self::Cartesian { geometry, .. }
-            | Self::ReferenceSimplicial { geometry, .. }
             | Self::AffineTriangleSimplicial { geometry, .. }
             | Self::AdjacentPartitionSimplicial { geometry, .. }
             | Self::GmshSimplicial { geometry, .. } => geometry,
@@ -313,11 +289,6 @@ impl NativeNumericalAdmission {
         &self.policy_identity
     }
 
-    #[cfg(test)]
-    pub(super) const fn capability(&self) -> NativeCapability {
-        self.capability
-    }
-
     pub(super) const fn resources(&self) -> &NativeMeshResources {
         &self.resources
     }
@@ -348,9 +319,7 @@ impl NativeNumericalAdmission {
                 "steady-Stokes admission has a non-Stokes spatial policy",
             ));
         };
-        let (NativeMeshResources::ReferenceSimplicial { mesh, .. }
-        | NativeMeshResources::GmshSimplicial { mesh, .. }) = &self.resources
-        else {
+        let NativeMeshResources::GmshSimplicial { mesh, .. } = &self.resources else {
             return Err(invalid(
                 "steady Stokes requires exact supplied simplicial resources",
             ));

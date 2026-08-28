@@ -7,7 +7,7 @@ The current source-tree Python surface includes native builders for bounded scal
 `Parameter`, and continuous `Relation` declarations, physical domains and
 ports, exact model identity, and one Rust-owned exact
 axis-aligned-rectangle-with-circular-hole geometry. That exact family can enter
-one explicit, error-controlled chordal reference-mesh operation while the
+one explicit, error-controlled Gmsh meshing operation while the
 source remains exact. A typed `Realization` separately selects an admitted
 numerical path; choosing FEM or FVM never changes model or geometry meaning.
 One explicit-store package operation consumes exact canonical resolution bytes

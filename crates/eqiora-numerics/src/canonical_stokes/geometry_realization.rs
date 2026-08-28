@@ -2,10 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use eqiora_artifact::{
-    AcceptedCircularHoleChordalRealizationV1, GeometryMeshCorrespondenceEnvelopeV1,
-    SimplicialMeshEnvelopeV1,
-};
+use eqiora_artifact::{GeometryMeshCorrespondenceEnvelopeV1, SimplicialMeshEnvelopeV1};
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -47,7 +44,7 @@ struct GeometryBoundary2d {
     fixed_velocity: Vec<Option<[f64; DIMENSION]>>,
 }
 
-/// Replay-validated exact-circle to affine-mesh binding for steady Stokes.
+/// Authenticated exact-circle Geometry-to-Mesh binding for steady Stokes.
 ///
 /// This value is deliberately narrower than a geometry framework. It accepts
 /// the circular kind of the common exact owner, its ordinary region and mesh
@@ -64,56 +61,6 @@ pub struct SteadyStokesGeometryBinding2d {
 }
 
 impl SteadyStokesGeometryBinding2d {
-    /// Validate the complete in-process exact-source realization chain.
-    ///
-    /// # Errors
-    /// Rejects source, region, mesh, correspondence, named-set, or complete
-    /// fluid-cell inventory drift before any Stokes assembly can begin.
-    pub fn new(
-        program: &KernelProgram,
-        accepted: AcceptedCircularHoleChordalRealizationV1,
-    ) -> Result<Self, Diagnostic> {
-        accepted.revalidate()?;
-        let source = accepted.source();
-        let geometry = accepted.realized_geometry();
-        let mesh = accepted.mesh();
-        let correspondence = accepted.correspondence();
-        if unique_geometry_source_digest(program)
-            .is_some_and(|digest| digest != source.digest_bytes())
-        {
-            return Err(invalid("Model belongs to another exact source revision"));
-        }
-        let mut entity_sets = BTreeMap::new();
-        for name in REQUIRED_BOUNDARY_SETS.into_iter().chain(["fluid"]) {
-            entity_sets.insert(
-                name.to_owned(),
-                correspondence.region_entity_set_entities(geometry, name)?,
-            );
-        }
-        let expected_cells = (0..mesh.mesh().entity_count(DIMENSION).expect("2D mesh cells"))
-            .map(|index| MeshEntity::new(DIMENSION, index))
-            .collect::<Vec<_>>();
-        if entity_sets["fluid"] != expected_cells {
-            return Err(invalid(
-                "the exact `fluid` entity set does not realize every mesh cell exactly once",
-            ));
-        }
-        let model = lower_steady_incompressible_stokes_geometry_2d(program, source)?;
-        if model.geometry_source_digest() != Some(source.digest_bytes()) {
-            return Err(invalid(
-                "Model GeometryRegion digest differs from the accepted exact source revision",
-            ));
-        }
-        Ok(Self {
-            program: program.clone(),
-            model,
-            source: source.clone(),
-            mesh: mesh.clone(),
-            correspondence: correspondence.clone(),
-            entity_sets,
-        })
-    }
-
     pub(crate) fn new_authenticated(
         program: &KernelProgram,
         source: &CanonicalGeometryV1,

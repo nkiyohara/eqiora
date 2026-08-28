@@ -17,9 +17,6 @@ mod release_identity {
     pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 }
 
-#[cfg(feature = "gmsh")]
-mod cylinder_mesh_family;
-
 pub use eqiora_core::diagnostic::{self, Code, Diagnostic, GraphPath, Patch, Severity, Span};
 pub use eqiora_core::entity::{self, Entity, EntityKind, GraphClass, GraphKind, kinds};
 pub use eqiora_core::id::{Id, RawId};
@@ -52,9 +49,8 @@ pub mod api {
         ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult, ParameterStudyPlan,
         ParameterStudyPointKey, ParameterStudyTerminalReport, RemeshingTrajectoryReplayInputV1,
         SemanticFingerprintGeneration, StructuralSemanticFingerprint,
-        TransientNavierStokesInitialCondition2d, TransientNavierStokesReference2d,
-        UnstructuredP1ScalarFieldProjection2d, ValueEditPlan, ValueEditResult, VerifiedMlDatasetV1,
-        derive_ml_dataset_v1, verify_ml_dataset_v1,
+        TransientNavierStokesInitialCondition2d, TransientNavierStokesReference2d, ValueEditPlan,
+        ValueEditResult, VerifiedMlDatasetV1, derive_ml_dataset_v1, verify_ml_dataset_v1,
     };
 
     /// Fresh XDMF artifact derivation and verified persisted replay.

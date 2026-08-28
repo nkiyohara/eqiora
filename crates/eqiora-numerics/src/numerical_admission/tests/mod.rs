@@ -1,18 +1,15 @@
 use super::*;
 
-use std::fmt::Write as _;
-
 use eqiora_artifact::{
     AffineTriangleMeshCellsV1, CartesianMeshCellsV1, GeometryDecoderLimits,
     GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1, ModelDecoderLimits,
-    PlanarMeshQualityV1,
 };
 use eqiora_core::{DimExponents, DynQuantity};
 use eqiora_geometry::{
     CadAuthoredGraph, CanonicalGeometryV1, ConstrainedRectangleV1, NamedEntitySet,
     PlanarOperationGraph, PlanarTopologyHandle,
 };
-use eqiora_meshing::{CartesianMesh, MeshEntity, MeshQualityGate};
+use eqiora_meshing::CartesianMesh;
 use eqiora_solver::{
     BackendId, LinearProblem, LinearSolution, REFERENCE_LINEAR_SOLVER, ReplicatedLinearExecution,
     SolverPlan,
@@ -345,10 +342,8 @@ fn registered_model_driven_common_mesh_admission_evidence() {
 }
 mod mesh;
 mod plans;
-mod stokes;
 mod transient;
 
 use mesh::*;
 use plans::*;
-use stokes::*;
 use transient::*;

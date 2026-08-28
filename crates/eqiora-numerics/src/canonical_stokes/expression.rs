@@ -12,7 +12,6 @@ use super::support::{is_field, lowering_error};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum IncompressibleStressForm {
     SymmetricNewtonian,
-    DfgNonsymmetric,
 }
 
 pub(super) fn momentum_viscous_root(
@@ -85,9 +84,6 @@ pub(super) fn lower_incompressible_stress_viscosity(
         IncompressibleStressForm::SymmetricNewtonian => {
             lower_exact_twice_viscosity(program, residual, viscous, velocity, owner)
         }
-        IncompressibleStressForm::DfgNonsymmetric => {
-            lower_exact_dfg_viscosity(program, residual, viscous, velocity, owner)
-        }
     }
 }
 
@@ -102,24 +98,6 @@ fn incompressible_stress_viscous_root(
     match form {
         IncompressibleStressForm::SymmetricNewtonian => {
             newtonian_stress_viscous_root(residual, stress, velocity, pressure, owner)
-        }
-        IncompressibleStressForm::DfgNonsymmetric => {
-            let expression = residual.expression();
-            let Some(ExprNode::Sub(viscous, isotropic_pressure)) = expression.node(stress) else {
-                return Ok(None);
-            };
-            let Some(pressure_proof) = OperatorApplicationProof::classify(
-                residual,
-                *isotropic_pressure,
-                StandardPureOperator::IsotropicLift,
-            )
-            .map_err(|error| calculus_error(owner, *isotropic_pressure, "isotropic_lift", error))?
-            else {
-                return Ok(None);
-            };
-            Ok((is_field(expression, pressure_proof.operand(), pressure)
-                && contains_exact_gradient(residual, *viscous, velocity, owner)?)
-            .then_some(*viscous))
         }
     }
 }
@@ -213,42 +191,6 @@ pub(super) fn lower_exact_twice_viscosity(
     Ok(Some(viscosity))
 }
 
-fn lower_exact_dfg_viscosity(
-    program: &KernelProgram,
-    residual: &TypedResidual<RawId>,
-    value: ExprId,
-    velocity: RawId,
-    owner: RawId,
-) -> Result<Option<ScalarSpatialExpression>, Diagnostic> {
-    let spatial_dimension = vector_field_dimension(program, velocity, owner)?;
-    let expression = residual.expression();
-    let mut factors = Vec::new();
-    flatten_product(expression, value, &mut factors);
-    if factors.len() != 2 {
-        return Ok(None);
-    }
-    let gradients = factors
-        .iter()
-        .enumerate()
-        .filter_map(|(index, factor)| {
-            is_exact_gradient(expression, *factor, velocity).then_some(index)
-        })
-        .collect::<Vec<_>>();
-    if gradients.len() != 1 {
-        return Ok(None);
-    }
-    let coefficient = factors[1 - gradients[0]];
-    let viscosity =
-        spatial_expression::lower(program, expression, coefficient, owner, spatial_dimension)?;
-    if viscosity.constant_value().is_none() {
-        return Err(lowering_error(
-            owner,
-            "DFG dynamic viscosity coefficient has no finite revision-local value",
-        ));
-    }
-    Ok(Some(viscosity))
-}
-
 fn vector_field_dimension(
     program: &KernelProgram,
     field: RawId,
@@ -302,29 +244,6 @@ fn contains_symmetric_gradient(
     Ok(
         contains_symmetric_gradient(residual, *left, velocity, owner)?
             || contains_symmetric_gradient(residual, *right, velocity, owner)?,
-    )
-}
-
-fn contains_exact_gradient(
-    residual: &TypedResidual<RawId>,
-    value: ExprId,
-    velocity: RawId,
-    _owner: RawId,
-) -> Result<bool, Diagnostic> {
-    if is_exact_gradient(residual.expression(), value, velocity) {
-        return Ok(true);
-    }
-    let Some(ExprNode::Mul(left, right)) = residual.expression().node(value) else {
-        return Ok(false);
-    };
-    Ok(contains_exact_gradient(residual, *left, velocity, _owner)?
-        || contains_exact_gradient(residual, *right, velocity, _owner)?)
-}
-
-fn is_exact_gradient(expression: &ExprDag, value: ExprId, velocity: RawId) -> bool {
-    matches!(
-        expression.node(value),
-        Some(ExprNode::Gradient(argument)) if is_field(expression, *argument, velocity)
     )
 }
 

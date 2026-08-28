@@ -4,17 +4,17 @@ use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
 use eqiora_geometry::{CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION};
-use eqiora_meshing::{MeshEntity, MeshQualityGate};
+use eqiora_meshing::MeshEntity;
 use serde::{Deserialize, Serialize};
 
 use super::{CORRESPONDENCE_SCHEMA, GeometryMeshCorrespondenceEnvelopeV1, WireCorrespondenceV1};
-use crate::circular_hole_chordal_reference::EXACT_BOUNDARY_COUNT;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, GeometryDecoderLimits, SimplicialMeshEnvelopeV1,
     invalid_artifact,
 };
 
 const PLANAR_CIRCULAR_HOLE_V2_SOURCE: &str = "planar-circular-hole-v2";
+const EXACT_BOUNDARY_COUNT: usize = 5;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SourceParentOutward {
@@ -30,17 +30,12 @@ pub(crate) struct SourceFrontierLineage {
 
 /// Private result of one Mesh construction pass with structural source lineage.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PlanarCircularHoleV2Reference {
-    pub(crate) mesh: eqiora_meshing::SimplicialMesh,
+pub(crate) struct PlanarCircularHoleV2Assignments {
     pub(crate) face_cells: Vec<usize>,
     pub(crate) frontiers: [Vec<SourceFrontierLineage>; EXACT_BOUNDARY_COUNT],
 }
 
-impl PlanarCircularHoleV2Reference {
-    pub(super) const fn mesh(&self) -> &eqiora_meshing::SimplicialMesh {
-        &self.mesh
-    }
-
+impl PlanarCircularHoleV2Assignments {
     pub(super) fn face_cells(&self) -> &[usize] {
         &self.face_cells
     }
@@ -100,8 +95,8 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
         edge_facets: [Vec<usize>; EXACT_BOUNDARY_COUNT],
     ) -> Result<Self, Diagnostic> {
         require_planar_circular_hole_v2(geometry)?;
-        let reference = assigned_reference(mesh, edge_facets)?;
-        let wire = planar_circular_hole_v2_wire_from_reference(geometry, mesh, &reference)?;
+        let assignments = assigned_mesh_entities(mesh, edge_facets)?;
+        let wire = planar_circular_hole_v2_wire_from_assignments(geometry, mesh, &assignments)?;
         let envelope = Self {
             wire: WireCorrespondenceV1::PlanarCircularHoleV2(wire),
         };
@@ -122,105 +117,6 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
         if self != &expected {
             return Err(invalid_artifact(
                 "planar circular-hole v2 correspondence differs from producer-owned Mesh assignments",
-            ));
-        }
-        Ok(())
-    }
-
-    /// Generate one deterministic chordal reference Mesh and its complete
-    /// direct source correspondence from planar circular-hole Geometry v2.
-    ///
-    /// The approximation request is replay input for the existing bounded
-    /// reference producer; it is not stored in this structural correspondence.
-    /// Source face/frontier assignments are emitted from topology construction,
-    /// without a `PlanarRegion`, mesh labels, coordinate classification, or a
-    /// classification tolerance.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` unless `geometry` is the exact v2 kind and the bounded
-    /// reference request produces an accepted Mesh with complete lineage.
-    pub fn from_planar_circular_hole_v2_reference(
-        geometry: &CanonicalGeometryV1,
-        requested_max_boundary_error_m: f64,
-        max_segments: usize,
-        quality_gate: MeshQualityGate,
-    ) -> Result<(SimplicialMeshEnvelopeV1, Self), Diagnostic> {
-        require_planar_circular_hole_v2(geometry)?;
-        let reference = PlanarCircularHoleV2Reference::from_exact(
-            geometry,
-            requested_max_boundary_error_m,
-            max_segments,
-            quality_gate,
-        )?;
-        let mesh = SimplicialMeshEnvelopeV1::from_mesh(reference.mesh())?;
-        let wire = planar_circular_hole_v2_wire_from_reference(geometry, &mesh, &reference)?;
-        let envelope = Self {
-            wire: WireCorrespondenceV1::PlanarCircularHoleV2(wire),
-        };
-        envelope.validate_local(GeometryDecoderLimits::default())?;
-        Ok((mesh, envelope))
-    }
-
-    /// Generate direct source correspondence for an independently supplied
-    /// Mesh only after exact deterministic reference replay.
-    ///
-    /// This is the resource-verification seam for callers that admit Geometry
-    /// and Mesh separately. New producer paths should prefer
-    /// [`Self::from_planar_circular_hole_v2_reference`] so Mesh and lineage
-    /// come from the same construction pass.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` unless `geometry` is the exact v2 kind and `mesh` is
-    /// byte-equivalent in content to the regenerated reference Mesh for the
-    /// supplied bounded request.
-    pub fn from_planar_circular_hole_v2_reference_mesh(
-        geometry: &CanonicalGeometryV1,
-        mesh: &SimplicialMeshEnvelopeV1,
-        requested_max_boundary_error_m: f64,
-        max_segments: usize,
-    ) -> Result<Self, Diagnostic> {
-        let wire = generate_planar_circular_hole_v2_wire(
-            geometry,
-            mesh,
-            requested_max_boundary_error_m,
-            max_segments,
-        )?;
-        let envelope = Self {
-            wire: WireCorrespondenceV1::PlanarCircularHoleV2(wire),
-        };
-        envelope.validate_local(GeometryDecoderLimits::default())?;
-        Ok(envelope)
-    }
-
-    /// Replay a direct v2 source correspondence against independently admitted
-    /// canonical Geometry and Mesh resources and regenerated producer lineage.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for source-kind or identity substitution, Mesh drift,
-    /// incomplete or relabelled membership, orientation drift, or a reference
-    /// producer replay failure.
-    pub fn validate_against_planar_circular_hole_v2_reference(
-        &self,
-        geometry: &CanonicalGeometryV1,
-        mesh: &SimplicialMeshEnvelopeV1,
-        requested_max_boundary_error_m: f64,
-        max_segments: usize,
-    ) -> Result<(), Diagnostic> {
-        self.validate_local(GeometryDecoderLimits::default())?;
-        let WireCorrespondenceV1::PlanarCircularHoleV2(actual) = &self.wire else {
-            return Err(invalid_artifact(
-                "correspondence was not emitted from planar circular-hole Geometry v2",
-            ));
-        };
-        let expected = generate_planar_circular_hole_v2_wire(
-            geometry,
-            mesh,
-            requested_max_boundary_error_m,
-            max_segments,
-        )?;
-        if actual != &expected {
-            return Err(invalid_artifact(
-                "planar circular-hole v2 correspondence differs from exact source and Mesh replay",
             ));
         }
         Ok(())
@@ -291,10 +187,10 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     }
 }
 
-fn assigned_reference(
+fn assigned_mesh_entities(
     mesh: &SimplicialMeshEnvelopeV1,
     edge_facets: [Vec<usize>; EXACT_BOUNDARY_COUNT],
-) -> Result<PlanarCircularHoleV2Reference, Diagnostic> {
+) -> Result<PlanarCircularHoleV2Assignments, Diagnostic> {
     use eqiora_meshing::{MeshGeometry as _, MeshTopology as _};
 
     let native = mesh.mesh();
@@ -348,8 +244,7 @@ fn assigned_reference(
             "producer Mesh frontier assignments omit an exposed facet",
         ));
     }
-    Ok(PlanarCircularHoleV2Reference {
-        mesh: native.clone(),
+    Ok(PlanarCircularHoleV2Assignments {
         face_cells: (0..cell_count).collect(),
         frontiers,
     })
@@ -395,41 +290,20 @@ fn parent_outward_from_topology(
     }
 }
 
-fn generate_planar_circular_hole_v2_wire(
+fn planar_circular_hole_v2_wire_from_assignments(
     geometry: &CanonicalGeometryV1,
     mesh: &SimplicialMeshEnvelopeV1,
-    requested_max_boundary_error_m: f64,
-    max_segments: usize,
-) -> Result<WirePlanarCircularHoleV2CorrespondenceV1, Diagnostic> {
-    require_planar_circular_hole_v2(geometry)?;
-    let reference = PlanarCircularHoleV2Reference::from_exact(
-        geometry,
-        requested_max_boundary_error_m,
-        max_segments,
-        mesh.mesh().quality_gate(),
-    )?;
-    if reference.mesh() != mesh.mesh() {
-        return Err(invalid_artifact(
-            "supplied Mesh differs from deterministic planar circular-hole v2 reference replay",
-        ));
-    }
-    planar_circular_hole_v2_wire_from_reference(geometry, mesh, &reference)
-}
-
-fn planar_circular_hole_v2_wire_from_reference(
-    geometry: &CanonicalGeometryV1,
-    mesh: &SimplicialMeshEnvelopeV1,
-    reference: &PlanarCircularHoleV2Reference,
+    assignments: &PlanarCircularHoleV2Assignments,
 ) -> Result<WirePlanarCircularHoleV2CorrespondenceV1, Diagnostic> {
     let faces = vec![WireFaceAssignment {
         geometry_face: 0,
-        cell_indices: reference
+        cell_indices: assignments
             .face_cells()
             .iter()
             .map(|&cell| portable(cell, "mesh cell"))
             .collect::<Result<Vec<_>, _>>()?,
     }];
-    let frontiers = reference
+    let frontiers = assignments
         .frontiers()
         .iter()
         .enumerate()
@@ -605,136 +479,4 @@ fn portable(value: usize, label: &str) -> Result<u64, Diagnostic> {
 fn local(value: u64, label: &str) -> Result<usize, Diagnostic> {
     usize::try_from(value)
         .map_err(|_| invalid_artifact(format!("{label} index exceeds local usize")))
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::BTreeMap;
-
-    use eqiora_geometry::{CadAuthoredGraph, ConstrainedRectangleV1};
-    use eqiora_meshing::{MeshQualityGate, MeshTopology};
-
-    use super::*;
-
-    fn source() -> CanonicalGeometryV1 {
-        let channel = CadAuthoredGraph::new(
-            ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), 0.0).unwrap(),
-            1.0,
-            1.0e-10,
-        )
-        .unwrap();
-        let fluid_face = channel.face_handle("end-cap").unwrap();
-        let inlet = channel.face_handle("profile-x-lower").unwrap();
-        let outlet = channel.face_handle("profile-x-upper").unwrap();
-        let lower = channel.face_handle("profile-y-lower").unwrap();
-        let upper = channel.face_handle("profile-y-upper").unwrap();
-        let fluid = channel
-            .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
-            .unwrap();
-        let cylinder = fluid.face_handle("cut-wall").unwrap();
-        fluid
-            .planar_result()
-            .unwrap()
-            .with_named_topology(&BTreeMap::from([
-                ("fluid".to_owned(), vec![fluid_face]),
-                ("inlet".to_owned(), vec![inlet]),
-                ("outlet".to_owned(), vec![outlet]),
-                ("walls".to_owned(), vec![lower, upper]),
-                ("cylinder".to_owned(), vec![cylinder]),
-            ]))
-            .unwrap()
-    }
-
-    fn fixture() -> (
-        CanonicalGeometryV1,
-        SimplicialMeshEnvelopeV1,
-        GeometryMeshCorrespondenceEnvelopeV1,
-        [Vec<usize>; EXACT_BOUNDARY_COUNT],
-    ) {
-        let source = source();
-        let (mesh, correspondence) =
-            GeometryMeshCorrespondenceEnvelopeV1::from_planar_circular_hole_v2_reference(
-                &source,
-                1.0e-4,
-                50,
-                MeshQualityGate::new(1.0e-5).unwrap(),
-            )
-            .unwrap();
-        let assignments = std::array::from_fn(|edge| {
-            correspondence
-                .planar_circular_hole_v2_source_edge_entities(&source, edge)
-                .unwrap()
-                .into_iter()
-                .map(MeshEntity::index)
-                .collect()
-        });
-        (source, mesh, correspondence, assignments)
-    }
-
-    #[test]
-    fn producer_assignments_are_complete_disjoint_exposed_and_orientation_bound() {
-        let (source, mesh, correspondence, assignments) = fixture();
-        let rebuilt =
-            GeometryMeshCorrespondenceEnvelopeV1::from_planar_circular_hole_v2_mesh_assignments(
-                &source,
-                &mesh,
-                assignments.clone(),
-            )
-            .unwrap();
-        assert_eq!(rebuilt, correspondence);
-
-        let mut omitted = assignments.clone();
-        omitted[0].pop();
-        assert!(
-            GeometryMeshCorrespondenceEnvelopeV1::from_planar_circular_hole_v2_mesh_assignments(
-                &source, &mesh, omitted,
-            )
-            .is_err()
-        );
-
-        let mut duplicate = assignments.clone();
-        duplicate[1].push(duplicate[0][0]);
-        assert!(
-            GeometryMeshCorrespondenceEnvelopeV1::from_planar_circular_hole_v2_mesh_assignments(
-                &source, &mesh, duplicate,
-            )
-            .is_err()
-        );
-
-        let interior = (0..mesh.mesh().entity_count(EDGE_DIMENSION).unwrap())
-            .find(|&index| {
-                mesh.mesh()
-                    .is_boundary_entity(MeshEntity::new(EDGE_DIMENSION, index))
-                    == Some(false)
-            })
-            .unwrap();
-        let mut interior_assignment = assignments.clone();
-        interior_assignment[0][0] = interior;
-        assert!(
-            GeometryMeshCorrespondenceEnvelopeV1::from_planar_circular_hole_v2_mesh_assignments(
-                &source,
-                &mesh,
-                interior_assignment,
-            )
-            .is_err()
-        );
-
-        let mut wrong_orientation = rebuilt;
-        let WireCorrespondenceV1::PlanarCircularHoleV2(wire) = &mut wrong_orientation.wire else {
-            unreachable!()
-        };
-        wire.frontiers[0].parent_outward[0] = match wire.frontiers[0].parent_outward[0] {
-            WireFacetOutward::LeftOfCanonicalFacet => WireFacetOutward::RightOfCanonicalFacet,
-            WireFacetOutward::RightOfCanonicalFacet => WireFacetOutward::LeftOfCanonicalFacet,
-        };
-        assert!(
-            wrong_orientation
-                .validate_against_planar_circular_hole_v2_mesh_assignments(
-                    &source,
-                    &mesh,
-                    assignments,
-                )
-                .is_err()
-        );
-    }
 }

@@ -109,7 +109,6 @@ implementation or capability claim.
 - [RFC 0079: Authored planar geometry artifact](0079-authored-planar-geometry-artifact.md)
 - [RFC 0080: Geometry-backed semantic admission](0080-geometry-backed-semantic-admission.md)
 - [RFC 0081: Exact circular-hole planar geometry](0081-exact-circular-hole-geometry.md)
-- [RFC 0082: Source-bound chordal circular-hole reference mesh](0082-source-bound-chordal-circular-hole-mesh.md)
 - [RFC 0083: One current Model artifact epoch before 1.0](0083-current-model-artifact-epoch.md)
 - [RFC 0084: Contract-wave capability development](0084-contract-wave-capability-development.md)
 - [RFC 0086: Private numerics--differentiation composition](0086-private-numerics-differentiation-composition.md)

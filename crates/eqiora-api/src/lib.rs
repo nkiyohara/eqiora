@@ -17,7 +17,6 @@ pub mod package;
 mod parameter_regeneration;
 mod parameter_study;
 mod remeshing_trajectory;
-mod spatial_data;
 mod transient_fluid;
 mod value_edit;
 
@@ -42,7 +41,6 @@ pub use remeshing_trajectory::{
     XdmfHdf5TrajectoryExportLimits, export_xdmf_hdf5_trajectory_v1,
     verify_xdmf_hdf5_trajectory_storage_v1,
 };
-pub use spatial_data::*;
 pub use transient_fluid::*;
 pub use value_edit::{ValueEditPlan, ValueEditResult};
 

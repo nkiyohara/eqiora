@@ -9,7 +9,6 @@ mod geometry_realization;
 mod inertial;
 mod navier_stokes;
 mod navier_stokes_fvm_realization;
-mod navier_stokes_geometry_realization;
 mod navier_stokes_realization;
 mod physical;
 mod prescribed_velocity;

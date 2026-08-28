@@ -907,6 +907,3 @@ const fn record(
         authorities,
     }
 }
-
-#[cfg(test)]
-mod tests;

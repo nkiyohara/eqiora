@@ -32,8 +32,6 @@ class GalleryPublicationPositiveFirst(unittest.TestCase):
             cases = {item["id"] for item in fixture.payload["evidence_cases"]}
             self.assertIn("interfaces.python-exact-cylinder-stokes-marimo", cases)
             self.assertIn("interfaces.python-exact-circular-hole-geometry", cases)
-            self.assertNotIn("fluid.exact-circular-hole-stokes-2d", cases)
-            self.assertNotIn("geometry.circular-hole-chordal-reference-mesh", cases)
             self.assertIn("Presentation image only", fixture.payload["text"]["alt"])
             self.assertIn("output counts", fixture.payload["claim"]["public_claim"])
             external = subprocess.run(

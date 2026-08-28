@@ -14,8 +14,6 @@ use crate::{
 const SCHEMA: &str = "eqiora.mesh-production-lineage-envelope/v1";
 const GMSH_IDENTITY: &str = "eqiora.gmsh-cli";
 const GMSH_VERSION: &str = "4.15.2";
-const REFERENCE_IDENTITY: &str = "eqiora.reference-planar-circular-hole";
-const REFERENCE_VERSION: &str = "1";
 const CARTESIAN_IDENTITY: &str = "eqiora.structured-cartesian";
 const CARTESIAN_VERSION: &str = "1";
 const AFFINE_TRIANGLE_IDENTITY: &str = "eqiora.affine-triangle-rectangle";
@@ -27,8 +25,6 @@ const AFFINE_TRIANGLE_DIAGONAL: &str = "lower-left-to-upper-right";
 enum MeshProductionProvider {
     /// Exact external Gmsh CLI 4.15.2 adapter.
     Gmsh4152,
-    /// Deterministic in-process planar circular-hole reference producer v1.
-    PlanarCircularHoleReferenceV1,
     /// Deterministic structured Cartesian producer v1.
     StructuredCartesianV1,
     /// Deterministic rectangle affine-triangle producer v1.
@@ -41,7 +37,6 @@ impl MeshProductionProvider {
     pub const fn identity(self) -> &'static str {
         match self {
             Self::Gmsh4152 => GMSH_IDENTITY,
-            Self::PlanarCircularHoleReferenceV1 => REFERENCE_IDENTITY,
             Self::StructuredCartesianV1 => CARTESIAN_IDENTITY,
             Self::AffineTriangleRectangleV1 => AFFINE_TRIANGLE_IDENTITY,
         }
@@ -52,7 +47,6 @@ impl MeshProductionProvider {
     pub const fn version(self) -> &'static str {
         match self {
             Self::Gmsh4152 => GMSH_VERSION,
-            Self::PlanarCircularHoleReferenceV1 => REFERENCE_VERSION,
             Self::StructuredCartesianV1 => CARTESIAN_VERSION,
             Self::AffineTriangleRectangleV1 => AFFINE_TRIANGLE_VERSION,
         }
@@ -210,25 +204,6 @@ impl MeshProductionLineageEnvelopeV1 {
         )
     }
 
-    /// Bind one reference-producer v1 occurrence to accepted resources.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` if a resource digest cannot be constructed.
-    pub fn from_planar_circular_hole_reference_v1_resources(
-        policy: PlanarMeshQualityV1,
-        geometry: &CanonicalGeometryV1,
-        mesh: &SimplicialMeshEnvelopeV1,
-        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
-    ) -> Result<Self, Diagnostic> {
-        Self::from_resources(
-            MeshProductionProvider::PlanarCircularHoleReferenceV1,
-            policy,
-            geometry,
-            mesh,
-            correspondence,
-        )
-    }
-
     /// Bind one provider occurrence to accepted Geometry/Mesh resources.
     ///
     /// # Errors
@@ -374,26 +349,6 @@ impl MeshProductionLineageEnvelopeV1 {
         )
     }
 
-    /// Rebuild and compare one reference-producer v1 occurrence.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` if policy or any bound resource differs.
-    pub fn validate_against_planar_circular_hole_reference_v1_resources(
-        &self,
-        policy: PlanarMeshQualityV1,
-        geometry: &CanonicalGeometryV1,
-        mesh: &SimplicialMeshEnvelopeV1,
-        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
-    ) -> Result<(), Diagnostic> {
-        self.validate_against_resources(
-            MeshProductionProvider::PlanarCircularHoleReferenceV1,
-            policy,
-            geometry,
-            mesh,
-            correspondence,
-        )
-    }
-
     /// Rebuild and compare one exact structured Cartesian v1 occurrence.
     pub fn validate_against_structured_cartesian_v1_resources(
         &self,
@@ -508,8 +463,7 @@ impl MeshProductionLineageEnvelopeV1 {
         let compatible = matches!(
             (provider, self.wire.effective_policy),
             (
-                MeshProductionProvider::Gmsh4152
-                    | MeshProductionProvider::PlanarCircularHoleReferenceV1,
+                MeshProductionProvider::Gmsh4152,
                 WireEffectivePolicyV1::PlanarMeshQuality(_)
             ) | (
                 MeshProductionProvider::StructuredCartesianV1,
@@ -534,9 +488,6 @@ impl MeshProductionLineageEnvelopeV1 {
 fn provider_from_wire(wire: &WireProviderV1) -> Result<MeshProductionProvider, Diagnostic> {
     match (wire.identity.as_str(), wire.version.as_str()) {
         (GMSH_IDENTITY, GMSH_VERSION) => Ok(MeshProductionProvider::Gmsh4152),
-        (REFERENCE_IDENTITY, REFERENCE_VERSION) => {
-            Ok(MeshProductionProvider::PlanarCircularHoleReferenceV1)
-        }
         (CARTESIAN_IDENTITY, CARTESIAN_VERSION) => {
             Ok(MeshProductionProvider::StructuredCartesianV1)
         }
@@ -689,6 +640,3 @@ impl WirePlanarMeshQualityV1 {
         )
     }
 }
-
-#[cfg(test)]
-mod tests;

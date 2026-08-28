@@ -53,12 +53,7 @@ PYTHON_TEST_FIXTURES = (
     Path("verify/interfaces/python-package-conformance"),
     Path("verify/interfaces/python-offline-model-package/models/typed-execution-lineage"),
 )
-PYTHON_TEST_RESOURCES = (
-    Path(
-        "verify/fluid/flow-past-cylinder-mesh-family-private/"
-        "references/primary-l0.msh"
-    ),
-)
+PYTHON_TEST_RESOURCES: tuple[Path, ...] = ()
 
 COMPLETE_PROFILE_NAMES = (
     "base-3.11",

@@ -1,4 +1,4 @@
-"""Realize Eqiora's exact cylinder geometry as one bounded chordal mesh."""
+"""Realize Eqiora's exact cylinder geometry as one bounded Gmsh mesh."""
 
 import eqiora
 
