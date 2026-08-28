@@ -200,9 +200,10 @@ assert plan.boundary_facets == mesh.selection_entity_count("cylinder")
 print(mesh.digest)
 ```
 
-Rust retains the exact source, derives a bounded subdivision receipt directly
-from Geometry and policy, invokes exact Gmsh 4.15.2, admits its MSH 4.1 linear
-triangles, and derives
+`resolve` is planning-only: it retains the exact source and derives the bounded
+subdivision receipt directly from Geometry and policy without launching Gmsh or
+constructing cells. `generate` then invokes exact Gmsh 4.15.2 once for that
+call, admits its MSH 4.1 linear triangles, and derives
 realized named selections through the geometry-to-mesh correspondence.
 `canonical_bytes` and `digest` identify only the accepted inner simplicial
 mesh. The returned object retains source, correspondence, Mesh, and

@@ -57,9 +57,9 @@ def test_gmsh_plan_publishes_complete_source_owned_mesh(monkeypatch: pytest.Monk
         mesh.selection_entity_count(source.selection(name))
         for name in ("inlet", "outlet", "walls", "cylinder")
     ) > 0
-    assert plan.production_lineage_bytes == mesh.production_lineage_bytes
-    assert plan.production_lineage_digest == mesh.production_lineage_digest
-    lineage = json.loads(plan.production_lineage_bytes)
+    assert not hasattr(plan, "production_lineage_bytes")
+    assert not hasattr(plan, "production_lineage_digest")
+    lineage = json.loads(mesh.production_lineage_bytes)
     assert lineage["provider"] == {"identity": "eqiora.gmsh-cli", "version": "4.15.2"}
 
     coordinates = mesh.coordinates
@@ -70,6 +70,18 @@ def test_gmsh_plan_publishes_complete_source_owned_mesh(monkeypatch: pytest.Monk
     assert np.all(cells < mesh.vertex_count)
     assert not coordinates.flags.writeable
     assert not cells.flags.writeable
+
+
+def test_gmsh_resolve_is_planning_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    source = geometry()
+    monkeypatch.setenv("EQIORA_GMSH", "/provider/must/not/be-launched-by-resolve")
+
+    plan = eqiora.meshing.resolve(source, provider())
+
+    assert plan.source_digest == source.digest
+    assert plan.boundary_facets > 0
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.meshing.generate(source, plan=plan)
 
 
 def test_gmsh_plan_replay_and_crosswire_are_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:

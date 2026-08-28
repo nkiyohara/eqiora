@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 16 module summaries and all 134 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 513 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 16 module summaries and all 134 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 510 signature-only entries under documented owning types**.
 
-Inventory: 16 modules, 159 literal public spellings, 134 canonical grouped declarations, 694 visible method signatures (513 non-dunder and 181 dunder), and 65 visible class assignments.
+Inventory: 16 modules, 159 literal public spellings, 134 canonical grouped declarations, 691 visible method signatures (510 non-dunder and 181 dunder), and 65 visible class assignments.
 
 Regenerate with:
 
@@ -2181,7 +2181,7 @@ class Mesh:
 
 ### `eqiora.meshing.MeshPlan`
 
-Complete provider choice bound to one exact geometry.
+Complete provider plan bound to one exact geometry.
 
 Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyMeshPlan`](../../crates/eqiora-python/src/meshing/plan.rs)
 
@@ -2193,13 +2193,7 @@ class MeshPlan:
     @property
     def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher: ...
     @property
-    def production_lineage_bytes(self) -> bytes: ...
-    @property
-    def production_lineage_digest(self) -> str: ...
-    @property
     def boundary_facets(self) -> int: ...
-    @property
-    def achieved_minimum_mean_ratio(self) -> float: ...
     def __repr__(self) -> str: ...
 ```
 
@@ -2207,7 +2201,7 @@ class MeshPlan:
 
 ### `eqiora.meshing.generate`
 
-Publish the accepted mesh owned by a resolved plan.
+Execute a resolved provider plan and publish its accepted mesh.
 
 Authority: [`crates/eqiora-python/src/meshing/mesh.rs::generate`](../../crates/eqiora-python/src/meshing/mesh.rs)
 
