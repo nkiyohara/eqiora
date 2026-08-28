@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import textwrap
 from typing import Final
 
 from . import units
@@ -48,7 +49,7 @@ spatial_vector: Final = _Shape(_CREATE, "spatial_vector")
 class Expression:
     """A closed Eqiora Language expression; equality is not an equation builder."""
 
-    __slots__ = ("_depth", "_nodes", "_owner", "_text")
+    __slots__ = ("_depth", "_nodes", "_owner", "_precedence", "_text")
 
     def __init__(
         self,
@@ -57,6 +58,7 @@ class Expression:
         owner: object | None,
         depth: int,
         nodes: int,
+        precedence: int,
     ) -> None:
         if token is not _CREATE:
             raise TypeError(
@@ -74,6 +76,7 @@ class Expression:
         object.__setattr__(self, "_owner", owner)
         object.__setattr__(self, "_depth", depth)
         object.__setattr__(self, "_nodes", nodes)
+        object.__setattr__(self, "_precedence", precedence)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Expression values are immutable")
@@ -107,21 +110,25 @@ class Expression:
             raise TypeError("expression powers require an integer exponent")
         if not -32 <= exponent <= 32:
             raise SourceError("expression exponent must be between -32 and 32")
+        base = f"({self._text})" if self._precedence <= 30 else self._text
         return Expression(
             _CREATE,
-            f"({self._text} ^ {exponent})",
+            f"{base} ^ {exponent}",
             self._owner,
             self._depth + 1,
             self._nodes + 1,
+            30,
         )
 
     def __neg__(self) -> Expression:
+        value = f"({self._text})" if self._precedence < 40 else self._text
         return Expression(
             _CREATE,
-            f"(-{self._text})",
+            f"-{value}",
             self._owner,
             self._depth + 1,
             self._nodes + 1,
+            40,
         )
 
 
@@ -162,7 +169,7 @@ def _number(value: object) -> str:
 def _expression(value: object) -> Expression:
     if isinstance(value, Expression):
         return value
-    return Expression(_CREATE, _number(value), None, 1, 1)
+    return Expression(_CREATE, _number(value), None, 1, 1, 100)
 
 
 def _owner(left: Expression, right: Expression) -> object | None:
@@ -178,12 +185,24 @@ def _owner(left: Expression, right: Expression) -> object | None:
 def _binary(left: object, operator: str, right: object) -> Expression:
     left_expr = _expression(left)
     right_expr = _expression(right)
+    precedence = 10 if operator in ("+", "-") else 20
+    left_text = (
+        f"({left_expr._text})"
+        if left_expr._precedence < precedence
+        else left_expr._text
+    )
+    right_text = (
+        f"({right_expr._text})"
+        if right_expr._precedence <= precedence
+        else right_expr._text
+    )
     return Expression(
         _CREATE,
-        f"({left_expr._text} {operator} {right_expr._text})",
+        f"{left_text} {operator} {right_text}",
         _owner(left_expr, right_expr),
         max(left_expr._depth, right_expr._depth) + 1,
         left_expr._nodes + right_expr._nodes + 1,
+        precedence,
     )
 
 
@@ -195,6 +214,7 @@ def _unary(name: str, value: object) -> Expression:
         expression._owner,
         expression._depth + 1,
         expression._nodes + 1,
+        100,
     )
 
 
@@ -203,7 +223,7 @@ def coordinate(axis: int) -> Expression:
         raise TypeError("coordinate axis must be an integer")
     if not 0 <= axis <= 15:
         raise SourceError("coordinate axis must be between 0 and 15")
-    return Expression(_CREATE, f"coordinate({axis})", None, 1, 1)
+    return Expression(_CREATE, f"coordinate({axis})", None, 1, 1, 100)
 
 
 def grad(value: object) -> Expression:
@@ -254,6 +274,24 @@ def _doc(value: object | None) -> tuple[str, ...]:
 
 def _comment(lines: tuple[str, ...], indent: str) -> list[str]:
     return [f"{indent}// {line}" if line else f"{indent}//" for line in lines]
+
+
+def _relation_lines(residual: Expression) -> list[str]:
+    lines = textwrap.wrap(
+        f"{residual._text} = 0;",
+        width=88,
+        initial_indent="    ",
+        subsequent_indent="      ",
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    for index in range(len(lines) - 1):
+        stripped = lines[index].rstrip()
+        if stripped[-1:] in ("+", "-", "*", "/"):
+            operator = stripped[-1]
+            lines[index] = stripped[:-1].rstrip()
+            lines[index + 1] = f"      {operator} {lines[index + 1].lstrip()}"
+    return lines
 
 
 class Component:
@@ -376,7 +414,7 @@ class Component:
             raise TypeError("unit must be an eqiora.lang.units.Unit")
         admitted = self._add_name(name)
         self._parameters.append((admitted, unit, _doc(doc)))
-        return Expression(_CREATE, admitted, self._owner, 1, 1)
+        return Expression(_CREATE, admitted, self._owner, 1, 1, 100)
 
     def field(
         self,
@@ -400,7 +438,7 @@ class Component:
         if initial is not None:
             _number(initial)
         admitted = self._add_name(name)
-        expression = Expression(_CREATE, admitted, self._owner, 1, 1)
+        expression = Expression(_CREATE, admitted, self._owner, 1, 1, 100)
         self._fields.append((expression, on, unit, shape, initial, _doc(doc)))
         return expression
 
@@ -421,6 +459,7 @@ class Component:
                 self._owner,
                 expression._depth,
                 expression._nodes,
+                expression._precedence,
             )
         elif expression._owner is not self._owner:
             raise SourceError("relation expressions must belong to this Source")
@@ -466,7 +505,7 @@ class Component:
         for index, (name, support, residual, doc) in enumerate(self._relations):
             lines.extend(_comment(doc, "  "))
             lines.append(f"  relation {name} continuous on {support._name} {{")
-            lines.append(f"    {residual._text} = 0;")
+            lines.extend(_relation_lines(residual))
             lines.append("  }")
             if index + 1 != len(self._relations):
                 lines.append("")
