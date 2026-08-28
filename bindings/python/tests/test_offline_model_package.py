@@ -24,13 +24,11 @@ PRIMARY_STORE = PRIMARY / "store"
 PRIMARY_RESOLUTION_FILE = PRIMARY / "resolution.json"
 EXPECTED = (
     ROOT
-    / "verify/artifacts/current-model-relational-identity-transition"
-    / "expected/deterministic/offline-model-package"
+    / "verify/packages/offline-model-package/expected"
 )
 EXPECTED_TYPED = (
     ROOT
-    / "verify/artifacts/current-model-relational-identity-transition"
-    / "expected/deterministic/typed-execution-lineage"
+    / "verify/packages/typed-execution-lineage/expected"
 )
 SECONDARY = (
     ROOT
@@ -842,7 +840,9 @@ def test_structural_reports_match_frozen_facts_without_scientific_inference() ->
         shutil.copytree(PRIMARY_STORE, parallel_store)
         parallel_before = tree_snapshot(parallel_store)
         parallel_report = check_conformance(parallel_store, PRIMARY_RESOLUTION)
-        parallel_compilation = json.loads((EXPECTED / "compilation.json").read_bytes())
+        parallel_compilation = json.loads(
+            (EXPECTED / "historical-alpha1-compilation.json").read_bytes()
+        )
         expected_packages = tuple(
             eqiora.PackageConformancePackage(
                 item["package"]["name"],

@@ -23,11 +23,10 @@ const OFFLINE_LIBRARY: &[u8] = include_bytes!(
 const OFFLINE_ROOT: &[u8] = include_bytes!(
     "../../../verify/packages/offline-model-package/models/store/cd7afe063d06007b97c108d3957e1bdc92e64fe47adfc7ac92975fee4f2c0d28.json"
 );
-const EXPECTED_OFFLINE_MODEL_FILE: &[u8] = include_bytes!(
-    "../../../verify/artifacts/current-model-relational-identity-transition/expected/deterministic/offline-model-package/model.json"
-);
+const EXPECTED_OFFLINE_MODEL_FILE: &[u8] =
+    include_bytes!("../../../verify/packages/offline-model-package/expected/model.json");
 const EXPECTED_OFFLINE_COMPILATION_FILE: &[u8] = include_bytes!(
-    "../../../verify/artifacts/current-model-relational-identity-transition/expected/deterministic/offline-model-package/compilation.json"
+    "../../../verify/packages/offline-model-package/expected/historical-alpha1-compilation.json"
 );
 const TYPED_RESOLUTION_FILE: &[u8] = include_bytes!(
     "../../../verify/interfaces/python-offline-model-package/models/typed-execution-lineage/resolution.json"

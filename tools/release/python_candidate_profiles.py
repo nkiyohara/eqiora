@@ -42,14 +42,6 @@ PYTHON_TEST_FIXTURES = (
     Path("packages/org.example.poisson"),
     Path("verify/packages/offline-model-package"),
     Path("verify/packages/typed-execution-lineage"),
-    Path(
-        "verify/artifacts/current-model-relational-identity-transition/"
-        "expected/deterministic/offline-model-package"
-    ),
-    Path(
-        "verify/artifacts/current-model-relational-identity-transition/"
-        "expected/deterministic/typed-execution-lineage"
-    ),
     Path("verify/interfaces/python-package-conformance"),
     Path("verify/interfaces/python-offline-model-package/models/typed-execution-lineage"),
 )
