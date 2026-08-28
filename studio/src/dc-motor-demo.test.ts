@@ -104,7 +104,7 @@ function acceptedResult(runDigest = digest("a")): DcMotorDemoResult {
     },
     evidence: {
       caseId: DC_MOTOR_SCIENTIFIC_CASE,
-      status: "verified",
+      status: "historical-a3-only",
       physicalPortSamplesPresented: false,
     },
   });
@@ -140,7 +140,9 @@ describe("packaged DC-drive Studio protocol", () => {
     );
     expect(markup).toContain("Production trajectory");
     expect(markup).toContain("No quantity on this view is recomputed by the application.");
-    expect(markup).toContain(`registered case <code>${DC_MOTOR_SCIENTIFIC_CASE}</code>`);
+    expect(markup).toContain(`Registered case <code>${DC_MOTOR_SCIENTIFIC_CASE}</code>`);
+    expect(markup).toContain("current release lineage · unverified");
+    expect(markup).toContain("historical a3 evidence only");
     expect(markup).toContain('class="dc-drive-chart__line voltage"');
     expect(markup).not.toContain("Copper loss");
     expect(markup).not.toContain("Stored energy");

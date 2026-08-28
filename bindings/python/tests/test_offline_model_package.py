@@ -46,6 +46,9 @@ OFFLINE_RESOLUTION_DIGEST = (
     "081cca92b2a8d6ee8bba78741db2becd5d5edfa896a114a193c8e1486997b6fe"
 )
 OFFLINE_COMPILATION_DIGEST = (
+    "c1218f8672d1a9009b91f0ea26a3c989fd6e4cc03bf645ead6ab82ff4c24276d"
+)
+FROZEN_A3_OFFLINE_COMPILATION_DIGEST = (
     "3a8352b7a4843266749e9b213c3f7dedf33c280afdc0d92fc42985b5a0e0a3fa"
 )
 TYPED_MODEL_ID = "7Q7ZYW89BV0RH2HSB3S5ZMTY0K"
@@ -55,8 +58,13 @@ TYPED_RESOLUTION_DIGEST = (
 )
 TYPED_MODEL_DIGEST = "c2c35e6b58f6ee0d40b8aa2bd0c252e519eec6f6779e39366ae2e28cdbd5300a"
 TYPED_COMPILATION_DIGEST = (
-    "cb797d1c262e5a657d9d2a03d757894fdce01d2a98f09e6557796cb9c2d460a4"
+    "ecb76b187d8d7bff8d436e3c2f0b039d42a4edc8e2f8a3bdf04863b291cf6775"
 )
+CURRENT_COMPILER_VERSION = "0.1.0-alpha.4"
+CURRENT_COMPILATION_DIGESTS = {
+    "false_claim": "c803c7d34d7239ed2d8c743783c5efbabbcba5b72f887cd9e7e4b7e5e0ca87be",
+    "accepted_poisson": TYPED_COMPILATION_DIGEST,
+}
 LIBRARY_SOURCE = "ce343238d92f202646d2dd2947d68c311eac90aa711aa9d0e3905fa170f6f3f1"
 ROOT_SOURCE = "cd7afe063d06007b97c108d3957e1bdc92e64fe47adfc7ac92975fee4f2c0d28"
 CONFORMANCE = ROOT / "verify/interfaces/python-package-conformance"
@@ -256,9 +264,9 @@ def expected_conformance_report(label: str) -> eqiora.PackageConformanceReport:
     )
     return eqiora.PackageConformanceReport(
         CONFORMANCE_IDENTITIES["profile"],
-        CONFORMANCE_IDENTITIES["distribution_version"],
+        eqiora.__version__,
         CONFORMANCE_IDENTITIES["compiler"],
-        CONFORMANCE_IDENTITIES["compiler_version"],
+        CURRENT_COMPILER_VERSION,
         CONFORMANCE_IDENTITIES["semantic_canonicalization_version"],
         CONFORMANCE_IDENTITIES["source_bundle_version"],
         CONFORMANCE_IDENTITIES["resolution_version"],
@@ -266,7 +274,7 @@ def expected_conformance_report(label: str) -> eqiora.PackageConformanceReport:
         (package,),
         "Main",
         facts["resolution_identity"],
-        facts["compilation_identity"],
+        CURRENT_COMPILATION_DIGESTS[label],
         facts["object_id"],
         facts["revision"],
         facts["canonical_identity"],
@@ -364,7 +372,8 @@ def test_exact_package_projection_is_the_frozen_ordinary_model() -> None:
     )
     assert identities["resolution_digest"] == OFFLINE_RESOLUTION_DIGEST
     assert identities["model_digest"] == model.digest
-    assert identities["compilation_digest"] == model.package_compilation_digest
+    assert identities["compilation_digest"] == FROZEN_A3_OFFLINE_COMPILATION_DIGEST
+    assert identities["compilation_digest"] != model.package_compilation_digest
 
     replayed = eqiora.replay(model.to_json())
     assert replayed.to_json() == model.to_json()

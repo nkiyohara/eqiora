@@ -9,6 +9,12 @@ pub(super) fn tool_definition() -> Value {
     serde_json::from_str(TOOL_DEFINITION_SOURCE).expect("frozen tool-definition JSON")
 }
 
+pub(super) fn current_server_discover() -> Value {
+    let mut discover = expected()["serverDiscover"].clone();
+    discover["_meta"]["io.modelcontextprotocol/serverInfo"]["version"] = json!(eqiora::VERSION);
+    discover
+}
+
 pub(super) fn response_result<'a>(response: &'a Value, id: &Value) -> &'a Value {
     assert_eq!(response["jsonrpc"], "2.0");
     assert_eq!(response["id"], *id);

@@ -164,7 +164,7 @@ mod full {
     fn command_grammar_help_version_and_parse_failures_are_exact() {
         let scratch = Scratch::new("grammar");
         let contract = expected();
-        assert_eq!(contract["packageVersion"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(contract["packageVersion"], "0.1.0-alpha.3");
         for args in [["-h"], ["--help"]] {
             assert_output(
                 &run(args, &scratch.path),

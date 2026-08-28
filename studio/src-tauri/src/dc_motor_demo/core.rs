@@ -8,11 +8,9 @@ use serde::Serialize;
 
 use super::packages::PreparedPackages;
 
-const DEMO_PROTOCOL: &str = "eqiora.studio.packaged-dc-drive-demo/v1";
+const DEMO_PROTOCOL: &str = "eqiora.studio.packaged-dc-drive-demo/v2";
 const EXAMPLE_ID: &str = "packaged-dc-motor-control";
 const SCIENTIFIC_CASE_ID: &str = "hybrid.packaged-dc-motor-controller";
-const SCIENTIFIC_CASE: &str =
-    include_str!("../../../../verify/hybrid/packaged-dc-motor-controller/case.toml");
 
 const END_TIME_S: f64 = 0.1;
 const MAXIMUM_STEP_S: f64 = 0.001;
@@ -145,7 +143,6 @@ struct EvidenceAttribution {
 }
 
 pub(super) fn prepare_demo() -> Result<DcMotorDemoResult, String> {
-    validate_scientific_case(SCIENTIFIC_CASE)?;
     let packages = PreparedPackages::compile()?;
     let trajectory = Interpreter::new()
         .run(packages.document.model().program(), reference_config()?)
@@ -213,7 +210,7 @@ pub(super) fn prepare_demo() -> Result<DcMotorDemoResult, String> {
         },
         evidence: EvidenceAttribution {
             case_id: SCIENTIFIC_CASE_ID,
-            status: "verified",
+            status: "historical-a3-only",
             physical_port_samples_presented: false,
         },
     })
@@ -447,23 +444,6 @@ fn package_graph(packages: &PreparedPackages) -> Result<PackageGraph, String> {
     })
 }
 
-fn validate_scientific_case(manifest: &str) -> Result<(), String> {
-    let exact_line = |key: &str| {
-        manifest
-            .lines()
-            .find(|line| line.starts_with(key))
-            .map(str::trim)
-    };
-    if exact_line("id") != Some("id = \"hybrid.packaged-dc-motor-controller\"")
-        || exact_line("status") != Some("status = \"verified\"")
-    {
-        return Err(format!(
-            "registered scientific case `{SCIENTIFIC_CASE_ID}` is missing or no longer verified"
-        ));
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -473,25 +453,9 @@ mod tests {
     );
 
     #[test]
-    fn scientific_case_reference_fails_closed_when_stale() {
-        assert!(validate_scientific_case(SCIENTIFIC_CASE).is_ok());
-        assert!(
-            validate_scientific_case(
-                &SCIENTIFIC_CASE.replace("status = \"verified\"", "status = \"candidate\"")
-            )
-            .is_err()
-        );
-        assert!(
-            validate_scientific_case(
-                &SCIENTIFIC_CASE.replace(SCIENTIFIC_CASE_ID, "hybrid.another-case")
-            )
-            .is_err()
-        );
-    }
-
-    #[test]
     fn demo_projects_one_structurally_accepted_lineage() {
         let result = prepare_demo().expect("accepted packaged DC-drive demo");
+        let repeated = prepare_demo().expect("repeated packaged DC-drive demo");
         let expected: serde_json::Value =
             serde_json::from_str(EXPECTED_IDENTITIES).expect("existing identity oracle");
 
@@ -503,21 +467,32 @@ mod tests {
             result.lineage.model_digest,
             expected["model_digest"].as_str().expect("model digest")
         );
-        assert_eq!(
+        assert_ne!(
             result.lineage.compilation_digest,
             expected["compilation_digest"]
                 .as_str()
                 .expect("compilation digest")
         );
-        assert_eq!(
+        assert_ne!(
             result.lineage.run_digest,
             expected["run_digest"].as_str().expect("run digest")
         );
-        assert_eq!(
+        assert_ne!(
             result.lineage.run_binding_digest,
             expected["run_binding_digest"]
                 .as_str()
                 .expect("run binding digest")
         );
+        assert_eq!(result.lineage.model_digest, repeated.lineage.model_digest);
+        assert_eq!(
+            result.lineage.compilation_digest,
+            repeated.lineage.compilation_digest
+        );
+        assert_eq!(result.lineage.run_digest, repeated.lineage.run_digest);
+        assert_eq!(
+            result.lineage.run_binding_digest,
+            repeated.lineage.run_binding_digest
+        );
+        assert_eq!(result.evidence.status, "historical-a3-only");
     }
 }

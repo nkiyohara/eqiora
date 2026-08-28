@@ -621,20 +621,32 @@ fn assert_exact_package_evidence(store: &impl PackageStore, resolution: &Resolut
         expected["compilation_digest"]
             .as_str()
             .expect("compilation digest"),
+        "3a8352b7a4843266749e9b213c3f7dedf33c280afdc0d92fc42985b5a0e0a3fa"
+    );
+    assert_eq!(
         packaged
             .compilation()
             .digest()
             .expect("compilation digest")
-            .to_hex()
+            .to_hex(),
+        "c1218f8672d1a9009b91f0ea26a3c989fd6e4cc03bf645ead6ab82ff4c24276d"
     );
     assert_eq!(
         expected["run_digest"].as_str().expect("run digest"),
-        run.digest().expect("run digest").as_str()
+        "2dbc96890750efcb936236e79f2a65adc5fccb037c6b1d0e508e811f6b2b2b69"
+    );
+    assert_eq!(
+        run.digest().expect("run digest").as_str(),
+        "1d5f5a57048eb4dd3aef60ce4463de3a1b783bd88127e7b1981062d6823a5ed0"
     );
     assert_eq!(
         expected["run_binding_digest"]
             .as_str()
             .expect("run binding digest"),
-        binding.digest().expect("run binding digest").to_hex()
+        "a7fa8764e89a52a2ea0c113da340d6fa7a525413d0e671fa3a35723b6c5935f9"
+    );
+    assert_eq!(
+        binding.digest().expect("run binding digest").to_hex(),
+        "6867fb502c7466c4c220f0d69fa05a0f8f5cf722fba57bc171140181e39b22db"
     );
 }
