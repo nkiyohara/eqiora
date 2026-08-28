@@ -164,7 +164,7 @@ pub(crate) fn derive_gmsh_resources(
         eqiora_geometry::CanonicalGeometryLimits::default(),
     )
     .map_err(|_| invalid("Gmsh provider observation requires exact planar circular-hole v2"))?;
-    let quality = eqiora_meshing::MeshQualityGate::new(policy.quality().minimum_mean_ratio())?;
+    let quality = eqiora_meshing::MeshQualityGate::new(policy.minimum_mean_ratio())?;
     let import_policy = Msh41Policy::ascii_with_entity_assignments(2, quality)?;
     let mut assignments = BTreeMap::new();
     let mesh = import_msh41(

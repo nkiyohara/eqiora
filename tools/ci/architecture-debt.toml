@@ -393,13 +393,13 @@ CartesianMeshDecoderLimits is the one typed caller policy required to bound
 axis-compressed all-strata entity and closure-reference amplification without
 reinterpreting MeshDecoderLimits, breaking its external struct literals, or
 serializing trust into the Cartesian wire.
-MeshProductionLineageEnvelopeV1 and PlanarMeshQualityV1 are the closed
-provider-occurrence wire and current Gmsh planar effective-policy value. They
+MeshProductionLineageEnvelopeV1 and GmshMeshPolicyV1 are the closed
+provider-occurrence wire and current complete Gmsh effective-policy value. They
 keep provider identity/version outside provider-neutral Geometry, Mesh, and
 correspondence artifacts, bind those resources, and add no provider registry,
 discovery protocol, trait, builder, or ambient choice.
 """
-removal = "replace the specialized Cartesian Q1 snapshot with the common FieldSnapshot owner when that owner admits hypercube bases without weakening exact mesh linkage, then lower by one; fold CartesianMeshDecoderLimits into a source-compatible shared amplification policy only when that policy names both all-strata entities and entity-closure references without assigning Cartesian meaning to simplicial limits, then lower by one; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one. Fold PlanarMeshQualityV1 into an already-counted general mesh-policy value only when Cartesian and unstructured providers can share it without inheriting irrelevant circular-boundary knobs, then lower by one."
+removal = "replace the specialized Cartesian Q1 snapshot with the common FieldSnapshot owner when that owner admits hypercube bases without weakening exact mesh linkage, then lower by one; fold CartesianMeshDecoderLimits into a source-compatible shared amplification policy only when that policy names both all-strata entities and entity-closure references without assigning Cartesian meaning to simplicial limits, then lower by one; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one. Fold GmshMeshPolicyV1 into an already-counted common mesh-policy value only when another real provider shares its complete semantics without inheriting irrelevant Gmsh or circular-boundary knobs, then lower by one."
 
 [[public_surface]]
 crate = "eqiora-assembly"

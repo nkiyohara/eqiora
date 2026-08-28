@@ -117,79 +117,23 @@ impl AffineTriangleMeshCellsV1 {
     }
 }
 
-/// Boundary approximation and acceptance policy used by the Gmsh provider.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct PlanarMeshQualityV1 {
-    maximum_boundary_error_m: f64,
-    minimum_mean_ratio: f64,
-    maximum_boundary_facets: usize,
-}
-
-/// Ownership of the effective global Gmsh characteristic target size.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GmshTargetSizeOwnershipV1 {
-    /// The provider derived the target from the exact Geometry.
-    Automatic,
-    /// The caller supplied the target explicitly.
-    Explicit,
-}
-
 /// Complete effective numerical policy of one Gmsh mesh production.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GmshMeshPolicyV1 {
-    quality: PlanarMeshQualityV1,
+    maximum_boundary_error_m: f64,
+    minimum_mean_ratio: f64,
+    maximum_boundary_facets: usize,
     maximum_target_size_m: f64,
-    maximum_target_size_ownership: GmshTargetSizeOwnershipV1,
+    maximum_target_size_is_explicit: bool,
 }
 
 impl GmshMeshPolicyV1 {
-    /// Construct one complete effective Gmsh policy.
-    pub fn new(
-        quality: PlanarMeshQualityV1,
-        maximum_target_size_m: f64,
-        maximum_target_size_ownership: GmshTargetSizeOwnershipV1,
-    ) -> Result<Self, Diagnostic> {
-        if !maximum_target_size_m.is_finite() || maximum_target_size_m <= 0.0 {
-            return Err(invalid_artifact(
-                "Gmsh maximum target size must be finite and positive",
-            ));
-        }
-        Ok(Self {
-            quality,
-            maximum_target_size_m,
-            maximum_target_size_ownership,
-        })
-    }
-
-    /// Effective boundary and quality policy.
-    #[must_use]
-    pub const fn quality(self) -> PlanarMeshQualityV1 {
-        self.quality
-    }
-
-    /// Effective global Gmsh characteristic target-size ceiling in metres.
-    #[must_use]
-    pub const fn maximum_target_size_m(self) -> f64 {
-        self.maximum_target_size_m
-    }
-
-    /// Whether the target was provider-derived or caller-supplied.
-    #[must_use]
-    pub const fn maximum_target_size_ownership(self) -> GmshTargetSizeOwnershipV1 {
-        self.maximum_target_size_ownership
-    }
-}
-
-impl PlanarMeshQualityV1 {
-    /// Construct one complete effective planar policy.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for nonfinite/nonpositive error, invalid quality, or
-    /// fewer than eight admitted circular-boundary facets.
-    pub fn new(
+    fn new(
         maximum_boundary_error_m: f64,
         minimum_mean_ratio: f64,
         maximum_boundary_facets: usize,
+        maximum_target_size_m: f64,
+        maximum_target_size_is_explicit: bool,
     ) -> Result<Self, Diagnostic> {
         if !maximum_boundary_error_m.is_finite() || maximum_boundary_error_m <= 0.0 {
             return Err(invalid_artifact(
@@ -203,11 +147,50 @@ impl PlanarMeshQualityV1 {
                 "maximum boundary facets must be at least eight",
             ));
         }
+        if !maximum_target_size_m.is_finite() || maximum_target_size_m <= 0.0 {
+            return Err(invalid_artifact(
+                "Gmsh maximum target size must be finite and positive",
+            ));
+        }
         Ok(Self {
             maximum_boundary_error_m,
             minimum_mean_ratio,
             maximum_boundary_facets,
+            maximum_target_size_m,
+            maximum_target_size_is_explicit,
         })
+    }
+
+    /// Construct a policy whose effective target was derived by the provider.
+    pub fn automatic(
+        maximum_boundary_error_m: f64,
+        minimum_mean_ratio: f64,
+        maximum_boundary_facets: usize,
+        maximum_target_size_m: f64,
+    ) -> Result<Self, Diagnostic> {
+        Self::new(
+            maximum_boundary_error_m,
+            minimum_mean_ratio,
+            maximum_boundary_facets,
+            maximum_target_size_m,
+            false,
+        )
+    }
+
+    /// Construct a policy whose effective target was supplied by the caller.
+    pub fn explicit(
+        maximum_boundary_error_m: f64,
+        minimum_mean_ratio: f64,
+        maximum_boundary_facets: usize,
+        maximum_target_size_m: f64,
+    ) -> Result<Self, Diagnostic> {
+        Self::new(
+            maximum_boundary_error_m,
+            minimum_mean_ratio,
+            maximum_boundary_facets,
+            maximum_target_size_m,
+            true,
+        )
     }
 
     /// Effective maximum chordal boundary error in metres.
@@ -226,6 +209,18 @@ impl PlanarMeshQualityV1 {
     #[must_use]
     pub const fn maximum_boundary_facets(self) -> usize {
         self.maximum_boundary_facets
+    }
+
+    /// Effective global Gmsh characteristic target size in metres.
+    #[must_use]
+    pub const fn maximum_target_size_m(self) -> f64 {
+        self.maximum_target_size_m
+    }
+
+    /// Whether the effective target was supplied by the caller.
+    #[must_use]
+    pub const fn maximum_target_size_is_explicit(self) -> bool {
+        self.maximum_target_size_is_explicit
     }
 }
 
@@ -685,16 +680,16 @@ impl TryFrom<GmshMeshPolicyV1> for WireGmshMeshPolicyV1 {
     type Error = Diagnostic;
 
     fn try_from(policy: GmshMeshPolicyV1) -> Result<Self, Self::Error> {
-        let quality = policy.quality;
         Ok(Self {
-            maximum_boundary_error_m: quality.maximum_boundary_error_m,
-            minimum_mean_ratio: quality.minimum_mean_ratio,
-            maximum_boundary_facets: u64::try_from(quality.maximum_boundary_facets)
+            maximum_boundary_error_m: policy.maximum_boundary_error_m,
+            minimum_mean_ratio: policy.minimum_mean_ratio,
+            maximum_boundary_facets: u64::try_from(policy.maximum_boundary_facets)
                 .map_err(|_| invalid_artifact("maximum boundary facets exceeds portable u64"))?,
             maximum_target_size_m: policy.maximum_target_size_m,
-            maximum_target_size_ownership: match policy.maximum_target_size_ownership {
-                GmshTargetSizeOwnershipV1::Automatic => WireGmshTargetSizeOwnershipV1::Automatic,
-                GmshTargetSizeOwnershipV1::Explicit => WireGmshTargetSizeOwnershipV1::Explicit,
+            maximum_target_size_ownership: if policy.maximum_target_size_is_explicit {
+                WireGmshTargetSizeOwnershipV1::Explicit
+            } else {
+                WireGmshTargetSizeOwnershipV1::Automatic
             },
         })
     }
@@ -702,19 +697,21 @@ impl TryFrom<GmshMeshPolicyV1> for WireGmshMeshPolicyV1 {
 
 impl WireGmshMeshPolicyV1 {
     fn to_policy(self) -> Result<GmshMeshPolicyV1, Diagnostic> {
-        let quality = PlanarMeshQualityV1::new(
-            self.maximum_boundary_error_m,
-            self.minimum_mean_ratio,
-            usize::try_from(self.maximum_boundary_facets)
-                .map_err(|_| invalid_artifact("maximum boundary facets exceeds local usize"))?,
-        )?;
-        GmshMeshPolicyV1::new(
-            quality,
-            self.maximum_target_size_m,
-            match self.maximum_target_size_ownership {
-                WireGmshTargetSizeOwnershipV1::Automatic => GmshTargetSizeOwnershipV1::Automatic,
-                WireGmshTargetSizeOwnershipV1::Explicit => GmshTargetSizeOwnershipV1::Explicit,
-            },
-        )
+        let maximum_boundary_facets = usize::try_from(self.maximum_boundary_facets)
+            .map_err(|_| invalid_artifact("maximum boundary facets exceeds local usize"))?;
+        match self.maximum_target_size_ownership {
+            WireGmshTargetSizeOwnershipV1::Automatic => GmshMeshPolicyV1::automatic(
+                self.maximum_boundary_error_m,
+                self.minimum_mean_ratio,
+                maximum_boundary_facets,
+                self.maximum_target_size_m,
+            ),
+            WireGmshTargetSizeOwnershipV1::Explicit => GmshMeshPolicyV1::explicit(
+                self.maximum_boundary_error_m,
+                self.minimum_mean_ratio,
+                maximum_boundary_facets,
+                self.maximum_target_size_m,
+            ),
+        }
     }
 }

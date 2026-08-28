@@ -758,11 +758,13 @@ pub(super) fn generate(
         match (&plan.planned, plan.provider) {
             (PlannedMesh::Gmsh(sizing), MeshProviderPolicy::Gmsh(provider)) => {
                 let quality_gate =
-                    eqiora::meshing::MeshQualityGate::new(provider.policy.minimum_mean_ratio())
+                    eqiora::meshing::MeshQualityGate::new(provider.minimum_mean_ratio)
                         .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
                 let generated = super::gmsh::generate(
                     &plan.source,
-                    provider.policy,
+                    provider.maximum_boundary_error,
+                    provider.minimum_mean_ratio,
+                    provider.maximum_boundary_facets,
                     provider.maximum_target_size,
                     *sizing,
                     quality_gate,
