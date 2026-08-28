@@ -1,3 +1,4 @@
+// Shared interface contract: both subdomains expose velocity and traction.
 public connector VelocityTractionBoundary = field_physical(
   trace = velocity: m / s,
   flux = traction: kg / (m * s ^ 2),
@@ -6,7 +7,10 @@ public connector VelocityTractionBoundary = field_physical(
   pairing = euclidean_boundary_duality
 );
 
+// Equations-only component for fluid-structure interaction on a fixed reference mesh.
+// Python supplies the adjacent fluid and solid Geometry and binds these support names.
 public component FixedReferenceFsi2d {
+  // Each 2D volume owns four boundary roles; the touching pair becomes the interface.
   public support fluid: volume(ambient_dimension = 2);
   public support fluid_x_lower: boundary(parent = fluid);
   public support fluid_x_upper: boundary(parent = fluid);
@@ -18,6 +22,7 @@ public component FixedReferenceFsi2d {
   public support solid_y_lower: boundary(parent = solid);
   public support solid_y_upper: boundary(parent = solid);
 
+  // Material properties and the reference pressure are compile-time Model inputs.
   public parameter fluid_density: kg / m ^ 3;
   public parameter fluid_viscosity: kg / (m * s);
   public parameter solid_density: kg / m ^ 3;
@@ -25,6 +30,7 @@ public component FixedReferenceFsi2d {
   public parameter solid_lambda: kg / (m * s ^ 2);
   public parameter zero_pressure: kg / (m * s ^ 2);
 
+  // Unknown continuum fields are scoped explicitly to the fluid or solid support.
   representation space = continuum;
   field fluid_velocity on fluid as space: m / s shape spatial_vector;
   field fluid_pressure on fluid as space: kg / (m * s ^ 2) = 0;
@@ -33,6 +39,7 @@ public component FixedReferenceFsi2d {
   field solid_velocity on solid as space: m / s shape spatial_vector;
   field solid_load_potential on solid as space: kg / (m * s ^ 2) = 0;
 
+  // Fluid: transient Stokes momentum balance with incompressibility.
   relation fluid_load_definition continuous on fluid {
     fluid_load_potential - zero_pressure = 0;
   }
@@ -42,6 +49,8 @@ public component FixedReferenceFsi2d {
         - isotropic_lift(fluid_pressure)) - grad(fluid_load_potential) = 0;
   }
   relation incompressibility continuous on fluid { div(fluid_velocity) = 0; }
+
+  // Solid: velocity is the displacement derivative, followed by momentum balance.
   relation solid_load_definition continuous on solid {
     solid_load_potential - zero_pressure = 0;
   }
@@ -55,12 +64,15 @@ public component FixedReferenceFsi2d {
       - grad(solid_load_potential) = 0;
   }
 
+  // Homogeneous exterior velocity conditions leave the touching boundaries for coupling.
   relation fluid_x_lower_zero continuous on fluid_x_lower { trace(fluid_velocity) = 0; }
   relation fluid_y_lower_zero continuous on fluid_y_lower { trace(fluid_velocity) = 0; }
   relation fluid_y_upper_zero continuous on fluid_y_upper { trace(fluid_velocity) = 0; }
   relation solid_x_upper_zero continuous on solid_x_upper { trace(solid_velocity) = 0; }
   relation solid_y_lower_zero continuous on solid_y_lower { trace(solid_velocity) = 0; }
   relation solid_y_upper_zero continuous on solid_y_upper { trace(solid_velocity) = 0; }
+
+  // The conserving connection enforces velocity continuity and balanced interface traction.
   port fluid_interface: conserving VelocityTractionBoundary over fluid_x_upper;
   port solid_interface: conserving VelocityTractionBoundary over solid_x_lower;
   relation fluid_interface_definition continuous on fluid_x_upper {
