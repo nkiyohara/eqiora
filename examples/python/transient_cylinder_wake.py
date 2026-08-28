@@ -10,7 +10,12 @@ import eqiora
 
 
 def solve() -> tuple[
-    eqiora.Plan, eqiora.Result, eqiora.trajectory.DerivedFieldSnapshot
+    eqiora.Plan,
+    eqiora.Result,
+    eqiora.trajectory.DerivedFieldSnapshot,
+    eqiora.trajectory.BoundaryForce,
+    eqiora.trajectory.FieldSample,
+    eqiora.trajectory.FieldSample,
 ]:
     geometry_graph = eqiora.geometry.GeometryGraph()
     rectangle = geometry_graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
@@ -99,7 +104,11 @@ def solve() -> tuple[
     )
     result = eqiora.run(plan, state=state, steps=1, output_steps=(1,))
     accepted = result.trajectory.state(1)
-    return plan, result, accepted.curl(plan.velocity_field)
+    vorticity = accepted.curl(plan.velocity_field)
+    cylinder_force = accepted.boundary_force(geometry.selection("cylinder"))
+    front_pressure = accepted.sample(plan.pressure_field, at=(0.15, 0.2))
+    rear_pressure = accepted.sample(plan.pressure_field, at=(0.25, 0.2))
+    return plan, result, vorticity, cylinder_force, front_pressure, rear_pressure
 
 
 def main() -> None:
@@ -111,7 +120,7 @@ def main() -> None:
     )
     arguments = parser.parse_args()
 
-    plan, result, vorticity = solve()
+    plan, result, vorticity, cylinder_force, front_pressure, rear_pressure = solve()
     accepted = result.trajectory.state(1)
     values = vorticity.values("cell")
     print("UNVERIFIED PRODUCT EXAMPLE — no benchmark acceptance is claimed")
@@ -119,6 +128,9 @@ def main() -> None:
     print("trajectory", result.trajectory.digest)
     print("state", accepted.step, accepted.time_s, accepted.digest)
     print("vorticity", float(values.min()), float(values.max()), "s^-1")
+    print("force on cylinder", cylinder_force.on_selection, "N/m")
+    print("pressure probes", front_pressure.value, rear_pressure.value, "Pa")
+    print("pressure difference", front_pressure.value - rear_pressure.value, "Pa")
     if arguments.vorticity_png is not None:
         import eqiora.matplotlib as eqplot
 

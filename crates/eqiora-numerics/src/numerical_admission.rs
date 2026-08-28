@@ -416,6 +416,7 @@ pub struct CommonState {
     model: Arc<ModelEnvelope>,
     resources: Arc<NativeMeshResources>,
     kind: CommonStateKind,
+    named_boundary_forces_on_domain: Vec<(String, [f64; 2])>,
 }
 
 /// Canonical private execution request for one exact transient Plan and State.

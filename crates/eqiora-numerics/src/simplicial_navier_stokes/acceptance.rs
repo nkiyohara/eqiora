@@ -190,6 +190,29 @@ pub(super) fn accept_step(
             convective.defect_identity_error
         )));
     }
+    let named_boundary_reactions = assembly
+        .named_reaction_vertices
+        .iter()
+        .map(|(name, vertices)| {
+            let mut reaction = [0.0; super::COMPONENTS];
+            for vertex in vertices {
+                for (component, value) in reaction.iter_mut().enumerate() {
+                    *value += assembly.full_residual
+                        [assembly.layout.full_vertex_velocity(*vertex, component)];
+                }
+            }
+            (name.clone(), reaction)
+        })
+        .collect::<Vec<_>>();
+    if named_boundary_reactions
+        .iter()
+        .flat_map(|(_, reaction)| reaction)
+        .any(|value| !value.is_finite())
+    {
+        return Err(invalid(
+            "accepted transient named boundary reaction is non-finite",
+        ));
+    }
     let next_time = previous.time() + plan.time_step();
     if !next_time.is_finite() || next_time <= previous.time() {
         return Err(invalid(
@@ -213,6 +236,7 @@ pub(super) fn accept_step(
         convective.skew_residual_norm,
         convective.skew_power,
         convective.conservative_defect_norm,
+        named_boundary_reactions,
         newton.jacobian_audit,
         assembly.assembly_report,
         newton.linear_solves,

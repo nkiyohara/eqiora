@@ -879,12 +879,58 @@ assert np.all(np.isfinite(vorticity.values("cell")))
 assert np.max(np.abs(vorticity.values("cell"))) > 0.0
 assert not vorticity.values("cell").flags.writeable
 assert wake_state.curl(plan.velocity_field) == vorticity
+front_pressure = wake_state.sample(plan.pressure_field, at=(0.15, 0.2))
+rear_pressure = wake_state.sample(plan.pressure_field, at=(0.25, 0.2))
+assert front_pressure.source_state_digest == wake_state.digest
+assert front_pressure.field == plan.pressure_field
+assert front_pressure.mesh_digest == mesh.digest
+assert front_pressure.support_domain_id == wake_state.field(plan.pressure_field).support_domain_id
+assert front_pressure.point_m == (0.15, 0.2)
+assert front_pressure.dimension == (1, -1, -2, 0, 0, 0, 0)
+assert front_pressure.frame == "invariant"
+assert np.isfinite(front_pressure.value) and np.isfinite(rear_pressure.value)
+assert wake_state.sample(plan.pressure_field, at=(0.15, 0.2)) == front_pressure
+cylinder = source.selection("cylinder")
+cylinder_force = wake_state.boundary_force(cylinder)
+assert cylinder_force.source_state_digest == wake_state.digest
+assert cylinder_force.selection == cylinder
+assert cylinder_force.geometry_digest == source.digest
+assert cylinder_force.mesh_digest == mesh.digest
+assert cylinder_force.dimension == (1, 0, -2, 0, 0, 0, 0)
+assert cylinder_force.frame == "spatial-cartesian"
+assert np.all(np.isfinite(cylinder_force.on_domain))
+assert cylinder_force.on_selection == tuple(-value for value in cylinder_force.on_domain)
+assert wake_state.boundary_force(cylinder) == cylinder_force
 try:
     wake_state.curl(plan.pressure_field)
 except ValueError as error:
     assert "velocity FieldRef" in str(error)
 else:
     raise AssertionError("curl accepted the pressure Field")
+for invalid_sample in range(3):
+    try:
+        if invalid_sample == 0:
+            wake_state.sample(plan.velocity_field, at=(0.15, 0.2))
+        elif invalid_sample == 1:
+            wake_state.sample(plan.pressure_field, at=(3.0, 3.0))
+        else:
+            wake_state.sample(plan.pressure_field, at=(True, 0.2))
+    except (ValueError, package.ValidationError):
+        pass
+    else:
+        raise AssertionError("invalid point sample was admitted")
+try:
+    state.boundary_force(cylinder)
+except KeyError:
+    pass
+else:
+    raise AssertionError("initial State fabricated an accepted boundary force")
+try:
+    wake_state.boundary_force(source.selection("fluid"))
+except ValueError:
+    pass
+else:
+    raise AssertionError("boundary force accepted a region selection")
 "#),
             None,
             Some(&locals),

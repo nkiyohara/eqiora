@@ -639,83 +639,99 @@ impl CommonTransientFlowPlan {
             ));
         }
         let run = TransientNavierStokesRun2d::new(NonZeroStepCount::new(NonZeroUsize::MIN));
-        let next_kind = match (&self.resolved, &self.admission.resources, &state.kind) {
-            (
-                CommonTransientResolvedSpatial::MiniP1(resolved),
-                NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
-                CommonStateKind::MiniP1(initial),
-            ) => {
-                let trajectory = advance_resolved_transient_navier_stokes_mini_2d(
-                    &self.admission.program,
-                    resolved,
-                    mesh,
-                    initial.as_ref().clone(),
-                    run,
-                    backend,
-                )?;
-                let accepted = trajectory
-                    .states()
-                    .last()
-                    .ok_or_else(|| invalid("MINI transient step returned no accepted State"))?;
-                CommonStateKind::MiniP1(Box::new(mini_initial_from_resolved(self, mesh, accepted)?))
-            }
-            (
-                CommonTransientResolvedSpatial::MiniP1(resolved),
-                NativeMeshResources::GmshSimplicial { mesh, .. },
-                CommonStateKind::MiniP1(initial),
-            ) => {
-                let RecognizedNativeModel::TransientGeometry(binding) = &self.admission.recognized
-                else {
+        let (next_kind, named_boundary_forces_on_domain) =
+            match (&self.resolved, &self.admission.resources, &state.kind) {
+                (
+                    CommonTransientResolvedSpatial::MiniP1(resolved),
+                    NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
+                    CommonStateKind::MiniP1(initial),
+                ) => {
+                    let trajectory = advance_resolved_transient_navier_stokes_mini_2d(
+                        &self.admission.program,
+                        resolved,
+                        mesh,
+                        initial.as_ref().clone(),
+                        run,
+                        backend,
+                    )?;
+                    let accepted = trajectory
+                        .states()
+                        .last()
+                        .ok_or_else(|| invalid("MINI transient step returned no accepted State"))?;
+                    (
+                        CommonStateKind::MiniP1(Box::new(mini_initial_from_resolved(
+                            self, mesh, accepted,
+                        )?)),
+                        accepted.named_boundary_forces_on_domain().to_vec(),
+                    )
+                }
+                (
+                    CommonTransientResolvedSpatial::MiniP1(resolved),
+                    NativeMeshResources::GmshSimplicial { mesh, .. },
+                    CommonStateKind::MiniP1(initial),
+                ) => {
+                    let RecognizedNativeModel::TransientGeometry(binding) =
+                        &self.admission.recognized
+                    else {
+                        return Err(invalid(
+                            "Gmsh transient Plan lost Geometry-backed Model meaning",
+                        ));
+                    };
+                    let states = advance_resolved_transient_navier_stokes_geometry_mini_2d(
+                        &self.admission.program,
+                        resolved,
+                        binding,
+                        initial.as_ref().clone(),
+                        run,
+                        backend,
+                    )?;
+                    let accepted = states.last().ok_or_else(|| {
+                        invalid("Geometry MINI transient step returned no accepted State")
+                    })?;
+                    (
+                        CommonStateKind::MiniP1(Box::new(mini_initial_from_resolved(
+                            self, mesh, accepted,
+                        )?)),
+                        accepted.named_boundary_forces_on_domain().to_vec(),
+                    )
+                }
+                (
+                    CommonTransientResolvedSpatial::CellCentered(resolved),
+                    NativeMeshResources::Cartesian { mesh, .. },
+                    CommonStateKind::CellCentered(initial),
+                ) => {
+                    let trajectory = advance_resolved_transient_navier_stokes_cell_centered_2d(
+                        &self.admission.program,
+                        resolved,
+                        mesh,
+                        initial.as_ref().clone(),
+                        run,
+                        backend,
+                    )?;
+                    let accepted = trajectory.states().last().ok_or_else(|| {
+                        invalid("cell-centered transient step returned no accepted State")
+                    })?;
+                    (
+                        CommonStateKind::CellCentered(Box::new(
+                            cell_centered_initial_from_resolved(self, accepted)?,
+                        )),
+                        Vec::new(),
+                    )
+                }
+                _ => {
                     return Err(invalid(
-                        "Gmsh transient Plan lost Geometry-backed Model meaning",
+                        "State method history is incompatible with this Plan",
                     ));
-                };
-                let states = advance_resolved_transient_navier_stokes_geometry_mini_2d(
-                    &self.admission.program,
-                    resolved,
-                    binding,
-                    initial.as_ref().clone(),
-                    run,
-                    backend,
-                )?;
-                let accepted = states.last().ok_or_else(|| {
-                    invalid("Geometry MINI transient step returned no accepted State")
-                })?;
-                CommonStateKind::MiniP1(Box::new(mini_initial_from_resolved(self, mesh, accepted)?))
-            }
-            (
-                CommonTransientResolvedSpatial::CellCentered(resolved),
-                NativeMeshResources::Cartesian { mesh, .. },
-                CommonStateKind::CellCentered(initial),
-            ) => {
-                let trajectory = advance_resolved_transient_navier_stokes_cell_centered_2d(
-                    &self.admission.program,
-                    resolved,
-                    mesh,
-                    initial.as_ref().clone(),
-                    run,
-                    backend,
-                )?;
-                let accepted = trajectory.states().last().ok_or_else(|| {
-                    invalid("cell-centered transient step returned no accepted State")
-                })?;
-                CommonStateKind::CellCentered(Box::new(cell_centered_initial_from_resolved(
-                    self, accepted,
-                )?))
-            }
-            _ => {
-                return Err(invalid(
-                    "State method history is incompatible with this Plan",
-                ));
-            }
-        };
+                }
+            };
         let next_time = state.time_s + self.temporal.step().value();
-        CommonState::new(
+        CommonState::new_with_boundary_forces(
             self.state_space_identity(),
             next_time,
             Arc::clone(&state.model),
             Arc::clone(&state.resources),
             next_kind,
+            named_boundary_forces_on_domain,
         )
     }
 }

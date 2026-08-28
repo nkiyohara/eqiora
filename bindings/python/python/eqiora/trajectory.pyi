@@ -8,8 +8,65 @@ from typing import final
 import numpy as np
 import numpy.typing as npt
 
-from . import FieldRef, Model, Plan, Result, State
-from .meshing import Mesh
+from . import FieldRef, State
+from .geometry import GeometrySelection
+
+
+@final
+class BoundaryForce:
+    """Signed intrinsic-2D force pair on one authenticated boundary.
+
+    Authority: ``crates/eqiora-python/src/trajectory/observation.rs::PyBoundaryForce``.
+    """
+
+    @property
+    def digest(self) -> str: ...
+    @property
+    def source_state_digest(self) -> str: ...
+    @property
+    def selection(self) -> GeometrySelection: ...
+    @property
+    def geometry_digest(self) -> str: ...
+    @property
+    def mesh_digest(self) -> str: ...
+    @property
+    def on_domain(self) -> tuple[float, float]: ...
+    @property
+    def on_selection(self) -> tuple[float, float]: ...
+    @property
+    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    @property
+    def frame(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class FieldSample:
+    """Typed continuous-Field sample at one physical point.
+
+    Authority: ``crates/eqiora-python/src/trajectory/observation.rs::PyFieldSample``.
+    """
+
+    @property
+    def digest(self) -> str: ...
+    @property
+    def source_state_digest(self) -> str: ...
+    @property
+    def field(self) -> FieldRef: ...
+    @property
+    def mesh_digest(self) -> str: ...
+    @property
+    def support_domain_id(self) -> str: ...
+    @property
+    def point_m(self) -> tuple[float, float]: ...
+    @property
+    def value(self) -> float: ...
+    @property
+    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    @property
+    def frame(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
 
 @final
 class DerivedFieldSnapshot:
@@ -113,7 +170,9 @@ class Trajectory:
     def __hash__(self) -> int: ...
 
 __all__ = [
+    "BoundaryForce",
     "DerivedFieldSnapshot",
+    "FieldSample",
     "FieldSnapshot",
     "Trajectory",
     "State",

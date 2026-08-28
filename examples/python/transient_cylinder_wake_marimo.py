@@ -145,15 +145,31 @@ def _(eqiora, mesh, np, plan, steady_plan, steady_result):
 
 
 @app.cell
-def _(eqiora, plan, state):
+def _(eqiora, geometry, plan, state):
     result = eqiora.run(plan, state=state, steps=1, output_steps=(1,))
     accepted = result.trajectory.state(1)
     vorticity = accepted.curl(plan.velocity_field)
-    return accepted, result, vorticity
+    cylinder_force = accepted.boundary_force(geometry.selection("cylinder"))
+    front_pressure = accepted.sample(plan.pressure_field, at=(0.15, 0.2))
+    rear_pressure = accepted.sample(plan.pressure_field, at=(0.25, 0.2))
+    return accepted, cylinder_force, front_pressure, rear_pressure, result, vorticity
 
 
 @app.cell
-def _(accepted, geometry, mesh, mesh_plan, mo, model, plan, result, vorticity):
+def _(
+    accepted,
+    cylinder_force,
+    front_pressure,
+    geometry,
+    mesh,
+    mesh_plan,
+    mo,
+    model,
+    plan,
+    rear_pressure,
+    result,
+    vorticity,
+):
     vorticity_values = vorticity.values("cell")
     summary = mo.md(
         f"""
@@ -179,7 +195,9 @@ def _(accepted, geometry, mesh, mesh_plan, mo, model, plan, result, vorticity):
           {type(result).__name__} {result.trajectory.digest};
           accepted step {accepted.step} at {accepted.time_s} s;
           cell vorticity range {float(vorticity_values.min())} to
-          {float(vorticity_values.max())} s^-1
+          {float(vorticity_values.max())} s^-1;
+          force on cylinder {cylinder_force.on_selection} N/m;
+          pressure probes {front_pressure.value} and {rear_pressure.value} Pa
         </div>
         """
     )

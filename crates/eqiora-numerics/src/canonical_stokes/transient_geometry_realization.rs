@@ -282,6 +282,13 @@ pub(super) fn geometry_boundary(
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
     let boundary = SimplicialMiniStokesBoundary2d::new(normalized, facets)
+        .and_then(|boundary| {
+            boundary.with_named_reaction_surface(
+                normalized,
+                "cylinder",
+                binding.entities("cylinder")?.iter().copied(),
+            )
+        })
         .map_err(|error| invalid(error.message()))?;
     Ok(TransientGeometryBoundary2d {
         boundary,
@@ -397,7 +404,16 @@ pub(crate) fn advance_resolved_transient_navier_stokes_geometry_mini_2d(
     numerical
         .states()
         .iter()
-        .map(|state| reconstruct_state(state, mesh_data, common, scales))
+        .enumerate()
+        .map(|(index, state)| {
+            reconstruct_state(
+                state,
+                mesh_data,
+                common,
+                scales,
+                index.checked_sub(1).map(|step| &numerical.steps()[step]),
+            )
+        })
         .collect()
 }
 

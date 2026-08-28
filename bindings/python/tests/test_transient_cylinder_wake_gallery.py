@@ -37,6 +37,9 @@ PRESENTATION_CALLS = {
     "eqiora.InitialField": 2,
     "result.trajectory.state": 1,
     "accepted.curl": 1,
+    "geometry.selection": 1,
+    "accepted.boundary_force": 1,
+    "accepted.sample": 2,
     "vorticity.values": 1,
     "eqplot.plot_scalar_field": 1,
 }
@@ -140,6 +143,8 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
             "State.initial(",
             "result = eqiora.run(",
             ".curl(",
+            ".boundary_force(",
+            ".sample(",
             "plot_scalar_field(",
         )
         for source in (self.notebook_source, self.marimo_source):
