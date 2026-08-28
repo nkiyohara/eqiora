@@ -1,0 +1,216 @@
+---
+title: Transient cylinder-flow startup
+description: An explicitly unverified ten-step startup walkthrough through the ordinary Eqiora lifecycle.
+---
+
+import { Aside, LinkButton } from '@astrojs/starlight/components';
+import NotebookStage from '../../../components/gallery/NotebookStage.astro';
+import ClaimBoundary from '../../../components/gallery/ClaimBoundary.astro';
+import ResultFigure from '../../../components/gallery/ResultFigure.astro';
+import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
+import poster from '../../../assets/gallery/transient-cylinder-startup-poster.png';
+import reducedMotion from '../../../assets/gallery/transient-cylinder-startup-reduced-motion.png';
+import startupWebm from '../../../assets/gallery/transient-cylinder-startup.webm';
+import startupMp4 from '../../../assets/gallery/transient-cylinder-startup.mp4';
+
+export const colabRelease = /^0\.1\.0a([0-9]+)$/u.exec(process.env.EQIORA_SITE_PYTHON_VERSION ?? '');
+export const colabMinimumSerial = 4;
+export const colabMinimumRelease = `0.1.0a${colabMinimumSerial}`;
+export const colabReady = colabRelease !== null && Number(colabRelease[1]) >= colabMinimumSerial;
+export const colabUrl = `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${process.env.EQIORA_SITE_SOURCE_SHA}/examples/python/transient_cylinder_wake_jupyter.ipynb`;
+
+**Unverified product example · Python, Marimo, and Jupyter**
+
+[Gallery](/gallery/)
+
+This walkthrough executes ten accepted startup steps through the ordinary
+installed-Python lifecycle. It is deliberately not presented as a developed
+vortex street or a validated cylinder benchmark.
+
+<NotebookStage id="startup-problem" step={1} title="One Geometry owner" emoji="🧭">
+
+Python authors the exact $2.2\,\mathrm{m}\times0.41\,\mathrm{m}$ channel and
+subtracts one exact circle. The resulting `Geometry` owns the `fluid`, `inlet`,
+`outlet`, `walls`, and `cylinder` selections used by meshing, compilation, and
+the Result observables.
+
+```python
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+circle = graph.circle(center=(0.2, 0.2), radius=0.05)
+fluid = graph.subtract(rectangle, circle)
+geometry = graph.build(fluid, named_topology={...})
+```
+
+<ExactSourceLink path="examples/python/transient_cylinder_wake.py" kind="blob">View the complete plain-Python workflow</ExactSourceLink>
+
+</NotebookStage>
+
+<NotebookStage id="startup-model" step={2} title="Eqiora model definition" emoji="🧩">
+
+The equations-only `.eqi` source owns transient incompressible Navier–Stokes
+meaning and abstract support names. It does not carry a second concrete shape.
+With velocity $\boldsymbol{u}$, density $\rho$, stress
+$\boldsymbol{\sigma}$, and force potential $\phi$, the momentum and
+incompressibility relations are
+
+$$
+\rho\,\partial_t\boldsymbol{u}
++ \rho\,\nabla\!\cdot(\boldsymbol{u}\otimes\boldsymbol{u})
+- \nabla\!\cdot\boldsymbol{\sigma}
+- \nabla\phi = 0,
+\qquad
+\nabla\!\cdot\boldsymbol{u}=0.
+$$
+
+<ExactSourceLink path="examples/transient-flow-past-cylinder.eqi" kind="blob">Open the Eqiora source</ExactSourceLink>
+
+</NotebookStage>
+
+<NotebookStage id="startup-mesh" step={3} title="Planning, then mesh generation" emoji="🔷">
+
+The typed Gmsh request makes the global characteristic-size target explicit.
+`resolve` only plans; `generate` executes Gmsh and publishes the accepted common
+Mesh with correspondence and production lineage.
+
+```python
+request = eqiora.meshing.GmshMesher(
+    maximum_boundary_error=1e-4,
+    maximum_target_size=0.05,
+    minimum_mean_ratio=1e-5,
+    maximum_boundary_facets=50,
+)
+mesh_plan = eqiora.meshing.resolve(geometry, request)
+mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+```
+
+<Aside type="caution" title="A meshing choice, not convergence">
+
+`0.05 m` is a Gmsh characteristic target. It is not a guarantee on every
+realized edge and does not establish mesh or PDE convergence.
+
+</Aside>
+
+</NotebookStage>
+
+<NotebookStage id="startup-run" step={4} title="Typed Plan, State, and Run" emoji="▶">
+
+A steady MINI/P1 Result supplies a compatible nonzero initial State. The root
+resolver then combines the transient Model with typed spatial, Backward-Euler,
+Newton, linear, and scaling policies. One common call publishes all ten accepted
+startup outputs at $\Delta t=0.01\,\mathrm{s}$.
+
+```python
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=eqiora.fem.MiniP1(),
+    temporal=eqiora.time.BackwardEuler(0.01),
+    solve=eqiora.solve.Newton(linear=linear),
+    scaling=eqiora.fluid.IncompressibleScaling(...),
+)
+result = eqiora.run(
+    plan,
+    state=state,
+    steps=10,
+    output_steps=tuple(range(1, 11)),
+)
+```
+
+<ExactSourceLink path="examples/python/transient_cylinder_wake_marimo.py" kind="blob">Open the Marimo app</ExactSourceLink>
+· <ExactSourceLink path="examples/python/transient_cylinder_wake_jupyter.ipynb" kind="blob">Open the Jupyter notebook</ExactSourceLink>
+
+{colabReady && (
+  <LinkButton href={colabUrl} variant="primary">Open in Colab</LinkButton>
+)}
+
+The Colab entry is published beginning with the <code>{colabMinimumRelease}</code>
+documentation build. It opens this exact GitHub notebook in the user's ephemeral
+runtime and does not
+depend on maintainer-owned Drive state.
+
+</NotebookStage>
+
+<NotebookStage id="startup-observables" step={5} title="Typed Result observables" emoji="📐">
+
+The final accepted State derives cell-average vorticity, the signed intrinsic-2D
+cylinder action pair, and two continuous-P1 pressure samples. Each value remains
+bound to its exact State, Field, Mesh, selection or physical point, unit, and
+digest. The page reports no benchmark normalization or target value.
+
+```python
+accepted = result.trajectory.state(10)
+vorticity = accepted.curl(plan.velocity_field)
+cylinder_force = accepted.boundary_force(geometry.selection("cylinder"))
+front_pressure = accepted.sample(plan.pressure_field, at=(0.15, 0.2))
+rear_pressure = accepted.sample(plan.pressure_field, at=(0.25, 0.2))
+```
+
+<ResultFigure
+  src={poster.src}
+  alt="Cell-average vorticity in inverse seconds after ten accepted startup steps around a circular obstacle in a channel. Red and blue layers remain concentrated around the cylinder; no developed alternating wake is shown."
+  caption="Final accepted startup output at t = 0.1 s. Presentation only; the visible field is not a benchmark or validation result."
+  units="s⁻¹"
+  sourcePath="tools/site/produce_transient_cylinder_startup_media.py"
+  sourceLabel="View the caller-owned media producer"
+/>
+
+</NotebookStage>
+
+<NotebookStage id="startup-media" step={6} title="Accessible media and product boundary" emoji="🎞️">
+
+<figure class="eq-gallery-motion">
+  <video
+    class="eq-gallery-motion__video"
+    controls
+    preload="metadata"
+    poster={poster.src}
+    aria-describedby="startup-motion-description"
+  >
+    <source src={startupWebm} type="video/webm" />
+    <source src={startupMp4} type="video/mp4" />
+    Your browser cannot play this video. The first/final comparison and text description follow.
+  </video>
+  <img
+    class="eq-gallery-motion__still"
+    src={reducedMotion.src}
+    alt="Side-by-side cell-average vorticity fields at startup steps 1 and 10, using the same inverse-seconds color scale. The near-cylinder layers strengthen slightly while the downstream field remains nearly symmetric."
+  />
+  <figcaption>
+    Ten actual accepted outputs, played at four frames per second. Motion is
+    disabled when the browser requests reduced motion; the first/final still is
+    shown instead. Presentation only, not evidence.
+  </figcaption>
+</figure>
+
+<div id="startup-motion-description">
+
+  From 0.01 to 0.1 seconds, the red positive-vorticity layer below the cylinder
+  and blue negative-vorticity layer above it intensify and extend slightly
+  downstream. The sequence stays largely symmetric and attached. It does not
+  show, and must not be read as, periodic shedding or a developed vortex street.
+
+</div>
+
+<ClaimBoundary
+  title="Explicitly unverified product boundary"
+  supported={[
+    'One installed-Python channel-minus-circle composition reaches a ten-output transient Result through exact Geometry, typed meshing and numerical policies, root resolution, State, and Run.',
+    'Plain Python, Marimo, and Jupyter use the same public computational call order and final accepted State.',
+    'Caller-owned poster, video, reduced-motion still, and text describe vorticity from one coherent product lineage.',
+    'Cylinder force and pressure probes are typed Result observables; no displayed number is promoted to evidence.',
+  ]}
+  notClaimed={[
+    'No DFG2D-1 or DFG2D-2 benchmark acceptance.',
+    'No developed or periodic wake, vortex shedding, phase, or Strouhal number.',
+    'No accepted drag, lift, pressure-difference, balance, or separation value.',
+    'No mesh/time convergence, performance, or production-scale claim.',
+    'No 3D, turbulent, curved-element, boundary-layer, local, or adaptive meshing.',
+    'No scientific inference from pixels or visual plausibility.',
+  ]}
+/>
+
+The future scientific-promotion work remains separate. This product page does
+not modify or substitute for registered evidence.
+
+</NotebookStage>

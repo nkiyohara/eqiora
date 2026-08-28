@@ -529,6 +529,49 @@
 }
 
 /* ---------------------------------------------------------------------------
+ * Gallery motion: semantic video with a first/final reduced-motion alternative
+ * ------------------------------------------------------------------------- */
+
+.eq-gallery-motion {
+  margin: 0;
+  padding: var(--eq-space-4);
+  border: 1px solid var(--eq-color-border);
+  border-radius: var(--eq-radius-card);
+  background-color: var(--eq-color-surface);
+  box-shadow: var(--sl-shadow-sm);
+}
+
+.eq-gallery-motion__video,
+.eq-gallery-motion__still {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
+
+.eq-gallery-motion__still {
+  display: none;
+}
+
+.eq-gallery-motion > figcaption {
+  margin-top: var(--eq-space-4);
+  padding-top: var(--eq-space-4);
+  border-top: 1px solid var(--eq-color-border);
+  color: var(--eq-color-text-muted);
+  font-size: var(--eq-text-small);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eq-gallery-motion__video {
+    display: none;
+  }
+
+  .eq-gallery-motion__still {
+    display: block;
+  }
+}
+
+/* ---------------------------------------------------------------------------
  * ClaimBoundary: supported vs not claimed, labelled in text, not status
  * ------------------------------------------------------------------------- */
 

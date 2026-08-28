@@ -1,28 +1,35 @@
 # Laminar cylinder-wake experience
 
 Implement and publish this first as an **Unverified product example**. Promote it only after its
-claim-local candidate, independent oracle, falsifiers, and acceptance requirements pass under
-RFC 0089; evidence work must not block the earlier product path.
+claim-local candidate, independent oracle, falsifiers, and acceptance requirements pass after
+the current evidence freeze is explicitly lifted for that scientific scope; evidence work must
+not block the earlier product path.
 
-Status: the unverified product path now executes one nonzero accepted step and
-is available as matching plain-Python, Marimo, and Jupyter sources. It does not
-advance the scientific `fluid.flow-past-cylinder` claim.
+Status: the unverified product path now executes ten nonzero accepted startup
+steps and is available as matching plain-Python, Marimo, and Jupyter sources,
+plus an accessible static-site walkthrough. It does not advance the scientific
+`fluid.flow-past-cylinder` claim.
 
 ## Current unverified product boundary
 
 The checked-in sources compose one Python-authored channel-minus-circle
 Geometry, Gmsh common Mesh, packaged steady and transient `.eqi` Components,
-typed numerical policies, a steady nonzero bootstrap, one transient accepted
-State, typed cell-average vorticity, two continuous-P1 pressure samples, the
+typed numerical policies, a steady nonzero bootstrap, ten transient accepted
+States through 0.1 s, typed cell-average vorticity, two continuous-P1 pressure samples, the
 signed intrinsic-2D cylinder force action pair, and a caller-owned Figure. They
 retain Geometry, GeometrySelection, Mesh, Model, Plan, Trajectory, State,
 Field, point, unit, support, and operator lineage and label the result as
-unverified. Boundary force reports both the action on the fluid domain and the
+unverified. Caller-owned presentation includes a poster, ten-frame WebM/MP4,
+first/final reduced-motion still, and a complete visible text alternative from
+the same product Result. The `0.1.0a4` site identity also enables a GitHub-backed
+Open in Colab entry whose clean ephemeral runtime installs the pinned release
+without maintainer-owned Drive state. Boundary force reports both the action on the fluid domain and the
 equal-and-opposite action on the cylinder, explicitly in N/m.
 
-This is not yet a developed wake: it has no multi-step periodic trajectory,
-force/probe time series, animation, benchmark normalization or coefficient,
-benchmark value, tolerance, convergence result, or scientific acceptance.
+This is not a developed wake: its short multi-step startup is largely symmetric
+and attached. It has no periodic trajectory, force/probe time series, benchmark
+normalization or coefficient, benchmark value, tolerance, convergence result,
+or scientific acceptance. The animation is presentation, not evidence.
 
 ## Target experience and future public claim
 

@@ -1,4 +1,4 @@
-"""Run and optionally plot one bounded, unverified transient cylinder wake step."""
+"""Run and optionally plot a bounded, unverified transient cylinder startup."""
 
 import argparse
 from importlib.resources import files
@@ -74,7 +74,7 @@ def solve() -> tuple[
         model,
         mesh=mesh,
         spatial=eqiora.fem.MiniP1(),
-        temporal=eqiora.time.BackwardEuler(0.0001),
+        temporal=eqiora.time.BackwardEuler(0.01),
         solve=eqiora.solve.Newton(linear=linear),
         scaling=eqiora.fluid.IncompressibleScaling(
             length_m=0.41,
@@ -103,8 +103,8 @@ def solve() -> tuple[
             ),
         ),
     )
-    result = eqiora.run(plan, state=state, steps=1, output_steps=(1,))
-    accepted = result.trajectory.state(1)
+    result = eqiora.run(plan, state=state, steps=10, output_steps=tuple(range(1, 11)))
+    accepted = result.trajectory.state(10)
     vorticity = accepted.curl(plan.velocity_field)
     cylinder_force = accepted.boundary_force(geometry.selection("cylinder"))
     front_pressure = accepted.sample(plan.pressure_field, at=(0.15, 0.2))
@@ -122,7 +122,7 @@ def main() -> None:
     arguments = parser.parse_args()
 
     plan, result, vorticity, cylinder_force, front_pressure, rear_pressure = solve()
-    accepted = result.trajectory.state(1)
+    accepted = result.trajectory.state(10)
     values = vorticity.values("cell")
     print("UNVERIFIED PRODUCT EXAMPLE — no benchmark acceptance is claimed")
     print("plan", plan.identity)
@@ -137,7 +137,7 @@ def main() -> None:
 
         figure = eqplot.plot_scalar_field(
             result.trajectory,
-            step=1,
+            step=10,
             field=vorticity,
         )
         figure.savefig(arguments.vorticity_png, dpi=180)

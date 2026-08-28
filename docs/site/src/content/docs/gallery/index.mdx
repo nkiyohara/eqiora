@@ -8,6 +8,7 @@ import pressureImage from '../../../assets/gallery/exact-cylinder-pressure.png';
 import publication from '../../../data/gallery/exact-cylinder-steady-stokes.publication.json';
 import displacementImage from '../../../assets/gallery/mixed-boundary-elasticity-displacement.png';
 import elasticityPublication from '../../../data/gallery/mixed-boundary-elasticity.publication.json';
+import startupPoster from '../../../assets/gallery/transient-cylinder-startup-poster.png';
 
 Explore bounded demonstrations from model definition to a linked result. Gallery
 media helps explain a run; it does not replace the registered evidence behind the
@@ -16,13 +17,21 @@ claim.
 <GalleryGrid
   cards={[
     {
+      href: '/gallery/transient-cylinder-startup/',
+      title: 'Transient cylinder-flow startup',
+      description: 'Ten accepted startup outputs through the ordinary lifecycle, with typed vorticity, force, pressure probes, and accessible caller-owned media. Explicitly unverified.',
+      imageSrc: startupPoster.src,
+      imageAlt: 'Cell-average vorticity after ten accepted transient cylinder-flow startup steps; presentation only, with no developed wake or benchmark claim.',
+      tags: ['Python', '2D', 'transient', 'unverified'],
+      featured: true,
+    },
+    {
       href: '/gallery/exact-cylinder-steady-stokes/',
       title: 'Exact-cylinder steady Stokes',
       description: 'A static, source-traced walkthrough of one frozen 2D steady incompressible Stokes demonstration.',
       imageSrc: pressureImage.src,
       imageAlt: publication.publication_payload.text.alt,
       tags: ['Python', '2D', 'steady Stokes'],
-      featured: true,
     },
     {
       href: '/gallery/mixed-boundary-elasticity/',
