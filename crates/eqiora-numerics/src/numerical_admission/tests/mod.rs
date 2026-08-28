@@ -80,7 +80,7 @@ public component MixedBoundaryElasticity {
 }
 "#;
 const TRANSIENT_SOURCE: &str = include_str!(
-    "../../../../../verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi"
+    "../../../../../verify/fluid/cell-centered-navier-stokes-fvm-2d/models/direct.eqi"
 );
 const FSI_COMPONENT: &str = include_str!("../../../../../examples/fixed-reference-fsi.eqi");
 

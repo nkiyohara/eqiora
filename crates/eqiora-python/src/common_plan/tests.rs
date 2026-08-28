@@ -72,9 +72,8 @@ public component MixedBoundaryElasticity {
   }
 }
 "#;
-const TRANSIENT_SOURCE: &str = include_str!(
-    "../../../../verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi"
-);
+const TRANSIENT_SOURCE: &str =
+    include_str!("../../../../verify/fluid/cell-centered-navier-stokes-fvm-2d/models/direct.eqi");
 
 type SupportBinding<'a> = (
     &'a str,
