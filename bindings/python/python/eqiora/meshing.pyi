@@ -63,7 +63,7 @@ class GmshMesher:
 
 @final
 class MeshPlan:
-    """Complete provider choice bound to one exact geometry.
+    """Complete provider plan bound to one exact geometry.
 
     Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyMeshPlan``.
     """
@@ -73,13 +73,7 @@ class MeshPlan:
     @property
     def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher: ...
     @property
-    def production_lineage_bytes(self) -> bytes: ...
-    @property
-    def production_lineage_digest(self) -> str: ...
-    @property
     def boundary_facets(self) -> int: ...
-    @property
-    def achieved_minimum_mean_ratio(self) -> float: ...
     def __repr__(self) -> str: ...
 
 @final
@@ -133,7 +127,7 @@ def resolve(
     ...
 
 def generate(geometry: Geometry, /, *, plan: MeshPlan) -> Mesh:
-    """Publish the accepted mesh owned by a resolved plan.
+    """Execute a resolved provider plan and publish its accepted mesh.
 
     Authority: ``crates/eqiora-python/src/meshing/mesh.rs::generate``.
     """

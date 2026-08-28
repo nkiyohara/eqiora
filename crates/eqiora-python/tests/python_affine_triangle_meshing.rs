@@ -36,7 +36,7 @@ source = rectangle()
 plan = eqiora.meshing.resolve(source, request)
 assert plan.provider == provider
 assert plan.boundary_facets == 10
-assert plan.achieved_minimum_mean_ratio > 0.0
+assert not hasattr(plan, "achieved_minimum_mean_ratio")
 
 mesh = eqiora.meshing.generate(source, plan=plan)
 assert mesh.dimension == 2
@@ -61,7 +61,6 @@ assert mesh.selection_entity_count("left") == 3
 assert mesh.selection_entity_count("right") == 3
 assert mesh.selection_entity_count("bottom") == 2
 assert mesh.selection_entity_count("top") == 2
-assert mesh.production_lineage_bytes == plan.production_lineage_bytes
 lineage = json.loads(mesh.production_lineage_bytes)
 assert lineage["provider"] == {
     "identity": "eqiora.affine-triangle-rectangle", "version": "1"

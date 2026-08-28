@@ -181,8 +181,9 @@ canonical graph. The graph and its exact planar section have distinct
 identities. The section reproduces the accepted exact planar value
 byte-for-byte; depth and CAD tolerances cannot leak into its independently
 classified 2D meaning. This is not a generic Sketch, section, or Python Boolean
-implementation. Its matching meshing operation invokes exact Gmsh 4.15.2,
-then admits the MSH 4.1 linear triangles through Rust-owned quality and
+implementation. Its matching `resolve` call derives a complete immutable plan
+without invoking the provider. `generate` invokes exact Gmsh 4.15.2 for that
+call, then admits the MSH 4.1 linear triangles through Rust-owned quality and
 source-correspondence checks. Missing, wrong-version, failed, or invalid Gmsh
 output rejects without falling back to the retired spoke reference mesh.
 The returned value retains exact source and correspondence identity within the

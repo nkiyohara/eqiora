@@ -35,18 +35,21 @@ static SCRATCH_NONCE: AtomicU64 = AtomicU64::new(0);
 
 pub(super) struct GeneratedGmshMesh {
     pub(super) provider_output: Vec<u8>,
-    sizing: GmshSizingReceipt,
-    pub(super) minimum_mean_ratio: f64,
     pub(super) mesh: SimplicialMeshEnvelopeV1,
     pub(super) correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    pub(super) edge_facets: [Vec<usize>; 5],
 }
 
 pub(super) fn generate(
     source: &CanonicalGeometryV1,
     policy: PlanarMeshQualityV1,
+    sizing: GmshSizingReceipt,
     quality_gate: MeshQualityGate,
 ) -> Result<GeneratedGmshMesh, Diagnostic> {
+    if sizing_receipt(source, policy)? != sizing {
+        return Err(invalid_import(
+            "Gmsh MeshPlan sizing differs from the exact Geometry and provider policy",
+        ));
+    }
     let executable = gmsh_executable()?;
     let scratch = ScratchDirectory::create()?;
     require_version(&executable, scratch.path())?;
@@ -54,8 +57,8 @@ pub(super) fn generate(
     let geometry_path = scratch.path().join("mesh.geo");
     let mesh_path = scratch.path().join("mesh.msh");
     let stderr_path = scratch.path().join("generation.stderr");
-    let generated_geometry = geometry_script(source, policy)?;
-    fs::write(&geometry_path, generated_geometry.script).map_err(|error| {
+    let geometry_script = geometry_script(source, sizing)?;
+    fs::write(&geometry_path, geometry_script).map_err(|error| {
         invalid_import(format!("cannot write the Gmsh geometry input: {error}"))
     })?;
 
@@ -86,12 +89,11 @@ pub(super) fn generate(
         "Gmsh input exceeds the configured byte limit",
         "Gmsh mesh output",
     )?;
-    derive_generated(source, generated_geometry.sizing, quality_gate, bytes)
+    derive_generated(source, quality_gate, bytes)
 }
 
 fn derive_generated(
     source: &CanonicalGeometryV1,
-    sizing: GmshSizingReceipt,
     quality_gate: MeshQualityGate,
     provider_output: Vec<u8>,
 ) -> Result<GeneratedGmshMesh, Diagnostic> {
@@ -123,11 +125,8 @@ fn derive_generated(
         )?;
     Ok(GeneratedGmshMesh {
         provider_output,
-        sizing,
-        minimum_mean_ratio: quality_gate.minimum_mean_ratio(),
         mesh,
         correspondence,
-        edge_facets,
     })
 }
 
@@ -246,17 +245,25 @@ fn process_failure(label: &str, status: ExitStatus, stderr_path: &Path) -> Strin
     }
 }
 
-struct GeneratedGeometry {
-    script: String,
-    sizing: GmshSizingReceipt,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct GmshSizingReceipt {
+pub(super) struct GmshSizingReceipt {
     circle_segments: usize,
     straight_segments: [usize; 4],
     minimum_size_m: f64,
     maximum_size_m: f64,
+}
+
+impl GmshSizingReceipt {
+    pub(super) const fn circle_segments(self) -> usize {
+        self.circle_segments
+    }
+}
+
+pub(super) fn plan(
+    source: &CanonicalGeometryV1,
+    policy: PlanarMeshQualityV1,
+) -> Result<GmshSizingReceipt, Diagnostic> {
+    sizing_receipt(source, policy)
 }
 
 fn sizing_receipt(
@@ -339,8 +346,8 @@ fn sagitta_m(radius_m: f64, segments: usize) -> f64 {
 
 fn geometry_script(
     source: &CanonicalGeometryV1,
-    policy: PlanarMeshQualityV1,
-) -> Result<GeneratedGeometry, Diagnostic> {
+    sizing: GmshSizingReceipt,
+) -> Result<String, Diagnostic> {
     let bounds = source
         .circular_hole_bounds()
         .ok_or_else(|| invalid_import("GmshMesher requires planar circular-hole Geometry v2"))?;
@@ -394,7 +401,6 @@ fn geometry_script(
     )
     .expect("writing to String cannot fail");
 
-    let sizing = sizing_receipt(source, policy)?;
     writeln!(script, "Mesh.MeshSizeMin = {:?};", sizing.minimum_size_m)
         .expect("writing to String cannot fail");
     writeln!(script, "Mesh.MeshSizeMax = {:?};", sizing.maximum_size_m)
@@ -415,38 +421,7 @@ fn geometry_script(
         .expect("writing to String cannot fail");
     }
 
-    Ok(GeneratedGeometry { script, sizing })
-}
-
-pub(super) fn revalidate_generated(
-    source: &CanonicalGeometryV1,
-    generated: &GeneratedGmshMesh,
-    policy: PlanarMeshQualityV1,
-) -> Result<(), Diagnostic> {
-    let quality_gate = MeshQualityGate::new(policy.minimum_mean_ratio())?;
-    let sizing = sizing_receipt(source, policy)?;
-    if sizing != generated.sizing
-        || generated.minimum_mean_ratio.to_bits() != policy.minimum_mean_ratio().to_bits()
-    {
-        return Err(invalid_import(
-            "retained Gmsh generation inputs differ from exact policy replay",
-        ));
-    }
-    let replayed = derive_generated(
-        source,
-        sizing,
-        quality_gate,
-        generated.provider_output.clone(),
-    )?;
-    if replayed.mesh != generated.mesh
-        || replayed.correspondence != generated.correspondence
-        || replayed.edge_facets != generated.edge_facets
-    {
-        return Err(invalid_import(
-            "retained Gmsh provider output differs from deterministic resource replay",
-        ));
-    }
-    Ok(())
+    Ok(script)
 }
 
 fn run_with_timeout(mut command: Command, timeout: Duration) -> Result<ExitStatus, Diagnostic> {
