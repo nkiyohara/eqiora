@@ -26,6 +26,49 @@ A relation receives an explicit zero-valued residual. Symbolic equality and
 Python truth testing are not modeling syntax. Declarations and expressions
 are frozen; validation and artifact creation happen atomically in Rust.
 
+## Author Eqiora Language source
+
+`eqiora.lang.Source` is the equations-language route when a workflow should be
+fully Python-authored without creating a second equation semantics:
+
+```python
+import eqiora
+from eqiora import lang as q
+from eqiora.lang import units as u
+
+source = q.Source()
+component = source.component("Diffusion", public=True)
+body = component.volume("body", dimensions=2, public=True)
+value = component.field("value", on=body, unit=u.m)
+component.relation("balance", on=body, residual=q.div(q.grad(value)))
+
+text = source.to_eqi()
+model = eqiora.compile(source=source, geometry=geometry, parameters={})
+```
+
+The Source draft owns exact supports and expressions, rejects foreign handles
+and resource-limit violations, and freezes on its first emission or compile.
+It emits ordinary readable UTF-8 `.eqi`; `doc=` values become `//` comments.
+`write_eqi(path)` uses same-directory staging and atomic replacement, so an I/O
+failure does not publish a partly written source file.
+
+Source values do not type-check or lower equations in Python. Direct compile
+materializes `source.to_eqi()` and enters the same Rust parser, type checker,
+lowerer, Geometry/support binder, and compiler used by a file path. Consequently,
+direct and emitted-file compilation with identical bindings have the same Model
+meaning and identity, while comments affect source presentation but not semantic
+identity. Compiler failures retain the existing structured diagnostics.
+
+The complete current vocabulary and steady-cylinder Component are shown in
+[`examples/python/steady_cylinder_source.py`](../../examples/python/steady_cylinder_source.py).
+This first slice has one public Component, public volume/parent-boundary supports
+and parameters, scalar or spatial-vector continuum fields, continuous residual
+Relations, structural SI units, constants, coordinates, arithmetic, powers,
+gradient, divergence, trace, normal contraction, symmetric part, and isotropic
+lift. It is not arbitrary Python-to-Eqiora translation, a Python weak-form
+runtime, Geometry/mesh/Plan authoring, package authoring, or a stable Python AST
+schema.
+
 ## Compile one exact locked Model Package
 
 Python can project an existing content-addressed Model Package into the same

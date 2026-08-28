@@ -27,6 +27,7 @@ from . import fem as fem
 from . import fsi as fsi
 from . import fvm as fvm
 from . import geometry as geometry
+from . import lang as lang
 from . import meshing as meshing
 from . import solid as solid
 from . import solve as solve
@@ -1152,7 +1153,7 @@ def across(port: ConservingPort) -> Expression:
 def compile(
     *,
     path: str | PathLike[str] | None = None,
-    source: str | None = None,
+    source: str | lang.Source | None = None,
     filename: str | None = None,
     geometry: geometry.Geometry | None = None,
     parameters: dict[str, float | int] | None = None,
@@ -1160,7 +1161,7 @@ def compile(
 ) -> Model:
     """Compile one source and its optional exact Geometry closure.
 
-    Authority: ``crates/eqiora-python/src/lib.rs::compile``.
+    Authority: ``bindings/python/python/eqiora/__init__.py::compile``.
     """
 
     ...
@@ -1375,6 +1376,7 @@ __all__ = [
     "fsi",
     "fvm",
     "geometry",
+    "lang",
     "meshing",
     "solid",
     "solve",

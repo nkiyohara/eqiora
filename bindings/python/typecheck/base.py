@@ -13,6 +13,16 @@ from eqiora.solid import LinearElasticityEvidence
 from eqiora.trajectory import FieldSnapshot, Trajectory, State
 
 
+def check_language_source() -> None:
+    source = eqiora.lang.Source()
+    component = source.component("Poisson")
+    volume = component.volume("volume", dimensions=2)
+    value = component.field("value", on=volume, unit=eqiora.lang.units.m)
+    component.relation("balance", on=volume, residual=eqiora.lang.div(value))
+    assert_type(source.to_eqi(), str)
+    assert_type(eqiora.compile(source=source), eqiora.Model)
+
+
 def check_native_modeling() -> None:
     length = eqiora.Dimension(length=1)
     domain = eqiora.Domain.box("rod", (0.0, 1.0))

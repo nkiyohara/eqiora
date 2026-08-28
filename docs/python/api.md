@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 15 module summaries and all 120 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 505 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 16 module summaries and all 134 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 513 signature-only entries under documented owning types**.
 
-Inventory: 15 modules, 144 literal public spellings, 120 canonical grouped declarations, 675 visible method signatures (505 non-dunder and 170 dunder), and 65 visible class assignments.
+Inventory: 16 modules, 159 literal public spellings, 134 canonical grouped declarations, 694 visible method signatures (513 non-dunder and 181 dunder), and 65 visible class assignments.
 
 Regenerate with:
 
@@ -1299,10 +1299,10 @@ def check_package_conformance(store_root: str | os.PathLike[str], resolution_byt
 
 Compile one source and its optional exact Geometry closure.
 
-Authority: [`crates/eqiora-python/src/lib.rs::compile`](../../crates/eqiora-python/src/lib.rs)
+Authority: [`bindings/python/python/eqiora/__init__.py::compile`](../../bindings/python/python/eqiora/__init__.py)
 
 ```python
-def compile(*, path: str | PathLike[str] | None=None, source: str | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, parameters: dict[str, float | int] | None=None, component: str | None=None) -> Model: ...
+def compile(*, path: str | PathLike[str] | None=None, source: str | lang.Source | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, parameters: dict[str, float | int] | None=None, component: str | None=None) -> Model: ...
 ```
 
 <a id="api-eqiora-compile_package"></a>
@@ -1501,6 +1501,16 @@ Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyCellCenteredTpfa`
 Bounded exact geometry values owned by the native implementation.
 
 Authority: [`bindings/python/python/eqiora/geometry.py`](../../bindings/python/python/eqiora/geometry.py)
+
+<a id="api-eqiora-lang"></a>
+
+### `eqiora.lang`
+
+**Module export.** Continue to [`eqiora.lang`](#module-eqiora-lang).
+
+Bounded Python authoring for deterministic Eqiora Language source.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 <a id="api-eqiora-meshing"></a>
 
@@ -1845,6 +1855,210 @@ class GeometrySelection:
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
+```
+
+<a id="module-eqiora-lang"></a>
+
+## `eqiora.lang`
+
+Bounded Python authoring for deterministic Eqiora Language source.
+
+Module authority: [`bindings/python/python/eqiora/lang/__init__.py`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+Shipped stub: [`bindings/python/python/eqiora/lang/__init__.pyi`](../../bindings/python/python/eqiora/lang/__init__.pyi)
+
+<a id="api-eqiora-lang-Component"></a>
+
+### `eqiora.lang.Component`
+
+Author declarations in one bounded public equations-only Component.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::Component`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class Component:
+    def volume(self, name: str, *, dimensions: int, public: bool=True, doc: str | None=None) -> Support: ...
+    def boundary(self, name: str, *, parent: Support, public: bool=True, doc: str | None=None) -> Support: ...
+    def parameter(self, name: str, *, unit: _Unit, public: bool=True, doc: str | None=None) -> Expression: ...
+    def field(self, name: str, *, on: Support, unit: _Unit, shape: _Shape | None=None, initial: int | float | None=None, doc: str | None=None) -> Expression: ...
+    def relation(self, name: str, *, on: Support, residual: Expression | int | float, doc: str | None=None) -> None: ...
+```
+
+<a id="api-eqiora-lang-Expression"></a>
+
+### `eqiora.lang.Expression`
+
+Compose a closed expression without overloading equality as an equation.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::Expression`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class Expression:
+    def __add__(self, other: Expression | float | int, /) -> Expression: ...
+    def __radd__(self, other: float | int, /) -> Expression: ...
+    def __sub__(self, other: Expression | float | int, /) -> Expression: ...
+    def __rsub__(self, other: float | int, /) -> Expression: ...
+    def __mul__(self, other: Expression | float | int, /) -> Expression: ...
+    def __rmul__(self, other: float | int, /) -> Expression: ...
+    def __truediv__(self, other: Expression | float | int, /) -> Expression: ...
+    def __rtruediv__(self, other: float | int, /) -> Expression: ...
+    def __pow__(self, exponent: int, /) -> Expression: ...
+    def __neg__(self) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-Source"></a>
+
+### `eqiora.lang.Source`
+
+Own one Component draft and freeze it on deterministic emission.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::Source`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class Source:
+    def __init__(self) -> None: ...
+    def component(self, name: str, *, public: bool=True, doc: str | None=None) -> Component: ...
+    def to_eqi(self) -> str: ...
+    def write_eqi(self, path: str | PathLike[str]) -> None: ...
+```
+
+<a id="api-eqiora-lang-SourceError"></a>
+
+### `eqiora.lang.SourceError`
+
+Reject a structurally invalid bounded Source draft.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::SourceError`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class SourceError(ValueError):
+    ...
+```
+
+<a id="api-eqiora-lang-Support"></a>
+
+### `eqiora.lang.Support`
+
+Identify one volume or parent-boundary declaration in its exact Source.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::Support`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class Support:
+    ...
+```
+
+<a id="api-eqiora-lang-coordinate"></a>
+
+### `eqiora.lang.coordinate`
+
+Return one indexed spatial-coordinate expression.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::coordinate`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def coordinate(axis: int) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-div"></a>
+
+### `eqiora.lang.div`
+
+Return the language divergence of one expression.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::div`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def div(value: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-grad"></a>
+
+### `eqiora.lang.grad`
+
+Return the language gradient of one expression.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::grad`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def grad(value: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-isotropic_lift"></a>
+
+### `eqiora.lang.isotropic_lift`
+
+Return the language isotropic tensor lift of one expression.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::isotropic_lift`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def isotropic_lift(value: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-normal"></a>
+
+### `eqiora.lang.normal`
+
+Return the language outward-normal contraction of one expression.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::normal`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def normal(value: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-spatial_vector"></a>
+
+### `eqiora.lang.spatial_vector`
+
+The current ambient-dimension-sized continuum vector shape.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::spatial_vector`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+spatial_vector: _Shape
+```
+
+<a id="api-eqiora-lang-symmetric_part"></a>
+
+### `eqiora.lang.symmetric_part`
+
+Return the language symmetric part of one expression.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::symmetric_part`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def symmetric_part(value: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-trace"></a>
+
+### `eqiora.lang.trace`
+
+Return the language boundary trace of one expression.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::trace`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def trace(value: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-units"></a>
+
+### `eqiora.lang.units`
+
+Structural SI-unit expressions used by Source declarations.
+
+Authority: [`bindings/python/python/eqiora/lang/units.py`](../../bindings/python/python/eqiora/lang/units.py)
+
+```python
+units: _Units
 ```
 
 <a id="module-eqiora-meshing"></a>
