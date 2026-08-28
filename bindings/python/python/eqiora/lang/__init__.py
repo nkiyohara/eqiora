@@ -18,6 +18,7 @@ from .units import Unit
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _MAX_DECLARATIONS = 256
+_MAX_IDENTIFIER_BYTES = 1_024
 _MAX_EXPRESSION_DEPTH = 64
 _MAX_EXPRESSION_NODES = 4096
 _MAX_DOC_BYTES = 16_384
@@ -150,7 +151,12 @@ def _number(value: object) -> str:
         raise TypeError("numeric literals must be finite int or float values, not bool")
     if isinstance(value, float) and not math.isfinite(value):
         raise SourceError("numeric literals must be finite")
-    return repr(value)
+    if isinstance(value, int) and value.bit_length() > 1_024:
+        raise SourceError("integer literal exceeds the 1024-bit authoring limit")
+    text = repr(value)
+    if len(text) > 1_024:
+        raise SourceError("numeric literal exceeds the 1024-byte authoring limit")
+    return text
 
 
 def _expression(value: object) -> Expression:
@@ -227,7 +233,7 @@ def isotropic_lift(value: object) -> Expression:
 def _name(value: object) -> str:
     if not isinstance(value, str):
         raise TypeError("declaration names must be strings")
-    if not _NAME.fullmatch(value):
+    if not _NAME.fullmatch(value) or len(value.encode("utf-8")) > _MAX_IDENTIFIER_BYTES:
         raise SourceError(f"invalid Eqiora Language declaration name {value!r}")
     return value
 

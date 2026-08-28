@@ -147,6 +147,10 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
 
     with pytest.raises(q.SourceError):
         q.Source().component("not-valid")
+    with pytest.raises(q.SourceError):
+        q.Source().component("a" * 1025)
+    with pytest.raises(q.SourceError):
+        left_component.field("huge", on=left_volume, unit=u.m, initial=1 << 1025)
 
     deep = q.coordinate(0)
     with pytest.raises(q.SourceError):
