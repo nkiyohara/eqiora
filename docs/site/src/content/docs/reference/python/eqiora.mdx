@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **76** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **77** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -1291,10 +1291,10 @@ def check_package_conformance(store_root: str | os.PathLike[str], resolution_byt
 
 Compile one source and its optional exact Geometry closure.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/lib.rs" kind="blob">crates/eqiora-python/src/lib.rs::compile</ExactSourceLink>
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::compile</ExactSourceLink>
 
 ```python
-def compile(*, path: str | PathLike[str] | None=None, source: str | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, parameters: dict[str, float | int] | None=None, component: str | None=None) -> Model: ...
+def compile(*, path: str | PathLike[str] | None=None, source: str | lang.Source | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, parameters: dict[str, float | int] | None=None, component: str | None=None) -> Model: ...
 ```
 
 <a id="api-eqiora-compile_package"></a>
@@ -1356,6 +1356,16 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="bl
 ```python
 def grad(value: _ExpressionLike) -> Expression: ...
 ```
+
+<a id="api-eqiora-lang"></a>
+
+## `lang`
+
+**Module export.** This spelling exposes the documented public module [`eqiora.lang`](/reference/python/lang/).
+
+Bounded Python authoring for deterministic Eqiora Language source.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py</ExactSourceLink>
 
 <a id="api-eqiora-replay"></a>
 

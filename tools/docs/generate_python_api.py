@@ -34,13 +34,15 @@ class ModuleSpec(NamedTuple):
 
 
 def module_spec(slug: str) -> ModuleSpec:
-    stem = "__init__" if slug == "eqiora" else slug
+    stem = (
+        "__init__" if slug == "eqiora" else "lang/__init__" if slug == "lang" else slug
+    )
     name = "eqiora" if slug == "eqiora" else f"eqiora.{slug}"
     return ModuleSpec(name, Path(f"bindings/python/python/eqiora/{stem}.pyi"), slug)
 
 
 MODULE_SLUGS = (
-    "eqiora geometry meshing fem fvm solve time fluid trajectory fsi solid matplotlib diff torch jax"
+    "eqiora geometry lang meshing fem fvm solve time fluid trajectory fsi solid matplotlib diff torch jax"
 ).split()
 MODULES = tuple(module_spec(slug) for slug in MODULE_SLUGS)
 
@@ -345,7 +347,7 @@ def validate_module_bindings(module: ModuleData) -> None:
 
 
 def discover_modules() -> tuple[ModuleData, ...]:
-    discovered = set(STUB_ROOT.glob("*.pyi"))
+    discovered = set(STUB_ROOT.rglob("*.pyi"))
     expected = {ROOT / spec.source for spec in MODULES}
     private = sorted(
         path.relative_to(ROOT).as_posix()

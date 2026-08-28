@@ -151,6 +151,7 @@ EXPECTED_EQIORA_ALL = [
     "derivative",
     "div",
     "grad",
+    "lang",
     "replay",
     "resolve",
     "run",

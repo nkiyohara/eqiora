@@ -3,7 +3,19 @@
 import os
 from typing import NamedTuple
 
-from . import fem, fluid, fsi, fvm, geometry, meshing, solid, solve, time, trajectory
+from . import (
+    fem,
+    fluid,
+    fsi,
+    fvm,
+    geometry,
+    lang,
+    meshing,
+    solid,
+    solve,
+    time,
+    trajectory,
+)
 
 from ._eqiora import (
     __version__,
@@ -57,7 +69,7 @@ from ._eqiora import (
     ValidationError,
     ValueEdit,
     across,
-    compile,
+    compile as _compile,
     compile_package,
     connect,
     derivative,
@@ -159,6 +171,7 @@ __all__ = [
     "derivative",
     "div",
     "grad",
+    "lang",
     "replay",
     "resolve",
     "run",
@@ -177,6 +190,31 @@ __all__ = [
     "time",
     "trajectory",
 ]
+
+
+def compile(
+    *,
+    path=None,
+    source=None,
+    filename=None,
+    geometry=None,
+    parameters=None,
+    component=None,
+):
+    """Compile text, a path, or one :class:`eqiora.lang.Source` canonically."""
+
+    if isinstance(source, lang.Source):
+        source = source.to_eqi()
+        if filename is None:
+            filename = "<python-source>"
+    return _compile(
+        path=path,
+        source=source,
+        filename=filename,
+        geometry=geometry,
+        parameters=parameters,
+        component=component,
+    )
 
 
 def check_package_conformance(
@@ -331,11 +369,13 @@ def submit(
 ) -> Run:
     """Submit exactly one steady or transient common request shape."""
 
-    return Run(_submit_plan(
-        plan,
-        state=state,
-        until_s=until_s,
-        output_times_s=output_times_s,
-        steps=steps,
-        output_steps=output_steps,
-    ))
+    return Run(
+        _submit_plan(
+            plan,
+            state=state,
+            until_s=until_s,
+            output_times_s=output_times_s,
+            steps=steps,
+            output_steps=output_steps,
+        )
+    )

@@ -13,6 +13,16 @@ from eqiora.solid import LinearElasticityEvidence
 from eqiora.trajectory import FieldSnapshot, Trajectory, State
 
 
+def check_language_source() -> None:
+    source = eqiora.lang.Source()
+    component = source.component("Poisson")
+    volume = component.volume("volume", dimensions=2)
+    value = component.field("value", on=volume, unit=eqiora.lang.units.m)
+    component.relation("balance", on=volume, residual=eqiora.lang.div(value))
+    assert_type(source.to_eqi(), str)
+    assert_type(eqiora.compile(source=source), eqiora.Model)
+
+
 def check_native_modeling() -> None:
     length = eqiora.Dimension(length=1)
     domain = eqiora.Domain.box("rod", (0.0, 1.0))
@@ -49,9 +59,7 @@ def check_execution(
     array: eqiora.Array,
 ) -> None:
     assert_type(eqiora.run(plan), eqiora.Result)
-    transient = eqiora.submit(
-        plan, state=state, until_s=1.0, output_times_s=(1.0,)
-    )
+    transient = eqiora.submit(plan, state=state, until_s=1.0, output_times_s=(1.0,))
     assert_type(transient, eqiora.Run[eqiora.Result])
     assert_type(transient.result(), eqiora.Result)
     assert_type(array.numpy(copy=False), npt.NDArray[np.float64])
@@ -78,7 +86,9 @@ def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
     assert_type(plan.mesh_kind, str | None)
     assert_type(plan.velocity_space, str | None)
     assert_type(plan.pressure_space, str | None)
-    assert_type(plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | None)
+    assert_type(
+        plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | None
+    )
     assert_type(
         eqiora.submit(plan, state=state, steps=2, output_steps=(1, 2)),
         eqiora.Run[eqiora.Result],
@@ -95,9 +105,7 @@ def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
         FieldSnapshot,
     )
     assert_type(
-        result.trajectory.state(1)
-        .field(plan.fields[0])
-        .support_indices("vertex"),
+        result.trajectory.state(1).field(plan.fields[0]).support_indices("vertex"),
         npt.NDArray[np.uint32],
     )
     evidence = eqiora.fsi.evidence(result)

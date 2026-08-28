@@ -6,6 +6,16 @@ are recorded here.
 
 ## [Unreleased]
 
+### Added
+
+- Added bounded installed-Python `eqiora.lang.Source` authoring for the complete
+  equations-only steady-cylinder Component. Immutable expression/support handles
+  and a one-Component draft emit readable deterministic `.eqi`; direct Source
+  compilation and emitted-file compilation both enter the existing Rust parser,
+  type checker, lowerer, Geometry binder, and compiler. This is not a Python
+  equation runtime, second lowerer, arbitrary language projection, or stable AST
+  schema.
+
 ### Changed
 
 - Accepted transient MINI States now expose typed pressure point samples and
