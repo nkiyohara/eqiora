@@ -11,6 +11,9 @@ are recorded here.
 - Transient `State.curl(velocity_field)` now derives an immutable typed
   cell-average vorticity snapshot from accepted two-dimensional MINI velocity,
   retaining exact State, Field, Mesh, support, unit, and operator lineage.
+  The optional Matplotlib adapter renders that cell-associated snapshot through
+  the existing `plot_scalar_field` entry point, and the wheel ships the
+  equations-only transient-cylinder Component used by the installed profile.
 
 - Geometry-backed transient MINI/P1 flow now advances a nonzero cylinder-wake
   state through correction-form Newton. The resolver uses direct sparse LU for

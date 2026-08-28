@@ -4,11 +4,13 @@ use std::fs;
 use std::path::PathBuf;
 
 const EXACT_CYLINDER_SOURCE: &str = "../../examples/steady-flow-past-cylinder.eqi";
+const TRANSIENT_CYLINDER_SOURCE: &str = "../../examples/transient-flow-past-cylinder.eqi";
 const MIXED_BOUNDARY_ELASTICITY_MODEL: &str = "../../examples/mixed-boundary-elasticity.eqi";
 const FIXED_REFERENCE_FSI_MODEL: &str = "../../examples/fixed-reference-fsi.eqi";
 
 fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rerun-if-changed={EXACT_CYLINDER_SOURCE}");
+    println!("cargo:rerun-if-changed={TRANSIENT_CYLINDER_SOURCE}");
     println!("cargo:rerun-if-changed={MIXED_BOUNDARY_ELASTICITY_MODEL}");
     println!("cargo:rerun-if-changed={FIXED_REFERENCE_FSI_MODEL}");
 
@@ -23,6 +25,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     fs::copy(
         manifest_dir.join(EXACT_CYLINDER_SOURCE),
         output_dir.join("steady-flow-past-cylinder.eqi"),
+    )?;
+    fs::copy(
+        manifest_dir.join(TRANSIENT_CYLINDER_SOURCE),
+        output_dir.join("transient-flow-past-cylinder.eqi"),
     )?;
     fs::copy(
         manifest_dir.join(MIXED_BOUNDARY_ELASTICITY_MODEL),

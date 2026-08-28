@@ -8,7 +8,7 @@ from typing import overload
 from matplotlib.figure import Figure
 
 from . import FieldRef, Result
-from .trajectory import Trajectory
+from .trajectory import DerivedFieldSnapshot, Trajectory
 
 @overload
 def plot_deformed_field(
@@ -47,9 +47,9 @@ def plot_scalar_field(
     /,
     *,
     step: int,
-    field: FieldRef,
+    field: FieldRef | DerivedFieldSnapshot,
 ) -> Figure:
-    """Plot one invariant vertex scalar from a result or trajectory.
+    """Plot one accepted vertex field or cell-associated derived scalar.
 
     Authority: ``bindings/python/python/eqiora/matplotlib.py::plot_scalar_field``.
     """
@@ -63,7 +63,7 @@ def plot_scalar_field(
     *,
     field: FieldRef,
 ) -> Figure:
-    """Plot one invariant vertex scalar from a result or trajectory.
+    """Plot one accepted vertex field or cell-associated derived scalar.
 
     Authority: ``bindings/python/python/eqiora/matplotlib.py::plot_scalar_field``.
     """
