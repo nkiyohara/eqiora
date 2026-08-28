@@ -24,18 +24,18 @@ use self::execution::{
 use crate::affine_fem::physical_gradient;
 use crate::canonical_boundary::PhysicalBoundaryDisposition;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
-use crate::form_compiler::{MatrixSlot, WeakSign, WeakTermSlot};
+use crate::form_compiler::vocabulary::{
+    BoundarySource, CertificateEntry, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
+};
+pub(super) use crate::form_compiler::vocabulary::{
+    DIVERGENCE_BY_PARTS, SOURCE_PAIRING, TEST_PAIRING,
+};
 use crate::spatial_expression::ScalarSpatialExpression;
 const DIMENSION: usize = 2;
 const COMPONENTS: usize = 2;
 const SCALAR_DOFS: usize = 4;
 const LOCAL_DOFS: usize = SCALAR_DOFS * COMPONENTS;
 const MAX_DAG_NODES: usize = 4_096;
-const TEST_PAIRING: &str = "fem.derive.v1.test-pairing";
-const DIVERGENCE_BY_PARTS: &str = "fem.derive.v1.divergence-by-parts";
-const HOMOGENEOUS_ESSENTIAL_DISCHARGE: &str =
-    "fem.derive.v1.boundary-discharge.essential-homogeneous";
-const SOURCE_PAIRING: &str = "fem.derive.v1.source-pairing";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct VolumeNodes {
     root: ExprId,
@@ -54,15 +54,6 @@ struct BoundaryRole {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct CertificateEntry {
-    rule_id: &'static str,
-    relation: RawId,
-    source_node: ExprId,
-    slot: WeakTermSlot,
-    sign: WeakSign,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DerivationCertificate {
     model: OntologyId<Model>,
     domain: RawId,
@@ -74,6 +65,7 @@ pub(super) struct DerivationCertificate {
     volume: VolumeNodes,
     boundaries: Vec<BoundaryRole>,
     entries: Vec<CertificateEntry>,
+    correspondence: PrimalGalerkinCorrespondence,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -112,6 +104,11 @@ pub(crate) struct CartesianElasticityDifferentialActions2d {
 }
 
 impl DerivedCartesianQ1ElasticityForm2d {
+    #[cfg(test)]
+    pub(super) const fn correspondence(&self) -> &PrimalGalerkinCorrespondence {
+        &self.certificate.correspondence
+    }
+
     pub(crate) fn admit_quadrature(
         &self,
         quadrature: &QuadratureRule,
@@ -235,6 +232,7 @@ impl DerivationCertificate {
         displacement: RawId,
         material_parameters: [Id<kinds::Parameter>; 2],
     ) -> Result<(), Diagnostic> {
+        let boundary_sources = boundary_sources(&self.boundaries);
         if typed_balance.expression().nodes().len() > MAX_DAG_NODES
             || displacement != self.displacement
             || material_parameters != self.material_parameters
@@ -242,8 +240,17 @@ impl DerivationCertificate {
                 != self.volume
             || stress != self.volume.stress
             || self.boundaries.len() != 2 * DIMENSION
-            || self.entries
-                != certificate_entries(self.balance_relation, self.volume, &self.boundaries)
+            || self.entries != self.correspondence.entries
+            || self
+                .correspondence
+                .replay(correspondence_source(
+                    self.domain,
+                    self.displacement,
+                    self.balance_relation,
+                    self.volume,
+                    &boundary_sources,
+                ))
+                .is_err()
         {
             return Err(tape_error(
                 "elasticity certificate source identities or resource bounds are stale",
@@ -866,7 +873,17 @@ fn build_certificate(
     volume: VolumeNodes,
     boundaries: &[BoundaryRole],
 ) -> DerivationCertificate {
-    let entries = certificate_entries(balance_relation, volume, boundaries);
+    let boundary_sources = boundary_sources(boundaries);
+    let correspondence = PrimalGalerkinCorrespondence::derive(PrimalGalerkinSource {
+        domain,
+        unknown: displacement,
+        volume_relation: balance_relation,
+        root: volume.root,
+        divergence: volume.divergence,
+        source: volume.load_gradient,
+        boundaries: &boundary_sources,
+    });
+    let entries = correspondence.entries.clone();
     DerivationCertificate {
         model,
         domain,
@@ -878,53 +895,36 @@ fn build_certificate(
         volume,
         boundaries: boundaries.to_vec(),
         entries,
+        correspondence,
     }
 }
 
-fn certificate_entries(
+fn boundary_sources(boundaries: &[BoundaryRole]) -> Vec<BoundarySource> {
+    boundaries
+        .iter()
+        .map(|boundary| BoundarySource {
+            relation: boundary.relation,
+            trace_node: boundary.trace_node,
+        })
+        .collect()
+}
+
+fn correspondence_source<'a>(
+    domain: RawId,
+    displacement: RawId,
     balance_relation: RawId,
     volume: VolumeNodes,
-    boundaries: &[BoundaryRole],
-) -> Vec<CertificateEntry> {
-    let mut entries = Vec::with_capacity(boundaries.len() + 3);
-    entries.push(CertificateEntry {
-        rule_id: TEST_PAIRING,
-        relation: balance_relation,
-        source_node: volume.root,
-        slot: WeakTermSlot::TestPairing {
-            test: MatrixSlot::Test,
-        },
-        sign: WeakSign::Positive,
-    });
-    entries.push(CertificateEntry {
-        rule_id: DIVERGENCE_BY_PARTS,
-        relation: balance_relation,
-        source_node: volume.divergence,
-        slot: WeakTermSlot::Bilinear {
-            test: MatrixSlot::Test,
-            trial: MatrixSlot::Trial,
-        },
-        sign: WeakSign::Positive,
-    });
-    entries.extend(boundaries.iter().map(|boundary| CertificateEntry {
-        rule_id: HOMOGENEOUS_ESSENTIAL_DISCHARGE,
-        relation: boundary.relation,
-        source_node: boundary.trace_node,
-        slot: WeakTermSlot::Boundary {
-            test: MatrixSlot::Test,
-        },
-        sign: WeakSign::Negative,
-    }));
-    entries.push(CertificateEntry {
-        rule_id: SOURCE_PAIRING,
-        relation: balance_relation,
-        source_node: volume.load_gradient,
-        slot: WeakTermSlot::Linear {
-            test: MatrixSlot::Test,
-        },
-        sign: WeakSign::Positive,
-    });
-    entries
+    boundaries: &'a [BoundarySource],
+) -> PrimalGalerkinSource<'a> {
+    PrimalGalerkinSource {
+        domain,
+        unknown: displacement,
+        volume_relation: balance_relation,
+        root: volume.root,
+        divergence: volume.divergence,
+        source: volume.load_gradient,
+        boundaries,
+    }
 }
 
 fn typed_relation(

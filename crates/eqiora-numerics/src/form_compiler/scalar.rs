@@ -18,6 +18,14 @@ use eqiora_sem::KernelProgram;
 use crate::affine_fem::physical_gradient;
 use crate::canonical::{boundary_parent, continuum_fields_on, lowering_error, relations_on};
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
+use crate::form_compiler::vocabulary::{
+    BoundarySource, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
+};
+#[cfg(test)]
+use crate::form_compiler::{
+    DIVERGENCE_BY_PARTS, HOMOGENEOUS_ESSENTIAL_DISCHARGE, MatrixSlot, SOURCE_PAIRING, TEST_PAIRING,
+    WeakSign, WeakTermSlot,
+};
 
 const MAX_DAG_NODES: usize = 4_096;
 const MAX_DERIVATIVE_ORDER: usize = 1;
@@ -28,46 +36,6 @@ const MAX_TEMPORARIES: usize = 256;
 const DERIVED_DERIVATIVE_ORDER: usize = 1;
 const DERIVED_INTEGRAL_TERMS: usize = 2;
 const Q1_TEMPORARIES: usize = 64;
-
-const TEST_PAIRING: &str = "fem.derive.v1.test-pairing";
-const DIVERGENCE_BY_PARTS: &str = "fem.derive.v1.divergence-by-parts";
-const HOMOGENEOUS_ESSENTIAL_DISCHARGE: &str =
-    "fem.derive.v1.boundary-discharge.essential-homogeneous";
-const SOURCE_PAIRING: &str = "fem.derive.v1.source-pairing";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum MatrixSlot {
-    Test,
-    Trial,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum WeakTermSlot {
-    TestPairing { test: MatrixSlot },
-    Bilinear { test: MatrixSlot, trial: MatrixSlot },
-    Boundary { test: MatrixSlot },
-    Linear { test: MatrixSlot },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum WeakSign {
-    Positive,
-    Negative,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CertificateEntry {
-    rule_id: &'static str,
-    relation: RawId,
-    source_node: ExprId,
-    slot: WeakTermSlot,
-    sign: WeakSign,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct DerivationCertificate {
-    entries: Vec<CertificateEntry>,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct BoundaryRole {
@@ -87,7 +55,7 @@ pub(crate) struct DerivedScalarGalerkinForm {
     volume_nodes: VolumeNodes,
     boundary_roles: Vec<BoundaryRole>,
     parameters: Vec<RawId>,
-    certificate: DerivationCertificate,
+    certificate: PrimalGalerkinCorrespondence,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,6 +84,11 @@ pub(crate) struct AdmittedScalarGalerkinForm<'a> {
 }
 
 impl DerivedScalarGalerkinForm {
+    #[cfg(test)]
+    pub(super) const fn correspondence(&self) -> &PrimalGalerkinCorrespondence {
+        &self.certificate
+    }
+
     pub(crate) fn admit_quadrature(
         &self,
         quadrature: &QuadratureRule,
@@ -152,104 +125,35 @@ impl DerivedScalarGalerkinForm {
     }
 
     fn validate_certificate(&self) -> Result<(), Diagnostic> {
-        let Some(test) = self.certificate.entries.first() else {
-            return Err(certificate_error(
-                self.volume_relation,
-                "certificate is empty",
-            ));
-        };
-        if test.rule_id != TEST_PAIRING
-            || test.relation != self.volume_relation
-            || test.source_node != self.volume_nodes.root
-            || test.slot
-                != (WeakTermSlot::TestPairing {
-                    test: MatrixSlot::Test,
-                })
-            || test.sign != WeakSign::Positive
-        {
-            return Err(certificate_error(
-                self.volume_relation,
-                "test-pairing entry or slot is invalid",
-            ));
-        }
-        let Some(divergence) = self.certificate.entries.get(1) else {
-            return Err(certificate_error(
-                self.volume_relation,
-                "divergence-by-parts entry is absent",
-            ));
-        };
-        if divergence.rule_id != DIVERGENCE_BY_PARTS
-            || divergence.relation != self.volume_relation
-            || divergence.source_node != self.volume_nodes.divergence
-            || divergence.slot
-                != (WeakTermSlot::Bilinear {
-                    test: MatrixSlot::Test,
-                    trial: MatrixSlot::Trial,
-                })
-            || divergence.sign != WeakSign::Positive
-        {
-            return Err(certificate_error(
-                self.volume_relation,
-                "divergence-by-parts sign or [test][trial] slot is invalid",
-            ));
-        }
-        self.validate_boundary_certificate()?;
-        let Some(source) = self.certificate.entries.last() else {
-            return Err(certificate_error(
-                self.volume_relation,
-                "source-pairing entry is absent",
-            ));
-        };
-        if source.rule_id != SOURCE_PAIRING
-            || source.relation != self.volume_relation
-            || source.source_node != self.volume_nodes.source
-            || source.slot
-                != (WeakTermSlot::Linear {
-                    test: MatrixSlot::Test,
-                })
-            || source.sign != WeakSign::Positive
-        {
-            return Err(certificate_error(
-                self.volume_relation,
-                "source-pairing entry or slot is invalid",
-            ));
-        }
-        Ok(())
-    }
-
-    fn validate_boundary_certificate(&self) -> Result<(), Diagnostic> {
         let boundary_count = 2 * self.dimension;
-        if self.boundary_roles.len() != boundary_count
-            || self.certificate.entries.len() != self.boundary_roles.len() + 3
-        {
+        if self.boundary_roles.len() != boundary_count {
             return Err(certificate_error(
                 self.volume_relation,
                 format!(
-                    "complete {}D essential-boundary discharge requires {boundary_count} entries",
+                    "complete {}D essential-boundary discharge requires {boundary_count} boundaries",
                     self.dimension
                 ),
             ));
         }
-        for (entry, boundary) in self.certificate.entries[2..2 + boundary_count]
+        let boundary_sources = self
+            .boundary_roles
             .iter()
-            .zip(&self.boundary_roles)
-        {
-            if entry.rule_id != HOMOGENEOUS_ESSENTIAL_DISCHARGE
-                || entry.relation != boundary.relation
-                || entry.source_node != boundary.trace_node
-                || entry.slot
-                    != (WeakTermSlot::Boundary {
-                        test: MatrixSlot::Test,
-                    })
-                || entry.sign != WeakSign::Negative
-            {
-                return Err(certificate_error(
-                    boundary.relation,
-                    "essential-boundary discharge identity, slot, or sign is invalid",
-                ));
-            }
-        }
-        Ok(())
+            .map(|boundary| BoundarySource {
+                relation: boundary.relation,
+                trace_node: boundary.trace_node,
+            })
+            .collect::<Vec<_>>();
+        self.certificate
+            .replay(PrimalGalerkinSource {
+                domain: self.domain,
+                unknown: self.field,
+                volume_relation: self.volume_relation,
+                root: self.volume_nodes.root,
+                divergence: self.volume_nodes.divergence,
+                source: self.volume_nodes.source,
+                boundaries: &boundary_sources,
+            })
+            .map_err(|message| certificate_error(self.volume_relation, message))
     }
 }
 
@@ -399,7 +303,14 @@ pub(crate) fn derive_candidate(
     validate_static_bounds(typed.expression(), volume_relation, dimension)?;
     let parameters =
         validate_closed_roles(program, domain, field, volume_relation, &boundary_roles)?;
-    let certificate = build_certificate(volume_relation, volume, &boundary_roles, &parameters)?;
+    let certificate = build_certificate(
+        domain,
+        field,
+        volume_relation,
+        volume,
+        &boundary_roles,
+        &parameters,
+    )?;
     let form = DerivedScalarGalerkinForm {
         dimension,
         domain,
@@ -920,50 +831,13 @@ fn relation_parameters(
 }
 
 fn build_certificate(
+    domain: RawId,
+    field: RawId,
     volume_relation: RawId,
     volume: VolumeNodes,
     boundaries: &[BoundaryRole],
     _parameters: &[RawId],
-) -> Result<DerivationCertificate, Diagnostic> {
-    let mut entries = Vec::with_capacity(boundaries.len() + 3);
-    entries.push(CertificateEntry {
-        rule_id: TEST_PAIRING,
-        relation: volume_relation,
-        source_node: volume.root,
-        slot: WeakTermSlot::TestPairing {
-            test: MatrixSlot::Test,
-        },
-        sign: WeakSign::Positive,
-    });
-    entries.push(CertificateEntry {
-        rule_id: DIVERGENCE_BY_PARTS,
-        relation: volume_relation,
-        source_node: volume.divergence,
-        slot: WeakTermSlot::Bilinear {
-            test: MatrixSlot::Test,
-            trial: MatrixSlot::Trial,
-        },
-        sign: WeakSign::Positive,
-    });
-    entries.extend(boundaries.iter().map(|boundary| CertificateEntry {
-        rule_id: HOMOGENEOUS_ESSENTIAL_DISCHARGE,
-        relation: boundary.relation,
-        source_node: boundary.trace_node,
-        slot: WeakTermSlot::Boundary {
-            test: MatrixSlot::Test,
-        },
-        sign: WeakSign::Negative,
-    }));
-    entries.push(CertificateEntry {
-        rule_id: SOURCE_PAIRING,
-        relation: volume_relation,
-        source_node: volume.source,
-        slot: WeakTermSlot::Linear {
-            test: MatrixSlot::Test,
-        },
-        sign: WeakSign::Positive,
-    });
-    let certificate = DerivationCertificate { entries };
+) -> Result<PrimalGalerkinCorrespondence, Diagnostic> {
     if volume.gradient == volume.source
         || boundaries
             .iter()
@@ -974,7 +848,22 @@ fn build_certificate(
             "certificate node or relation identities overlap across weak terms",
         ));
     }
-    Ok(certificate)
+    let boundary_sources = boundaries
+        .iter()
+        .map(|boundary| BoundarySource {
+            relation: boundary.relation,
+            trace_node: boundary.trace_node,
+        })
+        .collect::<Vec<_>>();
+    Ok(PrimalGalerkinCorrespondence::derive(PrimalGalerkinSource {
+        domain,
+        unknown: field,
+        volume_relation,
+        root: volume.root,
+        divergence: volume.divergence,
+        source: volume.source,
+        boundaries: &boundary_sources,
+    }))
 }
 
 fn gate_error(owner: RawId, gate: &str, message: impl Into<String>) -> Diagnostic {
