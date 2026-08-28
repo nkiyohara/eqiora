@@ -9,6 +9,7 @@ class Unit:
     """One structural Eqiora Language unit expression."""
 
     __slots__ = ("_text",)
+    _text: str
 
     def __init__(self, token: object, text: str) -> None:
         if token is not _CREATE_UNIT:
