@@ -13,13 +13,16 @@ advance the scientific `fluid.flow-past-cylinder` claim.
 The checked-in sources compose one Python-authored channel-minus-circle
 Geometry, Gmsh common Mesh, packaged steady and transient `.eqi` Components,
 typed numerical policies, a steady nonzero bootstrap, one transient accepted
-State, typed cell-average vorticity, and a caller-owned Figure. They retain
-Geometry, Mesh, Model, Plan, Trajectory, State, Field, unit, support, and
-operator lineage and label the result as unverified.
+State, typed cell-average vorticity, two continuous-P1 pressure samples, the
+signed intrinsic-2D cylinder force action pair, and a caller-owned Figure. They
+retain Geometry, GeometrySelection, Mesh, Model, Plan, Trajectory, State,
+Field, point, unit, support, and operator lineage and label the result as
+unverified. Boundary force reports both the action on the fluid domain and the
+equal-and-opposite action on the cylinder, explicitly in N/m.
 
 This is not yet a developed wake: it has no multi-step periodic trajectory,
-cylinder force, pressure probes, animation, benchmark value, tolerance,
-convergence result, or scientific acceptance.
+force/probe time series, animation, benchmark normalization or coefficient,
+benchmark value, tolerance, convergence result, or scientific acceptance.
 
 ## Target experience and future public claim
 

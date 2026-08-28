@@ -168,6 +168,7 @@ pub struct ResolvedTransientNavierStokesState2d {
     velocity: SimplicialMiniVelocityField2d,
     pressure: SimplicialP1Field,
     pressure_reference: super::SteadyStokesPressureReference2d,
+    named_boundary_forces_on_domain: Vec<(String, [f64; DIMENSION])>,
 }
 
 impl ResolvedTransientNavierStokesState2d {
@@ -205,6 +206,18 @@ impl ResolvedTransientNavierStokesState2d {
     #[must_use]
     pub const fn pressure_reference(&self) -> super::SteadyStokesPressureReference2d {
         self.pressure_reference
+    }
+
+    /// Intrinsic-2D force exerted on the fluid domain by one authenticated boundary.
+    #[must_use]
+    pub fn named_boundary_force_on_domain(&self, name: &str) -> Option<[f64; DIMENSION]> {
+        self.named_boundary_forces_on_domain
+            .iter()
+            .find_map(|(candidate, force)| (candidate == name).then_some(*force))
+    }
+
+    pub(crate) fn named_boundary_forces_on_domain(&self) -> &[(String, [f64; DIMENSION])] {
+        &self.named_boundary_forces_on_domain
     }
 }
 
@@ -535,7 +548,16 @@ pub fn advance_resolved_transient_navier_stokes_mini_2d_with_assembly(
     let states = numerical
         .states()
         .iter()
-        .map(|state| reconstruct_state(state, mesh_data, &common, scales))
+        .enumerate()
+        .map(|(index, state)| {
+            reconstruct_state(
+                state,
+                mesh_data,
+                &common,
+                scales,
+                index.checked_sub(1).map(|step| &numerical.steps()[step]),
+            )
+        })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
     Ok(ResolvedTransientNavierStokesTrajectory2d {
         model,
@@ -619,6 +641,7 @@ pub(super) fn reconstruct_state(
     mesh: &SimplicialMesh,
     model: &TransientIncompressibleNavierStokesModel2d,
     scales: IncompressibleFlowScaleProfile2d,
+    step: Option<&crate::simplicial_navier_stokes::SimplicialMiniNavierStokesStepEvidence2d>,
 ) -> Result<ResolvedTransientNavierStokesState2d, Diagnostic> {
     let velocity = SimplicialMiniVelocityField2d::new(
         mesh.clone(),
@@ -673,6 +696,21 @@ pub(super) fn reconstruct_state(
             "transient physical reconstruction produced non-finite time",
         ));
     }
+    let force_scale = scales.pressure_value() * scales.length_value();
+    let named_boundary_forces_on_domain = step
+        .into_iter()
+        .flat_map(|evidence| evidence.named_boundary_reactions())
+        .map(|(name, force)| (name.clone(), force.map(|component| component * force_scale)))
+        .collect::<Vec<_>>();
+    if named_boundary_forces_on_domain
+        .iter()
+        .flat_map(|(_, force)| force)
+        .any(|component| !component.is_finite())
+    {
+        return Err(invalid_realization(
+            "transient physical boundary-force reconstruction produced a non-finite value",
+        ));
+    }
     Ok(ResolvedTransientNavierStokesState2d {
         time,
         velocity_field: velocity_id(model),
@@ -680,6 +718,7 @@ pub(super) fn reconstruct_state(
         velocity,
         pressure,
         pressure_reference,
+        named_boundary_forces_on_domain,
     })
 }
 

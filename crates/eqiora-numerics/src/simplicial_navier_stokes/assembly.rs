@@ -35,6 +35,7 @@ pub(super) struct StepAssembly {
     pub(super) pressure: SimplicialP1Field,
     pub(super) pressure_reference: SimplicialMiniStokesPressureReference2d,
     pub(super) gauge_multiplier: Option<f64>,
+    pub(super) named_reaction_vertices: Vec<(String, Vec<usize>)>,
     pub(super) assembly_report: AssemblyReport,
 }
 
@@ -72,6 +73,7 @@ struct PreparedStepPoint {
     velocity: SimplicialMiniVelocityField2d,
     pressure: SimplicialP1Field,
     gauge_multiplier: Option<f64>,
+    named_reaction_vertices: Vec<(String, Vec<usize>)>,
     cell_count: usize,
     constraint_end: usize,
     packet_count: usize,
@@ -143,6 +145,7 @@ where
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
     require_same_mesh(mesh, previous)?;
+    let named_reaction_vertices = boundary.named_reaction_vertices(mesh);
     let boundary = boundary.prepare(mesh, essential_velocity)?;
     let with_gauge = boundary.pressure_reference == PressureReferenceKind2d::ZeroIntegral;
     require_pressure_policy(previous, with_gauge)?;
@@ -172,6 +175,7 @@ where
         velocity,
         pressure,
         gauge_multiplier,
+        named_reaction_vertices,
         cell_count,
         constraint_end,
         packet_count,
@@ -495,6 +499,7 @@ where
         pressure: step.pressure,
         pressure_reference,
         gauge_multiplier: step.gauge_multiplier,
+        named_reaction_vertices: step.named_reaction_vertices,
         assembly_report,
     })
 }

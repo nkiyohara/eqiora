@@ -8,6 +8,13 @@ are recorded here.
 
 ### Changed
 
+- Accepted transient MINI States now expose typed pressure point samples and
+  signed intrinsic-2D boundary-force action pairs. Samples retain exact
+  State/Field/Mesh/point lineage; forces retain exact State/GeometrySelection/
+  Mesh lineage and distinguish force on the fluid domain from the equal-and-
+  opposite force on the selected boundary. The cylinder gallery presents
+  these quantities without assigning benchmark values or scientific acceptance.
+
 - Added one explicitly unverified transient-cylinder product example with
   matching plain-Python, Marimo, and clean Jupyter sources. All three compose
   the same installed-package Geometry, Gmsh Mesh, steady bootstrap, transient

@@ -15,11 +15,14 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyModule, PySequence, PyTuple};
 use sha2::{Digest, Sha256};
 
+use crate::geometry::PyGeometrySelection;
 use crate::matrix::{ReadOnlyMatrix, ReadOnlyVector};
 use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelFieldRef};
 mod field;
 use field::{PyDerivedFieldSnapshot, PyFieldSnapshot, PyInitialField};
+mod observation;
+use observation::{PyBoundaryForce, PyFieldSample};
 
 /// Immutable installed-Python projection of one state in a common execution.
 #[pyclass(
@@ -469,6 +472,118 @@ impl PyState {
         )
     }
 
+    /// Sample the exact continuous pressure Field at one physical point.
+    #[pyo3(signature = (field, /, *, at))]
+    fn sample(
+        &self,
+        py: Python<'_>,
+        field: &PyModelFieldRef,
+        at: &Bound<'_, PyTuple>,
+    ) -> PyResult<Py<PyFieldSample>> {
+        if field.exact_model_digest() != self.model_digest {
+            return Err(PyValueError::new_err(
+                "FieldRef belongs to a different exact Model artifact",
+            ));
+        }
+        let plan = self.transient_plan.as_ref().ok_or_else(|| {
+            PyValueError::new_err("State.sample requires a two-dimensional transient-flow State")
+        })?;
+        if field.exact_id() != plan.pressure_field_id() {
+            return Err(PyValueError::new_err(
+                "State.sample currently requires the Plan pressure FieldRef",
+            ));
+        }
+        if at.len() != 2 {
+            return Err(PyValueError::new_err(
+                "State.sample at= must contain exactly two physical coordinates",
+            ));
+        }
+        let mut point = [0.0; 2];
+        for (axis, coordinate) in point.iter_mut().enumerate() {
+            let value = at.get_item(axis)?;
+            if value.is_instance_of::<PyBool>() {
+                return Err(PyValueError::new_err(
+                    "State.sample coordinates must be finite real numbers, not booleans",
+                ));
+            }
+            *coordinate = value.extract::<f64>().map_err(|_| {
+                PyValueError::new_err("State.sample coordinates must be finite real numbers")
+            })?;
+        }
+        let state = self.native.as_ref().ok_or_else(|| {
+            PyRuntimeError::new_err("transient State lost its native accepted coefficients")
+        })?;
+        let value = plan
+            .sample_pressure_2d(state, point)
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        let field_id = field.exact_id().to_owned();
+        let field = Py::new(
+            py,
+            PyModelFieldRef::from_exact(self.model_digest.clone(), field_id.clone()),
+        )?;
+        Py::new(
+            py,
+            PyFieldSample::pressure(
+                field,
+                field_id,
+                state.identity(),
+                plan.mesh_digest(),
+                plan.domain_id(),
+                point,
+                value,
+            ),
+        )
+    }
+
+    /// Observe the signed force pair on one authenticated constrained boundary.
+    #[pyo3(signature = (selection, /))]
+    fn boundary_force(
+        &self,
+        py: Python<'_>,
+        selection: Py<PyGeometrySelection>,
+    ) -> PyResult<Py<PyBoundaryForce>> {
+        let plan = self.transient_plan.as_ref().ok_or_else(|| {
+            PyValueError::new_err(
+                "State.boundary_force requires a two-dimensional transient-flow State",
+            )
+        })?;
+        let selected = selection.borrow(py);
+        if selected.bound_source_digest() != plan.geometry_digest() {
+            return Err(PyValueError::new_err(
+                "GeometrySelection belongs to a foreign or stale Geometry revision",
+            ));
+        }
+        if selected.canonical_dimension() != 1 {
+            return Err(PyValueError::new_err(
+                "State.boundary_force requires a codimension-one GeometrySelection",
+            ));
+        }
+        let selection_name = selected.canonical_name().to_owned();
+        let geometry_digest = selected.bound_source_digest().to_owned();
+        drop(selected);
+        let state = self.native.as_ref().ok_or_else(|| {
+            PyRuntimeError::new_err("transient State lost its native accepted coefficients")
+        })?;
+        let force = state
+            .named_boundary_force_on_domain(&selection_name)
+            .ok_or_else(|| {
+                PyKeyError::new_err(format!(
+                    "accepted State has no boundary-force observation for {selection_name:?}"
+                ))
+            })?;
+        Py::new(
+            py,
+            PyBoundaryForce::new(
+                selection,
+                selection_name,
+                geometry_digest,
+                state.identity(),
+                plan.mesh_digest(),
+                force,
+            ),
+        )
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "State(step={}, time_s={}, digest={:?})",
@@ -711,7 +826,9 @@ fn hex_sha256(bytes: &[u8]) -> String {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<PyBoundaryForce>()?;
     module.add_class::<PyDerivedFieldSnapshot>()?;
+    module.add_class::<PyFieldSample>()?;
     module.add_class::<PyFieldSnapshot>()?;
     module.add_class::<PyInitialField>()?;
     module.add_class::<PyState>()?;
