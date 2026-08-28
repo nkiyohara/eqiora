@@ -36,7 +36,7 @@ secondary_oracle = "accepted org.example.poisson package identities without evid
 [reused_registered_evidence]
 definition_and_resource_budgets = "packages.package-definition-validation"
 offline_store_and_resolution = "packages.offline-model-package"
-independent_poisson_lineage = "packages.typed-execution-lineage"
+independent_poisson_lineage = "packages.typed-compilation-lineage"
 installed_distribution_matrix = "interfaces.python-distribution-candidate"
 
 [evidence]

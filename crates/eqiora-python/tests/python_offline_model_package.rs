@@ -387,7 +387,9 @@ model source_model {
   relation hold continuous { derivative(x) = 0; }
 }
 "#;
-        let source_model = module.getattr("compile")?.call1((source,))?;
+        let compile_kwargs = PyDict::new(py);
+        compile_kwargs.set_item("source", source)?;
+        let source_model = module.getattr("compile")?.call((), Some(&compile_kwargs))?;
         assert_no_lineage(&source_model)?;
 
         let field_kwargs = PyDict::new(py);

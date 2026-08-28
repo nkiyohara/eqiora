@@ -7,8 +7,9 @@ describe("command catalog", () => {
   });
 
   it("matches all query terms across group, label, and description", () => {
-    expect(matchingCommands("native plan").map((command) => command.id)).toEqual(["run.execute"]);
-    expect(matchingCommands("cancel safe").map((command) => command.id)).toEqual(["run.cancel"]);
+    expect(matchingCommands("three-package").map((command) => command.id)).toEqual([
+      "example.dc-drive",
+    ]);
     expect(matchingCommands("focus canonical").map((command) => command.id)).toEqual([
       "focus.source",
       "focus.relation",

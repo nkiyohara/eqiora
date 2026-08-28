@@ -1,7 +1,7 @@
 # Python immutable CPU array transport
 
 This case verifies one bounded Result-producer data plane. A successful
-semantic-reference run transfers each owned one-dimensional native `f64`
+common explicit-ODE run transfers each owned one-dimensional native `f64`
 buffer into an opaque `Array` without copying. Inspecting the descriptor does
 not import NumPy.
 

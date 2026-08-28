@@ -1,5 +1,6 @@
 use std::num::NonZeroUsize;
 
+use eqiora_artifact::CartesianMeshEnvelopeV1;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
 use eqiora_realization::{
@@ -25,7 +26,7 @@ use super::{
     IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
     TransientNavierStokesRun2d,
 };
-use crate::cartesian_fvm_geometry::{CartesianFacetAdjacency2d, cartesian_fvm_geometry_2d};
+use crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d;
 use crate::cartesian_incompressible::{
     CartesianIncompressibleOperator2d, CellCenteredPressureField2d, CellCenteredVelocityField2d,
     CollocatedNewtonEvidence2d, CollocatedPoint2d, solve_collocated_step_2d,
@@ -47,6 +48,8 @@ pub struct CellCenteredNavierStokesInitialState2d {
     velocity: CellCenteredVelocityField2d,
     pressure: CellCenteredPressureField2d,
     gauge_multiplier: f64,
+    /// Previous accepted physical face-volume fluxes in coherent SI (m^2/s).
+    previous_face_volume_fluxes: Vec<f64>,
 }
 
 impl CellCenteredNavierStokesInitialState2d {
@@ -61,6 +64,7 @@ impl CellCenteredNavierStokesInitialState2d {
         velocity: CellCenteredVelocityField2d,
         pressure: CellCenteredPressureField2d,
         gauge_multiplier: f64,
+        previous_face_volume_fluxes: Vec<f64>,
     ) -> Result<Self, Diagnostic> {
         if time.dim() != TIME || !time.value().is_finite() || time.value() < 0.0 {
             return Err(invalid_realization(
@@ -70,6 +74,16 @@ impl CellCenteredNavierStokesInitialState2d {
         if velocity.mesh() != pressure.mesh() || !gauge_multiplier.is_finite() {
             return Err(invalid_realization(
                 "cell-centered initial velocity and pressure must share one mesh and finite gauge evidence",
+            ));
+        }
+        let (_, facets) = cartesian_fvm_geometry_2d(velocity.mesh())?;
+        if previous_face_volume_fluxes.len() != facets.len()
+            || previous_face_volume_fluxes
+                .iter()
+                .any(|value| !value.is_finite())
+        {
+            return Err(invalid_realization(
+                "cell-centered initial face-volume-flux history must be finite and complete",
             ));
         }
         let pressure_integral = pressure.volume_integral()?;
@@ -98,7 +112,28 @@ impl CellCenteredNavierStokesInitialState2d {
             velocity,
             pressure,
             gauge_multiplier,
+            previous_face_volume_fluxes,
         })
+    }
+
+    #[must_use]
+    pub const fn velocity(&self) -> &CellCenteredVelocityField2d {
+        &self.velocity
+    }
+
+    #[must_use]
+    pub const fn pressure(&self) -> &CellCenteredPressureField2d {
+        &self.pressure
+    }
+
+    #[must_use]
+    pub const fn gauge_multiplier(&self) -> f64 {
+        self.gauge_multiplier
+    }
+
+    #[must_use]
+    pub fn previous_face_volume_fluxes(&self) -> &[f64] {
+        &self.previous_face_volume_fluxes
     }
 }
 
@@ -111,6 +146,7 @@ pub struct ResolvedCellCenteredNavierStokesState2d {
     velocity: CellCenteredVelocityField2d,
     pressure: CellCenteredPressureField2d,
     gauge_multiplier: f64,
+    previous_face_volume_fluxes: Vec<f64>,
 }
 
 impl ResolvedCellCenteredNavierStokesState2d {
@@ -148,6 +184,12 @@ impl ResolvedCellCenteredNavierStokesState2d {
     #[must_use]
     pub const fn gauge_multiplier(&self) -> f64 {
         self.gauge_multiplier
+    }
+
+    /// Previous accepted physical face-volume-flux history in canonical facet order (m^2/s).
+    #[must_use]
+    pub fn previous_face_volume_fluxes(&self) -> &[f64] {
+        &self.previous_face_volume_fluxes
     }
 }
 
@@ -375,12 +417,20 @@ pub fn transient_navier_stokes_cell_centered_requirements_2d(
 /// choices. No alternate coupling or pressure correction is substituted.
 pub fn transient_navier_stokes_cell_centered_plan_2d(
     model: &TransientIncompressibleNavierStokesCartesianModel2d,
-    cells_per_axis: NonZeroUsize,
+    mesh: MeshPolicy,
     scales: IncompressibleFlowScaleProfile2d,
     time_step: DynQuantity,
     nonlinear: NonlinearSolvePlan,
     solver: SolverPlan,
 ) -> Result<TransientCellCenteredIncompressibleFlowRealizationPlan, Diagnostic> {
+    if !matches!(
+        mesh,
+        MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. }
+    ) {
+        return Err(invalid_realization(
+            "collocated flow requires a Cartesian mesh policy",
+        ));
+    }
     let velocity = velocity_id(model);
     let pressure = pressure_id(model);
     let momentum = momentum_id(model);
@@ -394,7 +444,7 @@ pub fn transient_navier_stokes_cell_centered_plan_2d(
         [AlgebraicConstraint::ZeroIntegral { field: pressure }],
         Discretization::new(
             DiscretizationMethod::CellCenteredFiniteVolume,
-            MeshPolicy::GeneratedUniform { cells_per_axis },
+            mesh,
             QuadraturePolicy::CellCentroid,
         ),
     )
@@ -455,6 +505,7 @@ pub fn transient_navier_stokes_cell_centered_plan_2d(
 pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
     program: &KernelProgram,
     resolved: &ResolvedTransientCellCenteredIncompressibleFlowRealization,
+    mesh: &CartesianMeshEnvelopeV1,
     initial: CellCenteredNavierStokesInitialState2d,
     run: TransientNavierStokesRun2d,
     solver: &dyn LinearSolverBackend,
@@ -470,22 +521,35 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
     super::navier_stokes_realization::require_complete_zero_trace(&model)?;
     let graph = resolved.portable_graph()?;
     let scales = require_exact_cell_centered_plan(&model, resolved, &graph)?;
-    let cells_per_axis = match resolved
+    let (artifact, cells_per_axis) = match resolved
         .plan()
         .fieldwise()
         .spatial()
         .discretization()
         .mesh()
     {
-        MeshPolicy::GeneratedUniform { cells_per_axis } => cells_per_axis,
+        MeshPolicy::SuppliedCartesian { artifact, cells } => (artifact, cells),
+        MeshPolicy::GeneratedUniform { .. } => {
+            return Err(invalid_realization(
+                "collocated common execution requires the exact supplied Cartesian envelope",
+            ));
+        }
         MeshPolicy::ImportedSimplicial { .. } => {
             return Err(invalid_realization(
                 "collocated flow requires generated Cartesian cells",
             ));
         }
     };
-    let cell_count = cells_per_axis.get();
-    let physical_mesh = CartesianMesh::uniform(model.bounds(), &[cell_count, cell_count])?;
+    if mesh.artifact_reference()? != artifact
+        || mesh.dimension() != DIMENSION
+        || mesh.mesh().axis_cell_count(0) != Some(cells_per_axis[0].get())
+        || mesh.mesh().axis_cell_count(1) != Some(cells_per_axis[1].get())
+    {
+        return Err(invalid_realization(
+            "collocated execution received a Cartesian envelope different from its exact Plan",
+        ));
+    }
+    let physical_mesh = mesh.mesh().clone();
     if initial.velocity_field != velocity_id(&model)
         || initial.pressure_field != pressure_id(&model)
         || initial.velocity.mesh() != &physical_mesh
@@ -499,7 +563,27 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
     let normalized_bounds = model
         .bounds()
         .map(|bounds| [0.0, (bounds[1] - bounds[0]) / length]);
-    let normalized_mesh = CartesianMesh::uniform(&normalized_bounds, &[cell_count, cell_count])?;
+    let normalized_axes = (0..DIMENSION)
+        .map(|axis| {
+            physical_mesh
+                .axis_coordinates(axis)
+                .ok_or_else(|| invalid_realization("supplied Cartesian mesh omitted an axis"))
+                .map(|coordinates| {
+                    coordinates
+                        .iter()
+                        .map(|value| (value - model.bounds()[axis][0]) / length)
+                        .collect::<Vec<_>>()
+                })
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+    let normalized_mesh = CartesianMesh::from_axes(normalized_axes)?;
+    if normalized_mesh.axis_bounds(0) != Some(normalized_bounds[0])
+        || normalized_mesh.axis_bounds(1) != Some(normalized_bounds[1])
+    {
+        return Err(invalid_realization(
+            "supplied Cartesian mesh bounds differ from the exact transient Model domain",
+        ));
+    }
     let (normalized_cells, normalized_facets) = cartesian_fvm_geometry_2d(&normalized_mesh)?;
     if normalized_facets.is_empty() {
         return Err(invalid_realization(
@@ -539,17 +623,14 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
             .collect(),
         gauge_multiplier: initial.gauge_multiplier / scales.gauge_value(),
     };
-    let mut previous_face_volume_fluxes = normalized_facets
+    // The restart boundary is coherent SI.  The collocated operator alone owns
+    // dimensionless history, so a State can be reused under a different valid
+    // numerical scaling without changing its physical meaning.
+    let face_volume_flux_scale = scales.velocity_value() * length;
+    let initial_face_volume_fluxes = initial.previous_face_volume_fluxes;
+    let mut previous_face_volume_fluxes = initial_face_volume_fluxes
         .iter()
-        .map(|facet| match facet.adjacency {
-            CartesianFacetAdjacency2d::Interior { lower, upper, .. } => {
-                facet.measure
-                    * 0.5
-                    * (numerical.velocity[lower][facet.normal_axis]
-                        + numerical.velocity[upper][facet.normal_axis])
-            }
-            CartesianFacetAdjacency2d::Boundary { .. } => 0.0,
-        })
+        .map(|value| value / face_volume_flux_scale)
         .collect::<Vec<_>>();
     let mut time = initial.time;
     let mut states = vec![ResolvedCellCenteredNavierStokesState2d {
@@ -559,6 +640,7 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
         velocity: initial.velocity,
         pressure: initial.pressure,
         gauge_multiplier: initial.gauge_multiplier,
+        previous_face_volume_fluxes: initial_face_volume_fluxes,
     }];
     let mut steps = Vec::with_capacity(step_count.get());
     for _ in 0..step_count.get() {
@@ -586,7 +668,7 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
             &residual,
             newton,
         )?;
-        previous_face_volume_fluxes = residual.face_volume_fluxes();
+        let accepted_face_volume_fluxes = residual.face_volume_fluxes();
         time = DynQuantity::new(time.value() + duration.value(), TIME);
         if !time.value().is_finite() {
             return Err(invalid_realization(
@@ -614,8 +696,13 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
                     .collect(),
             )?,
             gauge_multiplier: accepted.gauge_multiplier * scales.gauge_value(),
+            previous_face_volume_fluxes: accepted_face_volume_fluxes
+                .iter()
+                .map(|value| value * face_volume_flux_scale)
+                .collect(),
         });
         numerical = accepted;
+        previous_face_volume_fluxes = accepted_face_volume_fluxes;
         steps.push(evidence);
     }
     Ok(ResolvedCellCenteredNavierStokesTrajectory2d {

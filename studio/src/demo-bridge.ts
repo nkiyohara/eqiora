@@ -2,30 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ZodType } from "zod";
 import { checkedRequest, protocolFailure } from "./bridge-contract";
 import {
-  type CylinderDemoRequest,
-  type CylinderDemoResult,
-  cylinderDemoRequestSchema,
-  cylinderDemoResultSchema,
-} from "./cylinder-demo-protocol";
-import {
   type DcMotorDemoRequest,
   type DcMotorDemoResult,
   dcMotorDemoRequestSchema,
   dcMotorDemoResultSchema,
 } from "./dc-motor-demo-protocol";
-import {
-  type FsiDemoRequest,
-  type FsiDemoResult,
-  fsiDemoRequestSchema,
-  fsiDemoResultSchema,
-} from "./fsi-demo-protocol";
 import { type BridgeEnvelope, bridgeEnvelopeSchema } from "./protocol";
-import {
-  type StructuralDemoRequest,
-  type StructuralDemoResult,
-  structuralDemoRequestSchema,
-  structuralDemoResultSchema,
-} from "./structural-demo-protocol";
 
 type DemoContract<Request, Result> = Readonly<{
   label: string;
@@ -35,15 +17,6 @@ type DemoContract<Request, Result> = Readonly<{
   previewRefusal: string;
 }>;
 
-const CYLINDER = {
-  label: "Cylinder demo",
-  command: "run_cylinder_demo",
-  request: cylinderDemoRequestSchema,
-  result: cylinderDemoResultSchema,
-  previewRefusal:
-    "The exact-cylinder solve is available only in native Studio; browser preview does not fabricate scientific results.",
-} satisfies DemoContract<CylinderDemoRequest, CylinderDemoResult>;
-
 const DC_MOTOR = {
   label: "Packaged DC-drive demo",
   command: "run_dc_motor_demo",
@@ -52,24 +25,6 @@ const DC_MOTOR = {
   previewRefusal:
     "The packaged DC-drive execution is available only in native Studio; browser preview does not fabricate scientific results.",
 } satisfies DemoContract<DcMotorDemoRequest, DcMotorDemoResult>;
-
-const STRUCTURAL = {
-  label: "Structural demo",
-  command: "run_structural_demo",
-  request: structuralDemoRequestSchema,
-  result: structuralDemoResultSchema,
-  previewRefusal:
-    "The structural solve is available only in native Studio; browser preview does not fabricate scientific results.",
-} satisfies DemoContract<StructuralDemoRequest, StructuralDemoResult>;
-
-const FSI = {
-  label: "Fixed-reference FSI demo",
-  command: "run_fsi_demo",
-  request: fsiDemoRequestSchema,
-  result: fsiDemoResultSchema,
-  previewRefusal:
-    "The fixed-reference FSI solve is available only in native Studio; browser preview does not fabricate scientific results.",
-} satisfies DemoContract<FsiDemoRequest, FsiDemoResult>;
 
 async function runNativeDemo<Request, Result>(
   contract: DemoContract<Request, Result>,
@@ -98,15 +53,9 @@ function rejectPreviewDemo<Request, Result>(
 }
 
 export const nativeDemoBridge = {
-  runCylinder: (request: CylinderDemoRequest) => runNativeDemo(CYLINDER, request),
   runDcMotor: (request: DcMotorDemoRequest) => runNativeDemo(DC_MOTOR, request),
-  runFsi: (request: FsiDemoRequest) => runNativeDemo(FSI, request),
-  runStructural: (request: StructuralDemoRequest) => runNativeDemo(STRUCTURAL, request),
 } as const;
 
 export const previewDemoBridge = {
-  runCylinder: (request: CylinderDemoRequest) => rejectPreviewDemo(CYLINDER, request),
   runDcMotor: (request: DcMotorDemoRequest) => rejectPreviewDemo(DC_MOTOR, request),
-  runFsi: (request: FsiDemoRequest) => rejectPreviewDemo(FSI, request),
-  runStructural: (request: StructuralDemoRequest) => rejectPreviewDemo(STRUCTURAL, request),
 } as const;

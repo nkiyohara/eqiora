@@ -22,12 +22,23 @@ model decay {
 
 
 def result_array() -> tuple[eqiora.Result, eqiora.Array]:
-    result = eqiora.run(
-        eqiora.compile(DECAY),
-        end_time=0.2,
-        max_step=0.1,
+    model = eqiora.compile(source=DECAY)
+    field = model.field(model.field_ids[0])
+    plan = eqiora.resolve(
+        model,
+        temporal=eqiora.time.Tsitouras45(
+            initial_step_s=0.01,
+            relative_tolerance=1.0e-9,
+            absolute_tolerances={field: 1.0e-11},
+        ),
     )
-    return result, result["x"].values
+    result = eqiora.run(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=0.2,
+        output_times_s=(0.05, 0.1, 0.2),
+    )
+    return result, result.series(field).values
 
 
 def test_result_owns_a_lazy_exact_cpu_descriptor() -> None:
@@ -35,12 +46,23 @@ def test_result_owns_a_lazy_exact_cpu_descriptor() -> None:
 import sys
 import eqiora
 assert "numpy" not in sys.modules
-result = eqiora.run(
-    eqiora.compile({DECAY!r}),
-    end_time=0.2,
-    max_step=0.1,
+model = eqiora.compile(source={DECAY!r})
+field = model.field(model.field_ids[0])
+plan = eqiora.resolve(
+    model,
+    temporal=eqiora.time.Tsitouras45(
+        initial_step_s=0.01,
+        relative_tolerance=1.0e-9,
+        absolute_tolerances={{field: 1.0e-11}},
+    ),
 )
-array = result["x"].values
+result = eqiora.run(
+    plan,
+    state=eqiora.State.initial(plan),
+    until_s=0.2,
+    output_times_s=(0.05, 0.1, 0.2),
+)
+array = result.series(field).values
 assert "numpy" not in sys.modules
 assert array.shape == (3,)
 assert array.strides == (8,)
@@ -109,11 +131,16 @@ def test_numpy_projection_is_zero_copy_read_only_and_lifetime_safe() -> None:
     assert copied.flags.writeable
     assert not np.shares_memory(copied, selected)
     copied[0] = 9.0
-    assert selected[0] == 1.0
+    assert selected[0] == pytest.approx(np.exp(-0.05), rel=2.0e-8, abs=2.0e-10)
 
     del result, array
     gc.collect()
-    np.testing.assert_allclose(selected, [1.0, 1.0 / 1.1, 1.0 / 1.1**2])
+    np.testing.assert_allclose(
+        selected,
+        np.exp(-np.array([0.05, 0.1, 0.2])),
+        rtol=2.0e-8,
+        atol=2.0e-10,
+    )
 
 
 def test_dlpack_is_a_versioned_cpu_snapshot_not_a_mutable_alias() -> None:
@@ -130,7 +157,7 @@ def test_dlpack_is_a_versioned_cpu_snapshot_not_a_mutable_alias() -> None:
     else:
         with pytest.raises(ValueError):
             snapshot.setflags(write=True)
-    assert original[0] == 1.0
+    assert original[0] == pytest.approx(np.exp(-0.05), rel=2.0e-8, abs=2.0e-10)
 
     explicit = np.from_dlpack(array, copy=True)
     assert not np.shares_memory(explicit, original)
@@ -149,9 +176,7 @@ def test_dlpack_is_a_versioned_cpu_snapshot_not_a_mutable_alias() -> None:
     with pytest.raises(BufferError):
         array.__dlpack__(max_version=(2, 0))
 
-    capsule = array.__dlpack__(
-        max_version=(1, 0), dl_device=(1, 0), copy=True
-    )
+    capsule = array.__dlpack__(max_version=(1, 0), dl_device=(1, 0), copy=True)
     assert '"dltensor_versioned"' in repr(capsule)
 
     class SingleUseProducer:

@@ -66,6 +66,8 @@ pub enum DiscretizationMethod {
 pub enum MeshKind {
     /// Cartesian topology generated from canonical box bounds.
     GeneratedCartesian,
+    /// Caller-supplied, content-addressed Cartesian topology.
+    SuppliedCartesian,
     /// Content-addressed, fixed-connectivity affine simplex topology.
     ImportedAffineSimplicial,
 }
@@ -100,6 +102,13 @@ pub enum MeshPolicy {
         /// Non-zero cells per axis.
         cells_per_axis: NonZeroUsize,
     },
+    /// Use one caller-supplied Cartesian mesh artifact with exact axis counts.
+    SuppliedCartesian {
+        /// Content identity resolved by the artifact/control plane.
+        artifact: MeshArtifactReference,
+        /// Exact non-zero cell counts on the two Cartesian axes.
+        cells: [NonZeroUsize; 2],
+    },
     /// Use one independently versioned affine-simplex mesh artifact.
     ImportedSimplicial {
         /// Content identity resolved by the artifact/control plane.
@@ -113,6 +122,7 @@ impl MeshPolicy {
     pub const fn kind(self) -> MeshKind {
         match self {
             Self::GeneratedUniform { .. } => MeshKind::GeneratedCartesian,
+            Self::SuppliedCartesian { .. } => MeshKind::SuppliedCartesian,
             Self::ImportedSimplicial { .. } => MeshKind::ImportedAffineSimplicial,
         }
     }

@@ -19,6 +19,15 @@ mod support;
 
 pub use api::{SteadyIncompressibleStokesCartesianModel2d, SteadyStokesNormalPressure2d};
 pub(crate) use boundary::LoweredStokesBoundary;
+pub(crate) use geometry_realization::scaling::ResolvedIncompressibleScaling2d;
+pub use geometry_realization::scaling::{
+    IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d, ScalingAuthorities2d,
+    ScalingAuthority2d, ScalingComponent2d, ScalingComponentRecord2d, ScalingDependencies2d,
+    ScalingMode2d, ScalingRule2d,
+};
+pub(crate) use geometry_realization::scaling::{
+    resolve_complete_manual_incompressible_scaling_2d, resolve_fixed_reference_fsi_scaling_2d,
+};
 pub use geometry_realization::{
     SteadyStokesGeometryBinding2d, solve_resolved_steady_stokes_geometry_mini_2d,
 };
@@ -29,6 +38,7 @@ pub use inertial::{
 pub(crate) use inertial::{
     LoweredInertialIncompressibleNewtonianSubdomain2d,
     lower_inertial_incompressible_newtonian_subdomain_2d,
+    lower_inertial_incompressible_newtonian_subdomain_2d_with_boundaries,
 };
 pub(crate) use navier_stokes::lower_transient_incompressible_navier_stokes_subdomain;
 pub use navier_stokes::{
@@ -45,6 +55,7 @@ pub use navier_stokes_fvm_realization::{
     transient_navier_stokes_cell_centered_plan_2d,
     transient_navier_stokes_cell_centered_requirements_2d,
 };
+pub(crate) use navier_stokes_realization::require_complete_zero_trace;
 pub use navier_stokes_realization::{
     ResolvedTransientNavierStokesState2d, ResolvedTransientNavierStokesTrajectory2d,
     TransientNavierStokesInitialState2d, TransientNavierStokesRun2d,
@@ -61,6 +72,7 @@ pub use realization::{
     steady_stokes_fieldwise_requirements_2d, steady_stokes_mini_plan_2d,
 };
 pub use recognize::lower_steady_incompressible_stokes_cartesian_2d;
+pub(crate) use recognize::recognize_steady_incompressible_stokes_geometry_mathematics;
 
 #[cfg(test)]
 mod tests;

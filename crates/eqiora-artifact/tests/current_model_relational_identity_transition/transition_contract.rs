@@ -122,9 +122,7 @@ const ORACLE_FILES: [&str; 2] = [
 ///
 /// Unlike `ORACLE_FILES`, these siblings deliberately carry no searched
 /// spelling, remain visible to the sweep, and need no exclusion permission.
-const NON_SIGNAL_ORACLE_FILES: [&str; 2] = [
-    "crates/eqiora-artifact/tests/current_model_relational_identity_transition/\
-     post_reset_admission.rs",
+const NON_SIGNAL_ORACLE_FILES: [&str; 1] = [
     "crates/eqiora-artifact/tests/current_model_relational_identity_transition/\
      post_reset_classification.rs",
 ];
@@ -817,7 +815,7 @@ fn clean_post_reset_product_source() -> BTreeMap<String, String> {
 /// those files — it makes every optional-path predicate below non-vacuous,
 /// since every state reaches `observe_admitted` through bytes exactly as the
 /// live tree does.
-const ADMITTED_AS_RECORDED: [(&str, &str); 5] = [
+const ADMITTED_AS_RECORDED: [(&str, &str); 4] = [
     (
         "crates/eqiora-python/src/trajectory.rs",
         "pub fn trajectory(model_digest: &str) -> PyResult<Trajectory> {\n    \
@@ -834,10 +832,6 @@ const ADMITTED_AS_RECORDED: [(&str, &str); 5] = [
     (
         "crates/eqiora-artifact/src/cartesian_q1_field_snapshot.rs",
         "struct SnapshotWire { model_sha256: String }\n",
-    ),
-    (
-        "crates/eqiora/tests/generated_cartesian_q1_spatial_output.rs",
-        "fn stale_snapshot() { let key = \"model_sha256\"; assert!(!key.is_empty()); }\n",
     ),
 ];
 
@@ -1094,8 +1088,8 @@ fn the_frozen_transition_contract_partitions_the_repository() {
     );
 
     // Two states, one partition — and the partition is of the inventory, not of
-    // those three counts. 34 retired inventory paths and 304 preserved ones
-    // cover the 338 candidates exactly; the other 10 retired paths carry no
+    // those three counts. 42 retired inventory paths and 264 preserved ones
+    // cover the 306 candidates exactly; the other 10 retired paths carry no
     // search signal and were never inventory members, and the 13 required paths
     // are post-reset additions and one in-place replacement.
     let retired_inventory = contract.retired.intersection(&contract.inventory).count();
@@ -1988,9 +1982,6 @@ fn a_clean_post_reset_product_source_is_accepted_and_a_private_branch_is_refused
         );
     }
 }
-
-#[path = "post_reset_admission.rs"]
-mod post_reset_admission;
 
 #[path = "post_reset_classification.rs"]
 mod post_reset_classification;

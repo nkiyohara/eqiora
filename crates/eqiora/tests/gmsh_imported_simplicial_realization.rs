@@ -7,7 +7,7 @@ use eqiora::artifact::{
 };
 use eqiora::compiler::compile;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
-use eqiora::io::gmsh::{GmshImportLimits, GmshSimplexImporter};
+use eqiora::io::gmsh::{Msh41Policy, import_msh41};
 use eqiora::meshing::MeshQualityGate;
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
@@ -33,14 +33,9 @@ const EXPECTED_MESH_DIGEST: &str = include_str!(
 
 #[test]
 fn gmsh_fixture_closes_import_artifact_realization_and_solution_evidence() {
-    let importer = GmshSimplexImporter::new(
-        2,
-        MeshQualityGate::new(0.5).unwrap(),
-        GmshImportLimits::default(),
-    )
-    .unwrap();
-    let mesh = importer.import_bytes(MSH).unwrap();
-    let binary_mesh = importer.import_bytes(BINARY_MSH).unwrap();
+    let policy = Msh41Policy::mesh(2, MeshQualityGate::new(0.5).unwrap()).unwrap();
+    let mesh = import_msh41(MSH, policy, |_, _, _| {}).unwrap();
+    let binary_mesh = import_msh41(BINARY_MSH, policy, |_, _, _| {}).unwrap();
     assert_eq!(binary_mesh, mesh);
     assert_eq!(mesh.vertices().len(), 5);
     assert_eq!(mesh.cells().len(), 4);
@@ -102,16 +97,10 @@ fn gmsh_fixture_closes_import_artifact_realization_and_solution_evidence() {
 
 #[test]
 fn every_truncated_official_binary_fixture_fails_through_the_public_facade() {
-    let importer = GmshSimplexImporter::new(
-        2,
-        MeshQualityGate::new(0.5).unwrap(),
-        GmshImportLimits::default(),
-    )
-    .unwrap();
+    let policy = Msh41Policy::mesh(2, MeshQualityGate::new(0.5).unwrap()).unwrap();
     for end in 0..BINARY_MSH.len() {
         assert_eq!(
-            importer
-                .import_bytes(&BINARY_MSH[..end])
+            import_msh41(&BINARY_MSH[..end], policy, |_, _, _| {})
                 .unwrap_err()
                 .code(),
             eqiora::diagnostic::codes::INVALID_MESH_IMPORT,

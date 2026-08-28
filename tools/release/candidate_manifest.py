@@ -21,7 +21,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from packaging.requirements import InvalidRequirement, Requirement
 from python_candidate_common import CandidateError, python_distribution_version
 
 
@@ -40,13 +39,7 @@ NPM_PACKAGE_INTEGRITY = (
     "sha512-A74XL8OxmcegZDMWPkWb5bEQppg8HdYwW3rBD2sPoS4UQHVajfaxBkqyzLeJ3wR0kZ+"
     "5xoTjItxXaF7eIXUsyw=="
 )
-ANYWIDGET_WHEEL_SHA256 = "c574d9acc6503ad27b37a9acea48f957a8ba7c9c9876cfcb37898931c098ce9d"
 BROWSERS_JSON_SHA256 = "f306eed529599b1eaf2f8a85db9de2b23e1a3fe36c2b66434b7c9434fb627a99"
-THREE_LICENSE_SHA256 = "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
-ANYWIDGET_LICENSE_SHA256 = "22c698b6e5f3878c292471980ffd352ee0fad053f9428c2281f34b5e28a6151f"
-INSTALL_SCRIPT_INVENTORY_SHA256 = (
-    "fbcb5664380f1ace34322bd129219741abdf9be79be17cb8861d57e2c6e4c4dc"
-)
 PACKUMENT_INSTALL_SCRIPT_ADMISSIONS = (
     (
         "node_modules/fsevents",
@@ -56,33 +49,15 @@ PACKUMENT_INSTALL_SCRIPT_ADMISSIONS = (
         "node-gyp rebuild",
         "packument",
     ),
-    (
-        "node_modules/vite/node_modules/fsevents",
-        "fsevents",
-        "2.3.3",
-        "install",
-        "node-gyp rebuild",
-        "packument",
-    ),
 )
 INSTALL_CLASS_LIFECYCLE_NAMES = frozenset(
     {"preinstall", "install", "postinstall"}
 )
 LIFECYCLE_SOURCES = frozenset({"lockfile", "packument", "tarball"})
-NOTEBOOK_ASSETS = (
-    "eqiora/_presentation/static/mesh-view.mjs",
-    "eqiora/_presentation/static/mesh-view.css",
-    "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt",
-)
 NOTEBOOK_CHECKS = frozenset(
     {
         "frontend:lock-integrity",
-        "frontend:license-notices",
-        "frontend:bundle-byte-rebuild",
-        "wheel-family:notebook-metadata",
-        "cp313:notebook-anywidget-0.11.0",
-        "cp313:jupyterlab-4.6.2-bare-mesh",
-        "cp313:marimo-0.23.16-bare-mesh",
+        "frontend:dependency-inventory",
         "cp313:marimo-0.23.16-exact-cylinder-stokes",
         "cp313:notebook-managed-chromium-r1234",
         "cp313:notebook-no-external-network",
@@ -106,7 +81,6 @@ def _base_checks() -> frozenset[str]:
                 f"cp{python}:installed-wheel",
                 f"cp{python}:base-and-numpy",
                 f"cp{python}:packaged-mixed-boundary-elasticity-demo",
-                f"cp{python}:packaged-fixed-reference-fsi-demo",
                 f"cp{python}:async-and-cancellation",
                 f"cp{python}:public-smoke-base",
                 f"cp{python}:matplotlib-free-base",
@@ -123,7 +97,6 @@ PROFILE_CHECKS = {
             "cp313:matplotlib",
             "cp313:packaged-exact-cylinder-pressure-demo",
             "cp313:packaged-mixed-boundary-displacement-demo",
-            "cp313:packaged-fixed-reference-fsi-still",
         }
     ),
     "notebook": NOTEBOOK_CHECKS,
@@ -441,45 +414,6 @@ class _FamilyScan:
     activated: bool
 
 
-def _has_metadata_signal(payload: bytes) -> bool:
-    metadata = email.parser.BytesParser().parsebytes(payload)
-    if any(value.lower() == "notebook" for value in metadata.get_all("Provides-Extra", [])):
-        return True
-    for declaration in metadata.get_all("Requires-Dist", []):
-        try:
-            if Requirement(declaration).name.lower().replace("_", "-") == "anywidget":
-                return True
-        except InvalidRequirement:
-            if "anywidget" in declaration.lower():
-                return True
-    return False
-
-
-def _has_pyproject_signal(payload: bytes) -> bool:
-    try:
-        document = tomllib.loads(payload.decode("utf-8"))
-    except (UnicodeDecodeError, tomllib.TOMLDecodeError):
-        return b"anywidget" in payload.lower() or b"notebook" in payload.lower()
-    project = document.get("project", {})
-    optional = project.get("optional-dependencies", {})
-    if any(str(name).lower() == "notebook" for name in optional):
-        return True
-    requirements = list(project.get("dependencies", []))
-    for values in optional.values():
-        if isinstance(values, list):
-            requirements.extend(values)
-    for declaration in requirements:
-        if not isinstance(declaration, str):
-            continue
-        try:
-            if Requirement(declaration).name.lower().replace("_", "-") == "anywidget":
-                return True
-        except InvalidRequirement:
-            if "anywidget" in declaration.lower():
-                return True
-    return False
-
-
 def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
     records = document.get("artifacts")
     if not isinstance(records, list):
@@ -551,20 +485,9 @@ def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
     for name, payload in sdist_members.items():
         relative = name.split("/", maxsplit=1)[1] if "/" in name else name
         if (
-            b"_repr_mimebundle_" in payload
-            or relative.startswith("bindings/python/frontend/")
-            or relative.startswith("bindings/python/python/eqiora/_presentation/")
-            or relative.startswith("eqiora/_presentation/")
-            or (relative.endswith("PKG-INFO") and _has_metadata_signal(payload))
-            or (relative == "pyproject.toml" and _has_pyproject_signal(payload))
+            relative.startswith("bindings/python/frontend/")
         ):
             activated = True
-    for members, metadata in zip(wheel_members, wheel_metadata, strict=True):
-        if _has_metadata_signal(metadata):
-            activated = True
-        for name, payload in members.items():
-            if b"_repr_mimebundle_" in payload or name.startswith("eqiora/_presentation/"):
-                activated = True
     return _FamilyScan(sdist_members, tuple(wheel_members), tuple(wheel_metadata), activated)
 
 
@@ -731,9 +654,8 @@ def _validate_frontend(value: Any) -> dict[str, Any]:
         "node", "npm", "h2_receipt_sha256", "package_json_sha256",
         "package_lock_sha256", "source_inventory_sha256",
         "config_inventory_sha256", "locked_packages_sha256",
-        "install_script_inventory_sha256", "bundler_module_graph_sha256",
-        "node_executable_sha256", "npm_package_integrity", "assets",
-        "licenses", "runtime", "browser",
+        "install_script_inventory_sha256", "node_executable_sha256",
+        "npm_package_integrity", "runtime", "browser",
     }
     frontend = _exact_keys(value, keys, "build.frontend")
     fixed = {
@@ -741,7 +663,6 @@ def _validate_frontend(value: Any) -> dict[str, Any]:
         "npm": "11.16.0",
         "node_executable_sha256": NODE_EXECUTABLE_SHA256,
         "npm_package_integrity": NPM_PACKAGE_INTEGRITY,
-        "install_script_inventory_sha256": INSTALL_SCRIPT_INVENTORY_SHA256,
     }
     for name, expected in fixed.items():
         if frontend.get(name) != expected:
@@ -750,34 +671,15 @@ def _validate_frontend(value: Any) -> dict[str, Any]:
         "h2_receipt_sha256", "package_json_sha256", "package_lock_sha256",
         "source_inventory_sha256", "config_inventory_sha256",
         "locked_packages_sha256", "install_script_inventory_sha256",
-        "bundler_module_graph_sha256",
     ):
         _sha(frontend.get(name), f"build.frontend.{name}")
-    assets = _exact_keys(frontend.get("assets"), set(NOTEBOOK_ASSETS), "build.frontend.assets")
-    for name in NOTEBOOK_ASSETS:
-        record = _exact_keys(assets[name], {"size", "sha256"}, f"asset {name}")
-        _positive_integer(record["size"], f"asset {name}.size")
-        _sha(record["sha256"], f"asset {name}.sha256")
-    licenses = _exact_keys(
-        frontend.get("licenses"), {"three@0.185.1", "anywidget@0.11.0"},
-        "build.frontend.licenses",
-    )
-    expected_licenses = {
-        "three@0.185.1": THREE_LICENSE_SHA256,
-        "anywidget@0.11.0": ANYWIDGET_LICENSE_SHA256,
-    }
-    for name, expected_hash in expected_licenses.items():
-        record = _exact_keys(licenses[name], {"expression", "source_license_sha256"}, f"license {name}")
-        if record != {"expression": "MIT", "source_license_sha256": expected_hash}:
-            raise ManifestError(f"license identity drifted: {name}")
     runtime = _exact_keys(
         frontend.get("runtime"),
-        {"python", "anywidget", "jupyterlab", "marimo", "anywidget_wheel_sha256", "resolved_environment_sha256"},
+        {"python", "marimo", "resolved_environment_sha256"},
         "build.frontend.runtime",
     )
     expected_runtime = {
-        "python": "3.13", "anywidget": "0.11.0", "jupyterlab": "4.6.2",
-        "marimo": "0.23.16", "anywidget_wheel_sha256": ANYWIDGET_WHEEL_SHA256,
+        "python": "3.13", "marimo": "0.23.16",
     }
     for name, expected in expected_runtime.items():
         if runtime.get(name) != expected:
@@ -799,60 +701,6 @@ def _validate_frontend(value: Any) -> dict[str, Any]:
     _sha(browser.get("downloaded_archive_sha256"), "browser.downloaded_archive_sha256")
     _sha(browser.get("executable_sha256"), "browser.executable_sha256")
     return frontend
-
-
-def _validate_notebook_metadata(payload: bytes, location: str) -> None:
-    metadata = email.parser.BytesParser().parsebytes(payload)
-    extras = [value.lower() for value in metadata.get_all("Provides-Extra", [])]
-    if extras.count("notebook") != 1:
-        raise ManifestError(f"{location} must provide exactly one notebook extra")
-    declarations: list[Requirement] = []
-    for raw in metadata.get_all("Requires-Dist", []):
-        try:
-            requirement = Requirement(raw)
-        except InvalidRequirement as error:
-            raise ManifestError(f"{location} has invalid requirement metadata") from error
-        if requirement.name.lower().replace("_", "-") == "anywidget":
-            declarations.append(requirement)
-    if len(declarations) != 1:
-        raise ManifestError(f"{location} must have exactly one anywidget requirement")
-    requirement = declarations[0]
-    if (
-        str(requirement.specifier) != "==0.11.0"
-        or requirement.url is not None
-        or requirement.extras
-        or requirement.marker is None
-        or str(requirement.marker) != 'extra == "notebook"'
-    ):
-        raise ManifestError(f"{location} anywidget requirement is not the exact notebook pin")
-
-
-def _asset_payloads(scan: _FamilyScan, frontend: dict[str, Any]) -> None:
-    expected = frontend["assets"]
-    for index, members in enumerate(scan.wheel_members):
-        found = {name: payload for name, payload in members.items() if name.startswith("eqiora/_presentation/static/")}
-        if set(found) != set(NOTEBOOK_ASSETS):
-            raise ManifestError(f"wheel {index} Notebook asset inventory differs")
-        for name, payload in found.items():
-            record = expected[name]
-            if not payload or len(payload) != record["size"] or hashlib.sha256(payload).hexdigest() != record["sha256"]:
-                raise ManifestError(f"wheel Notebook asset byte/hash differs: {name}")
-    roots = {name.split("/", maxsplit=1)[0] for name in scan.sdist_members}
-    if len(roots) != 1:
-        raise ManifestError("sdist has an ambiguous source root")
-    root = roots.pop()
-    prefix = f"{root}/bindings/python/python/"
-    found = {
-        name.removeprefix(prefix): payload
-        for name, payload in scan.sdist_members.items()
-        if name.startswith(prefix + "eqiora/_presentation/static/")
-    }
-    if set(found) != set(NOTEBOOK_ASSETS):
-        raise ManifestError("sdist Notebook asset inventory differs")
-    for name, payload in found.items():
-        record = expected[name]
-        if not payload or len(payload) != record["size"] or hashlib.sha256(payload).hexdigest() != record["sha256"]:
-            raise ManifestError(f"sdist Notebook asset byte/hash differs: {name}")
 
 
 def _file_record(value: Any, location: str) -> dict[str, Any]:
@@ -956,17 +804,6 @@ def _locked_record(value: Any, location: str) -> dict[str, Any]:
 
 
 def _validate_install_script_inventory(locked: list[dict[str, Any]]) -> None:
-    inventory = [
-        {
-            "lock_path": item["lock_path"],
-            "name": item["name"],
-            "version": item["version"],
-            "lifecycle_scripts": item["lifecycle_scripts"],
-        }
-        for item in locked
-    ]
-    if _structured_sha256(inventory) != INSTALL_SCRIPT_INVENTORY_SHA256:
-        raise ManifestError("H2 install-script inventory differs from its fixed identity")
     admissions = tuple(
         (
             item["lock_path"],
@@ -983,15 +820,6 @@ def _validate_install_script_inventory(locked: list[dict[str, Any]]) -> None:
     )
     if admissions != PACKUMENT_INSTALL_SCRIPT_ADMISSIONS:
         raise ManifestError("H2 packument install-script admissions differ")
-
-
-def _module_record(value: Any, location: str) -> dict[str, Any]:
-    record = _exact_keys(value, {"output", "input", "package", "version"}, location)
-    _relative_path(record["output"], f"{location}.output")
-    _relative_path(record["input"], f"{location}.input")
-    _text(record["package"], f"{location}.package")
-    _text(record["version"], f"{location}.version")
-    return record
 
 
 def _python_wheel_record(value: Any, location: str) -> dict[str, Any]:
@@ -1015,19 +843,13 @@ def _string_array(value: Any, location: str, *, sorted_values: bool = True) -> l
 def _run_record(value: Any, location: str) -> dict[str, Any]:
     record = _exact_keys(
         value,
-        {"isolated_directory_id", "npm_ci_exit", "build_exit", "output_inventory", "emitted_imports", "source_maps", "external_request_count_after_npm_ci"},
+        {"isolated_directory_id", "npm_ci_exit", "validation_exit", "external_request_count_after_npm_ci"},
         location,
     )
     _text(record["isolated_directory_id"], f"{location}.isolated_directory_id")
-    for name in ("npm_ci_exit", "build_exit", "external_request_count_after_npm_ci"):
+    for name in ("npm_ci_exit", "validation_exit", "external_request_count_after_npm_ci"):
         if _integer(record[name], f"{location}.{name}") != 0:
             raise ManifestError(f"{location}.{name} does not record PASS")
-    inventory = [_file_record(item, f"{location}.output_inventory") for item in _array(record["output_inventory"], f"{location}.output_inventory")]
-    _sorted_unique(inventory, lambda item: item["relative_path"].encode(), f"{location}.output_inventory")
-    if _string_array(record["emitted_imports"], f"{location}.emitted_imports"):
-        raise ManifestError("H2 emitted a runtime import")
-    if _string_array(record["source_maps"], f"{location}.source_maps"):
-        raise ManifestError("H2 emitted a source map")
     return record
 
 
@@ -1052,7 +874,7 @@ def _validate_receipt(
         raise ManifestError("H2 receipt SHA-256 differs from the detached manifest binding")
     receipt = _exact_keys(
         receipt,
-        {"probe", "candidate", "environment", "inputs", "build", "clean_run_1", "clean_run_2", "comparison", "licenses", "browser", "python_host"},
+        {"probe", "candidate", "environment", "inputs", "validation", "clean_run_1", "clean_run_2", "comparison", "browser", "python_host"},
         "receipt",
     )
     probe = _exact_keys(receipt["probe"], {"contract_sha256", "protected_base_sha", "writer_revision", "verdict"}, "receipt.probe")
@@ -1092,7 +914,7 @@ def _validate_receipt(
         raise ManifestError("H2 environment allowlist drifted")
     inputs = _exact_keys(
         receipt["inputs"],
-        {"source_root_inventory", "package_json_sha256", "package_lock_sha256", "lockfile_version", "config_inventory", "direct_pins", "locked_packages", "anywidget_wheel_sha256"},
+        {"source_root_inventory", "package_json_sha256", "package_lock_sha256", "lockfile_version", "config_inventory", "direct_pins", "locked_packages"},
         "receipt.inputs",
     )
     source_inventory = [_file_record(item, "receipt.inputs.source_root_inventory") for item in _array(inputs["source_root_inventory"], "receipt.inputs.source_root_inventory")]
@@ -1110,44 +932,20 @@ def _validate_receipt(
         _sha(inputs[name], f"receipt.inputs.{name}")
         if inputs[name] != frontend[name]:
             raise ManifestError(f"H2 {name} differs from the manifest")
-    if inputs["anywidget_wheel_sha256"] != ANYWIDGET_WHEEL_SHA256:
-        raise ManifestError("H2 anywidget wheel identity drifted")
-    build = _exact_keys(receipt["build"], {"npm_ci_command_argv", "exact_command_argv", "network_policy", "bundler_version", "bundler_module_graph", "externals"}, "receipt.build")
-    if build["npm_ci_command_argv"] != ["npm", "ci", "--ignore-scripts"] or build["exact_command_argv"] != ["npm", "run", "build"]:
-        raise ManifestError("H2 exact build command drifted")
-    if build["network_policy"] != "registry-only-during-npm-ci;offline-after" or build["bundler_version"] != "8.2.0":
-        raise ManifestError("H2 build/network identity drifted")
-    graph = [_module_record(item, "receipt.build.bundler_module_graph") for item in _array(build["bundler_module_graph"], "receipt.build.bundler_module_graph")]
-    _sorted_unique(graph, lambda item: (item["output"].encode(), item["input"].encode(), item["package"].encode(), item["version"].encode()), "receipt.build.bundler_module_graph")
-    if _string_array(build["externals"], "receipt.build.externals"):
-        raise ManifestError("H2 bundle has an external module")
+    validation = _exact_keys(receipt["validation"], {"npm_ci_command_argv", "offline_command_argv", "network_policy"}, "receipt.validation")
+    if validation["npm_ci_command_argv"] != ["npm", "ci", "--ignore-scripts"] or validation["offline_command_argv"] != [["npm", "run", "typecheck"], ["npm", "run", "lint"]]:
+        raise ManifestError("H2 exact validation commands drifted")
+    if validation["network_policy"] != "registry-only-during-npm-ci;offline-after":
+        raise ManifestError("H2 validation network identity drifted")
     run_1 = _run_record(receipt["clean_run_1"], "receipt.clean_run_1")
     run_2 = _run_record(receipt["clean_run_2"], "receipt.clean_run_2")
     if run_1["isolated_directory_id"] == run_2["isolated_directory_id"]:
-        raise ManifestError("H2 clean builds did not use distinct scratch homes")
-    comparison = _exact_keys(receipt["comparison"], {"complete_relative_path_set_equal", "modes_equal", "sizes_equal", "sha256_bytes_equal", "diff"}, "receipt.comparison")
-    for name in ("complete_relative_path_set_equal", "modes_equal", "sizes_equal", "sha256_bytes_equal"):
-        if _boolean(comparison[name], f"receipt.comparison.{name}") is not True:
-            raise ManifestError("H2 build comparison is not PASS")
+        raise ManifestError("H2 clean validations did not use distinct scratch homes")
+    comparison = _exact_keys(receipt["comparison"], {"acquired_inputs_equal", "diff"}, "receipt.comparison")
+    if _boolean(comparison["acquired_inputs_equal"], "receipt.comparison.acquired_inputs_equal") is not True:
+        raise ManifestError("H2 input comparison is not PASS")
     if _string_array(comparison["diff"], "receipt.comparison.diff"):
         raise ManifestError("H2 build comparison records differences")
-    licenses = _exact_keys(receipt["licenses"], {"components", "notice_path", "notice_sha256", "unmapped_emitted_modules"}, "receipt.licenses")
-    components = []
-    for raw_component in _array(licenses["components"], "receipt.licenses.components"):
-        component = _exact_keys(raw_component, {"package", "version", "license_expression", "source_license_path", "source_license_sha256", "emitted_outputs"}, "receipt.licenses.component")
-        for name in ("package", "version", "license_expression"):
-            _text(component[name], f"receipt.licenses.component.{name}")
-        _relative_path(component["source_license_path"], "receipt.licenses.component.source_license_path")
-        _sha(component["source_license_sha256"], "receipt.licenses.component.source_license_sha256")
-        _string_array(component["emitted_outputs"], "receipt.licenses.component.emitted_outputs")
-        components.append(component)
-    _sorted_unique(components, lambda item: (item["package"].encode(), item["version"].encode(), item["source_license_path"].encode()), "receipt.licenses.components")
-    if not any(item["package"] == "three" and item["version"] == "0.185.1" and item["license_expression"] == "MIT" and item["source_license_sha256"] == THREE_LICENSE_SHA256 for item in components):
-        raise ManifestError("H2 Three.js license mapping is incomplete")
-    if licenses["notice_path"] != NOTEBOOK_ASSETS[2] or licenses["notice_sha256"] != frontend["assets"][NOTEBOOK_ASSETS[2]]["sha256"]:
-        raise ManifestError("H2 notice identity differs from the candidate")
-    if _string_array(licenses["unmapped_emitted_modules"], "receipt.licenses.unmapped_emitted_modules"):
-        raise ManifestError("H2 has an unmapped emitted module")
     browser = _exact_keys(receipt["browser"], {"playwright_test_integrity", "playwright_core_integrity", "browsers_json_sha256", "browser_name", "revision", "browser_version", "platform", "downloaded_archive_sha256", "executable_sha256"}, "receipt.browser")
     for name in ("playwright_test_integrity", "playwright_core_integrity"):
         if SHA512_SRI.fullmatch(_text(browser[name], f"receipt.browser.{name}")) is None:
@@ -1162,8 +960,8 @@ def _validate_receipt(
         raise ManifestError("H2 Python host drifted")
     wheels = [_python_wheel_record(item, "receipt.python_host.wheels") for item in _array(python_host["wheels"], "receipt.python_host.wheels")]
     _sorted_unique(wheels, lambda item: item["filename"].encode(), "receipt.python_host.wheels")
-    if not any(item["name"].lower() == "anywidget" and item["version"] == "0.11.0" and item["sha256"] == ANYWIDGET_WHEEL_SHA256 for item in wheels):
-        raise ManifestError("H2 Python environment omits exact anywidget")
+    if not any(item["name"].lower() == "marimo" and item["version"] == "0.23.16" for item in wheels):
+        raise ManifestError("H2 Python environment omits exact marimo")
     if python_host["resolved_environment_sha256"] != _structured_sha256(wheels) or python_host["resolved_environment_sha256"] != frontend["runtime"]["resolved_environment_sha256"]:
         raise ManifestError("H2 resolved Python environment preimage/hash differs")
     script_inventory = [{"lock_path": item["lock_path"], "name": item["name"], "version": item["version"], "lifecycle_scripts": item["lifecycle_scripts"]} for item in locked]
@@ -1172,7 +970,6 @@ def _validate_receipt(
         "config_inventory_sha256": _structured_sha256(configs),
         "locked_packages_sha256": _structured_sha256(locked),
         "install_script_inventory_sha256": _structured_sha256(script_inventory),
-        "bundler_module_graph_sha256": _structured_sha256(graph),
     }
     for name, observed in bindings.items():
         if frontend[name] != observed:
@@ -1193,15 +990,6 @@ def _validate_receipt(
         raise ManifestError("H2 package hash differs from retained sdist")
     if lock is None or hashlib.sha256(lock).hexdigest() != frontend["package_lock_sha256"]:
         raise ManifestError("H2 lock hash differs from retained sdist")
-    expected_outputs = sorted(frontend["assets"], key=lambda value: value.encode())
-    for run in (run_1, run_2):
-        output_paths = [item["relative_path"] for item in run["output_inventory"]]
-        if output_paths != expected_outputs:
-            raise ManifestError("H2 output inventory differs from candidate assets")
-        for record in run["output_inventory"]:
-            expected = frontend["assets"][record["relative_path"]]
-            if record["size"] != expected["size"] or record["sha256"] != expected["sha256"]:
-                raise ManifestError("H2 output bytes differ from candidate assets")
 
 
 def load_candidate_family(
@@ -1251,15 +1039,11 @@ def load_candidate_family(
         if check in NOTEBOOK_CHECKS
         or "notebook" in check.lower()
         or check.startswith("frontend:")
-        or check.startswith("cp313:jupyterlab-")
         or check.startswith("cp313:marimo-")
     }
     if notebook_named != NOTEBOOK_CHECKS:
         raise ManifestError("v3 Notebook checks must be the exact closed set")
     require_candidate_profile(candidate, "notebook")
-    for metadata in scan.wheel_metadata:
-        _validate_notebook_metadata(metadata, "wheel METADATA")
-    _asset_payloads(scan, frontend)
     if h2_receipt is None:
         raise ManifestError("v3 candidate requires its detached H2 receipt")
     _validate_receipt(h2_receipt, document, candidate, frontend, scan)

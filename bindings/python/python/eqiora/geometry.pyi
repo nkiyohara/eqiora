@@ -7,6 +7,94 @@ from collections.abc import Mapping, Sequence
 from typing import final
 
 @final
+class GeometryRegionHandle:
+    """Direct construction-owned handle to one exact planar region.
+
+    Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryRegionHandle``.
+    """
+
+    @property
+    def dimension(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+
+@final
+class GeometryBoundaryHandle:
+    """Direct construction-owned handle to one exact planar boundary.
+
+    Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryBoundaryHandle``.
+    """
+
+    @property
+    def dimension(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+
+@final
+class GeometryOperation:
+    """Immutable result of one exact primitive or Boolean operation.
+
+    ``boundaries`` uses canonical construction order: a rectangle returns
+    ``(x_lower, x_upper, y_lower, y_upper)``, a circle returns its sole curve,
+    and subtract returns the four outer boundaries followed by the created cut.
+
+    Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryOperation``.
+    """
+
+    @property
+    def region(self) -> GeometryRegionHandle: ...
+    @property
+    def boundaries(self) -> tuple[GeometryBoundaryHandle, ...]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+
+@final
+class GeometryGraph:
+    """Handle-first exact planar construction graph.
+
+    This stack-only pre-1.0 surface is not independently mergeable before the
+    dependent meshing and API-convergence slices.
+
+    Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryGraph``.
+    """
+
+    def __init__(self) -> None: ...
+    def rectangle(
+        self,
+        *,
+        x_bounds: tuple[float, float],
+        y_bounds: tuple[float, float],
+    ) -> GeometryOperation: ...
+    def circle(
+        self,
+        *,
+        center: tuple[float, float],
+        radius: float,
+    ) -> GeometryOperation: ...
+    def subtract(
+        self,
+        rectangle: GeometryOperation,
+        circle: GeometryOperation,
+    ) -> GeometryOperation: ...
+    def partition(
+        self,
+        left: GeometryOperation,
+        right: GeometryOperation,
+        /,
+        *,
+        interface: tuple[GeometryBoundaryHandle, GeometryBoundaryHandle],
+    ) -> GeometryOperation: ...
+    def build(
+        self,
+        operation: GeometryOperation,
+        /,
+        *,
+        named_topology: Mapping[
+            str,
+            GeometryRegionHandle
+            | GeometryBoundaryHandle
+            | Sequence[GeometryRegionHandle | GeometryBoundaryHandle],
+        ],
+    ) -> Geometry: ...
+
+@final
 class CadAuthoredFaceHandle:
     """Authored-face provenance bound to one exact graph digest.
 
@@ -95,17 +183,6 @@ class CadAuthoredGraph:
         *,
         boolean_tolerance: float,
     ) -> CadAuthoredGraph: ...
-    def planar_circular_section(
-        self,
-        *,
-        classification_tolerance: float,
-        region: str,
-        x_lower: str,
-        x_upper: str,
-        y_lower: str,
-        y_upper: str,
-        hole: str,
-    ) -> Geometry: ...
     @property
     def canonical_bytes(self) -> bytes: ...
     @property
@@ -252,5 +329,9 @@ __all__ = [
     "CadAuthoredGraph",
     "CadAuthoredSketch",
     "Geometry",
+    "GeometryBoundaryHandle",
+    "GeometryGraph",
+    "GeometryOperation",
+    "GeometryRegionHandle",
     "GeometrySelection",
 ]

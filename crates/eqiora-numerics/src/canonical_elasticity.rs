@@ -2,10 +2,12 @@
 
 use std::collections::BTreeSet;
 
+use eqiora_artifact::{CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1};
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, GraphPath, RawId, ValueShape};
+use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::EdgeKind;
 use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
 use eqiora_meshing::QuadratureRule;
@@ -29,7 +31,7 @@ use crate::cartesian_elasticity::{
 };
 use crate::finalized_spatial::FinalizedIsotropicElasticityCartesian2dProblem;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
-use eqiora_meshing::CartesianMesh;
+use eqiora_meshing::{CartesianMesh, MeshTopology};
 
 mod block;
 mod boundary;
@@ -44,6 +46,7 @@ pub use dynamics::{
 pub(crate) use dynamics::{
     LoweredIsotropicElastodynamicsSubdomain, LoweredIsotropicElastodynamicsSubdomain2d,
     lower_isotropic_elastodynamics_subdomain, lower_isotropic_elastodynamics_subdomain_2d,
+    lower_isotropic_elastodynamics_subdomain_2d_with_boundaries,
 };
 pub use pair::{
     ConformingElasticityInterface2d, ConformingElasticityInterfaceSide2d,
@@ -206,9 +209,91 @@ pub fn lower_isotropic_elasticity_cartesian_2d(
     program: &KernelProgram,
 ) -> Result<IsotropicElasticityCartesianModel2d, Diagnostic> {
     let (domain, bounds) = unique_box_2d(program)?;
-    let lowered = lower_isotropic_elasticity_subdomain_2d(program, domain, bounds)?;
+    let lowered =
+        lower_isotropic_elasticity_subdomain_2d_with_boundaries(program, domain, bounds, None)?;
     require_closed_elasticity_models(program, std::slice::from_ref(&lowered))?;
     Ok(lowered.model)
+}
+
+pub(crate) fn lower_isotropic_elasticity_geometry_2d(
+    program: &KernelProgram,
+    geometry: &CanonicalGeometryV1,
+    mesh: &CartesianMeshEnvelopeV1,
+    correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+) -> Result<IsotropicElasticityCartesianModel2d, Diagnostic> {
+    let (domain, bounds, boundaries) = crate::canonical::geometry_rectangle_cartesian_support(
+        program,
+        geometry,
+        mesh,
+        correspondence,
+    )?;
+    let bounds: [[f64; 2]; 2] = bounds
+        .try_into()
+        .map_err(|_| model_lowering_error(program, "elasticity requires two rectangle axes"))?;
+    let lowered = lower_isotropic_elasticity_subdomain_2d_with_boundaries(
+        program,
+        domain,
+        bounds,
+        Some(boundaries),
+    )?;
+    require_closed_elasticity_models(program, std::slice::from_ref(&lowered))?;
+    Ok(lowered.model)
+}
+
+pub(crate) fn recognize_isotropic_elasticity_geometry_mathematics(
+    program: &KernelProgram,
+) -> Result<(), Diagnostic> {
+    let regions = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
+            {
+                Some(domain.id().erase())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [domain] = regions.as_slice() else {
+        return Err(model_lowering_error(
+            program,
+            "geometry-backed elasticity recognition requires exactly one GeometryRegion",
+        ));
+    };
+    let boundaries = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(boundary)
+                if matches!(boundary.kind(), DomainKind::GeometryBoundary { .. })
+                    && crate::canonical::boundary_parent(program, boundary.id().erase())
+                        == Some(*domain) =>
+            {
+                Some(boundary.id().erase())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if boundaries.len() != 4 {
+        return Err(lowering_error(
+            *domain,
+            "geometry-backed 2D elasticity recognition requires four boundary supports",
+        ));
+    }
+    let sides = [
+        (0, BoundarySide::Lower),
+        (0, BoundarySide::Upper),
+        (1, BoundarySide::Lower),
+        (1, BoundarySide::Upper),
+    ];
+    let boundary_map = sides.into_iter().zip(boundaries).collect();
+    let lowered = lower_isotropic_elasticity_subdomain_2d_with_boundaries(
+        program,
+        *domain,
+        [[0.0, 1.0], [0.0, 1.0]],
+        Some(boundary_map),
+    )?;
+    require_closed_elasticity_models(program, std::slice::from_ref(&lowered))?;
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -221,6 +306,15 @@ fn lower_isotropic_elasticity_subdomain_2d(
     program: &KernelProgram,
     domain: RawId,
     bounds: [[f64; 2]; 2],
+) -> Result<LoweredIsotropicElasticitySubdomain2d, Diagnostic> {
+    lower_isotropic_elasticity_subdomain_2d_with_boundaries(program, domain, bounds, None)
+}
+
+fn lower_isotropic_elasticity_subdomain_2d_with_boundaries(
+    program: &KernelProgram,
+    domain: RawId,
+    bounds: [[f64; 2]; 2],
+    boundaries: Option<std::collections::BTreeMap<(usize, BoundarySide), RawId>>,
 ) -> Result<LoweredIsotropicElasticitySubdomain2d, Diagnostic> {
     let (displacement, load_potential) = exact_fields(program, domain)?;
     let volume_relations = relations_on(program, domain);
@@ -274,14 +368,25 @@ fn lower_isotropic_elasticity_subdomain_2d(
         displacement,
         balance_relation,
     )?;
-    let boundary_inventory = boundary::lower(
-        program,
-        domain,
-        displacement,
-        displacement,
-        &two_mu,
-        &lambda,
-    )?;
+    let boundary_inventory = match boundaries {
+        Some(boundaries) => boundary::lower_with_boundaries(
+            program,
+            domain,
+            displacement,
+            displacement,
+            &two_mu,
+            &lambda,
+            boundaries,
+        )?,
+        None => boundary::lower(
+            program,
+            domain,
+            displacement,
+            displacement,
+            &two_mu,
+            &lambda,
+        )?,
+    };
     let shear_modulus = two_mu.multiply(ScalarSpatialExpression::constant(2, 0.5));
     let Some(shear_value) = shear_modulus.constant_value() else {
         return Err(lowering_error(
@@ -424,15 +529,33 @@ pub fn finalize_resolved_isotropic_elasticity_cartesian_2d_with_assembly(
 > {
     let execution = require_resolved_cartesian_elasticity_q1_plan_2d(program, resolved)?;
     let model = lower_isotropic_elasticity_cartesian_2d(program)?;
-    let essential_sides = cartesian_essential_sides(&model)?;
     let mesh = CartesianMesh::uniform(model.bounds(), &[execution.cells; 2])?;
-    let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, execution.points_per_axis)?;
-    let finalized = FinalizedIsotropicElasticityCartesian2dProblem::new(
+    let finalized = finalize_isotropic_elasticity_cartesian_q1_on_mesh(
+        &model,
+        &mesh,
         execution.solver,
-        execution.vector_layout,
-        execution.target,
+        assembly,
+    )?;
+    Ok((model, finalized))
+}
+
+pub(crate) fn finalize_isotropic_elasticity_cartesian_q1_on_mesh(
+    model: &IsotropicElasticityCartesianModel2d,
+    mesh: &CartesianMesh,
+    solver: eqiora_solver::SolverPlan,
+    assembly: &dyn AssemblyBackend,
+) -> Result<FinalizedIsotropicElasticityCartesian2dProblem, Diagnostic> {
+    require_two_dimensional_exact_bounds(mesh, model.bounds())?;
+    let essential_sides = cartesian_essential_sides(model)?;
+    let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2)?;
+    FinalizedIsotropicElasticityCartesian2dProblem::new(
+        solver,
+        VectorLayoutKind::Replicated,
+        Target::HostCpu {
+            threads: std::num::NonZeroUsize::MIN,
+        },
         finalize_cartesian_q1_linear_elasticity_2d(
-            &mesh,
+            mesh,
             model.shear_modulus(),
             model.first_lame_parameter(),
             model.load_potential_expression(),
@@ -440,8 +563,34 @@ pub fn finalize_resolved_isotropic_elasticity_cartesian_2d_with_assembly(
             essential_sides,
             assembly,
         )?,
-    )?;
-    Ok((model, finalized))
+    )
+}
+
+fn require_two_dimensional_exact_bounds(
+    mesh: &CartesianMesh,
+    bounds: &[[f64; 2]; 2],
+) -> Result<(), Diagnostic> {
+    if mesh.topological_dimension() != 2 {
+        return Err(invalid_realization(
+            "Cartesian Q1 elasticity requires an exact two-dimensional supplied Mesh",
+        ));
+    }
+    for (axis, expected) in bounds.iter().enumerate() {
+        let coordinates = mesh
+            .axis_coordinates(axis)
+            .ok_or_else(|| invalid_realization("supplied Mesh omitted a Cartesian axis"))?;
+        let observed = [coordinates[0], coordinates[coordinates.len() - 1]];
+        if !observed
+            .iter()
+            .zip(expected)
+            .all(|(observed, expected)| observed.to_bits() == expected.to_bits())
+        {
+            return Err(invalid_realization(
+                "supplied Cartesian Mesh bounds differ from exact elasticity Model bounds",
+            ));
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -492,6 +641,11 @@ fn require_resolved_cartesian_elasticity_q1_plan_2d(
         MeshPolicy::ImportedSimplicial { .. } => {
             return Err(invalid_realization(
                 "2D elasticity reference execution requires a generated Cartesian mesh",
+            ));
+        }
+        MeshPolicy::SuppliedCartesian { .. } => {
+            return Err(invalid_realization(
+                "2D elasticity reference execution does not admit a supplied Cartesian mesh",
             ));
         }
     };
@@ -894,219 +1048,5 @@ fn calculus_lowering_error(
     )
 }
 
-fn require_continuous_relation(program: &KernelProgram, relation: RawId) -> Result<(), Diagnostic> {
-    let activations = program
-        .edges()
-        .iter()
-        .filter(|edge| edge.kind() == EdgeKind::Activates && edge.to() == relation)
-        .filter_map(|edge| match program.node(edge.from()) {
-            Some(KernelNode::Activation(activation)) => Some(activation),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if activations.len() == 1 && matches!(activations[0].kind(), ActivationKind::Continuous) {
-        Ok(())
-    } else {
-        Err(lowering_error(
-            relation,
-            "elastic-solid Relations require exactly one continuous Activation",
-        ))
-    }
-}
-
-fn require_closed_elasticity_models(
-    program: &KernelProgram,
-    subdomains: &[LoweredIsotropicElasticitySubdomain2d],
-) -> Result<(), Diagnostic> {
-    let closures = subdomains
-        .iter()
-        .map(|lowered| ElasticityClosure {
-            domain: lowered.model.domain(),
-            fields: vec![lowered.model.displacement(), lowered.model.load_potential()],
-            volume_relations: vec![
-                lowered.model.load_definition_relation(),
-                lowered.model.balance_relation(),
-            ],
-            boundary_relations: lowered.model.boundary_relations(),
-            boundary: &lowered.boundary,
-        })
-        .collect::<Vec<_>>();
-    require_closed_elasticity_parts(program, &closures)
-}
-
-struct ElasticityClosure<'a, const D: usize> {
-    domain: RawId,
-    fields: Vec<RawId>,
-    volume_relations: Vec<RawId>,
-    boundary_relations: &'a [BoundaryRelationBinding],
-    boundary: &'a boundary::LoweredElasticityBoundary<D>,
-}
-
-fn require_closed_elasticity_parts<const D: usize>(
-    program: &KernelProgram,
-    subdomains: &[ElasticityClosure<'_, D>],
-) -> Result<(), Diagnostic> {
-    let mut expected_domains = BTreeSet::new();
-    let mut expected_fields = BTreeSet::new();
-    let mut expected_relations = BTreeSet::new();
-    let mut expected_representations = BTreeSet::new();
-    let mut expected_ports = BTreeSet::new();
-    let mut expected_connections = BTreeSet::new();
-
-    for lowered in subdomains {
-        expected_domains.insert(lowered.domain);
-        expected_domains.extend(
-            lowered
-                .boundary_relations
-                .iter()
-                .map(|binding| binding.boundary()),
-        );
-        expected_domains.extend(lowered.boundary.connector_domains.iter().copied());
-        expected_fields.extend(lowered.fields.iter().copied());
-        expected_relations.extend(lowered.volume_relations.iter().copied());
-        expected_relations.extend(
-            lowered
-                .boundary_relations
-                .iter()
-                .map(|binding| binding.relation()),
-        );
-        expected_representations.insert(
-            continuum_representation(program, lowered.fields[0])
-                .expect("field validation establishes one continuum Representation"),
-        );
-        expected_ports.extend(lowered.boundary.ports.iter().copied());
-        expected_connections.extend(lowered.boundary.connections.iter().copied());
-    }
-
-    let expected_activations = program
-        .edges()
-        .iter()
-        .filter(|edge| {
-            edge.kind() == EdgeKind::Activates && expected_relations.contains(&edge.to())
-        })
-        .map(|edge| edge.from())
-        .collect::<BTreeSet<_>>();
-    let expected_parameters = expected_relations
-        .iter()
-        .copied()
-        .flat_map(|relation| {
-            relation_expression(program, relation)
-                .expect("admitted Relations were already inspected")
-                .nodes()
-                .iter()
-        })
-        .filter_map(|node| match node {
-            ExprNode::Symbol(SymbolRef::Parameter(parameter)) => Some(parameter.erase()),
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
-
-    for node in program.nodes() {
-        let admitted = match node {
-            KernelNode::Domain(value) => expected_domains.contains(&value.id().erase()),
-            KernelNode::Representation(value) => {
-                expected_representations.contains(&value.id().erase())
-            }
-            KernelNode::Field(value) => expected_fields.contains(&value.id().erase()),
-            KernelNode::Parameter(value) => expected_parameters.contains(&value.id().erase()),
-            KernelNode::Relation(value) => expected_relations.contains(&value.id().erase()),
-            KernelNode::Activation(value) => expected_activations.contains(&value.id().erase()),
-            KernelNode::Port(value) => expected_ports.contains(&value.id().erase()),
-            KernelNode::Connection(value) => expected_connections.contains(&value.id().erase()),
-            KernelNode::ClockDomain(_) => false,
-            _ => false,
-        };
-        if !admitted {
-            return Err(model_lowering_error(
-                program,
-                format!(
-                    "closed 2D elasticity-family lowering would ignore unexpected {:?} node {}",
-                    node.kind(),
-                    node.id()
-                ),
-            ));
-        }
-    }
-    Ok(())
-}
-
-fn continuum_representation(program: &KernelProgram, field: RawId) -> Option<RawId> {
-    let representations = program
-        .edges()
-        .iter()
-        .filter(|edge| edge.from() == field && edge.kind() == EdgeKind::DefinedOn)
-        .filter_map(|edge| match program.node(edge.to()) {
-            Some(KernelNode::Representation(representation))
-                if representation.kind() == RepresentationKind::Continuum =>
-            {
-                Some(edge.to())
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    (representations.len() == 1).then(|| representations[0])
-}
-
-fn relations_on(program: &KernelProgram, domain: RawId) -> Vec<RawId> {
-    program
-        .edges()
-        .iter()
-        .filter(|edge| edge.kind() == EdgeKind::AppliesOn && edge.to() == domain)
-        .map(|edge| edge.from())
-        .collect()
-}
-
-fn relation_expression(program: &KernelProgram, relation: RawId) -> Result<&ExprDag, Diagnostic> {
-    match program.node(relation) {
-        Some(KernelNode::Relation(relation)) => Ok(relation.residuals()),
-        _ => Err(lowering_error(
-            relation,
-            "AppliesOn source has no Relation definition",
-        )),
-    }
-}
-
-fn unique_root(expression: &ExprDag, owner: RawId) -> Result<ExprId, Diagnostic> {
-    if expression.roots().len() == 1 {
-        Ok(expression.roots()[0])
-    } else {
-        Err(lowering_error(
-            owner,
-            "elasticity Relation requires exactly one residual root",
-        ))
-    }
-}
-
-fn is_field(expression: &ExprDag, value: ExprId, field: RawId) -> bool {
-    matches!(
-        expression.node(value),
-        Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == field
-    )
-}
-
-fn has_edge(program: &KernelProgram, from: RawId, to: RawId, kind: EdgeKind) -> bool {
-    program
-        .edges()
-        .iter()
-        .any(|edge| edge.from() == from && edge.to() == to && edge.kind() == kind)
-}
-
-fn lowering_error(owner: RawId, message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_SPATIAL_LOWERING, message).with_graph_path(GraphPath::new([
-        owner.kind().graph().name().to_owned(),
-        format!("{:?}", owner.kind()),
-        owner.to_string(),
-    ]))
-}
-
-fn invalid_realization(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_REALIZATION, message)
-}
-
-fn model_lowering_error(program: &KernelProgram, message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_SPATIAL_LOWERING, message).with_graph_path(GraphPath::new([
-        "ontology-view".to_owned(),
-        "eqiora.model/v1".to_owned(),
-        program.model().to_string(),
-    ]))
-}
+mod closure;
+use closure::*;

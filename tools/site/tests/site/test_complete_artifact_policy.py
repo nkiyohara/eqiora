@@ -23,26 +23,22 @@ LINE_RANGE_FRAGMENT = "1-325"
 BRAND_PATH = "/assets/eqiora-mark.BN8rmEAl.svg"
 PRESSURE_PATH = "/assets/exact-cylinder-pressure.C0ffee42.png"
 PRESSURE_ALT = (
-    "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder "
-    "demonstration, shown with a viridis color scale and the 1,210-triangle "
-    "affine mesh overlaid. Presentation image only; linked Result evidence "
-    "carries the numerical claim."
+    "Pressure in pascals for a 2D steady-Stokes exact-cylinder demonstration, "
+    "shown with a viridis color scale and its current Gmsh mesh overlaid. "
+    "Presentation image only; no numerical or mesh-output oracle."
 )
 PRESSURE_CAPTION = (
     "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at "
-    "ea5f69a9ed6d9152912f905a75462bbf71cf7d99; presentation only, not validation."
+    "cd1185b0f8ec8940352e7b6bc832fd4ebe67591b; presentation only, not validation."
 )
 PUBLIC_CLAIM = (
-    "One frozen 2D steady incompressible Stokes exact-cylinder demonstration on "
-    "the accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine "
-    "triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = "
-    "14/2/48/50, and 548 interior vertices; rendered from its accepted public "
-    "Result path and linked evidence."
+    "One presentation-only 2D steady incompressible Stokes exact-cylinder "
+    "demonstration rendered through exact Geometry, typed Gmsh policy, and the "
+    "root Result path; output counts, digests, numerical values, and pixels are "
+    "not independently verified."
 )
 WITNESS_COPY = (
-    "Accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine "
-    "triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = "
-    "14/2/48/50, and 548 interior vertices."
+    "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
 )
 RENDERED_SOURCE_SENTENCE = (
     "This website is a curated projection, not a parallel specification. "
@@ -63,12 +59,8 @@ SOURCE_PATHS = (
 EVIDENCE_PATHS = (
     "verify/artifacts/current-model-canonical-identity/README.md",
     "verify/fluid/packaged-steady-stokes-2d/README.md",
-    "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
     "verify/geometry/exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-circular-hole-chordal-mesh/README.md",
     "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-exact-cylinder-stokes-result/README.md",
-    "verify/interfaces/python-exact-cylinder-pressure-still/README.md",
     "verify/interfaces/python-exact-cylinder-stokes-marimo/README.md",
 )
 STAGES = (
@@ -238,11 +230,6 @@ def _case_body() -> str:
         links.append(_exact_link(relative, label))
     for relative in EVIDENCE_PATHS:
         label = Path(relative).parent.name + " dossier"
-        if (
-            relative
-            == "verify/interfaces/python-exact-cylinder-stokes-result/README.md"
-        ):
-            label = "Registered Plan-and-Run dossier"
         links.append(_exact_link(relative, label))
 
     sentinel = _exact_link(
@@ -276,21 +263,11 @@ relation incompressibility continuous on body {
         + links[
             len(SOURCE_PATHS)
             + EVIDENCE_PATHS.index(
-                "verify/interfaces/python-exact-cylinder-stokes-result/README.md"
+                "verify/interfaces/python-exact-cylinder-stokes-marimo/README.md"
             )
         ],
         f'<figure><img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}"><figcaption>'
-        f"{PRESSURE_CAPTION} "
-        + _exact_link(
-            "verify/interfaces/python-exact-cylinder-stokes-result/README.md",
-            "Result evidence",
-        )
-        + " "
-        + _exact_link(
-            "verify/interfaces/python-exact-cylinder-pressure-still/README.md",
-            "Pressure-still presentation case",
-        )
-        + "</figcaption></figure>",
+        f"{PRESSURE_CAPTION}</figcaption></figure>",
         f"<p>{PUBLIC_CLAIM}</p><p>{' '.join(NONCLAIMS)}</p>" + " ".join(links),
     )
     sections = "".join(
@@ -451,6 +428,24 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             artifact, identities = _ordinary(root)
             self.assertEqual(_artifact_errors(artifact, identities), [])
 
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact, identities = _ordinary(root)
+            added_route = "/reference/python/new-module/"
+            source = (artifact / "api/index.html").read_text(encoding="utf-8")
+            _write(
+                artifact / "reference/python/new-module/index.html",
+                source.replace(
+                    f'{SITE_ORIGIN}/api/',
+                    f'{SITE_ORIGIN}{added_route}',
+                ),
+            )
+            _write(
+                artifact / "sitemap-0.xml",
+                _url_set((*ST_STARLIGHT_ROUTES, added_route)),
+            )
+            self.assertEqual(_artifact_errors(artifact, identities), [])
+
         def reject(label: str, mutate, expected: str) -> None:
             with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
@@ -472,12 +467,12 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "missing required Starlight route /api/",
         )
         reject(
-            "unadmitted artifact route",
+            "additional route without the common shell",
             lambda artifact: _write(
                 artifact / "unadmitted/index.html",
                 "<!doctype html><html><body><main><h1>Extra</h1></main></body></html>",
             ),
-            "unexpected Starlight route /unadmitted/",
+            "/unadmitted/: canonical must be exactly",
         )
         reject(
             "site title outside banner",
@@ -658,21 +653,9 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             lambda artifact: _replace(
                 artifact / case,
                 WITNESS_COPY,
-                "Accepted mesh witness: 662 vertices, 1,210 affine triangles, "
-                "114 boundary facets partitioned inlet/outlet/walls/cylinder = "
-                "14/2/48/50.",
+                "The current Gmsh output is a fixed mesh and scientific oracle.",
             ),
             "Cylinder route omits the accepted exact Gmsh CLI 4.15.2 mesh witness",
-        )
-        reject(
-            "old reference science replaces Gmsh evidence",
-            lambda artifact: _replace(
-                artifact / case,
-                "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
-                "verify/fluid/exact-circular-hole-stokes-2d/README.md",
-            ),
-            "Cylinder route omits exact-head source/evidence link "
-            "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
         )
         inline_math = _math("H")
         reject(
@@ -870,34 +853,12 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "duplicate sitemap route /reference/",
         )
         reject(
-            "extra route in child URL set",
-            lambda artifact: _write(
-                artifact / child,
-                _url_set(ST_STARLIGHT_ROUTES + ("/unadmitted/",)),
-            ),
-            "sitemap contains unexpected route /unadmitted/",
-        )
-        reject(
-            "required sitemap order changed",
-            lambda artifact: _write(
-                artifact / child,
-                _url_set(
-                    (
-                        ST_STARLIGHT_ROUTES[1],
-                        ST_STARLIGHT_ROUTES[0],
-                        *ST_STARLIGHT_ROUTES[2:],
-                    )
-                ),
-            ),
-            "sitemap routes are not in the required order",
-        )
-        reject(
             "404 artifact route added to sitemap",
             lambda artifact: _write(
                 artifact / child,
                 _url_set(ST_STARLIGHT_ROUTES + ("/404.html",)),
             ),
-            "sitemap contains unexpected route /404.html",
+            "sitemap must not publish the 404 artifact route",
         )
         reject(
             "sitemap child query",
@@ -1219,16 +1180,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         reject(
             "moved absent Rustdoc reference",
             move_absent_reference,
-            "absent Rustdoc reference has wrong source",
-        )
-        reject(
-            "changed absent Rustdoc value",
-            lambda artifact: _replace(
-                artifact / absent_source,
-                first_reference,
-                first_reference.replace("ReferenceRunObserver.js", "Changed.js"),
-            ),
-            "unadmitted missing Rustdoc reference",
+            "Rustdoc reference escapes exact root",
         )
         reject(
             "glob-like absent Rustdoc imitation",
@@ -1238,16 +1190,6 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             ),
             "unadmitted missing Rustdoc reference",
         )
-        reject(
-            "expected absent Rustdoc occurrence removed",
-            lambda artifact: _replace(
-                artifact / absent_source,
-                f'<a href="{first_reference}">Implementors</a>',
-                "",
-            ),
-            "missing expected absent Rustdoc reference occurrence",
-        )
-
         def make_absent_target_nonregular(artifact: Path) -> None:
             target = (artifact / absent_source).parent / first_reference
             target.resolve().mkdir(parents=True)
@@ -1255,16 +1197,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         reject(
             "expected absent Rustdoc target becomes nonregular",
             make_absent_target_nonregular,
-            "admitted absent Rustdoc target exists with wrong type",
-        )
-        reject(
-            "help absent-reference cardinality",
-            lambda artifact: _replace(
-                artifact / help_page,
-                '<a href="./index.html">Crate list</a>',
-                "",
-            ),
-            "missing expected absent Rustdoc reference occurrence",
+            "Rustdoc target has wrong type",
         )
 
         reject(
@@ -1302,7 +1235,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 artifact / "eqiora/index.html",
                 _rustdoc_page("<h1>Crate eqiora</h1>"),
             ),
-            "unexpected Starlight route /eqiora/",
+            "/eqiora/: canonical must be exactly",
         )
         reject(
             "Rustdoc-like owner collision outside exact root",
@@ -1310,7 +1243,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 artifact / "reference/rust/api-copy/eqiora/index.html",
                 _rustdoc_page("<h1>Crate eqiora</h1>"),
             ),
-            "unexpected Starlight route /reference/rust/api-copy/eqiora/",
+            "/reference/rust/api-copy/eqiora/: canonical must be exactly",
         )
 
         def add_symlink(artifact: Path) -> None:

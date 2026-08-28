@@ -38,12 +38,12 @@ mod circular_hole;
 mod circular_hole_v2;
 mod correspondence;
 mod identity;
+mod planar_adjacent_rectangle_partition_v1;
+mod planar_operation;
+mod planar_rectangle_v2;
 mod region;
 
-pub use association::{
-    BodyAssociationCandidate, RetainedBodyPair, RetainedBoundaryPair, RetainedGeometryAssociation,
-    RetentionRejection,
-};
+pub use association::{BodyAssociationCandidate, RetainedGeometryAssociation, RetentionRejection};
 pub use cad::{
     AxisAlignedBox3, CadAdapterIdentityV1, CadBoxDesignV1, CadBoxObservationV1,
     CadBoxRealizationV1, CadKernelAdapter, CadRepairDispositionV1, ConstrainedRectangleV1,
@@ -55,16 +55,20 @@ pub use cad_authored_graph::CadAuthoredGraph;
 pub use cad_authored_selection::CadAuthoredFaceHandle;
 pub use cad_authored_sketch::CadAuthoredSketch;
 pub use cad_authored_swept_mesh::CadAuthoredSweptMesh;
-pub use canonical::{CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1};
+pub use canonical::{CanonicalGeometryLimits, CanonicalGeometryV1};
 pub(crate) use circular_hole_v2::CanonicalPlanarCircularHoleGeometryV2;
 pub use correspondence::{
-    CartesianBodyAssignment, CartesianBoundaryAssignment, GeometryCorrespondenceError,
-    GeometryMeshCorrespondence,
+    CartesianBodyAssignment, CartesianBoundaryAssignment, GeometryMeshCorrespondence,
 };
 pub use identity::{
     GeometryEntity, GeometryRevisionReference, GeometryRevisionTopology, ParentOutward,
 };
+pub(crate) use planar_adjacent_rectangle_partition_v1::CanonicalPlanarAdjacentRectanglePartitionV1;
+pub use planar_operation::{
+    PlanarBoundaryHandle, PlanarOperation, PlanarOperationGraph, PlanarRegionHandle,
+    PlanarTopologyHandle,
+};
+pub(crate) use planar_rectangle_v2::CanonicalPlanarRectangleGeometryV2;
 pub use region::{
-    EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarLoop, PlanarRegion,
-    VERTEX_DIMENSION,
+    EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion, VERTEX_DIMENSION,
 };

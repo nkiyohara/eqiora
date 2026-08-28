@@ -9,13 +9,6 @@ const DIGEST: [u8; 32] = [
     0x15, 0x13, 0x0a, 0x96, 0x5a, 0x24, 0x17, 0x9b, 0x3e, 0xb1, 0xb1, 0x03, 0x45, 0x05, 0x8b, 0x47,
 ];
 
-const DFG_SECTION_WIRE: &str = r#"{"schema":"eqiora.planar-circular-hole-envelope/v1","encoding":"eqiora.canonical-json/v1","kind":"axis-aligned-rectangle-with-circular-hole-v1","length_unit":"metre","tolerance_m":1e-12,"bounds":[[0.0,2.2],[0.0,0.41]],"circle":{"center":[0.2,0.2],"radius_m":0.05},"entity_sets":[{"name":"cylinder","dimension":1,"members":[4]},{"name":"inlet","dimension":1,"members":[0]},{"name":"outlet","dimension":1,"members":[1]},{"name":"walls","dimension":1,"members":[2,3]},{"name":"fluid","dimension":2,"members":[0]}]}"#;
-
-const DFG_SECTION_DIGEST: [u8; 32] = [
-    0xb0, 0x01, 0x23, 0x47, 0x2a, 0x59, 0x6e, 0x82, 0x89, 0x82, 0x0c, 0xab, 0xae, 0xe2, 0x0d, 0x52,
-    0xcd, 0xf8, 0x1b, 0x55, 0x72, 0xfa, 0x9c, 0xe5, 0x8f, 0xf1, 0x7c, 0xda, 0xa0, 0x00, 0x46, 0xd9,
-];
-
 const RELATIVE_TOLERANCE: f64 = 4.0e-15;
 
 fn base(modeling_tolerance_m: f64) -> CadAuthoredGraph {
@@ -244,79 +237,4 @@ fn wire_and_handles_fail_closed_without_rebinding() {
     );
     let foreign = CadAuthoredFaceHandle::decode_canonical(foreign_wire.as_bytes()).unwrap();
     assert!(graph.resolve_face(&foreign).is_err());
-}
-
-#[test]
-fn through_cut_derives_the_frozen_exact_planar_section() {
-    let graph = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), 0.0).unwrap(),
-        1.0,
-        1.0e-10,
-    )
-    .unwrap()
-    .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
-    .unwrap();
-    let section = graph
-        .planar_circular_section(
-            1.0e-12, "fluid", "inlet", "outlet", "walls", "walls", "cylinder",
-        )
-        .unwrap();
-
-    assert_eq!(section.canonical_bytes(), DFG_SECTION_WIRE.as_bytes());
-    assert_eq!(section.canonical_bytes().len(), 511);
-    assert_eq!(section.digest_bytes(), DFG_SECTION_DIGEST);
-
-    let swapped = graph
-        .planar_circular_section(
-            1.0e-12, "fluid", "outlet", "inlet", "walls", "walls", "cylinder",
-        )
-        .unwrap();
-    assert_ne!(swapped.digest_bytes(), section.digest_bytes());
-}
-
-#[test]
-fn planar_section_keeps_tolerances_and_nonplanar_graph_facts_separate() {
-    let derive = |plane_z, depth, modeling_tolerance| {
-        CadAuthoredGraph::new(
-            ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), plane_z).unwrap(),
-            depth,
-            modeling_tolerance,
-        )
-        .unwrap()
-        .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
-        .unwrap()
-        .planar_circular_section(
-            1.0e-12, "fluid", "inlet", "outlet", "walls", "walls", "cylinder",
-        )
-        .unwrap()
-    };
-    assert_eq!(derive(0.0, 1.0, 1.0e-10), derive(4.0, 3.0, 2.0e-10));
-    assert!(
-        CadAuthoredGraph::new(
-            ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), 0.0).unwrap(),
-            1.0,
-            1.0e-10,
-        )
-        .unwrap()
-        .planar_circular_section(
-            1.0e-12, "fluid", "inlet", "outlet", "walls", "walls", "cylinder",
-        )
-        .is_err()
-    );
-
-    let narrow_clearance = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((0.0, 4.0e-9), (0.0, 4.0e-9), 0.0).unwrap(),
-        1.0,
-        1.0e-12,
-    )
-    .unwrap()
-    .circular_through_cut([2.0e-9, 2.0e-9], 0.5e-9, 1.0e-10)
-    .unwrap();
-    assert!(
-        narrow_clearance
-            .planar_circular_section(
-                1.5e-9, "fluid", "inlet", "outlet", "walls", "walls", "cylinder",
-            )
-            .is_err()
-    );
 }

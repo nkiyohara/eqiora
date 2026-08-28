@@ -37,6 +37,7 @@ from local_verify import (  # noqa: E402
     local_changed_paths,
     reverse_dependency_closure,
     run_plan,
+    selected_case_ids,
 )
 from check_docs import check as check_docs  # noqa: E402
 from verification_scheduler import (  # noqa: E402
@@ -121,8 +122,41 @@ class PackageSelectionTests(unittest.TestCase):
             {"packages.example"},
         )
 
+    def test_deleted_changed_case_cannot_reenter_through_explicit_selection(
+        self,
+    ) -> None:
+        self.assertEqual(
+            selected_case_ids(
+                [
+                    "verify/interfaces/live/README.md",
+                    "verify/interfaces/deleted/case.toml",
+                ],
+                ["interfaces.deleted", "interfaces.explicit"],
+                ["interfaces.live"],
+            ),
+            {"interfaces.live", "interfaces.explicit"},
+        )
+
 
 class PlanTests(unittest.TestCase):
+    def test_affected_selects_live_changed_cases_but_not_deleted_cases(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "verify" / "interfaces" / "live" / "case.toml"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text('id = "interfaces.live"\n', encoding="utf-8")
+            plan = build_plan(
+                "affected",
+                [
+                    "verify/interfaces/live/README.md",
+                    "verify/interfaces/deleted/README.md",
+                ],
+                ["interfaces.deleted"],
+                workspace(),
+                root,
+            )
+        self.assertEqual(plan.cases, ("interfaces.live",))
+
     def test_periodic_msrv_checks_every_production_feature(self) -> None:
         plan = build_plan("periodic", [], [], workspace())
         msrv = next(item for item in plan.commands if item.label == "MSRV")

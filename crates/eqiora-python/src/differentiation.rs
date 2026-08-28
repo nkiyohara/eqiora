@@ -11,9 +11,10 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyModule, PySequence};
 
 use crate::array::{PyArrayBuffer, stage_f64_input};
+use crate::common_plan::PyPlan;
 use crate::error::{diagnostic_error, panic_boundary, validation_error};
-use crate::model::{PyModel, PyModelFieldRef, PyModelParameterRef};
-use crate::realization::{PyLinearSolveSummary, PyRealization};
+use crate::model::{PyModelFieldRef, PyModelParameterRef};
+use crate::realization::PyLinearSolveSummary;
 
 /// Primal, JVP, or VJP occurrence.
 #[pyclass(
@@ -97,7 +98,7 @@ impl From<LinearizationState> for PyLinearizationState {
 #[derive(Debug, Clone)]
 pub(crate) struct PyDifferentiationEvidence {
     model_digest: String,
-    realization_digest: String,
+    plan_identity: String,
     input_ids: Vec<String>,
     output_id: String,
     mode: PyDifferentiationMode,
@@ -115,7 +116,7 @@ impl PyDifferentiationEvidence {
         let identity = value.identity();
         Self {
             model_digest: identity.model().artifact().to_string(),
-            realization_digest: identity.realization_digest().to_owned(),
+            plan_identity: identity.plan_identity().to_owned(),
             input_ids: identity
                 .inputs()
                 .iter()
@@ -164,8 +165,8 @@ impl PyDifferentiationEvidence {
     }
 
     #[getter]
-    fn realization_digest(&self) -> &str {
-        &self.realization_digest
+    fn plan_identity(&self) -> &str {
+        &self.plan_identity
     }
 
     #[getter]
@@ -407,12 +408,12 @@ pub(crate) struct PyDifferentiableProgram {
 
 #[pymethods]
 impl PyDifferentiableProgram {
-    /// The model and Realization this program was lowered from.
+    /// The model and exact common Plan this program was lowered from.
     fn __repr__(&self) -> String {
         format!(
-            "DifferentiableProgram(model_digest={:?}, realization_digest={:?}, output_id={:?})",
+            "DifferentiableProgram(model_digest={:?}, plan_identity={:?}, output_id={:?})",
             short_digest(&self.model_digest()),
-            short_digest(self.realization_digest()),
+            short_digest(self.plan_identity()),
             self.output_id()
         )
     }
@@ -422,8 +423,8 @@ impl PyDifferentiableProgram {
     }
 
     #[getter]
-    fn realization_digest(&self) -> &str {
-        self.value.identity().realization_digest()
+    fn plan_identity(&self) -> &str {
+        self.value.identity().plan_identity()
     }
 
     #[getter]
@@ -540,11 +541,10 @@ impl PyDifferentiableProgram {
 
 /// Compile one exact accepted-point differentiable program.
 #[pyfunction(name = "_compile_differentiable")]
-#[pyo3(signature = (model, realization, *, inputs, output))]
+#[pyo3(signature = (plan, /, *, inputs, output))]
 pub(crate) fn compile_differentiable(
     py: Python<'_>,
-    model: &PyModel,
-    realization: &PyRealization,
+    plan: &PyPlan,
     inputs: &Bound<'_, PyAny>,
     output: &PyModelFieldRef,
 ) -> PyResult<PyDifferentiableProgram> {
@@ -564,11 +564,22 @@ pub(crate) fn compile_differentiable(
             let parameter = item.extract::<PyRef<'_, PyModelParameterRef>>()?;
             selected.push(parameter.value.clone());
         }
+        let native_plan = plan.scalar_native().cloned().ok_or_else(|| {
+            validation_error(
+                py,
+                &[eqiora::Diagnostic::error(
+                    eqiora::diagnostic::codes::INVALID_LINEARIZATION,
+                    "differentiation requires a 2D scalar Q1 or cell-centered TPFA Plan",
+                )],
+            )
+        })?;
+        let model = plan.model_handle(py);
         let document = model
+            .bind(py)
+            .borrow()
             .document()
             .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
             .clone();
-        let realization = realization.plan().clone();
         let output_model_digest = output.exact_model_digest().to_owned();
         let output = document
             .field_ref(output.exact_id())
@@ -583,9 +594,7 @@ pub(crate) fn compile_differentiable(
             ));
         }
         let value = py
-            .detach(move || {
-                DifferentiableProgram::compile(&document, realization, &selected, &output)
-            })
+            .detach(move || DifferentiableProgram::compile(native_plan, &selected, &output))
             .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
         Ok(PyDifferentiableProgram {
             value: Arc::new(value),

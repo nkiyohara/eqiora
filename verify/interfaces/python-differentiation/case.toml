@@ -1,10 +1,11 @@
 id = "interfaces.python-differentiation"
 status = "verified"
-scope = "python-exact-model-realization-bound-immutable-point-first-order-implicit-differentiation"
+scope = "python-exact-common-scalar-plan-supplied-rectangle-mesh-bound-immutable-point-first-order-implicit-differentiation"
 reference_kind = "centered-finite-difference-and-jvp-vjp-duality"
 
 capabilities = [
-  "python-model-bound-parameter-and-field-references",
+  "python-common-plan-bound-parameter-and-field-references",
+  "python-supplied-rectangle-cartesian-mesh",
   "python-opaque-differentiable-program",
   "python-immutable-parameter-point-evaluation",
   "accepted-complete-field-primal",
@@ -31,6 +32,11 @@ execution = "host-serial-native-f64"
 
 [claim_boundary]
 static_program_identity_is_exact_model_revision = true
+static_program_identity_is_exact_common_plan = true
+supplied_rectangle_cartesian_mesh = true
+spatial_dimension = 2
+plan_methods = ["continuous-q1-galerkin", "cell-centred-tpfa"]
+foreign_or_substituted_plan_is_rejected = true
 immutable_alternate_parameter_point_evaluation = true
 selected_parameters_are_explicit_runtime_inputs = true
 unselected_parameters_are_frozen_from_model = true

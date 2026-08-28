@@ -18,6 +18,7 @@ mod cartesian_fvm_geometry;
 mod cartesian_incompressible;
 mod cartesian_periodic_3d;
 mod cartesian_transport;
+mod common_ode;
 mod diffusion;
 mod discrete_block;
 mod discrete_space;
@@ -26,10 +27,28 @@ mod finalized_spatial;
 mod form_compiler;
 mod jacobian_audit;
 mod linearized_output;
+mod numerical_admission;
+pub use canonical_stokes::{
+    IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d, ScalingAuthorities2d,
+    ScalingAuthority2d, ScalingComponent2d, ScalingComponentRecord2d, ScalingDependencies2d,
+    ScalingMode2d, ScalingRule2d,
+};
+pub use common_ode::{
+    CommonOdePlan, CommonOdeRunRequest, CommonOdeRunResult, CommonOdeState, CommonTsitouras45,
+    CommonTsitourasTolerance,
+};
+pub use numerical_admission::{
+    AuthenticatedCommonMesh, CommonBackwardEuler, CommonElasticityObservation,
+    CommonElasticityPlan, CommonElasticityRunOutput, CommonFsiPlan, CommonFsiRunRequest,
+    CommonInitialField, CommonInitialValues, CommonPressureGauge2d, CommonScalarPlan,
+    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSpatialRequest,
+    CommonState, CommonSteadyStokesObservation, CommonSteadyStokesPlan,
+    CommonSteadyStokesRunOutput, CommonTransientFlowPlan, CommonTransientRunRequest,
+    ResolvedCommonPlan, resolve_common_ode_plan, resolve_common_plan,
+};
 mod operator;
 mod physical_network;
 mod poisson;
-mod prescribed_dynamic_solid;
 mod simplicial_ale_fsi;
 mod simplicial_ale_remesh;
 mod simplicial_elasticity;

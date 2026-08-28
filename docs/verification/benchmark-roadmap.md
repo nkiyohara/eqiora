@@ -204,11 +204,9 @@ The beam gallery is an educational entry point, not sufficient evidence for a
 continuum solid implementation. Patch, locking, singularity, dynamics, and
 nonlinear cases are separate obligations.
 
-The native Studio mixed-boundary elastic-panel example does not advance any
-candidate in this table. `interfaces.studio-mixed-boundary-elasticity-demo`
-composes the already verified `solid.mixed-boundary-elasticity-2d` direct Model
-and public Q1/CG executor into a bounded displacement/reaction presentation.
-Studio derives no stress, strain, traction, analytic reference, convergence
+The former Studio mixed-boundary elastic-panel workflow is retired. The
+installed Python common-Plan example does not advance any candidate in this
+table and derives no stress, strain, traction, analytic reference, convergence
 order, or validation quantity; the existing scientific case remains their sole
 authority.
 
@@ -223,12 +221,12 @@ authority.
 | `fluid.hydrostatic-balance` | Static fluid under gravity | pressure null space and well-balanced forcing | `proposed` |
 | `fluid.taylor-green-breakdown-3d` | Viscous 3D Taylor–Green breakdown | analytic initial checks, reusable-class conformance, energy ledger, scalar-history refinement, periodic 3D scale | `proposed` |
 
-The native Studio `steady-flow-past-cylinder` example does not advance
+The installed Python `steady-flow-past-cylinder` example does not advance
 `fluid.flow-past-cylinder`: it is a bounded steady Stokes demonstration on one
-coarse error-controlled affine mesh, with no Reynolds-number, wake,
-drag/lift-coefficient, Strouhal-number, convergence, benchmark, or validation
-claim. Its reproducible application-composition evidence is indexed separately
-as `interfaces.studio-exact-cylinder-stokes-demo`.
+accepted affine mesh, with no Reynolds-number, wake, drag/lift-coefficient,
+Strouhal-number, convergence, benchmark, or validation claim. The former
+Studio application workflow and the fixed-mesh result dossier are retired;
+the installed example remains ordinary product coverage for the root Plan path.
 
 `fluid.taylor-green` is the smooth analytic or manufactured transient
 precursor. `fluid.taylor-green-breakdown-3d` is a separate numerical stress and

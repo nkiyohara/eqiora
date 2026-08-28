@@ -1,0 +1,59 @@
+"""Closed algebraic solve policies.
+
+Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
+"""
+from typing import Self, final
+
+@final
+class Linear:
+    """Linear-solve controls resolved against Model-owned operator meaning.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
+    """
+    def __new__(
+        cls,
+        *,
+        relative_tolerance: float,
+        absolute_tolerance: float,
+        maximum_iterations: int,
+    ) -> Self: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerance(self) -> float: ...
+    @property
+    def maximum_iterations(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+@final
+class Newton:
+    """Bounded Newton policy owning exact nested linear controls.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyNewton``.
+    """
+    def __new__(
+        cls,
+        *,
+        linear: Linear,
+        relative_tolerance: float = 1e-9,
+        absolute_tolerance: float = 1e-11,
+        maximum_iterations: int = 16,
+        maximum_line_search_steps: int = 12,
+    ) -> Self: ...
+    @property
+    def linear(self) -> Linear: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerance(self) -> float: ...
+    @property
+    def maximum_iterations(self) -> int: ...
+    @property
+    def maximum_line_search_steps(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+__all__ = ["Linear", "Newton"]

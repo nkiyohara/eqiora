@@ -6,6 +6,16 @@ are recorded here.
 
 ## [Unreleased]
 
+### Changed
+
+- `eqiora.compile` is now keyword-only and accepts exactly one of `path=` or
+  `source=`. Definitions-only component source can be closed directly with a
+  Python-authored `Geometry` and coherent-SI Parameter values; source owns
+  dimensions and abstract support names, while Python is the sole source of
+  concrete shape. The exact-cylinder example now follows this route through
+  the common root `resolve` / `run` lifecycle. No positional compatibility
+  overload or application-specific binding path is retained.
+
 ## [0.1.0a3] - 2026-08-23
 
 ### Changed
@@ -70,7 +80,7 @@ are recorded here.
 
 - Removed the unreleased Python `FixedReferenceFsiStep`,
   `FixedReferenceFsiResult`, and `solve_fixed_reference_fsi(...)` names. Exact
-  spatial Fields now live only on `TrajectoryState`/`FieldSnapshot`, while
+  spatial Fields now live only on `State`/`FieldSnapshot`, while
   partition, interface, energy, residual, solve, and assembly observations are
   selected through `fixed_mesh_monolithic_evidence(result)`.
 

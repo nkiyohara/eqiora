@@ -11,13 +11,12 @@ __all__ = (
     "check_starlight_content",
 )
 
-PRESSURE_ALT = "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder demonstration, shown with a viridis color scale and the 1,210-triangle affine mesh overlaid. Presentation image only; linked Result evidence carries the numerical claim."
-PRESSURE_CAPTION = "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at ea5f69a9ed6d9152912f905a75462bbf71cf7d99; presentation only, not validation."
-PUBLIC_CLAIM = "One frozen 2D steady incompressible Stokes exact-cylinder demonstration on the accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = 14/2/48/50, and 548 interior vertices; rendered from its accepted public Result path and linked evidence."
-WITNESS_COPY = "Accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = 14/2/48/50, and 548 interior vertices."
+PRESSURE_ALT = "Pressure in pascals for a 2D steady-Stokes exact-cylinder demonstration, shown with a viridis color scale and its current Gmsh mesh overlaid. Presentation image only; no numerical or mesh-output oracle."
+PRESSURE_CAPTION = "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at cd1185b0f8ec8940352e7b6bc832fd4ebe67591b; presentation only, not validation."
+PUBLIC_CLAIM = "One presentation-only 2D steady incompressible Stokes exact-cylinder demonstration rendered through exact Geometry, typed Gmsh policy, and the root Result path; output counts, digests, numerical values, and pixels are not independently verified."
+WITNESS_COPY = "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
 RENDERED_SOURCE_SENTENCE = "This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository’s architecture, RFCs, capability matrix, and validated verify manifests."
 REFERENCE_BOUNDARY = "API presence is neither capability evidence nor maturity."
-EVIDENCE_LABELS = {"Result evidence", "Pressure-still presentation case"}
 STAGES = (
     ("problem-setup", "1", "Problem setup"),
     ("model-definition", "2", "Eqiora model definition"),
@@ -50,12 +49,8 @@ CASE_SOURCE_PATHS = (
 CASE_EVIDENCE_PATHS = (
     "verify/artifacts/current-model-canonical-identity/README.md",
     "verify/fluid/packaged-steady-stokes-2d/README.md",
-    "verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md",
     "verify/geometry/exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-circular-hole-chordal-mesh/README.md",
     "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-exact-cylinder-stokes-result/README.md",
-    "verify/interfaces/python-exact-cylinder-pressure-still/README.md",
     "verify/interfaces/python-exact-cylinder-stokes-marimo/README.md",
 )
 HOME_COPY = (
@@ -465,11 +460,8 @@ def _check_case(
         expected = source_base + relative
         if expected not in hrefs:
             report(f"Cylinder route omits exact-head source/evidence link {relative}")
-    labels = {label for _, label in page.anchors}
-    if PRESSURE_CAPTION not in page.visible_text or not EVIDENCE_LABELS <= labels:
-        report(
-            "Cylinder route omits the exact admitted caption or its two visible evidence links"
-        )
+    if PRESSURE_CAPTION not in page.visible_text:
+        report("Cylinder route omits the exact admitted caption")
     return errors
 
 

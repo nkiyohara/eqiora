@@ -1,7 +1,7 @@
 """PyTorch autograd projection of Eqiora differentiable programs.
 
 This optional module owns framework registration and process-local program
-tokens. Eqiora's native model, realization, accepted-point, and derivative
+tokens. Eqiora's native model, Plan, accepted-point, and derivative
 contracts remain framework-neutral.
 """
 
@@ -28,7 +28,7 @@ _SUPPORTED_TORCH_SERIES = (2, 13)
 
 class _ProgramIdentity(NamedTuple):
     model_digest: str
-    realization_digest: str
+    plan_identity: str
     input_ids: tuple[str, ...]
     output_id: str
     input_shape: tuple[int]
@@ -68,7 +68,7 @@ _tokens_by_identity: dict[_ProgramIdentity, str] = {}
 def _program_identity(program: DifferentiableProgram) -> _ProgramIdentity:
     return _ProgramIdentity(
         model_digest=program.model_digest,
-        realization_digest=program.realization_digest,
+        plan_identity=program.plan_identity,
         input_ids=tuple(program.input_ids),
         output_id=program.output_id,
         input_shape=program.input_shape,

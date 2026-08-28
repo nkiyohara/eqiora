@@ -169,6 +169,16 @@ def all_case_ids(root: Path = ROOT) -> set[str]:
     }
 
 
+def selected_case_ids(
+    paths: Iterable[str], explicit_cases: Iterable[str], live_cases: Iterable[str]
+) -> set[str]:
+    """Select changed and explicit cases without resurrecting deleted cases."""
+    changed = changed_case_ids(paths)
+    live = set(live_cases)
+    deleted = changed.difference(live)
+    return changed.union(explicit_cases).difference(deleted)
+
+
 def command(
     label: str,
     *argv: str,
@@ -548,7 +558,7 @@ def build_plan(
         )
         if tier == "affected" and surfaces["rust"] and not direct:
             selected_packages = set(packages)
-        cases = changed_case_ids(paths).union(explicit_cases)
+        cases = selected_case_ids(paths, explicit_cases, all_case_ids(root))
         ci_contract_lane = (
             ROOT_CARGO_LANE
             if "interfaces.python-distribution-candidate" in cases

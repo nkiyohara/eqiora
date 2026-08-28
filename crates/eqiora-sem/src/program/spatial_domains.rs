@@ -264,6 +264,7 @@ pub(super) fn validate_geometry_support_uses(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
     artifacts_admitted: bool,
+    admitted_geometry_ports: &BTreeSet<RawId>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (&id, node) in nodes {
@@ -288,7 +289,7 @@ pub(super) fn validate_geometry_support_uses(
                     }),
                 "Relation spatial scope",
             ),
-            KernelNode::Port(port) => (
+            KernelNode::Port(port) if !admitted_geometry_ports.contains(&id) => (
                 port.boundary_physical_contract()
                     .map(|(_, boundary)| boundary.erase())
                     .filter(|boundary| is_geometry_domain(*boundary, nodes)),

@@ -23,10 +23,14 @@ import numpy as np
 import numpy.typing as npt
 
 from . import fluid as fluid
+from . import fem as fem
 from . import fsi as fsi
+from . import fvm as fvm
 from . import geometry as geometry
 from . import meshing as meshing
 from . import solid as solid
+from . import solve as solve
+from . import time as time
 from . import trajectory as trajectory
 
 _Float64Array = npt.NDArray[np.float64]
@@ -522,6 +526,60 @@ class FieldRef:
     def __hash__(self) -> int: ...
 
 @final
+class DomainRef:
+    """Exact canonical Domain selected from one immutable Model.
+
+    Authority: ``crates/eqiora-python/src/model.rs::PyModelDomainRef``.
+    """
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def id(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class InitialField:
+    """Immutable exact-Field-bound coherent-SI initial coefficients.
+
+    Authority: ``crates/eqiora-python/src/trajectory.rs::PyInitialField``.
+    """
+    def __new__(
+        cls,
+        field: FieldRef,
+        /,
+        *,
+        vertex_values: object | None = None,
+        cell_values: object | None = None,
+    ) -> InitialField: ...
+    @property
+    def field(self) -> FieldRef: ...
+
+@final
+class FieldOutput:
+    """Immutable coefficients for one exact Model Field on one exact Mesh.
+
+    Authority: ``crates/eqiora-python/src/result.rs::PyFieldOutput``.
+    """
+
+    @property
+    def field(self) -> FieldRef: ...
+    @property
+    def mesh(self) -> meshing.Mesh: ...
+    @property
+    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    @property
+    def components(self) -> int: ...
+    @property
+    def vertex_count(self) -> int: ...
+    @property
+    def vertex_values(self) -> Array: ...
+    @property
+    def cell_bubble_count(self) -> int: ...
+    @property
+    def cell_bubble_values(self) -> Array | None: ...
+
+@final
 class Model:
     """Immutable canonical model artifact, admitted when semantically closed.
 
@@ -538,6 +596,7 @@ class Model:
     def commit(self, edit: ValueEdit) -> Model: ...
     def parameter(self, selection: str) -> ParameterRef: ...
     def field(self, selection: str) -> FieldRef: ...
+    def domain(self, selection: str) -> DomainRef: ...
     def structurally_equivalent(self, other: Model) -> bool: ...
     @property
     def digest(self) -> str: ...
@@ -553,122 +612,156 @@ class Model:
     def field_ids(self) -> list[str]: ...
     @property
     def parameter_ids(self) -> list[str]: ...
+    @property
+    def domain_ids(self) -> list[str]: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 
 @final
-class ScalarEllipticMethod:
-    """Numerical family for one bounded scalar-elliptic request.
+class Plan:
+    """Immutable common numerical Plan owning an exact Model and applicable resources.
 
-    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarEllipticMethod``.
+    The Model alone determines the admitted physics. For the bounded elasticity
+    path, ``field`` and ``fields`` expose only the exact displacement FieldRef;
+    load-potential and reaction observations are not generic result Fields.
+
+    Authority: ``crates/eqiora-python/src/common_plan.rs::PyPlan``.
     """
-
-    FiniteElement: ClassVar[ScalarEllipticMethod]
-    FiniteVolume: ClassVar[ScalarEllipticMethod]
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
-class ScalarElliptic:
-    """Unbound typed scalar-elliptic request, not realization identity.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarElliptic``.
-    """
-
-    def __new__(
-        cls,
-        *,
-        method: ScalarEllipticMethod,
-        cells_per_axis: int,
-        realization_revision: int = 1,
-    ) -> Self: ...
     @property
-    def method(self) -> ScalarEllipticMethod: ...
+    def identity(self) -> str: ...
     @property
-    def cells_per_axis(self) -> int: ...
-    @property
-    def realization_revision(self) -> int: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
-class Realization:
-    """Exact model-bound capability-admitted portable realization.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyRealization``.
-    """
-
-    @property
-    def digest(self) -> str: ...
+    def model_id(self) -> str: ...
     @property
     def model_digest(self) -> str: ...
     @property
-    def realization_revision(self) -> int: ...
+    def model_revision(self) -> int: ...
     @property
-    def method(self) -> ScalarEllipticMethod: ...
+    def geometry_digest(self) -> str | None: ...
     @property
-    def cells_per_axis(self) -> int: ...
+    def mesh_digest(self) -> str | None: ...
+    @property
+    def correspondence_digest(self) -> str | None: ...
+    @property
+    def production_digest(self) -> str | None: ...
+    @property
+    def realization_digest(self) -> str | None: ...
+    @property
+    def model(self) -> Model: ...
+    @property
+    def mesh(self) -> meshing.Mesh | None: ...
+    @property
+    def field(self) -> FieldRef | None: ...
+    @property
+    def fields(self) -> tuple[FieldRef, ...]: ...
+    @property
+    def velocity_field(self) -> FieldRef | None: ...
+    @property
+    def pressure_field(self) -> FieldRef | None: ...
+    @property
+    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None: ...
+    @property
+    def solve(self) -> solve.Linear | solve.Newton | None: ...
+    @property
+    def temporal(self) -> time.BackwardEuler | time.Tsitouras45 | None: ...
+    @property
+    def discretization(self) -> str | None: ...
+    @property
+    def space(self) -> str | None: ...
+    @property
+    def velocity_space(self) -> str | None: ...
+    @property
+    def pressure_space(self) -> str | None: ...
+    @property
+    def pressure_gauge(self) -> fluid.PressureGauge2d | None: ...
+    @property
+    def quadrature(self) -> str | None: ...
+    @property
+    def mesh_kind(self) -> str | None: ...
+    @property
+    def spatial_dimension(self) -> int | None: ...
+    @property
+    def cells(self) -> tuple[int, int] | None: ...
+    @property
+    def scalar_type(self) -> str: ...
+    @property
+    def vector_layout(self) -> str: ...
+    @property
+    def operator_properties(self) -> str | None: ...
+    @property
+    def schedule(self) -> str: ...
+    @property
+    def solver_algorithm(self) -> str | None: ...
+    @property
+    def preconditioner(self) -> str | None: ...
+    @property
+    def reduction(self) -> str | None: ...
+    @property
+    def solver_backend(self) -> str: ...
+    @property
+    def solver_backend_version(self) -> str: ...
+    @property
+    def execution_provider(self) -> str: ...
+    @property
+    def execution_provider_version(self) -> str: ...
+    @property
+    def placement(self) -> str: ...
     @property
     def workers(self) -> int: ...
     @property
-    def cell_count(self) -> int: ...
+    def scaling(self) -> fluid.IncompressibleScales | None: ...
     @property
-    def field_value_count(self) -> int: ...
-    @property
-    def spatial_dimension(self) -> int: ...
-    @property
-    def field_logical_shape(self) -> tuple[int, ...]: ...
-    @property
-    def field_bounds(self) -> tuple[tuple[float, float], ...]: ...
-    def to_json(self) -> bytes: ...
+    def scaling_receipt(self) -> fluid.IncompressibleScalingReceipt2d | None: ...
+    def __repr__(self) -> str: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 
 @final
-class ScalarFieldLocation:
-    """Vertex or cell-centre meaning of a scalar field summary.
+class State:
+    """Accepted physical state owned by one exact common Plan.
 
-    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarFieldLocation``.
+    Authority: ``crates/eqiora-python/src/trajectory.rs::PyState``.
     """
 
-    Vertex: ClassVar[ScalarFieldLocation]
-    CellCenter: ClassVar[ScalarFieldLocation]
+    @staticmethod
+    def initial(
+        plan: Plan,
+        /,
+        *,
+        fields: tuple[InitialField, ...] | None = None,
+        time_s: float | None = None,
+    ) -> State: ...
+    @staticmethod
+    def zero(plan: Plan, /, *, time_s: float = 0.0) -> State: ...
+    @staticmethod
+    def from_result(plan: Plan, result: Result, /, *, time_s: float) -> State: ...
+    @property
+    def digest(self) -> str: ...
+    @property
+    def step(self) -> int: ...
+    @property
+    def time_s(self) -> float: ...
+    @property
+    def fields(self) -> tuple[trajectory.FieldSnapshot, ...]: ...
+    @property
+    def field_refs(self) -> tuple[FieldRef, ...]: ...
+    @property
+    def state_space_identity(self) -> str: ...
+    @property
+    def mesh(self) -> meshing.Mesh | None: ...
+    @property
+    def model(self) -> Model | None: ...
+    @property
+    def source_plan_identity(self) -> str | None: ...
+    @property
+    def source_request_identity(self) -> str | None: ...
+    @property
+    def source_trajectory_identity(self) -> str | None: ...
+    @property
+    def source_kind(self) -> str | None: ...
+    def field(self, field: FieldRef, /) -> trajectory.FieldSnapshot: ...
+    def value(self, field: FieldRef, /) -> float: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
-
-@final
-class ScalarFieldSummary:
-    """Bounded accepted field summary; arrays remain on the data plane.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarFieldSummary``.
-    """
-
-    @property
-    def location(self) -> ScalarFieldLocation: ...
-    @property
-    def spatial_dimension(self) -> int: ...
-    @property
-    def logical_shape(self) -> tuple[int, ...]: ...
-    @property
-    def value_count(self) -> int: ...
-    @property
-    def minimum(self) -> float: ...
-    @property
-    def maximum(self) -> float: ...
-
-@final
-class ScalarEllipticBalance:
-    """Accepted continuous scalar-elliptic balance evidence.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarEllipticBalance``.
-    """
-
-    @property
-    def boundary_total(self) -> float: ...
-    @property
-    def integrated_source(self) -> float: ...
-    @property
-    def relative_imbalance(self) -> float: ...
 
 @final
 class ConvergenceReason:
@@ -768,7 +861,7 @@ class DifferentiationEvidence:
     @property
     def model_digest(self) -> str: ...
     @property
-    def realization_digest(self) -> str: ...
+    def plan_identity(self) -> str: ...
     @property
     def input_ids(self) -> list[str]: ...
     @property
@@ -857,7 +950,7 @@ class DifferentiableProgram:
     @property
     def model_digest(self) -> str: ...
     @property
-    def realization_digest(self) -> str: ...
+    def plan_identity(self) -> str: ...
     @property
     def input_ids(self) -> list[str]: ...
     @property
@@ -884,71 +977,14 @@ class DifferentiableProgram:
     ) -> DifferentiableVjp: ...
 
 @final
-class RunManifest:
-    """Persisted exact run-v2 manifest linked to an accepted realization.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyRunManifest``.
-    """
-
-    @staticmethod
-    def from_json(data: bytes, *, realization: Realization) -> RunManifest: ...
-    @property
-    def digest(self) -> str: ...
-    @property
-    def model_digest(self) -> str: ...
-    @property
-    def realization_digest(self) -> str: ...
-    @property
-    def semantic_revision(self) -> int: ...
-    @property
-    def output_digests(self) -> list[str]: ...
-    @property
-    def adapter(self) -> str: ...
-    @property
-    def adapter_version(self) -> str: ...
-    @property
-    def solver_backend(self) -> str: ...
-    @property
-    def solver_backend_version(self) -> str: ...
-    @property
-    def workers(self) -> int: ...
-    @property
-    def reduction(self) -> str: ...
-    def to_json(self) -> bytes: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
-class ScalarEllipticResult:
-    """Accepted scalar-elliptic result with producer/verifier evidence.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarEllipticResult``.
-    """
-
-    @property
-    def realization(self) -> Realization: ...
-    @property
-    def run_manifest(self) -> RunManifest: ...
-    @property
-    def elapsed_seconds(self) -> float: ...
-    @property
-    def field(self) -> ScalarFieldSummary: ...
-    @property
-    def values(self) -> Array: ...
-    @property
-    def balance(self) -> ScalarEllipticBalance: ...
-    @property
-    def solve(self) -> LinearSolveSummary: ...
-    @property
-    def output_fingerprint(self) -> str: ...
-
-@final
 class Series:
     """Read-only field-local sampled series in SI units.
 
     Authority: ``crates/eqiora-python/src/result.rs::PySeries``.
     """
 
+    @property
+    def field(self) -> FieldRef | None: ...
     @property
     def id(self) -> str: ...
     @property
@@ -986,14 +1022,19 @@ class Result:
     @property
     def fields(self) -> list[Series]: ...
     @property
-    def snapshots(self) -> tuple[trajectory.FieldSnapshot, ...]: ...
-    def field(self, field: FieldRef, /) -> trajectory.FieldSnapshot: ...
+    @property
+    def values(self) -> Array: ...
+    @property
+    def field_location(self) -> str: ...
+    @property
+    def logical_shape(self) -> tuple[int, int]: ...
+    @property
+    def solve(self) -> LinearSolveSummary: ...
+    def output(self, field: FieldRef, /) -> FieldOutput: ...
+    def series(self, field: FieldRef, /) -> Series: ...
     def mesh(self, field: FieldRef, /) -> meshing.Mesh: ...
     @property
     def trajectory(self) -> trajectory.Trajectory: ...
-    def run_manifest(self) -> RunManifest: ...
-    def __len__(self) -> int: ...
-    def __getitem__(self, key: str, /) -> Series: ...
 
 @final
 class RunStatus:
@@ -1014,67 +1055,32 @@ class RunStatus:
     def __hash__(self) -> int: ...
 
 @final
-class RunProgress:
-    """Last coalesced fully accepted semantic-execution boundary.
+class TransientRunProgress:
+    """Last fully accepted common transient step boundary.
 
-    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyRunProgress``.
+    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunProgress``.
     """
 
-    @property
-    def model_time(self) -> float: ...
-    @property
-    def end_time(self) -> float: ...
     @property
     def accepted_steps(self) -> int: ...
     @property
     def maximum_steps(self) -> int: ...
+    @property
+    def model_time_s(self) -> float: ...
 
 @final
-class RunCancellation:
-    """Exact accepted boundary where cooperative cancellation terminated.
+class TransientRunCancellation:
+    """Exact accepted common transient boundary where cancellation terminated.
 
-    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyRunCancellation``.
+    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunCancellation``.
     """
 
     @property
-    def progress(self) -> RunProgress: ...
+    def progress(self) -> TransientRunProgress: ...
     @property
-    def elapsed_seconds(self) -> float: ...
-    @property
-    def plan_key(self) -> str: ...
+    def request_identity(self) -> str: ...
 
-@final
-class ScalarEllipticRunProgress:
-    """Last fully accepted scalar-elliptic application phase.
-
-    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyScalarEllipticRunProgress``.
-    """
-
-    PlanReplayed: ClassVar[ScalarEllipticRunProgress]
-    SystemFinalized: ClassVar[ScalarEllipticRunProgress]
-    SolutionAccepted: ClassVar[ScalarEllipticRunProgress]
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
-class ScalarEllipticRunCancellation:
-    """Exact scalar-elliptic phase where cancellation terminated.
-
-    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyScalarEllipticRunCancellation``.
-    """
-
-    @property
-    def progress(self) -> ScalarEllipticRunProgress: ...
-    @property
-    def elapsed_seconds(self) -> float: ...
-    @property
-    def plan_key(self) -> str: ...
-
-_RunResultT = TypeVar(
-    "_RunResultT",
-    Result,
-    ScalarEllipticResult,
-)
+_RunResultT = TypeVar("_RunResultT", bound=Result)
 
 class Run(Generic[_RunResultT]):
     """Awaitable owner of one native execution occurrence.
@@ -1088,11 +1094,11 @@ class Run(Generic[_RunResultT]):
     @property
     def history(self) -> tuple[RunStatus, ...]: ...
     @property
-    def progress(self) -> RunProgress | ScalarEllipticRunProgress | None: ...
+    def progress(self) -> TransientRunProgress | None: ...
     @property
     def cancellation(
         self,
-    ) -> RunCancellation | ScalarEllipticRunCancellation | None: ...
+    ) -> TransientRunCancellation | None: ...
     @property
     def done(self) -> bool: ...
     @property
@@ -1105,6 +1111,8 @@ class Run(Generic[_RunResultT]):
     def plan_key(self) -> str: ...
     @property
     def adapter(self) -> str: ...
+    @property
+    def adapter_version(self) -> str: ...
     def cancel(self) -> bool: ...
     def result(self) -> _RunResultT: ...
     def __await__(self) -> Generator[Any, None, _RunResultT]: ...
@@ -1129,11 +1137,15 @@ def across(port: ConservingPort) -> Expression:
     ...
 
 def compile(
-    source: str,
     *,
-    filename: str = "<memory>",
+    path: str | PathLike[str] | None = None,
+    source: str | None = None,
+    filename: str | None = None,
+    geometry: geometry.Geometry | None = None,
+    parameters: dict[str, float | int] | None = None,
+    component: str | None = None,
 ) -> Model:
-    """Compile one model through the canonical Rust pipeline.
+    """Compile one source and its optional exact Geometry closure.
 
     Authority: ``crates/eqiora-python/src/lib.rs::compile``.
     """
@@ -1199,14 +1211,6 @@ def grad(value: _ExpressionLike) -> Expression:
 
     ...
 
-def preview_realization(model: Model, request: ScalarElliptic) -> Realization:
-    """Resolve a request before numerical allocation.
-
-    Authority: ``crates/eqiora-python/src/realization.rs::preview_realization``.
-    """
-
-    ...
-
 def replay(data: bytes) -> Model:
     """Replay one canonical artifact through the current model contract.
 
@@ -1215,126 +1219,53 @@ def replay(data: bytes) -> Model:
 
     ...
 
-@overload
+def resolve(
+    model: Model,
+    *,
+    mesh: meshing.Mesh | None = None,
+    spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None = None,
+    solve: solve.Linear | solve.Newton | None = None,
+    scaling: fluid.IncompressibleScaling | None = None,
+    temporal: time.BackwardEuler | time.Tsitouras45 | None = None,
+) -> Plan:
+    """Resolve an exact Model and typed numerical policies into a common Plan.
+
+    Typed spatial and solve policies select numerics, never physics. The
+    resolved Plan retains the exact caller Model and every applicable caller
+    resource. Spatial paths retain their exact Mesh without regeneration;
+    structural no-Mesh ODE paths reject spatial resources.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::resolve``.
+    """
+
+    ...
+
 def run(
-    model: Model,
+    plan: Plan,
     *,
-    end_time: float,
-    max_step: float,
-    realization: None = None,
+    state: State | None = None,
+    until_s: float | None = None,
+    output_times_s: tuple[float, ...] | None = None,
+    steps: int | None = None,
+    output_steps: tuple[int, ...] | None = None,
 ) -> Result:
-    """Execute through the lifecycle returned by :func:`submit`.
+    """Execute one steady or explicitly bounded transient common Plan synchronously.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::run``.
     """
 
     ...
 
-@overload
-def run(model: Model, *, realization: Realization) -> ScalarEllipticResult:
-    """Execute through the lifecycle returned by :func:`submit`.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
-    """
-
-    ...
-
-@overload
-def run(
-    model: Model,
-    *,
-    plan: fluid.SteadyStokesPlan,
-) -> Result:
-    """Execute through the lifecycle returned by :func:`submit`.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
-    """
-
-    ...
-
-@overload
-def run(
-    model: Model,
-    *,
-    plan: solid.LinearElasticityPlan,
-) -> Result:
-    """Execute through the lifecycle returned by :func:`submit`.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
-    """
-
-    ...
-
-@overload
-def run(
-    model: Model,
-    *,
-    plan: fsi.FixedMeshMonolithicPlan,
-) -> Result:
-    """Execute through the lifecycle returned by :func:`submit`.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
-    """
-
-    ...
-
-@overload
 def submit(
-    model: Model,
+    plan: Plan,
     *,
-    end_time: float,
-    max_step: float,
-    realization: None = None,
+    state: State | None = None,
+    until_s: float | None = None,
+    output_times_s: tuple[float, ...] | None = None,
+    steps: int | None = None,
+    output_steps: tuple[int, ...] | None = None,
 ) -> Run[Result]:
-    """Submit one accepted temporal, spatial, or plan request shape.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
-    """
-
-    ...
-
-@overload
-def submit(model: Model, *, realization: Realization) -> Run[ScalarEllipticResult]:
-    """Submit one accepted temporal, spatial, or plan request shape.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
-    """
-
-    ...
-
-@overload
-def submit(
-    model: Model,
-    *,
-    plan: fluid.SteadyStokesPlan,
-) -> Run[Result]:
-    """Submit one accepted temporal, spatial, or plan request shape.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
-    """
-
-    ...
-
-@overload
-def submit(
-    model: Model,
-    *,
-    plan: solid.LinearElasticityPlan,
-) -> Run[Result]:
-    """Submit one accepted temporal, spatial, or plan request shape.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
-    """
-
-    ...
-
-@overload
-def submit(
-    model: Model,
-    *,
-    plan: fsi.FixedMeshMonolithicPlan,
-) -> Run[Result]:
-    """Submit one accepted temporal, spatial, or plan request shape.
+    """Submit one steady or explicitly bounded transient common Plan.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
     """
@@ -1379,12 +1310,15 @@ __all__ = [
     "DifferentiationEvidence",
     "DifferentiationMode",
     "Dimension",
+    "DomainRef",
     "Domain",
     "EqioraError",
     "ExecutionError",
     "Expression",
     "Field",
+    "FieldOutput",
     "FieldRef",
+    "InitialField",
     "InternalError",
     "LinearSolveSummary",
     "LinearizationState",
@@ -1394,25 +1328,17 @@ __all__ = [
     "Parameter",
     "ParameterRef",
     "PhysicalDomain",
-    "Realization",
+    "Plan",
     "Representation",
     "Relation",
     "Result",
     "Revision",
     "Run",
-    "RunManifest",
-    "RunCancellation",
-    "RunProgress",
     "RunStatus",
-    "ScalarElliptic",
-    "ScalarEllipticBalance",
-    "ScalarEllipticMethod",
-    "ScalarEllipticResult",
-    "ScalarEllipticRunCancellation",
-    "ScalarEllipticRunProgress",
-    "ScalarFieldLocation",
-    "ScalarFieldSummary",
     "Series",
+    "State",
+    "TransientRunCancellation",
+    "TransientRunProgress",
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",
@@ -1424,17 +1350,21 @@ __all__ = [
     "derivative",
     "div",
     "grad",
-    "preview_realization",
     "replay",
+    "resolve",
     "run",
     "submit",
     "through",
     "trace",
     "diff",
+    "fem",
     "fluid",
     "fsi",
+    "fvm",
     "geometry",
     "meshing",
     "solid",
+    "solve",
+    "time",
     "trajectory",
 ]

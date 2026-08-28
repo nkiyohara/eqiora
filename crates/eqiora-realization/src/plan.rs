@@ -82,13 +82,13 @@ impl RealizationPlan {
             (
                 DiscretizationMethod::ContinuousGalerkin,
                 SpaceFamily::ContinuousLagrange { .. },
-                MeshPolicy::GeneratedUniform { .. },
+                MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. },
                 QuadraturePolicy::GaussLegendre { .. },
             )
             | (
                 DiscretizationMethod::CellCenteredFiniteVolume,
                 SpaceFamily::CellConstant,
-                MeshPolicy::GeneratedUniform { .. },
+                MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. },
                 QuadraturePolicy::CellCentroid,
             ) => {}
             (
@@ -99,12 +99,12 @@ impl RealizationPlan {
             ) if order == NonZeroU16::MIN => {}
             (DiscretizationMethod::ContinuousGalerkin, _, _, _) => {
                 return Err(invalid_realization(
-                    "continuous Galerkin requires generated Cartesian/Gauss-Legendre or imported affine-simplex/P1-centroid contracts in v0",
+                    "continuous Galerkin requires generated or supplied Cartesian/Gauss-Legendre or imported affine-simplex/P1-centroid contracts in v0",
                 ));
             }
             (DiscretizationMethod::CellCenteredFiniteVolume, _, _, _) => {
                 return Err(invalid_realization(
-                    "cell-centered finite volume requires a generated Cartesian mesh, cell-constant space, and centroid quadrature in v0",
+                    "cell-centered finite volume requires a generated or supplied Cartesian mesh, cell-constant space, and centroid quadrature in v0",
                 ));
             }
         }

@@ -46,7 +46,7 @@ impl Default for RealizationDecoderLimits {
 
 /// Content-addressed layout inputs required by a realization.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LayoutArtifactsV1 {
+pub enum LayoutArtifacts {
     /// A complete vector is resident in one process.
     Replicated,
     /// A distributed layout and its unique-owner partition artifact.
@@ -56,21 +56,6 @@ pub enum LayoutArtifactsV1 {
         /// Digest of the global unique-owner partition artifact.
         partition: ArtifactDigest,
     },
-}
-
-/// Current version-neutral spelling of the layout projection.
-pub use LayoutArtifactsV1 as LayoutArtifacts;
-
-#[cfg(test)]
-mod layout_source_compatibility_tests {
-    use super::{LayoutArtifacts, LayoutArtifactsV1};
-    use LayoutArtifacts::Replicated as CurrentReplicated;
-    use LayoutArtifactsV1::Replicated as FormerReplicated;
-
-    #[test]
-    fn former_and_current_enum_import_paths_name_the_same_projection() {
-        assert_eq!(FormerReplicated, CurrentReplicated);
-    }
 }
 
 /// Versioned serialization of one resolved, validated Realization selection.
@@ -229,6 +214,9 @@ impl RealizationEnvelopeV1 {
     pub fn mesh_artifact(&self) -> Result<Option<ArtifactDigest>, Diagnostic> {
         Ok(match self.plan()?.discretization().mesh() {
             MeshPolicy::GeneratedUniform { .. } => None,
+            MeshPolicy::SuppliedCartesian { artifact, .. } => {
+                Some(ArtifactDigest::from_sha256(artifact.sha256()))
+            }
             MeshPolicy::ImportedSimplicial { artifact } => {
                 Some(ArtifactDigest::from_sha256(artifact.sha256()))
             }
@@ -562,6 +550,9 @@ impl WireMesh {
             MeshPolicy::ImportedSimplicial { artifact } => Ok(Self::ImportedSimplicial {
                 artifact_sha256: ArtifactDigest::from_sha256(artifact.sha256()).to_string(),
             }),
+            MeshPolicy::SuppliedCartesian { .. } => Err(invalid_artifact(
+                "realization-envelope/v1 cannot encode supplied Cartesian mesh policy",
+            )),
         }
     }
 

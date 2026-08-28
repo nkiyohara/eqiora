@@ -1,14 +1,16 @@
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
+use eqiora_artifact::{CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1};
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::Id;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, GraphPath, RawId};
+use eqiora_geometry::{CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION};
 use eqiora_graph::EdgeKind;
 use eqiora_meshing::{
-    LineMesh, MeshTopology, QuadratureRule, SimplicialMesh, simplex_centroid_rule,
+    LineMesh, MeshTopology, OrientationCode, QuadratureRule, SimplicialMesh, simplex_centroid_rule,
 };
 use eqiora_realization::{
     Discretization, DiscretizationMethod, MeshArtifactReference, MeshPolicy,
@@ -716,6 +718,102 @@ pub fn lower_scalar_elliptic_cartesian(
     program: &KernelProgram,
 ) -> Result<ScalarEllipticCartesianModel, Diagnostic> {
     let (domain, bounds) = unique_cartesian_box(program)?;
+    let boundary_domains = program
+        .nodes()
+        .filter_map(|node| {
+            let KernelNode::Domain(boundary) = node else {
+                return None;
+            };
+            let DomainKind::CartesianBoundary { axis, side } = boundary.kind() else {
+                return None;
+            };
+            (boundary_parent(program, boundary.id().erase()) == Some(domain))
+                .then_some(((*axis, *side), boundary.id().erase()))
+        })
+        .collect();
+    lower_scalar_elliptic_cartesian_support(program, domain, bounds, boundary_domains)
+}
+
+pub(crate) fn lower_scalar_elliptic_cartesian_with_resources(
+    program: &KernelProgram,
+    geometry: &CanonicalGeometryV1,
+    mesh: &CartesianMeshEnvelopeV1,
+    correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+) -> Result<ScalarEllipticCartesianModel, Diagnostic> {
+    let (domain, bounds, boundary_domains) =
+        geometry_rectangle_cartesian_support(program, geometry, mesh, correspondence)?;
+    lower_scalar_elliptic_cartesian_support(program, domain, bounds, boundary_domains)
+}
+
+pub(crate) fn recognize_scalar_elliptic_geometry_mathematics(
+    program: &KernelProgram,
+) -> Result<(), Diagnostic> {
+    let regions = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
+            {
+                Some(domain.id().erase())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [domain] = regions.as_slice() else {
+        return Err(model_lowering_error(
+            program,
+            "geometry-backed scalar elliptic recognition requires exactly one GeometryRegion",
+        ));
+    };
+    let compiled_form = derive_candidate(program, *domain)?;
+    let field = unique_continuum_field(program, *domain)?;
+    let volume_relation = unique_relation_on(program, *domain)?;
+    let (coefficient, source) = lower_volume_relation(program, volume_relation, field, 2)?;
+    let coefficient_value = coefficient
+        .constant_value()
+        .expect("flux coefficient is validated as spatially constant");
+    if !coefficient_value.is_finite() || coefficient_value <= 0.0 {
+        return Err(lowering_error(
+            volume_relation,
+            "elliptic coefficient must be finite and positive",
+        ));
+    }
+    let boundaries = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(boundary)
+                if matches!(boundary.kind(), DomainKind::GeometryBoundary { .. })
+                    && boundary_parent(program, boundary.id().erase()) == Some(*domain) =>
+            {
+                Some(boundary.id().erase())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if boundaries.len() != 4 {
+        return Err(lowering_error(
+            *domain,
+            "geometry-backed 2D scalar elliptic recognition requires four boundary supports",
+        ));
+    }
+    let mut lowered = BTreeMap::new();
+    for boundary in boundaries {
+        let relation = unique_relation_on(program, boundary)?;
+        lowered.insert(
+            boundary,
+            lower_cartesian_boundary_relation(program, relation, field, &coefficient, 2)?,
+        );
+    }
+    let _ = (compiled_form, source, lowered);
+    Ok(())
+}
+
+fn lower_scalar_elliptic_cartesian_support(
+    program: &KernelProgram,
+    domain: RawId,
+    bounds: Vec<[f64; 2]>,
+    boundary_domains: BTreeMap<(usize, BoundarySide), RawId>,
+) -> Result<ScalarEllipticCartesianModel, Diagnostic> {
     let compiled_form = derive_candidate(program, domain)?;
     let dimension = bounds.len();
     let field = unique_continuum_field(program, domain)?;
@@ -732,23 +830,14 @@ pub fn lower_scalar_elliptic_cartesian(
     }
 
     let mut boundaries = BTreeMap::new();
-    for node in program.nodes() {
-        let KernelNode::Domain(boundary_domain) = node else {
-            continue;
-        };
-        let DomainKind::CartesianBoundary { axis, side } = boundary_domain.kind() else {
-            continue;
-        };
-        if boundary_parent(program, boundary_domain.id().erase()) != Some(domain) {
-            continue;
-        }
-        let relation = unique_relation_on(program, boundary_domain.id().erase())?;
+    for ((axis, side), boundary_domain) in boundary_domains {
+        let relation = unique_relation_on(program, boundary_domain)?;
         let condition =
             lower_cartesian_boundary_relation(program, relation, field, &coefficient, dimension)?;
-        if boundaries.insert((*axis, *side), condition).is_some() {
+        if boundaries.insert((axis, side), condition).is_some() {
             return Err(lowering_error(
-                boundary_domain.id().erase(),
-                "Cartesian box has a duplicate canonical boundary side",
+                boundary_domain,
+                "scalar elliptic support has a duplicate canonical boundary side",
             ));
         }
     }
@@ -758,7 +847,7 @@ pub fn lower_scalar_elliptic_cartesian(
                 return Err(lowering_error(
                     domain,
                     format!(
-                        "Cartesian box requires an explicit Relation on axis {axis} {side:?} boundary"
+                        "scalar elliptic support requires an explicit Relation on axis {axis} {side:?} boundary"
                     ),
                 ));
             }
@@ -780,6 +869,148 @@ pub fn lower_scalar_elliptic_cartesian(
         parameter_values,
         compiled_form,
     })
+}
+
+pub(crate) type ScalarCartesianSupport =
+    (RawId, Vec<[f64; 2]>, BTreeMap<(usize, BoundarySide), RawId>);
+
+pub(crate) fn geometry_rectangle_cartesian_support(
+    program: &KernelProgram,
+    geometry: &CanonicalGeometryV1,
+    mesh: &CartesianMeshEnvelopeV1,
+    correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+) -> Result<ScalarCartesianSupport, Diagnostic> {
+    let bounds = geometry.planar_rectangle_bounds().ok_or_else(|| {
+        model_lowering_error(
+            program,
+            "geometry-backed Cartesian lowering requires exact PlanarRectangleV2",
+        )
+    })?;
+    let regions = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
+            {
+                Some(domain)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if regions.len() != 1 {
+        return Err(model_lowering_error(
+            program,
+            format!(
+                "geometry-backed Cartesian lowering requires one GeometryRegion, found {}",
+                regions.len()
+            ),
+        ));
+    }
+    let region = regions[0];
+    let DomainKind::GeometryRegion {
+        geometry: digest,
+        entity_set,
+    } = region.kind()
+    else {
+        unreachable!("GeometryRegion filter is exact")
+    };
+    let region_set = geometry.entity_set(entity_set).ok_or_else(|| {
+        lowering_error(
+            region.id().erase(),
+            "Model GeometryRegion entity set is absent from exact rectangle Geometry",
+        )
+    })?;
+    if digest.bytes() != geometry.digest_bytes()
+        || region_set.dimension() != FACE_DIMENSION
+        || region_set.members() != [0]
+    {
+        return Err(lowering_error(
+            region.id().erase(),
+            "Model GeometryRegion differs from the exact rectangle source face",
+        ));
+    }
+    let domain = region.id().erase();
+    let mut boundary_domains = BTreeMap::new();
+    for node in program.nodes() {
+        let KernelNode::Domain(boundary) = node else {
+            continue;
+        };
+        let DomainKind::GeometryBoundary { entity_set } = boundary.kind() else {
+            continue;
+        };
+        if boundary_parent(program, boundary.id().erase()) != Some(domain) {
+            continue;
+        }
+        let facets =
+            correspondence.planar_rectangle_v2_entity_set_entities(geometry, entity_set)?;
+        let mut side = None;
+        for facet in facets {
+            if facet.dimension() != EDGE_DIMENSION {
+                return Err(lowering_error(
+                    boundary.id().erase(),
+                    "rectangle GeometryBoundary correspondence contains a non-facet entity",
+                ));
+            }
+            let adjacent = mesh
+                .mesh()
+                .incidence(facet, FACE_DIMENSION)
+                .ok_or_else(|| {
+                    lowering_error(
+                        boundary.id().erase(),
+                        "rectangle boundary facet has no parent-cell incidence",
+                    )
+                })?;
+            let [parent] = adjacent.as_slice() else {
+                return Err(lowering_error(
+                    boundary.id().erase(),
+                    "rectangle boundary facet does not have exactly one parent cell",
+                ));
+            };
+            if parent.orientation != OrientationCode::identity() {
+                return Err(lowering_error(
+                    boundary.id().erase(),
+                    "rectangle boundary facet has noncanonical orientation",
+                ));
+            }
+            let facet_side = match parent.local_ordinal {
+                0 => (1, BoundarySide::Lower),
+                1 => (1, BoundarySide::Upper),
+                2 => (0, BoundarySide::Lower),
+                3 => (0, BoundarySide::Upper),
+                _ => {
+                    return Err(lowering_error(
+                        boundary.id().erase(),
+                        "rectangle boundary facet has an unsupported local side ordinal",
+                    ));
+                }
+            };
+            if side
+                .replace(facet_side)
+                .is_some_and(|old| old != facet_side)
+            {
+                return Err(lowering_error(
+                    boundary.id().erase(),
+                    "one rectangle source boundary maps to multiple topology sides",
+                ));
+            }
+        }
+        let Some(side) = side else {
+            return Err(lowering_error(
+                boundary.id().erase(),
+                "rectangle GeometryBoundary correspondence is empty",
+            ));
+        };
+        if boundary_domains
+            .insert(side, boundary.id().erase())
+            .is_some()
+        {
+            return Err(lowering_error(
+                boundary.id().erase(),
+                "rectangle GeometryBoundary side is duplicated",
+            ));
+        }
+    }
+    Ok((domain, bounds.to_vec(), boundary_domains))
 }
 
 /// Select the built-in default realization and execute it.
@@ -988,6 +1219,11 @@ fn solve_resolved_scalar_elliptic_1d_impl(
                 "interval v0 execution requires a generated uniform mesh",
             ));
         }
+        MeshPolicy::SuppliedCartesian { .. } => {
+            return Err(invalid_realization(
+                "interval execution does not admit a supplied Cartesian mesh",
+            ));
+        }
     };
     let solver = LinearSolveRequest::new(backend, selection.solver);
     let [start, end] = model.interval();
@@ -1137,11 +1373,10 @@ pub fn solve_resolved_scalar_elliptic_cartesian_with_assembly(
 /// Finalize one resolved Cartesian scalar-elliptic realization for an
 /// independently selected linear execution adapter.
 ///
-/// This is the default-assembly form of
-/// [`finalize_resolved_scalar_elliptic_cartesian_with_assembly`]. It performs
-/// canonical lowering, plan validation, mesh construction, local-operator
-/// evaluation, constraint handling, and deterministic sparse finalization,
-/// but deliberately does not select or invoke a solver backend.
+/// This is the default-assembly form of the explicit-assembly finalizer. It
+/// performs canonical lowering, plan validation, mesh construction,
+/// local-operator evaluation, constraint handling, and deterministic sparse
+/// finalization, but deliberately does not select or invoke a solver backend.
 ///
 /// # Errors
 /// Preserves exact lowering, Realization, discretization, and assembly
@@ -1226,7 +1461,7 @@ pub fn finalize_lowered_scalar_elliptic_cartesian(
 /// and is the only model that can later linearize the accepted solution.
 ///
 /// # Errors
-/// Preserves [`finalize_lowered_scalar_elliptic_cartesian`] diagnostics.
+/// Preserves the lowered scalar-elliptic finalizer's diagnostics.
 pub fn finalize_scalar_elliptic_parameter_point(
     model: ScalarEllipticCartesianModel,
     resolved: &ResolvedRealization,
@@ -1243,7 +1478,7 @@ pub fn finalize_scalar_elliptic_parameter_point(
 /// explicit assembly adapter.
 ///
 /// # Errors
-/// Preserves [`finalize_lowered_scalar_elliptic_cartesian`] diagnostics and the
+/// Preserves the lowered scalar-elliptic finalizer's diagnostics and the
 /// selected assembly backend's complete-operation diagnostics.
 pub fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
     model: &ScalarEllipticCartesianModel,
@@ -1290,6 +1525,11 @@ pub fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
         MeshPolicy::ImportedSimplicial { .. } => {
             return Err(invalid_realization(
                 "Cartesian v0 execution requires a generated uniform mesh; use the simplicial realization entry point for an imported mesh",
+            ));
+        }
+        MeshPolicy::SuppliedCartesian { .. } => {
+            return Err(invalid_realization(
+                "legacy Cartesian execution does not admit a supplied mesh",
             ));
         }
     };
@@ -1492,6 +1732,11 @@ pub fn solve_resolved_scalar_elliptic_simplicial_with_assembly(
                 "simplicial execution requires an imported mesh policy",
             ));
         }
+        MeshPolicy::SuppliedCartesian { .. } => {
+            return Err(invalid_realization(
+                "simplicial execution does not admit a supplied Cartesian mesh",
+            ));
+        }
     };
     if expected_artifact != mesh_artifact {
         return Err(invalid_realization(
@@ -1648,6 +1893,11 @@ fn linearize_accepted_scalar_elliptic_cartesian(
                 "Cartesian linearization requires the generated mesh used by its successful primal solve",
             ));
         }
+        MeshPolicy::SuppliedCartesian { .. } => {
+            return Err(invalid_realization(
+                "legacy Cartesian linearization does not admit a supplied mesh",
+            ));
+        }
     };
     let mesh = CartesianMesh::uniform(model.bounds(), &vec![cells; model.dimension()])?;
     let (linearization, output) = match (resolved.plan().discretization().method(), solution) {
@@ -1798,424 +2048,13 @@ pub(crate) fn unique_cartesian_box(
     ))
 }
 
-fn invalid_realization(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_REALIZATION, message)
-}
-
-fn invalid_parameter_binding(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_LINEARIZATION, message)
-}
-
-fn unique_continuum_field(program: &KernelProgram, domain: RawId) -> Result<RawId, Diagnostic> {
-    let fields = continuum_fields_on(program, domain);
-    if fields.len() == 1 {
-        Ok(fields[0])
-    } else {
-        Err(lowering_error(
-            domain,
-            format!(
-                "default scalar elliptic lowering requires one continuum Field, found {}",
-                fields.len()
-            ),
-        ))
-    }
-}
-
-pub(crate) fn continuum_fields_on(program: &KernelProgram, domain: RawId) -> Vec<RawId> {
-    program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Field(field)
-                if has_edge(program, field.id().erase(), domain, EdgeKind::DefinedOn)
-                    && field_has_continuum_representation(program, field.id().erase()) =>
-            {
-                Some(field.id().erase())
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-fn field_has_continuum_representation(program: &KernelProgram, field: RawId) -> bool {
-    program.edges().iter().any(|edge| {
-        edge.from() == field
-            && edge.kind() == EdgeKind::DefinedOn
-            && matches!(
-                program.node(edge.to()),
-                Some(KernelNode::Representation(representation))
-                    if representation.kind() == RepresentationKind::Continuum
-            )
-    })
-}
-
-pub(crate) fn relations_on(program: &KernelProgram, domain: RawId) -> Vec<RawId> {
-    program
-        .edges()
-        .iter()
-        .filter(|edge| edge.kind() == EdgeKind::AppliesOn && edge.to() == domain)
-        .map(|edge| edge.from())
-        .collect()
-}
-
-pub(crate) fn unique_relation_on(
-    program: &KernelProgram,
-    domain: RawId,
-) -> Result<RawId, Diagnostic> {
-    let relations = relations_on(program, domain);
-    if relations.len() == 1 {
-        Ok(relations[0])
-    } else {
-        Err(lowering_error(
-            domain,
-            format!(
-                "default scalar elliptic lowering requires one Relation on this Domain, found {}",
-                relations.len()
-            ),
-        ))
-    }
-}
-
-fn lower_volume_relation(
-    program: &KernelProgram,
-    relation: RawId,
-    field: RawId,
-    coordinate_dimension: usize,
-) -> Result<(ScalarSpatialExpression, ScalarSpatialExpression), Diagnostic> {
-    let expression = relation_expression(program, relation)?;
-    let root = unique_root(expression, relation)?;
-    let (operator, source) = match expression.node(root) {
-        Some(ExprNode::Sub(operator, source)) => (*operator, Some(*source)),
-        _ => (root, None),
-    };
-    let divergence = match expression.node(operator) {
-        Some(ExprNode::Neg(value)) => *value,
-        _ => {
-            return Err(lowering_error(
-                relation,
-                "volume residual must start with `-div(...)`",
-            ));
-        }
-    };
-    let flux = match expression.node(divergence) {
-        Some(ExprNode::Divergence(value)) => *value,
-        _ => {
-            return Err(lowering_error(
-                relation,
-                "volume residual must contain physical divergence",
-            ));
-        }
-    };
-    let coefficient = lower_flux_coefficient(
-        program,
-        expression,
-        flux,
-        field,
-        relation,
-        coordinate_dimension,
-    )?;
-    let source = match source {
-        Some(source) => {
-            spatial_expression::lower(program, expression, source, relation, coordinate_dimension)?
-        }
-        None => ScalarSpatialExpression::constant(coordinate_dimension, 0.0),
-    };
-    Ok((coefficient, source))
-}
-
-fn lower_cartesian_boundary_relation(
-    program: &KernelProgram,
-    relation: RawId,
-    field: RawId,
-    volume_coefficient: &ScalarSpatialExpression,
-    coordinate_dimension: usize,
-) -> Result<ScalarEllipticCartesianBoundary, Diagnostic> {
-    let expression = relation_expression(program, relation)?;
-    let root = unique_root(expression, relation)?;
-    let (operator, value) = match expression.node(root) {
-        Some(ExprNode::Sub(operator, value)) => (*operator, Some(*value)),
-        _ => (root, None),
-    };
-    let value = match value {
-        Some(value) => {
-            spatial_expression::lower(program, expression, value, relation, coordinate_dimension)?
-        }
-        None => ScalarSpatialExpression::constant(coordinate_dimension, 0.0),
-    };
-    match expression.node(operator) {
-        Some(ExprNode::Trace(trace_operand)) if is_field(expression, *trace_operand, field) => {
-            Ok(ScalarEllipticCartesianBoundary::Essential(value))
-        }
-        Some(ExprNode::NormalComponent(flux)) => {
-            let coefficient = lower_flux_coefficient(
-                program,
-                expression,
-                *flux,
-                field,
-                relation,
-                coordinate_dimension,
-            )?;
-            if coefficient != *volume_coefficient {
-                return Err(lowering_error(
-                    relation,
-                    "boundary flux coefficient is not structurally identical to the volume constitutive flux",
-                ));
-            }
-            Ok(ScalarEllipticCartesianBoundary::Natural(value))
-        }
-        _ => Err(lowering_error(
-            relation,
-            "boundary residual must be `trace(field) - value` or `normal(flux) - value`",
-        )),
-    }
-}
-
-fn lower_constant_boundary_1d(
-    boundary: &ScalarEllipticCartesianBoundary,
-    owner: RawId,
-) -> Result<ScalarBoundaryCondition1d, Diagnostic> {
-    let value = boundary.value().constant_value().ok_or_else(|| {
-        lowering_error(
-            owner,
-            "scalar elliptic 1D realization currently requires spatially constant boundary data",
-        )
-    })?;
-    Ok(match boundary {
-        ScalarEllipticCartesianBoundary::Essential(_) => {
-            ScalarBoundaryCondition1d::Essential(value)
-        }
-        ScalarEllipticCartesianBoundary::Natural(_) => ScalarBoundaryCondition1d::Natural(value),
-    })
-}
-
-fn collect_parameter_coordinates(
-    coefficient: &ScalarSpatialExpression,
-    source: &ScalarSpatialExpression,
-    boundaries: &BTreeMap<(usize, BoundarySide), ScalarEllipticCartesianBoundary>,
-) -> (Vec<Id<kinds::Parameter>>, Vec<f64>) {
-    let mut fields = Vec::new();
-    let mut values = Vec::new();
-    for expression in std::iter::once(coefficient)
-        .chain(std::iter::once(source))
-        .chain(
-            boundaries
-                .values()
-                .map(ScalarEllipticCartesianBoundary::value),
-        )
-    {
-        for (field, value) in expression
-            .parameter_fields()
-            .iter()
-            .zip(expression.parameter_values())
-        {
-            if let Some(index) = fields.iter().position(|existing| existing == field) {
-                debug_assert_eq!(values[index], *value);
-            } else {
-                fields.push(*field);
-                values.push(*value);
-            }
-        }
-    }
-    (fields, values)
-}
-
-fn evaluate_essential_boundary(
-    model: &ScalarEllipticCartesianModel,
-    coordinates: &[f64],
-) -> Result<f64, Diagnostic> {
-    if coordinates.len() != model.dimension() {
-        return Err(lowering_error(
-            model.domain(),
-            "Cartesian boundary evaluation received the wrong coordinate dimension",
-        ));
-    }
-    let mut value: Option<f64> = None;
-    for (axis, bounds) in model.bounds().iter().enumerate() {
-        for (side, coordinate) in [
-            (BoundarySide::Lower, bounds[0]),
-            (BoundarySide::Upper, bounds[1]),
-        ] {
-            if coordinates[axis].to_bits() != coordinate.to_bits() {
-                continue;
-            }
-            let boundary = model
-                .boundary(axis, side)
-                .expect("Cartesian lowerer produces a complete boundary set");
-            let ScalarEllipticCartesianBoundary::Essential(expression) = boundary else {
-                return Err(lowering_error(
-                    model.domain(),
-                    "Cartesian numerical path requires essential boundary data",
-                ));
-            };
-            let candidate = expression.evaluate(coordinates)?;
-            if let Some(previous) = value {
-                let scale = previous.abs().max(candidate.abs()).max(1.0);
-                if (previous - candidate).abs() > 256.0 * f64::EPSILON * scale {
-                    return Err(lowering_error(
-                        model.domain(),
-                        "Cartesian boundary expressions disagree at an edge or corner",
-                    ));
-                }
-            } else {
-                value = Some(candidate);
-            }
-        }
-    }
-    value.ok_or_else(|| {
-        lowering_error(
-            model.domain(),
-            "Cartesian boundary evaluation point is not on the box boundary",
-        )
-    })
-}
-
-pub(crate) fn lower_flux_coefficient(
-    program: &KernelProgram,
-    expression: &ExprDag,
-    value: ExprId,
-    field: RawId,
-    owner: RawId,
-    coordinate_dimension: usize,
-) -> Result<ScalarSpatialExpression, Diagnostic> {
-    if let Some(ExprNode::Gradient(argument)) = expression.node(value)
-        && is_field(expression, *argument, field)
-    {
-        return Ok(ScalarSpatialExpression::constant(coordinate_dimension, 1.0));
-    }
-    let Some(ExprNode::Mul(left, right)) = expression.node(value) else {
-        return Err(lowering_error(
-            owner,
-            "constitutive flux must be a scalar coefficient times `grad(field)`",
-        ));
-    };
-    if contains_gradient_of(expression, *left, field) {
-        let coefficient = lower_flux_coefficient(
-            program,
-            expression,
-            *left,
-            field,
-            owner,
-            coordinate_dimension,
-        )?;
-        let factor = lower_constant_spatial_factor(
-            program,
-            expression,
-            *right,
-            owner,
-            coordinate_dimension,
-        )?;
-        Ok(coefficient.multiply(factor))
-    } else if contains_gradient_of(expression, *right, field) {
-        let factor =
-            lower_constant_spatial_factor(program, expression, *left, owner, coordinate_dimension)?;
-        let coefficient = lower_flux_coefficient(
-            program,
-            expression,
-            *right,
-            field,
-            owner,
-            coordinate_dimension,
-        )?;
-        Ok(factor.multiply(coefficient))
-    } else {
-        Err(lowering_error(
-            owner,
-            "constitutive flux does not contain `grad(field)`",
-        ))
-    }
-}
-
-fn lower_constant_spatial_factor(
-    program: &KernelProgram,
-    expression: &ExprDag,
-    value: ExprId,
-    owner: RawId,
-    coordinate_dimension: usize,
-) -> Result<ScalarSpatialExpression, Diagnostic> {
-    let factor =
-        spatial_expression::lower(program, expression, value, owner, coordinate_dimension)?;
-    if factor.is_coordinate_dependent() {
-        return Err(lowering_error(
-            owner,
-            "Cartesian scalar elliptic coefficient must be spatially constant",
-        ));
-    }
-    Ok(factor)
-}
-
-fn contains_gradient_of(expression: &ExprDag, value: ExprId, field: RawId) -> bool {
-    match expression.node(value) {
-        Some(ExprNode::Gradient(argument)) => is_field(expression, *argument, field),
-        Some(ExprNode::Mul(left, right)) => {
-            contains_gradient_of(expression, *left, field)
-                || contains_gradient_of(expression, *right, field)
-        }
-        _ => false,
-    }
-}
-
-pub(crate) fn is_field(expression: &ExprDag, value: ExprId, field: RawId) -> bool {
-    matches!(
-        expression.node(value),
-        Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == field
-    )
-}
-
-pub(crate) fn relation_expression(
-    program: &KernelProgram,
-    relation: RawId,
-) -> Result<&ExprDag, Diagnostic> {
-    match program.node(relation) {
-        Some(KernelNode::Relation(relation)) => Ok(relation.residuals()),
-        _ => Err(lowering_error(
-            relation,
-            "AppliesOn source has no Relation definition",
-        )),
-    }
-}
-
-pub(crate) fn unique_root(expression: &ExprDag, owner: RawId) -> Result<ExprId, Diagnostic> {
-    if expression.roots().len() == 1 {
-        Ok(expression.roots()[0])
-    } else {
-        Err(lowering_error(
-            owner,
-            "default scalar elliptic Relation requires exactly one residual root",
-        ))
-    }
-}
-
-pub(crate) fn boundary_parent(program: &KernelProgram, boundary: RawId) -> Option<RawId> {
-    let parents = program
-        .edges()
-        .iter()
-        .filter(|edge| edge.from() == boundary && edge.kind() == EdgeKind::BoundaryOf)
-        .map(|edge| edge.to())
-        .collect::<Vec<_>>();
-    (parents.len() == 1).then(|| parents[0])
-}
-
-fn has_edge(program: &KernelProgram, from: RawId, to: RawId, kind: EdgeKind) -> bool {
-    program
-        .edges()
-        .iter()
-        .any(|edge| edge.from() == from && edge.to() == to && edge.kind() == kind)
-}
-
-pub(crate) fn lowering_error(owner: RawId, message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_SPATIAL_LOWERING, message).with_graph_path(GraphPath::new([
-        owner.kind().graph().name().to_owned(),
-        format!("{:?}", owner.kind()),
-        owner.to_string(),
-    ]))
-}
-
-pub(crate) fn model_lowering_error(
-    program: &KernelProgram,
-    message: impl Into<String>,
-) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_SPATIAL_LOWERING, message).with_graph_path(GraphPath::new([
-        "ontology-view".to_owned(),
-        "eqiora.model/v1".to_owned(),
-        program.model().to_string(),
-    ]))
-}
+mod recognize;
+pub(crate) use recognize::{
+    boundary_parent, continuum_fields_on, is_field, lower_flux_coefficient, lowering_error,
+    model_lowering_error, relation_expression, relations_on, unique_relation_on, unique_root,
+};
+use recognize::{
+    collect_parameter_coordinates, evaluate_essential_boundary, invalid_parameter_binding,
+    invalid_realization, lower_cartesian_boundary_relation, lower_constant_boundary_1d,
+    lower_volume_relation, unique_continuum_field,
+};

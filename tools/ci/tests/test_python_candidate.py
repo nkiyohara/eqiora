@@ -70,7 +70,7 @@ EXACT_WHEEL_PAYLOAD_SHA256 = {
 EXACT_WHEEL_MEMBER = "eqiora-0.1.0a1.dist-info/WHEEL"
 EXACT_RECORD_MEMBER = "eqiora-0.1.0a1.dist-info/RECORD"
 PLAYWRIGHT_CORE_LOCK_SHA256 = (
-    "37dc93bb47a5a4e2f4e50ffb80a231bdd6400193f61d87e99e376eb95fcf25bf"
+    "92c0200884201004fb607072fbb95191a1bdda34a6bdf3ef5d48c9f1f33bc918"
 )
 PLAYWRIGHT_CORE_PACKAGE_SHA256 = (
     "07c47543631fef9508760365dee9fbe958c562093ec8d122543949ed231f233f"
@@ -88,46 +88,11 @@ PLAYWRIGHT_CORE_INTEGRITY = (
 PLAYWRIGHT_CORE_URL = (
     "https://registry.npmjs.org/playwright-core/-/playwright-core-1.62.1.tgz"
 )
-INSTALL_SCRIPT_INVENTORY_SHA256 = (
-    "fbcb5664380f1ace34322bd129219741abdf9be79be17cb8861d57e2c6e4c4dc"
-)
 LIFECYCLE_SCRIPT_SOURCE_UNION = (
-    (
-        "node_modules/@tweenjs/tween.js",
-        "@tweenjs/tween.js",
-        "23.1.3",
-        "prepare",
-        "npm run build",
-        ("packument", "tarball"),
-    ),
     (
         "node_modules/fsevents",
         "fsevents",
         "2.3.2",
-        "install",
-        "node-gyp rebuild",
-        ("lockfile", "packument"),
-    ),
-    (
-        "node_modules/lightningcss",
-        "lightningcss",
-        "1.33.0",
-        "prepare",
-        "patch-package",
-        ("packument", "tarball"),
-    ),
-    (
-        "node_modules/tinyexec",
-        "tinyexec",
-        "1.3.0",
-        "prepare",
-        "npm run build",
-        ("packument", "tarball"),
-    ),
-    (
-        "node_modules/vite/node_modules/fsevents",
-        "fsevents",
-        "2.3.3",
         "install",
         "node-gyp rebuild",
         ("lockfile", "packument"),
@@ -138,14 +103,6 @@ PACKUMENT_INSTALL_SCRIPT_ADMISSIONS = (
         "node_modules/fsevents",
         "fsevents",
         "2.3.2",
-        "install",
-        "node-gyp rebuild",
-        "packument",
-    ),
-    (
-        "node_modules/vite/node_modules/fsevents",
-        "fsevents",
-        "2.3.3",
         "install",
         "node-gyp rebuild",
         "packument",
@@ -187,20 +144,13 @@ CONTENT_BOUND_RESOURCE_LIMITS = {
     "locked_package_bytes": 1_073_741_824,
     "resolved_python_wheel_count": 256,
     "resolved_python_wheel_bytes": 1_073_741_824,
-    "build_output_count": 3,
-    "build_output_bytes": 16_777_216,
     "host_scenarios": 2,
-    "member_steps": 104_652,
-    "byte_steps": 4_789_240_546,
+    "member_steps": 104_646,
+    "byte_steps": 4_755_686_114,
 }
 NOTEBOOK_PROFILE_CHECKS = (
     "frontend:lock-integrity",
-    "frontend:license-notices",
-    "frontend:bundle-byte-rebuild",
-    "wheel-family:notebook-metadata",
-    "cp313:notebook-anywidget-0.11.0",
-    "cp313:jupyterlab-4.6.2-bare-mesh",
-    "cp313:marimo-0.23.16-bare-mesh",
+    "frontend:dependency-inventory",
     "cp313:marimo-0.23.16-exact-cylinder-stokes",
     "cp313:notebook-managed-chromium-r1234",
     "cp313:notebook-no-external-network",
@@ -508,29 +458,6 @@ class PythonCandidateTests(unittest.TestCase):
             [config.twine, config.uv],
         )
 
-    def test_notebook_is_one_exact_optional_dependency_and_never_mandatory(
-        self,
-    ) -> None:
-        document = tomllib.loads(
-            (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        )
-        project = document["project"]
-
-        self.assertEqual(
-            project["optional-dependencies"]["notebook"],
-            ["anywidget==0.11.0"],
-        )
-        self.assertFalse(
-            any(
-                requirement.partition(";")[0]
-                .partition("[")[0]
-                .split("=", maxsplit=1)[0]
-                .strip()
-                .lower()
-                == "anywidget"
-                for requirement in project["dependencies"]
-            )
-        )
 
     @mock.patch("python_candidate.tool_version", return_value="uv 0.12.1")
     def test_release_tool_requires_the_exact_reviewed_uv(
@@ -655,7 +582,7 @@ typed candidate
                     "eqiora/solid.pyi",
                     "eqiora/torch.pyi",
                     "eqiora/py.typed",
-                    "eqiora/examples/steady-flow-past-cylinder.model.json",
+                    "eqiora/examples/steady-flow-past-cylinder.eqi",
                     "eqiora/examples/mixed-boundary-elasticity.eqi",
                     "eqiora/examples/fixed-reference-fsi.eqi",
                     "eqiora/_eqiora.cpython-313-x86_64-linux-gnu.so",
@@ -722,7 +649,7 @@ invalid candidate
                     "eqiora/solid.pyi",
                     "eqiora/torch.pyi",
                     "eqiora/py.typed",
-                    "eqiora/examples/steady-flow-past-cylinder.model.json",
+                    "eqiora/examples/steady-flow-past-cylinder.eqi",
                     "eqiora/examples/mixed-boundary-elasticity.eqi",
                     "eqiora/examples/fixed-reference-fsi.eqi",
                     "eqiora/_eqiora.cpython-313-x86_64-linux-gnu.so",
@@ -749,112 +676,6 @@ invalid candidate
                     notice_bytes=notice_bytes,
                 )
 
-    def test_notebook_wheel_contract_requires_exact_metadata_and_assets(self) -> None:
-        license_bytes = b"license\n"
-        notice_bytes = b"notice\n"
-        metadata = b"""\
-Metadata-Version: 2.4
-Name: eqiora
-Version: 0.1.0a1
-Requires-Python: <3.15,>=3.11
-License-Expression: Apache-2.0
-License-File: LICENSE
-License-File: NOTICE
-Provides-Extra: jax
-Provides-Extra: gmsh
-Provides-Extra: matplotlib
-Provides-Extra: notebook
-Provides-Extra: torch
-Requires-Dist: numpy<3,>=2.1
-Requires-Dist: gmsh==4.15.2; extra == "gmsh"
-Requires-Dist: torch>=2.13,<2.14; extra == "torch"
-Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
-Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
-Requires-Dist: matplotlib==3.11.1; extra == "matplotlib"
-Requires-Dist: anywidget == 0.11.0 ; extra == "notebook"
-
-N1 candidate
-"""
-        notebook_assets = {
-            "eqiora/_presentation/static/mesh-view.mjs": b"module\n",
-            "eqiora/_presentation/static/mesh-view.css": b"style\n",
-            "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt": b"notice\n",
-        }
-        with tempfile.TemporaryDirectory() as temporary:
-            wheel = Path(temporary) / exact_wheel_name("313")
-            dist_info = "eqiora-0.1.0a1.dist-info/"
-            with zipfile.ZipFile(wheel, mode="w") as archive:
-                for name in (
-                    "eqiora/__init__.py",
-                    "eqiora/__init__.pyi",
-                    "eqiora/diff.pyi",
-                    "eqiora/fsi.pyi",
-                    "eqiora/jax.pyi",
-                    "eqiora/matplotlib.pyi",
-                    "eqiora/solid.pyi",
-                    "eqiora/torch.pyi",
-                    "eqiora/py.typed",
-                    "eqiora/examples/steady-flow-past-cylinder.model.json",
-                    "eqiora/examples/mixed-boundary-elasticity.eqi",
-                    "eqiora/examples/fixed-reference-fsi.eqi",
-                    "eqiora/_eqiora.cpython-313-x86_64-linux-gnu.so",
-                    f"{dist_info}sboms/eqiora-python.cyclonedx.json",
-                ):
-                    archive.writestr(name, b"")
-                for name, payload in notebook_assets.items():
-                    archive.writestr(name, payload)
-                archive.writestr(f"{dist_info}METADATA", metadata)
-                archive.writestr(
-                    f"{dist_info}WHEEL",
-                    maturin_wheel_payload("313"),
-                )
-                archive.writestr(f"{dist_info}licenses/LICENSE", license_bytes)
-                archive.writestr(f"{dist_info}licenses/NOTICE", notice_bytes)
-
-            version, _ = inspect_wheel(
-                wheel,
-                python_version="3.13",
-                config=self.config(),
-                license_bytes=license_bytes,
-                notice_bytes=notice_bytes,
-                notebook_assets=notebook_assets,
-            )
-
-        self.assertEqual(version, "0.1.0a1")
-
-    def test_notebook_requirement_parses_equivalent_quotes_and_rejects_drift(
-        self,
-    ) -> None:
-        for declaration in (
-            "anywidget==0.11.0; extra == 'notebook'",
-            'anywidget == 0.11.0 ; extra == "notebook"',
-        ):
-            with self.subTest(accepted=declaration):
-                self.assertTrue(
-                    python_candidate_module._has_exact_notebook_anywidget_requirement(
-                        [declaration]
-                    )
-                )
-
-        rejected = {
-            "wrong-name": "another-widget==0.11.0; extra == 'notebook'",
-            "wrong-specifier": "anywidget==0.11.1; extra == 'notebook'",
-            "url": "anywidget @ https://example.invalid/anywidget.whl; extra == 'notebook'",
-            "extras": "anywidget[testing]==0.11.0; extra == 'notebook'",
-            "missing-marker": "anywidget==0.11.0",
-            "wrong-marker": "anywidget==0.11.0; extra == 'studio'",
-            "duplicate": "anywidget==0.11.0; extra == 'notebook'",
-        }
-        for name, declaration in rejected.items():
-            dependencies = [declaration]
-            if name == "duplicate":
-                dependencies.append(declaration)
-            with self.subTest(rejected=name):
-                self.assertFalse(
-                    python_candidate_module._has_exact_notebook_anywidget_requirement(
-                        dependencies
-                    )
-                )
 
     def test_wheel_build_retains_exact_maturin_compressed_names_and_bytes(
         self,
@@ -1312,37 +1133,6 @@ N1 candidate
                 self.assertEqual(collision.read_bytes(), b"pre-existing bytes")
                 self.assertEqual(tuple(output.iterdir()), (collision,))
 
-    def test_notebook_wheel_asset_inventory_is_closed(self) -> None:
-        expected = {
-            "eqiora/_presentation/static/mesh-view.mjs": b"module\n",
-            "eqiora/_presentation/static/mesh-view.css": b"style\n",
-            "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt": b"notice\n",
-        }
-        for mutation in ("missing", "empty", "extra", "modified"):
-            with (
-                self.subTest(mutation=mutation),
-                tempfile.TemporaryDirectory() as temporary,
-            ):
-                wheel = Path(temporary) / exact_wheel_name("313")
-                members = dict(expected)
-                if mutation == "missing":
-                    members.pop("eqiora/_presentation/static/mesh-view.css")
-                elif mutation == "empty":
-                    members["eqiora/_presentation/static/mesh-view.css"] = b""
-                elif mutation == "extra":
-                    members["eqiora/_presentation/static/unreviewed.js"] = b"x"
-                else:
-                    members["eqiora/_presentation/static/mesh-view.mjs"] = b"changed"
-                with zipfile.ZipFile(wheel, mode="w") as archive:
-                    for name, payload in members.items():
-                        archive.writestr(name, payload)
-
-                validator = getattr(
-                    python_candidate_module,
-                    "verify_notebook_asset_inventory",
-                )
-                with self.assertRaises(CandidateError):
-                    validator(wheel, expected)
 
     def test_sdist_extraction_rejects_parent_traversal(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1540,9 +1330,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 mock.patch.object(
                     profiles, "prepare_mixed_boundary_elasticity_demo_consumer"
                 ),
-                mock.patch.object(
-                    profiles, "prepare_fixed_reference_fsi_demo_consumer"
-                ),
                 mock.patch.object(profiles, "assert_installed_origin"),
                 mock.patch.object(profiles, "assert_matplotlib_is_optional"),
                 mock.patch.object(profiles, "run_public_smoke", new=public_smoke),
@@ -1563,9 +1350,8 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         gmsh_tests = tuple(
             tests / name
             for name in (
-                "test_circular_hole_chordal_mesh.py",
+                "test_gmsh_meshing.py",
                 "test_exact_cylinder_stokes_result.py",
-                "test_rich_mesh_display.py",
             )
         )
         gmsh_path = str(python.parent)
@@ -1578,7 +1364,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 "cp311:base-and-numpy",
                 "cp311:packaged-exact-cylinder-model-demo",
                 "cp311:packaged-mixed-boundary-elasticity-demo",
-                "cp311:packaged-fixed-reference-fsi-demo",
                 "cp311:async-and-cancellation",
                 "cp311:strict-base-typing",
                 "cp311:public-smoke-base",
@@ -1607,8 +1392,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                         str(gmsh_tests[0]),
                         "--ignore",
                         str(gmsh_tests[1]),
-                        "--ignore",
-                        str(gmsh_tests[2]),
                     ],
                     cwd=workspace.consumer,
                 ),
@@ -2144,7 +1927,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 "Scripts/python.exe" if os.name == "nt" else "bin/python"
             )
             demos = tuple(
-                workspace.consumer / name for name in ("exact.py", "mixed.py", "fsi.py")
+                workspace.consumer / name for name in ("exact.py", "mixed.py")
             )
             install = mock.Mock(return_value=python)
 
@@ -2168,11 +1951,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                     "prepare_mixed_boundary_elasticity_demo_consumer",
                     return_value=demos[1],
                 ),
-                mock.patch.object(
-                    profiles,
-                    "prepare_fixed_reference_fsi_demo_consumer",
-                    return_value=demos[2],
-                ),
                 mock.patch.dict(
                     os.environ,
                     {"EQIORA_GMSH": "/ambient/gmsh", "PATH": "/ambient/bin"},
@@ -2195,7 +1973,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                     "cp313:matplotlib",
                     "cp313:packaged-exact-cylinder-pressure-demo",
                     "cp313:packaged-mixed-boundary-displacement-demo",
-                    "cp313:packaged-fixed-reference-fsi-still",
                 ],
             )
             install.assert_called_once_with(
@@ -2215,7 +1992,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                     ("-m", "pytest"),
                     (str(demos[0]), "--pressure-png"),
                     (str(demos[1]), "--displacement-png"),
-                    (str(demos[2]), "--fsi-png"),
                 ],
             )
             expected_environment = {
@@ -2570,8 +2346,7 @@ write(JSON.stringify({calls,output,failure}));
             browser_platform="linux-x86_64",
             playwright_test_integrity="sha512-test",
             playwright_core_integrity=PLAYWRIGHT_CORE_INTEGRITY,
-            python_wheels=({"name": "anywidget", "sha256": "c" * 64},),
-            anywidget_license_sha256="d" * 64,
+            python_wheels=({"name": "marimo", "sha256": "c" * 64},),
             package_manifests=(
                 ("node_modules/playwright-core", {"version": "1.62.1"}),
             ),
@@ -2600,19 +2375,12 @@ write(JSON.stringify({calls,output,failure}));
             playwright_core_integrity="sha512-playwright-core-canary",
             python_wheels=(
                 {
-                    "name": "anywidget",
-                    "version": "0.11.0",
-                    "filename": "anywidget-0.11.0-py3-none-any.whl",
-                    "sha256": "c" * 64,
-                },
-                {
-                    "name": "jupyterlab",
-                    "version": "4.6.2",
-                    "filename": "jupyterlab-4.6.2-py3-none-any.whl",
+                    "name": "marimo",
+                    "version": "0.23.16",
+                    "filename": "marimo-0.23.16-py3-none-any.whl",
                     "sha256": "d" * 64,
                 },
             ),
-            anywidget_license_sha256="e" * 64,
             package_manifests=(
                 (
                     "node_modules/playwright-core",
@@ -2624,10 +2392,10 @@ write(JSON.stringify({calls,output,failure}));
                     },
                 ),
                 (
-                    "node_modules/three",
+                    "node_modules/unlisted-renderer",
                     {
-                        "name": "three",
-                        "version": "0.185.1",
+                        "name": "unlisted-renderer",
+                        "version": "9.9.9",
                         "description": "unchanged-manifest-peer-雪",
                     },
                 ),
@@ -2654,14 +2422,14 @@ write(JSON.stringify({calls,output,failure}));
                     },
                 ),
                 (
-                    "three",
+                    "unlisted-renderer",
                     {
-                        "name": "three",
+                        "name": "unlisted-renderer",
                         "description": "unchanged-packument-peer-雪",
                         "versions": {
-                            "0.185.1": {
-                                "name": "three",
-                                "version": "0.185.1",
+                            "9.9.9": {
+                                "name": "unlisted-renderer",
+                                "version": "9.9.9",
                             }
                         },
                     },
@@ -2903,7 +2671,6 @@ write(JSON.stringify({calls,output,failure}));
             }
             for item in locked
         ]
-        self.assertEqual(len(locked), 111)
         self.assertEqual(len(locked), len(lock["packages"]) - 1)
         self.assertEqual(observed_inventory, expected_inventory)
         self.assertEqual(
@@ -2921,15 +2688,6 @@ write(JSON.stringify({calls,output,failure}));
             ),
             LIFECYCLE_SCRIPT_SOURCE_UNION,
         )
-        self.assertEqual(
-            executor.structured_sha256(observed_inventory),
-            INSTALL_SCRIPT_INVENTORY_SHA256,
-        )
-        self.assertEqual(
-            candidate_manifest_module.INSTALL_SCRIPT_INVENTORY_SHA256,
-            INSTALL_SCRIPT_INVENTORY_SHA256,
-        )
-
         partial_packuments = tuple(item for item in packuments if item[0] != "fsevents")
         tarball_manifests, _packuments = self.lifecycle_authority_inputs(lock)
         with self.assertRaisesRegex(
@@ -3031,28 +2789,20 @@ write(JSON.stringify({calls,output,failure}));
                 self.assertIn(hook, message)
                 self.assertIn("tarball", message)
 
-    def test_lifecycle_inventory_pin_rejects_drift_and_partial_receipts(
-        self,
-    ) -> None:
+    def test_lifecycle_inventory_rejects_install_script_drift(self) -> None:
         _executor, locked, _packuments = self.exact_lifecycle_inventory()
         candidate_manifest_module._validate_install_script_inventory(locked)
 
         drifted = json.loads(json.dumps(locked))
-        lightningcss = next(
-            item for item in drifted if item["lock_path"] == "node_modules/lightningcss"
+        fsevents = next(
+            item for item in drifted if item["lock_path"] == "node_modules/fsevents"
         )
-        lightningcss["lifecycle_scripts"][0]["command"] = "patch-package --changed"
+        fsevents["lifecycle_scripts"][0]["command"] = "node-gyp rebuild --changed"
         with self.assertRaisesRegex(
-            candidate_manifest_module.ManifestError, "inventory|identity|drift"
+            candidate_manifest_module.ManifestError,
+            "inventory|identity|drift|admissions differ",
         ):
             candidate_manifest_module._validate_install_script_inventory(drifted)
-
-        partial = json.loads(json.dumps(locked))
-        partial.pop()
-        with self.assertRaisesRegex(
-            candidate_manifest_module.ManifestError, "inventory|identity|drift"
-        ):
-            candidate_manifest_module._validate_install_script_inventory(partial)
 
     def test_exact_content_bound_browser_and_abstract_resource_profile(self) -> None:
         executor = importlib.import_module("python_candidate_h2")
@@ -3074,8 +2824,6 @@ write(JSON.stringify({calls,output,failure}));
             "source_bytes": 536_870_912,
             "locked_package_count": 2_047,
             "locked_package_bytes": 1_073_741_824,
-            "build_output_count": 3,
-            "build_output_bytes": 16_777_216,
             "resolved_python_wheel_count": 256,
             "resolved_python_wheel_bytes": 1_073_741_824,
             "browser_archive_bytes": CONTENT_BOUND_BROWSER_PROFILE[
@@ -3107,20 +2855,20 @@ write(JSON.stringify({calls,output,failure}));
         equality = executor.require_content_bound_resources(dict(observed))
         self.assertEqual(
             equality,
-            {"member_steps": 104_650, "byte_steps": 4_789_240_546},
+            {"member_steps": 104_644, "byte_steps": 4_755_686_114},
         )
         alternate_equality = dict(observed)
         alternate_equality["source_member_count"] = 49_999
         alternate_equality["locked_package_count"] = 2_048
         self.assertEqual(
             executor.require_content_bound_resources(alternate_equality),
-            {"member_steps": 104_650, "byte_steps": 4_789_240_546},
+            {"member_steps": 104_644, "byte_steps": 4_755_686_114},
         )
         aggregate_equality = dict(observed)
         aggregate_equality["locked_package_count"] = 2_048
         self.assertEqual(
             executor.require_content_bound_resources(aggregate_equality),
-            {"member_steps": 104_652, "byte_steps": 4_789_240_546},
+            {"member_steps": 104_646, "byte_steps": 4_755_686_114},
         )
 
         component_maxima = {
@@ -3132,8 +2880,6 @@ write(JSON.stringify({calls,output,failure}));
             "source_bytes": 536_870_912,
             "locked_package_count": 2_048,
             "locked_package_bytes": 1_073_741_824,
-            "build_output_count": 3,
-            "build_output_bytes": 16_777_216,
             "resolved_python_wheel_count": 256,
             "resolved_python_wheel_bytes": 1_073_741_824,
             "browser_archive_bytes": 120_231_126,
@@ -3162,7 +2908,6 @@ write(JSON.stringify({calls,output,failure}));
 
         for name in (
             "family_member_count",
-            "build_output_count",
             "browser_archive_bytes",
             "browser_archive_member_count",
             "browser_extracted_regular_bytes",
@@ -3309,9 +3054,7 @@ write(JSON.stringify({calls,output,failure}));
                     2,
                 )
             for exact_host in (
-                ("-I", "-m", "jupyter", "lab"),
                 ("-I", "-m", "marimo", "run"),
-                ("npm", "run", "test:hosts", "--", "--project=jupyterlab-4.6.2"),
                 ("npm", "run", "test:hosts", "--", "--project=marimo-0.23.16"),
             ):
                 self.assertTrue(
@@ -4677,8 +4420,8 @@ write(JSON.stringify({calls,output,failure}));
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             root = Path(temporary)
             baseline = self.diagnostic_acquired_inputs(executor, root)
-            first = executor.RunObservation((), (), (), 0, baseline)
-            second = executor.RunObservation((), (), (), 0, baseline)
+            first = executor.RunObservation(0, baseline)
+            second = executor.RunObservation(0, baseline)
             family = executor.CandidateFamily(
                 root / "candidate.tar.gz", (), "0.1.0a1", ()
             )
@@ -4686,14 +4429,11 @@ write(JSON.stringify({calls,output,failure}));
                 mock.Mock(root=root / "clean-run-1"),
                 mock.Mock(root=root / "clean-run-2"),
             )
-            with (
-                mock.patch.object(executor, "_asset_equality") as asset_equality,
-                mock.patch.object(
-                    executor,
-                    "_validate_abstract_resources",
-                    side_effect=ExistingReceiptPathReached,
-                ) as validate_resources,
-            ):
+            with mock.patch.object(
+                executor,
+                "_validate_abstract_resources",
+                side_effect=ExistingReceiptPathReached,
+            ) as validate_resources:
                 with self.assertRaises(ExistingReceiptPathReached):
                     executor.observe_h2(
                         expected_commit=self.REVISION,
@@ -4703,7 +4443,6 @@ write(JSON.stringify({calls,output,failure}));
                         runs=(first, second),
                         source_date_epoch=123456789,
                     )
-            asset_equality.assert_called_once_with(root / "source", (first, second))
             validate_resources.assert_called_once_with(family, (first, second))
 
     def test_every_h2_acquisition_field_drift_is_exact_secret_free_and_closed(
@@ -4713,9 +4452,9 @@ write(JSON.stringify({calls,output,failure}));
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             root = Path(temporary)
             baseline = self.diagnostic_acquired_inputs(executor, root)
-            baseline_wheel = baseline.python_wheels[1]
+            baseline_wheel = baseline.python_wheels[0]
             mutant_wheel = {**baseline_wheel, "sha256": "f" * 64}
-            mutant_wheels = (baseline.python_wheels[0], mutant_wheel)
+            mutant_wheels = (mutant_wheel,)
             baseline_manifest = baseline.package_manifests[0]
             mutant_manifest = (
                 baseline_manifest[0],
@@ -4765,7 +4504,6 @@ write(JSON.stringify({calls,output,failure}));
                     baseline_wheel,
                     mutant_wheel,
                 ),
-                ("anywidget_license_sha256", "3" * 64, None, None, None),
                 (
                     "package_manifests",
                     mutant_manifests,
@@ -4798,7 +4536,7 @@ write(JSON.stringify({calls,output,failure}));
                 mock.Mock(root=root / "clean-run-1"),
                 mock.Mock(root=root / "clean-run-2"),
             )
-            first = executor.RunObservation((), (), (), 0, baseline)
+            first = executor.RunObservation(0, baseline)
             forbidden = (
                 str(root),
                 "private-host-canary",
@@ -4825,7 +4563,7 @@ write(JSON.stringify({calls,output,failure}));
             for field, value, identity, first_member, second_member in mutations:
                 with self.subTest(field=field):
                     acquired = replace(baseline, **{field: value})
-                    second = executor.RunObservation((), (), (), 0, acquired)
+                    second = executor.RunObservation(0, acquired)
                     expected = self.expected_acquisition_drift_message(
                         field,
                         getattr(baseline, field),
@@ -4834,14 +4572,9 @@ write(JSON.stringify({calls,output,failure}));
                         first_member=first_member,
                         second_member=second_member,
                     )
-                    with (
-                        mock.patch.object(
-                            executor, "_asset_equality"
-                        ) as asset_equality,
-                        mock.patch.object(
-                            executor, "_validate_abstract_resources"
-                        ) as validate_resources,
-                    ):
+                    with mock.patch.object(
+                        executor, "_validate_abstract_resources"
+                    ) as validate_resources:
                         with self.assertRaises(CandidateError) as raised:
                             executor.observe_h2(
                                 expected_commit=self.REVISION,
@@ -4852,9 +4585,6 @@ write(JSON.stringify({calls,output,failure}));
                                 source_date_epoch=123456789,
                             )
                     self.assertEqual(str(raised.exception), expected)
-                    asset_equality.assert_called_once_with(
-                        root / "source", (first, second)
-                    )
                     validate_resources.assert_not_called()
                     for secret in forbidden:
                         self.assertNotIn(secret, str(raised.exception))
@@ -4941,13 +4671,13 @@ write(JSON.stringify({calls,output,failure}));
                 mock.Mock(root=root / "clean-run-1"),
                 mock.Mock(root=root / "clean-run-2"),
             )
-            first = executor.RunObservation((), (), (), 0, baseline)
+            first = executor.RunObservation(0, baseline)
             for field, value, identity, first_member, second_member in (
                 membership_mutations
             ):
                 with self.subTest(field=field, identity=identity):
                     acquired = replace(baseline, **{field: value})
-                    second = executor.RunObservation((), (), (), 0, acquired)
+                    second = executor.RunObservation(0, acquired)
                     expected = self.expected_acquisition_drift_message(
                         field,
                         getattr(baseline, field),
@@ -4956,12 +4686,9 @@ write(JSON.stringify({calls,output,failure}));
                         first_member=first_member,
                         second_member=second_member,
                     )
-                    with (
-                        mock.patch.object(executor, "_asset_equality"),
-                        mock.patch.object(
-                            executor, "_validate_abstract_resources"
-                        ) as validate_resources,
-                    ):
+                    with mock.patch.object(
+                        executor, "_validate_abstract_resources"
+                    ) as validate_resources:
                         with self.assertRaises(CandidateError) as raised:
                             executor.observe_h2(
                                 expected_commit=self.REVISION,
@@ -5017,7 +4744,6 @@ write(JSON.stringify({calls,output,failure}));
                 ("playwright_test_integrity", "sha512-ordered-test-雪"),
                 ("playwright_core_integrity", "sha512-ordered-core-雪"),
                 ("python_wheels", mutant_wheels),
-                ("anywidget_license_sha256", "8" * 64),
                 ("package_manifests", mutant_manifests),
                 ("package_packuments", mutant_packuments),
                 ("locked_package_bytes", 11),
@@ -5073,8 +4799,8 @@ write(JSON.stringify({calls,output,failure}));
                 sort_keys=True,
                 separators=(",", ":"),
             )
-            first = executor.RunObservation((), (), (), 0, baseline)
-            second = executor.RunObservation((), (), (), 0, acquired)
+            first = executor.RunObservation(0, baseline)
+            second = executor.RunObservation(0, acquired)
             family = executor.CandidateFamily(
                 root / "candidate.tar.gz", (), "0.1.0a1", ()
             )
@@ -5082,12 +4808,9 @@ write(JSON.stringify({calls,output,failure}));
                 mock.Mock(root=root / "clean-run-1"),
                 mock.Mock(root=root / "clean-run-2"),
             )
-            with (
-                mock.patch.object(executor, "_asset_equality"),
-                mock.patch.object(
-                    executor, "_validate_abstract_resources"
-                ) as validate_resources,
-            ):
+            with mock.patch.object(
+                executor, "_validate_abstract_resources"
+            ) as validate_resources:
                 with self.assertRaises(CandidateError) as raised:
                     executor.observe_h2(
                         expected_commit=self.REVISION,
@@ -5215,11 +4938,6 @@ write(JSON.stringify({calls,output,failure}));
                 ).hexdigest()
             }
             extracted = root / "extracted"
-            test_source = extracted / "bindings/python/tests/test_rich_mesh_display.py"
-            test_source.parent.mkdir(parents=True)
-            test_source.write_text(
-                "def test_placeholder():\n    pass\n", encoding="utf-8"
-            )
             exact_app = (
                 extracted / python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_APP
             )
@@ -5385,7 +5103,7 @@ write(JSON.stringify({calls,output,failure}));
             write.assert_not_called()
             self.assertEqual(
                 emitted,
-                list(NOTEBOOK_PROFILE_CHECKS[:7]),
+                list(NOTEBOOK_PROFILE_CHECKS[:2]),
             )
             self.assertIn(
                 (
@@ -5403,46 +5121,29 @@ write(JSON.stringify({calls,output,failure}));
                 interpreter="/reviewed/python3.13",
                 environment=workspace.environment,
                 requirements=[
-                    f"{root / 'candidate.whl'}[gmsh,matplotlib,notebook]",
+                    f"{root / 'candidate.whl'}[gmsh,matplotlib]",
                     python_candidate_module.load_config().pytest,
-                    "anywidget==0.11.0",
-                    "jupyterlab==4.6.2",
                     "marimo==0.23.16",
                 ],
                 run=checked,
             )
-            rich_runs = [
-                kwargs
-                for command, kwargs in run_calls
-                if command[2:5] == ("-m", "pytest", "-q")
-            ]
-            self.assertEqual(len(rich_runs), 1)
             popen_calls = popen.call_args_list
-            self.assertEqual(len(popen_calls), 3)
+            self.assertEqual(len(popen_calls), 1)
             self.assertEqual(
                 [tuple(call.args[0][2:5]) for call in popen_calls],
-                [
-                    ("-m", "jupyter", "lab"),
-                    ("-m", "marimo", "run"),
-                    ("-m", "marimo", "run"),
-                ],
+                [("-m", "marimo", "run")],
             )
+            self.assertEqual([call.args[0][0] for call in popen_calls], [str(python)])
             self.assertEqual(
-                [call.args[0][0] for call in popen_calls], [str(python)] * 3
-            )
-            self.assertEqual(
-                popen_calls[2].kwargs["cwd"],
+                popen_calls[0].kwargs["cwd"],
                 workspace.root / "exact-cylinder-stokes-marimo-positive",
             )
             expected_gmsh = str(
                 python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
             )
             environments = [
-                ("rich-mesh-pytest", rich_runs[0].get("extra_environment") or {}),
-                *(
-                    (f"host-popen-{index}", call.kwargs["env"])
-                    for index, call in enumerate(popen_calls)
-                ),
+                (f"host-popen-{index}", call.kwargs["env"])
+                for index, call in enumerate(popen_calls)
             ]
             for surface, environment in environments:
                 with self.subTest(notebook_environment=surface):
@@ -5556,8 +5257,6 @@ write(JSON.stringify({calls,output,failure}));
             ("npm", "ci", "--ignore-scripts"),
             ("npm", "run", "typecheck"),
             ("npm", "run", "lint"),
-            ("npm", "run", "test"),
-            ("npm", "run", "build"),
         )
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             scratch = Path(temporary)
@@ -6292,7 +5991,6 @@ write(JSON.stringify({calls,output,failure}));
                 f"cp{compact}:base-and-numpy",
                 f"cp{compact}:packaged-exact-cylinder-model-demo",
                 f"cp{compact}:packaged-mixed-boundary-elasticity-demo",
-                f"cp{compact}:packaged-fixed-reference-fsi-demo",
                 f"cp{compact}:async-and-cancellation",
                 f"cp{compact}:strict-base-typing",
                 f"cp{compact}:public-smoke-base",
@@ -6313,7 +6011,6 @@ write(JSON.stringify({calls,output,failure}));
             "cp313:matplotlib",
             "cp313:packaged-exact-cylinder-pressure-demo",
             "cp313:packaged-mixed-boundary-displacement-demo",
-            "cp313:packaged-fixed-reference-fsi-still",
             "cp313:complete-public-typing",
         )
 
@@ -6590,170 +6287,6 @@ write(JSON.stringify({calls,output,failure}));
             all_paths.extend(owned)
         self.assertEqual(len(set(all_paths)), len(all_paths))
 
-    def _superseded_synthetic_omitted_host_unit(
-        self,
-    ) -> None:
-        executor = importlib.import_module("python_candidate_h2")
-        notebook_checks = (
-            "frontend:lock-integrity",
-            "frontend:license-notices",
-            "frontend:bundle-byte-rebuild",
-            "wheel-family:notebook-metadata",
-            "cp313:notebook-anywidget-0.11.0",
-            "cp313:jupyterlab-4.6.2-bare-mesh",
-            "cp313:marimo-0.23.16-bare-mesh",
-            "cp313:marimo-0.23.16-exact-cylinder-stokes",
-            "cp313:notebook-managed-chromium-r1234",
-            "cp313:notebook-no-external-network",
-            "cp313:notebook-cleanup-and-mutation",
-        )
-        dependent = notebook_checks[7:]
-        for omitted in notebook_checks[5:7]:
-            with (
-                self.subTest(omitted_host=omitted),
-                tempfile.TemporaryDirectory(dir=Path.home()) as temporary,
-            ):
-                root = Path(temporary)
-                family_path = root / "family"
-                metadata = root / "metadata"
-                self.write_exact_family(family_path)
-                family = executor.admit_candidate_family(family_path)
-                receipt_path, _ = self.write_valid_h2_receipt(root, family)
-                forged = python_candidate_module.CandidateProfileSummary(
-                    config=python_candidate_module.load_config(),
-                    uv="/reviewed/uv",
-                    wheel_records=(),
-                    checks=(
-                        "twine-strict",
-                        "sdist-to-wheel-rebuild",
-                        *(name for name in notebook_checks if name != omitted),
-                    ),
-                    dependency_profiles={},
-                )
-
-                def write_forged_manifest(
-                    *_args: object, **_kwargs: object
-                ) -> Path:
-                    path = metadata / "eqiora-0.1.0a1-python-candidate.json"
-                    path.write_bytes(b"forged incomplete profile manifest")
-                    return path
-
-                with (
-                    mock.patch.object(
-                        python_candidate_module,
-                        "source_identity",
-                        return_value=SourceIdentity(self.REVISION, ()),
-                    ),
-                    mock.patch.object(
-                        python_candidate_module,
-                        "validate_h2_receipt",
-                        wraps=python_candidate_module.validate_h2_receipt,
-                    ) as validate,
-                    mock.patch.object(
-                        python_candidate_module,
-                        "derive_frontend_manifest",
-                        return_value={"h2_receipt_sha256": "0" * 64},
-                    ),
-                    mock.patch.object(
-                        python_candidate_module,
-                        "run_candidate_profiles",
-                        return_value=forged,
-                    ) as profiles,
-                    mock.patch.object(
-                        python_candidate_module,
-                        "write_manifest",
-                        side_effect=write_forged_manifest,
-                    ) as write_manifest,
-                    mock.patch.object(
-                        python_candidate_module,
-                        "load_candidate_family",
-                        return_value=mock.sentinel.candidate,
-                    ),
-                    mock.patch.object(
-                        python_candidate_module,
-                        "verify_artifacts",
-                    ),
-                ):
-                    with self.assertRaises(CandidateError):
-                        python_candidate_module.finalize_candidate(
-                            expected_commit=self.REVISION,
-                            artifacts=family_path,
-                            h2_receipt=receipt_path,
-                            manifest_out=metadata,
-                        )
-
-                validate.assert_called_once()
-                profiles.assert_called_once()
-                write_manifest.assert_not_called()
-                self.assertNotIn(omitted, forged.checks)
-                self.assertTrue(all(name in forged.checks for name in dependent))
-                if metadata.exists():
-                    self.assertEqual(tuple(metadata.iterdir()), ())
-
-    def _superseded_synthetic_finalizer_bypass_unit(self) -> None:
-        executor = importlib.import_module("python_candidate_h2")
-        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
-            root = Path(temporary)
-            family_path = root / "family"
-            metadata = root / "metadata"
-            self.write_exact_family(family_path)
-            family = executor.admit_candidate_family(family_path)
-            receipt_path, _ = self.write_valid_h2_receipt(root, family)
-
-            def write_false_success(*_args: object, **_kwargs: object) -> Path:
-                path = metadata / "eqiora-0.1.0a1-python-candidate.json"
-                path.write_bytes(b"forged bypass manifest")
-                return path
-
-            with (
-                mock.patch.object(
-                    python_candidate_module,
-                    "source_identity",
-                    return_value=SourceIdentity(self.REVISION, ()),
-                ),
-                mock.patch.object(
-                    python_candidate_module,
-                    "validate_h2_receipt",
-                    wraps=python_candidate_module.validate_h2_receipt,
-                ) as validate,
-                mock.patch.object(
-                    python_candidate_module,
-                    "derive_frontend_manifest",
-                    return_value={"h2_receipt_sha256": "0" * 64},
-                ),
-                mock.patch.object(
-                    python_candidate_module,
-                    "run_candidate_profiles",
-                    return_value=mock.sentinel.false_success,
-                ) as profiles,
-                mock.patch.object(
-                    python_candidate_module,
-                    "write_manifest",
-                    side_effect=write_false_success,
-                ) as write_manifest,
-                mock.patch.object(
-                    python_candidate_module,
-                    "load_candidate_family",
-                    return_value=mock.sentinel.candidate,
-                ),
-                mock.patch.object(
-                    python_candidate_module,
-                    "verify_artifacts",
-                ),
-            ):
-                with self.assertRaises(CandidateError):
-                    python_candidate_module.finalize_candidate(
-                        expected_commit=self.REVISION,
-                        artifacts=family_path,
-                        h2_receipt=receipt_path,
-                        manifest_out=metadata,
-                    )
-
-            validate.assert_called_once()
-            profiles.assert_called_once()
-            write_manifest.assert_not_called()
-            if metadata.exists():
-                self.assertEqual(tuple(metadata.iterdir()), ())
 
     def test_finalizer_admits_complete_profile_summary_before_publication(
         self,
@@ -7312,12 +6845,7 @@ write(JSON.stringify({calls,output,failure}));
         profiles = importlib.import_module("python_candidate_profiles")
         check_names = (
             "frontend:lock-integrity",
-            "frontend:license-notices",
-            "frontend:bundle-byte-rebuild",
-            "wheel-family:notebook-metadata",
-            "cp313:notebook-anywidget-0.11.0",
-            "cp313:jupyterlab-4.6.2-bare-mesh",
-            "cp313:marimo-0.23.16-bare-mesh",
+            "frontend:dependency-inventory",
             "cp313:marimo-0.23.16-exact-cylinder-stokes",
             "cp313:notebook-managed-chromium-r1234",
             "cp313:notebook-no-external-network",
@@ -7375,10 +6903,10 @@ class NotebookOwnedProcessDecisionTests(unittest.TestCase):
     The private decision seam consumes only observations fixed by the accepted
     Issue contract. Process discovery, stable handles, and signalling remain
     implementation choices. The registered installed-wheel profile, not these
-    synthetic inputs, owns the real JupyterLab and marimo positive.
+    synthetic inputs, owns the real marimo positive.
     """
 
-    SCENARIO = "jupyterlab-4.6.2"
+    SCENARIO = "marimo-0.23.16"
     DECISION_PARAMETERS = (
         "scenario",
         "primary_error",
@@ -7681,7 +7209,7 @@ class NotebookOwnedProcessDecisionTests(unittest.TestCase):
 
         reused_pid = dict(expected, start_time=121)
         foreign_role = dict(expected, role="foreign")
-        foreign_scenario = dict(expected, scenario="marimo-0.23.16")
+        foreign_scenario = dict(expected, scenario="foreign-notebook-host")
         for observed in (reused_pid, foreign_role, foreign_scenario, None):
             with self.subTest(observed=observed):
                 self.assertFalse(matches(expected=expected, observed=observed))
@@ -8056,12 +7584,12 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             identity_checks,
             [
                 (
-                    ("jupyterlab-4.6.2", "kernel", 4102, 908_172),
-                    ("jupyterlab-4.6.2", "kernel", 4102, 908_172),
+                    ("marimo-0.23.16", "kernel", 4102, 908_172),
+                    ("marimo-0.23.16", "kernel", 4102, 908_172),
                 ),
                 (
-                    ("jupyterlab-4.6.2", "kernel", 4102, 908_172),
-                    ("jupyterlab-4.6.2", "foreign", 4102, 908_173),
+                    ("marimo-0.23.16", "kernel", 4102, 908_172),
+                    ("marimo-0.23.16", "foreign", 4102, 908_173),
                 ),
             ],
         )
@@ -8196,10 +7724,14 @@ while True:
         fixture = extracted / "bindings/python/tests/fixtures/host.ipynb"
         fixture.parent.mkdir(parents=True)
         fixture.write_text("{}", encoding="utf-8")
-        rich_test = extracted / "bindings/python/tests/test_rich_mesh_display.py"
-        rich_test.parent.mkdir(parents=True, exist_ok=True)
-        rich_test.write_text("def test_placeholder():\n    pass\n", encoding="utf-8")
-
+        exact_app = extracted / python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_APP
+        exact_app.parent.mkdir(parents=True, exist_ok=True)
+        exact_app.write_text("import marimo\n", encoding="utf-8")
+        exact_mutant = (
+            extracted / python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_MUTANT
+        )
+        exact_mutant.parent.mkdir(parents=True, exist_ok=True)
+        exact_mutant.write_text("raise RuntimeError\n", encoding="utf-8")
         browser = root / "browser"
         browser.write_bytes(b"browser")
         npm = root / "npm"
@@ -8358,6 +7890,12 @@ while True:
             if tuple(argv[:4]) == ("npm", "run", "test:hosts", "--"):
                 if operation_error is not None:
                     raise operation_error
+            if any(Path(value).name == exact_mutant.name for value in argv):
+                raise subprocess.CalledProcessError(
+                    1,
+                    argv,
+                    output=python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_MUTANT_FAILURE,
+                )
             return ""
 
         def run_first_host(

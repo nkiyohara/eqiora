@@ -42,13 +42,6 @@ pub const VERTEX_DIMENSION: usize = 0;
 /// Smallest loop that bounds a positive area.
 const MINIMUM_LOOP_VERTICES: usize = 3;
 
-/// One closed straight-edged loop, as vertex indices in traversal order.
-///
-/// The closing edge from the last vertex back to the first is implied and is
-/// never written, so a loop has exactly as many edges as vertices and cannot
-/// be authored unclosed.
-pub type PlanarLoop = Vec<usize>;
-
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_ARTIFACT, message)
 }
@@ -56,14 +49,14 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 /// One planar face: an outer loop and the holes cut from it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlanarFace {
-    outer: PlanarLoop,
-    holes: Vec<PlanarLoop>,
+    outer: Vec<usize>,
+    holes: Vec<Vec<usize>>,
 }
 
 impl PlanarFace {
     /// One face bounded by `outer` with `holes` removed from it.
     #[must_use]
-    pub const fn new(outer: PlanarLoop, holes: Vec<PlanarLoop>) -> Self {
+    pub const fn new(outer: Vec<usize>, holes: Vec<Vec<usize>>) -> Self {
         Self { outer, holes }
     }
 
@@ -75,11 +68,11 @@ impl PlanarFace {
 
     /// Hole loops, clockwise once canonicalized.
     #[must_use]
-    pub fn holes(&self) -> &[PlanarLoop] {
+    pub fn holes(&self) -> &[Vec<usize>] {
         &self.holes
     }
 
-    fn loops(&self) -> impl Iterator<Item = &PlanarLoop> {
+    fn loops(&self) -> impl Iterator<Item = &Vec<usize>> {
         std::iter::once(&self.outer).chain(self.holes.iter())
     }
 }
@@ -310,7 +303,7 @@ fn canonical_loop(
     remap: &[usize],
     vertices: &[[f64; 2]],
     counter_clockwise: bool,
-) -> Result<PlanarLoop, Diagnostic> {
+) -> Result<Vec<usize>, Diagnostic> {
     if original.len() < MINIMUM_LOOP_VERTICES {
         return Err(invalid("geometry loop must have at least three vertices"));
     }
@@ -349,7 +342,7 @@ fn validate_face(face: &PlanarFace, vertices: &[[f64; 2]]) -> Result<(), Diagnos
             return Err(invalid("geometry loop intersects itself"));
         }
     }
-    let loops: Vec<&PlanarLoop> = face.loops().collect();
+    let loops: Vec<&Vec<usize>> = face.loops().collect();
     for (position, left) in loops.iter().enumerate() {
         for right in loops.iter().skip(position + 1) {
             if loops_intersect(left, right, vertices) {

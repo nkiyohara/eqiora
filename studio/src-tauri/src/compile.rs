@@ -84,7 +84,7 @@ fn compile_request(request_json: &str, state: &AppState) -> CompileCommandEnvelo
             unreachable!("a rejected control execution cannot expose a Model document")
         }
     };
-    let projection = match project_document(&document, digest.clone(), state.host_worker_budget) {
+    let projection = match project_document(&document, digest.clone()) {
         Ok(projection) => projection,
         Err(diagnostic) => return CompileCommandEnvelope::adapter_rejection(control, *diagnostic),
     };

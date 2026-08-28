@@ -9,17 +9,14 @@ use eqiora::artifact::{
     LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV2, RunManifestV2,
 };
 use eqiora::geometry::{
-    CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1, EDGE_DIMENSION,
-    FACE_DIMENSION, NamedEntitySet,
+    CanonicalGeometryLimits, CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
 };
-use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
-use eqiora::kernel::{BoundarySide, DomainDef, DomainKind, KernelNode};
+use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::meshing::{
     DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape, MeshEntity,
     MeshQualityGate, MeshTopology, SimplicialMesh,
 };
 use eqiora::numerics::{IncompressibleFlowScaleProfile2d, SteadyStokesMiniSolution2d};
-use eqiora::ontology::ModelView;
 use eqiora::realization::{
     DiscretizationMethod, FieldwiseRealizationRequest, MeshKind, RealizationCapabilities,
     RealizationRevision, SemanticRevision, SpatialDimensionSupport, TargetCapabilities,
@@ -339,17 +336,14 @@ fn replay_example_program(
             .next()
             .expect("Model commit diagnostic")
     })?;
-    KernelProgram::from_snapshot_with_geometry(
-        &store.snapshot(),
-        model_id,
-        &[CanonicalGeometryRef::from(source)],
+    KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model_id, &[source]).map_err(
+        |diagnostics| {
+            diagnostics
+                .into_iter()
+                .next()
+                .expect("Semantic replay diagnostic")
+        },
     )
-    .map_err(|diagnostics| {
-        diagnostics
-            .into_iter()
-            .next()
-            .expect("Semantic replay diagnostic")
-    })
 }
 
 fn assert_same_example_solution(
@@ -866,84 +860,19 @@ fn frozen_owner(source: &CanonicalGeometryV1) -> AcceptedCircularHoleChordalReal
 }
 
 fn geometry_program_from_text(source: &CanonicalGeometryV1, model_source: &str) -> KernelProgram {
-    let cartesian =
-        eqiora::api::ModelDocument::compile("exact-circular-hole-stokes-2d.eqi", model_source)
-            .expect("Cartesian authoring scaffold compiles");
-    let program = cartesian.program();
-    let body = program
-        .nodes()
-        .find_map(|node| match node {
-            KernelNode::Domain(domain)
-                if matches!(domain.kind(), DomainKind::CartesianBox { .. }) =>
-            {
-                Some(domain.id())
-            }
-            _ => None,
-        })
-        .expect("one body");
-    let mut nodes = Vec::new();
-    for node in program.nodes() {
-        let replacement = match node {
-            KernelNode::Domain(domain) if domain.id() == body => KernelNode::from(
-                DomainDef::geometry_region(
-                    domain.id(),
-                    eqiora::kernel::GeometryDigest::new(source.digest_bytes()),
-                    "fluid",
-                )
-                .unwrap(),
-            ),
-            KernelNode::Domain(domain) => match domain.kind() {
-                DomainKind::CartesianBoundary { axis, side } => {
-                    let name = match (*axis, *side) {
-                        (0, BoundarySide::Lower) => "inlet",
-                        (0, BoundarySide::Upper) => "outlet",
-                        (1, BoundarySide::Lower) => "walls",
-                        (1, BoundarySide::Upper) => "cylinder",
-                        _ => panic!("unexpected Cartesian scaffold boundary"),
-                    };
-                    KernelNode::from(DomainDef::geometry_boundary(domain.id(), name).unwrap())
-                }
-                _ => node.clone(),
-            },
-            _ => node.clone(),
-        };
-        nodes.push(replacement);
-    }
-    let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
-    let mut transaction = Transaction::new("graph-authored exact circular-hole Stokes witness");
-    for node in nodes {
-        transaction.push(Op::DefineKernelNode { node });
-    }
-    for node in program.nodes() {
-        if let Some(value) = program.value(node.id()) {
-            transaction.push(Op::SetValue {
-                target: node.id(),
-                value,
-            });
-        }
-    }
-    for edge in program.edges() {
-        transaction.push(Op::Connect {
-            from: edge.from(),
-            to: edge.to(),
-            edge: if edge.kind() == EdgeKind::BoundaryOf {
-                EdgeKind::BoundaryOf
-            } else {
-                edge.kind()
-            },
-        });
-    }
-    transaction.push(Op::DefineOntologyView {
-        view: ModelView::new(program.model(), members, None)
-            .expect("closed geometry witness")
-            .into(),
-    });
-    let mut store = InMemoryGraphStore::new();
-    store.commit(transaction).expect("geometry witness commits");
-    KernelProgram::from_snapshot_with_geometry(
-        &store.snapshot(),
-        program.model(),
-        &[CanonicalGeometryRef::from(source)],
+    eqiora::api::ModelDocument::compile_with_geometry(
+        "exact-circular-hole-stokes-2d.eqi",
+        model_source,
+        source,
+        None,
+        &[
+            ("dynamic_viscosity", 0.001),
+            ("zero_pressure", 0.0),
+            ("inlet_speed", 0.3),
+            ("channel_height", 0.41),
+        ],
     )
-    .expect("exact geometry admission")
+    .expect("Component source compiles directly against exact Geometry")
+    .program()
+    .clone()
 }

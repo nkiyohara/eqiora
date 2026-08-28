@@ -3,54 +3,179 @@
 Authority: ``bindings/python/python/eqiora/fluid.py``.
 """
 
-from typing import final
+from typing import ClassVar, final
 
-from . import LinearSolveSummary, Model, Result
-from .meshing import Mesh
+from . import LinearSolveSummary, Result
 
 @final
-class SteadyStokes:
-    """Complete steady-Stokes request with no hidden numerical defaults.
+class IncompressibleScaling:
+    """Optional manual components for exact-cylinder incompressible scaling.
 
-    Authority: ``crates/eqiora-python/src/steady_stokes.rs::PySteadyStokes``.
+    ``None`` leaves that component under deterministic resolver ownership.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScaling``.
     """
 
     def __new__(
         cls,
         *,
-        length_scale_m: float,
-        velocity_scale_m_per_s: float,
-        pressure_scale_pa: float,
-        relative_tolerance: float,
-        absolute_tolerance: float,
-        maximum_iterations: int,
-    ) -> SteadyStokes: ...
+        length_m: float | None = None,
+        velocity_m_per_s: float | None = None,
+        pressure_pa: float | None = None,
+    ) -> IncompressibleScaling: ...
     @property
-    def length_scale_m(self) -> float: ...
+    def length_m(self) -> float | None: ...
     @property
-    def velocity_scale_m_per_s(self) -> float: ...
+    def velocity_m_per_s(self) -> float | None: ...
     @property
-    def pressure_scale_pa(self) -> float: ...
-    @property
-    def relative_tolerance(self) -> float: ...
-    @property
-    def absolute_tolerance(self) -> float: ...
-    @property
-    def maximum_iterations(self) -> int: ...
+    def pressure_pa(self) -> float | None: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 
 @final
-class SteadyStokesPlan:
-    """Immutable steady-Stokes plan resolved before submission.
+class IncompressibleScales:
+    """Immutable effective 2D incompressible scales owned by a resolved Plan.
 
-    Authority: ``crates/eqiora-python/src/steady_stokes.rs::PySteadyStokesPlan``.
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScales``.
     """
 
     @property
-    def model_digest(self) -> str: ...
+    def length_m(self) -> float: ...
     @property
-    def semantic_revision(self) -> int: ...
+    def velocity_m_per_s(self) -> float: ...
+    @property
+    def pressure_pa(self) -> float: ...
+    @property
+    def gauge_per_s(self) -> float: ...
+    @property
+    def weak_functional_w(self) -> float: ...
+
+@final
+class IncompressibleScalingComponent2d:
+    """Closed intrinsic-2D scaling component.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingComponent2d``.
+    """
+    Length: ClassVar[IncompressibleScalingComponent2d]
+    Velocity: ClassVar[IncompressibleScalingComponent2d]
+    Pressure: ClassVar[IncompressibleScalingComponent2d]
+    Gauge: ClassVar[IncompressibleScalingComponent2d]
+    WeakFunctional: ClassVar[IncompressibleScalingComponent2d]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class IncompressibleScalingMode:
+    """Closed provenance mode for one effective scaling component.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingMode``.
+    """
+    Manual: ClassVar[IncompressibleScalingMode]
+    Automatic: ClassVar[IncompressibleScalingMode]
+    Derived: ClassVar[IncompressibleScalingMode]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class IncompressibleScalingRule2d:
+    """Closed rule used to resolve one intrinsic-2D component.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingRule2d``.
+    """
+    ManualOverrideV1: ClassVar[IncompressibleScalingRule2d]
+    ExactChannelHeightV1: ClassVar[IncompressibleScalingRule2d]
+    ExactInletMaximumV1: ClassVar[IncompressibleScalingRule2d]
+    ViscousStokesPressureV1: ClassVar[IncompressibleScalingRule2d]
+    GaugeRateV1: ClassVar[IncompressibleScalingRule2d]
+    WeakFunctionalV1: ClassVar[IncompressibleScalingRule2d]
+    ExactPartitionLengthV1: ClassVar[IncompressibleScalingRule2d]
+    SolidShearWaveVelocityV1: ClassVar[IncompressibleScalingRule2d]
+    FluidDynamicPressureV1: ClassVar[IncompressibleScalingRule2d]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class IncompressibleScalingAuthorityKind:
+    """Closed kind of authoritative scaling observation.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingAuthorityKind``.
+    """
+    ManualRequest: ClassVar[IncompressibleScalingAuthorityKind]
+    ExactGeometrySpan: ClassVar[IncompressibleScalingAuthorityKind]
+    ModelInletMaximum: ClassVar[IncompressibleScalingAuthorityKind]
+    ModelDynamicViscosity: ClassVar[IncompressibleScalingAuthorityKind]
+    ModelSolidShearWave: ClassVar[IncompressibleScalingAuthorityKind]
+    ModelFluidMassDensity: ClassVar[IncompressibleScalingAuthorityKind]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class PressureGauge2d:
+    """Closed pressure representative selected by transient resolution.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyPressureGauge2d``.
+    """
+    ZeroIntegral: ClassVar[PressureGauge2d]
+    BoundaryTraction: ClassVar[PressureGauge2d]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class IncompressibleScalingAuthority2d:
+    """Immutable typed authoritative observation.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingAuthority2d``.
+    """
+    @property
+    def kind(self) -> IncompressibleScalingAuthorityKind: ...
+    @property
+    def axis(self) -> int | None: ...
+    @property
+    def bounds_m(self) -> tuple[float, float] | None: ...
+    @property
+    def coordinate_m(self) -> tuple[float, float] | None: ...
+    @property
+    def outward_normal(self) -> tuple[float, float] | None: ...
+    @property
+    def velocity_m_per_s(self) -> tuple[float, float] | None: ...
+    @property
+    def dynamic_viscosity_pa_s(self) -> float | None: ...
+    @property
+    def shear_modulus_pa(self) -> float | None: ...
+    @property
+    def mass_density_kg_per_m3(self) -> float | None: ...
+
+@final
+class IncompressibleScalingComponentRecord2d:
+    """Immutable effective value and provenance for one component.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingComponentRecord2d``.
+    """
+    @property
+    def component(self) -> IncompressibleScalingComponent2d: ...
+    @property
+    def value(self) -> float: ...
+    @property
+    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    @property
+    def mode(self) -> IncompressibleScalingMode: ...
+    @property
+    def rule(self) -> IncompressibleScalingRule2d: ...
+    @property
+    def dependencies(self) -> tuple[IncompressibleScalingComponent2d, ...]: ...
+    @property
+    def authorities(self) -> tuple[IncompressibleScalingAuthority2d, ...]: ...
+
+@final
+class IncompressibleScalingReceipt2d:
+    """Immutable five-component receipt with exact resource lineage.
+
+    Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScalingReceipt2d``.
+    """
+    @property
+    def provenance_digest(self) -> str: ...
+    @property
+    def model_digest(self) -> str: ...
     @property
     def geometry_digest(self) -> str: ...
     @property
@@ -58,43 +183,19 @@ class SteadyStokesPlan:
     @property
     def mesh_digest(self) -> str: ...
     @property
-    def realization_digest(self) -> str: ...
+    def production_digest(self) -> str | None: ...
     @property
-    def realization_revision(self) -> int: ...
+    def length(self) -> IncompressibleScalingComponentRecord2d: ...
     @property
-    def spatial_dimension(self) -> int: ...
+    def velocity(self) -> IncompressibleScalingComponentRecord2d: ...
     @property
-    def velocity_space(self) -> str: ...
+    def pressure(self) -> IncompressibleScalingComponentRecord2d: ...
     @property
-    def pressure_space(self) -> str: ...
+    def gauge(self) -> IncompressibleScalingComponentRecord2d: ...
     @property
-    def length_scale_m(self) -> float: ...
+    def weak_functional(self) -> IncompressibleScalingComponentRecord2d: ...
     @property
-    def velocity_scale_m_per_s(self) -> float: ...
-    @property
-    def pressure_scale_pa(self) -> float: ...
-    @property
-    def solver_algorithm(self) -> str: ...
-    @property
-    def preconditioner(self) -> str: ...
-    @property
-    def reduction(self) -> str: ...
-    @property
-    def relative_tolerance(self) -> float: ...
-    @property
-    def absolute_tolerance(self) -> float: ...
-    @property
-    def maximum_iterations(self) -> int: ...
-    @property
-    def solver_backend(self) -> str: ...
-    @property
-    def execution_adapter(self) -> str: ...
-    @property
-    def workers(self) -> int: ...
-    @property
-    def canonical_bytes(self) -> bytes: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
+    def components(self) -> tuple[IncompressibleScalingComponentRecord2d, ...]: ...
 
 @final
 class SteadyStokesEvidence:
@@ -104,7 +205,7 @@ class SteadyStokesEvidence:
     """
 
     @property
-    def run_digest(self) -> str: ...
+    def plan_key(self) -> str: ...
     @property
     def pressure_minimum(self) -> float: ...
     @property
@@ -132,20 +233,6 @@ class SteadyStokesEvidence:
     @property
     def continuity_residual_norm(self) -> float: ...
 
-def resolve(
-    model: Model,
-    intent: SteadyStokes,
-    /,
-    *,
-    mesh: Mesh,
-) -> SteadyStokesPlan:
-    """Resolve a steady-Stokes intent without executing it.
-
-    Authority: ``crates/eqiora-python/src/steady_stokes.rs::resolve``.
-    """
-
-    ...
-
 def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence:
     """Select typed steady-Stokes evidence from its accepted result.
 
@@ -155,9 +242,16 @@ def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence:
     ...
 
 __all__ = [
-    "SteadyStokes",
+    "IncompressibleScales",
+    "IncompressibleScaling",
+    "IncompressibleScalingAuthority2d",
+    "IncompressibleScalingAuthorityKind",
+    "IncompressibleScalingComponent2d",
+    "IncompressibleScalingComponentRecord2d",
+    "IncompressibleScalingMode",
+    "IncompressibleScalingReceipt2d",
+    "IncompressibleScalingRule2d",
+    "PressureGauge2d",
     "SteadyStokesEvidence",
-    "SteadyStokesPlan",
-    "resolve",
     "steady_stokes_evidence",
 ]

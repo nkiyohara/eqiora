@@ -1,6 +1,6 @@
 id = "differentiation.spatial-poisson-fem-fvm"
 status = "verified"
-scope = "lowered-relation-and-complete-field-output-differentiation"
+scope = "supplied-rectangle-2d-common-plan-bound-relation-and-complete-field-output-differentiation"
 reference_kind = "independent-centered-finite-difference"
 
 capabilities = [
@@ -18,14 +18,16 @@ capabilities = [
   "complete-primary-field-output-projection",
   "fem-eliminated-boundary-output-action",
   "paired-output-jvp-vjp",
-  "exact-model-realization-bound-program",
+  "exact-common-plan-bound-program",
+  "caller-supplied-rectangle-cartesian-mesh",
   "immutable-selected-parameter-point-binding",
   "static-program-multiple-accepted-evaluations",
   "non-default-point-primal-jvp-vjp",
   "exact-evaluation-point-evidence",
   "p0-p1-p0-repeatability",
   "concurrent-evaluation-isolation",
-  "inseparable-point-realization-solution-ownership",
+  "inseparable-point-plan-solution-ownership",
+  "foreign-or-substituted-plan-rejection",
   "equal-primal-distinct-derivative-falsifier",
   "normal-transposed-solve-provenance",
   "jvp-vjp-duality",
@@ -42,6 +44,8 @@ objective = "J(u) = integral(u^2)"
 
 [claim_boundary]
 spatial_dimension = 2
+caller_supplied_rectangle_cartesian_mesh = true
+program_identity_is_exact_common_plan = true
 methods = ["continuous-q1-galerkin", "cell-centred-tpfa"]
 scalar = "native-f64"
 execution = "host-serial"

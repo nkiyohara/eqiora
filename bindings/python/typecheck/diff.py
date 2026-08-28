@@ -18,8 +18,7 @@ from eqiora.diff import (
 
 
 def check_diff_exports(
-    model: eqiora.Model,
-    realization: eqiora.Realization,
+    plan: eqiora.Plan,
     parameter: ParameterRef,
     field: FieldRef,
     evaluation: DifferentiableEvaluation,
@@ -29,8 +28,7 @@ def check_diff_exports(
     evidence: DifferentiationEvidence,
 ) -> None:
     program = diff.compile(
-        model,
-        realization,
+        plan,
         inputs=(parameter,),
         output=field,
     )
@@ -42,3 +40,5 @@ def check_diff_exports(
     assert_type(evidence.mode, DifferentiationMode)
     assert_type(evidence.implementation, DerivativeImplementation)
     assert_type(evidence.linearization_state, LinearizationState)
+    assert_type(evidence.plan_identity, str)
+    assert_type(program.plan_identity, str)

@@ -15,7 +15,8 @@ use sha2::{Digest, Sha256};
 
 use crate::circular_hole::CircularHoleGeometry;
 use crate::{
-    CanonicalPlanarCircularHoleGeometryV2, EDGE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion,
+    CanonicalPlanarAdjacentRectanglePartitionV1, CanonicalPlanarCircularHoleGeometryV2,
+    CanonicalPlanarRectangleGeometryV2, EDGE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion,
 };
 
 const GEOMETRY_DEFINITION_SCHEMA: &str = "eqiora.geometry-definition-envelope/v1";
@@ -76,91 +77,9 @@ enum CanonicalGeometryKind {
         digest: [u8; 32],
     },
     CircularHolePlanarV1(CircularHoleGeometry),
+    PlanarRectangleV2(CanonicalPlanarRectangleGeometryV2),
     PlanarCircularHoleV2(CanonicalPlanarCircularHoleGeometryV2),
-}
-
-/// Borrowed, kind-erased semantic facts from one canonical geometry.
-///
-/// This compatibility view can only borrow the common geometry owner. It
-/// exposes neither geometry content nor a constructor from caller-supplied
-/// digest and dimension facts.
-#[derive(Clone, Copy, PartialEq)]
-pub struct CanonicalGeometryRef<'a> {
-    geometry: &'a CanonicalGeometryV1,
-}
-
-impl<'a> From<&'a CanonicalGeometryV1> for CanonicalGeometryRef<'a> {
-    fn from(geometry: &'a CanonicalGeometryV1) -> Self {
-        Self { geometry }
-    }
-}
-
-impl fmt::Debug for CanonicalGeometryRef<'_> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("CanonicalGeometryRef")
-            .field("digest", &self.digest_bytes())
-            .field("ambient_dimension", &self.ambient_dimension())
-            .field("topological_dimension", &self.topological_dimension())
-            .finish_non_exhaustive()
-    }
-}
-
-impl CanonicalGeometryRef<'_> {
-    /// Complete domain-separated content identity.
-    #[must_use]
-    pub const fn digest_bytes(self) -> [u8; 32] {
-        self.geometry.digest_bytes()
-    }
-
-    /// Dimension of the physical coordinate embedding.
-    #[must_use]
-    pub const fn ambient_dimension(self) -> usize {
-        self.geometry.ambient_dimension()
-    }
-
-    /// Highest topological dimension represented by the geometry.
-    #[must_use]
-    pub const fn topological_dimension(self) -> usize {
-        self.geometry.topological_dimension()
-    }
-
-    /// Topological dimension of one exact entity-set name.
-    #[must_use]
-    pub fn entity_set_dimension(self, name: &str) -> Option<usize> {
-        self.geometry.entity_set_dimension(name)
-    }
-
-    /// Topological dimension of one selection borrowed from this exact
-    /// Geometry revision.
-    ///
-    /// A foreign, cloned, or stale selection returns `None` even when its name
-    /// and members happen to compare equal.
-    #[must_use]
-    #[doc(hidden)]
-    pub fn selection_dimension(self, selection: &NamedEntitySet) -> Option<usize> {
-        self.geometry
-            .owns_selection(selection)
-            .then_some(selection.dimension())
-    }
-
-    /// Whether two selections borrowed from this exact Geometry revision form
-    /// one admitted codimension-one boundary and full-dimensional parent.
-    #[must_use]
-    #[doc(hidden)]
-    pub fn selection_is_boundary_of(
-        self,
-        boundary: &NamedEntitySet,
-        region: &NamedEntitySet,
-    ) -> bool {
-        self.geometry.selection_is_boundary_of(boundary, region)
-    }
-
-    /// Exact constant parent-outward normal of one supported boundary set.
-    #[must_use]
-    pub fn constant_parent_outward_normal(self, name: &str) -> Option<[f64; 2]> {
-        self.geometry.constant_parent_outward_normal(name)
-    }
+    PlanarAdjacentRectanglePartitionV1(CanonicalPlanarAdjacentRectanglePartitionV1),
 }
 
 impl fmt::Debug for CanonicalGeometryV1 {
@@ -193,7 +112,13 @@ impl CanonicalGeometryV1 {
         self.entity_set(name).map(NamedEntitySet::dimension)
     }
 
-    fn selection_is_boundary_of(&self, boundary: &NamedEntitySet, region: &NamedEntitySet) -> bool {
+    #[doc(hidden)]
+    #[must_use]
+    pub fn selection_is_boundary_of(
+        &self,
+        boundary: &NamedEntitySet,
+        region: &NamedEntitySet,
+    ) -> bool {
         if !self.owns_selection(boundary)
             || !self.owns_selection(region)
             || boundary.dimension().checked_add(1) != Some(self.topological_dimension())
@@ -209,8 +134,20 @@ impl CanonicalGeometryV1 {
                 .iter()
                 .all(|edge| edge_has_selected_parent(topology, *edge, region.members())),
             CanonicalGeometryKind::CircularHolePlanarV1(_)
-            | CanonicalGeometryKind::PlanarCircularHoleV2(_) => region.members() == [0],
+            | CanonicalGeometryKind::PlanarCircularHoleV2(_)
+            | CanonicalGeometryKind::PlanarRectangleV2(_) => region.members() == [0],
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => boundary
+                .members()
+                .iter()
+                .all(|edge| edge_has_selected_parent(geometry.region(), *edge, region.members())),
         }
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn selection_dimension(&self, selection: &NamedEntitySet) -> Option<usize> {
+        self.owns_selection(selection)
+            .then_some(selection.dimension())
     }
 
     fn owns_selection(&self, selection: &NamedEntitySet) -> bool {
@@ -224,17 +161,13 @@ impl CanonicalGeometryV1 {
 
     /// Exact constant parent-outward normal of one supported boundary set.
     ///
-    /// The first curved family exposes a normal only for its exact single-edge
-    /// x-lower and x-upper sets. A wall or circular member, a multi-side group,
-    /// and every straight-edged or unknown geometry family return `None`;
-    /// callers must not infer a catalogue from entity indices themselves.
+    /// A classification-free rectangle derives all four axis normals from its
+    /// canonical boundary topology. The curved families expose a normal only
+    /// for exact single-edge x-lower and x-upper sets. A circular member,
+    /// multi-side group, and every straight-edged or unknown geometry family
+    /// return `None`; callers must not infer a catalogue from entity indices.
     #[must_use]
     pub fn constant_parent_outward_normal(&self, name: &str) -> Option<[f64; 2]> {
-        match &self.kind {
-            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => return None,
-            CanonicalGeometryKind::CircularHolePlanarV1(_)
-            | CanonicalGeometryKind::PlanarCircularHoleV2(_) => {}
-        }
         let set = self.entity_set(name)?;
         if set.dimension() != EDGE_DIMENSION {
             return None;
@@ -242,10 +175,55 @@ impl CanonicalGeometryV1 {
         let [boundary] = set.members() else {
             return None;
         };
-        match boundary {
-            0 => Some([-1.0, 0.0]),
-            1 => Some([1.0, 0.0]),
-            _ => None,
+        match &self.kind {
+            CanonicalGeometryKind::PlanarRectangleV2(_) => match boundary {
+                0 => Some([-1.0, 0.0]),
+                1 => Some([1.0, 0.0]),
+                2 => Some([0.0, -1.0]),
+                3 => Some([0.0, 1.0]),
+                _ => None,
+            },
+            CanonicalGeometryKind::CircularHolePlanarV1(_)
+            | CanonicalGeometryKind::PlanarCircularHoleV2(_) => match boundary {
+                0 => Some([-1.0, 0.0]),
+                1 => Some([1.0, 0.0]),
+                _ => None,
+            },
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_) => None,
+        }
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn selections_form_opposite_parent_interface(
+        &self,
+        first_boundary: &str,
+        first_region: &str,
+        second_boundary: &str,
+        second_region: &str,
+    ) -> bool {
+        let Some(first_boundary) = self.entity_set(first_boundary) else {
+            return false;
+        };
+        let Some(first_region) = self.entity_set(first_region) else {
+            return false;
+        };
+        let Some(second_boundary) = self.entity_set(second_boundary) else {
+            return false;
+        };
+        let Some(second_region) = self.entity_set(second_region) else {
+            return false;
+        };
+        match &self.kind {
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => geometry
+                .selections_form_opposite_parent_interface(
+                    first_boundary,
+                    first_region,
+                    second_boundary,
+                    second_region,
+                ),
+            _ => false,
         }
     }
     /// Derive canonical bytes and identity from one validated region.
@@ -387,7 +365,23 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => Some(region),
             CanonicalGeometryKind::CircularHolePlanarV1(_)
+            | CanonicalGeometryKind::PlanarRectangleV2(_)
             | CanonicalGeometryKind::PlanarCircularHoleV2(_) => None,
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => {
+                Some(geometry.region())
+            }
+        }
+    }
+
+    /// Exact Cartesian bounds for the classification-free rectangle kind.
+    #[must_use]
+    pub const fn planar_rectangle_bounds(&self) -> Option<&[[f64; 2]; 2]> {
+        match &self.kind {
+            CanonicalGeometryKind::PlanarRectangleV2(geometry) => Some(geometry.bounds()),
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. }
+            | CanonicalGeometryKind::CircularHolePlanarV1(_)
+            | CanonicalGeometryKind::PlanarCircularHoleV2(_)
+            | CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_) => None,
         }
     }
 
@@ -397,6 +391,8 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => Some(geometry.bounds()),
+            CanonicalGeometryKind::PlanarRectangleV2(_) => None,
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_) => None,
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => Some(geometry.bounds()),
         }
     }
@@ -407,6 +403,8 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => Some(geometry.circle_center()),
+            CanonicalGeometryKind::PlanarRectangleV2(_) => None,
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_) => None,
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => Some(geometry.circle_center()),
         }
     }
@@ -419,6 +417,8 @@ impl CanonicalGeometryV1 {
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => {
                 Some(geometry.circle_radius_m())
             }
+            CanonicalGeometryKind::PlanarRectangleV2(_) => None,
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_) => None,
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => {
                 Some(geometry.circle_radius_m())
             }
@@ -437,7 +437,9 @@ impl CanonicalGeometryV1 {
                 Some(region.tolerance_m())
             }
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => Some(geometry.tolerance_m()),
-            CanonicalGeometryKind::PlanarCircularHoleV2(_) => None,
+            CanonicalGeometryKind::PlanarRectangleV2(_)
+            | CanonicalGeometryKind::PlanarCircularHoleV2(_)
+            | CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_) => None,
         }
     }
 
@@ -447,7 +449,11 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => region.entity_sets(),
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.entity_sets(),
+            CanonicalGeometryKind::PlanarRectangleV2(geometry) => geometry.entity_sets(),
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => geometry.entity_sets(),
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => {
+                geometry.entity_sets()
+            }
         }
     }
 
@@ -465,7 +471,11 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { bytes, .. } => bytes,
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.canonical_bytes(),
+            CanonicalGeometryKind::PlanarRectangleV2(geometry) => geometry.canonical_bytes(),
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => geometry.canonical_bytes(),
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => {
+                geometry.canonical_bytes()
+            }
         }
     }
 
@@ -475,7 +485,11 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { digest, .. } => *digest,
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.digest_bytes(),
+            CanonicalGeometryKind::PlanarRectangleV2(geometry) => geometry.digest_bytes(),
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => geometry.digest_bytes(),
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => {
+                geometry.digest_bytes()
+            }
         }
     }
 
@@ -485,6 +499,51 @@ impl CanonicalGeometryV1 {
         Self {
             kind: CanonicalGeometryKind::PlanarCircularHoleV2(geometry),
         }
+    }
+
+    pub(crate) const fn from_planar_rectangle_v2(
+        geometry: CanonicalPlanarRectangleGeometryV2,
+    ) -> Self {
+        Self {
+            kind: CanonicalGeometryKind::PlanarRectangleV2(geometry),
+        }
+    }
+
+    pub(crate) const fn from_planar_adjacent_rectangle_partition_v1(
+        geometry: CanonicalPlanarAdjacentRectanglePartitionV1,
+    ) -> Self {
+        Self {
+            kind: CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry),
+        }
+    }
+
+    /// Exact bounds and interface coordinate for the adjacent partition kind.
+    #[must_use]
+    pub const fn planar_adjacent_rectangle_partition(&self) -> Option<(&[[f64; 2]; 2], f64)> {
+        match &self.kind {
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => {
+                Some((geometry.bounds(), geometry.interface_x()))
+            }
+            _ => None,
+        }
+    }
+
+    /// Decode the tolerance-free adjacent rectangle partition wire.
+    pub fn decode_planar_adjacent_rectangle_partition_v1_canonical(
+        bytes: &[u8],
+        limits: CanonicalGeometryLimits,
+    ) -> Result<Self, Diagnostic> {
+        CanonicalPlanarAdjacentRectanglePartitionV1::decode_canonical(bytes, limits)
+            .map(Self::from_planar_adjacent_rectangle_partition_v1)
+    }
+
+    /// Decode the classification-free planar rectangle wire.
+    pub fn decode_planar_rectangle_v2_canonical(
+        bytes: &[u8],
+        limits: CanonicalGeometryLimits,
+    ) -> Result<Self, Diagnostic> {
+        CanonicalPlanarRectangleGeometryV2::decode_canonical(bytes, limits)
+            .map(Self::from_planar_rectangle_v2)
     }
 
     /// Decode the accepted tolerance-free circular-hole v2 wire.

@@ -4,11 +4,13 @@ use std::collections::BTreeMap;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, OntologyId};
-use eqiora_geometry::CanonicalGeometryRef;
+use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::Snapshot;
 use eqiora_schema::Model;
 
-use super::geometry_admission::{admit_entity_sets, index_closed_bundle};
+use super::geometry_admission::{
+    admit_entity_sets, admit_geometry_boundary_junctions, index_closed_bundle,
+};
 use super::spatial_domains::{
     cartesian_spatial_supports, resolve_cartesian_bounds, validate_domains, validate_fields,
     validate_geometry_support_uses,
@@ -52,7 +54,7 @@ impl KernelProgram {
     pub fn from_snapshot_with_geometry(
         snapshot: &Snapshot,
         model: OntologyId<Model>,
-        geometry: &[CanonicalGeometryRef<'_>],
+        geometry: &[&CanonicalGeometryV1],
     ) -> Result<Self, Vec<Diagnostic>> {
         Self::from_snapshot_impl(snapshot, model, Some(geometry))
     }
@@ -60,7 +62,7 @@ impl KernelProgram {
     fn from_snapshot_impl(
         snapshot: &Snapshot,
         model: OntologyId<Model>,
-        geometry: Option<&[CanonicalGeometryRef<'_>]>,
+        geometry: Option<&[&CanonicalGeometryV1]>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let raw_model = model.erase();
         let Some(view) = snapshot.ontology_view(&raw_model) else {
@@ -113,6 +115,9 @@ impl KernelProgram {
         let invalid_domains = validate_domains(&nodes, &edges, &cartesian_bounds, &mut diagnostics);
         let mut spatial_supports = cartesian_spatial_supports(&nodes, &edges, &cartesian_bounds);
         let artifacts_admitted = geometry.is_some();
+        let mut geometry_boundary_embeddings = BTreeMap::new();
+        let mut geometry_boundary_junctions = BTreeMap::new();
+        let mut admitted_geometry_ports = std::collections::BTreeSet::new();
         if let Some(geometry) = geometry {
             let artifacts = match index_closed_bundle(&nodes, geometry) {
                 Ok(artifacts) => artifacts,
@@ -124,16 +129,40 @@ impl KernelProgram {
             let admission = admit_entity_sets(&nodes, &edges, &invalid_domains, &artifacts);
             diagnostics.extend(admission.diagnostics);
             spatial_supports.extend(admission.supports);
+            geometry_boundary_embeddings = admission.boundary_embeddings;
+            let (junctions, ports, junction_diagnostics) = admit_geometry_boundary_junctions(
+                &nodes,
+                &edges,
+                &artifacts,
+                &geometry_boundary_embeddings,
+            );
+            geometry_boundary_junctions = junctions;
+            admitted_geometry_ports = ports;
+            diagnostics.extend(junction_diagnostics);
         }
-        validate_geometry_support_uses(&nodes, &edges, artifacts_admitted, &mut diagnostics);
+        validate_geometry_support_uses(
+            &nodes,
+            &edges,
+            artifacts_admitted,
+            &admitted_geometry_ports,
+            &mut diagnostics,
+        );
         validate_fields(&nodes, &edges, &spatial_supports, &mut diagnostics);
         validate_relations(&nodes, &edges, &spatial_supports, &mut diagnostics);
         validate_activations(&nodes, &edges, &spatial_supports, &mut diagnostics);
-        validate_connections(&nodes, &edges, &cartesian_bounds, &mut diagnostics);
+        validate_connections(
+            &nodes,
+            &edges,
+            &cartesian_bounds,
+            &geometry_boundary_junctions,
+            &geometry_boundary_embeddings,
+            &mut diagnostics,
+        );
         crate::boundary_physical::validate_networks(
             &nodes,
             &edges,
             &cartesian_bounds,
+            &geometry_boundary_embeddings,
             &mut diagnostics,
         );
         validate_scalar_physical_networks(&nodes, &edges, view.boundary(), &mut diagnostics);
@@ -148,6 +177,7 @@ impl KernelProgram {
                 boundary: view.boundary().clone(),
                 spatial_supports,
                 cartesian_bounds,
+                geometry_boundary_junctions,
             })
         } else {
             Err(diagnostics)

@@ -29,12 +29,23 @@ import gc
 import sys
 
 assert "numpy" not in sys.modules
-result = eqiora.run(
-    eqiora.compile(decay_source),
-    end_time=0.2,
-    max_step=0.1,
+model = eqiora.compile(source=decay_source)
+field = model.field(model.field_ids[0])
+plan = eqiora.resolve(
+    model,
+    temporal=eqiora.time.Tsitouras45(
+        initial_step_s=0.01,
+        relative_tolerance=1.0e-9,
+        absolute_tolerances={field: 1.0e-11},
+    ),
 )
-array = result["x"].values
+result = eqiora.run(
+    plan,
+    state=eqiora.State.initial(plan),
+    until_s=0.2,
+    output_times_s=(0.05, 0.1, 0.2),
+)
+array = result.series(field).values
 assert "numpy" not in sys.modules
 assert array.device == "cpu"
 assert array.device_id == 0
@@ -81,8 +92,9 @@ else:
 copied = array.numpy(copy=True)
 assert copied.flags.writeable
 assert not np.shares_memory(copied, view)
+original = view.copy()
 copied[0] = 9.0
-assert view[0] == 1.0
+assert view[0] == original[0]
 
 snapshot = np.from_dlpack(array)
 assert snapshot.ctypes.data != view.ctypes.data, (
@@ -100,7 +112,7 @@ else:
         pass
     else:
         raise AssertionError("a read-only DLPack snapshot became writeable")
-assert view[0] == 1.0
+assert view[0] == original[0]
 
 second_snapshot = np.from_dlpack(array, device="cpu")
 assert second_snapshot.ctypes.data != view.ctypes.data
@@ -156,7 +168,12 @@ else:
 
 del result, array
 gc.collect()
-np.testing.assert_allclose(view, [1.0, 1.0 / 1.1, 1.0 / 1.1**2])
+np.testing.assert_allclose(
+    view,
+    np.exp(-np.array([0.05, 0.1, 0.2])),
+    rtol=1.0e-8,
+    atol=1.0e-10,
+)
 np.testing.assert_allclose(snapshot[1:], view[1:])
 "#
             ),

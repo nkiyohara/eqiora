@@ -385,7 +385,6 @@ struct WireCircleV1 {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::CanonicalGeometryRef;
 
     const EXPECTED_DIGEST: [u8; 32] = [
         0xb0, 0x01, 0x23, 0x47, 0x2a, 0x59, 0x6e, 0x82, 0x89, 0x82, 0x0c, 0xab, 0xae, 0xe2, 0x0d,
@@ -441,12 +440,11 @@ pub(crate) mod tests {
             CanonicalGeometryLimits::default(),
         )
         .expect("accepted circular wire replays through the common owner");
-        let reference = CanonicalGeometryRef::from(&common);
-        assert_eq!(reference.digest_bytes(), EXPECTED_DIGEST);
-        assert_eq!(reference.ambient_dimension(), 2);
-        assert_eq!(reference.topological_dimension(), 2);
-        assert_eq!(reference.entity_set_dimension("cylinder"), Some(1));
-        assert_eq!(reference.entity_set_dimension("fluid"), Some(2));
+        assert_eq!(common.digest_bytes(), EXPECTED_DIGEST);
+        assert_eq!(common.ambient_dimension(), 2);
+        assert_eq!(common.topological_dimension(), 2);
+        assert_eq!(common.entity_set_dimension("cylinder"), Some(1));
+        assert_eq!(common.entity_set_dimension("fluid"), Some(2));
     }
 
     #[test]

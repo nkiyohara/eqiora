@@ -1,4 +1,4 @@
-//! Bounded Python lifecycle over the shared semantic reference executor.
+//! Bounded Python lifecycle over shared native worker execution.
 
 mod evidence;
 mod worker;
@@ -7,39 +7,24 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 
-use eqiora::api::{
-    FixedReferenceFsiResult2d, ReferenceRunCancellation, ReferenceRunPlan, ReferenceRunProgress,
-    ReferenceRunResult, ScalarEllipticExecutionEnvironment, ScalarEllipticRunCancellation,
-    ScalarEllipticRunProgress, ScalarEllipticRunResult,
-};
 use eqiora::diagnostic::codes;
 use eqiora::{Diagnostic, GraphPath};
+use eqiora_numerics::{
+    CommonFsiRunRequest, CommonOdeRunRequest, CommonState, CommonTransientRunRequest,
+};
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
-use crate::PyModel;
-use crate::elasticity::{
-    PyLinearElasticityPlan, materialize_result as materialize_linear_elasticity,
-};
+use crate::common_plan::{CommonPlanKind, PyPlan};
 use crate::error::{
-    cancellation_error, catch_native_panic, diagnostic_error, execution_error,
-    internal_diagnostic_error, internal_error, panic_boundary,
+    cancellation_error, catch_native_panic, execution_error, internal_diagnostic_error,
+    internal_error, panic_boundary, validation_error,
 };
-use crate::fsi::{
-    PyFixedMeshMonolithicPlan, materialize_result as materialize_fixed_mesh_monolithic,
-};
-use crate::meshing::PyMesh;
-use crate::realization::{PyRealization, PyScalarEllipticResult};
-use crate::result::result_into_python;
-use crate::steady_stokes::{
-    PySteadyStokesPlan, SteadyStokesRunMaterialization, materialize_result as materialize_stokes,
-};
+use crate::trajectory::PyState;
 
 pub(crate) use evidence::RunIdentity;
-use evidence::{
-    PyRunCancellation, PyRunProgress, PyRunStatus, PyScalarEllipticRunCancellation,
-    PyScalarEllipticRunProgress,
-};
+use evidence::{PyCommonTransientRunCancellation, PyCommonTransientRunProgress, PyRunStatus};
 use worker::{NativeRunJob, run_worker};
 
 const RESULT_MATERIALIZATION_FAILURE: &str =
@@ -51,80 +36,89 @@ enum RunFailure {
     Internal(Vec<Diagnostic>),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum NativeRunProgress {
-    Reference(ReferenceRunProgress),
-    ScalarElliptic(ScalarEllipticRunProgress),
+    CommonTransient(PyCommonTransientRunProgress),
 }
 
 impl NativeRunProgress {
     fn into_python(self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match self {
-            Self::Reference(progress) => {
-                Py::new(py, PyRunProgress::from(progress)).map(Py::into_any)
-            }
-            Self::ScalarElliptic(progress) => {
-                Py::new(py, PyScalarEllipticRunProgress::from(progress)).map(Py::into_any)
-            }
+            Self::CommonTransient(progress) => Py::new(py, progress).map(Py::into_any),
         }
     }
 }
 
 #[derive(Debug)]
 enum NativeRunOutput {
-    Reference(ReferenceRunResult),
-    ScalarElliptic(Box<ScalarEllipticRunResult>),
+    Scalar {
+        result: Box<eqiora_numerics::scalar::ResolvedScalarEllipticCartesianSolution>,
+        elapsed_seconds: f64,
+    },
+    Elasticity {
+        result: Box<eqiora_numerics::CommonElasticityRunOutput>,
+        elapsed_seconds: f64,
+    },
     SteadyStokes {
-        result: Box<SteadyStokesRunMaterialization>,
+        result: Box<eqiora_numerics::CommonSteadyStokesRunOutput>,
         elapsed_seconds: f64,
     },
-    LinearElasticity {
-        result: Box<eqiora::api::MixedBoundaryElasticityResult2d>,
+    Transient {
+        states: Vec<(usize, CommonState)>,
         elapsed_seconds: f64,
     },
-    FixedMeshMonolithic {
-        result: Box<FixedReferenceFsiResult2d>,
+    Ode {
+        result: Box<eqiora_numerics::CommonOdeRunResult>,
         elapsed_seconds: f64,
     },
 }
 
 enum ResultMaterializationContext {
-    None,
-    SteadyStokes { mesh: Py<PyMesh> },
-    FixedMeshMonolithic { model: Py<PyModel> },
+    CommonPlan { plan: Py<PyPlan> },
 }
 
 #[derive(Debug, Clone)]
 enum NativeRunCancellation {
-    Reference(ReferenceRunCancellation),
-    ScalarElliptic(Box<ScalarEllipticRunCancellation>),
+    CommonTransient {
+        accepted_steps: usize,
+        maximum_steps: usize,
+        model_time_s: f64,
+        request_identity: String,
+    },
 }
 
 impl NativeRunCancellation {
     fn into_python(self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match self {
-            Self::Reference(cancellation) => {
-                Py::new(py, PyRunCancellation::from(cancellation)).map(Py::into_any)
-            }
-            Self::ScalarElliptic(cancellation) => {
-                Py::new(py, PyScalarEllipticRunCancellation::from(*cancellation)).map(Py::into_any)
-            }
+            Self::CommonTransient {
+                accepted_steps,
+                maximum_steps,
+                model_time_s,
+                request_identity,
+            } => Py::new(
+                py,
+                PyCommonTransientRunCancellation {
+                    progress: PyCommonTransientRunProgress {
+                        accepted_steps,
+                        maximum_steps,
+                        model_time_bits: model_time_s.to_bits(),
+                    },
+                    request_identity,
+                },
+            )
+            .map(Py::into_any),
         }
     }
 
     fn diagnostic(&self) -> Diagnostic {
         let message = match self {
-            Self::Reference(cancellation) => {
-                let progress = cancellation.progress();
-                format!(
-                    "reference execution was cancelled at accepted model time {} after {} accepted steps",
-                    progress.model_time(),
-                    progress.accepted_steps()
-                )
-            }
-            Self::ScalarElliptic(cancellation) => format!(
-                "scalar-elliptic execution was cancelled at accepted application phase {:?}",
-                cancellation.progress()
+            Self::CommonTransient {
+                accepted_steps,
+                maximum_steps: _,
+                model_time_s,
+                request_identity,
+            } => format!(
+                "common transient execution {request_identity} was cancelled at accepted model time {model_time_s} after {accepted_steps} accepted steps"
             ),
         };
         Diagnostic::error(codes::EXECUTION_CANCELLED, message).with_graph_path(GraphPath::new([
@@ -485,118 +479,104 @@ pub(crate) struct PyRun {
     materialization: ResultMaterializationContext,
     shared: Arc<RunShared>,
     result_cache: Arc<ResultCache>,
+    cancellation_supported: bool,
 }
 
 impl PyRun {
-    fn submit_reference(
+    fn submit_common(
         py: Python<'_>,
-        model: &PyModel,
-        end_time: f64,
-        max_step: f64,
+        plan: Py<PyPlan>,
+        request: Option<CommonRunRequest>,
     ) -> PyResult<Self> {
-        let plan = ReferenceRunPlan::new(end_time, max_step)
-            .map_err(|diagnostic| execution_error(py, &[diagnostic]))?;
-        let document = model
-            .document()
-            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
-            .clone();
-        let identity = RunIdentity::from_reference(&document, &plan)
-            .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
+        let plan_ref = plan.borrow(py);
+        let (identity, job, thread_name, cancellation_supported) = match (
+            plan_ref.native(),
+            request,
+        ) {
+            (CommonPlanKind::Ode(_), Some(CommonRunRequest::Ode(request))) => (
+                RunIdentity::from_common_ode(&request),
+                NativeRunJob::Ode(request),
+                "eqiora-common-ode-run",
+                false,
+            ),
+            (CommonPlanKind::Scalar(native), None) => (
+                RunIdentity::from_common_plan(native),
+                NativeRunJob::Scalar(native.clone()),
+                "eqiora-common-scalar-run",
+                true,
+            ),
+            (CommonPlanKind::Elasticity(native), None) => (
+                RunIdentity::from_common_elasticity(native),
+                NativeRunJob::Elasticity(native.clone()),
+                "eqiora-common-elasticity-run",
+                true,
+            ),
+            (CommonPlanKind::SteadyStokes(native), None) => (
+                RunIdentity::from_common_steady_stokes(native),
+                NativeRunJob::SteadyStokes(native.clone()),
+                "eqiora-common-steady-stokes-run",
+                true,
+            ),
+            (CommonPlanKind::TransientFlow(_), Some(CommonRunRequest::Transient(request))) => (
+                RunIdentity::from_common_transient(&request),
+                NativeRunJob::Transient(request),
+                "eqiora-common-transient-run",
+                true,
+            ),
+            (CommonPlanKind::Fsi(_), Some(CommonRunRequest::Fsi(request))) => (
+                RunIdentity::from_common_fsi(&request),
+                NativeRunJob::Fsi(request),
+                "eqiora-common-fsi-run",
+                true,
+            ),
+            (CommonPlanKind::TransientFlow(_), None) => {
+                return Err(PyTypeError::new_err(
+                    "transient submit requires State and one explicit horizon/output schedule family",
+                ));
+            }
+            (CommonPlanKind::Fsi(_), None) => {
+                return Err(PyTypeError::new_err(
+                    "FSI submit requires State and one explicit horizon/output schedule family",
+                ));
+            }
+            (CommonPlanKind::Ode(_), None) => {
+                return Err(PyTypeError::new_err(
+                    "ODE submit requires State, until_s, and output_times_s",
+                ));
+            }
+            (CommonPlanKind::TransientFlow(_), Some(CommonRunRequest::Ode(_))) => {
+                return Err(PyTypeError::new_err(
+                    "ODE Run request crossed a spatial transient Plan",
+                ));
+            }
+            (
+                CommonPlanKind::Fsi(_),
+                Some(CommonRunRequest::Ode(_) | CommonRunRequest::Transient(_)),
+            )
+            | (CommonPlanKind::TransientFlow(_), Some(CommonRunRequest::Fsi(_))) => {
+                return Err(PyTypeError::new_err(
+                    "common Run request crossed an incompatible transient Plan",
+                ));
+            }
+            (
+                CommonPlanKind::Scalar(_)
+                | CommonPlanKind::Elasticity(_)
+                | CommonPlanKind::SteadyStokes(_)
+                | CommonPlanKind::Ode(_),
+                Some(_),
+            ) => {
+                return Err(PyTypeError::new_err(
+                    "steady submit accepts Plan alone and no transient Run controls",
+                ));
+            }
+        };
+        drop(plan_ref);
         Self::spawn(
             identity,
-            NativeRunJob::Reference { document, plan },
-            ResultMaterializationContext::None,
-            "eqiora-reference-run",
-        )
-        .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
-    }
-
-    fn submit_scalar_elliptic(
-        py: Python<'_>,
-        model: &PyModel,
-        realization: &PyRealization,
-    ) -> PyResult<Self> {
-        let document = model
-            .document()
-            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
-            .clone();
-        let plan = realization.plan().clone();
-        let identity = RunIdentity::from_scalar_elliptic(&document, &plan)
-            .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
-        if identity.model_digest() != plan.model_digest() {
-            return Err(diagnostic_error(
-                py,
-                &[Diagnostic::error(
-                    codes::INVALID_REALIZATION,
-                    "the accepted scalar-elliptic Realization belongs to a different Model artifact",
-                )
-                .with_graph_path(GraphPath::new([
-                    "realization".to_owned(),
-                    "model".to_owned(),
-                ]))],
-            ));
-        }
-        Self::spawn(
-            identity,
-            NativeRunJob::ScalarElliptic {
-                document,
-                plan: Box::new(plan),
-                environment: ScalarEllipticExecutionEnvironment::host_serial(),
-            },
-            ResultMaterializationContext::None,
-            "eqiora-scalar-elliptic-run",
-        )
-        .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
-    }
-
-    fn submit_steady_stokes(
-        py: Python<'_>,
-        model: &PyModel,
-        plan: &PySteadyStokesPlan,
-    ) -> PyResult<Self> {
-        let identity = RunIdentity::from_steady_stokes(model.artifact(), plan.native())
-            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
-        Self::spawn(
-            identity,
-            NativeRunJob::SteadyStokes(Box::new(plan.native().clone())),
-            ResultMaterializationContext::SteadyStokes {
-                mesh: plan.mesh(py),
-            },
-            "eqiora-steady-stokes-run",
-        )
-        .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
-    }
-
-    fn submit_linear_elasticity(
-        py: Python<'_>,
-        model: &PyModel,
-        plan: &PyLinearElasticityPlan,
-    ) -> PyResult<Self> {
-        let identity = RunIdentity::from_linear_elasticity(model.artifact(), plan.native())
-            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
-        Self::spawn(
-            identity,
-            NativeRunJob::LinearElasticity(Box::new(plan.native().clone())),
-            ResultMaterializationContext::None,
-            "eqiora-linear-elasticity-run",
-        )
-        .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
-    }
-
-    fn submit_fixed_mesh_monolithic(
-        py: Python<'_>,
-        model: &PyModel,
-        plan: &PyFixedMeshMonolithicPlan,
-    ) -> PyResult<Self> {
-        let identity = RunIdentity::from_fixed_mesh_monolithic(model.artifact(), plan.native())
-            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
-        Self::spawn(
-            identity,
-            NativeRunJob::FixedMeshMonolithic(Box::new(plan.native().clone())),
-            ResultMaterializationContext::FixedMeshMonolithic {
-                model: plan.model(py),
-            },
-            "eqiora-fixed-mesh-monolithic-fsi-run",
+            job,
+            ResultMaterializationContext::CommonPlan { plan },
+            thread_name,
+            cancellation_supported,
         )
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
@@ -606,6 +586,7 @@ impl PyRun {
         job: NativeRunJob,
         materialization: ResultMaterializationContext,
         thread_name: &str,
+        cancellation_supported: bool,
     ) -> Result<Self, Vec<Diagnostic>> {
         let shared = Arc::new(RunShared::new());
         let worker_shared = Arc::clone(&shared);
@@ -627,8 +608,15 @@ impl PyRun {
             materialization,
             shared,
             result_cache: Arc::new(ResultCache::new()),
+            cancellation_supported,
         })
     }
+}
+
+enum CommonRunRequest {
+    Ode(Box<CommonOdeRunRequest>),
+    Transient(Box<CommonTransientRunRequest>),
+    Fsi(Box<CommonFsiRunRequest>),
 }
 
 #[pymethods]
@@ -645,7 +633,7 @@ impl PyRun {
 
     #[getter]
     fn progress(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
-        let progress = { self.shared.state().progress };
+        let progress = { self.shared.state().progress.clone() };
         progress
             .map(|progress| progress.into_python(py))
             .transpose()
@@ -687,11 +675,20 @@ impl PyRun {
         self.identity.adapter()
     }
 
-    /// Request cancellation at the next accepted execution-family boundary.
+    #[getter]
+    fn adapter_version(&self) -> &'static str {
+        self.identity.adapter_version()
+    }
+
+    /// Request cancellation at the next supported execution-family boundary.
     ///
-    /// Returns whether this call recorded a new request. A run can still
-    /// complete when its last accepted boundary won the race.
+    /// Returns false when this execution family exposes no accepted cancellation
+    /// boundary. Otherwise, a run can still complete when its last accepted
+    /// boundary won the race.
     fn cancel(&self) -> bool {
+        if !self.cancellation_supported {
+            return false;
+        }
         self.shared.request_cancellation()
     }
 
@@ -771,207 +768,182 @@ fn materialize_result(
     identity: &RunIdentity,
     context: &ResultMaterializationContext,
 ) -> PyResult<Py<PyAny>> {
+    let ResultMaterializationContext::CommonPlan { plan } = context;
     match result {
-        NativeRunOutput::Reference(result) => result_into_python(py, result, identity.clone())
-            .and_then(|result| Py::new(py, result))
-            .map(Py::into_any),
-        NativeRunOutput::ScalarElliptic(result) => PyScalarEllipticResult::from_result(py, *result)
-            .and_then(|result| Py::new(py, result))
-            .map(Py::into_any),
+        NativeRunOutput::Scalar {
+            result,
+            elapsed_seconds,
+        } => crate::result::materialize_common_scalar(
+            py,
+            plan.borrow(py),
+            identity.clone(),
+            elapsed_seconds,
+            *result,
+        )
+        .and_then(|result| Py::new(py, result))
+        .map(Py::into_any),
+        NativeRunOutput::Elasticity {
+            result,
+            elapsed_seconds,
+        } => crate::result::materialize_common_elasticity(
+            py,
+            plan.borrow(py),
+            identity.clone(),
+            elapsed_seconds,
+            *result,
+        )
+        .and_then(|result| Py::new(py, result))
+        .map(Py::into_any),
         NativeRunOutput::SteadyStokes {
             result,
             elapsed_seconds,
-        } => match context {
-            ResultMaterializationContext::SteadyStokes { mesh } => materialize_stokes(
-                py,
-                *result,
-                identity.clone(),
-                elapsed_seconds,
-                mesh.clone_ref(py),
-            )
-            .and_then(|result| Py::new(py, result))
-            .map(Py::into_any),
-            ResultMaterializationContext::None
-            | ResultMaterializationContext::FixedMeshMonolithic { .. } => Err(internal_error(
-                py,
-                "steady-Stokes Result lost its accepted Mesh context",
-            )),
-        },
-        NativeRunOutput::LinearElasticity {
+        } => crate::result::materialize_common_steady_stokes(
+            py,
+            plan.borrow(py),
+            identity.clone(),
+            elapsed_seconds,
+            *result,
+        )
+        .and_then(|result| Py::new(py, result))
+        .map(Py::into_any),
+        NativeRunOutput::Transient {
+            states,
+            elapsed_seconds,
+        } => crate::result::materialize_common_transient(
+            py,
+            plan.borrow(py),
+            identity.clone(),
+            elapsed_seconds,
+            states,
+        )
+        .and_then(|result| Py::new(py, result))
+        .map(Py::into_any),
+        NativeRunOutput::Ode {
             result,
             elapsed_seconds,
-        } => materialize_linear_elasticity(py, *result, identity.clone(), elapsed_seconds)
-            .and_then(|result| Py::new(py, result))
-            .map(Py::into_any),
-        NativeRunOutput::FixedMeshMonolithic {
-            result,
+        } => crate::result::materialize_common_ode(
+            py,
+            plan.borrow(py),
+            identity.clone(),
             elapsed_seconds,
-        } => match context {
-            ResultMaterializationContext::FixedMeshMonolithic { model } => {
-                materialize_fixed_mesh_monolithic(
-                    py,
-                    *result,
-                    identity.clone(),
-                    elapsed_seconds,
-                    model.borrow(py),
-                )
-                .and_then(|result| Py::new(py, result))
-                .map(Py::into_any)
-            }
-            ResultMaterializationContext::None
-            | ResultMaterializationContext::SteadyStokes { .. } => Err(internal_error(
-                py,
-                "fixed-mesh monolithic FSI Result lost its accepted Model context",
-            )),
-        },
+            *result,
+        )
+        .and_then(|result| Py::new(py, result))
+        .map(Py::into_any),
     }
 }
 
 #[pyfunction]
-#[pyo3(signature = (model, *, end_time, max_step))]
-pub(crate) fn submit(
+#[pyo3(signature = (plan, /, *, state=None, until_s=None, output_times_s=None, steps=None, output_steps=None))]
+pub(crate) fn submit_plan(
     py: Python<'_>,
-    model: &PyModel,
-    end_time: f64,
-    max_step: f64,
+    plan: Py<PyPlan>,
+    state: Option<&Bound<'_, PyState>>,
+    until_s: Option<f64>,
+    output_times_s: Option<Vec<f64>>,
+    steps: Option<usize>,
+    output_steps: Option<Vec<usize>>,
 ) -> PyResult<PyRun> {
     panic_boundary(py, || {
-        PyRun::submit_reference(py, model, end_time, max_step)
+        let plan_ref = plan.borrow(py);
+        let request = if let Some(native_plan) = plan_ref.ode_native() {
+            let state = state.ok_or_else(|| {
+                PyTypeError::new_err("ODE submit requires state=State.initial(plan)")
+            })?;
+            let state = state.borrow();
+            let native_state = state.common_ode_native().ok_or_else(|| {
+                PyValueError::new_err("State is not a no-Mesh explicit ODE State")
+            })?;
+            if steps.is_some() || output_steps.is_some() {
+                return Err(PyTypeError::new_err(
+                    "ODE submit accepts only state, until_s, and output_times_s; steps/output_steps are unsupported",
+                ));
+            }
+            let until =
+                until_s.ok_or_else(|| PyTypeError::new_err("ODE submit requires until_s"))?;
+            let outputs = output_times_s
+                .ok_or_else(|| PyTypeError::new_err("ODE submit requires output_times_s"))?;
+            Some(CommonRunRequest::Ode(Box::new(
+                CommonOdeRunRequest::new(native_plan.clone(), native_state.clone(), until, outputs)
+                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
+            )))
+        } else if let Some(native_plan) = plan_ref.transient_native() {
+            let state = state.ok_or_else(|| {
+                PyTypeError::new_err("transient submit requires state=State(...)")
+            })?;
+            let state = state.borrow();
+            let native_state = state.common_native().ok_or_else(|| {
+                PyValueError::new_err("State is not a common transient restart State")
+            })?;
+            if native_state.state_space_identity() != native_plan.state_space_identity() {
+                return Err(PyValueError::new_err(
+                    "State belongs to a different exact common state space",
+                ));
+            }
+            let request = match (until_s, output_times_s, steps, output_steps) {
+                (Some(until), Some(outputs), None, None) => CommonTransientRunRequest::from_times(
+                    native_plan.clone(), native_state.clone(), until, outputs,
+                ),
+                (None, None, Some(steps), Some(outputs)) => CommonTransientRunRequest::from_steps(
+                    native_plan.clone(), native_state.clone(), steps, outputs,
+                ),
+                _ => return Err(PyTypeError::new_err(
+                    "transient submit requires exactly one complete until_s/output_times_s or steps/output_steps family",
+                )),
+            }.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            Some(CommonRunRequest::Transient(Box::new(request)))
+        } else if let Some(native_plan) = plan_ref.fsi_native() {
+            let state = state.ok_or_else(|| {
+                PyTypeError::new_err("FSI submit requires state=State.initial(plan, ...)")
+            })?;
+            let state = state.borrow();
+            let native_state = state
+                .common_native()
+                .ok_or_else(|| PyValueError::new_err("State is not a common FSI restart State"))?;
+            if native_state.state_space_identity() != native_plan.state_space_identity() {
+                return Err(PyValueError::new_err(
+                    "State belongs to a different exact common FSI state space",
+                ));
+            }
+            let request = match (until_s, output_times_s, steps, output_steps) {
+                (Some(until), Some(outputs), None, None) => CommonFsiRunRequest::from_times(
+                    native_plan.clone(), native_state.clone(), until, outputs,
+                ),
+                (None, None, Some(steps), Some(outputs)) => CommonFsiRunRequest::from_steps(
+                    native_plan.clone(), native_state.clone(), steps, outputs,
+                ),
+                _ => return Err(PyTypeError::new_err(
+                    "FSI submit requires exactly one complete until_s/output_times_s or steps/output_steps family",
+                )),
+            }.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            Some(CommonRunRequest::Fsi(Box::new(request)))
+        } else {
+            if state.is_some()
+                || until_s.is_some()
+                || output_times_s.is_some()
+                || steps.is_some()
+                || output_steps.is_some()
+            {
+                return Err(PyTypeError::new_err(
+                    "steady submit accepts Plan alone and no transient Run controls",
+                ));
+            }
+            None
+        };
+        drop(plan_ref);
+        PyRun::submit_common(py, plan, request)
     })
-}
-
-#[pyfunction]
-pub(crate) fn submit_realization(
-    py: Python<'_>,
-    model: &PyModel,
-    realization: &PyRealization,
-) -> PyResult<PyRun> {
-    panic_boundary(py, || PyRun::submit_scalar_elliptic(py, model, realization))
-}
-
-#[pyfunction]
-pub(crate) fn submit_steady_stokes(
-    py: Python<'_>,
-    model: &PyModel,
-    plan: &PySteadyStokesPlan,
-) -> PyResult<PyRun> {
-    panic_boundary(py, || PyRun::submit_steady_stokes(py, model, plan))
-}
-
-#[pyfunction]
-pub(crate) fn submit_linear_elasticity(
-    py: Python<'_>,
-    model: &PyModel,
-    plan: &PyLinearElasticityPlan,
-) -> PyResult<PyRun> {
-    panic_boundary(py, || PyRun::submit_linear_elasticity(py, model, plan))
-}
-
-#[pyfunction]
-pub(crate) fn submit_fixed_mesh_monolithic(
-    py: Python<'_>,
-    model: &PyModel,
-    plan: &PyFixedMeshMonolithicPlan,
-) -> PyResult<PyRun> {
-    panic_boundary(py, || PyRun::submit_fixed_mesh_monolithic(py, model, plan))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyRunStatus>()?;
-    module.add_class::<PyRunProgress>()?;
-    module.add_class::<PyRunCancellation>()?;
-    module.add_class::<PyScalarEllipticRunProgress>()?;
-    module.add_class::<PyScalarEllipticRunCancellation>()?;
+    module.add_class::<PyCommonTransientRunProgress>()?;
+    module.add_class::<PyCommonTransientRunCancellation>()?;
     module.add_class::<PyRun>()?;
-    module.add_function(wrap_pyfunction!(submit, module)?)?;
-    module.add_function(wrap_pyfunction!(submit_realization, module)?)?;
-    module.add_function(wrap_pyfunction!(submit_steady_stokes, module)?)?;
-    module.add_function(wrap_pyfunction!(submit_linear_elasticity, module)?)?;
-    module.add_function(wrap_pyfunction!(submit_fixed_mesh_monolithic, module)?)?;
+    module.add_function(wrap_pyfunction!(submit_plan, module)?)?;
     Ok(())
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-    use std::thread;
-
-    use eqiora::Diagnostic;
-    use eqiora::diagnostic::codes;
-
-    use super::{
-        CacheClaim, MaterializationClaim, PyRunStatus, ResultCache, RunFailure, RunShared,
-        RunState, RunTerminal, RunTerminalKind,
-    };
-
-    #[test]
-    fn run_states_follow_the_explicit_branching_transition_table() {
-        let mut completed = RunState::accepted();
-        completed.transition(PyRunStatus::Running);
-        completed.transition(PyRunStatus::Cancelling);
-        completed.transition(PyRunStatus::Completed);
-        assert_eq!(
-            completed.history,
-            [
-                PyRunStatus::Created,
-                PyRunStatus::Validating,
-                PyRunStatus::Queued,
-                PyRunStatus::Running,
-                PyRunStatus::Cancelling,
-                PyRunStatus::Completed,
-            ]
-        );
-        assert!(!completed.integrity_failed);
-
-        completed.transition(PyRunStatus::Cancelled);
-        assert!(completed.integrity_failed);
-        assert_eq!(completed.status, PyRunStatus::Failed);
-        assert!(matches!(
-            completed.terminal,
-            Some(RunTerminal::Failed(RunFailure::Internal(_)))
-        ));
-
-        let mut cancelled = RunState::accepted();
-        cancelled.transition(PyRunStatus::Cancelling);
-        cancelled.transition(PyRunStatus::Cancelled);
-        assert_eq!(cancelled.history.len(), 5);
-        assert!(!cancelled.integrity_failed);
-    }
-
-    #[test]
-    fn every_waiter_observes_one_failed_terminal() {
-        let shared = Arc::new(RunShared::new());
-        let waiters: Vec<_> = (0..2)
-            .map(|_| {
-                let shared = Arc::clone(&shared);
-                thread::spawn(move || shared.wait_terminal_kind())
-            })
-            .collect();
-        shared.finish(RunTerminal::Failed(RunFailure::Execution(vec![
-            Diagnostic::error(codes::NONSQUARE_SYSTEM, "probe"),
-        ])));
-        for waiter in waiters {
-            assert!(matches!(
-                waiter.join().expect("waiter must not panic"),
-                RunTerminalKind::Failed(RunFailure::Execution(_))
-            ));
-        }
-    }
-
-    #[test]
-    fn abandoned_result_materialization_fails_and_wakes_future_callers() {
-        let cache = Arc::new(ResultCache::new());
-        assert!(matches!(cache.claim(), CacheClaim::Materialize));
-        {
-            let _claim = MaterializationClaim::new(Arc::clone(&cache));
-        }
-        let CacheClaim::Failed(diagnostics) = cache.claim() else {
-            panic!("an abandoned materializer must leave one stable failure");
-        };
-        assert_eq!(diagnostics[0].code().to_string(), "EQ0002");
-        assert_eq!(
-            diagnostics[0].message(),
-            "the completed native Result could not be materialized"
-        );
-    }
-}
+#[path = "execution/tests.rs"]
+mod tests;

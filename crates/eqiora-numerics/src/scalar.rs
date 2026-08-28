@@ -1,19 +1,15 @@
 //! Scalar elliptic, transport, diffusion, and affine-network realizations.
 
 pub use crate::canonical::{
-    AcceptedScalarEllipticParameterPoint, DefaultScalarElliptic1dConfig,
-    FinalizedScalarEllipticParameterPoint, ResolvedScalarEllipticCartesianSolution,
-    ResolvedScalarEllipticSolution1d, ScalarEllipticCartesianBoundary,
+    DefaultScalarElliptic1dConfig, FinalizedScalarEllipticParameterPoint,
+    ResolvedScalarEllipticCartesianSolution, ResolvedScalarEllipticSolution1d,
     ScalarEllipticCartesianModel, ScalarEllipticModel1d, compare_canonical_scalar_elliptic_1d,
-    finalize_lowered_scalar_elliptic_cartesian,
     finalize_lowered_scalar_elliptic_cartesian_with_assembly,
-    finalize_resolved_scalar_elliptic_cartesian,
-    finalize_resolved_scalar_elliptic_cartesian_with_assembly,
-    finalize_scalar_elliptic_parameter_point, lower_scalar_elliptic_1d,
-    lower_scalar_elliptic_cartesian, solve_and_linearize_resolved_scalar_elliptic_cartesian,
-    solve_and_linearize_resolved_scalar_elliptic_cartesian_with_assembly,
-    solve_default_scalar_elliptic_1d, solve_resolved_scalar_elliptic_1d,
-    solve_resolved_scalar_elliptic_1d_with_assembly, solve_resolved_scalar_elliptic_cartesian,
+    finalize_resolved_scalar_elliptic_cartesian, finalize_scalar_elliptic_parameter_point,
+    lower_scalar_elliptic_1d, lower_scalar_elliptic_cartesian,
+    solve_and_linearize_resolved_scalar_elliptic_cartesian, solve_default_scalar_elliptic_1d,
+    solve_resolved_scalar_elliptic_1d, solve_resolved_scalar_elliptic_1d_with_assembly,
+    solve_resolved_scalar_elliptic_cartesian,
     solve_resolved_scalar_elliptic_cartesian_with_assembly,
     solve_resolved_scalar_elliptic_simplicial,
     solve_resolved_scalar_elliptic_simplicial_with_assembly,
@@ -23,11 +19,8 @@ pub use crate::canonical_transport::{
     lower_scalar_transport_cartesian_2d,
 };
 pub use crate::cartesian_elliptic::{
-    CartesianQ1Field, ScalarEllipticCartesianFemSolution, ScalarEllipticCartesianFvmSolution,
-    linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
-    linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
-    lower_cartesian_q1_diffusion_local_action, solve_scalar_elliptic_cartesian_fem,
-    solve_scalar_elliptic_cartesian_fem_with_assembly, solve_scalar_elliptic_cartesian_fvm,
+    linearize_scalar_elliptic_cartesian_fem, lower_cartesian_q1_diffusion_local_action,
+    solve_scalar_elliptic_cartesian_fem_with_assembly,
     solve_scalar_elliptic_cartesian_fvm_with_assembly,
 };
 pub use crate::cartesian_transport::{

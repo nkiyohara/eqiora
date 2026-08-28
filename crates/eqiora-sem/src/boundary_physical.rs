@@ -100,31 +100,37 @@ impl KernelProgram {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let contracts = ports
-            .iter()
-            .map(|port| {
-                resolve_port_contract(
-                    port.erase(),
-                    self.node_definitions(),
-                    self.edges(),
-                    self.cartesian_bounds_map(),
-                )?
-                .ok_or_else(|| {
-                    port_error(
+        let geometry_junction = self.geometry_boundary_junctions().get(&connection_id);
+        let contracts = if geometry_junction.is_some() {
+            Vec::new()
+        } else {
+            ports
+                .iter()
+                .map(|port| {
+                    resolve_port_contract(
                         port.erase(),
-                        "Connection member is not a boundary-physical Port",
-                    )
+                        self.node_definitions(),
+                        self.edges(),
+                        self.cartesian_bounds_map(),
+                    )?
+                    .ok_or_else(|| {
+                        port_error(
+                            port.erase(),
+                            "Connection member is not a boundary-physical Port",
+                        )
+                    })
                 })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let geometry = match connection_definition.semantics() {
-            ConnectionSemantics::Conserving => {
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        let geometry = match (connection_definition.semantics(), geometry_junction) {
+            (ConnectionSemantics::Conserving, Some(_)) => BoundaryJunctionGeometry::Coincident,
+            (ConnectionSemantics::Conserving, None) => {
                 validate_boundary_physical_connection(&contracts).map_err(|_| {
                     port_error(connection_id, "coincident boundary Connection is not valid")
                 })?;
                 BoundaryJunctionGeometry::Coincident
             }
-            ConnectionSemantics::SpatialPeriodic => {
+            (ConnectionSemantics::SpatialPeriodic, None) => {
                 let identification = validate_spatial_periodic_boundary_connection(&contracts)
                     .map_err(|_| {
                         port_error(connection_id, "spatial-periodic boundary pair is not valid")
@@ -204,13 +210,17 @@ impl KernelProgram {
                 "boundary junction anchor has no unique parent Domain",
             ));
         };
-        let Some(bounds) = self.cartesian_bounds_map().get(&parent) else {
-            return Err(port_error(
-                anchor.erase(),
-                "boundary junction parent is not a Cartesian volume",
-            ));
+        let dimensions = if let Some(junction) = geometry_junction {
+            junction.dimensions
+        } else {
+            let Some(bounds) = self.cartesian_bounds_map().get(&parent) else {
+                return Err(port_error(
+                    anchor.erase(),
+                    "boundary junction parent is not a Cartesian volume",
+                ));
+            };
+            bounds.len()
         };
-        let dimensions = bounds.len();
 
         let mut builder = ExprDagBuilder::new();
         let anchor_trace = builder.symbol(SymbolRef::PortTrace(anchor))?;
@@ -334,6 +344,10 @@ pub(crate) fn validate_networks(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
     cartesian_bounds: &BTreeMap<RawId, Vec<AxisBounds>>,
+    geometry_boundary_embeddings: &BTreeMap<
+        RawId,
+        crate::program::geometry_admission::GeometryBoundaryEmbedding,
+    >,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (&id, node) in nodes {
@@ -341,6 +355,12 @@ pub(crate) fn validate_networks(
             continue;
         };
         if port.boundary_physical_contract().is_none() {
+            continue;
+        }
+        if let Some((_, boundary)) = port.boundary_physical_contract()
+            && geometry_boundary_embeddings.contains_key(&boundary.erase())
+        {
+            validate_port_topology(id, boundary.erase(), nodes, edges, diagnostics);
             continue;
         }
         let contract = match resolve_port_contract(id, nodes, edges, cartesian_bounds) {
@@ -363,7 +383,7 @@ pub(crate) fn validate_networks(
             ));
         } else {
             let owner = *owners.first().expect("one Port owner was checked");
-            validate_owner(owner, id, &contract, nodes, edges, diagnostics);
+            validate_owner(owner, id, contract.boundary, nodes, edges, diagnostics);
         }
 
         let memberships = edge_sources(edges, id, EdgeKind::Connects);
@@ -402,10 +422,48 @@ pub(crate) fn validate_networks(
     }
 }
 
+fn validate_port_topology(
+    port: RawId,
+    boundary: RawId,
+    nodes: &BTreeMap<RawId, KernelNode>,
+    edges: &[Edge],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let owners = edge_sources(edges, port, EdgeKind::HasPort);
+    if owners.len() != 1 {
+        diagnostics.push(port_error(
+            port,
+            format!(
+                "boundary-physical Port requires exactly one owning Relation, found {}",
+                owners.len()
+            ),
+        ));
+    } else {
+        validate_owner(
+            *owners.first().expect("one Port owner was checked"),
+            port,
+            boundary,
+            nodes,
+            edges,
+            diagnostics,
+        );
+    }
+    let memberships = edge_sources(edges, port, EdgeKind::Connects);
+    if memberships.len() != 1 {
+        diagnostics.push(port_error(
+            port,
+            format!(
+                "boundary-physical Port requires exactly one conserving membership, found {}",
+                memberships.len()
+            ),
+        ));
+    }
+}
+
 fn validate_owner(
     owner: RawId,
     port: RawId,
-    contract: &BoundaryPhysicalPortContract<RawId>,
+    boundary: RawId,
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
     diagnostics: &mut Vec<Diagnostic>,
@@ -418,7 +476,7 @@ fn validate_owner(
         return;
     }
     let scopes = edge_targets(edges, owner, EdgeKind::AppliesOn);
-    if scopes != BTreeSet::from([contract.boundary]) {
+    if scopes != BTreeSet::from([boundary]) {
         diagnostics.push(port_error(
             port,
             "boundary-physical owning Relation must apply on the exact Port boundary",

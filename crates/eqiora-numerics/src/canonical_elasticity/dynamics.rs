@@ -1,5 +1,7 @@
 //! Method-neutral recognition of first-order isotropic elastodynamics.
 
+use std::collections::BTreeMap;
+
 use eqiora_core::{Diagnostic, DimExponents, RawId, ValueShape};
 use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, KernelNode, SymbolRef, ValueFrame};
@@ -235,7 +237,7 @@ fn lower_isotropic_elastodynamics_cartesian<const D: usize>(
     program: &KernelProgram,
 ) -> Result<IsotropicElastodynamicsCartesianModel<D>, Diagnostic> {
     let (domain, bounds) = unique_box::<D>(program)?;
-    let lowered = lower_isotropic_elastodynamics_subdomain::<D>(program, domain, bounds)?;
+    let lowered = lower_isotropic_elastodynamics_subdomain::<D>(program, domain, bounds, None)?;
     require_closed_elasticity_parts(
         program,
         &[ElasticityClosure {
@@ -267,13 +269,23 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain_2d(
     domain: RawId,
     bounds: [[f64; 2]; 2],
 ) -> Result<LoweredIsotropicElastodynamicsSubdomain2d, Diagnostic> {
-    lower_isotropic_elastodynamics_subdomain::<2>(program, domain, bounds)
+    lower_isotropic_elastodynamics_subdomain::<2>(program, domain, bounds, None)
+}
+
+pub(crate) fn lower_isotropic_elastodynamics_subdomain_2d_with_boundaries(
+    program: &KernelProgram,
+    domain: RawId,
+    bounds: [[f64; 2]; 2],
+    boundaries: BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), RawId>,
+) -> Result<LoweredIsotropicElastodynamicsSubdomain2d, Diagnostic> {
+    lower_isotropic_elastodynamics_subdomain::<2>(program, domain, bounds, Some(boundaries))
 }
 
 pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
     program: &KernelProgram,
     domain: RawId,
     bounds: [[f64; 2]; D],
+    boundaries: Option<BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), RawId>>,
 ) -> Result<LoweredIsotropicElastodynamicsSubdomain<D>, Diagnostic> {
     let (displacement, velocity, load_potential) = exact_fields::<D>(program, domain)?;
     let volume_relations = relations_on(program, domain);
@@ -386,8 +398,25 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
         ));
     }
 
-    let lowered_boundary =
-        boundary::lower_dimension::<D>(program, domain, velocity, displacement, &two_mu, &lambda)?;
+    let lowered_boundary = match boundaries {
+        Some(boundaries) => boundary::lower_dimension_with_boundaries::<D>(
+            program,
+            domain,
+            velocity,
+            displacement,
+            &two_mu,
+            &lambda,
+            boundaries,
+        )?,
+        None => boundary::lower_dimension::<D>(
+            program,
+            domain,
+            velocity,
+            displacement,
+            &two_mu,
+            &lambda,
+        )?,
+    };
     let model = IsotropicElastodynamicsCartesianModel {
         domain,
         displacement,

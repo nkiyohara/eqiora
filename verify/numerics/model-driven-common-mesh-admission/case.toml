@@ -1,0 +1,40 @@
+id = "numerics.model-driven-common-mesh-admission"
+status = "verified"
+scope = "crate-private-model-driven-q1-tpfa-mini-p1-common-mesh-admission"
+reference_kind = "analytic-cardinality-and-causal-cross-wire-falsifiers"
+
+capabilities = [
+  "fresh-external-support-model-classification",
+  "same-exact-anisotropic-cartesian-mesh-q1-tpfa",
+  "source-owned-common-simplicial-mesh-mini-p1-resolution",
+  "exact-model-and-method-policy-identity-retention",
+  "typed-mathematical-capability-recognition",
+  "closed-policy-provider-and-resource-cross-wire-rejection",
+  "gmsh-producer-assignment-proof-replay",
+]
+
+[falsifiers]
+mathematical_meaning = "scalar-shaped algebraic reaction and Stokes-shaped non-incompressible systems match neither typed capability"
+spatial_policy = "scalar Model paired with MINI/P1 rejects"
+linear_policy = "algorithm, preconditioner, and reduction substitutions independently reject"
+floating_policy = "negative-zero tolerance rejects before admission"
+provider = "different solver provider changes policy identity and cannot execute another provider's admission"
+mesh = "same-cardinality substituted Cartesian axes reject exact ownership"
+correspondence = "left/right source-facet relabelling rejects exact replay"
+production = "provider identity and correspondence digest mutations reject"
+gmsh_assignment = "retained provider-output tag mutation either rejects a foreign tag inventory or produces distinct correspondence and production identities"
+geometry = "foreign exact rectangle rejects Model/resource replay"
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "numerical_admission::tests::registered_model_driven_common_mesh_admission_evidence"
+
+[claim_boundary]
+adds_public_root_api = false
+persists_plan_or_run_lineage = false
+executes_stokes_linear_system = false
+general_scalar_equations = false
+general_geometry_or_mesh = false
+nonorthogonal_tpfa = false
+temporal_policy = false

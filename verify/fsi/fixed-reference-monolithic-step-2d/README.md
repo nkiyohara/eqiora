@@ -29,8 +29,8 @@ golden fixture.
 
 The artifact path binds the exact Model, Geometry Identity, correspondence,
 mesh, multi-Domain Realization, Run inputs, and finalized operator. Reconstructed
-values retain exact Field IDs in memory. Durable publication is verified by
-`artifacts.fixed-reference-fsi-spatial-trajectory`.
+values retain exact Field IDs in memory. This case makes no durable fixed-mesh
+State or trajectory publication claim.
 
 Run:
 

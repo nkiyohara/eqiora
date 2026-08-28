@@ -105,6 +105,7 @@ fn validate_component(
     }
     let partition = normalize_definition_partition(proof, interfaces, diagnostics)?;
     mark_partition_membership(&partition, &mut endpoints);
+    mark_deferred_memberships(proof, &mut endpoints, diagnostics);
     let public_partition = public_boundary_partition(&partition, &endpoints);
 
     let mut public_endpoints = BTreeMap::new();
@@ -205,9 +206,7 @@ fn mark_deferred_memberships(
             ));
             continue;
         };
-        if endpoint.slots.membership() == PhysicalSlot::Open
-            && let Err(violation) = endpoint.slots.fill_membership()
-        {
+        if let Err(violation) = endpoint.slots.fill_membership() {
             diagnostics.push(closure_error(
                 &proof.file,
                 endpoint.origin.range(),

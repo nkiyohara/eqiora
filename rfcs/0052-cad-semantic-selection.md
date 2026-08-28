@@ -5,7 +5,6 @@
 - Authors: Eqiora contributors
 - Created: 2026-07-20
 - Depends on: [RFC 0049](0049-geometry-identity-and-mesh-correspondence.md)
-  and [RFC 0051](0051-durable-spatial-state-and-trajectory.md)
 
 ## Decision
 

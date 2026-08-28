@@ -808,7 +808,7 @@ fn synthetic_boundary_member_identity(binder: &BoundaryFamilyBinderSyntax) -> St
 pub(super) fn validate_boundary_connection(
     scope: &DefinitionScope<'_, '_>,
     declaration: &BoundaryConnectionDecl,
-) -> Result<(), Diagnostic> {
+) -> Result<Option<super::PhysicalEndpointSelections>, Diagnostic> {
     if declaration.syntax() != ConnectionSyntax::Conserving {
         return Err(source_error(
             codes::LANGUAGE_TYPE_ERROR,
@@ -818,12 +818,7 @@ pub(super) fn validate_boundary_connection(
         ));
     }
     let Some(binder) = declaration.binder() else {
-        return Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            scope.file,
-            declaration.range(),
-            "boundary Connection in a reusable Component requires a family binder",
-        ));
+        return validate_model_boundary_connection(scope, declaration).map(Some);
     };
     let active = scope.boundary_family_scope(binder)?;
     if declaration.ports().len() < 2 {
@@ -882,7 +877,7 @@ pub(super) fn validate_boundary_connection(
             "boundary-family Connection requires the exact same specialized Connector",
         ));
     }
-    Ok(())
+    Ok(None)
 }
 
 /// Validate one exact Boundary Connection in a closed Model.

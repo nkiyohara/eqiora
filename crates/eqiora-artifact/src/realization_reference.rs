@@ -1,19 +1,16 @@
 //! Version-neutral identity and execution projection of one Realization artifact.
 
+use crate::{
+    ArtifactDigest, CanonicalModelArtifact, LayoutArtifacts, RealizationEnvelopeV1,
+    RealizationEnvelopeV2, RealizationEnvelopeV3, RealizationEnvelopeV4, RealizationEnvelopeV5,
+    SimplicialMeshEnvelopeV1, invalid_artifact,
+};
 use eqiora_core::Diagnostic;
 use eqiora_realization::{
     FixedTopologyAleCoupledRealizationPlan, FixedTopologyAleCoupledRealizationRequirements,
     SemanticRevision, Target, VectorLayoutKind,
 };
 use eqiora_solver::ReductionPolicy;
-use std::num::NonZeroUsize;
-
-use crate::{
-    ArtifactDigest, CanonicalModelArtifact, LayoutArtifacts,
-    PrescribedDynamicSolidRealizationEnvelopeV1, RealizationEnvelopeV1, RealizationEnvelopeV2,
-    RealizationEnvelopeV3, RealizationEnvelopeV4, RealizationEnvelopeV5, SimplicialMeshEnvelopeV1,
-    invalid_artifact,
-};
 
 mod sealed {
     pub trait Sealed {}
@@ -90,10 +87,6 @@ pub struct RealizationArtifactReference {
     layout_artifacts: LayoutArtifacts,
     reduction: ReductionPolicy,
 }
-
-/// Compatibility alias for the former source-level name.
-#[deprecated(note = "use RealizationArtifactReference")]
-pub type RealizationArtifactReferenceV1 = RealizationArtifactReference;
 
 impl RealizationArtifactReference {
     #[allow(clippy::too_many_arguments)]
@@ -293,24 +286,6 @@ impl CanonicalRealizationArtifact for RealizationEnvelopeV5 {
             self.requirements()?.coupled().execution().vector_layout(),
             self.layout_artifacts(),
             plan.coupled().solver().reduction(),
-        ))
-    }
-}
-
-impl sealed::Sealed for PrescribedDynamicSolidRealizationEnvelopeV1 {}
-
-impl CanonicalRealizationArtifact for PrescribedDynamicSolidRealizationEnvelopeV1 {
-    fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic> {
-        Ok(RealizationArtifactReference::new(
-            self.digest()?,
-            self.model_artifact(),
-            self.semantic_revision(),
-            Target::HostCpu {
-                threads: NonZeroUsize::MIN,
-            },
-            VectorLayoutKind::Replicated,
-            LayoutArtifacts::Replicated,
-            ReductionPolicy::Reproducible,
         ))
     }
 }

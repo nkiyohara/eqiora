@@ -139,10 +139,8 @@ no equation or material law.
 
 The accepted in-memory solution reconstructs values against the exact
 canonical Field identities. This RFC deliberately introduces no durable
-spatial snapshot or trajectory wire. That subsequent boundary is owned by
-[RFC 0051](0051-durable-spatial-state-and-trajectory.md). This slice's
-output-less Run v2 records input lineage only and is not an execution
-attestation.
+fixed-mesh spatial snapshot or trajectory wire. Its Run records input lineage
+only and is not a durable trajectory attestation.
 
 ## Falsifying verification
 

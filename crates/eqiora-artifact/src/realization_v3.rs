@@ -198,6 +198,9 @@ impl RealizationEnvelopeV3 {
             eqiora_realization::MeshPolicy::GeneratedUniform { .. } => Err(invalid_artifact(
                 "coupled realization must reference one imported mesh artifact",
             )),
+            eqiora_realization::MeshPolicy::SuppliedCartesian { .. } => Err(invalid_artifact(
+                "coupled realization does not admit a supplied Cartesian mesh",
+            )),
         }
     }
 

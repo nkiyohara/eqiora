@@ -24,6 +24,7 @@ mod implicit_time;
 mod implicit_time_lineage;
 mod json_preflight;
 mod mesh;
+mod mesh_production_lineage;
 mod mesh_revision_overlap;
 mod model;
 mod model_reference;
@@ -31,8 +32,6 @@ mod model_transaction;
 mod model_transaction_wire;
 mod model_wire;
 mod physical_exposure;
-mod prescribed_dynamic_solid_provider_occurrence;
-mod prescribed_dynamic_solid_realization;
 mod realization;
 mod realization_reference;
 mod realization_v2;
@@ -102,6 +101,10 @@ pub use implicit_time_lineage::{ImplicitTimeCheckpointEnvelopeV1, ImplicitTimeRe
 pub use json_preflight::JsonDecoderLimits;
 pub(crate) use json_preflight::check_json_limits;
 pub use mesh::{MeshDecoderLimits, SimplicialMeshEnvelopeV1};
+pub use mesh_production_lineage::{
+    AffineTriangleMeshCellsV1, CartesianMeshCellsV1, MeshProductionLineageEnvelopeV1,
+    PlanarMeshQualityV1,
+};
 pub use mesh_revision_overlap::MeshRevisionOverlapEnvelopeV1;
 pub use model::ModelDecoderLimits;
 pub use model_reference::{
@@ -115,14 +118,9 @@ pub use physical_exposure::{
     PhysicalExposureObservationBindingV1, PhysicalExposureProjectionV1, PhysicalExposureQuantityV1,
     PhysicalExposureSourceOriginV1, PhysicalExposureSourceSpanV1,
 };
-pub use prescribed_dynamic_solid_provider_occurrence::PrescribedDynamicSolidProviderOccurrenceEnvelopeV1;
-pub use prescribed_dynamic_solid_realization::PrescribedDynamicSolidRealizationEnvelopeV1;
-pub use realization::{
-    LayoutArtifacts, LayoutArtifactsV1, RealizationDecoderLimits, RealizationEnvelopeV1,
-};
-#[allow(deprecated)]
+pub use realization::{LayoutArtifacts, RealizationDecoderLimits, RealizationEnvelopeV1};
 pub use realization_reference::{
-    CanonicalRealizationArtifact, RealizationArtifactReference, RealizationArtifactReferenceV1,
+    CanonicalRealizationArtifact, RealizationArtifactReference,
     ReplayableFixedTopologyAleRealizationArtifact,
 };
 pub use realization_v2::RealizationEnvelopeV2;
@@ -147,12 +145,11 @@ pub use semantic_fingerprint::{
     SemanticFingerprintGeneration, StructuralSemanticFingerprint, structurally_equivalent,
 };
 pub use spatial_data::{
-    DatasetViewEnvelopeV1, DiscreteFieldStorageEnvelopeV1, FieldSnapshotEnvelopeV1,
-    MlDatasetChannelStatisticsV1, MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1,
-    MlDatasetEnvelopeV1, MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1,
-    MlDatasetSampleSplitV1, MlDatasetSampleV1, MlDatasetStateKindV1, MlDatasetStateReferenceV1,
-    SpatialStateEnvelopeV1, SpatialTrajectoryEnvelopeV1, SpatialTrajectorySegmentEnvelopeV1,
-    StorageChunkSha256V1, StorageChunkV1, TrajectoryDecoderLimits, ValidatedFixedSpatialContextV1,
+    DiscreteFieldStorageEnvelopeV1, FieldSnapshotEnvelopeV1, MlDatasetChannelStatisticsV1,
+    MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1, MlDatasetEnvelopeV1,
+    MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1, MlDatasetSampleSplitV1,
+    MlDatasetSampleV1, MlDatasetStateKindV1, MlDatasetStateReferenceV1, StorageChunkSha256V1,
+    StorageChunkV1, TrajectoryDecoderLimits,
 };
 pub use spatial_state_v2::{SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2};
 pub use spatial_state_v3::{SpatialStateEnvelopeV3, SpatialStateOriginKindV3};

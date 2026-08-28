@@ -14,18 +14,18 @@ import eqiora.torch as eqtorch
 
 
 POISSON = """
-model pytorch_differentiated_poisson {
-  domain square = box(0, 1, 0, 1);
-  domain x_lower = boundary(square, axis = 0, side = lower);
-  domain x_upper = boundary(square, axis = 0, side = upper);
-  domain y_lower = boundary(square, axis = 1, side = lower);
-  domain y_upper = boundary(square, axis = 1, side = upper);
+public component PytorchDifferentiatedPoisson {
+  public support square: volume(ambient_dimension = 2);
+  public support x_lower: boundary(parent = square);
+  public support x_upper: boundary(parent = square);
+  public support y_lower: boundary(parent = square);
+  public support y_upper: boundary(parent = square);
   representation scalar_space = continuum;
   field potential on square as scalar_space: 1 = 0;
-  parameter diffusion: 1 = 1;
-  parameter wave_number: 1 / m = 3.141592653589793;
-  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;
-  parameter boundary_offset: 1 = 0;
+  public parameter diffusion: 1;
+  public parameter wave_number: 1 / m;
+  public parameter source_scale: 1 / m ^ 2;
+  public parameter boundary_offset: 1;
   relation balance continuous on square {
     -div(diffusion * grad(potential))
       - source_scale * sin(wave_number * coordinate(0))
@@ -55,28 +55,64 @@ assert "torch" not in sys.modules
 
 
 def differentiable_program(method) -> eqiora.DifferentiableProgram:
-    model = eqiora.compile(POISSON)
-    realization = eqiora.preview_realization(
+    graph = eqiora.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+    geometry = graph.build(
+        rectangle,
+        named_topology={
+            "square": rectangle.region,
+            "x_lower": rectangle.boundaries[0],
+            "x_upper": rectangle.boundaries[1],
+            "y_lower": rectangle.boundaries[2],
+            "y_upper": rectangle.boundaries[3],
+        },
+    )
+    mesh_plan = eqiora.meshing.resolve(
+        geometry,
+        eqiora.meshing.CartesianMesher(cells=(4, 4)),
+    )
+    mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+    model = eqiora.compile(
+        source=POISSON,
+        geometry=geometry,
+        parameters={
+            "diffusion": 1.0,
+            "wave_number": np.pi,
+            "source_scale": 2.0 * np.pi**2,
+            "boundary_offset": 0.0,
+        },
+    )
+    spatial = (
+        eqiora.fem.Q1()
+        if method == eqiora.fem.Q1()
+        else eqiora.fvm.CellCenteredTpfa()
+    )
+    plan = eqiora.resolve(
         model,
-        eqiora.ScalarElliptic(method=method, cells_per_axis=4),
+        mesh=mesh,
+        spatial=spatial,
+        solve=eqiora.solve.Linear(
+            relative_tolerance=1.0e-10,
+            absolute_tolerance=1.0e-12,
+            maximum_iterations=10_000,
+        ),
     )
     return eqiora.diff.compile(
-        model,
-        realization,
+        plan,
         inputs=(
             model.parameter("source_scale"),
             model.parameter("diffusion"),
             model.parameter("boundary_offset"),
         ),
-        output=model.field("potential"),
+        output=plan.field,
     )
 
 
 @pytest.mark.parametrize(
     "method",
     [
-        eqiora.ScalarEllipticMethod.FiniteElement,
-        eqiora.ScalarEllipticMethod.FiniteVolume,
+        eqiora.fem.Q1(),
+        eqiora.fvm.CellCenteredTpfa(),
     ],
 )
 def test_functional_operator_matches_native_primal_and_vjp(method) -> None:
@@ -122,7 +158,7 @@ def test_functional_operator_matches_native_primal_and_vjp(method) -> None:
 
 def test_autograd_is_repeatable_and_zero_cotangent_is_exact() -> None:
     operator = eqtorch.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     parameters = torch.tensor(
         [17.0, 1.2, 0.1],
@@ -148,7 +184,7 @@ def test_autograd_is_repeatable_and_zero_cotangent_is_exact() -> None:
 
 def test_double_backward_is_an_explicit_nonclaim() -> None:
     operator = eqtorch.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     parameters = torch.tensor(
         [17.0, 1.2, 0.1],
@@ -167,8 +203,8 @@ def test_double_backward_is_an_explicit_nonclaim() -> None:
 @pytest.mark.parametrize(
     "method",
     [
-        eqiora.ScalarEllipticMethod.FiniteElement,
-        eqiora.ScalarEllipticMethod.FiniteVolume,
+        eqiora.fem.Q1(),
+        eqiora.fvm.CellCenteredTpfa(),
     ],
 )
 def test_registration_passes_opcheck_gradcheck_and_fullgraph_compile(method) -> None:
@@ -235,14 +271,14 @@ def test_registration_passes_opcheck_gradcheck_and_fullgraph_compile(method) -> 
 )
 def test_inputs_fail_closed_before_or_at_native_admission(parameters, error) -> None:
     operator = eqtorch.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     with pytest.raises(error):
         operator(parameters)
 
 
 def test_registry_is_identity_deduplicated_and_retained_for_backward() -> None:
-    program = differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+    program = differentiable_program(eqiora.fem.Q1())
     first = eqtorch.bind(program)
     second = eqtorch.bind(program)
     assert first._token == second._token
@@ -263,7 +299,7 @@ def test_unknown_or_mismatched_tokens_fail_closed() -> None:
         eqtorch._solve(parameters, "not-a-token", 3, 25)
 
     operator = eqtorch.bind(
-        differentiable_program(eqiora.ScalarEllipticMethod.FiniteElement)
+        differentiable_program(eqiora.fem.Q1())
     )
     with pytest.raises(RuntimeError, match="metadata"):
         eqtorch._solve(parameters, operator._token, 3, operator.output_shape[0] + 1)

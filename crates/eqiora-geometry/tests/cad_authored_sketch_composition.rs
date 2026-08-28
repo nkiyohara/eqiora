@@ -4,7 +4,7 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_geometry::{
     CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CadAuthoredSketch,
-    CanonicalGeometryV1, ConstrainedRectangleV1,
+    ConstrainedRectangleV1,
 };
 
 const V1_WIRE: &str = r#"{"schema":"eqiora.cad-authored-operation-graph-envelope/v1","encoding":"eqiora.canonical-json/v1","length_unit":"metre","requested_modeling_tolerance_m":1e-9,"sketch_plane":{"id":"sketch-plane","kind":"xy","z_m":0.5},"profile":{"id":"rectangle-profile","kind":"axis-aligned-rectangle","sketch_plane":"sketch-plane","constraint":"closed-by-construction","x_bounds_m":[-2.0,3.0],"y_bounds_m":[-1.0,2.0]},"face":{"id":"profile-face","kind":"one-closed-loop-face","profile":"rectangle-profile","region_count":1},"extrusion":{"id":"positive-z-extrusion","kind":"positive-z","face":"profile-face","depth_m":4.0,"repair":"none"},"selections":["start-cap","end-cap","profile-x-lower","profile-x-upper","profile-y-lower","profile-y-upper"]}"#;
@@ -19,13 +19,6 @@ const V2_WIRE: &str = r#"{"schema":"eqiora.cad-authored-operation-graph-envelope
 const V2_DIGEST: [u8; 32] = [
     0x00, 0xac, 0xb9, 0x49, 0x4f, 0xc7, 0xde, 0xa8, 0xf1, 0xf2, 0x50, 0x0d, 0x13, 0x16, 0xcb, 0x33,
     0x15, 0x13, 0x0a, 0x96, 0x5a, 0x24, 0x17, 0x9b, 0x3e, 0xb1, 0xb1, 0x03, 0x45, 0x05, 0x8b, 0x47,
-];
-
-const PLANAR_WIRE: &str = r#"{"schema":"eqiora.planar-circular-hole-envelope/v1","encoding":"eqiora.canonical-json/v1","kind":"axis-aligned-rectangle-with-circular-hole-v1","length_unit":"metre","tolerance_m":1e-12,"bounds":[[0.0,2.2],[0.0,0.41]],"circle":{"center":[0.2,0.2],"radius_m":0.05},"entity_sets":[{"name":"cylinder","dimension":1,"members":[4]},{"name":"inlet","dimension":1,"members":[0]},{"name":"outlet","dimension":1,"members":[1]},{"name":"walls","dimension":1,"members":[2,3]},{"name":"fluid","dimension":2,"members":[0]}]}"#;
-
-const PLANAR_DIGEST: [u8; 32] = [
-    0xb0, 0x01, 0x23, 0x47, 0x2a, 0x59, 0x6e, 0x82, 0x89, 0x82, 0x0c, 0xab, 0xae, 0xe2, 0x0d, 0x52,
-    0xcd, 0xf8, 0x1b, 0x55, 0x72, 0xfa, 0x9c, 0xe5, 0x8f, 0xf1, 0x7c, 0xda, 0xa0, 0x00, 0x46, 0xd9,
 ];
 
 const V1_FACE_ORDER: [&str; 6] = [
@@ -110,14 +103,6 @@ fn compatibility_dfg_graph() -> CadAuthoredGraph {
     CadAuthoredGraph::new(dfg_rectangle(), 1.0, 1.0e-10)
         .unwrap()
         .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
-        .unwrap()
-}
-
-fn planar_authority(graph: &CadAuthoredGraph) -> CanonicalGeometryV1 {
-    graph
-        .planar_circular_section(
-            1.0e-12, "fluid", "inlet", "outlet", "walls", "walls", "cylinder",
-        )
         .unwrap()
 }
 
@@ -398,17 +383,10 @@ fn explicit_cut_route_reproduces_the_exact_v2_authority() {
 }
 
 #[test]
-fn separate_dfg_graph_reproduces_the_exact_planar_authority() {
+fn separate_dfg_graph_routes_reproduce_the_exact_cad_authority() {
     let explicit = explicit_dfg_graph();
     let compatibility = compatibility_dfg_graph();
     assert_route_equivalence(&explicit, &compatibility);
-
-    let explicit_section = planar_authority(&explicit);
-    let compatibility_section = planar_authority(&compatibility);
-    assert_eq!(explicit_section, compatibility_section);
-    assert_eq!(explicit_section.canonical_bytes(), PLANAR_WIRE.as_bytes());
-    assert_eq!(explicit_section.canonical_bytes().len(), 511);
-    assert_eq!(explicit_section.digest_bytes(), PLANAR_DIGEST);
 }
 
 #[test]

@@ -1,8 +1,21 @@
+use std::collections::BTreeMap;
+use std::num::NonZeroUsize;
+
+use eqiora::artifact::{
+    AffineTriangleMeshCellsV1, GeometryMeshCorrespondenceEnvelopeV1,
+    MeshProductionLineageEnvelopeV1, ModelEnvelope,
+};
+use eqiora::geometry::{PlanarOperationGraph, PlanarTopologyHandle};
 use eqiora::realization::{SolveRoot, TransformationNode};
-use eqiora::solver::REFERENCE_LINEAR_SOLVER;
+use eqiora::solver::{
+    LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
+};
 use eqiora_numerics::{
-    common::PhysicalBoundaryDisposition, fsi::FixedReferenceFsiCartesianModel2d,
-    fsi::lower_fixed_reference_fsi_cartesian_2d,
+    AuthenticatedCommonMesh, CommonBackwardEuler, CommonInitialField, CommonInitialValues,
+    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSpatialRequest,
+    IncompressibleScalingRequest2d, common::PhysicalBoundaryDisposition,
+    fsi::FixedReferenceFsiCartesianModel2d, fsi::lower_fixed_reference_fsi_cartesian_2d,
+    resolve_common_plan,
 };
 use support::fixed_reference_fsi::{
     direct_document, exact_spatial_witness, execute_initial_step, packaged_document,
@@ -63,10 +76,6 @@ fn direct_and_exact_packages_share_one_fixed_reference_fsi_meaning() {
 fn fixed_reference_monolithic_fsi_step_2d() {
     let direct = direct_document();
     let packaged = packaged_document();
-    let shared =
-        eqiora::api::FixedReferenceFsiResult2d::solve_reference(&direct, &REFERENCE_LINEAR_SOLVER)
-            .expect("production application result consumes the oracle-owned direct Model");
-
     let direct_model = lower_fixed_reference_fsi_cartesian_2d(direct.program())
         .expect("direct fixed-reference FSI semantics lower");
     let packaged_model = lower_fixed_reference_fsi_cartesian_2d(packaged.model().program())
@@ -93,23 +102,6 @@ fn fixed_reference_monolithic_fsi_step_2d() {
         direct.solution.solid_displacement_coefficients(),
         packaged.solution.solid_displacement_coefficients()
     );
-    assert_eq!(
-        shared.solutions()[0].vertex_velocity_coefficients(),
-        direct.solution.vertex_velocity_coefficients()
-    );
-    assert_eq!(
-        shared.solutions()[0].fluid_velocity_bubble_coefficients(),
-        direct.solution.fluid_velocity_bubble_coefficients()
-    );
-    assert_eq!(
-        shared.solutions()[0].fluid_pressure_coefficients(),
-        direct.solution.fluid_pressure_coefficients()
-    );
-    assert_eq!(
-        shared.solutions()[0].solid_displacement_coefficients(),
-        direct.solution.solid_displacement_coefficients()
-    );
-
     for execution in [&direct, &packaged] {
         let solution = &execution.solution;
         assert!(matches!(
@@ -152,6 +144,403 @@ fn fixed_reference_monolithic_fsi_step_2d() {
         assert_eq!(solution.interface_facets().len(), 2);
         assert_eq!(solution.fluid_velocity_cells().len(), 4);
         assert_eq!(solution.solid_cells().len(), 4);
+    }
+}
+
+#[test]
+fn common_plan_matches_independent_two_step_scientific_composition() {
+    let direct = direct_document();
+    let independent_model = lower_fixed_reference_fsi_cartesian_2d(direct.program())
+        .expect("independent fixed-reference FSI meaning lowers");
+    let independent_spatial =
+        support::fixed_reference_fsi::spatial_context(direct.program(), &independent_model);
+    let independent_execution = support::fixed_reference_fsi::execution_context(
+        direct.program(),
+        &independent_model,
+        &independent_spatial,
+    );
+    let independent_first = support::fixed_reference_fsi::solve_step(
+        &independent_model,
+        &independent_spatial,
+        &independent_execution,
+        &support::fixed_reference_fsi::prestrained_state(&independent_spatial),
+    );
+    let independent_second = support::fixed_reference_fsi::solve_step(
+        &independent_model,
+        &independent_spatial,
+        &independent_execution,
+        &support::fixed_reference_fsi::state_from_solution(
+            &independent_spatial,
+            &independent_first.solution,
+        ),
+    );
+
+    let graph = PlanarOperationGraph::new();
+    let fluid = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
+    let solid = graph.rectangle([1.0, 2.0], [0.0, 1.0]).unwrap();
+    let fluid_edges = fluid.boundaries();
+    let solid_edges = solid.boundaries();
+    let partition = graph
+        .partition(&fluid, &solid, [fluid_edges[1], solid_edges[0]])
+        .unwrap();
+    let geometry = graph
+        .build(
+            &partition,
+            &BTreeMap::from([
+                ("fluid".to_owned(), vec![fluid.region().into()]),
+                (
+                    "fluid_x_lower".to_owned(),
+                    vec![PlanarTopologyHandle::from(fluid_edges[0])],
+                ),
+                (
+                    "fluid_x_upper".to_owned(),
+                    vec![PlanarTopologyHandle::from(fluid_edges[1])],
+                ),
+                (
+                    "fluid_y_lower".to_owned(),
+                    vec![PlanarTopologyHandle::from(fluid_edges[2])],
+                ),
+                (
+                    "fluid_y_upper".to_owned(),
+                    vec![PlanarTopologyHandle::from(fluid_edges[3])],
+                ),
+                ("solid".to_owned(), vec![solid.region().into()]),
+                (
+                    "solid_x_lower".to_owned(),
+                    vec![PlanarTopologyHandle::from(solid_edges[0])],
+                ),
+                (
+                    "solid_x_upper".to_owned(),
+                    vec![PlanarTopologyHandle::from(solid_edges[1])],
+                ),
+                (
+                    "solid_y_lower".to_owned(),
+                    vec![PlanarTopologyHandle::from(solid_edges[2])],
+                ),
+                (
+                    "solid_y_upper".to_owned(),
+                    vec![PlanarTopologyHandle::from(solid_edges[3])],
+                ),
+            ]),
+        )
+        .unwrap();
+    let common_document = eqiora::api::ModelDocument::compile_with_geometry(
+        "fixed-reference-fsi.eqi",
+        include_str!("../../../examples/fixed-reference-fsi.eqi"),
+        &geometry,
+        Some("FixedReferenceFsi2d"),
+        &[
+            ("fluid_density", 2.0),
+            ("fluid_viscosity", 0.5),
+            ("solid_density", 3.0),
+            ("solid_mu", 4.0),
+            ("solid_lambda", 2.0),
+            ("zero_pressure", 0.0),
+        ],
+    )
+    .expect("component-only FSI compiles against exact Geometry");
+    let common_model = ModelEnvelope::from_program(common_document.program()).unwrap();
+    let policy = AffineTriangleMeshCellsV1::new([2, 2]).unwrap();
+    let (mesh, correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_adjacent_rectangle_partition_affine_triangles(
+            &geometry,
+            policy.cells(),
+        )
+        .unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+        policy,
+        &geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+    let resources = AuthenticatedCommonMesh::adjacent_partition(
+        geometry,
+        mesh.clone(),
+        correspondence,
+        production,
+    )
+    .unwrap();
+    let model_digest = common_model.digest().unwrap();
+    let fluid_domain = common_document.aliases()["fluid"].downcast().unwrap();
+    let solid_domain = common_document.aliases()["solid"].downcast().unwrap();
+    let scoped = CommonSpatialRequest::Scoped(vec![
+        CommonScopedSpatialPolicy::new(
+            model_digest.clone(),
+            fluid_domain,
+            CommonSpatialPolicy::MiniP1,
+        ),
+        CommonScopedSpatialPolicy::new(model_digest.clone(), solid_domain, CommonSpatialPolicy::P1),
+    ]);
+    let requested = SolverPlan::new(
+        LinearSolver::ConjugateGradient,
+        1.0e-11,
+        1.0e-13,
+        NonZeroUsize::new(20_000).unwrap(),
+    )
+    .unwrap()
+    .with_preconditioner(PreconditionerPolicy::Identity)
+    .with_reduction(ReductionPolicy::Reproducible);
+    let common_plans = [
+        (
+            "manual legacy scaling",
+            Some(IncompressibleScalingRequest2d::from_si(Some(2.0), Some(0.5), Some(4.0)).unwrap()),
+        ),
+        ("automatic scaling", None),
+    ]
+    .map(|(label, scaling)| {
+        let plan = resolve_common_plan(
+            &common_model,
+            resources.clone(),
+            scoped.clone(),
+            CommonSolvePolicy::Linear(requested),
+            scaling,
+            Some(CommonBackwardEuler::from_seconds(0.05).unwrap()),
+            &REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap()
+        .project(
+            |_| panic!("FSI resolved as ODE"),
+            |_| panic!("FSI resolved as scalar"),
+            |_| panic!("FSI resolved as elasticity"),
+            |_| panic!("FSI resolved as Stokes"),
+            |_| panic!("FSI resolved as transient flow"),
+            |plan| plan,
+        );
+        (label, plan)
+    });
+    let fields = [
+        common_document.aliases()["definition.fluid_velocity"]
+            .downcast()
+            .unwrap(),
+        common_document.aliases()["definition.fluid_pressure"]
+            .downcast()
+            .unwrap(),
+        common_document.aliases()["definition.solid_velocity"]
+            .downcast()
+            .unwrap(),
+        common_document.aliases()["definition.solid_displacement"]
+            .downcast()
+            .unwrap(),
+    ];
+    let fluid_vertices = common_plans[0].1.fluid_vertex_indices();
+    let fluid_cells = common_plans[0].1.fluid_cell_indices();
+    let solid_vertices = common_plans[0].1.solid_vertex_indices();
+    let solid_displacement = solid_vertices
+        .iter()
+        .map(|&vertex| {
+            if mesh.mesh().vertices()[vertex].as_slice() == [1.0, 0.5] {
+                [0.02, 0.0]
+            } else {
+                [0.0; 2]
+            }
+        })
+        .collect::<Vec<_>>();
+    let common_states = common_plans
+        .iter()
+        .map(|(label, common_plan)| {
+            let common_initial = common_plan
+                .initial_state(
+                    0.0,
+                    vec![
+                        CommonInitialField::new(
+                            model_digest.clone(),
+                            fields[0],
+                            Some(CommonInitialValues::Vector2(
+                                vec![[0.0; 2]; fluid_vertices.len()].into_boxed_slice(),
+                            )),
+                            Some(CommonInitialValues::Vector2(
+                                vec![[0.0; 2]; fluid_cells.len()].into_boxed_slice(),
+                            )),
+                        )
+                        .unwrap(),
+                        CommonInitialField::new(
+                            model_digest.clone(),
+                            fields[1],
+                            Some(CommonInitialValues::Scalar(
+                                vec![0.0; fluid_vertices.len()].into_boxed_slice(),
+                            )),
+                            None,
+                        )
+                        .unwrap(),
+                        CommonInitialField::new(
+                            model_digest.clone(),
+                            fields[2],
+                            Some(CommonInitialValues::Vector2(
+                                vec![[0.0; 2]; solid_vertices.len()].into_boxed_slice(),
+                            )),
+                            None,
+                        )
+                        .unwrap(),
+                        CommonInitialField::new(
+                            model_digest.clone(),
+                            fields[3],
+                            Some(CommonInitialValues::Vector2(
+                                solid_displacement.clone().into_boxed_slice(),
+                            )),
+                            None,
+                        )
+                        .unwrap(),
+                    ],
+                )
+                .unwrap();
+            let common_first = common_plan
+                .advance(&common_initial, &REFERENCE_LINEAR_SOLVER)
+                .unwrap();
+            let common_second = common_plan
+                .advance(&common_first, &REFERENCE_LINEAR_SOLVER)
+                .unwrap();
+            (*label, common_plan, common_first, common_second)
+        })
+        .collect::<Vec<_>>();
+
+    let coordinate_key = |point: &[f64]| {
+        point
+            .iter()
+            .map(|value| value.to_bits())
+            .collect::<Vec<_>>()
+    };
+    let cell_key = |mesh: &eqiora::meshing::SimplicialMesh, cell: usize| {
+        let mut vertices = mesh.cells()[cell]
+            .iter()
+            .map(|&vertex| coordinate_key(&mesh.vertices()[vertex]))
+            .collect::<Vec<_>>();
+        vertices.sort();
+        vertices
+    };
+    let assert_vectors_close =
+        |label: &str, left: &BTreeMap<Vec<u64>, [f64; 2]>, right: &BTreeMap<Vec<u64>, [f64; 2]>| {
+            assert_eq!(
+                left.keys().collect::<Vec<_>>(),
+                right.keys().collect::<Vec<_>>(),
+                "{label} support"
+            );
+            for (key, left) in left {
+                let right = right[key];
+                assert!(
+                    left.iter()
+                        .copied()
+                        .zip(right)
+                        .all(|(left, right)| (left - right).abs() < 1.0e-9),
+                    "{label} differs at {key:?}: {left:?} vs {right:?}"
+                );
+            }
+        };
+    let assert_scalars_close =
+        |label: &str, left: &BTreeMap<Vec<u64>, f64>, right: &BTreeMap<Vec<u64>, f64>| {
+            assert_eq!(
+                left.keys().collect::<Vec<_>>(),
+                right.keys().collect::<Vec<_>>(),
+                "{label} support"
+            );
+            for (key, left) in left {
+                let right = right[key];
+                assert!(
+                    (left - right).abs() < 1.0e-9,
+                    "{label} differs at {key:?}: {left:?} vs {right:?}"
+                );
+            }
+        };
+    for (scaling, common_plan, common_first, common_second) in &common_states {
+        for (common, independent) in [
+            (common_first, &independent_first.solution),
+            (common_second, &independent_second.solution),
+        ] {
+            let common_velocity = mesh
+                .mesh()
+                .vertices()
+                .iter()
+                .zip(common.velocity_vertex_values().unwrap())
+                .map(|(point, value)| (coordinate_key(point), *value))
+                .collect::<BTreeMap<_, _>>();
+            let independent_velocity = independent_spatial
+                .mesh
+                .vertices()
+                .iter()
+                .zip(independent.vertex_velocity_coefficients())
+                .map(|(point, value)| (coordinate_key(point), *value))
+                .collect::<BTreeMap<_, _>>();
+            assert_vectors_close(
+                &format!("{scaling}: shared fluid/solid vertex velocity"),
+                &common_velocity,
+                &independent_velocity,
+            );
+
+            let common_bubbles = common_plan
+                .fluid_cell_indices()
+                .into_iter()
+                .zip(common.velocity_cell_values())
+                .map(|(cell, value)| (cell_key(mesh.mesh(), cell), *value))
+                .collect::<BTreeMap<_, _>>();
+            let independent_bubbles = independent
+                .fluid_velocity_cells()
+                .iter()
+                .zip(independent.fluid_velocity_bubble_coefficients())
+                .map(|(cell, value)| (cell_key(&independent_spatial.mesh, cell.index()), *value))
+                .collect::<BTreeMap<_, _>>();
+            assert_eq!(
+                common_bubbles.keys().collect::<Vec<_>>(),
+                independent_bubbles.keys().collect::<Vec<_>>(),
+                "MINI fluid cell bubble support"
+            );
+            for (key, left) in &common_bubbles {
+                let right = independent_bubbles[key];
+                assert!(
+                    left.iter()
+                        .copied()
+                        .zip(right)
+                        .all(|(left, right)| (left - right).abs() < 1.0e-9),
+                    "MINI fluid cell bubbles differ at {key:?}: {left:?} vs {right:?}"
+                );
+            }
+
+            let common_pressure = common_plan
+                .fluid_vertex_indices()
+                .into_iter()
+                .zip(common.pressure_vertex_values().unwrap())
+                .map(|(vertex, value)| (coordinate_key(&mesh.mesh().vertices()[vertex]), *value))
+                .collect::<BTreeMap<_, _>>();
+            let independent_pressure = independent
+                .fluid_pressure_vertices()
+                .iter()
+                .zip(independent.fluid_pressure_coefficients())
+                .map(|(vertex, value)| {
+                    (
+                        coordinate_key(&independent_spatial.mesh.vertices()[vertex.index()]),
+                        *value,
+                    )
+                })
+                .collect::<BTreeMap<_, _>>();
+            assert_scalars_close(
+                "gauge-free fluid pressure",
+                &common_pressure,
+                &independent_pressure,
+            );
+
+            let common_displacement = mesh
+                .mesh()
+                .vertices()
+                .iter()
+                .zip(common.fsi_solid_displacement_values().unwrap())
+                .map(|(point, value)| (coordinate_key(point), *value))
+                .collect::<BTreeMap<_, _>>();
+            let independent_displacement = independent_spatial
+                .mesh
+                .vertices()
+                .iter()
+                .zip(independent.solid_displacement_coefficients())
+                .map(|(point, value)| (coordinate_key(point), *value))
+                .collect::<BTreeMap<_, _>>();
+            assert_vectors_close(
+                &format!("{scaling}: solid displacement"),
+                &common_displacement,
+                &independent_displacement,
+            );
+        }
+        assert_eq!(
+            [common_first.time_s(), common_second.time_s()],
+            [0.05, 0.10]
+        );
     }
 }
 

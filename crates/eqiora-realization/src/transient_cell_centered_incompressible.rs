@@ -303,7 +303,7 @@ impl TransientCellCenteredIncompressibleFlowRealizationPlan {
             ),
             (
                 DiscretizationMethod::CellCenteredFiniteVolume,
-                MeshPolicy::GeneratedUniform { .. },
+                MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. },
                 QuadraturePolicy::CellCentroid,
             )
         ) || spatial.field_spaces().len() != 2
@@ -313,14 +313,17 @@ impl TransientCellCenteredIncompressibleFlowRealizationPlan {
                 .any(|binding| binding.space().family() != SpaceFamily::CellConstant)
         {
             return Err(invalid_realization(
-                "collocated incompressible flow requires exactly two cell-constant Fields on a generated 2D Cartesian mesh with cell-centroid quadrature",
+                "collocated incompressible flow requires exactly two cell-constant Fields on a generated or supplied 2D Cartesian mesh with cell-centroid quadrature",
             ));
         }
-        let MeshPolicy::GeneratedUniform { cells_per_axis } = spatial.discretization().mesh()
-        else {
-            unreachable!("the exact generated-mesh match above already succeeded")
+        let cells = match spatial.discretization().mesh() {
+            MeshPolicy::GeneratedUniform { cells_per_axis } => [cells_per_axis; 2],
+            MeshPolicy::SuppliedCartesian { cells, .. } => cells,
+            MeshPolicy::ImportedSimplicial { .. } => {
+                unreachable!("the exact Cartesian-mesh match above already succeeded")
+            }
         };
-        if cells_per_axis.get() < 2 {
+        if cells.into_iter().any(|count| count.get() < 2) {
             return Err(invalid_realization(
                 "linearly exact collocated pressure coupling requires at least two cells per Cartesian axis",
             ));

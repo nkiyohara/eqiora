@@ -7,23 +7,16 @@
 
 mod authored_field;
 mod context;
-mod dataset;
 mod field;
 mod ml_dataset;
-mod state;
 mod storage;
 mod trajectory;
 
-pub use context::ValidatedFixedSpatialContextV1;
-pub use dataset::DatasetViewEnvelopeV1;
 pub use field::FieldSnapshotEnvelopeV1;
 pub use ml_dataset::{
     MlDatasetChannelStatisticsV1, MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1,
     MlDatasetEnvelopeV1, MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1,
     MlDatasetSampleSplitV1, MlDatasetSampleV1, MlDatasetStateKindV1, MlDatasetStateReferenceV1,
 };
-pub use state::SpatialStateEnvelopeV1;
 pub use storage::{DiscreteFieldStorageEnvelopeV1, StorageChunkSha256V1, StorageChunkV1};
-pub use trajectory::{
-    SpatialTrajectoryEnvelopeV1, SpatialTrajectorySegmentEnvelopeV1, TrajectoryDecoderLimits,
-};
+pub use trajectory::TrajectoryDecoderLimits;

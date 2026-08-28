@@ -25,19 +25,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from packaging.requirements import InvalidRequirement, Requirement
-
 import python_candidate_profiles as candidate_profiles
 from candidate_manifest import (
-    ANYWIDGET_LICENSE_SHA256,
-    ANYWIDGET_WHEEL_SHA256,
     BROWSERS_JSON_SHA256,
     NODE_EXECUTABLE_SHA256,
     NOTEBOOK_CHECKS,
     NPM_PACKAGE_INTEGRITY,
     PROFILE_CHECKS,
     REQUIRED_PROFILES,
-    THREE_LICENSE_SHA256,
     load_candidate_family,
     verify_artifacts,
 )
@@ -58,11 +53,6 @@ ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT
 PYPROJECT = ROOT / "pyproject.toml"
 MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v3"
-NOTEBOOK_ASSET_PATHS = (
-    "eqiora/_presentation/static/mesh-view.mjs",
-    "eqiora/_presentation/static/mesh-view.css",
-    "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt",
-)
 EXACT_CYLINDER_STOKES_MARIMO_APP = Path(
     "examples/python/exact_cylinder_stokes_marimo.py"
 )
@@ -524,29 +514,6 @@ def parse_metadata(payload: bytes) -> email.message.Message:
     return email.parser.BytesParser().parsebytes(payload)
 
 
-def _has_exact_notebook_anywidget_requirement(dependencies: list[str]) -> bool:
-    declarations: list[Requirement] = []
-    for raw in dependencies:
-        try:
-            requirement = Requirement(raw)
-        except InvalidRequirement:
-            if "anywidget" in raw.lower():
-                return False
-            continue
-        if requirement.name.lower().replace("_", "-") == "anywidget":
-            declarations.append(requirement)
-    if len(declarations) != 1:
-        return False
-    requirement = declarations[0]
-    return (
-        str(requirement.specifier) == "==0.11.0"
-        and requirement.url is None
-        and not requirement.extras
-        and requirement.marker is not None
-        and str(requirement.marker) == 'extra == "notebook"'
-    )
-
-
 def inspect_wheel(
     wheel: Path,
     *,
@@ -554,7 +521,6 @@ def inspect_wheel(
     config: DistributionConfig,
     license_bytes: bytes,
     notice_bytes: bytes,
-    notebook_assets: dict[str, bytes] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Verify tags, package files, metadata, and notices in one wheel."""
 
@@ -586,7 +552,7 @@ def inspect_wheel(
             "eqiora/solid.pyi",
             "eqiora/torch.pyi",
             "eqiora/py.typed",
-            "eqiora/examples/steady-flow-past-cylinder.model.json",
+            "eqiora/examples/steady-flow-past-cylinder.eqi",
             "eqiora/examples/mixed-boundary-elasticity.eqi",
             "eqiora/examples/fixed-reference-fsi.eqi",
             f"{dist_info}licenses/LICENSE",
@@ -609,9 +575,6 @@ def inspect_wheel(
             raise CandidateError("the private native module must not be published")
         if not any(".dist-info/sboms/" in name for name in names):
             raise CandidateError("wheel omits its generated native dependency SBOM")
-    if notebook_assets is not None:
-        verify_notebook_asset_inventory(wheel, notebook_assets)
-
     if metadata["Name"] != "eqiora":
         raise CandidateError("wheel distribution name is not eqiora")
     version = metadata["Version"]
@@ -650,12 +613,6 @@ def inspect_wheel(
                 f"{framework} must remain an optional-extra dependency"
             )
     expected_extras = ["gmsh", "jax", "matplotlib", "torch"]
-    if notebook_assets is not None:
-        expected_extras.insert(3, "notebook")
-        if not _has_exact_notebook_anywidget_requirement(dependencies):
-            raise CandidateError(
-                "wheel must declare exactly anywidget==0.11.0 for the notebook extra"
-            )
     if sorted(metadata.get_all("Provides-Extra", [])) != expected_extras:
         raise CandidateError(
             "wheel must expose exactly the reviewed optional extras"
@@ -672,28 +629,6 @@ def inspect_wheel(
     }
 
 
-def verify_notebook_asset_inventory(
-    wheel: Path,
-    expected: dict[str, bytes],
-) -> None:
-    """Require one exact, nonempty private Notebook asset inventory."""
-
-    if set(expected) != set(NOTEBOOK_ASSET_PATHS) or any(not value for value in expected.values()):
-        raise CandidateError("expected Notebook asset inventory is incomplete")
-    with zipfile.ZipFile(wheel) as archive:
-        names = {
-            name
-            for name in archive.namelist()
-            if name.startswith("eqiora/_presentation/static/") and not name.endswith("/")
-        }
-        if names != set(NOTEBOOK_ASSET_PATHS):
-            raise CandidateError("wheel Notebook asset inventory differs")
-        for name in NOTEBOOK_ASSET_PATHS:
-            payload = archive.read(name)
-            if not payload or payload != expected[name]:
-                raise CandidateError(f"wheel Notebook asset differs: {name}")
-
-
 prepare_base_consumer_tree = candidate_profiles.prepare_base_consumer_tree
 prepare_exact_cylinder_demo_consumer = (
     candidate_profiles.prepare_exact_cylinder_demo_consumer
@@ -701,11 +636,6 @@ prepare_exact_cylinder_demo_consumer = (
 prepare_mixed_boundary_elasticity_demo_consumer = (
     candidate_profiles.prepare_mixed_boundary_elasticity_demo_consumer
 )
-prepare_fixed_reference_fsi_demo_consumer = (
-    candidate_profiles.prepare_fixed_reference_fsi_demo_consumer
-)
-
-
 def run_public_smoke(
     *,
     python: Path,
@@ -1787,30 +1717,13 @@ def run_notebook_profile(
             interpreter=interpreter,
             environment=workspace.environment,
             requirements=[
-                f"{wheel}[gmsh,matplotlib,notebook]",
+                f"{wheel}[gmsh,matplotlib]",
                 config.pytest,
-                "anywidget==0.11.0",
-                "jupyterlab==4.6.2",
                 "marimo==0.23.16",
             ],
             run=checked_run,
         )
         workspace.consumer.mkdir(parents=True)
-        test_path = workspace.consumer / "test_rich_mesh_display.py"
-        shutil.copy2(extracted / "bindings/python/tests/test_rich_mesh_display.py", test_path)
-        gmsh_path = str(python.parent)
-        if inherited_path := os.environ.get("PATH"):
-            gmsh_path = os.pathsep.join((gmsh_path, inherited_path))
-        checked_run(
-            [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
-            cwd=workspace.consumer,
-            extra_environment={
-                "EQIORA_GMSH": str(
-                    python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
-                ),
-                "PATH": gmsh_path,
-            },
-        )
         state["python"] = python
 
     def served_source_tree() -> Path:
@@ -1911,22 +1824,14 @@ def run_notebook_profile(
         )
         served = served_source_tree() if source_root is None else source_root
         port = _reserve_loopback_port()
-        if project == "jupyterlab-4.6.2":
-            argv = [
-                str(python), "-I", "-m", "jupyter", "lab", "--no-browser",
-                "--ip=127.0.0.1", f"--port={port}", "--ServerApp.port_retries=0",
-                "--ServerApp.token=", "--ServerApp.password=",
-                "--ServerApp.answer_yes=True", f"--ServerApp.root_dir={served}",
-            ]
-            url_variable = "EQIORA_JUPYTERLAB_URL"
-            url_value = f"http://127.0.0.1:{port}/lab/tree/{fixture}"
-        else:
-            argv = [
-                str(python), "-I", "-m", "marimo", "run", str(served / fixture),
-                "--host", "127.0.0.1", "--port", str(port), "--headless",
-            ]
-            url_variable = "EQIORA_MARIMO_URL"
-            url_value = f"http://127.0.0.1:{port}/"
+        if project != "marimo-0.23.16":
+            raise CandidateError(f"unknown Notebook host project: {project}")
+        argv = [
+            str(python), "-I", "-m", "marimo", "run", str(served / fixture),
+            "--host", "127.0.0.1", "--port", str(port), "--headless",
+        ]
+        url_variable = "EQIORA_MARIMO_URL"
+        url_value = f"http://127.0.0.1:{port}/"
         process = subprocess.Popen(
             argv,
             cwd=served,
@@ -2200,20 +2105,19 @@ def run_notebook_profile(
             )
 
     def require_host_observation(name: str) -> None:
-        if not state.get("jupyterlab-4.6.2") or not state.get("marimo-0.23.16"):
+        if not state.get("marimo-0.23.16"):
             raise CandidateError(f"Notebook host observation is incomplete: {name}")
         if name == "browser" and not Path(state["browser-executable"]).is_file():
             raise CandidateError("accepted managed Chromium executable is missing")
 
+    def run_exact_cylinder_profile() -> None:
+        install_notebook()
+        run_exact_cylinder_stokes_marimo()
+
     observations = (
         ("frontend:lock-integrity", lambda: require_frontend_binding("lock")),
-        ("frontend:license-notices", lambda: require_frontend_binding("licenses")),
-        ("frontend:bundle-byte-rebuild", lambda: require_frontend_binding("bundle")),
-        ("wheel-family:notebook-metadata", lambda: require_frontend_binding("wheel")),
-        ("cp313:notebook-anywidget-0.11.0", install_notebook),
-        ("cp313:jupyterlab-4.6.2-bare-mesh", lambda: run_host("jupyterlab-4.6.2", "bindings/python/tests/fixtures/rich_mesh_display/jupyterlab.ipynb")),
-        ("cp313:marimo-0.23.16-bare-mesh", lambda: run_host("marimo-0.23.16", "bindings/python/tests/fixtures/rich_mesh_display/marimo.py")),
-        (EXACT_CYLINDER_STOKES_MARIMO_CHECK, run_exact_cylinder_stokes_marimo),
+        ("frontend:dependency-inventory", lambda: require_frontend_binding("dependencies")),
+        (EXACT_CYLINDER_STOKES_MARIMO_CHECK, run_exact_cylinder_profile),
         ("cp313:notebook-managed-chromium-r1234", lambda: require_host_observation("browser")),
         ("cp313:notebook-no-external-network", lambda: require_host_observation("network")),
         ("cp313:notebook-cleanup-and-mutation", lambda: require_host_observation("cleanup")),
@@ -2503,22 +2407,14 @@ def derive_frontend_manifest(
     ) as temporary:
         extracted = safe_extract_sdist(family.sdist, Path(temporary) / "source")
         frontend_root = extracted / "bindings/python/frontend"
-        static_root = extracted / "bindings/python/python/eqiora/_presentation/static"
         package = frontend_root / "package.json"
         lock = frontend_root / "package-lock.json"
         if not package.is_file() or not lock.is_file():
             raise CandidateError("retained sdist omits the frozen frontend package/lock")
         package_sha256 = sha256(package)
         lock_sha256 = sha256(lock)
-        assets: dict[str, dict[str, object]] = {}
-        for name in NOTEBOOK_ASSET_PATHS:
-            asset = static_root / Path(name).name
-            if asset.is_symlink() or not asset.is_file() or asset.stat().st_size <= 0:
-                raise CandidateError(f"retained sdist omits Notebook asset: {name}")
-            assets[name] = {"size": asset.stat().st_size, "sha256": sha256(asset)}
 
     inputs = receipt["inputs"]
-    graph = receipt["build"]["bundler_module_graph"]
     scripts = [
         {
             "lock_path": item["lock_path"],
@@ -2546,26 +2442,11 @@ def derive_frontend_manifest(
             inputs["locked_packages"]
         ),
         "install_script_inventory_sha256": executor.structured_sha256(scripts),
-        "bundler_module_graph_sha256": executor.structured_sha256(graph),
         "node_executable_sha256": NODE_EXECUTABLE_SHA256,
         "npm_package_integrity": NPM_PACKAGE_INTEGRITY,
-        "assets": assets,
-        "licenses": {
-            "three@0.185.1": {
-                "expression": "MIT",
-                "source_license_sha256": THREE_LICENSE_SHA256,
-            },
-            "anywidget@0.11.0": {
-                "expression": "MIT",
-                "source_license_sha256": ANYWIDGET_LICENSE_SHA256,
-            },
-        },
         "runtime": {
             "python": "3.13",
-            "anywidget": "0.11.0",
-            "jupyterlab": "4.6.2",
             "marimo": "0.23.16",
-            "anywidget_wheel_sha256": ANYWIDGET_WHEEL_SHA256,
             "resolved_environment_sha256": python_host["resolved_environment_sha256"],
         },
         "browser": {
@@ -2597,14 +2478,6 @@ def _require_expected_source(expected_commit: str) -> SourceIdentity:
     if source.commit != expected_commit:
         raise CandidateError("clean source commit differs from the expected revision")
     return source
-
-
-def _notebook_assets(extracted: Path) -> dict[str, bytes]:
-    static = extracted / "bindings/python/python/eqiora/_presentation/static"
-    assets = {name: (static / Path(name).name).read_bytes() for name in NOTEBOOK_ASSET_PATHS}
-    if any(not payload for payload in assets.values()):
-        raise CandidateError("retained sdist Notebook asset inventory is incomplete")
-    return assets
 
 
 def prepare_candidate(
@@ -2672,7 +2545,6 @@ def prepare_candidate(
             )
             license_bytes = (extracted / "LICENSE").read_bytes()
             notice_bytes = (extracted / "NOTICE").read_bytes()
-            assets = _notebook_assets(extracted)
             versions = {
                 inspect_wheel(
                     wheels[python_version],
@@ -2680,7 +2552,6 @@ def prepare_candidate(
                     config=config,
                     license_bytes=license_bytes,
                     notice_bytes=notice_bytes,
-                    notebook_assets=assets,
                 )[0]
                 for python_version in config.interpreters
             }
@@ -2749,7 +2620,6 @@ def run_candidate_profiles(
         )
         license_bytes = (extracted / "LICENSE").read_bytes()
         notice_bytes = (extracted / "NOTICE").read_bytes()
-        assets = _notebook_assets(extracted)
         records: list[dict[str, Any]] = []
         versions: set[str] = set()
         for version in config.interpreters:
@@ -2759,7 +2629,6 @@ def run_candidate_profiles(
                 config=config,
                 license_bytes=license_bytes,
                 notice_bytes=notice_bytes,
-                notebook_assets=assets,
             )
             versions.add(wheel_version)
             records.append(record)

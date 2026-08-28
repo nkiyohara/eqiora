@@ -12,12 +12,40 @@ import numpy.typing as npt
 from .geometry import Geometry, GeometrySelection
 
 @final
-class MeshRequest:
-    """Immutable caller intent for the admitted planar mesh provider.
+class AffineTriangleMesher:
+    """Select deterministic rectangle affine-triangle meshing.
 
-    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyMeshRequest``.
+    Every structured cell uses the provider-owned lower-left to upper-right
+    diagonal; callers select only the positive subdivision counts.
+
+    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyAffineTriangleMesher``.
     """
+    def __new__(cls, *, cells: tuple[int, int]) -> Self: ...
+    @property
+    def cells(self) -> tuple[int, int]: ...
+    @property
+    def diagonal(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
 
+@final
+class CartesianMesher:
+    """Select deterministic structured Cartesian meshing.
+
+    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyCartesianMesher``.
+    """
+    def __new__(cls, *, cells: tuple[int, int]) -> Self: ...
+    @property
+    def cells(self) -> tuple[int, int]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+
+@final
+class GmshMesher:
+    """Select the exact external Gmsh provider.
+
+    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyGmshMesher``.
+    """
     def __new__(
         cls,
         *,
@@ -44,17 +72,13 @@ class MeshPlan:
     @property
     def source_digest(self) -> str: ...
     @property
-    def provider(self) -> str: ...
+    def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher: ...
     @property
-    def request(self) -> MeshRequest: ...
+    def production_lineage_bytes(self) -> bytes: ...
+    @property
+    def production_lineage_digest(self) -> str: ...
     @property
     def boundary_facets(self) -> int: ...
-    @property
-    def boundary_error_bound(self) -> float: ...
-    @property
-    def boundary_evaluation_allowance(self) -> float: ...
-    @property
-    def canonical_bytes(self) -> bytes: ...
     @property
     def achieved_minimum_mean_ratio(self) -> float: ...
     def __repr__(self) -> str: ...
@@ -75,11 +99,9 @@ class Mesh:
     @property
     def correspondence_digest(self) -> str: ...
     @property
-    def realization_digest(self) -> str: ...
+    def production_lineage_bytes(self) -> bytes: ...
     @property
-    def external_import_manifest_bytes(self) -> bytes | None: ...
-    @property
-    def external_import_manifest_digest(self) -> str | None: ...
+    def production_lineage_digest(self) -> str: ...
     @property
     def canonical_bytes(self) -> bytes: ...
     @property
@@ -104,7 +126,11 @@ class Mesh:
     ) -> dict[str, object]: ...
     def __repr__(self) -> str: ...
 
-def resolve(geometry: Geometry, request: MeshRequest, /) -> MeshPlan:
+def resolve(
+    geometry: Geometry,
+    provider: AffineTriangleMesher | CartesianMesher | GmshMesher,
+    /,
+) -> MeshPlan:
     """Resolve a provider plan for the exact supplied geometry.
 
     Authority: ``crates/eqiora-python/src/meshing/plan.rs::resolve``.
@@ -120,24 +146,4 @@ def generate(geometry: Geometry, /, *, plan: MeshPlan) -> Mesh:
 
     ...
 
-def import_gmsh(
-    geometry: Geometry,
-    source: bytes,
-    /,
-    *,
-    request: MeshRequest,
-) -> Mesh:
-    """Import one complete Gmsh MSH 4.1 image into the common Mesh.
-
-    The current boundary accepts affine two-dimensional triangles for the
-    supplied exact circular-hole Geometry. ``request`` explicitly owns the
-    boundary-realization and quality policy. External source, adapter,
-    normalized-array, and accepted-Mesh identities are retained by
-    ``Mesh.external_import_manifest_bytes``.
-
-    Authority: ``crates/eqiora-python/src/meshing/mesh.rs::import_gmsh``.
-    """
-
-    ...
-
-__all__ = ["Mesh", "MeshPlan", "MeshRequest", "generate", "import_gmsh", "resolve"]
+__all__ = ["AffineTriangleMesher", "CartesianMesher", "GmshMesher", "Mesh", "MeshPlan", "generate", "resolve"]

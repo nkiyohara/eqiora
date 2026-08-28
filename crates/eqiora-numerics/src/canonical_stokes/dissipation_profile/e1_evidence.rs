@@ -509,12 +509,8 @@ fn geometry_program(
     });
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).map_err(first_diagnostic)?;
-    KernelProgram::from_snapshot_with_geometry(
-        &store.snapshot(),
-        cartesian.model(),
-        &[eqiora_geometry::CanonicalGeometryRef::from(canonical)],
-    )
-    .map_err(first_diagnostic)
+    KernelProgram::from_snapshot_with_geometry(&store.snapshot(), cartesian.model(), &[canonical])
+        .map_err(first_diagnostic)
 }
 
 /// The exact body role owns the `trace(velocity) = 0` scaffold Relation; the

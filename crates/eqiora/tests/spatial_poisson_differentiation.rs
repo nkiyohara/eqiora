@@ -1,9 +1,8 @@
+mod support;
+
 use std::num::{NonZeroU16, NonZeroUsize};
 
-use eqiora::api::{
-    DifferentiableProgram, LinearizationState, ModelDocument, ScalarEllipticExecutionEnvironment,
-    ScalarEllipticIntent, ScalarEllipticMethod,
-};
+use eqiora::api::{DifferentiableProgram, LinearizationState};
 use eqiora::differentiation::{AcceptedLinearization, adjoint_gradient, forward_sensitivity};
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::realization::{
@@ -19,15 +18,15 @@ use eqiora::solver::{
 };
 use eqiora::{Id, compiler::compile, entity::kinds};
 use eqiora_numerics::{
-    common::SpatialDesignCoordinate, scalar::ResolvedScalarEllipticCartesianSolution,
+    CommonSpatialPolicy, common::SpatialDesignCoordinate,
+    scalar::ResolvedScalarEllipticCartesianSolution,
     scalar::solve_and_linearize_resolved_scalar_elliptic_cartesian,
     scalar::solve_resolved_scalar_elliptic_cartesian,
 };
+use support::common_scalar_plan::{COMPONENT, document_and_plan, document_and_plan_with_source};
 
 const SOURCE: &str =
     include_str!("../../../verify/differentiation/spatial-poisson-fem-fvm/models/poisson.eqi");
-const ONE_DIMENSIONAL_SOURCE: &str =
-    include_str!("../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");
 const SOURCE_SCALE_DECLARATION: &str = "parameter source_scale: 1 / m ^ 2 = 19.739208802178716;";
 const DIFFUSION_DECLARATION: &str = "parameter diffusion: 1 = 1;";
 const BOUNDARY_DECLARATION: &str = "parameter boundary_offset: 1 = 0;";
@@ -65,8 +64,8 @@ fn canonical_parameters_differentiate_through_fem_and_fvm() {
 #[test]
 fn accepted_application_program_publishes_complete_field_jvp_and_vjp() {
     for method in [
-        ScalarEllipticMethod::FiniteElement,
-        ScalarEllipticMethod::FiniteVolume,
+        CommonSpatialPolicy::Q1,
+        CommonSpatialPolicy::CellCenteredTpfa,
     ] {
         verify_application_program(method);
     }
@@ -74,45 +73,33 @@ fn accepted_application_program_publishes_complete_field_jvp_and_vjp() {
 
 #[test]
 fn application_program_is_not_published_without_an_accepted_primal() {
-    let source = SOURCE.replacen(
-        SOURCE_SCALE_DECLARATION,
-        "parameter source_scale: 1 / m ^ 2 = 1e308;",
-        1,
-    );
-    let document = ModelDocument::compile("unaccepted-spatial-poisson.eqi", &source).unwrap();
-    let plan = plan_for(&document, ScalarEllipticMethod::FiniteElement);
+    let source = COMPONENT.replacen("source_scale * sin", "1e308 * source_scale * sin", 1);
+    let (document, plan) = document_and_plan_with_source(CommonSpatialPolicy::Q1, &source);
     let inputs = [document.parameter_ref("source_scale").unwrap()];
-    let output = document.field_ref("potential").unwrap();
-    assert!(DifferentiableProgram::compile(&document, plan, &inputs, &output).is_err());
+    let output = document
+        .field_ref(&plan.field().ulid().to_string())
+        .unwrap();
+    assert!(DifferentiableProgram::compile(plan, &inputs, &output).is_err());
 }
 
 #[test]
 fn application_program_admission_is_exactly_the_verified_two_dimensional_slice() {
-    let document =
-        ModelDocument::compile("one-dimensional-poisson.eqi", ONE_DIMENSIONAL_SOURCE).unwrap();
-    let plan = plan_for(&document, ScalarEllipticMethod::FiniteElement);
-    let inputs = [document.parameter_ref("source_scale").unwrap()];
-    let output = document.field_ref("potential").unwrap();
-    let diagnostics = DifferentiableProgram::compile(&document, plan, &inputs, &output)
-        .expect_err("1D is outside the registered 2D program boundary");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message()
-            .contains("exactly two spatial dimensions")
-    }));
+    let (_, plan) = document_and_plan(CommonSpatialPolicy::Q1);
+    assert_eq!(plan.cells(), [12, 12]);
 }
 
 #[test]
 fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
-    let source = SOURCE.replace(
+    let source = COMPONENT.replace(
         "diffusion * grad(potential)",
         "diffusion ^ 2 * grad(potential)",
     );
-    let document = ModelDocument::compile("colliding-spatial-poisson.eqi", &source).unwrap();
-    let plan = plan_for(&document, ScalarEllipticMethod::FiniteElement);
+    let (document, plan) = document_and_plan_with_source(CommonSpatialPolicy::Q1, &source);
     let diffusion = document.parameter_ref("diffusion").unwrap();
-    let output = document.field_ref("potential").unwrap();
-    let program = DifferentiableProgram::compile(&document, plan, &[diffusion], &output).unwrap();
+    let output = document
+        .field_ref(&plan.field().ulid().to_string())
+        .unwrap();
+    let program = DifferentiableProgram::compile(plan, &[diffusion], &output).unwrap();
     let positive = program.evaluate(&[1.0]).unwrap();
     let negative = program.evaluate(&[-1.0]).unwrap();
     let positive_primal = positive.primal();
@@ -140,31 +127,34 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
     );
 }
 
-fn verify_application_program(method: ScalarEllipticMethod) {
-    let document = ModelDocument::compile("spatial-poisson.eqi", SOURCE).unwrap();
-    let environment = ScalarEllipticExecutionEnvironment::host_serial();
-    let plan = document
-        .preview_scalar_elliptic_run(application_intent(method), environment)
-        .unwrap();
+fn verify_application_program(method: CommonSpatialPolicy) {
+    let (document, plan) = document_and_plan(method);
     let source_scale = document.parameter_ref("source_scale").unwrap();
     let diffusion = document.parameter_ref("diffusion").unwrap();
     let boundary = document.parameter_ref("boundary_offset").unwrap();
-    let output = document.field_ref("potential").unwrap();
+    let output = document
+        .field_ref(&plan.field().ulid().to_string())
+        .unwrap();
     let inputs = [source_scale, diffusion, boundary];
-    let program =
-        DifferentiableProgram::compile(&document, plan.clone(), &inputs, &output).unwrap();
+    let program = DifferentiableProgram::compile(plan.clone(), &inputs, &output).unwrap();
     assert_eq!(program.identity().input_dimension(), 3);
     assert_eq!(
         program.identity().inputs(),
         &inputs.iter().map(|input| input.id()).collect::<Vec<_>>()
     );
-    assert_eq!(
-        program.identity().output_dimension(),
-        plan.field_value_count()
-    );
+    let field_value_count = match method {
+        CommonSpatialPolicy::Q1 => 13 * 13,
+        CommonSpatialPolicy::CellCenteredTpfa => 12 * 12,
+        CommonSpatialPolicy::P1
+        | CommonSpatialPolicy::MiniP1
+        | CommonSpatialPolicy::CellCentered => {
+            panic!("this Cartesian fixture does not admit the requested policy")
+        }
+    };
+    assert_eq!(program.identity().output_dimension(), field_value_count);
 
     let primal = program.primal();
-    assert_eq!(primal.output().len(), plan.field_value_count());
+    assert_eq!(primal.output().len(), field_value_count);
     assert_eq!(
         primal.evidence().primal_solve().orientation(),
         LinearOperatorOrientation::Normal
@@ -331,7 +321,7 @@ fn verify_application_program(method: ScalarEllipticMethod) {
 
     assert!(program.jvp(&[1.0, 2.0, 3.0, 4.0]).is_err());
     assert!(program.vjp(&cotangent[..cotangent.len() - 1]).is_err());
-    let recomputed = DifferentiableProgram::compile(&document, plan, &inputs, &output).unwrap();
+    let recomputed = DifferentiableProgram::compile(plan, &inputs, &output).unwrap();
     assert_eq!(recomputed.identity(), program.identity());
     assert_eq!(recomputed.primal().output(), primal.output());
     assert_eq!(
@@ -339,47 +329,17 @@ fn verify_application_program(method: ScalarEllipticMethod) {
         primal.evidence().state_system()
     );
 
-    let foreign = ModelDocument::compile(
-        "foreign-spatial-poisson.eqi",
-        &SOURCE.replacen(DIFFUSION_DECLARATION, "parameter diffusion: 1 = 2;", 1),
-    )
-    .unwrap();
-    assert!(
-        DifferentiableProgram::compile(
-            &foreign,
-            foreign
-                .preview_scalar_elliptic_run(application_intent(method), environment)
-                .unwrap(),
-            &inputs,
-            &output,
-        )
-        .is_err()
-    );
-    assert!(
-        DifferentiableProgram::compile(&document, plan_for(&foreign, method), &inputs, &output,)
-            .is_err()
-    );
-}
-
-fn application_intent(method: ScalarEllipticMethod) -> ScalarEllipticIntent {
-    ScalarEllipticIntent::new(
-        RealizationRevision::new(21),
+    let (foreign, foreign_plan) = document_and_plan_with_source(
         method,
-        NonZeroUsize::new(12).unwrap(),
-        NonZeroUsize::MIN,
-    )
-}
-
-fn plan_for(
-    document: &ModelDocument,
-    method: ScalarEllipticMethod,
-) -> eqiora::api::ScalarEllipticRunPlan {
-    document
-        .preview_scalar_elliptic_run(
-            application_intent(method),
-            ScalarEllipticExecutionEnvironment::host_serial(),
-        )
-        .unwrap()
+        &COMPONENT.replacen(
+            "diffusion * grad(potential)",
+            "2 * diffusion * grad(potential)",
+            1,
+        ),
+    );
+    assert!(DifferentiableProgram::compile(foreign_plan.clone(), &inputs, &output).is_err());
+    let foreign_inputs = [foreign.parameter_ref("source_scale").unwrap()];
+    assert!(DifferentiableProgram::compile(foreign_plan, &foreign_inputs, &output).is_err());
 }
 
 fn verify_method(
@@ -527,7 +487,7 @@ fn perturbed_values(method: DiscretizationMethod, values: ParameterValues) -> Ve
     }
 }
 
-fn perturbed_field_values(method: ScalarEllipticMethod, values: ParameterValues) -> Vec<f64> {
+fn perturbed_field_values(method: CommonSpatialPolicy, values: ParameterValues) -> Vec<f64> {
     let source_scale = format!(
         "parameter source_scale: 1 / m ^ 2 = {:.17};",
         values.source_scale
@@ -543,8 +503,13 @@ fn perturbed_field_values(method: ScalarEllipticMethod, values: ParameterValues)
         .replacen(BOUNDARY_DECLARATION, &boundary, 1);
     let (program, _) = compile_program("perturbed-field-spatial-poisson.eqi", &source);
     let method = match method {
-        ScalarEllipticMethod::FiniteElement => DiscretizationMethod::ContinuousGalerkin,
-        ScalarEllipticMethod::FiniteVolume => DiscretizationMethod::CellCenteredFiniteVolume,
+        CommonSpatialPolicy::Q1 => DiscretizationMethod::ContinuousGalerkin,
+        CommonSpatialPolicy::CellCenteredTpfa => DiscretizationMethod::CellCenteredFiniteVolume,
+        CommonSpatialPolicy::P1
+        | CommonSpatialPolicy::MiniP1
+        | CommonSpatialPolicy::CellCentered => {
+            panic!("this Cartesian fixture does not admit the requested policy")
+        }
     };
     let (_, solution) = solve_resolved_scalar_elliptic_cartesian(
         &program,

@@ -15,7 +15,70 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/meshing.p
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/meshing.pyi" kind="blob">bindings/python/python/eqiora/meshing.pyi</ExactSourceLink>
 
-This module publishes **6** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **7** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+
+<a id="api-eqiora-meshing-AffineTriangleMesher"></a>
+
+## `AffineTriangleMesher`
+
+Select deterministic rectangle affine-triangle meshing.
+
+Every structured cell uses the provider-owned lower-left to upper-right
+diagonal; callers select only the positive subdivision counts.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/plan.rs" kind="blob">crates/eqiora-python/src/meshing/plan.rs::PyAffineTriangleMesher</ExactSourceLink>
+
+```python
+@final
+class AffineTriangleMesher:
+    def __new__(cls, *, cells: tuple[int, int]) -> Self: ...
+    @property
+    def cells(self) -> tuple[int, int]: ...
+    @property
+    def diagonal(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-meshing-CartesianMesher"></a>
+
+## `CartesianMesher`
+
+Select deterministic structured Cartesian meshing.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/plan.rs" kind="blob">crates/eqiora-python/src/meshing/plan.rs::PyCartesianMesher</ExactSourceLink>
+
+```python
+@final
+class CartesianMesher:
+    def __new__(cls, *, cells: tuple[int, int]) -> Self: ...
+    @property
+    def cells(self) -> tuple[int, int]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-meshing-GmshMesher"></a>
+
+## `GmshMesher`
+
+Select the exact external Gmsh provider.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/plan.rs" kind="blob">crates/eqiora-python/src/meshing/plan.rs::PyGmshMesher</ExactSourceLink>
+
+```python
+@final
+class GmshMesher:
+    def __new__(cls, *, maximum_boundary_error: float=..., minimum_mean_ratio: float=..., maximum_boundary_facets: int=...) -> Self: ...
+    @property
+    def maximum_boundary_error(self) -> float: ...
+    @property
+    def minimum_mean_ratio(self) -> float: ...
+    @property
+    def maximum_boundary_facets(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+```
 
 <a id="api-eqiora-meshing-Mesh"></a>
 
@@ -37,11 +100,9 @@ class Mesh:
     @property
     def correspondence_digest(self) -> str: ...
     @property
-    def realization_digest(self) -> str: ...
+    def production_lineage_bytes(self) -> bytes: ...
     @property
-    def external_import_manifest_bytes(self) -> bytes | None: ...
-    @property
-    def external_import_manifest_digest(self) -> str | None: ...
+    def production_lineage_digest(self) -> str: ...
     @property
     def canonical_bytes(self) -> bytes: ...
     @property
@@ -76,41 +137,15 @@ class MeshPlan:
     @property
     def source_digest(self) -> str: ...
     @property
-    def provider(self) -> str: ...
+    def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher: ...
     @property
-    def request(self) -> MeshRequest: ...
+    def production_lineage_bytes(self) -> bytes: ...
+    @property
+    def production_lineage_digest(self) -> str: ...
     @property
     def boundary_facets(self) -> int: ...
     @property
-    def boundary_error_bound(self) -> float: ...
-    @property
-    def boundary_evaluation_allowance(self) -> float: ...
-    @property
-    def canonical_bytes(self) -> bytes: ...
-    @property
     def achieved_minimum_mean_ratio(self) -> float: ...
-    def __repr__(self) -> str: ...
-```
-
-<a id="api-eqiora-meshing-MeshRequest"></a>
-
-## `MeshRequest`
-
-Immutable caller intent for the admitted planar mesh provider.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/plan.rs" kind="blob">crates/eqiora-python/src/meshing/plan.rs::PyMeshRequest</ExactSourceLink>
-
-```python
-@final
-class MeshRequest:
-    def __new__(cls, *, maximum_boundary_error: float=..., minimum_mean_ratio: float=..., maximum_boundary_facets: int=...) -> Self: ...
-    @property
-    def maximum_boundary_error(self) -> float: ...
-    @property
-    def minimum_mean_ratio(self) -> float: ...
-    @property
-    def maximum_boundary_facets(self) -> int: ...
-    def __eq__(self, other: object, /) -> bool: ...
     def __repr__(self) -> str: ...
 ```
 
@@ -126,24 +161,6 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/mesh.rs" kind
 def generate(geometry: Geometry, /, *, plan: MeshPlan) -> Mesh: ...
 ```
 
-<a id="api-eqiora-meshing-import_gmsh"></a>
-
-## `import_gmsh`
-
-Import one complete Gmsh MSH 4.1 image into the common Mesh.
-
-The current boundary accepts affine two-dimensional triangles for the
-supplied exact circular-hole Geometry. `request` explicitly owns the
-boundary-realization and quality policy. External source, adapter,
-normalized-array, and accepted-Mesh identities are retained by
-`Mesh.external_import_manifest_bytes`.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/mesh.rs" kind="blob">crates/eqiora-python/src/meshing/mesh.rs::import_gmsh</ExactSourceLink>
-
-```python
-def import_gmsh(geometry: Geometry, source: bytes, /, *, request: MeshRequest) -> Mesh: ...
-```
-
 <a id="api-eqiora-meshing-resolve"></a>
 
 ## `resolve`
@@ -153,5 +170,5 @@ Resolve a provider plan for the exact supplied geometry.
 Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/plan.rs" kind="blob">crates/eqiora-python/src/meshing/plan.rs::resolve</ExactSourceLink>
 
 ```python
-def resolve(geometry: Geometry, request: MeshRequest, /) -> MeshPlan: ...
+def resolve(geometry: Geometry, provider: AffineTriangleMesher | CartesianMesher | GmshMesher, /) -> MeshPlan: ...
 ```

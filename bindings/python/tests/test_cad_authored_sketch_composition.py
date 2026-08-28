@@ -63,13 +63,16 @@ V2_WIRE = (
     b',"profile-x-upper","profile-y-lower","profile-y-upper","cut-wall"]}'
 )
 V2_DIGEST = "00acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47"
-DFG_SECTION_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 EXPECTED_GEOMETRY_ALL = [
     "CadAuthoredBuild",
     "CadAuthoredFaceHandle",
     "CadAuthoredGraph",
     "CadAuthoredSketch",
     "Geometry",
+    "GeometryBoundaryHandle",
+    "GeometryGraph",
+    "GeometryOperation",
+    "GeometryRegionHandle",
     "GeometrySelection",
 ]
 WRONG_FACE_MESSAGE = "authored CAD circle sketch requires a v1 end-cap face handle"
@@ -410,7 +413,7 @@ def test_all_four_cut_compositions_replay_the_exact_v2_authority() -> None:
     assert_lineage_partition(routes[0], build)
 
 
-def test_separate_dfg_fixture_replays_the_exact_planar_authority() -> None:
+def test_separate_dfg_fixture_replays_the_exact_cad_authority() -> None:
     routes = four_cut_routes(
         x_bounds=(0.0, 2.2),
         y_bounds=(0.0, 0.41),
@@ -424,26 +427,6 @@ def test_separate_dfg_fixture_replays_the_exact_planar_authority() -> None:
     compatibility = routes[1]
     for graph in routes:
         assert_route_equivalence(graph, compatibility)
-
-    sections = tuple(
-        graph.planar_circular_section(
-            classification_tolerance=1e-12,
-            region="fluid",
-            x_lower="inlet",
-            x_upper="outlet",
-            y_lower="walls",
-            y_upper="walls",
-            hole="cylinder",
-        )
-        for graph in routes
-    )
-    assert all(section == sections[0] for section in sections)
-    assert all(
-        section.canonical_bytes == sections[0].canonical_bytes for section in sections
-    )
-    assert len(sections[0].canonical_bytes) == 511
-    assert sections[0].digest == DFG_SECTION_DIGEST
-
 
 def test_rectangle_and_circle_signed_zero_ownership_are_separate() -> None:
     positive_rectangle = rectangle_sketch(

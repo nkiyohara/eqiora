@@ -93,10 +93,23 @@ ergonomic editor is implemented.
 The initial public surface is intentionally small:
 
 ```python
-model = eqiora.compile(source, filename="model.eq")
-result = eqiora.run(model, end_time=1.0, max_step=0.01)
+model = eqiora.compile(source=source, filename="model.eqi")
+field = model.field(model.field_ids[0])
+plan = eqiora.resolve(
+    model,
+    temporal=eqiora.time.Tsitouras45(
+        initial_step_s=0.01,
+        relative_tolerance=1e-6,
+        absolute_tolerances={field: 1e-9},
+    ),
+)
+result = eqiora.run(
+    plan,
+    state=eqiora.State.initial(plan),
+    until_s=1.0,
+)
 
-temperature = result["temperature"]
+temperature = result.series(field)
 t = temperature.time.numpy(copy=False)
 y = temperature.values.numpy(copy=False)
 ```

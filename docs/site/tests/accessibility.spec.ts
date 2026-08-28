@@ -73,7 +73,6 @@ async function assertDiagnosticIdentity(page: Page): Promise<void> {
 async function runOrdinaryChunk(id: 'A' | 'B' | 'C'): Promise<void> {
   const plan = createOrdinaryRoutePlan();
   expect(assertOrdinaryRoutePlan(plan)).toEqual([...SITE_ROUTES]);
-  expect(ROUTES).toHaveLength(35);
   const context = await browser.newContext({
     baseURL: BASE_URL,
     locale: 'en-GB',
@@ -279,8 +278,8 @@ test('02 exact table inventory is complete before parent or product matrix resul
     componentTotal += expected.component;
   }
   expect({ tableTotal, directTotal, componentTotal }).toEqual({
-    tableTotal: 1146,
-    directTotal: 1145,
+    tableTotal: 1025,
+    directTotal: 1024,
     componentTotal: 1,
   });
   await page.goto('/reference/python/eqiora/');

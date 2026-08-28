@@ -14,16 +14,12 @@ import eqiora
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-CANONICAL_EXAMPLE = (
-    REPOSITORY_ROOT / "examples" / "steady-flow-past-cylinder.geometry.json"
-)
 PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "exact_cylinder_geometry.py"
 STANDARD_CANONICAL_JSON = (
-    b'{"schema":"eqiora.planar-circular-hole-envelope/v1"'
+    b'{"schema":"eqiora.planar-circular-hole-envelope/v2"'
     b',"encoding":"eqiora.canonical-json/v1"'
-    b',"kind":"axis-aligned-rectangle-with-circular-hole-v1"'
+    b',"kind":"axis-aligned-rectangle-with-circular-hole-v2"'
     b',"length_unit":"metre"'
-    b',"tolerance_m":1e-12'
     b',"bounds":[[0.0,2.2],[0.0,0.41]]'
     b',"circle":{"center":[0.2,0.2],"radius_m":0.05}'
     b',"entity_sets":['
@@ -33,13 +29,12 @@ STANDARD_CANONICAL_JSON = (
     b',{"name":"walls","dimension":1,"members":[2,3]}'
     b',{"name":"fluid","dimension":2,"members":[0]}]}'
 )
-STANDARD_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
+STANDARD_DIGEST = "c1226bdfc83a5539f21ecced9afe180c60c5f4ca07a952711e3f3529213dee14"
 DISTINCT_Y_CANONICAL_JSON = (
-    b'{"schema":"eqiora.planar-circular-hole-envelope/v1"'
+    b'{"schema":"eqiora.planar-circular-hole-envelope/v2"'
     b',"encoding":"eqiora.canonical-json/v1"'
-    b',"kind":"axis-aligned-rectangle-with-circular-hole-v1"'
+    b',"kind":"axis-aligned-rectangle-with-circular-hole-v2"'
     b',"length_unit":"metre"'
-    b',"tolerance_m":1e-12'
     b',"bounds":[[0.0,2.2],[0.0,0.41]]'
     b',"circle":{"center":[0.2,0.2],"radius_m":0.05}'
     b',"entity_sets":['
@@ -50,13 +45,12 @@ DISTINCT_Y_CANONICAL_JSON = (
     b',{"name":"outlet","dimension":1,"members":[1]}'
     b',{"name":"fluid","dimension":2,"members":[0]}]}'
 )
-DISTINCT_Y_DIGEST = "51ece8fa2d8709d932b0c758d59c187e4fd572f73217c31dcbe407f8d873be7f"
+DISTINCT_Y_DIGEST = "d2b1bf460a13465c2d98eaa00b335630dd52d541031ea5723de181ca7ba0d5d7"
 OFF_AXIS_CANONICAL_JSON = (
-    b'{"schema":"eqiora.planar-circular-hole-envelope/v1"'
+    b'{"schema":"eqiora.planar-circular-hole-envelope/v2"'
     b',"encoding":"eqiora.canonical-json/v1"'
-    b',"kind":"axis-aligned-rectangle-with-circular-hole-v1"'
+    b',"kind":"axis-aligned-rectangle-with-circular-hole-v2"'
     b',"length_unit":"metre"'
-    b',"tolerance_m":1e-12'
     b',"bounds":[[0.0,2.2],[0.0,0.41]]'
     b',"circle":{"center":[0.3,0.2],"radius_m":0.05}'
     b',"entity_sets":['
@@ -66,12 +60,11 @@ OFF_AXIS_CANONICAL_JSON = (
     b',{"name":"walls","dimension":1,"members":[2,3]}'
     b',{"name":"fluid","dimension":2,"members":[0]}]}'
 )
-OFF_AXIS_DIGEST = "552ebf459396ed5bc7f72ab48f34046baa828b6af808794e861bd958dc613881"
+OFF_AXIS_DIGEST = "a3b14ef5cfd92b37ce84759cd4ad7bbe34e37b153390a800fecaa8cddf6c02a8"
 STANDARD_ARGUMENTS: dict[str, Any] = {
     "bounds": ((0.0, 2.2), (0.0, 0.41)),
     "circle_center": (0.2, 0.2),
     "circle_radius": 0.05,
-    "tolerance": 1e-12,
     "region": "fluid",
     "x_lower": "inlet",
     "x_upper": "outlet",
@@ -90,26 +83,17 @@ EXPECTED_DEMO_STDOUT = [
 ISOLATED_GEOMETRY_PROGRAM = """
 import eqiora
 
-graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
-    x_bounds=(0.0, 2.2),
-    y_bounds=(0.0, 0.41),
-    plane_z=0.0,
-    depth=1.0,
-    modeling_tolerance=1e-10,
-).circular_through_cut(
-    center=(0.2, 0.2),
-    radius=0.05,
-    boolean_tolerance=1e-10,
-)
-geometry = graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid",
-    x_lower="inlet",
-    x_upper="outlet",
-    y_lower="walls",
-    y_upper="walls",
-    hole="cylinder",
-)
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+circle = graph.circle(center=(0.2, 0.2), radius=0.05)
+fluid = graph.subtract(rectangle, circle)
+geometry = graph.build(fluid, named_topology={
+    "fluid": fluid.region,
+    "inlet": rectangle.boundaries[0],
+    "outlet": rectangle.boundaries[1],
+    "walls": rectangle.boundaries[2:],
+    "cylinder": circle.boundaries[0],
+})
 print(geometry.digest)
 for selection in geometry.selection_names:
     print(selection, geometry.selection_dimension(selection))
@@ -123,25 +107,25 @@ def geometry(**overrides: object) -> object:
         unexpected = min(unknown)
         raise TypeError(f"unsupported Geometry authoring argument: {unexpected}")
     (x_bounds, y_bounds) = arguments["bounds"]
-    graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
-        x_bounds=x_bounds,
-        y_bounds=y_bounds,
-        plane_z=0.0,
-        depth=1.0,
-        modeling_tolerance=1e-10,
-    ).circular_through_cut(
-        center=arguments["circle_center"],
-        radius=arguments["circle_radius"],
-        boolean_tolerance=1e-10,
+    graph = eqiora.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=x_bounds, y_bounds=y_bounds)
+    circle = graph.circle(
+        center=arguments["circle_center"], radius=arguments["circle_radius"]
     )
-    return graph.planar_circular_section(
-        classification_tolerance=arguments["tolerance"],
-        region=arguments["region"],
-        x_lower=arguments["x_lower"],
-        x_upper=arguments["x_upper"],
-        y_lower=arguments["y_lower"],
-        y_upper=arguments["y_upper"],
-        hole=arguments["hole"],
+    fluid = graph.subtract(rectangle, circle)
+    named_topology: dict[str, list[object]] = {}
+    for name, handle in (
+        (arguments["region"], fluid.region),
+        (arguments["x_lower"], rectangle.boundaries[0]),
+        (arguments["x_upper"], rectangle.boundaries[1]),
+        (arguments["y_lower"], rectangle.boundaries[2]),
+        (arguments["y_upper"], rectangle.boundaries[3]),
+        (arguments["hole"], circle.boundaries[0]),
+    ):
+        named_topology.setdefault(name, []).append(handle)
+    return graph.build(
+        fluid,
+        named_topology=named_topology,
     )
 
 
@@ -160,7 +144,7 @@ def assert_structured_validation(**overrides: object) -> None:
 def test_standard_geometry_replays_the_frozen_exact_identity() -> None:
     authored = geometry()
     assert type(authored).__module__ == "eqiora._eqiora"
-    assert len(STANDARD_CANONICAL_JSON) == 511
+    assert len(STANDARD_CANONICAL_JSON) == 491
     assert type(authored).__name__ == "Geometry"
     assert authored.dimension == 2
     assert authored.canonical_bytes == STANDARD_CANONICAL_JSON
@@ -168,11 +152,7 @@ def test_standard_geometry_replays_the_frozen_exact_identity() -> None:
     assert isinstance(authored.canonical_bytes, bytes)
     assert re.fullmatch(r"[0-9a-f]{64}", authored.digest)
     assert authored.bounds == ((0.0, 2.2), (0.0, 0.41))
-    assert authored.classification_tolerance == 1e-12
-
-    if CANONICAL_EXAMPLE.is_file():
-        assert CANONICAL_EXAMPLE.read_bytes() == STANDARD_CANONICAL_JSON + b"\n"
-
+    assert authored.classification_tolerance is None
 
 def test_fixed_roles_form_the_canonical_named_selection_catalogue() -> None:
     authored = geometry()
@@ -227,7 +207,7 @@ def test_selection_handles_are_immutable_and_revision_bound() -> None:
 def test_distinct_y_roles_pin_lower_and_upper_canonical_members() -> None:
     oriented = geometry(y_lower="floor", y_upper="ceiling")
 
-    assert len(DISTINCT_Y_CANONICAL_JSON) == 556
+    assert len(DISTINCT_Y_CANONICAL_JSON) == 536
     assert oriented.canonical_bytes == DISTINCT_Y_CANONICAL_JSON
     assert oriented.digest == DISTINCT_Y_DIGEST
     assert oriented.selection_names == (
@@ -243,7 +223,7 @@ def test_distinct_y_roles_pin_lower_and_upper_canonical_members() -> None:
 def test_off_axis_center_pins_authored_section_coordinate_order() -> None:
     off_axis = geometry(circle_center=(0.3, 0.2))
 
-    assert len(OFF_AXIS_CANONICAL_JSON) == 511
+    assert len(OFF_AXIS_CANONICAL_JSON) == 491
     assert off_axis.canonical_bytes == OFF_AXIS_CANONICAL_JSON
     assert off_axis.digest == OFF_AXIS_DIGEST
 
@@ -255,7 +235,6 @@ def test_identity_is_exact_hashable_and_normalizes_signed_zero() -> None:
         bounds=((-0.0, 2.2), (-0.0, 0.41)),
     )
     swapped_roles = geometry(x_lower="outlet", x_upper="inlet")
-    changed_tolerance = geometry(tolerance=2e-12)
 
     assert first == second == negative_zero
     assert hash(first) == hash(second) == hash(negative_zero)
@@ -263,8 +242,7 @@ def test_identity_is_exact_hashable_and_normalizes_signed_zero() -> None:
     assert first.canonical_bytes == negative_zero.canonical_bytes
     assert swapped_roles != first
     assert swapped_roles.digest != first.digest
-    assert changed_tolerance != first
-    assert len({first, second, negative_zero, swapped_roles, changed_tolerance}) == 3
+    assert len({first, second, negative_zero, swapped_roles}) == 2
 
 
 def test_geometry_value_and_public_collections_are_immutable() -> None:
@@ -291,10 +269,6 @@ def test_geometry_value_and_public_collections_are_immutable() -> None:
         {"circle_radius": -0.05},
         {"circle_radius": float("nan")},
         {"circle_radius": float("inf")},
-        {"tolerance": 0.0},
-        {"tolerance": -1e-12},
-        {"tolerance": float("nan")},
-        {"tolerance": float("inf")},
         {
             "bounds": ((0.0, 1.0), (0.0, 1.0)),
             "circle_center": (0.1, 0.5),
@@ -304,12 +278,6 @@ def test_geometry_value_and_public_collections_are_immutable() -> None:
             "bounds": ((0.0, 1.0), (0.0, 1.0)),
             "circle_center": (-0.2, 0.5),
             "circle_radius": 0.1,
-        },
-        {
-            "bounds": ((0.0, 1.0), (0.0, 1.0)),
-            "circle_center": (0.1875, 0.5),
-            "circle_radius": 0.125,
-            "tolerance": 0.0625,
         },
         {"region": ""},
         {"hole": "  "},

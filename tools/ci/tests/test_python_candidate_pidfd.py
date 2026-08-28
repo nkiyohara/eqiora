@@ -26,7 +26,7 @@ import test_python_candidate as existing_evidence  # noqa: E402
 
 
 CandidateError = candidate.CandidateError
-SCENARIO = "jupyterlab-4.6.2"
+SCENARIO = "marimo-0.23.16"
 DEFAULT_OBSERVATION = object()
 
 
@@ -357,7 +357,7 @@ class NotebookPidfdActionEvidence(unittest.TestCase):
             ),
             (
                 "scenario",
-                dict(expected, scenario="marimo-0.23.16"),
+                dict(expected, scenario="foreign-notebook-host"),
                 "sigterm=stable-identity-mismatch",
             ),
             (
@@ -446,7 +446,7 @@ class NotebookPidfdActionEvidence(unittest.TestCase):
         missing.known = {}
         variants.append(("missing", missing, expected))
         for field, value in (
-            ("scenario", "marimo-0.23.16"),
+            ("scenario", "foreign-notebook-host"),
             ("role", "foreign"),
             ("pid", int(expected["pid"]) + 1),
             ("start_time", int(expected["start_time"]) + 1),

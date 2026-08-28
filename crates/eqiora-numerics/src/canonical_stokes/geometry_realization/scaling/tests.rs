@@ -36,7 +36,7 @@ fn model_and_program(source: &CanonicalGeometryV1) -> (ModelEnvelope, KernelProg
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).expect("Model replay");
     let program =
-        KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model_id, &[source.into()])
+        KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model_id, &[source])
             .expect("source-bound Stokes program");
     (model, program)
 }
@@ -95,6 +95,8 @@ fn every_manual_automatic_l_u_p_disposition_has_exact_receipt_pruning() {
                 receipt.component(component).mode(),
                 if manual_mask & bit != 0 {
                     ScalingMode2d::Manual
+                } else if component == ScalingComponent2d::Pressure {
+                    ScalingMode2d::Derived
                 } else {
                     ScalingMode2d::Automatic
                 },

@@ -84,19 +84,16 @@ they are not a second candidate identity and may rebuild during standalone use.
 
 N1 candidates use `eqiora.python-distribution-candidate/v3`. Selection is
 fail-closed across the complete sdist, four-wheel family, requested profiles,
-checks, and manifest: any native display hook, private presentation/frontend
-path, anywidget dependency, `notebook` extra/profile, Notebook check, or
-frontend schema requires v3. The v2 reader remains only for complete candidate
-families with none of those signals. Every v3 wheel declares exactly
-`anywidget==0.11.0` behind the `notebook` extra and carries the same three
-nonempty private assets.
+checks, and manifest: the retained Marimo host harness, notebook profile,
+frontend schema, or v3 format requires v3. The v2 reader remains only for
+complete candidate families with none of those signals.
 
 The canonical H2 receipt is retained beside the candidate manifest, outside
 the publishable artifact directory. Its detached SHA-256 binds the exact
-source commit, complete sdist/wheel inventory, lock graph, generated assets,
-license notices, Node/npm/browser identity, and resolved Python host
-environment. It proves only byte equality between the two declared frontend
-builds and the committed wheel assets in that exact environment. The manifest
+source commit, complete sdist/wheel inventory, host lock graph,
+Node/npm/browser identity, and resolved Python host environment. It proves that
+the retained host harness passes type and lint validation twice from identical
+locked inputs without post-install network access. The manifest
 remains provenance for one artifact set; neither v3 nor H2 claims reproducible
 distribution bytes, signatures, or equality on another machine.
 
@@ -124,10 +121,9 @@ NumPy is the only mandatory Python runtime dependency. Exact `gmsh==4.15.2` is
 the optional `gmsh` extra and is launched only by the admitted automatic
 meshing path; separating it preserves the base package's `manylinux_2_17`
 floor. The Linux Gmsh wheel also requires `libGLU.so.1`. PyTorch, JAX,
-Matplotlib, and anywidget remain optional extras, and importing the base
-package must neither require nor import any of them. The public `notebook` extra contains only exact
-`anywidget==0.11.0`; JupyterLab, marimo, Playwright, and Chromium are verified
-host/build inputs and do not become Eqiora runtime dependencies.
+and Matplotlib remain optional extras, and importing the base package must
+neither require nor import any of them. Marimo, Playwright, and Chromium are
+verified candidate-host inputs and do not become Eqiora runtime dependencies.
 The first Matplotlib adapter uses exact release 3.11.1 with the headless Agg
 backend. Its registered adapter profile runs on ordinary-GIL CPython 3.13;
 the other wheel interpreters are not Matplotlib adapter compatibility

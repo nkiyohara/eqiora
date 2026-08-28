@@ -1,0 +1,43 @@
+id = "artifacts.mesh-production-lineage-v1"
+status = "verified"
+scope = "provider-occurrence-lineage-for-one-accepted-common-mesh"
+reference_kind = "canonical-replay-and-provider-policy-resource-mutation-falsifiers"
+
+capabilities = [
+  "canonical-common-mesh-production-lineage-v1",
+  "closed-mesh-provider-identity-and-version",
+  "exact-effective-planar-mesh-policy-lineage",
+  "exact-effective-cartesian-cell-policy-lineage",
+  "geometry-mesh-correspondence-resource-binding",
+]
+
+[problem]
+artifact = "provider occurrence separate from provider-neutral Geometry, Mesh, and correspondence artifacts"
+providers = "exact Gmsh CLI 4.15.2, planar circular-hole reference v1, and structured Cartesian v1"
+effective_policy = "explicitly tagged closed planar-quality or Cartesian-cell policy"
+
+[oracle]
+canonical_replay = "closed unknown-field-denying wire reconstructs through validation and reproduces its input bytes"
+resource_binding = "exact Geometry, Mesh, and correspondence SHA-256 identities"
+output_value_or_tolerance = false
+
+[falsifiers]
+provider = "provider identity or exact version substitution rejects"
+policy = "any effective numerical policy substitution rejects"
+resource = "Geometry, Mesh, or correspondence identity substitution rejects replay against accepted resources"
+wire = "unknown, malformed, noncanonical, or invalid wire rejects"
+
+[claim_boundary]
+common_mesh_production_occurrence = true
+provider_neutral_geometry_mesh_and_correspondence = true
+planar_circular_hole_policy_only = false
+raw_import_lineage = false
+cartesian_provider = true
+arbitrary_provider_registry = false
+scientific_output_accuracy_or_performance = false
+python_stokes_gallery_or_result = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-artifact"
+test = "mesh_production_lineage::tests::registered_mesh_production_lineage_replays_and_rejects_mutations"

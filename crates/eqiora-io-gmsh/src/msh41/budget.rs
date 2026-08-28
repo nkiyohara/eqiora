@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use eqiora_core::Diagnostic;
 
-use super::{GmshImportLimits, invalid_import};
+use super::{DecoderLimits, invalid_import};
 
 // These charges bound simultaneous structural indexes, owned coordinate and
 // connectivity decoding, tag lookup, canonical reconstruction, and the upper
@@ -32,7 +32,7 @@ pub(super) struct DecodedBudget {
 }
 
 impl DecodedBudget {
-    pub(super) const fn new(limits: GmshImportLimits) -> Self {
+    pub(super) const fn new(limits: DecoderLimits) -> Self {
         Self {
             remaining_bytes: limits.max_decoded_bytes,
             remaining_work: limits.max_decoded_work,

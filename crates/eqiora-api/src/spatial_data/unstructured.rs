@@ -7,7 +7,7 @@
 use eqiora_artifact::{
     AcceptedCircularHoleChordalRealizationV1, ArtifactDigest, CanonicalModelArtifact,
     DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, ModelEnvelope, RealizationEnvelopeV2,
-    RunManifestV2, SimplicialMeshEnvelopeV1, ValidatedFixedSpatialContextV1,
+    RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id};
@@ -50,45 +50,6 @@ pub struct UnstructuredP1ScalarFieldProjection2d {
 }
 
 impl UnstructuredP1ScalarFieldProjection2d {
-    /// Validate and materialize one exact two-dimensional P1 scalar snapshot.
-    ///
-    /// Model revision, Realization plan, Run, Field, Domain, mesh, coefficient
-    /// association, component shape, counts, and finite data are checked
-    /// before a complete projection is returned.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for foreign or stale lineage, a non-P1-scalar Field,
-    /// unsupported dimension, resource excess, or inconsistent mesh/values.
-    pub fn from_fixed_snapshot(
-        context: &ValidatedFixedSpatialContextV1<'_>,
-        run: &RunManifestV2,
-        snapshot: &FieldSnapshotEnvelopeV1,
-        block: &DiscreteFieldEnvelopeV1,
-    ) -> Result<Self, Diagnostic> {
-        run.validate_against(context.realization())?;
-        snapshot.validate_against(context, std::slice::from_ref(block))?;
-        let snapshot_artifact = snapshot.digest()?;
-        if !run.outputs().contains(&snapshot_artifact) {
-            return Err(invalid_projection(
-                "application P1 projection snapshot is not an output of the exact Run",
-            ));
-        }
-
-        let model = context.model_reference();
-        Self::materialize(
-            context.mesh(),
-            snapshot,
-            block,
-            ProjectionLineage {
-                model_artifact: model.artifact().clone(),
-                semantic_revision: model.semantic_revision().get(),
-                realization_artifact: context.realization().digest()?,
-                run_artifact: run.digest()?,
-                snapshot_artifact,
-            },
-        )
-    }
-
     /// Validate and materialize one exact circular-hole authored P1 snapshot.
     ///
     /// The Model, accepted exact-source chordal artifact, field-wise V2

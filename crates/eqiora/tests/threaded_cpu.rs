@@ -1,12 +1,5 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
-#[cfg(feature = "rayon")]
-use std::cell::Cell;
-
-#[cfg(feature = "rayon")]
-use eqiora::api::{
-    ModelDocument, ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod,
-};
 use eqiora::compiler::compile;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::realization::{
@@ -21,22 +14,12 @@ use eqiora::realization::{
     TargetCapability, VectorLayoutKind, default_plan_v0, resolve, resolve_fieldwise,
 };
 use eqiora::sem::KernelProgram;
-#[cfg(feature = "rayon")]
-use eqiora::solver::{
-    ConvergenceReason, ExecutionProvider, ProviderLibrary, REFERENCE_SOLVER_PROVIDER,
-    SERIAL_EXECUTION_PROVIDER, SERIAL_LINEAR_EXECUTION, SolverProvider,
-    accept_linear_solution_with_verifier,
-};
 use eqiora::solver::{
     ExecutionReport, LinearOperatorProperties, LinearSolver, PreconditionerPolicy,
     REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolveReport, SolverCapabilities,
     SolverCapability, SolverPlan,
 };
 use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION};
-#[cfg(feature = "rayon")]
-use eqiora_backend_rayon::{RAYON_ADAPTER_VERSION, RAYON_EXECUTION_PROVIDER, RAYON_VERSION};
-#[cfg(feature = "rayon")]
-use eqiora_execution::{AdmittedExecution, DeploymentBinding, HostExecutorDescriptor};
 use eqiora_numerics::{
     scalar::ResolvedScalarEllipticCartesianSolution, scalar::ResolvedScalarEllipticSolution1d,
     scalar::lower_scalar_elliptic_1d, scalar::solve_resolved_scalar_elliptic_1d,
@@ -44,8 +27,6 @@ use eqiora_numerics::{
     scalar::solve_resolved_scalar_elliptic_cartesian,
     scalar::solve_resolved_scalar_elliptic_cartesian_with_assembly,
 };
-#[cfg(feature = "rayon")]
-use eqiora_solver::{CanonicalCsrSystemView, CompleteCsrStorage, LinearSolverBackend};
 
 const SOURCE: &str = include_str!("../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");
 const SOURCE_2D: &str =
@@ -278,272 +259,6 @@ fn fieldwise_request(
         RealizationRevision::new(1),
         plan,
     )
-}
-
-#[cfg(feature = "rayon")]
-#[test]
-fn application_receipts_share_one_host_dag_across_serial_and_rayon() {
-    let document = ModelDocument::compile(
-        "verify/numerics/cartesian-poisson-fem-fvm/models/poisson.eqi",
-        SOURCE_2D,
-    )
-    .unwrap();
-    let cells = NonZeroUsize::new(4).unwrap();
-    let serial_environment = ScalarEllipticExecutionEnvironment::host_serial();
-    let serial_plan = document
-        .preview_scalar_elliptic_run(
-            ScalarEllipticIntent::new(
-                RealizationRevision::new(20),
-                ScalarEllipticMethod::FiniteElement,
-                cells,
-                NonZeroUsize::MIN,
-            ),
-            serial_environment,
-        )
-        .unwrap();
-    let serial = document
-        .run_scalar_elliptic_plan(serial_plan, serial_environment)
-        .unwrap();
-
-    let workers = NonZeroUsize::new(4).unwrap();
-    let threaded_environment = ScalarEllipticExecutionEnvironment::host_threaded(workers);
-    let threaded_plan = document
-        .preview_scalar_elliptic_run(
-            ScalarEllipticIntent::new(
-                RealizationRevision::new(21),
-                ScalarEllipticMethod::FiniteElement,
-                cells,
-                workers,
-            ),
-            threaded_environment,
-        )
-        .unwrap();
-    let threaded = document
-        .run_scalar_elliptic_plan(threaded_plan, threaded_environment)
-        .unwrap();
-
-    let serial_receipt = serial.receipt();
-    let threaded_receipt = threaded.receipt();
-    assert_eq!(serial.field(), threaded.field());
-    assert_eq!(serial.balance(), threaded.balance());
-    assert_eq!(serial_receipt.operator(), threaded_receipt.operator());
-    assert_eq!(serial_receipt.dimension(), threaded_receipt.dimension());
-    assert_eq!(serial_receipt.output(), threaded_receipt.output());
-    assert_eq!(serial_receipt.solver_plan(), threaded_receipt.solver_plan());
-    assert_eq!(serial_receipt.dag().steps(), threaded_receipt.dag().steps());
-    assert_ne!(serial_receipt.binding(), threaded_receipt.binding());
-    assert_eq!(
-        serial_receipt.solver_provider(),
-        serial_receipt.report().solver_provider()
-    );
-    assert_eq!(
-        serial_receipt.execution_provider(),
-        serial_receipt.report().execution_provider()
-    );
-    assert_eq!(
-        serial_receipt.binding().solver_provider(),
-        REFERENCE_SOLVER_PROVIDER
-    );
-    assert_eq!(
-        serial_receipt.binding().execution_provider(),
-        SERIAL_EXECUTION_PROVIDER
-    );
-    assert_eq!(
-        threaded_receipt.solver_provider(),
-        threaded_receipt.report().solver_provider()
-    );
-    assert_eq!(
-        threaded_receipt.execution_provider(),
-        threaded_receipt.report().execution_provider()
-    );
-    assert_eq!(
-        threaded_receipt.binding().solver_provider(),
-        REFERENCE_SOLVER_PROVIDER
-    );
-    assert_eq!(
-        threaded_receipt.binding().execution_provider(),
-        RAYON_EXECUTION_PROVIDER
-    );
-    assert_eq!(
-        serial_receipt.report().execution(),
-        ExecutionReport::host_serial()
-    );
-    assert_eq!(
-        threaded_receipt.report().execution(),
-        ExecutionReport::host(RAYON_EXECUTION, workers)
-    );
-    assert_eq!(
-        serial_receipt.report().verification(),
-        ExecutionReport::host_serial()
-    );
-    assert_eq!(
-        threaded_receipt.report().verification(),
-        ExecutionReport::host(RAYON_EXECUTION, workers)
-    );
-    assert_eq!(
-        serial_receipt.acceptance_verification(),
-        ExecutionReport::host_serial()
-    );
-    assert_eq!(
-        threaded_receipt.acceptance_verification(),
-        ExecutionReport::host_serial()
-    );
-    let serial_run = serial.run_manifest().execution();
-    assert_eq!(
-        serial_run.adapter_version(),
-        SERIAL_EXECUTION_PROVIDER.implementation_version()
-    );
-    assert_eq!(
-        serial_run.solver_backend_version(),
-        REFERENCE_SOLVER_PROVIDER.implementation_version()
-    );
-    assert!(serial_run.libraries().is_empty());
-    let threaded_run = threaded.run_manifest().execution();
-    assert_eq!(threaded_run.adapter(), RAYON_EXECUTION.as_str());
-    assert_eq!(threaded_run.adapter_version(), RAYON_ADAPTER_VERSION);
-    assert_eq!(
-        threaded_run.solver_backend(),
-        REFERENCE_SOLVER_PROVIDER.id().as_str()
-    );
-    assert_eq!(
-        threaded_run.solver_backend_version(),
-        REFERENCE_SOLVER_PROVIDER.implementation_version()
-    );
-    assert_eq!(
-        threaded_run.libraries().get("rayon").map(String::as_str),
-        Some(RAYON_VERSION)
-    );
-    assert_eq!(threaded_run.libraries().len(), 1);
-}
-
-#[cfg(feature = "rayon")]
-#[test]
-fn host_execution_admission_fails_before_pool_effects_and_rejects_substitution() {
-    let document = ModelDocument::compile(
-        "verify/numerics/cartesian-poisson-fem-fvm/models/poisson.eqi",
-        SOURCE_2D,
-    )
-    .unwrap();
-    let workers = NonZeroUsize::new(4).unwrap();
-    let environment = ScalarEllipticExecutionEnvironment::host_threaded(workers);
-    let plan = document
-        .preview_scalar_elliptic_run(
-            ScalarEllipticIntent::new(
-                RealizationRevision::new(22),
-                ScalarEllipticMethod::FiniteElement,
-                NonZeroUsize::new(4).unwrap(),
-                workers,
-            ),
-            environment,
-        )
-        .unwrap();
-
-    let pool_materializations = Cell::new(0usize);
-    let rejected = DeploymentBinding::bind_host(
-        plan.portable_realization(),
-        HostExecutorDescriptor::new(
-            REFERENCE_SOLVER_PROVIDER,
-            RAYON_EXECUTION_PROVIDER,
-            NonZeroUsize::new(2).unwrap(),
-            REFERENCE_LINEAR_SOLVER.capabilities(),
-        ),
-    )
-    .and_then(|binding| {
-        pool_materializations.set(pool_materializations.get() + 1);
-        CpuThreadPool::from_deployment(&binding)
-    })
-    .unwrap_err();
-    assert!(rejected.message().contains("executor capacity"));
-    assert_eq!(pool_materializations.get(), 0);
-
-    struct TwoByTwo;
-    impl CompleteCsrStorage for TwoByTwo {
-        fn rows(&self) -> usize {
-            2
-        }
-        fn columns(&self) -> usize {
-            2
-        }
-        fn row_offsets(&self) -> &[usize] {
-            &[0, 2, 4]
-        }
-        fn column_indices(&self) -> &[usize] {
-            &[0, 1, 0, 1]
-        }
-        fn values(&self) -> &[f64] {
-            &[2.0, -1.0, -1.0, 2.0]
-        }
-        fn right_hand_side(&self) -> &[f64] {
-            &[1.0, 0.0]
-        }
-    }
-
-    let system = CanonicalCsrSystemView::new(
-        &TwoByTwo,
-        LinearOperatorProperties::SymmetricPositiveDefinite,
-    )
-    .unwrap();
-    let binding = DeploymentBinding::bind_host(
-        plan.portable_realization(),
-        HostExecutorDescriptor::new(
-            REFERENCE_SOLVER_PROVIDER,
-            RAYON_EXECUTION_PROVIDER,
-            workers,
-            REFERENCE_LINEAR_SOLVER.capabilities(),
-        ),
-    )
-    .unwrap();
-    let problem = system.linear_problem().unwrap();
-    let solver_plan = plan.realization().solver();
-    let values = vec![2.0 / 3.0, 1.0 / 3.0];
-    let candidate = |solver_provider, execution_provider| {
-        accept_linear_solution_with_verifier(
-            &problem,
-            solver_plan,
-            solver_provider,
-            execution_provider,
-            ExecutionReport::host(RAYON_EXECUTION, workers),
-            ConvergenceReason::ResidualToleranceSatisfied,
-            1,
-            0.0,
-            values.clone(),
-            &SERIAL_LINEAR_EXECUTION,
-        )
-        .unwrap()
-    };
-
-    let substituted_solver =
-        SolverProvider::new(REFERENCE_SOLVER_PROVIDER.id(), "0.1.0-substituted", &[]);
-    let admitted =
-        AdmittedExecution::admit_host_linear(plan.portable_realization(), &system, binding.clone())
-            .unwrap();
-    let rejected = admitted
-        .accept(candidate(substituted_solver, RAYON_EXECUTION_PROVIDER))
-        .unwrap_err();
-    assert!(
-        rejected
-            .message()
-            .contains("provider provenance contradicts")
-    );
-
-    const SUBSTITUTED_RAYON: &[ProviderLibrary] =
-        &[ProviderLibrary::new("rayon", "0.0.0-substituted")];
-    let substituted_execution = ExecutionProvider::new(
-        RAYON_EXECUTION_PROVIDER.id(),
-        RAYON_EXECUTION_PROVIDER.implementation_version(),
-        SUBSTITUTED_RAYON,
-    );
-    let admitted =
-        AdmittedExecution::admit_host_linear(plan.portable_realization(), &system, binding)
-            .unwrap();
-    let rejected = admitted
-        .accept(candidate(REFERENCE_SOLVER_PROVIDER, substituted_execution))
-        .unwrap_err();
-    assert!(
-        rejected
-            .message()
-            .contains("provider provenance contradicts")
-    );
 }
 
 #[test]

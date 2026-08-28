@@ -13,10 +13,12 @@ name = "_eqiora"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-eqiora = { workspace = true, features = ["faer", "gmsh", "package-filesystem"] }
+eqiora = { workspace = true, features = ["diffsol", "faer", "gmsh", "package-filesystem"] }
+eqiora-numerics.workspace = true
 numpy = { workspace = true }
 pyo3 = { workspace = true }
 sha2 = { workspace = true }
+ulid.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 rustix = { workspace = true, features = ["process"] }

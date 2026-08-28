@@ -6,8 +6,7 @@
 - Evidence: [`fsi.remeshing-transfer-2d`](../verify/fsi/remeshing-transfer-2d/README.md)
   (`verified`)
 - Depends on: [RFC 0049](0049-geometry-identity-and-mesh-correspondence.md),
-  [RFC 0050](0050-fixed-reference-monolithic-fsi.md), [RFC
-  0051](0051-durable-spatial-state-and-trajectory.md), and [RFC
+  [RFC 0050](0050-fixed-reference-monolithic-fsi.md), and [RFC
   0064](0064-fixed-topology-ale-fsi.md)
 
 ## Summary

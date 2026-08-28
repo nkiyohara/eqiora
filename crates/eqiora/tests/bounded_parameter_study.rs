@@ -1,49 +1,24 @@
+mod support;
+
 use std::collections::{BTreeSet, HashSet};
-use std::num::NonZeroUsize;
 
 use eqiora::Id;
 use eqiora::api::{
     CompleteParameterStudy, DifferentiableEvaluation, DifferentiableProgram, ModelDocument,
     ParameterStudyPlan, ParameterStudyPointKey, ParameterStudyTerminalReport,
-    ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod,
 };
 use eqiora::diagnostic::codes;
 use eqiora::entity::kinds;
-use eqiora::realization::RealizationRevision;
+use eqiora_numerics::{CommonScalarPlan, CommonSpatialPolicy};
+use support::common_scalar_plan::{COMPONENT, document_and_plan_with_source, document_and_plans};
 
-const SOURCE: &str = r#"model differentiated_poisson_plane {
-  domain square = box(0, 1, 0, 1);
-  domain x_lower = boundary(square, axis = 0, side = lower);
-  domain x_upper = boundary(square, axis = 0, side = upper);
-  domain y_lower = boundary(square, axis = 1, side = lower);
-  domain y_upper = boundary(square, axis = 1, side = upper);
-  representation scalar_space = continuum;
-
-  field potential on square as scalar_space: 1 = 0;
-  parameter diffusion: 1 = 1;
-  parameter wave_number: 1 / m = 3.141592653589793;
-  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;
-  parameter boundary_offset: 1 = 0;
-
-  relation balance continuous on square {
-    -div(diffusion * grad(potential))
-      - source_scale
-        * sin(wave_number * coordinate(0))
-        * sin(wave_number * coordinate(1)) = 0;
-  }
-  relation x_lower_value continuous on x_lower { trace(potential) - boundary_offset = 0; }
-  relation x_upper_value continuous on x_upper { trace(potential) - boundary_offset = 0; }
-  relation y_lower_value continuous on y_lower { trace(potential) - boundary_offset = 0; }
-  relation y_upper_value continuous on y_upper { trace(potential) - boundary_offset = 0; }
-}
-"#;
 const DEFAULT_POINT: [f64; 3] = [19.739208802178716, 1.0, 0.0];
 const PERMUTED_DIFFUSION: [f64; 3] = [1.25, 0.75, 1.0];
 const CANONICAL_DIFFUSION: [f64; 3] = [0.75, 1.0, 1.25];
 
 struct Fixture {
-    document: ModelDocument,
     program: DifferentiableProgram,
+    fvm_program: DifferentiableProgram,
     source_scale: Id<kinds::Parameter>,
     diffusion: Id<kinds::Parameter>,
     boundary_offset: Id<kinds::Parameter>,
@@ -52,7 +27,7 @@ struct Fixture {
 
 #[test]
 fn study_matches_separately_accepted_evaluations_in_canonical_order() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
     let expected = independently_evaluate(&fixture.program, &CANONICAL_DIFFUSION);
     let plan = ParameterStudyPlan::new(&fixture.program, fixture.diffusion, &PERMUTED_DIFFUSION)
         .expect("the frozen three-point inventory is admissible without evaluation");
@@ -97,7 +72,7 @@ fn study_matches_separately_accepted_evaluations_in_canonical_order() {
 
 #[test]
 fn every_caller_permutation_has_one_plan_and_one_member_order() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
     let expected = independently_evaluate(&fixture.program, &CANONICAL_DIFFUSION);
     let permutations = [
         [0.75, 1.0, 1.25],
@@ -124,7 +99,7 @@ fn every_caller_permutation_has_one_plan_and_one_member_order() {
 
 #[test]
 fn planning_rejects_every_frozen_inventory_and_identity_mutant() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
 
     assert!(
         ParameterStudyPlan::new(&fixture.program, fixture.diffusion, &[0.75, 1.0, 1.0]).is_err(),
@@ -157,13 +132,14 @@ fn planning_rejects_every_frozen_inventory_and_identity_mutant() {
         "a same-Model Parameter outside the program input coordinates rejects"
     );
 
-    let foreign_source = SOURCE.replacen(
-        "model differentiated_poisson_plane",
-        "model foreign_differentiated_poisson_plane",
-        1,
+    let (foreign_document, _) = document_and_plan_with_source(
+        CommonSpatialPolicy::Q1,
+        &COMPONENT.replacen(
+            "component DifferentiatedPoisson",
+            "component ForeignDifferentiatedPoisson",
+            1,
+        ),
     );
-    let foreign_document =
-        ModelDocument::compile("foreign-bounded-parameter-study.eqi", &foreign_source).unwrap();
     let foreign_diffusion = foreign_document.parameter_ref("diffusion").unwrap().id();
     assert_ne!(foreign_diffusion, fixture.diffusion);
     assert!(
@@ -189,7 +165,7 @@ fn planning_rejects_every_frozen_inventory_and_identity_mutant() {
 
 #[test]
 fn point_keys_use_parameter_identity_exact_bits_and_total_order() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
     let signed_zero_plan =
         ParameterStudyPlan::new(&fixture.program, fixture.diffusion, &[-0.0, 0.0, 1.0])
             .expect("planning is structural and retains both signed zeros");
@@ -231,9 +207,9 @@ fn point_keys_use_parameter_identity_exact_bits_and_total_order() {
         fixture.source_scale.ulid().cmp(&fixture.diffusion.ulid())
     );
 
-    let fvm_program = program_for(&fixture.document, ScalarEllipticMethod::FiniteVolume);
-    let fvm_plan = ParameterStudyPlan::new(&fvm_program, fixture.diffusion, &PERMUTED_DIFFUSION)
-        .expect("the accepted FVM program admits the same coordinate keys");
+    let fvm_plan =
+        ParameterStudyPlan::new(&fixture.fvm_program, fixture.diffusion, &PERMUTED_DIFFUSION)
+            .expect("the accepted FVM program admits the same coordinate keys");
     let fem_plan =
         ParameterStudyPlan::new(&fixture.program, fixture.diffusion, &PERMUTED_DIFFUSION)
             .expect("the accepted FEM program admits the reference study");
@@ -251,7 +227,7 @@ fn point_keys_use_parameter_identity_exact_bits_and_total_order() {
 
 #[test]
 fn point_failure_is_terminal_and_preserves_original_diagnostics() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
     let failed_point = complete_point(-1.0);
     let original = fixture
         .program
@@ -279,7 +255,7 @@ fn point_failure_is_terminal_and_preserves_original_diagnostics() {
 
 #[test]
 fn cancellation_is_observed_only_before_or_between_point_evaluations() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
     let plan = ParameterStudyPlan::new(&fixture.program, fixture.diffusion, &PERMUTED_DIFFUSION)
         .expect("the reference plan is valid");
 
@@ -322,7 +298,7 @@ fn cancellation_is_observed_only_before_or_between_point_evaluations() {
 
 #[test]
 fn repeated_direct_point_evaluation_remains_isolated_around_an_alternate_point() {
-    let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
+    let fixture = build_fixture(CommonSpatialPolicy::Q1);
     let first = fixture.program.evaluate(&complete_point(0.75)).unwrap();
     let alternate = fixture.program.evaluate(&complete_point(1.25)).unwrap();
     let repeated = fixture.program.evaluate(&complete_point(0.75)).unwrap();
@@ -334,16 +310,26 @@ fn repeated_direct_point_evaluation_remains_isolated_around_an_alternate_point()
     );
 }
 
-fn build_fixture(method: ScalarEllipticMethod) -> Fixture {
-    let document = ModelDocument::compile("bounded-parameter-study.eqi", SOURCE).unwrap();
+fn build_fixture(spatial: CommonSpatialPolicy) -> Fixture {
+    let (document, q1, tpfa) = document_and_plans();
     let source_scale = document.parameter_ref("source_scale").unwrap().id();
     let diffusion = document.parameter_ref("diffusion").unwrap().id();
     let boundary_offset = document.parameter_ref("boundary_offset").unwrap().id();
     let wave_number = document.parameter_ref("wave_number").unwrap().id();
-    let program = program_for(&document, method);
+    let (primary, secondary) = match spatial {
+        CommonSpatialPolicy::Q1 => (q1, tpfa),
+        CommonSpatialPolicy::CellCenteredTpfa => (tpfa, q1),
+        CommonSpatialPolicy::P1
+        | CommonSpatialPolicy::MiniP1
+        | CommonSpatialPolicy::CellCentered => {
+            panic!("this Cartesian fixture does not admit the requested policy")
+        }
+    };
+    let program = program_for(&document, primary);
+    let fvm_program = program_for(&document, secondary);
     Fixture {
-        document,
         program,
+        fvm_program,
         source_scale,
         diffusion,
         boundary_offset,
@@ -351,24 +337,16 @@ fn build_fixture(method: ScalarEllipticMethod) -> Fixture {
     }
 }
 
-fn program_for(document: &ModelDocument, method: ScalarEllipticMethod) -> DifferentiableProgram {
-    let environment = ScalarEllipticExecutionEnvironment::host_serial();
-    let intent = ScalarEllipticIntent::new(
-        RealizationRevision::new(21),
-        method,
-        NonZeroUsize::new(12).unwrap(),
-        NonZeroUsize::MIN,
-    );
-    let plan = document
-        .preview_scalar_elliptic_run(intent, environment)
-        .unwrap();
+fn program_for(document: &ModelDocument, plan: CommonScalarPlan) -> DifferentiableProgram {
     let inputs = [
         document.parameter_ref("source_scale").unwrap(),
         document.parameter_ref("diffusion").unwrap(),
         document.parameter_ref("boundary_offset").unwrap(),
     ];
-    let output = document.field_ref("potential").unwrap();
-    DifferentiableProgram::compile(document, plan, &inputs, &output).unwrap()
+    let output = document
+        .field_ref(&plan.field().ulid().to_string())
+        .unwrap();
+    DifferentiableProgram::compile(plan, &inputs, &output).unwrap()
 }
 
 fn complete_point(diffusion: f64) -> [f64; 3] {

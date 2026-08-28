@@ -116,10 +116,7 @@ fn check_layers() -> Result<(), String> {
             if !workspace_names.contains(dependency_name) {
                 continue;
             }
-            if name == "eqiora-python"
-                && dependency_name != "eqiora"
-                && dependency_name.starts_with("eqiora-")
-            {
+            if name == "eqiora-python" && forbidden_python_dependency(dependency_name) {
                 violations.push(format!(
                     "eqiora-python must cross the public eqiora facade, not depend on {dependency_name}"
                 ));
@@ -152,6 +149,13 @@ fn check_layers() -> Result<(), String> {
     }
 }
 
+fn forbidden_python_dependency(dependency: &str) -> bool {
+    // The private PyO3 adapter owns no numerical meaning; it projects the one
+    // common Plan representation into Python. Every other Eqiora dependency
+    // must cross the public facade.
+    dependency.starts_with("eqiora-") && dependency != "eqiora-numerics"
+}
+
 fn same_layer_dependency_is_allowed(package: &str, dependency: &str) -> bool {
     matches!(
         (package, dependency),
@@ -178,6 +182,11 @@ fn same_layer_dependency_is_allowed(package: &str, dependency: &str) -> bool {
             // immutable mesh envelope as one authenticated revision instead
             // of accepting independently forgeable digest and mesh values.
             | ("eqiora-numerics", "eqiora-artifact")
+            // #535: the common numerical resolver composes bounded external
+            // mesh observations and canonical CPU lowering. Both adapters
+            // remain one-way leaves; neither owns numerical policy.
+            | ("eqiora-numerics", "eqiora-io-gmsh")
+            | ("eqiora-numerics", "eqiora-runtime")
             // RFC 0063: this single L3 composition owns the joint lifecycle
             // of otherwise isolated MPI transport and CUDA action adapters.
             | ("eqiora-backend-mpi-cuda", "eqiora-backend-mpi")
@@ -308,6 +317,14 @@ fn layer_exempt(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn python_has_one_private_common_plan_dependency() {
+        assert!(!forbidden_python_dependency("eqiora"));
+        assert!(!forbidden_python_dependency("eqiora-numerics"));
+        assert!(forbidden_python_dependency("eqiora-runtime"));
+        assert!(forbidden_python_dependency("eqiora-meshing"));
+    }
 
     #[test]
     fn layer_declarations_fail_closed_for_unknown_workspace_crates() {

@@ -13,17 +13,12 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
-    GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
-    PrescribedDynamicSolidRealizationEnvelopeV1, ReplayableCanonicalModelArtifact,
+    GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference, ReplayableCanonicalModelArtifact,
     ReplayableFixedTopologyAleRealizationArtifact, SimplicialMeshEnvelopeV1,
-    ValidatedFixedSpatialContextV1, ValidatedMovingSpatialContextV2, check_json_limits,
-    invalid_artifact,
+    ValidatedMovingSpatialContextV2, check_json_limits, invalid_artifact,
 };
 
-use super::context::{
-    ValidatedCircularHoleFieldwiseContext, ValidatedPrescribedDynamicSolidContext,
-    realized_field_space_v3,
-};
+use super::context::ValidatedCircularHoleFieldwiseContext;
 
 const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v1";
 
@@ -59,23 +54,6 @@ pub struct FieldSnapshotEnvelopeV1 {
 }
 
 impl FieldSnapshotEnvelopeV1 {
-    /// Bind normalized mesh-wide coefficient blocks to exact Field meaning.
-    ///
-    /// Metadata is derived from the supplied Model and Realization; callers
-    /// cannot independently assert units, shape, frame, support, or basis.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for stale resources, a Field outside the selected
-    /// Realization, an unsupported space/shape, wrong or duplicate blocks, or
-    /// any nonzero coefficient outside the exact Domain closure.
-    pub fn new(
-        context: &ValidatedFixedSpatialContextV1<'_>,
-        field: Id<kinds::Field>,
-        blocks: &[DiscreteFieldEnvelopeV1],
-    ) -> Result<Self, Diagnostic> {
-        Self::new_in_context(context, field, blocks)
-    }
-
     /// Bind normalized coefficient blocks in a fixed-topology moving context.
     ///
     /// The wire remains `field-snapshot-envelope/v1`: geometry motion changes
@@ -83,8 +61,8 @@ impl FieldSnapshotEnvelopeV1 {
     /// representation or the snapshot's semantic meaning.
     ///
     /// # Errors
-    /// Returns `EQ0901` under the same closed-world conditions as [`Self::new`],
-    /// using the exact ALE Realization and immutable reference topology.
+    /// Returns `EQ0901` when the exact ALE Realization, immutable reference
+    /// topology, semantic Field, and normalized coefficient blocks disagree.
     pub fn new_moving<
         M: ReplayableCanonicalModelArtifact,
         R: ReplayableFixedTopologyAleRealizationArtifact,
@@ -94,29 +72,6 @@ impl FieldSnapshotEnvelopeV1 {
         blocks: &[DiscreteFieldEnvelopeV1],
     ) -> Result<Self, Diagnostic> {
         Self::new_in_context(context, field, blocks)
-    }
-
-    /// Bind one exact prescribed dynamic-solid displacement or velocity snapshot.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for any semantic role, lineage, support, block, or content drift.
-    pub fn new_prescribed_dynamic_solid(
-        model: &impl ReplayableCanonicalModelArtifact,
-        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
-        geometry: &crate::GeometryIdentityEnvelopeV1,
-        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
-        mesh: &SimplicialMeshEnvelopeV1,
-        field: Id<kinds::Field>,
-        blocks: &[DiscreteFieldEnvelopeV1],
-    ) -> Result<Self, Diagnostic> {
-        let context = ValidatedPrescribedDynamicSolidContext::new(
-            model,
-            realization,
-            geometry,
-            correspondence,
-            mesh,
-        )?;
-        Self::new_in_context(&context, field, blocks)
     }
 
     pub(super) fn new_in_context<'a>(
@@ -360,54 +315,6 @@ impl FieldSnapshotEnvelopeV1 {
             .collect()
     }
 
-    /// Rebuild and compare the complete logical snapshot from exact dependencies.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for any semantic, resource, block, or content drift.
-    pub fn validate_against(
-        &self,
-        context: &ValidatedFixedSpatialContextV1<'_>,
-        blocks: &[DiscreteFieldEnvelopeV1],
-    ) -> Result<(), Diagnostic> {
-        let expected = Self::new(context, self.field(), blocks)?;
-        if self != &expected {
-            return Err(invalid_artifact(
-                "Field snapshot differs from exact semantic and numerical replay",
-            ));
-        }
-        Ok(())
-    }
-
-    /// Rebuild and compare one exact prescribed dynamic-solid snapshot.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for any semantic, resource, block, or content drift.
-    pub fn validate_against_prescribed_dynamic_solid(
-        &self,
-        model: &impl ReplayableCanonicalModelArtifact,
-        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
-        geometry: &crate::GeometryIdentityEnvelopeV1,
-        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
-        mesh: &SimplicialMeshEnvelopeV1,
-        blocks: &[DiscreteFieldEnvelopeV1],
-    ) -> Result<(), Diagnostic> {
-        let expected = Self::new_prescribed_dynamic_solid(
-            model,
-            realization,
-            geometry,
-            correspondence,
-            mesh,
-            self.field(),
-            blocks,
-        )?;
-        if self != &expected {
-            return Err(invalid_artifact(
-                "Field snapshot differs from exact prescribed dynamic-solid replay",
-            ));
-        }
-        Ok(())
-    }
-
     /// Rebuild and compare this logical snapshot in an exact moving context.
     ///
     /// # Errors
@@ -429,30 +336,6 @@ impl FieldSnapshotEnvelopeV1 {
             ));
         }
         Ok(())
-    }
-
-    /// Derive exact active mesh entities in one fixed-spatial context.
-    ///
-    /// The complete snapshot is first rebuilt from its exact semantic and
-    /// numerical dependencies. Returned indices are global, sorted canonical
-    /// mesh indices and are never inferred from coefficient values.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for stale snapshot lineage, an association absent from
-    /// the snapshot, or invalid support incidence.
-    pub fn active_entities_against<'a>(
-        &self,
-        context: &ValidatedFixedSpatialContextV1<'_>,
-        blocks: impl IntoIterator<Item = &'a DiscreteFieldEnvelopeV1>,
-        association: DiscreteFieldAssociation,
-    ) -> Result<Vec<usize>, Diagnostic> {
-        let expected = Self::new_in_context(context, self.field(), blocks)?;
-        if self != &expected {
-            return Err(invalid_artifact(
-                "Field snapshot differs from exact semantic and numerical replay",
-            ));
-        }
-        self.active_entities(context.correspondence(), context.mesh(), association)
     }
 
     /// Derive the exact active mesh entities for one coefficient association.
@@ -593,45 +476,6 @@ impl FieldSnapshotEnvelopeV1 {
             ));
         }
         Ok(())
-    }
-}
-
-impl ValidatedFieldSnapshotContext for ValidatedFixedSpatialContextV1<'_> {
-    fn model_reference(&self) -> &ModelArtifactReference {
-        ValidatedFixedSpatialContextV1::model_reference(self)
-    }
-
-    fn program(&self) -> &eqiora_sem::KernelProgram {
-        ValidatedFixedSpatialContextV1::program(self)
-    }
-
-    fn realization_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
-        self.realization().digest()
-    }
-
-    fn geometry_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
-        ValidatedFixedSpatialContextV1::geometry(self).digest()
-    }
-
-    fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
-        ValidatedFixedSpatialContextV1::correspondence(self)
-    }
-
-    fn mesh(&self) -> &SimplicialMeshEnvelopeV1 {
-        ValidatedFixedSpatialContextV1::mesh(self)
-    }
-
-    fn active_cells(&self, domain: Id<kinds::Domain>) -> Result<Vec<usize>, Diagnostic> {
-        self.correspondence()
-            .body_cells(domain)
-            .ok_or_else(|| invalid_artifact("Field snapshot Domain has no exact mesh cells"))
-    }
-
-    fn realized_field_space(
-        &self,
-        field: Id<kinds::Field>,
-    ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
-        realized_field_space_v3(self.realization(), field)
     }
 }
 

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use eqiora_core::Diagnostic;
 
 use super::{
-    DecodedBudget, DecodedMesh, DecodedNodes, GmshImportLimits, MSH_VERSION, decoded_coordinate,
+    DecodedBudget, DecodedMesh, DecodedNodes, DecoderLimits, MSH_VERSION, decoded_coordinate,
     exact_fields, fallible_map, fallible_push, fallible_reserve, fallible_set, fallible_vec,
     invalid_import, linear_simplex_type, parse_usize, strip_carriage_return,
 };
@@ -17,7 +17,7 @@ enum Endian {
 pub(super) fn parse(
     bytes: &[u8],
     dimension: usize,
-    limits: GmshImportLimits,
+    limits: DecoderLimits,
     declared_size_t_size: usize,
     budget: &mut DecodedBudget,
 ) -> Result<DecodedMesh, Diagnostic> {
@@ -58,13 +58,14 @@ pub(super) fn parse(
     Ok(DecodedMesh {
         vertices: nodes.vertices,
         cells,
+        element_blocks: Vec::new(),
     })
 }
 
 fn parse_entities(
     cursor: &mut BinaryCursor<'_>,
     dimension: usize,
-    limits: GmshImportLimits,
+    limits: DecoderLimits,
     budget: &mut DecodedBudget,
 ) -> Result<(), Diagnostic> {
     let mut counts = [0_usize; 4];
@@ -154,7 +155,7 @@ fn parse_entities(
 fn parse_nodes(
     cursor: &mut BinaryCursor<'_>,
     dimension: usize,
-    limits: GmshImportLimits,
+    limits: DecoderLimits,
     budget: &mut DecodedBudget,
 ) -> Result<DecodedNodes, Diagnostic> {
     let block_count = cursor.read_usize("$Nodes block count")?;
@@ -247,7 +248,7 @@ fn parse_nodes(
 fn parse_elements(
     cursor: &mut BinaryCursor<'_>,
     dimension: usize,
-    limits: GmshImportLimits,
+    limits: DecoderLimits,
     vertex_by_tag: &HashMap<u64, usize>,
     budget: &mut DecodedBudget,
 ) -> Result<Vec<Vec<usize>>, Diagnostic> {

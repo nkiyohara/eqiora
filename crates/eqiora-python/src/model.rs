@@ -14,6 +14,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyModule};
 
 use crate::error::{diagnostic_error, internal_diagnostic_error, panic_boundary, validation_error};
+use crate::geometry::PyGeometry;
 
 /// Exact identity of one immutable canonical Model artifact.
 #[pyclass(
@@ -176,6 +177,50 @@ pub(crate) struct PyModelFieldRef {
     id: String,
 }
 
+/// Exact canonical Domain selected from one immutable Model.
+#[pyclass(
+    name = "DomainRef",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    skip_from_py_object
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct PyModelDomainRef {
+    model_digest: String,
+    id: String,
+}
+
+impl PyModelDomainRef {
+    pub(crate) fn exact_model_digest(&self) -> &str {
+        &self.model_digest
+    }
+    pub(crate) fn exact_id(&self) -> &str {
+        &self.id
+    }
+}
+
+#[pymethods]
+impl PyModelDomainRef {
+    #[getter]
+    fn model_digest(&self) -> &str {
+        &self.model_digest
+    }
+
+    #[getter]
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "DomainRef(id={:?}, model_digest={:?})",
+            self.id, self.model_digest
+        )
+    }
+}
+
 impl PyModelFieldRef {
     pub(crate) fn from_exact(model_digest: String, id: String) -> Self {
         Self { model_digest, id }
@@ -264,12 +309,15 @@ impl PyValueEdit {
 
 /// One immutable canonical Model artifact, semantically admitted when closed.
 #[pyclass(name = "Model", module = "eqiora._eqiora", frozen, skip_from_py_object)]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct PyModel {
     document: Option<ModelDocument>,
     artifact: ModelEnvelope,
     revision: PyRevision,
     package_compilation: Option<PackageCompilationRecordV1>,
+    /// Retains the exact caller-owned Python Geometry handle for a fresh
+    /// geometry-closed compilation; artifact identity remains Rust-owned.
+    _geometry: Option<Py<PyGeometry>>,
 }
 
 impl PyModel {
@@ -290,7 +338,18 @@ impl PyModel {
             document: Some(document),
             artifact,
             package_compilation: None,
+            _geometry: None,
         })
+    }
+
+    pub(crate) fn from_document_with_geometry(
+        py: Python<'_>,
+        document: ModelDocument,
+        geometry: Py<PyGeometry>,
+    ) -> PyResult<Self> {
+        let mut model = Self::from_document(py, document)?;
+        model._geometry = Some(geometry);
+        Ok(model)
     }
 
     pub(crate) fn from_artifact(py: Python<'_>, artifact: ModelEnvelope) -> PyResult<Self> {
@@ -306,6 +365,7 @@ impl PyModel {
             document: None,
             artifact,
             package_compilation: None,
+            _geometry: None,
         })
     }
 
@@ -324,6 +384,7 @@ impl PyModel {
         &self.artifact
     }
 
+    #[allow(dead_code)]
     pub(crate) fn field_ref_from_id(
         &self,
         py: Python<'_>,
@@ -505,6 +566,22 @@ impl PyModel {
             .collect())
     }
 
+    /// Stable ULIDs of semantic Domains in this exact Model.
+    #[getter]
+    fn domain_ids(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+        match &self.document {
+            Some(document) => Ok(document
+                .program()
+                .nodes()
+                .filter(|node| node.id().kind() == EntityKind::Domain)
+                .map(|node| node.id().ulid().to_string())
+                .collect()),
+            None => self
+                .artifact_ids(EntityKind::Domain)
+                .map_err(|diagnostics| diagnostic_error(py, &diagnostics)),
+        }
+    }
+
     /// Resolve a source alias or exact ULID once into an exact Parameter role.
     fn parameter(&self, py: Python<'_>, selection: &str) -> PyResult<PyModelParameterRef> {
         panic_boundary(py, || {
@@ -553,6 +630,36 @@ impl PyModel {
                 reference.artifact().to_string(),
                 selection.to_owned(),
             ))
+        })
+    }
+
+    /// Resolve a source alias or exact ULID once into an exact Domain role.
+    fn domain(&self, py: Python<'_>, selection: &str) -> PyResult<PyModelDomainRef> {
+        panic_boundary(py, || {
+            let (model_digest, id) = if let Some(document) = &self.document {
+                let value = document
+                    .domain_ref(selection)
+                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+                (
+                    value.model().artifact().to_string(),
+                    value.id().ulid().to_string(),
+                )
+            } else {
+                let ids = self
+                    .artifact_ids(EntityKind::Domain)
+                    .map_err(|diagnostics| validation_error(py, &diagnostics))?;
+                if !ids.iter().any(|id| id == selection) {
+                    return Err(validation_error(
+                        py,
+                        &[Diagnostic::error(
+                            codes::NODE_NOT_FOUND,
+                            "deferred-admission Model domain selection requires an exact Domain ULID",
+                        )],
+                    ));
+                }
+                (self.revision.digest.clone(), selection.to_owned())
+            };
+            Ok(PyModelDomainRef { model_digest, id })
         })
     }
 
@@ -625,6 +732,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyValueEdit>()?;
     module.add_class::<PyModelParameterRef>()?;
     module.add_class::<PyModelFieldRef>()?;
+    module.add_class::<PyModelDomainRef>()?;
     module.add_class::<PyModel>()?;
     Ok(())
 }

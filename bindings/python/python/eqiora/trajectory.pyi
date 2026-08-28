@@ -3,13 +3,13 @@
 Authority: ``bindings/python/python/eqiora/trajectory.py``.
 """
 
-from collections.abc import Collection
 from typing import final
 
 import numpy as np
 import numpy.typing as npt
 
-from . import FieldRef
+from . import FieldRef, Model, Plan, Result, State
+from .meshing import Mesh
 
 @final
 class FieldSnapshot:
@@ -42,25 +42,6 @@ class FieldSnapshot:
     def __hash__(self) -> int: ...
 
 @final
-class TrajectoryState:
-    """Accepted physical state in exact trajectory order.
-
-    Authority: ``crates/eqiora-python/src/trajectory.rs::PyTrajectoryState``.
-    """
-
-    @property
-    def digest(self) -> str: ...
-    @property
-    def step(self) -> int: ...
-    @property
-    def time_s(self) -> float: ...
-    @property
-    def fields(self) -> tuple[FieldSnapshot, ...]: ...
-    def field(self, field: FieldRef, /) -> FieldSnapshot: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-
-@final
 class Trajectory:
     """Immutable installed-Python projection of an accepted trajectory.
 
@@ -76,9 +57,13 @@ class Trajectory:
     @property
     def mesh_digest(self) -> str: ...
     @property
-    def realization_digest(self) -> str: ...
+    def realization_digest(self) -> str | None: ...
     @property
-    def run_digest(self) -> str: ...
+    def plan_identity(self) -> str | None: ...
+    @property
+    def run_digest(self) -> str | None: ...
+    @property
+    def request_identity(self) -> str | None: ...
     @property
     def digest(self) -> str: ...
     @property
@@ -88,18 +73,13 @@ class Trajectory:
     @property
     def cells(self) -> npt.NDArray[np.uint32]: ...
     @property
-    def states(self) -> tuple[TrajectoryState, ...]: ...
-    def state(self, step: int, /) -> TrajectoryState: ...
-    def _repr_mimebundle_(
-        self,
-        include: Collection[str] | None = None,
-        exclude: Collection[str] | None = None,
-    ) -> dict[str, object]: ...
+    def states(self) -> tuple[State, ...]: ...
+    def state(self, step: int, /) -> State: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 
 __all__ = [
     "FieldSnapshot",
     "Trajectory",
-    "TrajectoryState",
+    "State",
 ]

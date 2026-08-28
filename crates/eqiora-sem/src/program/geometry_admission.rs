@@ -5,16 +5,31 @@ use std::fmt::Write;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
-use eqiora_geometry::CanonicalGeometryRef;
+use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{Edge, EdgeKind};
 use eqiora_schema::kernel::typing::SpatialSupport;
-use eqiora_schema::kernel::{DomainKind, KernelNode};
+use eqiora_schema::kernel::{ConnectionSemantics, DomainKind, KernelNode, ValueFrame};
 
 use super::{edge_targets, kernel_error, kernel_path};
 
 pub(super) struct GeometryAdmission {
     pub(super) supports: BTreeMap<RawId, SpatialSupport<RawId>>,
+    pub(super) boundary_embeddings: BTreeMap<RawId, GeometryBoundaryEmbedding>,
     pub(super) diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct GeometryBoundaryEmbedding {
+    pub(crate) geometry: [u8; 32],
+    pub(crate) entity_set: String,
+    pub(crate) parent_entity_set: String,
+    pub(crate) parent: RawId,
+    pub(crate) dimensions: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct GeometryBoundaryJunction {
+    pub(crate) dimensions: usize,
 }
 
 /// Index one exact closed artifact bundle.
@@ -24,8 +39,8 @@ pub(super) struct GeometryAdmission {
 /// against which those checks could run.
 pub(super) fn index_closed_bundle<'a>(
     nodes: &BTreeMap<RawId, KernelNode>,
-    supplied: &[CanonicalGeometryRef<'a>],
-) -> Result<BTreeMap<[u8; 32], CanonicalGeometryRef<'a>>, Vec<Diagnostic>> {
+    supplied: &[&'a CanonicalGeometryV1],
+) -> Result<BTreeMap<[u8; 32], &'a CanonicalGeometryV1>, Vec<Diagnostic>> {
     let mut required = BTreeMap::<[u8; 32], RawId>::new();
     for (&id, node) in nodes {
         let KernelNode::Domain(domain) = node else {
@@ -89,9 +104,10 @@ pub(super) fn admit_entity_sets(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
     invalid_domains: &BTreeSet<RawId>,
-    artifacts: &BTreeMap<[u8; 32], CanonicalGeometryRef<'_>>,
+    artifacts: &BTreeMap<[u8; 32], &CanonicalGeometryV1>,
 ) -> GeometryAdmission {
     let mut supports = BTreeMap::new();
+    let mut boundary_embeddings = BTreeMap::new();
     let mut diagnostics = Vec::new();
 
     for (&id, node) in nodes {
@@ -158,7 +174,11 @@ pub(super) fn admit_entity_sets(
                 let Some(KernelNode::Domain(parent_definition)) = nodes.get(&parent) else {
                     continue;
                 };
-                let DomainKind::GeometryRegion { geometry, .. } = parent_definition.kind() else {
+                let DomainKind::GeometryRegion {
+                    geometry,
+                    entity_set: parent_entity_set,
+                } = parent_definition.kind()
+                else {
                     continue;
                 };
                 let artifact = artifacts
@@ -194,6 +214,16 @@ pub(super) fn admit_entity_sets(
                                 dimensions: ambient,
                             },
                         );
+                        boundary_embeddings.insert(
+                            id,
+                            GeometryBoundaryEmbedding {
+                                geometry: geometry.bytes(),
+                                entity_set: entity_set.clone(),
+                                parent_entity_set: parent_entity_set.clone(),
+                                parent,
+                                dimensions: ambient,
+                            },
+                        );
                     }
                 }
             }
@@ -203,8 +233,105 @@ pub(super) fn admit_entity_sets(
 
     GeometryAdmission {
         supports,
+        boundary_embeddings,
         diagnostics,
     }
+}
+
+/// Admit only the construction-owned, opposite-parent internal interface of
+/// the exact adjacent-partition Geometry family. This is intentionally not a
+/// generic non-Cartesian Connection fallback.
+pub(super) fn admit_geometry_boundary_junctions(
+    nodes: &BTreeMap<RawId, KernelNode>,
+    edges: &[Edge],
+    artifacts: &BTreeMap<[u8; 32], &CanonicalGeometryV1>,
+    embeddings: &BTreeMap<RawId, GeometryBoundaryEmbedding>,
+) -> (
+    BTreeMap<RawId, GeometryBoundaryJunction>,
+    BTreeSet<RawId>,
+    Vec<Diagnostic>,
+) {
+    let mut junctions = BTreeMap::new();
+    let mut accepted_ports = BTreeSet::new();
+    let mut diagnostics = Vec::new();
+    for (&connection_id, node) in nodes {
+        let KernelNode::Connection(connection) = node else {
+            continue;
+        };
+        let ports = edge_targets(edges, connection_id, EdgeKind::Connects);
+        let geometry_ports = ports
+            .iter()
+            .filter_map(|port| {
+                let KernelNode::Port(definition) = nodes.get(port)? else {
+                    return None;
+                };
+                let (connector, boundary) = definition.boundary_physical_contract()?;
+                embeddings
+                    .get(&boundary.erase())
+                    .map(|embedding| (*port, connector.erase(), boundary.erase(), embedding))
+            })
+            .collect::<Vec<_>>();
+        if geometry_ports.is_empty() {
+            continue;
+        }
+        let valid = (|| {
+            if connection.semantics() != ConnectionSemantics::Conserving
+                || ports.len() != 2
+                || geometry_ports.len() != 2
+            {
+                return false;
+            }
+            let (first_port, first_connector, first_boundary, first) = geometry_ports[0];
+            let (second_port, second_connector, second_boundary, second) = geometry_ports[1];
+            if first_port == second_port
+                || first_connector != second_connector
+                || first_boundary == second_boundary
+                || first.parent == second.parent
+                || first.geometry != second.geometry
+                || first.dimensions != second.dimensions
+            {
+                return false;
+            }
+            let Some(KernelNode::Domain(connector)) = nodes.get(&first_connector) else {
+                return false;
+            };
+            let DomainKind::BoundaryPhysical { connector } = connector.kind() else {
+                return false;
+            };
+            if connector.frame() == ValueFrame::SpatialCartesian
+                && connector
+                    .shape()
+                    .extents()
+                    .iter()
+                    .any(|extent| usize::try_from(extent.get()).ok() != Some(first.dimensions))
+            {
+                return false;
+            }
+            artifacts.get(&first.geometry).is_some_and(|artifact| {
+                artifact.selections_form_opposite_parent_interface(
+                    &first.entity_set,
+                    &first.parent_entity_set,
+                    &second.entity_set,
+                    &second.parent_entity_set,
+                )
+            })
+        })();
+        if valid {
+            accepted_ports.extend(ports.iter().copied());
+            junctions.insert(
+                connection_id,
+                GeometryBoundaryJunction {
+                    dimensions: geometry_ports[0].3.dimensions,
+                },
+            );
+        } else {
+            diagnostics.push(kernel_error(
+                connection_id,
+                "geometry boundary-physical Connection must be the exact two-sided opposite-parent interface of one admitted adjacent-partition Geometry",
+            ));
+        }
+    }
+    (junctions, accepted_ports, diagnostics)
 }
 
 fn invalid_artifact(message: impl Into<String>, subject: Option<RawId>) -> Diagnostic {

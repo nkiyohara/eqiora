@@ -1,17 +1,31 @@
 """Narrow fluid applications composed by Eqiora's shared native layer."""
 
 from ._eqiora import (
-    SteadyStokes,
+    IncompressibleScales,
+    IncompressibleScaling,
+    IncompressibleScalingAuthority2d,
+    IncompressibleScalingAuthorityKind,
+    IncompressibleScalingComponent2d,
+    IncompressibleScalingComponentRecord2d,
+    IncompressibleScalingMode,
+    IncompressibleScalingReceipt2d,
+    IncompressibleScalingRule2d,
+    PressureGauge2d,
     SteadyStokesEvidence,
-    SteadyStokesPlan,
-    resolve_steady_stokes as resolve,
     steady_stokes_evidence,
 )
 
 __all__ = [
-    "SteadyStokes",
+    "IncompressibleScales",
+    "IncompressibleScaling",
+    "IncompressibleScalingAuthority2d",
+    "IncompressibleScalingAuthorityKind",
+    "IncompressibleScalingComponent2d",
+    "IncompressibleScalingComponentRecord2d",
+    "IncompressibleScalingMode",
+    "IncompressibleScalingReceipt2d",
+    "IncompressibleScalingRule2d",
+    "PressureGauge2d",
     "SteadyStokesEvidence",
-    "SteadyStokesPlan",
-    "resolve",
     "steady_stokes_evidence",
 ]

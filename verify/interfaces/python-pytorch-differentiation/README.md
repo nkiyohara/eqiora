@@ -2,8 +2,10 @@
 
 One optional `eqiora.torch` adapter projects an accepted framework-neutral
 `DifferentiableProgram` as a functional PyTorch operator. The native program
-retains the exact Model, Realization, ordered Parameter identities, and output
-Field. A rank-one Tensor supplies only the numerical Parameter point.
+retains the exact common scalar Plan, its Model, caller-supplied two-dimensional
+rectangular Cartesian Mesh, ordered Parameter identities, and output Field.
+The verified Plans use Q1 FEM or cell-centred TPFA with a typed linear solve
+policy. A rank-one Tensor supplies only the numerical Parameter point.
 
 The forward schema is
 `eqiora::differentiable_solve(Tensor, str, int, int) -> Tensor`. It declares no

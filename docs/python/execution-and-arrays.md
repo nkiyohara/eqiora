@@ -6,15 +6,31 @@ Blocking and awaitable execution use the same native worker, state machine,
 and once-materialized result:
 
 ```python
-run = eqiora.submit(model, end_time=1.0, max_step=0.01)
+field = model.field(model.field_ids[0])
+plan = eqiora.resolve(
+    model,
+    temporal=eqiora.time.Tsitouras45(
+        initial_step_s=0.01,
+        relative_tolerance=1.0e-9,
+        absolute_tolerances={field: 1.0e-11},
+    ),
+)
+state = eqiora.State.initial(plan)
+run = eqiora.submit(
+    plan,
+    state=state,
+    until_s=1.0,
+    output_times_s=(1.0,),
+)
 print(run.status, run.progress)
 result = run.result()
 
 # The blocking convenience uses the same lifecycle.
 same_kind_of_result = eqiora.run(
-    model,
-    end_time=1.0,
-    max_step=0.01,
+    plan,
+    state=state,
+    until_s=1.0,
+    output_times_s=(1.0,),
 )
 ```
 
@@ -26,8 +42,13 @@ immutable Python result object.
 Awaiting does not introduce another native runtime:
 
 ```python
-async def simulate(model):
-    run = eqiora.submit(model, end_time=1.0, max_step=0.01)
+async def simulate(plan):
+    run = eqiora.submit(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=1.0,
+        output_times_s=(1.0,),
+    )
     try:
         return await run
     finally:
@@ -54,7 +75,12 @@ structured diagnostics:
 
 ```python
 try:
-    result = eqiora.run(model, end_time=-1.0, max_step=0.01)
+    result = eqiora.run(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=-1.0,
+        output_times_s=(-1.0,),
+    )
 except eqiora.EqioraError as error:
     print(error.category)
     for diagnostic in error.diagnostics:
@@ -106,4 +132,3 @@ byte order, alignment, and contiguity, then makes one documented owned staging
 copy before native execution. This is not a zero-copy execution-input claim.
 GPU streams, sparse/distributed arrays, and general Run inputs remain separate
 contracts.
-

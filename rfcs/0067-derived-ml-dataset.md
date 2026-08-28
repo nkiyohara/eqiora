@@ -3,8 +3,7 @@
 - Status: Implemented
 - Authors: Eqiora contributors
 - Created: 2026-07-22
-- Depends on: [RFC 0051](0051-durable-spatial-state-and-trajectory.md),
-  [RFC 0065](0065-remeshing-correspondence-and-transfer.md), and
+- Depends on: [RFC 0065](0065-remeshing-correspondence-and-transfer.md), and
   [RFC 0066](0066-remeshing-trajectory-xdmf-hdf5-export.md)
 
 ## Summary
@@ -16,17 +15,12 @@ train/validation/test partitions, records training-only normalization
 statistics, and materializes bounded owned CPU arrays without hiding the
 ragged topology created by remeshing.
 
-It does not reinterpret XDMF, HDF5, framework tensors, solver output, or an
-identity-only `DatasetViewEnvelopeV1` as Dataset meaning.
+It does not reinterpret XDMF, HDF5, framework tensors, or solver output as
+Dataset meaning.
 
 ## Motivation
 
-RFC 0051 deliberately made `DatasetViewEnvelopeV1` a fixed-spatial,
-reference-only selection. It copies no values and assigns no ML roles, split,
-or fitted preprocessing. Widening that artifact after remeshing support would
-mix durable observation identity with one consumer's interpretation.
-
-The missing seam is not a generic array container. It is an exact derivation:
+The Dataset seam is not a generic array container. It is an exact derivation:
 
 ```text
 canonical V2 -> V3 trajectory and dependency graph
@@ -45,10 +39,9 @@ acceptable for an evidence-gated derivation.
 
 ### A distinct derived artifact
 
-`DatasetViewEnvelopeV1` remains unchanged. `MlDatasetEnvelopeV1` is a new
-domain-separated artifact because feature/target roles, windows, partitions,
-and fitted statistics are ML interpretation rather than spatial-state
-identity.
+`MlDatasetEnvelopeV1` is domain-separated because feature/target roles,
+windows, partitions, and fitted statistics are ML interpretation rather than
+spatial-state identity.
 
 The artifact references the exact `SpatialTrajectoryEnvelopeV3` and records
 the exact state, snapshot, and logical coefficient-block identities selected

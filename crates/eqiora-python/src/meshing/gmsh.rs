@@ -1,5 +1,6 @@
 //! Narrow external Gmsh producer for the admitted exact-cylinder mesh path.
 
+use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fmt::Write as _;
 use std::fs::{self, File};
@@ -15,14 +16,11 @@ use std::os::unix::process::CommandExt as _;
 
 use eqiora::Diagnostic;
 use eqiora::artifact::{
-    AcceptedCircularHoleChordalRealizationV1, ExternalAdapterIdentityV1, ExternalImportManifestV1,
-    ExternalImportObservationV1, ExternalImportSelectionV1, ExternalImportSourceV1,
-    GeometryMeshCorrespondenceEnvelopeV1, ResolvedArrayV1, ResolvedImportArrayV1,
-    SelectedSourceEntityV1, SimplicialMeshEnvelopeV1, StructuralSelectorV1,
+    GeometryMeshCorrespondenceEnvelopeV1, PlanarMeshQualityV1, SimplicialMeshEnvelopeV1,
 };
 use eqiora::diagnostic::codes;
-use eqiora::geometry::PlanarRegion;
-use eqiora::io::gmsh::{GmshImportLimits, GmshSimplexImporter};
+use eqiora::geometry::CanonicalGeometryV1;
+use eqiora::io::gmsh::{Msh41Policy, import_msh41};
 use eqiora::meshing::MeshQualityGate;
 #[cfg(unix)]
 use rustix::process::{Pid, Signal, kill_process_group};
@@ -31,113 +29,37 @@ const GMSH_VERSION: &str = "4.15.2";
 const GMSH_ENV: &str = "EQIORA_GMSH";
 const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 const PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
-const GMSH_ADAPTER_ID: &str = "eqiora.gmsh";
-// Adapter-relative manifest selectors: the admitted whole MSH mesh, followed
-// by its normalized Nodes geometry and Elements topology observations.
-const MSH_MESH_SELECTOR: &[u32] = &[0];
-const MSH_NODES_SELECTOR: &[u32] = &[1];
-const MSH_ELEMENTS_SELECTOR: &[u32] = &[2];
-
+const PROCESS_FILE_LIMIT_FLOOR_BYTES: usize = 1024 * 1024;
+const FAILURE_DETAIL_LIMIT_BYTES: usize = 4096;
 static SCRATCH_NONCE: AtomicU64 = AtomicU64::new(0);
 
-pub(super) struct ImportedGmshMesh {
-    pub(super) accepted: AcceptedCircularHoleChordalRealizationV1,
-    pub(super) manifest: ExternalImportManifestV1,
-}
-
-pub(super) fn import(
-    source: &[u8],
-    reference: &AcceptedCircularHoleChordalRealizationV1,
-    quality_gate: MeshQualityGate,
-) -> Result<ImportedGmshMesh, Diagnostic> {
-    let importer = GmshSimplexImporter::new(2, quality_gate, GmshImportLimits::default())?;
-    let mesh = SimplicialMeshEnvelopeV1::from_mesh(&importer.import_bytes(source)?)?;
-    let correspondence =
-        GeometryMeshCorrespondenceEnvelopeV1::from_region(reference.realized_geometry(), &mesh)?;
-    let accepted = reference.bind_conforming_mesh(&mesh, &correspondence)?;
-    let observation = observation(source, &mesh)?;
-    let selection = ExternalImportSelectionV1::new(
-        SelectedSourceEntityV1::new(
-            StructuralSelectorV1::new(MSH_MESH_SELECTOR.to_vec()),
-            Some("MSH 4.1 mesh".to_owned()),
-        )?,
-        Vec::new(),
-    )?;
-    let manifest = ExternalImportManifestV1::from_observation(
-        ExternalAdapterIdentityV1::new(GMSH_ADAPTER_ID, eqiora::VERSION)?,
-        Vec::new(),
-        selection,
-        &observation,
-        &mesh,
-        &[],
-    )?;
-    Ok(ImportedGmshMesh { accepted, manifest })
-}
-
-fn observation(
-    source: &[u8],
-    mesh: &SimplicialMeshEnvelopeV1,
-) -> Result<ExternalImportObservationV1, Diagnostic> {
-    let native = mesh.mesh();
-    let vertex_count = u64::try_from(native.vertices().len())
-        .map_err(|_| invalid_import("Gmsh vertex count exceeds portable u64"))?;
-    let dimension = u64::try_from(mesh.dimension())
-        .map_err(|_| invalid_import("Gmsh dimension exceeds portable u64"))?;
-    let cell_count = u64::try_from(native.cells().len())
-        .map_err(|_| invalid_import("Gmsh cell count exceeds portable u64"))?;
-    let cell_width = native.cells().first().map_or(0, Vec::len);
-    let cell_width = u64::try_from(cell_width)
-        .map_err(|_| invalid_import("Gmsh cell width exceeds portable u64"))?;
-    let coordinates = native
-        .vertices()
-        .iter()
-        .flat_map(|coordinate| coordinate.iter().copied())
-        .collect();
-    let topology = native
-        .cells()
-        .iter()
-        .flatten()
-        .map(|&index| {
-            u64::try_from(index)
-                .map_err(|_| invalid_import("Gmsh vertex index exceeds portable u64"))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    ExternalImportObservationV1::new(
-        ExternalImportSourceV1::metadata_document(source.to_vec(), None)?,
-        Vec::new(),
-        ResolvedImportArrayV1::new(
-            0,
-            StructuralSelectorV1::new(MSH_NODES_SELECTOR.to_vec()),
-            Some("Nodes".to_owned()),
-            ResolvedArrayV1::from_f64(vec![vertex_count, dimension], coordinates)?,
-        )?,
-        ResolvedImportArrayV1::new(
-            0,
-            StructuralSelectorV1::new(MSH_ELEMENTS_SELECTOR.to_vec()),
-            Some("Elements".to_owned()),
-            ResolvedArrayV1::from_u64(vec![cell_count, cell_width], topology)?,
-        )?,
-        Vec::new(),
-    )
+pub(super) struct GeneratedGmshMesh {
+    pub(super) provider_output: Vec<u8>,
+    sizing: GmshSizingReceipt,
+    pub(super) minimum_mean_ratio: f64,
+    pub(super) mesh: SimplicialMeshEnvelopeV1,
+    pub(super) correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+    pub(super) edge_facets: [Vec<usize>; 5],
 }
 
 pub(super) fn generate(
-    reference: &AcceptedCircularHoleChordalRealizationV1,
+    source: &CanonicalGeometryV1,
+    policy: PlanarMeshQualityV1,
     quality_gate: MeshQualityGate,
-) -> Result<AcceptedCircularHoleChordalRealizationV1, Diagnostic> {
+) -> Result<GeneratedGmshMesh, Diagnostic> {
     let executable = gmsh_executable()?;
     let scratch = ScratchDirectory::create()?;
     require_version(&executable, scratch.path())?;
 
     let geometry_path = scratch.path().join("mesh.geo");
     let mesh_path = scratch.path().join("mesh.msh");
-    let region = reference.realized_geometry().region()?;
-    fs::write(&geometry_path, geometry_script(&region)?).map_err(|error| {
+    let stderr_path = scratch.path().join("generation.stderr");
+    let generated_geometry = geometry_script(source, policy)?;
+    fs::write(&geometry_path, generated_geometry.script).map_err(|error| {
         invalid_import(format!("cannot write the Gmsh geometry input: {error}"))
     })?;
 
-    let limits = GmshImportLimits::default();
-    let importer = GmshSimplexImporter::new(2, quality_gate, limits)?;
+    let limits = Msh41Policy::mesh(2, quality_gate)?;
     let mut command = bounded_output_command(&executable, limits.max_bytes.saturating_add(1));
     command
         .arg("-2")
@@ -146,11 +68,15 @@ pub(super) fn generate(
         .arg(&mesh_path)
         .args(["-format", "msh41", "-v", "2"])
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stderr(Stdio::from(File::create(&stderr_path).map_err(
+            |error| invalid_import(format!("cannot create Gmsh diagnostic output: {error}")),
+        )?));
     let status = run_with_timeout(command, PROCESS_TIMEOUT)?;
     if !status.success() {
-        return Err(invalid_import(format!(
-            "Gmsh {GMSH_VERSION} failed with status {status}"
+        return Err(invalid_import(process_failure(
+            &format!("Gmsh {GMSH_VERSION}"),
+            status,
+            &stderr_path,
         )));
     }
 
@@ -160,11 +86,49 @@ pub(super) fn generate(
         "Gmsh input exceeds the configured byte limit",
         "Gmsh mesh output",
     )?;
-    let mesh = importer.import_bytes(&bytes)?;
+    derive_generated(source, generated_geometry.sizing, quality_gate, bytes)
+}
+
+fn derive_generated(
+    source: &CanonicalGeometryV1,
+    sizing: GmshSizingReceipt,
+    quality_gate: MeshQualityGate,
+    provider_output: Vec<u8>,
+) -> Result<GeneratedGmshMesh, Diagnostic> {
+    let policy = Msh41Policy::ascii_with_entity_assignments(2, quality_gate)?;
+    let mut assignments = BTreeMap::new();
+    let mesh = import_msh41(&provider_output, policy, |dimension, tag, indices| {
+        assignments.insert((dimension, tag), indices.to_vec());
+    })?;
+    if assignments.keys().copied().collect::<Vec<_>>()
+        != [(1, 1), (1, 5), (1, 6), (1, 7), (1, 8), (2, 1)]
+    {
+        return Err(invalid_import(
+            "generated Gmsh entity-tag inventory is not canonical",
+        ));
+    }
+    let mut edge_facets: [Vec<usize>; 5] = std::array::from_fn(|_| Vec::new());
+    for (tag, source_edge) in [(1_u32, 4_usize), (5, 2), (6, 1), (7, 3), (8, 0)] {
+        edge_facets[source_edge] = assignments
+            .get(&(1, tag))
+            .expect("exact tag inventory checked")
+            .clone();
+    }
     let mesh = SimplicialMeshEnvelopeV1::from_mesh(&mesh)?;
     let correspondence =
-        GeometryMeshCorrespondenceEnvelopeV1::from_region(reference.realized_geometry(), &mesh)?;
-    reference.bind_conforming_mesh(&mesh, &correspondence)
+        GeometryMeshCorrespondenceEnvelopeV1::from_planar_circular_hole_v2_mesh_assignments(
+            source,
+            &mesh,
+            edge_facets.clone(),
+        )?;
+    Ok(GeneratedGmshMesh {
+        provider_output,
+        sizing,
+        minimum_mean_ratio: quality_gate.minimum_mean_ratio(),
+        mesh,
+        correspondence,
+        edge_facets,
+    })
 }
 
 fn gmsh_executable() -> Result<OsString, Diagnostic> {
@@ -177,18 +141,26 @@ fn gmsh_executable() -> Result<OsString, Diagnostic> {
 
 fn require_version(executable: &OsStr, scratch: &Path) -> Result<(), Diagnostic> {
     let output_path = scratch.join("version.txt");
+    let stderr_path = scratch.join("version.stderr");
     let output = File::create(&output_path)
         .map_err(|error| invalid_import(format!("cannot create Gmsh version output: {error}")))?;
     let mut command = bounded_output_command(executable, 65);
     command
         .arg("--version")
         .stdout(Stdio::from(output))
-        .stderr(Stdio::null());
+        .stderr(Stdio::from(File::create(&stderr_path).map_err(
+            |error| {
+                invalid_import(format!(
+                    "cannot create Gmsh version diagnostic output: {error}"
+                ))
+            },
+        )?));
     let status = run_with_timeout(command, VERSION_TIMEOUT)?;
     if !status.success() {
-        return Err(invalid_import(format!(
-            "Gmsh version check failed with status {}",
-            status
+        return Err(invalid_import(process_failure(
+            "Gmsh version check",
+            status,
+            &stderr_path,
         )));
     }
     let stdout = read_bounded_output(
@@ -236,7 +208,12 @@ fn bounded_output_command(executable: &OsStr, max_bytes: usize) -> Command {
     #[cfg(unix)]
     {
         const FILE_LIMIT_BLOCK_BYTES: usize = 512;
-        let blocks = max_bytes.div_ceil(FILE_LIMIT_BLOCK_BYTES);
+        // The PyPI Gmsh CLI is a Python entry point. Leave enough process-wide
+        // headroom for interpreter cache/support files while enforcing the
+        // narrower semantic limit when the requested output is read below.
+        let blocks = max_bytes
+            .max(PROCESS_FILE_LIMIT_FLOOR_BYTES)
+            .div_ceil(FILE_LIMIT_BLOCK_BYTES);
         let mut command = Command::new("/bin/sh");
         command
             .args([
@@ -255,20 +232,131 @@ fn bounded_output_command(executable: &OsStr, max_bytes: usize) -> Command {
     }
 }
 
-fn geometry_script(region: &PlanarRegion) -> Result<String, Diagnostic> {
-    let [face] = region.faces() else {
-        return Err(invalid_import(
-            "automatic Gmsh meshing currently requires one planar face",
-        ));
+fn process_failure(label: &str, status: ExitStatus, stderr_path: &Path) -> String {
+    let detail = fs::read(stderr_path)
+        .ok()
+        .map(|bytes| {
+            let retained = &bytes[..bytes.len().min(FAILURE_DETAIL_LIMIT_BYTES)];
+            String::from_utf8_lossy(retained).trim().to_owned()
+        })
+        .filter(|detail| !detail.is_empty());
+    match detail {
+        Some(detail) => format!("{label} failed with status {status}: {detail}"),
+        None => format!("{label} failed with status {status}"),
+    }
+}
+
+struct GeneratedGeometry {
+    script: String,
+    sizing: GmshSizingReceipt,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct GmshSizingReceipt {
+    circle_segments: usize,
+    straight_segments: [usize; 4],
+    minimum_size_m: f64,
+    maximum_size_m: f64,
+}
+
+fn sizing_receipt(
+    source: &CanonicalGeometryV1,
+    policy: PlanarMeshQualityV1,
+) -> Result<GmshSizingReceipt, Diagnostic> {
+    let radius = source
+        .circular_hole_radius_m()
+        .ok_or_else(|| invalid_import("GmshMesher requires planar circular-hole Geometry v2"))?;
+    let error = policy.maximum_boundary_error_m();
+    let raw = if error >= 2.0 * radius {
+        8.0
+    } else {
+        let half_angle = (error / (2.0 * radius)).sqrt().asin();
+        (std::f64::consts::PI / (2.0 * half_angle)).ceil().max(8.0)
     };
-    if face.holes().len() != 1 {
+    if !raw.is_finite() || raw > usize::MAX as f64 {
         return Err(invalid_import(
-            "automatic Gmsh meshing currently requires one planar hole",
+            "Gmsh circular-boundary segment count exceeds the local work range",
         ));
     }
+    let mut circle_segments = raw as usize;
+    while circle_segments > 8 && sagitta_m(radius, circle_segments - 1) <= error {
+        circle_segments -= 1;
+    }
+    while sagitta_m(radius, circle_segments) > error {
+        circle_segments = circle_segments.checked_add(1).ok_or_else(|| {
+            invalid_import("Gmsh circular-boundary segment count exceeds the local work range")
+        })?;
+    }
+    if circle_segments > policy.maximum_boundary_facets() {
+        return Err(invalid_import(format!(
+            "Gmsh circular-boundary error requires {circle_segments} segments, exceeding the caller limit of {}",
+            policy.maximum_boundary_facets(),
+        )));
+    }
+    let minimum_size_m = 2.0 * radius * (std::f64::consts::PI / circle_segments as f64).sin();
+    let maximum_size_m = 4.0 * radius;
+    if !minimum_size_m.is_finite()
+        || minimum_size_m <= 0.0
+        || !maximum_size_m.is_finite()
+        || maximum_size_m < minimum_size_m
+    {
+        return Err(invalid_import(
+            "Gmsh derived target size must be finite and positive",
+        ));
+    }
+    let [[x_min, x_max], [y_min, y_max]] = source
+        .circular_hole_bounds()
+        .ok_or_else(|| invalid_import("GmshMesher requires planar circular-hole Geometry v2"))?;
+    let width = x_max - x_min;
+    let height = y_max - y_min;
+    let segments = |length: f64| -> Result<usize, Diagnostic> {
+        let count = (length / maximum_size_m).ceil();
+        if !count.is_finite() || count < 1.0 || count > usize::MAX as f64 {
+            return Err(invalid_import(
+                "Gmsh straight-boundary segment count exceeds the local work range",
+            ));
+        }
+        Ok(count as usize)
+    };
+    Ok(GmshSizingReceipt {
+        circle_segments,
+        // Canonical source-edge order is x-lower, x-upper, y-lower, y-upper.
+        straight_segments: [
+            segments(height)?,
+            segments(height)?,
+            segments(width)?,
+            segments(width)?,
+        ],
+        minimum_size_m,
+        maximum_size_m,
+    })
+}
 
+fn sagitta_m(radius_m: f64, segments: usize) -> f64 {
+    let sine = (std::f64::consts::PI / (2.0 * segments as f64)).sin();
+    2.0 * radius_m * sine * sine
+}
+
+fn geometry_script(
+    source: &CanonicalGeometryV1,
+    policy: PlanarMeshQualityV1,
+) -> Result<GeneratedGeometry, Diagnostic> {
+    let bounds = source
+        .circular_hole_bounds()
+        .ok_or_else(|| invalid_import("GmshMesher requires planar circular-hole Geometry v2"))?;
+    let center = source
+        .circular_hole_center()
+        .ok_or_else(|| invalid_import("GmshMesher requires planar circular-hole Geometry v2"))?;
+    let radius = source
+        .circular_hole_radius_m()
+        .ok_or_else(|| invalid_import("GmshMesher requires planar circular-hole Geometry v2"))?;
+    CanonicalGeometryV1::decode_planar_circular_hole_v2_canonical(
+        source.canonical_bytes(),
+        eqiora::geometry::CanonicalGeometryLimits::default(),
+    )
+    .map_err(|_| invalid_import("GmshMesher requires planar circular-hole Geometry v2"))?;
     let mut script = String::from(
-        "SetFactory(\"Built-in\");\n\
+        "SetFactory(\"OpenCASCADE\");\n\
          General.NumThreads = 1;\n\
          Mesh.Algorithm = 6;\n\
          Mesh.ElementOrder = 1;\n\
@@ -277,82 +365,88 @@ fn geometry_script(region: &PlanarRegion) -> Result<String, Diagnostic> {
          Mesh.RandomFactor = 0;\n\
          Mesh.SaveAll = 1;\n",
     );
-    let point_order = face.holes()[0]
-        .iter()
-        .copied()
-        .chain(face.outer().iter().copied())
-        .collect::<Vec<_>>();
-    if point_order.len() != region.vertices().len() {
-        return Err(invalid_import(
-            "automatic Gmsh meshing requires distinct boundary vertices",
-        ));
-    }
-    let mut point_tag = vec![0_usize; region.vertices().len()];
-    for (offset, vertex) in point_order.into_iter().enumerate() {
-        if point_tag[vertex] != 0 {
-            return Err(invalid_import(
-                "automatic Gmsh meshing requires distinct boundary vertices",
-            ));
-        }
-        let tag = offset + 1;
-        point_tag[vertex] = tag;
-        let [x, y] = region.vertices()[vertex];
-        writeln!(script, "Point({tag}) = {{{x:?}, {y:?}, 0}};")
-            .expect("writing to String cannot fail");
-    }
-
-    let mut next_line = 1_usize;
-    let mut surface_loops = Vec::new();
-    for (offset, vertices) in face
-        .holes()
-        .iter()
-        .map(Vec::as_slice)
-        .chain(std::iter::once(face.outer()))
-        .enumerate()
+    let [[x_min, x_max], [y_min, y_max]] = *bounds;
+    for (tag, [x, y]) in [
+        [x_min, y_min],
+        [x_max, y_min],
+        [x_max, y_max],
+        [x_min, y_max],
+    ]
+    .into_iter()
+    .enumerate()
     {
-        let next_loop = offset + 1;
-        let mut lines = Vec::with_capacity(vertices.len());
-        for pair in vertices
-            .iter()
-            .copied()
-            .zip(vertices.iter().copied().cycle().skip(1))
-            .take(vertices.len())
-        {
-            writeln!(
-                script,
-                "Line({next_line}) = {{{}, {}}};",
-                point_tag[pair.0], point_tag[pair.1]
-            )
+        writeln!(script, "Point({}) = {{{x:?}, {y:?}, 0}};", tag + 1)
             .expect("writing to String cannot fail");
-            lines.push(next_line);
-            next_line += 1;
-        }
-        writeln!(
-            script,
-            "Curve Loop({next_loop}) = {{{}}};",
-            comma_separated(&lines)
-        )
-        .expect("writing to String cannot fail");
-        surface_loops.push(next_loop);
     }
-    let outer_loop = surface_loops.pop().expect("the outer loop was generated");
-    let mut plane_loops = vec![outer_loop];
-    plane_loops.extend(surface_loops);
     writeln!(
         script,
-        "Plane Surface(1) = {{{}}};",
-        comma_separated(&plane_loops)
+        "Circle(1) = {{{:?}, {:?}, 0, {radius:?}}};",
+        center[0], center[1]
     )
     .expect("writing to String cannot fail");
-    Ok(script)
+    for (tag, [start, end]) in [[1, 2], [2, 3], [3, 4], [4, 1]].into_iter().enumerate() {
+        writeln!(script, "Line({}) = {{{start}, {end}}};", tag + 5)
+            .expect("writing to String cannot fail");
+    }
+    writeln!(
+        script,
+        "Curve Loop(1) = {{-1}};\nCurve Loop(2) = {{5, 6, 7, 8}};\nPlane Surface(1) = {{2, 1}};"
+    )
+    .expect("writing to String cannot fail");
+
+    let sizing = sizing_receipt(source, policy)?;
+    writeln!(script, "Mesh.MeshSizeMin = {:?};", sizing.minimum_size_m)
+        .expect("writing to String cannot fail");
+    writeln!(script, "Mesh.MeshSizeMax = {:?};", sizing.maximum_size_m)
+        .expect("writing to String cannot fail");
+    writeln!(
+        script,
+        "Transfinite Curve {{1}} = {};",
+        sizing.circle_segments + 1
+    )
+    .expect("writing to String cannot fail");
+    // Gmsh counts nodes, rather than segments, on open transfinite curves.
+    for (tag, source_edge) in [(5, 2), (6, 1), (7, 3), (8, 0)] {
+        writeln!(
+            script,
+            "Transfinite Curve {{{tag}}} = {};",
+            sizing.straight_segments[source_edge] + 1
+        )
+        .expect("writing to String cannot fail");
+    }
+
+    Ok(GeneratedGeometry { script, sizing })
 }
 
-fn comma_separated(values: &[usize]) -> String {
-    values
-        .iter()
-        .map(usize::to_string)
-        .collect::<Vec<_>>()
-        .join(", ")
+pub(super) fn revalidate_generated(
+    source: &CanonicalGeometryV1,
+    generated: &GeneratedGmshMesh,
+    policy: PlanarMeshQualityV1,
+) -> Result<(), Diagnostic> {
+    let quality_gate = MeshQualityGate::new(policy.minimum_mean_ratio())?;
+    let sizing = sizing_receipt(source, policy)?;
+    if sizing != generated.sizing
+        || generated.minimum_mean_ratio.to_bits() != policy.minimum_mean_ratio().to_bits()
+    {
+        return Err(invalid_import(
+            "retained Gmsh generation inputs differ from exact policy replay",
+        ));
+    }
+    let replayed = derive_generated(
+        source,
+        sizing,
+        quality_gate,
+        generated.provider_output.clone(),
+    )?;
+    if replayed.mesh != generated.mesh
+        || replayed.correspondence != generated.correspondence
+        || replayed.edge_facets != generated.edge_facets
+    {
+        return Err(invalid_import(
+            "retained Gmsh provider output differs from deterministic resource replay",
+        ));
+    }
+    Ok(())
 }
 
 fn run_with_timeout(mut command: Command, timeout: Duration) -> Result<ExitStatus, Diagnostic> {
@@ -443,4 +537,75 @@ impl Drop for ScratchDirectory {
 
 fn invalid_import(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_MESH_IMPORT, message)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use eqiora::geometry::PlanarOperationGraph;
+
+    use super::*;
+
+    fn circular_hole(bounds: [[f64; 2]; 2], center: [f64; 2], radius: f64) -> CanonicalGeometryV1 {
+        let graph = PlanarOperationGraph::new();
+        let rectangle = graph.rectangle(bounds[0], bounds[1]).unwrap();
+        let circle = graph.circle(center, radius).unwrap();
+        let region = graph.subtract(&rectangle, &circle).unwrap();
+        let boundaries = region.boundaries();
+        graph
+            .build(
+                &region,
+                &BTreeMap::from([
+                    ("fluid".to_owned(), vec![region.region().into()]),
+                    ("inlet".to_owned(), vec![boundaries[0].into()]),
+                    ("outlet".to_owned(), vec![boundaries[1].into()]),
+                    (
+                        "walls".to_owned(),
+                        vec![boundaries[2].into(), boundaries[3].into()],
+                    ),
+                    ("cylinder".to_owned(), vec![boundaries[4].into()]),
+                ]),
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn sizing_is_minimal_at_binary64_sagitta_boundary() {
+        let source = circular_hole([[0.0, 2.2], [0.0, 0.41]], [0.2, 0.2], 0.05);
+        let error = sagitta_m(0.05, 20);
+        let policy = PlanarMeshQualityV1::new(error, 1.0e-5, 50).unwrap();
+        let receipt = sizing_receipt(&source, policy).unwrap();
+        assert_eq!(receipt.circle_segments, 20);
+        assert!(sagitta_m(0.05, receipt.circle_segments) <= error);
+        assert!(sagitta_m(0.05, receipt.circle_segments - 1) > error);
+
+        let stricter =
+            PlanarMeshQualityV1::new(f64::from_bits(error.to_bits() - 1), 1.0e-5, 50).unwrap();
+        assert_eq!(
+            sizing_receipt(&source, stricter).unwrap().circle_segments,
+            21
+        );
+    }
+
+    #[test]
+    fn sizing_uses_exact_nondefault_geometry_and_policy() {
+        let source = circular_hole([[-1.0, 3.0], [-2.0, 1.0]], [0.5, -0.5], 0.2);
+        let policy = PlanarMeshQualityV1::new(2.0e-3, 2.0e-5, 64).unwrap();
+        let receipt = sizing_receipt(&source, policy).unwrap();
+        assert!(receipt.circle_segments >= 8);
+        assert_eq!(receipt.straight_segments[0], receipt.straight_segments[1]);
+        assert_eq!(receipt.straight_segments[2], receipt.straight_segments[3]);
+        assert!(receipt.straight_segments[2] > receipt.straight_segments[0]);
+
+        let alternate = circular_hole([[-1.0, 4.0], [-2.0, 1.0]], [0.5, -0.5], 0.2);
+        assert_ne!(receipt, sizing_receipt(&alternate, policy).unwrap());
+    }
+
+    #[test]
+    fn sizing_rejects_policy_that_cannot_admit_the_circle() {
+        let source = circular_hole([[0.0, 2.2], [0.0, 0.41]], [0.2, 0.2], 0.05);
+        let policy = PlanarMeshQualityV1::new(1.0e-6, 1.0e-5, 8).unwrap();
+        assert!(sizing_receipt(&source, policy).is_err());
+    }
 }

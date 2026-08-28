@@ -3,14 +3,12 @@ use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 
-const EXACT_CYLINDER_MODEL: &str = "../../examples/steady-flow-past-cylinder.model.json";
-const MIXED_BOUNDARY_ELASTICITY_MODEL: &str =
-    "../../verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi";
-const FIXED_REFERENCE_FSI_MODEL: &str =
-    "../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi";
+const EXACT_CYLINDER_SOURCE: &str = "../../examples/steady-flow-past-cylinder.eqi";
+const MIXED_BOUNDARY_ELASTICITY_MODEL: &str = "../../examples/mixed-boundary-elasticity.eqi";
+const FIXED_REFERENCE_FSI_MODEL: &str = "../../examples/fixed-reference-fsi.eqi";
 
 fn main() -> Result<(), Box<dyn Error>> {
-    println!("cargo:rerun-if-changed={EXACT_CYLINDER_MODEL}");
+    println!("cargo:rerun-if-changed={EXACT_CYLINDER_SOURCE}");
     println!("cargo:rerun-if-changed={MIXED_BOUNDARY_ELASTICITY_MODEL}");
     println!("cargo:rerun-if-changed={FIXED_REFERENCE_FSI_MODEL}");
 
@@ -23,8 +21,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             .ok_or("Cargo did not provide OUT_DIR to the Python package build")?,
     );
     fs::copy(
-        manifest_dir.join(EXACT_CYLINDER_MODEL),
-        output_dir.join("steady-flow-past-cylinder.model.json"),
+        manifest_dir.join(EXACT_CYLINDER_SOURCE),
+        output_dir.join("steady-flow-past-cylinder.eqi"),
     )?;
     fs::copy(
         manifest_dir.join(MIXED_BOUNDARY_ELASTICITY_MODEL),

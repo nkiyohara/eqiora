@@ -1378,63 +1378,11 @@ h2 {
   box-shadow: 0 0 0 2px rgba(158, 210, 183, 0.14);
 }
 
-.spatial-domain-summary {
-  display: flex;
-  gap: 5px;
-  margin: -2px 0 10px;
-}
-
-.spatial-domain-summary span {
-  padding: 4px 7px;
-  border: 1px solid rgba(158, 210, 183, 0.12);
-  border-radius: 999px;
-  background: rgba(158, 210, 183, 0.035);
-  color: var(--mint);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 8px;
-}
-
-.spatial-run-form {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.spatial-run-form__method {
-  grid-column: 1 / -1;
-}
-
 .worker-budget-note {
   margin: 6px 0 0;
   color: var(--text-muted);
   font-size: 8px;
   line-height: 1.4;
-}
-
-.spatial-capability-summary {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.spatial-capability-summary > div:first-child {
-  grid-column: auto;
-}
-
-.spatial-run-progress progress:not([value]) {
-  background: linear-gradient(
-    90deg,
-    rgba(128, 174, 211, 0.08),
-    rgba(128, 174, 211, 0.34),
-    rgba(128, 174, 211, 0.08)
-  );
-  background-size: 180% 100%;
-  animation: spatial-progress 1.5s ease-in-out infinite;
-}
-
-@keyframes spatial-progress {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: -100% 0;
-  }
 }
 
 .run-form input[aria-invalid="true"] {
@@ -1820,13 +1768,6 @@ h2 {
   gap: 15px;
 }
 
-.spatial-result-workspace {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(390px, 1.18fr) minmax(300px, 0.82fr);
-  gap: 15px;
-}
-
 .solution-summary {
   min-width: 0;
   display: grid;
@@ -1943,14 +1884,6 @@ h2 {
 
 .acceptance-pair strong {
   color: var(--mint);
-}
-
-.spatial-evidence-grid {
-  gap: 7px 10px;
-}
-
-.spatial-empty-state {
-  min-height: 150px;
 }
 
 .chart-wrap {
@@ -2144,9 +2077,6 @@ h2 {
     min-height: 260px;
   }
   .result-workspace {
-    display: block;
-  }
-  .spatial-result-workspace {
     display: block;
   }
   .solution-summary {

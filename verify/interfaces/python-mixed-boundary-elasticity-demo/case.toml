@@ -1,93 +1,62 @@
 id = "interfaces.python-mixed-boundary-elasticity-demo"
 status = "verified"
-scope = "one-installed-python-explicit-linear-elasticity-plan-common-result-field-snapshot-mesh-evidence-and-headless-deformed-field-still"
-reference_kind = "shared-rust-application-lineage-projected-through-common-result-and-presentation-transparency"
+scope = "installed-python-root-plan-mixed-boundary-elasticity-common-result"
+reference_kind = "existing-scientific-oracle-projected-through-common-model-first-lifecycle"
 
 capabilities = [
-  "python-linear-elasticity-plan-run",
-  "python-common-structural-result-field-snapshot",
-  "python-typed-linear-elasticity-evidence",
-  "python-structural-model-realization-run-lineage",
-  "python-read-only-q1-displacement-field-and-mesh",
+  "python-component-source-and-caller-geometry-compilation",
+  "python-root-linear-elasticity-plan-run",
+  "python-common-displacement-field-output",
+  "python-typed-linear-elasticity-observation",
   "python-headless-scaled-deformed-field-still",
 ]
 
 [problem]
-model = "one packaged byte-exact copy of the accepted source, compiled explicitly by Python through the current Model owner"
-physics = "verified coherent-SI mixed-boundary isotropic linear elasticity"
-intent = "keyword-only eqiora.solid.LinearElasticity(cells_per_axis=16, relative_tolerance=1.0e-12, absolute_tolerance=1.0e-14, maximum_iterations=10000), with no hidden defaults"
-realization = "generated 16-by-16 Cartesian continuous Q1 two-component field"
-resolution = "eqiora.solid.resolve(model, intent) -> an inspectable exact-Model-bound LinearElasticityPlan before execution"
-entry_point = "eqiora.submit(model, plan=plan).result(), equivalently eqiora.run(model, plan=plan)"
-result_type = "common immutable eqiora.Result with exact FieldSnapshot and Mesh lookup by the caller's Model-bound displacement FieldRef"
-evidence = "eqiora.solid.linear_elasticity_evidence(result) -> typed LinearElasticityEvidence"
-renderer = "eqiora.matplotlib.plot_deformed_field(result, field=displacement, scale=<explicit finite nonnegative value>)"
-compatibility = "MixedBoundaryElasticityResult, solve_mixed_boundary_elasticity, and plot_displacement are one-subsequent-prerelease warning-emitting delegating shims with no independent ownership"
+source = "the packaged component-only mixed-boundary-elasticity .eqi source"
+geometry = "one Python GeometryGraph-authored rectangle with named topology supports"
+mesh = "a caller-owned 16-by-16 Cartesian Q1 realization"
+physics = "coherent-SI mixed-boundary isotropic linear elasticity, determined by the Model"
+lifecycle = ".eqi -> eqiora.compile(geometry=...) -> eqiora.resolve(model, mesh, Q1, Linear, scaling=None) -> Plan -> eqiora.run(plan)"
+result = "common eqiora.Result selected by the exact Plan-owned displacement FieldRef"
+observation = "eqiora.solid.linear_elasticity_evidence(result) projects the native Plan-authenticated observation"
+renderer = "eqiora.matplotlib.plot_deformed_field(result, field=plan.field('displacement'), scale=<explicit finite nonnegative value>)"
 
 [oracle]
 scientific_case = "solid.mixed-boundary-elasticity-2d"
-spatial_artifact_case = "artifacts.generated-cartesian-q1-spatial-output"
-lineage_case = "interfaces.studio-mixed-boundary-elasticity-demo"
-matplotlib_case = "interfaces.python-exact-cylinder-pressure-still"
-model_admission = "structural semantic equivalence to the accepted current source, preserving the caller's current artifact identity"
-lineage = "Model, Realization, Geometry, correspondence, Cartesian Mesh, exact displacement FieldSnapshot, and singleton-output Run identities replay relationally from the one shared Rust-owned application composition"
-arrays = "canonical 289-by-2 coordinates, 256-by-4 Q1 connectivity, and 289-by-2 displacement in coherent SI order"
-scientific_evidence = "the existing reference-CG solve summary, assembly counts, constrained reaction, integrated body force, and exact bounds, unchanged and selected through typed LinearElasticityEvidence"
-rendering = "unique canonical undirected Q1 edges, with deformed coordinates equal to coordinates plus scale times displacement"
+matplotlib_contract = "ordinary installed Matplotlib product coverage; no registered presentation oracle"
+policy = "scientific values and tolerances remain unchanged and owned by the existing structural case; this case checks installed composition and typed ownership"
 
 [acceptance]
-packaged_source_is_byte_exact = true
-caller_compiles_and_supplies_current_model = true
-intent_is_keyword_only_without_hidden_defaults = true
-plan_is_model_bound_and_inspectable_before_execution = true
-unsupported_intent_tuple_rejects_without_fallback = true
-submit_and_run_have_a_distinct_typed_structural_plan_arm = true
-studio_and_python_consume_one_shared_rust_result = true
-model_realization_run_lineage_is_relationally_exact = true
-model_realization_geometry_correspondence_mesh_run_lineage_is_relationally_exact = true
-run_has_exact_displacement_snapshot_output = true
-common_result_selects_snapshot_and_mesh_by_exact_field_ref = true
-solver_and_assembly_evidence_are_exposed = true
-typed_solver_assembly_reaction_body_force_and_bounds_evidence_is_exposed = true
-true_residual_meets_the_owned_solver_target = true
-matrix_views_are_memoized_read_only_and_owner_independent = true
-independent_solves_do_not_share_matrix_storage = true
-numpy_import_is_lazy_until_matrix_materialization = true
-explicit_quadrilateral_connectivity_is_preserved = true
-original_and_scaled_deformed_meshes_are_distinguished = true
-scale_is_visible_and_does_not_change_solver_values = true
+caller_geometry_is_the_only_concrete_geometry_authority = true
+component_source_contains_no_concrete_box_or_duplicate_geometry = true
+root_plan_uses_q1_and_explicit_linear_solver_policy = true
+plan_publishes_exact_displacement_field_selector = true
+common_result_field_output_is_coindexed_with_caller_mesh = true
+linear_elasticity_observation_is_plan_authenticated = true
+solver_reaction_body_force_and_bounds_relationships_are_preserved = true
+foreign_field_and_cross_physics_observation_reject = true
+unsupported_spatial_policy_rejects_without_fallback = true
+displaced_solid_intent_plan_resolver_and_plot_shim_are_absent = true
 headless_caller_owned_nonblank_png = true
-base_import_is_matplotlib_free = true
-predecessor_names_warn_and_delegate_only = true
 
 [falsifiers]
-foreign_model_meaning = "rejected before Plan publication or Realization"
-foreign_exact_model_plan = "a Plan resolved for one exact Model is rejected when submitted with a structurally equivalent or same-field-id foreign exact Model"
-foreign_solver_tuple = "rejected during structural Plan resolution instead of falling back at the shared Rust application boundary"
-missing_or_positional_intent = "the keyword-only intent rejects any missing required value and positional construction"
-model_realization_or_run_drift = "public canonical lineage fields disagree"
-field_identity_reconstruction = "Result field or mesh lookup accepts a field name, field id string, structurally equivalent Model, or identical field id from another exact Model"
-shape_or_connectivity_drift = "projection rejects noncanonical or out-of-range Q1 data"
-mutable_or_result_owned_arrays = "matrix lifetime and writeability checks fail"
-eager_numpy_dependency = "isolated process imports NumPy before first matrix projection"
-cross_physics_evidence = "steady-Stokes evidence accepts this structural Result or linear-elasticity evidence accepts a nonstructural Result"
-raw_or_foreign_plot_input = "rejected before renderer construction"
-negative_or_nonfinite_scale = "rejected before renderer construction"
-edge_reordering_or_duplication = "captured segment sets differ from canonical unique edges"
-unlabelled_scale = "title and legend omit the applied scale"
-gui_dependency = "Agg render runs with DISPLAY absent"
-independent_predecessor_implementation = "a retained predecessor owns Result storage, execution, lineage, plotting, evidence, or produces output different from the converged path"
-silent_predecessor = "a retained predecessor does not emit an actionable DeprecationWarning"
+duplicate_geometry_authority = "the .eqi source regains a concrete box definition"
+foreign_field = "a FieldRef not owned by the exact Plan selects displacement output"
+foreign_observation = "linear-elasticity observation accepts a steady-Stokes Result"
+policy_fallback = "an unsupported MiniP1 structural policy silently substitutes Q1"
+hidden_application_resolver = "LinearElasticity, its specialized Plan, or solid.resolve reappears"
+retained_plot_shim = "plot_displacement reappears instead of the common field renderer"
+raw_or_foreign_plot_input = "the renderer accepts values without the exact Result and Plan-owned field"
+invalid_scale = "a negative or nonfinite deformation scale reaches rendering"
+gui_dependency = "the Agg render requires DISPLAY"
 
 [claim_boundary]
-one_current_model = true
-historical_generation_callable = false
-compatibility_shim_callable = true
+one_current_component_source = true
 one_refinement = "16-by-16 Cartesian Q1"
 intrinsic_dimension = 2
 linear_isotropic_elasticity_only = true
-general_structural_result = false
-common_result_transport_for_this_one_case = true
+common_displacement_field_output = true
+typed_native_observation = true
 stress_strain_or_traction = false
 analytic_error_or_convergence = false
 nonzero_boundary_data = false
@@ -95,12 +64,8 @@ unstructured_or_high_order_mesh = false
 three_dimensional_nonlinear_or_dynamic_elasticity = false
 fsi = false
 interactive_viewer = false
-generic_field_plotting = false
-color_or_magnitude_field = false
 exact_pixels_or_image_dimensions = false
 scientific_validation_from_pixels = false
-compatibility_shims_are_ordinary_api = false
-compatibility_window = "one subsequent prerelease, followed by physical removal"
 
 [evidence]
 runner = "python-installed-wheel"

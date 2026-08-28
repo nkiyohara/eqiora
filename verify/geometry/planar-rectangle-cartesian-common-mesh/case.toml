@@ -1,0 +1,42 @@
+id = "geometry.planar-rectangle-cartesian-common-mesh"
+status = "verified"
+scope = "exact-planar-rectangle-v2-to-structured-cartesian-common-mesh"
+reference_kind = "analytic-exact-topology-and-structural-correspondence-falsifiers"
+
+capabilities = [
+  "planar-rectangle-v2-cartesian-common-mesh",
+  "direct-source-edge-facet-correspondence",
+]
+
+[problem]
+geometry = "exact tolerance-free PlanarRectangleV2 with one region and four ordered edges"
+provider_policy = "positive explicit Cartesian cells (nx, ny)"
+
+[oracle]
+coordinates = "independently enumerated row-major coordinates for the exact 2-by-3 rectangle"
+connectivity = "independently enumerated ordered vertices for every cell and facet"
+boundary_membership = "exact facet IDs left=[8,9,10], right=[14,15,16], bottom=[0,4], top=[3,7]"
+boundary_incidence = "exact parent cell, local side ordinal, and identity orientation for every boundary facet"
+partition = "exact disjoint boundary/interior facet inventory covers all 17 facets"
+replay = "second production and canonical decode reproduce exact Mesh and correspondence"
+output_value_or_tolerance = false
+
+[falsifiers]
+geometry = "different exact rectangle rejects replay; non-rectangle kind rejects admission"
+policy = "zero, overflow, or either-axis substituted cell counts reject"
+topology = "facet connectivity, local ordinal, or orientation mutation rejects reconstruction"
+correspondence = "source, dimension, empty frontier, duplicate source edge, left/right swap, bottom/top swap, facet-ID mutation, or foreign correspondence rejects"
+resources = "foreign Geometry or Mesh rejects exact replay"
+
+[claim_boundary]
+cartesian_common_mesh = true
+direct_rectangle_correspondence = true
+coordinate_classifier = false
+model_or_physics = false
+q1_or_tpfa_finalization = false
+scientific_output_accuracy_or_performance = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-artifact"
+test = "geometry_mesh_correspondence::planar_rectangle_v2_correspondence::tests::registered_rectangle_cartesian_common_mesh_evidence"

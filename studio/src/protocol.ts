@@ -3,6 +3,7 @@ import { z } from "zod";
 export const BRIDGE_PROTOCOL = "eqiora.studio.bridge/v5" as const;
 export const MAX_PROJECTION_NODE_COUNT = 100_000;
 export const MAX_PROJECTION_EDGE_COUNT = 400_000;
+export const artifactDigestSchema = z.string().regex(/^[0-9a-f]{64}$/);
 
 export const sourceSpanSchema = z
   .object({
@@ -74,17 +75,6 @@ export const documentProjectionSchema = z.object({
   modelId: z.string().min(1).max(128),
   nodes: z.array(projectionNodeSchema).max(MAX_PROJECTION_NODE_COUNT),
   edges: z.array(projectionEdgeSchema).max(MAX_PROJECTION_EDGE_COUNT),
-  workflows: z.object({
-    scalarElliptic: z
-      .object({
-        spatialDimension: z.number().int().min(1).max(3),
-        scalarType: z.literal("f64"),
-        vectorLayout: z.literal("replicated"),
-        maximumHostWorkers: z.number().int().positive().max(64),
-        workerBudgetSource: z.literal("studio-session-budget"),
-      })
-      .nullable(),
-  }),
 });
 
 export type DocumentProjection = z.infer<typeof documentProjectionSchema>;

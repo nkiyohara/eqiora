@@ -270,8 +270,7 @@ def check_starlight(
     maximum_sitemap_urls: int,
 ) -> list[str]:
     errors: list[str] = []
-    expected_paths = {artifact / relative for relative in STARLIGHT_ROUTES.values()}
-    for path in sorted(set(inspections) - expected_paths):
+    for path, (raw, parser) in sorted(inspections.items()):
         relative = path.relative_to(artifact)
         route = (
             "/"
@@ -280,13 +279,6 @@ def check_starlight(
             if relative.name == "index.html"
             else f"/{relative.as_posix()}"
         )
-        errors.append(f"unexpected Starlight route {route}")
-    for route, relative in STARLIGHT_ROUTES.items():
-        path = artifact / relative
-        if path not in inspections:
-            errors.append(f"missing required Starlight route {route}: {relative}")
-            continue
-        raw, parser = inspections[path]
         errors.extend(_check_head(route, parser))
         errors.extend(
             _check_shell(
@@ -300,6 +292,10 @@ def check_starlight(
         )
         if parser.inline_handlers:
             errors.append(f"{relative}: inline event handlers are forbidden")
+    for route, relative in STARLIGHT_ROUTES.items():
+        path = artifact / relative
+        if path not in inspections:
+            errors.append(f"missing required Starlight route {route}: {relative}")
     case = inspections.get(artifact / "gallery/exact-cylinder-steady-stokes/index.html")
     if case and "<form" in case[0].casefold():
         errors.append(

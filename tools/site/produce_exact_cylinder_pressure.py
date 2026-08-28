@@ -38,23 +38,20 @@ SOURCE_ROLES = {
     "examples/python/exact_cylinder_stokes_marimo.py": ["canonical-marimo-snippet"],
     "examples/steady-flow-past-cylinder.eqi": ["example-formula-owner"],
     "examples/steady-flow-past-cylinder.geometry.json": ["geometry"],
-    "examples/steady-flow-past-cylinder.model.json": ["model", "scientific-formula"],
     "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi": ["current-package-formula-owner"],
     "tools/site/produce_exact_cylinder_pressure.py": ["producer-command"],
     "verify/fluid/packaged-steady-stokes-2d/models/direct.eqi": ["packaged-stokes-formula"],
     "verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi": ["package-formula-owner"],
 }
 LINEAGE_METHODS = {
-    "correspondence_digest": "Result.mesh(FieldRef).correspondence_digest",
-    "evidence_run_digest": "fluid.steady_stokes_evidence(Result).run_digest",
-    "geometry_digest": "Result.mesh(FieldRef).source_digest",
-    "mesh_digest": "Result.mesh(FieldRef).digest",
+    "correspondence_digest": "Plan.correspondence_digest",
+    "evidence_plan_key": "fluid.steady_stokes_evidence(Result).plan_key",
+    "geometry_digest": "Plan.geometry_digest",
+    "mesh_digest": "Plan.mesh_digest",
     "model_digest": "Result.model_digest",
-    "pressure_blocks": "Result.field(FieldRef).block_digests",
-    "pressure_output": "Result.run_manifest().output_digests",
-    "pressure_snapshot": "Result.field(FieldRef).digest",
-    "realization_digest": "Result.run_manifest().realization_digest",
-    "run_manifest_digest": "Result.run_manifest().digest",
+    "plan_identity": "Plan.identity",
+    "pressure_output": "Result.output(FieldRef)",
+    "result_plan_key": "Result.plan_key",
 }
 EXPECTED_DIMENSION = (1, -1, -2, 0, 0, 0, 0)
 EXPECTED_FIGURE_INCHES = (8.0, 5.2)
@@ -279,95 +276,94 @@ def _source_files(root: Path, revision: str) -> list[dict[str, Any]]:
 def _solve_once(eqiora: Any) -> tuple[Any, Any, Any, Any, Any, Any, Any]:
     from importlib.resources import files
 
-    graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
-        x_bounds=(0.0, 2.2),
-        y_bounds=(0.0, 0.41),
-        plane_z=0.0,
-        depth=1.0,
-        modeling_tolerance=1e-10,
-    ).circular_through_cut(
-        center=(0.2, 0.2),
-        radius=0.05,
-        boolean_tolerance=1e-10,
+    graph = eqiora.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+    circle = graph.circle(center=(0.2, 0.2), radius=0.05)
+    fluid = graph.subtract(rectangle, circle)
+    geometry = graph.build(
+        fluid,
+        named_topology={
+            "fluid": fluid.region,
+            "inlet": rectangle.boundaries[0],
+            "outlet": rectangle.boundaries[1],
+            "walls": rectangle.boundaries[2:],
+            "cylinder": circle.boundaries[0],
+        },
     )
-    geometry = graph.planar_circular_section(
-        classification_tolerance=1e-12,
-        region="fluid",
-        x_lower="inlet",
-        x_upper="outlet",
-        y_lower="walls",
-        y_upper="walls",
-        hole="cylinder",
-    )
-    request = eqiora.meshing.MeshRequest(
+    request = eqiora.meshing.GmshMesher(
         maximum_boundary_error=1e-4,
         minimum_mean_ratio=1e-5,
         maximum_boundary_facets=50,
     )
     mesh_plan = eqiora.meshing.resolve(geometry, request)
     mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
-    model_bytes = files(eqiora).joinpath("examples", "steady-flow-past-cylinder.model.json").read_bytes()
-    model = eqiora.replay(model_bytes)
-    intent = eqiora.fluid.SteadyStokes(
-        length_scale_m=0.41,
-        velocity_scale_m_per_s=0.3,
-        pressure_scale_pa=0.001 * 0.3 / 0.41,
-        relative_tolerance=1e-6,
-        absolute_tolerance=1e-13,
-        maximum_iterations=10_000,
+    model = eqiora.compile(
+        path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
+        geometry=geometry,
+        parameters={
+            "dynamic_viscosity": 1.0e-3,
+            "zero_pressure": 0.0,
+            "inlet_speed": 0.3,
+            "channel_height": 0.41,
+        },
     )
-    plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
-    run = eqiora.submit(model, plan=plan)
+    plan = eqiora.resolve(
+        model,
+        mesh=mesh,
+        spatial=eqiora.fem.MiniP1(),
+        solve=eqiora.solve.Linear(
+            relative_tolerance=1e-6,
+            absolute_tolerance=1e-13,
+            maximum_iterations=10_000,
+        ),
+        scaling=None,
+    )
+    run = eqiora.submit(plan)
     result = run.result()
     return geometry, mesh_plan, mesh, model, plan, run, result
 
 
 def _lineage(eqiora: Any, geometry: Any, mesh: Any, plan: Any, result: Any) -> tuple[dict[str, Any], Any]:
-    if type(result) is not eqiora.Result or len(result.snapshots) != 1:
-        raise ProducerError("canonical solve did not return one common Eqiora Result pressure snapshot")
-    pressure = result.snapshots[0]
-    selected_pressure = result.field(pressure.field)
-    selected_mesh = result.mesh(pressure.field)
-    if selected_pressure is not pressure or selected_mesh is not mesh:
-        raise ProducerError("Result field or mesh replay differs from the solved pressure lineage")
+    if type(result) is not eqiora.Result or plan.pressure_field is None:
+        raise ProducerError("canonical solve did not return one common Eqiora pressure output")
+    pressure = result.output(plan.pressure_field)
+    if pressure.mesh is not mesh:
+        raise ProducerError("Result output mesh differs from the solved pressure lineage")
     if pressure.field.model_digest != result.model_digest:
         raise ProducerError("pressure FieldRef is not bound to the Result Model")
-    if pressure.mesh_digest != mesh.digest or plan.mesh_digest != mesh.digest:
+    if pressure.mesh.digest != mesh.digest or plan.mesh_digest != mesh.digest:
         raise ProducerError("pressure or plan Mesh identity differs")
     if plan.geometry_digest != geometry.digest or mesh.source_digest != geometry.digest:
         raise ProducerError("Geometry-to-Mesh identity differs")
     if plan.correspondence_digest != mesh.correspondence_digest:
         raise ProducerError("Mesh correspondence identity differs")
 
-    manifest = result.run_manifest()
     evidence = eqiora.fluid.steady_stokes_evidence(result)
-    if evidence.run_digest != manifest.digest or manifest.realization_digest != plan.realization_digest:
-        raise ProducerError("Result Run or Realization identity differs")
-    if manifest.model_digest != result.model_digest or manifest.output_digests != [pressure.digest]:
-        raise ProducerError("Run manifest does not bind the Result pressure output")
-    if pressure.associations != ("vertex",) or pressure.value_shape != () or pressure.frame != "invariant":
-        raise ProducerError("pressure snapshot is not the accepted invariant vertex scalar")
+    if evidence.plan_key != plan.identity or result.plan_key != plan.identity:
+        raise ProducerError("Result or evidence does not bind the exact Plan identity")
+    if pressure.components != 1:
+        raise ProducerError("pressure output is not the accepted vertex scalar")
     if pressure.dimension != EXPECTED_DIMENSION:
-        raise ProducerError("pressure snapshot does not carry the coherent-SI pressure dimension")
+        raise ProducerError("pressure output does not carry the coherent-SI pressure dimension")
 
-    values = pressure.values("vertex")
+    values = pressure.vertex_values.numpy(copy=False)
     if values.shape != (mesh.vertex_count,) or not bool(values.flags.writeable is False):
         raise ProducerError("pressure values do not match the immutable Result Mesh vertices")
     observed_minimum = float(values.min())
     observed_maximum = float(values.max())
     if not all(math.isfinite(value) for value in (observed_minimum, observed_maximum)):
-        raise ProducerError("pressure snapshot contains a non-finite extrema observation")
+        raise ProducerError("pressure output contains a non-finite extrema observation")
     if observed_minimum != evidence.pressure_minimum or observed_maximum != evidence.pressure_maximum:
         raise ProducerError("pressure extrema differ from the accepted Result evidence")
 
     identities = {
         "correspondence_digest": mesh.correspondence_digest,
-        "evidence_run_digest": evidence.run_digest,
+        "evidence_plan_key": evidence.plan_key,
         "geometry_digest": mesh.source_digest,
         "mesh_digest": mesh.digest,
         "model_digest": result.model_digest,
-        "realization_digest": manifest.realization_digest,
-        "run_manifest_digest": manifest.digest,
+        "plan_identity": plan.identity,
+        "result_plan_key": result.plan_key,
     }
     lineage = {
         "chain": [
@@ -384,28 +380,23 @@ def _lineage(eqiora: Any, geometry: Any, mesh: Any, plan: Any, result: Any) -> t
             },
             {
                 "from": identities["model_digest"],
-                "kind": "Model→Realization",
-                "to": identities["realization_digest"],
+                "kind": "Model→Plan",
+                "to": identities["plan_identity"],
             },
             {
                 "from": identities["mesh_digest"],
-                "kind": "Mesh→Realization",
-                "to": identities["realization_digest"],
+                "kind": "Mesh→Plan",
+                "to": identities["plan_identity"],
             },
             {
-                "from": identities["realization_digest"],
-                "kind": "Realization→Run",
-                "to": identities["run_manifest_digest"],
+                "from": identities["plan_identity"],
+                "kind": "Plan→ResultBinding",
+                "to": identities["result_plan_key"],
             },
             {
-                "from": identities["run_manifest_digest"],
-                "kind": "Run→ResultEvidence",
-                "to": identities["evidence_run_digest"],
-            },
-            {
-                "from": identities["run_manifest_digest"],
-                "kind": "Result→PressureSnapshot",
-                "to": pressure.digest,
+                "from": identities["result_plan_key"],
+                "kind": "ResultBinding→Evidence",
+                "to": identities["evidence_plan_key"],
             },
         ],
         "identities": identities,
@@ -416,18 +407,16 @@ def _lineage(eqiora: Any, geometry: Any, mesh: Any, plan: Any, result: Any) -> t
             "field": "pressure",
             "field_id": pressure.field.id,
             "frame_selection": "single steady result; temporal interval not applicable",
-            "mesh_digest": pressure.mesh_digest,
+            "mesh_digest": pressure.mesh.digest,
             "model_digest": pressure.field.model_digest,
-            "ordered_block_digests": [digest for _, digest in pressure.block_digests],
-            "ordered_output_digests": manifest.output_digests,
-            "snapshot_digest": pressure.digest,
+            "components": pressure.components,
+            "vertex_count": pressure.vertex_count,
             "source_unit": "kg/(m*s^2)",
-            "support_domain_id": pressure.support_domain_id,
             "value_range": {"maximum": observed_maximum, "minimum": observed_minimum},
         },
-        "source_result": {
-            "digest": manifest.digest,
-            "digest_kind": "Result.run_manifest().digest",
+        "result_binding": {
+            "identity": result.plan_key,
+            "identity_kind": "Result.plan_key",
         },
     }
     return lineage, pressure
@@ -613,7 +602,7 @@ def _produce(arguments: argparse.Namespace) -> None:
                 "format": "png",
                 "mesh_overlay": True,
                 "no_crop_resize_reencode": True,
-                "normalization": "bound pressure snapshot minimum/maximum",
+                "normalization": "bound pressure output minimum/maximum",
                 "plot": "tripcolor",
                 "shading": "gouraud",
                 "title": "Exact-cylinder steady Stokes pressure",
@@ -637,8 +626,7 @@ def _produce(arguments: argparse.Namespace) -> None:
             f"cargo_version={cargo_version}",
             f"python_distribution_version={expected_python_version}",
             "solve_count=1",
-            f"run_manifest_digest={lineage['identities']['run_manifest_digest']}",
-            f"pressure_snapshot_digest={lineage['pressure']['snapshot_digest']}",
+            f"plan_identity={lineage['identities']['plan_identity']}",
             f"png_sha256={observation['media']['sha256']}",
             f"png_bytes={observation['media']['byte_size']}",
             f"observation_sha256={_sha256_bytes(observation_bytes)}",

@@ -74,22 +74,28 @@ impl GeometryRevisionTopology {
     /// corners. The top and codimension-one strata must be non-empty.
     ///
     /// # Errors
-    /// Returns [`crate::GeometryCorrespondenceError::GeometryDimensionTooSmall`]
+    /// Returns an error when the geometry dimension is too small.
     /// below dimension one, or `EmptyGeometryStratum` when the top or
     /// codimension-one stratum is empty.
     pub fn new(
         reference: GeometryRevisionReference,
         entity_counts: Vec<usize>,
-    ) -> Result<Self, crate::GeometryCorrespondenceError> {
+    ) -> Result<Self, crate::correspondence::GeometryCorrespondenceError> {
         if entity_counts.len() < 2 {
-            return Err(crate::GeometryCorrespondenceError::GeometryDimensionTooSmall);
+            return Err(
+                crate::correspondence::GeometryCorrespondenceError::GeometryDimensionTooSmall,
+            );
         }
         let top = entity_counts.len() - 1;
         if let Some(dimension) = [top - 1, top]
             .into_iter()
             .find(|&dimension| entity_counts[dimension] == 0)
         {
-            return Err(crate::GeometryCorrespondenceError::EmptyGeometryStratum { dimension });
+            return Err(
+                crate::correspondence::GeometryCorrespondenceError::EmptyGeometryStratum {
+                    dimension,
+                },
+            );
         }
         Ok(Self {
             reference,

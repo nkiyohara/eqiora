@@ -3,7 +3,7 @@
 import os
 from typing import NamedTuple
 
-from . import fluid, fsi, geometry, meshing, solid, trajectory
+from . import fem, fluid, fsi, fvm, geometry, meshing, solid, solve, time, trajectory
 
 from ._eqiora import (
     __version__,
@@ -26,38 +26,33 @@ from ._eqiora import (
     DifferentiationEvidence,
     DifferentiationMode,
     Dimension,
+    DomainRef,
     Domain,
     EqioraError,
     ExecutionError,
     Expression,
     Field,
+    FieldOutput,
     FieldRef,
+    InitialField,
     InternalError,
     LinearSolveSummary,
     LinearizationState,
     Model,
     Parameter,
     ParameterRef,
+    Plan,
     PhysicalDomain,
-    Realization,
     Representation,
     Relation,
     Result,
     Revision,
-    RunManifest,
     Run as _NativeRun,
-    RunCancellation,
-    RunProgress,
     RunStatus,
-    ScalarElliptic,
-    ScalarEllipticBalance,
-    ScalarEllipticMethod,
-    ScalarEllipticResult,
-    ScalarEllipticRunCancellation,
-    ScalarEllipticRunProgress,
-    ScalarFieldLocation,
-    ScalarFieldSummary,
     Series,
+    State,
+    TransientRunCancellation,
+    TransientRunProgress,
     StructuralSemanticFingerprint,
     ValidationError,
     ValueEdit,
@@ -68,15 +63,11 @@ from ._eqiora import (
     derivative,
     div,
     grad,
-    preview_realization,
     replay,
-    submit as _submit,
-    submit_realization as _submit_realization,
-    submit_fixed_mesh_monolithic as _submit_fixed_mesh_monolithic,
-    submit_linear_elasticity as _submit_linear_elasticity,
-    submit_steady_stokes as _submit_steady_stokes,
+    submit_plan as _submit_plan,
     through,
     trace,
+    _resolve_plan,
 )
 
 from . import diff
@@ -128,12 +119,15 @@ __all__ = [
     "DifferentiationEvidence",
     "DifferentiationMode",
     "Dimension",
+    "DomainRef",
     "Domain",
     "EqioraError",
     "ExecutionError",
     "Expression",
     "Field",
+    "FieldOutput",
     "FieldRef",
+    "InitialField",
     "InternalError",
     "LinearSolveSummary",
     "LinearizationState",
@@ -143,25 +137,17 @@ __all__ = [
     "Parameter",
     "ParameterRef",
     "PhysicalDomain",
-    "Realization",
+    "Plan",
     "Representation",
     "Relation",
     "Result",
     "Revision",
     "Run",
-    "RunManifest",
-    "RunCancellation",
-    "RunProgress",
     "RunStatus",
-    "ScalarElliptic",
-    "ScalarEllipticBalance",
-    "ScalarEllipticMethod",
-    "ScalarEllipticResult",
-    "ScalarEllipticRunCancellation",
-    "ScalarEllipticRunProgress",
-    "ScalarFieldLocation",
-    "ScalarFieldSummary",
     "Series",
+    "State",
+    "TransientRunCancellation",
+    "TransientRunProgress",
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",
@@ -173,23 +159,24 @@ __all__ = [
     "derivative",
     "div",
     "grad",
-    "preview_realization",
     "replay",
+    "resolve",
     "run",
     "submit",
     "through",
     "trace",
     "diff",
+    "fem",
     "fluid",
     "fsi",
+    "fvm",
     "geometry",
     "meshing",
     "solid",
+    "solve",
+    "time",
     "trajectory",
 ]
-
-
-_MISSING = object()
 
 
 def check_package_conformance(
@@ -215,71 +202,46 @@ def check_package_conformance(
     )
 
 
+def resolve(
+    model: Model,
+    *,
+    mesh: meshing.Mesh | None = None,
+    spatial=None,
+    solve: solve.Linear | solve.Newton | None = None,
+    scaling=None,
+    temporal=None,
+) -> Plan:
+    """Resolve an exact Model and caller-owned Mesh into an immutable common Plan."""
+
+    return _resolve_plan(
+        model,
+        mesh=mesh,
+        spatial=spatial,
+        solve=solve,
+        scaling=scaling,
+        temporal=temporal,
+    )
+
+
 def run(
-    model: Model,
+    plan: Plan,
     *,
-    end_time=_MISSING,
-    max_step=_MISSING,
-    realization: Realization | None = None,
-    plan=_MISSING,
-):
-    """Execute through the same native lifecycle returned by :func:`submit`."""
+    state: State | None = None,
+    until_s: float | None = None,
+    output_times_s: tuple[float, ...] | None = None,
+    steps: int | None = None,
+    output_steps: tuple[int, ...] | None = None,
+) -> Result:
+    """Execute one accepted common request synchronously."""
 
-    return Run(
-        _submit_native(
-            "run()",
-            model,
-            end_time=end_time,
-            max_step=max_step,
-            realization=realization,
-            plan=plan,
-        )
+    return submit(
+        plan,
+        state=state,
+        until_s=until_s,
+        output_times_s=output_times_s,
+        steps=steps,
+        output_steps=output_steps,
     ).result()
-
-
-def _submit_native(
-    operation: str,
-    model: Model,
-    *,
-    end_time,
-    max_step,
-    realization: Realization | None,
-    plan,
-) -> _NativeRun:
-    """Validate one public request shape before crossing the native boundary."""
-
-    has_end_time = end_time is not _MISSING
-    has_max_step = max_step is not _MISSING
-
-    if plan is not _MISSING:
-        if realization is not None or has_end_time or has_max_step:
-            raise TypeError(
-                f"{operation} accepts plan alone; realization, end_time, and "
-                "max_step belong to other execution forms"
-            )
-        if isinstance(plan, fluid.SteadyStokesPlan):
-            return _submit_steady_stokes(model, plan)
-        if isinstance(plan, fsi.FixedMeshMonolithicPlan):
-            return _submit_fixed_mesh_monolithic(model, plan)
-        if isinstance(plan, solid.LinearElasticityPlan):
-            return _submit_linear_elasticity(model, plan)
-        raise TypeError(f"{operation} received an unsupported Plan type")
-
-    if realization is not None:
-        if has_end_time or has_max_step:
-            raise TypeError(
-                f"{operation} accepts realization alone; end_time and max_step "
-                "belong to the reference time-integration form"
-            )
-        return _submit_realization(model, realization)
-
-    if not has_end_time or not has_max_step:
-        raise TypeError(
-            f"{operation} requires either realization=..., plan=..., or both "
-            "end_time=... and max_step=..."
-        )
-
-    return _submit(model, end_time=end_time, max_step=max_step)
 
 
 class Run:
@@ -330,17 +292,21 @@ class Run:
     def adapter(self) -> str:
         return self._native.adapter
 
+    @property
+    def adapter_version(self) -> str:
+        return self._native.adapter_version
+
     def cancel(self) -> bool:
         return self._native.cancel()
 
     def result(
         self,
-    ) -> Result | ScalarEllipticResult:
+    ) -> Result:
         return self._native.result()
 
     async def _wait(
         self,
-    ) -> Result | ScalarEllipticResult:
+    ) -> Result:
         import asyncio
 
         while not self.done:
@@ -355,22 +321,21 @@ class Run:
 
 
 def submit(
-    model: Model,
+    plan: Plan,
     *,
-    end_time=_MISSING,
-    max_step=_MISSING,
-    realization: Realization | None = None,
-    plan=_MISSING,
+    state: State | None = None,
+    until_s: float | None = None,
+    output_times_s: tuple[float, ...] | None = None,
+    steps: int | None = None,
+    output_steps: tuple[int, ...] | None = None,
 ) -> Run:
-    """Submit exactly one accepted temporal or spatial request shape."""
+    """Submit exactly one steady or transient common request shape."""
 
-    return Run(
-        _submit_native(
-            "submit()",
-            model,
-            end_time=end_time,
-            max_step=max_step,
-            realization=realization,
-            plan=plan,
-        )
-    )
+    return Run(_submit_plan(
+        plan,
+        state=state,
+        until_s=until_s,
+        output_times_s=output_times_s,
+        steps=steps,
+        output_steps=output_steps,
+    ))

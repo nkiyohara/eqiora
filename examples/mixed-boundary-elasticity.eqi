@@ -1,0 +1,35 @@
+public component MixedBoundaryElasticity2d {
+  public support body: volume(ambient_dimension = 2);
+  public support x_lower: boundary(parent = body);
+  public support x_upper: boundary(parent = body);
+  public support y_lower: boundary(parent = body);
+  public support y_upper: boundary(parent = body);
+  representation space = continuum;
+  field displacement on body as space: m shape spatial_vector;
+  field load_potential on body as space: kg / (m * s ^ 2) = 0;
+  public parameter mu: kg / (m * s ^ 2);
+  public parameter lambda: kg / (m * s ^ 2);
+  public parameter length_scale: m;
+  relation load continuous on body {
+    load_potential - 2 * mu * coordinate(0) / length_scale = 0;
+  }
+  relation balance continuous on body {
+    -div(
+      2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))
+    ) - grad(load_potential) = 0;
+  }
+  relation x_lower_fixed continuous on x_lower { trace(displacement) = 0; }
+  relation x_upper_free continuous on x_upper {
+    normal(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) = 0;
+  }
+  relation y_lower_free continuous on y_lower {
+    normal(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) = 0;
+  }
+  relation y_upper_free continuous on y_upper {
+    normal(2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))) = 0;
+  }
+}

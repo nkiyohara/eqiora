@@ -4,7 +4,7 @@ export function DemoLoadState({
   title,
 }: Readonly<{ detail: string; glyph: string; title: string }>) {
   return (
-    <section className="scalar-field-load-state" aria-live="polite" role="status">
+    <section className="empty-state" aria-live="polite" role="status">
       <span aria-hidden="true">{glyph}</span>
       <h1>{title}</h1>
       <p>{detail}</p>

@@ -8,9 +8,7 @@ use eqiora_assembly::{
 };
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
-use eqiora_geometry::{
-    CanonicalGeometryRef, CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
-};
+use eqiora_geometry::{CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora_meshing::{MeshEntity, MeshQualityGate, MeshTopology};
 use eqiora_realization::{
@@ -788,12 +786,8 @@ fn geometry_program_from_cartesian(
     store
         .commit(transaction)
         .expect("geometry transaction commits");
-    KernelProgram::from_snapshot_with_geometry(
-        &store.snapshot(),
-        cartesian.model(),
-        &[CanonicalGeometryRef::from(source)],
-    )
-    .expect("exact geometry program admits")
+    KernelProgram::from_snapshot_with_geometry(&store.snapshot(), cartesian.model(), &[source])
+        .expect("exact geometry program admits")
 }
 
 #[derive(Debug)]

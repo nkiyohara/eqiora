@@ -37,9 +37,9 @@ pub type AleFsiBoundary3d = AleFsiBoundary<3>;
 /// One accepted or restartable state on immutable reference topology.
 ///
 /// Velocity and displacement coefficients use reference-vertex order. MINI
-/// bubble velocity uses [`FixedReferenceFsiPartition::fluid_cells`] order,
-/// while pressure uses [`FixedReferenceFsiPartition::fluid_vertices`] order.
-/// The stored geometry is a derived value, never independent state.
+/// bubble velocity uses the partition's fluid-cell order, while pressure uses
+/// its fluid-vertex order. The stored geometry is a derived value, never
+/// independent state.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AleFsiState<const D: usize> {
     time: f64,

@@ -112,15 +112,30 @@ def _ffi_call(
     output_layouts = (
         [(0,)] * len(outputs) if isinstance(outputs, tuple) else (0,)
     )
-    return jax.ffi.ffi_call(
-        target,
-        outputs,
-        has_side_effect=False,
-        input_layouts=input_layouts,
-        output_layouts=output_layouts,
-        input_output_aliases={},
-        custom_call_api_version=4,
-    )(*inputs, program_key=program_key)
+    try:
+        return jax.ffi.ffi_call(
+            target,
+            outputs,
+            has_side_effect=False,
+            input_layouts=input_layouts,
+            output_layouts=output_layouts,
+            input_output_aliases={},
+            custom_call_api_version=4,
+        )(*inputs, program_key=program_key)
+    except ValueError as error:
+        message = str(error)
+        if any(
+            message.startswith(f"{status}:")
+            for status in (
+                "INVALID_ARGUMENT",
+                "NOT_FOUND",
+                "FAILED_PRECONDITION",
+                "INTERNAL",
+                "DATA_LOSS",
+            )
+        ):
+            raise jax.errors.JaxRuntimeError(message) from error
+        raise
 
 
 class _NoBatching:

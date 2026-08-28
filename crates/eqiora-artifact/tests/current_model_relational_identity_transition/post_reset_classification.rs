@@ -1,6 +1,13 @@
 //! Full classifications for later identity-bearing evidence paths.
 
 use super::*;
+
+const RETIRED_TYPED_EXECUTION_IDENTITIES: &[u8] = include_bytes!(
+    "../../../../verify/artifacts/current-model-relational-identity-transition/expected/deterministic/typed-execution-lineage/identities.json"
+);
+const CURRENT_TYPED_COMPILATION_IDENTITIES: &[u8] = include_bytes!(
+    "../../../../verify/packages/typed-compilation-lineage/expected/identities.json"
+);
 use std::sync::OnceLock;
 
 const OWNER: &str = "interfaces.python-offline-model-package";
@@ -193,29 +200,27 @@ pub(super) fn validate_runtime(entries: &[PostResetClassified]) -> Result<(), St
 
 fn transition_current_identities() -> BTreeSet<String> {
     let transition = crate::transition();
-    ["offline-model-package", "typed-execution-lineage"]
-        .into_iter()
-        .flat_map(|name| {
-            let fixture = crate::entry(&transition, "deterministic", name);
-            let model = fixture[concat!("model_", "digest")]
-                .as_str()
-                .unwrap()
-                .to_owned();
-            let compilation = fixture["edges"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|edge| edge["artifact"] == "compilation.json")
-                .and_then(|edge| edge["digest"].as_str())
-                .unwrap()
-                .to_owned();
-            [model, compilation]
-        })
-        .collect()
+    let offline = crate::entry(&transition, "deterministic", "offline-model-package");
+    let typed: Value = serde_json::from_slice(RETIRED_TYPED_EXECUTION_IDENTITIES).unwrap();
+    [
+        offline[concat!("model_", "digest")].as_str().unwrap(),
+        offline["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|edge| edge["artifact"] == "compilation.json")
+            .and_then(|edge| edge["digest"].as_str())
+            .unwrap(),
+        typed[concat!("model_", "sha256")].as_str().unwrap(),
+        typed["package_compilation_sha256"].as_str().unwrap(),
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
 }
 
 fn all_transition_current_artifact_identities() -> BTreeSet<String> {
-    crate::transition()["deterministic"]
+    let mut identities = crate::transition()["deterministic"]
         .as_array()
         .unwrap()
         .iter()
@@ -233,7 +238,14 @@ fn all_transition_current_artifact_identities() -> BTreeSet<String> {
                 .map(str::to_owned)
                 .collect::<Vec<_>>()
         })
-        .collect()
+        .collect::<BTreeSet<_>>();
+    let typed: Value = serde_json::from_slice(RETIRED_TYPED_EXECUTION_IDENTITIES).unwrap();
+    identities.extend(
+        [concat!("model_", "sha256"), "package_compilation_sha256"]
+            .into_iter()
+            .map(|key| typed[key].as_str().unwrap().to_owned()),
+    );
+    identities
 }
 
 fn exact_literal_map(entry: &PostResetClassified) -> BTreeMap<String, usize> {
@@ -257,7 +269,12 @@ fn historical_compilation_slots() -> Result<(String, String), String> {
     };
     Ok((
         extract("offline-model-package", "/compilation_digest")?,
-        extract("typed-execution-lineage", "/package_compilation_sha256")?,
+        serde_json::from_slice::<Value>(RETIRED_TYPED_EXECUTION_IDENTITIES)
+            .map_err(|error| format!("current slots: invalid retired typed identities: {error}"))?
+            ["package_compilation_sha256"]
+            .as_str()
+            .ok_or_else(|| "current slots: retired typed identities lack `/package_compilation_sha256`".to_owned())?
+            .to_owned(),
     ))
 }
 
@@ -272,7 +289,7 @@ fn validate_current_compilation_slots(
     }
     for (name, pointer, value) in [
         ("offline-model-package.live", "/compilation_digest", &slots[0].1),
-        ("typed-execution-lineage.live", "/package_compilation_sha256", &slots[1].1),
+        ("typed-compilation-lineage.live", "/package_compilation_sha256", &slots[1].1),
     ] {
         if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
             return Err(format!("current slots: `{name}` `{pointer}` must be lowercase-hex-64"));
@@ -280,7 +297,7 @@ fn validate_current_compilation_slots(
     }
     let stale = [
         ("offline-model-package.live /compilation_digest", &slots[0]),
-        ("typed-execution-lineage.live /package_compilation_sha256", &slots[1]),
+        ("typed-compilation-lineage.live /package_compilation_sha256", &slots[1]),
     ]
         .into_iter().filter_map(|(slot, (old, current))| (old == current).then_some(slot)).collect::<Vec<_>>();
     if !stale.is_empty() {
@@ -312,7 +329,7 @@ fn compilation_slots_from_authorities(
     let historical = historical_compilation_slots()?;
     let slots = [
         (historical.0, read(offline, "/compilation_digest", "offline-model-package.live")?),
-        (historical.1, read(typed, "/package_compilation_sha256", "typed-execution-lineage.live")?),
+        (historical.1, read(typed, "/package_compilation_sha256", "typed-compilation-lineage.live")?),
     ];
     validate_current_compilation_slots(entries, &slots)?;
     Ok(slots)
@@ -329,8 +346,9 @@ fn current_compilation_slots(
             .and_then(|fixture| serde_json::from_slice(fixture.live)
                 .map_err(|error| format!("current slots: invalid `{name}.live`: {error}")))
     };
-    compilation_slots_from_authorities(entries, &fixture("offline-model-package")?,
-        &fixture("typed-execution-lineage")?)
+    let typed = serde_json::from_slice(CURRENT_TYPED_COMPILATION_IDENTITIES)
+        .map_err(|error| format!("current slots: invalid typed-compilation live authority: {error}"))?;
+    compilation_slots_from_authorities(entries, &fixture("offline-model-package")?, &typed)
 }
 
 #[rustfmt::skip]
@@ -1040,7 +1058,7 @@ fn historical_and_live_classification_causal_mutants_are_refused() {
         for mutant in mutants { assert!(validate_historical_observation(entry, &mutant).is_err()); }
     }
     let live_document = |name| serde_json::from_slice::<Value>(crate::DETERMINISTIC.iter().find(|fixture| fixture.name == name).unwrap().live).unwrap();
-    let (mut offline, mut typed) = (live_document("offline-model-package"), live_document("typed-execution-lineage"));
+    let (mut offline, mut typed) = (live_document("offline-model-package"), serde_json::from_slice::<Value>(CURRENT_TYPED_COMPILATION_IDENTITIES).unwrap());
     offline["compilation_digest"] = Value::String("0".repeat(64));
     typed["package_compilation_sha256"] = Value::String("1".repeat(64));
     let slots = compilation_slots_from_authorities(&entries, &offline, &typed).unwrap();

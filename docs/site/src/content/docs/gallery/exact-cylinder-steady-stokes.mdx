@@ -5,8 +5,8 @@ description: A six-stage static walkthrough of one frozen 2D steady incompressib
 
 import { Aside } from '@astrojs/starlight/components';
 import NotebookStage from '../../../components/gallery/NotebookStage.astro';
-import ResultFigure from '../../../components/gallery/ResultFigure.astro';
 import ClaimBoundary from '../../../components/gallery/ClaimBoundary.astro';
+import ResultFigure from '../../../components/gallery/ResultFigure.astro';
 import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
 import geometryDiagram from '../../../assets/gallery/exact-cylinder-geometry.svg';
 import pressureImage from '../../../assets/gallery/exact-cylinder-pressure.png';
@@ -18,9 +18,8 @@ import publication from '../../../data/gallery/exact-cylinder-steady-stokes.publ
 
 This page follows one frozen demonstration from exact authored geometry to a
 common `Result`. It does not execute a notebook or solve in the browser. The
-installed publication stays pinned to the exact producer revision. Source links
-and evidence dossiers instead resolve through the exact site build revision;
-none follows a branch.
+checked-in source shows the installed workflow. Source links and evidence
+dossiers resolve through the exact site build revision; none follows a branch.
 
 <NotebookStage id="problem-setup" step={1} title="Problem setup" emoji="🧭">
 
@@ -36,7 +35,7 @@ Stokes flow.
   />
   <figcaption>
     Exact authored geometry and boundary names. The later demonstration mesh
-    approximates the circle with 50 straight chords; this diagram is explanatory,
+    approximates the circle with a policy-derived straight boundary; this diagram is explanatory,
     not geometric evidence.
   </figcaption>
 </figure>
@@ -44,25 +43,19 @@ Stokes flow.
 The canonical Python composition authors that geometry explicitly:
 
 ```python
-geometry_graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
-    x_bounds=(0.0, 2.2),
-    y_bounds=(0.0, 0.41),
-    plane_z=0.0,
-    depth=1.0,
-    modeling_tolerance=1e-10,
-).circular_through_cut(
-    center=(0.2, 0.2),
-    radius=0.05,
-    boolean_tolerance=1e-10,
-)
-geometry = geometry_graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid",
-    x_lower="inlet",
-    x_upper="outlet",
-    y_lower="walls",
-    y_upper="walls",
-    hole="cylinder",
+geometry_graph = eqiora.geometry.GeometryGraph()
+rectangle = geometry_graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+circle = geometry_graph.circle(center=(0.2, 0.2), radius=0.05)
+fluid = geometry_graph.subtract(rectangle, circle)
+geometry = geometry_graph.build(
+    fluid,
+    named_topology={
+        "fluid": fluid.region,
+        "inlet": rectangle.boundaries[0],
+        "outlet": rectangle.boundaries[1],
+        "walls": rectangle.boundaries[2:],
+        "cylinder": circle.boundaries[0],
+    },
 )
 ```
 
@@ -114,16 +107,21 @@ relation incompressibility continuous on body {
 · <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/README.md" kind="blob">registered packaged-Stokes dossier</ExactSourceLink>
 · <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/models/direct.eqi" kind="blob">registered direct Stokes model source</ExactSourceLink>
 
-The application replays the packaged, byte-exact current Model rather than
-reconstructing scientific meaning in the notebook:
+The application compiles the installed equations-only component against the
+same Python-authored Geometry used for meshing. The `.eqi` file does not carry
+a second concrete geometry authority:
 
 ```python
-model_bytes = (
-    files(eqiora)
-    .joinpath("examples", "steady-flow-past-cylinder.model.json")
-    .read_bytes()
+model = eqiora.compile(
+    path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
+    geometry=geometry,
+    parameters={
+        "dynamic_viscosity": 1.0e-3,
+        "zero_pressure": 0.0,
+        "inlet_speed": 0.3,
+        "channel_height": 0.41,
+    },
 )
-model = eqiora.replay(model_bytes)
 ```
 
 <ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L66-L74">Eqiora source form: canonical Marimo replay cell</ExactSourceLink>
@@ -173,13 +171,11 @@ walls_and_cylinder: trace(u) = [0, 0] m/s
 ```
 
 <ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Eqiora source form: application boundary relations</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d-gmsh/routes/python/result.json" kind="blob">accepted Gmsh-route walls-and-cylinder trace boundary</ExactSourceLink>
-
 The bounded realization requests at most 50 circular-boundary facets, then
 resolves and generates the source-bound mesh:
 
 ```python
-mesh_request = eqiora.meshing.MeshRequest(
+mesh_request = eqiora.meshing.GmshMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
@@ -190,75 +186,74 @@ mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 
 <Aside type="caution" title="Bounded Gmsh demonstration mesh">
 
-The accepted `eqiora.gmsh-cli/4.15.2` realization has 50 straight cylinder
-chords, 662 vertices, 1,210 affine triangles, and 114 boundary facets. Those
-facets partition as inlet/outlet/walls/cylinder = 14/2/48/50, and 548 vertices
-are interior. This walkthrough makes no curved-element, mesh-convergence, or
-PDE-convergence claim.
+`GmshMesher` derives its boundary subdivision directly from the exact Geometry
+and typed error/facet policy, then lets locked Gmsh 4.15.2 own the emitted
+straight-edged mesh. Output counts are deliberately not a public or scientific
+oracle. This walkthrough makes no mesh-convergence or PDE-convergence claim.
+
+The current Gmsh output is presentation input, not a fixed mesh or scientific oracle.
 
 </Aside>
 
-<ExactSourceLink path="verify/interfaces/python-circular-hole-chordal-mesh/README.md" kind="blob">Python Gmsh mesh dossier</ExactSourceLink>
-· <ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L54-L63">canonical Marimo mesh cell</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L54-L63">canonical Marimo mesh cell</ExactSourceLink>
 · <ExactSourceLink path="examples/python/exact_cylinder_mesh.py" kind="blob">plain Python mesh adapter</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d-gmsh/routes/python/README.md" kind="blob">Gmsh steady-Stokes Route A</ExactSourceLink>
 
 </NotebookStage>
 
 <NotebookStage id="submit-and-result" step={4} title="Submit and result" emoji="▶">
 
-The immutable `SteadyStokes` intent makes every scale and solver bound explicit.
-`fluid.resolve` binds the accepted `Model` and `Mesh` into a
-`SteadyStokesPlan`; the application then creates one `Run` with one
-`eqiora.submit` call and obtains one common `Result` with `run.result()`.
+The root resolver combines the accepted `Model` and `Mesh` with typed spatial
+and linear-solve policies. Scaling is derived when `scaling=None`. The
+application submits the resulting common `Plan` and obtains one common
+`Result`.
 
 ```python
-stokes_intent = eqiora.fluid.SteadyStokes(
-    length_scale_m=0.41,
-    velocity_scale_m_per_s=0.3,
-    pressure_scale_pa=0.001 * 0.3 / 0.41,
+linear = eqiora.solve.Linear(
     relative_tolerance=1e-6,
     absolute_tolerance=1e-13,
     maximum_iterations=10_000,
 )
-stokes_plan = eqiora.fluid.resolve(model, stokes_intent, mesh=mesh)
-
-run = eqiora.submit(model, plan=stokes_plan)
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=eqiora.fem.MiniP1(),
+    solve=linear,
+    scaling=None,
+)
+run = eqiora.submit(plan)
 result = run.result()
 ```
 
 <ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L77-L95">Eqiora source form: canonical intent/submit/result cells</ExactSourceLink>
 
 The real carriers in that composition are `Geometry`, `MeshPlan`, `Mesh`,
-`Model`, `SteadyStokesPlan`, `Run`, `Result`, and `SteadyStokesEvidence`. The
-admitted Result lineage binds the following public identities:
+`Model`, `Plan`, `Run`, `Result`, and `SteadyStokesEvidence`. The common
+lifecycle exposes the following public identities:
 
 | Carrier boundary | Public identity |
 | --- | --- |
 | `Model` | `Result.model_digest` |
-| exact `Geometry` | `Result.mesh(FieldRef).source_digest` |
-| authored correspondence | `Result.mesh(FieldRef).correspondence_digest` |
-| `Mesh` | `Result.mesh(FieldRef).digest` |
-| `SteadyStokesPlan` realization | `Result.run_manifest().realization_digest` |
-| `Run` / `Result` | `Result.run_manifest().digest` |
-| pressure `FieldSnapshot` | `Result.field(FieldRef).digest` |
+| exact `Geometry` | `Plan.geometry_digest` |
+| authored correspondence | `Plan.correspondence_digest` |
+| `Mesh` | `Plan.mesh_digest` |
+| resolved numerical policy | `Plan.identity` |
+| `Result` | `Result.plan_key` |
+| pressure `FieldOutput` | `Result.output(Plan.pressure_field)` |
 
 These names expose existing identity links; the page does not invent another
 aggregate digest or pretend that static documentation executed the run.
-
-<ExactSourceLink path="verify/interfaces/python-exact-cylinder-stokes-result/README.md" kind="blob">Registered Plan-and-Run dossier</ExactSourceLink>
 
 </NotebookStage>
 
 <NotebookStage id="pressure-visualization" step={5} title="Pressure visualization" emoji="🌡">
 
-The canonical plotting cell selects the pressure `FieldSnapshot` from the
+The canonical plotting cell selects the pressure `FieldOutput` from the
 common `Result` and passes it to the general scalar-field adapter:
 
 ```python
-pressure = result.snapshots[0]
+pressure = result.output(plan.pressure_field)
 evidence = eqiora.fluid.steady_stokes_evidence(result)
-pressure_figure = eqplot.plot_scalar_field(result, field=pressure.field)
+pressure_figure = eqplot.plot_scalar_field(result, field=plan.pressure_field)
 ```
 
 <ResultFigure
@@ -266,18 +261,12 @@ pressure_figure = eqplot.plot_scalar_field(result, field=pressure.field)
   alt={publication.publication_payload.text.alt}
   caption={publication.publication_payload.text.caption}
   units="Pa"
-  sourcePath="examples/python/exact_cylinder_stokes_marimo.py"
-  sourceFragment="L98-L103"
-  sourceLabel="Open canonical plotting cell"
+  sourcePath="examples/python/exact_cylinder_stokes.py"
+  sourceLabel="View the runnable pressure example"
 />
 
-<ExactSourceLink path="verify/interfaces/python-exact-cylinder-stokes-result/README.md" kind="blob">Result evidence</ExactSourceLink>
-· <ExactSourceLink path="verify/interfaces/python-exact-cylinder-pressure-still/README.md" kind="blob">Pressure-still presentation case</ExactSourceLink>
-
-Read the figure only as a pressure field in pascals, with a viridis scale and
-the 1,210-triangle affine mesh overlaid. The admitted pixels are a static
-presentation of the linked Result; color and pixel values are not validation
-and do not establish flow quality.
+Color and pixel values are presentation only. They are not validation and do
+not establish flow quality.
 
 </NotebookStage>
 
@@ -286,9 +275,9 @@ and do not establish flow quality.
 <ClaimBoundary
   title="Verified boundary"
   supported={[
-    'One frozen 2D steady incompressible Stokes exact-cylinder demonstration on the accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = 14/2/48/50, and 548 interior vertices; rendered from its accepted public Result path and linked evidence.',
-    'Accepted exact Gmsh CLI 4.15.2 witness: 662 vertices, 1,210 affine triangles, 114 boundary facets partitioned inlet/outlet/walls/cylinder = 14/2/48/50, and 548 interior vertices.',
-    'The installed publication record binds the admitted PNG, exact source revision, Result lineage, caption, alternative text, and presentation-only boundary.',
+    'One presentation-only 2D steady incompressible Stokes exact-cylinder demonstration rendered through exact Geometry, typed Gmsh policy, and the root Result path; output counts, digests, numerical values, and pixels are not independently verified.',
+    'Exact Geometry and a typed Gmsh policy resolve to a source-owned Mesh whose complete named correspondence and provider lineage are retained.',
+    'The same Mesh enters the root Model → Plan → Run/Result lifecycle.',
   ]}
   notClaimed={[
     'No arbitrary geometry or provider selection.',
@@ -306,11 +295,6 @@ and do not establish flow quality.
 
 [Browse the evidence catalog](/evidence/)
 · <ExactSourceLink path="verify/geometry/exact-circular-hole-geometry/README.md" kind="blob">exact geometry</ExactSourceLink>
-· <ExactSourceLink path="verify/interfaces/python-circular-hole-chordal-mesh/README.md" kind="blob">Gmsh mesh</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d-gmsh/README.md" kind="blob">Gmsh steady-Stokes evidence</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d-gmsh/routes/python/README.md" kind="blob">steady-Stokes Route A</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d-gmsh/routes/julia/README.md" kind="blob">steady-Stokes Route B</ExactSourceLink>
-· <ExactSourceLink path="verify/interfaces/python-exact-cylinder-stokes-result/README.md" kind="blob">common Result path</ExactSourceLink>
 · <ExactSourceLink path="verify/interfaces/python-exact-cylinder-stokes-marimo/README.md" kind="blob">Marimo composition</ExactSourceLink>
 
 <ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob">Open canonical Marimo source</ExactSourceLink>

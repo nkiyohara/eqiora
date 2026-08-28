@@ -30,7 +30,7 @@ def load_control_fixture(relative_path: str) -> dict[str, object]:
 
 def test_python_authoring_and_replay_use_the_registered_current_profile() -> None:
     profile = json.loads(CURRENT_PROFILE_FIXTURE.read_text(encoding="utf-8"))
-    model = eqiora.compile(SOURCE, filename="current.eqi")
+    model = eqiora.compile(source=SOURCE, filename="current.eqi")
     assert json.loads(model.to_json())["schema"] == profile["modelSchema"]
 
     state = eqiora.Field("x", initial=1.0)
@@ -86,20 +86,33 @@ model native_poisson {
 
 
 def test_compile_artifact_run_and_owned_numpy_result() -> None:
-    model = eqiora.compile(SOURCE, filename="decay.eqi")
+    model = eqiora.compile(source=SOURCE, filename="decay.eqi")
     artifact = model.to_json()
     assert len(model.digest) == 64
     reconstructed = eqiora.replay(artifact)
     assert reconstructed.to_json() == artifact
     assert reconstructed.digest == model.digest
 
-    result = eqiora.run(model, end_time=0.2, max_step=0.1)
-    series = result["x"]
-    assert result[series.id] is series
+    field = model.field(model.field_ids[0])
+    plan = eqiora.resolve(
+        model,
+        temporal=eqiora.time.Tsitouras45(
+            initial_step_s=0.01,
+            relative_tolerance=1.0e-9,
+            absolute_tolerances={field: 1.0e-11},
+        ),
+    )
+    result = eqiora.run(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=0.2,
+        output_times_s=(0.1, 0.2),
+    )
+    series = result.series(field)
     assert isinstance(result.fields, list)
     assert result.fields == [series]
-    assert len(result) == 1
-    assert result.snapshots == ()
+    assert len(result.fields) == 1
+    assert not hasattr(result, "snapshots")
     assert series.dimension == (0, 0, 0, 0, 0, 0, 0)
     time = series.time.numpy(copy=False)
     values = series.values.numpy(copy=False)
@@ -107,34 +120,31 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
     assert values is series.values.numpy(copy=False)
     assert series.values.device == "cpu"
     assert series.values.dtype == "float64"
-    assert series.values.shape == (3,)
-    assert np.array_equal(time, np.array([0.0, 0.1, 0.2]))
-    assert np.allclose(values, np.array([1.0, 1 / 1.1, 1 / 1.1**2]))
+    assert series.values.shape == (2,)
+    assert np.array_equal(time, np.array([0.1, 0.2]))
+    assert np.allclose(values, np.exp(-time), rtol=2.0e-8, atol=2.0e-10)
     assert not time.flags.writeable
     assert not values.flags.writeable
     copied = series.values.numpy(copy=True)
     assert copied is not values
     assert copied.flags.writeable
 
-    field = model.field("x")
-    with pytest.raises(KeyError):
-        result.field(field)
+    assert not hasattr(result, "field")
     with pytest.raises(KeyError):
         result.mesh(field)
-    with pytest.raises(eqiora.CapabilityError):
-        result.run_manifest()
+    assert not hasattr(result, "run_manifest")
     with pytest.raises(eqiora.CapabilityError):
         eqiora.fluid.steady_stokes_evidence(result)
 
     del series, result, model
     gc.collect()
     assert time[-1] == pytest.approx(0.2)
-    assert values[-1] == pytest.approx(1 / 1.1**2)
+    assert values[-1] == pytest.approx(np.exp(-0.2), rel=2.0e-8)
 
 
 def test_diagnostics_are_structured() -> None:
     with pytest.raises(eqiora.EqioraError) as caught:
-        eqiora.compile("model broken { field ; }", filename="broken.eqi")
+        eqiora.compile(source="model broken { field ; }", filename="broken.eqi")
     assert caught.value.diagnostics
     diagnostic = caught.value.diagnostics[0]
     assert diagnostic.code.startswith("EQ")
@@ -142,15 +152,18 @@ def test_diagnostics_are_structured() -> None:
     assert diagnostic.message
     assert diagnostic.source_span is not None
 
-    model = eqiora.compile(SOURCE)
     with pytest.raises(eqiora.EqioraError) as caught:
-        eqiora.run(model, end_time=1.0, max_step=0.0)
-    assert caught.value.diagnostics[0].code == "EQ0501"
+        eqiora.time.Tsitouras45(
+            initial_step_s=0.0,
+            relative_tolerance=1.0e-9,
+            absolute_tolerances={eqiora.compile(source=SOURCE).field("x"): 1.0e-11},
+        )
+    assert caught.value.diagnostics[0].code == "EQ0807"
 
 
 def test_compile_request_fails_closed_before_entering_the_compiler() -> None:
     with pytest.raises(eqiora.EqioraError) as caught:
-        eqiora.compile(SOURCE, filename="invalid\nfilename.eqi")
+        eqiora.compile(source=SOURCE, filename="invalid\nfilename.eqi")
 
     assert len(caught.value.diagnostics) == 1
     diagnostic = caught.value.diagnostics[0]
@@ -170,7 +183,7 @@ def test_shared_compile_check_fixtures_cross_the_python_adapter() -> None:
     assert accepted["requestId"] == accepted_expectation["requestId"]
     assert accepted_expectation["outcome"] == "accepted"
     model = eqiora.compile(
-        accepted["source"],
+        source=accepted["source"],
         filename=accepted["filename"],
     )
     artifact = json.loads(model.to_json())
@@ -187,7 +200,7 @@ def test_shared_compile_check_fixtures_cross_the_python_adapter() -> None:
     assert rejected_expectation["outcome"] == "rejected"
     with pytest.raises(eqiora.EqioraError) as caught:
         eqiora.compile(
-            rejected["source"],
+            source=rejected["source"],
             filename=rejected["filename"],
         )
     assert [diagnostic.code for diagnostic in caught.value.diagnostics] == [
@@ -212,19 +225,35 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
 
     model = eqiora.Model.define("decay", state, rate, flow)
     assert json.loads(model.to_json())["schema"] == "eqiora.model-envelope/v8"
-    result = eqiora.run(model, end_time=0.2, max_step=0.1)
+    field = model.field(model.field_ids[0])
+    plan = eqiora.resolve(
+        model,
+        temporal=eqiora.time.Tsitouras45(
+            initial_step_s=0.01,
+            relative_tolerance=1.0e-9,
+            absolute_tolerances={field: 1.0e-11},
+        ),
+    )
+    result = eqiora.run(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=0.2,
+        output_times_s=(0.1, 0.2),
+    )
 
     assert model.revision.number == 1
     assert state.dimension == eqiora.Dimension()
-    assert result["x"].dimension == state.dimension.exponents
+    assert result.series(field).dimension == state.dimension.exponents
     assert np.allclose(
-        result["x"].values.numpy(copy=False),
-        np.array([1.0, 1 / 1.1, 1 / 1.1**2]),
+        result.series(field).values.numpy(copy=False),
+        np.exp(-np.array([0.1, 0.2])),
+        rtol=2.0e-8,
+        atol=2.0e-10,
     )
 
 
 def test_source_and_native_models_share_only_structural_identity() -> None:
-    source = eqiora.compile(SOURCE, filename="source-decay.eqi")
+    source = eqiora.compile(source=SOURCE, filename="source-decay.eqi")
     state = eqiora.Field("state", initial=1.0)
     rate = eqiora.Parameter(
         "coefficient",
@@ -307,7 +336,7 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
             residual=eqiora.trace(potential),
         ),
     )
-    source = eqiora.compile(SPATIAL_SOURCE, filename="source-poisson.eqi")
+    source = eqiora.compile(source=SPATIAL_SOURCE, filename="source-poisson.eqi")
 
     assert native.digest != source.digest
     assert native.structural_fingerprint == source.structural_fingerprint
@@ -413,7 +442,7 @@ def test_native_physical_declarations_use_current_and_retain_replay() -> None:
     assert reconstructed.to_json() == artifact
     assert reconstructed.digest == model.digest
 
-    source = eqiora.compile(PHYSICAL_SOURCE, filename="physical-source.eqi")
+    source = eqiora.compile(source=PHYSICAL_SOURCE, filename="physical-source.eqi")
     assert source.digest != model.digest
     assert source.structural_fingerprint == model.structural_fingerprint
     assert source.structurally_equivalent(model)
@@ -421,7 +450,7 @@ def test_native_physical_declarations_use_current_and_retain_replay() -> None:
 
 def test_physical_source_compile_uses_current_without_user_codec_selection() -> None:
     model = eqiora.compile(
-        PHYSICAL_SOURCE,
+        source=PHYSICAL_SOURCE,
         filename="physical_pair.eqi",
     )
     restored = eqiora.replay(model.to_json())

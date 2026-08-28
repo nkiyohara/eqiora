@@ -131,6 +131,63 @@ pub(super) fn lower_steady_incompressible_stokes_geometry_2d(
     .map(|lowered| lowered.model)
 }
 
+pub(crate) fn recognize_steady_incompressible_stokes_geometry_mathematics(
+    program: &KernelProgram,
+) -> Result<(), Diagnostic> {
+    let regions = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
+            {
+                Some(domain)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [region] = regions.as_slice() else {
+        return Err(model_lowering_error(
+            program,
+            "geometry-backed steady Stokes recognition requires exactly one GeometryRegion",
+        ));
+    };
+    let DomainKind::GeometryRegion { geometry, .. } = region.kind() else {
+        unreachable!("GeometryRegion filter is exact")
+    };
+    let domain = region.id().erase();
+    let boundaries = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(boundary)
+                if has_edge(program, boundary.id().erase(), domain, EdgeKind::BoundaryOf) =>
+            {
+                match boundary.kind() {
+                    DomainKind::GeometryBoundary { entity_set } => {
+                        Some((entity_set.clone(), boundary.id().erase()))
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .collect::<BTreeMap<_, _>>();
+    if boundaries.is_empty() {
+        return Err(lowering_error(
+            domain,
+            "geometry-backed steady Stokes recognition requires boundary supports",
+        ));
+    }
+    lower_steady_incompressible_stokes_2d_on(
+        program,
+        domain,
+        [[0.0, 1.0], [0.0, 1.0]],
+        BoundarySource2d::Named(boundaries),
+        Some(geometry.bytes()),
+        &BTreeSet::new(),
+    )?;
+    Ok(())
+}
+
 fn lower_steady_incompressible_stokes_2d_on(
     program: &KernelProgram,
     domain: RawId,
@@ -897,86 +954,5 @@ fn resolve_normal_pressures(
     })
 }
 
-fn require_closed_model(
-    program: &KernelProgram,
-    model: &SteadyIncompressibleStokesModel2d,
-    representation: RawId,
-    boundary: &LoweredBoundaryProjection2d,
-    coefficient_fields: &BTreeSet<RawId>,
-    coefficient_definitions: &BTreeSet<RawId>,
-    additional_parameters: &BTreeSet<RawId>,
-) -> Result<(), Diagnostic> {
-    let mut domains = BTreeSet::from([model.domain()]);
-    let mut relations = BTreeSet::from([
-        model.force_potential_definition(),
-        model.momentum_relation(),
-        model.incompressibility_relation(),
-    ]);
-    domains.extend(
-        model
-            .boundary_relations()
-            .iter()
-            .map(|binding| binding.boundary()),
-    );
-    domains.extend(boundary.connector_domains.iter().copied());
-    relations.extend(
-        model
-            .boundary_relations()
-            .iter()
-            .map(|binding| binding.relation()),
-    );
-    relations.extend(coefficient_definitions.iter().copied());
-    relations.extend(boundary.prescribed_velocity_definitions.iter().copied());
-    debug_assert!(boundary.uninterpreted_live_relations.is_subset(&relations));
-    let activations = program
-        .edges()
-        .iter()
-        .filter(|edge| edge.kind() == EdgeKind::Activates && relations.contains(&edge.to()))
-        .map(|edge| edge.from())
-        .collect::<BTreeSet<_>>();
-    let parameters = relations
-        .iter()
-        .copied()
-        .flat_map(|relation| {
-            relation_expression(program, relation)
-                .expect("admitted Relations were already inspected")
-                .nodes()
-                .iter()
-        })
-        .filter_map(|node| match node {
-            ExprNode::Symbol(SymbolRef::Parameter(parameter)) => Some(parameter.erase()),
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
-    let parameters = parameters
-        .union(additional_parameters)
-        .copied()
-        .collect::<BTreeSet<_>>();
-    let mut fields = BTreeSet::from([model.velocity(), model.pressure(), model.force_potential()]);
-    fields.extend(coefficient_fields.iter().copied());
-    fields.extend(boundary.prescribed_velocity_fields.iter().copied());
-    for node in program.nodes() {
-        let admitted = match node {
-            KernelNode::Domain(value) => domains.contains(&value.id().erase()),
-            KernelNode::Representation(value) => value.id().erase() == representation,
-            KernelNode::Field(value) => fields.contains(&value.id().erase()),
-            KernelNode::Parameter(value) => parameters.contains(&value.id().erase()),
-            KernelNode::Relation(value) => relations.contains(&value.id().erase()),
-            KernelNode::Activation(value) => activations.contains(&value.id().erase()),
-            KernelNode::Port(value) => boundary.ports.contains(&value.id().erase()),
-            KernelNode::Connection(value) => boundary.connections.contains(&value.id().erase()),
-            _ => false,
-        };
-        if !admitted {
-            return Err(model_lowering_error(
-                program,
-                format!(
-                    "closed 2D steady Stokes lowering would ignore unexpected {:?} node {}",
-                    node.kind(),
-                    node.id()
-                ),
-            ));
-        }
-    }
-    Ok(())
-}
+mod closure;
+use closure::require_closed_model;

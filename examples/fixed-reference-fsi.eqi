@@ -1,0 +1,78 @@
+public connector VelocityTractionBoundary = field_physical(
+  trace = velocity: m / s,
+  flux = traction: kg / (m * s ^ 2),
+  shape = spatial_vector,
+  frame = spatial,
+  pairing = euclidean_boundary_duality
+);
+
+public component FixedReferenceFsi2d {
+  public support fluid: volume(ambient_dimension = 2);
+  public support fluid_x_lower: boundary(parent = fluid);
+  public support fluid_x_upper: boundary(parent = fluid);
+  public support fluid_y_lower: boundary(parent = fluid);
+  public support fluid_y_upper: boundary(parent = fluid);
+  public support solid: volume(ambient_dimension = 2);
+  public support solid_x_lower: boundary(parent = solid);
+  public support solid_x_upper: boundary(parent = solid);
+  public support solid_y_lower: boundary(parent = solid);
+  public support solid_y_upper: boundary(parent = solid);
+
+  public parameter fluid_density: kg / m ^ 3;
+  public parameter fluid_viscosity: kg / (m * s);
+  public parameter solid_density: kg / m ^ 3;
+  public parameter solid_mu: kg / (m * s ^ 2);
+  public parameter solid_lambda: kg / (m * s ^ 2);
+  public parameter zero_pressure: kg / (m * s ^ 2);
+
+  representation space = continuum;
+  field fluid_velocity on fluid as space: m / s shape spatial_vector;
+  field fluid_pressure on fluid as space: kg / (m * s ^ 2) = 0;
+  field fluid_load_potential on fluid as space: kg / (m * s ^ 2) = 0;
+  field solid_displacement on solid as space: m shape spatial_vector;
+  field solid_velocity on solid as space: m / s shape spatial_vector;
+  field solid_load_potential on solid as space: kg / (m * s ^ 2) = 0;
+
+  relation fluid_load_definition continuous on fluid {
+    fluid_load_potential - zero_pressure = 0;
+  }
+  relation fluid_momentum continuous on fluid {
+    fluid_density * derivative(fluid_velocity)
+      - div(2 * fluid_viscosity * symmetric_part(grad(fluid_velocity))
+        - isotropic_lift(fluid_pressure)) - grad(fluid_load_potential) = 0;
+  }
+  relation incompressibility continuous on fluid { div(fluid_velocity) = 0; }
+  relation solid_load_definition continuous on solid {
+    solid_load_potential - zero_pressure = 0;
+  }
+  relation solid_kinematics continuous on solid {
+    derivative(solid_displacement) - solid_velocity = 0;
+  }
+  relation solid_momentum continuous on solid {
+    solid_density * derivative(solid_velocity)
+      - div(2 * solid_mu * symmetric_part(grad(solid_displacement))
+        + solid_lambda * isotropic_lift(div(solid_displacement)))
+      - grad(solid_load_potential) = 0;
+  }
+
+  relation fluid_x_lower_zero continuous on fluid_x_lower { trace(fluid_velocity) = 0; }
+  relation fluid_y_lower_zero continuous on fluid_y_lower { trace(fluid_velocity) = 0; }
+  relation fluid_y_upper_zero continuous on fluid_y_upper { trace(fluid_velocity) = 0; }
+  relation solid_x_upper_zero continuous on solid_x_upper { trace(solid_velocity) = 0; }
+  relation solid_y_lower_zero continuous on solid_y_lower { trace(solid_velocity) = 0; }
+  relation solid_y_upper_zero continuous on solid_y_upper { trace(solid_velocity) = 0; }
+  port fluid_interface: conserving VelocityTractionBoundary over fluid_x_upper;
+  port solid_interface: conserving VelocityTractionBoundary over solid_x_lower;
+  relation fluid_interface_definition continuous on fluid_x_upper {
+    trace(fluid_velocity) - trace(fluid_interface) = 0;
+    normal(2 * fluid_viscosity * symmetric_part(grad(fluid_velocity))
+      - isotropic_lift(fluid_pressure)) - flux(fluid_interface) = 0;
+  }
+  relation solid_interface_definition continuous on solid_x_lower {
+    trace(solid_velocity) - trace(solid_interface) = 0;
+    normal(2 * solid_mu * symmetric_part(grad(solid_displacement))
+      + solid_lambda * isotropic_lift(div(solid_displacement)))
+      - flux(solid_interface) = 0;
+  }
+  connect conserving fluid_interface, solid_interface;
+}

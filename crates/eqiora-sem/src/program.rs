@@ -1,6 +1,6 @@
 //! Whole-model validation and immutable interpreter input.
 
-mod geometry_admission;
+pub(crate) mod geometry_admission;
 mod snapshot_admission;
 mod spatial_domains;
 
@@ -25,6 +25,7 @@ use eqiora_schema::kernel::{
     validate_spatial_periodic_boundary_connection,
 };
 
+use geometry_admission::{GeometryBoundaryEmbedding, GeometryBoundaryJunction};
 use spatial_domains::field_support;
 
 /// A completely validated, immutable Semantic Kernel model.
@@ -42,6 +43,7 @@ pub struct KernelProgram {
     boundary: BTreeSet<RawId>,
     spatial_supports: BTreeMap<RawId, SpatialSupport<RawId>>,
     cartesian_bounds: BTreeMap<RawId, Vec<AxisBounds>>,
+    geometry_boundary_junctions: BTreeMap<RawId, GeometryBoundaryJunction>,
 }
 
 impl KernelProgram {
@@ -51,6 +53,12 @@ impl KernelProgram {
 
     pub(crate) const fn cartesian_bounds_map(&self) -> &BTreeMap<RawId, Vec<AxisBounds>> {
         &self.cartesian_bounds
+    }
+
+    pub(crate) const fn geometry_boundary_junctions(
+        &self,
+    ) -> &BTreeMap<RawId, GeometryBoundaryJunction> {
+        &self.geometry_boundary_junctions
     }
 
     /// Graph Federation revision captured by this program.
@@ -421,6 +429,8 @@ fn validate_connections(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
     cartesian_bounds: &BTreeMap<RawId, Vec<AxisBounds>>,
+    geometry_boundary_junctions: &BTreeMap<RawId, GeometryBoundaryJunction>,
+    geometry_boundary_embeddings: &BTreeMap<RawId, GeometryBoundaryEmbedding>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut memberships = BTreeMap::new();
@@ -466,6 +476,21 @@ fn validate_connections(
                     id,
                     "conserving Connection cannot mix boundary-physical and scalar Port families",
                 ));
+                continue;
+            }
+            let geometry_members = definitions
+                .iter()
+                .filter_map(|port| port.boundary_physical_contract())
+                .filter(|(_, boundary)| {
+                    geometry_boundary_embeddings.contains_key(&boundary.erase())
+                })
+                .count();
+            if geometry_members > 0 {
+                if geometry_members != definitions.len()
+                    || !geometry_boundary_junctions.contains_key(&id)
+                {
+                    // Closed Geometry admission owns the precise diagnostic.
+                }
                 continue;
             }
             let contracts = ports

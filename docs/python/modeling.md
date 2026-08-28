@@ -104,27 +104,19 @@ not implement their operations:
 ```python
 import eqiora
 
-base_sketch = eqiora.geometry.CadAuthoredSketch.rectangle_xy(
-    x_bounds=(0.0, 2.2),
-    y_bounds=(0.0, 0.41),
-    plane_z=0.0,
-    modeling_tolerance=1e-10,
-)
-base = base_sketch.extrude_positive_z(depth=1.0)
-cut_sketch = eqiora.geometry.CadAuthoredSketch.circle_on_face(
-    base.face_handle("end-cap"),
-    center=(0.2, 0.2),
-    radius=0.05,
-)
-graph = base.through_cut(cut_sketch, boolean_tolerance=1e-10)
-geometry = graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid",
-    x_lower="inlet",
-    x_upper="outlet",
-    y_lower="walls",
-    y_upper="walls",
-    hole="cylinder",
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+circle = graph.circle(center=(0.2, 0.2), radius=0.05)
+fluid = graph.subtract(rectangle, circle)
+geometry = graph.build(
+    fluid,
+    named_topology={
+        "fluid": fluid.region,
+        "inlet": rectangle.boundaries[0],
+        "outlet": rectangle.boundaries[1],
+        "walls": rectangle.boundaries[2:],
+        "cylinder": circle.boundaries[0],
+    },
 )
 
 assert geometry.selection_dimension("fluid") == 2
@@ -133,9 +125,8 @@ print(geometry.digest)
 ```
 
 Rust owns validation, graph binding, operation order, canonical ordering,
-bytes, and both distinct identities. The sketch wrapper owns a native value,
-so dropping its source graph or face-handle wrapper does not invalidate it.
-Every coordinate, radius, depth, and CAD tolerance is a coherent-SI metre.
+bytes, and exact handle identity. Every coordinate and radius is a coherent-SI
+metre.
 The existing `CadAuthoredGraph.rectangle_extrusion` and
 `graph.circular_through_cut` signatures remain supported and produce the same
 canonical graphs. The 3D graph retains its explicit depth and CAD tolerances;
@@ -148,13 +139,12 @@ separate slices. Installed Python exposes the common `Geometry` projection
 only through the accepted authored graph; it does not publish a demo-shaped
 constructor.
 
-## Bounded Gmsh-backed chordal mesh
+## Bounded Gmsh mesh
 
-The matching meshing operation is an explicit Realization choice rather than a
-method on exact geometry:
+The matching meshing operation is an explicit typed provider choice:
 
 ```python
-request = eqiora.meshing.MeshRequest(
+request = eqiora.meshing.GmshMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
@@ -163,101 +153,89 @@ plan = eqiora.meshing.resolve(geometry, request)
 mesh = eqiora.meshing.generate(geometry, plan=plan)
 
 assert mesh.source_digest == geometry.digest
-assert plan.boundary_facets == 50
-assert mesh.selection_entity_count("cylinder") == 50
+assert plan.boundary_facets == mesh.selection_entity_count("cylinder")
 print(mesh.digest)
 ```
 
-Rust retains the exact source, chooses and measures the chordal approximation,
-invokes exact Gmsh 4.15.2, admits its MSH 4.1 linear triangles, and derives
+Rust retains the exact source, derives a bounded subdivision receipt directly
+from Geometry and policy, invokes exact Gmsh 4.15.2, admits its MSH 4.1 linear
+triangles, and derives
 realized named selections through the geometry-to-mesh correspondence.
 `canonical_bytes` and `digest` identify only the accepted inner simplicial
-mesh. The returned object retains the source, correspondence, and realization
-identities in the live process. Missing, wrong-version, failed, or invalid
+mesh. The returned object retains source, correspondence, Mesh, and
+provider-production identities. Missing, wrong-version, failed, or invalid
 Gmsh output rejects without falling back to the retired spoke mesh.
 
-An existing complete MSH 4.1 image can enter the same `Mesh` boundary without
-launching Gmsh:
-
-```python
-from pathlib import Path
-
-source = Path("accepted-cylinder.msh").read_bytes()
-mesh = eqiora.meshing.import_gmsh(geometry, source, request=request)
-
-assert mesh.source_digest == geometry.digest
-assert mesh.external_import_manifest_bytes is not None
-print(mesh.external_import_manifest_digest)
-```
-
-The immutable external-import manifest records the raw source SHA-256, exact
-Eqiora Gmsh adapter version, empty native-runtime stack, normalized Nodes and
-Elements array identities, and the accepted common Mesh identity. The same
-`request` explicitly supplies the chordal realization and quality policy.
-Generated and imported Meshes may therefore have identical coordinates,
-connectivity, and Mesh digest while only the imported Mesh carries source
-provenance.
-
-These bounded operations support the one rectangle-with-circular-hole family
-and affine 2D triangles. Import accepts complete ASCII or binary MSH 4.1 bytes;
-it does not add paths, fields, multiple pieces, 3D, curved elements, repair,
-renumbering equivalence, adaptive sizing, general Geometry matching, or
-cross-platform normalized-byte identity.
+This bounded operation supports the rectangle-with-circular-hole family and
+affine 2D triangles. It does not add caller-owned MSH import, paths, fields,
+multiple pieces, 3D, curved elements, repair, adaptive sizing, general Geometry
+matching, fixed output counts, or cross-platform byte identity.
 
 ## Exact-cylinder steady Stokes result
 
-The first fluid application consumes the accepted geometry-bound current Model
-artifact explicitly and returns one immutable result:
+The first fluid application keeps the component's equations, fields,
+dimensions, Parameters, and abstract support names in the installed `.eqi`
+source. Python is the sole owner of concrete shape and size. `compile` checks
+that exact Geometry selections close the selected public Component, derives
+Parameter dimensions from its declarations, and returns the ordinary immutable
+`Model` used by every resolver:
 
 ```python
 from importlib.resources import files
 
-model_bytes = (
-    files(eqiora)
-    .joinpath("examples", "steady-flow-past-cylinder.model.json")
-    .read_bytes()
+model = eqiora.compile(
+    path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
+    geometry=geometry,
+    parameters={
+        "dynamic_viscosity": 1.0e-3,
+        "zero_pressure": 0.0,
+        "inlet_speed": 0.3,
+        "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
+    },
 )
-model = eqiora.replay(model_bytes)
-intent = eqiora.fluid.SteadyStokes(
-    length_scale_m=0.41,
-    velocity_scale_m_per_s=0.3,
-    pressure_scale_pa=0.001 * 0.3 / 0.41,
+linear = eqiora.solve.Linear(
     relative_tolerance=1e-6,
     absolute_tolerance=1e-13,
     maximum_iterations=10_000,
 )
-plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
-result = eqiora.run(model, plan=plan)
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=eqiora.fem.MiniP1(),
+    solve=linear,
+    scaling=None,
+)
+result = eqiora.run(plan)
 
-pressure = result.snapshots[0]
+pressure = result.output(plan.pressure_field)
 evidence = eqiora.fluid.steady_stokes_evidence(result)
-print(result.run_manifest().digest, pressure.digest)
+print(result.plan_key, pressure.vertex_count)
 print(evidence.solve)
 print(evidence.pressure_minimum, evidence.pressure_maximum)
 print(evidence.cylinder_force_on_fluid, evidence.net_flux)
 ```
 
-Studio and Python use the same Rust resolved Plan for Model replay, exact-source
-binding, field-wise Realization, solve, pressure snapshot, and Run provenance.
+Freshly compiled and replayed Models use the same root resolver. The source or
+host path is not Model meaning; only the accepted source, concrete Geometry,
+and values enter identity. `compile` is keyword-only and accepts exactly one of
+`path=` or `source=`; `filename=` labels diagnostics only for `source=`.
 The Plan exposes the exact spaces, scales, solver tuple, backend, placement,
 and existing Realization bytes before a worker starts.
-The common `Result` exposes one immutable pressure `FieldSnapshot`, selected by
-its exact Model-bound `FieldRef`; `result.mesh(field)` returns the paired common
-`Mesh`. Snapshot values and Mesh coordinates/connectivity lazily publish
+The common `Result` exposes one immutable pressure `FieldOutput`, selected by
+its exact Model-bound `FieldRef`; that output retains the paired common `Mesh`.
+Field values and Mesh coordinates/connectivity lazily publish
 read-only NumPy views in matching mesh order. Solver- and physics-specific
 observations remain available through
 `eqiora.fluid.steady_stokes_evidence(result)`.
 
-This operation admits only the checked exact-cylinder Model and mesh plus the
-frozen scale and SparseLU intent. Replaying the Model bytes is explicit
-artifact consumption; the wheel ships an exact copy of that one canonical
-artifact so the documented script needs no repository-local runtime input.
-This is not a general Model catalog or Python fluid authoring. Velocity
-projection, drag/lift, solver selection, transient flow, and FSI remain
-separate slices. The runnable file is
+This operation admits only the checked exact-cylinder component, Geometry,
+mesh, MINI/P1 policy, and SparseLU request. It is not a general Model catalog,
+arbitrary Geometry/component closure, or general CFD authoring. Velocity
+projection, drag/lift, transient flow, and FSI remain separate slices. The
+runnable file is
 [`examples/python/exact_cylinder_stokes.py`](../../examples/python/exact_cylinder_stokes.py).
 
-## Exact-cylinder pressure still
+## Exact-cylinder pressure rendering
 
 Install the Gmsh and Matplotlib adapters and ask the same runnable file to save
 the accepted pressure field:
@@ -299,46 +277,59 @@ model-bound Plan through the ordinary Run path:
 ```python
 from importlib.resources import files
 
-source = (
-    files(eqiora)
-    .joinpath("examples", "mixed-boundary-elasticity.eqi")
-    .read_text()
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+geometry = graph.build(
+    rectangle,
+    named_topology={
+        "body": rectangle.region,
+        "x_lower": rectangle.boundaries[0],
+        "x_upper": rectangle.boundaries[1],
+        "y_lower": rectangle.boundaries[2],
+        "y_upper": rectangle.boundaries[3],
+    },
 )
+mesh_plan = eqiora.meshing.resolve(
+    geometry,
+    eqiora.meshing.CartesianMesher(cells=(16, 16)),
+)
+mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 model = eqiora.compile(
-    source,
-    filename="mixed-boundary-elasticity.eqi",
+    path=files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi"),
+    geometry=geometry,
+    parameters={"mu": 3.0, "lambda": 0.0, "length_scale": 1.0},
 )
-intent = eqiora.solid.LinearElasticity(
-    cells_per_axis=16,
-    relative_tolerance=1.0e-12,
-    absolute_tolerance=1.0e-14,
-    maximum_iterations=10_000,
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=eqiora.fem.Q1(),
+    solve=eqiora.solve.Linear(
+        relative_tolerance=1.0e-10,
+        absolute_tolerance=1.0e-12,
+        maximum_iterations=10_000,
+    ),
 )
-plan = eqiora.solid.resolve(model, intent)
-run = eqiora.submit(model, plan=plan)
-result = run.result()
+result = eqiora.run(plan)
 
-displacement = model.field("displacement")
-snapshot = result.field(displacement)
-mesh = result.mesh(displacement)
+displacement = result.output(plan.field)
+mesh = displacement.mesh
 evidence = eqiora.solid.linear_elasticity_evidence(result)
 ```
 
-`LinearElasticity` is keyword-only and has no hidden defaults. The resolved
-`LinearElasticityPlan` exposes the effective generated-Cartesian Q1
-Realization, solver, backend, execution, and worker choices before a worker
-starts. Resolution admits only this already verified tuple and rejects other
+The root `Plan` exposes the exact caller-owned mesh, Q1 spatial policy, linear
+solver policy, backend, and execution placement before a worker starts.
+Resolution admits only supported typed policy combinations and rejects other
 values instead of silently falling back.
 
-The common `Result` owns one immutable vector `FieldSnapshot` selected by the
-caller's exact Model-bound `FieldRef`; `result.mesh(displacement)` returns its
-paired exact generated-Cartesian `Mesh`. Snapshot values, Mesh coordinates,
+The common `Result` owns one immutable vector `FieldOutput` selected by the
+Plan's exact Model-bound `FieldRef`; `displacement.mesh` is its paired exact
+caller-generated `Mesh`. Output values, Mesh coordinates,
 and Q1 connectivity lazily publish memoized, read-only NumPy views in one
-co-indexed canonical order. The typed `LinearElasticityEvidence` keeps the
-Run digest, reference-CG solve summary, assembly counts, constrained reaction,
+co-indexed canonical order. The typed elasticity observation keeps the
+Plan identity, reference-CG solve summary, assembly counts, constrained reaction,
 integrated body force, and exact bounds outside the common result transport.
-Model, Realization, Geometry, correspondence, Mesh, Snapshot, and Run identity
-remain Rust-owned and relationally exact. Stress, strain, traction recovery,
+Model, Geometry, correspondence, Mesh, Plan, and Result identity remain
+Rust-owned and relationally exact. Stress, strain, traction recovery,
 analytic error, other meshes, and general structural solving are not implied.
 
 The optional still displays original and explicitly scaled deformed edges:
@@ -348,113 +339,77 @@ import eqiora.matplotlib as eqplot
 
 figure = eqplot.plot_deformed_field(
     result,
-    field=displacement,
+    field=plan.field,
     scale=1.0,
 )
 figure.savefig("mixed-boundary-displacement.png")
 ```
-
-For one subsequent prerelease, `MixedBoundaryElasticityResult`,
-`solve_mixed_boundary_elasticity`, and `plot_displacement` remain only as
-warning-emitting compatibility shims that delegate to this path. They own no
-result storage, execution, lineage, plotting implementation, or evidence and
-are not the ordinary API.
 
 The complete runnable workflow is
 [`examples/python/mixed_boundary_elasticity.py`](../../examples/python/mixed_boundary_elasticity.py).
 
 ## Fixed-mesh monolithic FSI result
 
-The installed package carries the accepted fixed-reference two-body FSI source.
-Python compiles it through the current Model path and resolves mandatory,
-explicit fixed-mesh monolithic intent before execution. The shared Rust
-application service owns the fixed mesh, coupled Realization, both consecutive
-monolithic steps, spatial states, trajectory, and final Run:
+The fixed-reference FSI path uses the same root lifecycle as every common
+numerical Plan. Python authors the adjacent two-region `Geometry`, generates
+its authenticated common `Mesh`, compiles the equations-only Component, and
+then supplies exact Model-bound spatial scopes:
 
 ```python
-source = (
-    files(eqiora)
-    .joinpath("examples", "fixed-reference-fsi.eqi")
-    .read_text()
-)
 model = eqiora.compile(
-    source,
-    filename="fixed-reference-fsi.eqi",
+    path=files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi"),
+    geometry=geometry,
+    component="FixedReferenceFsi2d",
+    parameters=parameters,
 )
-intent = eqiora.fsi.FixedMeshMonolithic(
-    time_step_s=0.05,
-    steps=2,
-    initial_velocity_m_per_s=(0.0, 0.0),
-    initial_free_interface_displacement_m=(0.02, 0.0),
-    length_scale_m=2.0,
-    velocity_scale_m_per_s=0.5,
-    pressure_scale_pa=4.0,
-    relative_tolerance=1.0e-11,
-    absolute_tolerance=1.0e-13,
-    maximum_iterations=20_000,
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=(
+        eqiora.fem.MiniP1().at(model.domain("fluid")),
+        eqiora.fem.P1().at(model.domain("solid")),
+    ),
+    temporal=eqiora.time.BackwardEuler(step_s=0.05),
+    solve=eqiora.solve.Linear(
+        relative_tolerance=1.0e-11,
+        absolute_tolerance=1.0e-13,
+        maximum_iterations=20_000,
+    ),
+    scaling=None,
 )
-plan = eqiora.fsi.resolve(model, intent)
-run = eqiora.submit(model, plan=plan)
-result = run.result()
-trajectory = result.trajectory
-evidence = eqiora.fsi.fixed_mesh_monolithic_evidence(result)
-
-assert tuple(state.step for state in trajectory.states) == (1, 2)
-assert not trajectory.coordinates.flags.writeable
-for state in trajectory.states:
-    state_evidence = evidence.state(state)
-    print(state.step, state.time_s, state_evidence.solve)
+state = eqiora.State.initial(
+    plan,
+    time_s=0.0,
+    fields=(
+        eqiora.InitialField(model.field("fluid_velocity"), vertex_values=..., cell_values=...),
+        eqiora.InitialField(model.field("fluid_pressure"), vertex_values=...),
+        eqiora.InitialField(model.field("solid_velocity"), vertex_values=...),
+        eqiora.InitialField(model.field("solid_displacement"), vertex_values=...),
+    ),
+)
+result = eqiora.run(plan, state=state, steps=2, output_steps=(1, 2))
+evidence = eqiora.fsi.evidence(result)
 ```
 
-`FixedMeshMonolithic` is keyword-only, immutable, and has no hidden numerical
-defaults. Its initial state explicitly applies zero velocity everywhere and
-the accepted displacement only at the free interface midpoint. The
-model-bound `FixedMeshMonolithicPlan` exposes the admitted fixed-reference
-geometry policy, affine-triangle spaces, backward-Euler time policy, monolithic
-coupling, scales, symmetric-indefinite solver, tolerances, backend, execution
-adapter, worker count, and state count before a worker starts. Resolution
-rejects every unsupported value and foreign Model meaning rather than falling
-back.
+`DomainRef`, `InitialField`, `Plan`, `State`, `Run`, `Result`, and `Trajectory`
+are common types. The Model decides that this is FSI; `eqiora.resolve` admits
+only the complete `MiniP1@fluid + P1@solid` partition and binds the actual
+Model, Geometry, Mesh, correspondence, production lineage, four exact Fields,
+backward Euler policy, full coupled scaling receipt, MINRES provider, and host
+placement. `scaling=None` requests automatic coupled scales; a complete
+`IncompressibleScaling` value makes them manual.
 
-The common `Result` returns the common `Trajectory`, which is the sole Python
-owner of the exact Model, Geometry, correspondence, Mesh, Realization, Run,
-ordered-state, and trajectory identities as well as the fixed reference
-coordinates, connectivity, and spatial fields. `FixedMeshMonolithicEvidence`
-owns the exhaustive fluid/solid/interface partition. Its exact
-`TrajectoryState` lookup returns the corresponding action, energy, residual,
-solve, and assembly observations without turning the state into a
-physics-specific property bag.
-
-The optional Matplotlib adapters select an exact Model-bound Field from an
-already accepted trajectory state. They restrict both values and topology to
-the Field's accepted support; deformation additionally requires a
-spatial-cartesian vector with the SI dimension of length:
-
-```python
-pressure_figure = eqplot.plot_scalar_field(
-    trajectory,
-    step=2,
-    field=model.field("fluid_pressure"),
-)
-pressure_figure.savefig("fixed-reference-pressure.png")
-
-deformed_figure = eqplot.plot_deformed_field(
-    trajectory,
-    step=2,
-    field=model.field("solid_displacement"),
-    scale=12,
-)
-deformed_figure.savefig("fixed-reference-deformed.png")
-```
+Initial coefficients are immutable, exact-Field assignments in coherent SI.
+They must be complete and association-correct; pressure has no auxiliary
+zero-mean restriction in this fixed-reference formulation. A compatible State
+can restart a freshly resolved Plan even when solve or scaling policies differ,
+while a foreign Model, Geometry, field, or state space is rejected.
 
 The complete runnable workflow is
 [`examples/python/fixed_reference_fsi.py`](../../examples/python/fixed_reference_fsi.py).
-It is one immutable fixed-reference 2D, affine-triangle, host-serial, two-step
-composition. It does not expose a general coupling graph, Python time loop,
-ALE or remeshing, partitioned iteration, stress/drag/lift derivation,
-animation, or scientific validation from pixels. Field names above are
-resolved by the caller's exact `Model`; the presentation adapters receive
-`FieldRef` values and never use names as field identity.
+It is one fixed-reference 2D affine-triangle monolithic formulation. It does not
+claim partitioned coupling, FVM/FEM transfer, ALE, remeshing, checkpointing,
+general multiphysics policy maps, or per-domain time and solve policies.
 
 ## Conserving connections
 
@@ -546,36 +501,15 @@ model = eqiora.Model.define(
 draft. Shape, frame, dimension, support, and residual validity remain Kernel
 decisions.
 
-## Bounded scalar-elliptic realization
+## Typed spatial Plan
 
-The accepted spatial model can enter a small typed realization surface without
-exposing the internal graph-shaped Realization IR:
-
-```python
-request = eqiora.ScalarElliptic(
-    method=eqiora.ScalarEllipticMethod.FiniteElement,
-    cells_per_axis=32,
-)
-realization = eqiora.preview_realization(model, request)
-result = eqiora.run(model, realization=realization)
-
-assert result.realization == realization
-print(result.field.logical_shape)
-print(result.balance.relative_imbalance)
-print(result.solve.true_residual_norm)
-values = result.values.numpy(copy=False)
-```
-
-`ScalarElliptic` is an unbound request. `preview_realization` resolves it
-against one exact model and the host-serial capability profile before
-numerical allocation. The resulting Realization is immutable and model-bound;
-foreign models and mismatched persisted run manifests fail closed.
-
-The current path supports generated Cartesian scalar elliptic systems in one
-through three dimensions. Q1 finite elements return complete vertex values,
-including eliminated essential-boundary values. TPFA finite volumes return
-primary cell-centred values. Both use canonical row-major flattening with the
-last physical axis varying fastest.
+Spatial execution uses the same root lifecycle as the examples above: author
+one concrete Geometry, resolve a typed meshing provider, compile an
+equations-only component with that Geometry, and call
+`eqiora.resolve(model, mesh=..., spatial=..., solve=...)`. The returned common
+`Plan` owns the exact Model, Mesh, and numerical policy identities; execution
+accepts only `eqiora.run(plan)` or `eqiora.submit(plan)`. Specialized scalar
+requests and model-plus-realization execution are absent.
 
 ## Exact revisions and current replay
 
@@ -611,7 +545,7 @@ comparison:
 
 ```python
 source_model = eqiora.compile(
-    """
+    source="""
     model decay {
       field x: 1 = 1;
       parameter rate: 1 / s = 1;

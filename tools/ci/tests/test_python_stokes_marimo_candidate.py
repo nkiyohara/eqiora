@@ -66,10 +66,10 @@ def _require_one_direct_run(source: str) -> None:
         if node.func.attr == "result":
             result += 1
     observed = (submit, result, run)
-    if observed != (1, 1, 0):
+    if observed != (0, 0, 1):
         raise AssertionError(
             "canonical app direct calls must be "
-            f"eqiora.submit=1, .result=1, eqiora.run=0; observed {observed}"
+            f"eqiora.submit=0, .result=0, eqiora.run=1; observed {observed}"
         )
 
 
@@ -80,7 +80,7 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
 
         # This is an exact-source check for the one canonical app, not a generic
         # Python import, file-access, or isolation policy.
-        self.assertEqual(source.count("steady_stokes_evidence("), 1)
+        self.assertEqual(source.count("steady_stokes_evidence("), 0)
         self.assertEqual(source.count("plot_scalar_field("), 1)
         self.assertEqual(source.count("files(eqiora)"), 1)
         self.assertNotIn(
@@ -89,25 +89,24 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
         )
         self.assertIsNone(HEX_SHA256.search(source))
         self.assertIn('__generated_with = "0.23.16"', source)
-        self.assertIn("steady-flow-past-cylinder.model.json", source)
+        self.assertIn("steady-flow-past-cylinder.eqi", source)
+        self.assertIn("GmshMesher(", source)
         for marker in (
             "eqiora-stokes-geometry",
             "eqiora-stokes-mesh-plan",
             "eqiora-stokes-mesh",
             "eqiora-stokes-model",
             "eqiora-stokes-plan",
-            "eqiora-stokes-run",
             "eqiora-stokes-result",
-            "eqiora-stokes-evidence",
             "EQIORA_EXACT_CYLINDER_STOKES_READY",
         ):
             self.assertIn(marker, source)
 
         _require_one_direct_run(source)
-        second_run_mutant = source + "\neqiora.run(model, plan=plan)\n"
+        second_run_mutant = source + "\neqiora.run(stokes_plan)\n"
         with self.assertRaisesRegex(
             AssertionError,
-            r"eqiora\.submit=1, \.result=1, eqiora\.run=0; observed \(1, 1, 1\)",
+            r"eqiora\.submit=0, \.result=0, eqiora\.run=1; observed \(0, 0, 2\)",
         ):
             _require_one_direct_run(second_run_mutant)
 
@@ -164,9 +163,6 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             root = Path(temporary)
             extracted = root / "extracted"
-            rich_test = extracted / "bindings/python/tests/test_rich_mesh_display.py"
-            rich_test.parent.mkdir(parents=True)
-            rich_test.write_text("def test_positive():\n    pass\n", encoding="utf-8")
             fake_app = extracted / APP_PATH
             fake_app.parent.mkdir(parents=True)
             fake_app.write_text("import marimo\n", encoding="utf-8")
@@ -409,10 +405,10 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                     launch_inventories["negative"],
                     (MUTANT_PATH.name,),
                 )
-                self.assertEqual(len(host_identities), 3)
-                self.assertEqual(len(set(host_identities)), 3)
-                self.assertEqual(len(direct_launch_identities), 3)
-                self.assertEqual(len(set(direct_launch_identities)), 3)
+                self.assertEqual(len(host_identities), 1)
+                self.assertEqual(len(set(host_identities)), 1)
+                self.assertEqual(len(direct_launch_identities), 1)
+                self.assertEqual(len(set(direct_launch_identities)), 1)
                 return observed, launches, checked_commands, installs
 
             observed, launches, checked_commands, installs = execute_profile(
@@ -427,8 +423,9 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                 if str(root / "candidate.whl") in requirement
             )
             self.assertTrue(candidate_requirements)
+            self.assertIn("gmsh", "\n".join(candidate_requirements))
             self.assertIn("matplotlib", "\n".join(candidate_requirements))
-            self.assertIn("notebook", "\n".join(candidate_requirements))
+            self.assertNotIn("notebook", "\n".join(candidate_requirements))
 
             positive_launches = [
                 (argv, cwd)

@@ -6,7 +6,7 @@ use eqiora::artifact::{
     ExecutionTopologyV1, FieldSnapshotEnvelopeV1, LayoutArtifacts, ModelEnvelope,
     RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
-use eqiora::geometry::{CanonicalGeometryRef, CanonicalGeometryV1, FACE_DIMENSION, NamedEntitySet};
+use eqiora::geometry::{CanonicalGeometryV1, FACE_DIMENSION, NamedEntitySet};
 use eqiora::graph::{GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{DomainDef, DomainKind, KernelNode};
 use eqiora::meshing::{
@@ -438,10 +438,6 @@ fn geometry_program(source: &CanonicalGeometryV1) -> KernelProgram {
     });
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
-    KernelProgram::from_snapshot_with_geometry(
-        &store.snapshot(),
-        program.model(),
-        &[CanonicalGeometryRef::from(source)],
-    )
-    .expect("geometry-backed Model")
+    KernelProgram::from_snapshot_with_geometry(&store.snapshot(), program.model(), &[source])
+        .expect("geometry-backed Model")
 }

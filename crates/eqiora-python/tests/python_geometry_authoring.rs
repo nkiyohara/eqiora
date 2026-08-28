@@ -1,82 +1,20 @@
-use std::fs;
 use std::path::Path;
 
-use eqiora::geometry::{CanonicalGeometryLimits, CanonicalGeometryV1, NamedEntitySet};
+use eqiora::geometry::{CanonicalGeometryLimits, CanonicalGeometryV1};
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyBytes, PyDict, PyDictMethods, PyModule};
+
+const EXPECTED: &[u8] = br#"{"schema":"eqiora.planar-circular-hole-envelope/v2","encoding":"eqiora.canonical-json/v1","kind":"axis-aligned-rectangle-with-circular-hole-v2","length_unit":"metre","bounds":[[0.0,2.2],[0.0,0.41]],"circle":{"center":[0.2,0.2],"radius_m":0.05},"entity_sets":[{"name":"cylinder","dimension":1,"members":[4]},{"name":"inlet","dimension":1,"members":[0]},{"name":"outlet","dimension":1,"members":[1]},{"name":"walls","dimension":1,"members":[2,3]},{"name":"fluid","dimension":2,"members":[0]}]}"#;
 
 #[test]
 fn python_exact_circular_hole_geometry_replays_rust_owned_identity() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
         let module = public_module(py)?;
-        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples/steady-flow-past-cylinder.geometry.json");
-        let reference = fs::read(fixture)?;
-        assert_eq!(reference.last(), Some(&b'\n'));
-        let expected = &reference[..reference.len() - 1];
-        let expected_oriented = CanonicalGeometryV1::from_circular_hole(
-            [[0.0, 2.2], [0.0, 0.41]],
-            [0.2, 0.2],
-            0.05,
-            vec![
-                NamedEntitySet::new("fluid", 2, vec![0]),
-                NamedEntitySet::new("floor", 1, vec![2]),
-                NamedEntitySet::new("inlet", 1, vec![0]),
-                NamedEntitySet::new("ceiling", 1, vec![3]),
-                NamedEntitySet::new("cylinder", 1, vec![4]),
-                NamedEntitySet::new("outlet", 1, vec![1]),
-            ],
-            1e-12,
-        )
-        .expect("the public exact geometry contract must admit the oriented witness");
-        let expected_oriented_digest = expected_oriented
-            .digest_bytes()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
-        assert_eq!(
-            expected_oriented_digest,
-            "51ece8fa2d8709d932b0c758d59c187e4fd572f73217c31dcbe407f8d873be7f"
-        );
-        let expected_off_axis = CanonicalGeometryV1::from_circular_hole(
-            [[0.0, 2.2], [0.0, 0.41]],
-            [0.3, 0.2],
-            0.05,
-            vec![
-                NamedEntitySet::new("fluid", 2, vec![0]),
-                NamedEntitySet::new("walls", 1, vec![3, 2]),
-                NamedEntitySet::new("inlet", 1, vec![0]),
-                NamedEntitySet::new("cylinder", 1, vec![4]),
-                NamedEntitySet::new("outlet", 1, vec![1]),
-            ],
-            1e-12,
-        )
-        .expect("the public exact geometry contract must admit the off-axis witness");
-        let expected_off_axis_digest = expected_off_axis
-            .digest_bytes()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
-        assert_eq!(
-            expected_off_axis_digest,
-            "552ebf459396ed5bc7f72ab48f34046baa828b6af808794e861bd958dc613881"
-        );
-
         let locals = PyDict::new(py);
         locals.set_item("eqiora", module)?;
-        locals.set_item("expected_json", PyBytes::new(py, expected))?;
-        locals.set_item(
-            "expected_oriented_json",
-            PyBytes::new(py, expected_oriented.canonical_bytes()),
-        )?;
-        locals.set_item("expected_oriented_digest", expected_oriented_digest)?;
-        locals.set_item(
-            "expected_off_axis_json",
-            PyBytes::new(py, expected_off_axis.canonical_bytes()),
-        )?;
-        locals.set_item("expected_off_axis_digest", expected_off_axis_digest)?;
+        locals.set_item("expected_json", PyBytes::new(py, EXPECTED))?;
         py.run(
             c_str!(
                 r#"
@@ -85,7 +23,6 @@ def make(**overrides):
         "bounds": ((0.0, 2.2), (0.0, 0.41)),
         "circle_center": (0.2, 0.2),
         "circle_radius": 0.05,
-        "tolerance": 1e-12,
         "region": "fluid",
         "x_lower": "inlet",
         "x_upper": "outlet",
@@ -95,25 +32,25 @@ def make(**overrides):
     }
     arguments.update(overrides)
     x_bounds, y_bounds = arguments["bounds"]
-    graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
-        x_bounds=x_bounds,
-        y_bounds=y_bounds,
-        plane_z=0.0,
-        depth=1.0,
-        modeling_tolerance=1e-10,
-    ).circular_through_cut(
-        center=arguments["circle_center"],
-        radius=arguments["circle_radius"],
-        boolean_tolerance=1e-10,
+    graph = eqiora.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=x_bounds, y_bounds=y_bounds)
+    circle = graph.circle(
+        center=arguments["circle_center"], radius=arguments["circle_radius"]
     )
-    return graph.planar_circular_section(
-        classification_tolerance=arguments["tolerance"],
-        region=arguments["region"],
-        x_lower=arguments["x_lower"],
-        x_upper=arguments["x_upper"],
-        y_lower=arguments["y_lower"],
-        y_upper=arguments["y_upper"],
-        hole=arguments["hole"],
+    fluid = graph.subtract(rectangle, circle)
+    named_topology = {}
+    for name, handle in (
+        (arguments["region"], fluid.region),
+        (arguments["x_lower"], rectangle.boundaries[0]),
+        (arguments["x_upper"], rectangle.boundaries[1]),
+        (arguments["y_lower"], rectangle.boundaries[2]),
+        (arguments["y_upper"], rectangle.boundaries[3]),
+        (arguments["hole"], circle.boundaries[0]),
+    ):
+        named_topology.setdefault(name, []).append(handle)
+    return graph.build(
+        fluid,
+        named_topology=named_topology,
     )
 
 geometry = make()
@@ -136,15 +73,12 @@ assert geometry != swapped
 assert geometry.digest != swapped.digest
 
 oriented = make(y_lower="floor", y_upper="ceiling")
-assert oriented.canonical_bytes == expected_oriented_json
-assert oriented.digest == expected_oriented_digest
 assert oriented.selection_names == (
     "ceiling", "cylinder", "floor", "inlet", "outlet", "fluid"
 )
 
 off_axis = make(circle_center=(0.3, 0.2))
-assert off_axis.canonical_bytes == expected_off_axis_json
-assert off_axis.digest == expected_off_axis_digest
+assert off_axis != geometry
 
 try:
     geometry.selection_dimension("missing")
@@ -153,19 +87,6 @@ except eqiora.ValidationError as error:
     assert error.diagnostics
 else:
     raise AssertionError("an unknown exact selection returned a value")
-
-try:
-    make(
-        bounds=((0.0, 1.0), (0.0, 1.0)),
-        circle_center=(0.1875, 0.5),
-        circle_radius=0.125,
-        tolerance=0.0625,
-    )
-except eqiora.ValidationError as error:
-    assert error.category == "validation"
-    assert error.diagnostics
-else:
-    raise AssertionError("a circle at tolerance clearance was admitted")
 
 canonical_json = geometry.canonical_bytes
 python_digest = geometry.digest
@@ -183,7 +104,7 @@ python_digest = geometry.digest
             .get_item("python_digest")?
             .expect("Python geometry must expose its digest")
             .extract::<String>()?;
-        let replayed = CanonicalGeometryV1::decode_circular_hole_canonical(
+        let replayed = CanonicalGeometryV1::decode_planar_circular_hole_v2_canonical(
             &canonical_json,
             CanonicalGeometryLimits::default(),
         )

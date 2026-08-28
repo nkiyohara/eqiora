@@ -31,14 +31,10 @@ from resource_scheduler import (  # noqa: E402
 
 
 EXACT_CYLINDER_DEMO = Path("examples/python/exact_cylinder_stokes.py")
-EXACT_CYLINDER_REPOSITORY_MODEL = Path("examples/steady-flow-past-cylinder.model.json")
+EXACT_CYLINDER_REPOSITORY_SOURCE = Path("examples/steady-flow-past-cylinder.eqi")
 MIXED_BOUNDARY_ELASTICITY_DEMO = Path("examples/python/mixed_boundary_elasticity.py")
 MIXED_BOUNDARY_REPOSITORY_SOURCE = Path(
     "verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi"
-)
-FIXED_REFERENCE_FSI_DEMO = Path("examples/python/fixed_reference_fsi.py")
-FIXED_REFERENCE_FSI_REPOSITORY_SOURCE = Path(
-    "verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi"
 )
 PYTHON_TEST_FIXTURES = (
     Path("verify/interfaces/control-plane-compile-check"),
@@ -62,10 +58,6 @@ PYTHON_TEST_RESOURCES = (
         "verify/fluid/flow-past-cylinder-mesh-family-private/"
         "references/primary-l0.msh"
     ),
-    Path(
-        "verify/fluid/exact-circular-hole-stokes-2d-gmsh/"
-        "routes/python/geometry.geo"
-    ),
 )
 
 COMPLETE_PROFILE_NAMES = (
@@ -84,12 +76,7 @@ COMPLETE_PROFILE_NAMES = (
 
 NOTEBOOK_CHECK_NAMES = (
     "frontend:lock-integrity",
-    "frontend:license-notices",
-    "frontend:bundle-byte-rebuild",
-    "wheel-family:notebook-metadata",
-    "cp313:notebook-anywidget-0.11.0",
-    "cp313:jupyterlab-4.6.2-bare-mesh",
-    "cp313:marimo-0.23.16-bare-mesh",
+    "frontend:dependency-inventory",
     "cp313:marimo-0.23.16-exact-cylinder-stokes",
     "cp313:notebook-managed-chromium-r1234",
     "cp313:notebook-no-external-network",
@@ -428,7 +415,7 @@ def prepare_exact_cylinder_demo_consumer(extracted: Path, run_root: Path) -> Pat
         extracted,
         run_root,
         EXACT_CYLINDER_DEMO,
-        EXACT_CYLINDER_REPOSITORY_MODEL,
+        EXACT_CYLINDER_REPOSITORY_SOURCE,
         "exact-cylinder",
     )
 
@@ -442,16 +429,6 @@ def prepare_mixed_boundary_elasticity_demo_consumer(
         MIXED_BOUNDARY_ELASTICITY_DEMO,
         MIXED_BOUNDARY_REPOSITORY_SOURCE,
         "mixed-boundary",
-    )
-
-
-def prepare_fixed_reference_fsi_demo_consumer(extracted: Path, run_root: Path) -> Path:
-    return _copy_demo(
-        extracted,
-        run_root,
-        FIXED_REFERENCE_FSI_DEMO,
-        FIXED_REFERENCE_FSI_REPOSITORY_SOURCE,
-        "fixed-reference FSI",
     )
 
 
@@ -522,7 +499,6 @@ def run_base_profile(
     tests, typecheck = prepare_base_consumer_tree(extracted, workspace.consumer)
     prepare_exact_cylinder_demo_consumer(extracted, workspace.consumer)
     prepare_mixed_boundary_elasticity_demo_consumer(extracted, workspace.consumer)
-    prepare_fixed_reference_fsi_demo_consumer(extracted, workspace.consumer)
     assert_installed_origin(
         python, wheel, workspace.consumer, config.python_version, run=run
     )
@@ -530,9 +506,8 @@ def run_base_profile(
     gmsh_tests = tuple(
         tests / name
         for name in (
-            "test_circular_hole_chordal_mesh.py",
+            "test_gmsh_meshing.py",
             "test_exact_cylinder_stokes_result.py",
-            "test_rich_mesh_display.py",
         )
     )
     run(
@@ -596,7 +571,6 @@ def run_base_profile(
         f"cp{compact}:base-and-numpy",
         f"cp{compact}:packaged-exact-cylinder-model-demo",
         f"cp{compact}:packaged-mixed-boundary-elasticity-demo",
-        f"cp{compact}:packaged-fixed-reference-fsi-demo",
         f"cp{compact}:async-and-cancellation",
         f"cp{compact}:strict-base-typing",
         f"cp{compact}:public-smoke-base",
@@ -680,19 +654,6 @@ def run_optional_profile(
             ["--displacement-png", "{destination}", "--scale", "1"],
             "installed mixed-boundary Matplotlib demo",
         ),
-        (
-            prepare_fixed_reference_fsi_demo_consumer(extracted, workspace.consumer),
-            "fixed-reference-fsi.png",
-            [
-                "--fsi-png",
-                "{destination}",
-                "--step",
-                "2",
-                "--displacement-scale",
-                "12",
-            ],
-            "installed fixed-reference FSI Matplotlib demo",
-        ),
     )
     for demo, filename, arguments, description in destinations:
         destination = workspace.consumer / filename
@@ -716,7 +677,6 @@ def run_optional_profile(
         f"cp{compact}:matplotlib",
         f"cp{compact}:packaged-exact-cylinder-pressure-demo",
         f"cp{compact}:packaged-mixed-boundary-displacement-demo",
-        f"cp{compact}:packaged-fixed-reference-fsi-still",
     ]
 
 
@@ -810,7 +770,7 @@ def run_full_typing_profile(
         interpreter=interpreter,
         environment=workspace.environment,
         requirements=[
-            f"{wheel}[torch,jax,matplotlib,notebook]",
+            f"{wheel}[torch,jax,matplotlib]",
             config.mypy,
             config.torch,
             *config.jax,

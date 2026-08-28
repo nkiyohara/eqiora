@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DynQuantity};
-use eqiora_geometry::{CanonicalGeometryRef, NamedEntitySet};
-use eqiora_lang::TextRange;
+use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
+use eqiora_lang::{ComponentItem, SupportSlotSyntax, TextRange, VisibilitySyntax, parse};
 use eqiora_schema::kernel::GeometryDigest;
 
 use crate::diagnostics::source_error;
@@ -18,6 +18,167 @@ use crate::source_identity::LocalSourceIdentityLimits;
 impl CompiledModel {
     fn external_component_binding_limit() -> usize {
         LocalSourceIdentityLimits::default().max_bindings_per_instance
+    }
+
+    /// Compile one definitions-only source against one exact Geometry using
+    /// the Component's own public support and Parameter declarations.
+    ///
+    /// Support slots bind by exact symbolic name. Coherent-SI scalar values
+    /// borrow their dimensions from the selected Component declaration; the
+    /// caller cannot restate either dimension or Geometry topology.
+    #[doc(hidden)]
+    pub fn compile_external_geometry_component(
+        file: &str,
+        source: &str,
+        geometry: &eqiora_geometry::CanonicalGeometryV1,
+        component: Option<&str>,
+        parameters: &[(&str, f64)],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let document = parse(file, source).into_document()?;
+        if !document.models().is_empty() {
+            return Err(vec![source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                TextRange::default(),
+                "Geometry-backed compilation requires a definitions-only source without a root Model",
+            )]);
+        }
+        let public = document
+            .components()
+            .iter()
+            .filter(|candidate| candidate.visibility() == VisibilitySyntax::Public)
+            .collect::<Vec<_>>();
+        let selected = match component {
+            Some(name) => public
+                .iter()
+                .copied()
+                .find(|candidate| candidate.name() == name)
+                .ok_or_else(|| {
+                    vec![source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        TextRange::default(),
+                        format!("component={name:?} does not name an eligible public Component"),
+                    )]
+                })?,
+            None if public.len() == 1 => public[0],
+            None if public.is_empty() => {
+                return Err(vec![source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    TextRange::default(),
+                    "definitions-only compilation requires one eligible public Component",
+                )]);
+            }
+            None => {
+                return Err(vec![source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    TextRange::default(),
+                    format!(
+                        "definitions-only compilation found {} eligible public Components; component= is required",
+                        public.len()
+                    ),
+                )]);
+            }
+        };
+
+        let mut supports = Vec::new();
+        for item in selected.items() {
+            let ComponentItem::Support(slot) = item else {
+                continue;
+            };
+            let selection = geometry.entity_set(slot.name()).ok_or_else(|| {
+                vec![source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    slot.range(),
+                    format!(
+                        "supplied Geometry has no exact selection named {:?} for support slot {:?}",
+                        slot.name(),
+                        slot.name()
+                    ),
+                )]
+            })?;
+            let parent = match slot.syntax() {
+                SupportSlotSyntax::Volume { .. } => None,
+                SupportSlotSyntax::Boundary { parent } => Some((
+                    parent.as_str(),
+                    geometry.entity_set(parent).ok_or_else(|| {
+                        vec![source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            slot.range(),
+                            format!(
+                                "supplied Geometry has no exact parent selection named {parent:?} for boundary support {:?}",
+                                slot.name()
+                            ),
+                        )]
+                    })?,
+                )),
+                SupportSlotSyntax::CompleteExterior { .. } => {
+                    return Err(vec![source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        slot.range(),
+                        format!(
+                            "complete-exterior support slot {:?} is not eligible for singular exact-name Geometry binding",
+                            slot.name()
+                        ),
+                    )]);
+                }
+                _ => {
+                    return Err(vec![source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        slot.range(),
+                        format!(
+                            "support slot {:?} uses a newer contract than exact-name Geometry binding",
+                            slot.name()
+                        ),
+                    )]);
+                }
+            };
+            supports.push((slot.name(), selection, parent));
+        }
+
+        let declarations = selected
+            .items()
+            .iter()
+            .filter_map(|item| match item {
+                ComponentItem::Parameter(parameter) => Some((parameter.name(), parameter)),
+                _ => None,
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut dimensioned = Vec::with_capacity(parameters.len());
+        for (name, value) in parameters {
+            if !value.is_finite() {
+                return Err(vec![source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    TextRange::default(),
+                    format!("external Parameter `{name}` must have a finite coherent-SI value"),
+                )]);
+            }
+            let dimension = declarations
+                .get(name)
+                .map(|declaration| {
+                    crate::dimensions::lower_dimension(file, declaration.dimension())
+                })
+                .transpose()
+                .map_err(|diagnostic| vec![diagnostic])?
+                .unwrap_or(eqiora_core::DimExponents::DIMENSIONLESS);
+            dimensioned.push((*name, DynQuantity::new(*value, dimension)));
+        }
+        Self::compile_external_component(
+            file,
+            source,
+            "Main",
+            selected.name(),
+            geometry,
+            &supports,
+            &dimensioned,
+        )
     }
 
     /// Compile one selected public local Component against selections borrowed
@@ -42,7 +203,7 @@ impl CompiledModel {
         source: &str,
         model: &str,
         component: &str,
-        geometry: CanonicalGeometryRef<'_>,
+        geometry: &CanonicalGeometryV1,
         supports: &[(&str, &NamedEntitySet, Option<(&str, &NamedEntitySet)>)],
         parameters: &[(&str, DynQuantity)],
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -164,7 +325,7 @@ fn observe_external_name(
 )]
 fn validate_geometry_bindings(
     file: &str,
-    geometry: CanonicalGeometryRef<'_>,
+    geometry: &CanonicalGeometryV1,
     supports: &[(&str, &NamedEntitySet, Option<(&str, &NamedEntitySet)>)],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -316,7 +477,7 @@ mod tests {
             "not valid source",
             "Root",
             "Law",
-            (&geometry).into(),
+            &geometry,
             &supports,
             &[],
         )
@@ -339,7 +500,7 @@ mod tests {
             "not valid source",
             "Root",
             "Law",
-            (&geometry).into(),
+            &geometry,
             &[],
             &parameters,
         )
@@ -363,7 +524,7 @@ mod tests {
             "not valid source",
             "Root",
             "Law",
-            (&geometry).into(),
+            &geometry,
             &supports,
             parameters,
         )
@@ -393,7 +554,7 @@ mod tests {
             "not valid source",
             &oversized,
             "Law",
-            (&geometry).into(),
+            &geometry,
             &[],
             &[],
         )

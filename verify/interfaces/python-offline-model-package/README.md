@@ -22,7 +22,7 @@ and compilation identities are never regenerated through the Python adapter.
 The secondary `org.example.poisson` store fixture exists only to prove that a
 valid `Model.commit(edit)` clears package lineage. Its release, resolution,
 Model, and compilation identities were already accepted by
-`packages.typed-execution-lineage`; this case adds no new Model or numerical
+`packages.typed-compilation-lineage`; this case adds no new Model or numerical
 claim.
 
 ## Falsifiers

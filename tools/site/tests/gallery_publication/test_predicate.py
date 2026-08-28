@@ -93,8 +93,8 @@ class GalleryPublicationPredicateTests(unittest.TestCase):
         self.fixture.refresh_and_write_external()
         self._assert_rejected("lineage")
 
-    def test_15b_source_result_and_pressure_field_mutants_are_rejected(self):
-        self.fixture.payload["lineage"]["source_result"]["digest"] = "2" * 64
+    def test_15b_result_binding_and_pressure_field_mutants_are_rejected(self):
+        self.fixture.payload["lineage"]["result_binding"]["identity"] = "2" * 64
         self.fixture.refresh_and_write_external()
         self._assert_rejected("lineage")
 
@@ -102,9 +102,8 @@ class GalleryPublicationPredicateTests(unittest.TestCase):
         accepted = copy.deepcopy(self.fixture.payload["lineage"]["methods"])
         mutants = {
             "direct-owner": {"model_digest": "Result.digest"},
-            "mesh-realization": {"realization_digest": "Result.mesh(FieldRef).realization_digest"},
-            "ordered-blocks": {"pressure_blocks": "Result.field(FieldRef).ordered_block_digests"},
-            "ordered-outputs": {"pressure_output": "Result.field(FieldRef).ordered_output_digests"},
+            "foreign-plan": {"plan_identity": "Result.plan_key"},
+            "foreign-output": {"pressure_output": "Result.field(FieldRef)"},
             "invented": {key: "invented.not_an_owner" for key in accepted},
         }
         for label, changes in mutants.items():
@@ -117,22 +116,22 @@ class GalleryPublicationPredicateTests(unittest.TestCase):
 
     def test_15d_existing_result_identity_equalities_are_required(self):
         accepted = copy.deepcopy(self.fixture.payload["lineage"])
-        for label in ("evidence-run", "output-order", "fieldref-model"):
+        for label in ("evidence-plan", "output-shape", "fieldref-model"):
             with self.subTest(label=label):
                 lineage = copy.deepcopy(accepted)
-                if label == "evidence-run":
-                    lineage["identities"]["evidence_run_digest"] = "3" * 64
+                if label == "evidence-plan":
+                    lineage["identities"]["evidence_plan_key"] = "3" * 64
                     lineage["chain"][6]["to"] = "3" * 64
-                elif label == "output-order":
-                    lineage["pressure"]["ordered_output_digests"] = ["4" * 64]
+                elif label == "output-shape":
+                    lineage["pressure"]["components"] = 2
                 else:
                     lineage["pressure"]["model_digest"] = "5" * 64
                 self.fixture.payload["lineage"] = lineage
                 self.fixture.refresh_and_write_external()
                 self._assert_rejected("lineage")
 
-        self.fixture.payload["lineage"]["source_result"]["digest"] = self.fixture.payload["lineage"]["identities"][
-            "run_manifest_digest"
+        self.fixture.payload["lineage"]["result_binding"]["identity"] = self.fixture.payload["lineage"]["identities"][
+            "result_plan_key"
         ]
         self.fixture.payload["lineage"]["pressure"]["field"] = "velocity"
         self.fixture.refresh_and_write_external()
@@ -187,50 +186,31 @@ class GalleryPublicationPredicateTests(unittest.TestCase):
         case = next(
             item
             for item in self.fixture.payload["evidence_cases"]
-            if item["id"] == "interfaces.python-exact-cylinder-pressure-still"
+            if item["id"] == "interfaces.python-exact-cylinder-stokes-marimo"
         )
         case["role"] = "media-admission"
         self.fixture.refresh_and_write_external()
         self._assert_rejected("case-set")
 
-    def test_19c_old_reference_science_cannot_replace_the_gmsh_case(self):
+    def test_19c_unregistered_case_cannot_replace_a_current_case(self):
         case = next(
             item
             for item in self.fixture.payload["evidence_cases"]
-            if item["id"] == "fluid.exact-circular-hole-stokes-2d-gmsh"
+            if item["id"] == "interfaces.python-exact-cylinder-stokes-marimo"
         )
         case["id"] = "fluid.exact-circular-hole-stokes-2d"
         case["manifest_path"] = case_path(case["id"])
         self.fixture.refresh_and_write_external()
         self._assert_rejected("case-set")
 
-    def test_19d_gmsh_and_interior_mesh_boundary_cannot_be_omitted(self):
+    def test_19d_output_nonclaim_cannot_be_omitted(self):
         claim = self.fixture.payload["claim"]
-        claim["public_claim"] = (
-            claim["public_claim"]
-            .replace(
-                "the accepted exact Gmsh CLI 4.15.2 witness: ",
-                "an accepted mesh witness: ",
-            )
-            .replace(
-                ", and 548 interior vertices",
-                "",
-            )
+        claim["public_claim"] = claim["public_claim"].replace(
+            "output counts, digests, numerical values, and pixels are not independently verified",
+            "pixels are not independently verified",
         )
         self.fixture.refresh_and_write_external()
         self._assert_rejected("claim")
-
-    def test_19b_pressure_case_cannot_claim_exact_pixel_dimensions(self):
-        manifest = self.fixture.root / case_path("interfaces.python-exact-cylinder-pressure-still")
-        manifest.write_text(
-            manifest.read_text(encoding="utf-8").replace(
-                "exact_pixels_or_dimensions = false",
-                "exact_pixels_or_dimensions = true",
-            ),
-            encoding="utf-8",
-        )
-        self.fixture.commit_source_mutation("mutant promotes pixel dimensions")
-        self._assert_rejected("presentation-boundary")
 
     def test_20_external_receipt_digest_is_lifecycle_authority(self):
         self.fixture.wrapper["admission"]["receipt"]["sha256"] = "f" * 64

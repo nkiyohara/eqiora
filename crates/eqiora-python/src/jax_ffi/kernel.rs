@@ -89,11 +89,7 @@ fn program_key(program: &DifferentiableProgram) -> String {
         b"semantic-revision",
         model.semantic_revision().get(),
     );
-    hash_field(
-        &mut hasher,
-        b"realization",
-        identity.realization_digest().as_bytes(),
-    );
+    hash_field(&mut hasher, b"plan", identity.plan_identity().as_bytes());
     for input in identity.inputs() {
         hash_field(&mut hasher, b"input", input.ulid().to_string().as_bytes());
     }

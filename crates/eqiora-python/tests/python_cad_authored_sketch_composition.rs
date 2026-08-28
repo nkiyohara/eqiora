@@ -7,7 +7,6 @@ const V1_WIRE: &[u8] = br#"{"schema":"eqiora.cad-authored-operation-graph-envelo
 const V1_DIGEST: &str = "919545f70118840c04da9715829deb2da947460a51311ebabec6a34038c66f36";
 const V2_WIRE: &[u8] = br#"{"schema":"eqiora.cad-authored-operation-graph-envelope/v2","encoding":"eqiora.canonical-json/v1","length_unit":"metre","requested_modeling_tolerance_m":1e-10,"sketch_plane":{"id":"sketch-plane","kind":"xy","z_m":0.0},"profile":{"id":"rectangle-profile","kind":"axis-aligned-rectangle","sketch_plane":"sketch-plane","constraint":"closed-by-construction","x_bounds_m":[-0.04,0.04],"y_bounds_m":[-0.025,0.025]},"face":{"id":"profile-face","kind":"one-closed-loop-face","profile":"rectangle-profile","region_count":1},"extrusion":{"id":"positive-z-extrusion","kind":"positive-z","face":"profile-face","depth_m":0.02,"repair":"none"},"cut_sketch_plane":{"id":"cut-sketch-plane","kind":"on-face","face":"end-cap"},"cut_profile":{"id":"circle-profile","kind":"circle","sketch_plane":"cut-sketch-plane","constraint":"closed-by-construction","center_m":[0.02,0.0],"radius_m":0.008},"cut_face":{"id":"cut-profile-face","kind":"one-closed-loop-face","profile":"circle-profile","region_count":1},"cut":{"id":"circular-through-cut","kind":"difference-through-all-negative-z","target":"positive-z-extrusion","tool_face":"cut-profile-face","requested_tolerance_m":1e-9,"repair":"none"},"selections":["start-cap","end-cap","profile-x-lower","profile-x-upper","profile-y-lower","profile-y-upper","cut-wall"]}"#;
 const V2_DIGEST: &str = "00acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47";
-const DFG_SECTION_DIGEST: &str = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9";
 
 #[test]
 fn python_explicit_composition_replays_the_public_rust_authorities() -> PyResult<()> {
@@ -96,7 +95,6 @@ fn python_explicit_composition_replays_the_public_rust_authorities() -> PyResult
         locals.set_item("v1_digest", V1_DIGEST)?;
         locals.set_item("v2_wire", PyBytes::new(py, V2_WIRE))?;
         locals.set_item("v2_digest", V2_DIGEST)?;
-        locals.set_item("dfg_section_digest", DFG_SECTION_DIGEST)?;
         locals.set_item("native_rejection_messages", native_rejection_messages)?;
         py.run(
             c_str!(
@@ -112,6 +110,10 @@ assert eqiora.geometry.__all__ == [
     "CadAuthoredGraph",
     "CadAuthoredSketch",
     "Geometry",
+    "GeometryBoundaryHandle",
+    "GeometryGraph",
+    "GeometryOperation",
+    "GeometryRegionHandle",
     "GeometrySelection",
 ]
 assert isinstance(inspect.getattr_static(Sketch, "rectangle_xy"), staticmethod)
@@ -222,22 +224,6 @@ dfg_routes = four_routes(
     boolean_tolerance=1e-10,
 )
 assert all(graph == dfg_routes[0] for graph in dfg_routes)
-sections = tuple(
-    graph.planar_circular_section(
-        classification_tolerance=1e-12,
-        region="fluid",
-        x_lower="inlet",
-        x_upper="outlet",
-        y_lower="walls",
-        y_upper="walls",
-        hole="cylinder",
-    )
-    for graph in dfg_routes
-)
-assert all(section == sections[0] for section in sections)
-assert len(sections[0].canonical_bytes) == 511
-assert sections[0].digest == dfg_section_digest
-
 base = Sketch.rectangle_xy(
     x_bounds=(-0.04, 0.04),
     y_bounds=(-0.025, 0.025),

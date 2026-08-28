@@ -1,9 +1,8 @@
 use eqiora_core::Id;
 use eqiora_core::entity::kinds;
 use eqiora_geometry::{
-    BodyAssociationCandidate, CartesianBodyAssignment, CartesianBoundaryAssignment,
-    GeometryCorrespondenceError, GeometryEntity, GeometryMeshCorrespondence,
-    GeometryRevisionReference, GeometryRevisionTopology, ParentOutward,
+    BodyAssociationCandidate, CartesianBodyAssignment, CartesianBoundaryAssignment, GeometryEntity,
+    GeometryMeshCorrespondence, GeometryRevisionReference, GeometryRevisionTopology, ParentOutward,
     RetainedGeometryAssociation, RetentionRejection,
 };
 use eqiora_meshing::{MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh};
@@ -246,10 +245,12 @@ fn rejects_non_total_cell_and_boundary_partitions() {
         bodies[1].geometry(),
         vec![MeshEntity::new(2, 1), MeshEntity::new(2, 3)],
     );
-    assert!(matches!(
-        GeometryMeshCorrespondence::validate(&geometry, &mesh, bodies, boundaries),
-        Err(GeometryCorrespondenceError::CellAssignedToMultipleBodies { .. })
-    ));
+    assert!(
+        GeometryMeshCorrespondence::validate(&geometry, &mesh, bodies, boundaries)
+            .unwrap_err()
+            .to_string()
+            .contains("CellAssignedToMultipleBodies")
+    );
 
     let (bodies, mut boundaries) = assignments(&mesh, domains);
     boundaries.retain(|boundary| {
@@ -257,10 +258,12 @@ fn rejects_non_total_cell_and_boundary_partitions() {
             && boundary.axis() == 1
             && boundary.side() == BoundarySide::Upper)
     });
-    assert!(matches!(
-        GeometryMeshCorrespondence::validate(&geometry, &mesh, bodies, boundaries),
-        Err(GeometryCorrespondenceError::UnassignedGeometryBoundary { .. })
-    ));
+    assert!(
+        GeometryMeshCorrespondence::validate(&geometry, &mesh, bodies, boundaries)
+            .unwrap_err()
+            .to_string()
+            .contains("UnassignedGeometryBoundary")
+    );
 }
 
 #[test]

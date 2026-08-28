@@ -36,7 +36,6 @@ Optional first-order framework adapters are explicit:
 python -m pip install "eqiora[torch]==0.1.0a3"
 python -m pip install "eqiora[jax]==0.1.0a3"
 python -m pip install "eqiora[matplotlib]==0.1.0a3"
-python -m pip install "eqiora[notebook]==0.1.0a3"
 ```
 
 The exact-cylinder pressure example combines the mesher and plot adapter:
@@ -47,41 +46,34 @@ declares `torch>=2.13,<2.14`; this release verifies exactly PyTorch 2.13.0. It
 also verifies the exact JAX/JAXLIB 0.11.0 pair and Matplotlib 3.11.1 on
 CPython 3.13. The JAX extra requires Python 3.12 or newer.
 
-The exact `notebook` extra installs anywidget 0.11.0 and keeps the complete
-private Three.js frontend inside the Eqiora wheel. In the verified Linux
-x86-64 CPython 3.13 profile, a bare exact accepted 50-chord circular-hole
-`Mesh` renders interactively in JupyterLab 4.6.2 and marimo 0.23.16. The same
-private runtime includes an unverified product view for the accepted
-fixed-reference FSI `Trajectory`, with stored-state previous/next, playback,
-speed, time, and scalar-Field metadata without interpolation or Python
-writeback. Focused adapter and frontend tests cover that bounded Trajectory
-view; it adds no registered host-support claim. Other meshes, trajectories,
-fields, and hosts retain deterministic text; this does not add Mesh selection,
-field display, saved widget state, a public viewer API, or Studio coupling.
+The verified Linux x86-64 CPython 3.13 candidate composes the exact-cylinder
+Geometry → Gmsh Mesh → root Plan workflow in marimo 0.23.16 and displays its
+caller-owned Matplotlib Figure. Eqiora does not bundle a private notebook
+viewer or add rich display semantics to `Trajectory`.
 
 ## Geometry to evidence
 
-The first complete application starts from exact authored geometry, resolves
-an inspectable mesh, replays the installed Model artifact, and executes one
-typed steady-Stokes plan:
+The first complete application keeps reusable equations in Eqiora source and
+the one concrete shape in Python. It compiles both into one ordinary `Model`,
+then resolves an inspectable mesh and numerical policies before execution:
 
 ```python
 from importlib.resources import files
 
 import eqiora
 
-graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
-    x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41),
-    plane_z=0.0, depth=1.0, modeling_tolerance=1e-10,
-).circular_through_cut(
-    center=(0.2, 0.2), radius=0.05, boolean_tolerance=1e-10,
-)
-geometry = graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid", x_lower="inlet", x_upper="outlet",
-    y_lower="walls", y_upper="walls", hole="cylinder",
-)
-mesh_request = eqiora.meshing.MeshRequest(
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+circle = graph.circle(center=(0.2, 0.2), radius=0.05)
+fluid = graph.subtract(rectangle, circle)
+geometry = graph.build(fluid, named_topology={
+    "fluid": fluid.region,
+    "inlet": rectangle.boundaries[0],
+    "outlet": rectangle.boundaries[1],
+    "walls": rectangle.boundaries[2:4],
+    "cylinder": circle.boundaries[0],
+})
+mesh_request = eqiora.meshing.GmshMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
@@ -89,24 +81,32 @@ mesh_request = eqiora.meshing.MeshRequest(
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
 mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 
-model = eqiora.replay(
-    files(eqiora)
-    .joinpath("examples", "steady-flow-past-cylinder.model.json")
-    .read_bytes()
+model = eqiora.compile(
+    path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
+    geometry=geometry,
+    parameters={
+        "dynamic_viscosity": 1.0e-3,
+        "zero_pressure": 0.0,
+        "inlet_speed": 0.3,
+        "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
+    },
 )
-intent = eqiora.fluid.SteadyStokes(
-    length_scale_m=0.41,
-    velocity_scale_m_per_s=0.3,
-    pressure_scale_pa=0.001 * 0.3 / 0.41,
+linear = eqiora.solve.Linear(
     relative_tolerance=1e-6,
     absolute_tolerance=1e-13,
     maximum_iterations=10_000,
 )
-plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
-result = eqiora.run(model, plan=plan)
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=eqiora.fem.MiniP1(),
+    solve=linear,
+    scaling=None,
+)
+result = eqiora.run(plan)
 evidence = eqiora.fluid.steady_stokes_evidence(result)
 
-print(result.run_manifest().digest)
+print(result.plan_key)
 print(evidence.solve)
 print("pressure", evidence.pressure_minimum, evidence.pressure_maximum, "Pa")
 print("cylinder force on fluid", evidence.cylinder_force_on_fluid, "N/m")
@@ -114,8 +114,8 @@ print("net flux", evidence.net_flux, "m^2/s")
 ```
 
 The exact Geometry and Model remain distinct from meshing and execution plans.
-The common `Result` retains their Mesh, Realization, Run, Field, and evidence
-lineage rather than returning an unowned array. This is one verified 2D
+The common `Result` retains their Geometry, Model, Mesh, Plan, Field, and
+observation lineage rather than returning an unowned array. This is one verified 2D
 steady-Stokes case, not general CFD; its precise boundary and the optional
 pressure plot are described in
 [Modeling and realization](https://eqiora.org/python/modeling/#exact-cylinder-steady-stokes-result).
@@ -145,33 +145,25 @@ attestation, durable report wire, scientific-evidence decision, or Studio
 workflow. The precise boundary is documented under
 [Modeling and realization](https://eqiora.org/python/modeling/#check-one-exact-package-structurally).
 
-The accepted exact-cylinder path now begins with explicit native-owned sketch
-composition:
+The accepted exact-cylinder path uses one planar GeometryGraph as the sole
+shape authority:
 
 ```python
-base_sketch = eqiora.geometry.CadAuthoredSketch.rectangle_xy(
-    x_bounds=(0.0, 2.2),
-    y_bounds=(0.0, 0.41),
-    plane_z=0.0,
-    modeling_tolerance=1e-10,
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+circle = graph.circle(center=(0.2, 0.2), radius=0.05)
+fluid = graph.subtract(rectangle, circle)
+geometry = graph.build(
+    fluid,
+    named_topology={
+        "fluid": fluid.region,
+        "inlet": rectangle.boundaries[0],
+        "outlet": rectangle.boundaries[1],
+        "walls": rectangle.boundaries[2:],
+        "cylinder": circle.boundaries[0],
+    },
 )
-base = base_sketch.extrude_positive_z(depth=1.0)
-cut_sketch = eqiora.geometry.CadAuthoredSketch.circle_on_face(
-    base.face_handle("end-cap"),
-    center=(0.2, 0.2),
-    radius=0.05,
-)
-graph = base.through_cut(cut_sketch, boolean_tolerance=1e-10)
-geometry = graph.planar_circular_section(
-    classification_tolerance=1e-12,
-    region="fluid",
-    x_lower="inlet",
-    x_upper="outlet",
-    y_lower="walls",
-    y_upper="walls",
-    hole="cylinder",
-)
-request = eqiora.meshing.MeshRequest(
+request = eqiora.meshing.GmshMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
@@ -228,18 +220,17 @@ the shared Rust application result, and renders original and scaled-deformed
 canonical Q1 edges. It is one bounded verified case, not a general structural
 solver or deformation viewer.
 
-The accepted fixed-reference FSI workflow follows the same rule. It resolves a
-fully explicit, immutable `FixedMeshMonolithic` intent before submitting the
-ordinary Run; both coupled time steps execute inside the shared Rust application
-service:
+The accepted fixed-reference FSI workflow uses the root common lifecycle. It
+authors the adjacent Geometry and Mesh in Python, compiles the equations-only
+Component, resolves exact Domain-scoped MINI/P1 and P1 policies with typed time,
+solve, and scaling policies, then initializes four exact Fields:
 
 ```console
-python examples/python/fixed_reference_fsi.py \
-  --fsi-png fixed-reference-fsi.png --step 2 --displacement-scale 12
+python examples/python/fixed_reference_fsi.py
 ```
 
 The common immutable `Result` exposes the ordered fields and lineage through its
-`Trajectory`, while `fixed_mesh_monolithic_evidence(result)` owns the accepted
+`Trajectory`, while `eqiora.fsi.evidence(result)` owns the accepted
 partition and FSI-specific solver/acceptance observations. The optional still
 uses only the general trajectory field adapters. This is one verified
 fixed-reference monolithic case, not general FSI, ALE or moving-mesh support, a
@@ -251,7 +242,12 @@ Failures expose stable categories and structured diagnostics:
 
 ```python
 try:
-    eqiora.run(model, end_time=-1.0, max_step=0.01)
+    eqiora.run(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=-1.0,
+        output_times_s=(-1.0,),
+    )
 except eqiora.EqioraError as error:
     print(error.category)
     for diagnostic in error.diagnostics:
@@ -288,8 +284,13 @@ result evidence. The complete contract is in
 state machine and one materialized result:
 
 ```python
-async def simulate(model):
-    run = eqiora.submit(model, end_time=10.0, max_step=0.001)
+async def simulate(plan):
+    run = eqiora.submit(
+        plan,
+        state=eqiora.State.initial(plan),
+        until_s=10.0,
+        output_times_s=(10.0,),
+    )
     try:
         print(run.status, run.progress)
         return await run
@@ -307,26 +308,39 @@ partial result.
 
 Both optional adapters consume the same accepted, opaque
 `DifferentiableProgram`. They do not define a second model. This complete
-example constructs the spatial model and its matching realization before
+example constructs the Geometry, Mesh, Model, and matching common Plan before
 compiling the differentiable program:
 
 ```python
 import numpy as np
 
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+geometry = graph.build(rectangle, named_topology={
+    "square": rectangle.region,
+    "x_lower": rectangle.boundaries[0],
+    "x_upper": rectangle.boundaries[1],
+    "y_lower": rectangle.boundaries[2],
+    "y_upper": rectangle.boundaries[3],
+})
+mesh_provider = eqiora.meshing.CartesianMesher(cells=(4, 4))
+mesh_plan = eqiora.meshing.resolve(geometry, mesh_provider)
+mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+
 model = eqiora.compile(
-    """
-    model differentiated_poisson {
-      domain square = box(0, 1, 0, 1);
-      domain x_lower = boundary(square, axis = 0, side = lower);
-      domain x_upper = boundary(square, axis = 0, side = upper);
-      domain y_lower = boundary(square, axis = 1, side = lower);
-      domain y_upper = boundary(square, axis = 1, side = upper);
+    source="""
+    public component DifferentiatedPoisson {
+      public support square: volume(ambient_dimension = 2);
+      public support x_lower: boundary(parent = square);
+      public support x_upper: boundary(parent = square);
+      public support y_lower: boundary(parent = square);
+      public support y_upper: boundary(parent = square);
       representation scalar_space = continuum;
       field potential on square as scalar_space: 1 = 0;
-      parameter diffusion: 1 = 1;
-      parameter wave_number: 1 / m = 3.141592653589793;
-      parameter source_scale: 1 / m ^ 2 = 19.739208802178716;
-      parameter boundary_offset: 1 = 0;
+      public parameter diffusion: 1;
+      public parameter wave_number: 1 / m;
+      public parameter source_scale: 1 / m ^ 2;
+      public parameter boundary_offset: 1;
       relation balance continuous on square {
         -div(diffusion * grad(potential))
           - source_scale * sin(wave_number * coordinate(0))
@@ -345,32 +359,41 @@ model = eqiora.compile(
         trace(potential) - boundary_offset = 0;
       }
     }
-    """
+    """,
+    geometry=geometry,
+    parameters={
+        "diffusion": 1.0,
+        "wave_number": np.pi,
+        "source_scale": 2.0 * np.pi**2,
+        "boundary_offset": 0.0,
+    },
 )
-realization = eqiora.preview_realization(
+plan = eqiora.resolve(
     model,
-    eqiora.ScalarElliptic(
-        method=eqiora.ScalarEllipticMethod.FiniteElement,
-        cells_per_axis=4,
+    mesh=mesh,
+    spatial=eqiora.fem.Q1(),
+    solve=eqiora.solve.Linear(
+        relative_tolerance=1.0e-10,
+        absolute_tolerance=1.0e-12,
+        maximum_iterations=10_000,
     ),
 )
 program = eqiora.diff.compile(
-    model,
-    realization,
+    plan,
     inputs=(
         model.parameter("source_scale"),
         model.parameter("diffusion"),
         model.parameter("boundary_offset"),
     ),
-    output=model.field("potential"),
+    output=plan.field,
 )
 point = np.array([19.739208802178716, 1.0, 0.0], dtype=np.float64)
 evaluation = program.evaluate(point)
 values = evaluation.primal().output.numpy(copy=False)
 ```
 
-The current path is host-CPU, rank-one `float64`, generated-Cartesian scalar
-elliptic Q1 FEM or TPFA FVM.
+The current Python path is host-CPU rank-one `float64` over an exact supplied
+rectangular 2D Cartesian Mesh, using scalar-elliptic Q1 FEM or TPFA FVM.
 
 PyTorch uses Eqiora's accepted VJP in backward:
 

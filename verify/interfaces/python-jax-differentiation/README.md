@@ -2,9 +2,11 @@
 
 The optional `eqiora.jax` adapter projects one accepted framework-neutral
 `DifferentiableProgram` into JAX without adding a second model or
-differentiation semantics. The exact immutable Model, Realization, ordered
-Parameter identities, and output Field remain static; a traced rank-one array
-contains only the numerical Parameter point.
+differentiation semantics. The exact immutable common scalar Plan, its Model,
+caller-supplied two-dimensional rectangular Cartesian Mesh, ordered Parameter
+identities, and output Field remain static; a traced rank-one array contains
+only the numerical Parameter point. The verified Plans use Q1 FEM or
+cell-centred TPFA with a typed linear solve policy.
 
 Primal, JVP, and VJP execution use separate typed XLA FFI targets registered
 for CPU with API version 1 and lowered by `jax.ffi.ffi_call` custom-call API

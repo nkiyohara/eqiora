@@ -136,6 +136,42 @@ pub(super) fn lower_dimension<const D: usize>(
     )
 }
 
+pub(crate) fn lower_with_boundaries(
+    program: &KernelProgram,
+    domain: RawId,
+    velocity: RawId,
+    pressure: RawId,
+    volume_viscosity: &ScalarSpatialExpression,
+    exact_boundaries: BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), RawId>,
+) -> Result<LoweredStokesBoundary<2>, Diagnostic> {
+    let lowered = lower_entries::<2, _>(
+        program,
+        domain,
+        velocity,
+        pressure,
+        volume_viscosity,
+        exact_boundaries,
+        IncompressibleStressForm::SymmetricNewtonian,
+    )?;
+    let normal_velocity = normal_velocity_projection(&lowered.prescribed_velocity_traces);
+    Ok(LoweredStokesBoundary {
+        inventory: CartesianBoundaryInventory::new(lowered.entries),
+        normal_pressure_sources: lowered.normal_pressure_sources,
+        prescribed_velocity_traces: lowered.prescribed_velocity_traces,
+        prescribed_velocity_fields: lowered.prescribed_velocity_fields,
+        prescribed_velocity_definitions: lowered.prescribed_velocity_definitions,
+        normal_velocity_expressions: normal_velocity.expressions,
+        normal_velocity_fields: normal_velocity.fields,
+        normal_velocity_definitions: normal_velocity.definitions,
+        relations: lowered.relations,
+        boundary_relations: lowered.boundary_relations,
+        ports: lowered.ports,
+        connections: lowered.connections,
+        connector_domains: lowered.connector_domains,
+        uninterpreted_live_relations: lowered.uninterpreted_live_relations,
+    })
+}
+
 fn lower_dimension_with_stress<const D: usize>(
     program: &KernelProgram,
     domain: RawId,

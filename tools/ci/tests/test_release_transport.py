@@ -41,33 +41,10 @@ NPM_PACKAGE_INTEGRITY = (
     "sha512-A74XL8OxmcegZDMWPkWb5bEQppg8HdYwW3rBD2sPoS4UQHVajfaxBkqyzLeJ3wR0kZ+"
     "5xoTjItxXaF7eIXUsyw=="
 )
-ANYWIDGET_WHEEL_SHA256 = (
-    "c574d9acc6503ad27b37a9acea48f957a8ba7c9c9876cfcb37898931c098ce9d"
-)
 BROWSERS_JSON_SHA256 = (
     "f306eed529599b1eaf2f8a85db9de2b23e1a3fe36c2b66434b7c9434fb627a99"
 )
-THREE_LICENSE_SHA256 = (
-    "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
-)
-ANYWIDGET_LICENSE_SHA256 = (
-    "22c698b6e5f3878c292471980ffd352ee0fad053f9428c2281f34b5e28a6151f"
-)
-FRONTEND_PACKAGE_LOCK_SHA256 = (
-    "3f3dbc5711a4feb4499bee358f042a3a10b194824dcd9b9350212d75ec363416"
-)
-INSTALL_SCRIPT_INVENTORY_SHA256 = (
-    "fbcb5664380f1ace34322bd129219741abdf9be79be17cb8861d57e2c6e4c4dc"
-)
 LIFECYCLE_SCRIPT_SOURCE_UNION = (
-    (
-        "node_modules/@tweenjs/tween.js",
-        "@tweenjs/tween.js",
-        "23.1.3",
-        "prepare",
-        "npm run build",
-        ("packument", "tarball"),
-    ),
     (
         "node_modules/fsevents",
         "fsevents",
@@ -76,53 +53,17 @@ LIFECYCLE_SCRIPT_SOURCE_UNION = (
         "node-gyp rebuild",
         ("lockfile", "packument"),
     ),
-    (
-        "node_modules/lightningcss",
-        "lightningcss",
-        "1.33.0",
-        "prepare",
-        "patch-package",
-        ("packument", "tarball"),
-    ),
-    (
-        "node_modules/tinyexec",
-        "tinyexec",
-        "1.3.0",
-        "prepare",
-        "npm run build",
-        ("packument", "tarball"),
-    ),
-    (
-        "node_modules/vite/node_modules/fsevents",
-        "fsevents",
-        "2.3.3",
-        "install",
-        "node-gyp rebuild",
-        ("lockfile", "packument"),
-    ),
 )
 NOTEBOOK_CHECKS = frozenset(
     {
         "frontend:lock-integrity",
-        "frontend:license-notices",
-        "frontend:bundle-byte-rebuild",
-        "wheel-family:notebook-metadata",
-        "cp313:notebook-anywidget-0.11.0",
-        "cp313:jupyterlab-4.6.2-bare-mesh",
-        "cp313:marimo-0.23.16-bare-mesh",
+        "frontend:dependency-inventory",
         "cp313:marimo-0.23.16-exact-cylinder-stokes",
         "cp313:notebook-managed-chromium-r1234",
         "cp313:notebook-no-external-network",
         "cp313:notebook-cleanup-and-mutation",
     }
 )
-ASSET_BYTES = {
-    "eqiora/_presentation/static/mesh-view.mjs": b"// synthetic oracle asset\n",
-    "eqiora/_presentation/static/mesh-view.css": b"/* synthetic oracle asset */\n",
-    "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt": (
-        b"Synthetic Three.js notice used only by the release-schema oracle.\n"
-    ),
-}
 BASE_METADATA = b"""\
 Metadata-Version: 2.4
 Name: eqiora
@@ -358,7 +299,6 @@ def candidate_document(
             "cp311:installed-wheel",
             "cp311:base-and-numpy",
             "cp311:packaged-mixed-boundary-elasticity-demo",
-            "cp311:packaged-fixed-reference-fsi-demo",
             "cp311:async-and-cancellation",
             "cp311:strict-base-typing",
             "cp311:public-smoke-base",
@@ -366,7 +306,6 @@ def candidate_document(
             "cp312:installed-wheel",
             "cp312:base-and-numpy",
             "cp312:packaged-mixed-boundary-elasticity-demo",
-            "cp312:packaged-fixed-reference-fsi-demo",
             "cp312:async-and-cancellation",
             "cp312:strict-base-typing",
             "cp312:public-smoke-base",
@@ -375,7 +314,6 @@ def candidate_document(
             "cp313:installed-wheel",
             "cp313:base-and-numpy",
             "cp313:packaged-mixed-boundary-elasticity-demo",
-            "cp313:packaged-fixed-reference-fsi-demo",
             "cp313:async-and-cancellation",
             "cp313:strict-base-typing",
             "cp313:public-smoke-base",
@@ -383,7 +321,6 @@ def candidate_document(
             "cp314:installed-wheel",
             "cp314:base-and-numpy",
             "cp314:packaged-mixed-boundary-elasticity-demo",
-            "cp314:packaged-fixed-reference-fsi-demo",
             "cp314:async-and-cancellation",
             "cp314:strict-base-typing",
             "cp314:public-smoke-base",
@@ -395,29 +332,12 @@ def candidate_document(
             "cp313:public-smoke-jax",
             "cp313:packaged-exact-cylinder-pressure-demo",
             "cp313:packaged-mixed-boundary-displacement-demo",
-            "cp313:packaged-fixed-reference-fsi-still",
             "cp313:complete-public-typing",
         ],
     }
     manifest = root / "candidate.json"
     manifest.write_text(json.dumps(document), encoding="utf-8")
     return manifest, artifacts, document
-
-
-def notebook_metadata(
-    *requirements: str,
-    provides: tuple[str, ...] = ("notebook",),
-    version: str = "0.1.0a1",
-) -> bytes:
-    lines = BASE_METADATA.decode("utf-8").replace(
-        "Version: 0.1.0a1", f"Version: {version}"
-    ).splitlines()
-    body = lines.index("")
-    additions = [*(f"Provides-Extra: {name}" for name in provides)]
-    additions.extend(f"Requires-Dist: {requirement}" for requirement in requirements)
-    return "\n".join([*lines[:body], *additions, "", "v3 notebook candidate", ""]).encode(
-        "utf-8"
-    )
 
 
 def _manifest_artifacts(document: dict) -> list[dict]:
@@ -480,8 +400,7 @@ def complete_v3_candidate_document(
         ).strip()
     )
     document["source"]["commit"] = writer_revision
-    exact_requirement = 'anywidget == 0.11.0 ; extra == "notebook"'
-    wheel_metadata = notebook_metadata(exact_requirement, version=version)
+    wheel_metadata = BASE_METADATA.replace(b"0.1.0a1", version.encode())
     for record in document["artifacts"]:
         artifact = artifacts / record["filename"]
         if record["kind"] == "wheel":
@@ -494,11 +413,7 @@ def complete_v3_candidate_document(
             artifact.rename(dual_alias)
             record["filename"] = dual_alias.name
             artifact = dual_alias
-            _rewrite_wheel(
-                artifact,
-                metadata=wheel_metadata,
-                extra_members=ASSET_BYTES,
-            )
+            _rewrite_wheel(artifact, metadata=wheel_metadata)
 
     package_document = json.loads(
         (REPOSITORY_ROOT / "bindings/python/frontend/package.json").read_text(
@@ -515,10 +430,8 @@ def complete_v3_candidate_document(
     lock_document["packages"][""]["version"] = cargo_version
     package_json = (json.dumps(package_document, indent=2) + "\n").encode("utf-8")
     package_lock = (json.dumps(lock_document, indent=2) + "\n").encode("utf-8")
-    if cargo_version == "0.1.0-alpha.1":
-        assert hashlib.sha256(package_lock).hexdigest() == FRONTEND_PACKAGE_LOCK_SHA256
-    source = b"export const renderer = 'synthetic-oracle-only';\n"
-    config = b"export default {build: {sourcemap: false}};\n"
+    source = b"import { test } from '@playwright/test';\ntest('synthetic host', () => {});\n"
+    config = b"export default {};\n"
     pyproject = b"""\
 [project]
 name = "eqiora"
@@ -527,19 +440,13 @@ dependencies = ["numpy>=2.1,<3"]
 
 [project.optional-dependencies]
 gmsh = ["gmsh==4.15.2"]
-notebook = ["anywidget==0.11.0"]
 """
     sdist_members = {
         "bindings/python/frontend/package.json": package_json,
         "bindings/python/frontend/package-lock.json": package_lock,
         "Cargo.toml": f'[workspace.package]\nversion = "{cargo_version}"\n'.encode(),
-        "bindings/python/frontend/src/mesh-view.ts": source,
-        "bindings/python/frontend/vite.config.ts": config,
-        "bindings/python/src/notebook_hook.rs": b"fn _repr_mimebundle_() {}\n",
-        **{
-            f"bindings/python/python/{name}": payload
-            for name, payload in ASSET_BYTES.items()
-        },
+        "bindings/python/frontend/tests/exact-cylinder-stokes-marimo.spec.ts": source,
+        "bindings/python/frontend/playwright.config.ts": config,
     }
     _write_sdist(
         artifacts / f"eqiora-{version}.tar.gz",
@@ -554,13 +461,13 @@ notebook = ["anywidget==0.11.0"]
         (
             _file_record("package-lock.json", package_lock),
             _file_record("package.json", package_json),
-            _file_record("src/mesh-view.ts", source),
+            _file_record("tests/exact-cylinder-stokes-marimo.spec.ts", source),
         ),
         key=lambda item: item["relative_path"].encode("utf-8"),
     )
     config_inventory = [
         {
-            "relative_path": "vite.config.ts",
+            "relative_path": "playwright.config.ts",
             "sha256": hashlib.sha256(config).hexdigest(),
         }
     ]
@@ -568,7 +475,7 @@ notebook = ["anywidget==0.11.0"]
         (
             {"name": name, "version": version}
             for name, version in {
-                **package_document["dependencies"],
+                **package_document.get("dependencies", {}),
                 **package_document["devDependencies"],
             }.items()
         ),
@@ -615,33 +522,12 @@ notebook = ["anywidget==0.11.0"]
                 "lifecycle_scripts": script_inventory.get(lock_path, []),
             }
         )
-    assert len(locked_packages) == 111
-    module_graph = [
-        {
-            "output": "mesh-view.mjs",
-            "input": "node_modules/three/build/three.module.js",
-            "package": "three",
-            "version": "0.185.1",
-        },
-        {
-            "output": "mesh-view.mjs",
-            "input": "src/mesh-view.ts",
-            "package": "eqiora",
-            "version": version,
-        },
-    ]
-    output_inventory = [
-        _file_record(relative_path, payload)
-        for relative_path, payload in sorted(
-            ASSET_BYTES.items(), key=lambda item: item[0].encode("utf-8")
-        )
-    ]
     python_wheels = [
         {
-            "name": "anywidget",
-            "version": "0.11.0",
-            "filename": "anywidget-0.11.0-py3-none-any.whl",
-            "sha256": ANYWIDGET_WHEEL_SHA256,
+            "name": "marimo",
+            "version": "0.23.16",
+            "filename": "marimo-0.23.16-py3-none-any.whl",
+            "sha256": "c" * 64,
         }
     ]
     install_script_inventory = [
@@ -653,7 +539,6 @@ notebook = ["anywidget==0.11.0"]
         }
         for item in locked_packages
     ]
-    assert structured_sha256(install_script_inventory) == INSTALL_SCRIPT_INVENTORY_SHA256
     frontend = {
         "node": "v24.18.1",
         "npm": "11.16.0",
@@ -664,29 +549,11 @@ notebook = ["anywidget==0.11.0"]
         "config_inventory_sha256": structured_sha256(config_inventory),
         "locked_packages_sha256": structured_sha256(locked_packages),
         "install_script_inventory_sha256": structured_sha256(install_script_inventory),
-        "bundler_module_graph_sha256": structured_sha256(module_graph),
         "node_executable_sha256": NODE_EXECUTABLE_SHA256,
         "npm_package_integrity": NPM_PACKAGE_INTEGRITY,
-        "assets": {
-            path: {"size": len(payload), "sha256": hashlib.sha256(payload).hexdigest()}
-            for path, payload in ASSET_BYTES.items()
-        },
-        "licenses": {
-            "three@0.185.1": {
-                "expression": "MIT",
-                "source_license_sha256": THREE_LICENSE_SHA256,
-            },
-            "anywidget@0.11.0": {
-                "expression": "MIT",
-                "source_license_sha256": ANYWIDGET_LICENSE_SHA256,
-            },
-        },
         "runtime": {
             "python": "3.13",
-            "anywidget": "0.11.0",
-            "jupyterlab": "4.6.2",
             "marimo": "0.23.16",
-            "anywidget_wheel_sha256": ANYWIDGET_WHEEL_SHA256,
             "resolved_environment_sha256": structured_sha256(python_wheels),
         },
         "browser": {
@@ -706,10 +573,7 @@ notebook = ["anywidget==0.11.0"]
     run = {
         "isolated_directory_id": "clean-run-1",
         "npm_ci_exit": 0,
-        "build_exit": 0,
-        "output_inventory": output_inventory,
-        "emitted_imports": [],
-        "source_maps": [],
+        "validation_exit": 0,
         "external_request_count_after_npm_ci": 0,
     }
     receipt = {
@@ -753,43 +617,20 @@ notebook = ["anywidget==0.11.0"]
             "config_inventory": config_inventory,
             "direct_pins": direct_pins,
             "locked_packages": locked_packages,
-            "anywidget_wheel_sha256": ANYWIDGET_WHEEL_SHA256,
         },
-        "build": {
+        "validation": {
             "npm_ci_command_argv": ["npm", "ci", "--ignore-scripts"],
-            "exact_command_argv": ["npm", "run", "build"],
+            "offline_command_argv": [
+                ["npm", "run", "typecheck"],
+                ["npm", "run", "lint"],
+            ],
             "network_policy": "registry-only-during-npm-ci;offline-after",
-            "bundler_version": "8.2.0",
-            "bundler_module_graph": module_graph,
-            "externals": [],
         },
         "clean_run_1": run,
         "clean_run_2": {**copy.deepcopy(run), "isolated_directory_id": "clean-run-2"},
         "comparison": {
-            "complete_relative_path_set_equal": True,
-            "modes_equal": True,
-            "sizes_equal": True,
-            "sha256_bytes_equal": True,
+            "acquired_inputs_equal": True,
             "diff": [],
-        },
-        "licenses": {
-            "components": [
-                {
-                    "package": "three",
-                    "version": "0.185.1",
-                    "license_expression": "MIT",
-                    "source_license_path": "node_modules/three/LICENSE",
-                    "source_license_sha256": THREE_LICENSE_SHA256,
-                    "emitted_outputs": ["mesh-view.mjs"],
-                }
-            ],
-            "notice_path": (
-                "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt"
-            ),
-            "notice_sha256": frontend["assets"][
-                "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt"
-            ]["sha256"],
-            "unmapped_emitted_modules": [],
         },
         "browser": {
             "playwright_test_integrity": playwright_test_integrity,
@@ -1130,102 +971,16 @@ class CandidateManifestTests(unittest.TestCase):
 
         self.assertEqual(candidate.version, "0.1.0a1")
 
-    def test_notebook_profile_has_ten_exact_checks(self) -> None:
+    def test_notebook_profile_has_exact_marimo_host_checks(self) -> None:
         self.assertEqual(PROFILE_CHECKS["notebook"], NOTEBOOK_CHECKS)
 
-    def test_every_n1_signal_forces_v3_before_reader_selection(self) -> None:
-        cases = (
-            "hook-only-sdist",
-            "asset-only-wheel",
-            "frontend-path-only-sdist",
-            "unmarked-anywidget-wheel",
-            "anywidget-only-sdist-pkg-info",
-            "anywidget-only-sdist-pyproject",
-            "notebook-extra-only-sdist",
-            "provides-extra-only-wheel",
-            "notebook-check-only",
-            "frontend-schema-only",
-            "v3-format-only",
-            "requested-notebook-only",
-        )
-        for case in cases:
-            with (
-                self.subTest(case=case),
-                tempfile.TemporaryDirectory() as temporary,
-            ):
-                manifest, artifacts, document = candidate_document(Path(temporary))
-                requested_profiles: tuple[str, ...] = ()
-                sdist = artifacts / "eqiora-0.1.0a1.tar.gz"
-                first_wheel = artifacts / document["artifacts"][1]["filename"]
-                if case == "hook-only-sdist":
-                    _write_sdist(
-                        sdist,
-                        extra_members={"bindings/python/src/lib.rs": b"_repr_mimebundle_"},
-                    )
-                elif case == "asset-only-wheel":
-                    _rewrite_wheel(
-                        first_wheel,
-                        extra_members={
-                            "eqiora/_presentation/static/mesh-view.css": b"x"
-                        },
-                    )
-                elif case == "frontend-path-only-sdist":
-                    _write_sdist(
-                        sdist,
-                        extra_members={"bindings/python/frontend/README": b"x"},
-                    )
-                elif case == "unmarked-anywidget-wheel":
-                    _rewrite_wheel(
-                        first_wheel,
-                        metadata=notebook_metadata(
-                            "AnyWidget==0.11.0", provides=()
-                        ),
-                    )
-                elif case == "anywidget-only-sdist-pkg-info":
-                    _write_sdist(
-                        sdist,
-                        pkg_info=notebook_metadata(
-                            'anywidget==0.11.0; extra == "other"', provides=()
-                        ),
-                    )
-                elif case == "anywidget-only-sdist-pyproject":
-                    _write_sdist(
-                        sdist,
-                        pyproject=(
-                            BASE_PYPROJECT
-                            + b'\n[project.optional-dependencies]\nother=["anywidget"]\n'
-                        ),
-                    )
-                elif case == "notebook-extra-only-sdist":
-                    _write_sdist(
-                        sdist,
-                        pyproject=(
-                            BASE_PYPROJECT
-                            + b'\n[project.optional-dependencies]\nnotebook=["numpy"]\n'
-                        ),
-                    )
-                elif case == "provides-extra-only-wheel":
-                    _rewrite_wheel(
-                        first_wheel,
-                        metadata=notebook_metadata(provides=("notebook",)),
-                    )
-                elif case == "notebook-check-only":
-                    document["checks"].append(min(NOTEBOOK_CHECKS))
-                elif case == "frontend-schema-only":
-                    document["build"]["frontend"] = {}
-                elif case == "v3-format-only":
-                    document["format"] = V3_FORMAT
-                elif case == "requested-notebook-only":
-                    requested_profiles = ("notebook",)
-                _refresh_artifact_records(artifacts, document)
-                manifest.write_text(json.dumps(document), encoding="utf-8")
-
-                with self.assertRaisesRegex(ManifestError, "v3"):
-                    load_candidate_family(
-                        manifest,
-                        artifacts,
-                        requested_profiles=requested_profiles,
-                    )
+    def test_requested_marimo_host_profile_forces_v3_before_reader_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest, artifacts, _ = candidate_document(Path(temporary))
+            with self.assertRaisesRegex(ManifestError, "v3"):
+                load_candidate_family(
+                    manifest, artifacts, requested_profiles=("notebook",)
+                )
 
     def test_complete_v3_family_and_candidate_bound_receipt_are_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1449,9 +1204,8 @@ class CandidateManifestTests(unittest.TestCase):
                 elif mutation == "stale-wheel-metadata":
                     _rewrite_wheel(
                         wheel,
-                        metadata=notebook_metadata(
-                            'anywidget == 0.11.0 ; extra == "notebook"',
-                            version="0.1.0a1",
+                        metadata=BASE_METADATA.replace(
+                            b"Version: 0.1.0a2", b"Version: 0.1.0a1"
                         ),
                     )
                     _bind_receipt(
@@ -1533,175 +1287,13 @@ class CandidateManifestTests(unittest.TestCase):
             with self.assertRaisesRegex(ManifestError, "first public candidate"):
                 load_candidate_family(manifest, artifacts)
 
-    def test_every_wheel_requires_one_exact_notebook_requirement(self) -> None:
-        metadata_mutants = {
-            "missing": notebook_metadata(),
-            "duplicate": notebook_metadata(
-                'anywidget==0.11.0; extra == "notebook"',
-                'anywidget==0.11.0; extra == "notebook"',
-            ),
-            "duplicate-extra": notebook_metadata(
-                'anywidget==0.11.0; extra == "notebook"',
-                provides=("notebook", "notebook"),
-            ),
-            "ranged": notebook_metadata(
-                'anywidget>=0.11.0; extra == "notebook"'
-            ),
-            "wrong-marker": notebook_metadata(
-                'anywidget==0.11.0; extra == "widget"'
-            ),
-            "interpreter-marker": notebook_metadata(
-                'anywidget==0.11.0; extra == "notebook" and python_version >= "3.13"'
-            ),
-            "unmarked": notebook_metadata("anywidget==0.11.0"),
-            "self-disabled": notebook_metadata(
-                'anywidget==0.11.0; extra == "notebook" and python_version < "0"'
-            ),
-        }
-        for name, metadata in metadata_mutants.items():
-            with (
-                self.subTest(name=name),
-                tempfile.TemporaryDirectory() as temporary,
-            ):
-                root = Path(temporary)
-                manifest, artifacts, document, receipt_path, receipt = (
-                    complete_v3_candidate_document(root)
-                )
-                wheel = artifacts / document["artifacts"][1]["filename"]
-                _rewrite_wheel(wheel, metadata=metadata)
-                _bind_receipt(
-                    manifest, artifacts, document, receipt_path, receipt
-                )
-
-                with self.assertRaisesRegex(ManifestError, "anywidget|notebook"):
-                    load_candidate_family(
-                        manifest,
-                        artifacts,
-                        requested_profiles=("notebook",),
-                        h2_receipt=receipt_path,
-                    )
-
-    def test_family_scan_rejects_unsafe_archive_members_before_schema_choice(
-        self,
-    ) -> None:
-        for kind in ("sdist", "wheel"):
-            with (
-                self.subTest(kind=kind),
-                tempfile.TemporaryDirectory() as temporary,
-            ):
-                manifest, artifacts, document = candidate_document(Path(temporary))
-                if kind == "sdist":
-                    sdist = artifacts / document["artifacts"][0]["filename"]
-                    with tarfile.open(sdist, mode="w:gz") as archive:
-                        payload = b"unsafe"
-                        member = tarfile.TarInfo("../escape")
-                        member.size = len(payload)
-                        archive.addfile(member, io.BytesIO(payload))
-                else:
-                    wheel = artifacts / document["artifacts"][1]["filename"]
-                    _rewrite_wheel(wheel, extra_members={"../escape": b"unsafe"})
-                _refresh_artifact_records(artifacts, document)
-                manifest.write_text(json.dumps(document), encoding="utf-8")
-
-                with self.assertRaisesRegex(
-                    ManifestError, "unsafe|travers|escape|relative"
-                ):
-                    load_candidate_family(manifest, artifacts)
-
-    def test_v3_sdist_and_every_wheel_share_one_closed_asset_inventory(self) -> None:
-        cases = (
-            ("sdist-missing", "sdist", "missing"),
-            ("sdist-empty", "sdist", "empty"),
-            ("sdist-extra", "sdist", "extra"),
-            ("sdist-modified-notice", "sdist", "notice"),
-            ("wheel-missing", "wheel", "missing"),
-            ("wheel-empty", "wheel", "empty"),
-            ("wheel-extra", "wheel", "extra"),
-            ("wheel-modified-notice", "wheel", "notice"),
-        )
-        for name, artifact_kind, mutation in cases:
-            with (
-                self.subTest(name=name),
-                tempfile.TemporaryDirectory() as temporary,
-            ):
-                root = Path(temporary)
-                manifest, artifacts, document, receipt_path, receipt = (
-                    complete_v3_candidate_document(root)
-                )
-                asset = "eqiora/_presentation/static/mesh-view.css"
-                notice = (
-                    "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt"
-                )
-                if artifact_kind == "wheel":
-                    wheel = artifacts / document["artifacts"][1]["filename"]
-                    if mutation == "missing":
-                        with zipfile.ZipFile(wheel) as archive:
-                            members = {
-                                member: archive.read(member)
-                                for member in archive.namelist()
-                                if member != asset
-                            }
-                        with zipfile.ZipFile(wheel, mode="w") as archive:
-                            for member, payload in sorted(members.items()):
-                                archive.writestr(member, payload)
-                    elif mutation == "empty":
-                        _rewrite_wheel(wheel, extra_members={asset: b""})
-                    elif mutation == "extra":
-                        _rewrite_wheel(
-                            wheel,
-                            extra_members={
-                                "eqiora/_presentation/static/unreviewed.js": b"x"
-                            },
-                        )
-                    else:
-                        _rewrite_wheel(
-                            wheel, extra_members={notice: b"changed notice"}
-                        )
-                else:
-                    sdist = artifacts / document["artifacts"][0]["filename"]
-                    prefix = "eqiora-0.1.0a1/bindings/python/python/"
-                    if mutation == "missing":
-                        _rewrite_sdist(
-                            sdist,
-                            remove_members=(f"{prefix}{asset}",),
-                        )
-                    elif mutation == "empty":
-                        _rewrite_sdist(
-                            sdist,
-                            replace_members={f"{prefix}{asset}": b""},
-                        )
-                    elif mutation == "extra":
-                        _rewrite_sdist(
-                            sdist,
-                            replace_members={
-                                f"{prefix}eqiora/_presentation/static/unreviewed.js": b"x"
-                            },
-                        )
-                    else:
-                        _rewrite_sdist(
-                            sdist,
-                            replace_members={
-                                f"{prefix}{notice}": b"changed notice"
-                            },
-                        )
-                _bind_receipt(
-                    manifest, artifacts, document, receipt_path, receipt
-                )
-
-                with self.assertRaisesRegex(ManifestError, "asset|notice|inventory"):
-                    load_candidate_family(
-                        manifest,
-                        artifacts,
-                        requested_profiles=("notebook",),
-                        h2_receipt=receipt_path,
-                    )
 
     def test_v3_source_package_lock_and_config_bytes_are_candidate_bound(self) -> None:
         members = (
             "bindings/python/frontend/package.json",
             "bindings/python/frontend/package-lock.json",
-            "bindings/python/frontend/src/mesh-view.ts",
-            "bindings/python/frontend/vite.config.ts",
+            "bindings/python/frontend/tests/exact-cylinder-stokes-marimo.spec.ts",
+            "bindings/python/frontend/playwright.config.ts",
         )
         for relative_path in members:
             with (
@@ -1739,12 +1331,6 @@ class CandidateManifestTests(unittest.TestCase):
                 "unreviewed", True
             ),
             "missing-key": lambda frontend: frontend.pop("package_json_sha256"),
-            "boolean-size": lambda frontend: frontend["assets"][
-                "eqiora/_presentation/static/mesh-view.mjs"
-            ].__setitem__("size", True),
-            "zero-size": lambda frontend: frontend["assets"][
-                "eqiora/_presentation/static/mesh-view.mjs"
-            ].__setitem__("size", 0),
             "uppercase-hash": lambda frontend: frontend.__setitem__(
                 "source_inventory_sha256", "A" * 64
             ),
@@ -1754,19 +1340,6 @@ class CandidateManifestTests(unittest.TestCase):
             "wrong-npm-integrity": lambda frontend: frontend.__setitem__(
                 "npm_package_integrity", "sha512-unreviewed"
             ),
-            "extra-asset": lambda frontend: frontend["assets"].__setitem__(
-                "eqiora/_presentation/static/extra.js",
-                {"size": 1, "sha256": "0" * 64},
-            ),
-            "asset-extra-key": lambda frontend: frontend["assets"][
-                "eqiora/_presentation/static/mesh-view.css"
-            ].__setitem__("mode", 0o644),
-            "license-expression": lambda frontend: frontend["licenses"][
-                "three@0.185.1"
-            ].__setitem__("expression", "Apache-2.0"),
-            "license-hash": lambda frontend: frontend["licenses"][
-                "anywidget@0.11.0"
-            ].__setitem__("source_license_sha256", "0" * 64),
             "runtime-version": lambda frontend: frontend["runtime"].__setitem__(
                 "marimo", "0.23.15"
             ),
@@ -1901,7 +1474,6 @@ class CandidateManifestTests(unittest.TestCase):
             "config_inventory_sha256",
             "locked_packages_sha256",
             "install_script_inventory_sha256",
-            "bundler_module_graph_sha256",
         )
         for name in names:
             with (
@@ -1958,9 +1530,6 @@ class CandidateManifestTests(unittest.TestCase):
         def unsorted_environment(receipt: dict) -> None:
             receipt["environment"]["environment_allowlist"].reverse()
 
-        def unsorted_output(receipt: dict) -> None:
-            receipt["clean_run_1"]["output_inventory"].reverse()
-
         def duplicate(receipt: dict) -> None:
             receipt["inputs"]["direct_pins"].append(
                 copy.deepcopy(receipt["inputs"]["direct_pins"][0])
@@ -1975,7 +1544,6 @@ class CandidateManifestTests(unittest.TestCase):
             "traversal": traversal,
             "unsorted": unsorted,
             "unsorted-environment": unsorted_environment,
-            "unsorted-output": unsorted_output,
             "duplicate": duplicate,
             "unsafe-basename": unsafe_basename,
         }
@@ -2016,14 +1584,10 @@ class CandidateManifestTests(unittest.TestCase):
             ("inputs", "config_inventory", 0),
             ("inputs", "direct_pins", 0),
             ("inputs", "locked_packages", 0),
-            ("build",),
-            ("build", "bundler_module_graph", 0),
+            ("validation",),
             ("clean_run_1",),
-            ("clean_run_1", "output_inventory", 0),
             ("clean_run_2",),
             ("comparison",),
-            ("licenses",),
-            ("licenses", "components", 0),
             ("browser",),
             ("python_host",),
             ("python_host", "wheels", 0),
@@ -2066,10 +1630,9 @@ class CandidateManifestTests(unittest.TestCase):
             (("candidate",), "artifacts"),
             (("environment",), "source_date_epoch"),
             (("inputs",), "locked_packages"),
-            (("build",), "bundler_module_graph"),
-            (("clean_run_1",), "output_inventory"),
+            (("validation",), "offline_command_argv"),
+            (("clean_run_1",), "validation_exit"),
             (("comparison",), "diff"),
-            (("licenses",), "components"),
             (("browser",), "revision"),
             (("python_host",), "wheels"),
         )
@@ -2085,7 +1648,7 @@ class CandidateManifestTests(unittest.TestCase):
                 "external_request_count_after_npm_ci",
                 False,
             ),
-            (("comparison",), "modes_equal", 1),
+            (("comparison",), "acquired_inputs_equal", 1),
             (("python_host",), "python", 3.13),
         )
 
@@ -2156,10 +1719,9 @@ class CandidateManifestTests(unittest.TestCase):
             (("environment",), "npm_package_integrity", "sha512-wrong"),
             (("environment",), "locale", "en_GB.UTF-8"),
             (("environment",), "timezone", "Europe/London"),
-            (("build",), "npm_ci_command_argv", ["npm", "ci"]),
-            (("build",), "exact_command_argv", ["npm", "run", "bundle"]),
-            (("build",), "network_policy", "online"),
-            (("build",), "bundler_version", "8.1.0"),
+            (("validation",), "npm_ci_command_argv", ["npm", "ci"]),
+            (("validation",), "offline_command_argv", []),
+            (("validation",), "network_policy", "online"),
             (("browser",), "browsers_json_sha256", "0" * 64),
             (("browser",), "browser_name", "chrome"),
             (("browser",), "revision", "1235"),
@@ -2206,35 +1768,21 @@ class CandidateManifestTests(unittest.TestCase):
             receipt["inputs"]["locked_packages"][0]["integrity"] = "sha256-bad"
 
         def changed_script_inventory(receipt: dict) -> None:
-            lightningcss = next(
+            fsevents = next(
                 item
                 for item in receipt["inputs"]["locked_packages"]
-                if item["lock_path"] == "node_modules/lightningcss"
+                if item["lock_path"] == "node_modules/fsevents"
             )
-            lightningcss["lifecycle_scripts"][0]["command"] = (
-                "patch-package --changed"
-            )
+            fsevents["lifecycle_scripts"][0]["command"] = "node-gyp changed"
 
         def unequal_bytes(receipt: dict) -> None:
-            receipt["comparison"]["sha256_bytes_equal"] = False
+            receipt["comparison"]["acquired_inputs_equal"] = False
 
         def diff(receipt: dict) -> None:
-            receipt["comparison"]["diff"] = ["mesh-view.mjs"]
-
-        def source_map(receipt: dict) -> None:
-            receipt["clean_run_2"]["source_maps"] = ["mesh-view.mjs.map"]
-
-        def emitted_import(receipt: dict) -> None:
-            receipt["clean_run_1"]["emitted_imports"] = ["https://cdn.invalid/x.js"]
+            receipt["comparison"]["diff"] = ["python_wheels"]
 
         def post_install_network(receipt: dict) -> None:
             receipt["clean_run_1"]["external_request_count_after_npm_ci"] = 1
-
-        def external(receipt: dict) -> None:
-            receipt["build"]["externals"] = ["three"]
-
-        def unmapped_license(receipt: dict) -> None:
-            receipt["licenses"]["unmapped_emitted_modules"] = ["three"]
 
         mutations = {
             "nonregistry": nonregistry,
@@ -2242,11 +1790,7 @@ class CandidateManifestTests(unittest.TestCase):
             "script-preimage": changed_script_inventory,
             "unequal-bytes": unequal_bytes,
             "nonempty-diff": diff,
-            "source-map": source_map,
-            "emitted-import": emitted_import,
             "post-install-network": post_install_network,
-            "external": external,
-            "unmapped-license": unmapped_license,
         }
         for name, mutate in mutations.items():
             with (
@@ -2273,21 +1817,15 @@ class CandidateManifestTests(unittest.TestCase):
                         h2_receipt=receipt_path,
                     )
 
-    def test_assets_notices_licenses_browser_and_python_host_are_candidate_bound(
+    def test_browser_and_python_host_are_candidate_bound(
         self,
     ) -> None:
         mutations = (
-            ("notice-hash", ("licenses", "notice_sha256"), "0" * 64),
-            (
-                "three-license",
-                ("licenses", "components", 0, "source_license_sha256"),
-                "0" * 64,
-            ),
             ("browser-revision", ("browser", "revision"), "1235"),
             ("browser-version", ("browser", "browser_version"), "0"),
             ("python", ("python_host", "python"), "3.12"),
             (
-                "anywidget-wheel",
+                "marimo-wheel",
                 ("python_host", "wheels", 0, "sha256"),
                 "0" * 64,
             ),
@@ -2323,27 +1861,6 @@ class CandidateManifestTests(unittest.TestCase):
                         requested_profiles=("notebook",),
                         h2_receipt=receipt_path,
                     )
-
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            manifest, artifacts, document, receipt_path, receipt = (
-                complete_v3_candidate_document(root)
-            )
-            wheel = artifacts / document["artifacts"][1]["filename"]
-            _rewrite_wheel(
-                wheel,
-                extra_members={
-                    "eqiora/_presentation/static/mesh-view.mjs": b"changed"
-                },
-            )
-            _bind_receipt(manifest, artifacts, document, receipt_path, receipt)
-            with self.assertRaisesRegex(ManifestError, "asset|byte|hash"):
-                load_candidate_family(
-                    manifest,
-                    artifacts,
-                    requested_profiles=("notebook",),
-                    h2_receipt=receipt_path,
-                )
 
     def test_cross_candidate_canonical_receipt_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

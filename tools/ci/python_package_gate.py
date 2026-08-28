@@ -19,9 +19,8 @@ TESTS = ROOT / "bindings/python/tests"
 GMSH_EVIDENCE = tuple(
     TESTS / name
     for name in (
-        "test_circular_hole_chordal_mesh.py",
+        "test_gmsh_meshing.py",
         "test_exact_cylinder_stokes_result.py",
-        "test_rich_mesh_display.py",
     )
 )
 _PROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))

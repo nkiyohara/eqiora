@@ -1,6 +1,6 @@
 id = "interfaces.python-jax-differentiation"
 status = "verified"
-scope = "installed-wheel-linux-x86-64-cpython-3-13-cpu-f64-jax-0-11-first-order-typed-ffi"
+scope = "installed-wheel-common-plan-supplied-rectangle-2d-linux-x86-64-cpython-3-13-cpu-f64-jax-0-11-first-order-typed-ffi"
 reference_kind = "eqiora-primal-jvp-vjp"
 
 capabilities = [
@@ -9,6 +9,7 @@ capabilities = [
   "python-jax-first-order-jvp-vjp",
   "python-jax-jit-custom-call",
   "python-jax-installed-wheel",
+  "python-jax-common-plan-bound-supplied-rectangle-2d",
 ]
 
 [problem]
@@ -26,6 +27,9 @@ exact_tested_jaxlib = "0.11.0"
 
 [claim_boundary]
 static_program_identity = true
+static_program_identity_is_exact_common_plan = true
+supplied_rectangle_cartesian_mesh = true
+spatial_dimension = 2
 immutable_runtime_parameter_point = true
 typed_xla_ffi = true
 python_host_callback = false

@@ -15,7 +15,7 @@ then use the focused guides:
   synchronous and awaitable runs, cancellation, errors, NumPy, and DLPack.
 - [Differentiation and framework adapters](differentiation.md) covers the
   framework-neutral program and the bounded PyTorch and JAX projections.
-- [Modeling and realization](modeling.md#exact-cylinder-pressure-still) also
+- [Modeling and realization](modeling.md#exact-cylinder-pressure-rendering) also
   shows the accepted exact-cylinder, mixed-boundary structural, and
   fixed-mesh monolithic FSI common-Result/Matplotlib workflows.
 - [Generated API reference](api.md) is derived only from the public type
