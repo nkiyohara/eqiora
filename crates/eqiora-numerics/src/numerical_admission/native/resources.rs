@@ -24,7 +24,8 @@ pub(crate) fn validate_resources(
         (
             NativeCapability::TransientIncompressibleFlow,
             NativeSpatialPolicy::TransientMiniP1(_),
-            resources @ NativeMeshResources::AffineTriangleSimplicial { .. },
+            resources @ (NativeMeshResources::AffineTriangleSimplicial { .. }
+            | NativeMeshResources::GmshSimplicial { .. }),
         ) => validate_simplicial_resources(resources),
         (
             NativeCapability::TransientIncompressibleFlow,

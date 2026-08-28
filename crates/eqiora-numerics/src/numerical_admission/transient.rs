@@ -10,13 +10,19 @@ impl CommonTransientFlowPlan {
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
         let model_id = model_reference.model().ulid().to_string();
-        let RecognizedNativeModel::Transient(transient) = &admission.recognized else {
-            return Err(invalid(
-                "transient Plan admission omitted recognized transient Model meaning",
-            ));
+        let (velocity, pressure) = match &admission.recognized {
+            RecognizedNativeModel::Transient(model) => (model.velocity(), model.pressure()),
+            RecognizedNativeModel::TransientGeometry(binding) => {
+                (binding.velocity(), binding.pressure())
+            }
+            _ => {
+                return Err(invalid(
+                    "transient Plan admission omitted recognized transient Model meaning",
+                ));
+            }
         };
-        let velocity_field_id = transient.velocity().ulid().to_string();
-        let pressure_field_id = transient.pressure().ulid().to_string();
+        let velocity_field_id = velocity.ulid().to_string();
+        let pressure_field_id = pressure.ulid().to_string();
         let solver = admission.linear.solver;
         let (resolved, velocity_space, pressure_space, gauge) =
             match (admission.spatial, &admission.resources) {
@@ -24,6 +30,11 @@ impl CommonTransientFlowPlan {
                     NativeSpatialPolicy::TransientMiniP1(scales),
                     NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
                 ) => {
+                    let RecognizedNativeModel::Transient(transient) = &admission.recognized else {
+                        return Err(invalid(
+                            "affine transient Mesh requires Cartesian Model meaning",
+                        ));
+                    };
                     let plan = transient_navier_stokes_mini_plan_2d(
                         transient,
                         mesh.artifact_reference()?,
@@ -67,9 +78,65 @@ impl CommonTransientFlowPlan {
                     )
                 }
                 (
+                    NativeSpatialPolicy::TransientMiniP1(scales),
+                    NativeMeshResources::GmshSimplicial { mesh, .. },
+                ) => {
+                    let RecognizedNativeModel::TransientGeometry(binding) = &admission.recognized
+                    else {
+                        return Err(invalid(
+                            "Gmsh transient Mesh requires Geometry-backed Model meaning",
+                        ));
+                    };
+                    let plan = binding.mini_plan(
+                        mesh.artifact_reference()?,
+                        scales,
+                        temporal.step(),
+                        nonlinear,
+                        solver,
+                    )?;
+                    let capabilities = transient_realization_capabilities(
+                        DiscretizationMethod::ContinuousGalerkin,
+                        MeshKind::ImportedAffineSimplicial,
+                        solver,
+                        &admission.linear.capabilities,
+                    )?;
+                    let resolved = resolve_transient_fieldwise(
+                        &TransientFieldwiseRealizationRequest::explicit(
+                            admission.program.model(),
+                            SemanticRevision::new(admission.program.revision().0),
+                            RealizationRevision::new(TRANSIENT_REALIZATION_REVISION),
+                            plan,
+                        ),
+                        binding.fieldwise_requirements(),
+                        &capabilities,
+                    )?;
+                    let gauge = if resolved
+                        .plan()
+                        .fieldwise()
+                        .spatial()
+                        .constraints()
+                        .is_empty()
+                    {
+                        CommonPressureGauge2d::BoundaryTraction
+                    } else {
+                        CommonPressureGauge2d::ZeroIntegral
+                    };
+                    (
+                        CommonTransientResolvedSpatial::MiniP1(resolved),
+                        Space::simplex_p1_bubble(),
+                        Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                        gauge,
+                    )
+                }
+                (
                     NativeSpatialPolicy::TransientCellCentered(scales),
                     NativeMeshResources::Cartesian { mesh, .. },
                 ) => {
+                    let RecognizedNativeModel::Transient(transient) = &admission.recognized else {
+                        return Err(invalid(
+                            "Cartesian transient Mesh requires Cartesian Model meaning",
+                        ));
+                    };
                     let artifact = mesh.artifact_reference()?;
                     let cells =
                         [
@@ -148,6 +215,13 @@ impl CommonTransientFlowPlan {
                     mesh.artifact_reference()?.sha256().as_slice(),
                 );
             }
+            NativeMeshResources::GmshSimplicial { mesh, .. } => {
+                push_framed(&mut identity_bytes, b"gmsh-simplicial");
+                push_framed(
+                    &mut identity_bytes,
+                    mesh.artifact_reference()?.sha256().as_slice(),
+                );
+            }
             NativeMeshResources::Cartesian { mesh, .. } => {
                 push_framed(&mut identity_bytes, b"supplied-cartesian");
                 push_framed(
@@ -161,8 +235,7 @@ impl CommonTransientFlowPlan {
                     identity_bytes.extend_from_slice(&count.to_be_bytes());
                 }
             }
-            NativeMeshResources::AdjacentPartitionSimplicial { .. }
-            | NativeMeshResources::GmshSimplicial { .. } => {
+            NativeMeshResources::AdjacentPartitionSimplicial { .. } => {
                 return Err(invalid(
                     "transient common Plan requires the exact caller affine-triangle or supplied-Cartesian envelope",
                 ));
@@ -279,6 +352,9 @@ impl CommonTransientFlowPlan {
     pub fn domain_id(&self) -> String {
         match &self.admission.recognized {
             RecognizedNativeModel::Transient(model) => model.domain().ulid().to_string(),
+            RecognizedNativeModel::TransientGeometry(binding) => {
+                binding.domain().ulid().to_string()
+            }
             _ => unreachable!("common transient Plan retains transient Model meaning"),
         }
     }
@@ -427,6 +503,122 @@ impl CommonTransientFlowPlan {
         )
     }
 
+    /// Admit complete coherent-SI MINI/P1 coefficients for this transient Plan.
+    pub fn initial_state(
+        &self,
+        time_s: f64,
+        fields: Vec<CommonInitialField>,
+    ) -> Result<CommonState, Diagnostic> {
+        self.admission.revalidate()?;
+        if !time_s.is_finite() || time_s < 0.0 {
+            return Err(invalid(
+                "transient State.initial time_s must be finite and non-negative",
+            ));
+        }
+        if fields.len() != 2 {
+            return Err(invalid(
+                "transient State.initial requires exactly velocity and pressure InitialField assignments",
+            ));
+        }
+        let expected_model = self.admission.model.digest()?;
+        let mut by_field = BTreeMap::new();
+        for field in fields {
+            if field.model() != &expected_model {
+                return Err(invalid(
+                    "InitialField belongs to a foreign or stale exact Model",
+                ));
+            }
+            if by_field
+                .insert(field.field().ulid().to_string(), field)
+                .is_some()
+            {
+                return Err(invalid("State.initial repeats one exact FieldRef"));
+            }
+        }
+        if by_field.keys().cloned().collect::<BTreeSet<_>>()
+            != BTreeSet::from([
+                self.velocity_field_id.clone(),
+                self.pressure_field_id.clone(),
+            ])
+        {
+            return Err(invalid(
+                "transient State.initial assignments are not complete and exclusive for Plan.fields",
+            ));
+        }
+        let velocity = &by_field[&self.velocity_field_id];
+        let pressure = &by_field[&self.pressure_field_id];
+        let velocity_vertices = match velocity.vertex() {
+            Some(CommonInitialValues::Vector2(values)) => values.to_vec(),
+            _ => return Err(invalid("MINI velocity requires vector2 vertex_values")),
+        };
+        let velocity_bubbles = match velocity.cell() {
+            Some(CommonInitialValues::Vector2(values)) => values.to_vec(),
+            _ => return Err(invalid("MINI velocity requires vector2 cell_values")),
+        };
+        let pressure_vertices = match pressure.vertex() {
+            Some(CommonInitialValues::Scalar(values)) => values.to_vec(),
+            _ => return Err(invalid("P1 pressure requires scalar vertex_values")),
+        };
+        if pressure.cell().is_some() {
+            return Err(invalid("P1 pressure rejects cell_values"));
+        }
+        let (mesh, model) = match (&self.admission.resources, &self.admission.recognized) {
+            (
+                NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
+                RecognizedNativeModel::Transient(model),
+            ) => (mesh, model.common_projection()),
+            (
+                NativeMeshResources::GmshSimplicial { mesh, .. },
+                RecognizedNativeModel::TransientGeometry(binding),
+            ) => (mesh, binding.model().clone()),
+            _ => {
+                return Err(invalid(
+                    "transient State.initial currently requires a MINI/P1 simplicial Plan",
+                ));
+            }
+        };
+        let mesh_data = mesh.mesh().clone();
+        let cell_count = mesh_data
+            .entity_count(2)
+            .ok_or_else(|| invalid("transient simplicial Mesh omitted two-dimensional cells"))?;
+        if velocity_vertices.len() != mesh_data.vertices().len()
+            || velocity_bubbles.len() != cell_count
+            || pressure_vertices.len() != mesh_data.vertices().len()
+        {
+            return Err(invalid(
+                "transient InitialField cardinality differs from exact MINI/P1 associations",
+            ));
+        }
+        let reference = match self.gauge {
+            CommonPressureGauge2d::ZeroIntegral => {
+                SteadyStokesPressureReference2d::ZeroIntegral { multiplier: 0.0 }
+            }
+            CommonPressureGauge2d::BoundaryTraction => {
+                SteadyStokesPressureReference2d::BoundaryTraction
+            }
+        };
+        let time = DynQuantity::new(time_s, TIME);
+        let initial = TransientNavierStokesInitialState2d::new_for_model(
+            &model,
+            time,
+            mesh.artifact_reference()?,
+            SimplicialMiniVelocityField2d::new(
+                mesh_data.clone(),
+                velocity_vertices,
+                velocity_bubbles,
+            )?,
+            SimplicialP1Field::new(mesh_data, pressure_vertices)?,
+            reference,
+        )?;
+        CommonState::new(
+            self.state_space_identity(),
+            time_s,
+            Arc::new(self.admission.model.clone()),
+            Arc::new(self.admission.resources.clone()),
+            CommonStateKind::MiniP1(Box::new(initial)),
+        )
+    }
+
     /// Advance exactly one accepted Backward-Euler step from a compatible complete State.
     pub fn advance_one(
         &self,
@@ -465,6 +657,30 @@ impl CommonTransientFlowPlan {
                     .states()
                     .last()
                     .ok_or_else(|| invalid("MINI transient step returned no accepted State"))?;
+                CommonStateKind::MiniP1(Box::new(mini_initial_from_resolved(self, mesh, accepted)?))
+            }
+            (
+                CommonTransientResolvedSpatial::MiniP1(resolved),
+                NativeMeshResources::GmshSimplicial { mesh, .. },
+                CommonStateKind::MiniP1(initial),
+            ) => {
+                let RecognizedNativeModel::TransientGeometry(binding) = &self.admission.recognized
+                else {
+                    return Err(invalid(
+                        "Gmsh transient Plan lost Geometry-backed Model meaning",
+                    ));
+                };
+                let states = advance_resolved_transient_navier_stokes_geometry_mini_2d(
+                    &self.admission.program,
+                    resolved,
+                    binding,
+                    initial.as_ref().clone(),
+                    run,
+                    backend,
+                )?;
+                let accepted = states.last().ok_or_else(|| {
+                    invalid("Geometry MINI transient step returned no accepted State")
+                })?;
                 CommonStateKind::MiniP1(Box::new(mini_initial_from_resolved(self, mesh, accepted)?))
             }
             (
@@ -509,11 +725,13 @@ pub(super) fn mini_initial_from_resolved(
     mesh: &SimplicialMeshEnvelopeV1,
     state: &ResolvedTransientNavierStokesState2d,
 ) -> Result<TransientNavierStokesInitialState2d, Diagnostic> {
-    let RecognizedNativeModel::Transient(model) = &plan.admission.recognized else {
-        return Err(invalid("transient Plan lost recognized Model meaning"));
+    let model = match &plan.admission.recognized {
+        RecognizedNativeModel::Transient(model) => model.common_projection(),
+        RecognizedNativeModel::TransientGeometry(binding) => binding.model().clone(),
+        _ => return Err(invalid("transient Plan lost recognized Model meaning")),
     };
-    TransientNavierStokesInitialState2d::new(
-        model,
+    TransientNavierStokesInitialState2d::new_for_model(
+        &model,
         state.time(),
         mesh.artifact_reference()?,
         state.velocity().clone(),
