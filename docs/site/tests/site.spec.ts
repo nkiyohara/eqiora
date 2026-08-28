@@ -4,6 +4,7 @@ import {
   assertAccessibleTooltip,
   assertCoreVisible,
   assertNoFakeExecutionControls,
+  assertNoSeriousAxeViolations,
   assertSemanticStages,
   assertVisibleSourceFallback,
   rejectExternalRequests,
@@ -80,6 +81,31 @@ test('mixed-boundary elasticity is a static source-traced second gallery surface
     'href',
     `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/mixed_boundary_elasticity_jupyter.ipynb`,
   );
+  await assertNoFakeExecutionControls(page);
+  expect(external).toEqual([]);
+});
+
+test('transient cylinder startup publishes accessible caller-owned motion', async ({ page }) => {
+  const external = await rejectExternalRequests(page);
+  await page.goto('/gallery/');
+  const card = page.getByRole('link', { name: /Transient cylinder-flow startup/i });
+  await expect(card).toHaveAttribute('href', '/gallery/transient-cylinder-startup/');
+  await card.click();
+  await expect(page).toHaveURL(/\/gallery\/transient-cylinder-startup\/$/);
+
+  const video = page.locator('video.eq-gallery-motion__video');
+  await expect(video).toHaveAttribute('controls', '');
+  await expect(video.locator('source[type="video/webm"]')).toHaveCount(1);
+  await expect(video.locator('source[type="video/mp4"]')).toHaveCount(1);
+  await expect(video).not.toHaveAttribute('autoplay', /.*/u);
+  await expect(page.locator('#startup-motion-description')).toContainText(
+    'It does not show, and must not be read as, periodic shedding or a developed vortex street.',
+  );
+  await assertNoSeriousAxeViolations(page);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(video).toBeHidden();
+  await expect(page.locator('img.eq-gallery-motion__still')).toBeVisible();
   await assertNoFakeExecutionControls(page);
   expect(external).toEqual([]);
 });

@@ -1,4 +1,4 @@
-"""Inspect one bounded, unverified transient cylinder wake step in Marimo."""
+"""Inspect a bounded, unverified transient cylinder startup in Marimo."""
 
 import marimo
 
@@ -108,7 +108,7 @@ def _(eqiora, geometry, linear, mesh, parameters, source_root):
         model,
         mesh=mesh,
         spatial=eqiora.fem.MiniP1(),
-        temporal=eqiora.time.BackwardEuler(0.0001),
+        temporal=eqiora.time.BackwardEuler(0.01),
         solve=eqiora.solve.Newton(linear=linear),
         scaling=eqiora.fluid.IncompressibleScaling(
             length_m=0.41,
@@ -147,8 +147,8 @@ def _(eqiora, mesh, np, plan, steady_plan, steady_result):
 
 @app.cell
 def _(eqiora, geometry, plan, state):
-    result = eqiora.run(plan, state=state, steps=1, output_steps=(1,))
-    accepted = result.trajectory.state(1)
+    result = eqiora.run(plan, state=state, steps=10, output_steps=tuple(range(1, 11)))
+    accepted = result.trajectory.state(10)
     vorticity = accepted.curl(plan.velocity_field)
     cylinder_force = accepted.boundary_force(geometry.selection("cylinder"))
     front_pressure = accepted.sample(plan.pressure_field, at=(0.15, 0.2))
@@ -211,7 +211,7 @@ def _(
 def _(BytesIO, eqplot, mo, result, summary_presented, vorticity):
     vorticity_figure = eqplot.plot_scalar_field(
         result.trajectory,
-        step=1,
+        step=10,
         field=vorticity,
     )
     vorticity_png = BytesIO()
@@ -219,7 +219,7 @@ def _(BytesIO, eqplot, mo, result, summary_presented, vorticity):
     vorticity_png.seek(0)
     vorticity_image = mo.image(
         vorticity_png,
-        alt="Cell-average vorticity after one accepted transient cylinder-flow step",
+        alt="Cell-average vorticity after ten accepted transient cylinder-flow startup steps",
     )
     figure_presented = summary_presented
     vorticity_image

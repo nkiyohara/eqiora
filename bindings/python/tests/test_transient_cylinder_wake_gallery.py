@@ -14,6 +14,17 @@ ROOT = Path(__file__).resolve().parents[3]
 PLAIN = ROOT / "examples/python/transient_cylinder_wake.py"
 MARIMO = ROOT / "examples/python/transient_cylinder_wake_marimo.py"
 NOTEBOOK = ROOT / "examples/python/transient_cylinder_wake_jupyter.ipynb"
+PAGE = ROOT / "docs/site/src/content/docs/gallery/transient-cylinder-startup.mdx"
+GALLERY_INDEX = ROOT / "docs/site/src/content/docs/gallery/index.mdx"
+SITE_STYLES = ROOT / "docs/site/src/styles/site/components.css"
+PRODUCER = ROOT / "tools/site/produce_transient_cylinder_startup_media.py"
+MEDIA = {
+    "poster": ROOT / "docs/site/src/assets/gallery/transient-cylinder-startup-poster.png",
+    "reduced": ROOT
+    / "docs/site/src/assets/gallery/transient-cylinder-startup-reduced-motion.png",
+    "webm": ROOT / "docs/site/src/assets/gallery/transient-cylinder-startup.webm",
+    "mp4": ROOT / "docs/site/src/assets/gallery/transient-cylinder-startup.mp4",
+}
 
 PRESENTATION_CALLS = {
     "eqiora.geometry.GeometryGraph": 1,
@@ -120,6 +131,10 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
             self.assertEqual(source.count("transient-flow-past-cylinder.eqi"), 1)
             self.assertEqual(source.count("files(eqiora)"), 1)
             self.assertIn("UNVERIFIED PRODUCT EXAMPLE", source)
+            self.assertIn("BackwardEuler(0.01)", source)
+            self.assertIn("steps=10", source)
+            self.assertIn("output_steps=tuple(range(1, 11))", source)
+            self.assertIn("trajectory.state(10)", source)
 
     def test_jupyter_and_marimo_share_the_public_composition(self) -> None:
         notebook_calls = call_inventory(self.notebook_source, NOTEBOOK.as_posix())
@@ -159,6 +174,33 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         for call, count in PRESENTATION_CALLS.items():
             expected = 2 if call == "result.trajectory.state" else count
             self.assertEqual(plain_calls[call], expected, call)
+
+    def test_static_site_publishes_accessible_product_media(self) -> None:
+        page = PAGE.read_text(encoding="utf-8")
+        gallery = GALLERY_INDEX.read_text(encoding="utf-8")
+        styles = SITE_STYLES.read_text(encoding="utf-8")
+        producer = PRODUCER.read_text(encoding="utf-8")
+
+        self.assertIn("/gallery/transient-cylinder-startup/", gallery)
+        self.assertIn("Explicitly unverified", gallery)
+        self.assertIn("<video", page)
+        self.assertIn('type="video/webm"', page)
+        self.assertIn('type="video/mp4"', page)
+        self.assertIn("controls", page)
+        self.assertIn('preload="metadata"', page)
+        self.assertNotIn("autoplay", page)
+        self.assertIn("eq-gallery-motion__still", page)
+        self.assertIn("startup-motion-description", page)
+        self.assertIn("prefers-reduced-motion: reduce", styles)
+        self.assertIn("trajectory.states", producer)
+        self.assertNotIn("verify/", producer)
+
+        self.assertTrue(MEDIA["poster"].read_bytes().startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertTrue(MEDIA["reduced"].read_bytes().startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertTrue(MEDIA["webm"].read_bytes().startswith(b"\x1aE\xdf\xa3"))
+        self.assertIn(b"ftyp", MEDIA["mp4"].read_bytes()[:32])
+        for path in MEDIA.values():
+            self.assertLess(path.stat().st_size, 2 * 1024 * 1024)
 
 
 if __name__ == "__main__":
