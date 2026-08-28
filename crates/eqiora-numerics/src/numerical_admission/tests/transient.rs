@@ -132,6 +132,14 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     assert_eq!(fvm_zero.velocity_cell_values().len(), 6);
     assert_eq!(fvm_zero.pressure_cell_values().unwrap().len(), 6);
     assert!(!fvm_zero.method_history_values().is_empty());
+    let curl = mini.cell_average_velocity_curl_2d(&mini_zero).unwrap();
+    assert_eq!(curl.as_ref(), &[0.0; 12]);
+    assert_eq!(
+        curl,
+        custom.cell_average_velocity_curl_2d(&mini_zero).unwrap(),
+        "derived values exclude solve policy when the exact State and field are unchanged",
+    );
+    assert!(fvm.cell_average_velocity_curl_2d(&fvm_zero).is_err());
     assert_eq!(custom.state_space_identity(), mini.state_space_identity());
     assert_eq!(
         fvm_alternate_scaling.state_space_identity(),

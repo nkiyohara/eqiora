@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use eqiora::DimExponents;
 use eqiora::artifact::ArtifactDigest;
-use eqiora_numerics::{CommonInitialField, CommonInitialValues, CommonState};
+use eqiora_numerics::{
+    CommonInitialField, CommonInitialValues, CommonState, CommonTransientFlowPlan,
+};
 use numpy::{PyArray1, PyArray2};
 use pyo3::exceptions::{PyIndexError, PyKeyError, PyOverflowError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -17,7 +19,7 @@ use crate::matrix::{ReadOnlyMatrix, ReadOnlyVector};
 use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelFieldRef};
 mod field;
-use field::{PyFieldSnapshot, PyInitialField};
+use field::{PyDerivedFieldSnapshot, PyFieldSnapshot, PyInitialField};
 
 /// Immutable installed-Python projection of one state in a common execution.
 #[pyclass(
@@ -38,6 +40,7 @@ pub(crate) struct PyState {
     model: Option<Py<PyModel>>,
     mesh: Option<Py<PyMesh>>,
     native: Option<CommonState>,
+    transient_plan: Option<CommonTransientFlowPlan>,
     ode_native: Option<eqiora_numerics::CommonOdeState>,
     plan_identity: Option<String>,
     source_request_identity: Option<String>,
@@ -98,6 +101,7 @@ impl PyState {
             model: Some(plan.model_handle(py)),
             mesh: Some(mesh),
             native: Some(native),
+            transient_plan: Some(native_plan.clone()),
             ode_native: None,
             plan_identity: Some(native_plan.identity().to_owned()),
             source_request_identity: source_request_identity.map(str::to_owned),
@@ -139,6 +143,7 @@ impl PyState {
             model: Some(plan.model_handle(py)),
             mesh: None,
             native: None,
+            transient_plan: None,
             ode_native: Some(native.clone()),
             plan_identity: plan.ode_native().map(|plan| plan.identity().to_owned()),
             source_request_identity: source_request_identity.map(str::to_owned),
@@ -176,6 +181,7 @@ impl PyState {
             model: Some(plan.model_handle(py)),
             mesh: Some(mesh),
             native: Some(native),
+            transient_plan: None,
             ode_native: None,
             plan_identity: Some(native_plan.identity().to_owned()),
             source_request_identity: source_request_identity.map(str::to_owned),
@@ -423,6 +429,46 @@ impl PyState {
         Ok(self.fields[index].clone_ref(py))
     }
 
+    /// Derive the cell-average two-dimensional curl of one exact velocity Field.
+    #[pyo3(signature = (field, /))]
+    fn curl(
+        &self,
+        py: Python<'_>,
+        field: &PyModelFieldRef,
+    ) -> PyResult<Py<PyDerivedFieldSnapshot>> {
+        if field.exact_model_digest() != self.model_digest {
+            return Err(PyValueError::new_err(
+                "FieldRef belongs to a different exact Model artifact",
+            ));
+        }
+        let plan = self.transient_plan.as_ref().ok_or_else(|| {
+            PyValueError::new_err("State.curl requires a two-dimensional transient-flow State")
+        })?;
+        if field.exact_id() != plan.velocity_field_id() {
+            return Err(PyValueError::new_err(
+                "State.curl currently requires the Plan velocity FieldRef",
+            ));
+        }
+        let state = self.native.as_ref().ok_or_else(|| {
+            PyRuntimeError::new_err("transient State lost its native accepted coefficients")
+        })?;
+        let values = plan
+            .cell_average_velocity_curl_2d(state)
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        Py::new(
+            py,
+            PyDerivedFieldSnapshot::from_cell_average_curl(
+                py,
+                &self.model_digest,
+                state.identity(),
+                field,
+                plan.mesh_digest(),
+                &plan.domain_id(),
+                &values,
+            )?,
+        )
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "State(step={}, time_s={}, digest={:?})",
@@ -665,6 +711,7 @@ fn hex_sha256(bytes: &[u8]) -> String {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<PyDerivedFieldSnapshot>()?;
     module.add_class::<PyFieldSnapshot>()?;
     module.add_class::<PyInitialField>()?;
     module.add_class::<PyState>()?;

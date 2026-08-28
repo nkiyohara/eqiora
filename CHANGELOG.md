@@ -8,6 +8,10 @@ are recorded here.
 
 ### Changed
 
+- Transient `State.curl(velocity_field)` now derives an immutable typed
+  cell-average vorticity snapshot from accepted two-dimensional MINI velocity,
+  retaining exact State, Field, Mesh, support, unit, and operator lineage.
+
 - Geometry-backed transient MINI/P1 flow now advances a nonzero cylinder-wake
   state through correction-form Newton. The resolver uses direct sparse LU for
   the bounded saddle-point Jacobian while preserving its canonical CSR lineage.

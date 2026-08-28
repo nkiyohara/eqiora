@@ -675,6 +675,7 @@ impl CommonElasticityObservation {
     }
 }
 
+mod derived;
 /// Resolve Model mathematics first, then admit the requested numerical policies.
 mod elasticity;
 mod fsi;
