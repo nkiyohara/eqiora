@@ -1,9 +1,8 @@
 # RFC 0053: Private physics-neutral discrete block system
 
 - Status: Implemented and verified for the private FSI/Stokes/elasticity-pair
-  slice and the bounded fixed-domain transient-flow extension;
-  [`numerics.physics-neutral-discrete-block-system`](../verify/numerics/physics-neutral-discrete-block-system/README.md),
-  [`fluid.fixed-domain-transient-navier-stokes-2d`](../verify/fluid/fixed-domain-transient-navier-stokes-2d/README.md)
+  slice;
+  [`numerics.physics-neutral-discrete-block-system`](../verify/numerics/physics-neutral-discrete-block-system/README.md)
 - Authors: Eqiora contributors
 - Created: 2026-07-20
 - Depends on: [RFC 0023](0023-finalized-spatial-linear-handoff.md),
@@ -366,39 +365,6 @@ tests inspect the private definition. Together they prove:
 The registered case is a structural numerical claim. It does not turn private
 block types into a stable API or durable artifact.
 
-## Bounded transient-flow extension
-
-The bounded fixed-domain transient-flow extension is the first nonlinear,
-multi-step consumer of the same private vocabulary. It extends the closed
-implementation only where an accepted typed Realization requires new
-structure:
-
-- the existing backward-Euler derivative transformation now owns the exact
-  represented previous state and step duration;
-- `EnergySkewConvection` records the deliberate weak-form transformation from
-  the conservative Semantic Relation, while registered evidence retains and
-  checks the exact conservative-to-skew defect;
-- advection is one closed contribution role with exact residual, Field,
-  support, Parameter, packet, and target incidence; and
-- the explicit transient Realization revision replaces the default-policy
-  identity used by older default paths.
-
-The block system does not become a nonlinear operator graph. Direct nonlinear
-residual evaluation and analytic linearization remain owned by the
-method-specific local operator. At every Newton point, the checked assembly
-backend binds the normalized block identity to the exact materialized CSR and
-validates that binding before the linearization escapes. Step count remains a
-Run directive and is absent from both Semantic and Realization identity.
-
-The registered
-[`fluid.fixed-domain-transient-navier-stokes-2d`](../verify/fluid/fixed-domain-transient-navier-stokes-2d/README.md)
-case falsifies semantic near-misses, inconsistent initial states, insufficient
-quadrature, corrupt analytic Jacobians, and nonlinear nonconvergence. It also
-checks every analytic Jacobian column against centered differences of a
-directly reassembled residual. This is a bounded extension of the private
-contract, not a public weak-form API, a general nonlinear IR, or a claim about
-ALE, moving meshes, turbulence, or arbitrary time methods.
-
 ## Boundary with the curated facade
 
 [RFC 0054](0054-curated-facade-and-control-plane.md) owns public-facade
@@ -500,9 +466,8 @@ This RFC does not implement or claim:
   contact, or adaptive spaces;
 - a production matrix-free operator, GPU assembly, distributed assembly,
   field-split preconditioner, Schur complement, or solver graph;
-- nonlinear or transient Navier--Stokes beyond the bounded fixed-domain 2D
-  MINI/P1 backward-Euler reference, multiple FSI steps, partitioned FSI, ALE,
-  remeshing, or topology change;
+- general nonlinear or transient Navier--Stokes, multiple FSI steps,
+  partitioned FSI, ALE, remeshing, or topology change;
 - new primal/JVP/VJP actions, coefficient-sensitive FSI differentiation,
   adjoints, or shape sensitivity;
 - Parameter identity forwarding owned by

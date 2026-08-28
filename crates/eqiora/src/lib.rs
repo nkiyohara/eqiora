@@ -48,8 +48,7 @@ pub mod api {
         MlDatasetSampleSplitV1, ModelDocument, ModelFieldRef, ModelParameterRef,
         ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult, ParameterStudyPlan,
         ParameterStudyPointKey, ParameterStudyTerminalReport, RemeshingTrajectoryReplayInputV1,
-        SemanticFingerprintGeneration, StructuralSemanticFingerprint,
-        TransientNavierStokesInitialCondition2d, TransientNavierStokesReference2d, ValueEditPlan,
+        SemanticFingerprintGeneration, StructuralSemanticFingerprint, ValueEditPlan,
         ValueEditResult, VerifiedMlDatasetV1, derive_ml_dataset_v1, verify_ml_dataset_v1,
     };
 

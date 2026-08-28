@@ -8,6 +8,11 @@ are recorded here.
 
 ### Changed
 
+- Removed the application-shaped `TransientNavierStokesReference2d` facade and
+  its hand-built fixed-mesh evidence. Transient product work now converges on
+  the common `Geometry -> Mesh -> Model -> Plan -> State -> Run -> Result`
+  lifecycle; the surviving collocated FVM reference owns its model fixture.
+
 - `eqiora.compile` is now keyword-only and accepts exactly one of `path=` or
   `source=`. Definitions-only component source can be closed directly with a
   Python-authored `Geometry` and coherent-SI Parameter values; source owns

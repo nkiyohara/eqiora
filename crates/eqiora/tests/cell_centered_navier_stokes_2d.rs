@@ -28,7 +28,7 @@ use eqiora_numerics::{
 };
 
 const SOURCE: &str =
-    include_str!("../../../verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi");
+    include_str!("../../../verify/fluid/cell-centered-navier-stokes-fvm-2d/models/direct.eqi");
 
 const LENGTH: DimExponents = DimExponents {
     length: 1,
@@ -118,7 +118,7 @@ fn run_case(
     transform: InitialTransform,
 ) -> ResolvedCellCenteredNavierStokesTrajectory2d {
     let document = eqiora::api::ModelDocument::compile(
-        "verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi",
+        "verify/fluid/cell-centered-navier-stokes-fvm-2d/models/direct.eqi",
         SOURCE,
     )
     .unwrap();

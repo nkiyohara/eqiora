@@ -51,7 +51,6 @@ Registered, executed in CI, `status = "verified"`.
 |---|---|
 | Manufactured Stokes convergence under a non-constant prescribed velocity on the complete boundary | `case:fluid.simplicial-mini-stokes-2d` |
 | Mixed Stokes channel: three no-slip walls and one prescribed normal-pressure outlet, pressure fixed by the boundary rather than a gauge | `case:fluid.mixed-static-pressure-mini-stokes-2d` |
-| Transient MINI Navier–Stokes on a fixed domain, Newton with an audited analytic Jacobian | `case:fluid.fixed-domain-transient-navier-stokes-2d` |
 | Monolithic ALE fluid–structure step, backward Euler, 2D | `case:fsi.fixed-topology-ale-monolithic-2d` |
 | The same on tetrahedra, 3D | `case:fsi.fixed-topology-ale-monolithic-3d` |
 | Linear isotropic elasticity | `case:solid.isotropic-elasticity-2d` |

@@ -14,7 +14,7 @@ capabilities = [
 ]
 
 [problem]
-model = "../fixed-domain-transient-navier-stokes-2d/models/direct.eqi"
+model = "models/direct.eqi"
 domain = "[0 m, 1 m] x [0 m, 1 m]"
 density = "1 kg/m^3"
 dynamic_viscosity = "0.05 kg/(m s)"
