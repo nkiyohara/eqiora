@@ -63,8 +63,7 @@ const RECORDED_CUDA_EXECUTION_PROVIDER: ExecutionProvider = ExecutionProvider::n
     RECORDED_CUDA_EXECUTION_LIBRARIES,
 );
 const CURRENT_MODEL_BRIDGE: &[u8] = include_bytes!(
-    "../../../verify/artifacts/current-model-relational-identity-transition/expected/bridge/\
-     canonical-cartesian-poisson-cuda/current-model.json"
+    "../../../verify/numerics/canonical-cartesian-poisson-cuda/expected/current-model-bridge.json"
 );
 
 #[derive(Debug, Clone, Deserialize)]

@@ -1,5 +1,9 @@
 # Expected identities
 
+`model.json` is the canonical Model fixture consumed by the package projection.
+`historical-alpha1-compilation.json` is retained only for the typed compilation
+decoder/accessor compatibility assertion that names that release.
+
 `identities.json` freezes the package semantic and source domains, exact
 resolution and compilation, canonical Model, typed Realization, Run v2, and
 separate package execution binding. Any update requires identifying which

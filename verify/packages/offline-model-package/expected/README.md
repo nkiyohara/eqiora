@@ -1,5 +1,9 @@
 # Expected evidence
 
+`model.json` is the canonical current Model fixture consumed by the package and
+installed-Python owners. `historical-alpha1-compilation.json` is retained only
+for the typed decoder/accessor compatibility assertion that names that release.
+
 `identities.json` freezes the two package semantic digests, two exact source
 bundle digests, resolution-record digest, canonical Model digest, and package
 compilation digest produced by the registered case. It also freezes the

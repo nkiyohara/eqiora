@@ -31,7 +31,7 @@ use eqiora_solver::{
 use ulid::Ulid;
 
 const MODEL: &[u8] = include_bytes!(
-    "../../../verify/artifacts/current-model-relational-identity-transition/expected/bridge/fixed-reference-cuda-solve-2d/current-model.json"
+    "../../../verify/fsi/fixed-reference-cuda-solve-2d/expected/current-model-bridge.json"
 );
 
 #[test]

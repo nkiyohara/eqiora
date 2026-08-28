@@ -1,5 +1,9 @@
 # Expected evidence
 
+`current-model-bridge.json` is the current canonical Model consumed by the
+host replay of the retained CUDA observation. The historical Model in
+`artifacts/model.json` remains intentionally rejected by the current decoder.
+
 The registered selected-device observation comes from the first clean public
 source commit. It is accepted only when all of these close together:
 

@@ -19,10 +19,6 @@ const CONTRACT_SOURCE: &str =
 const TOOL_DEFINITION_SOURCE: &str = include_str!(
     "../../../verify/interfaces/mcp-stdio-compile-check/expected/tool-definition.json"
 );
-const CASE_SOURCE: &str =
-    include_str!("../../../verify/interfaces/mcp-stdio-compile-check/case.toml");
-const CASE_README_SOURCE: &str =
-    include_str!("../../../verify/interfaces/mcp-stdio-compile-check/README.md");
 const MODELS_README_SOURCE: &str =
     include_str!("../../../verify/interfaces/mcp-stdio-compile-check/models/README.md");
 const REFERENCES_README_SOURCE: &str =
@@ -38,10 +34,6 @@ const TOOL_SOURCE: &str = include_str!("../src/bin/eqiora-mcp/tool.rs");
 const ORACLE_SOURCE: &str = include_str!("../src/bin/eqiora-mcp/oracle.rs");
 const WORKER_OUTCOMES_SOURCE: &str =
     include_str!("../src/bin/eqiora-mcp/oracle/worker_outcomes.rs");
-const PROTECTED_TRANSITION_OBSERVER_SOURCE: &str = include_str!(
-    "../../eqiora-artifact/tests/current_model_relational_identity_transition/transition_contract.rs"
-);
-
 fn timeout(name: &str) -> Duration {
     Duration::from_millis(
         expected()["oracleTimeouts"][name]
@@ -481,60 +473,6 @@ fn result<'a>(response: &'a Value, id: &Value) -> &'a Value {
     &response["result"]
 }
 
-fn lower_hex_identity_occurrences(line: &str) -> usize {
-    let lower = line.to_ascii_lowercase();
-    if !(lower.contains("model") || lower.contains("transaction")) {
-        return 0;
-    }
-    let bytes = line.as_bytes();
-    let mut count = 0;
-    let mut start = 0;
-    while start + 64 <= bytes.len() {
-        if bytes[start..start + 64]
-            .iter()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
-        {
-            count += 1;
-            start += 64;
-        } else {
-            start += 1;
-        }
-    }
-    count
-}
-
-fn observe_transition(source: &str, search_tokens: &[&str]) -> (Vec<String>, usize) {
-    (
-        search_tokens
-            .iter()
-            .filter(|token| source.contains(**token))
-            .map(|token| (*token).to_owned())
-            .collect(),
-        source.lines().map(lower_hex_identity_occurrences).sum(),
-    )
-}
-
-fn protected_search_tokens() -> Vec<&'static str> {
-    let declaration = PROTECTED_TRANSITION_OBSERVER_SOURCE
-        .split("const SEARCH_TOKENS")
-        .nth(1)
-        .expect("protected search-token declaration")
-        .split("];")
-        .next()
-        .unwrap();
-    let tokens = declaration
-        .lines()
-        .filter_map(|line| {
-            let literal = line.trim().strip_suffix(',')?;
-            literal
-                .strip_prefix('"')
-                .and_then(|literal| literal.strip_suffix('"'))
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(tokens.len(), 11, "protected search-token table changed");
-    tokens
-}
-
 fn rust_identifiers(source: &str) -> Vec<&str> {
     source
         .split(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
@@ -760,7 +698,6 @@ fn cfg_test_immediately_gates(source: &str, item: &str) -> bool {
 fn frozen_snapshots_and_static_route_are_closed() {
     let expected = expected();
     let frozen = frozen_expected();
-    let tool = tool_definition();
     assert_eq!(
         expected["schema"],
         "eqiora.verify.mcp-stdio-compile-check/v1"
@@ -883,109 +820,6 @@ fn frozen_snapshots_and_static_route_are_closed() {
     assert!(ORACLE_SOURCE.lines().count() < 1000);
     assert!(WORKER_OUTCOMES_SOURCE.lines().count() < 1000);
     assert!(include_str!("mcp_stdio_compile_check.rs").lines().count() < 2000);
-
-    let accepted = &tool["outputSchema"]["oneOf"][0];
-    let model_properties = &accepted["properties"]["model"]["properties"];
-    let complete_signals = [
-        model_properties["schema"]["const"].as_str().unwrap(),
-        model_properties["transactionSchema"]["const"]
-            .as_str()
-            .unwrap(),
-    ];
-    let schema_search_tokens = complete_signals.map(|signal| {
-        let token = signal.trim_end_matches(|character: char| character.is_ascii_digit());
-        assert_ne!(token, signal, "schema signal must end in a version number");
-        token
-    });
-    let search_tokens = protected_search_tokens();
-    assert_eq!(schema_search_tokens.as_slice(), &search_tokens[..2]);
-    let expected_signals = schema_search_tokens.map(str::to_owned).to_vec();
-    for (name, source) in [
-        ("tool definition", TOOL_DEFINITION_SOURCE),
-        ("tool", TOOL_SOURCE),
-    ] {
-        let observed = observe_transition(source, &search_tokens);
-        assert_eq!(
-            observed,
-            (expected_signals.clone(), 0),
-            "transition observation for {name}"
-        );
-    }
-    for (name, source) in [
-        ("contract", CONTRACT_SOURCE),
-        ("oracle", ORACLE_SOURCE),
-        ("worker outcomes", WORKER_OUTCOMES_SOURCE),
-        (
-            "integration test",
-            include_str!("mcp_stdio_compile_check.rs"),
-        ),
-        ("case manifest", CASE_SOURCE),
-        ("case readme", CASE_README_SOURCE),
-        ("models readme", MODELS_README_SOURCE),
-        ("references readme", REFERENCES_README_SOURCE),
-        ("main", MAIN_SOURCE),
-        ("framing", FRAMING_SOURCE),
-        ("protocol", PROTOCOL_SOURCE),
-    ] {
-        let observed = observe_transition(source, &search_tokens);
-        assert_eq!(
-            observed,
-            (Vec::new(), 0),
-            "transition observation for {name}"
-        );
-    }
-
-    let alternate_version = format!("{}7", search_tokens[0]);
-    assert_eq!(
-        observe_transition(&alternate_version, &search_tokens).0,
-        vec![search_tokens[0].to_owned()],
-        "alternate versions remain search signals"
-    );
-    let long_literal = format!("Model {}", "a".repeat(65));
-    assert_eq!(
-        observe_transition(&long_literal, &search_tokens).1,
-        1,
-        "the protected observer counts a non-overlapping chunk in a longer run"
-    );
-    let third_path_mutant = format!("{}9", search_tokens[1]);
-    assert_eq!(
-        observe_transition(&third_path_mutant, &search_tokens).0,
-        vec![search_tokens[1].to_owned()],
-        "a signal-bearing third path cannot inherit admission"
-    );
-    assert_eq!(
-        observe_transition(search_tokens[2], &search_tokens).0,
-        vec![search_tokens[2].to_owned()],
-        "an extra protected search token cannot survive the exact row"
-    );
-
-    for (name, source) in [
-        ("contract", CONTRACT_SOURCE),
-        ("tool definition", TOOL_DEFINITION_SOURCE),
-        ("oracle", ORACLE_SOURCE),
-        ("worker outcomes", WORKER_OUTCOMES_SOURCE),
-        (
-            "integration test",
-            include_str!("mcp_stdio_compile_check.rs"),
-        ),
-        ("case manifest", CASE_SOURCE),
-        ("case readme", CASE_README_SOURCE),
-        ("models readme", MODELS_README_SOURCE),
-        ("references readme", REFERENCES_README_SOURCE),
-        ("main", MAIN_SOURCE),
-        ("framing", FRAMING_SOURCE),
-        ("protocol", PROTOCOL_SOURCE),
-        ("tool", TOOL_SOURCE),
-    ] {
-        assert_eq!(
-            source
-                .lines()
-                .map(lower_hex_identity_occurrences)
-                .sum::<usize>(),
-            0,
-            "identity literal in {name}"
-        );
-    }
 }
 
 #[test]

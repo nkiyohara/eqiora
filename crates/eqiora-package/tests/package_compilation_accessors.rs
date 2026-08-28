@@ -3,7 +3,7 @@ use eqiora_package::{
 };
 
 const ACCEPTED_COMPILATION: &[u8] = include_bytes!(
-    "../../../verify/artifacts/current-model-relational-identity-transition/expected/deterministic/typed-execution-lineage/compilation.json"
+    "../../../verify/packages/typed-execution-lineage/expected/historical-alpha1-compilation.json"
 );
 
 fn canonical_fixture(bytes: &[u8]) -> &[u8] {

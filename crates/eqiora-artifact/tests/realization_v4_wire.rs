@@ -30,11 +30,9 @@ use sha2::{Digest, Sha256};
 use ulid::Ulid;
 
 const MODEL: &[u8] = include_bytes!(
-    "../../../verify/artifacts/current-model-relational-identity-transition/expected/bridge/fixed-reference-cuda-solve-2d/current-model.json"
+    "../../../verify/fsi/fixed-reference-cuda-solve-2d/expected/current-model-bridge.json"
 );
-const GOLDEN: &[u8] = include_bytes!(
-    "../../../verify/artifacts/current-model-relational-identity-transition/expected/retained/realization-v4.json"
-);
+const GOLDEN: &[u8] = include_bytes!("fixtures/realization-v4.json");
 type JsonMutation = (&'static str, Box<dyn Fn(&mut serde_json::Value)>);
 
 #[test]

@@ -45,8 +45,7 @@ mod support;
 
 const REGISTERED_SOURCE_COMMIT: &str = "5696f62ed84eba5457e2ff99f40fd2080c808d69";
 const CURRENT_MODEL_BRIDGE: &[u8] = include_bytes!(
-    "../../../verify/artifacts/current-model-relational-identity-transition/expected/bridge/\
-     fixed-reference-cuda-solve-2d/current-model.json"
+    "../../../verify/fsi/fixed-reference-cuda-solve-2d/expected/current-model-bridge.json"
 );
 
 #[test]
