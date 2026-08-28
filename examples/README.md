@@ -15,6 +15,9 @@ python examples/python/exact_cylinder_stokes.py \
   --pressure-png exact-cylinder-pressure.png
 marimo run examples/python/exact_cylinder_stokes_marimo.py
 jupyter lab examples/python/exact_cylinder_stokes_jupyter.ipynb
+python examples/python/mixed_boundary_elasticity.py
+marimo run examples/python/mixed_boundary_elasticity_marimo.py
+jupyter lab examples/python/mixed_boundary_elasticity_jupyter.ipynb
 python examples/python/fixed_reference_fsi.py
 ```
 
@@ -27,6 +30,9 @@ python examples/python/fixed_reference_fsi.py
 | `exact-cylinder-stokes` | [`python/exact_cylinder_stokes.py`](python/exact_cylinder_stokes.py) | From an installed `eqiora` package, define the sole concrete Geometry in Python, compile it with the shipped equations-only `.eqi` Component, resolve the common MINI/P1 and linear-solve policies, inspect immutable pressure, solver, force, and flux evidence, and optionally save the pressure through `eqiora[gmsh,matplotlib]`. |
 | `exact-cylinder-stokes-marimo` | [`python/exact_cylinder_stokes_marimo.py`](python/exact_cylinder_stokes_marimo.py) | In Marimo, compose the same Python-authored Geometry, installed `.eqi` Component, Mesh, common root Plan, and direct `run` Result, then inspect their live identities and caller-owned pressure Figure. |
 | `exact-cylinder-stokes-jupyter` | [`python/exact_cylinder_stokes_jupyter.ipynb`](python/exact_cylinder_stokes_jupyter.ipynb) | In Jupyter, compose the same public Geometry, installed `.eqi` Component, Mesh, common root Plan, direct `run` Result, identity summary, and caller-owned pressure Figure without a rich-Mesh widget. |
+| `mixed-boundary-elasticity` | [`python/mixed_boundary_elasticity.py`](python/mixed_boundary_elasticity.py) | Define the sole concrete rectangle in Python, compile the shipped equations-only Component, resolve Q1 and linear-solve policies, run the common Result path, and optionally save a caller-owned deformed-field Figure. |
+| `mixed-boundary-elasticity-marimo` | [`python/mixed_boundary_elasticity_marimo.py`](python/mixed_boundary_elasticity_marimo.py) | In Marimo, call the shared installed-Python elasticity workflow and inspect its Plan/Result identity and displacement Figure. |
+| `mixed-boundary-elasticity-jupyter` | [`python/mixed_boundary_elasticity_jupyter.ipynb`](python/mixed_boundary_elasticity_jupyter.ipynb) | In Jupyter, call the same shared workflow and inspect the same Plan-owned displacement projection and caller-owned Figure. |
 | `fixed-reference-fsi` | [`python/fixed_reference_fsi.py`](python/fixed_reference_fsi.py) | Author the adjacent Geometry in Python, compile the equations-only FSI Component, scope MINI/P1 and P1 to exact Model Domains, initialize four exact Fields, and run the common root Plan/State/Run lifecycle. |
 | `steady-flow-past-cylinder` | [`steady-flow-past-cylinder.eqi`](steady-flow-past-cylinder.eqi), [exact geometry](steady-flow-past-cylinder.geometry.json) | Python supplies the sole concrete Geometry to the equations-only `.eqi`, then uses the common root Plan lifecycle. The retained JSON artifacts serve historical verification only. |
 

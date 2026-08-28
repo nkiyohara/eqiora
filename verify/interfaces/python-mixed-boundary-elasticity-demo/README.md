@@ -3,9 +3,18 @@
 This case verifies the installed Python model-first structural path:
 
 ```python
-geometry = eqiora.GeometryGraph(2)
-body = geometry.rectangle("body", origin=(0.0, 0.0), size=(1.0, 1.0))
-geometry = geometry.build(body)
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+geometry = graph.build(
+    rectangle,
+    named_topology={
+        "body": rectangle.region,
+        "x_lower": rectangle.boundaries[0],
+        "x_upper": rectangle.boundaries[1],
+        "y_lower": rectangle.boundaries[2],
+        "y_upper": rectangle.boundaries[3],
+    },
+)
 
 model = eqiora.compile(
     path=component_source,
@@ -19,11 +28,10 @@ plan = eqiora.resolve(
     model,
     mesh=mesh,
     spatial=eqiora.fem.Q1(),
-    solver=eqiora.solve.Linear(...),
-    scaling=None,
+    solve=eqiora.solve.Linear(...),
 )
 result = eqiora.run(plan)
-displacement = plan.field("displacement")
+displacement = plan.field
 output = result.output(displacement)
 observation = eqiora.solid.linear_elasticity_evidence(result)
 figure = eqiora.matplotlib.plot_deformed_field(

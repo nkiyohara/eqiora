@@ -188,7 +188,7 @@ test('00D exact real Rustdoc Diagnostic ordinary chunk is complete and green', a
   test.setTimeout(300_000);
   const plan = createOrdinaryRoutePlan();
   expect(assertOrdinaryRoutePlan(plan)).toEqual([...SITE_ROUTES]);
-  expect(ROUTES).toHaveLength(35);
+  expect(ROUTES).toHaveLength(36);
   const context = await browser.newContext({
     baseURL: BASE_URL,
     locale: 'en-GB',
@@ -249,6 +249,8 @@ test('01 honest 320px O-1 through O-4 composition and retained interaction contr
 
   await page.emulateMedia({ colorScheme: 'light', forcedColors: 'none', reducedMotion: 'reduce' });
   await page.goto('/gallery/exact-cylinder-steady-stokes/');
+  await assertReducedMotion(page);
+  await page.goto('/gallery/mixed-boundary-elasticity/');
   await assertReducedMotion(page);
   expect(external).toEqual([]);
   await context.close();

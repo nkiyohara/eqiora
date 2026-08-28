@@ -26,6 +26,43 @@ ENTRY_ID = "exact-cylinder-steady-stokes"
 RECEIPT_ID = "exact-cylinder-steady-stokes-publication-admission-v1"
 FINAL_RECORD = "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json"
 FINAL_MEDIA = "docs/site/src/assets/gallery/exact-cylinder-pressure.png"
+ELASTICITY_ENTRY_ID = "mixed-boundary-elasticity"
+ELASTICITY_PREDICATE_SCHEMA = (
+    "eqiora.site.mixed-boundary-elasticity-publication-predicate/v1"
+)
+ELASTICITY_RECORD = (
+    "docs/site/src/data/gallery/mixed-boundary-elasticity.publication.json"
+)
+ELASTICITY_MEDIA = (
+    "docs/site/src/assets/gallery/mixed-boundary-elasticity-displacement.png"
+)
+ELASTICITY_WIDTH, ELASTICITY_HEIGHT, ELASTICITY_DPI = 1120, 960, 160
+ELASTICITY_PNG_SOFTWARE = "Matplotlib version3.11.1, https://matplotlib.org/"
+ELASTICITY_ALT = (
+    "Reference and deformed meshes for the bounded 2D mixed-boundary "
+    "linear-elasticity demonstration. The left edge is fixed, the other edges "
+    "are traction-free, and the visible deformation scale is 1. Presentation only."
+)
+ELASTICITY_CLAIM = (
+    "one bounded 2D mixed-boundary linear-elasticity workflow reaches a common "
+    "Result and a caller-owned displacement figure through the root lifecycle"
+)
+ELASTICITY_NONCLAIMS = [
+    "no general elasticity or arbitrary boundary data",
+    "no stress, strain, or traction recovery from the common Result",
+    "no unstructured, high-order, three-dimensional, nonlinear, or dynamic structure",
+    "no convergence, performance, or production-scale claim",
+    "no exact pixels or scientific validation from rendering",
+]
+ELASTICITY_SOURCE_ROLES = {
+    "bindings/python/python/eqiora/matplotlib.py": ["plotting-adapter"],
+    "examples/mixed-boundary-elasticity.eqi": ["component-source"],
+    "examples/python/mixed_boundary_elasticity.py": ["shared-installed-workflow"],
+}
+ELASTICITY_CASE_ROLES = {
+    "interfaces.python-mixed-boundary-elasticity-demo": "installed-product",
+    "solid.mixed-boundary-elasticity-2d": "scientific-evidence",
+}
 
 MAX_JSON_BYTES, MAX_MEDIA_BYTES = 512 * 1024, 16 * 1024 * 1024
 WIDTH, HEIGHT, DPI = 1280, 832, 160
@@ -465,7 +502,14 @@ def _paeth(left: int, above: int, upper_left: int) -> int:
     return left if dl <= da and dl <= dul else above if da <= dul else upper_left
 
 
-def _decode_png(raw: bytes) -> tuple[dict[str, Any], bytes, list[str]]:
+def _decode_png(
+    raw: bytes,
+    *,
+    width: int = WIDTH,
+    height: int = HEIGHT,
+    dpi: int = DPI,
+    software: str = PNG_SOFTWARE,
+) -> tuple[dict[str, Any], bytes, list[str]]:
     if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
         _fail("png", "media has no PNG signature")
     offset = 8
@@ -506,20 +550,20 @@ def _decode_png(raw: bytes) -> tuple[dict[str, Any], bytes, list[str]]:
     if types[:3] != ["IHDR", "tEXt", "pHYs"] or types[-1] != "IEND" or any(kind != "IDAT" for kind in types[3:-1]):
         _fail("png", "PNG chunk profile differs from the frozen encoder output")
     text_data = next(data for kind, data in chunks if kind == "tEXt")
-    if text_data != b"Software\0" + PNG_SOFTWARE.encode("ascii"):
+    if text_data != b"Software\0" + software.encode("ascii"):
         _fail("png", "PNG Software metadata differs")
     phys = next(data for kind, data in chunks if kind == "pHYs")
-    pixels_per_metre = round(DPI / 0.0254)
+    pixels_per_metre = round(dpi / 0.0254)
     if phys != struct.pack(">IIB", pixels_per_metre, pixels_per_metre, 1):
         _fail("png", "PNG physical resolution differs from fixed DPI")
 
     header = chunks[0][1]
     if len(header) != 13:
         _fail("png", "PNG IHDR length differs")
-    width, height, depth, color, compression, filtering, interlace = struct.unpack(">IIBBBBB", header)
-    if (width, height, depth, color, compression, filtering, interlace) != (
-        WIDTH,
-        HEIGHT,
+    observed_width, observed_height, depth, color, compression, filtering, interlace = struct.unpack(">IIBBBBB", header)
+    if (observed_width, observed_height, depth, color, compression, filtering, interlace) != (
+        width,
+        height,
         8,
         6,
         0,
@@ -528,7 +572,7 @@ def _decode_png(raw: bytes) -> tuple[dict[str, Any], bytes, list[str]]:
     ):
         _fail("png", "PNG dimensions or RGBA encoding profile differs")
     compressed = b"".join(data for kind, data in chunks if kind == "IDAT")
-    expected_size = HEIGHT * (1 + WIDTH * 4)
+    expected_size = height * (1 + width * 4)
     inflater = zlib.decompressobj()
     try:
         filtered = inflater.decompress(compressed, expected_size + 1)
@@ -540,12 +584,12 @@ def _decode_png(raw: bytes) -> tuple[dict[str, Any], bytes, list[str]]:
     if len(filtered) != expected_size or not inflater.eof or inflater.unused_data or inflater.unconsumed_tail:
         _fail("png", "PNG decoded size or compressed stream boundary differs")
 
-    row_size = WIDTH * 4
+    row_size = width * 4
     previous = bytearray(row_size)
     decoded = bytearray()
     cursor = 0
     visible_colors: set[bytes] = set()
-    for _ in range(HEIGHT):
+    for _ in range(height):
         filter_type = filtered[cursor]
         encoded = filtered[cursor + 1 : cursor + 1 + row_size]
         cursor += row_size + 1
@@ -573,10 +617,10 @@ def _decode_png(raw: bytes) -> tuple[dict[str, Any], bytes, list[str]]:
         {
             "bit_depth": depth,
             "color_type": color,
-            "height": height,
+            "height": observed_height,
             "interlace": interlace,
             "pixel_mode": "RGBA",
-            "width": width,
+            "width": observed_width,
         },
         bytes(decoded),
         types,
@@ -900,6 +944,215 @@ def check_publication(
     }
 
 
+def check_elasticity_publication(
+    *, repository_root: Path, record_path: Path, media_path: Path
+) -> dict[str, Any]:
+    """Validate the concrete second gallery consumer without a generic media schema."""
+
+    root = repository_root.resolve()
+    if not root.is_dir():
+        _fail("path", "repository root is not a directory")
+    wrapper, _ = _load_canonical(record_path, "elasticity publication record")
+    _closed(
+        wrapper,
+        {
+            "admission",
+            "entry_id",
+            "publication_payload",
+            "publication_payload_sha256",
+            "schema",
+            "source_revision",
+            "source_tree",
+        },
+        "elasticity record",
+    )
+    if wrapper["schema"] != RECORD_SCHEMA or wrapper["entry_id"] != ELASTICITY_ENTRY_ID:
+        _fail("record", "elasticity record schema or entry identity differs")
+    admission = _closed(
+        wrapper["admission"], {"predicate", "status"}, "elasticity admission"
+    )
+    if admission != {
+        "predicate": ELASTICITY_PREDICATE_SCHEMA,
+        "status": "accepted",
+    }:
+        _fail("admission", "elasticity admission differs")
+
+    payload = wrapper["publication_payload"]
+    _closed(
+        payload,
+        {"claim", "evidence_cases", "lineage", "media", "renderer", "source_files", "text"},
+        "elasticity publication payload",
+    )
+    if wrapper["publication_payload_sha256"] != _sha(_canonical_value(payload)):
+        _fail("payload-digest", "elasticity publication payload digest differs")
+
+    revision = _hex(wrapper["source_revision"], "source_revision", 40)
+    tree = _hex(wrapper["source_tree"], "source_tree", 40)
+    if _git(root, "rev-parse", "--verify", f"{revision}^{{commit}}").strip().decode() != revision:
+        _fail("source-revision", "elasticity source revision does not resolve exactly")
+    if _git(root, "rev-parse", f"{revision}^{{tree}}").strip().decode() != tree:
+        _fail("source-tree", "elasticity source tree differs")
+    ancestry = subprocess.run(
+        ["git", "-C", os.fspath(root), "merge-base", "--is-ancestor", revision, "HEAD"],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=30,
+    )
+    if ancestry.returncode != 0:
+        _fail("source-revision", "elasticity source revision is not an ancestor of HEAD")
+
+    sources = _list(payload["source_files"], "elasticity source_files", len(ELASTICITY_SOURCE_ROLES))
+    observed_sources: dict[str, list[str]] = {}
+    for index, raw_item in enumerate(sources):
+        item = _closed(raw_item, {"path", "roles", "sha256"}, f"elasticity source_files[{index}]")
+        path = _relative(item["path"], f"elasticity source_files[{index}].path")
+        roles = _list(item["roles"], f"elasticity source_files[{index}].roles", 2)
+        if not roles or any(type(role) is not str for role in roles):
+            _fail("source-set", "elasticity source roles are invalid")
+        if item["sha256"] != _sha(_source_blob(root, revision, path)):
+            _fail("source-digest", f"elasticity source digest differs for {path}")
+        observed_sources[path] = roles
+    if list(observed_sources) != sorted(ELASTICITY_SOURCE_ROLES) or observed_sources != ELASTICITY_SOURCE_ROLES:
+        _fail("source-set", "elasticity source paths or roles differ")
+
+    cases = _list(payload["evidence_cases"], "elasticity evidence_cases", len(ELASTICITY_CASE_ROLES))
+    observed_cases: dict[str, str] = {}
+    for index, raw_item in enumerate(cases):
+        item = _closed(
+            raw_item,
+            {"dossier_route", "id", "manifest_path", "manifest_sha256", "role"},
+            f"elasticity evidence_cases[{index}]",
+        )
+        case_id = _text(item["id"], f"elasticity evidence_cases[{index}].id", 128)
+        if case_id not in ELASTICITY_CASE_ROLES:
+            _fail("case-set", f"unknown elasticity case {case_id}")
+        manifest = _case_path(case_id)
+        if item["manifest_path"] != manifest or item["role"] != ELASTICITY_CASE_ROLES[case_id]:
+            _fail("case-set", f"elasticity case binding differs for {case_id}")
+        if item["dossier_route"] != _dossier_route(case_id, revision):
+            _fail("case-route", f"elasticity dossier route differs for {case_id}")
+        if item["manifest_sha256"] != _sha(_source_blob(root, revision, manifest)):
+            _fail("case-digest", f"elasticity manifest digest differs for {case_id}")
+        observed_cases[case_id] = item["role"]
+    if list(observed_cases) != sorted(ELASTICITY_CASE_ROLES) or observed_cases != ELASTICITY_CASE_ROLES:
+        _fail("case-set", "elasticity case identities or order differ")
+
+    lineage = _closed(
+        payload["lineage"],
+        {"field", "identities", "methods"},
+        "elasticity lineage",
+    )
+    identities = _closed(
+        lineage["identities"],
+        {
+            "correspondence_digest",
+            "evidence_plan_key",
+            "geometry_digest",
+            "mesh_digest",
+            "model_digest",
+            "plan_identity",
+            "result_plan_key",
+        },
+        "elasticity lineage identities",
+    )
+    for key, value in identities.items():
+        _hex(value, f"elasticity lineage identities.{key}")
+    if not (
+        identities["plan_identity"]
+        == identities["result_plan_key"]
+        == identities["evidence_plan_key"]
+    ):
+        _fail("lineage", "elasticity Plan, Result, and observation identities differ")
+    methods = {
+        "displacement_output": "Result.output(Plan.field)",
+        "evidence_plan_key": "solid.linear_elasticity_evidence(Result).plan_key",
+        "model_digest": "Result.model_digest",
+        "plan_identity": "Plan.identity",
+        "result_plan_key": "Result.plan_key",
+    }
+    if lineage["methods"] != methods:
+        _fail("lineage-method", "elasticity lineage method owners differ")
+    field = _closed(
+        lineage["field"],
+        {"association", "components", "field", "model_digest", "source_unit", "vertex_count"},
+        "elasticity displacement field",
+    )
+    if field != {
+        "association": "vertex vector",
+        "components": 2,
+        "field": "displacement",
+        "model_digest": identities["model_digest"],
+        "source_unit": "m",
+        "vertex_count": 289,
+    }:
+        _fail("lineage", "elasticity displacement projection differs")
+
+    text_item = _closed(payload["text"], {"alt", "caption"}, "elasticity text")
+    expected_caption = (
+        "Reference and scale-1 deformed meshes for the bounded mixed-boundary "
+        f"elasticity workflow at {revision}; presentation only, not validation."
+    )
+    if text_item != {"alt": ELASTICITY_ALT, "caption": expected_caption}:
+        _fail("text", "elasticity alt text or caption differs")
+    claim = _closed(
+        payload["claim"],
+        {"case_dossier_routes", "evidence_route", "nonclaims", "pixels_are_validation", "public_claim"},
+        "elasticity claim",
+    )
+    if claim != {
+        "case_dossier_routes": [_dossier_route(case_id, revision) for case_id in sorted(ELASTICITY_CASE_ROLES)],
+        "evidence_route": "/evidence/",
+        "nonclaims": ELASTICITY_NONCLAIMS,
+        "pixels_are_validation": False,
+        "public_claim": ELASTICITY_CLAIM,
+    }:
+        _fail("claim", "elasticity claim boundary differs")
+    if payload["renderer"] != {
+        "backend": "matplotlib/Agg",
+        "displacement_scale": 1.0,
+        "figure_source": "eqiora.matplotlib.plot_deformed_field",
+    }:
+        _fail("renderer", "elasticity renderer profile differs")
+
+    media = _closed(
+        payload["media"],
+        {
+            "bit_depth", "byte_size", "chunk_types", "color_type",
+            "height", "interlace", "mime", "nonblank", "path", "pixel_mode",
+            "sha256", "width",
+        },
+        "elasticity media",
+    )
+    if media["path"] != ELASTICITY_MEDIA or media["mime"] != "image/png" or media["nonblank"] is not True:
+        _fail("media", "elasticity media path, MIME, or nonblank declaration differs")
+    raw_media = _read_regular(media_path, MAX_MEDIA_BYTES, "elasticity media")
+    if media["byte_size"] != len(raw_media) or media["sha256"] != _sha(raw_media):
+        _fail("media-digest", "elasticity media byte size or digest differs")
+    structure, _decoded, chunks = _decode_png(
+        raw_media,
+        width=ELASTICITY_WIDTH,
+        height=ELASTICITY_HEIGHT,
+        dpi=ELASTICITY_DPI,
+        software=ELASTICITY_PNG_SOFTWARE,
+    )
+    for key, value in structure.items():
+        if media[key] != value:
+            _fail("png-record", f"elasticity PNG {key} differs")
+    if media["chunk_types"] != chunks:
+        _fail("png-record", "elasticity PNG chunks differ")
+    return {
+        "entry_id": ELASTICITY_ENTRY_ID,
+        "media_sha256": media["sha256"],
+        "mode": "verify-installed",
+        "predicate": ELASTICITY_PREDICATE_SCHEMA,
+        "publication_payload_sha256": wrapper["publication_payload_sha256"],
+        "schema": RESULT_SCHEMA,
+        "source_revision": revision,
+        "status": "accepted",
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -921,15 +1174,26 @@ def main(argv: list[str] | None = None) -> int:
         root = root_input.resolve()
         record = Path(os.path.abspath(arguments.record))
         if arguments.mode == "verify-installed":
-            expected_record = Path(os.path.abspath(root_input / FINAL_RECORD))
-            if record != expected_record:
-                _fail("path", f"installed record must be {FINAL_RECORD}")
-            result = check_publication(
-                repository_root=root,
-                record_path=record,
-                media_path=Path(os.path.abspath(root_input / FINAL_MEDIA)),
-                receipt_path=None,
-            )
+            records = {
+                Path(os.path.abspath(root_input / FINAL_RECORD)): FINAL_MEDIA,
+                Path(os.path.abspath(root_input / ELASTICITY_RECORD)): ELASTICITY_MEDIA,
+            }
+            if record not in records:
+                _fail("path", "installed record is not an admitted concrete gallery profile")
+            media = Path(os.path.abspath(root_input / records[record]))
+            if record.name == Path(ELASTICITY_RECORD).name:
+                result = check_elasticity_publication(
+                    repository_root=root,
+                    record_path=record,
+                    media_path=media,
+                )
+            else:
+                result = check_publication(
+                    repository_root=root,
+                    record_path=record,
+                    media_path=media,
+                    receipt_path=None,
+                )
         else:
             result = check_publication(
                 repository_root=root,

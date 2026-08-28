@@ -680,7 +680,7 @@ test('05 stable route-partition order, duplicate, and missing mutants are causal
 
   {
     const ordinary = createOrdinaryRoutePlan();
-    expect(assertOrdinaryRoutePlan(ordinary)).toHaveLength(34);
+    expect(assertOrdinaryRoutePlan(ordinary)).toHaveLength(35);
     const mutant = {
       A: [...ordinary.A, '/evidence/'],
       B: [...ordinary.B],
@@ -691,7 +691,7 @@ test('05 stable route-partition order, duplicate, and missing mutants are causal
 
   {
     const ordinary = createOrdinaryRoutePlan();
-    expect(assertOrdinaryRoutePlan(ordinary)).toHaveLength(34);
+    expect(assertOrdinaryRoutePlan(ordinary)).toHaveLength(35);
     const mutant = { A: ordinary.A.slice(1), B: [...ordinary.B], C: [...ordinary.C] };
     expect(() => assertOrdinaryRoutePlan(mutant)).toThrow('ORDER-MISSING: /evidence/');
   }

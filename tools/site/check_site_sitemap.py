@@ -22,6 +22,7 @@ SITEMAP_ROUTES = (
     "/examples/",
     "/gallery/",
     "/gallery/exact-cylinder-steady-stokes/",
+    "/gallery/mixed-boundary-elasticity/",
     "/get-started/",
     "/python/",
     "/python/differentiation/",
