@@ -124,7 +124,7 @@ model = eqiora.compile(
 )
 ```
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L66-L74">Eqiora source form: canonical Marimo replay cell</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L60-L73">Eqiora source form: canonical Marimo compile cell</ExactSourceLink>
 · <ExactSourceLink path="verify/artifacts/current-model-canonical-identity/README.md" kind="blob">current Model identity dossier</ExactSourceLink>
 
 </NotebookStage>
@@ -195,7 +195,7 @@ The current Gmsh output is presentation input, not a fixed mesh or scientific or
 
 </Aside>
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L54-L63">canonical Marimo mesh cell</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L48-L57">canonical Marimo mesh cell</ExactSourceLink>
 · <ExactSourceLink path="examples/python/exact_cylinder_mesh.py" kind="blob">plain Python mesh adapter</ExactSourceLink>
 
 </NotebookStage>
@@ -204,7 +204,7 @@ The current Gmsh output is presentation input, not a fixed mesh or scientific or
 
 The root resolver combines the accepted `Model` and `Mesh` with typed spatial
 and linear-solve policies. Scaling is derived when `scaling=None`. The
-application submits the resulting common `Plan` and obtains one common
+application runs the resulting common `Plan` directly and obtains one common
 `Result`.
 
 ```python
@@ -220,15 +220,14 @@ plan = eqiora.resolve(
     solve=linear,
     scaling=None,
 )
-run = eqiora.submit(plan)
-result = run.result()
+result = eqiora.run(plan)
 ```
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L77-L95">Eqiora source form: canonical intent/submit/result cells</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L77-L96">Eqiora source form: canonical resolve/run/result cells</ExactSourceLink>
 
 The real carriers in that composition are `Geometry`, `MeshPlan`, `Mesh`,
-`Model`, `Plan`, `Run`, `Result`, and `SteadyStokesEvidence`. The common
-lifecycle exposes the following public identities:
+`Model`, `Plan`, and `Result`. The common lifecycle exposes the following
+public identities:
 
 | Carrier boundary | Public identity |
 | --- | --- |
@@ -252,7 +251,6 @@ common `Result` and passes it to the general scalar-field adapter:
 
 ```python
 pressure = result.output(plan.pressure_field)
-evidence = eqiora.fluid.steady_stokes_evidence(result)
 pressure_figure = eqplot.plot_scalar_field(result, field=plan.pressure_field)
 ```
 
