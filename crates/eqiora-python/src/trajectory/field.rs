@@ -161,6 +161,190 @@ pub(crate) struct PyFieldSnapshot {
     blocks: Vec<ProjectedBlock>,
 }
 
+/// Immutable typed result of one mathematical operation over an accepted
+/// spatial Field snapshot.
+#[pyclass(
+    name = "DerivedFieldSnapshot",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    skip_from_py_object
+)]
+pub(crate) struct PyDerivedFieldSnapshot {
+    digest: String,
+    source_state_digest: String,
+    source_field: Py<PyModelFieldRef>,
+    source_field_id: String,
+    mesh_digest: String,
+    support_domain_id: String,
+    operator: &'static str,
+    dimension: DimExponents,
+    value_shape: Vec<u32>,
+    frame: &'static str,
+    blocks: Vec<ProjectedBlock>,
+}
+
+impl PartialEq for PyDerivedFieldSnapshot {
+    fn eq(&self, other: &Self) -> bool {
+        self.digest == other.digest
+    }
+}
+
+impl Eq for PyDerivedFieldSnapshot {}
+
+impl Hash for PyDerivedFieldSnapshot {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.digest.hash(state);
+    }
+}
+
+impl PyDerivedFieldSnapshot {
+    pub(super) fn from_cell_average_curl(
+        py: Python<'_>,
+        model_digest: &str,
+        source_state_digest: &str,
+        source_field: &PyModelFieldRef,
+        mesh_digest: &str,
+        support_domain_id: &str,
+        values: &[f64],
+    ) -> PyResult<Self> {
+        const INVERSE_TIME: DimExponents = DimExponents {
+            time: -1,
+            ..DimExponents::DIMENSIONLESS
+        };
+        let source_field_id = source_field.exact_id().to_owned();
+        let block = common_scalar_block("cell", values)?;
+        let mut hasher = Sha256::new();
+        hasher.update(b"eqiora.common-derived-field-snapshot/v1\0");
+        for value in [
+            model_digest,
+            source_state_digest,
+            source_field_id.as_str(),
+            mesh_digest,
+            support_domain_id,
+            "curl/cell-average-2d",
+            block.digest.as_str(),
+        ] {
+            hasher.update((value.len() as u64).to_be_bytes());
+            hasher.update(value.as_bytes());
+        }
+        Ok(Self {
+            digest: hex_sha256(hasher.finalize().as_slice()),
+            source_state_digest: source_state_digest.to_owned(),
+            source_field: Py::new(
+                py,
+                PyModelFieldRef::from_exact(model_digest.to_owned(), source_field_id.clone()),
+            )?,
+            source_field_id,
+            mesh_digest: mesh_digest.to_owned(),
+            support_domain_id: support_domain_id.to_owned(),
+            operator: "curl",
+            dimension: INVERSE_TIME,
+            value_shape: Vec::new(),
+            frame: "spatial-axial",
+            blocks: vec![block],
+        })
+    }
+}
+
+#[pymethods]
+impl PyDerivedFieldSnapshot {
+    #[getter]
+    fn digest(&self) -> &str {
+        &self.digest
+    }
+
+    #[getter]
+    fn source_state_digest(&self) -> &str {
+        &self.source_state_digest
+    }
+
+    #[getter]
+    fn source_field(&self, py: Python<'_>) -> Py<PyModelFieldRef> {
+        self.source_field.clone_ref(py)
+    }
+
+    #[getter]
+    fn mesh_digest(&self) -> &str {
+        &self.mesh_digest
+    }
+
+    #[getter]
+    fn support_domain_id(&self) -> &str {
+        &self.support_domain_id
+    }
+
+    #[getter]
+    fn operator(&self) -> &'static str {
+        self.operator
+    }
+
+    #[getter]
+    fn dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
+        (
+            self.dimension.mass,
+            self.dimension.length,
+            self.dimension.time,
+            self.dimension.current,
+            self.dimension.temperature,
+            self.dimension.amount,
+            self.dimension.luminous_intensity,
+        )
+    }
+
+    #[getter]
+    fn value_shape(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, self.value_shape.iter().copied())?.unbind())
+    }
+
+    #[getter]
+    fn frame(&self) -> &'static str {
+        self.frame
+    }
+
+    #[getter]
+    fn associations(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, self.blocks.iter().map(|block| block.association))?.unbind())
+    }
+
+    #[getter]
+    fn block_digests(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let entries = self
+            .blocks
+            .iter()
+            .map(|block| (block.association, block.digest.as_str()));
+        Ok(PyTuple::new(py, entries)?.unbind())
+    }
+
+    #[pyo3(signature = (association, /))]
+    fn values(&self, py: Python<'_>, association: &str) -> PyResult<Py<PyAny>> {
+        self.blocks
+            .iter()
+            .find(|block| block.association == association)
+            .ok_or_else(|| PyKeyError::new_err(association.to_owned()))?
+            .values
+            .numpy(py)
+    }
+
+    #[pyo3(signature = (association, /))]
+    fn support_indices(&self, py: Python<'_>, association: &str) -> PyResult<Py<PyArray1<u32>>> {
+        self.blocks
+            .iter()
+            .find(|block| block.association == association)
+            .ok_or_else(|| PyKeyError::new_err(association.to_owned()))?
+            .support_indices
+            .numpy(py)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "DerivedFieldSnapshot(operator={:?}, source_field_id={:?}, digest={:?})",
+            self.operator, self.source_field_id, self.digest,
+        )
+    }
+}
+
 impl PartialEq for PyFieldSnapshot {
     fn eq(&self, other: &Self) -> bool {
         self.digest == other.digest

@@ -861,8 +861,30 @@ assert np.max(np.abs(np.asarray(steady_velocity.vertex_values))) > 0.0
 assert state.field(plan.velocity_field).associations == ("vertex", "cell")
 result = package.run(plan, state=state, steps=1, output_steps=(1,))
 assert len(result.trajectory.states) == 1
-assert result.trajectory.states[0].time_s == 0.0001
-assert np.max(np.abs(result.trajectory.states[0].field(plan.velocity_field).values("vertex"))) > 0.0
+wake_state = result.trajectory.states[0]
+assert wake_state.time_s == 0.0001
+assert np.max(np.abs(wake_state.field(plan.velocity_field).values("vertex"))) > 0.0
+vorticity = wake_state.curl(plan.velocity_field)
+assert vorticity.operator == "curl"
+assert vorticity.source_state_digest == wake_state.digest
+assert vorticity.source_field == plan.velocity_field
+assert vorticity.mesh_digest == mesh.digest
+assert vorticity.support_domain_id == wake_state.field(plan.velocity_field).support_domain_id
+assert vorticity.dimension == (0, 0, -1, 0, 0, 0, 0)
+assert vorticity.value_shape == ()
+assert vorticity.frame == "spatial-axial"
+assert vorticity.associations == ("cell",)
+assert np.array_equal(vorticity.support_indices("cell"), np.arange(mesh.cell_count, dtype=np.uint32))
+assert np.all(np.isfinite(vorticity.values("cell")))
+assert np.max(np.abs(vorticity.values("cell"))) > 0.0
+assert not vorticity.values("cell").flags.writeable
+assert wake_state.curl(plan.velocity_field) == vorticity
+try:
+    wake_state.curl(plan.pressure_field)
+except ValueError as error:
+    assert "velocity FieldRef" in str(error)
+else:
+    raise AssertionError("curl accepted the pressure Field")
 "#),
             None,
             Some(&locals),
