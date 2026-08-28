@@ -10,7 +10,7 @@ use eqiora_ir::{
 };
 use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{
-    BoundarySide, ExprDag, ExprId, ExprNode, KernelNode, SymbolRef, ValueFrame,
+    BoundarySide, DomainKind, ExprDag, ExprId, ExprNode, KernelNode, SymbolRef, ValueFrame,
 };
 use eqiora_sem::KernelProgram;
 
@@ -29,6 +29,11 @@ use super::support::{
     continuum_representation, has_edge, lowering_error, model_lowering_error, relation_expression,
     relations_on, require_continuous_relation, typed_relation, unique_root,
 };
+
+mod geometry;
+
+pub(super) use geometry::lower_transient_incompressible_navier_stokes_geometry_2d;
+pub(crate) use geometry::recognize_transient_incompressible_navier_stokes_geometry_mathematics;
 
 const VELOCITY_DIMENSION: DimExponents = DimExponents {
     length: 1,
@@ -79,7 +84,7 @@ pub struct TransientIncompressibleNavierStokesCartesianModel<const D: usize> {
 
 /// Crate-private two-dimensional projection shared by transient execution paths.
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct TransientIncompressibleNavierStokesModel2d {
+pub(crate) struct TransientIncompressibleNavierStokesModel2d {
     pub(super) domain: RawId,
     pub(super) velocity: RawId,
     pub(super) pressure: RawId,
@@ -94,7 +99,9 @@ pub(super) struct TransientIncompressibleNavierStokesModel2d {
     pub(super) boundary_dispositions: BTreeMap<RawId, PhysicalBoundaryDisposition>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
     pub(super) normal_velocity_expressions: BTreeMap<RawId, ScalarSpatialExpression>,
+    pub(super) named_boundary_ids: BTreeMap<String, RawId>,
     pub(super) stress_form: IncompressibleStressForm,
+    pub(super) geometry_source_digest: Option<[u8; 32]>,
 }
 
 impl TransientIncompressibleNavierStokesModel2d {
@@ -108,6 +115,25 @@ impl TransientIncompressibleNavierStokesModel2d {
         self.dynamic_viscosity
             .constant_value()
             .expect("transient-flow lowerer retains a constant viscosity tape")
+    }
+
+    pub(super) fn geometry_source_digest(&self) -> Option<[u8; 32]> {
+        self.geometry_source_digest
+    }
+
+    pub(super) fn prescribed_normal_velocity(
+        &self,
+        boundary: RawId,
+        outward_normal: [f64; 2],
+        coordinates: &[f64],
+    ) -> Result<Option<[f64; 2]>, Diagnostic> {
+        self.normal_velocity_expressions
+            .get(&boundary)
+            .map(|expression| {
+                let speed = expression.evaluate(coordinates)?;
+                Ok(outward_normal.map(|component| component * speed))
+            })
+            .transpose()
     }
 
     pub(super) fn conservative_body_force(
@@ -261,7 +287,7 @@ impl<const D: usize> TransientIncompressibleNavierStokesCartesianModel<D> {
 }
 
 impl TransientIncompressibleNavierStokesCartesianModel2d {
-    pub(super) fn common_projection(&self) -> TransientIncompressibleNavierStokesModel2d {
+    pub(crate) fn common_projection(&self) -> TransientIncompressibleNavierStokesModel2d {
         TransientIncompressibleNavierStokesModel2d {
             domain: self.domain,
             velocity: self.velocity,
@@ -289,7 +315,9 @@ impl TransientIncompressibleNavierStokesCartesianModel2d {
                         .map(|entry| (entry.boundary(), expression.clone()))
                 })
                 .collect(),
+            named_boundary_ids: BTreeMap::new(),
             stress_form: IncompressibleStressForm::SymmetricNewtonian,
+            geometry_source_digest: None,
         }
     }
 }

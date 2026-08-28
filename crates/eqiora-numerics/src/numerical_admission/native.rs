@@ -184,6 +184,7 @@ pub(super) enum RecognizedNativeModel {
     Elasticity(Box<IsotropicElasticityCartesianModel2d>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
+    TransientGeometry(Box<TransientNavierStokesGeometryBinding2d>),
     Fsi(Box<FixedReferenceFsiCartesianModel2d>),
 }
 
@@ -204,8 +205,10 @@ impl RecognizedNativeAdmission {
         let resources = owner.resources;
         let program = replay_program(model, resources.geometry())?;
         let transient = lower_transient_incompressible_navier_stokes_cartesian_2d(&program);
+        let transient_geometry =
+            recognize_transient_incompressible_navier_stokes_geometry_mathematics(&program);
         let fsi = lower_fixed_reference_fsi_geometry_2d(&program, resources.geometry());
-        let capability = recognize_capability(&program, &transient, &fsi)?;
+        let capability = recognize_capability(&program, &transient, &transient_geometry, &fsi)?;
         let recognized = recognize_exact_model(capability, &program, &resources, transient, fsi)?;
         let model_digest = model.digest()?.to_string();
         Ok(Self {

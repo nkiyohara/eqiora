@@ -214,8 +214,35 @@ impl PyState {
                 .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
             return Ok(Self::from_common_ode(py, plan, state, None));
         }
+        if let Some(native_plan) = plan.transient_native() {
+            let fields = fields.ok_or_else(|| {
+                PyValueError::new_err(
+                    "transient State.initial requires fields=(InitialField(...), ...)",
+                )
+            })?;
+            let time_s = time_s.ok_or_else(|| {
+                PyValueError::new_err("transient State.initial requires explicit time_s=")
+            })?;
+            let fields = fields
+                .iter()
+                .map(|value| {
+                    value
+                        .extract::<PyRef<'_, PyInitialField>>()
+                        .map(|field| field.native.clone())
+                        .map_err(|_| {
+                            PyValueError::new_err("fields must contain only InitialField values")
+                        })
+                })
+                .collect::<PyResult<Vec<_>>>()?;
+            let state = native_plan
+                .initial_state(time_s, fields)
+                .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+            return Self::from_common(py, plan, state, 0, None, None);
+        }
         let native_plan = plan.fsi_native().ok_or_else(|| {
-            PyValueError::new_err("State.initial requires an ODE or fixed-reference FSI Plan")
+            PyValueError::new_err(
+                "State.initial requires an ODE, transient-flow, or fixed-reference FSI Plan",
+            )
         })?;
         let fields = fields.ok_or_else(|| {
             PyValueError::new_err("FSI State.initial requires fields=(InitialField(...), ...)")

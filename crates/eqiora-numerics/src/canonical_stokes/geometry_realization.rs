@@ -505,14 +505,14 @@ fn boundary_flux(
     Ok(total)
 }
 
-fn normalize_geometry_mesh(
+pub(super) fn normalize_geometry_mesh(
     bounds: &[[f64; 2]; DIMENSION],
     mesh: &SimplicialMesh,
     length: f64,
 ) -> Result<SimplicialMesh, Diagnostic> {
     if mesh.topological_dimension() != DIMENSION {
         return Err(invalid(
-            "geometry-backed coherent-SI MINI Stokes requires an intrinsic 2D mesh",
+            "geometry-backed coherent-SI MINI flow requires an intrinsic 2D mesh",
         ));
     }
     let vertices = mesh
@@ -526,7 +526,7 @@ fn normalize_geometry_mesh(
                     .any(|(axis, value)| *value < bounds[axis][0] || *value > bounds[axis][1])
             {
                 return Err(invalid(
-                    "geometry-backed Stokes mesh has a vertex outside the exact source bounds",
+                    "geometry-backed flow mesh has a vertex outside the exact source bounds",
                 ));
             }
             Ok(vec![

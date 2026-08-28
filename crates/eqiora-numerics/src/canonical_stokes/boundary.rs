@@ -56,6 +56,7 @@ pub(super) struct LoweredNamedStokesBoundary2d {
     pub(super) prescribed_velocity_traces: BTreeMap<String, SteadyStokesPrescribedVelocityTrace2d>,
     pub(super) prescribed_velocity_fields: BTreeSet<RawId>,
     pub(super) prescribed_velocity_definitions: BTreeSet<RawId>,
+    pub(super) normal_velocity_expressions: BTreeMap<String, ScalarSpatialExpression>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
     pub(super) ports: BTreeSet<RawId>,
     pub(super) connections: BTreeSet<RawId>,
@@ -241,12 +242,14 @@ pub(super) fn lower_named_with_stress(
         exact_boundaries,
         stress_form,
     )?;
+    let normal_velocity = normal_velocity_projection(&lowered.prescribed_velocity_traces);
     Ok(LoweredNamedStokesBoundary2d {
         entries: lowered.entries,
         normal_pressure_sources: lowered.normal_pressure_sources,
         prescribed_velocity_traces: lowered.prescribed_velocity_traces,
         prescribed_velocity_fields: lowered.prescribed_velocity_fields,
         prescribed_velocity_definitions: lowered.prescribed_velocity_definitions,
+        normal_velocity_expressions: normal_velocity.expressions,
         boundary_relations: lowered.boundary_relations,
         ports: lowered.ports,
         connections: lowered.connections,

@@ -381,6 +381,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
         recognize_capability(
             &reaction_program,
             &reaction_transient,
+            &Err(invalid("not Geometry transient")),
             &Err(invalid("not FSI"))
         )
         .is_err()
@@ -397,6 +398,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
         recognize_capability(
             &non_stokes_program,
             &non_stokes_transient,
+            &Err(invalid("not Geometry transient")),
             &Err(invalid("not FSI"))
         )
         .is_err()

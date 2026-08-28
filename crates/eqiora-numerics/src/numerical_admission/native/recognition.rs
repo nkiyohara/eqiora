@@ -107,6 +107,7 @@ pub(crate) fn resource_artifact_digests(
 pub(crate) fn recognize_capability(
     program: &KernelProgram,
     transient: &Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
+    transient_geometry: &Result<(), Diagnostic>,
     fsi: &Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
 ) -> Result<NativeCapability, Diagnostic> {
     let scalar = recognize_scalar_elliptic_geometry_mathematics(program);
@@ -116,7 +117,7 @@ pub(crate) fn recognize_capability(
         scalar.is_ok(),
         elasticity.is_ok(),
         stokes.is_ok(),
-        transient.is_ok(),
+        transient.is_ok() || transient_geometry.is_ok(),
         fsi.is_ok(),
     ];
     if recognized.into_iter().filter(|matched| *matched).count() > 1 {
@@ -133,7 +134,7 @@ pub(crate) fn recognize_capability(
     if stokes.is_ok() {
         return Ok(NativeCapability::SteadyIncompressibleStokes);
     }
-    if transient.is_ok() {
+    if transient.is_ok() || transient_geometry.is_ok() {
         return Ok(NativeCapability::TransientIncompressibleFlow);
     }
     if fsi.is_ok() {
@@ -142,18 +143,25 @@ pub(crate) fn recognize_capability(
     let scalar = scalar.unwrap_err();
     let elasticity = elasticity.unwrap_err();
     let stokes = stokes.unwrap_err();
-    let transient = transient.as_ref().unwrap_err();
+    let transient_message = match (transient.as_ref(), transient_geometry.as_ref()) {
+        (Err(cartesian), Err(geometry)) => format!(
+            "Cartesian [{}: {}]; Geometry [{}: {}]",
+            cartesian.code(),
+            cartesian.message(),
+            geometry.code(),
+            geometry.message()
+        ),
+        _ => unreachable!("recognized transient handled above"),
+    };
     let fsi = fsi.as_ref().unwrap_err();
     Err(invalid(format!(
-        "Model mathematical meaning matches no native capability: scalar [{}: {}]; elasticity [{}: {}]; Stokes [{}: {}]; transient flow [{}: {}]; FSI [{}: {}]",
+        "Model mathematical meaning matches no native capability: scalar [{}: {}]; elasticity [{}: {}]; Stokes [{}: {}]; transient flow [{transient_message}]; FSI [{}: {}]",
         scalar.code(),
         scalar.message(),
         elasticity.code(),
         elasticity.message(),
         stokes.code(),
         stokes.message(),
-        transient.code(),
-        transient.message(),
         fsi.code(),
         fsi.message(),
     )))
@@ -207,6 +215,22 @@ pub(crate) fn recognize_exact_model(
         )
         .map(Box::new)
         .map(RecognizedNativeModel::Stokes),
+        (
+            NativeCapability::TransientIncompressibleFlow,
+            NativeMeshResources::GmshSimplicial {
+                geometry,
+                mesh,
+                correspondence,
+                ..
+            },
+        ) => TransientNavierStokesGeometryBinding2d::new_authenticated(
+            program,
+            geometry,
+            mesh,
+            correspondence,
+        )
+        .map(Box::new)
+        .map(RecognizedNativeModel::TransientGeometry),
         (NativeCapability::TransientIncompressibleFlow, _) => {
             let transient = transient?;
             let exact_bounds = resources

@@ -1,6 +1,6 @@
 //! Coherent-SI reference realization of the fixed-domain transient flow subset.
 
-mod boundary;
+pub(super) mod boundary;
 
 use std::num::{NonZeroU16, NonZeroUsize};
 
@@ -70,13 +70,13 @@ impl TransientNavierStokesRun2d {
 /// numerical normalization.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransientNavierStokesInitialState2d {
-    time: DynQuantity,
-    mesh_artifact: MeshArtifactReference,
-    velocity_field: Id<kinds::Field>,
-    pressure_field: Id<kinds::Field>,
-    velocity: SimplicialMiniVelocityField2d,
-    pressure: SimplicialP1Field,
-    pressure_reference: super::SteadyStokesPressureReference2d,
+    pub(super) time: DynQuantity,
+    pub(super) mesh_artifact: MeshArtifactReference,
+    pub(super) velocity_field: Id<kinds::Field>,
+    pub(super) pressure_field: Id<kinds::Field>,
+    pub(super) velocity: SimplicialMiniVelocityField2d,
+    pub(super) pressure: SimplicialP1Field,
+    pub(super) pressure_reference: super::SteadyStokesPressureReference2d,
 }
 
 impl TransientNavierStokesInitialState2d {
@@ -90,6 +90,24 @@ impl TransientNavierStokesInitialState2d {
     /// Returns `EQ0807` for invalid time or mismatched velocity/pressure mesh.
     pub fn new(
         model: &TransientIncompressibleNavierStokesCartesianModel2d,
+        time: DynQuantity,
+        mesh_artifact: MeshArtifactReference,
+        velocity: SimplicialMiniVelocityField2d,
+        pressure: SimplicialP1Field,
+        pressure_reference: super::SteadyStokesPressureReference2d,
+    ) -> Result<Self, Diagnostic> {
+        Self::new_for_model(
+            &model.common_projection(),
+            time,
+            mesh_artifact,
+            velocity,
+            pressure,
+            pressure_reference,
+        )
+    }
+
+    pub(crate) fn new_for_model(
+        model: &TransientIncompressibleNavierStokesModel2d,
         time: DynQuantity,
         mesh_artifact: MeshArtifactReference,
         velocity: SimplicialMiniVelocityField2d,
@@ -114,12 +132,11 @@ impl TransientNavierStokesInitialState2d {
                 "transient initial pressure-reference evidence must be finite",
             ));
         }
-        let common = model.common_projection();
         Ok(Self {
             time,
             mesh_artifact,
-            velocity_field: velocity_id(&common),
-            pressure_field: pressure_id(&common),
+            velocity_field: velocity_id(model),
+            pressure_field: pressure_id(model),
             velocity,
             pressure,
             pressure_reference,
@@ -518,7 +535,7 @@ pub fn advance_resolved_transient_navier_stokes_mini_2d_with_assembly(
     let states = numerical
         .states()
         .iter()
-        .map(|state| reconstruct_state(state, mesh_data, &model, scales))
+        .map(|state| reconstruct_state(state, mesh_data, &common, scales))
         .collect::<Result<Vec<_>, Diagnostic>>()?;
     Ok(ResolvedTransientNavierStokesTrajectory2d {
         model,
@@ -533,7 +550,7 @@ pub fn advance_resolved_transient_navier_stokes_mini_2d_with_assembly(
     })
 }
 
-fn normalize_state(
+pub(super) fn normalize_state(
     state: &TransientNavierStokesInitialState2d,
     mesh: &SimplicialMesh,
     scales: IncompressibleFlowScaleProfile2d,
@@ -597,13 +614,12 @@ fn normalize_state(
     .map_err(|error| invalid_realization(error.message()))
 }
 
-fn reconstruct_state(
+pub(super) fn reconstruct_state(
     state: &SimplicialMiniNavierStokesState2d,
     mesh: &SimplicialMesh,
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    model: &TransientIncompressibleNavierStokesModel2d,
     scales: IncompressibleFlowScaleProfile2d,
 ) -> Result<ResolvedTransientNavierStokesState2d, Diagnostic> {
-    let common = model.common_projection();
     let velocity = SimplicialMiniVelocityField2d::new(
         mesh.clone(),
         state
@@ -659,8 +675,8 @@ fn reconstruct_state(
     }
     Ok(ResolvedTransientNavierStokesState2d {
         time,
-        velocity_field: velocity_id(&common),
-        pressure_field: pressure_id(&common),
+        velocity_field: velocity_id(model),
+        pressure_field: pressure_id(model),
         velocity,
         pressure,
         pressure_reference,
@@ -929,6 +945,6 @@ fn realization_error(error: Diagnostic) -> Diagnostic {
     invalid_realization(error.message())
 }
 
-fn invalid_realization(message: impl Into<String>) -> Diagnostic {
+pub(super) fn invalid_realization(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
 }

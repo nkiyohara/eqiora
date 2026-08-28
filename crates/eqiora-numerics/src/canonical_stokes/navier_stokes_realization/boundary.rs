@@ -14,7 +14,7 @@ use crate::simplicial_stokes::{
 
 const DIMENSION: usize = 2;
 
-pub(super) fn pressure_uses_gauge(
+pub(crate) fn pressure_uses_gauge(
     model: &TransientIncompressibleNavierStokesModel2d,
 ) -> Result<bool, Diagnostic> {
     let mut essential = 0_usize;

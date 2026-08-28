@@ -74,6 +74,8 @@ public component MixedBoundaryElasticity {
 "#;
 const TRANSIENT_SOURCE: &str =
     include_str!("../../../../verify/fluid/cell-centered-navier-stokes-fvm-2d/models/direct.eqi");
+const TRANSIENT_CYLINDER_COMPONENT: &str =
+    include_str!("../../../../examples/transient-flow-past-cylinder.eqi");
 
 type SupportBinding<'a> = (
     &'a str,
@@ -168,6 +170,10 @@ fn scalar_document(geometry: &CanonicalGeometryV1, source_scale: f64) -> ModelDo
 }
 
 fn stokes_document(geometry: &CanonicalGeometryV1) -> ModelDocument {
+    stokes_document_with_speed(geometry, 0.3)
+}
+
+fn stokes_document_with_speed(geometry: &CanonicalGeometryV1, inlet_speed: f64) -> ModelDocument {
     let fluid = geometry.entity_set("fluid").unwrap();
     let supports: [SupportBinding<'_>; 5] = [
         ("fluid", fluid, None),
@@ -220,7 +226,7 @@ fn stokes_document(geometry: &CanonicalGeometryV1) -> ModelDocument {
         (
             "inlet_speed",
             DynQuantity::new(
-                0.3,
+                inlet_speed,
                 DimExponents {
                     length: 1,
                     time: -1,
@@ -245,6 +251,108 @@ fn stokes_document(geometry: &CanonicalGeometryV1) -> ModelDocument {
         geometry,
         "SteadyFlowPastCylinderModel",
         "SteadyFlowPastCylinder",
+        &supports,
+        &parameters,
+    )
+    .unwrap()
+}
+
+fn transient_cylinder_document(geometry: &CanonicalGeometryV1) -> ModelDocument {
+    transient_cylinder_document_with_speed(geometry, 0.3)
+}
+
+fn transient_cylinder_document_with_speed(
+    geometry: &CanonicalGeometryV1,
+    inlet_speed: f64,
+) -> ModelDocument {
+    let fluid = geometry.entity_set("fluid").unwrap();
+    let supports: [SupportBinding<'_>; 5] = [
+        ("fluid", fluid, None),
+        (
+            "inlet",
+            geometry.entity_set("inlet").unwrap(),
+            Some(("fluid", fluid)),
+        ),
+        (
+            "outlet",
+            geometry.entity_set("outlet").unwrap(),
+            Some(("fluid", fluid)),
+        ),
+        (
+            "walls",
+            geometry.entity_set("walls").unwrap(),
+            Some(("fluid", fluid)),
+        ),
+        (
+            "cylinder",
+            geometry.entity_set("cylinder").unwrap(),
+            Some(("fluid", fluid)),
+        ),
+    ];
+    let parameters = [
+        (
+            "density",
+            DynQuantity::new(
+                1.0,
+                DimExponents {
+                    mass: 1,
+                    length: -3,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        ),
+        (
+            "dynamic_viscosity",
+            DynQuantity::new(
+                0.001,
+                DimExponents {
+                    mass: 1,
+                    length: -1,
+                    time: -1,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        ),
+        (
+            "zero_pressure",
+            DynQuantity::new(
+                0.0,
+                DimExponents {
+                    mass: 1,
+                    length: -1,
+                    time: -2,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        ),
+        (
+            "inlet_speed",
+            DynQuantity::new(
+                inlet_speed,
+                DimExponents {
+                    length: 1,
+                    time: -1,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        ),
+        (
+            "channel_height",
+            DynQuantity::new(
+                0.41,
+                DimExponents {
+                    length: 1,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        ),
+    ];
+    ModelDocument::compile_external_component(
+        "transient-flow-past-cylinder.eqi",
+        TRANSIENT_CYLINDER_COMPONENT,
+        geometry,
+        "TransientFlowPastCylinderModel",
+        "TransientFlowPastCylinder",
         &supports,
         &parameters,
     )
@@ -651,6 +759,128 @@ assert not hasattr(package.fluid, "AUTO")
                 None,
                 Some(&locals),
             )
+    })
+}
+
+#[test]
+fn root_plan_runs_geometry_backed_transient_cylinder_with_explicit_state() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let native = pyo3::wrap_pymodule!(crate::_eqiora)(py);
+        let package_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../bindings/python/python/eqiora")
+            .canonicalize()?;
+        let locals = PyDict::new(py);
+        locals.set_item("native", native.bind(py))?;
+        locals.set_item("package_directory", package_directory.to_string_lossy())?;
+        py.run(
+            c_str!(r#"
+import importlib.util, pathlib, sys
+package_path = pathlib.Path(package_directory)
+spec = importlib.util.spec_from_file_location("eqiora", package_path / "__init__.py", submodule_search_locations=[str(package_path)])
+package = importlib.util.module_from_spec(spec)
+sys.modules["eqiora"] = package
+sys.modules["eqiora._eqiora"] = native
+spec.loader.exec_module(package)
+
+graph = package.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+circle = graph.circle(center=(0.2, 0.2), radius=0.05)
+fluid = graph.subtract(rectangle, circle)
+source = graph.build(fluid, named_topology={
+    "fluid": fluid.region,
+    "inlet": rectangle.boundaries[0],
+    "outlet": rectangle.boundaries[1],
+    "walls": rectangle.boundaries[2:],
+    "cylinder": circle.boundaries[0],
+})
+"#),
+            None,
+            Some(&locals),
+        )?;
+        let geometry = locals
+            .get_item("source")?
+            .unwrap()
+            .extract::<PyRef<'_, PyGeometry>>()?
+            .geometry()
+            .clone();
+        let model =
+            PyModel::from_document(py, transient_cylinder_document_with_speed(&geometry, 0.0))?;
+        let wake_model = PyModel::from_document(py, transient_cylinder_document(&geometry))?;
+        let steady_model = PyModel::from_document(py, stokes_document_with_speed(&geometry, 0.0))?;
+        locals.set_item("model", Py::new(py, model)?)?;
+        locals.set_item("wake_model", Py::new(py, wake_model)?)?;
+        locals.set_item("steady_model", Py::new(py, steady_model)?)?;
+        py.run(
+            c_str!(r#"
+mesher = package.meshing.GmshMesher(maximum_boundary_error=1e-4, minimum_mean_ratio=1e-5, maximum_boundary_facets=50)
+mesh = package.meshing.generate(source, plan=package.meshing.resolve(source, mesher))
+import numpy as np
+linear = package.solve.Linear(relative_tolerance=1e-6, absolute_tolerance=1e-9, maximum_iterations=20000)
+steady_plan = package.resolve(
+    steady_model,
+    mesh=mesh,
+    spatial=package.fem.MiniP1(),
+    solve=linear,
+    scaling=package.fluid.IncompressibleScaling(
+        length_m=0.41,
+        velocity_m_per_s=0.03,
+        pressure_pa=0.001 * 0.03 / 0.41,
+    ),
+)
+steady_result = package.run(steady_plan)
+steady_velocity = steady_result.output(steady_plan.velocity_field)
+steady_pressure = steady_result.output(steady_plan.pressure_field)
+plan = package.resolve(
+    model,
+    mesh=mesh,
+    spatial=package.fem.MiniP1(),
+    solve=package.solve.Newton(linear=linear),
+    temporal=package.time.BackwardEuler(0.0001),
+    scaling=package.fluid.IncompressibleScaling(
+        length_m=0.41,
+        velocity_m_per_s=0.03,
+        pressure_pa=1.0 * 0.03 * 0.03,
+    ),
+)
+wake_plan = package.resolve(
+    wake_model,
+    mesh=mesh,
+    spatial=package.fem.MiniP1(),
+    solve=package.solve.Newton(linear=linear),
+    temporal=package.time.BackwardEuler(0.0001),
+    scaling=package.fluid.IncompressibleScaling(
+        length_m=0.41,
+        velocity_m_per_s=0.3,
+        pressure_pa=1.0 * 0.3 * 0.3,
+    ),
+)
+state = package.State.initial(
+    plan,
+    time_s=0.0,
+    fields=(
+        package.InitialField(
+            plan.velocity_field,
+            vertex_values=np.asarray(steady_velocity.vertex_values).reshape(mesh.vertex_count, 2),
+            cell_values=np.asarray(steady_velocity.cell_bubble_values).reshape(mesh.cell_count, 2),
+        ),
+        package.InitialField(
+            plan.pressure_field,
+            vertex_values=np.asarray(steady_pressure.vertex_values),
+        ),
+    ),
+)
+assert plan.model is model and plan.mesh is mesh
+assert wake_plan.model is wake_model and wake_plan.mesh is mesh
+assert plan.pressure_gauge is package.fluid.PressureGauge2d.BoundaryTraction
+assert state.field(plan.velocity_field).associations == ("vertex", "cell")
+result = package.run(plan, state=state, steps=1, output_steps=(1,))
+assert len(result.trajectory.states) == 1
+assert result.trajectory.states[0].time_s == 0.0001
+"#),
+            None,
+            Some(&locals),
+        )
     })
 }
 
