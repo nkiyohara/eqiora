@@ -61,8 +61,8 @@ impl FieldSnapshotEnvelopeV1 {
     /// representation or the snapshot's semantic meaning.
     ///
     /// # Errors
-    /// Returns `EQ0901` under the same closed-world conditions as [`Self::new`],
-    /// using the exact ALE Realization and immutable reference topology.
+    /// Returns `EQ0901` when the exact ALE Realization, immutable reference
+    /// topology, semantic Field, and normalized coefficient blocks disagree.
     pub fn new_moving<
         M: ReplayableCanonicalModelArtifact,
         R: ReplayableFixedTopologyAleRealizationArtifact,
