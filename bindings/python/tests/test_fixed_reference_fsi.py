@@ -174,7 +174,7 @@ def test_plan_binds_exact_model_mesh_scopes_provider_and_scaling_receipt() -> No
     assert plan.scaling is not None
     assert plan.scaling_receipt.production_digest == mesh.production_lineage_digest
     assert plan.pressure_gauge is None
-    assert plan.solver_algorithm == "minimum-residual"
+    assert plan.solve.algorithm == "minimum-residual"
     assert plan.solver_backend == "eqiora.reference"
     assert plan.execution_provider == "eqiora.host.serial"
     assert plan.placement == "host-serial"

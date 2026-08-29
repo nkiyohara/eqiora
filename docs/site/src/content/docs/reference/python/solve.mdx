@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/po
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/solve.pyi" kind="blob">bindings/python/python/eqiora/solve.pyi</ExactSourceLink>
 
-This module publishes **2** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **4** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-solve-Linear"></a>
 
@@ -64,5 +64,61 @@ class Newton:
     def maximum_line_search_steps(self) -> int: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-solve-ResolvedLinear"></a>
+
+## `ResolvedLinear`
+
+Exact linear algorithm, operator class, and provider selected by resolution.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/resolved_solve.rs" kind="blob">crates/eqiora-python/src/common_plan/resolved_solve.rs::PyResolvedLinear</ExactSourceLink>
+
+```python
+@final
+class ResolvedLinear:
+    @property
+    def algorithm(self) -> str: ...
+    @property
+    def preconditioner(self) -> str: ...
+    @property
+    def reduction(self) -> str: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerance(self) -> float: ...
+    @property
+    def maximum_iterations(self) -> int: ...
+    @property
+    def operator(self) -> str: ...
+    @property
+    def backend(self) -> str: ...
+    @property
+    def backend_version(self) -> str: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-solve-ResolvedNewton"></a>
+
+## `ResolvedNewton`
+
+Exact Newton policy and nested resolved linear solver.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/resolved_solve.rs" kind="blob">crates/eqiora-python/src/common_plan/resolved_solve.rs::PyResolvedNewton</ExactSourceLink>
+
+```python
+@final
+class ResolvedNewton:
+    @property
+    def linear(self) -> ResolvedLinear: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerance(self) -> float: ...
+    @property
+    def maximum_iterations(self) -> int: ...
+    @property
+    def maximum_line_search_steps(self) -> int: ...
     def __repr__(self) -> str: ...
 ```

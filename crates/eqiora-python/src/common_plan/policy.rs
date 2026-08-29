@@ -206,7 +206,21 @@ impl PyCellCentered {
 )]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct PyLinear {
-    pub(super) native: SolverPlan,
+    relative_tolerance: f64,
+    absolute_tolerance: f64,
+    maximum_iterations: NonZeroUsize,
+}
+
+impl PyLinear {
+    pub(super) fn controls(&self) -> SolverPlan {
+        SolverPlan::new(
+            LinearSolver::ConjugateGradient,
+            self.relative_tolerance,
+            self.absolute_tolerance,
+            self.maximum_iterations,
+        )
+        .expect("validated linear controls remain valid")
+    }
 }
 
 #[pymethods]
@@ -227,27 +241,31 @@ impl PyLinear {
             absolute_tolerance,
             maximum_iterations,
         )
-        .map(|native| Self { native })
+        .map(|_| Self {
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+        })
         .map_err(|diagnostic| validation_error(py, &[diagnostic]))
     }
 
     #[getter]
     fn relative_tolerance(&self) -> f64 {
-        self.native.relative_tolerance()
+        self.relative_tolerance
     }
     #[getter]
     fn absolute_tolerance(&self) -> f64 {
-        self.native.absolute_tolerance()
+        self.absolute_tolerance
     }
     #[getter]
     fn maximum_iterations(&self) -> usize {
-        self.native.maximum_iterations().get()
+        self.maximum_iterations.get()
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
         other
             .extract::<PyRef<'_, Self>>()
-            .is_ok_and(|other| self.native == other.native)
+            .is_ok_and(|other| self == &*other)
     }
 
     fn __hash__(&self) -> isize {
@@ -401,12 +419,6 @@ pub(crate) struct PyNewton {
     pub(super) native: NonlinearSolvePlan,
 }
 
-impl PyNewton {
-    pub(super) fn from_native(linear: Py<PyLinear>, native: NonlinearSolvePlan) -> Self {
-        Self { linear, native }
-    }
-}
-
 #[pymethods]
 impl PyNewton {
     #[new]
@@ -458,8 +470,7 @@ impl PyNewton {
 
     fn __eq__(&self, py: Python<'_>, other: &Bound<'_, PyAny>) -> bool {
         other.extract::<PyRef<'_, Self>>().is_ok_and(|other| {
-            self.native == other.native
-                && self.linear.borrow(py).native == other.linear.borrow(py).native
+            self.native == other.native && *self.linear.borrow(py) == *other.linear.borrow(py)
         })
     }
 

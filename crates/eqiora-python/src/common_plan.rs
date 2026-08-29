@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 use eqiora::artifact::CanonicalModelArtifact;
 use eqiora::backends::faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
 use eqiora::realization::{Space, SpaceFamily};
-use eqiora::solver::{LinearSolver, REFERENCE_SOLVER_PROVIDER, ReductionPolicy, SolverPlan};
+use eqiora::solver::{LinearOperatorProperties, REFERENCE_SOLVER_PROVIDER, SolverPlan};
 use eqiora_numerics::{
     CommonElasticityPlan, CommonFsiPlan, CommonOdePlan, CommonScalarPlan,
     CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSpatialRequest,
@@ -27,6 +27,8 @@ use policy::{
 };
 mod scaling;
 use scaling::{PyIncompressibleScales, PyIncompressibleScaling, PyIncompressibleScalingReceipt2d};
+mod resolved_solve;
+use resolved_solve::{PyResolvedLinear, PyResolvedNewton};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SpatialPolicy {
@@ -191,12 +193,63 @@ impl CommonPlanKind {
             Self::Fsi(plan) => Some(plan.realization_digest()),
         }
     }
+
+    const fn operator_properties(&self) -> Option<LinearOperatorProperties> {
+        match self {
+            Self::Ode(_) => None,
+            Self::Scalar(_) | Self::Elasticity(_) => {
+                Some(LinearOperatorProperties::SymmetricPositiveDefinite)
+            }
+            Self::SteadyStokes(_) | Self::Fsi(_) => {
+                Some(LinearOperatorProperties::SymmetricIndefinite)
+            }
+            Self::TransientFlow(_) => Some(LinearOperatorProperties::General),
+        }
+    }
+
+    fn solver_backend(&self) -> &'static str {
+        match self {
+            Self::Ode(plan) => plan.backend().id().as_str(),
+            Self::Scalar(_) | Self::Elasticity(_) => REFERENCE_SOLVER_PROVIDER.id().as_str(),
+            Self::SteadyStokes(_) => FAER_SOLVER_PROVIDER.id().as_str(),
+            Self::TransientFlow(plan) => match plan.spatial() {
+                CommonSpatialPolicy::MiniP1 => FAER_SOLVER_PROVIDER.id().as_str(),
+                CommonSpatialPolicy::CellCentered => REFERENCE_SOLVER_PROVIDER.id().as_str(),
+                _ => unreachable!("closed transient spatial policy"),
+            },
+            Self::Fsi(_) => REFERENCE_SOLVER_PROVIDER.id().as_str(),
+        }
+    }
+
+    fn solver_backend_version(&self) -> &'static str {
+        match self {
+            Self::Ode(plan) => plan.backend().version().as_str(),
+            Self::Scalar(_) | Self::Elasticity(_) => {
+                REFERENCE_SOLVER_PROVIDER.implementation_version()
+            }
+            Self::SteadyStokes(_) => FAER_SOLVER_PROVIDER.implementation_version(),
+            Self::TransientFlow(plan) => match plan.spatial() {
+                CommonSpatialPolicy::MiniP1 => FAER_SOLVER_PROVIDER.implementation_version(),
+                CommonSpatialPolicy::CellCentered => {
+                    REFERENCE_SOLVER_PROVIDER.implementation_version()
+                }
+                _ => unreachable!("closed transient spatial policy"),
+            },
+            Self::Fsi(_) => REFERENCE_SOLVER_PROVIDER.implementation_version(),
+        }
+    }
 }
 
 #[derive(Debug)]
-enum SolveHandle {
+enum RequestedSolveHandle {
     Linear(Py<PyLinear>),
     Newton(Py<PyNewton>),
+}
+
+#[derive(Debug)]
+enum ResolvedSolveHandle {
+    Linear(Py<PyResolvedLinear>),
+    Newton(Py<PyResolvedNewton>),
 }
 
 #[derive(Debug)]
@@ -213,7 +266,8 @@ pub(crate) struct PyPlan {
     model: Py<PyModel>,
     mesh: Option<Py<PyMesh>>,
     spatial: Option<SpatialHandle>,
-    solve: Option<SolveHandle>,
+    requested_solve: Option<RequestedSolveHandle>,
+    solve: Option<ResolvedSolveHandle>,
     temporal: Option<TemporalHandle>,
 }
 
@@ -436,8 +490,15 @@ impl PyPlan {
     #[getter]
     fn solve(&self, py: Python<'_>) -> Option<Py<PyAny>> {
         self.solve.as_ref().map(|solve| match solve {
-            SolveHandle::Linear(value) => value.clone_ref(py).into_any(),
-            SolveHandle::Newton(value) => value.clone_ref(py).into_any(),
+            ResolvedSolveHandle::Linear(value) => value.clone_ref(py).into_any(),
+            ResolvedSolveHandle::Newton(value) => value.clone_ref(py).into_any(),
+        })
+    }
+    #[getter]
+    fn requested_solve(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        self.requested_solve.as_ref().map(|solve| match solve {
+            RequestedSolveHandle::Linear(value) => value.clone_ref(py).into_any(),
+            RequestedSolveHandle::Newton(value) => value.clone_ref(py).into_any(),
         })
     }
     #[getter]
@@ -555,81 +616,16 @@ impl PyPlan {
         "replicated"
     }
     #[getter]
-    fn operator_properties(&self) -> Option<&'static str> {
-        match &self.native {
-            CommonPlanKind::Ode(_) => None,
-            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
-                Some("symmetric-positive-definite")
-            }
-            CommonPlanKind::SteadyStokes(_) => Some("symmetric-indefinite"),
-            CommonPlanKind::TransientFlow(_) => Some("general"),
-            CommonPlanKind::Fsi(_) => Some("symmetric-indefinite"),
-        }
-    }
-    #[getter]
     const fn schedule(&self) -> &'static str {
         "offline"
     }
     #[getter]
-    fn solver_algorithm(&self) -> Option<&'static str> {
-        self.native
-            .effective_solver()
-            .map(|solver| match solver.algorithm() {
-                LinearSolver::ConjugateGradient => "conjugate-gradient",
-                LinearSolver::MinimumResidual => "minimum-residual",
-                LinearSolver::BiConjugateGradientStabilized => "bicgstab",
-                LinearSolver::SparseLu => "sparse-lu",
-            })
-    }
-    #[getter]
-    fn preconditioner(&self) -> Option<&'static str> {
-        match self.native {
-            CommonPlanKind::Ode(_) => None,
-            _ => Some("identity"),
-        }
-    }
-    #[getter]
-    fn reduction(&self) -> Option<&'static str> {
-        self.native
-            .effective_solver()
-            .map(|solver| match solver.reduction() {
-                ReductionPolicy::Reproducible => "reproducible",
-                ReductionPolicy::Fast => "fast",
-            })
-    }
-    #[getter]
     fn solver_backend(&self) -> &'static str {
-        match &self.native {
-            CommonPlanKind::Ode(plan) => plan.backend().id().as_str(),
-            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
-                REFERENCE_SOLVER_PROVIDER.id().as_str()
-            }
-            CommonPlanKind::SteadyStokes(_) => FAER_SOLVER_PROVIDER.id().as_str(),
-            CommonPlanKind::TransientFlow(plan) => match plan.spatial() {
-                CommonSpatialPolicy::MiniP1 => FAER_SOLVER_PROVIDER.id().as_str(),
-                CommonSpatialPolicy::CellCentered => REFERENCE_SOLVER_PROVIDER.id().as_str(),
-                _ => unreachable!("closed transient spatial policy"),
-            },
-            CommonPlanKind::Fsi(_) => REFERENCE_SOLVER_PROVIDER.id().as_str(),
-        }
+        self.native.solver_backend()
     }
     #[getter]
     fn solver_backend_version(&self) -> &'static str {
-        match &self.native {
-            CommonPlanKind::Ode(plan) => plan.backend().version().as_str(),
-            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
-                REFERENCE_SOLVER_PROVIDER.implementation_version()
-            }
-            CommonPlanKind::SteadyStokes(_) => FAER_SOLVER_PROVIDER.implementation_version(),
-            CommonPlanKind::TransientFlow(plan) => match plan.spatial() {
-                CommonSpatialPolicy::MiniP1 => FAER_SOLVER_PROVIDER.implementation_version(),
-                CommonSpatialPolicy::CellCentered => {
-                    REFERENCE_SOLVER_PROVIDER.implementation_version()
-                }
-                _ => unreachable!("closed transient spatial policy"),
-            },
-            CommonPlanKind::Fsi(_) => REFERENCE_SOLVER_PROVIDER.implementation_version(),
-        }
+        self.native.solver_backend_version()
     }
     #[getter]
     const fn execution_provider(&self) -> &'static str {
@@ -772,6 +768,7 @@ fn resolve_plan(
             model,
             mesh: None,
             spatial: None,
+            requested_solve: None,
             solve: None,
             temporal: Some(TemporalHandle::Tsitouras45(temporal_handle)),
         });
@@ -860,17 +857,17 @@ fn resolve_plan(
     };
     let (solve_native, requested_solve_handle) = if let Ok(linear) = solve.extract::<Py<PyLinear>>()
     {
-        let native = linear.borrow(py).native;
+        let native = linear.borrow(py).controls();
         (
             CommonSolvePolicy::Linear(native),
-            SolveHandle::Linear(linear),
+            RequestedSolveHandle::Linear(linear),
         )
     } else if let Ok(newton) = solve.extract::<Py<PyNewton>>() {
         let newton_ref = newton.borrow(py);
         let linear = newton_ref.linear.clone_ref(py);
-        let native = CommonSolvePolicy::newton(linear.borrow(py).native, newton_ref.native);
+        let native = CommonSolvePolicy::newton(linear.borrow(py).controls(), newton_ref.native);
         drop(newton_ref);
-        (native, SolveHandle::Newton(newton))
+        (native, RequestedSolveHandle::Newton(newton))
     } else {
         return Err(PyTypeError::new_err(
             "solve must be eqiora.solve.Linear or eqiora.solve.Newton",
@@ -920,29 +917,29 @@ fn resolve_plan(
             "resolved Plan did not retain the exact caller Mesh occurrence",
         ));
     }
+    let linear = Py::new(
+        py,
+        PyResolvedLinear::new(
+            native
+                .effective_solver()
+                .expect("spatial common Plan owns an effective linear solver"),
+            native
+                .operator_properties()
+                .expect("spatial common Plan owns operator properties"),
+            native.solver_backend(),
+            native.solver_backend_version(),
+        ),
+    )?;
     let solve_handle = match &native {
-        CommonPlanKind::TransientFlow(plan) => {
-            let linear = Py::new(
-                py,
-                PyLinear {
-                    native: plan.linear(),
-                },
-            )?;
-            SolveHandle::Newton(Py::new(
-                py,
-                PyNewton::from_native(linear, plan.nonlinear()),
-            )?)
-        }
-        CommonPlanKind::Fsi(plan) => SolveHandle::Linear(Py::new(
+        CommonPlanKind::TransientFlow(plan) => ResolvedSolveHandle::Newton(Py::new(
             py,
-            PyLinear {
-                native: plan.linear(),
-            },
+            PyResolvedNewton::new(linear, plan.nonlinear()),
         )?),
+        CommonPlanKind::Ode(_) => unreachable!("spatial resolver cannot return an ODE Plan"),
         CommonPlanKind::Scalar(_)
-        | CommonPlanKind::Ode(_)
         | CommonPlanKind::Elasticity(_)
-        | CommonPlanKind::SteadyStokes(_) => requested_solve_handle,
+        | CommonPlanKind::SteadyStokes(_)
+        | CommonPlanKind::Fsi(_) => ResolvedSolveHandle::Linear(linear),
     };
     drop(mesh_ref);
     drop(model_ref);
@@ -951,6 +948,7 @@ fn resolve_plan(
         model,
         mesh: Some(mesh),
         spatial: Some(spatial_handle),
+        requested_solve: Some(requested_solve_handle),
         solve: Some(solve_handle),
         temporal: temporal_handle,
     })
@@ -965,6 +963,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyCellCentered>()?;
     module.add_class::<PyLinear>()?;
     module.add_class::<PyNewton>()?;
+    module.add_class::<PyResolvedLinear>()?;
+    module.add_class::<PyResolvedNewton>()?;
     module.add_class::<PyPressureGauge2d>()?;
     module.add_class::<PyBackwardEuler>()?;
     module.add_class::<PyTsitouras45>()?;
