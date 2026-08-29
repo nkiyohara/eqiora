@@ -6,6 +6,35 @@ use eqiora::solver::{
 };
 use pyo3::prelude::*;
 
+use super::policy::PySolverPlanningObjective;
+
+#[derive(Debug, Clone)]
+pub(super) struct SolverPlanningAudit {
+    objective: PySolverPlanningObjective,
+    policy_id: &'static str,
+    candidate_id: &'static str,
+    evidence_case: &'static str,
+    reasons: Vec<(&'static str, &'static str)>,
+}
+
+impl SolverPlanningAudit {
+    pub(super) fn new(
+        objective: PySolverPlanningObjective,
+        policy_id: &'static str,
+        candidate_id: &'static str,
+        evidence_case: &'static str,
+        reasons: Vec<(&'static str, &'static str)>,
+    ) -> Self {
+        Self {
+            objective,
+            policy_id,
+            candidate_id,
+            evidence_case,
+            reasons,
+        }
+    }
+}
+
 #[pyclass(
     name = "ResolvedLinear",
     module = "eqiora._eqiora",
@@ -18,20 +47,23 @@ pub(crate) struct PyResolvedLinear {
     operator: LinearOperatorProperties,
     backend: &'static str,
     backend_version: &'static str,
+    audit: Option<SolverPlanningAudit>,
 }
 
 impl PyResolvedLinear {
-    pub(super) const fn new(
+    pub(super) fn new(
         plan: SolverPlan,
         operator: LinearOperatorProperties,
         backend: &'static str,
         backend_version: &'static str,
+        audit: Option<SolverPlanningAudit>,
     ) -> Self {
         Self {
             plan,
             operator,
             backend,
             backend_version,
+            audit,
         }
     }
 }
@@ -96,6 +128,45 @@ impl PyResolvedLinear {
     #[getter]
     const fn backend_version(&self) -> &'static str {
         self.backend_version
+    }
+
+    #[getter]
+    const fn objective(&self) -> Option<PySolverPlanningObjective> {
+        match &self.audit {
+            Some(audit) => Some(audit.objective),
+            None => None,
+        }
+    }
+
+    #[getter]
+    const fn planning_policy_id(&self) -> Option<&'static str> {
+        match &self.audit {
+            Some(audit) => Some(audit.policy_id),
+            None => None,
+        }
+    }
+
+    #[getter]
+    const fn selected_candidate_id(&self) -> Option<&'static str> {
+        match &self.audit {
+            Some(audit) => Some(audit.candidate_id),
+            None => None,
+        }
+    }
+
+    #[getter]
+    const fn selected_evidence_case(&self) -> Option<&'static str> {
+        match &self.audit {
+            Some(audit) => Some(audit.evidence_case),
+            None => None,
+        }
+    }
+
+    #[getter]
+    fn planning_reasons(&self) -> Vec<(&'static str, &'static str)> {
+        self.audit
+            .as_ref()
+            .map_or_else(Vec::new, |audit| audit.reasons.clone())
     }
 
     fn __repr__(&self) -> String {

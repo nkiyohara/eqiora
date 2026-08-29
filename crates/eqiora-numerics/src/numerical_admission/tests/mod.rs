@@ -8,8 +8,8 @@ use eqiora_core::{DimExponents, DynQuantity};
 use eqiora_geometry::{CanonicalGeometryV1, GeometryGraph, NamedEntitySet, PlanarTopologyHandle};
 use eqiora_meshing::CartesianMesh;
 use eqiora_solver::{
-    BackendId, LinearProblem, LinearSolution, REFERENCE_LINEAR_SOLVER, ReplicatedLinearExecution,
-    SolverPlan,
+    BackendId, LinearProblem, LinearSolution, ProviderLibrary, REFERENCE_LINEAR_SOLVER,
+    ReplicatedLinearExecution, SolverPlan,
 };
 
 use eqiora_compiler::CompiledModel;
@@ -80,6 +80,7 @@ const TRANSIENT_SOURCE: &str = include_str!(
     "../../../../../verify/fluid/cell-centered-navier-stokes-fvm-2d/models/direct.eqi"
 );
 const FSI_COMPONENT: &str = include_str!("../../../../../examples/fixed-reference-fsi.eqi");
+const TEST_FAER_LIBRARIES: &[ProviderLibrary] = &[ProviderLibrary::new("faer", "0.24.4")];
 
 type SupportBinding<'a> = (
     &'a str,
@@ -157,6 +158,48 @@ impl LinearSolverBackend for ResolveOnlyBackend {
         _execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
         unreachable!("resolution test must not execute")
+    }
+}
+
+#[derive(Debug)]
+struct PlanningFaerBackend;
+
+impl LinearSolverBackend for PlanningFaerBackend {
+    fn provider(&self) -> SolverProvider {
+        SolverProvider::new(
+            BackendId::new("eqiora.faer"),
+            env!("CARGO_PKG_VERSION"),
+            TEST_FAER_LIBRARIES,
+        )
+    }
+
+    fn capabilities(&self) -> SolverCapabilities {
+        SolverCapabilities::exact([
+            SolverCapability {
+                algorithm: LinearSolver::BiConjugateGradientStabilized,
+                operator_properties: LinearOperatorProperties::General,
+                preconditioner: PreconditionerPolicy::Jacobi,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            },
+            SolverCapability {
+                algorithm: LinearSolver::SparseLu,
+                operator_properties: LinearOperatorProperties::General,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            },
+        ])
+        .unwrap()
+    }
+
+    fn solve_with_execution(
+        &self,
+        _problem: &LinearProblem<'_>,
+        _plan: SolverPlan,
+        _execution: &dyn ReplicatedLinearExecution,
+    ) -> Result<LinearSolution, Diagnostic> {
+        unreachable!("planning test must not execute")
     }
 }
 

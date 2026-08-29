@@ -78,6 +78,31 @@ pub(crate) fn policy_identity(
     bytes.extend_from_slice(&linear.solver.relative_tolerance().to_bits().to_be_bytes());
     bytes.extend_from_slice(&linear.solver.absolute_tolerance().to_bits().to_be_bytes());
     bytes.extend_from_slice(&linear.solver.maximum_iterations().get().to_be_bytes());
+    if let Some(objective) = linear.planning_objective {
+        push_framed(&mut bytes, b"program-controlled");
+        push_framed(
+            &mut bytes,
+            match objective {
+                SolverPlanningObjective::Robust => b"robust",
+                SolverPlanningObjective::Fast => b"fast",
+                SolverPlanningObjective::LowMemory => b"low-memory",
+            },
+        );
+        push_framed(
+            &mut bytes,
+            linear
+                .planning_policy_id
+                .expect("program-controlled policy retains its identity")
+                .as_bytes(),
+        );
+        push_framed(
+            &mut bytes,
+            linear
+                .selected_candidate_id
+                .expect("program-controlled policy retains its selected candidate")
+                .as_bytes(),
+        );
+    }
     push_framed(&mut bytes, linear.provider.id().as_str().as_bytes());
     push_framed(
         &mut bytes,

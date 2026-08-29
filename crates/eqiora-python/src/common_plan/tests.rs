@@ -1010,6 +1010,26 @@ scaling = package.fluid.IncompressibleScaling(length_m=1.0, velocity_m_per_s=2.0
 
 mini = package.resolve(model, mesh=affine, spatial=package.fem.MiniP1(), solve=newton, scaling=scaling, temporal=temporal)
 fvm = package.resolve(model, mesh=cartesian, spatial=package.fvm.CellCentered(), solve=newton, scaling=scaling, temporal=temporal)
+planned = {}
+for name, objective in (
+    ("robust", package.solve.Robust),
+    ("fast", package.solve.Fast),
+    ("low-memory", package.solve.LowMemory),
+):
+    planned_linear = package.solve.Linear(
+        relative_tolerance=1e-10,
+        absolute_tolerance=1e-12,
+        maximum_iterations=2000,
+        objective=objective,
+    )
+    planned[name] = package.resolve(
+        model,
+        mesh=cartesian,
+        spatial=package.fvm.CellCentered(),
+        solve=package.solve.Newton(linear=planned_linear),
+        scaling=scaling,
+        temporal=temporal,
+    )
 mini_exact = package.resolve(
     model, mesh=affine, spatial=package.fem.MiniP1(),
     formulation=package.formulation.MixedGalerkin,
@@ -1089,6 +1109,62 @@ assert fvm.solve.linear.algorithm == "bicgstab"
 assert mini.solve.linear.reduction == "fast" and fvm.solve.linear.reduction == "reproducible"
 assert mini.solve.linear.backend == "eqiora.faer"
 assert fvm.solve.linear.backend == "eqiora.reference"
+expected_planning = {
+    "robust": (
+        package.solve.Robust,
+        "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+        "eqiora.reference",
+        "bicgstab",
+        "reproducible",
+    ),
+    "fast": (
+        package.solve.Fast,
+        "eqiora.faer.sparse-lu-general-identity-fast-f64",
+        "eqiora.faer",
+        "sparse-lu",
+        "fast",
+    ),
+    "low-memory": (
+        package.solve.LowMemory,
+        "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+        "eqiora.faer",
+        "bicgstab",
+        "fast",
+    ),
+}
+for name, plan in planned.items():
+    objective, candidate, backend, algorithm, reduction = expected_planning[name]
+    resolved = plan.solve.linear
+    assert resolved.objective is objective
+    assert resolved.planning_policy_id == "eqiora.host-serial-solver-planning/v1"
+    assert resolved.selected_candidate_id == candidate
+    assert resolved.selected_evidence_case is not None
+    assert len(resolved.planning_reasons) == 6
+    assert resolved.backend == backend
+    assert resolved.algorithm == algorithm
+    assert resolved.reduction == reduction
+    assert plan.identity != fvm.identity
+assert len({plan.identity for plan in planned.values()}) == 3
+try:
+    package.resolve(
+        model,
+        mesh=affine,
+        spatial=package.fem.MiniP1(),
+        solve=package.solve.Newton(
+            linear=package.solve.Linear(
+                relative_tolerance=1e-10,
+                absolute_tolerance=1e-12,
+                maximum_iterations=2000,
+                objective=package.solve.Robust,
+            ),
+        ),
+        scaling=scaling,
+        temporal=temporal,
+    )
+except package.ValidationError:
+    pass
+else:
+    raise AssertionError("program-controlled MINI/P1 request was admitted")
 assert mini.capability.scaling.length_m == 1.0 and mini.capability.scaling.velocity_m_per_s == 2.0 and mini.capability.scaling.pressure_pa == 3.0
 
 for kwargs in (
@@ -1182,6 +1258,14 @@ fvm_zero = package.State.zero(fvm)
 assert fvm_zero.mesh is cartesian
 assert fvm_zero.field(fvm.capability.velocity).associations == ("cell",)
 assert fvm_zero.field(fvm.capability.pressure).associations == ("cell",)
+for plan in planned.values():
+    result = package.run(
+        plan,
+        state=package.State.zero(plan),
+        steps=1,
+        output_steps=(1,),
+    )
+    assert len(result.trajectory.states) == 1
 fvm_two = package.run(fvm, state=fvm_zero, steps=2, output_steps=(2,))
 assert fvm_two.trajectory.plan_identity == fvm.identity
 assert fvm_two.trajectory.realization_digest is None

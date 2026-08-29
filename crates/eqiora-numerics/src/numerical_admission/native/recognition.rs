@@ -268,45 +268,55 @@ pub(crate) fn require_policy_compatibility(
     spatial: NativeSpatialPolicy,
     linear: &NativeLinearPolicy,
 ) -> Result<(), Diagnostic> {
-    let (algorithm, properties, preconditioner, reduction) = match (capability, spatial) {
+    let (properties, method_specific_tuple) = match (capability, spatial) {
         (
             NativeCapability::ScalarElliptic,
             NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa,
         ) => (
-            LinearSolver::ConjugateGradient,
             LinearOperatorProperties::SymmetricPositiveDefinite,
-            PreconditionerPolicy::Identity,
-            ReductionPolicy::Reproducible,
+            Some((
+                LinearSolver::ConjugateGradient,
+                PreconditionerPolicy::Identity,
+                ReductionPolicy::Reproducible,
+            )),
         ),
         (NativeCapability::IsotropicElasticity, NativeSpatialPolicy::ElasticityQ1) => (
-            LinearSolver::ConjugateGradient,
             LinearOperatorProperties::SymmetricPositiveDefinite,
-            PreconditionerPolicy::Identity,
-            ReductionPolicy::Reproducible,
+            Some((
+                LinearSolver::ConjugateGradient,
+                PreconditionerPolicy::Identity,
+                ReductionPolicy::Reproducible,
+            )),
         ),
         (NativeCapability::SteadyIncompressibleStokes, NativeSpatialPolicy::StokesMiniP1(_)) => (
-            LinearSolver::SparseLu,
             LinearOperatorProperties::SymmetricIndefinite,
-            PreconditionerPolicy::Identity,
-            ReductionPolicy::Fast,
+            Some((
+                LinearSolver::SparseLu,
+                PreconditionerPolicy::Identity,
+                ReductionPolicy::Fast,
+            )),
         ),
         (
             NativeCapability::TransientIncompressibleFlow,
             NativeSpatialPolicy::TransientMiniP1(_),
         ) => (
-            LinearSolver::SparseLu,
             LinearOperatorProperties::General,
-            PreconditionerPolicy::Identity,
-            ReductionPolicy::Fast,
+            Some((
+                LinearSolver::SparseLu,
+                PreconditionerPolicy::Identity,
+                ReductionPolicy::Fast,
+            )),
         ),
         (
             NativeCapability::TransientIncompressibleFlow,
             NativeSpatialPolicy::TransientCellCentered(_),
         ) => (
-            LinearSolver::BiConjugateGradientStabilized,
             LinearOperatorProperties::General,
-            PreconditionerPolicy::Identity,
-            ReductionPolicy::Reproducible,
+            linear.planning_objective.is_none().then_some((
+                LinearSolver::BiConjugateGradientStabilized,
+                PreconditionerPolicy::Identity,
+                ReductionPolicy::Reproducible,
+            )),
         ),
         _ => {
             return Err(invalid(
@@ -314,9 +324,12 @@ pub(crate) fn require_policy_compatibility(
             ));
         }
     };
-    if linear.solver.algorithm() != algorithm
-        || linear.solver.preconditioner() != preconditioner
-        || linear.solver.reduction() != reduction
+    if !linear.planning_audit_is_coherent()
+        || method_specific_tuple.is_some_and(|(algorithm, preconditioner, reduction)| {
+            linear.solver.algorithm() != algorithm
+                || linear.solver.preconditioner() != preconditioner
+                || linear.solver.reduction() != reduction
+        })
         || linear.execution != SERIAL_EXECUTION_PROVIDER
         || linear.workers != NonZeroUsize::MIN
     {

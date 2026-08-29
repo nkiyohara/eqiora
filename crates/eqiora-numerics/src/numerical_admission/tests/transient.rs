@@ -1,6 +1,6 @@
 use super::*;
 
-fn newton_policy(linear: CommonLinearControls, nonlinear: NonlinearSolvePlan) -> CommonSolvePolicy {
+fn newton_policy(linear: CommonLinearRequest, nonlinear: NonlinearSolvePlan) -> CommonSolvePolicy {
     CommonSolvePolicy::Newton { nonlinear, linear }
 }
 
@@ -14,7 +14,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     )
     .unwrap();
     let linear =
-        CommonLinearControls::new(1.0e-10, 1.0e-12, NonZeroUsize::new(2_000).unwrap()).unwrap();
+        CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(2_000).unwrap()).unwrap();
     let temporal = CommonBackwardEuler::from_seconds(0.01).unwrap();
     let nonlinear =
         NonlinearSolvePlan::new(1.0e-9, 1.0e-11, NonZeroUsize::new(16).unwrap(), 12).unwrap();
@@ -64,6 +64,36 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         CommonSpatialPolicy::CellCentered,
         None,
     );
+    let resolve_program_controlled = |objective| {
+        let linear = CommonLinearRequest::program_controlled(
+            1.0e-10,
+            1.0e-12,
+            NonZeroUsize::new(2_000).unwrap(),
+            objective,
+        )
+        .unwrap();
+        resolve_common_plan(
+            &model,
+            resources(&geometry),
+            CommonSpatialPolicy::CellCentered,
+            newton_policy(linear, nonlinear),
+            Some(scaling),
+            Some(temporal),
+            &PlanningFaerBackend,
+        )
+        .unwrap()
+        .project(
+            |_| panic!("spatial Model resolved as no-Mesh ODE"),
+            |_| panic!("transient Model resolved as scalar"),
+            |_| panic!("transient Model resolved as elasticity"),
+            |_| panic!("transient Model resolved as steady Stokes"),
+            |plan| plan,
+            |_| panic!("transient Model resolved as FSI"),
+        )
+    };
+    let robust = resolve_program_controlled(SolverPlanningObjective::Robust);
+    let fast = resolve_program_controlled(SolverPlanningObjective::Fast);
+    let low_memory = resolve_program_controlled(SolverPlanningObjective::LowMemory);
     let mini_exact = resolve(
         &model,
         affine_resources(&geometry),
@@ -120,6 +150,52 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     assert_eq!(mini.identity(), mini_replay.identity());
     assert_ne!(mini.identity(), mini_exact.identity());
     assert_ne!(fvm.identity(), fvm_exact.identity());
+    assert_ne!(robust.identity(), fast.identity());
+    assert_ne!(fast.identity(), low_memory.identity());
+    assert_eq!(
+        robust.selected_solver_candidate_id(),
+        Some("eqiora.reference.bicgstab-general-jacobi-reproducible-f64")
+    );
+    assert_eq!(
+        fast.selected_solver_candidate_id(),
+        Some("eqiora.faer.sparse-lu-general-identity-fast-f64")
+    );
+    assert_eq!(
+        low_memory.selected_solver_candidate_id(),
+        Some("eqiora.faer.bicgstab-general-jacobi-fast-f64")
+    );
+    for plan in [&robust, &fast, &low_memory] {
+        assert_eq!(
+            plan.solver_planning_policy_id(),
+            Some("eqiora.host-serial-solver-planning/v1")
+        );
+        assert_eq!(plan.solver_planning_reasons().len(), 6);
+        assert!(plan.selected_solver_evidence_case().is_some());
+    }
+    let unsupported_mini = resolve_common_plan(
+        &model,
+        affine_resources(&geometry),
+        CommonSpatialPolicy::MiniP1,
+        newton_policy(
+            CommonLinearRequest::program_controlled(
+                1.0e-10,
+                1.0e-12,
+                NonZeroUsize::new(2_000).unwrap(),
+                SolverPlanningObjective::Robust,
+            )
+            .unwrap(),
+            nonlinear,
+        ),
+        Some(scaling),
+        Some(temporal),
+        &PlanningFaerBackend,
+    )
+    .unwrap_err();
+    assert!(
+        unsupported_mini
+            .message()
+            .contains("cell-centered General canonical-CSR")
+    );
     assert_eq!(
         mini.formulation().effective(),
         mini_exact.formulation().effective()

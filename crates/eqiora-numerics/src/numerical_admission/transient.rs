@@ -385,6 +385,30 @@ impl CommonTransientFlowPlan {
         self.admission.linear.solver
     }
     #[must_use]
+    pub const fn solver_provider(&self) -> SolverProvider {
+        self.admission.linear.provider
+    }
+    #[must_use]
+    pub const fn solver_planning_objective(&self) -> Option<SolverPlanningObjective> {
+        self.admission.linear.planning_objective
+    }
+    #[must_use]
+    pub const fn solver_planning_policy_id(&self) -> Option<&'static str> {
+        self.admission.linear.planning_policy_id
+    }
+    #[must_use]
+    pub const fn selected_solver_candidate_id(&self) -> Option<&'static str> {
+        self.admission.linear.selected_candidate_id
+    }
+    #[must_use]
+    pub const fn selected_solver_evidence_case(&self) -> Option<&'static str> {
+        self.admission.linear.selected_evidence_case
+    }
+    #[must_use]
+    pub fn solver_planning_reasons(&self) -> &[(&'static str, &'static str)] {
+        &self.admission.linear.planning_reasons
+    }
+    #[must_use]
     pub fn velocity_field_id(&self) -> &str {
         &self.velocity_field_id
     }

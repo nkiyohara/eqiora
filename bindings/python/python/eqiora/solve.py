@@ -1,5 +1,24 @@
 """Closed algebraic solve policies with executable Eqiora consumers."""
 
-from ._eqiora import Linear, Newton, ResolvedLinear, ResolvedNewton
+from ._eqiora import (
+    Linear,
+    Newton,
+    ResolvedLinear,
+    ResolvedNewton,
+    SolverPlanningObjective,
+)
 
-__all__ = ["Linear", "Newton", "ResolvedLinear", "ResolvedNewton"]
+Robust = SolverPlanningObjective.Robust
+Fast = SolverPlanningObjective.Fast
+LowMemory = SolverPlanningObjective.LowMemory
+
+__all__ = [
+    "SolverPlanningObjective",
+    "Robust",
+    "Fast",
+    "LowMemory",
+    "Linear",
+    "Newton",
+    "ResolvedLinear",
+    "ResolvedNewton",
+]

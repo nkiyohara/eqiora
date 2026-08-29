@@ -3,10 +3,10 @@ use std::path::Path;
 use std::process::Command;
 
 use eqiora::solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, ExecutionProvider, HostSerialSolverCandidate,
-    LinearOperatorProperties, LinearSolveRequest, LinearSolver, PreconditionerPolicy,
-    REFERENCE_LINEAR_SOLVER, ReductionPolicy, SERIAL_EXECUTION_PROVIDER, SolverPlan,
-    SolverPlanningObjective, SolverProvider, resolve_host_serial_solver_v1,
+    CanonicalCsrSystemView, CompleteCsrStorage, ExecutionProvider, HostSerialSolverProfile,
+    LinearOperatorProperties, LinearSolveRequest, LinearSolver, LinearSolverBackend,
+    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SERIAL_EXECUTION_PROVIDER,
+    SolverPlan, SolverPlanningObjective, SolverProvider, plan_host_serial_solver_v1,
 };
 use eqiora_backend_faer::FaerLinearSolver;
 use serde_json::Value;
@@ -195,50 +195,56 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
 
     let faer = FaerLinearSolver;
     let candidates = [
-        HostSerialSolverCandidate::new(
+        (
             REFERENCE_ID,
             "fluid.cartesian-advection-diffusion-fvm-2d",
-            LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, reference_plan()),
+            REFERENCE_LINEAR_SOLVER.provider(),
+            reference_plan(),
         ),
-        HostSerialSolverCandidate::new(
+        (
             FAER_SPARSE_LU_ID,
             "numerics.linear-backends",
-            LinearSolveRequest::new(&faer, faer_sparse_lu_plan()),
+            faer.provider(),
+            faer_sparse_lu_plan(),
         ),
-        HostSerialSolverCandidate::new(
+        (
             FAER_BICGSTAB_ID,
             "numerics.linear-backends",
-            LinearSolveRequest::new(&faer, faer_bicgstab_plan()),
+            faer.provider(),
+            faer_bicgstab_plan(),
         ),
     ];
 
     let frozen_candidates = oracle["candidates"].as_array().unwrap();
     assert_eq!(frozen_candidates.len(), 3);
-    for candidate in candidates {
+    for (candidate_id, evidence_case, provider, plan) in candidates {
         let expected = frozen_candidates
             .iter()
-            .find(|expected| expected["id"].as_str() == Some(candidate.id()))
+            .find(|expected| expected["id"].as_str() == Some(candidate_id))
             .unwrap();
-        assert_eq!(
-            candidate.evidence_case(),
-            expected["evidence_case"].as_str().unwrap()
-        );
-        assert_solver_provider(
-            candidate.request().backend().provider(),
-            &expected["solver_provider"],
-        );
-        assert_plan(candidate.id(), candidate.request().plan(), expected);
+        assert_eq!(evidence_case, expected["evidence_case"].as_str().unwrap());
+        assert_solver_provider(provider, &expected["solver_provider"]);
+        assert_plan(candidate_id, plan, expected);
     }
 
     let bound = 2.0_f64.powi(-40);
     assert_eq!(bound.to_bits(), 0x3d70_0000_0000_0000);
     for expected in oracle["objectives"].as_array().unwrap() {
         let objective = objective(expected["objective"].as_str().unwrap());
-        let decision = resolve_host_serial_solver_v1(&problem, objective, &candidates).unwrap();
+        let decision = plan_host_serial_solver_v1(
+            HostSerialSolverProfile::general_canonical_csr(),
+            objective,
+            1.0e-12,
+            1.0e-14,
+            NonZeroUsize::new(100).unwrap(),
+            &REFERENCE_LINEAR_SOLVER,
+            &faer,
+        )
+        .unwrap();
         assert_eq!(decision.policy_id(), oracle["policy_id"].as_str().unwrap());
         assert_eq!(decision.objective(), objective);
         assert_eq!(
-            decision.selected().id(),
+            decision.selected_candidate_id(),
             expected["selected_candidate_id"].as_str().unwrap()
         );
         let expected_reasons = expected["ordered_reasons"]
@@ -250,10 +256,10 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
         assert_eq!(decision.reasons().collect::<Vec<_>>(), expected_reasons);
         let selected_expected = frozen_candidates
             .iter()
-            .find(|candidate| candidate["id"].as_str() == Some(decision.selected().id()))
+            .find(|candidate| candidate["id"].as_str() == Some(decision.selected_candidate_id()))
             .unwrap();
         assert_eq!(
-            decision.selected().evidence_case(),
+            decision.selected_evidence_case(),
             selected_expected["evidence_case"].as_str().unwrap()
         );
         assert_solver_provider(
@@ -266,14 +272,20 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
         );
         assert_eq!(decision.execution_provider(), SERIAL_EXECUTION_PROVIDER);
         assert_plan(
-            decision.selected().id(),
-            decision.selected().request().plan(),
+            decision.selected_candidate_id(),
+            decision.solver_plan(),
             selected_expected,
         );
-        assert!(std::ptr::eq(decision.problem(), &problem));
 
-        let manual = decision.selected().request().solve(&problem).unwrap();
-        let planned = decision.solve().unwrap();
+        let manual = match decision.selected_candidate_id() {
+            REFERENCE_ID => LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, reference_plan()),
+            FAER_BICGSTAB_ID => LinearSolveRequest::new(&faer, faer_bicgstab_plan()),
+            FAER_SPARSE_LU_ID => LinearSolveRequest::new(&faer, faer_sparse_lu_plan()),
+            _ => unreachable!("closed catalog candidate"),
+        }
+        .solve(&problem)
+        .unwrap();
+        let planned = decision.solve(&problem).unwrap();
         assert_eq!(planned.values(), manual.values());
         assert_eq!(planned.report(), manual.report());
         assert_eq!(planned, manual);
@@ -300,9 +312,6 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
             planned.report().execution_provider(),
             decision.execution_provider()
         );
-        assert_eq!(
-            planned.report().solver_plan(),
-            decision.selected().request().plan()
-        );
+        assert_eq!(planned.report().solver_plan(), decision.solver_plan());
     }
 }

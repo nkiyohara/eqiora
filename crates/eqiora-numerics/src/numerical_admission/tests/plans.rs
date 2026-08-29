@@ -75,7 +75,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     let geometry = rectangle();
     let model = model(&geometry);
     let linear =
-        CommonLinearControls::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
+        CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
     let resolve_scalar = |spatial, solve| {
         resolve_common_plan(
             &model,
@@ -101,7 +101,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     let tpfa = resolve_scalar(CommonSpatialPolicy::CellCenteredTpfa, linear);
     let alternate_tolerance = resolve_scalar(
         CommonSpatialPolicy::Q1,
-        CommonLinearControls::new(1.0e-9, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap(),
+        CommonLinearRequest::new(1.0e-9, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap(),
     );
 
     assert_eq!(q1.identity(), repeat.identity());
@@ -131,7 +131,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
     let model = elasticity_model(&geometry, 3.0);
     let alternate_material = elasticity_model(&geometry, 4.0);
     let solve =
-        CommonLinearControls::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
+        CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
     let resolve_elasticity = |model: &ModelEnvelope| {
         resolve_common_plan(
             model,

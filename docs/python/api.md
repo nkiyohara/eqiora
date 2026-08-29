@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 17 module summaries and all 147 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 565 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 17 module summaries and all 151 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 571 signature-only entries under documented owning types**.
 
-Inventory: 17 modules, 176 literal public spellings, 147 canonical grouped declarations, 756 visible method signatures (565 non-dunder and 191 dunder), and 70 visible class assignments.
+Inventory: 17 modules, 180 literal public spellings, 151 canonical grouped declarations, 764 visible method signatures (571 non-dunder and 193 dunder), and 73 visible class assignments.
 
 Regenerate with:
 
@@ -2507,6 +2507,60 @@ Module authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyLinear`](.
 
 Shipped stub: [`bindings/python/python/eqiora/solve.pyi`](../../bindings/python/python/eqiora/solve.pyi)
 
+<a id="api-eqiora-solve-SolverPlanningObjective"></a>
+
+### `eqiora.solve.SolverPlanningObjective`
+
+Preference consumed by the versioned host-serial solver planner.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+```python
+@final
+class SolverPlanningObjective:
+    Robust: ClassVar[SolverPlanningObjective]
+    Fast: ClassVar[SolverPlanningObjective]
+    LowMemory: ClassVar[SolverPlanningObjective]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-solve-Robust"></a>
+
+### `eqiora.solve.Robust`
+
+Prefer the reproducible-reduction catalog member.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+```python
+Robust: Final[SolverPlanningObjective]
+```
+
+<a id="api-eqiora-solve-Fast"></a>
+
+### `eqiora.solve.Fast`
+
+Prefer Fast reduction and then the direct catalog member.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+```python
+Fast: Final[SolverPlanningObjective]
+```
+
+<a id="api-eqiora-solve-LowMemory"></a>
+
+### `eqiora.solve.LowMemory`
+
+Prefer the fixed-vector Krylov catalog member.
+
+Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective`](../../crates/eqiora-python/src/common_plan/policy.rs)
+
+```python
+LowMemory: Final[SolverPlanningObjective]
+```
+
 <a id="api-eqiora-solve-Linear"></a>
 
 ### `eqiora.solve.Linear`
@@ -2518,13 +2572,15 @@ Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyLinear`](../../cr
 ```python
 @final
 class Linear:
-    def __new__(cls, *, relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int) -> Self: ...
+    def __new__(cls, *, relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int, objective: SolverPlanningObjective | None=None) -> Self: ...
     @property
     def relative_tolerance(self) -> float: ...
     @property
     def absolute_tolerance(self) -> float: ...
     @property
     def maximum_iterations(self) -> int: ...
+    @property
+    def objective(self) -> SolverPlanningObjective | None: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
@@ -2586,6 +2642,16 @@ class ResolvedLinear:
     def backend(self) -> str: ...
     @property
     def backend_version(self) -> str: ...
+    @property
+    def objective(self) -> SolverPlanningObjective | None: ...
+    @property
+    def planning_policy_id(self) -> str | None: ...
+    @property
+    def selected_candidate_id(self) -> str | None: ...
+    @property
+    def selected_evidence_case(self) -> str | None: ...
+    @property
+    def planning_reasons(self) -> list[tuple[str, str]]: ...
     def __repr__(self) -> str: ...
 ```
 
