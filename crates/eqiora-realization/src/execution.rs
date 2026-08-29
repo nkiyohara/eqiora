@@ -1,5 +1,9 @@
 use std::num::{NonZeroU64, NonZeroUsize};
 
+use eqiora_core::Diagnostic;
+
+use crate::invalid_realization;
+
 /// Hardware/deployment target independent from numerical method and scheduling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Target {
@@ -50,4 +54,18 @@ pub enum ExecutionSchedule {
         /// Non-zero deployment deadline in nanoseconds.
         deadline_ns: NonZeroU64,
     },
+}
+
+pub(crate) fn validate_target_schedule(
+    target: Target,
+    schedule: ExecutionSchedule,
+) -> Result<(), Diagnostic> {
+    if matches!(schedule, ExecutionSchedule::RealTime { .. })
+        && matches!(target, Target::CudaGpu { .. })
+    {
+        return Err(invalid_realization(
+            "the v0 CUDA target has no declared real-time scheduling contract",
+        ));
+    }
+    Ok(())
 }

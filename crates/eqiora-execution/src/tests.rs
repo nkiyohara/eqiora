@@ -12,8 +12,8 @@ use eqiora_distributed::{DistributedLinearSystem, GlobalVectorSpace, Partition, 
 use eqiora_realization::{
     DefaultPolicyVersion, DiscretizationMethod, MeshKind, RealizationCapabilities, RealizationPlan,
     RealizationRequest, RealizationRequirements, RealizationRevision, SemanticRevision,
-    SingleFieldOperatorClaim, SpatialDimensionSupport, Target, TargetCapabilities,
-    VectorLayoutKind, default_plan_v0, resolve,
+    SpatialDimensionSupport, Target, TargetCapabilities, VectorLayoutKind, default_plan_v0,
+    resolve,
 };
 use eqiora_solver::{
     BackendId, CanonicalCsrSystemView, CompleteCsrStorage, ConvergenceReason, ExecutionId,
@@ -183,11 +183,11 @@ fn portable_graph_with_workers(
     )
     .unwrap();
     resolved
-        .portable_graph(SingleFieldOperatorClaim::new(
+        .portable_graph(
             Id::new(),
             Id::new(),
             LinearOperatorProperties::SymmetricPositiveDefinite,
-        ))
+        )
         .unwrap()
 }
 
@@ -270,11 +270,11 @@ fn portable_cuda_graph() -> eqiora_realization::PortableRealizationGraph {
     )
     .unwrap();
     resolved
-        .portable_graph(SingleFieldOperatorClaim::new(
+        .portable_graph(
             Id::new(),
             Id::new(),
             LinearOperatorProperties::SymmetricPositiveDefinite,
-        ))
+        )
         .unwrap()
 }
 
@@ -323,11 +323,11 @@ fn portable_cuda_minres_graph() -> eqiora_realization::PortableRealizationGraph 
     )
     .unwrap();
     resolved
-        .portable_graph(SingleFieldOperatorClaim::new(
+        .portable_graph(
             Id::new(),
             Id::new(),
             LinearOperatorProperties::SymmetricIndefinite,
-        ))
+        )
         .unwrap()
 }
 
@@ -399,11 +399,11 @@ fn portable_distributed_graph_with(
     )
     .unwrap();
     resolved
-        .portable_graph(SingleFieldOperatorClaim::new(
+        .portable_graph(
             Id::new(),
             Id::new(),
             LinearOperatorProperties::SymmetricPositiveDefinite,
-        ))
+        )
         .unwrap()
 }
 
@@ -457,11 +457,11 @@ fn portable_distributed_minres_graph() -> eqiora_realization::PortableRealizatio
         &capabilities,
     )
     .unwrap()
-    .portable_graph(SingleFieldOperatorClaim::new(
+    .portable_graph(
         Id::new(),
         Id::new(),
         LinearOperatorProperties::SymmetricIndefinite,
-    ))
+    )
     .unwrap()
 }
 
@@ -509,11 +509,11 @@ fn portable_distributed_cuda_minres_graph() -> eqiora_realization::PortableReali
         &capabilities,
     )
     .unwrap()
-    .portable_graph(SingleFieldOperatorClaim::new(
+    .portable_graph(
         Id::new(),
         Id::new(),
         LinearOperatorProperties::SymmetricIndefinite,
-    ))
+    )
     .unwrap()
 }
 

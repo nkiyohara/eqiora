@@ -31,7 +31,19 @@ pub(super) fn resolve_common_scalar_portable(
         }
     };
     let solver = admission.linear.solver;
-    let plan = RealizationPlan::new(
+    admission.linear.capabilities.require_problem(
+        solver,
+        ScalarType::F64,
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+    )?;
+    PortableRealizationGraph::linear_single_field(
+        RealizationLineage::explicit(
+            admission.program.model(),
+            SemanticRevision::new(admission.program.revision().0),
+            RealizationRevision::new(COMMON_SCALAR_REALIZATION_REVISION),
+        ),
+        lowered.domain_id(),
+        lowered.field_id(),
         space,
         Discretization::new(
             method,
@@ -41,52 +53,15 @@ pub(super) fn resolve_common_scalar_portable(
             },
             quadrature,
         ),
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+        ScalarType::F64,
+        VectorLayoutKind::Replicated,
         solver,
         Target::HostCpu {
             threads: admission.linear.workers,
         },
         ExecutionSchedule::Offline,
-    )?;
-    admission.linear.capabilities.require_problem(
-        solver,
-        ScalarType::F64,
-        LinearOperatorProperties::SymmetricPositiveDefinite,
-    )?;
-    let capabilities = RealizationCapabilities::cartesian_product(
-        [method],
-        [(
-            MeshKind::SuppliedCartesian,
-            SpatialDimensionSupport::exact(NonZeroUsize::new(2).expect("two is non-zero")),
-        )],
-        [VectorLayoutKind::Replicated],
-        SolverCapabilities::exact([SolverCapability {
-            algorithm: solver.algorithm(),
-            operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-            preconditioner: solver.preconditioner(),
-            reduction: solver.reduction(),
-            scalar_type: ScalarType::F64,
-        }])?,
-        TargetCapabilities::none().with_host_cpu(admission.linear.workers),
-    )?;
-    let resolved = resolve(
-        &RealizationRequest::explicit(
-            admission.program.model(),
-            SemanticRevision::new(admission.program.revision().0),
-            RealizationRevision::new(COMMON_SCALAR_REALIZATION_REVISION),
-            plan,
-        ),
-        RealizationRequirements::new(
-            NonZeroUsize::new(2).expect("two is non-zero"),
-            ScalarType::F64,
-            VectorLayoutKind::Replicated,
-        ),
-        &capabilities,
-    )?;
-    resolved.portable_graph(SingleFieldOperatorClaim::new(
-        lowered.domain_id(),
-        lowered.field_id(),
-        LinearOperatorProperties::SymmetricPositiveDefinite,
-    ))
+    )
 }
 
 impl CommonScalarPlan {

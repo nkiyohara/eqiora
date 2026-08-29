@@ -9,9 +9,9 @@ use eqiora::realization::{
     MeshArtifactReference, MeshKind, MeshPolicy, PlacementRequirementNode, PositivePhysicalScale,
     QuadraturePolicy, RealizationCapabilities, RealizationCapability, RealizationCapabilityContext,
     RealizationPlan, RealizationRequest, RealizationRequirements, RealizationRevision,
-    ScheduleCapability, SemanticRevision, SingleFieldOperatorClaim, SolveRoot, Space,
-    SpatialCapability, SpatialDimensionSupport, SymmetricCongruenceScaling, Target,
-    TargetCapability, VectorLayoutKind, default_plan_v0, resolve, resolve_fieldwise,
+    ScheduleCapability, SemanticRevision, SolveRoot, Space, SpatialCapability,
+    SpatialDimensionSupport, SymmetricCongruenceScaling, Target, TargetCapability,
+    VectorLayoutKind, default_plan_v0, resolve, resolve_fieldwise,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
@@ -144,11 +144,11 @@ fn realization_admission_rejects_unverified_axis_recombination() {
     )
     .expect("generic compatibility resolution retains its admitted property candidate");
     let error = resolved
-        .portable_graph(SingleFieldOperatorClaim::new(
+        .portable_graph(
             domain,
             field,
             LinearOperatorProperties::SymmetricPositiveDefinite,
-        ))
+        )
         .expect_err("an equation claim outside the retained exact tuple must fail closed");
     assert_eq!(error.code(), eqiora::diagnostic::codes::INVALID_REALIZATION);
     assert!(
@@ -277,12 +277,13 @@ fn canonical_poisson_has_worker_independent_reproducible_cpu_evidence() {
     )
     .unwrap();
     let lowered = lower_scalar_elliptic_1d(&program).unwrap();
-    let claim = SingleFieldOperatorClaim::new(
-        lowered.domain_id(),
-        lowered.field_id(),
-        LinearOperatorProperties::SymmetricPositiveDefinite,
-    );
-    let serial_graph = serial.portable_graph(claim).unwrap();
+    let serial_graph = serial
+        .portable_graph(
+            lowered.domain_id(),
+            lowered.field_id(),
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+        )
+        .unwrap();
     assert!(matches!(serial_graph.root(), SolveRoot::Linear(_)));
     assert_eq!(serial_graph.domains()[0].domain(), lowered.domain_id());
     assert_eq!(serial_graph.fields()[0].field(), lowered.field_id());
@@ -325,7 +326,13 @@ fn canonical_poisson_has_worker_independent_reproducible_cpu_evidence() {
         &capabilities,
     )
     .unwrap();
-    let threaded_graph = threaded.portable_graph(claim).unwrap();
+    let threaded_graph = threaded
+        .portable_graph(
+            lowered.domain_id(),
+            lowered.field_id(),
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+        )
+        .unwrap();
     assert_eq!(threaded_graph.domains(), serial_graph.domains());
     assert_eq!(threaded_graph.fields(), serial_graph.fields());
     assert_eq!(

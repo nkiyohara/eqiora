@@ -67,8 +67,8 @@ pub use portable_graph::{
     DomainDiscretizationId, DomainDiscretizationNode, FieldRepresentationId,
     FieldRepresentationNode, GeometryActionId, GeometryActionNode, LinearSolveId, LinearSolveNode,
     NonlinearSolveId, NonlinearSolveNode, PlacementRequirementId, PlacementRequirementNode,
-    PortableRealizationGraph, SingleFieldOperatorClaim, SolveRoot, SystemBlock, SystemScaling,
-    TransformationId, TransformationNode,
+    PortableRealizationGraph, SolveRoot, SystemBlock, SystemScaling, TransformationId,
+    TransformationNode,
 };
 pub use remesh_transfer::{AleFsiRemeshScaleProfile2d, AleFsiRemeshTransferPlan2d};
 pub use resolution::{RealizationLineage, ResolutionSource, ResolvedRealization, resolve};

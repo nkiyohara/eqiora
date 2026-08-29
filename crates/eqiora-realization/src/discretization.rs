@@ -1,5 +1,9 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
+use eqiora_core::Diagnostic;
+
+use crate::invalid_realization;
+
 /// Discrete function-space family and approximation order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Space {
@@ -196,5 +200,34 @@ impl Discretization {
     #[must_use]
     pub const fn quadrature(self) -> QuadraturePolicy {
         self.quadrature
+    }
+
+    pub(crate) fn validate_space(self, space: Space) -> Result<(), Diagnostic> {
+        match (self.method, space.family(), self.mesh, self.quadrature) {
+            (
+                DiscretizationMethod::ContinuousGalerkin,
+                SpaceFamily::ContinuousLagrange { .. },
+                MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. },
+                QuadraturePolicy::GaussLegendre { .. },
+            )
+            | (
+                DiscretizationMethod::CellCenteredFiniteVolume,
+                SpaceFamily::CellConstant,
+                MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. },
+                QuadraturePolicy::CellCentroid,
+            ) => Ok(()),
+            (
+                DiscretizationMethod::ContinuousGalerkin,
+                SpaceFamily::ContinuousLagrange { order },
+                MeshPolicy::ImportedSimplicial { .. },
+                QuadraturePolicy::SimplexCentroid,
+            ) if order == NonZeroU16::MIN => Ok(()),
+            (DiscretizationMethod::ContinuousGalerkin, _, _, _) => Err(invalid_realization(
+                "continuous Galerkin requires generated or supplied Cartesian/Gauss-Legendre or imported affine-simplex/P1-centroid contracts in v0",
+            )),
+            (DiscretizationMethod::CellCenteredFiniteVolume, _, _, _) => Err(invalid_realization(
+                "cell-centered finite volume requires a generated or supplied Cartesian mesh, cell-constant space, and centroid quadrature in v0",
+            )),
+        }
     }
 }

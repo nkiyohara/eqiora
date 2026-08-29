@@ -40,7 +40,9 @@ impl RealizationLineage {
         }
     }
 
-    pub(crate) const fn explicit(
+    /// Construct explicit Model and Realization lineage for a graph-native resolver.
+    #[must_use]
+    pub const fn explicit(
         model: OntologyId<Model>,
         semantic_revision: SemanticRevision,
         realization_revision: RealizationRevision,

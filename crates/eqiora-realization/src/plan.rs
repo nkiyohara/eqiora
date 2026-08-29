@@ -5,7 +5,7 @@ use eqiora_solver::{LinearSolver, SolverPlan};
 
 use crate::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy, Space,
-    SpaceFamily, Target, invalid_realization,
+    Target, execution::validate_target_schedule,
 };
 
 /// Complete pure payload for one Realization Graph selection.
@@ -73,49 +73,8 @@ impl RealizationPlan {
     }
 
     pub(crate) fn validate(&self) -> Result<(), Diagnostic> {
-        match (
-            self.discretization.method(),
-            self.space.family(),
-            self.discretization.mesh(),
-            self.discretization.quadrature(),
-        ) {
-            (
-                DiscretizationMethod::ContinuousGalerkin,
-                SpaceFamily::ContinuousLagrange { .. },
-                MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. },
-                QuadraturePolicy::GaussLegendre { .. },
-            )
-            | (
-                DiscretizationMethod::CellCenteredFiniteVolume,
-                SpaceFamily::CellConstant,
-                MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. },
-                QuadraturePolicy::CellCentroid,
-            ) => {}
-            (
-                DiscretizationMethod::ContinuousGalerkin,
-                SpaceFamily::ContinuousLagrange { order },
-                MeshPolicy::ImportedSimplicial { .. },
-                QuadraturePolicy::SimplexCentroid,
-            ) if order == NonZeroU16::MIN => {}
-            (DiscretizationMethod::ContinuousGalerkin, _, _, _) => {
-                return Err(invalid_realization(
-                    "continuous Galerkin requires generated or supplied Cartesian/Gauss-Legendre or imported affine-simplex/P1-centroid contracts in v0",
-                ));
-            }
-            (DiscretizationMethod::CellCenteredFiniteVolume, _, _, _) => {
-                return Err(invalid_realization(
-                    "cell-centered finite volume requires a generated or supplied Cartesian mesh, cell-constant space, and centroid quadrature in v0",
-                ));
-            }
-        }
-        if matches!(self.schedule, ExecutionSchedule::RealTime { .. })
-            && matches!(self.target, Target::CudaGpu { .. })
-        {
-            return Err(invalid_realization(
-                "the v0 CUDA target has no declared real-time scheduling contract",
-            ));
-        }
-        Ok(())
+        self.discretization.validate_space(self.space)?;
+        validate_target_schedule(self.target, self.schedule)
     }
 }
 
