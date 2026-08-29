@@ -358,7 +358,7 @@ impl NativeNumericalAdmission {
     ) -> Result<
         (
             ResolvedFieldwiseRealization,
-            RealizationEnvelopeV2,
+            PortableRealizationGraph,
             Space,
             Space,
         ),
@@ -403,11 +403,7 @@ impl NativeNumericalAdmission {
             binding.fieldwise_requirements(),
             &capabilities,
         )?;
-        let realization = RealizationEnvelopeV2::from_resolved(
-            &self.model,
-            &resolved,
-            eqiora_artifact::LayoutArtifacts::Replicated,
-        )?;
+        let portable = resolved.portable_graph()?;
         let mut velocity = None;
         let mut pressure = None;
         for field in resolved.plan().spatial().field_spaces() {
@@ -426,7 +422,7 @@ impl NativeNumericalAdmission {
         let (velocity, pressure) = velocity
             .zip(pressure)
             .ok_or_else(|| invalid("steady-Stokes resolved space inventory is incomplete"))?;
-        Ok((resolved, realization, velocity, pressure))
+        Ok((resolved, portable, velocity, pressure))
     }
 
     pub(super) fn execute_scalar(
@@ -540,7 +536,8 @@ mod recognition;
 mod resources;
 
 pub(super) use identity::{
-    hex_bytes, invalid, policy_identity, push_framed, replay_program, space_identity,
+    hex_bytes, invalid, policy_identity, push_framed, replay_program, require_portable_realization,
+    space_identity,
 };
 pub(super) use recognition::{
     recognize_capability, recognize_exact_model, require_policy_compatibility,

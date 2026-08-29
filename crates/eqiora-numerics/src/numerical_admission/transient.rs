@@ -1,6 +1,14 @@
 use super::*;
 
 impl CommonTransientFlowPlan {
+    fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
+        let materialized = match &self.resolved {
+            CommonTransientResolvedSpatial::MiniP1(resolved) => resolved.portable_graph()?,
+            CommonTransientResolvedSpatial::CellCentered(resolved) => resolved.portable_graph()?,
+        };
+        require_portable_realization(&self.portable, materialized)
+    }
+
     /// Effective Formulation and its automatic-selection audit.
     #[must_use]
     pub fn formulation(&self) -> CommonFormulationDescription {
@@ -226,6 +234,11 @@ impl CommonTransientFlowPlan {
                     ));
                 }
             };
+        let portable = match &resolved {
+            CommonTransientResolvedSpatial::MiniP1(resolved) => resolved.portable_graph()?,
+            CommonTransientResolvedSpatial::CellCentered(resolved) => resolved.portable_graph()?,
+        };
+        let realization_digest = hex_bytes(&portable.digest()?);
         let (geometry_digest, mesh_digest, correspondence_digest, production_digest) =
             resource_digests(&admission.resources)?;
         let receipt_digest = scaling.receipt().provenance_digest();
@@ -241,6 +254,7 @@ impl CommonTransientFlowPlan {
             receipt_digest.as_str(),
             velocity_field_id.as_str(),
             pressure_field_id.as_str(),
+            realization_digest.as_str(),
         ] {
             push_framed(&mut identity_bytes, value.as_bytes());
         }
@@ -312,6 +326,7 @@ impl CommonTransientFlowPlan {
         Ok(Self {
             admission,
             resolved,
+            portable,
             formulation,
             formulation_selection,
             scaling,
@@ -324,6 +339,7 @@ impl CommonTransientFlowPlan {
             mesh_digest,
             correspondence_digest,
             production_digest,
+            realization_digest,
             velocity_field_id,
             pressure_field_id,
             velocity_space,
@@ -363,6 +379,15 @@ impl CommonTransientFlowPlan {
     #[must_use]
     pub fn production_digest(&self) -> &str {
         &self.production_digest
+    }
+    #[must_use]
+    pub fn realization_digest(&self) -> &str {
+        &self.realization_digest
+    }
+    /// Canonical portable numerical realization owned by this Plan.
+    #[must_use]
+    pub const fn portable_realization(&self) -> &PortableRealizationGraph {
+        &self.portable
     }
     #[must_use]
     pub const fn scaling_receipt(&self) -> &IncompressibleScalingReceipt2d {
@@ -494,6 +519,7 @@ impl CommonTransientFlowPlan {
 
     /// Construct the sole explicit homogeneous-zero bootstrap for this transient Plan.
     pub fn zero_state(&self, time_s: f64) -> Result<CommonState, Diagnostic> {
+        self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
         let RecognizedNativeModel::Transient(model) = &self.admission.recognized else {
             return Err(invalid("State.zero requires a transient Plan"));
@@ -578,6 +604,7 @@ impl CommonTransientFlowPlan {
         time_s: f64,
         fields: Vec<CommonInitialField>,
     ) -> Result<CommonState, Diagnostic> {
+        self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
         if !time_s.is_finite() || time_s < 0.0 {
             return Err(invalid(
@@ -694,6 +721,7 @@ impl CommonTransientFlowPlan {
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonState, Diagnostic> {
+        self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
         if state.state_space_identity != self.state_space_identity() {
             return Err(invalid(

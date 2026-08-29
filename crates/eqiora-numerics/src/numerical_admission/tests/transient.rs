@@ -148,6 +148,12 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     );
 
     assert_eq!(mini.identity(), mini_replay.identity());
+    assert_eq!(mini.realization_digest(), mini_replay.realization_digest());
+    assert_ne!(mini.realization_digest(), fvm.realization_digest());
+    assert_eq!(
+        mini.realization_digest(),
+        hex_bytes(&mini.portable_realization().digest().unwrap())
+    );
     assert_ne!(mini.identity(), mini_exact.identity());
     assert_ne!(fvm.identity(), fvm_exact.identity());
     assert_ne!(robust.identity(), fast.identity());
@@ -217,6 +223,12 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         mini_exact.state_space_identity()
     );
     assert_eq!(fvm.state_space_identity(), fvm_exact.state_space_identity());
+    assert_eq!(mini.realization_digest(), mini_exact.realization_digest());
+    assert_eq!(fvm.realization_digest(), fvm_exact.realization_digest());
+    assert_ne!(
+        fvm.realization_digest(),
+        fvm_alternate_scaling.realization_digest()
+    );
     assert_eq!(
         mini_exact.formulation().selection_reason_codes(),
         &["eqiora.formulation.exact.mixed-galerkin-admitted/v1"]
