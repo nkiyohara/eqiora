@@ -9,13 +9,8 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         ModelDecoderLimits::default(),
     )
     .unwrap();
-    let linear = SolverPlan::new(
-        LinearSolver::ConjugateGradient,
-        1.0e-10,
-        1.0e-12,
-        NonZeroUsize::new(2_000).unwrap(),
-    )
-    .unwrap();
+    let linear =
+        CommonLinearControls::new(1.0e-10, 1.0e-12, NonZeroUsize::new(2_000).unwrap()).unwrap();
     let temporal = CommonBackwardEuler::from_seconds(0.01).unwrap();
     let nonlinear =
         NonlinearSolvePlan::new(1.0e-9, 1.0e-11, NonZeroUsize::new(16).unwrap(), 12).unwrap();

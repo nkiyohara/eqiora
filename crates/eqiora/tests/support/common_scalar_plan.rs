@@ -7,10 +7,10 @@ use eqiora::artifact::{
     ModelEnvelope,
 };
 use eqiora::geometry::{PlanarOperationGraph, PlanarTopologyHandle};
-use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
+use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
-    resolve_common_plan,
+    AuthenticatedCommonMesh, CommonLinearControls, CommonScalarPlan, CommonSolvePolicy,
+    CommonSpatialPolicy, resolve_common_plan,
 };
 
 pub(crate) const COMPONENT: &str = r#"
@@ -95,13 +95,8 @@ pub(crate) fn plan_for_document(
     let owner =
         AuthenticatedCommonMesh::structured_cartesian(geometry, mesh, correspondence, production)
             .unwrap();
-    let solver = SolverPlan::new(
-        LinearSolver::ConjugateGradient,
-        1.0e-10,
-        1.0e-12,
-        NonZeroUsize::new(10_000).unwrap(),
-    )
-    .unwrap();
+    let solver =
+        CommonLinearControls::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     resolve_common_plan(
         &model,
@@ -200,13 +195,8 @@ fn document_and_plans_with_source(
     let owner =
         AuthenticatedCommonMesh::structured_cartesian(geometry, mesh, correspondence, production)
             .unwrap();
-    let solver = SolverPlan::new(
-        LinearSolver::ConjugateGradient,
-        1.0e-10,
-        1.0e-12,
-        NonZeroUsize::new(10_000).unwrap(),
-    )
-    .unwrap();
+    let solver =
+        CommonLinearControls::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let resolve = |owner, spatial| {
         resolve_common_plan(

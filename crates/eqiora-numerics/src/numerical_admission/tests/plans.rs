@@ -74,13 +74,8 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
 pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeated_inputs() {
     let geometry = rectangle();
     let model = model(&geometry);
-    let linear = SolverPlan::new(
-        LinearSolver::ConjugateGradient,
-        1.0e-10,
-        1.0e-12,
-        NonZeroUsize::new(10_000).unwrap(),
-    )
-    .unwrap();
+    let linear =
+        CommonLinearControls::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
     let resolve_scalar = |spatial, solve| {
         resolve_common_plan(
             &model,
@@ -106,13 +101,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     let tpfa = resolve_scalar(CommonSpatialPolicy::CellCenteredTpfa, linear);
     let alternate_tolerance = resolve_scalar(
         CommonSpatialPolicy::Q1,
-        SolverPlan::new(
-            LinearSolver::ConjugateGradient,
-            1.0e-9,
-            1.0e-12,
-            NonZeroUsize::new(10_000).unwrap(),
-        )
-        .unwrap(),
+        CommonLinearControls::new(1.0e-9, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap(),
     );
 
     assert_eq!(q1.identity(), repeat.identity());
@@ -122,26 +111,6 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     assert_eq!(q1.cells(), [2, 3]);
     assert_eq!(q1.run().unwrap().into_primary_field_values().len(), 12);
     assert_eq!(tpfa.run().unwrap().into_primary_field_values().len(), 6);
-    assert!(
-        resolve_common_plan(
-            &model,
-            resources(&geometry),
-            CommonSpatialPolicy::Q1,
-            CommonSolvePolicy::Linear(
-                SolverPlan::new(
-                    LinearSolver::MinimumResidual,
-                    1.0e-10,
-                    1.0e-12,
-                    NonZeroUsize::new(10_000).unwrap(),
-                )
-                .unwrap()
-            ),
-            None,
-            None,
-            &ResolveOnlyBackend,
-        )
-        .is_err()
-    );
     assert!(
         resolve_common_plan(
             &model,
@@ -161,13 +130,8 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
     let geometry = rectangle();
     let model = elasticity_model(&geometry, 3.0);
     let alternate_material = elasticity_model(&geometry, 4.0);
-    let solve = SolverPlan::new(
-        LinearSolver::ConjugateGradient,
-        1.0e-10,
-        1.0e-12,
-        NonZeroUsize::new(10_000).unwrap(),
-    )
-    .unwrap();
+    let solve =
+        CommonLinearControls::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
     let resolve_elasticity = |model: &ModelEnvelope| {
         resolve_common_plan(
             model,

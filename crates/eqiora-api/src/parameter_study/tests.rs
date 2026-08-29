@@ -10,11 +10,11 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_geometry::{PlanarOperationGraph, PlanarTopologyHandle};
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
-    resolve_common_plan,
+    AuthenticatedCommonMesh, CommonLinearControls, CommonScalarPlan, CommonSolvePolicy,
+    CommonSpatialPolicy, resolve_common_plan,
 };
 use eqiora_realization::RealizationRevision;
-use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
+use eqiora_solver::REFERENCE_LINEAR_SOLVER;
 
 use super::{CompleteParameterStudy, ParameterStudyPlan};
 use crate::{DifferentiableEvaluation, DifferentiableProgram, ModelDocument};
@@ -455,8 +455,7 @@ fn plan_for(
     } else {
         2.0e-10
     };
-    let solver = SolverPlan::new(
-        LinearSolver::ConjugateGradient,
+    let solver = CommonLinearControls::new(
         relative_tolerance,
         1.0e-12,
         NonZeroUsize::new(10_000).unwrap(),

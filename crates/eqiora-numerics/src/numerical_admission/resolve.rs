@@ -11,17 +11,6 @@ pub fn resolve_common_plan(
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
     let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
     let spatial = spatial.into();
-    let requested_linear = match solve {
-        CommonSolvePolicy::Linear(linear) | CommonSolvePolicy::Newton { linear, .. } => linear,
-    };
-    if requested_linear.algorithm() != LinearSolver::ConjugateGradient
-        || requested_linear.preconditioner() != PreconditionerPolicy::Identity
-        || requested_linear.reduction() != ReductionPolicy::Reproducible
-    {
-        return Err(invalid(
-            "common Linear request must contain identity-preconditioned reproducible controls",
-        ));
-    }
     match recognized.capability {
         NativeCapability::ScalarElliptic => {
             let CommonSolvePolicy::Linear(solve) = solve else {
@@ -63,7 +52,13 @@ pub fn resolve_common_plan(
                     ));
                 }
             };
-            let linear = NativeLinearPolicy::exact(solve, &REFERENCE_LINEAR_SOLVER)?;
+            let linear = NativeLinearPolicy::exact(
+                solve.resolve(
+                    LinearSolver::ConjugateGradient,
+                    ReductionPolicy::Reproducible,
+                )?,
+                &REFERENCE_LINEAR_SOLVER,
+            )?;
             let admission = recognized.complete(spatial, linear, None, None)?;
             CommonScalarPlan::from_admission(model, admission).map(|plan| ResolvedCommonPlan {
                 kind: ResolvedCommonPlanKind::Scalar(Box::new(plan)),
@@ -95,7 +90,13 @@ pub fn resolve_common_plan(
                     "linear-elasticity mathematics requires the admitted Cartesian Q1 policy",
                 ));
             }
-            let linear = NativeLinearPolicy::exact(solve, &REFERENCE_LINEAR_SOLVER)?;
+            let linear = NativeLinearPolicy::exact(
+                solve.resolve(
+                    LinearSolver::ConjugateGradient,
+                    ReductionPolicy::Reproducible,
+                )?,
+                &REFERENCE_LINEAR_SOLVER,
+            )?;
             let admission =
                 recognized.complete(NativeSpatialPolicy::ElasticityQ1, linear, None, None)?;
             CommonElasticityPlan::from_admission(model, admission).map(|plan| ResolvedCommonPlan {
@@ -127,13 +128,7 @@ pub fn resolve_common_plan(
                 unreachable!("steady-Stokes capability recognition returns a Stokes binding")
             };
             let scaling = binding.resolve_incompressible_scaling(model, scaling)?;
-            let effective_solve = SolverPlan::new(
-                LinearSolver::SparseLu,
-                solve.relative_tolerance(),
-                solve.absolute_tolerance(),
-                solve.maximum_iterations(),
-            )?
-            .with_reduction(ReductionPolicy::Fast);
+            let effective_solve = solve.resolve(LinearSolver::SparseLu, ReductionPolicy::Fast)?;
             let linear = NativeLinearPolicy::exact(effective_solve, stokes_backend)?;
             let admission = recognized.complete(
                 NativeSpatialPolicy::StokesMiniP1(scaling.scales()),
@@ -187,14 +182,7 @@ pub fn resolve_common_plan(
                     ));
                 }
             };
-            let effective_linear = SolverPlan::new(
-                algorithm,
-                linear.relative_tolerance(),
-                linear.absolute_tolerance(),
-                linear.maximum_iterations(),
-            )?
-            .with_preconditioner(PreconditionerPolicy::Identity)
-            .with_reduction(reduction);
+            let effective_linear = linear.resolve(algorithm, reduction)?;
             let linear_backend: &dyn LinearSolverBackend = match spatial {
                 CommonSpatialPolicy::MiniP1 => stokes_backend,
                 CommonSpatialPolicy::CellCentered => &REFERENCE_LINEAR_SOLVER,
@@ -258,14 +246,8 @@ pub fn resolve_common_plan(
                     "FSI scoped spatial policies must completely and exclusively bind MiniP1 to fluid and P1 to solid",
                 ));
             }
-            let effective_linear = SolverPlan::new(
-                LinearSolver::MinimumResidual,
-                linear.relative_tolerance(),
-                linear.absolute_tolerance(),
-                linear.maximum_iterations(),
-            )?
-            .with_preconditioner(PreconditionerPolicy::Identity)
-            .with_reduction(ReductionPolicy::Reproducible);
+            let effective_linear =
+                linear.resolve(LinearSolver::MinimumResidual, ReductionPolicy::Reproducible)?;
             REFERENCE_LINEAR_SOLVER.capabilities().require_problem(
                 effective_linear,
                 ScalarType::F64,

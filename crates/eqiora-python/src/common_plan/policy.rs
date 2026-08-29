@@ -5,10 +5,10 @@ use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
 
 use eqiora::realization::NonlinearSolvePlan;
-use eqiora::solver::{LinearSolver, SolverPlan};
 use eqiora::{Id, kinds};
 use eqiora_numerics::{
-    CommonBackwardEuler, CommonPressureGauge2d, CommonTsitouras45, CommonTsitourasTolerance,
+    CommonBackwardEuler, CommonLinearControls, CommonPressureGauge2d, CommonTsitouras45,
+    CommonTsitourasTolerance,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -212,9 +212,8 @@ pub(crate) struct PyLinear {
 }
 
 impl PyLinear {
-    pub(super) fn controls(&self) -> SolverPlan {
-        SolverPlan::new(
-            LinearSolver::ConjugateGradient,
+    pub(super) fn controls(&self) -> CommonLinearControls {
+        CommonLinearControls::new(
             self.relative_tolerance,
             self.absolute_tolerance,
             self.maximum_iterations,
@@ -235,18 +234,13 @@ impl PyLinear {
     ) -> PyResult<Self> {
         let maximum_iterations = NonZeroUsize::new(maximum_iterations)
             .ok_or_else(|| PyTypeError::new_err("maximum_iterations must be a positive integer"))?;
-        SolverPlan::new(
-            LinearSolver::ConjugateGradient,
-            relative_tolerance,
-            absolute_tolerance,
-            maximum_iterations,
-        )
-        .map(|_| Self {
-            relative_tolerance,
-            absolute_tolerance,
-            maximum_iterations,
-        })
-        .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+        CommonLinearControls::new(relative_tolerance, absolute_tolerance, maximum_iterations)
+            .map(|_| Self {
+                relative_tolerance,
+                absolute_tolerance,
+                maximum_iterations,
+            })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
     }
 
     #[getter]

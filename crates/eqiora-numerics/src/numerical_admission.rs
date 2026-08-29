@@ -257,24 +257,89 @@ impl CommonBackwardEuler {
     }
 }
 
+/// Algorithm-neutral convergence controls requested from the common resolver.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CommonLinearControls {
+    relative_tolerance: f64,
+    absolute_tolerance: f64,
+    maximum_iterations: NonZeroUsize,
+}
+
+impl CommonLinearControls {
+    /// Construct validated convergence controls without selecting an algorithm.
+    pub fn new(
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+    ) -> Result<Self, Diagnostic> {
+        if !relative_tolerance.is_finite()
+            || !absolute_tolerance.is_finite()
+            || relative_tolerance < 0.0
+            || absolute_tolerance < 0.0
+            || (relative_tolerance == 0.0 && absolute_tolerance == 0.0)
+        {
+            return Err(invalid(
+                "solver tolerances must be finite and non-negative, with at least one positive",
+            ));
+        }
+        Ok(Self {
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+        })
+    }
+
+    /// Requested relative residual tolerance.
+    #[must_use]
+    pub const fn relative_tolerance(self) -> f64 {
+        self.relative_tolerance
+    }
+
+    /// Requested absolute residual tolerance.
+    #[must_use]
+    pub const fn absolute_tolerance(self) -> f64 {
+        self.absolute_tolerance
+    }
+
+    /// Requested iteration ceiling.
+    #[must_use]
+    pub const fn maximum_iterations(self) -> NonZeroUsize {
+        self.maximum_iterations
+    }
+
+    fn resolve(
+        self,
+        algorithm: LinearSolver,
+        reduction: ReductionPolicy,
+    ) -> Result<SolverPlan, Diagnostic> {
+        SolverPlan::new(
+            algorithm,
+            self.relative_tolerance,
+            self.absolute_tolerance,
+            self.maximum_iterations,
+        )
+        .map(|plan| plan.with_reduction(reduction))
+    }
+}
+
 /// Closed linear or Newton/linear hierarchy requested from the common resolver.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CommonSolvePolicy {
     /// One linear solve for a steady linearized problem.
-    Linear(SolverPlan),
+    Linear(CommonLinearControls),
     /// One bounded Newton policy owning its nested linear controls.
     Newton {
         /// Nonlinear convergence/globalization policy.
         nonlinear: NonlinearSolvePlan,
         /// Nested linear controls.
-        linear: SolverPlan,
+        linear: CommonLinearControls,
     },
 }
 
 impl CommonSolvePolicy {
     /// Construct one admitted bounded Newton policy around exact linear controls.
     #[must_use]
-    pub const fn newton(linear: SolverPlan, nonlinear: NonlinearSolvePlan) -> Self {
+    pub const fn newton(linear: CommonLinearControls, nonlinear: NonlinearSolvePlan) -> Self {
         Self::Newton { nonlinear, linear }
     }
 }
