@@ -3,20 +3,22 @@
 use std::collections::BTreeMap;
 
 use eqiora::geometry::{
-    PlanarBoundaryHandle, PlanarOperation, PlanarOperationGraph, PlanarRegionHandle,
-    PlanarTopologyHandle,
+    GeometryGraph, PlanarBoundaryHandle, PlanarOperation, PlanarRegionHandle, PlanarTopologyHandle,
 };
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyMapping, PyModule, PySequence, PyTuple};
 
-use crate::cad_authored::extract_sequence_pair;
+use crate::cad_authored::{
+    PyGeometryBuildReceipt, PyGeometrySolidOperation,
+    extract_named_topology as extract_solid_names, extract_rectangle_pair, extract_sequence_pair,
+};
 use crate::error::validation_error;
 use crate::geometry::PyGeometry;
 
 #[pyclass(name = "GeometryGraph", module = "eqiora._eqiora", frozen)]
 pub(crate) struct PyGeometryGraph {
-    graph: PlanarOperationGraph,
+    graph: GeometryGraph,
 }
 
 #[pyclass(
@@ -60,7 +62,7 @@ impl PyGeometryGraph {
     #[new]
     fn new() -> Self {
         Self {
-            graph: PlanarOperationGraph::new(),
+            graph: GeometryGraph::new(),
         }
     }
 
@@ -131,18 +133,93 @@ impl PyGeometryGraph {
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))
     }
 
-    #[pyo3(signature = (operation, /, *, named_topology))]
+    /// Construct the one admitted exact rectangle-extrusion solid operation.
+    #[pyo3(signature = (
+        *,
+        x_bounds,
+        y_bounds,
+        plane_z,
+        depth,
+        modeling_tolerance
+    ))]
+    fn rectangle_extrusion(
+        &self,
+        py: Python<'_>,
+        #[pyo3(from_py_with = extract_rectangle_pair)] x_bounds: (f64, f64),
+        #[pyo3(from_py_with = extract_rectangle_pair)] y_bounds: (f64, f64),
+        plane_z: f64,
+        depth: f64,
+        modeling_tolerance: f64,
+    ) -> PyResult<PyGeometrySolidOperation> {
+        self.graph
+            .rectangle_extrusion(x_bounds, y_bounds, plane_z, depth, modeling_tolerance)
+            .map(|graph| PyGeometrySolidOperation { graph })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
+    /// Reconstruct one admitted solid operation and bind it to this graph session.
+    fn decode_solid(&self, py: Python<'_>, data: &[u8]) -> PyResult<PyGeometrySolidOperation> {
+        self.graph
+            .decode_solid(data)
+            .map(|graph| PyGeometrySolidOperation { graph })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
+    /// Append the one admitted circular through-cut to a solid operation.
+    #[pyo3(signature = (target, /, *, center, radius, boolean_tolerance))]
+    fn circular_through_cut(
+        &self,
+        py: Python<'_>,
+        target: &PyGeometrySolidOperation,
+        #[pyo3(from_py_with = extract_sequence_pair)] center: [f64; 2],
+        radius: f64,
+        boolean_tolerance: f64,
+    ) -> PyResult<PyGeometrySolidOperation> {
+        self.graph
+            .circular_through_cut(&target.graph, center, radius, boolean_tolerance)
+            .map(|graph| PyGeometrySolidOperation { graph })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
+    /// Build either typed operation family through this graph-owned boundary.
+    #[pyo3(signature = (operation, /, *, named_topology=None))]
     fn build(
         &self,
         py: Python<'_>,
-        operation: &PyGeometryOperation,
-        named_topology: &Bound<'_, PyAny>,
-    ) -> PyResult<PyGeometry> {
-        let named_topology = extract_named_topology(named_topology)?;
-        self.graph
-            .build(&operation.operation, &named_topology)
-            .map(PyGeometry::from_geometry)
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+        operation: &Bound<'_, PyAny>,
+        named_topology: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Py<PyAny>> {
+        if let Ok(operation) = operation.extract::<PyRef<'_, PyGeometryOperation>>() {
+            let named_topology = named_topology.ok_or_else(|| {
+                PyTypeError::new_err("planar GeometryOperation build requires named_topology=")
+            })?;
+            let named_topology = extract_named_topology(named_topology)?;
+            return self
+                .graph
+                .build(&operation.operation, &named_topology)
+                .map(PyGeometry::from_geometry)
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+                .and_then(|geometry| Py::new(py, geometry).map(Py::into_any));
+        }
+        if let Ok(operation) = operation.extract::<PyRef<'_, PyGeometrySolidOperation>>() {
+            let build = self
+                .graph
+                .build_solid(&operation.graph)
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            let Some(named_topology) = named_topology else {
+                return Py::new(py, PyGeometryBuildReceipt { build }).map(Py::into_any);
+            };
+            let named_topology = extract_solid_names(named_topology)?;
+            return self
+                .graph
+                .build_solid_geometry(&operation.graph, &named_topology)
+                .map(PyGeometry::from_geometry)
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+                .and_then(|geometry| Py::new(py, geometry).map(Py::into_any));
+        }
+        Err(PyTypeError::new_err(
+            "operation must be a GeometryOperation or GeometrySolidOperation",
+        ))
     }
 }
 

@@ -30,7 +30,7 @@ def test_handle_first_surface_has_no_lookup_or_classification_parameter():
     assert str(inspect.signature(graph.rectangle)) == "(*, x_bounds, y_bounds)"
     assert str(inspect.signature(graph.circle)) == "(*, center, radius)"
     assert str(inspect.signature(graph.subtract)) == "(rectangle, circle)"
-    assert str(inspect.signature(graph.build)) == "(operation, /, *, named_topology)"
+    assert str(inspect.signature(graph.build)) == "(operation, /, *, named_topology=None)"
     assert not hasattr(result, "face_handle")
     assert rectangle.region.dimension == result.region.dimension == 2
     assert len(rectangle.boundaries) == 4
@@ -104,7 +104,14 @@ def test_foreign_deleted_stale_incomplete_and_mixed_handles_reject():
         graph.subtract(rectangle, tangent)
 
 
-def test_cad_surface_remains_owned_by_the_distinct_three_dimensional_workflow():
-    old = eqiora.geometry.CadAuthoredGraph
-    assert hasattr(old, "rectangle_extrusion")
-    assert hasattr(old, "circular_through_cut")
+def test_planar_and_solid_operations_share_one_graph_owner():
+    graph = eqiora.geometry.GeometryGraph()
+    solid = graph.rectangle_extrusion(
+        x_bounds=(0.0, 1.0),
+        y_bounds=(0.0, 1.0),
+        plane_z=0.0,
+        depth=1.0,
+        modeling_tolerance=1e-9,
+    )
+    assert isinstance(solid, eqiora.geometry.GeometrySolidOperation)
+    assert not hasattr(eqiora.geometry, "CadAuthoredGraph")

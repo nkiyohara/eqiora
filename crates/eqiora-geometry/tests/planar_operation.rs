@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use eqiora_geometry::{
-    CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, PlanarOperationGraph, PlanarTopologyHandle,
+    CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, GeometryGraph, PlanarTopologyHandle,
 };
 
 fn named(
@@ -15,7 +15,7 @@ fn named(
 
 #[test]
 fn rectangle_publishes_direct_source_owned_topology() {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 2.2], [0.0, 0.41]).unwrap();
     let boundaries = rectangle.boundaries();
     assert_eq!(boundaries.len(), 4);
@@ -80,7 +80,7 @@ fn rectangle_publishes_direct_source_owned_topology() {
 
 #[test]
 fn subtract_projects_predecessor_handles_without_names_or_coordinates() {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 2.2], [0.0, 0.41]).unwrap();
     let circle = graph.circle([0.2, 0.2], 0.05).unwrap();
     let result = graph.subtract(&rectangle, &circle).unwrap();
@@ -123,14 +123,14 @@ fn subtract_projects_predecessor_handles_without_names_or_coordinates() {
 
 #[test]
 fn foreign_deleted_stale_incomplete_and_mixed_handles_fail_closed() {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 2.2], [0.0, 0.41]).unwrap();
     let circle = graph.circle([0.2, 0.2], 0.05).unwrap();
     let result = graph.subtract(&rectangle, &circle).unwrap();
     let outer = rectangle.boundaries();
     let cut = circle.boundaries();
 
-    let foreign_graph = PlanarOperationGraph::new();
+    let foreign_graph = GeometryGraph::new();
     let foreign = foreign_graph.rectangle([0.0, 2.2], [0.0, 0.41]).unwrap();
     let stale = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
 
@@ -178,7 +178,7 @@ fn foreign_deleted_stale_incomplete_and_mixed_handles_fail_closed() {
 
 #[test]
 fn explicit_adjacent_partition_owns_both_parents_and_complete_frontiers() {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let left = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let right = graph.rectangle([1.0, 2.0], [0.0, 1.0]).unwrap();
     let left_edges = left.boundaries();

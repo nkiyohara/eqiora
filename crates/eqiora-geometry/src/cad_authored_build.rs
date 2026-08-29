@@ -9,7 +9,9 @@ use crate::cad_authored_result_topology::{
     CadAuthoredResultTopology, CadAuthoredResultTopologyHandle,
 };
 use crate::cad_authored_selection::FaceKey;
-use crate::{CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1, CanonicalGeometryV1};
+use crate::{
+    CadRepairDispositionV1, CanonicalGeometryV1, GeometryFaceHandle, GeometrySolidOperation,
+};
 
 const RECTANGLE_PROFILE: &str = "eqiora.cad.analytic-rectangle-extrusion-v1";
 const CIRCULAR_CUT_PROFILE: &str = "eqiora.cad.analytic-circular-through-cut-v1";
@@ -43,7 +45,7 @@ struct BuildObservation {
 /// the complete observation and binds every lineage member to its exact graph
 /// digest.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CadAuthoredBuild {
+pub struct GeometryBuildReceipt {
     graph_digest: [u8; 32],
     provider_profile: &'static str,
     requested_modeling_tolerance_m: f64,
@@ -53,22 +55,24 @@ pub struct CadAuthoredBuild {
     maximum_area_discrepancy_m2: f64,
     maximum_volume_discrepancy_m3: f64,
     repair: CadRepairDispositionV1,
-    retained_unchanged: Vec<CadAuthoredFaceHandle>,
-    retained_modified: Vec<CadAuthoredFaceHandle>,
-    created: Vec<CadAuthoredFaceHandle>,
-    deleted: Vec<CadAuthoredFaceHandle>,
-    split: Vec<CadAuthoredFaceHandle>,
-    merged: Vec<CadAuthoredFaceHandle>,
-    predecessor_graph_digest: Option<[u8; 32]>,
+    retained_unchanged: Vec<GeometryFaceHandle>,
+    retained_modified: Vec<GeometryFaceHandle>,
+    created: Vec<GeometryFaceHandle>,
+    deleted: Vec<GeometryFaceHandle>,
+    split: Vec<GeometryFaceHandle>,
+    merged: Vec<GeometryFaceHandle>,
     result_topology: Option<CadAuthoredResultTopology>,
 }
 
-impl CadAuthoredBuild {
-    pub(crate) fn from_graph(graph: &CadAuthoredGraph) -> Result<Self, Diagnostic> {
+impl GeometryBuildReceipt {
+    pub(crate) fn from_graph(graph: &GeometrySolidOperation) -> Result<Self, Diagnostic> {
         Self::admit(graph, Self::expected_observation(graph))
     }
 
-    fn admit(graph: &CadAuthoredGraph, observation: BuildObservation) -> Result<Self, Diagnostic> {
+    fn admit(
+        graph: &GeometrySolidOperation,
+        observation: BuildObservation,
+    ) -> Result<Self, Diagnostic> {
         let expected = Self::expected_observation(graph);
         if observation != expected {
             return Err(invalid(
@@ -91,7 +95,6 @@ impl CadAuthoredBuild {
             deleted: bind(graph, &observation.deleted)?,
             split: bind(graph, &observation.split)?,
             merged: bind(graph, &observation.merged)?,
-            predecessor_graph_digest: graph.predecessor_digest_bytes(),
             result_topology: None,
         };
         if graph.is_cut() {
@@ -100,7 +103,7 @@ impl CadAuthoredBuild {
         Ok(build)
     }
 
-    fn expected_observation(graph: &CadAuthoredGraph) -> BuildObservation {
+    fn expected_observation(graph: &GeometrySolidOperation) -> BuildObservation {
         if graph.is_cut() {
             BuildObservation {
                 provider_profile: CIRCULAR_CUT_PROFILE,
@@ -199,53 +202,46 @@ impl CadAuthoredBuild {
 
     /// Faces retained without changing their analytic boundary.
     #[must_use]
-    pub fn retained_unchanged(&self) -> &[CadAuthoredFaceHandle] {
+    pub fn retained_unchanged(&self) -> &[GeometryFaceHandle] {
         &self.retained_unchanged
     }
 
     /// Faces retaining provenance while gaining an inner boundary loop.
     #[must_use]
-    pub fn retained_modified(&self) -> &[CadAuthoredFaceHandle] {
+    pub fn retained_modified(&self) -> &[GeometryFaceHandle] {
         &self.retained_modified
     }
 
     /// Faces created by the last admitted operation.
     #[must_use]
-    pub fn created(&self) -> &[CadAuthoredFaceHandle] {
+    pub fn created(&self) -> &[GeometryFaceHandle] {
         &self.created
     }
 
     /// Faces deleted by the last admitted operation.
     #[must_use]
-    pub fn deleted(&self) -> &[CadAuthoredFaceHandle] {
+    pub fn deleted(&self) -> &[GeometryFaceHandle] {
         &self.deleted
     }
 
     /// Faces split by the last admitted operation.
     #[must_use]
-    pub fn split(&self) -> &[CadAuthoredFaceHandle] {
+    pub fn split(&self) -> &[GeometryFaceHandle] {
         &self.split
     }
 
     /// Faces merged by the last admitted operation.
     #[must_use]
-    pub fn merged(&self) -> &[CadAuthoredFaceHandle] {
+    pub fn merged(&self) -> &[GeometryFaceHandle] {
         &self.merged
     }
 
     fn project_source(
         &self,
         topology: &CadAuthoredResultTopology,
-        source: &CadAuthoredFaceHandle,
+        source: &GeometryFaceHandle,
     ) -> Result<CadAuthoredResultTopologyHandle, Diagnostic> {
-        let key = source.face_key();
-        let retained_source = source.is_v1()
-            && Some(source.graph_digest_bytes()) == self.predecessor_graph_digest
-            && key != FaceKey::cut_wall();
-        let created_source = !source.is_v1()
-            && source.graph_digest_bytes() == self.graph_digest
-            && key == FaceKey::cut_wall();
-        if !retained_source && !created_source {
+        if source.graph_digest_bytes() != self.graph_digest || source.is_v1() {
             return Err(invalid(
                 "construction handle is foreign or stale for this accepted build result",
             ));
@@ -255,25 +251,29 @@ impl CadAuthoredBuild {
             .iter()
             .chain(&self.retained_modified)
             .chain(&self.created)
-            .find(|handle| handle.face_key() == key)
-            .ok_or_else(|| invalid("construction handle is absent from this accepted result"))?;
+            .find(|handle| *handle == source)
+            .ok_or_else(|| {
+                invalid(
+                    "construction handle belongs to a foreign GeometryGraph or is absent from this accepted result",
+                )
+            })?;
         topology.project(current)
     }
 
     /// Atomically bind complete named source lineage into common Geometry.
     ///
-    /// Retained handles must belong to this graph's exact predecessor and
-    /// created handles to this exact result graph. Every group must be nonempty
-    /// and dimension-homogeneous, and every result member must occur exactly
-    /// once. Projection and naming are one operation; no coordinate classifier
-    /// or public result-topology handle participates.
+    /// Every handle must belong to this exact result revision, including
+    /// retained and modified faces. Every group must be nonempty and
+    /// dimension-homogeneous, and every result member must occur exactly once.
+    /// Projection and naming are one operation; no coordinate classifier or
+    /// public result-topology handle participates.
     ///
     /// # Errors
     /// Returns `EQ0901` for a non-planar build or foreign, incomplete,
     /// duplicate, empty, or mixed-dimensional named membership.
-    pub fn with_named_topology(
+    pub(crate) fn with_named_topology(
         &self,
-        named_topology: &BTreeMap<String, Vec<CadAuthoredFaceHandle>>,
+        named_topology: &BTreeMap<String, Vec<GeometryFaceHandle>>,
     ) -> Result<CanonicalGeometryV1, Diagnostic> {
         let topology = self
             .result_topology
@@ -293,16 +293,12 @@ impl CadAuthoredBuild {
             .canonical_geometry_v2(&projected)
             .map(CanonicalGeometryV1::from_planar_circular_hole_v2)
     }
-
-    pub(crate) const fn has_planar_result(&self) -> bool {
-        self.result_topology.is_some()
-    }
 }
 
 fn bind(
-    graph: &CadAuthoredGraph,
+    graph: &GeometrySolidOperation,
     selections: &[FaceKey],
-) -> Result<Vec<CadAuthoredFaceHandle>, Diagnostic> {
+) -> Result<Vec<GeometryFaceHandle>, Diagnostic> {
     selections
         .iter()
         .copied()
@@ -313,33 +309,32 @@ fn bind(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ConstrainedRectangleV1;
+    use crate::GeometryGraph;
 
-    fn cut_graph() -> CadAuthoredGraph {
-        CadAuthoredGraph::new(
-            ConstrainedRectangleV1::new((-0.04, 0.04), (-0.025, 0.025), 0.0).unwrap(),
-            0.02,
-            1.0e-10,
-        )
-        .unwrap()
-        .circular_through_cut([0.02, 0.0], 0.008, 1.0e-9)
-        .unwrap()
+    fn cut_graph() -> GeometrySolidOperation {
+        let graph = GeometryGraph::new();
+        let base = graph
+            .rectangle_extrusion((-0.04, 0.04), (-0.025, 0.025), 0.0, 0.02, 1.0e-10)
+            .unwrap();
+        graph
+            .circular_through_cut(&base, [0.02, 0.0], 0.008, 1.0e-9)
+            .unwrap()
     }
 
     #[test]
     fn incomplete_or_substituted_build_observation_rejects() {
         let graph = cut_graph();
-        let mut observation = CadAuthoredBuild::expected_observation(&graph);
+        let mut observation = GeometryBuildReceipt::expected_observation(&graph);
         observation.effective_boolean_tolerance_m = Some(1.0e-10);
-        assert!(CadAuthoredBuild::admit(&graph, observation).is_err());
+        assert!(GeometryBuildReceipt::admit(&graph, observation).is_err());
 
-        let mut observation = CadAuthoredBuild::expected_observation(&graph);
+        let mut observation = GeometryBuildReceipt::expected_observation(&graph);
         observation.created.clear();
-        assert!(CadAuthoredBuild::admit(&graph, observation).is_err());
+        assert!(GeometryBuildReceipt::admit(&graph, observation).is_err());
 
-        let mut observation = CadAuthoredBuild::expected_observation(&graph);
+        let mut observation = GeometryBuildReceipt::expected_observation(&graph);
         observation.repair = CadRepairDispositionV1::None;
         observation.provider_profile = "truck";
-        assert!(CadAuthoredBuild::admit(&graph, observation).is_err());
+        assert!(GeometryBuildReceipt::admit(&graph, observation).is_err());
     }
 }

@@ -5,12 +5,12 @@ import {
   CAD_AUTHORED_EXPORT_FILE_NAME,
   CAD_AUTHORED_EXPORT_PROTOCOL,
   CAD_AUTHORED_PROTOCOL,
-  type CadAuthoredBuildRequest,
   type CadAuthoredExportRender,
   type CadAuthoredExportRequest,
   type CadAuthoredExportSave,
   type CadAuthoredProjection,
   cadAuthoredProjectionSchema,
+  type GeometryBuildReceiptRequest,
 } from "./cad-authored-protocol";
 import {
   type CadAuthoredBridge,
@@ -267,14 +267,14 @@ function cutProjection(): CadAuthoredProjection {
 
 // Scalar requests replayed by the fake owner below; the projection each fake
 // build answers with is fixed per test, so only the shape matters here.
-const V1_BUILD_REQUEST: CadAuthoredBuildRequest = {
+const V1_BUILD_REQUEST: GeometryBuildReceiptRequest = {
   protocol: CAD_AUTHORED_PROTOCOL,
   sketch: { xBoundsM: [-2, 3], yBoundsM: [-1, 2], planeZM: 0.5 },
   extrusionDepthM: 4,
   requestedModelingToleranceM: 1e-9,
   cut: null,
 };
-const V2_BUILD_REQUEST: CadAuthoredBuildRequest = {
+const V2_BUILD_REQUEST: GeometryBuildReceiptRequest = {
   protocol: CAD_AUTHORED_PROTOCOL,
   sketch: { xBoundsM: [-0.04, 0.04], yBoundsM: [-0.025, 0.025], planeZM: 0 },
   extrusionDepthM: 0.02,

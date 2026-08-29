@@ -6,7 +6,7 @@ use eqiora::artifact::{
     CartesianMeshCellsV1, CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
     MeshProductionLineageEnvelopeV1, ModelEnvelope,
 };
-use eqiora::geometry::{CanonicalGeometryV1, PlanarOperationGraph, PlanarTopologyHandle};
+use eqiora::geometry::{CanonicalGeometryV1, GeometryGraph, PlanarTopologyHandle};
 use eqiora::meshing::{MeshEntity, MeshTopology};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
@@ -63,7 +63,7 @@ struct Accepted {
 }
 
 fn accepted() -> Accepted {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
     let geometry = graph

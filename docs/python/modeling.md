@@ -170,9 +170,10 @@ print(geometry.digest)
 Rust owns validation, graph binding, operation order, canonical ordering,
 bytes, and exact handle identity. Every coordinate and radius is a coherent-SI
 metre.
-The existing `CadAuthoredGraph.rectangle_extrusion` and
-`graph.circular_through_cut` signatures remain supported and produce the same
-canonical graphs. The 3D graph retains its explicit depth and CAD tolerances;
+The same `GeometryGraph` owns solid authoring through
+`graph.rectangle_extrusion(...)` and
+`graph.circular_through_cut(solid, ...)`, producing the existing exact
+canonical operations. The solid operation retains its explicit depth and CAD tolerances;
 none enter the derived 2D Geometry, whose classification tolerance is supplied
 separately. The circle remains centre-and-radius geometry, so chord count,
 mesh size, and approximation tolerance cannot enter it. A general Sketch,

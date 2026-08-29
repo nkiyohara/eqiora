@@ -5,10 +5,7 @@ use eqiora_artifact::{
     GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1, ModelDecoderLimits,
 };
 use eqiora_core::{DimExponents, DynQuantity};
-use eqiora_geometry::{
-    CadAuthoredGraph, CanonicalGeometryV1, ConstrainedRectangleV1, NamedEntitySet,
-    PlanarOperationGraph, PlanarTopologyHandle,
-};
+use eqiora_geometry::{CanonicalGeometryV1, GeometryGraph, NamedEntitySet, PlanarTopologyHandle};
 use eqiora_meshing::CartesianMesh;
 use eqiora_solver::{
     BackendId, LinearProblem, LinearSolution, REFERENCE_LINEAR_SOLVER, ReplicatedLinearExecution,
@@ -186,7 +183,7 @@ impl LinearSolverBackend for AlternateScalarBackend {
 }
 
 fn rectangle() -> CanonicalGeometryV1 {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
     graph
@@ -213,7 +210,7 @@ fn rectangle() -> CanonicalGeometryV1 {
 }
 
 fn fsi_geometry() -> CanonicalGeometryV1 {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let fluid = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let solid = graph.rectangle([1.0, 2.0], [0.0, 1.0]).unwrap();
     let fluid_edges = fluid.boundaries();

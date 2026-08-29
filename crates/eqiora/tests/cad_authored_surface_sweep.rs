@@ -7,8 +7,8 @@ use eqiora::artifact::{
 };
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{
-    AxisAlignedBox3, CadAuthoredFaceMesh, CadAuthoredGraph, CadAuthoredSweptMesh,
-    ConstrainedRectangleV1,
+    AxisAlignedBox3, CadAuthoredFaceMesh, CadAuthoredSweptMesh, GeometryGraph,
+    GeometrySolidOperation,
 };
 use eqiora::meshing::{MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh};
 use eqiora::{Id, kinds};
@@ -18,20 +18,17 @@ const MODEL: &str =
     include_str!("../../../verify/geometry/cad-authored-surface-sweep/models/box.eqi");
 const GEOMETRY_TOLERANCE_M: f64 = 5.0e-10;
 
-fn graph() -> CadAuthoredGraph {
-    CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((-2.0, 3.0), (-1.0, 2.0), 0.5).unwrap(),
-        4.0,
-        1.0e-9,
-    )
-    .unwrap()
+fn graph() -> GeometrySolidOperation {
+    GeometryGraph::new()
+        .rectangle_extrusion((-2.0, 3.0), (-1.0, 2.0), 0.5, 4.0, 1.0e-9)
+        .unwrap()
 }
 
 fn quality(minimum: f64) -> MeshQualityGate {
     MeshQualityGate::new(minimum).unwrap()
 }
 
-fn surface(graph: &CadAuthoredGraph, provenance: &str) -> CadAuthoredFaceMesh {
+fn surface(graph: &GeometrySolidOperation, provenance: &str) -> CadAuthoredFaceMesh {
     CadAuthoredFaceMesh::from_face(
         graph,
         &graph.face_handle(provenance).unwrap(),
@@ -44,7 +41,7 @@ fn surface(graph: &CadAuthoredGraph, provenance: &str) -> CadAuthoredFaceMesh {
 }
 
 fn sweep(
-    graph: &CadAuthoredGraph,
+    graph: &GeometrySolidOperation,
     source: &CadAuthoredFaceMesh,
     minimum_quality: f64,
 ) -> CadAuthoredSweptMesh {
@@ -370,9 +367,14 @@ fn all_six_full_faces_use_one_common_sweep_and_generic_correspondence() {
 
 #[test]
 fn source_request_quality_and_resource_falsifiers_fail_closed() {
-    let graph = graph();
+    let owner = GeometryGraph::new();
+    let graph = owner
+        .rectangle_extrusion((-2.0, 3.0), (-1.0, 2.0), 0.5, 4.0, 1.0e-9)
+        .unwrap();
     let source = surface(&graph, "end-cap");
-    let changed_graph = CadAuthoredGraph::new(graph.sketch(), 4.0, 2.0e-9).unwrap();
+    let changed_graph = GeometryGraph::new()
+        .rectangle_extrusion((-2.0, 3.0), (-1.0, 2.0), 0.5, 4.0, 2.0e-9)
+        .unwrap();
     assert_eq!(
         CadAuthoredSweptMesh::through_body(&source, &changed_graph, 2, 3.0, 144, quality(0.23))
             .unwrap_err()
@@ -380,8 +382,8 @@ fn source_request_quality_and_resource_falsifiers_fail_closed() {
         codes::INVALID_ARTIFACT
     );
 
-    let cut = graph
-        .circular_through_cut([0.0, 0.0], 0.25, 1.0e-9)
+    let cut = owner
+        .circular_through_cut(&graph, [0.0, 0.0], 0.25, 1.0e-9)
         .unwrap();
     let cut_surface = surface(&cut, "profile-x-lower");
     assert_eq!(

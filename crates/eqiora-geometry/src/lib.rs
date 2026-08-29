@@ -31,7 +31,6 @@ mod cad_authored_graph;
 )]
 mod cad_authored_result_topology;
 mod cad_authored_selection;
-mod cad_authored_sketch;
 mod cad_authored_swept_mesh;
 mod canonical;
 mod circular_hole;
@@ -49,11 +48,10 @@ pub use cad::{
     CadBoxRealizationV1, CadKernelAdapter, CadRepairDispositionV1, ConstrainedRectangleV1,
     StepLengthUnitV1, StepSourceDigest,
 };
-pub use cad_authored_build::CadAuthoredBuild;
+pub use cad_authored_build::GeometryBuildReceipt;
 pub use cad_authored_face_mesh::CadAuthoredFaceMesh;
-pub use cad_authored_graph::CadAuthoredGraph;
-pub use cad_authored_selection::CadAuthoredFaceHandle;
-pub use cad_authored_sketch::CadAuthoredSketch;
+pub use cad_authored_graph::GeometrySolidOperation;
+pub use cad_authored_selection::GeometryFaceHandle;
 pub use cad_authored_swept_mesh::CadAuthoredSweptMesh;
 pub use canonical::{CanonicalGeometryLimits, CanonicalGeometryV1};
 pub(crate) use circular_hole_v2::CanonicalPlanarCircularHoleGeometryV2;
@@ -65,8 +63,7 @@ pub use identity::{
 };
 pub(crate) use planar_adjacent_rectangle_partition_v1::CanonicalPlanarAdjacentRectanglePartitionV1;
 pub use planar_operation::{
-    PlanarBoundaryHandle, PlanarOperation, PlanarOperationGraph, PlanarRegionHandle,
-    PlanarTopologyHandle,
+    GeometryGraph, PlanarBoundaryHandle, PlanarOperation, PlanarRegionHandle, PlanarTopologyHandle,
 };
 pub(crate) use planar_rectangle_v2::CanonicalPlanarRectangleGeometryV2;
 pub use region::{

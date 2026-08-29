@@ -174,11 +174,11 @@ print(geometry.digest, mesh.digest)
 print(mesh.selection_entity_count("cylinder"))
 ```
 
-The sketch wrappers retain native values and all dimensions and tolerances are
-coherent-SI metres. Existing `CadAuthoredGraph.rectangle_extrusion` and
-`graph.circular_through_cut` calls remain supported and reproduce the same
-canonical graph. The graph and its exact planar section have distinct
-identities. The section reproduces the accepted exact planar value
+The same `GeometryGraph` also owns the admitted typed solid operations through
+`graph.rectangle_extrusion(...)` and
+`graph.circular_through_cut(solid, ...)`. All dimensions and tolerances are
+coherent-SI metres. Solid-operation and resulting planar Geometry identities
+remain distinct. The planar result reproduces the accepted exact value
 byte-for-byte; depth and CAD tolerances cannot leak into its independently
 classified 2D meaning. This is not a generic Sketch, section, or Python Boolean
 implementation. Its matching `resolve` call derives a complete immutable plan

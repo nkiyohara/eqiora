@@ -124,7 +124,7 @@ pub(crate) fn encode_v2(
     requested_modeling_tolerance_m: f64,
     cut: CircularThroughCut,
 ) -> Result<Vec<u8>, Diagnostic> {
-    serde_json::to_vec(&WireCadAuthoredGraphV2::from_parts(
+    serde_json::to_vec(&WireGeometrySolidOperationV2::from_parts(
         sketch,
         depth_m,
         requested_modeling_tolerance_m,
@@ -143,7 +143,7 @@ pub(crate) struct DecodedGraphV2 {
 }
 
 pub(crate) fn decode_v2(bytes: &[u8]) -> Result<DecodedGraphV2, Diagnostic> {
-    let wire: WireCadAuthoredGraphV2 = serde_json::from_slice(bytes)
+    let wire: WireGeometrySolidOperationV2 = serde_json::from_slice(bytes)
         .map_err(|error| invalid(format!("invalid authored CAD graph v2 JSON: {error}")))?;
     wire.check_contract()?;
     let sketch = ConstrainedRectangleV1::new(
@@ -163,7 +163,7 @@ pub(crate) fn decode_v2(bytes: &[u8]) -> Result<DecodedGraphV2, Diagnostic> {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCadAuthoredGraphV2 {
+struct WireGeometrySolidOperationV2 {
     schema: String,
     encoding: String,
     length_unit: WireLengthUnit,
@@ -179,7 +179,7 @@ struct WireCadAuthoredGraphV2 {
     selections: Vec<WireFaceSelectionV2>,
 }
 
-impl WireCadAuthoredGraphV2 {
+impl WireGeometrySolidOperationV2 {
     fn from_parts(
         sketch: ConstrainedRectangleV1,
         depth_m: f64,

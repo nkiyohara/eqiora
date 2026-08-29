@@ -1,8 +1,6 @@
 import { type FormEvent, useId, useRef, useState } from "react";
 import {
   CAD_AUTHORED_EXPORT_FILE_NAME,
-  type CadAuthoredBuildReceipt,
-  type CadAuthoredBuildRequest,
   type CadAuthoredFace,
   type CadAuthoredFaceKey,
   type CadAuthoredLineageHandle,
@@ -10,6 +8,8 @@ import {
   type CadAuthoredOperation,
   type CadAuthoredProjection,
   cadAuthoredBuildRequestSchema,
+  type GeometryBuildReceiptReceipt,
+  type GeometryBuildReceiptRequest,
 } from "./cad-authored-protocol";
 import {
   type CadAuthoredBridge,
@@ -54,7 +54,7 @@ export const CAD_AUTHORED_DEFAULT_FORM: CadAuthoredFormState = {
 };
 
 export type CadAuthoredFormResult =
-  | Readonly<{ ok: true; request: CadAuthoredBuildRequest }>
+  | Readonly<{ ok: true; request: GeometryBuildReceiptRequest }>
   | Readonly<{ ok: false; message: string }>;
 
 function parseScalar(text: string): number | null {
@@ -252,7 +252,7 @@ export function CadAuthoredWorkspace({ bridge = cadAuthoredBridge }: CadAuthored
             />
             <div className="cad-authored-column">
               <CadAuthoredSelectionInspector state={state} />
-              <CadAuthoredBuildReceiptPanel
+              <GeometryBuildReceiptReceiptPanel
                 build={projection.build}
                 onSelect={requestSelection}
                 selectedHandleHex={selectedHandleHex}
@@ -729,8 +729,8 @@ export function CadAuthoredExportPanel({
   );
 }
 
-interface CadAuthoredBuildReceiptPanelProps {
-  readonly build: CadAuthoredBuildReceipt;
+interface GeometryBuildReceiptReceiptPanelProps {
+  readonly build: GeometryBuildReceiptReceipt;
   readonly selectedHandleHex: string | null;
   readonly selectionPending: boolean;
   readonly onSelect: (handleHex: string) => void;
@@ -745,12 +745,12 @@ const LINEAGE_LABELS = [
   ["merged", "Merged"],
 ] as const;
 
-export function CadAuthoredBuildReceiptPanel({
+export function GeometryBuildReceiptReceiptPanel({
   build,
   selectedHandleHex,
   selectionPending,
   onSelect,
-}: CadAuthoredBuildReceiptPanelProps) {
+}: GeometryBuildReceiptReceiptPanelProps) {
   return (
     <section aria-labelledby="cad-authored-build-heading" className="cad-authored-panel">
       <div className="cad-authored-panel-heading">

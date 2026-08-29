@@ -185,7 +185,7 @@
       "id": "canonical-blob",
       "base": "v1",
       "mutation": "append-source",
-      "value": "authored_graph = eqiora.geometry.CadAuthoredGraph.decode_canonical(b\"x\")\n",
+      "value": "authored_graph = eqiora.geometry.GeometrySolidOperation.decode_canonical(b\"x\")\n",
       "expect": "reject-response"
     },
     {

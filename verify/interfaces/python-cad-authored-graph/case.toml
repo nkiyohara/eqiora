@@ -1,39 +1,39 @@
 id = "interfaces.python-cad-authored-graph"
 status = "verified"
-scope = "installed-python-transparent-projection-of-two-frozen-authored-cad-histories-and-one-byte-identical-exact-planar-section"
+scope = "installed-python-common-geometry-graph-projection-of-two-exact-solid-operation-histories"
 reference_kind = "existing-dual-oracle-geometry-cases-and-public-rust-replay"
 
 capabilities = [
-  "python-native-owned-authored-cad-operation-graph",
+  "python-common-geometry-graph-owned-solid-operations",
   "python-canonical-authored-graph-bytes-and-digest",
   "python-graph-bound-face-provenance",
   "python-complete-analytic-cad-build-receipt",
-  "python-graph-derived-exact-planar-section",
+  "python-graph-builds-common-planar-geometry",
 ]
 
 [problem]
-constructor = "eqiora.geometry.CadAuthoredGraph.rectangle_extrusion"
-successor = "CadAuthoredGraph.circular_through_cut"
+constructor = "GeometryGraph.rectangle_extrusion"
+successor = "GeometryGraph.circular_through_cut"
 accepted_histories = "the frozen 731-byte v1 rectangle extrusion and 1292-byte v2 circular through-cut"
 identity = "native authored-graph canonical bytes and domain-separated graph digest"
 geometry_evidence = "native exact observations and analytic provider build receipt"
 
 [acceptance]
 installed_noneditable_wheel = true
-native_owner_and_decoder = true
+common_graph_owner_and_decoder = true
 frozen_v1_and_v2_bytes_and_graph_digests_equal = true
 complete_existing_geometry_observations_equal = true
-graph_bound_face_handles_replay_and_reject_foreign_identity = true
+graph_bound_face_handles_reject_foreign_and_stale_identity = true
 complete_build_lineage_and_tolerance_receipt_equal = true
-derived_exact_section_bytes_and_digest_equal_existing_geometry_oracle = true
+complete_revision_bound_naming_publishes_common_geometry = true
 ordinary_exact_cylinder_demo_authors_the_graph_first = true
 immutable_public_values_and_collections = true
-isolated_interpreter_public_api = true
+displaced_public_cad_lifecycle_absent = true
 
 [falsifiers]
 tolerance_only_change = "different-graph-identity-with-equal-geometry-observations"
 geometry_digest_conflation = "no-python-geometry-digest-is-exposed"
-unknown_duplicate_or_mutated_wire = "structured-native-validation-error"
+unknown_or_mutated_wire = "structured-native-validation-error"
 foreign_stale_or_mutated_handle = "structured-native-validation-error-before-face-lookup"
 invalid_rectangle_or_cut_input = "structured-native-validation-error"
 rectangle_only_section = "structured-native-validation-error"
@@ -45,10 +45,10 @@ editable_or_source_tree_import = "installed-wheel-gate-does-not-use-it"
 transparent_projection_of_existing_native_contract = true
 one_rectangle_extrusion_and_one_circular_through_cut = true
 authored_graph_identity_not_output_geometry_identity = true
-one_transverse_section_of_the_admitted_through_cut = true
+one_planar_result_of_the_admitted_through_cut = true
 existing_exact_geometry_owner_and_wire_unchanged = true
 new_geometry_or_numeric_oracle = false
-generic_operation_dag_or_public_feature_enum = false
+generic_operation_dag_or_universal_operation_enum = false
 arbitrary_profile_boolean_or_section = false
 mesh_model_solver_or_result = false
 visualization_or_studio = false

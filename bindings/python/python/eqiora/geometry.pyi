@@ -4,7 +4,7 @@ Authority: ``bindings/python/python/eqiora/geometry.py``.
 """
 
 from collections.abc import Mapping, Sequence
-from typing import final
+from typing import final, overload
 
 @final
 class GeometryRegionHandle:
@@ -47,10 +47,7 @@ class GeometryOperation:
 
 @final
 class GeometryGraph:
-    """Handle-first exact planar construction graph.
-
-    This stack-only pre-1.0 surface is not independently mergeable before the
-    dependent meshing and API-convergence slices.
+    """Common owner of exact planar and solid authoring operations.
 
     Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryGraph``.
     """
@@ -81,6 +78,26 @@ class GeometryGraph:
         *,
         interface: tuple[GeometryBoundaryHandle, GeometryBoundaryHandle],
     ) -> GeometryOperation: ...
+    def rectangle_extrusion(
+        self,
+        *,
+        x_bounds: tuple[float, float],
+        y_bounds: tuple[float, float],
+        plane_z: float,
+        depth: float,
+        modeling_tolerance: float,
+    ) -> GeometrySolidOperation: ...
+    def decode_solid(self, data: bytes) -> GeometrySolidOperation: ...
+    def circular_through_cut(
+        self,
+        target: GeometrySolidOperation,
+        /,
+        *,
+        center: tuple[float, float],
+        radius: float,
+        boolean_tolerance: float,
+    ) -> GeometrySolidOperation: ...
+    @overload
     def build(
         self,
         operation: GeometryOperation,
@@ -93,16 +110,32 @@ class GeometryGraph:
             | Sequence[GeometryRegionHandle | GeometryBoundaryHandle],
         ],
     ) -> Geometry: ...
+    @overload
+    def build(
+        self,
+        operation: GeometrySolidOperation,
+        /,
+        *,
+        named_topology: None = None,
+    ) -> GeometryBuildReceipt: ...
+    @overload
+    def build(
+        self,
+        operation: GeometrySolidOperation,
+        /,
+        *,
+        named_topology: Mapping[
+            str, GeometryFaceHandle | Sequence[GeometryFaceHandle]
+        ],
+    ) -> Geometry: ...
 
 @final
-class CadAuthoredFaceHandle:
-    """Authored-face provenance bound to one exact graph digest.
+class GeometryFaceHandle:
+    """Exact solid-face handle bound to one graph session and revision.
 
-    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyCadAuthoredFaceHandle``.
+    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyGeometryFaceHandle``.
     """
 
-    @staticmethod
-    def decode_canonical(data: bytes) -> CadAuthoredFaceHandle: ...
     @property
     def canonical_bytes(self) -> bytes: ...
     @property
@@ -113,10 +146,10 @@ class CadAuthoredFaceHandle:
     def __hash__(self) -> int: ...
 
 @final
-class CadAuthoredBuild:
-    """Read-only receipt from the bounded native analytic CAD profile.
+class GeometryBuildReceipt:
+    """Read-only receipt from an admitted solid build.
 
-    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyCadAuthoredBuild``.
+    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyGeometryBuildReceipt``.
     """
 
     @property
@@ -138,51 +171,26 @@ class CadAuthoredBuild:
     @property
     def repair(self) -> str: ...
     @property
-    def retained_unchanged(self) -> tuple[CadAuthoredFaceHandle, ...]: ...
+    def retained_unchanged(self) -> tuple[GeometryFaceHandle, ...]: ...
     @property
-    def retained_modified(self) -> tuple[CadAuthoredFaceHandle, ...]: ...
+    def retained_modified(self) -> tuple[GeometryFaceHandle, ...]: ...
     @property
-    def created(self) -> tuple[CadAuthoredFaceHandle, ...]: ...
+    def created(self) -> tuple[GeometryFaceHandle, ...]: ...
     @property
-    def deleted(self) -> tuple[CadAuthoredFaceHandle, ...]: ...
+    def deleted(self) -> tuple[GeometryFaceHandle, ...]: ...
     @property
-    def split(self) -> tuple[CadAuthoredFaceHandle, ...]: ...
+    def split(self) -> tuple[GeometryFaceHandle, ...]: ...
     @property
-    def merged(self) -> tuple[CadAuthoredFaceHandle, ...]: ...
+    def merged(self) -> tuple[GeometryFaceHandle, ...]: ...
     def __eq__(self, other: object, /) -> bool: ...
 
 @final
-class CadAuthoredGraph:
-    """Immutable native-owned authored-CAD operation graph.
+class GeometrySolidOperation:
+    """Immutable solid operation owned by one ``GeometryGraph``.
 
-    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyCadAuthoredGraph``.
+    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyGeometrySolidOperation``.
     """
 
-    @staticmethod
-    def rectangle_extrusion(
-        *,
-        x_bounds: tuple[float, float],
-        y_bounds: tuple[float, float],
-        plane_z: float,
-        depth: float,
-        modeling_tolerance: float,
-    ) -> CadAuthoredGraph: ...
-    @staticmethod
-    def decode_canonical(data: bytes) -> CadAuthoredGraph: ...
-    def circular_through_cut(
-        self,
-        *,
-        center: tuple[float, float],
-        radius: float,
-        boolean_tolerance: float,
-    ) -> CadAuthoredGraph: ...
-    def through_cut(
-        self,
-        sketch: CadAuthoredSketch,
-        /,
-        *,
-        boolean_tolerance: float,
-    ) -> CadAuthoredGraph: ...
     @property
     def canonical_bytes(self) -> bytes: ...
     @property
@@ -227,59 +235,21 @@ class CadAuthoredGraph:
     def repair(self) -> str: ...
     @property
     def selection_names(self) -> tuple[str, ...]: ...
-    def face_handle(self, name: str) -> CadAuthoredFaceHandle: ...
-    def resolve_face(self, handle: CadAuthoredFaceHandle) -> str: ...
-    def face_area(self, handle: CadAuthoredFaceHandle) -> float: ...
-    def face_boundary_loop_count(self, handle: CadAuthoredFaceHandle) -> int: ...
+    def face_handle(self, name: str) -> GeometryFaceHandle: ...
+    def resolve_face(self, handle: GeometryFaceHandle) -> str: ...
+    def face_area(self, handle: GeometryFaceHandle) -> float: ...
+    def face_boundary_loop_count(self, handle: GeometryFaceHandle) -> int: ...
     def rectangular_face_vertices(
-        self, handle: CadAuthoredFaceHandle
+        self, handle: GeometryFaceHandle
     ) -> tuple[tuple[float, float, float], ...] | None: ...
     def rectangular_face_centroid(
-        self, handle: CadAuthoredFaceHandle
+        self, handle: GeometryFaceHandle
     ) -> tuple[float, float, float] | None: ...
     def planar_face_outward_normal(
-        self, handle: CadAuthoredFaceHandle
+        self, handle: GeometryFaceHandle
     ) -> tuple[float, float, float] | None: ...
-    def build(
-        self,
-        *,
-        named_topology: Mapping[
-            str, CadAuthoredFaceHandle | Sequence[CadAuthoredFaceHandle]
-        ]
-        | None = None,
-    ) -> CadAuthoredBuild | Geometry: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
-
-@final
-class CadAuthoredSketch:
-    """Opaque native-owned input for closed authored-CAD operations.
-
-    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyCadAuthoredSketch``.
-    """
-
-    @staticmethod
-    def rectangle_xy(
-        *,
-        x_bounds: tuple[float, float],
-        y_bounds: tuple[float, float],
-        plane_z: float,
-        modeling_tolerance: float,
-    ) -> CadAuthoredSketch: ...
-    @staticmethod
-    def circle_on_face(
-        face: CadAuthoredFaceHandle,
-        /,
-        *,
-        center: tuple[float, float],
-        radius: float,
-    ) -> CadAuthoredSketch: ...
-    def extrude_positive_z(
-        self,
-        *,
-        depth: float,
-    ) -> CadAuthoredGraph: ...
-    def __eq__(self, other: object, /) -> bool: ...
 
 @final
 class GeometrySelection:
@@ -324,14 +294,13 @@ class Geometry:
     def __repr__(self) -> str: ...
 
 __all__ = [
-    "CadAuthoredBuild",
-    "CadAuthoredFaceHandle",
-    "CadAuthoredGraph",
-    "CadAuthoredSketch",
     "Geometry",
     "GeometryBoundaryHandle",
+    "GeometryBuildReceipt",
+    "GeometryFaceHandle",
     "GeometryGraph",
     "GeometryOperation",
     "GeometryRegionHandle",
     "GeometrySelection",
+    "GeometrySolidOperation",
 ]

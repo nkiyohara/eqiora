@@ -467,7 +467,7 @@ describe("authored-CAD Python export wire", () => {
     "# Length arguments are coherent-SI metres.\n" +
     "import eqiora\n" +
     "\n" +
-    "authored_graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(\n" +
+    "authored_graph = eqiora.geometry.GeometrySolidOperation.rectangle_extrusion(\n" +
     "    x_bounds=(-2.0, 3.0),\n" +
     "    y_bounds=(-1.0, 2.0),\n" +
     "    plane_z=0.5,\n" +

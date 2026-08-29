@@ -2,14 +2,16 @@
 # Length arguments are coherent-SI metres.
 import eqiora
 
-authored_graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+geometry_graph = eqiora.geometry.GeometryGraph()
+authored_graph = geometry_graph.rectangle_extrusion(
     x_bounds=(-0.04, 0.04),
     y_bounds=(-0.025, 0.025),
     plane_z=0.0,
     depth=0.02,
     modeling_tolerance=1e-10,
 )
-authored_graph = authored_graph.circular_through_cut(
+authored_graph = geometry_graph.circular_through_cut(
+    authored_graph,
     center=(0.02, 0.0),
     radius=0.008,
     boolean_tolerance=1e-9,

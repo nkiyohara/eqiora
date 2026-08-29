@@ -104,7 +104,7 @@ pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurr
         .is_err()
     );
 
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let foreign_rectangle = graph.rectangle([0.0, 2.0], [0.0, 1.0]).unwrap();
     let foreign_edges = foreign_rectangle.boundaries();
     let foreign_geometry = graph
@@ -326,31 +326,30 @@ pub(super) fn linear() -> NativeLinearPolicy {
 }
 
 pub(super) fn stokes_geometry() -> CanonicalGeometryV1 {
-    let predecessor = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((0.0, 2.2), (0.0, 0.41), 0.0).unwrap(),
-        1.0,
-        1.0e-10,
-    )
-    .unwrap();
-    let end_cap = predecessor.face_handle("end-cap").unwrap();
-    let x_lower = predecessor.face_handle("profile-x-lower").unwrap();
-    let x_upper = predecessor.face_handle("profile-x-upper").unwrap();
-    let y_lower = predecessor.face_handle("profile-y-lower").unwrap();
-    let y_upper = predecessor.face_handle("profile-y-upper").unwrap();
-    let graph = predecessor
-        .circular_through_cut([0.2, 0.2], 0.05, 1.0e-10)
+    let owner = GeometryGraph::new();
+    let predecessor = owner
+        .rectangle_extrusion((0.0, 2.2), (0.0, 0.41), 0.0, 1.0, 1.0e-10)
         .unwrap();
+    let graph = owner
+        .circular_through_cut(&predecessor, [0.2, 0.2], 0.05, 1.0e-10)
+        .unwrap();
+    let end_cap = graph.face_handle("end-cap").unwrap();
+    let x_lower = graph.face_handle("profile-x-lower").unwrap();
+    let x_upper = graph.face_handle("profile-x-upper").unwrap();
+    let y_lower = graph.face_handle("profile-y-lower").unwrap();
+    let y_upper = graph.face_handle("profile-y-upper").unwrap();
     let cut_wall = graph.face_handle("cut-wall").unwrap();
-    graph
-        .planar_result()
-        .unwrap()
-        .with_named_topology(&BTreeMap::from([
-            ("fluid".to_owned(), vec![end_cap]),
-            ("inlet".to_owned(), vec![x_lower]),
-            ("outlet".to_owned(), vec![x_upper]),
-            ("walls".to_owned(), vec![y_lower, y_upper]),
-            ("cylinder".to_owned(), vec![cut_wall]),
-        ]))
+    owner
+        .build_solid_geometry(
+            &graph,
+            &BTreeMap::from([
+                ("fluid".to_owned(), vec![end_cap]),
+                ("inlet".to_owned(), vec![x_lower]),
+                ("outlet".to_owned(), vec![x_upper]),
+                ("walls".to_owned(), vec![y_lower, y_upper]),
+                ("cylinder".to_owned(), vec![cut_wall]),
+            ]),
+        )
         .unwrap()
 }
 

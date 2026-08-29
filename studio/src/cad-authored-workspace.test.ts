@@ -19,12 +19,12 @@ import {
 } from "./cad-authored-session";
 import {
   CAD_AUTHORED_DEFAULT_FORM,
-  CadAuthoredBuildReceiptPanel,
   CadAuthoredControls,
   CadAuthoredExportPanel,
   CadAuthoredFaceList,
   CadAuthoredIdentityPanel,
   cadAuthoredFormRequest,
+  GeometryBuildReceiptReceiptPanel,
 } from "./cad-authored-workspace";
 import { BRIDGE_PROTOCOL, type BridgeEnvelope } from "./protocol";
 
@@ -488,7 +488,7 @@ describe("authored-CAD workspace accessibility and naming", () => {
       }),
     );
     const receiptMarkup = renderToStaticMarkup(
-      createElement(CadAuthoredBuildReceiptPanel, {
+      createElement(GeometryBuildReceiptReceiptPanel, {
         build: projection.build,
         onSelect: () => {},
         selectedHandleHex: selected,

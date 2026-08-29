@@ -4,9 +4,10 @@ This case freezes the exact readable Python source under
 [`bindings/python/tests/fixtures/studio_python_cad_round_trip`](../../../bindings/python/tests/fixtures/studio_python_cad_round_trip)
 for the two already accepted
 authored-CAD histories: one rectangle extrusion and its optional one circular
-through-cut successor. The programs call only the installed public
-`eqiora.geometry.CadAuthoredGraph` surface and leave the reconstructed graph in
-the stable top-level name `authored_graph`.
+through-cut successor. The programs create one installed public
+`eqiora.geometry.GeometryGraph`, call its typed solid-operation methods, and
+leave the reconstructed operation in the stable top-level name
+`authored_graph`.
 
 The installed-wheel test copies each frozen program outside the repository,
 executes it from an empty working directory with an isolated interpreter, and

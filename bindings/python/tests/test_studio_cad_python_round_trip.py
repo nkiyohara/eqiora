@@ -27,7 +27,8 @@ import eqiora
 
 
 def rectangle():
-    return eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+    graph = eqiora.geometry.GeometryGraph()
+    return graph, graph.rectangle_extrusion(
         x_bounds=(-2.0, 3.0),
         y_bounds=(-1.0, 2.0),
         plane_z=0.5,
@@ -37,13 +38,16 @@ def rectangle():
 
 
 def circular_cut():
-    return eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+    graph = eqiora.geometry.GeometryGraph()
+    base = graph.rectangle_extrusion(
         x_bounds=(-0.04, 0.04),
         y_bounds=(-0.025, 0.025),
         plane_z=0.0,
         depth=0.02,
         modeling_tolerance=1e-10,
-    ).circular_through_cut(
+    )
+    return graph, graph.circular_through_cut(
+        base,
         center=(0.02, 0.0),
         radius=0.008,
         boolean_tolerance=1e-9,
@@ -51,16 +55,18 @@ def circular_cut():
 
 
 program = Path(sys.argv[1])
-expected = rectangle() if sys.argv[2] == "v1" else circular_cut()
+expected_owner, expected = rectangle() if sys.argv[2] == "v1" else circular_cut()
 namespace = runpy.run_path(str(program))
 assert {name for name in namespace if not name.startswith("__")} == {
     "eqiora",
+    "geometry_graph",
     "authored_graph",
     "_expected_graph_digest",
 }
 actual = namespace["authored_graph"]
 
-assert type(actual) is eqiora.geometry.CadAuthoredGraph
+actual_owner = namespace["geometry_graph"]
+assert type(actual) is eqiora.geometry.GeometrySolidOperation
 assert actual == expected
 assert actual.canonical_bytes == expected.canonical_bytes
 assert actual.graph_digest == expected.graph_digest
@@ -90,7 +96,7 @@ for attribute in (
 for name in expected.selection_names:
     actual_handle = actual.face_handle(name)
     expected_handle = expected.face_handle(name)
-    assert actual_handle == expected_handle
+    assert actual_handle != expected_handle
     assert actual_handle.canonical_bytes == expected_handle.canonical_bytes
     assert actual_handle.graph_digest == actual.graph_digest
     assert actual_handle.provenance_key == name
@@ -109,7 +115,33 @@ for name in expected.selection_names:
         actual_handle
     ) == expected.planar_face_outward_normal(expected_handle)
 
-assert actual.build() == expected.build()
+actual_receipt = actual_owner.build(actual)
+expected_receipt = expected_owner.build(expected)
+for attribute in (
+    "graph_digest",
+    "provider_profile",
+    "requested_modeling_tolerance",
+    "requested_boolean_tolerance",
+    "effective_boolean_tolerance",
+    "maximum_position_discrepancy",
+    "maximum_area_discrepancy",
+    "maximum_volume_discrepancy",
+    "repair",
+):
+    assert getattr(actual_receipt, attribute) == getattr(expected_receipt, attribute), attribute
+for attribute in (
+    "retained_unchanged",
+    "retained_modified",
+    "created",
+    "deleted",
+    "split",
+    "merged",
+):
+    actual_lineage = getattr(actual_receipt, attribute)
+    expected_lineage = getattr(expected_receipt, attribute)
+    assert tuple(handle.canonical_bytes for handle in actual_lineage) == tuple(
+        handle.canonical_bytes for handle in expected_lineage
+    ), attribute
 print(
     json.dumps(
         {
@@ -149,8 +181,9 @@ def test_frozen_studio_export_executes_through_only_the_installed_public_api(
 
     text = source.decode("utf-8")
     assert text.count("import eqiora\n") == 1
-    assert text.count("CadAuthoredGraph.rectangle_extrusion(") == 1
-    assert text.count(".circular_through_cut(") == (history == "v2")
+    assert text.count("GeometryGraph()") == 1
+    assert text.count("geometry_graph.rectangle_extrusion(") == 1
+    assert text.count("geometry_graph.circular_through_cut(") == (history == "v2")
     assert "authored_graph =" in text
     assert digest in text
     assert str(ROOT) not in text

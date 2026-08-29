@@ -6,7 +6,7 @@ use eqiora::artifact::{
     CartesianMeshCellsV1, GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
     ModelEnvelope,
 };
-use eqiora::geometry::{PlanarOperationGraph, PlanarTopologyHandle};
+use eqiora::geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
@@ -51,7 +51,7 @@ pub(crate) fn plan_for_document(
     cells: usize,
     spatial: CommonSpatialPolicy,
 ) -> CommonScalarPlan {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
     let geometry = graph
@@ -138,7 +138,7 @@ pub(crate) fn document_and_plan_with_source(
 fn document_and_plans_with_source(
     source: &str,
 ) -> (ModelDocument, CommonScalarPlan, CommonScalarPlan) {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
     let geometry = graph

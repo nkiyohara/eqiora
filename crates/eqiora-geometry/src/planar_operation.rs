@@ -13,8 +13,9 @@ use eqiora_core::diagnostic::codes;
 
 use crate::{
     CanonicalGeometryV1, CanonicalPlanarAdjacentRectanglePartitionV1,
-    CanonicalPlanarCircularHoleGeometryV2, CanonicalPlanarRectangleGeometryV2, EDGE_DIMENSION,
-    FACE_DIMENSION, NamedEntitySet,
+    CanonicalPlanarCircularHoleGeometryV2, CanonicalPlanarRectangleGeometryV2,
+    ConstrainedRectangleV1, EDGE_DIMENSION, FACE_DIMENSION, GeometryBuildReceipt,
+    GeometryFaceHandle, GeometrySolidOperation, NamedEntitySet,
 };
 
 static NEXT_GRAPH_OWNER: AtomicU64 = AtomicU64::new(1);
@@ -23,20 +24,20 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_ARTIFACT, message)
 }
 
-/// One non-persisted construction session for exact planar operations.
+/// One non-persisted construction session for all admitted authored operations.
 #[derive(Clone, Debug)]
-pub struct PlanarOperationGraph {
+pub struct GeometryGraph {
     owner: u64,
     next_operation: Arc<AtomicU64>,
 }
 
-impl Default for PlanarOperationGraph {
+impl Default for GeometryGraph {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl PlanarOperationGraph {
+impl GeometryGraph {
     /// Start one independent handle-ownership session.
     #[must_use]
     pub fn new() -> Self {
@@ -44,6 +45,72 @@ impl PlanarOperationGraph {
             owner: NEXT_GRAPH_OWNER.fetch_add(1, Ordering::Relaxed),
             next_operation: Arc::new(AtomicU64::new(1)),
         }
+    }
+
+    /// Construct the admitted rectangle-extrusion solid operation.
+    pub fn rectangle_extrusion(
+        &self,
+        x_bounds_m: (f64, f64),
+        y_bounds_m: (f64, f64),
+        plane_z_m: f64,
+        extrusion_depth_m: f64,
+        requested_modeling_tolerance_m: f64,
+    ) -> Result<GeometrySolidOperation, Diagnostic> {
+        let sketch = ConstrainedRectangleV1::new(x_bounds_m, y_bounds_m, plane_z_m)?;
+        GeometrySolidOperation::from_rectangle(
+            self.owner,
+            sketch,
+            extrusion_depth_m,
+            requested_modeling_tolerance_m,
+        )
+    }
+
+    /// Decode one accepted solid-operation wire into this graph session.
+    pub fn decode_solid(&self, bytes: &[u8]) -> Result<GeometrySolidOperation, Diagnostic> {
+        GeometrySolidOperation::decode_for_owner(self.owner, bytes)
+    }
+
+    /// Decode and validate one face handle against an owned solid revision.
+    pub fn decode_face_handle(
+        &self,
+        operation: &GeometrySolidOperation,
+        bytes: &[u8],
+    ) -> Result<GeometryFaceHandle, Diagnostic> {
+        self.require_solid_owner(operation)?;
+        let handle = GeometryFaceHandle::decode_for_owner(self.owner, bytes)?;
+        operation.resolve_face(&handle)?;
+        Ok(handle)
+    }
+
+    /// Append the admitted circular through-cut to an owned solid operation.
+    pub fn circular_through_cut(
+        &self,
+        target: &GeometrySolidOperation,
+        center_m: [f64; 2],
+        radius_m: f64,
+        requested_boolean_tolerance_m: f64,
+    ) -> Result<GeometrySolidOperation, Diagnostic> {
+        self.require_solid_owner(target)?;
+        target.append_circular_through_cut(center_m, radius_m, requested_boolean_tolerance_m)
+    }
+
+    /// Admit the provider observation for one owned solid operation.
+    pub fn build_solid(
+        &self,
+        operation: &GeometrySolidOperation,
+    ) -> Result<GeometryBuildReceipt, Diagnostic> {
+        self.require_solid_owner(operation)?;
+        GeometryBuildReceipt::from_graph(operation)
+    }
+
+    /// Publish the admitted planar result of one owned solid operation.
+    pub fn build_solid_geometry(
+        &self,
+        operation: &GeometrySolidOperation,
+        named_topology: &BTreeMap<String, Vec<GeometryFaceHandle>>,
+    ) -> Result<CanonicalGeometryV1, Diagnostic> {
+        self.build_solid(operation)?
+            .with_named_topology(named_topology)
     }
 
     /// Construct one exact axis-aligned planar rectangle.
@@ -244,6 +311,15 @@ impl PlanarOperationGraph {
     fn require_owner(&self, operation: &PlanarOperation) -> Result<(), Diagnostic> {
         if operation.owner != self.owner {
             return Err(invalid("operation belongs to a foreign construction graph"));
+        }
+        Ok(())
+    }
+
+    fn require_solid_owner(&self, operation: &GeometrySolidOperation) -> Result<(), Diagnostic> {
+        if operation.authoring_owner() != self.owner {
+            return Err(invalid(
+                "solid operation belongs to a foreign GeometryGraph",
+            ));
         }
         Ok(())
     }

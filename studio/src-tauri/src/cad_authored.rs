@@ -1,7 +1,7 @@
 //! Studio projection for the authored-CAD operation-history slice.
 //!
 //! The native bridge never invents CAD meaning. It forwards bounded ergonomic
-//! scalars to the accepted Rust owner (`eqiora::geometry::CadAuthoredGraph`
+//! scalars to the accepted Rust owner (`eqiora::geometry::GeometrySolidOperation`
 //! and friends), then projects the owner's exact observations, canonical
 //! bytes, graph identity, opaque graph-bound face handles, and complete
 //! analytic build receipt. Canonical bytes and handles cross this boundary as
@@ -12,8 +12,8 @@
 use eqiora::Diagnostic;
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{
-    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1,
-    ConstrainedRectangleV1,
+    CadRepairDispositionV1, GeometryBuildReceipt, GeometryFaceHandle, GeometryGraph,
+    GeometrySolidOperation,
 };
 use serde::{Deserialize, Serialize};
 
@@ -36,7 +36,7 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 /// or provider selector, and no client-authored canonical form.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct CadAuthoredBuildRequestDto {
+pub(super) struct GeometryBuildReceiptRequestDto {
     pub(super) protocol: String,
     pub(super) sketch: CadAuthoredSketchRequestDto,
     pub(super) extrusion_depth_m: f64,
@@ -85,7 +85,7 @@ pub(super) struct CadAuthoredProjectionDto {
     tolerances: CadAuthoredToleranceDto,
     observations: CadAuthoredObservationsDto,
     faces: Vec<CadAuthoredFaceDto>,
-    build: CadAuthoredBuildReceiptDto,
+    build: GeometryBuildReceiptReceiptDto,
 }
 
 /// Ordered semantic history projected from the owner's closed vocabulary.
@@ -191,7 +191,7 @@ pub(super) struct CadAuthoredFaceDto {
 /// Complete accepted analytic build receipt, including topology lineage.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct CadAuthoredBuildReceiptDto {
+pub(super) struct GeometryBuildReceiptReceiptDto {
     graph_digest: String,
     provider_profile: &'static str,
     requested_modeling_tolerance_m: f64,
@@ -242,30 +242,29 @@ pub(super) struct CadAuthoredSelectionDto {
 /// Finiteness, positivity, ordering, and cut-clearance admission stay with
 /// the owner; this function adds only protocol and transport checks.
 pub(super) fn build_graph(
-    request: &CadAuthoredBuildRequestDto,
+    request: &GeometryBuildReceiptRequestDto,
 ) -> Result<CadAuthoredProjectionDto, Diagnostic> {
     if request.protocol != CAD_AUTHORED_PROTOCOL {
         return Err(invalid("unsupported Studio authored-CAD payload protocol"));
     }
-    let sketch = ConstrainedRectangleV1::new(
+    let owner = GeometryGraph::new();
+    let base = owner.rectangle_extrusion(
         (request.sketch.x_bounds_m[0], request.sketch.x_bounds_m[1]),
         (request.sketch.y_bounds_m[0], request.sketch.y_bounds_m[1]),
         request.sketch.plane_z_m,
-    )?;
-    let base = CadAuthoredGraph::new(
-        sketch,
         request.extrusion_depth_m,
         request.requested_modeling_tolerance_m,
     )?;
     let graph = match &request.cut {
         None => base,
-        Some(cut) => base.circular_through_cut(
+        Some(cut) => owner.circular_through_cut(
+            &base,
             cut.center_m,
             cut.radius_m,
             cut.requested_boolean_tolerance_m,
         )?,
     };
-    project_graph(&graph)
+    project_graph(&owner, &graph)
 }
 
 /// Replay the exact opaque canonical graph and resolve one graph-bound face
@@ -277,7 +276,7 @@ pub(super) fn resolve_selection(
     if request.protocol != CAD_AUTHORED_PROTOCOL {
         return Err(invalid("unsupported Studio authored-CAD payload protocol"));
     }
-    let (graph, digest_hex) = replay_canonical_graph(&request.canonical_graph_hex)?;
+    let (owner, graph, digest_hex) = replay_canonical_graph(&request.canonical_graph_hex)?;
     if request.graph_digest != digest_hex {
         return Err(invalid(
             "authored-CAD selection references a stale or foreign graph identity",
@@ -288,7 +287,7 @@ pub(super) fn resolve_selection(
         MAX_HANDLE_HEX_DIGITS,
         "authored-CAD face handle",
     )?;
-    let handle = CadAuthoredFaceHandle::decode_canonical(&handle_bytes)?;
+    let handle = owner.decode_face_handle(&graph, &handle_bytes)?;
     let selection = graph.resolve_face(&handle)?;
     Ok(CadAuthoredSelectionDto {
         protocol: CAD_AUTHORED_PROTOCOL,
@@ -308,19 +307,23 @@ pub(super) fn resolve_selection(
 /// stays with each caller.
 pub(super) fn replay_canonical_graph(
     canonical_graph_hex: &str,
-) -> Result<(CadAuthoredGraph, String), Diagnostic> {
+) -> Result<(GeometryGraph, GeometrySolidOperation, String), Diagnostic> {
     let graph_bytes = decode_bounded_hex(
         canonical_graph_hex,
         MAX_GRAPH_HEX_DIGITS,
         "authored-CAD canonical graph",
     )?;
-    let graph = CadAuthoredGraph::decode_canonical(&graph_bytes)?;
+    let owner = GeometryGraph::new();
+    let graph = owner.decode_solid(&graph_bytes)?;
     let digest_hex = encode_hex(&graph.digest_bytes());
-    Ok((graph, digest_hex))
+    Ok((owner, graph, digest_hex))
 }
 
-fn project_graph(graph: &CadAuthoredGraph) -> Result<CadAuthoredProjectionDto, Diagnostic> {
-    let build = graph.build_analytic()?;
+fn project_graph(
+    owner: &GeometryGraph,
+    graph: &GeometrySolidOperation,
+) -> Result<CadAuthoredProjectionDto, Diagnostic> {
+    let build = owner.build_solid(graph)?;
     let faces = graph
         .face_handles()?
         .iter()
@@ -355,7 +358,7 @@ fn project_graph(graph: &CadAuthoredGraph) -> Result<CadAuthoredProjectionDto, D
 }
 
 /// Frozen wire ids of the closed dependency chain, repeated for inspection.
-fn project_history(graph: &CadAuthoredGraph) -> Vec<CadAuthoredOperationDto> {
+fn project_history(graph: &GeometrySolidOperation) -> Vec<CadAuthoredOperationDto> {
     let sketch = graph.sketch();
     let mut history = vec![
         CadAuthoredOperationDto::SketchPlane {
@@ -417,8 +420,8 @@ fn project_history(graph: &CadAuthoredGraph) -> Vec<CadAuthoredOperationDto> {
 }
 
 fn project_face(
-    graph: &CadAuthoredGraph,
-    handle: &CadAuthoredFaceHandle,
+    graph: &GeometrySolidOperation,
+    handle: &GeometryFaceHandle,
 ) -> Result<CadAuthoredFaceDto, Diagnostic> {
     Ok(CadAuthoredFaceDto {
         provenance_key: handle.provenance_key(),
@@ -432,10 +435,10 @@ fn project_face(
 }
 
 fn project_build(
-    graph: &CadAuthoredGraph,
-    build: &CadAuthoredBuild,
-) -> Result<CadAuthoredBuildReceiptDto, Diagnostic> {
-    Ok(CadAuthoredBuildReceiptDto {
+    graph: &GeometrySolidOperation,
+    build: &GeometryBuildReceipt,
+) -> Result<GeometryBuildReceiptReceiptDto, Diagnostic> {
+    Ok(GeometryBuildReceiptReceiptDto {
         graph_digest: encode_hex(&build.graph_digest_bytes()),
         provider_profile: build.provider_profile(),
         requested_modeling_tolerance_m: build.requested_modeling_tolerance_m(),
@@ -457,8 +460,8 @@ fn project_build(
 }
 
 fn project_lineage(
-    graph: &CadAuthoredGraph,
-    handles: &[CadAuthoredFaceHandle],
+    graph: &GeometrySolidOperation,
+    handles: &[GeometryFaceHandle],
 ) -> Result<Vec<CadAuthoredLineageHandleDto>, Diagnostic> {
     handles
         .iter()
@@ -552,8 +555,8 @@ mod tests {
     const V2_DIGEST_HEX: &str = "00acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47";
     const V2_CANONICAL_BYTE_COUNT: usize = 1_292;
 
-    fn v1_request() -> CadAuthoredBuildRequestDto {
-        CadAuthoredBuildRequestDto {
+    fn v1_request() -> GeometryBuildReceiptRequestDto {
+        GeometryBuildReceiptRequestDto {
             protocol: CAD_AUTHORED_PROTOCOL.to_owned(),
             sketch: CadAuthoredSketchRequestDto {
                 x_bounds_m: V1_SKETCH_X_M,
@@ -566,8 +569,8 @@ mod tests {
         }
     }
 
-    fn v2_request() -> CadAuthoredBuildRequestDto {
-        CadAuthoredBuildRequestDto {
+    fn v2_request() -> GeometryBuildReceiptRequestDto {
+        GeometryBuildReceiptRequestDto {
             protocol: CAD_AUTHORED_PROTOCOL.to_owned(),
             sketch: CadAuthoredSketchRequestDto {
                 x_bounds_m: V2_SKETCH_X_M,
@@ -590,32 +593,40 @@ mod tests {
 
     /// Public owner constructed independently of `build_graph`, from the same
     /// frozen witness scalars, to compare every projected field against.
-    fn v1_owner() -> CadAuthoredGraph {
-        let sketch = ConstrainedRectangleV1::new(
-            (V1_SKETCH_X_M[0], V1_SKETCH_X_M[1]),
-            (V1_SKETCH_Y_M[0], V1_SKETCH_Y_M[1]),
-            V1_PLANE_Z_M,
-        )
-        .unwrap();
-        CadAuthoredGraph::new(sketch, V1_DEPTH_M, V1_TOLERANCE_M).unwrap()
+    fn v1_owner() -> (GeometryGraph, GeometrySolidOperation) {
+        let owner = GeometryGraph::new();
+        let graph = owner
+            .rectangle_extrusion(
+                (V1_SKETCH_X_M[0], V1_SKETCH_X_M[1]),
+                (V1_SKETCH_Y_M[0], V1_SKETCH_Y_M[1]),
+                V1_PLANE_Z_M,
+                V1_DEPTH_M,
+                V1_TOLERANCE_M,
+            )
+            .unwrap();
+        (owner, graph)
     }
 
-    fn v2_owner() -> CadAuthoredGraph {
-        let sketch = ConstrainedRectangleV1::new(
-            (V2_SKETCH_X_M[0], V2_SKETCH_X_M[1]),
-            (V2_SKETCH_Y_M[0], V2_SKETCH_Y_M[1]),
-            V2_PLANE_Z_M,
-        )
-        .unwrap();
-        CadAuthoredGraph::new(sketch, V2_DEPTH_M, V2_TOLERANCE_M)
-            .unwrap()
-            .circular_through_cut(V2_CUT_CENTER_M, V2_CUT_RADIUS_M, V2_CUT_TOLERANCE_M)
-            .unwrap()
+    fn v2_owner() -> (GeometryGraph, GeometrySolidOperation) {
+        let owner = GeometryGraph::new();
+        let base = owner
+            .rectangle_extrusion(
+                (V2_SKETCH_X_M[0], V2_SKETCH_X_M[1]),
+                (V2_SKETCH_Y_M[0], V2_SKETCH_Y_M[1]),
+                V2_PLANE_Z_M,
+                V2_DEPTH_M,
+                V2_TOLERANCE_M,
+            )
+            .unwrap();
+        let graph = owner
+            .circular_through_cut(&base, V2_CUT_CENTER_M, V2_CUT_RADIUS_M, V2_CUT_TOLERANCE_M)
+            .unwrap();
+        (owner, graph)
     }
 
     fn assert_lineage_matches_owner(
-        owner: &CadAuthoredGraph,
-        handles: &[CadAuthoredFaceHandle],
+        owner: &GeometrySolidOperation,
+        handles: &[GeometryFaceHandle],
         projected: &[CadAuthoredLineageHandleDto],
     ) {
         assert_eq!(projected.len(), handles.len());
@@ -629,7 +640,8 @@ mod tests {
     /// must equal the value the separately constructed public owner reports.
     fn assert_projection_matches_owner(
         projection: &CadAuthoredProjectionDto,
-        owner: &CadAuthoredGraph,
+        graph_owner: &GeometryGraph,
+        owner: &GeometrySolidOperation,
     ) {
         assert_eq!(projection.graph_digest, encode_hex(&owner.digest_bytes()));
         assert_eq!(
@@ -689,7 +701,7 @@ mod tests {
             );
         }
 
-        let build = owner.build_analytic().unwrap();
+        let build = graph_owner.build_solid(owner).unwrap();
         let receipt = &projection.build;
         assert_eq!(
             receipt.graph_digest,
@@ -770,12 +782,14 @@ mod tests {
 
     #[test]
     fn v1_projection_equals_the_separately_constructed_public_owner() {
-        assert_projection_matches_owner(&build_graph(&v1_request()).unwrap(), &v1_owner());
+        let (owner, graph) = v1_owner();
+        assert_projection_matches_owner(&build_graph(&v1_request()).unwrap(), &owner, &graph);
     }
 
     #[test]
     fn v2_projection_equals_the_separately_constructed_public_owner() {
-        assert_projection_matches_owner(&build_graph(&v2_request()).unwrap(), &v2_owner());
+        let (owner, graph) = v2_owner();
+        assert_projection_matches_owner(&build_graph(&v2_request()).unwrap(), &owner, &graph);
     }
 
     #[test]
@@ -1037,7 +1051,7 @@ mod tests {
             "requestedModelingToleranceM": 1.0e-9,
             "cut": null,
         });
-        assert!(serde_json::from_value::<CadAuthoredBuildRequestDto>(accepted).is_ok());
+        assert!(serde_json::from_value::<GeometryBuildReceiptRequestDto>(accepted).is_ok());
 
         let widened = serde_json::json!({
             "protocol": CAD_AUTHORED_PROTOCOL,
@@ -1047,7 +1061,7 @@ mod tests {
             "cut": null,
             "operations": [],
         });
-        assert!(serde_json::from_value::<CadAuthoredBuildRequestDto>(widened).is_err());
+        assert!(serde_json::from_value::<GeometryBuildReceiptRequestDto>(widened).is_err());
 
         // Invalid-scalar spellings copied from the frozen rectangle case; the
         // owner, not this module, rejects each one.
