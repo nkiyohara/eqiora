@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **79** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **82** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -587,9 +587,9 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/capabilit
 @final
 class FormulationView:
     @property
-    def requested(self) -> str: ...
+    def requested(self) -> FormulationSelectionMode: ...
     @property
-    def effective(self) -> str: ...
+    def effective(self) -> FormulationKind: ...
     @property
     def boundary_treatment(self) -> str: ...
     @property
@@ -597,6 +597,41 @@ class FormulationView:
     @property
     def selection_reason_codes(self) -> list[str]: ...
     def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-FormulationKind"></a>
+
+## `FormulationKind`
+
+Closed mathematical Formulation families accepted by exact override.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/capability_view.rs" kind="blob">crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind</ExactSourceLink>
+
+```python
+@final
+class FormulationKind:
+    PrimalGalerkin: ClassVar[FormulationKind]
+    MixedGalerkin: ClassVar[FormulationKind]
+    IntegralConservative: ClassVar[FormulationKind]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-FormulationSelectionMode"></a>
+
+## `FormulationSelectionMode`
+
+Whether resolution selected or admitted an exact Formulation.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/capability_view.rs" kind="blob">crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationSelectionMode</ExactSourceLink>
+
+```python
+@final
+class FormulationSelectionMode:
+    Automatic: ClassVar[FormulationSelectionMode]
+    Exact: ClassVar[FormulationSelectionMode]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
 ```
 
 <a id="api-eqiora-InitialField"></a>
@@ -1407,7 +1442,7 @@ structural no-Mesh ODE paths reject spatial resources.
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::resolve</ExactSourceLink>
 
 ```python
-def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
+def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-run"></a>
@@ -1487,6 +1522,16 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs
 Narrow fluid applications composed by Eqiora's shared native layer.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/fluid.py" kind="blob">bindings/python/python/eqiora/fluid.py</ExactSourceLink>
+
+<a id="api-eqiora-formulation"></a>
+
+## `formulation`
+
+**Module export.** This spelling exposes the documented public module [`eqiora.formulation`](/reference/python/formulation/).
+
+Mathematical Formulation requests and resolved-selection inspection.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/formulation.py" kind="blob">bindings/python/python/eqiora/formulation.py</ExactSourceLink>
 
 <a id="api-eqiora-fsi"></a>
 

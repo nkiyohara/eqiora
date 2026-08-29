@@ -10,7 +10,7 @@ use eqiora::realization::{SolveRoot, TransformationNode};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonBackwardEuler, CommonInitialField, CommonInitialValues,
-    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSpatialRequest,
+    CommonMethodRequest, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy,
     IncompressibleScalingRequest2d, common::PhysicalBoundaryDisposition,
     fsi::FixedReferenceFsiCartesianModel2d, fsi::lower_fixed_reference_fsi_cartesian_2d,
     resolve_common_plan,
@@ -262,7 +262,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
     let model_digest = common_model.digest().unwrap();
     let fluid_domain = common_document.aliases()["fluid"].downcast().unwrap();
     let solid_domain = common_document.aliases()["solid"].downcast().unwrap();
-    let scoped = CommonSpatialRequest::Scoped(vec![
+    let scoped = CommonMethodRequest::Scoped(vec![
         CommonScopedSpatialPolicy::new(
             model_digest.clone(),
             fluid_domain,

@@ -8,11 +8,19 @@ impl CommonTransientFlowPlan {
             CommonTransientFormulation::MixedGalerkin(correspondence) => {
                 CommonFormulationDescription::mixed(
                     correspondence,
-                    "eqiora.formulation.auto.mixed-galerkin-for-mini-p1/v1",
+                    self.formulation_selection,
+                    match self.formulation_selection {
+                        FormulationSelectionMode::Automatic => {
+                            "eqiora.formulation.auto.mixed-galerkin-for-mini-p1/v1"
+                        }
+                        FormulationSelectionMode::Exact => {
+                            "eqiora.formulation.exact.mixed-galerkin-admitted/v1"
+                        }
+                    },
                 )
             }
             CommonTransientFormulation::IntegralConservative(correspondence) => {
-                CommonFormulationDescription::integral(correspondence)
+                CommonFormulationDescription::integral(correspondence, self.formulation_selection)
             }
         }
     }
@@ -20,6 +28,7 @@ impl CommonTransientFlowPlan {
     pub(super) fn from_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
+        formulation_selection: FormulationSelectionMode,
         scaling: ResolvedIncompressibleScaling2d,
         temporal: CommonBackwardEuler,
         nonlinear: NonlinearSolvePlan,
@@ -282,6 +291,7 @@ impl CommonTransientFlowPlan {
             },
         );
         push_framed(&mut identity_bytes, formulation.identity());
+        push_framed(&mut identity_bytes, formulation_selection.identity());
         for discriminant in [
             b"f64".as_slice(),
             b"replicated".as_slice(),
@@ -303,6 +313,7 @@ impl CommonTransientFlowPlan {
             admission,
             resolved,
             formulation,
+            formulation_selection,
             scaling,
             temporal,
             nonlinear,

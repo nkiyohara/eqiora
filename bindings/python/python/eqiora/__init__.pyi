@@ -23,6 +23,7 @@ import numpy as np
 import numpy.typing as npt
 
 from . import fluid as fluid
+from . import formulation as formulation
 from . import fem as fem
 from . import fsi as fsi
 from . import fvm as fvm
@@ -657,15 +658,40 @@ class ResolvedExecution:
     def __repr__(self) -> str: ...
 
 @final
+class FormulationKind:
+    """Closed mathematical Formulation families accepted by exact override.
+
+    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind``.
+    """
+
+    PrimalGalerkin: ClassVar[FormulationKind]
+    MixedGalerkin: ClassVar[FormulationKind]
+    IntegralConservative: ClassVar[FormulationKind]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class FormulationSelectionMode:
+    """Whether resolution selected or admitted an exact Formulation.
+
+    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationSelectionMode``.
+    """
+
+    Automatic: ClassVar[FormulationSelectionMode]
+    Exact: ClassVar[FormulationSelectionMode]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
 class FormulationView:
     """Effective mathematical form selected between Model and Realization.
 
     Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationView``.
     """
     @property
-    def requested(self) -> str: ...
+    def requested(self) -> FormulationSelectionMode: ...
     @property
-    def effective(self) -> str: ...
+    def effective(self) -> FormulationKind: ...
     @property
     def boundary_treatment(self) -> str: ...
     @property
@@ -1245,6 +1271,7 @@ def resolve(
     *,
     mesh: meshing.Mesh | None = None,
     spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None = None,
+    formulation: FormulationKind | None = None,
     solve: solve.Linear | solve.Newton | None = None,
     scaling: fluid.IncompressibleScaling | None = None,
     temporal: time.BackwardEuler | time.Tsitouras45 | None = None,
@@ -1340,6 +1367,8 @@ __all__ = [
     "FieldOutput",
     "FieldRef",
     "FormulationView",
+    "FormulationKind",
+    "FormulationSelectionMode",
     "InitialField",
     "InternalError",
     "LinearSolveSummary",
@@ -1383,6 +1412,7 @@ __all__ = [
     "diff",
     "fem",
     "fluid",
+    "formulation",
     "fsi",
     "fvm",
     "geometry",

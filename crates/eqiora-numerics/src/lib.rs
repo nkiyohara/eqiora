@@ -40,9 +40,9 @@ pub use common_ode::{
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonBackwardEuler, CommonElasticityObservation,
     CommonElasticityPlan, CommonElasticityRunOutput, CommonFormulationDescription, CommonFsiPlan,
-    CommonFsiRunRequest, CommonInitialField, CommonInitialValues, CommonPressureGauge2d,
-    CommonScalarPlan, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy,
-    CommonSpatialRequest, CommonState, CommonSteadyStokesObservation, CommonSteadyStokesPlan,
+    CommonFsiRunRequest, CommonInitialField, CommonInitialValues, CommonMethodRequest,
+    CommonPressureGauge2d, CommonScalarPlan, CommonScopedSpatialPolicy, CommonSolvePolicy,
+    CommonSpatialPolicy, CommonState, CommonSteadyStokesObservation, CommonSteadyStokesPlan,
     CommonSteadyStokesRunOutput, CommonTransientFlowPlan, CommonTransientRunRequest,
     FormulationKind, FormulationSelectionMode, ResolvedCommonPlan, resolve_common_ode_plan,
     resolve_common_plan,
