@@ -61,7 +61,7 @@ assert [time_s for time_s, _ in series] == [0.1, 0.2]
 for time_s, value in series:
     assert math.isclose(value, math.exp(-time_s), rel_tol=2.0e-8, abs_tol=2.0e-10)
 
-replayed = eqiora.replay(model.to_json())
+replayed = eqiora.Model.from_bytes(model.to_bytes())
 replayed_field, replayed_plan = resolve(replayed)
 assert replayed_plan.identity == plan.identity
 assert replayed_plan.model_digest == model.digest

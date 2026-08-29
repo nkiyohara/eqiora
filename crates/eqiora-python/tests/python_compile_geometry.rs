@@ -34,7 +34,7 @@ parameters = {
 model = eqiora.compile(source=source_text, filename="cylinder.eqi", geometry=geometry, parameters=parameters)
 explicit = eqiora.compile(source=source_text, filename="renamed.eqi", geometry=geometry, parameters=parameters, component="SteadyFlowPastCylinder")
 assert model.digest == explicit.digest
-replayed = eqiora.replay(model.to_json())
+replayed = eqiora.Model.from_bytes(model.to_bytes())
 request = eqiora.meshing.GmshMesher(
     maximum_boundary_error=1e-4,
     minimum_mean_ratio=1e-5,

@@ -31,14 +31,14 @@ def load_control_fixture(relative_path: str) -> dict[str, object]:
 def test_python_authoring_and_replay_use_the_registered_current_profile() -> None:
     profile = json.loads(CURRENT_PROFILE_FIXTURE.read_text(encoding="utf-8"))
     model = eqiora.compile(source=SOURCE, filename="current.eqi")
-    assert json.loads(model.to_json())["schema"] == profile["modelSchema"]
+    assert json.loads(model.to_bytes())["schema"] == profile["modelSchema"]
 
     state = eqiora.Field("x", initial=1.0)
     hold = eqiora.Relation("hold", residual=eqiora.derivative(state))
     native = eqiora.Model.define("hold", state, hold)
-    assert json.loads(native.to_json())["schema"] == profile["modelSchema"]
-    replayed = eqiora.replay(model.to_json())
-    assert replayed.to_json() == model.to_json()
+    assert json.loads(native.to_bytes())["schema"] == profile["modelSchema"]
+    replayed = eqiora.Model.from_bytes(model.to_bytes())
+    assert replayed.to_bytes() == model.to_bytes()
     assert replayed.digest == model.digest
 
 
@@ -87,10 +87,10 @@ model native_poisson {
 
 def test_compile_artifact_run_and_owned_numpy_result() -> None:
     model = eqiora.compile(source=SOURCE, filename="decay.eqi")
-    artifact = model.to_json()
+    artifact = model.to_bytes()
     assert len(model.digest) == 64
-    reconstructed = eqiora.replay(artifact)
-    assert reconstructed.to_json() == artifact
+    reconstructed = eqiora.Model.from_bytes(artifact)
+    assert reconstructed.to_bytes() == artifact
     assert reconstructed.digest == model.digest
 
     field = model.field(model.field_ids[0])
@@ -186,7 +186,7 @@ def test_shared_compile_check_fixtures_cross_the_python_adapter() -> None:
         source=accepted["source"],
         filename=accepted["filename"],
     )
-    artifact = json.loads(model.to_json())
+    artifact = json.loads(model.to_bytes())
     assert artifact["schema"] == accepted_expectation["modelSchema"]
 
     rejected_expectation = next(
@@ -224,7 +224,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
     )
 
     model = eqiora.Model.define("decay", state, rate, flow)
-    assert json.loads(model.to_json())["schema"] == "eqiora.model-envelope/v8"
+    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v8"
     field = model.field(model.field_ids[0])
     plan = eqiora.resolve(
         model,
@@ -437,9 +437,9 @@ def test_native_physical_declarations_use_current_and_retain_replay() -> None:
     declarations = physical_pair()
 
     model = eqiora.Model.define("physical_pair", *declarations)
-    artifact = model.to_json()
-    reconstructed = eqiora.replay(artifact)
-    assert reconstructed.to_json() == artifact
+    artifact = model.to_bytes()
+    reconstructed = eqiora.Model.from_bytes(artifact)
+    assert reconstructed.to_bytes() == artifact
     assert reconstructed.digest == model.digest
 
     source = eqiora.compile(source=PHYSICAL_SOURCE, filename="physical-source.eqi")
@@ -453,7 +453,7 @@ def test_physical_source_compile_uses_current_without_user_codec_selection() -> 
         source=PHYSICAL_SOURCE,
         filename="physical_pair.eqi",
     )
-    restored = eqiora.replay(model.to_json())
+    restored = eqiora.Model.from_bytes(model.to_bytes())
     assert restored.digest == model.digest
 
 

@@ -80,7 +80,7 @@ def test_model_first_no_mesh_decay_owns_exact_lineage_and_adaptive_series() -> N
 
 def test_replay_and_fresh_compile_use_the_same_resolver_without_fixed_identity() -> None:
     first = eqiora.compile(source=DECAY)
-    replayed = eqiora.replay(first.to_json())
+    replayed = eqiora.Model.from_bytes(first.to_bytes())
     second = eqiora.compile(source=DECAY)
     first_plan, _ = resolve_decay(first)
     replayed_plan, _ = resolve_decay(replayed)

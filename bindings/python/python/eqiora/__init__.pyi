@@ -592,7 +592,12 @@ class Model:
         name: str,
         *declarations: _ModelDeclaration,
     ) -> Model: ...
-    def to_json(self) -> bytes: ...
+    @staticmethod
+    def from_bytes(data: bytes) -> Model: ...
+    @staticmethod
+    def read(path: str | PathLike[str]) -> Model: ...
+    def to_bytes(self) -> bytes: ...
+    def write(self, path: str | PathLike[str]) -> None: ...
     def preview_value_edit(self, target: str, value: float) -> ValueEdit: ...
     def commit(self, edit: ValueEdit) -> Model: ...
     def parameter(self, selection: str) -> ParameterRef: ...
@@ -1215,14 +1220,6 @@ def grad(value: _ExpressionLike) -> Expression:
 
     ...
 
-def replay(data: bytes) -> Model:
-    """Replay one canonical artifact through the current model contract.
-
-    Authority: ``crates/eqiora-python/src/lib.rs::replay``.
-    """
-
-    ...
-
 def resolve(
     model: Model,
     *,
@@ -1357,7 +1354,6 @@ __all__ = [
     "div",
     "grad",
     "lang",
-    "replay",
     "resolve",
     "run",
     "submit",

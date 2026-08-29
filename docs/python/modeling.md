@@ -573,7 +573,7 @@ equations-only component with that Geometry, and call
 accepts only `eqiora.run(plan)` or `eqiora.submit(plan)`. Specialized scalar
 requests and model-plus-realization execution are absent.
 
-## Exact revisions and current replay
+## Exact revisions and compiled Model files
 
 `Model` owns one immutable canonical artifact. Previewing an edit never
 mutates it, and committing a valid edit returns a child:
@@ -589,16 +589,21 @@ assert base.digest == edit.base_digest
 
 Commit checks the edit's exact base digest and graph revision atomically.
 Stale or foreign plans produce no partial child. Ordinary authoring, edits,
-and replay all use the single current artifact contract:
+and byte/file decoding all use the single current artifact contract:
 
 ```python
-replayed = eqiora.replay(child.to_json())
-assert replayed == child
+restored = eqiora.Model.from_bytes(child.to_bytes())
+assert restored == child
+
+child.write("child.eqmodel")
+same = eqiora.Model.read("child.eqmodel")
+assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
 `eqiora.model-envelope/v8` schema, but callers do not select that suffix.
-Model v1--v7 bytes reject; replay never sniffs, retries, or silently migrates
+`.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
+Model v1--v7 bytes reject; decoding never sniffs, retries, or silently migrates
 an older artifact.
 
 Independent definitions allocate fresh canonical occurrence identities, so
