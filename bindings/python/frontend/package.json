@@ -1,5 +1,5 @@
 {
-  "name": "@eqiora/python-marimo-host",
+  "name": "@eqiora/viewer",
   "version": "0.1.0-alpha.4",
   "private": true,
   "type": "module",
@@ -8,14 +8,25 @@
     "node": "24.18.1"
   },
   "scripts": {
-    "format": "biome format --write tests playwright.config.ts",
-    "lint": "biome lint tests playwright.config.ts",
+    "build": "vite build --configLoader runner",
+    "dev:viewer": "vite --host 127.0.0.1 --port 18925",
+    "format": "biome format --write src tests playwright.config.ts playwright.viewer.config.ts vite.config.ts",
+    "lint": "biome lint src tests playwright.config.ts playwright.viewer.config.ts vite.config.ts",
+    "test": "vitest run src",
     "test:hosts": "playwright test",
+    "test:viewer": "playwright test --config playwright.viewer.config.ts",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "three": "0.185.1"
+  },
   "devDependencies": {
+    "@anywidget/types": "0.4.0",
     "@biomejs/biome": "2.5.6",
     "@playwright/test": "1.62.1",
-    "typescript": "7.0.2"
+    "@types/three": "0.185.4",
+    "typescript": "7.0.2",
+    "vite": "8.2.0",
+    "vitest": "4.1.10"
   }
 }

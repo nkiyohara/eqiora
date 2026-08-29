@@ -53,12 +53,21 @@ LIFECYCLE_SCRIPT_SOURCE_UNION = (
         "node-gyp rebuild",
         ("lockfile", "packument"),
     ),
+    (
+        "node_modules/vite/node_modules/fsevents",
+        "fsevents",
+        "2.3.3",
+        "install",
+        "node-gyp rebuild",
+        ("lockfile", "packument"),
+    ),
 )
 NOTEBOOK_CHECKS = frozenset(
     {
         "frontend:lock-integrity",
         "frontend:dependency-inventory",
         "cp313:marimo-0.23.16-exact-cylinder-stokes",
+        "cp313:marimo-0.23.16-shared-semantic-viewer",
         "cp313:notebook-managed-chromium-r1234",
         "cp313:notebook-no-external-network",
         "cp313:notebook-cleanup-and-mutation",
@@ -73,12 +82,14 @@ Provides-Extra: jax
 Provides-Extra: gmsh
 Provides-Extra: matplotlib
 Provides-Extra: torch
+Provides-Extra: viewer
 Requires-Dist: numpy<3,>=2.1
 Requires-Dist: gmsh==4.15.2; extra == "gmsh"
 Requires-Dist: torch>=2.13,<2.14; extra == "torch"
 Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: matplotlib==3.11.1; extra == "matplotlib"
+Requires-Dist: anywidget==0.11.0; extra == "viewer"
 
 signal-free v2 candidate
 """
@@ -90,6 +101,7 @@ dependencies = ["numpy>=2.1,<3"]
 
 [project.optional-dependencies]
 gmsh = ["gmsh==4.15.2"]
+viewer = ["anywidget==0.11.0"]
 """
 
 
@@ -440,6 +452,7 @@ dependencies = ["numpy>=2.1,<3"]
 
 [project.optional-dependencies]
 gmsh = ["gmsh==4.15.2"]
+viewer = ["anywidget==0.11.0"]
 """
     sdist_members = {
         "bindings/python/frontend/package.json": package_json,

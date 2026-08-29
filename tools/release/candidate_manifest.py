@@ -49,6 +49,14 @@ PACKUMENT_INSTALL_SCRIPT_ADMISSIONS = (
         "node-gyp rebuild",
         "packument",
     ),
+    (
+        "node_modules/vite/node_modules/fsevents",
+        "fsevents",
+        "2.3.3",
+        "install",
+        "node-gyp rebuild",
+        "packument",
+    ),
 )
 INSTALL_CLASS_LIFECYCLE_NAMES = frozenset(
     {"preinstall", "install", "postinstall"}
@@ -59,6 +67,7 @@ NOTEBOOK_CHECKS = frozenset(
         "frontend:lock-integrity",
         "frontend:dependency-inventory",
         "cp313:marimo-0.23.16-exact-cylinder-stokes",
+        "cp313:marimo-0.23.16-shared-semantic-viewer",
         "cp313:notebook-managed-chromium-r1234",
         "cp313:notebook-no-external-network",
         "cp313:notebook-cleanup-and-mutation",

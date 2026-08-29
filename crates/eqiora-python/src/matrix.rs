@@ -139,4 +139,30 @@ impl<T: Element> ReadOnlyMatrix<T> {
         *storage = MatrixStorage::Numpy(owned.clone_ref(py));
         Ok(owned)
     }
+
+    pub(crate) const fn shape(&self) -> (usize, usize) {
+        (self.rows, self.columns)
+    }
+
+    pub(crate) fn snapshot(&self, py: Python<'_>) -> PyResult<Vec<T>>
+    where
+        T: Copy,
+    {
+        let numpy = {
+            let storage = self
+                .storage
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("matrix storage lock is poisoned"))?;
+            match &*storage {
+                MatrixStorage::Native(values) => return Ok(values.clone()),
+                MatrixStorage::Materializing => {
+                    return Err(PyRuntimeError::new_err(
+                        "matrix NumPy materialization is already in progress",
+                    ));
+                }
+                MatrixStorage::Numpy(array) => array.clone_ref(py),
+            }
+        };
+        Ok(numpy.bind(py).readonly().as_slice()?.to_vec())
+    }
 }

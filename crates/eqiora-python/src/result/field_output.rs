@@ -9,7 +9,7 @@ use crate::array::PyArrayBuffer;
 use crate::meshing::PyMesh;
 use crate::model::PyModelFieldRef;
 
-pub(super) struct FieldOutputBlock {
+pub(crate) struct FieldOutputBlock {
     association: &'static str,
     values: Py<PyArrayBuffer>,
     coefficient_count: usize,
@@ -29,6 +29,22 @@ impl FieldOutputBlock {
             coefficient_count,
             logical_shape,
         }
+    }
+
+    pub(crate) const fn association(&self) -> &'static str {
+        self.association
+    }
+
+    pub(crate) const fn coefficient_count(&self) -> usize {
+        self.coefficient_count
+    }
+
+    pub(crate) fn logical_shape(&self) -> &[usize] {
+        &self.logical_shape
+    }
+
+    pub(crate) fn snapshot(&self, py: Python<'_>) -> PyResult<Vec<f64>> {
+        self.values.borrow(py).snapshot(py)
     }
 }
 
@@ -67,8 +83,28 @@ impl PyFieldOutput {
         }
     }
 
-    pub(super) fn mesh_handle(&self, py: Python<'_>) -> Py<PyMesh> {
+    pub(crate) fn mesh_handle(&self, py: Python<'_>) -> Py<PyMesh> {
         self.mesh.clone_ref(py)
+    }
+
+    pub(crate) fn field_handle(&self, py: Python<'_>) -> Py<PyModelFieldRef> {
+        self.field.clone_ref(py)
+    }
+
+    pub(crate) const fn dimension_value(&self) -> DimExponents {
+        self.dimension
+    }
+
+    pub(crate) fn value_shape_value(&self) -> &[usize] {
+        &self.value_shape
+    }
+
+    pub(crate) const fn space_value(&self) -> &'static str {
+        self.space
+    }
+
+    pub(crate) fn blocks(&self) -> &[FieldOutputBlock] {
+        &self.blocks
     }
 
     fn block(&self, association: &str) -> PyResult<&FieldOutputBlock> {

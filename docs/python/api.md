@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 17 module summaries and all 151 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 577 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 152 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 580 signature-only entries under documented owning types**.
 
-Inventory: 17 modules, 180 literal public spellings, 151 canonical grouped declarations, 770 visible method signatures (577 non-dunder and 193 dunder), and 73 visible class assignments.
+Inventory: 18 modules, 182 literal public spellings, 152 canonical grouped declarations, 777 visible method signatures (580 non-dunder and 197 dunder), and 73 visible class assignments.
 
 Regenerate with:
 
@@ -1335,6 +1335,16 @@ class ValueEdit:
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```
+
+<a id="api-eqiora-View"></a>
+
+### `eqiora.View`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.viewer.View`](#api-eqiora-viewer-View).
+
+Disposable typed viewer scene; its transport is private and unstable.
+
+Authority: [`bindings/python/python/eqiora/viewer.py::View`](../../bindings/python/python/eqiora/viewer.py)
 
 <a id="api-eqiora-across"></a>
 
@@ -3517,6 +3527,35 @@ Authority: [`crates/eqiora-python/src/elasticity.rs::linear_elasticity_evidence`
 
 ```python
 def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence: ...
+```
+
+<a id="module-eqiora-viewer"></a>
+
+## `eqiora.viewer`
+
+Composable read-only viewer for accepted Eqiora values.
+
+Module authority: [`bindings/python/python/eqiora/viewer.py`](../../bindings/python/python/eqiora/viewer.py)
+
+Shipped stub: [`bindings/python/python/eqiora/viewer.pyi`](../../bindings/python/python/eqiora/viewer.pyi)
+
+<a id="api-eqiora-viewer-View"></a>
+
+### `eqiora.viewer.View`
+
+Disposable typed viewer scene; its transport is private and unstable.
+
+Authority: [`bindings/python/python/eqiora/viewer.py::View`](../../bindings/python/python/eqiora/viewer.py)
+
+```python
+class View:
+    def __init__(self) -> None: ...
+    def add(self, value: Geometry | Mesh | FieldOutput, /) -> Self: ...
+    def show(self) -> Self: ...
+    def close(self) -> None: ...
+    def __enter__(self) -> Self: ...
+    def __exit__(self, *_exc: object) -> None: ...
+    def __repr__(self) -> str: ...
 ```
 
 <a id="module-eqiora-matplotlib"></a>

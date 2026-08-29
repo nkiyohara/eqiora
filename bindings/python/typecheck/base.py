@@ -71,6 +71,19 @@ class _InvalidModelSubclass(eqiora.Model):  # type: ignore[misc]
     pass
 
 
+def check_viewer(
+    geometry: eqiora.geometry.Geometry,
+    mesh: Mesh,
+    field: eqiora.FieldOutput,
+) -> None:
+    view = eqiora.View()
+    assert_type(view.add(geometry), eqiora.View)
+    assert_type(view.add(mesh), eqiora.View)
+    assert_type(view.add(field), eqiora.View)
+    assert_type(view.show(), eqiora.View)
+    assert_type(view.close(), None)
+
+
 def check_structural_result(plan: eqiora.Plan, result: eqiora.Result) -> None:
     assert_type(plan, eqiora.Plan)
     capability = plan.capability

@@ -42,7 +42,7 @@ def module_spec(slug: str) -> ModuleSpec:
 
 
 MODULE_SLUGS = (
-    "eqiora geometry lang meshing formulation fem fvm solve time fluid trajectory fsi solid matplotlib diff torch jax"
+    "eqiora geometry lang meshing formulation fem fvm solve time fluid trajectory fsi solid viewer matplotlib diff torch jax"
 ).split()
 MODULES = tuple(module_spec(slug) for slug in MODULE_SLUGS)
 

@@ -4,7 +4,8 @@ Eqiora is a typed mathematical modeling and execution system backed by one
 canonical Rust implementation. Its Python SDK provides immutable native
 declarations, synchronous and awaitable execution, explicit NumPy/DLPack
 ownership, bounded first-order PyTorch and JAX adapters, and an optional
-Matplotlib Result adapter without reimplementing model meaning in Python.
+Matplotlib Result adapter plus a bounded optional Notebook viewer without
+reimplementing model meaning in Python or JavaScript.
 
 > **Alpha — `0.1.0a4`.** The supported boundary is intentionally narrow.
 > Consult the [capability matrix](https://eqiora.org/capabilities/) before
@@ -36,20 +37,23 @@ Optional first-order framework adapters are explicit:
 python -m pip install "eqiora[torch]==0.1.0a4"
 python -m pip install "eqiora[jax]==0.1.0a4"
 python -m pip install "eqiora[matplotlib]==0.1.0a4"
+python -m pip install "eqiora[viewer]==0.1.0a4"
 ```
 
 The exact-cylinder pressure example combines the mesher and plot adapter:
 `python -m pip install "eqiora[gmsh,matplotlib]==0.1.0a4"`.
 
-The base package imports none of these optional libraries. The PyTorch extra
+The base package imports none of these optional libraries. The viewer extra
+pins `anywidget==0.11.0`; its JavaScript and CSS are already carried inside the
+Eqiora wheel, so the host does not fetch renderer assets at display time. The PyTorch extra
 declares `torch>=2.13,<2.14`; this release verifies exactly PyTorch 2.13.0. It
 also verifies the exact JAX/JAXLIB 0.11.0 pair and Matplotlib 3.11.1 on
 CPython 3.13. The JAX extra requires Python 3.12 or newer.
 
 The verified Linux x86-64 CPython 3.13 candidate composes the exact-cylinder
 Geometry → Gmsh Mesh → root Plan workflow in marimo 0.23.16 and displays its
-caller-owned Matplotlib Figure. Eqiora does not bundle a private notebook
-viewer or add rich display semantics to `Trajectory`.
+caller-owned Matplotlib Figure. The bounded viewer is a separate read-only
+presentation surface and adds no rich display semantics to `Trajectory`.
 
 ## Geometry to evidence
 
@@ -207,6 +211,29 @@ than accepting raw arrays. It uses the Result's paired Mesh connectivity,
 vertex-associated P1 pressure, and Rust-owned full pressure range in pascals.
 This slice does not claim arbitrary fields, vectors, animation,
 media-publication, or visual validation.
+
+The same accepted objects can be composed in the optional interactive
+Notebook viewer without converting them to renderer-shaped dictionaries:
+
+```python
+# `geometry`, `mesh`, and `result` come from one accepted Plan/Run workflow.
+pressure = result.output(plan.capability.pressure)
+view = eqiora.View().add(geometry).add(mesh).add(pressure)
+view.show()  # Jupyter-compatible and Marimo-compatible anywidget display
+
+# Release the widget, browser resources, and retained accepted objects when done.
+view.close()
+```
+
+The current V0--V3 boundary is planar Geometry, 2D triangle/quadrilateral Mesh,
+exact edge/face named selections, and scalar vertex/cell `FieldOutput`. Orbit, pan, zoom,
+reset, surface/edge visibility, selection colour/isolation, and exact accepted
+cell or nearest-vertex inspection are presentation operations only. The field
+must belong to the exact Mesh in the same `View`; foreign owners fail closed.
+Without the viewer extra or a rich host, `View` retains a deterministic text
+representation. Vector/tensor fields, trajectories, animation, 3D, contours,
+streamlines, derived science, Studio, and Cloud integration are not part of
+this slice; vertex selections are reported unavailable rather than guessed.
 
 The accepted mixed-boundary structural workflow is likewise an ordinary
 Python file:

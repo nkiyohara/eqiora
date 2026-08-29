@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Eqiora Viewer V0 spike</title>
+  </head>
+  <body>
+    <main>
+      <div id="viewer"></div>
+      <button id="cleanup" type="button">Dispose viewer</button>
+    </main>
+    <script type="module">
+      import { viewerFixture } from "/src/fixture.ts";
+      import { mountEqioraViewer } from "/src/viewer.ts";
+      const fixture = viewerFixture();
+      const mounted = mountEqioraViewer(
+        document.querySelector("#viewer"),
+        fixture.metadataJson,
+        fixture.buffers,
+      );
+      document.querySelector("#cleanup").addEventListener("click", () => mounted.cleanup());
+    </script>
+  </body>
+</html>

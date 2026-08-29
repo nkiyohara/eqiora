@@ -17,6 +17,8 @@ eqiora = { workspace = true, features = ["diffsol", "faer", "gmsh", "package-fil
 eqiora-numerics.workspace = true
 numpy = { workspace = true }
 pyo3 = { workspace = true }
+serde.workspace = true
+serde_json.workspace = true
 sha2 = { workspace = true }
 ulid.workspace = true
 
