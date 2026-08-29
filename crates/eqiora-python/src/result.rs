@@ -1,20 +1,13 @@
 //! Common installed-Python ownership for accepted execution results.
 
 use std::collections::BTreeMap;
-use std::time::Duration;
 
 use eqiora::diagnostic::codes;
-use eqiora::numerics::{
-    CartesianLinearElasticity2dSolution, ResolvedScalarEllipticCartesianSolution,
-    SteadyStokesMiniSolution2d,
-};
 use eqiora::{Diagnostic, DimExponents};
-use eqiora_numerics::{
-    CommonElasticityObservation, CommonSteadyStokesObservation, ResolvedCommonPlan,
-};
+use eqiora_numerics::ResolvedCommonPlan;
 use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyModule};
+use pyo3::types::{PyBytes, PyList, PyModule};
 
 use crate::array::PyArrayBuffer;
 use crate::common_plan::PyPlan;
@@ -116,7 +109,7 @@ struct CommonFieldResultPayload {
     lookup: BTreeMap<String, usize>,
     solve: Py<PyLinearSolveSummary>,
     evidence: Option<StaticScientificEvidence>,
-    steady_stokes_observation: Option<CommonSteadyStokesObservation>,
+    steady_stokes_observation: Option<([f64; 6], [[f64; 2]; 7])>,
 }
 
 struct CommonTrajectoryResultPayload {
@@ -144,6 +137,7 @@ enum ResultPayload {
     skip_from_py_object
 )]
 pub(crate) struct PyRunResult {
+    native: eqiora_numerics::CommonResult,
     identity: RunIdentity,
     elapsed_seconds: f64,
     payload: ResultPayload,
@@ -209,6 +203,25 @@ impl PyRunResult {
     #[getter]
     const fn elapsed_seconds(&self) -> f64 {
         self.elapsed_seconds
+    }
+
+    /// Canonical complete Result bytes, including fields and accepted evidence.
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        self.native
+            .to_bytes()
+            .map(|bytes| PyBytes::new(py, &bytes))
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))
+    }
+
+    /// Decode one complete Result against its exact owning Plan.
+    #[staticmethod]
+    fn from_bytes(py: Python<'_>, plan: PyRef<'_, PyPlan>, data: &[u8]) -> PyResult<Self> {
+        let native = eqiora_numerics::CommonResult::from_bytes(data, plan.native())
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        let identity = RunIdentity::from_common_result(&native).ok_or_else(|| {
+            PyRuntimeError::new_err("Result artifact has no valid execution occurrence")
+        })?;
+        materialize_common_result(py, plan, identity, native)
     }
 
     /// Independently sampled common-ODE series in canonical Field order.
@@ -307,7 +320,7 @@ impl PyRunResult {
             .steady_stokes_observation
             .as_ref()
             .expect("validated steady-Stokes observation")
-            .cylinder_force_on_fluid();
+            .1[2];
         Py::new(
             py,
             PyBoundaryForce::new(
@@ -338,8 +351,8 @@ impl PyRunResult {
             .as_ref()
             .expect("validated steady-Stokes observation");
         let value = match name.as_str() {
-            "inlet" => observation.inlet_flux(),
-            "outlet" => observation.outlet_flux(),
+            "inlet" => observation.0[2],
+            "outlet" => observation.0[3],
             _ => {
                 return Err(PyKeyError::new_err(format!(
                     "this Result has no boundary-flux observable for {name:?}"
@@ -462,247 +475,6 @@ impl PyRunResult {
         Ok(())
     }
 
-    pub(crate) fn from_common_scalar(
-        py: Python<'_>,
-        identity: RunIdentity,
-        mesh: Py<PyMesh>,
-        field: (String, DimExponents),
-        cells: [usize; 2],
-        elapsed: Duration,
-        run: ResolvedScalarEllipticCartesianSolution,
-    ) -> PyResult<Self> {
-        let (field_id, field_dimension) = field;
-        let (values, solve, association, logical_shape, space) = match run {
-            ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) => (
-                solution.field().vertex_values().to_vec(),
-                solution.solve_report().clone(),
-                "vertex",
-                [cells[0] + 1, cells[1] + 1],
-                "continuous-lagrange-p1",
-            ),
-            ResolvedScalarEllipticCartesianSolution::FiniteVolume(solution) => (
-                solution.cell_values().to_vec(),
-                solution.solve_report().clone(),
-                "cell",
-                cells,
-                "cell-constant",
-            ),
-        };
-        let values = PyArrayBuffer::from_owned_result(py, values)?;
-        let solve = Py::new(py, PyLinearSolveSummary::from_report(&solve))?;
-        let field = Py::new(
-            py,
-            PyModelFieldRef::from_exact(identity.model_digest().to_owned(), field_id.clone()),
-        )?;
-        let coefficient_count = logical_shape[0] * logical_shape[1];
-        let output = Py::new(
-            py,
-            PyFieldOutput::new(
-                field,
-                mesh,
-                field_dimension,
-                Vec::new(),
-                space,
-                vec![FieldOutputBlock::new(
-                    association,
-                    values,
-                    coefficient_count,
-                    logical_shape.to_vec(),
-                )],
-            ),
-        )?;
-        Ok(Self {
-            identity,
-            elapsed_seconds: elapsed.as_secs_f64(),
-            payload: ResultPayload::Fields(Box::new(CommonFieldResultPayload {
-                outputs: vec![output],
-                lookup: BTreeMap::from([(field_id, 0)]),
-                solve,
-                evidence: None,
-                steady_stokes_observation: None,
-            })),
-        })
-    }
-
-    pub(crate) fn from_common_steady_stokes(
-        py: Python<'_>,
-        identity: RunIdentity,
-        mesh: Py<PyMesh>,
-        field_ids: (String, String),
-        elapsed: Duration,
-        run: SteadyStokesMiniSolution2d,
-        observation: CommonSteadyStokesObservation,
-    ) -> PyResult<Self> {
-        let (velocity_field_id, pressure_field_id) = field_ids;
-        let evidence = Py::new(
-            py,
-            PySteadyStokesEvidence::from_common(py, identity.plan_key(), &observation)?,
-        )?;
-        let velocity_vertex_count = run.velocity().vertex_values().len();
-        let velocity_cell_count = run.velocity().cell_bubble_values().len();
-        let pressure_vertex_count = run.pressure().vertex_values().len();
-        let velocity_vertices: Vec<f64> = run
-            .velocity()
-            .vertex_values()
-            .iter()
-            .flat_map(|value| value.iter().copied())
-            .collect();
-        let velocity_cells: Vec<f64> = run
-            .velocity()
-            .cell_bubble_values()
-            .iter()
-            .flat_map(|value| value.iter().copied())
-            .collect();
-        let pressure_vertices = run.pressure().vertex_values().to_vec();
-        if velocity_vertices.len() != velocity_vertex_count * 2
-            || velocity_cells.len() != velocity_cell_count * 2
-            || pressure_vertices.len() != pressure_vertex_count
-        {
-            return Err(PyRuntimeError::new_err(
-                "steady-Stokes coefficient blocks disagree with typed FieldOutput metadata",
-            ));
-        }
-        let solve = Py::new(
-            py,
-            PyLinearSolveSummary::from_report(run.dimensionless_solution().solve_report()),
-        )?;
-        let velocity_field = Py::new(
-            py,
-            PyModelFieldRef::from_exact(
-                identity.model_digest().to_owned(),
-                velocity_field_id.clone(),
-            ),
-        )?;
-        let pressure_field = Py::new(
-            py,
-            PyModelFieldRef::from_exact(
-                identity.model_digest().to_owned(),
-                pressure_field_id.clone(),
-            ),
-        )?;
-        let velocity = Py::new(
-            py,
-            PyFieldOutput::new(
-                velocity_field,
-                mesh.clone_ref(py),
-                DimExponents {
-                    length: 1,
-                    time: -1,
-                    ..DimExponents::DIMENSIONLESS
-                },
-                vec![2],
-                "simplex-p1-bubble",
-                vec![
-                    FieldOutputBlock::new(
-                        "vertex",
-                        PyArrayBuffer::from_owned_result(py, velocity_vertices)?,
-                        velocity_vertex_count,
-                        vec![velocity_vertex_count, 2],
-                    ),
-                    FieldOutputBlock::new(
-                        "cell-bubble",
-                        PyArrayBuffer::from_owned_result(py, velocity_cells)?,
-                        velocity_cell_count,
-                        vec![velocity_cell_count, 2],
-                    ),
-                ],
-            ),
-        )?;
-        let pressure = Py::new(
-            py,
-            PyFieldOutput::new(
-                pressure_field,
-                mesh,
-                DimExponents {
-                    mass: 1,
-                    length: -1,
-                    time: -2,
-                    ..DimExponents::DIMENSIONLESS
-                },
-                Vec::new(),
-                "continuous-lagrange-p1",
-                vec![FieldOutputBlock::new(
-                    "vertex",
-                    PyArrayBuffer::from_owned_result(py, pressure_vertices)?,
-                    pressure_vertex_count,
-                    vec![pressure_vertex_count],
-                )],
-            ),
-        )?;
-        let lookup = BTreeMap::from([(velocity_field_id, 0), (pressure_field_id, 1)]);
-        Ok(Self {
-            identity,
-            elapsed_seconds: elapsed.as_secs_f64(),
-            payload: ResultPayload::Fields(Box::new(CommonFieldResultPayload {
-                outputs: vec![velocity, pressure],
-                lookup,
-                solve,
-                evidence: Some(StaticScientificEvidence::SteadyStokes(evidence)),
-                steady_stokes_observation: Some(observation),
-            })),
-        })
-    }
-
-    pub(crate) fn from_common_elasticity(
-        py: Python<'_>,
-        identity: RunIdentity,
-        mesh: Py<PyMesh>,
-        displacement_field_id: String,
-        elapsed: Duration,
-        run: CartesianLinearElasticity2dSolution,
-        observation: CommonElasticityObservation,
-    ) -> PyResult<Self> {
-        let evidence = Py::new(
-            py,
-            PyLinearElasticityEvidence::from_common(py, identity.plan_key(), &observation)?,
-        )?;
-        let values = run.displacement().values().to_vec();
-        if !values.len().is_multiple_of(2) {
-            return Err(PyRuntimeError::new_err(
-                "elasticity displacement coefficients disagree with two-component FieldOutput metadata",
-            ));
-        }
-        let vertex_count = values.len() / 2;
-        let solve = Py::new(py, PyLinearSolveSummary::from_report(run.solve_report()))?;
-        let field = Py::new(
-            py,
-            PyModelFieldRef::from_exact(
-                identity.model_digest().to_owned(),
-                displacement_field_id.clone(),
-            ),
-        )?;
-        let displacement = Py::new(
-            py,
-            PyFieldOutput::new(
-                field,
-                mesh,
-                DimExponents {
-                    length: 1,
-                    ..DimExponents::DIMENSIONLESS
-                },
-                vec![2],
-                "continuous-lagrange-p1",
-                vec![FieldOutputBlock::new(
-                    "vertex",
-                    PyArrayBuffer::from_owned_result(py, values)?,
-                    vertex_count,
-                    vec![vertex_count, 2],
-                )],
-            ),
-        )?;
-        Ok(Self {
-            identity,
-            elapsed_seconds: elapsed.as_secs_f64(),
-            payload: ResultPayload::Fields(Box::new(CommonFieldResultPayload {
-                outputs: vec![displacement],
-                lookup: BTreeMap::from([(displacement_field_id, 0)]),
-                solve,
-                evidence: Some(StaticScientificEvidence::LinearElasticity(evidence)),
-                steady_stokes_observation: None,
-            })),
-        })
-    }
-
     pub(crate) fn steady_stokes_evidence(
         &self,
         py: Python<'_>,
@@ -760,96 +532,13 @@ impl PyRunResult {
     }
 }
 
-pub(crate) fn materialize_common_scalar(
-    py: Python<'_>,
-    plan: PyRef<'_, PyPlan>,
-    identity: RunIdentity,
-    elapsed_seconds: f64,
-    result: ResolvedScalarEllipticCartesianSolution,
-) -> PyResult<PyRunResult> {
-    let ResolvedCommonPlan::Scalar(native) = plan.native() else {
-        return Err(PyRuntimeError::new_err(
-            "common scalar output crossed a different Plan",
-        ));
-    };
-    PyRunResult::from_common_scalar(
-        py,
-        identity,
-        plan.mesh_handle(py),
-        (native.field_id().to_owned(), native.field_dimension()),
-        native.cells(),
-        Duration::from_secs_f64(elapsed_seconds),
-        result,
-    )
-}
-
-pub(crate) fn materialize_common_steady_stokes(
-    py: Python<'_>,
-    plan: PyRef<'_, PyPlan>,
-    identity: RunIdentity,
-    elapsed_seconds: f64,
-    result: eqiora_numerics::CommonSteadyStokesRunOutput,
-) -> PyResult<PyRunResult> {
-    let ResolvedCommonPlan::SteadyStokes(native) = plan.native() else {
-        return Err(PyRuntimeError::new_err(
-            "common steady-Stokes output crossed a different Plan",
-        ));
-    };
-    if result.plan_identity() != native.identity() {
-        return Err(PyRuntimeError::new_err(
-            "common steady-Stokes output crossed a different exact Plan",
-        ));
-    }
-    let (result, observation) = result.into_parts();
-    PyRunResult::from_common_steady_stokes(
-        py,
-        identity,
-        plan.mesh_handle(py),
-        (
-            native.velocity_field_id().to_owned(),
-            native.pressure_field_id().to_owned(),
-        ),
-        Duration::from_secs_f64(elapsed_seconds),
-        result,
-        observation,
-    )
-}
-
-pub(crate) fn materialize_common_elasticity(
-    py: Python<'_>,
-    plan: PyRef<'_, PyPlan>,
-    identity: RunIdentity,
-    elapsed_seconds: f64,
-    result: eqiora_numerics::CommonElasticityRunOutput,
-) -> PyResult<PyRunResult> {
-    let ResolvedCommonPlan::Elasticity(native) = plan.native() else {
-        return Err(PyRuntimeError::new_err(
-            "common elasticity output crossed a different Plan",
-        ));
-    };
-    if result.plan_identity() != native.identity() {
-        return Err(PyRuntimeError::new_err(
-            "common elasticity output crossed a different exact Plan",
-        ));
-    }
-    let (result, observation) = result.into_parts();
-    PyRunResult::from_common_elasticity(
-        py,
-        identity,
-        plan.mesh_handle(py),
-        native.displacement_field_id().to_owned(),
-        Duration::from_secs_f64(elapsed_seconds),
-        result,
-        observation,
-    )
-}
-
 fn materialize_common_spatial_trajectory(
     py: Python<'_>,
     plan: PyRef<'_, PyPlan>,
     identity: RunIdentity,
     elapsed_seconds: f64,
     native_trajectory: eqiora_numerics::CommonTrajectory,
+    native_result: eqiora_numerics::CommonResult,
 ) -> PyResult<PyRunResult> {
     if !matches!(
         plan.native(),
@@ -863,12 +552,19 @@ fn materialize_common_spatial_trajectory(
     let fsi_evidence = if matches!(plan.native(), ResolvedCommonPlan::Fsi(_)) {
         Some(Py::new(
             py,
-            PyFsiEvidence::from_common(py, &plan, &trajectory.borrow(py), identity.plan_key())?,
+            PyFsiEvidence::from_common(
+                py,
+                &plan,
+                &trajectory.borrow(py),
+                identity.plan_key(),
+                &native_result,
+            )?,
         )?)
     } else {
         None
     };
     Ok(PyRunResult {
+        native: native_result,
         identity,
         elapsed_seconds,
         payload: ResultPayload::Trajectory(CommonTrajectoryResultPayload {
@@ -884,6 +580,7 @@ fn materialize_common_ode_trajectory(
     identity: RunIdentity,
     elapsed_seconds: f64,
     trajectory: eqiora_numerics::CommonTrajectory,
+    native_result: eqiora_numerics::CommonResult,
 ) -> PyResult<PyRunResult> {
     let ResolvedCommonPlan::Ode(native) = plan.native() else {
         return Err(PyRuntimeError::new_err(
@@ -925,6 +622,7 @@ fn materialize_common_ode_trajectory(
         fields.push(series);
     }
     Ok(PyRunResult {
+        native: native_result,
         identity,
         elapsed_seconds,
         payload: ResultPayload::Ode(CommonOdeResultPayload {
@@ -935,23 +633,148 @@ fn materialize_common_ode_trajectory(
     })
 }
 
-pub(crate) fn materialize_common_trajectory(
+pub(crate) fn materialize_common_result(
     py: Python<'_>,
     plan: PyRef<'_, PyPlan>,
     identity: RunIdentity,
-    elapsed_seconds: f64,
-    trajectory: eqiora_numerics::CommonTrajectory,
+    result: eqiora_numerics::CommonResult,
 ) -> PyResult<PyRunResult> {
-    if identity.plan_key() != trajectory.request_identity() {
+    if result.plan().identity() != plan.native().identity() {
         return Err(PyRuntimeError::new_err(
-            "common Trajectory crossed a different Run request occurrence",
+            "common Result crossed a different exact Plan",
         ));
     }
-    if trajectory.ode_states().is_some() {
-        materialize_common_ode_trajectory(py, plan, identity, elapsed_seconds, trajectory)
-    } else {
-        materialize_common_spatial_trajectory(py, plan, identity, elapsed_seconds, trajectory)
+    if let Some(trajectory) = result.trajectory() {
+        if identity.plan_key() != trajectory.request_identity() {
+            return Err(PyRuntimeError::new_err(
+                "common Result crossed a different Run request occurrence",
+            ));
+        }
+        let elapsed_seconds = result.elapsed_seconds();
+        let trajectory = trajectory.clone();
+        if trajectory.ode_states().is_some() {
+            return materialize_common_ode_trajectory(
+                py,
+                plan,
+                identity,
+                elapsed_seconds,
+                trajectory,
+                result,
+            );
+        }
+        return materialize_common_spatial_trajectory(
+            py,
+            plan,
+            identity,
+            elapsed_seconds,
+            trajectory,
+            result,
+        );
     }
+    if identity.plan_key() != result.plan().identity() {
+        return Err(PyRuntimeError::new_err(
+            "static common Result crossed a different Run Plan occurrence",
+        ));
+    }
+    let mesh = plan.mesh_handle(py);
+    let mut outputs = Vec::with_capacity(result.field_count());
+    let mut lookup = BTreeMap::new();
+    for field_index in 0..result.field_count() {
+        let (field_id, dimension, value_shape, native_space) = result
+            .field(field_index)
+            .ok_or_else(|| PyRuntimeError::new_err("common Result omitted Field metadata"))?;
+        let field_id = field_id.to_owned();
+        let value_shape = value_shape.to_vec();
+        let space = match native_space {
+            "continuous-lagrange-p1" => "continuous-lagrange-p1",
+            "cell-constant" => "cell-constant",
+            "simplex-p1-bubble" => "simplex-p1-bubble",
+            _ => {
+                return Err(PyRuntimeError::new_err(
+                    "common Result Field declared an unknown exact space",
+                ));
+            }
+        };
+        let field = Py::new(
+            py,
+            PyModelFieldRef::from_exact(identity.model_digest().to_owned(), field_id.clone()),
+        )?;
+        let value_width = value_shape.iter().product::<usize>().max(1);
+        let blocks = (0..result.field_block_count(field_index))
+            .map(|block_index| {
+                let (association, values, logical_shape) = result
+                    .field_block(field_index, block_index)
+                    .ok_or_else(|| PyRuntimeError::new_err("common Result omitted Field block"))?;
+                if !values.len().is_multiple_of(value_width) {
+                    return Err(PyRuntimeError::new_err(
+                        "common Result Field block contradicts its value shape",
+                    ));
+                }
+                Ok(FieldOutputBlock::new(
+                    association,
+                    PyArrayBuffer::from_owned_result(py, values.to_vec())?,
+                    values.len() / value_width,
+                    logical_shape.to_vec(),
+                ))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let output = Py::new(
+            py,
+            PyFieldOutput::new(
+                field,
+                mesh.clone_ref(py),
+                dimension,
+                value_shape,
+                space,
+                blocks,
+            ),
+        )?;
+        lookup.insert(field_id, outputs.len());
+        outputs.push(output);
+    }
+    let solve = PyLinearSolveSummary::from_common_result(&result, None)
+        .ok_or_else(|| PyRuntimeError::new_err("static common Result omitted solve evidence"))?;
+    let solve = Py::new(py, solve)?;
+    let (evidence, steady_stokes_observation) = match result.family_name() {
+        "scalar" => (None, None),
+        "elasticity" => (
+            Some(StaticScientificEvidence::LinearElasticity(Py::new(
+                py,
+                PyLinearElasticityEvidence::from_result(py, identity.plan_key(), &result)?,
+            )?)),
+            None,
+        ),
+        "steady-stokes" => {
+            let observation = result.steady_stokes_observation().ok_or_else(|| {
+                PyRuntimeError::new_err("steady-Stokes Result omitted its observation")
+            })?;
+            (
+                Some(StaticScientificEvidence::SteadyStokes(Py::new(
+                    py,
+                    PySteadyStokesEvidence::from_result(py, identity.plan_key(), &result)?,
+                )?)),
+                Some(observation),
+            )
+        }
+        _ => {
+            return Err(PyRuntimeError::new_err(
+                "dynamic common Result reached static materialization",
+            ));
+        }
+    };
+    let elapsed_seconds = result.elapsed_seconds();
+    Ok(PyRunResult {
+        native: result,
+        identity,
+        elapsed_seconds,
+        payload: ResultPayload::Fields(Box::new(CommonFieldResultPayload {
+            outputs,
+            lookup,
+            solve,
+            evidence,
+            steady_stokes_observation,
+        })),
+    })
 }
 
 fn capability_error(py: Python<'_>, message: &str) -> PyErr {

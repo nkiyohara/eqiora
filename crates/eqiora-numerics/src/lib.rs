@@ -19,6 +19,7 @@ mod cartesian_incompressible;
 mod cartesian_periodic_3d;
 mod cartesian_transport;
 mod common_ode;
+mod common_result;
 mod common_trajectory;
 mod diffusion;
 mod discrete_block;
@@ -37,16 +38,15 @@ pub use canonical_stokes::{
 pub use common_ode::{
     CommonOdePlan, CommonOdeRunRequest, CommonOdeState, CommonTsitouras45, CommonTsitourasTolerance,
 };
+pub use common_result::CommonResult;
 pub use common_trajectory::CommonTrajectory;
 pub use numerical_admission::{
-    AuthenticatedCommonMesh, CommonBackwardEuler, CommonElasticityObservation,
-    CommonElasticityPlan, CommonElasticityRunOutput, CommonFormulationDescription, CommonFsiPlan,
-    CommonFsiRunRequest, CommonInitialField, CommonInitialValues, CommonMethodRequest,
-    CommonPressureGauge2d, CommonScalarPlan, CommonScopedSpatialPolicy, CommonSolvePolicy,
-    CommonSpatialPolicy, CommonState, CommonSteadyStokesObservation, CommonSteadyStokesPlan,
-    CommonSteadyStokesRunOutput, CommonTransientFlowPlan, CommonTransientRunRequest,
-    FormulationKind, FormulationSelectionMode, ResolvedCommonPlan, resolve_common_ode_plan,
-    resolve_common_plan,
+    AuthenticatedCommonMesh, CommonBackwardEuler, CommonElasticityPlan,
+    CommonFormulationDescription, CommonFsiPlan, CommonFsiRunRequest, CommonInitialField,
+    CommonInitialValues, CommonMethodRequest, CommonPressureGauge2d, CommonScalarPlan,
+    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonState,
+    CommonSteadyStokesPlan, CommonTransientFlowPlan, CommonTransientRunRequest, FormulationKind,
+    FormulationSelectionMode, ResolvedCommonPlan, resolve_common_ode_plan, resolve_common_plan,
 };
 mod operator;
 mod physical_network;

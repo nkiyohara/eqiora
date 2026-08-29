@@ -1,6 +1,9 @@
 //! Shared inspection of the one native common Plan sum.
 
-use eqiora_solver::{LinearOperatorProperties, SolverPlan, SolverPlanningObjective};
+use eqiora_solver::{
+    ExecutionProvider, LinearOperatorProperties, SolverPlan, SolverPlanningObjective,
+    SolverProvider,
+};
 
 use super::{
     CommonElasticityPlan, CommonFsiPlan, CommonOdePlan, CommonScalarPlan, CommonSteadyStokesPlan,
@@ -135,6 +138,40 @@ impl ResolvedCommonPlan {
             Self::SteadyStokes(plan) => Some(plan.linear()),
             Self::TransientFlow(plan) => Some(plan.linear()),
             Self::Fsi(plan) => Some(plan.linear()),
+        }
+    }
+
+    pub(crate) const fn linear_solver_provider(&self) -> Option<SolverProvider> {
+        match self {
+            Self::Ode(_) => None,
+            Self::Scalar(plan) => Some(plan.admission.linear.provider),
+            Self::Elasticity(plan) => Some(plan.admission.linear.provider),
+            Self::SteadyStokes(plan) => Some(plan.admission.linear.provider),
+            Self::TransientFlow(plan) => Some(plan.admission.linear.provider),
+            Self::Fsi(plan) => Some(plan.solver_provider()),
+        }
+    }
+
+    pub(crate) const fn linear_execution_provider(&self) -> Option<(ExecutionProvider, usize)> {
+        match self {
+            Self::Ode(_) => None,
+            Self::Scalar(plan) => Some((
+                plan.admission.linear.execution,
+                plan.admission.linear.workers.get(),
+            )),
+            Self::Elasticity(plan) => Some((
+                plan.admission.linear.execution,
+                plan.admission.linear.workers.get(),
+            )),
+            Self::SteadyStokes(plan) => Some((
+                plan.admission.linear.execution,
+                plan.admission.linear.workers.get(),
+            )),
+            Self::TransientFlow(plan) => Some((
+                plan.admission.linear.execution,
+                plan.admission.linear.workers.get(),
+            )),
+            Self::Fsi(plan) => Some((plan.execution_provider(), plan.workers().get())),
         }
     }
 

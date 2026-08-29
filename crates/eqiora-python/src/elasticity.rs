@@ -1,6 +1,5 @@
 //! Python observation projection for common linear elasticity.
 
-use eqiora_numerics::CommonElasticityObservation;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
@@ -24,19 +23,26 @@ pub(crate) struct PyLinearElasticityEvidence {
 }
 
 impl PyLinearElasticityEvidence {
-    pub(crate) fn from_common(
+    pub(crate) fn from_result(
         py: Python<'_>,
         plan_key: &str,
-        observation: &CommonElasticityObservation,
+        result: &eqiora_numerics::CommonResult,
     ) -> PyResult<Self> {
-        let [[x_lower, x_upper], [y_lower, y_upper]] = observation.exact_bounds();
+        let (constrained_reaction, integrated_body_force, assembly, bounds) =
+            result.elasticity_observation().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("elasticity Result omitted its observation")
+            })?;
+        let [[x_lower, x_upper], [y_lower, y_upper]] = bounds;
+        let solve = PyLinearSolveSummary::from_common_result(result, None).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("elasticity Result omitted solve evidence")
+        })?;
         Ok(Self {
             plan_key: plan_key.to_owned(),
-            constrained_reaction: tuple2(observation.constrained_reaction()),
-            integrated_body_force: tuple2(observation.integrated_body_force()),
-            assembly_packets: observation.assembly_packets(),
-            assembly_targets: observation.assembly_targets(),
-            solve: Py::new(py, PyLinearSolveSummary::from_report(observation.solve()))?,
+            constrained_reaction: tuple2(constrained_reaction),
+            integrated_body_force: tuple2(integrated_body_force),
+            assembly_packets: assembly[0],
+            assembly_targets: assembly[1],
+            solve: Py::new(py, solve)?,
             exact_bounds: ((x_lower, x_upper), (y_lower, y_upper)),
         })
     }

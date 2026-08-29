@@ -138,7 +138,7 @@ impl CommonElasticityPlan {
         })
     }
 
-    pub fn run(&self) -> Result<CartesianLinearElasticity2dSolution, Diagnostic> {
+    pub(crate) fn run(&self) -> Result<CartesianLinearElasticity2dSolution, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.execute_elasticity(&REFERENCE_LINEAR_SOLVER)
     }
@@ -172,19 +172,15 @@ impl CommonElasticityPlan {
                 "linear-elasticity observation contains a non-finite value",
             ));
         }
-        let assembly = solution.assembly_report();
         Ok(CommonElasticityObservation {
             constrained_reaction,
             integrated_body_force,
-            assembly_packets: assembly.packet_count(),
-            assembly_targets: assembly.target_count(),
-            solve: solution.solve_report().clone(),
             exact_bounds: bounds,
         })
     }
 
     /// Execute and authenticate observations without exposing a re-pairing seam.
-    pub fn run_observed(&self) -> Result<CommonElasticityRunOutput, Diagnostic> {
+    fn run_observed(&self) -> Result<CommonElasticityRunOutput, Diagnostic> {
         let solution = self.run()?;
         let observation = self.observe(&solution)?;
         Ok(CommonElasticityRunOutput {
@@ -192,6 +188,11 @@ impl CommonElasticityPlan {
             solution,
             observation,
         })
+    }
+
+    /// Execute solely from retained Plan state and publish one complete Result.
+    pub fn run_result(&self) -> Result<crate::CommonResult, Diagnostic> {
+        crate::CommonResult::accept_elasticity(self.clone(), 0.0, self.run_observed()?)
     }
 
     #[must_use]

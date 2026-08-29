@@ -98,6 +98,48 @@ impl PyLinearSolveSummary {
             residual_target: report.residual_target(),
         }
     }
+
+    pub(crate) fn from_common_result(
+        result: &eqiora_numerics::CommonResult,
+        fsi_state: Option<usize>,
+    ) -> Option<Self> {
+        Some(Self {
+            backend: result.solve_solver_id(fsi_state)?.to_owned(),
+            adapter: result.solve_execution_adapter(fsi_state)?.to_owned(),
+            verification_adapter: result.solve_verification_adapter(fsi_state)?.to_owned(),
+            orientation: match result.solve_orientation(fsi_state)? {
+                LinearOperatorOrientation::Normal => "normal",
+                LinearOperatorOrientation::Transposed => "transposed",
+            }
+            .to_owned(),
+            algorithm: match result.solve_algorithm(fsi_state)? {
+                LinearSolver::ConjugateGradient => "conjugate-gradient",
+                LinearSolver::MinimumResidual => "minimum-residual",
+                LinearSolver::BiConjugateGradientStabilized => "bicgstab",
+                LinearSolver::SparseLu => "sparse-lu",
+            }
+            .to_owned(),
+            preconditioner: match result.solve_preconditioner(fsi_state)? {
+                PreconditionerPolicy::Identity => "identity",
+                PreconditionerPolicy::Jacobi => "jacobi",
+            }
+            .to_owned(),
+            reduction: match result.solve_reduction(fsi_state)? {
+                ReductionPolicy::Reproducible => "reproducible",
+                ReductionPolicy::Fast => "fast",
+            }
+            .to_owned(),
+            relative_tolerance: result.solve_relative_tolerance(fsi_state)?,
+            absolute_tolerance: result.solve_absolute_tolerance(fsi_state)?,
+            maximum_iterations: result.solve_maximum_iterations(fsi_state)?,
+            reason: result.solve_reason(fsi_state)?.into(),
+            completed_iterations: result.solve_completed_iterations(fsi_state)?,
+            initial_residual_norm: result.solve_initial_residual_norm(fsi_state)?,
+            reported_residual_norm: result.solve_reported_residual_norm(fsi_state)?,
+            true_residual_norm: result.solve_true_residual_norm(fsi_state)?,
+            residual_target: result.solve_residual_target(fsi_state)?,
+        })
+    }
 }
 
 #[pymethods]

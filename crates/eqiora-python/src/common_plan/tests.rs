@@ -474,6 +474,10 @@ assert not hasattr(q1.capability, "scaling")
 assert q1.requested_solve is linear
 assert q1.solve.algorithm == "conjugate-gradient"
 q1_result = package.run(q1)
+q1_result_bytes = q1_result.to_bytes()
+replayed_q1_result = package.Result.from_bytes(q1, q1_result_bytes)
+assert replayed_q1_result.to_bytes() == q1_result_bytes
+assert replayed_q1_result.output(q1.capability.field).values("vertex").numpy().tolist() == q1_result.output(q1.capability.field).values("vertex").numpy().tolist()
 portable_q1_result = package.run(portable_q1)
 tpfa_result = package.run(tpfa)
 assert q1_result.model_digest == q1.model_digest
@@ -918,6 +922,10 @@ assert plan.capability.pressure_gauge is package.fluid.PressureGauge2d.BoundaryT
 assert np.max(np.abs(np.asarray(steady_velocity.values("vertex")))) > 0.0
 assert state.field(plan.capability.velocity).associations == ("vertex", "cell")
 result = package.run(plan, state=state, steps=1, output_steps=(1,))
+result_bytes = result.to_bytes()
+replayed_result = package.Result.from_bytes(plan, result_bytes)
+assert replayed_result.to_bytes() == result_bytes
+assert replayed_result.trajectory.states[0].digest == result.trajectory.states[0].digest
 assert len(result.trajectory.states) == 1
 wake_state = result.trajectory.states[0]
 assert wake_state.time_s == 0.0001
@@ -1486,6 +1494,10 @@ assert plan.solve.reduction == "reproducible"
 assert plan.execution.placement == "host-serial" and plan.execution.workers == 1
 
 result = package.run(plan)
+result_bytes = result.to_bytes()
+replayed_result = package.Result.from_bytes(plan, result_bytes)
+assert replayed_result.to_bytes() == result_bytes
+assert replayed_result.output(plan.capability.displacement).values("vertex").numpy().tolist() == result.output(plan.capability.displacement).values("vertex").numpy().tolist()
 elasticity_evidence = package.solid.linear_elasticity_evidence(result)
 assert isinstance(elasticity_evidence, package.solid.LinearElasticityEvidence)
 assert elasticity_evidence.plan_key == result.plan_key

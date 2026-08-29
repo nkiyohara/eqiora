@@ -734,6 +734,20 @@ model decay {
             crate::CommonTrajectory::from_bytes(&trajectory_bytes, &resolved).unwrap(),
             trajectory
         );
+        let result = crate::CommonResult::accept_trajectory(0.25, trajectory.clone()).unwrap();
+        let result_bytes = result.to_bytes().unwrap();
+        let replayed_result = crate::CommonResult::from_bytes(&result_bytes, &resolved).unwrap();
+        assert_eq!(replayed_result, result);
+        assert_eq!(replayed_result.to_bytes().unwrap(), result_bytes);
+        let mut forged_result: serde_json::Value = serde_json::from_slice(&result_bytes).unwrap();
+        forged_result["identity"] = serde_json::Value::String("0".repeat(64));
+        assert!(
+            crate::CommonResult::from_bytes(
+                &serde_json::to_vec(&forged_result).unwrap(),
+                &resolved,
+            )
+            .is_err()
+        );
         let mut noncanonical_trajectory = trajectory_bytes;
         noncanonical_trajectory.push(b'\n');
         assert!(crate::CommonTrajectory::from_bytes(&noncanonical_trajectory, &resolved).is_err());

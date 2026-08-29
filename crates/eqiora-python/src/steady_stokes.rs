@@ -1,6 +1,5 @@
 //! Python observation projection for common steady Stokes.
 
-use eqiora_numerics::CommonSteadyStokesObservation;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
@@ -31,27 +30,33 @@ pub(crate) struct PySteadyStokesEvidence {
 }
 
 impl PySteadyStokesEvidence {
-    pub(crate) fn from_common(
+    pub(crate) fn from_result(
         py: Python<'_>,
         plan_key: &str,
-        observation: &CommonSteadyStokesObservation,
+        result: &eqiora_numerics::CommonResult,
     ) -> PyResult<Self> {
-        let [[x_lower, x_upper], [y_lower, y_upper]] = observation.exact_bounds();
+        let (scalars, vectors) = result.steady_stokes_observation().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("steady-Stokes Result omitted its observation")
+        })?;
+        let [[x_lower, x_upper], [y_lower, y_upper]] = [vectors[0], vectors[1]];
+        let solve = PyLinearSolveSummary::from_common_result(result, None).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("steady-Stokes Result omitted solve evidence")
+        })?;
         Ok(Self {
             plan_key: plan_key.to_owned(),
-            pressure_minimum: observation.pressure_minimum(),
-            pressure_maximum: observation.pressure_maximum(),
+            pressure_minimum: scalars[0],
+            pressure_maximum: scalars[1],
             exact_bounds: ((x_lower, x_upper), (y_lower, y_upper)),
-            cylinder_force_on_fluid: tuple2(observation.cylinder_force_on_fluid()),
-            inlet_flux: observation.inlet_flux(),
-            outlet_flux: observation.outlet_flux(),
-            net_flux: observation.net_flux(),
-            constrained_reaction: tuple2(observation.constrained_reaction()),
-            integrated_body_force: tuple2(observation.integrated_body_force()),
-            integrated_boundary_traction: tuple2(observation.integrated_boundary_traction()),
-            momentum_closure: tuple2(observation.momentum_closure()),
-            solve: Py::new(py, PyLinearSolveSummary::from_report(observation.solve()))?,
-            continuity_residual_norm: observation.continuity_residual_norm(),
+            cylinder_force_on_fluid: tuple2(vectors[2]),
+            inlet_flux: scalars[2],
+            outlet_flux: scalars[3],
+            net_flux: scalars[4],
+            constrained_reaction: tuple2(vectors[3]),
+            integrated_body_force: tuple2(vectors[4]),
+            integrated_boundary_traction: tuple2(vectors[5]),
+            momentum_closure: tuple2(vectors[6]),
+            solve: Py::new(py, solve)?,
+            continuity_residual_norm: scalars[5],
         })
     }
 }

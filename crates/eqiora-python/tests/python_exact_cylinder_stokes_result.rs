@@ -58,6 +58,12 @@ plan = eqiora.resolve(
 result = eqiora.run(plan)
 evidence = eqiora.fluid.steady_stokes_evidence(result)
 pressure = result.output(plan.capability.pressure)
+result_bytes = result.to_bytes()
+replayed_result = eqiora.Result.from_bytes(plan, result_bytes)
+replayed_evidence = eqiora.fluid.steady_stokes_evidence(replayed_result)
+assert replayed_result.to_bytes() == result_bytes
+assert replayed_result.output(plan.capability.pressure).values("vertex").numpy().tolist() == pressure.values("vertex").numpy().tolist()
+assert replayed_evidence.solve.true_residual_norm == evidence.solve.true_residual_norm
 assert result.model_digest == model.digest
 assert result.plan_key == plan.identity
 assert pressure.coefficient_count("vertex") == mesh.vertex_count

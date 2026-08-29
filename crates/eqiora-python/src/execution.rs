@@ -51,22 +51,7 @@ impl NativeRunProgress {
 
 #[derive(Debug)]
 enum NativeRunOutput {
-    Scalar {
-        result: Box<eqiora_numerics::scalar::ResolvedScalarEllipticCartesianSolution>,
-        elapsed_seconds: f64,
-    },
-    Elasticity {
-        result: Box<eqiora_numerics::CommonElasticityRunOutput>,
-        elapsed_seconds: f64,
-    },
-    SteadyStokes {
-        result: Box<eqiora_numerics::CommonSteadyStokesRunOutput>,
-        elapsed_seconds: f64,
-    },
-    Trajectory {
-        trajectory: Box<eqiora_numerics::CommonTrajectory>,
-        elapsed_seconds: f64,
-    },
+    Result(Box<eqiora_numerics::CommonResult>),
 }
 
 enum ResultMaterializationContext {
@@ -772,54 +757,11 @@ fn materialize_result(
 ) -> PyResult<Py<PyAny>> {
     let ResultMaterializationContext::CommonPlan { plan } = context;
     match result {
-        NativeRunOutput::Scalar {
-            result,
-            elapsed_seconds,
-        } => crate::result::materialize_common_scalar(
-            py,
-            plan.borrow(py),
-            identity.clone(),
-            elapsed_seconds,
-            *result,
-        )
-        .and_then(|result| Py::new(py, result))
-        .map(Py::into_any),
-        NativeRunOutput::Elasticity {
-            result,
-            elapsed_seconds,
-        } => crate::result::materialize_common_elasticity(
-            py,
-            plan.borrow(py),
-            identity.clone(),
-            elapsed_seconds,
-            *result,
-        )
-        .and_then(|result| Py::new(py, result))
-        .map(Py::into_any),
-        NativeRunOutput::SteadyStokes {
-            result,
-            elapsed_seconds,
-        } => crate::result::materialize_common_steady_stokes(
-            py,
-            plan.borrow(py),
-            identity.clone(),
-            elapsed_seconds,
-            *result,
-        )
-        .and_then(|result| Py::new(py, result))
-        .map(Py::into_any),
-        NativeRunOutput::Trajectory {
-            trajectory,
-            elapsed_seconds,
-        } => crate::result::materialize_common_trajectory(
-            py,
-            plan.borrow(py),
-            identity.clone(),
-            elapsed_seconds,
-            *trajectory,
-        )
-        .and_then(|result| Py::new(py, result))
-        .map(Py::into_any),
+        NativeRunOutput::Result(result) => {
+            crate::result::materialize_common_result(py, plan.borrow(py), identity.clone(), *result)
+                .and_then(|result| Py::new(py, result))
+                .map(Py::into_any)
+        }
     }
 }
 

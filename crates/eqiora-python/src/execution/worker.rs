@@ -7,7 +7,7 @@ use eqiora::backends::faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
 use eqiora::diagnostic::codes;
 use eqiora::solver::{REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER};
 use eqiora_numerics::{
-    CommonElasticityPlan, CommonFsiRunRequest, CommonOdeRunRequest, CommonScalarPlan,
+    CommonElasticityPlan, CommonFsiRunRequest, CommonOdeRunRequest, CommonResult, CommonScalarPlan,
     CommonSteadyStokesPlan, CommonTrajectory, CommonTransientRunRequest,
 };
 
@@ -79,33 +79,35 @@ fn execute_job(
     match job {
         NativeRunJob::Scalar(plan) => {
             let started = Instant::now();
-            let result = plan.run().map_err(|diagnostic| vec![diagnostic])?;
-            Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Scalar {
-                result: Box::new(result),
-                elapsed_seconds: started.elapsed().as_secs_f64(),
-            }))
+            let result = plan
+                .run_result()
+                .and_then(|result| result.with_elapsed_seconds(started.elapsed().as_secs_f64()))
+                .map_err(|diagnostic| vec![diagnostic])?;
+            Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
+                Box::new(result),
+            )))
         }
         NativeRunJob::Elasticity(plan) => {
             let started = Instant::now();
-            let result = plan.run_observed().map_err(|diagnostic| vec![diagnostic])?;
-            Ok(NativeWorkerOutcome::Completed(
-                NativeRunOutput::Elasticity {
-                    result: Box::new(result),
-                    elapsed_seconds: started.elapsed().as_secs_f64(),
-                },
-            ))
+            let result = plan
+                .run_result()
+                .and_then(|result| result.with_elapsed_seconds(started.elapsed().as_secs_f64()))
+                .map_err(|diagnostic| vec![diagnostic])?;
+            Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
+                Box::new(result),
+            )))
         }
         NativeRunJob::SteadyStokes(plan) => {
             let started = Instant::now();
             let result = plan
-                .run_observed(&FaerLinearSolver)
+                .run_result(&FaerLinearSolver)
                 .map_err(|diagnostic| vec![diagnostic])?;
-            Ok(NativeWorkerOutcome::Completed(
-                NativeRunOutput::SteadyStokes {
-                    result: Box::new(result),
-                    elapsed_seconds: started.elapsed().as_secs_f64(),
-                },
-            ))
+            let result = result
+                .with_elapsed_seconds(started.elapsed().as_secs_f64())
+                .map_err(|diagnostic| vec![diagnostic])?;
+            Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
+                Box::new(result),
+            )))
         }
         NativeRunJob::Transient(request) => {
             let started = Instant::now();
@@ -156,12 +158,14 @@ fn execute_job(
                 AcceptedStepOutcome::Completed(states) => {
                     let trajectory = CommonTrajectory::accept_transient_flow(*request, states)
                         .map_err(|diagnostic| vec![diagnostic])?;
-                    Ok(NativeWorkerOutcome::Completed(
-                        NativeRunOutput::Trajectory {
-                            trajectory: Box::new(trajectory),
-                            elapsed_seconds: started.elapsed().as_secs_f64(),
-                        },
-                    ))
+                    let result = CommonResult::accept_trajectory(
+                        started.elapsed().as_secs_f64(),
+                        trajectory,
+                    )
+                    .map_err(|diagnostic| vec![diagnostic])?;
+                    Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
+                        Box::new(result),
+                    )))
                 }
             }
         }
@@ -202,12 +206,14 @@ fn execute_job(
                 AcceptedStepOutcome::Completed(states) => {
                     let trajectory = CommonTrajectory::accept_fsi(*request, states)
                         .map_err(|diagnostic| vec![diagnostic])?;
-                    Ok(NativeWorkerOutcome::Completed(
-                        NativeRunOutput::Trajectory {
-                            trajectory: Box::new(trajectory),
-                            elapsed_seconds: started.elapsed().as_secs_f64(),
-                        },
-                    ))
+                    let result = CommonResult::accept_trajectory(
+                        started.elapsed().as_secs_f64(),
+                        trajectory,
+                    )
+                    .map_err(|diagnostic| vec![diagnostic])?;
+                    Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
+                        Box::new(result),
+                    )))
                 }
             }
         }
@@ -219,12 +225,12 @@ fn execute_job(
                 .map_err(|diagnostic| vec![diagnostic])?;
             let trajectory = CommonTrajectory::accept_ode(*request, solution)
                 .map_err(|diagnostic| vec![diagnostic])?;
-            Ok(NativeWorkerOutcome::Completed(
-                NativeRunOutput::Trajectory {
-                    trajectory: Box::new(trajectory),
-                    elapsed_seconds: started.elapsed().as_secs_f64(),
-                },
-            ))
+            let result =
+                CommonResult::accept_trajectory(started.elapsed().as_secs_f64(), trajectory)
+                    .map_err(|diagnostic| vec![diagnostic])?;
+            Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
+                Box::new(result),
+            )))
         }
     }
 }
