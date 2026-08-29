@@ -73,8 +73,9 @@ class _InvalidModelSubclass(eqiora.Model):  # type: ignore[misc]
 
 def check_structural_result(plan: eqiora.Plan, result: eqiora.Result) -> None:
     assert_type(plan, eqiora.Plan)
-    assert_type(plan.mesh_kind, str | None)
-    assert_type(plan.space, str | None)
+    capability = plan.capability
+    assert isinstance(capability, eqiora.solid.ElasticityPlanView)
+    assert_type(capability.displacement, eqiora.FieldRef)
     assert_type(
         eqiora.solid.linear_elasticity_evidence(result),
         LinearElasticityEvidence,
@@ -83,9 +84,10 @@ def check_structural_result(plan: eqiora.Plan, result: eqiora.Result) -> None:
 
 def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
     assert_type(plan, eqiora.Plan)
-    assert_type(plan.mesh_kind, str | None)
-    assert_type(plan.velocity_space, str | None)
-    assert_type(plan.pressure_space, str | None)
+    capability = plan.capability
+    assert isinstance(capability, eqiora.fsi.FixedReferenceFsiPlanView)
+    assert_type(capability.fluid_velocity, eqiora.FieldRef)
+    assert_type(capability.pressure, eqiora.FieldRef)
     assert_type(
         plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | None
     )

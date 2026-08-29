@@ -69,12 +69,12 @@ def accepted() -> tuple[eqiora.Model, eqiora.Plan, eqiora.Result]:
 
 def test_root_plan_result_and_observation_close_exact_lineage() -> None:
     model, plan, result = accepted()
-    pressure = result.output(plan.pressure_field)
+    pressure = result.output(plan.capability.pressure)
     evidence = eqiora.fluid.steady_stokes_evidence(result)
 
     assert result.model_digest == model.digest == plan.model_digest
     assert result.plan_key == plan.identity == evidence.plan_key
-    assert pressure.field == plan.pressure_field
+    assert pressure.field == plan.capability.pressure
     assert pressure.mesh is plan.mesh
     assert pressure.vertex_count == plan.mesh.vertex_count
     assert pressure.components == 1

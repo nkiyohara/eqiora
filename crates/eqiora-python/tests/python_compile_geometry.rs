@@ -53,7 +53,7 @@ fresh_result = eqiora.run(fresh_plan)
 replayed_result = eqiora.run(replayed_plan)
 assert fresh_result.model_digest == model.digest == replayed_result.model_digest
 assert fresh_result.plan_key == fresh_plan.identity == replayed_result.plan_key
-assert fresh_result.output(fresh_plan.pressure_field).vertex_count == mesh.vertex_count
+assert fresh_result.output(fresh_plan.capability.pressure).vertex_count == mesh.vertex_count
 
 for args, kwargs in (
     ((source_text,), {}),

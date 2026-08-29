@@ -37,6 +37,21 @@ impl PyQ1 {
         Self
     }
 
+    #[getter]
+    const fn method(&self) -> &'static str {
+        "q1"
+    }
+
+    #[getter]
+    const fn space(&self) -> &'static str {
+        "continuous-lagrange-q1"
+    }
+
+    #[getter]
+    const fn quadrature(&self) -> &'static str {
+        "gauss-legendre-2-per-axis"
+    }
+
     fn __repr__(&self) -> &'static str {
         "Q1()"
     }
@@ -59,6 +74,26 @@ impl PyMiniP1 {
     #[new]
     const fn new() -> Self {
         Self
+    }
+
+    #[getter]
+    const fn method(&self) -> &'static str {
+        "mini-p1"
+    }
+
+    #[getter]
+    const fn velocity_space(&self) -> &'static str {
+        "simplex-p1-bubble"
+    }
+
+    #[getter]
+    const fn pressure_space(&self) -> &'static str {
+        "continuous-lagrange-p1"
+    }
+
+    #[getter]
+    const fn quadrature(&self) -> &'static str {
+        "triangle-duffy-gauss-legendre-3-per-axis"
     }
 
     fn at(&self, domain: &PyModelDomainRef) -> PyScopedSpatialBinding {
@@ -90,6 +125,21 @@ impl PyP1 {
     #[new]
     const fn new() -> Self {
         Self
+    }
+
+    #[getter]
+    const fn method(&self) -> &'static str {
+        "p1"
+    }
+
+    #[getter]
+    const fn space(&self) -> &'static str {
+        "continuous-lagrange-p1"
+    }
+
+    #[getter]
+    const fn quadrature(&self) -> &'static str {
+        "triangle-duffy-gauss-legendre-4-per-axis"
     }
 
     fn at(&self, domain: &PyModelDomainRef) -> PyScopedSpatialBinding {
@@ -140,6 +190,19 @@ impl PyScopedSpatialBinding {
         }
     }
 
+    #[getter]
+    fn spaces(&self) -> (&'static str, Option<&'static str>) {
+        match self.policy {
+            ScopedSpatialKind::MiniP1 => ("simplex-p1-bubble", Some("continuous-lagrange-p1")),
+            ScopedSpatialKind::P1 => ("continuous-lagrange-p1", None),
+        }
+    }
+
+    #[getter]
+    const fn quadrature(&self) -> &'static str {
+        "triangle-duffy-gauss-legendre-4-per-axis"
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "ScopedSpatialPolicy(method={:?}, domain={:?})",
@@ -168,6 +231,21 @@ impl PyCellCenteredTpfa {
         Self
     }
 
+    #[getter]
+    const fn method(&self) -> &'static str {
+        "cell-centered-tpfa"
+    }
+
+    #[getter]
+    const fn space(&self) -> &'static str {
+        "cell-constant"
+    }
+
+    #[getter]
+    const fn quadrature(&self) -> &'static str {
+        "cell-centroid/facet-midpoint"
+    }
+
     fn __repr__(&self) -> &'static str {
         "CellCenteredTpfa()"
     }
@@ -190,6 +268,26 @@ impl PyCellCentered {
     #[new]
     const fn new() -> Self {
         Self
+    }
+
+    #[getter]
+    const fn method(&self) -> &'static str {
+        "cell-centered"
+    }
+
+    #[getter]
+    const fn velocity_space(&self) -> &'static str {
+        "cell-constant"
+    }
+
+    #[getter]
+    const fn pressure_space(&self) -> &'static str {
+        "cell-constant"
+    }
+
+    #[getter]
+    const fn quadrature(&self) -> &'static str {
+        "cell-centroid/facet-midpoint"
     }
 
     fn __repr__(&self) -> &'static str {

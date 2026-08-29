@@ -151,14 +151,14 @@ def transient_vorticity(cylinder_case):
             pressure_pa=0.09,
         ),
     )
-    steady_velocity = steady_result.output(steady_plan.velocity_field)
-    steady_pressure = steady_result.output(steady_plan.pressure_field)
+    steady_velocity = steady_result.output(steady_plan.capability.velocity)
+    steady_pressure = steady_result.output(steady_plan.capability.pressure)
     state = eqiora.State.initial(
         plan,
         time_s=0.0,
         fields=(
             eqiora.InitialField(
-                plan.velocity_field,
+                plan.capability.velocity,
                 vertex_values=np.asarray(steady_velocity.vertex_values).reshape(
                     mesh.vertex_count, 2
                 ),
@@ -167,7 +167,7 @@ def transient_vorticity(cylinder_case):
                 ),
             ),
             eqiora.InitialField(
-                plan.pressure_field,
+                plan.capability.pressure,
                 vertex_values=np.asarray(steady_pressure.vertex_values),
             ),
         ),
@@ -177,8 +177,8 @@ def transient_vorticity(cylinder_case):
     return (
         plan,
         result,
-        wake_state.curl(plan.velocity_field),
-        state.curl(plan.velocity_field),
+        wake_state.curl(plan.capability.velocity),
+        state.curl(plan.capability.velocity),
     )
 
 
@@ -192,7 +192,7 @@ def test_scalar_field_uses_exact_plan_field_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plan, result = scalar
-    field = plan.pressure_field
+    field = plan.capability.pressure
     assert field is not None
     output = result.output(field)
     expected_coordinates = output.mesh.coordinates.copy()
@@ -263,8 +263,7 @@ def test_deformed_field_uses_exact_plan_field_output(
     structural: tuple[eqiora.Plan, eqiora.Result],
 ) -> None:
     plan, result = structural
-    field = plan.field
-    assert field is not None
+    field = plan.capability.displacement
     output = result.output(field)
     figure = eqplot.plot_deformed_field(result, field=field, scale=2.0)
     assert output.vertex_count == 289
@@ -279,9 +278,8 @@ def test_deformed_field_rejects_invalid_scale_before_rendering(
     structural: tuple[eqiora.Plan, eqiora.Result], scale: float
 ) -> None:
     plan, result = structural
-    assert plan.field is not None
     with pytest.raises(ValueError, match="finite and nonnegative"):
-        eqplot.plot_deformed_field(result, field=plan.field, scale=scale)
+        eqplot.plot_deformed_field(result, field=plan.capability.displacement, scale=scale)
 
 
 def test_figures_are_headless_caller_owned_and_nonblank(
@@ -291,12 +289,11 @@ def test_figures_are_headless_caller_owned_and_nonblank(
 ) -> None:
     scalar_plan, scalar_result = scalar
     structural_plan, structural_result = structural
-    assert scalar_plan.pressure_field is not None
-    assert structural_plan.field is not None
+    assert scalar_plan.capability.pressure is not None
     figures = (
-        eqplot.plot_scalar_field(scalar_result, field=scalar_plan.pressure_field),
+        eqplot.plot_scalar_field(scalar_result, field=scalar_plan.capability.pressure),
         eqplot.plot_deformed_field(
-            structural_result, field=structural_plan.field, scale=1.0
+            structural_result, field=structural_plan.capability.displacement, scale=1.0
         ),
     )
     del scalar_result, structural_result

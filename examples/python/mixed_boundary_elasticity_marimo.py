@@ -32,7 +32,7 @@ def _(mo):
 @app.cell
 def _(solve):
     plan, result = solve()
-    displacement = result.output(plan.field)
+    displacement = result.output(plan.capability.displacement)
     return displacement, plan, result
 
 
@@ -57,7 +57,7 @@ def _(mo, plan, displacement, result):
 def _(BytesIO, eqplot, mo, plan, result):
     displacement_figure = eqplot.plot_deformed_field(
         result,
-        field=plan.field,
+        field=plan.capability.displacement,
         scale=1.0,
     )
     displacement_png = BytesIO()

@@ -6,7 +6,28 @@ Authority: ``bindings/python/python/eqiora/fsi.py``.
 from typing import final
 import numpy as np
 import numpy.typing as npt
-from . import LinearSolveSummary, Result, State
+from . import FieldRef, LinearSolveSummary, Result, State, fluid
+
+@final
+class FixedReferenceFsiPlanView:
+    """Resolved field roles and scales for fixed-reference FSI.
+
+    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyFixedReferenceFsiPlanView``.
+    """
+    @property
+    def kind(self) -> str: ...
+    @property
+    def fluid_velocity(self) -> FieldRef: ...
+    @property
+    def pressure(self) -> FieldRef: ...
+    @property
+    def solid_velocity(self) -> FieldRef: ...
+    @property
+    def displacement(self) -> FieldRef: ...
+    @property
+    def scaling(self) -> fluid.IncompressibleScales: ...
+    @property
+    def scaling_receipt(self) -> fluid.IncompressibleScalingReceipt2d: ...
 
 @final
 class FsiStateEvidence:
@@ -82,4 +103,4 @@ def evidence(result: Result) -> FsiEvidence:
     """
     ...
 
-__all__ = ["FsiEvidence", "FsiStateEvidence", "evidence"]
+__all__ = ["FixedReferenceFsiPlanView", "FsiEvidence", "FsiStateEvidence", "evidence"]

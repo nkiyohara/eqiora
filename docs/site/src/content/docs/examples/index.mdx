@@ -102,7 +102,7 @@ The root resolver admits typed numerical policies against the actual Model. Phys
 
 ```python
 result = eqiora.run(plan)
-pressure = result.output(plan.pressure_field)
+pressure = result.output(plan.capability.pressure)
 evidence = eqiora.fluid.steady_stokes_evidence(result)
 ```
 

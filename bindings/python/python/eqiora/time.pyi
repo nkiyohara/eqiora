@@ -6,6 +6,20 @@ from typing import Mapping, Self, final
 from . import FieldRef
 
 @final
+class OdePlanView:
+    """Resolved no-Mesh ODE capability.
+
+    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyOdePlanView``.
+    """
+    @property
+    def kind(self) -> str: ...
+    @property
+    def backend(self) -> str: ...
+    @property
+    def backend_version(self) -> str: ...
+    def __repr__(self) -> str: ...
+
+@final
 class BackwardEuler:
     """Positive Backward-Euler operator step.
 
@@ -37,4 +51,4 @@ class Tsitouras45:
     def absolute_tolerances(self) -> dict[FieldRef, float]: ...
     def __repr__(self) -> str: ...
 
-__all__ = ["BackwardEuler", "Tsitouras45"]
+__all__ = ["BackwardEuler", "OdePlanView", "Tsitouras45"]

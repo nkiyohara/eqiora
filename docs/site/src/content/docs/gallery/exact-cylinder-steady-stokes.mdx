@@ -237,7 +237,7 @@ public identities:
 | `Mesh` | `Plan.mesh_digest` |
 | resolved numerical policy | `Plan.identity` |
 | `Result` | `Result.plan_key` |
-| pressure `FieldOutput` | `Result.output(Plan.pressure_field)` |
+| pressure `FieldOutput` | `Result.output(Plan.capability.pressure)` |
 
 These names expose existing identity links; the page does not invent another
 aggregate digest or pretend that static documentation executed the run.
@@ -250,8 +250,8 @@ The canonical plotting cell selects the pressure `FieldOutput` from the
 common `Result` and passes it to the general scalar-field adapter:
 
 ```python
-pressure = result.output(plan.pressure_field)
-pressure_figure = eqplot.plot_scalar_field(result, field=plan.pressure_field)
+pressure = result.output(plan.capability.pressure)
+pressure_figure = eqplot.plot_scalar_field(result, field=plan.capability.pressure)
 ```
 
 <ResultFigure

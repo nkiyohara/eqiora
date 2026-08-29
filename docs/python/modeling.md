@@ -256,7 +256,7 @@ plan = eqiora.resolve(
 )
 result = eqiora.run(plan)
 
-pressure = result.output(plan.pressure_field)
+pressure = result.output(plan.capability.pressure)
 evidence = eqiora.fluid.steady_stokes_evidence(result)
 print(result.plan_key, pressure.vertex_count)
 print(evidence.solve)
@@ -360,7 +360,7 @@ plan = eqiora.resolve(
 )
 result = eqiora.run(plan)
 
-displacement = result.output(plan.field)
+displacement = result.output(plan.capability.displacement)
 mesh = displacement.mesh
 evidence = eqiora.solid.linear_elasticity_evidence(result)
 ```
@@ -388,7 +388,7 @@ import eqiora.matplotlib as eqplot
 
 figure = eqplot.plot_deformed_field(
     result,
-    field=plan.field,
+    field=plan.capability.displacement,
     scale=1.0,
 )
 figure.savefig("mixed-boundary-displacement.png")

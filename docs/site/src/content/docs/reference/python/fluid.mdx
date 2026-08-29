@@ -15,7 +15,36 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/fluid.py"
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/fluid.pyi" kind="blob">bindings/python/python/eqiora/fluid.pyi</ExactSourceLink>
 
-This module publishes **12** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **13** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+
+<a id="api-eqiora-fluid-IncompressibleFlowPlanView"></a>
+
+## `IncompressibleFlowPlanView`
+
+Resolved incompressible-flow roles, spaces, gauge, and scales.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/capability_view.rs" kind="blob">crates/eqiora-python/src/common_plan/capability_view.rs::PyIncompressibleFlowPlanView</ExactSourceLink>
+
+```python
+@final
+class IncompressibleFlowPlanView:
+    @property
+    def kind(self) -> str: ...
+    @property
+    def velocity(self) -> FieldRef: ...
+    @property
+    def pressure(self) -> FieldRef: ...
+    @property
+    def velocity_space(self) -> str: ...
+    @property
+    def pressure_space(self) -> str: ...
+    @property
+    def pressure_gauge(self) -> PressureGauge2d | None: ...
+    @property
+    def scaling(self) -> IncompressibleScales: ...
+    @property
+    def scaling_receipt(self) -> IncompressibleScalingReceipt2d: ...
+```
 
 <a id="api-eqiora-fluid-IncompressibleScales"></a>
 
