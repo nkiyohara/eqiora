@@ -1023,6 +1023,10 @@ dependencies = [
  "eqiora-core",
  "eqiora-schema",
  "eqiora-solver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "ulid",
 ]
 
 [[package]]

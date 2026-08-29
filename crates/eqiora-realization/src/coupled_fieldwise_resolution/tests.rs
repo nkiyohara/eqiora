@@ -37,6 +37,10 @@ fn exact_multidomain_inventory_is_canonical_and_resolves() {
 
     let kinematic_relation = Id::<kinds::Relation>::new();
     let graph = resolved.portable_graph(kinematic_relation).unwrap();
+    assert_eq!(
+        crate::PortableRealizationGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(),
+        graph
+    );
     assert!(matches!(graph.root(), crate::SolveRoot::Linear(_)));
     assert_eq!(graph.domains().len(), 2);
     assert_eq!(graph.fields().len(), 4);

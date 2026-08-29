@@ -143,6 +143,126 @@ fn malformed_or_disconnected_projection_fails_closed() {
     );
 }
 
+#[test]
+fn portable_wire_round_trips_and_has_a_domain_separated_digest() {
+    use sha2::{Digest, Sha256};
+
+    let graph = Fixture::new().resolve().portable_graph().unwrap();
+    let bytes = graph.to_bytes().unwrap();
+    let decoded = PortableRealizationGraph::from_bytes(&bytes).unwrap();
+
+    assert_eq!(decoded, graph);
+    assert_eq!(decoded.to_bytes().unwrap(), bytes);
+
+    let mut expected = Sha256::new();
+    expected.update(b"eqiora.portable-realization-graph/v1\0");
+    expected.update(&bytes);
+    assert_eq!(
+        graph.digest().unwrap(),
+        <[u8; 32]>::from(expected.finalize())
+    );
+}
+
+#[test]
+fn portable_wire_rejects_noncanonical_unknown_and_disconnected_payloads() {
+    let graph = Fixture::new().resolve().portable_graph().unwrap();
+    let bytes = graph.to_bytes().unwrap();
+
+    let mut noncanonical = bytes.clone();
+    noncanonical.push(b'\n');
+    assert_eq!(
+        PortableRealizationGraph::from_bytes(&noncanonical)
+            .unwrap_err()
+            .code(),
+        codes::INVALID_REALIZATION
+    );
+
+    let unknown = String::from_utf8(bytes.clone()).unwrap().replacen(
+        "{\"schema\":",
+        "{\"unknown\":true,\"schema\":",
+        1,
+    );
+    assert_eq!(
+        PortableRealizationGraph::from_bytes(unknown.as_bytes())
+            .unwrap_err()
+            .code(),
+        codes::INVALID_REALIZATION
+    );
+
+    let unsupported = String::from_utf8(bytes.clone()).unwrap().replace(
+        "eqiora.portable-realization-graph/v1",
+        "eqiora.portable-realization-graph/v2",
+    );
+    assert_eq!(
+        PortableRealizationGraph::from_bytes(unsupported.as_bytes())
+            .unwrap_err()
+            .code(),
+        codes::INVALID_REALIZATION
+    );
+
+    let lowercase_ulid = String::from_utf8(bytes.clone())
+        .unwrap()
+        .replace("01ARZ3NDEKTSV4RRFFQ69G5FAV", "01arz3ndektsv4rrffq69g5fav");
+    assert_eq!(
+        PortableRealizationGraph::from_bytes(lowercase_ulid.as_bytes())
+            .unwrap_err()
+            .code(),
+        codes::INVALID_REALIZATION
+    );
+
+    let uppercase_digest =
+        String::from_utf8(bytes.clone())
+            .unwrap()
+            .replacen(&"ab".repeat(32), &"AB".repeat(32), 1);
+    assert_eq!(
+        PortableRealizationGraph::from_bytes(uppercase_digest.as_bytes())
+            .unwrap_err()
+            .code(),
+        codes::INVALID_REALIZATION
+    );
+
+    let negative_zero = String::from_utf8(bytes.clone()).unwrap().replacen(
+        "\"absolute_tolerance\":1e-13",
+        "\"absolute_tolerance\":-0.0",
+        1,
+    );
+    assert_eq!(
+        PortableRealizationGraph::from_bytes(negative_zero.as_bytes())
+            .unwrap_err()
+            .code(),
+        codes::INVALID_REALIZATION
+    );
+
+    let disconnected = String::from_utf8(bytes).unwrap().replace(
+        "\"root\":{\"kind\":\"nonlinear\",\"solve\":0}",
+        "\"root\":{\"kind\":\"nonlinear\",\"solve\":99}",
+    );
+    assert_eq!(
+        PortableRealizationGraph::from_bytes(disconnected.as_bytes())
+            .unwrap_err()
+            .code(),
+        codes::INVALID_REALIZATION
+    );
+}
+
+#[test]
+fn portable_wire_rejects_oversized_input_and_invalid_graphs() {
+    let oversized = vec![b' '; 8 * 1024 * 1024 + 1];
+    assert_eq!(
+        PortableRealizationGraph::from_bytes(&oversized)
+            .unwrap_err()
+            .code(),
+        codes::INVALID_REALIZATION
+    );
+
+    let mut graph = Fixture::new().resolve().portable_graph().unwrap();
+    graph.systems[0].transformations.clear();
+    assert_eq!(
+        graph.to_bytes().unwrap_err().code(),
+        codes::INVALID_REALIZATION
+    );
+}
+
 struct Fixture {
     domain: Id<kinds::Domain>,
     velocity: Id<kinds::Field>,
@@ -168,7 +288,7 @@ impl Fixture {
             Discretization::new(
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::ImportedSimplicial {
-                    artifact: MeshArtifactReference::from_sha256([7; 32]),
+                    artifact: MeshArtifactReference::from_sha256([0xab; 32]),
                 },
                 QuadraturePolicy::TriangleDuffyGaussLegendre {
                     points_per_axis: NonZeroUsize::new(5).unwrap(),
@@ -227,7 +347,7 @@ impl Fixture {
         )
         .unwrap();
         let request = TransientFieldwiseRealizationRequest::explicit(
-            OntologyId::new(),
+            OntologyId::from_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAV".parse::<ulid::Ulid>().unwrap()),
             SemanticRevision::new(4),
             RealizationRevision::new(9),
             plan,

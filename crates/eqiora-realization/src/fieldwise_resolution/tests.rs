@@ -35,6 +35,10 @@ fn exact_requirements_are_order_invariant_and_resolve() {
     assert_eq!(resolved.plan(), request.plan());
 
     let graph = resolved.portable_graph().unwrap();
+    assert_eq!(
+        crate::PortableRealizationGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(),
+        graph
+    );
     assert!(matches!(graph.root(), crate::SolveRoot::Linear(_)));
     assert!(graph.transformations().is_empty());
     assert_eq!(graph.domains()[0].domain(), domain);
