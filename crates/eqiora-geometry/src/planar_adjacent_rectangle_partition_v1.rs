@@ -13,7 +13,7 @@ use crate::{
     PlanarRegion,
 };
 
-const SCHEMA: &str = "eqiora.planar-adjacent-rectangle-partition-envelope/v1";
+pub(crate) const SCHEMA: &str = "eqiora.planar-adjacent-rectangle-partition-envelope/v1";
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_ARTIFACT, message)

@@ -27,7 +27,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
                 formulation,
             },
         };
-        resolve_common_plan(
+        let resolved = resolve_common_plan(
             model,
             owner,
             method,
@@ -36,8 +36,8 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(temporal),
             &ResolveOnlyBackend,
         )
-        .unwrap()
-        .project(
+        .unwrap();
+        replay_plan(resolved, &ResolveOnlyBackend).project(
             |_| panic!("spatial Model resolved as no-Mesh ODE"),
             |_| panic!("transient Model resolved as scalar"),
             |_| panic!("transient Model resolved as elasticity"),

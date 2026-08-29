@@ -86,6 +86,9 @@ class Mesh:
     Authority: ``crates/eqiora-python/src/meshing/mesh.rs::PyMesh``.
     """
 
+    @staticmethod
+    def from_bytes(data: bytes) -> Mesh: ...
+    def to_bytes(self) -> bytes: ...
     @property
     def source_digest(self) -> str: ...
     @property

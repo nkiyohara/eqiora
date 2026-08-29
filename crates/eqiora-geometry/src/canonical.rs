@@ -94,6 +94,48 @@ impl fmt::Debug for CanonicalGeometryV1 {
 }
 
 impl CanonicalGeometryV1 {
+    /// Decode any current canonical Geometry family through its owning decoder.
+    ///
+    /// The explicit child schema selects only among concurrently admitted
+    /// Geometry families; it does not infer or migrate historical generations.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical bytes.
+    pub fn replay_canonical(
+        bytes: &[u8],
+        limits: CanonicalGeometryLimits,
+    ) -> Result<Self, Diagnostic> {
+        if bytes.len() > limits.max_bytes {
+            return Err(invalid(format!(
+                "geometry definition has {} bytes, exceeding the {} byte decoder limit",
+                bytes.len(),
+                limits.max_bytes
+            )));
+        }
+        let value: serde_json::Value = serde_json::from_slice(bytes)
+            .map_err(|error| invalid(format!("invalid geometry definition JSON: {error}")))?;
+        let schema = value
+            .get("schema")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| invalid("geometry definition requires one string schema"))?;
+        match schema {
+            GEOMETRY_DEFINITION_SCHEMA => Self::decode_canonical(bytes, limits),
+            crate::circular_hole::CIRCULAR_HOLE_SCHEMA => {
+                Self::decode_circular_hole_canonical(bytes, limits)
+            }
+            crate::planar_rectangle_v2::SCHEMA => {
+                Self::decode_planar_rectangle_v2_canonical(bytes, limits)
+            }
+            crate::circular_hole_v2::CIRCULAR_HOLE_SCHEMA_V2 => {
+                Self::decode_planar_circular_hole_v2_canonical(bytes, limits)
+            }
+            crate::planar_adjacent_rectangle_partition_v1::SCHEMA => {
+                Self::decode_planar_adjacent_rectangle_partition_v1_canonical(bytes, limits)
+            }
+            _ => Err(invalid("geometry definition has an unknown current schema")),
+        }
+    }
+
     /// Dimension of the physical coordinate embedding.
     #[must_use]
     pub const fn ambient_dimension(&self) -> usize {

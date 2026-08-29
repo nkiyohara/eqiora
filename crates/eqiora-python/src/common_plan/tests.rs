@@ -421,14 +421,45 @@ linear = package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12
 q1 = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 q1_repeat = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 tpfa = package.resolve(model, mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=linear)
+q1_bytes = q1.to_bytes()
+portable_q1 = package.Plan.from_bytes(q1_bytes)
 replayed = package.Model.from_bytes(model.to_bytes())
 replayed_plan = package.resolve(replayed, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
+mesh_bytes = mesh.to_bytes()
+replayed_mesh = package.meshing.Mesh.from_bytes(mesh_bytes)
+replayed_mesh_plan = package.resolve(model, mesh=replayed_mesh, spatial=package.fem.Q1(), solve=linear)
 fresh_plan = package.resolve(fresh_model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 assert q1.model is model
 assert q1.mesh is mesh
 assert q1.mesh_digest == mesh.digest
 assert q1.identity == q1_repeat.identity
+assert portable_q1.identity == q1.identity
+assert portable_q1.to_bytes() == q1_bytes
+assert portable_q1.model.to_bytes() == model.to_bytes()
+assert portable_q1.mesh.to_bytes() == mesh.to_bytes()
+assert portable_q1.spatial == package.fem.Q1()
+assert portable_q1.requested_solve.relative_tolerance == linear.relative_tolerance
+assert portable_q1.requested_solve.absolute_tolerance == linear.absolute_tolerance
+assert portable_q1.requested_solve.maximum_iterations == linear.maximum_iterations
+assert portable_q1.solve.algorithm == q1.solve.algorithm
 assert replayed_plan.identity == q1.identity
+assert replayed_mesh.digest == mesh.digest
+assert replayed_mesh.correspondence_digest == mesh.correspondence_digest
+assert replayed_mesh.production_lineage_digest == mesh.production_lineage_digest
+assert replayed_mesh.to_bytes() == mesh_bytes
+assert replayed_mesh_plan.identity == q1.identity
+try:
+    package.meshing.Mesh.from_bytes(mesh_bytes + b"\n")
+except package.ValidationError:
+    pass
+else:
+    raise AssertionError("noncanonical Mesh bytes must reject")
+try:
+    package.Plan.from_bytes(q1_bytes + b"\n")
+except package.ValidationError:
+    pass
+else:
+    raise AssertionError("noncanonical Plan bytes must reject")
 assert fresh_model.digest != model.digest
 assert fresh_plan.model_digest == fresh_model.digest
 assert fresh_plan.identity != q1.identity
@@ -443,6 +474,7 @@ assert not hasattr(q1.capability, "scaling")
 assert q1.requested_solve is linear
 assert q1.solve.algorithm == "conjugate-gradient"
 q1_result = package.run(q1)
+portable_q1_result = package.run(portable_q1)
 tpfa_result = package.run(tpfa)
 assert q1_result.model_digest == q1.model_digest
 assert q1_result.plan_key == q1.identity
@@ -451,6 +483,7 @@ q1_output = q1_result.output(q1.capability.field)
 assert q1_output.associations == ("vertex",)
 assert q1_output.logical_shape("vertex") == (3, 4)
 assert len(q1_output.values("vertex")) == 12
+assert portable_q1_result.output(portable_q1.capability.field).logical_shape("vertex") == (3, 4)
 assert not hasattr(q1_result, "run_manifest")
 tpfa_output = tpfa_result.output(tpfa.capability.field)
 assert tpfa_output.associations == ("cell",)
@@ -584,8 +617,12 @@ manual_equal = package.resolve(
 )
 replayed = package.Model.from_bytes(model.to_bytes())
 replayed_plan = package.resolve(replayed, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear)
+replayed_mesh = package.meshing.Mesh.from_bytes(mesh.to_bytes())
+replayed_mesh_plan = package.resolve(model, mesh=replayed_mesh, spatial=package.fem.MiniP1(), solve=linear)
 fresh_plan = package.resolve(fresh_model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear)
 assert plan.identity == explicit_none.identity == all_auto.identity == replayed_plan.identity == fresh_plan.identity
+assert replayed_mesh_plan.identity == plan.identity
+assert replayed_mesh.to_bytes() == mesh.to_bytes()
 assert all_auto_request == package.fluid.IncompressibleScaling()
 assert all_auto_request.length_m is None
 assert all_auto_request.velocity_m_per_s is None
@@ -1013,6 +1050,10 @@ scaling = package.fluid.IncompressibleScaling(length_m=1.0, velocity_m_per_s=2.0
 
 mini = package.resolve(model, mesh=affine, spatial=package.fem.MiniP1(), solve=newton, scaling=scaling, temporal=temporal)
 fvm = package.resolve(model, mesh=cartesian, spatial=package.fvm.CellCentered(), solve=newton, scaling=scaling, temporal=temporal)
+mini_bytes = mini.to_bytes()
+portable_mini = package.Plan.from_bytes(mini_bytes)
+fvm_bytes = fvm.to_bytes()
+portable_fvm = package.Plan.from_bytes(fvm_bytes)
 planned = {}
 for name, objective in (
     ("robust", package.solve.Robust),
@@ -1046,6 +1087,19 @@ fvm_exact = package.resolve(
 replayed = package.resolve(package.Model.from_bytes(model.to_bytes()), mesh=affine, spatial=package.fem.MiniP1(), solve=newton, scaling=scaling, temporal=temporal)
 custom = package.resolve(model, mesh=affine, spatial=package.fem.MiniP1(), solve=custom_newton, scaling=scaling, temporal=temporal)
 assert mini.identity == replayed.identity
+assert portable_mini.identity == mini.identity
+assert portable_fvm.identity == fvm.identity
+assert portable_mini.to_bytes() == mini_bytes
+assert portable_fvm.to_bytes() == fvm_bytes
+assert portable_mini.mesh.to_bytes() == affine.to_bytes()
+assert portable_fvm.mesh.to_bytes() == cartesian.to_bytes()
+assert portable_mini.spatial == package.fem.MiniP1()
+assert portable_fvm.spatial == package.fvm.CellCentered()
+assert portable_mini.temporal.step_s == mini.temporal.step_s
+assert portable_mini.requested_solve.relative_tolerance == newton.relative_tolerance
+assert portable_mini.requested_solve.linear.maximum_iterations == linear.maximum_iterations
+assert portable_mini.solve.maximum_iterations == mini.solve.maximum_iterations
+assert portable_mini.capability.scaling.length_m == mini.capability.scaling.length_m
 assert mini.identity != fvm.identity
 assert mini.identity != custom.identity
 assert mini.model is model and mini.mesh is affine

@@ -77,7 +77,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     let linear =
         CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
     let resolve_scalar = |spatial, solve| {
-        resolve_common_plan(
+        let resolved = resolve_common_plan(
             &model,
             resources(&geometry),
             spatial,
@@ -86,8 +86,8 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
             None,
             &ResolveOnlyBackend,
         )
-        .unwrap()
-        .project(
+        .unwrap();
+        replay_plan(resolved, &ResolveOnlyBackend).project(
             |_| panic!("spatial Model resolved as no-Mesh ODE"),
             |plan| plan,
             |_| panic!("scalar Model resolved as elasticity"),
@@ -142,7 +142,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
     let solve =
         CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
     let resolve_elasticity = |model: &ModelEnvelope| {
-        resolve_common_plan(
+        let resolved = resolve_common_plan(
             model,
             resources(&geometry),
             CommonSpatialPolicy::Q1,
@@ -151,8 +151,8 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
             None,
             &ResolveOnlyBackend,
         )
-        .unwrap()
-        .project(
+        .unwrap();
+        replay_plan(resolved, &ResolveOnlyBackend).project(
             |_| panic!("spatial Model resolved as no-Mesh ODE"),
             |_| panic!("elasticity Model resolved as scalar"),
             |plan| plan,

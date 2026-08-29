@@ -196,6 +196,10 @@ pub(crate) struct PyModelDomainRef {
 }
 
 impl PyModelDomainRef {
+    pub(crate) fn from_exact(model_digest: String, id: String) -> Self {
+        Self { model_digest, id }
+    }
+
     pub(crate) fn exact_model_digest(&self) -> &str {
         &self.model_digest
     }

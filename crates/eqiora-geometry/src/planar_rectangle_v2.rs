@@ -10,7 +10,7 @@ use crate::canonical::{CANONICAL_ENCODING, WireEntitySet, WireLengthUnit, digest
 use crate::region::canonical_entity_sets;
 use crate::{CanonicalGeometryLimits, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet};
 
-const SCHEMA: &str = "eqiora.planar-rectangle-envelope/v2";
+pub(crate) const SCHEMA: &str = "eqiora.planar-rectangle-envelope/v2";
 const CORNER_COUNT: usize = 4;
 const BOUNDARY_COUNT: usize = 4;
 const FACE_COUNT: usize = 1;

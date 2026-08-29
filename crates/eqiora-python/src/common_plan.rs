@@ -13,11 +13,11 @@ use eqiora_numerics::{
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyModule, PyTuple};
+use pyo3::types::{PyAny, PyBytes, PyModule, PyTuple};
 
 use crate::error::validation_error;
 use crate::meshing::PyMesh;
-use crate::model::{PyModel, PyModelFieldRef};
+use crate::model::{PyModel, PyModelDomainRef, PyModelFieldRef};
 
 mod capability_view;
 use capability_view::{
@@ -95,6 +95,44 @@ pub(crate) struct PyPlan {
 }
 
 impl PyPlan {
+    fn from_native_artifact(py: Python<'_>, native: ResolvedCommonPlan) -> PyResult<Self> {
+        let model = Py::new(
+            py,
+            PyModel::from_artifact(py, native.model_artifact().clone())?,
+        )?;
+        let mesh = native
+            .authenticated_mesh()
+            .map(|owner| PyMesh::from_authenticated(py, owner).and_then(|mesh| Py::new(py, mesh)))
+            .transpose()?;
+        let spatial = native
+            .canonical_method_request()
+            .map(|request| spatial_handle_from_request(py, native.model_digest(), request))
+            .transpose()?;
+        let (requested_solve, solve) = solve_handles_from_native(py, &native)?;
+        let temporal = if let Some(temporal) = native.backward_euler() {
+            Some(TemporalHandle::BackwardEuler(Py::new(
+                py,
+                PyBackwardEuler::from_native(temporal),
+            )?))
+        } else if let Some(temporal) = native.tsitouras45() {
+            Some(TemporalHandle::Tsitouras45(Py::new(
+                py,
+                PyTsitouras45::from_native(py, native.model_digest(), temporal.clone())?,
+            )?))
+        } else {
+            None
+        };
+        Ok(Self {
+            native,
+            model,
+            mesh,
+            spatial,
+            requested_solve,
+            solve,
+            temporal,
+        })
+    }
+
     pub(crate) fn model_handle(&self, py: Python<'_>) -> Py<PyModel> {
         self.model.clone_ref(py)
     }
@@ -157,8 +195,154 @@ impl PyPlan {
     }
 }
 
+fn spatial_handle_from_request(
+    py: Python<'_>,
+    model_digest: &str,
+    request: CommonMethodRequest,
+) -> PyResult<SpatialHandle> {
+    match request {
+        CommonMethodRequest::Uniform(policy)
+        | CommonMethodRequest::Exact {
+            spatial: policy, ..
+        } => {
+            let policy = match policy {
+                CommonSpatialPolicy::Q1 => SpatialPolicy::Q1,
+                CommonSpatialPolicy::CellCenteredTpfa => SpatialPolicy::CellCenteredTpfa,
+                CommonSpatialPolicy::MiniP1 => SpatialPolicy::MiniP1,
+                CommonSpatialPolicy::CellCentered => SpatialPolicy::CellCentered,
+                CommonSpatialPolicy::P1 => {
+                    return Err(PyTypeError::new_err(
+                        "uniform P1 is not an admitted common Plan policy",
+                    ));
+                }
+            };
+            Ok(SpatialHandle::Uniform(policy))
+        }
+        CommonMethodRequest::Scoped(bindings) => bindings
+            .into_iter()
+            .map(|binding| {
+                let policy = match binding.policy() {
+                    CommonSpatialPolicy::MiniP1 => ScopedSpatialKind::MiniP1,
+                    CommonSpatialPolicy::P1 => ScopedSpatialKind::P1,
+                    CommonSpatialPolicy::Q1
+                    | CommonSpatialPolicy::CellCenteredTpfa
+                    | CommonSpatialPolicy::CellCentered => {
+                        return Err(PyTypeError::new_err(
+                            "persisted scoped Plan contains an unsupported spatial policy",
+                        ));
+                    }
+                };
+                Py::new(
+                    py,
+                    PyScopedSpatialBinding {
+                        domain: PyModelDomainRef::from_exact(
+                            model_digest.to_owned(),
+                            binding.domain().ulid().to_string(),
+                        ),
+                        policy,
+                    },
+                )
+            })
+            .collect::<PyResult<Vec<_>>>()
+            .map(SpatialHandle::Scoped),
+    }
+}
+
+fn solve_handles_from_native(
+    py: Python<'_>,
+    native: &ResolvedCommonPlan,
+) -> PyResult<(Option<RequestedSolveHandle>, Option<ResolvedSolveHandle>)> {
+    let Some(request) = native.canonical_solve_request() else {
+        return Ok((None, None));
+    };
+    let requested = match request {
+        CommonSolvePolicy::Linear(linear) => RequestedSolveHandle::Linear(Py::new(
+            py,
+            PyLinear::from_native_controls(
+                linear.relative_tolerance(),
+                linear.absolute_tolerance(),
+                linear.maximum_iterations(),
+                linear.objective(),
+            ),
+        )?),
+        CommonSolvePolicy::Newton { nonlinear, linear } => {
+            let linear = Py::new(
+                py,
+                PyLinear::from_native_controls(
+                    linear.relative_tolerance(),
+                    linear.absolute_tolerance(),
+                    linear.maximum_iterations(),
+                    linear.objective(),
+                ),
+            )?;
+            RequestedSolveHandle::Newton(Py::new(py, PyNewton::from_native(linear, nonlinear))?)
+        }
+    };
+    let solver_planning_audit = native.solver_planning_objective().map(|objective| {
+        SolverPlanningAudit::new(
+            objective.into(),
+            native
+                .solver_planning_policy_id()
+                .expect("planned solver retains its policy identity"),
+            native
+                .selected_solver_candidate_id()
+                .expect("planned solver retains its selected candidate"),
+            native
+                .selected_solver_evidence_case()
+                .expect("planned solver retains its evidence identity"),
+            native.solver_planning_reasons().to_vec(),
+        )
+    });
+    let linear = Py::new(
+        py,
+        PyResolvedLinear::new(
+            native
+                .effective_solver()
+                .expect("spatial common Plan owns an effective linear solver"),
+            native
+                .operator_properties()
+                .expect("spatial common Plan owns operator properties"),
+            native.solver_backend(),
+            native.solver_backend_version(),
+            solver_planning_audit,
+        ),
+    )?;
+    let resolved = match native {
+        ResolvedCommonPlan::TransientFlow(plan) => ResolvedSolveHandle::Newton(Py::new(
+            py,
+            PyResolvedNewton::new(linear, plan.nonlinear()),
+        )?),
+        ResolvedCommonPlan::Ode(_) => unreachable!("ODE Plan has no common solve request"),
+        ResolvedCommonPlan::Scalar(_)
+        | ResolvedCommonPlan::Elasticity(_)
+        | ResolvedCommonPlan::SteadyStokes(_)
+        | ResolvedCommonPlan::Fsi(_) => ResolvedSolveHandle::Linear(linear),
+    };
+    Ok((Some(requested), Some(resolved)))
+}
+
 #[pymethods]
 impl PyPlan {
+    /// Canonical self-contained bytes of this complete resolved Plan.
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        self.native
+            .to_bytes()
+            .map(|bytes| PyBytes::new(py, &bytes))
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
+    /// Decode and independently resolve one exact self-contained Plan.
+    #[staticmethod]
+    fn from_bytes(py: Python<'_>, data: &[u8]) -> PyResult<Self> {
+        ResolvedCommonPlan::from_bytes(
+            data,
+            &FaerLinearSolver,
+            eqiora::backends::diffsol::DIFFSOL_TIME_BACKEND,
+        )
+        .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+        .and_then(|native| Self::from_native_artifact(py, native))
+    }
+
     #[getter]
     fn identity(&self) -> &str {
         self.native.identity()

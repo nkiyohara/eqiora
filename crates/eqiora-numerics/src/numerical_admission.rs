@@ -981,7 +981,9 @@ mod derived;
 /// Resolve Model mathematics first, then admit the requested numerical policies.
 mod elasticity;
 mod fsi;
+mod mesh_artifact;
 mod native;
+mod plan_artifact;
 mod resolve;
 mod resolved;
 mod scalar;
@@ -990,11 +992,8 @@ mod spatial_planning;
 mod state;
 mod steady_stokes;
 mod transient;
-
 pub use native::AuthenticatedCommonMesh;
-pub use resolve::resolve_common_plan;
-
 use native::*;
-
+pub use resolve::resolve_common_plan;
 #[cfg(test)]
 mod tests;

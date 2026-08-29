@@ -161,6 +161,8 @@ def test_only_common_model_first_fsi_surface_is_public() -> None:
 
 def test_plan_binds_exact_model_mesh_scopes_provider_and_scaling_receipt() -> None:
     model, mesh, plan = admitted()
+    plan_bytes = plan.to_bytes()
+    portable = eqiora.Plan.from_bytes(plan_bytes)
     assert plan.model is model
     assert plan.mesh is mesh
     assert plan.model_digest == model.digest
@@ -186,6 +188,20 @@ def test_plan_binds_exact_model_mesh_scopes_provider_and_scaling_receipt() -> No
     assert plan.execution.placement == "host-serial"
     assert len(set(plan.fields)) == 4
     assert plan.fields[:2] == (plan.capability.fluid_velocity, plan.capability.pressure)
+    assert portable.identity == plan.identity
+    assert portable.to_bytes() == plan_bytes
+    assert portable.model.to_bytes() == model.to_bytes()
+    assert portable.mesh.to_bytes() == mesh.to_bytes()
+    assert tuple(binding.domain.id for binding in portable.spatial) == tuple(
+        binding.domain.id for binding in plan.spatial
+    )
+    assert portable.temporal.step_s == plan.temporal.step_s
+    assert portable.requested_solve.maximum_iterations == plan.requested_solve.maximum_iterations
+    assert portable.capability.scaling.length_m == plan.capability.scaling.length_m
+    assert (
+        portable.capability.scaling_receipt.provenance_digest
+        == plan.capability.scaling_receipt.provenance_digest
+    )
 
 
 def test_initial_state_is_exact_field_bound_complete_and_gauge_free() -> None:
