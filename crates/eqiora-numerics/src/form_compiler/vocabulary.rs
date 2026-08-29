@@ -30,13 +30,15 @@ pub(super) enum WeakSign {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum FormulationKind {
+pub(crate) enum FormulationKind {
     PrimalGalerkin,
+    MixedGalerkin,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum BoundaryTreatment {
+pub(crate) enum BoundaryTreatment {
     CompleteHomogeneousEssential,
+    ExplicitTraceFluxLaws,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -178,6 +180,100 @@ impl PrimalGalerkinCorrespondence {
     pub(super) fn replay(&self, source: PrimalGalerkinSource<'_>) -> Result<(), &'static str> {
         if self != &Self::derive(source) {
             return Err("Law identity, effective Formulation, or correspondence steps are stale");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MixedFormulationRule {
+    MomentumTestPairing,
+    StressDivergenceByParts,
+    PressureVelocityCoupling,
+    ContinuityConstraintPairing,
+    SourcePairing,
+    ExplicitBoundaryLaw,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MixedLawIdentity {
+    pub(crate) domain: RawId,
+    pub(crate) velocity: RawId,
+    pub(crate) pressure: RawId,
+    pub(crate) source: RawId,
+    pub(crate) source_definition: RawId,
+    pub(crate) momentum_relation: RawId,
+    pub(crate) incompressibility_relation: RawId,
+    pub(crate) boundary_relations: Vec<RawId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MixedGalerkinFormulation {
+    pub(crate) kind: FormulationKind,
+    pub(crate) velocity_trial: RawId,
+    pub(crate) velocity_test: RawId,
+    pub(crate) pressure_trial: RawId,
+    pub(crate) pressure_test: RawId,
+    pub(crate) boundary_treatment: BoundaryTreatment,
+    pub(crate) rules: [MixedFormulationRule; 6],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct MixedGalerkinSource<'a> {
+    pub(crate) domain: RawId,
+    pub(crate) velocity: RawId,
+    pub(crate) pressure: RawId,
+    pub(crate) source: RawId,
+    pub(crate) source_definition: RawId,
+    pub(crate) momentum_relation: RawId,
+    pub(crate) incompressibility_relation: RawId,
+    pub(crate) boundary_relations: &'a [RawId],
+}
+
+/// Exact correspondence between an admitted mixed Law and its method-level
+/// Galerkin interpretation. Discrete spaces, quadrature, gauge, and solver are
+/// deliberately absent and remain Realization concerns.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MixedGalerkinCorrespondence {
+    pub(crate) law: MixedLawIdentity,
+    pub(crate) formulation: MixedGalerkinFormulation,
+}
+
+impl MixedGalerkinCorrespondence {
+    pub(crate) fn derive(source: MixedGalerkinSource<'_>) -> Self {
+        Self {
+            law: MixedLawIdentity {
+                domain: source.domain,
+                velocity: source.velocity,
+                pressure: source.pressure,
+                source: source.source,
+                source_definition: source.source_definition,
+                momentum_relation: source.momentum_relation,
+                incompressibility_relation: source.incompressibility_relation,
+                boundary_relations: source.boundary_relations.to_vec(),
+            },
+            formulation: MixedGalerkinFormulation {
+                kind: FormulationKind::MixedGalerkin,
+                velocity_trial: source.velocity,
+                velocity_test: source.velocity,
+                pressure_trial: source.pressure,
+                pressure_test: source.pressure,
+                boundary_treatment: BoundaryTreatment::ExplicitTraceFluxLaws,
+                rules: [
+                    MixedFormulationRule::MomentumTestPairing,
+                    MixedFormulationRule::StressDivergenceByParts,
+                    MixedFormulationRule::PressureVelocityCoupling,
+                    MixedFormulationRule::ContinuityConstraintPairing,
+                    MixedFormulationRule::SourcePairing,
+                    MixedFormulationRule::ExplicitBoundaryLaw,
+                ],
+            },
+        }
+    }
+
+    pub(crate) fn replay(&self, source: MixedGalerkinSource<'_>) -> Result<(), &'static str> {
+        if self != &Self::derive(source) {
+            return Err("mixed Law identity or effective Formulation is stale");
         }
         Ok(())
     }

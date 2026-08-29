@@ -7,6 +7,7 @@ use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, SymbolRef, ValueFr
 use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::CartesianBoundaryEntry;
+use crate::form_compiler::vocabulary::{MixedGalerkinCorrespondence, MixedGalerkinSource};
 use crate::spatial_expression;
 
 use super::api::{
@@ -362,17 +363,26 @@ fn lower_steady_incompressible_stokes_2d_on(
         &boundary.normal_pressure_sources,
         &boundary.prescribed_velocity_definitions,
     )?;
-    let model = SteadyIncompressibleStokesModel2d {
+    let boundary_relation_ids = boundary
+        .boundary_relations
+        .iter()
+        .map(|binding| binding.relation())
+        .collect::<Vec<_>>();
+    let correspondence = MixedGalerkinCorrespondence::derive(MixedGalerkinSource {
         domain,
         velocity,
         pressure,
-        force_potential,
+        source: force_potential,
+        source_definition: force_potential_definition,
+        momentum_relation,
+        incompressibility_relation,
+        boundary_relations: &boundary_relation_ids,
+    });
+    let model = SteadyIncompressibleStokesModel2d {
+        correspondence,
         bounds,
         dynamic_viscosity,
         force_potential_expression,
-        force_potential_definition,
-        momentum_relation,
-        incompressibility_relation,
         boundary_entries: boundary.entries.clone(),
         boundary_relations: boundary.boundary_relations.clone(),
         normal_pressures: normal_pressures.by_key,

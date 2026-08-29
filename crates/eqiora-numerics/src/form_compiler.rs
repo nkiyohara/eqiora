@@ -4,7 +4,7 @@ mod elasticity;
 mod scalar;
 #[cfg(test)]
 mod tests;
-mod vocabulary;
+pub(crate) mod vocabulary;
 
 pub(crate) use elasticity::compile_cartesian_q1_elasticity_form_2d;
 pub(crate) use scalar::{
