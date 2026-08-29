@@ -23,7 +23,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         Id::<Field>::from_ulid(canonical.solid().displacement().ulid()),
     ];
     let digest = model.digest().unwrap();
-    let scoped = CommonSpatialRequest::Scoped(vec![
+    let scoped = CommonMethodRequest::Scoped(vec![
         CommonScopedSpatialPolicy::new(digest.clone(), fluid_domain, CommonSpatialPolicy::MiniP1),
         CommonScopedSpatialPolicy::new(digest.clone(), solid_domain, CommonSpatialPolicy::P1),
     ]);
@@ -133,7 +133,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     assert!(accepted.fsi_accepted_solution().is_some());
 
     let foreign = eqiora_artifact::ArtifactDigest::from_sha256([7; 32]);
-    let foreign_scoped = CommonSpatialRequest::Scoped(vec![
+    let foreign_scoped = CommonMethodRequest::Scoped(vec![
         CommonScopedSpatialPolicy::new(foreign, fluid_domain, CommonSpatialPolicy::MiniP1),
         CommonScopedSpatialPolicy::new(digest, solid_domain, CommonSpatialPolicy::P1),
     ]);

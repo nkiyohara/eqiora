@@ -1010,6 +1010,16 @@ scaling = package.fluid.IncompressibleScaling(length_m=1.0, velocity_m_per_s=2.0
 
 mini = package.resolve(model, mesh=affine, spatial=package.fem.MiniP1(), solve=newton, scaling=scaling, temporal=temporal)
 fvm = package.resolve(model, mesh=cartesian, spatial=package.fvm.CellCentered(), solve=newton, scaling=scaling, temporal=temporal)
+mini_exact = package.resolve(
+    model, mesh=affine, spatial=package.fem.MiniP1(),
+    formulation=package.formulation.MixedGalerkin,
+    solve=newton, scaling=scaling, temporal=temporal,
+)
+fvm_exact = package.resolve(
+    model, mesh=cartesian, spatial=package.fvm.CellCentered(),
+    formulation=package.formulation.IntegralConservative,
+    solve=newton, scaling=scaling, temporal=temporal,
+)
 replayed = package.resolve(package.Model.from_bytes(model.to_bytes()), mesh=affine, spatial=package.fem.MiniP1(), solve=newton, scaling=scaling, temporal=temporal)
 custom = package.resolve(model, mesh=affine, spatial=package.fem.MiniP1(), solve=custom_newton, scaling=scaling, temporal=temporal)
 assert mini.identity == replayed.identity
@@ -1040,20 +1050,40 @@ assert fvm.capability.velocity_space == fvm.capability.pressure_space == "cell-c
 assert mini.capability.pressure_gauge is package.fluid.PressureGauge2d.ZeroIntegral
 assert fvm.capability.pressure_gauge is package.fluid.PressureGauge2d.ZeroIntegral
 assert isinstance(mini.formulation, package.FormulationView)
-assert mini.formulation.requested == "automatic"
-assert mini.formulation.effective == "mixed-galerkin"
+assert mini.formulation.requested is package.FormulationSelectionMode.Automatic
+assert mini.formulation.effective is package.formulation.MixedGalerkin
 assert mini.formulation.boundary_treatment == "explicit-trace-flux-laws"
 assert len(mini.formulation.rule_ids) == 6
 assert mini.formulation.selection_reason_codes == [
     "eqiora.formulation.auto.mixed-galerkin-for-mini-p1/v1",
 ]
-assert fvm.formulation.requested == "automatic"
-assert fvm.formulation.effective == "integral-conservative"
+assert fvm.formulation.requested is package.FormulationSelectionMode.Automatic
+assert fvm.formulation.effective is package.formulation.IntegralConservative
 assert fvm.formulation.boundary_treatment == "explicit-trace-flux-laws"
 assert len(fvm.formulation.rule_ids) == 7
 assert fvm.formulation.selection_reason_codes == [
     "eqiora.formulation.auto.integral-conservative-for-cell-centered-fvm/v1",
 ]
+assert mini_exact.formulation.requested is package.FormulationSelectionMode.Exact
+assert fvm_exact.formulation.requested is package.FormulationSelectionMode.Exact
+assert mini_exact.formulation.effective is mini.formulation.effective
+assert fvm_exact.formulation.effective is fvm.formulation.effective
+assert mini_exact.identity != mini.identity
+assert fvm_exact.identity != fvm.identity
+for wrong_mesh, wrong_spatial, wrong_formulation in (
+    (affine, package.fem.MiniP1(), package.formulation.IntegralConservative),
+    (cartesian, package.fvm.CellCentered(), package.formulation.MixedGalerkin),
+):
+    try:
+        package.resolve(
+            model, mesh=wrong_mesh, spatial=wrong_spatial,
+            formulation=wrong_formulation,
+            solve=newton, scaling=scaling, temporal=temporal,
+        )
+    except package.ValidationError:
+        pass
+    else:
+        raise AssertionError("incompatible exact Formulation was admitted")
 assert mini.solve.linear.algorithm == "sparse-lu"
 assert fvm.solve.linear.algorithm == "bicgstab"
 assert mini.solve.linear.reduction == "fast" and fvm.solve.linear.reduction == "reproducible"

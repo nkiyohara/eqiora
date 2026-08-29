@@ -155,34 +155,47 @@ mod tests {
     #[test]
     fn uniform_decisions_are_closed_before_mesh_admission() {
         assert_eq!(
-            resolve_scalar(CommonSpatialPolicy::Q1.into()).unwrap(),
+            resolve_scalar(CommonSpatialRequest::Uniform(CommonSpatialPolicy::Q1)).unwrap(),
             NativeSpatialPolicy::ScalarQ1
         );
         assert_eq!(
-            resolve_scalar(CommonSpatialPolicy::CellCenteredTpfa.into()).unwrap(),
+            resolve_scalar(CommonSpatialRequest::Uniform(
+                CommonSpatialPolicy::CellCenteredTpfa,
+            ))
+            .unwrap(),
             NativeSpatialPolicy::ScalarTpfa
         );
         assert_eq!(
-            resolve_elasticity(CommonSpatialPolicy::Q1.into()).unwrap(),
+            resolve_elasticity(CommonSpatialRequest::Uniform(CommonSpatialPolicy::Q1)).unwrap(),
             NativeSpatialPolicy::ElasticityQ1
         );
-        assert!(resolve_stokes(CommonSpatialPolicy::MiniP1.into()).is_ok());
+        assert!(resolve_stokes(CommonSpatialRequest::Uniform(CommonSpatialPolicy::MiniP1)).is_ok());
         assert_eq!(
-            resolve_transient(CommonSpatialPolicy::MiniP1.into()).unwrap(),
+            resolve_transient(CommonSpatialRequest::Uniform(CommonSpatialPolicy::MiniP1)).unwrap(),
             TransientSpatialDecision::MiniP1
         );
         assert_eq!(
-            resolve_transient(CommonSpatialPolicy::CellCentered.into()).unwrap(),
+            resolve_transient(CommonSpatialRequest::Uniform(
+                CommonSpatialPolicy::CellCentered
+            ))
+            .unwrap(),
             TransientSpatialDecision::CellCentered
         );
     }
 
     #[test]
     fn uniform_decisions_reject_foreign_and_scoped_requests() {
-        assert!(resolve_scalar(CommonSpatialPolicy::P1.into()).is_err());
-        assert!(resolve_elasticity(CommonSpatialPolicy::MiniP1.into()).is_err());
-        assert!(resolve_stokes(CommonSpatialPolicy::Q1.into()).is_err());
-        assert!(resolve_transient(CommonSpatialPolicy::CellCenteredTpfa.into()).is_err());
+        assert!(resolve_scalar(CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1)).is_err());
+        assert!(
+            resolve_elasticity(CommonSpatialRequest::Uniform(CommonSpatialPolicy::MiniP1)).is_err()
+        );
+        assert!(resolve_stokes(CommonSpatialRequest::Uniform(CommonSpatialPolicy::Q1)).is_err());
+        assert!(
+            resolve_transient(CommonSpatialRequest::Uniform(
+                CommonSpatialPolicy::CellCenteredTpfa,
+            ))
+            .is_err()
+        );
         assert!(resolve_scalar(CommonSpatialRequest::Scoped(Vec::new())).is_err());
         assert!(resolve_transient(CommonSpatialRequest::Scoped(Vec::new())).is_err());
     }

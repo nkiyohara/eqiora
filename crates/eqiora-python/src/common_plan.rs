@@ -8,9 +8,9 @@ use eqiora::backends::faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
 use eqiora::realization::{Space, SpaceFamily};
 use eqiora::solver::{LinearOperatorProperties, REFERENCE_SOLVER_PROVIDER, SolverPlan};
 use eqiora_numerics::{
-    CommonElasticityPlan, CommonFsiPlan, CommonOdePlan, CommonScalarPlan,
-    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSpatialRequest,
-    CommonSteadyStokesPlan, CommonTransientFlowPlan, resolve_common_ode_plan, resolve_common_plan,
+    CommonElasticityPlan, CommonFsiPlan, CommonMethodRequest, CommonOdePlan, CommonScalarPlan,
+    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSteadyStokesPlan,
+    CommonTransientFlowPlan, resolve_common_ode_plan, resolve_common_plan,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -22,8 +22,9 @@ use crate::model::{PyModel, PyModelFieldRef};
 
 mod capability_view;
 use capability_view::{
-    PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyFormulationView,
-    PyIncompressibleFlowPlanView, PyOdePlanView, PyScalarPlanView,
+    PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyFormulationKind,
+    PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView, PyOdePlanView,
+    PyScalarPlanView,
 };
 mod policy;
 use policy::{
@@ -594,12 +595,17 @@ impl PyPlan {
 }
 
 #[pyfunction(name = "_resolve_plan")]
-#[pyo3(signature = (model, /, *, mesh=None, spatial=None, solve=None, scaling=None, temporal=None))]
+#[pyo3(signature = (model, /, *, mesh=None, spatial=None, formulation=None, solve=None, scaling=None, temporal=None))]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "PyO3 counts its injected Python token beside the seven-field public resolve boundary"
+)]
 fn resolve_plan(
     py: Python<'_>,
     model: Py<PyModel>,
     mesh: Option<Py<PyMesh>>,
     spatial: Option<&Bound<'_, PyAny>>,
+    formulation: Option<&Bound<'_, PyAny>>,
     solve: Option<&Bound<'_, PyAny>>,
     scaling: Option<&Bound<'_, PyAny>>,
     temporal: Option<&Bound<'_, PyAny>>,
@@ -608,6 +614,7 @@ fn resolve_plan(
     if let Some(temporal_handle) = ode_temporal {
         if mesh.is_some()
             || spatial.is_some()
+            || formulation.is_some_and(|value| !value.is_none())
             || solve.is_some()
             || scaling.is_some_and(|value| !value.is_none())
         {
@@ -666,7 +673,7 @@ fn resolve_plan(
         solve.ok_or_else(|| PyTypeError::new_err("spatial resolve requires solve policy"))?;
     let (spatial_request, spatial_handle) = if spatial_value.extract::<PyRef<'_, PyQ1>>().is_ok() {
         (
-            CommonSpatialRequest::Uniform(CommonSpatialPolicy::Q1),
+            CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
             SpatialHandle::Uniform(SpatialPolicy::Q1),
         )
     } else if spatial_value
@@ -674,17 +681,17 @@ fn resolve_plan(
         .is_ok()
     {
         (
-            CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa),
+            CommonMethodRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa),
             SpatialHandle::Uniform(SpatialPolicy::CellCenteredTpfa),
         )
     } else if spatial_value.extract::<PyRef<'_, PyMiniP1>>().is_ok() {
         (
-            CommonSpatialRequest::Uniform(CommonSpatialPolicy::MiniP1),
+            CommonMethodRequest::Uniform(CommonSpatialPolicy::MiniP1),
             SpatialHandle::Uniform(SpatialPolicy::MiniP1),
         )
     } else if spatial_value.extract::<PyRef<'_, PyCellCentered>>().is_ok() {
         (
-            CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered),
+            CommonMethodRequest::Uniform(CommonSpatialPolicy::CellCentered),
             SpatialHandle::Uniform(SpatialPolicy::CellCentered),
         )
     } else if let Ok(tuple) = spatial_value.cast::<PyTuple>() {
@@ -718,7 +725,7 @@ fn resolve_plan(
             handles.push(handle);
         }
         (
-            CommonSpatialRequest::Scoped(native),
+            CommonMethodRequest::Scoped(native),
             SpatialHandle::Scoped(handles),
         )
     } else {
@@ -739,6 +746,33 @@ fn resolve_plan(
                 })?
                 .native(),
         ),
+    };
+    let formulation = match formulation {
+        None => None,
+        Some(value) if value.is_none() => None,
+        Some(value) => Some(
+            (*value
+                .extract::<PyRef<'_, PyFormulationKind>>()
+                .map_err(|_| {
+                    PyTypeError::new_err("formulation must be eqiora.FormulationKind or None")
+                })?)
+            .into(),
+        ),
+    };
+    let method_request = match (spatial_request, formulation) {
+        (CommonMethodRequest::Uniform(spatial), Some(formulation)) => CommonMethodRequest::Exact {
+            spatial,
+            formulation,
+        },
+        (request, None) => request,
+        (CommonMethodRequest::Scoped(_), Some(_)) => {
+            return Err(PyTypeError::new_err(
+                "exact formulation requests require one supported uniform spatial policy",
+            ));
+        }
+        (CommonMethodRequest::Exact { .. }, Some(_)) => {
+            unreachable!("Python constructs exact method requests only in this match")
+        }
     };
     let (solve_native, requested_solve_handle) = if let Ok(linear) = solve.extract::<Py<PyLinear>>()
     {
@@ -790,7 +824,7 @@ fn resolve_plan(
     let native = resolve_common_plan(
         model_ref.artifact(),
         owner,
-        spatial_request,
+        method_request,
         solve_native,
         scaling,
         temporal_native,
@@ -865,6 +899,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyScalarPlanView>()?;
     module.add_class::<PyElasticityPlanView>()?;
     module.add_class::<PyIncompressibleFlowPlanView>()?;
+    module.add_class::<PyFormulationKind>()?;
+    module.add_class::<PyFormulationSelectionMode>()?;
     module.add_class::<PyFormulationView>()?;
     module.add_class::<PyFixedReferenceFsiPlanView>()?;
     module.add_class::<PyPressureGauge2d>()?;

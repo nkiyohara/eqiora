@@ -19,11 +19,18 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     let nonlinear =
         NonlinearSolvePlan::new(1.0e-9, 1.0e-11, NonZeroUsize::new(16).unwrap(), 12).unwrap();
     let scaling = IncompressibleScalingRequest2d::from_si(Some(1.0), Some(2.0), Some(3.0)).unwrap();
-    let resolve = |model: &ModelEnvelope, owner, spatial| {
+    let resolve = |model: &ModelEnvelope, owner, spatial, formulation| {
+        let method = match formulation {
+            None => CommonMethodRequest::Uniform(spatial),
+            Some(formulation) => CommonMethodRequest::Exact {
+                spatial,
+                formulation,
+            },
+        };
         resolve_common_plan(
             model,
             owner,
-            spatial,
+            method,
             newton_policy(linear, nonlinear),
             Some(scaling),
             Some(temporal),
@@ -43,16 +50,31 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         &model,
         affine_resources(&geometry),
         CommonSpatialPolicy::MiniP1,
+        None,
     );
     let mini_replay = resolve(
         &replayed,
         affine_resources(&geometry),
         CommonSpatialPolicy::MiniP1,
+        None,
     );
     let fvm = resolve(
         &model,
         resources(&geometry),
         CommonSpatialPolicy::CellCentered,
+        None,
+    );
+    let mini_exact = resolve(
+        &model,
+        affine_resources(&geometry),
+        CommonSpatialPolicy::MiniP1,
+        Some(FormulationKind::MixedGalerkin),
+    );
+    let fvm_exact = resolve(
+        &model,
+        resources(&geometry),
+        CommonSpatialPolicy::CellCentered,
+        Some(FormulationKind::IntegralConservative),
     );
     let custom_nonlinear =
         NonlinearSolvePlan::new(2.0e-9, 3.0e-11, NonZeroUsize::new(19).unwrap(), 7).unwrap();
@@ -96,6 +118,37 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     );
 
     assert_eq!(mini.identity(), mini_replay.identity());
+    assert_ne!(mini.identity(), mini_exact.identity());
+    assert_ne!(fvm.identity(), fvm_exact.identity());
+    assert_eq!(
+        mini.formulation().effective(),
+        mini_exact.formulation().effective()
+    );
+    assert_eq!(
+        fvm.formulation().effective(),
+        fvm_exact.formulation().effective()
+    );
+    assert_eq!(
+        mini_exact.formulation().requested(),
+        FormulationSelectionMode::Exact
+    );
+    assert_eq!(
+        fvm_exact.formulation().requested(),
+        FormulationSelectionMode::Exact
+    );
+    assert_eq!(
+        mini.state_space_identity(),
+        mini_exact.state_space_identity()
+    );
+    assert_eq!(fvm.state_space_identity(), fvm_exact.state_space_identity());
+    assert_eq!(
+        mini_exact.formulation().selection_reason_codes(),
+        &["eqiora.formulation.exact.mixed-galerkin-admitted/v1"]
+    );
+    assert_eq!(
+        fvm_exact.formulation().selection_reason_codes(),
+        &["eqiora.formulation.exact.integral-conservative-admitted/v1"]
+    );
     assert_ne!(mini.identity(), fvm.identity());
     assert_ne!(mini.identity(), custom.identity());
     assert_eq!(custom.nonlinear(), custom_nonlinear);
@@ -222,6 +275,36 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &model,
             resources(&geometry),
             CommonSpatialPolicy::MiniP1,
+            newton_policy(linear, nonlinear),
+            Some(scaling),
+            Some(temporal),
+            &ResolveOnlyBackend,
+        )
+        .is_err()
+    );
+    assert!(
+        resolve_common_plan(
+            &model,
+            affine_resources(&geometry),
+            CommonMethodRequest::Exact {
+                spatial: CommonSpatialPolicy::MiniP1,
+                formulation: FormulationKind::IntegralConservative,
+            },
+            newton_policy(linear, nonlinear),
+            Some(scaling),
+            Some(temporal),
+            &ResolveOnlyBackend,
+        )
+        .is_err()
+    );
+    assert!(
+        resolve_common_plan(
+            &model,
+            resources(&geometry),
+            CommonMethodRequest::Exact {
+                spatial: CommonSpatialPolicy::CellCentered,
+                formulation: FormulationKind::MixedGalerkin,
+            },
             newton_policy(linear, nonlinear),
             Some(scaling),
             Some(temporal),

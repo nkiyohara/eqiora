@@ -6,13 +6,22 @@ impl CommonSteadyStokesPlan {
     pub fn formulation(&self) -> CommonFormulationDescription {
         CommonFormulationDescription::mixed(
             self.binding.formulation_correspondence(),
-            "eqiora.formulation.auto.mixed-galerkin-for-mini-p1/v1",
+            self.formulation_selection,
+            match self.formulation_selection {
+                FormulationSelectionMode::Automatic => {
+                    "eqiora.formulation.auto.mixed-galerkin-for-mini-p1/v1"
+                }
+                FormulationSelectionMode::Exact => {
+                    "eqiora.formulation.exact.mixed-galerkin-admitted/v1"
+                }
+            },
         )
     }
 
     pub(super) fn from_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
+        formulation_selection: FormulationSelectionMode,
         scaling: ResolvedIncompressibleScaling2d,
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
@@ -53,6 +62,7 @@ impl CommonSteadyStokesPlan {
         ] {
             push_framed(&mut identity_bytes, value.as_bytes());
         }
+        push_framed(&mut identity_bytes, formulation_selection.identity());
         let identity = hex_bytes(&Sha256::digest(
             [
                 b"eqiora.common-steady-stokes-plan/v1\0".as_slice(),
@@ -65,6 +75,7 @@ impl CommonSteadyStokesPlan {
             binding,
             resolved,
             realization,
+            formulation_selection,
             scaling,
             realization_digest,
             identity,

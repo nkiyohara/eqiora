@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 16 module summaries and all 142 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 565 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 17 module summaries and all 147 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 565 signature-only entries under documented owning types**.
 
-Inventory: 16 modules, 167 literal public spellings, 142 canonical grouped declarations, 752 visible method signatures (565 non-dunder and 187 dunder), and 65 visible class assignments.
+Inventory: 17 modules, 176 literal public spellings, 147 canonical grouped declarations, 756 visible method signatures (565 non-dunder and 191 dunder), and 70 visible class assignments.
 
 Regenerate with:
 
@@ -595,9 +595,9 @@ Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulat
 @final
 class FormulationView:
     @property
-    def requested(self) -> str: ...
+    def requested(self) -> FormulationSelectionMode: ...
     @property
-    def effective(self) -> str: ...
+    def effective(self) -> FormulationKind: ...
     @property
     def boundary_treatment(self) -> str: ...
     @property
@@ -605,6 +605,41 @@ class FormulationView:
     @property
     def selection_reason_codes(self) -> list[str]: ...
     def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-FormulationKind"></a>
+
+### `eqiora.FormulationKind`
+
+Closed mathematical Formulation families accepted by exact override.
+
+Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
+
+```python
+@final
+class FormulationKind:
+    PrimalGalerkin: ClassVar[FormulationKind]
+    MixedGalerkin: ClassVar[FormulationKind]
+    IntegralConservative: ClassVar[FormulationKind]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-FormulationSelectionMode"></a>
+
+### `eqiora.FormulationSelectionMode`
+
+Whether resolution selected or admitted an exact Formulation.
+
+Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationSelectionMode`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
+
+```python
+@final
+class FormulationSelectionMode:
+    Automatic: ClassVar[FormulationSelectionMode]
+    Exact: ClassVar[FormulationSelectionMode]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
 ```
 
 <a id="api-eqiora-InitialField"></a>
@@ -1415,7 +1450,7 @@ structural no-Mesh ODE paths reject spatial resources.
 Authority: [`bindings/python/python/eqiora/__init__.py::resolve`](../../bindings/python/python/eqiora/__init__.py)
 
 ```python
-def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
+def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-run"></a>
@@ -1495,6 +1530,16 @@ Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyQ1`](../../crates
 Narrow fluid applications composed by Eqiora's shared native layer.
 
 Authority: [`bindings/python/python/eqiora/fluid.py`](../../bindings/python/python/eqiora/fluid.py)
+
+<a id="api-eqiora-formulation"></a>
+
+### `eqiora.formulation`
+
+**Module export.** Continue to [`eqiora.formulation`](#module-eqiora-formulation).
+
+Mathematical Formulation requests and resolved-selection inspection.
+
+Authority: [`bindings/python/python/eqiora/formulation.py`](../../bindings/python/python/eqiora/formulation.py)
 
 <a id="api-eqiora-fsi"></a>
 
@@ -2212,6 +2257,82 @@ Authority: [`crates/eqiora-python/src/meshing/plan.rs::resolve`](../../crates/eq
 
 ```python
 def resolve(geometry: Geometry, provider: AffineTriangleMesher | CartesianMesher | GmshMesher, /) -> MeshPlan: ...
+```
+
+<a id="module-eqiora-formulation"></a>
+
+## `eqiora.formulation`
+
+Mathematical Formulation requests and resolved-selection inspection.
+
+Module authority: [`bindings/python/python/eqiora/formulation.py`](../../bindings/python/python/eqiora/formulation.py)
+
+Shipped stub: [`bindings/python/python/eqiora/formulation.pyi`](../../bindings/python/python/eqiora/formulation.pyi)
+
+<a id="api-eqiora-formulation-FormulationKind"></a>
+
+### `eqiora.formulation.FormulationKind`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.FormulationKind`](#api-eqiora-FormulationKind).
+
+Closed mathematical Formulation families accepted by exact override.
+
+Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
+
+<a id="api-eqiora-formulation-FormulationSelectionMode"></a>
+
+### `eqiora.formulation.FormulationSelectionMode`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.FormulationSelectionMode`](#api-eqiora-FormulationSelectionMode).
+
+Whether resolution selected or admitted an exact Formulation.
+
+Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationSelectionMode`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
+
+<a id="api-eqiora-formulation-FormulationView"></a>
+
+### `eqiora.formulation.FormulationView`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.FormulationView`](#api-eqiora-FormulationView).
+
+Effective mathematical form selected between Model and Realization.
+
+Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationView`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
+
+<a id="api-eqiora-formulation-PrimalGalerkin"></a>
+
+### `eqiora.formulation.PrimalGalerkin`
+
+Primal Galerkin form used by scalar and displacement fields.
+
+Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
+
+```python
+PrimalGalerkin: Final[FormulationKind]
+```
+
+<a id="api-eqiora-formulation-MixedGalerkin"></a>
+
+### `eqiora.formulation.MixedGalerkin`
+
+Mixed Galerkin form used by coupled velocity-pressure fields.
+
+Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
+
+```python
+MixedGalerkin: Final[FormulationKind]
+```
+
+<a id="api-eqiora-formulation-IntegralConservative"></a>
+
+### `eqiora.formulation.IntegralConservative`
+
+Integral-conservative form used by face-flux finite volumes.
+
+Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
+
+```python
+IntegralConservative: Final[FormulationKind]
 ```
 
 <a id="module-eqiora-fem"></a>

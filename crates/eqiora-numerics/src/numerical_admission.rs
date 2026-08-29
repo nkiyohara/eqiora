@@ -155,11 +155,43 @@ impl CommonScopedSpatialPolicy {
     }
 }
 
-/// Closed spatial request consumed by the one common Model-first resolver.
+/// Closed numerical-method request consumed by the common Model-first resolver.
+///
+/// Formulation and spatial policy remain distinct choices. The sum type makes
+/// exact Formulation override available only for the current uniform-method
+/// consumers and cannot represent an unsupported exact scoped request.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CommonSpatialRequest {
+pub enum CommonMethodRequest {
+    /// Use one uniform spatial policy and select the effective Formulation automatically.
+    Uniform(CommonSpatialPolicy),
+    /// Require one exact Formulation for one uniform spatial policy.
+    Exact {
+        /// Requested finite-dimensional spatial method.
+        spatial: CommonSpatialPolicy,
+        /// Exact mathematical Formulation that resolution must admit unchanged.
+        formulation: FormulationKind,
+    },
+    /// Use exact Domain-scoped spatial policies with automatic Formulation ownership.
+    Scoped(Vec<CommonScopedSpatialPolicy>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CommonSpatialRequest {
     Uniform(CommonSpatialPolicy),
     Scoped(Vec<CommonScopedSpatialPolicy>),
+}
+
+impl CommonMethodRequest {
+    fn split(self) -> (CommonSpatialRequest, Option<FormulationKind>) {
+        match self {
+            Self::Uniform(spatial) => (CommonSpatialRequest::Uniform(spatial), None),
+            Self::Exact {
+                spatial,
+                formulation,
+            } => (CommonSpatialRequest::Uniform(spatial), Some(formulation)),
+            Self::Scoped(spatial) => (CommonSpatialRequest::Scoped(spatial), None),
+        }
+    }
 }
 
 /// Immutable coherent-SI values for one supported exact Field association.
@@ -228,7 +260,7 @@ impl CommonInitialField {
     }
 }
 
-impl From<CommonSpatialPolicy> for CommonSpatialRequest {
+impl From<CommonSpatialPolicy> for CommonMethodRequest {
     fn from(value: CommonSpatialPolicy) -> Self {
         Self::Uniform(value)
     }
@@ -482,6 +514,17 @@ enum CommonTransientFormulation {
 pub enum FormulationSelectionMode {
     /// The versioned resolver selected the exact effective formulation.
     Automatic,
+    /// The caller requested the exact effective formulation.
+    Exact,
+}
+
+impl FormulationSelectionMode {
+    const fn identity(self) -> &'static [u8] {
+        match self {
+            Self::Automatic => b"automatic",
+            Self::Exact => b"exact",
+        }
+    }
 }
 
 /// Inspectable mathematical form selected automatically for one common Plan.
@@ -503,10 +546,11 @@ pub struct CommonFormulationDescription {
 impl CommonFormulationDescription {
     fn mixed(
         correspondence: &crate::form_compiler::vocabulary::MixedGalerkinCorrespondence,
+        requested: FormulationSelectionMode,
         reason: &'static str,
     ) -> Self {
         Self {
-            requested: FormulationSelectionMode::Automatic,
+            requested,
             kind: correspondence.formulation.kind,
             boundary_treatment: correspondence.formulation.boundary_treatment.id(),
             rule_ids: correspondence
@@ -520,9 +564,10 @@ impl CommonFormulationDescription {
 
     fn integral(
         correspondence: &crate::form_compiler::vocabulary::IntegralConservativeCorrespondence,
+        requested: FormulationSelectionMode,
     ) -> Self {
         Self {
-            requested: FormulationSelectionMode::Automatic,
+            requested,
             kind: correspondence.formulation.kind,
             boundary_treatment: correspondence.formulation.boundary_treatment.id(),
             rule_ids: correspondence
@@ -530,9 +575,14 @@ impl CommonFormulationDescription {
                 .rules
                 .map(crate::form_compiler::vocabulary::IntegralConservativeRule::id)
                 .into(),
-            selection_reason_codes: Box::new([
-                "eqiora.formulation.auto.integral-conservative-for-cell-centered-fvm/v1",
-            ]),
+            selection_reason_codes: Box::new([match requested {
+                FormulationSelectionMode::Automatic => {
+                    "eqiora.formulation.auto.integral-conservative-for-cell-centered-fvm/v1"
+                }
+                FormulationSelectionMode::Exact => {
+                    "eqiora.formulation.exact.integral-conservative-admitted/v1"
+                }
+            }]),
         }
     }
 
@@ -582,6 +632,7 @@ pub struct CommonTransientFlowPlan {
     admission: NativeNumericalAdmission,
     resolved: CommonTransientResolvedSpatial,
     formulation: CommonTransientFormulation,
+    formulation_selection: FormulationSelectionMode,
     scaling: ResolvedIncompressibleScaling2d,
     temporal: CommonBackwardEuler,
     nonlinear: NonlinearSolvePlan,
@@ -704,6 +755,7 @@ pub struct CommonSteadyStokesPlan {
     binding: SteadyStokesGeometryBinding2d,
     resolved: ResolvedFieldwiseRealization,
     realization: RealizationEnvelopeV2,
+    formulation_selection: FormulationSelectionMode,
     scaling: ResolvedIncompressibleScaling2d,
     realization_digest: String,
     identity: String,

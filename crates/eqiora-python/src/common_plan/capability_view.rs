@@ -9,6 +9,61 @@ use crate::model::PyModelFieldRef;
 use super::policy::PyPressureGauge2d;
 use super::scaling::{PyIncompressibleScales, PyIncompressibleScalingReceipt2d};
 
+/// Closed mathematical Formulation families accepted by exact override.
+///
+/// Authority: `crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind`.
+#[pyclass(
+    name = "FormulationKind",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    from_py_object
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum PyFormulationKind {
+    PrimalGalerkin,
+    MixedGalerkin,
+    IntegralConservative,
+}
+
+impl From<FormulationKind> for PyFormulationKind {
+    fn from(value: FormulationKind) -> Self {
+        match value {
+            FormulationKind::PrimalGalerkin => Self::PrimalGalerkin,
+            FormulationKind::MixedGalerkin => Self::MixedGalerkin,
+            FormulationKind::IntegralConservative => Self::IntegralConservative,
+        }
+    }
+}
+
+impl From<PyFormulationKind> for FormulationKind {
+    fn from(value: PyFormulationKind) -> Self {
+        match value {
+            PyFormulationKind::PrimalGalerkin => Self::PrimalGalerkin,
+            PyFormulationKind::MixedGalerkin => Self::MixedGalerkin,
+            PyFormulationKind::IntegralConservative => Self::IntegralConservative,
+        }
+    }
+}
+
+/// Whether resolution selected a Formulation or admitted an exact request.
+///
+/// Authority: `crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationSelectionMode`.
+#[pyclass(
+    name = "FormulationSelectionMode",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    from_py_object
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum PyFormulationSelectionMode {
+    Automatic,
+    Exact,
+}
+
 /// Inspectable effective mathematical Formulation selected before Realization.
 ///
 /// Authority: `crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationView`.
@@ -20,8 +75,8 @@ use super::scaling::{PyIncompressibleScales, PyIncompressibleScalingReceipt2d};
 )]
 #[derive(Debug)]
 pub(crate) struct PyFormulationView {
-    requested: &'static str,
-    effective: &'static str,
+    requested: PyFormulationSelectionMode,
+    effective: PyFormulationKind,
     boundary_treatment: &'static str,
     rule_ids: Vec<&'static str>,
     selection_reason_codes: Vec<&'static str>,
@@ -30,13 +85,10 @@ pub(crate) struct PyFormulationView {
 impl PyFormulationView {
     pub(crate) fn from_native(description: CommonFormulationDescription) -> Self {
         let requested = match description.requested() {
-            FormulationSelectionMode::Automatic => "automatic",
+            FormulationSelectionMode::Automatic => PyFormulationSelectionMode::Automatic,
+            FormulationSelectionMode::Exact => PyFormulationSelectionMode::Exact,
         };
-        let effective = match description.effective() {
-            FormulationKind::PrimalGalerkin => "primal-galerkin",
-            FormulationKind::MixedGalerkin => "mixed-galerkin",
-            FormulationKind::IntegralConservative => "integral-conservative",
-        };
+        let effective = description.effective().into();
         Self {
             requested,
             effective,
@@ -50,11 +102,11 @@ impl PyFormulationView {
 #[pymethods]
 impl PyFormulationView {
     #[getter]
-    const fn requested(&self) -> &'static str {
+    const fn requested(&self) -> PyFormulationSelectionMode {
         self.requested
     }
     #[getter]
-    const fn effective(&self) -> &'static str {
+    const fn effective(&self) -> PyFormulationKind {
         self.effective
     }
     #[getter]
