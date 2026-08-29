@@ -10,7 +10,9 @@ use super::{
     lower_transient_incompressible_navier_stokes_cartesian_3d,
 };
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
-use crate::form_compiler::vocabulary::{BoundaryTreatment, FormulationKind, MixedFormulationRule};
+use crate::form_compiler::vocabulary::{
+    BoundaryTreatment, FormulationKind, IntegralConservativeRule, MixedFormulationRule,
+};
 
 const SOURCE: &str = r#"
 model steady_stokes {
@@ -485,6 +487,44 @@ fn lowers_exact_fixed_domain_transient_navier_stokes_meaning() {
         }
     }
     assert_eq!(model.boundary_relations().len(), 4);
+
+    let correspondence = super::integral_conservative_correspondence(&model);
+    assert_eq!(
+        correspondence.formulation.kind,
+        FormulationKind::IntegralConservative
+    );
+    assert_eq!(correspondence.formulation.domain, model.domain());
+    assert_eq!(
+        correspondence.formulation.momentum_unknown,
+        model.velocity()
+    );
+    assert_eq!(correspondence.formulation.pressure_role, model.pressure());
+    assert_eq!(
+        correspondence.formulation.boundary_treatment,
+        BoundaryTreatment::ExplicitTraceFluxLaws
+    );
+    assert_eq!(
+        correspondence.formulation.rules,
+        [
+            IntegralConservativeRule::ArbitrarySubdomainBalance,
+            IntegralConservativeRule::TransientStorageIntegral,
+            IntegralConservativeRule::PhysicalMomentumFlux,
+            IntegralConservativeRule::PhysicalStressFlux,
+            IntegralConservativeRule::BodySourceIntegral,
+            IntegralConservativeRule::IncompressibilityFluxBalance,
+            IntegralConservativeRule::ExplicitBoundaryLaw,
+        ]
+    );
+    assert_eq!(correspondence.law.boundary_relations.len(), 4);
+
+    let mut stale = correspondence.clone();
+    stale.law.boundary_relations.pop();
+    assert!(
+        super::navier_stokes_integral_formulation::replay_integral_conservative_correspondence(
+            &stale, &model
+        )
+        .is_err()
+    );
 }
 
 #[test]

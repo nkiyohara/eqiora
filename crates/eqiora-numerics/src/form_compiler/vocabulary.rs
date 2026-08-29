@@ -1,4 +1,4 @@
-//! Shared private vocabulary for proof-carrying FEM formulations.
+//! Shared private vocabulary for proof-carrying mathematical formulations.
 
 use eqiora_core::RawId;
 use eqiora_schema::kernel::ExprId;
@@ -33,6 +33,7 @@ pub(super) enum WeakSign {
 pub(crate) enum FormulationKind {
     PrimalGalerkin,
     MixedGalerkin,
+    IntegralConservative,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -274,6 +275,109 @@ impl MixedGalerkinCorrespondence {
     pub(crate) fn replay(&self, source: MixedGalerkinSource<'_>) -> Result<(), &'static str> {
         if self != &Self::derive(source) {
             return Err("mixed Law identity or effective Formulation is stale");
+        }
+        Ok(())
+    }
+}
+
+/// Closed mathematical transformations from conservative differential Laws
+/// to arbitrary-subdomain integral balances. These rules contain no mesh,
+/// control-volume layout, numerical face flux, quadrature, or solver choice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum IntegralConservativeRule {
+    ArbitrarySubdomainBalance,
+    TransientStorageIntegral,
+    PhysicalMomentumFlux,
+    PhysicalStressFlux,
+    BodySourceIntegral,
+    IncompressibilityFluxBalance,
+    ExplicitBoundaryLaw,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ConservativeFlowLawIdentity {
+    pub(crate) domain: RawId,
+    pub(crate) velocity: RawId,
+    pub(crate) pressure: RawId,
+    pub(crate) source: RawId,
+    pub(crate) source_definition: RawId,
+    pub(crate) momentum_relation: RawId,
+    pub(crate) incompressibility_relation: RawId,
+    pub(crate) boundary_relations: Vec<RawId>,
+}
+
+/// Effective integral form consumed by a conservative Realization. `domain`
+/// denotes an arbitrary mathematical subdomain; it is not a mesh cell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IntegralConservativeFormulation {
+    pub(crate) kind: FormulationKind,
+    pub(crate) domain: RawId,
+    pub(crate) momentum_unknown: RawId,
+    pub(crate) pressure_role: RawId,
+    pub(crate) boundary_treatment: BoundaryTreatment,
+    pub(crate) rules: [IntegralConservativeRule; 7],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct IntegralConservativeSource<'a> {
+    pub(crate) domain: RawId,
+    pub(crate) velocity: RawId,
+    pub(crate) pressure: RawId,
+    pub(crate) source: RawId,
+    pub(crate) source_definition: RawId,
+    pub(crate) momentum_relation: RawId,
+    pub(crate) incompressibility_relation: RawId,
+    pub(crate) boundary_relations: &'a [RawId],
+}
+
+/// Exact directional correspondence between the recognized physical Laws and
+/// their integral-conservative form. A later FVM Realization may map its
+/// control volumes to the arbitrary-subdomain role and choose numerical face
+/// fluxes, without inserting those numerical choices into this certificate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IntegralConservativeCorrespondence {
+    pub(crate) law: ConservativeFlowLawIdentity,
+    pub(crate) formulation: IntegralConservativeFormulation,
+}
+
+impl IntegralConservativeCorrespondence {
+    pub(crate) fn derive(source: IntegralConservativeSource<'_>) -> Self {
+        Self {
+            law: ConservativeFlowLawIdentity {
+                domain: source.domain,
+                velocity: source.velocity,
+                pressure: source.pressure,
+                source: source.source,
+                source_definition: source.source_definition,
+                momentum_relation: source.momentum_relation,
+                incompressibility_relation: source.incompressibility_relation,
+                boundary_relations: source.boundary_relations.to_vec(),
+            },
+            formulation: IntegralConservativeFormulation {
+                kind: FormulationKind::IntegralConservative,
+                domain: source.domain,
+                momentum_unknown: source.velocity,
+                pressure_role: source.pressure,
+                boundary_treatment: BoundaryTreatment::ExplicitTraceFluxLaws,
+                rules: [
+                    IntegralConservativeRule::ArbitrarySubdomainBalance,
+                    IntegralConservativeRule::TransientStorageIntegral,
+                    IntegralConservativeRule::PhysicalMomentumFlux,
+                    IntegralConservativeRule::PhysicalStressFlux,
+                    IntegralConservativeRule::BodySourceIntegral,
+                    IntegralConservativeRule::IncompressibilityFluxBalance,
+                    IntegralConservativeRule::ExplicitBoundaryLaw,
+                ],
+            },
+        }
+    }
+
+    pub(crate) fn replay(
+        &self,
+        source: IntegralConservativeSource<'_>,
+    ) -> Result<(), &'static str> {
+        if self != &Self::derive(source) {
+            return Err("conservative Law identity or effective integral Formulation is stale");
         }
         Ok(())
     }
