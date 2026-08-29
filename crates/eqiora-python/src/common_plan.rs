@@ -170,10 +170,10 @@ impl CommonPlanKind {
     fn realization_digest(&self) -> Option<&str> {
         match self {
             Self::Ode(_) => None,
-            Self::Scalar(_) => None,
-            Self::Elasticity(_) => None,
+            Self::Scalar(plan) => Some(plan.realization_digest()),
+            Self::Elasticity(plan) => Some(plan.realization_digest()),
             Self::SteadyStokes(plan) => Some(plan.realization_digest()),
-            Self::TransientFlow(_) => None,
+            Self::TransientFlow(plan) => Some(plan.realization_digest()),
             Self::Fsi(plan) => Some(plan.realization_digest()),
         }
     }

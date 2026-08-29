@@ -433,6 +433,9 @@ assert fresh_model.digest != model.digest
 assert fresh_plan.model_digest == fresh_model.digest
 assert fresh_plan.identity != q1.identity
 assert q1.identity != tpfa.identity
+assert len(q1.realization_digest) == 64 and len(tpfa.realization_digest) == 64
+assert q1.realization_digest == replayed_plan.realization_digest
+assert q1.realization_digest != tpfa.realization_digest
 assert q1.mesh.cells.shape == (6, 4)
 assert isinstance(q1.capability, package.ScalarPlanView)
 assert q1.formulation is None
@@ -1063,7 +1066,8 @@ assert custom.solve.absolute_tolerance == 3e-11
 assert custom.solve.maximum_iterations == 19
 assert custom.solve.maximum_line_search_steps == 7
 assert mini.temporal is temporal and mini.temporal.step_s == 0.01
-assert mini.realization_digest is None and fvm.realization_digest is None
+assert len(mini.realization_digest) == 64 and len(fvm.realization_digest) == 64
+assert mini.realization_digest != fvm.realization_digest
 assert mini.capability.velocity_space == "simplex-p1-bubble"
 assert mini.capability.pressure_space == "continuous-lagrange-p1"
 assert fvm.capability.velocity_space == fvm.capability.pressure_space == "cell-constant"
@@ -1268,7 +1272,7 @@ for plan in planned.values():
     assert len(result.trajectory.states) == 1
 fvm_two = package.run(fvm, state=fvm_zero, steps=2, output_steps=(2,))
 assert fvm_two.trajectory.plan_identity == fvm.identity
-assert fvm_two.trajectory.realization_digest is None
+assert fvm_two.trajectory.realization_digest == fvm.realization_digest
 assert fvm_two.trajectory.request_identity == fvm_two.plan_key
 assert fvm_two.trajectory.run_digest == fvm_two.plan_key
 fvm_first = package.run(fvm, state=fvm_zero, steps=1, output_steps=(1,))
@@ -1392,6 +1396,9 @@ alternate_plan = package.resolve(alternate, mesh=mesh, spatial=package.fem.Q1(),
 assert plan.identity == replayed_plan.identity
 assert alternate_plan.identity != plan.identity
 assert alternate_plan.model_digest == alternate.digest
+assert len(plan.realization_digest) == 64
+assert plan.realization_digest == replayed_plan.realization_digest
+assert alternate_plan.realization_digest == plan.realization_digest
 assert plan.model is model
 assert plan.mesh is mesh
 assert isinstance(plan.capability, package.solid.ElasticityPlanView)

@@ -1,6 +1,10 @@
 use super::*;
 
 impl CommonSteadyStokesPlan {
+    fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
+        require_portable_realization(&self.portable, self.resolved.portable_graph()?)
+    }
+
     /// Effective mixed Galerkin Formulation and its automatic-selection audit.
     #[must_use]
     pub fn formulation(&self) -> CommonFormulationDescription {
@@ -27,7 +31,7 @@ impl CommonSteadyStokesPlan {
         let model_reference = model.artifact_reference()?;
         let model_id = model_reference.model().ulid().to_string();
         let binding = admission.stokes_binding()?;
-        let (resolved, realization, velocity_space, pressure_space) =
+        let (resolved, portable, velocity_space, pressure_space) =
             admission.resolve_stokes(&binding)?;
         let (geometry_digest, mesh_digest, correspondence_digest, production_digest) =
             resource_digests(admission.resources())?;
@@ -47,7 +51,7 @@ impl CommonSteadyStokesPlan {
         let (velocity_field_id, pressure_field_id) = velocity_field_id
             .zip(pressure_field_id)
             .ok_or_else(|| invalid("steady-Stokes Plan omitted its MINI/P1 Field identities"))?;
-        let realization_digest = realization.digest()?.to_string();
+        let realization_digest = hex_bytes(&portable.digest()?);
         let scaling_provenance_digest = scaling.receipt().provenance_digest();
         let mut identity_bytes = Vec::new();
         for value in [
@@ -74,7 +78,7 @@ impl CommonSteadyStokesPlan {
             admission,
             binding,
             resolved,
-            realization,
+            portable,
             formulation_selection,
             scaling,
             realization_digest,
@@ -97,6 +101,7 @@ impl CommonSteadyStokesPlan {
         &self,
         backend: &dyn LinearSolverBackend,
     ) -> Result<crate::fluid::SteadyStokesMiniSolution2d, Diagnostic> {
+        self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
         if backend.provider() != self.admission.linear.provider
             || backend.capabilities() != self.admission.linear.capabilities
@@ -268,6 +273,11 @@ impl CommonSteadyStokesPlan {
     }
     pub fn realization_digest(&self) -> &str {
         &self.realization_digest
+    }
+    /// Canonical portable numerical realization owned by this Plan.
+    #[must_use]
+    pub const fn portable_realization(&self) -> &PortableRealizationGraph {
+        &self.portable
     }
     #[must_use]
     pub const fn scaling_receipt(&self) -> &IncompressibleScalingReceipt2d {

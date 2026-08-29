@@ -172,6 +172,18 @@ pub(crate) fn first(diagnostics: Vec<Diagnostic>) -> Diagnostic {
         .unwrap_or_else(|| invalid("Model replay failed without a diagnostic"))
 }
 
+pub(crate) fn require_portable_realization(
+    owned: &PortableRealizationGraph,
+    materialized: PortableRealizationGraph,
+) -> Result<(), Diagnostic> {
+    if &materialized != owned {
+        return Err(invalid(
+            "common Plan's execution materialization differs from its portable realization graph",
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
 }

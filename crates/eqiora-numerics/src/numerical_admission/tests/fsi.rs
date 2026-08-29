@@ -68,6 +68,15 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         automatic.state_space_identity(),
         manual.state_space_identity()
     );
+    assert_eq!(
+        automatic.realization_digest(),
+        manual.realization_digest(),
+        "equal effective realization choices have one portable graph identity"
+    );
+    assert_eq!(
+        automatic.realization_digest(),
+        hex_bytes(&automatic.portable_realization().digest().unwrap())
+    );
     assert!(automatic.scaling_receipt().production().is_some());
     assert_eq!(
         automatic.linear().algorithm(),

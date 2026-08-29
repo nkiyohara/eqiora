@@ -65,6 +65,23 @@ pub(super) fn resolve_common_scalar_portable(
 }
 
 impl CommonScalarPlan {
+    fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
+        let NativeMeshResources::Cartesian { mesh, .. } = &self.admission.resources else {
+            return Err(invalid(
+                "common scalar Plan lost its exact Cartesian Mesh materialization",
+            ));
+        };
+        let RecognizedNativeModel::Scalar(lowered) = &self.admission.recognized else {
+            return Err(invalid(
+                "common scalar Plan lost its recognized mathematical materialization",
+            ));
+        };
+        require_portable_realization(
+            &self.portable,
+            resolve_common_scalar_portable(&self.admission, lowered, mesh, self.cells)?,
+        )
+    }
+
     pub(super) fn from_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
@@ -99,6 +116,7 @@ impl CommonScalarPlan {
             ));
         };
         let portable = resolve_common_scalar_portable(&admission, lowered, mesh, cells)?;
+        let realization_digest = hex_bytes(&portable.digest()?);
         let field = lowered.field_id();
         let field_id = field.ulid().to_string();
         let field_dimension = match admission.program.node(field.erase()) {
@@ -116,6 +134,7 @@ impl CommonScalarPlan {
             mesh_digest.as_str(),
             correspondence_digest.as_str(),
             production_digest.as_str(),
+            realization_digest.as_str(),
             admission.policy_identity(),
         ] {
             push_framed(&mut identity_bytes, value.as_bytes());
@@ -137,6 +156,7 @@ impl CommonScalarPlan {
             mesh_digest,
             correspondence_digest,
             production_digest,
+            realization_digest,
             field,
             field_id,
             field_dimension,
@@ -146,6 +166,7 @@ impl CommonScalarPlan {
 
     /// Execute solely from retained Plan state.
     pub fn run(&self) -> Result<ResolvedScalarEllipticCartesianSolution, Diagnostic> {
+        self.reauthenticate_portable_realization()?;
         self.admission.execute_scalar(&REFERENCE_LINEAR_SOLVER)
     }
 
@@ -158,6 +179,7 @@ impl CommonScalarPlan {
         selected: &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>],
         values: Option<&[f64]>,
     ) -> Result<CommonScalarDifferentiationPoint, Diagnostic> {
+        self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
         let RecognizedNativeModel::Scalar(template) = &self.admission.recognized else {
             return Err(invalid(
@@ -367,6 +389,17 @@ impl CommonScalarPlan {
     #[must_use]
     pub fn production_digest(&self) -> &str {
         &self.production_digest
+    }
+
+    #[must_use]
+    pub fn realization_digest(&self) -> &str {
+        &self.realization_digest
+    }
+
+    /// Canonical portable numerical realization owned by this Plan.
+    #[must_use]
+    pub const fn portable_realization(&self) -> &PortableRealizationGraph {
+        &self.portable
     }
 
     #[must_use]

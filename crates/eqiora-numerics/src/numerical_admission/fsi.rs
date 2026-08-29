@@ -1,6 +1,16 @@
 use super::*;
 
 impl CommonFsiPlan {
+    fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
+        let relation = self
+            .canonical
+            .solid()
+            .kinematic_relation()
+            .downcast::<eqiora_core::entity::kinds::Relation>()
+            .ok_or_else(|| invalid("FSI solid kinematic Relation lost its semantic kind"))?;
+        require_portable_realization(&self.portable, self.resolved.portable_graph(relation)?)
+    }
+
     pub(super) fn from_recognized(
         model: &ModelEnvelope,
         recognized: RecognizedNativeAdmission,
@@ -126,10 +136,12 @@ impl CommonFsiPlan {
             fixed_reference_fsi_requirements_2d(canonical),
             &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
         )?;
-        let realization =
-            RealizationEnvelopeV3::from_resolved(model, &resolved, LayoutArtifacts::Replicated)?;
-        realization.validate_model_artifact(model)?;
-        realization.validate_mesh_artifact(mesh)?;
+        let solid_kinematic_relation = canonical
+            .solid()
+            .kinematic_relation()
+            .downcast::<eqiora_core::entity::kinds::Relation>()
+            .ok_or_else(|| invalid("FSI solid kinematic Relation lost its semantic kind"))?;
+        let portable = resolved.portable_graph(solid_kinematic_relation)?;
         let reference = model.artifact_reference()?;
         let solver_provider = REFERENCE_LINEAR_SOLVER.provider();
         let solver_capabilities = REFERENCE_LINEAR_SOLVER.capabilities();
@@ -151,7 +163,7 @@ impl CommonFsiPlan {
             canonical.solid().domain().ulid().to_string(),
         ];
         let mut identity_bytes = Vec::new();
-        let realization_digest = realization.digest()?.to_string();
+        let realization_digest = hex_bytes(&portable.digest()?);
         let scaling_provenance_digest = scaling_receipt.provenance_digest().to_string();
         for value in [
             &model_digest,
@@ -177,7 +189,7 @@ impl CommonFsiPlan {
             resources: recognized.resources,
             partition,
             resolved,
-            realization,
+            portable,
             scaling,
             scaling_receipt,
             temporal,
@@ -231,6 +243,7 @@ impl CommonFsiPlan {
         time_s: f64,
         fields: Vec<CommonInitialField>,
     ) -> Result<CommonState, Diagnostic> {
+        self.reauthenticate_portable_realization()?;
         if fields.len() != 4 {
             return Err(invalid(
                 "FSI State.initial requires exactly four complete InitialField assignments",
@@ -387,6 +400,7 @@ impl CommonFsiPlan {
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonState, Diagnostic> {
+        self.reauthenticate_portable_realization()?;
         if state.state_space_identity() != self.state_space_identity() {
             return Err(invalid(
                 "FSI State belongs to an incompatible common state space",
@@ -519,8 +533,8 @@ impl CommonFsiPlan {
         &self.domain_ids
     }
     #[must_use]
-    pub const fn realization(&self) -> &RealizationEnvelopeV3 {
-        &self.realization
+    pub const fn portable_realization(&self) -> &PortableRealizationGraph {
+        &self.portable
     }
     #[must_use]
     pub fn fluid_vertex_indices(&self) -> Vec<usize> {

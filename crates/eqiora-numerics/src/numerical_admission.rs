@@ -60,8 +60,7 @@ use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::step_count::NonZeroStepCount;
 use eqiora_artifact::{
     CanonicalModelArtifact, CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    LayoutArtifacts, MeshProductionLineageEnvelopeV1, ModelEnvelope, RealizationEnvelopeV2,
-    RealizationEnvelopeV3, SimplicialMeshEnvelopeV1,
+    MeshProductionLineageEnvelopeV1, ModelEnvelope, SimplicialMeshEnvelopeV1,
 };
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_core::diagnostic::codes;
@@ -102,6 +101,7 @@ pub use crate::form_compiler::vocabulary::FormulationKind;
 
 const APPLICATION_REALIZATION_REVISION: u64 = 134;
 const COMMON_SCALAR_REALIZATION_REVISION: u64 = 170;
+const COMMON_ELASTICITY_REALIZATION_REVISION: u64 = 171;
 const TRANSIENT_REALIZATION_REVISION: u64 = 166;
 const COMMON_TRANSIENT_RESOLVER_EPOCH: u64 = 1;
 const TIME: DimExponents = DimExponents {
@@ -503,7 +503,7 @@ pub struct CommonFsiPlan {
     resources: NativeMeshResources,
     partition: FixedReferenceFsiPartition2d,
     resolved: ResolvedCoupledFieldwiseRealization,
-    realization: RealizationEnvelopeV3,
+    portable: PortableRealizationGraph,
     scaling: FixedReferenceFsiScaleProfile2d,
     scaling_receipt: IncompressibleScalingReceipt2d,
     temporal: CommonBackwardEuler,
@@ -671,6 +671,7 @@ impl CommonTransientFormulation {
 pub struct CommonTransientFlowPlan {
     admission: NativeNumericalAdmission,
     resolved: CommonTransientResolvedSpatial,
+    portable: PortableRealizationGraph,
     formulation: CommonTransientFormulation,
     formulation_selection: FormulationSelectionMode,
     scaling: ResolvedIncompressibleScaling2d,
@@ -683,6 +684,7 @@ pub struct CommonTransientFlowPlan {
     mesh_digest: String,
     correspondence_digest: String,
     production_digest: String,
+    realization_digest: String,
     velocity_field_id: String,
     pressure_field_id: String,
     velocity_space: Space,
@@ -745,6 +747,7 @@ pub struct CommonScalarPlan {
     mesh_digest: String,
     correspondence_digest: String,
     production_digest: String,
+    realization_digest: String,
     field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
     field_id: String,
     field_dimension: DimExponents,
@@ -777,6 +780,7 @@ impl CommonScalarDifferentiationPoint {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonElasticityPlan {
     admission: NativeNumericalAdmission,
+    portable: PortableRealizationGraph,
     identity: String,
     model_id: String,
     model_revision: u64,
@@ -784,6 +788,7 @@ pub struct CommonElasticityPlan {
     mesh_digest: String,
     correspondence_digest: String,
     production_digest: String,
+    realization_digest: String,
     displacement_field_id: String,
     cells: [usize; 2],
 }
@@ -794,7 +799,7 @@ pub struct CommonSteadyStokesPlan {
     admission: NativeNumericalAdmission,
     binding: SteadyStokesGeometryBinding2d,
     resolved: ResolvedFieldwiseRealization,
-    realization: RealizationEnvelopeV2,
+    portable: PortableRealizationGraph,
     formulation_selection: FormulationSelectionMode,
     scaling: ResolvedIncompressibleScaling2d,
     realization_digest: String,

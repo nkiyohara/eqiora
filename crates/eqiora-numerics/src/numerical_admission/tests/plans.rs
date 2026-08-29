@@ -107,8 +107,17 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     assert_eq!(q1.identity(), repeat.identity());
     assert_ne!(q1.identity(), tpfa.identity());
     assert_ne!(q1.identity(), alternate_tolerance.identity());
+    assert_eq!(q1.realization_digest(), repeat.realization_digest());
+    assert_ne!(q1.realization_digest(), tpfa.realization_digest());
+    assert_eq!(
+        q1.realization_digest(),
+        hex_bytes(&q1.portable_realization().digest().unwrap())
+    );
     assert_eq!(q1.model_digest(), model.digest().unwrap().to_string());
     assert_eq!(q1.cells(), [2, 3]);
+    let mut crossed_realization = q1.clone();
+    crossed_realization.portable = tpfa.portable_realization().clone();
+    assert!(crossed_realization.run().is_err());
     assert_eq!(q1.run().unwrap().into_primary_field_values().len(), 12);
     assert_eq!(tpfa.run().unwrap().into_primary_field_values().len(), 6);
     assert!(
@@ -157,6 +166,16 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
     let alternate = resolve_elasticity(&alternate_material);
     assert_eq!(plan.identity(), repeat.identity());
     assert_ne!(plan.identity(), alternate.identity());
+    assert_eq!(plan.realization_digest(), repeat.realization_digest());
+    assert_eq!(
+        plan.realization_digest(),
+        alternate.realization_digest(),
+        "material coefficients belong to Model identity, not numerical realization identity"
+    );
+    assert_eq!(
+        plan.realization_digest(),
+        hex_bytes(&plan.portable_realization().digest().unwrap())
+    );
     assert_eq!(plan.model_digest(), model.digest().unwrap().to_string());
     assert_eq!(plan.cells(), [2, 3]);
     let result = plan.run().unwrap();
