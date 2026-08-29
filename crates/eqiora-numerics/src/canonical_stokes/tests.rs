@@ -10,6 +10,7 @@ use super::{
     lower_transient_incompressible_navier_stokes_cartesian_3d,
 };
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
+use crate::form_compiler::vocabulary::{BoundaryTreatment, FormulationKind, MixedFormulationRule};
 
 const SOURCE: &str = r#"
 model steady_stokes {
@@ -259,6 +260,43 @@ fn lowers_exact_meaning_without_numerical_choices() {
         model.momentum_relation(),
         model.incompressibility_relation()
     );
+    let correspondence = model.common.correspondence();
+    assert_eq!(
+        correspondence.formulation.kind,
+        FormulationKind::MixedGalerkin
+    );
+    assert_eq!(
+        correspondence.formulation.boundary_treatment,
+        BoundaryTreatment::ExplicitTraceFluxLaws
+    );
+    assert_eq!(correspondence.formulation.velocity_trial, model.velocity());
+    assert_eq!(correspondence.formulation.velocity_test, model.velocity());
+    assert_eq!(correspondence.formulation.pressure_trial, model.pressure());
+    assert_eq!(correspondence.formulation.pressure_test, model.pressure());
+    assert_eq!(correspondence.law.source, model.force_potential());
+    assert_eq!(
+        correspondence.law.source_definition,
+        model.force_potential_definition()
+    );
+    assert_eq!(
+        correspondence.formulation.rules,
+        [
+            MixedFormulationRule::MomentumTestPairing,
+            MixedFormulationRule::StressDivergenceByParts,
+            MixedFormulationRule::PressureVelocityCoupling,
+            MixedFormulationRule::ContinuityConstraintPairing,
+            MixedFormulationRule::SourcePairing,
+            MixedFormulationRule::ExplicitBoundaryLaw,
+        ]
+    );
+    assert_eq!(correspondence.law.boundary_relations.len(), 4);
+    model
+        .common
+        .replay_correspondence()
+        .expect("recognized mixed correspondence replays exactly");
+    let mut stale = model.common.clone();
+    stale.correspondence.law.boundary_relations.pop();
+    assert!(stale.replay_correspondence().is_err());
     for axis in 0..2 {
         for side in [BoundarySide::Lower, BoundarySide::Upper] {
             assert!(matches!(

@@ -46,6 +46,9 @@ pub(super) fn steady_stokes_block_system(
     boundary: &SimplicialMiniStokesBoundary2d,
     scales: SteadyStokesScaleProfile2d,
 ) -> Result<DiscreteBlockSystem, Diagnostic> {
+    model.replay_correspondence().map_err(|message| {
+        Diagnostic::error(eqiora_core::diagnostic::codes::INVALID_REALIZATION, message)
+    })?;
     let domain = domain_id(model.domain())?;
     let velocity = field(model.velocity())?;
     let pressure = field(model.pressure())?;

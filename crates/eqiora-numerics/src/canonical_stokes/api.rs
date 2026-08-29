@@ -6,6 +6,7 @@ use eqiora_schema::kernel::BoundarySide;
 use crate::canonical_boundary::BoundaryRelationBinding2d;
 use crate::canonical_boundary::CartesianBoundaryEntry;
 use crate::canonical_boundary::CartesianBoundaryInventory2d;
+use crate::form_compiler::vocabulary::{MixedGalerkinCorrespondence, MixedGalerkinSource};
 use crate::spatial_expression::ScalarSpatialExpression;
 
 use super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d;
@@ -88,16 +89,10 @@ impl SteadyStokesNormalPressure2d {
 /// Realization concerns.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct SteadyIncompressibleStokesModel2d {
-    pub(super) domain: RawId,
-    pub(super) velocity: RawId,
-    pub(super) pressure: RawId,
-    pub(super) force_potential: RawId,
+    pub(super) correspondence: MixedGalerkinCorrespondence,
     pub(super) bounds: [[f64; 2]; 2],
     pub(super) dynamic_viscosity: ScalarSpatialExpression,
     pub(super) force_potential_expression: ScalarSpatialExpression,
-    pub(super) force_potential_definition: RawId,
-    pub(super) momentum_relation: RawId,
-    pub(super) incompressibility_relation: RawId,
     pub(super) boundary_entries: BTreeMap<StokesBoundaryKey2d, SteadyStokesBoundaryEntry2d>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding2d>,
     pub(super) normal_pressures: BTreeMap<StokesBoundaryKey2d, SteadyStokesNormalPressure2d>,
@@ -110,25 +105,25 @@ impl SteadyIncompressibleStokesModel2d {
     /// Canonical volume Domain.
     #[must_use]
     pub const fn domain(&self) -> RawId {
-        self.domain
+        self.correspondence.law.domain
     }
 
     /// Canonical spatial-Cartesian velocity Field.
     #[must_use]
     pub const fn velocity(&self) -> RawId {
-        self.velocity
+        self.correspondence.law.velocity
     }
 
     /// Canonical invariant pressure Field.
     #[must_use]
     pub const fn pressure(&self) -> RawId {
-        self.pressure
+        self.correspondence.law.pressure
     }
 
     /// Canonical invariant conservative-force potential Field.
     #[must_use]
     pub const fn force_potential(&self) -> RawId {
-        self.force_potential
+        self.correspondence.law.source
     }
 
     /// Physical axis-aligned bounds in coherent SI coordinates.
@@ -160,19 +155,42 @@ impl SteadyIncompressibleStokesModel2d {
     /// Exact Relation witnessing the force-potential definition.
     #[must_use]
     pub const fn force_potential_definition(&self) -> RawId {
-        self.force_potential_definition
+        self.correspondence.law.source_definition
     }
 
     /// Exact Relation witnessing momentum balance.
     #[must_use]
     pub const fn momentum_relation(&self) -> RawId {
-        self.momentum_relation
+        self.correspondence.law.momentum_relation
     }
 
     /// Exact Relation witnessing incompressibility.
     #[must_use]
     pub const fn incompressibility_relation(&self) -> RawId {
-        self.incompressibility_relation
+        self.correspondence.law.incompressibility_relation
+    }
+
+    pub(super) fn replay_correspondence(&self) -> Result<(), &'static str> {
+        let boundary_relations = self
+            .boundary_relations
+            .iter()
+            .map(|binding| binding.relation())
+            .collect::<Vec<_>>();
+        self.correspondence.replay(MixedGalerkinSource {
+            domain: self.domain(),
+            velocity: self.velocity(),
+            pressure: self.pressure(),
+            source: self.force_potential(),
+            source_definition: self.force_potential_definition(),
+            momentum_relation: self.momentum_relation(),
+            incompressibility_relation: self.incompressibility_relation(),
+            boundary_relations: &boundary_relations,
+        })
+    }
+
+    #[cfg(test)]
+    pub(super) const fn correspondence(&self) -> &MixedGalerkinCorrespondence {
+        &self.correspondence
     }
 
     /// Canonically ordered exact Relation-to-Boundary support bindings.
