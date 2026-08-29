@@ -39,9 +39,8 @@ pub fn resolve_common_plan(
             let spatial = resolve_scalar(spatial)?;
             let linear = resolve_reference_spd(solve)?;
             let admission = recognized.complete(spatial, linear, None, None)?;
-            CommonScalarPlan::from_admission(model, admission).map(|plan| ResolvedCommonPlan {
-                kind: ResolvedCommonPlanKind::Scalar(Box::new(plan)),
-            })
+            CommonScalarPlan::from_admission(model, admission)
+                .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
         }
         NativeCapability::IsotropicElasticity => {
             reject_unsupported_formulation_request(formulation, "linear-elasticity")?;
@@ -63,9 +62,8 @@ pub fn resolve_common_plan(
             let spatial = resolve_elasticity(spatial)?;
             let linear = resolve_reference_spd(solve)?;
             let admission = recognized.complete(spatial, linear, None, None)?;
-            CommonElasticityPlan::from_admission(model, admission).map(|plan| ResolvedCommonPlan {
-                kind: ResolvedCommonPlanKind::Elasticity(Box::new(plan)),
-            })
+            CommonElasticityPlan::from_admission(model, admission)
+                .map(|plan| ResolvedCommonPlan::Elasticity(Box::new(plan)))
         }
         NativeCapability::SteadyIncompressibleStokes => {
             let formulation_selection = resolve_formulation_request(
@@ -92,9 +90,7 @@ pub fn resolve_common_plan(
             let admission =
                 recognized.complete(spatial.with_scaling(scaling.scales()), linear, None, None)?;
             CommonSteadyStokesPlan::from_admission(model, admission, formulation_selection, scaling)
-                .map(|plan| ResolvedCommonPlan {
-                    kind: ResolvedCommonPlanKind::SteadyStokes(Box::new(plan)),
-                })
+                .map(|plan| ResolvedCommonPlan::SteadyStokes(Box::new(plan)))
         }
         NativeCapability::TransientIncompressibleFlow => {
             let spatial = resolve_transient(spatial)?;
@@ -136,9 +132,7 @@ pub fn resolve_common_plan(
                 temporal,
                 nonlinear,
             )
-            .map(|plan| ResolvedCommonPlan {
-                kind: ResolvedCommonPlanKind::TransientFlow(Box::new(plan)),
-            })
+            .map(|plan| ResolvedCommonPlan::TransientFlow(Box::new(plan)))
         }
         NativeCapability::FixedReferenceFsi => {
             reject_unsupported_formulation_request(formulation, "fixed-reference FSI")?;
@@ -155,9 +149,7 @@ pub fn resolve_common_plan(
             require_fixed_reference_fsi(model, canonical, spatial)?;
             let effective_linear = resolve_fixed_reference_fsi(linear)?;
             CommonFsiPlan::from_recognized(model, recognized, scaling, temporal, effective_linear)
-                .map(|plan| ResolvedCommonPlan {
-                    kind: ResolvedCommonPlanKind::Fsi(Box::new(plan)),
-                })
+                .map(|plan| ResolvedCommonPlan::Fsi(Box::new(plan)))
         }
     }
 }

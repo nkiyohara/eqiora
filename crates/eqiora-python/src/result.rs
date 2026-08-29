@@ -9,13 +9,15 @@ use eqiora::numerics::{
     SteadyStokesMiniSolution2d,
 };
 use eqiora::{Diagnostic, DimExponents};
-use eqiora_numerics::{CommonElasticityObservation, CommonSteadyStokesObservation};
+use eqiora_numerics::{
+    CommonElasticityObservation, CommonSteadyStokesObservation, ResolvedCommonPlan,
+};
 use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
 use crate::array::PyArrayBuffer;
-use crate::common_plan::{CommonPlanKind, PyPlan};
+use crate::common_plan::PyPlan;
 use crate::diagnostic_error;
 use crate::elasticity::PyLinearElasticityEvidence;
 use crate::execution::RunIdentity;
@@ -765,7 +767,7 @@ pub(crate) fn materialize_common_scalar(
     elapsed_seconds: f64,
     result: ResolvedScalarEllipticCartesianSolution,
 ) -> PyResult<PyRunResult> {
-    let CommonPlanKind::Scalar(native) = plan.native() else {
+    let ResolvedCommonPlan::Scalar(native) = plan.native() else {
         return Err(PyRuntimeError::new_err(
             "common scalar output crossed a different Plan",
         ));
@@ -788,7 +790,7 @@ pub(crate) fn materialize_common_steady_stokes(
     elapsed_seconds: f64,
     result: eqiora_numerics::CommonSteadyStokesRunOutput,
 ) -> PyResult<PyRunResult> {
-    let CommonPlanKind::SteadyStokes(native) = plan.native() else {
+    let ResolvedCommonPlan::SteadyStokes(native) = plan.native() else {
         return Err(PyRuntimeError::new_err(
             "common steady-Stokes output crossed a different Plan",
         ));
@@ -820,7 +822,7 @@ pub(crate) fn materialize_common_elasticity(
     elapsed_seconds: f64,
     result: eqiora_numerics::CommonElasticityRunOutput,
 ) -> PyResult<PyRunResult> {
-    let CommonPlanKind::Elasticity(native) = plan.native() else {
+    let ResolvedCommonPlan::Elasticity(native) = plan.native() else {
         return Err(PyRuntimeError::new_err(
             "common elasticity output crossed a different Plan",
         ));
@@ -851,7 +853,7 @@ pub(crate) fn materialize_common_transient(
 ) -> PyResult<PyRunResult> {
     if !matches!(
         plan.native(),
-        CommonPlanKind::TransientFlow(_) | CommonPlanKind::Fsi(_)
+        ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Fsi(_)
     ) {
         return Err(PyRuntimeError::new_err(
             "common transient output crossed a different Plan",
@@ -861,7 +863,7 @@ pub(crate) fn materialize_common_transient(
         py,
         PyTrajectory::from_common(py, &plan, identity.plan_key(), states)?,
     )?;
-    let fsi_evidence = if matches!(plan.native(), CommonPlanKind::Fsi(_)) {
+    let fsi_evidence = if matches!(plan.native(), ResolvedCommonPlan::Fsi(_)) {
         Some(Py::new(
             py,
             PyFsiEvidence::from_common(py, &plan, &trajectory.borrow(py), identity.plan_key())?,
@@ -886,7 +888,7 @@ pub(crate) fn materialize_common_ode(
     elapsed_seconds: f64,
     result: eqiora_numerics::CommonOdeRunResult,
 ) -> PyResult<PyRunResult> {
-    let CommonPlanKind::Ode(native) = plan.native() else {
+    let ResolvedCommonPlan::Ode(native) = plan.native() else {
         return Err(PyRuntimeError::new_err(
             "common ODE output crossed a different Plan",
         ));

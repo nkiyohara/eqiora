@@ -443,19 +443,23 @@ pub enum CommonPressureGauge2d {
     BoundaryTraction,
 }
 
-/// Opaque result of Model-first common numerical resolution.
+/// Closed result of Model-first common numerical resolution.
+///
+/// This is the single native sum for every admitted common Plan. Adapters may
+/// project it, but must not create a parallel Plan-kind authority.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ResolvedCommonPlan {
-    kind: ResolvedCommonPlanKind,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum ResolvedCommonPlanKind {
+pub enum ResolvedCommonPlan {
+    /// Explicit no-Mesh ODE Plan.
     Ode(Box<CommonOdePlan>),
+    /// Scalar elliptic spatial Plan.
     Scalar(Box<CommonScalarPlan>),
+    /// Linear-elasticity spatial Plan.
     Elasticity(Box<CommonElasticityPlan>),
+    /// Steady incompressible-flow spatial Plan.
     SteadyStokes(Box<CommonSteadyStokesPlan>),
+    /// Transient incompressible-flow spatial Plan.
     TransientFlow(Box<CommonTransientFlowPlan>),
+    /// Fixed-reference fluid-structure interaction spatial Plan.
     Fsi(Box<CommonFsiPlan>),
 }
 
@@ -464,13 +468,10 @@ impl ResolvedCommonPlan {
     /// capability owns one of the current proof-carrying consumers.
     #[must_use]
     pub fn formulation(&self) -> Option<CommonFormulationDescription> {
-        match &self.kind {
-            ResolvedCommonPlanKind::SteadyStokes(plan) => Some(plan.formulation()),
-            ResolvedCommonPlanKind::TransientFlow(plan) => Some(plan.formulation()),
-            ResolvedCommonPlanKind::Ode(_)
-            | ResolvedCommonPlanKind::Scalar(_)
-            | ResolvedCommonPlanKind::Elasticity(_)
-            | ResolvedCommonPlanKind::Fsi(_) => None,
+        match self {
+            Self::SteadyStokes(plan) => Some(plan.formulation()),
+            Self::TransientFlow(plan) => Some(plan.formulation()),
+            Self::Ode(_) | Self::Scalar(_) | Self::Elasticity(_) | Self::Fsi(_) => None,
         }
     }
 
@@ -484,13 +485,13 @@ impl ResolvedCommonPlan {
         transient_flow: impl FnOnce(CommonTransientFlowPlan) -> T,
         fsi: impl FnOnce(CommonFsiPlan) -> T,
     ) -> T {
-        match self.kind {
-            ResolvedCommonPlanKind::Ode(plan) => ode(*plan),
-            ResolvedCommonPlanKind::Scalar(plan) => scalar(*plan),
-            ResolvedCommonPlanKind::Elasticity(plan) => elasticity(*plan),
-            ResolvedCommonPlanKind::SteadyStokes(plan) => steady_stokes(*plan),
-            ResolvedCommonPlanKind::TransientFlow(plan) => transient_flow(*plan),
-            ResolvedCommonPlanKind::Fsi(plan) => fsi(*plan),
+        match self {
+            Self::Ode(plan) => ode(*plan),
+            Self::Scalar(plan) => scalar(*plan),
+            Self::Elasticity(plan) => elasticity(*plan),
+            Self::SteadyStokes(plan) => steady_stokes(*plan),
+            Self::TransientFlow(plan) => transient_flow(*plan),
+            Self::Fsi(plan) => fsi(*plan),
         }
     }
 }
@@ -532,9 +533,8 @@ pub fn resolve_common_ode_plan(
     temporal: CommonTsitouras45,
     backend: TimeBackendIdentity,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
-    CommonOdePlan::resolve(model, kernel, temporal, backend).map(|plan| ResolvedCommonPlan {
-        kind: ResolvedCommonPlanKind::Ode(Box::new(plan)),
-    })
+    CommonOdePlan::resolve(model, kernel, temporal, backend)
+        .map(|plan| ResolvedCommonPlan::Ode(Box::new(plan)))
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -983,6 +983,7 @@ mod elasticity;
 mod fsi;
 mod native;
 mod resolve;
+mod resolved;
 mod scalar;
 mod solver_planning;
 mod spatial_planning;
