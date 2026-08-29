@@ -990,6 +990,7 @@ mod scalar;
 mod solver_planning;
 mod spatial_planning;
 mod state;
+mod state_artifact;
 mod steady_stokes;
 mod transient;
 pub use native::AuthenticatedCommonMesh;

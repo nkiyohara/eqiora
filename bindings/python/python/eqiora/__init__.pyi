@@ -764,6 +764,9 @@ class State:
     Authority: ``crates/eqiora-python/src/trajectory.rs::PyState``.
     """
 
+    def to_bytes(self) -> bytes: ...
+    @staticmethod
+    def from_bytes(plan: Plan, data: bytes, /) -> State: ...
     @staticmethod
     def initial(
         plan: Plan,

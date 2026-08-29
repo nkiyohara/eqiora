@@ -58,6 +58,13 @@ def test_model_first_no_mesh_decay_owns_exact_lineage_and_adaptive_series() -> N
     assert initial.field_refs == (field,)
     assert initial.value(field) == 1.0
     assert initial.source_kind == "initial"
+    initial_bytes = initial.to_bytes()
+    replayed_initial = eqiora.State.from_bytes(plan, initial_bytes)
+    assert replayed_initial == initial
+    assert replayed_initial.to_bytes() == initial_bytes
+    assert replayed_initial.source_kind == "artifact"
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.State.from_bytes(plan, initial_bytes + b"\n")
 
     result = eqiora.run(
         plan,

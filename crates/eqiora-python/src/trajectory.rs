@@ -12,7 +12,7 @@ use eqiora_numerics::{
 use numpy::{PyArray1, PyArray2};
 use pyo3::exceptions::{PyIndexError, PyKeyError, PyOverflowError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyModule, PySequence, PyTuple};
+use pyo3::types::{PyBool, PyBytes, PyModule, PySequence, PyTuple};
 use sha2::{Digest, Sha256};
 
 use crate::geometry::PyGeometrySelection;
@@ -201,10 +201,70 @@ impl PyState {
     pub(crate) const fn time_s_value(&self) -> f64 {
         self.time_s
     }
+
+    fn from_artifact(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        data: &[u8],
+    ) -> PyResult<Self> {
+        let mut state = match plan.native() {
+            eqiora_numerics::ResolvedCommonPlan::Ode(native_plan) => {
+                let native = eqiora_numerics::CommonOdeState::from_bytes(data, native_plan)
+                    .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+                Self::from_common_ode(py, plan, native, None)
+            }
+            eqiora_numerics::ResolvedCommonPlan::TransientFlow(_) => {
+                let native = CommonState::from_bytes(data, plan.native())
+                    .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+                Self::from_common(py, plan, native, 0, None, None)?
+            }
+            eqiora_numerics::ResolvedCommonPlan::Fsi(_) => {
+                let native = CommonState::from_bytes(data, plan.native())
+                    .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+                Self::from_common_fsi(py, plan, native, 0, None)?
+            }
+            eqiora_numerics::ResolvedCommonPlan::Scalar(_)
+            | eqiora_numerics::ResolvedCommonPlan::Elasticity(_)
+            | eqiora_numerics::ResolvedCommonPlan::SteadyStokes(_) => {
+                return Err(PyValueError::new_err(
+                    "State.from_bytes requires an ODE, transient-flow, or fixed-reference FSI Plan",
+                ));
+            }
+        };
+        state.source_kind = Some("artifact");
+        state.source_request_identity = None;
+        state.source_trajectory_identity = None;
+        Ok(state)
+    }
 }
 
 #[pymethods]
 impl PyState {
+    /// Canonical State bytes, reauthenticated against the owning Plan on load.
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        let bytes = match (&self.ode_native, &self.native) {
+            (Some(state), None) => state.to_bytes(),
+            (None, Some(state)) => state.to_bytes(),
+            _ => {
+                return Err(PyRuntimeError::new_err(
+                    "State lost its exact native representation",
+                ));
+            }
+        }
+        .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        Ok(PyBytes::new(py, &bytes))
+    }
+
+    /// Decode one exact State against its state-space-owning Plan.
+    #[staticmethod]
+    fn from_bytes(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        data: &[u8],
+    ) -> PyResult<Self> {
+        Self::from_artifact(py, plan, data)
+    }
+
     #[staticmethod]
     #[pyo3(signature = (plan, /, *, fields=None, time_s=None))]
     fn initial(

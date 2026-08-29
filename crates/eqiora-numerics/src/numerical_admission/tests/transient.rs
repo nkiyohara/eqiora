@@ -284,6 +284,40 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
 
     let mini_zero = mini.zero_state(0.0).unwrap();
     let fvm_zero = fvm.zero_state(0.0).unwrap();
+    let mini_bytes = mini_zero.to_bytes().unwrap();
+    assert_eq!(
+        CommonState::from_bytes(
+            &mini_bytes,
+            &ResolvedCommonPlan::TransientFlow(Box::new(mini.clone())),
+        )
+        .unwrap(),
+        mini_zero
+    );
+    let fvm_bytes = fvm_zero.to_bytes().unwrap();
+    assert_eq!(
+        CommonState::from_bytes(
+            &fvm_bytes,
+            &ResolvedCommonPlan::TransientFlow(Box::new(fvm.clone())),
+        )
+        .unwrap(),
+        fvm_zero
+    );
+    let mut noncanonical = mini_bytes;
+    noncanonical.push(b'\n');
+    assert!(
+        CommonState::from_bytes(
+            &noncanonical,
+            &ResolvedCommonPlan::TransientFlow(Box::new(mini.clone())),
+        )
+        .is_err()
+    );
+    assert!(
+        CommonState::from_bytes(
+            &fvm_bytes,
+            &ResolvedCommonPlan::TransientFlow(Box::new(mini.clone())),
+        )
+        .is_err()
+    );
     assert_eq!(mini_zero.velocity_vertex_values().unwrap().len(), 12);
     assert_eq!(mini_zero.velocity_cell_values().len(), 12);
     assert_eq!(mini_zero.pressure_vertex_values().unwrap().len(), 12);
