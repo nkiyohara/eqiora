@@ -111,7 +111,7 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
             compile("".join(cell["source"]), NOTEBOOK.as_posix(), "exec")
 
         self.assertIn('find_spec("eqiora") is None', self.notebook_source)
-        self.assertIn('"eqiora[gmsh,matplotlib]==0.1.0a4"', self.notebook_source)
+        self.assertIn('"eqiora[gmsh,matplotlib]==0.1.0a5"', self.notebook_source)
         self.assertIn("subprocess.run(", self.notebook_source)
         self.assertNotIn("drive.mount", self.notebook_source)
 

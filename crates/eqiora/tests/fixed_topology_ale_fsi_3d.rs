@@ -464,7 +464,7 @@ fn publish_moving_artifact_dag(fixture: &Fixture, trajectory: &AleFsiTrajectory3
     .unwrap();
     assert_eq!(
         public_asset["provenance"]["run_sha256"],
-        "05910053c31ed03c3b8f64c2198270f3faa5899f2a11d3a74467858bef872565"
+        "e6d0d84133164eaf97ce2cbc636648c76b8ca02d0ec2def5a0077c5b30a5efb7"
     );
     assert_eq!(
         expected["provenance"]["run_sha256"],

@@ -282,7 +282,7 @@ fn transitive_composed_component_installs_flattens_and_solves() {
         serde_json::from_slice(EXPECTED_IDENTITIES).expect("expected identity oracle");
     assert_eq!(
         actual_identities["compilation_digest"],
-        "802e14eb801c2f4fb4e4fd463f9b4cdcde53496881fc8b7219342a79be43b3ac"
+        "06c474c89eff6022da2907a6be8a6ad4ef29f5cde32b8670f87575398a8cbb04"
     );
     assert_eq!(
         expected_identities["compilation_digest"],
