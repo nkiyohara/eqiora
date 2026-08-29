@@ -15,7 +15,7 @@ use crate::canonical::{CANONICAL_ENCODING, WireEntitySet, WireLengthUnit, digest
 use crate::region::canonical_entity_sets;
 use crate::{CanonicalGeometryLimits, NamedEntitySet};
 
-const CIRCULAR_HOLE_SCHEMA: &str = "eqiora.planar-circular-hole-envelope/v1";
+pub(crate) const CIRCULAR_HOLE_SCHEMA: &str = "eqiora.planar-circular-hole-envelope/v1";
 const CORNER_COUNT: usize = 4;
 const OUTER_LOOP_INDEX_COUNT: usize = 4;
 const BOUNDARY_COUNT: usize = 5;

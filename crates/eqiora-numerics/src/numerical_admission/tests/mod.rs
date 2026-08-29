@@ -109,6 +109,50 @@ fn compile_model(
     ModelEnvelope::from_program(&program).unwrap()
 }
 
+fn replay_plan(plan: ResolvedCommonPlan, backend: &dyn LinearSolverBackend) -> ResolvedCommonPlan {
+    let bytes = plan.to_bytes().unwrap();
+    let replayed = ResolvedCommonPlan::from_bytes(
+        &bytes,
+        backend,
+        TimeBackendIdentity::new("eqiora.test.time", "1"),
+    )
+    .unwrap();
+    assert_eq!(replayed, plan);
+    assert_eq!(replayed.to_bytes().unwrap(), bytes);
+    let mut false_identity = bytes.clone();
+    let prefix = br#""identity":""#;
+    let identity_start = false_identity
+        .windows(prefix.len())
+        .position(|window| window == prefix)
+        .unwrap()
+        + prefix.len();
+    false_identity[identity_start] = if false_identity[identity_start] == b'x' {
+        b'y'
+    } else {
+        b'x'
+    };
+    assert!(
+        ResolvedCommonPlan::from_bytes(
+            &false_identity,
+            backend,
+            TimeBackendIdentity::new("eqiora.test.time", "1"),
+        )
+        .is_err(),
+        "a canonical-looking false resolved identity must reject"
+    );
+    let mut noncanonical = bytes;
+    noncanonical.push(b'\n');
+    assert!(
+        ResolvedCommonPlan::from_bytes(
+            &noncanonical,
+            backend,
+            TimeBackendIdentity::new("eqiora.test.time", "1"),
+        )
+        .is_err()
+    );
+    replayed
+}
+
 #[derive(Debug)]
 struct ResolveOnlyBackend;
 

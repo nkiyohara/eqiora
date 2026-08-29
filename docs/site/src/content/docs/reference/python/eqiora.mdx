@@ -898,6 +898,9 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan.rs" kind=
 ```python
 @final
 class Plan:
+    @staticmethod
+    def from_bytes(data: bytes) -> Plan: ...
+    def to_bytes(self) -> bytes: ...
     @property
     def identity(self) -> str: ...
     @property

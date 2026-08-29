@@ -104,6 +104,44 @@ impl PyMesh {
     pub(crate) fn correspondence_digest_value(&self) -> &str {
         &self.lineage.correspondence_digest
     }
+
+    pub(crate) fn from_authenticated(
+        py: Python<'_>,
+        owner: AuthenticatedCommonMesh,
+    ) -> PyResult<Self> {
+        if let Some(mesh) = owner.cartesian_mesh() {
+            return Self::from_source_owned_cartesian(
+                py,
+                owner.geometry(),
+                mesh,
+                owner.correspondence(),
+                owner.production(),
+            );
+        }
+        let mesh = owner.simplicial_mesh().ok_or_else(|| {
+            PyRuntimeError::new_err("authenticated Mesh omitted both native Mesh roots")
+        })?;
+        if let Some(provider_output) = owner.gmsh_provider_output() {
+            Self::from_source_parts(
+                py,
+                owner.geometry(),
+                mesh,
+                owner.correspondence(),
+                owner.production(),
+                SourceOwnedProviderObservation::Gmsh4152 {
+                    output: provider_output.to_vec().into_boxed_slice(),
+                },
+            )
+        } else {
+            Self::from_source_owned_affine_triangle(
+                py,
+                owner.geometry(),
+                mesh,
+                owner.correspondence(),
+                owner.production(),
+            )
+        }
+    }
 }
 
 #[pymethods]
@@ -160,6 +198,31 @@ impl PyMesh {
     #[getter]
     fn canonical_bytes(&self, py: Python<'_>) -> Py<PyBytes> {
         PyBytes::new(py, &self.canonical_bytes).unbind()
+    }
+
+    /// Canonical self-contained bytes of this authenticated Mesh occurrence.
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        self.authenticated_common_mesh()
+            .and_then(|owner| {
+                owner
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            codes::INVALID_ARTIFACT,
+                            "Mesh is not an authenticated common Mesh occurrence",
+                        )
+                    })?
+                    .to_bytes()
+            })
+            .map(|bytes| PyBytes::new(py, &bytes))
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
+    /// Decode and reauthenticate one self-contained common Mesh occurrence.
+    #[staticmethod]
+    fn from_bytes(py: Python<'_>, data: &[u8]) -> PyResult<Self> {
+        AuthenticatedCommonMesh::from_bytes(data)
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+            .and_then(|owner| Self::from_authenticated(py, owner))
     }
 
     #[getter]

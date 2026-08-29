@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 17 module summaries and all 151 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 571 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 17 module summaries and all 151 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 575 signature-only entries under documented owning types**.
 
-Inventory: 17 modules, 180 literal public spellings, 151 canonical grouped declarations, 764 visible method signatures (571 non-dunder and 193 dunder), and 73 visible class assignments.
+Inventory: 17 modules, 180 literal public spellings, 151 canonical grouped declarations, 768 visible method signatures (575 non-dunder and 193 dunder), and 73 visible class assignments.
 
 Regenerate with:
 
@@ -906,6 +906,9 @@ Authority: [`crates/eqiora-python/src/common_plan.rs::PyPlan`](../../crates/eqio
 ```python
 @final
 class Plan:
+    @staticmethod
+    def from_bytes(data: bytes) -> Plan: ...
+    def to_bytes(self) -> bytes: ...
     @property
     def identity(self) -> str: ...
     @property
@@ -2183,6 +2186,9 @@ Authority: [`crates/eqiora-python/src/meshing/mesh.rs::PyMesh`](../../crates/eqi
 ```python
 @final
 class Mesh:
+    @staticmethod
+    def from_bytes(data: bytes) -> Mesh: ...
+    def to_bytes(self) -> bytes: ...
     @property
     def source_digest(self) -> str: ...
     @property

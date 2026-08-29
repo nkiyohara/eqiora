@@ -37,6 +37,24 @@ def resolve(model):
 
 model = eqiora.compile(source=SOURCE)
 field, plan = resolve(model)
+plan_bytes = plan.to_bytes()
+portable_plan = eqiora.Plan.from_bytes(plan_bytes)
+portable_field = portable_plan.fields[0]
+assert portable_plan.identity == plan.identity
+assert portable_plan.to_bytes() == plan_bytes
+assert portable_plan.model.to_bytes() == model.to_bytes()
+assert portable_plan.mesh is None
+assert portable_plan.spatial is None
+assert portable_plan.solve is None
+assert portable_plan.temporal.initial_step_s == plan.temporal.initial_step_s
+assert portable_plan.temporal.relative_tolerance == plan.temporal.relative_tolerance
+assert portable_plan.temporal.absolute_tolerances == {portable_field: 1.0e-11}
+try:
+    eqiora.Plan.from_bytes(plan_bytes + b"\n")
+except eqiora.ValidationError:
+    pass
+else:
+    raise AssertionError("noncanonical Plan bytes must reject")
 assert plan.mesh is None
 assert plan.spatial is None
 assert plan.solve is None
@@ -60,6 +78,18 @@ assert len(series) == 2
 assert [time_s for time_s, _ in series] == [0.1, 0.2]
 for time_s, value in series:
     assert math.isclose(value, math.exp(-time_s), rel_tol=2.0e-8, abs_tol=2.0e-10)
+portable_result = eqiora.run(
+    portable_plan,
+    state=eqiora.State.initial(portable_plan),
+    until_s=0.2,
+    output_times_s=(0.2,),
+)
+assert math.isclose(
+    portable_result.series(portable_field).values.numpy()[0],
+    math.exp(-0.2),
+    rel_tol=2.0e-8,
+    abs_tol=2.0e-10,
+)
 
 replayed = eqiora.Model.from_bytes(model.to_bytes())
 replayed_field, replayed_plan = resolve(replayed)

@@ -1246,6 +1246,7 @@ dependencies = [
 name = "eqiora-numerics"
 version = "0.1.0-alpha.4"
 dependencies = [
+ "base64 0.22.1",
  "eqiora-artifact",
  "eqiora-assembly",
  "eqiora-core",
@@ -1263,7 +1264,10 @@ dependencies = [
  "eqiora-solver",
  "eqiora-spatial-distribution",
  "eqiora-time",
+ "serde",
+ "serde_json",
  "sha2 0.11.0",
+ "ulid",
 ]
 
 [[package]]

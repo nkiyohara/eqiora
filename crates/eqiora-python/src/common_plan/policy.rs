@@ -348,6 +348,20 @@ pub(crate) struct PyLinear {
 }
 
 impl PyLinear {
+    pub(super) fn from_native_controls(
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+        objective: Option<SolverPlanningObjective>,
+    ) -> Self {
+        Self {
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+            objective: objective.map(Into::into),
+        }
+    }
+
     pub(super) const fn controls(
         &self,
     ) -> (f64, f64, NonZeroUsize, Option<PySolverPlanningObjective>) {
@@ -438,6 +452,12 @@ pub(crate) struct PyBackwardEuler {
     pub(super) native: CommonBackwardEuler,
 }
 
+impl PyBackwardEuler {
+    pub(super) const fn from_native(native: CommonBackwardEuler) -> Self {
+        Self { native }
+    }
+}
+
 #[pymethods]
 impl PyBackwardEuler {
     #[new]
@@ -476,6 +496,27 @@ pub(crate) struct PyTsitouras45 {
 }
 
 impl PyTsitouras45 {
+    pub(super) fn from_native(
+        py: Python<'_>,
+        model_digest: &str,
+        native: CommonTsitouras45,
+    ) -> PyResult<Self> {
+        let fields = native
+            .absolute_tolerances()
+            .iter()
+            .map(|entry| {
+                Py::new(
+                    py,
+                    PyModelFieldRef::from_exact(
+                        model_digest.to_owned(),
+                        entry.field().ulid().to_string(),
+                    ),
+                )
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(Self { native, fields })
+    }
+
     pub(super) fn belongs_to_model(&self, py: Python<'_>, model_digest: &str) -> bool {
         self.fields
             .iter()
@@ -557,6 +598,12 @@ impl PyTsitouras45 {
 pub(crate) struct PyNewton {
     pub(super) linear: Py<PyLinear>,
     pub(super) native: NonlinearSolvePlan,
+}
+
+impl PyNewton {
+    pub(super) fn from_native(linear: Py<PyLinear>, native: NonlinearSolvePlan) -> Self {
+        Self { linear, native }
+    }
 }
 
 #[pymethods]

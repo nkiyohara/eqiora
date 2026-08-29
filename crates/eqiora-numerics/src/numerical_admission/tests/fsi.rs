@@ -31,7 +31,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         CommonLinearRequest::new(1.0e-11, 1.0e-13, NonZeroUsize::new(20_000).unwrap()).unwrap();
     let temporal = CommonBackwardEuler::from_seconds(0.05).unwrap();
     let resolve = |scaling| {
-        resolve_common_plan(
+        let resolved = resolve_common_plan(
             &model,
             resources.clone(),
             scoped.clone(),
@@ -40,8 +40,8 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             Some(temporal),
             &ResolveOnlyBackend,
         )
-        .unwrap()
-        .project(
+        .unwrap();
+        replay_plan(resolved, &ResolveOnlyBackend).project(
             |_| panic!("FSI resolved as ODE"),
             |_| panic!("FSI resolved as scalar"),
             |_| panic!("FSI resolved as elasticity"),

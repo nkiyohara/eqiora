@@ -117,6 +117,10 @@ pub struct CommonOdePlan {
 }
 
 impl CommonOdePlan {
+    pub(crate) fn model_artifact(&self) -> &ModelEnvelope {
+        &self.model
+    }
+
     /// Resolve one exact Model through canonical first-order structural lowering.
     pub fn resolve(
         model: &ModelEnvelope,
@@ -614,6 +618,7 @@ mod tests {
     };
     use eqiora_schema::{Model, ModelView};
     use eqiora_sem::KernelProgram;
+    use eqiora_solver::REFERENCE_LINEAR_SOLVER;
     use eqiora_time::TimeBackendIdentity;
 
     use super::*;
@@ -743,6 +748,17 @@ model decay {
             TimeBackendIdentity::new("eqiora.test.time", "1"),
         )
         .unwrap();
+        let resolved = crate::ResolvedCommonPlan::Ode(Box::new(plan.clone()));
+        let bytes = resolved.to_bytes().unwrap();
+        assert_eq!(
+            crate::ResolvedCommonPlan::from_bytes(
+                &bytes,
+                &REFERENCE_LINEAR_SOLVER,
+                TimeBackendIdentity::new("eqiora.test.time", "1"),
+            )
+            .unwrap(),
+            resolved
+        );
         let state = plan.initial_state().unwrap();
         assert_eq!(state.time_s(), 0.0);
         assert_eq!(state.field_ids(), &[field]);

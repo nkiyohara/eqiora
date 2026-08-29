@@ -1,6 +1,35 @@
 use super::*;
 
 #[test]
+fn authenticated_common_mesh_round_trips_canonically_and_rejects_aliases() {
+    let rectangle = rectangle();
+    let partition = fsi_geometry();
+    for owner in [
+        resources(&rectangle),
+        affine_resources(&rectangle),
+        fsi_resources(&partition),
+    ] {
+        let bytes = owner.to_bytes().unwrap();
+        let replayed = AuthenticatedCommonMesh::from_bytes(&bytes).unwrap();
+        assert_eq!(replayed, owner);
+        assert_eq!(replayed.to_bytes().unwrap(), bytes);
+        assert_eq!(replayed.digest().unwrap(), owner.digest().unwrap());
+
+        let mut noncanonical = bytes.clone();
+        noncanonical.push(b'\n');
+        assert!(AuthenticatedCommonMesh::from_bytes(&noncanonical).is_err());
+    }
+
+    let bytes = resources(&rectangle).to_bytes().unwrap();
+    let mut wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    wire["kind"] = serde_json::Value::String("gmsh4152".to_owned());
+    assert!(
+        AuthenticatedCommonMesh::from_bytes(&serde_json::to_vec(&wire).unwrap()).is_err(),
+        "a resource-family cross-wire must fail before publication"
+    );
+}
+
+#[test]
 pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurrence() {
     let geometry = rectangle();
     let policy = AffineTriangleMeshCellsV1::new([2, 3]).unwrap();

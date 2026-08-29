@@ -710,6 +710,9 @@ class Plan:
 
     Authority: ``crates/eqiora-python/src/common_plan.rs::PyPlan``.
     """
+    @staticmethod
+    def from_bytes(data: bytes) -> Plan: ...
+    def to_bytes(self) -> bytes: ...
     @property
     def identity(self) -> str: ...
     @property
