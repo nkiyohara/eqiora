@@ -20,6 +20,11 @@ const INTRINSIC_2D_FORCE: DimExponents = DimExponents {
     time: -2,
     ..DimExponents::DIMENSIONLESS
 };
+const INTRINSIC_2D_FLUX: DimExponents = DimExponents {
+    length: 2,
+    time: -1,
+    ..DimExponents::DIMENSIONLESS
+};
 
 fn dimension_tuple(value: DimExponents) -> (i8, i8, i8, i8, i8, i8, i8) {
     (
@@ -171,7 +176,8 @@ impl PyFieldSample {
 )]
 pub(crate) struct PyBoundaryForce {
     digest: String,
-    source_state_digest: String,
+    source_digest: String,
+    source_kind: &'static str,
     selection: Py<PyGeometrySelection>,
     selection_name: String,
     geometry_digest: String,
@@ -198,13 +204,15 @@ impl PyBoundaryForce {
         selection: Py<PyGeometrySelection>,
         selection_name: String,
         geometry_digest: String,
-        source_state_digest: &str,
+        source_digest: &str,
+        source_kind: &'static str,
         mesh_digest: &str,
         on_domain: [f64; 2],
     ) -> Self {
         let mut hasher = Sha256::new();
-        hasher.update(b"eqiora.boundary-force/v1\0");
-        hash_text(&mut hasher, source_state_digest);
+        hasher.update(b"eqiora.boundary-force/v2\0");
+        hash_text(&mut hasher, source_digest);
+        hash_text(&mut hasher, source_kind);
         hash_text(&mut hasher, &geometry_digest);
         hash_text(&mut hasher, &selection_name);
         hash_text(&mut hasher, mesh_digest);
@@ -213,7 +221,8 @@ impl PyBoundaryForce {
         }
         Self {
             digest: hex_sha256(hasher.finalize().as_slice()),
-            source_state_digest: source_state_digest.to_owned(),
+            source_digest: source_digest.to_owned(),
+            source_kind,
             selection,
             selection_name,
             geometry_digest,
@@ -231,8 +240,13 @@ impl PyBoundaryForce {
     }
 
     #[getter]
-    fn source_state_digest(&self) -> &str {
-        &self.source_state_digest
+    fn source_digest(&self) -> &str {
+        &self.source_digest
+    }
+
+    #[getter]
+    const fn source_kind(&self) -> &'static str {
+        self.source_kind
     }
 
     #[getter]
@@ -278,6 +292,113 @@ impl PyBoundaryForce {
             self.selection_name,
             [-self.on_domain[0], -self.on_domain[1]],
             self.digest,
+        )
+    }
+}
+
+/// Signed intrinsic-2D volume flux on one authenticated boundary.
+#[pyclass(
+    name = "BoundaryFlux",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    skip_from_py_object
+)]
+pub(crate) struct PyBoundaryFlux {
+    digest: String,
+    source_digest: String,
+    selection: Py<PyGeometrySelection>,
+    selection_name: String,
+    geometry_digest: String,
+    mesh_digest: String,
+    value: f64,
+}
+
+impl PartialEq for PyBoundaryFlux {
+    fn eq(&self, other: &Self) -> bool {
+        self.digest == other.digest
+    }
+}
+
+impl Eq for PyBoundaryFlux {}
+
+impl Hash for PyBoundaryFlux {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.digest.hash(state);
+    }
+}
+
+impl PyBoundaryFlux {
+    pub(crate) fn new(
+        selection: Py<PyGeometrySelection>,
+        selection_name: String,
+        geometry_digest: String,
+        source_digest: &str,
+        mesh_digest: &str,
+        value: f64,
+    ) -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(b"eqiora.boundary-flux/v1\0");
+        for text in [
+            source_digest,
+            &geometry_digest,
+            &selection_name,
+            mesh_digest,
+        ] {
+            hash_text(&mut hasher, text);
+        }
+        hasher.update(value.to_bits().to_be_bytes());
+        Self {
+            digest: hex_sha256(hasher.finalize().as_slice()),
+            source_digest: source_digest.to_owned(),
+            selection,
+            selection_name,
+            geometry_digest,
+            mesh_digest: mesh_digest.to_owned(),
+            value,
+        }
+    }
+}
+
+#[pymethods]
+impl PyBoundaryFlux {
+    #[getter]
+    fn digest(&self) -> &str {
+        &self.digest
+    }
+    #[getter]
+    fn source_digest(&self) -> &str {
+        &self.source_digest
+    }
+    #[getter]
+    fn selection(&self, py: Python<'_>) -> Py<PyGeometrySelection> {
+        self.selection.clone_ref(py)
+    }
+    #[getter]
+    fn geometry_digest(&self) -> &str {
+        &self.geometry_digest
+    }
+    #[getter]
+    fn mesh_digest(&self) -> &str {
+        &self.mesh_digest
+    }
+    #[getter]
+    const fn value(&self) -> f64 {
+        self.value
+    }
+    #[getter]
+    fn dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
+        dimension_tuple(INTRINSIC_2D_FLUX)
+    }
+    #[getter]
+    const fn frame(&self) -> &'static str {
+        "invariant"
+    }
+    fn __repr__(&self) -> String {
+        format!(
+            "BoundaryFlux(selection={:?}, value={:?}, digest={:?})",
+            self.selection_name, self.value, self.digest,
         )
     }
 }

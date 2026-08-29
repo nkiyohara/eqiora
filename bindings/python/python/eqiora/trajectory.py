@@ -2,6 +2,7 @@
 
 from ._eqiora import (
     BoundaryForce,
+    BoundaryFlux,
     DerivedFieldSnapshot,
     FieldSample,
     FieldSnapshot,
@@ -11,6 +12,7 @@ from ._eqiora import (
 
 __all__ = [
     "BoundaryForce",
+    "BoundaryFlux",
     "DerivedFieldSnapshot",
     "FieldSample",
     "FieldSnapshot",

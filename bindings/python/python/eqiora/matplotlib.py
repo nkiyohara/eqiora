@@ -74,8 +74,8 @@ def plot_scalar_field(
         )
 
     if state is None:
-        if output.components != 1:
-            raise ValueError("plot_scalar_field() requires one scalar component")
+        if output.value_shape != ():
+            raise ValueError("plot_scalar_field() requires scalar value shape ()")
         coordinates, triangles, values, support = _static_field_arrays(output, cell_arity=3)
         restricted = values[support]
     else:
@@ -187,8 +187,8 @@ def plot_deformed_field(
         )
 
     if state is None:
-        if output.components != spatial.dimension:
-            raise ValueError("plot_deformed_field() components must match the spatial dimension")
+        if output.value_shape != (spatial.dimension,):
+            raise ValueError("plot_deformed_field() value shape must match the spatial dimension")
         if output.dimension != (0, 1, 0, 0, 0, 0, 0):
             raise ValueError("plot_deformed_field() requires the SI length dimension")
         coordinates, cells, values, support = _static_field_arrays(
@@ -299,16 +299,17 @@ def _static_field_arrays(output, *, cell_arity):
     spatial = output.mesh
     coordinates = spatial.coordinates
     cells = spatial.cells
-    values = output.vertex_values.numpy(copy=False)
-    if output.components > 1:
-        values = values.reshape(output.vertex_count, output.components)
-    support = np.arange(output.vertex_count, dtype=np.uint32)
+    vertex_count = output.coefficient_count("vertex")
+    values = output.values("vertex").numpy(copy=False)
+    if output.value_shape:
+        values = values.reshape(vertex_count, *output.value_shape)
+    support = np.arange(vertex_count, dtype=np.uint32)
     if spatial.dimension != 2 or coordinates.ndim != 2 or coordinates.shape[1] != 2:
         raise ValueError("field stills require two-dimensional coordinates")
     if cells.ndim != 2 or cells.shape[1] != cell_arity:
         topology = "affine triangle" if cell_arity == 3 else "quadrilateral"
         raise ValueError(f"field stills require {topology} topology")
-    if values.shape[0] != output.vertex_count:
+    if values.shape[0] != vertex_count:
         raise ValueError("vertex values differ from their declared support")
     return coordinates, cells, values, support
 

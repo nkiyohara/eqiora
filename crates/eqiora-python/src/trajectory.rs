@@ -22,7 +22,8 @@ use crate::model::{PyModel, PyModelFieldRef};
 mod field;
 use field::{PyDerivedFieldSnapshot, PyFieldSnapshot, PyInitialField};
 mod observation;
-use observation::{PyBoundaryForce, PyFieldSample};
+use observation::PyFieldSample;
+pub(crate) use observation::{PyBoundaryFlux, PyBoundaryForce};
 
 /// Immutable installed-Python projection of one state in a common execution.
 #[pyclass(
@@ -578,6 +579,7 @@ impl PyState {
                 selection_name,
                 geometry_digest,
                 state.identity(),
+                "state",
                 plan.mesh_digest(),
                 force,
             ),
@@ -827,6 +829,7 @@ fn hex_sha256(bytes: &[u8]) -> String {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyBoundaryForce>()?;
+    module.add_class::<PyBoundaryFlux>()?;
     module.add_class::<PyDerivedFieldSnapshot>()?;
     module.add_class::<PyFieldSample>()?;
     module.add_class::<PyFieldSnapshot>()?;

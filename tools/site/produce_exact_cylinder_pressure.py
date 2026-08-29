@@ -341,12 +341,12 @@ def _lineage(eqiora: Any, geometry: Any, mesh: Any, plan: Any, result: Any) -> t
     evidence = eqiora.fluid.steady_stokes_evidence(result)
     if evidence.plan_key != plan.identity or result.plan_key != plan.identity:
         raise ProducerError("Result or evidence does not bind the exact Plan identity")
-    if pressure.components != 1:
+    if pressure.value_shape != ():
         raise ProducerError("pressure output is not the accepted vertex scalar")
     if pressure.dimension != EXPECTED_DIMENSION:
         raise ProducerError("pressure output does not carry the coherent-SI pressure dimension")
 
-    values = pressure.vertex_values.numpy(copy=False)
+    values = pressure.values("vertex").numpy(copy=False)
     if values.shape != (mesh.vertex_count,) or not bool(values.flags.writeable is False):
         raise ProducerError("pressure values do not match the immutable Result Mesh vertices")
     observed_minimum = float(values.min())
@@ -409,8 +409,8 @@ def _lineage(eqiora: Any, geometry: Any, mesh: Any, plan: Any, result: Any) -> t
             "frame_selection": "single steady result; temporal interval not applicable",
             "mesh_digest": pressure.mesh.digest,
             "model_digest": pressure.field.model_digest,
-            "components": pressure.components,
-            "vertex_count": pressure.vertex_count,
+            "value_shape": pressure.value_shape,
+            "vertex_count": pressure.coefficient_count("vertex"),
             "source_unit": "kg/(m*s^2)",
             "value_range": {"maximum": observed_maximum, "minimum": observed_minimum},
         },
