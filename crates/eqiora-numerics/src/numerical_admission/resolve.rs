@@ -1,3 +1,6 @@
+use super::solver_planning::{
+    resolve_fixed_reference_fsi, resolve_reference_spd, resolve_stokes_mini, resolve_transient_flow,
+};
 use super::*;
 
 pub fn resolve_common_plan(
@@ -52,13 +55,7 @@ pub fn resolve_common_plan(
                     ));
                 }
             };
-            let linear = NativeLinearPolicy::exact(
-                solve.resolve(
-                    LinearSolver::ConjugateGradient,
-                    ReductionPolicy::Reproducible,
-                )?,
-                &REFERENCE_LINEAR_SOLVER,
-            )?;
+            let linear = resolve_reference_spd(solve)?;
             let admission = recognized.complete(spatial, linear, None, None)?;
             CommonScalarPlan::from_admission(model, admission).map(|plan| ResolvedCommonPlan {
                 kind: ResolvedCommonPlanKind::Scalar(Box::new(plan)),
@@ -90,13 +87,7 @@ pub fn resolve_common_plan(
                     "linear-elasticity mathematics requires the admitted Cartesian Q1 policy",
                 ));
             }
-            let linear = NativeLinearPolicy::exact(
-                solve.resolve(
-                    LinearSolver::ConjugateGradient,
-                    ReductionPolicy::Reproducible,
-                )?,
-                &REFERENCE_LINEAR_SOLVER,
-            )?;
+            let linear = resolve_reference_spd(solve)?;
             let admission =
                 recognized.complete(NativeSpatialPolicy::ElasticityQ1, linear, None, None)?;
             CommonElasticityPlan::from_admission(model, admission).map(|plan| ResolvedCommonPlan {
@@ -128,8 +119,7 @@ pub fn resolve_common_plan(
                 unreachable!("steady-Stokes capability recognition returns a Stokes binding")
             };
             let scaling = binding.resolve_incompressible_scaling(model, scaling)?;
-            let effective_solve = solve.resolve(LinearSolver::SparseLu, ReductionPolicy::Fast)?;
-            let linear = NativeLinearPolicy::exact(effective_solve, stokes_backend)?;
+            let linear = resolve_stokes_mini(solve, stokes_backend)?;
             let admission = recognized.complete(
                 NativeSpatialPolicy::StokesMiniP1(scaling.scales()),
                 linear,
@@ -165,31 +155,7 @@ pub fn resolve_common_plan(
                 correspondence,
                 mesh,
             )?;
-            let (algorithm, reduction) = match spatial {
-                CommonSpatialPolicy::MiniP1 => (LinearSolver::SparseLu, ReductionPolicy::Fast),
-                CommonSpatialPolicy::CellCentered => (
-                    LinearSolver::BiConjugateGradientStabilized,
-                    ReductionPolicy::Reproducible,
-                ),
-                CommonSpatialPolicy::Q1 | CommonSpatialPolicy::CellCenteredTpfa => {
-                    return Err(invalid(
-                        "transient incompressible-flow mathematics requires MINI/P1 or CellCentered",
-                    ));
-                }
-                CommonSpatialPolicy::P1 => {
-                    return Err(invalid(
-                        "transient incompressible-flow mathematics does not admit standalone P1",
-                    ));
-                }
-            };
-            let effective_linear = linear.resolve(algorithm, reduction)?;
-            let linear_backend: &dyn LinearSolverBackend = match spatial {
-                CommonSpatialPolicy::MiniP1 => stokes_backend,
-                CommonSpatialPolicy::CellCentered => &REFERENCE_LINEAR_SOLVER,
-                CommonSpatialPolicy::Q1 | CommonSpatialPolicy::CellCenteredTpfa => unreachable!(),
-                CommonSpatialPolicy::P1 => unreachable!(),
-            };
-            let linear = NativeLinearPolicy::exact(effective_linear, linear_backend)?;
+            let linear = resolve_transient_flow(linear, spatial, stokes_backend)?;
             let native_spatial = match spatial {
                 CommonSpatialPolicy::MiniP1 => {
                     NativeSpatialPolicy::TransientMiniP1(scaling.scales())
@@ -246,13 +212,7 @@ pub fn resolve_common_plan(
                     "FSI scoped spatial policies must completely and exclusively bind MiniP1 to fluid and P1 to solid",
                 ));
             }
-            let effective_linear =
-                linear.resolve(LinearSolver::MinimumResidual, ReductionPolicy::Reproducible)?;
-            REFERENCE_LINEAR_SOLVER.capabilities().require_problem(
-                effective_linear,
-                ScalarType::F64,
-                LinearOperatorProperties::SymmetricIndefinite,
-            )?;
+            let effective_linear = resolve_fixed_reference_fsi(linear)?;
             CommonFsiPlan::from_recognized(model, recognized, scaling, temporal, effective_linear)
                 .map(|plan| ResolvedCommonPlan {
                     kind: ResolvedCommonPlanKind::Fsi(Box::new(plan)),
