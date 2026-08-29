@@ -4,6 +4,7 @@
 //! not recognize mathematics, choose a Formulation, admit spatial resources,
 //! construct a Realization, or execute numerical work.
 
+use super::spatial_planning::TransientSpatialDecision;
 use super::*;
 
 pub(super) fn resolve_reference_spd(
@@ -33,30 +34,24 @@ pub(super) fn resolve_stokes_mini(
 
 pub(super) fn resolve_transient_flow(
     controls: CommonLinearControls,
-    spatial: CommonSpatialPolicy,
+    spatial: TransientSpatialDecision,
     mini_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
     match spatial {
-        CommonSpatialPolicy::MiniP1 => resolve_exact(
+        TransientSpatialDecision::MiniP1 => resolve_exact(
             controls,
             LinearSolver::SparseLu,
             ReductionPolicy::Fast,
             LinearOperatorProperties::General,
             mini_backend,
         ),
-        CommonSpatialPolicy::CellCentered => resolve_exact(
+        TransientSpatialDecision::CellCentered => resolve_exact(
             controls,
             LinearSolver::BiConjugateGradientStabilized,
             ReductionPolicy::Reproducible,
             LinearOperatorProperties::General,
             &REFERENCE_LINEAR_SOLVER,
         ),
-        CommonSpatialPolicy::Q1 | CommonSpatialPolicy::CellCenteredTpfa => Err(invalid(
-            "transient incompressible-flow mathematics requires MINI/P1 or CellCentered",
-        )),
-        CommonSpatialPolicy::P1 => Err(invalid(
-            "transient incompressible-flow mathematics does not admit standalone P1",
-        )),
     }
 }
 
@@ -147,7 +142,7 @@ mod tests {
 
         let mini = resolve_transient_flow(
             controls(),
-            CommonSpatialPolicy::MiniP1,
+            TransientSpatialDecision::MiniP1,
             &ResolveOnlySparseBackend,
         )
         .unwrap();
@@ -156,7 +151,7 @@ mod tests {
 
         let cell_centered = resolve_transient_flow(
             controls(),
-            CommonSpatialPolicy::CellCentered,
+            TransientSpatialDecision::CellCentered,
             &REFERENCE_LINEAR_SOLVER,
         )
         .unwrap();
@@ -172,16 +167,5 @@ mod tests {
         let fsi = resolve_fixed_reference_fsi(controls()).unwrap();
         assert_eq!(fsi.algorithm(), LinearSolver::MinimumResidual);
         assert_eq!(fsi.reduction(), ReductionPolicy::Reproducible);
-    }
-
-    #[test]
-    fn transient_decision_rejects_foreign_spatial_methods() {
-        for spatial in [
-            CommonSpatialPolicy::Q1,
-            CommonSpatialPolicy::CellCenteredTpfa,
-            CommonSpatialPolicy::P1,
-        ] {
-            assert!(resolve_transient_flow(controls(), spatial, &REFERENCE_LINEAR_SOLVER).is_err());
-        }
     }
 }

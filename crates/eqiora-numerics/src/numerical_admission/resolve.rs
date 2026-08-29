@@ -1,6 +1,10 @@
 use super::solver_planning::{
     resolve_fixed_reference_fsi, resolve_reference_spd, resolve_stokes_mini, resolve_transient_flow,
 };
+use super::spatial_planning::{
+    require_fixed_reference_fsi, resolve_elasticity, resolve_scalar, resolve_stokes,
+    resolve_transient,
+};
 use super::*;
 
 pub fn resolve_common_plan(
@@ -31,30 +35,7 @@ pub fn resolve_common_plan(
                     "scalar-elliptic Model mathematics does not admit incompressible-flow scaling",
                 ));
             }
-            let CommonSpatialRequest::Uniform(spatial) = spatial else {
-                return Err(invalid(
-                    "scalar-elliptic mathematics does not admit Domain-scoped spatial policies",
-                ));
-            };
-            let spatial = match spatial {
-                CommonSpatialPolicy::Q1 => NativeSpatialPolicy::ScalarQ1,
-                CommonSpatialPolicy::CellCenteredTpfa => NativeSpatialPolicy::ScalarTpfa,
-                CommonSpatialPolicy::MiniP1 => {
-                    return Err(invalid(
-                        "scalar-elliptic Model mathematics is incompatible with MINI/P1",
-                    ));
-                }
-                CommonSpatialPolicy::CellCentered => {
-                    return Err(invalid(
-                        "scalar-elliptic Model mathematics is incompatible with incompressible CellCentered",
-                    ));
-                }
-                CommonSpatialPolicy::P1 => {
-                    return Err(invalid(
-                        "scalar-elliptic Model mathematics is incompatible with simplex P1",
-                    ));
-                }
-            };
+            let spatial = resolve_scalar(spatial)?;
             let linear = resolve_reference_spd(solve)?;
             let admission = recognized.complete(spatial, linear, None, None)?;
             CommonScalarPlan::from_admission(model, admission).map(|plan| ResolvedCommonPlan {
@@ -77,19 +58,9 @@ pub fn resolve_common_plan(
                     "linear-elasticity mathematics does not admit incompressible-flow scaling",
                 ));
             }
-            let CommonSpatialRequest::Uniform(spatial) = spatial else {
-                return Err(invalid(
-                    "linear-elasticity mathematics does not admit Domain-scoped spatial policies",
-                ));
-            };
-            if spatial != CommonSpatialPolicy::Q1 {
-                return Err(invalid(
-                    "linear-elasticity mathematics requires the admitted Cartesian Q1 policy",
-                ));
-            }
+            let spatial = resolve_elasticity(spatial)?;
             let linear = resolve_reference_spd(solve)?;
-            let admission =
-                recognized.complete(NativeSpatialPolicy::ElasticityQ1, linear, None, None)?;
+            let admission = recognized.complete(spatial, linear, None, None)?;
             CommonElasticityPlan::from_admission(model, admission).map(|plan| ResolvedCommonPlan {
                 kind: ResolvedCommonPlanKind::Elasticity(Box::new(plan)),
             })
@@ -105,27 +76,14 @@ pub fn resolve_common_plan(
                     "steady-Stokes mathematics does not admit a temporal policy",
                 ));
             }
-            let CommonSpatialRequest::Uniform(spatial) = spatial else {
-                return Err(invalid(
-                    "steady-Stokes mathematics does not admit Domain-scoped spatial policies",
-                ));
-            };
-            if spatial != CommonSpatialPolicy::MiniP1 {
-                return Err(invalid(
-                    "steady-Stokes Model mathematics requires the admitted MINI/P1 policy",
-                ));
-            }
+            let spatial = resolve_stokes(spatial)?;
             let RecognizedNativeModel::Stokes(binding) = &recognized.recognized else {
                 unreachable!("steady-Stokes capability recognition returns a Stokes binding")
             };
             let scaling = binding.resolve_incompressible_scaling(model, scaling)?;
             let linear = resolve_stokes_mini(solve, stokes_backend)?;
-            let admission = recognized.complete(
-                NativeSpatialPolicy::StokesMiniP1(scaling.scales()),
-                linear,
-                None,
-                None,
-            )?;
+            let admission =
+                recognized.complete(spatial.with_scaling(scaling.scales()), linear, None, None)?;
             CommonSteadyStokesPlan::from_admission(model, admission, scaling).map(|plan| {
                 ResolvedCommonPlan {
                     kind: ResolvedCommonPlanKind::SteadyStokes(Box::new(plan)),
@@ -133,11 +91,7 @@ pub fn resolve_common_plan(
             })
         }
         NativeCapability::TransientIncompressibleFlow => {
-            let CommonSpatialRequest::Uniform(spatial) = spatial else {
-                return Err(invalid(
-                    "transient-flow mathematics does not admit Domain-scoped spatial policies",
-                ));
-            };
+            let spatial = resolve_transient(spatial)?;
             let CommonSolvePolicy::Newton { nonlinear, linear } = solve else {
                 return Err(invalid(
                     "transient incompressible-flow mathematics requires Newton(linear=...) policy",
@@ -156,16 +110,7 @@ pub fn resolve_common_plan(
                 mesh,
             )?;
             let linear = resolve_transient_flow(linear, spatial, stokes_backend)?;
-            let native_spatial = match spatial {
-                CommonSpatialPolicy::MiniP1 => {
-                    NativeSpatialPolicy::TransientMiniP1(scaling.scales())
-                }
-                CommonSpatialPolicy::CellCentered => {
-                    NativeSpatialPolicy::TransientCellCentered(scaling.scales())
-                }
-                CommonSpatialPolicy::Q1 | CommonSpatialPolicy::CellCenteredTpfa => unreachable!(),
-                CommonSpatialPolicy::P1 => unreachable!(),
-            };
+            let native_spatial = spatial.with_scaling(scaling.scales());
             let admission =
                 recognized.complete(native_spatial, linear, Some(temporal), Some(nonlinear))?;
             CommonTransientFlowPlan::from_admission(model, admission, scaling, temporal, nonlinear)
@@ -181,37 +126,10 @@ pub fn resolve_common_plan(
             };
             let temporal = temporal
                 .ok_or_else(|| invalid("fixed-reference FSI mathematics requires BackwardEuler"))?;
-            let CommonSpatialRequest::Scoped(bindings) = spatial else {
-                return Err(invalid(
-                    "fixed-reference FSI mathematics requires exact Domain-scoped spatial policies",
-                ));
-            };
             let RecognizedNativeModel::Fsi(canonical) = &recognized.recognized else {
                 unreachable!("FSI capability owns recognized FSI meaning")
             };
-            let expected = BTreeMap::from([
-                (canonical.fluid().domain(), CommonSpatialPolicy::MiniP1),
-                (canonical.solid().domain(), CommonSpatialPolicy::P1),
-            ]);
-            let mut actual = BTreeMap::new();
-            for binding in bindings {
-                if binding.model() != &model.digest()? {
-                    return Err(invalid(
-                        "FSI scoped spatial policy carries a foreign or stale exact Model reference",
-                    ));
-                }
-                if actual
-                    .insert(binding.domain().erase(), binding.policy())
-                    .is_some()
-                {
-                    return Err(invalid("FSI scoped spatial policy repeats one DomainRef"));
-                }
-            }
-            if actual != expected {
-                return Err(invalid(
-                    "FSI scoped spatial policies must completely and exclusively bind MiniP1 to fluid and P1 to solid",
-                ));
-            }
+            require_fixed_reference_fsi(model, canonical, spatial)?;
             let effective_linear = resolve_fixed_reference_fsi(linear)?;
             CommonFsiPlan::from_recognized(model, recognized, scaling, temporal, effective_linear)
                 .map(|plan| ResolvedCommonPlan {
