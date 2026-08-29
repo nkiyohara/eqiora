@@ -5,10 +5,10 @@ use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
 
 use eqiora::realization::NonlinearSolvePlan;
-use eqiora::solver::{LinearSolver, SolverPlan};
 use eqiora::{Id, kinds};
 use eqiora_numerics::{
-    CommonBackwardEuler, CommonPressureGauge2d, CommonTsitouras45, CommonTsitourasTolerance,
+    CommonBackwardEuler, CommonPressureGauge2d, CommonSolvePolicy, CommonTsitouras45,
+    CommonTsitourasTolerance,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -206,7 +206,19 @@ impl PyCellCentered {
 )]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct PyLinear {
-    pub(super) native: SolverPlan,
+    relative_tolerance: f64,
+    absolute_tolerance: f64,
+    maximum_iterations: NonZeroUsize,
+}
+
+impl PyLinear {
+    pub(super) const fn controls(&self) -> (f64, f64, NonZeroUsize) {
+        (
+            self.relative_tolerance,
+            self.absolute_tolerance,
+            self.maximum_iterations,
+        )
+    }
 }
 
 #[pymethods]
@@ -221,33 +233,32 @@ impl PyLinear {
     ) -> PyResult<Self> {
         let maximum_iterations = NonZeroUsize::new(maximum_iterations)
             .ok_or_else(|| PyTypeError::new_err("maximum_iterations must be a positive integer"))?;
-        SolverPlan::new(
-            LinearSolver::ConjugateGradient,
-            relative_tolerance,
-            absolute_tolerance,
-            maximum_iterations,
-        )
-        .map(|native| Self { native })
-        .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+        CommonSolvePolicy::linear(relative_tolerance, absolute_tolerance, maximum_iterations)
+            .map(|_| Self {
+                relative_tolerance,
+                absolute_tolerance,
+                maximum_iterations,
+            })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
     }
 
     #[getter]
     fn relative_tolerance(&self) -> f64 {
-        self.native.relative_tolerance()
+        self.relative_tolerance
     }
     #[getter]
     fn absolute_tolerance(&self) -> f64 {
-        self.native.absolute_tolerance()
+        self.absolute_tolerance
     }
     #[getter]
     fn maximum_iterations(&self) -> usize {
-        self.native.maximum_iterations().get()
+        self.maximum_iterations.get()
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
         other
             .extract::<PyRef<'_, Self>>()
-            .is_ok_and(|other| self.native == other.native)
+            .is_ok_and(|other| self == &*other)
     }
 
     fn __hash__(&self) -> isize {
@@ -401,12 +412,6 @@ pub(crate) struct PyNewton {
     pub(super) native: NonlinearSolvePlan,
 }
 
-impl PyNewton {
-    pub(super) fn from_native(linear: Py<PyLinear>, native: NonlinearSolvePlan) -> Self {
-        Self { linear, native }
-    }
-}
-
 #[pymethods]
 impl PyNewton {
     #[new]
@@ -458,8 +463,7 @@ impl PyNewton {
 
     fn __eq__(&self, py: Python<'_>, other: &Bound<'_, PyAny>) -> bool {
         other.extract::<PyRef<'_, Self>>().is_ok_and(|other| {
-            self.native == other.native
-                && self.linear.borrow(py).native == other.linear.borrow(py).native
+            self.native == other.native && *self.linear.borrow(py) == *other.linear.borrow(py)
         })
     }
 

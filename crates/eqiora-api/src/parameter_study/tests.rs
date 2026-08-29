@@ -14,7 +14,7 @@ use eqiora_numerics::{
     resolve_common_plan,
 };
 use eqiora_realization::RealizationRevision;
-use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
+use eqiora_solver::REFERENCE_LINEAR_SOLVER;
 
 use super::{CompleteParameterStudy, ParameterStudyPlan};
 use crate::{DifferentiableEvaluation, DifferentiableProgram, ModelDocument};
@@ -455,8 +455,7 @@ fn plan_for(
     } else {
         2.0e-10
     };
-    let solver = SolverPlan::new(
-        LinearSolver::ConjugateGradient,
+    let solver = CommonSolvePolicy::linear(
         relative_tolerance,
         1.0e-12,
         NonZeroUsize::new(10_000).unwrap(),
@@ -467,7 +466,7 @@ fn plan_for(
         &model,
         owner,
         spatial,
-        CommonSolvePolicy::Linear(solver),
+        solver,
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,

@@ -438,7 +438,8 @@ assert q1.identity != tpfa.identity
 assert q1.cells == (2, 3)
 assert q1.scaling is None
 assert q1.scaling_receipt is None
-assert q1.solve is linear
+assert q1.requested_solve is linear
+assert q1.solve.algorithm == "conjugate-gradient"
 q1_result = package.run(q1)
 tpfa_result = package.run(tpfa)
 assert q1_result.model_digest == q1.model_digest
@@ -666,12 +667,13 @@ else:
     raise AssertionError("scaling receipt was mutable")
 assert plan.discretization == "mini-p1"
 assert plan.mesh_kind == "imported-affine-simplicial"
-assert plan.operator_properties == "symmetric-indefinite"
-assert plan.solver_algorithm == "sparse-lu"
-assert plan.preconditioner == "identity"
-assert plan.reduction == "fast"
 assert plan.solver_backend == "eqiora.faer"
-assert plan.solve is linear
+assert plan.requested_solve is linear
+assert plan.solve.algorithm == "sparse-lu"
+assert plan.solve.operator == "symmetric-indefinite"
+assert plan.solve.preconditioner == "identity"
+assert plan.solve.reduction == "fast"
+assert plan.solve.backend == "eqiora.faer"
 result = package.run(plan)
 assert isinstance(result, package.Result)
 stokes_evidence = package.fluid.steady_stokes_evidence(result)
@@ -1001,6 +1003,7 @@ assert fvm.model is model and fvm.mesh is cartesian
 assert mini.fields == (mini.velocity_field, mini.pressure_field)
 assert fvm.fields == (fvm.velocity_field, fvm.pressure_field)
 assert mini.solve is not newton and mini.solve.linear is not linear
+assert mini.requested_solve is newton
 assert mini.solve.relative_tolerance == 1e-9
 assert mini.solve.absolute_tolerance == 1e-11
 assert mini.solve.maximum_iterations == 16
@@ -1022,9 +1025,9 @@ assert mini.pressure_gauge is package.fluid.PressureGauge2d.ZeroIntegral
 assert fvm.pressure_gauge is package.fluid.PressureGauge2d.ZeroIntegral
 assert mini.mesh_kind == "imported-affine-simplicial"
 assert fvm.mesh_kind == "supplied-cartesian"
-assert mini.solver_algorithm == "sparse-lu"
-assert fvm.solver_algorithm == "bicgstab"
-assert mini.reduction == "fast" and fvm.reduction == "reproducible"
+assert mini.solve.linear.algorithm == "sparse-lu"
+assert fvm.solve.linear.algorithm == "bicgstab"
+assert mini.solve.linear.reduction == "fast" and fvm.solve.linear.reduction == "reproducible"
 assert mini.solver_backend == "eqiora.faer"
 assert fvm.solver_backend == "eqiora.reference"
 assert mini.scaling.length_m == 1.0 and mini.scaling.velocity_m_per_s == 2.0 and mini.scaling.pressure_pa == 3.0
@@ -1253,12 +1256,12 @@ assert plan.fields == (plan.field,)
 assert plan.velocity_field is None and plan.pressure_field is None
 assert plan.cells == (2, 3)
 assert plan.spatial == package.fem.Q1()
-assert plan.solve is linear
+assert plan.requested_solve is linear
+assert plan.solve.algorithm == "conjugate-gradient"
 assert plan.scaling is None and plan.scaling_receipt is None
 assert plan.temporal is None
-assert plan.solver_algorithm == "conjugate-gradient"
-assert plan.preconditioner == "identity"
-assert plan.reduction == "reproducible"
+assert plan.solve.preconditioner == "identity"
+assert plan.solve.reduction == "reproducible"
 assert plan.placement == "host-serial" and plan.workers == 1
 
 result = package.run(plan)

@@ -8,7 +8,7 @@ use eqiora::artifact::{
 };
 use eqiora::geometry::{CanonicalGeometryV1, PlanarOperationGraph, PlanarTopologyHandle};
 use eqiora::meshing::{MeshEntity, MeshTopology};
-use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
+use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonElasticityPlan, CommonElasticityRunOutput, CommonSolvePolicy,
     CommonSpatialPolicy, resolve_common_plan,
@@ -119,19 +119,14 @@ fn accepted() -> Accepted {
         production,
     )
     .unwrap();
-    let solver = SolverPlan::new(
-        LinearSolver::ConjugateGradient,
-        1.0e-10,
-        1.0e-12,
-        NonZeroUsize::new(10_000).unwrap(),
-    )
-    .unwrap();
+    let solver =
+        CommonSolvePolicy::linear(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let plan = resolve_common_plan(
         &model,
         owner,
         CommonSpatialPolicy::Q1,
-        CommonSolvePolicy::Linear(solver),
+        solver,
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
