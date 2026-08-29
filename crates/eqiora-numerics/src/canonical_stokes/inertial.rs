@@ -3,10 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::{Diagnostic, RawId};
-use eqiora_graph::EdgeKind;
 use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
 use eqiora_schema::kernel::typing::TypedResidual;
-use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, KernelNode, SymbolRef};
+use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::BoundaryRelationBinding2d;
@@ -17,10 +16,10 @@ use super::boundary::{self, LoweredStokesBoundary2d};
 use super::expression::{
     is_divergence_of_field, load_definition_root, lower_newtonian_stress_viscosity,
 };
-use super::recognize::{exact_fields, unique_box_2d};
+use super::recognize::exact_fields;
 use super::support::{
-    lowering_error, model_lowering_error, relation_expression, relations_on,
-    require_continuous_relation, typed_relation, unique_root,
+    lowering_error, relation_expression, relations_on, require_continuous_relation, typed_relation,
+    unique_root,
 };
 
 /// Exact, method-neutral inertial incompressible Newtonian fluid in 2D.
@@ -167,24 +166,6 @@ impl InertialIncompressibleNewtonianCartesianModel2d {
         }
         Ok(gradient)
     }
-}
-
-/// Lower one exact whole-model inertial incompressible Newtonian fluid.
-///
-/// Recognition is identity-parametric and package-neutral. An exact global
-/// sign reversal of the momentum residual is normalized; broader algebraic
-/// equivalence is deliberately not inferred.
-///
-/// # Errors
-/// Returns `EQ0703` unless the entire Model is exactly the admitted fluid and
-/// its complete boundary network.
-pub fn lower_inertial_incompressible_newtonian_cartesian_2d(
-    program: &KernelProgram,
-) -> Result<InertialIncompressibleNewtonianCartesianModel2d, Diagnostic> {
-    let (domain, bounds) = unique_box_2d(program)?;
-    let lowered = lower_inertial_incompressible_newtonian_subdomain_2d(program, domain, bounds)?;
-    require_closed_inertial_fluid_model(program, &lowered)?;
-    Ok(lowered.model)
 }
 
 /// Domain-scoped fluid recognition for exact multiphysics compositions.
@@ -515,71 +496,6 @@ pub(super) fn require_positive_constant(
             owner,
             format!("fluid {quantity} must be finite and strictly positive"),
         ));
-    }
-    Ok(())
-}
-
-fn require_closed_inertial_fluid_model(
-    program: &KernelProgram,
-    lowered: &LoweredInertialIncompressibleNewtonianSubdomain2d,
-) -> Result<(), Diagnostic> {
-    let mut domains = BTreeSet::from([lowered.model.domain]);
-    domains.extend(
-        lowered
-            .model
-            .boundary_inventory
-            .entries()
-            .map(|(_, entry)| entry.boundary()),
-    );
-    domains.extend(lowered.boundary.connector_domains.iter().copied());
-    let mut relations = BTreeSet::from([
-        lowered.model.force_potential_definition(),
-        lowered.model.momentum_relation(),
-        lowered.model.incompressibility_relation(),
-    ]);
-    relations.extend(
-        lowered
-            .model
-            .boundary_relations()
-            .iter()
-            .map(|binding| binding.relation()),
-    );
-    let activations = program
-        .edges()
-        .iter()
-        .filter(|edge| edge.kind() == EdgeKind::Activates && relations.contains(&edge.to()))
-        .map(|edge| edge.from())
-        .collect::<BTreeSet<_>>();
-    let parameters = parameters_referenced_by(program, &relations);
-    let fields = BTreeSet::from([
-        lowered.model.velocity,
-        lowered.model.pressure,
-        lowered.model.force_potential,
-    ]);
-    for node in program.nodes() {
-        let admitted = match node {
-            KernelNode::Domain(value) => domains.contains(&value.id().erase()),
-            KernelNode::Representation(value) => value.id().erase() == lowered.representation,
-            KernelNode::Field(value) => fields.contains(&value.id().erase()),
-            KernelNode::Parameter(value) => parameters.contains(&value.id().erase()),
-            KernelNode::Relation(value) => relations.contains(&value.id().erase()),
-            KernelNode::Activation(value) => activations.contains(&value.id().erase()),
-            KernelNode::Port(value) => lowered.boundary.ports.contains(&value.id().erase()),
-            KernelNode::Connection(value) => {
-                lowered.boundary.connections.contains(&value.id().erase())
-            }
-            _ => false,
-        };
-        if !admitted {
-            return Err(model_lowering_error(
-                program,
-                format!(
-                    "closed inertial-fluid lowering would ignore unexpected {:?} node {}",
-                    node.kind(),
-                    node.id()
-                ),
-            ));
-        }
     }
     Ok(())
 }

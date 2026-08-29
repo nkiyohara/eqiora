@@ -2,10 +2,80 @@
 
 use pyo3::prelude::*;
 
+use eqiora_numerics::{CommonFormulationDescription, FormulationKind, FormulationSelectionMode};
+
 use crate::model::PyModelFieldRef;
 
 use super::policy::PyPressureGauge2d;
 use super::scaling::{PyIncompressibleScales, PyIncompressibleScalingReceipt2d};
+
+/// Inspectable effective mathematical Formulation selected before Realization.
+///
+/// Authority: `crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationView`.
+#[pyclass(
+    name = "FormulationView",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Debug)]
+pub(crate) struct PyFormulationView {
+    requested: &'static str,
+    effective: &'static str,
+    boundary_treatment: &'static str,
+    rule_ids: Vec<&'static str>,
+    selection_reason_codes: Vec<&'static str>,
+}
+
+impl PyFormulationView {
+    pub(crate) fn from_native(description: CommonFormulationDescription) -> Self {
+        let requested = match description.requested() {
+            FormulationSelectionMode::Automatic => "automatic",
+        };
+        let effective = match description.effective() {
+            FormulationKind::PrimalGalerkin => "primal-galerkin",
+            FormulationKind::MixedGalerkin => "mixed-galerkin",
+            FormulationKind::IntegralConservative => "integral-conservative",
+        };
+        Self {
+            requested,
+            effective,
+            boundary_treatment: description.boundary_treatment(),
+            rule_ids: description.rule_ids().to_vec(),
+            selection_reason_codes: description.selection_reason_codes().to_vec(),
+        }
+    }
+}
+
+#[pymethods]
+impl PyFormulationView {
+    #[getter]
+    const fn requested(&self) -> &'static str {
+        self.requested
+    }
+    #[getter]
+    const fn effective(&self) -> &'static str {
+        self.effective
+    }
+    #[getter]
+    const fn boundary_treatment(&self) -> &'static str {
+        self.boundary_treatment
+    }
+    #[getter]
+    fn rule_ids(&self) -> Vec<&'static str> {
+        self.rule_ids.clone()
+    }
+    #[getter]
+    fn selection_reason_codes(&self) -> Vec<&'static str> {
+        self.selection_reason_codes.clone()
+    }
+    fn __repr__(&self) -> String {
+        format!(
+            "FormulationView(requested={:?}, effective={:?})",
+            self.requested, self.effective
+        )
+    }
+}
 
 /// Resolved no-Mesh ODE capability.
 #[pyclass(

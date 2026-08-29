@@ -488,6 +488,19 @@ fn lowers_exact_fixed_domain_transient_navier_stokes_meaning() {
     }
     assert_eq!(model.boundary_relations().len(), 4);
 
+    let projected = model.common_projection();
+    let mixed = projected.mixed_galerkin_correspondence();
+    assert_eq!(mixed.formulation.kind, FormulationKind::MixedGalerkin);
+    assert_eq!(mixed.formulation.velocity_trial, model.velocity());
+    assert_eq!(mixed.formulation.pressure_trial, model.pressure());
+    let mut stale_mixed = mixed.clone();
+    stale_mixed.law.boundary_relations.pop();
+    assert!(
+        projected
+            .replay_mixed_galerkin_correspondence(&stale_mixed)
+            .is_err()
+    );
+
     let correspondence = super::integral_conservative_correspondence(&model);
     assert_eq!(
         correspondence.formulation.kind,

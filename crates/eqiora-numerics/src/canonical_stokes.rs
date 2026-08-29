@@ -11,6 +11,7 @@ mod navier_stokes;
 mod navier_stokes_fvm_acceptance;
 mod navier_stokes_fvm_realization;
 mod navier_stokes_integral_formulation;
+mod navier_stokes_mixed_formulation;
 mod navier_stokes_realization;
 mod physical;
 mod prescribed_velocity;
@@ -33,10 +34,7 @@ pub(crate) use geometry_realization::scaling::{
 pub use geometry_realization::{
     SteadyStokesGeometryBinding2d, solve_resolved_steady_stokes_geometry_mini_2d,
 };
-pub use inertial::{
-    InertialIncompressibleNewtonianCartesianModel2d,
-    lower_inertial_incompressible_newtonian_cartesian_2d,
-};
+pub use inertial::InertialIncompressibleNewtonianCartesianModel2d;
 pub(crate) use inertial::{
     LoweredInertialIncompressibleNewtonianSubdomain2d,
     lower_inertial_incompressible_newtonian_subdomain_2d,

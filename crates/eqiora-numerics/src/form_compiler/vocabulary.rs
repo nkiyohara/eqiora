@@ -29,10 +29,14 @@ pub(super) enum WeakSign {
     Negative,
 }
 
+/// Mathematical form selected between an exact Model and its numerical Realization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FormulationKind {
+pub enum FormulationKind {
+    /// Primal test/trial pairing produced by Galerkin derivation.
     PrimalGalerkin,
+    /// Mixed test/trial pairing with more than one field role.
     MixedGalerkin,
+    /// Arbitrary-subdomain conservation balance consumed by conservative methods.
     IntegralConservative,
 }
 
@@ -40,6 +44,15 @@ pub(crate) enum FormulationKind {
 pub(crate) enum BoundaryTreatment {
     CompleteHomogeneousEssential,
     ExplicitTraceFluxLaws,
+}
+
+impl BoundaryTreatment {
+    pub(crate) const fn id(self) -> &'static str {
+        match self {
+            Self::CompleteHomogeneousEssential => "complete-homogeneous-essential",
+            Self::ExplicitTraceFluxLaws => "explicit-trace-flux-laws",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -196,6 +209,19 @@ pub(crate) enum MixedFormulationRule {
     ExplicitBoundaryLaw,
 }
 
+impl MixedFormulationRule {
+    pub(crate) const fn id(self) -> &'static str {
+        match self {
+            Self::MomentumTestPairing => "fem.mixed.v1.momentum-test-pairing",
+            Self::StressDivergenceByParts => "fem.mixed.v1.stress-divergence-by-parts",
+            Self::PressureVelocityCoupling => "fem.mixed.v1.pressure-velocity-coupling",
+            Self::ContinuityConstraintPairing => "fem.mixed.v1.continuity-constraint-pairing",
+            Self::SourcePairing => "fem.mixed.v1.source-pairing",
+            Self::ExplicitBoundaryLaw => "fem.mixed.v1.explicit-boundary-law",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MixedLawIdentity {
     pub(crate) domain: RawId,
@@ -292,6 +318,24 @@ pub(crate) enum IntegralConservativeRule {
     BodySourceIntegral,
     IncompressibilityFluxBalance,
     ExplicitBoundaryLaw,
+}
+
+impl IntegralConservativeRule {
+    pub(crate) const fn id(self) -> &'static str {
+        match self {
+            Self::ArbitrarySubdomainBalance => {
+                "conservative.integral.v1.arbitrary-subdomain-balance"
+            }
+            Self::TransientStorageIntegral => "conservative.integral.v1.transient-storage-integral",
+            Self::PhysicalMomentumFlux => "conservative.integral.v1.physical-momentum-flux",
+            Self::PhysicalStressFlux => "conservative.integral.v1.physical-stress-flux",
+            Self::BodySourceIntegral => "conservative.integral.v1.body-source-integral",
+            Self::IncompressibilityFluxBalance => {
+                "conservative.integral.v1.incompressibility-flux-balance"
+            }
+            Self::ExplicitBoundaryLaw => "conservative.integral.v1.explicit-boundary-law",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

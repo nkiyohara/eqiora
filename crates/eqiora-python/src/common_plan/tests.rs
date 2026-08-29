@@ -435,6 +435,7 @@ assert fresh_plan.identity != q1.identity
 assert q1.identity != tpfa.identity
 assert q1.mesh.cells.shape == (6, 4)
 assert isinstance(q1.capability, package.ScalarPlanView)
+assert q1.formulation is None
 assert not hasattr(q1.capability, "scaling")
 assert q1.requested_solve is linear
 assert q1.solve.algorithm == "conjugate-gradient"
@@ -1038,6 +1039,21 @@ assert mini.capability.pressure_space == "continuous-lagrange-p1"
 assert fvm.capability.velocity_space == fvm.capability.pressure_space == "cell-constant"
 assert mini.capability.pressure_gauge is package.fluid.PressureGauge2d.ZeroIntegral
 assert fvm.capability.pressure_gauge is package.fluid.PressureGauge2d.ZeroIntegral
+assert isinstance(mini.formulation, package.FormulationView)
+assert mini.formulation.requested == "automatic"
+assert mini.formulation.effective == "mixed-galerkin"
+assert mini.formulation.boundary_treatment == "explicit-trace-flux-laws"
+assert len(mini.formulation.rule_ids) == 6
+assert mini.formulation.selection_reason_codes == [
+    "eqiora.formulation.auto.mixed-galerkin-for-mini-p1/v1",
+]
+assert fvm.formulation.requested == "automatic"
+assert fvm.formulation.effective == "integral-conservative"
+assert fvm.formulation.boundary_treatment == "explicit-trace-flux-laws"
+assert len(fvm.formulation.rule_ids) == 7
+assert fvm.formulation.selection_reason_codes == [
+    "eqiora.formulation.auto.integral-conservative-for-cell-centered-fvm/v1",
+]
 assert mini.solve.linear.algorithm == "sparse-lu"
 assert fvm.solve.linear.algorithm == "bicgstab"
 assert mini.solve.linear.reduction == "fast" and fvm.solve.linear.reduction == "reproducible"

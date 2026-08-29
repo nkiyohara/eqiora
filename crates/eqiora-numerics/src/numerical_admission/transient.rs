@@ -1,6 +1,22 @@
 use super::*;
 
 impl CommonTransientFlowPlan {
+    /// Effective Formulation and its automatic-selection audit.
+    #[must_use]
+    pub fn formulation(&self) -> CommonFormulationDescription {
+        match &self.formulation {
+            CommonTransientFormulation::MixedGalerkin(correspondence) => {
+                CommonFormulationDescription::mixed(
+                    correspondence,
+                    "eqiora.formulation.auto.mixed-galerkin-for-mini-p1/v1",
+                )
+            }
+            CommonTransientFormulation::IntegralConservative(correspondence) => {
+                CommonFormulationDescription::integral(correspondence)
+            }
+        }
+    }
+
     pub(super) fn from_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
@@ -70,9 +86,14 @@ impl CommonTransientFlowPlan {
                     } else {
                         CommonPressureGauge2d::ZeroIntegral
                     };
+                    let common = transient.common_projection();
+                    let formulation = common.mixed_galerkin_correspondence();
+                    common
+                        .replay_mixed_galerkin_correspondence(&formulation)
+                        .map_err(invalid)?;
                     (
                         CommonTransientResolvedSpatial::MiniP1(resolved),
-                        CommonTransientFormulation::DedicatedMiniP1,
+                        CommonTransientFormulation::MixedGalerkin(Box::new(formulation)),
                         Space::simplex_p1_bubble(),
                         Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                         gauge,
@@ -122,9 +143,14 @@ impl CommonTransientFlowPlan {
                     } else {
                         CommonPressureGauge2d::ZeroIntegral
                     };
+                    let formulation = binding.model().mixed_galerkin_correspondence();
+                    binding
+                        .model()
+                        .replay_mixed_galerkin_correspondence(&formulation)
+                        .map_err(invalid)?;
                     (
                         CommonTransientResolvedSpatial::MiniP1(resolved),
-                        CommonTransientFormulation::DedicatedMiniP1,
+                        CommonTransientFormulation::MixedGalerkin(Box::new(formulation)),
                         Space::simplex_p1_bubble(),
                         Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                         gauge,

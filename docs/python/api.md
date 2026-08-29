@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 16 module summaries and all 141 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 559 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 16 module summaries and all 142 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 565 signature-only entries under documented owning types**.
 
-Inventory: 16 modules, 166 literal public spellings, 141 canonical grouped declarations, 745 visible method signatures (559 non-dunder and 186 dunder), and 65 visible class assignments.
+Inventory: 16 modules, 167 literal public spellings, 142 canonical grouped declarations, 752 visible method signatures (565 non-dunder and 187 dunder), and 65 visible class assignments.
 
 Regenerate with:
 
@@ -583,6 +583,30 @@ class FieldRef:
     def __hash__(self) -> int: ...
 ```
 
+<a id="api-eqiora-FormulationView"></a>
+
+### `eqiora.FormulationView`
+
+Effective mathematical form selected between Model and Realization.
+
+Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationView`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
+
+```python
+@final
+class FormulationView:
+    @property
+    def requested(self) -> str: ...
+    @property
+    def effective(self) -> str: ...
+    @property
+    def boundary_treatment(self) -> str: ...
+    @property
+    def rule_ids(self) -> list[str]: ...
+    @property
+    def selection_reason_codes(self) -> list[str]: ...
+    def __repr__(self) -> str: ...
+```
+
 <a id="api-eqiora-InitialField"></a>
 
 ### `eqiora.InitialField`
@@ -871,6 +895,8 @@ class Plan:
     def model(self) -> Model: ...
     @property
     def mesh(self) -> meshing.Mesh | None: ...
+    @property
+    def formulation(self) -> FormulationView | None: ...
     @property
     def capability(self) -> ScalarPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
     @property

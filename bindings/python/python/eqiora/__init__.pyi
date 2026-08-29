@@ -657,6 +657,24 @@ class ResolvedExecution:
     def __repr__(self) -> str: ...
 
 @final
+class FormulationView:
+    """Effective mathematical form selected between Model and Realization.
+
+    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationView``.
+    """
+    @property
+    def requested(self) -> str: ...
+    @property
+    def effective(self) -> str: ...
+    @property
+    def boundary_treatment(self) -> str: ...
+    @property
+    def rule_ids(self) -> list[str]: ...
+    @property
+    def selection_reason_codes(self) -> list[str]: ...
+    def __repr__(self) -> str: ...
+
+@final
 class Plan:
     """Immutable common numerical Plan owning an exact Model and applicable resources.
 
@@ -690,6 +708,8 @@ class Plan:
     def model(self) -> Model: ...
     @property
     def mesh(self) -> meshing.Mesh | None: ...
+    @property
+    def formulation(self) -> FormulationView | None: ...
     @property
     def capability(self) -> ScalarPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
     @property
@@ -1319,6 +1339,7 @@ __all__ = [
     "Field",
     "FieldOutput",
     "FieldRef",
+    "FormulationView",
     "InitialField",
     "InternalError",
     "LinearSolveSummary",
