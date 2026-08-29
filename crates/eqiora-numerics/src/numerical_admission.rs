@@ -99,6 +99,8 @@ use eqiora_solver::{
 use eqiora_time::TimeBackendIdentity;
 use sha2::{Digest, Sha256};
 
+pub use crate::form_compiler::vocabulary::FormulationKind;
+
 const APPLICATION_REALIZATION_REVISION: u64 = 134;
 const COMMON_SCALAR_REALIZATION_REVISION: u64 = 170;
 const TRANSIENT_REALIZATION_REVISION: u64 = 166;
@@ -386,6 +388,20 @@ enum ResolvedCommonPlanKind {
 }
 
 impl ResolvedCommonPlan {
+    /// Inspect the effective mathematical Formulation when the admitted
+    /// capability owns one of the current proof-carrying consumers.
+    #[must_use]
+    pub fn formulation(&self) -> Option<CommonFormulationDescription> {
+        match &self.kind {
+            ResolvedCommonPlanKind::SteadyStokes(plan) => Some(plan.formulation()),
+            ResolvedCommonPlanKind::TransientFlow(plan) => Some(plan.formulation()),
+            ResolvedCommonPlanKind::Ode(_)
+            | ResolvedCommonPlanKind::Scalar(_)
+            | ResolvedCommonPlanKind::Elasticity(_)
+            | ResolvedCommonPlanKind::Fsi(_) => None,
+        }
+    }
+
     /// Project one already-resolved Plan without reopening capability selection.
     pub fn project<T>(
         self,
@@ -457,16 +473,104 @@ enum CommonTransientResolvedSpatial {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum CommonTransientFormulation {
-    /// Existing dedicated MINI path; its typed transient mixed correspondence
-    /// remains the next explicit convergence cell.
-    DedicatedMiniP1,
+    MixedGalerkin(Box<crate::form_compiler::vocabulary::MixedGalerkinCorrespondence>),
     IntegralConservative(Box<crate::form_compiler::vocabulary::IntegralConservativeCorrespondence>),
+}
+
+/// How formulation selection entered resolution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FormulationSelectionMode {
+    /// The versioned resolver selected the exact effective formulation.
+    Automatic,
+}
+
+/// Inspectable mathematical form selected automatically for one common Plan.
+///
+/// Field roles and finite-dimensional spaces remain available from the
+/// capability-specific Plan. This description owns only the mathematical
+/// form, boundary treatment, closed transformation-rule inventory, and the
+/// reason the resolver selected it; mesh, quadrature, numerical flux, solver,
+/// provider, and placement remain Realization concerns.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommonFormulationDescription {
+    requested: FormulationSelectionMode,
+    kind: FormulationKind,
+    boundary_treatment: &'static str,
+    rule_ids: Box<[&'static str]>,
+    selection_reason_codes: Box<[&'static str]>,
+}
+
+impl CommonFormulationDescription {
+    fn mixed(
+        correspondence: &crate::form_compiler::vocabulary::MixedGalerkinCorrespondence,
+        reason: &'static str,
+    ) -> Self {
+        Self {
+            requested: FormulationSelectionMode::Automatic,
+            kind: correspondence.formulation.kind,
+            boundary_treatment: correspondence.formulation.boundary_treatment.id(),
+            rule_ids: correspondence
+                .formulation
+                .rules
+                .map(crate::form_compiler::vocabulary::MixedFormulationRule::id)
+                .into(),
+            selection_reason_codes: Box::new([reason]),
+        }
+    }
+
+    fn integral(
+        correspondence: &crate::form_compiler::vocabulary::IntegralConservativeCorrespondence,
+    ) -> Self {
+        Self {
+            requested: FormulationSelectionMode::Automatic,
+            kind: correspondence.formulation.kind,
+            boundary_treatment: correspondence.formulation.boundary_treatment.id(),
+            rule_ids: correspondence
+                .formulation
+                .rules
+                .map(crate::form_compiler::vocabulary::IntegralConservativeRule::id)
+                .into(),
+            selection_reason_codes: Box::new([
+                "eqiora.formulation.auto.integral-conservative-for-cell-centered-fvm/v1",
+            ]),
+        }
+    }
+
+    /// Requested selection mode. The first inspection slice is automatic-only.
+    #[must_use]
+    pub const fn requested(&self) -> FormulationSelectionMode {
+        self.requested
+    }
+
+    /// Exact effective mathematical form.
+    #[must_use]
+    pub const fn effective(&self) -> FormulationKind {
+        self.kind
+    }
+
+    /// Versioned boundary-treatment identifier.
+    #[must_use]
+    pub const fn boundary_treatment(&self) -> &'static str {
+        self.boundary_treatment
+    }
+
+    /// Complete ordered closed-rule inventory consumed by derivation.
+    #[must_use]
+    pub fn rule_ids(&self) -> &[&'static str] {
+        &self.rule_ids
+    }
+
+    /// Stable reasons for the automatic choice.
+    #[must_use]
+    pub fn selection_reason_codes(&self) -> &[&'static str] {
+        &self.selection_reason_codes
+    }
 }
 
 impl CommonTransientFormulation {
     const fn identity(&self) -> &'static [u8] {
         match self {
-            Self::DedicatedMiniP1 => b"dedicated-mini-p1-formulation/v1",
+            Self::MixedGalerkin(_) => b"mixed-galerkin-formulation/v1",
             Self::IntegralConservative(_) => b"integral-conservative-formulation/v1",
         }
     }

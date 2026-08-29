@@ -61,6 +61,12 @@ pub struct SteadyStokesGeometryBinding2d {
 }
 
 impl SteadyStokesGeometryBinding2d {
+    pub(crate) const fn formulation_correspondence(
+        &self,
+    ) -> &crate::form_compiler::vocabulary::MixedGalerkinCorrespondence {
+        self.model.correspondence()
+    }
+
     pub(crate) fn new_authenticated(
         program: &KernelProgram,
         source: &CanonicalGeometryV1,

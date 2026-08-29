@@ -22,8 +22,8 @@ use crate::model::{PyModel, PyModelFieldRef};
 
 mod capability_view;
 use capability_view::{
-    PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyIncompressibleFlowPlanView, PyOdePlanView,
-    PyScalarPlanView,
+    PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyFormulationView,
+    PyIncompressibleFlowPlanView, PyOdePlanView, PyScalarPlanView,
 };
 mod policy;
 use policy::{
@@ -363,6 +363,20 @@ impl PyPlan {
     #[getter]
     fn mesh(&self, py: Python<'_>) -> Option<Py<PyMesh>> {
         self.mesh.as_ref().map(|mesh| mesh.clone_ref(py))
+    }
+    #[getter]
+    fn formulation(&self, py: Python<'_>) -> PyResult<Option<Py<PyFormulationView>>> {
+        let description = match &self.native {
+            CommonPlanKind::SteadyStokes(plan) => Some(plan.formulation()),
+            CommonPlanKind::TransientFlow(plan) => Some(plan.formulation()),
+            CommonPlanKind::Ode(_)
+            | CommonPlanKind::Scalar(_)
+            | CommonPlanKind::Elasticity(_)
+            | CommonPlanKind::Fsi(_) => None,
+        };
+        description
+            .map(|description| Py::new(py, PyFormulationView::from_native(description)))
+            .transpose()
     }
     #[getter]
     fn capability(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
@@ -851,6 +865,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyScalarPlanView>()?;
     module.add_class::<PyElasticityPlanView>()?;
     module.add_class::<PyIncompressibleFlowPlanView>()?;
+    module.add_class::<PyFormulationView>()?;
     module.add_class::<PyFixedReferenceFsiPlanView>()?;
     module.add_class::<PyPressureGauge2d>()?;
     module.add_class::<PyBackwardEuler>()?;

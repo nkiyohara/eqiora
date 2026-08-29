@@ -121,6 +121,25 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     assert_eq!(mini.linear().algorithm(), LinearSolver::SparseLu);
     assert_eq!(mini.linear().reduction(), ReductionPolicy::Fast);
     assert_eq!(fvm.linear().reduction(), ReductionPolicy::Reproducible);
+    let mini_formulation = mini.formulation();
+    assert_eq!(
+        mini_formulation.requested(),
+        FormulationSelectionMode::Automatic
+    );
+    assert_eq!(mini_formulation.effective(), FormulationKind::MixedGalerkin);
+    assert_eq!(
+        mini_formulation.boundary_treatment(),
+        "explicit-trace-flux-laws"
+    );
+    assert_eq!(mini_formulation.rule_ids().len(), 6);
+    assert_eq!(mini_formulation.selection_reason_codes().len(), 1);
+    let fvm_formulation = fvm.formulation();
+    assert_eq!(
+        fvm_formulation.effective(),
+        FormulationKind::IntegralConservative
+    );
+    assert_eq!(fvm_formulation.rule_ids().len(), 7);
+    assert_ne!(mini_formulation, fvm_formulation);
 
     let mini_zero = mini.zero_state(0.0).unwrap();
     let fvm_zero = fvm.zero_state(0.0).unwrap();

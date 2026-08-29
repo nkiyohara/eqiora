@@ -203,6 +203,7 @@ impl<const D: usize> IsotropicElastodynamicsCartesianModel<D> {
 pub type IsotropicElastodynamicsCartesianModel2d = IsotropicElastodynamicsCartesianModel<2>;
 
 /// Three-dimensional canonical first-order isotropic elastodynamic meaning.
+#[cfg(test)]
 pub type IsotropicElastodynamicsCartesianModel3d = IsotropicElastodynamicsCartesianModel<3>;
 
 /// Lower the exact canonical first-order 2D isotropic-elastodynamic subset.
@@ -227,6 +228,7 @@ pub fn lower_isotropic_elastodynamics_cartesian_2d(
 /// # Errors
 /// Returns `EQ0703` unless the complete model has three-component kinematics,
 /// the canonical isotropic momentum relation, and all six boundary sides.
+#[cfg(test)]
 pub fn lower_isotropic_elastodynamics_cartesian_3d(
     program: &KernelProgram,
 ) -> Result<IsotropicElastodynamicsCartesianModel3d, Diagnostic> {

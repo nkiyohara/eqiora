@@ -40,8 +40,7 @@ mod pair;
 
 pub use dynamics::{
     IsotropicElastodynamicsCartesianModel, IsotropicElastodynamicsCartesianModel2d,
-    IsotropicElastodynamicsCartesianModel3d, lower_isotropic_elastodynamics_cartesian_2d,
-    lower_isotropic_elastodynamics_cartesian_3d,
+    lower_isotropic_elastodynamics_cartesian_2d,
 };
 pub(crate) use dynamics::{
     LoweredIsotropicElastodynamicsSubdomain, LoweredIsotropicElastodynamicsSubdomain2d,

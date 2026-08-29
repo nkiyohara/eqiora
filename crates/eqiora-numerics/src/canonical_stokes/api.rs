@@ -188,8 +188,7 @@ impl SteadyIncompressibleStokesModel2d {
         })
     }
 
-    #[cfg(test)]
-    pub(super) const fn correspondence(&self) -> &MixedGalerkinCorrespondence {
+    pub(crate) const fn correspondence(&self) -> &MixedGalerkinCorrespondence {
         &self.correspondence
     }
 

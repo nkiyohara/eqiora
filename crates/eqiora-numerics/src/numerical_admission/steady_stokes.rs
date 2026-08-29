@@ -1,6 +1,15 @@
 use super::*;
 
 impl CommonSteadyStokesPlan {
+    /// Effective mixed Galerkin Formulation and its automatic-selection audit.
+    #[must_use]
+    pub fn formulation(&self) -> CommonFormulationDescription {
+        CommonFormulationDescription::mixed(
+            self.binding.formulation_correspondence(),
+            "eqiora.formulation.auto.mixed-galerkin-for-mini-p1/v1",
+        )
+    }
+
     pub(super) fn from_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,

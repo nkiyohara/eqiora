@@ -125,6 +125,7 @@ EXPECTED_EQIORA_ALL = [
     "Field",
     "FieldOutput",
     "FieldRef",
+    "FormulationView",
     "InitialField",
     "InternalError",
     "LinearSolveSummary",

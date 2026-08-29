@@ -39,12 +39,13 @@ pub use common_ode::{
 };
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonBackwardEuler, CommonElasticityObservation,
-    CommonElasticityPlan, CommonElasticityRunOutput, CommonFsiPlan, CommonFsiRunRequest,
-    CommonInitialField, CommonInitialValues, CommonPressureGauge2d, CommonScalarPlan,
-    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSpatialRequest,
-    CommonState, CommonSteadyStokesObservation, CommonSteadyStokesPlan,
+    CommonElasticityPlan, CommonElasticityRunOutput, CommonFormulationDescription, CommonFsiPlan,
+    CommonFsiRunRequest, CommonInitialField, CommonInitialValues, CommonPressureGauge2d,
+    CommonScalarPlan, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy,
+    CommonSpatialRequest, CommonState, CommonSteadyStokesObservation, CommonSteadyStokesPlan,
     CommonSteadyStokesRunOutput, CommonTransientFlowPlan, CommonTransientRunRequest,
-    ResolvedCommonPlan, resolve_common_ode_plan, resolve_common_plan,
+    FormulationKind, FormulationSelectionMode, ResolvedCommonPlan, resolve_common_ode_plan,
+    resolve_common_plan,
 };
 mod operator;
 mod physical_network;
