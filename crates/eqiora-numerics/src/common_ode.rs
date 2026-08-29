@@ -15,6 +15,8 @@ use eqiora_time::{
 };
 use sha2::{Digest, Sha256};
 
+mod state_artifact;
+
 /// One exact Field-bound absolute tolerance for Tsitouras 5(4).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CommonTsitourasTolerance {
@@ -763,6 +765,14 @@ model decay {
         assert_eq!(state.time_s(), 0.0);
         assert_eq!(state.field_ids(), &[field]);
         assert_eq!(state.values(), &[1.0]);
+        let state_bytes = state.to_bytes().unwrap();
+        assert_eq!(
+            CommonOdeState::from_bytes(&state_bytes, &plan).unwrap(),
+            state
+        );
+        let mut noncanonical_state = state_bytes;
+        noncanonical_state.push(b'\n');
+        assert!(CommonOdeState::from_bytes(&noncanonical_state, &plan).is_err());
 
         let request =
             CommonOdeRunRequest::new(plan.clone(), state.clone(), 0.2, vec![0.1]).unwrap();

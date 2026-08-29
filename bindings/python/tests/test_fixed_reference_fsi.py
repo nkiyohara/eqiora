@@ -210,6 +210,11 @@ def test_initial_state_is_exact_field_bound_complete_and_gauge_free() -> None:
     assert state.model is model
     assert state.mesh is mesh
     assert state.time_s == 0.0
+    state_bytes = state.to_bytes()
+    replayed = eqiora.State.from_bytes(plan, state_bytes)
+    assert replayed == state
+    assert replayed.to_bytes() == state_bytes
+    assert replayed.source_kind == "artifact"
     np.testing.assert_array_equal(
         state.field(plan.capability.pressure).values("vertex"), 0.25
     )
@@ -239,6 +244,15 @@ def test_common_worker_run_outputs_restart_and_observation_evidence() -> None:
     outputs = trajectory.states
     assert tuple(value.step for value in outputs) == (1, 2)
     assert tuple(value.time_s for value in outputs) == (0.05, 0.10)
+    output_bytes = outputs[0].to_bytes()
+    replayed_output = eqiora.State.from_bytes(plan, output_bytes)
+    assert replayed_output == outputs[0]
+    assert replayed_output.to_bytes() == output_bytes
+    assert replayed_output.source_kind == "artifact"
+    replayed_result = eqiora.run(
+        plan, state=replayed_output, steps=1, output_steps=(1,)
+    )
+    assert replayed_result.trajectory.states[0].time_s == 0.10
     assert trajectory.plan_identity == plan.identity
     assert trajectory.request_identity == run.plan_key
     assert trajectory.run_digest == run.plan_key

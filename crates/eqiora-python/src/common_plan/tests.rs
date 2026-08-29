@@ -1285,6 +1285,11 @@ for kwargs in (
         raise AssertionError(f"invalid Newton controls admitted: {kwargs}")
 mini_zero = package.State.zero(mini)
 assert mini_zero.time_s == 0.0
+mini_zero_bytes = mini_zero.to_bytes()
+mini_zero_replayed = package.State.from_bytes(mini, mini_zero_bytes)
+assert mini_zero_replayed == mini_zero
+assert mini_zero_replayed.to_bytes() == mini_zero_bytes
+assert mini_zero_replayed.source_kind == "artifact"
 assert mini_zero.mesh is affine
 assert mini_zero.model is model
 assert mini_zero.source_plan_identity == mini.identity
@@ -1313,6 +1318,11 @@ assert mini_restart.mesh is affine
 assert mini_restart.field(mini.capability.velocity).values("vertex").flags.writeable is False
 
 fvm_zero = package.State.zero(fvm)
+fvm_zero_bytes = fvm_zero.to_bytes()
+fvm_zero_replayed = package.State.from_bytes(fvm, fvm_zero_bytes)
+assert fvm_zero_replayed == fvm_zero
+assert fvm_zero_replayed.to_bytes() == fvm_zero_bytes
+assert fvm_zero_replayed.source_kind == "artifact"
 assert fvm_zero.mesh is cartesian
 assert fvm_zero.field(fvm.capability.velocity).associations == ("cell",)
 assert fvm_zero.field(fvm.capability.pressure).associations == ("cell",)

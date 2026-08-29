@@ -128,6 +128,15 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         .unwrap(),
     ];
     let initial = automatic.initial_state(0.0, fields).unwrap();
+    let initial_bytes = initial.to_bytes().unwrap();
+    assert_eq!(
+        CommonState::from_bytes(
+            &initial_bytes,
+            &ResolvedCommonPlan::Fsi(Box::new(automatic.clone())),
+        )
+        .unwrap(),
+        initial
+    );
     assert!(
         initial
             .pressure_vertex_values()
@@ -140,6 +149,27 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         .advance(&initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     assert!(accepted.fsi_accepted_solution().is_some());
+    let accepted_bytes = accepted.to_bytes().unwrap();
+    let replayed_accepted = CommonState::from_bytes(
+        &accepted_bytes,
+        &ResolvedCommonPlan::Fsi(Box::new(automatic.clone())),
+    )
+    .unwrap();
+    assert_eq!(replayed_accepted.identity(), accepted.identity());
+    assert_eq!(
+        replayed_accepted.velocity_vertex_values(),
+        accepted.velocity_vertex_values()
+    );
+    assert_eq!(
+        replayed_accepted.pressure_vertex_values(),
+        accepted.pressure_vertex_values()
+    );
+    assert!(replayed_accepted.fsi_accepted_solution().is_none());
+    assert!(
+        automatic
+            .advance(&replayed_accepted, &REFERENCE_LINEAR_SOLVER)
+            .is_ok()
+    );
 
     let foreign = eqiora_artifact::ArtifactDigest::from_sha256([7; 32]);
     let foreign_scoped = CommonMethodRequest::Scoped(vec![
