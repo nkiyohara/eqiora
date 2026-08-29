@@ -306,8 +306,15 @@ impl WireLineage {
             .map_err(|_| invalid_realization("portable graph contains an invalid Model ULID"))?;
         let semantic_revision = SemanticRevision::new(self.semantic_revision);
         let source = match self.source {
-            WireSource::Default { policy_version } => {
-                ResolutionSource::Default(DefaultPolicyVersion::new(policy_version))
+            WireSource::Default { policy_version }
+                if policy_version == DefaultPolicyVersion::V0.get() =>
+            {
+                ResolutionSource::Default(DefaultPolicyVersion::V0)
+            }
+            WireSource::Default { .. } => {
+                return Err(invalid_realization(
+                    "portable graph contains an unsupported default policy version",
+                ));
             }
             WireSource::Explicit {
                 realization_revision,

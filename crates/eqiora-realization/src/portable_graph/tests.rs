@@ -200,6 +200,17 @@ fn portable_wire_rejects_noncanonical_unknown_and_disconnected_payloads() {
         codes::INVALID_REALIZATION
     );
 
+    let unknown_default = String::from_utf8(bytes.clone()).unwrap().replace(
+        "\"source\":{\"kind\":\"explicit\",\"realization_revision\":9}",
+        "\"source\":{\"kind\":\"default\",\"policy_version\":999}",
+    );
+    assert_eq!(
+        PortableRealizationGraph::from_bytes(unknown_default.as_bytes())
+            .unwrap_err()
+            .code(),
+        codes::INVALID_REALIZATION
+    );
+
     let lowercase_ulid = String::from_utf8(bytes.clone())
         .unwrap()
         .replace("01ARZ3NDEKTSV4RRFFQ69G5FAV", "01arz3ndektsv4rrffq69g5fav");
