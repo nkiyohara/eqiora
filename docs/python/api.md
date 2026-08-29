@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 16 module summaries and all 142 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 550 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 16 module summaries and all 143 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 558 signature-only entries under documented owning types**.
 
-Inventory: 16 modules, 167 literal public spellings, 142 canonical grouped declarations, 735 visible method signatures (550 non-dunder and 185 dunder), and 65 visible class assignments.
+Inventory: 16 modules, 168 literal public spellings, 143 canonical grouped declarations, 745 visible method signatures (558 non-dunder and 187 dunder), and 65 visible class assignments.
 
 Regenerate with:
 
@@ -2931,6 +2931,37 @@ class BoundaryForce:
     def on_domain(self) -> tuple[float, float]: ...
     @property
     def on_selection(self) -> tuple[float, float]: ...
+    @property
+    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    @property
+    def frame(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-trajectory-BoundaryFlux"></a>
+
+### `eqiora.trajectory.BoundaryFlux`
+
+Signed intrinsic-2D volume flux on one authenticated boundary.
+
+Authority: [`crates/eqiora-python/src/trajectory/observation.rs::PyBoundaryFlux`](../../crates/eqiora-python/src/trajectory/observation.rs)
+
+```python
+@final
+class BoundaryFlux:
+    @property
+    def digest(self) -> str: ...
+    @property
+    def source_digest(self) -> str: ...
+    @property
+    def selection(self) -> GeometrySelection: ...
+    @property
+    def geometry_digest(self) -> str: ...
+    @property
+    def mesh_digest(self) -> str: ...
+    @property
+    def value(self) -> float: ...
     @property
     def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
     @property

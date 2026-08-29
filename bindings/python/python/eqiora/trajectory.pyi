@@ -199,6 +199,7 @@ class Trajectory:
 
 __all__ = [
     "BoundaryForce",
+    "BoundaryFlux",
     "DerivedFieldSnapshot",
     "FieldSample",
     "FieldSnapshot",

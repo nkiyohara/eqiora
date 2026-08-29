@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/trajector
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/trajectory.pyi" kind="blob">bindings/python/python/eqiora/trajectory.pyi</ExactSourceLink>
 
-This module publishes **6** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **7** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-trajectory-BoundaryForce"></a>
 
@@ -44,6 +44,37 @@ class BoundaryForce:
     def on_domain(self) -> tuple[float, float]: ...
     @property
     def on_selection(self) -> tuple[float, float]: ...
+    @property
+    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    @property
+    def frame(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-trajectory-BoundaryFlux"></a>
+
+## `BoundaryFlux`
+
+Signed intrinsic-2D volume flux on one authenticated boundary.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/trajectory/observation.rs" kind="blob">crates/eqiora-python/src/trajectory/observation.rs::PyBoundaryFlux</ExactSourceLink>
+
+```python
+@final
+class BoundaryFlux:
+    @property
+    def digest(self) -> str: ...
+    @property
+    def source_digest(self) -> str: ...
+    @property
+    def selection(self) -> GeometrySelection: ...
+    @property
+    def geometry_digest(self) -> str: ...
+    @property
+    def mesh_digest(self) -> str: ...
+    @property
+    def value(self) -> float: ...
     @property
     def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
     @property
