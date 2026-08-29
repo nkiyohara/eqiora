@@ -783,6 +783,8 @@ mod fsi;
 mod native;
 mod resolve;
 mod scalar;
+mod solver_planning;
+mod spatial_planning;
 mod state;
 mod steady_stokes;
 mod transient;
