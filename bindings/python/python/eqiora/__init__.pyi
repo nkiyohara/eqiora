@@ -31,6 +31,7 @@ from . import lang as lang
 from . import meshing as meshing
 from . import solid as solid
 from . import solve as solve
+from . import solve as solve_module
 from . import time as time
 from . import trajectory as trajectory
 
@@ -661,9 +662,9 @@ class Plan:
     @property
     def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None: ...
     @property
-    def solve(self) -> solve.ResolvedLinear | solve.ResolvedNewton | None: ...
+    def solve(self) -> solve_module.ResolvedLinear | solve_module.ResolvedNewton | None: ...
     @property
-    def requested_solve(self) -> solve.Linear | solve.Newton | None: ...
+    def requested_solve(self) -> solve_module.Linear | solve_module.Newton | None: ...
     @property
     def temporal(self) -> time.BackwardEuler | time.Tsitouras45 | None: ...
     @property
