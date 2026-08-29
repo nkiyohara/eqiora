@@ -11,7 +11,7 @@ use eqiora_schema::kernel::{ActivationKind, KernelNode};
 use eqiora_sem::KernelProgram;
 use eqiora_time::{
     InitialConditionPolicy, TimeBackendIdentity, TimeEquationClass, TimeMethod, TimePlan,
-    TimeProblem, TimeSolution,
+    TimeProblem,
 };
 use sha2::{Digest, Sha256};
 
@@ -334,7 +334,7 @@ pub struct CommonOdeState {
 }
 
 impl CommonOdeState {
-    fn new(
+    pub(crate) fn new(
         plan: &CommonOdePlan,
         time_s: f64,
         values: Vec<f64>,
@@ -519,59 +519,6 @@ impl CommonOdeRunRequest {
     #[must_use]
     pub const fn time_plan(&self) -> &TimePlan {
         &self.time_plan
-    }
-}
-
-/// Requested accepted States from one completed adaptive ODE Run.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CommonOdeRunResult {
-    request_identity: String,
-    states: Vec<CommonOdeState>,
-}
-
-impl CommonOdeRunResult {
-    /// Reaccept a backend solution against the exact request and discard only
-    /// the internal unrequested horizon sample.
-    pub fn accept(
-        request: &CommonOdeRunRequest,
-        solution: TimeSolution,
-    ) -> Result<Self, Diagnostic> {
-        if solution.report().method() != TimeMethod::Tsitouras45
-            || solution.report().backend_identity() != request.plan.backend()
-            || solution.report().equation_class() != TimeEquationClass::ExplicitOde
-            || solution.report().initial_condition() != InitialConditionPolicy::Provided
-            || solution.dimension() != request.plan.field_dimensions.len()
-            || solution.times() != request.execution_times_s
-        {
-            return Err(invalid(
-                "adaptive backend result differs from the exact no-Mesh ODE request",
-            ));
-        }
-        let states = request
-            .output_times_s
-            .iter()
-            .enumerate()
-            .map(|(sample, &time)| {
-                let values = solution
-                    .state(sample)
-                    .ok_or_else(|| invalid("adaptive backend omitted one requested ODE State"))?;
-                CommonOdeState::new(&request.plan, time, values.to_vec(), "result")
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self {
-            request_identity: request.identity.clone(),
-            states,
-        })
-    }
-
-    #[must_use]
-    pub fn request_identity(&self) -> &str {
-        &self.request_identity
-    }
-
-    #[must_use]
-    pub fn states(&self) -> &[CommonOdeState] {
-        &self.states
     }
 }
 
@@ -779,6 +726,17 @@ model decay {
         assert_eq!(request.output_times_s(), &[0.1]);
         assert_eq!(request.time_plan().output_times(), &[0.1, 0.2]);
         assert_eq!(request.plan().identity(), plan.identity());
+        let output = CommonOdeState::new(&plan, 0.1, vec![0.9], "result").unwrap();
+        let trajectory =
+            crate::CommonTrajectory::accept_ode_states(request.clone(), vec![output]).unwrap();
+        let trajectory_bytes = trajectory.to_bytes().unwrap();
+        assert_eq!(
+            crate::CommonTrajectory::from_bytes(&trajectory_bytes, &resolved).unwrap(),
+            trajectory
+        );
+        let mut noncanonical_trajectory = trajectory_bytes;
+        noncanonical_trajectory.push(b'\n');
+        assert!(crate::CommonTrajectory::from_bytes(&noncanonical_trajectory, &resolved).is_err());
         assert!(CommonOdeRunRequest::new(plan, state, 0.2, vec![0.0]).is_err());
     }
 

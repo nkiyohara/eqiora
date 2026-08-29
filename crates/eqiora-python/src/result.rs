@@ -844,12 +844,12 @@ pub(crate) fn materialize_common_elasticity(
     )
 }
 
-pub(crate) fn materialize_common_transient(
+fn materialize_common_spatial_trajectory(
     py: Python<'_>,
     plan: PyRef<'_, PyPlan>,
     identity: RunIdentity,
     elapsed_seconds: f64,
-    states: Vec<(usize, eqiora_numerics::CommonState)>,
+    native_trajectory: eqiora_numerics::CommonTrajectory,
 ) -> PyResult<PyRunResult> {
     if !matches!(
         plan.native(),
@@ -859,10 +859,7 @@ pub(crate) fn materialize_common_transient(
             "common transient output crossed a different Plan",
         ));
     }
-    let trajectory = Py::new(
-        py,
-        PyTrajectory::from_common(py, &plan, identity.plan_key(), states)?,
-    )?;
+    let trajectory = Py::new(py, PyTrajectory::from_common(py, &plan, native_trajectory)?)?;
     let fsi_evidence = if matches!(plan.native(), ResolvedCommonPlan::Fsi(_)) {
         Some(Py::new(
             py,
@@ -881,19 +878,22 @@ pub(crate) fn materialize_common_transient(
     })
 }
 
-pub(crate) fn materialize_common_ode(
+fn materialize_common_ode_trajectory(
     py: Python<'_>,
     plan: PyRef<'_, PyPlan>,
     identity: RunIdentity,
     elapsed_seconds: f64,
-    result: eqiora_numerics::CommonOdeRunResult,
+    trajectory: eqiora_numerics::CommonTrajectory,
 ) -> PyResult<PyRunResult> {
     let ResolvedCommonPlan::Ode(native) = plan.native() else {
         return Err(PyRuntimeError::new_err(
             "common ODE output crossed a different Plan",
         ));
     };
-    let states = result.states().to_vec();
+    let states = trajectory
+        .ode_states()
+        .expect("ODE materialization requires an ODE Trajectory")
+        .to_vec();
     let times = states
         .iter()
         .map(eqiora_numerics::CommonOdeState::time_s)
@@ -933,6 +933,25 @@ pub(crate) fn materialize_common_ode(
             states,
         }),
     })
+}
+
+pub(crate) fn materialize_common_trajectory(
+    py: Python<'_>,
+    plan: PyRef<'_, PyPlan>,
+    identity: RunIdentity,
+    elapsed_seconds: f64,
+    trajectory: eqiora_numerics::CommonTrajectory,
+) -> PyResult<PyRunResult> {
+    if identity.plan_key() != trajectory.request_identity() {
+        return Err(PyRuntimeError::new_err(
+            "common Trajectory crossed a different Run request occurrence",
+        ));
+    }
+    if trajectory.ode_states().is_some() {
+        materialize_common_ode_trajectory(py, plan, identity, elapsed_seconds, trajectory)
+    } else {
+        materialize_common_spatial_trajectory(py, plan, identity, elapsed_seconds, trajectory)
+    }
 }
 
 fn capability_error(py: Python<'_>, message: &str) -> PyErr {

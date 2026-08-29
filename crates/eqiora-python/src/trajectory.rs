@@ -681,6 +681,7 @@ pub(crate) struct PyTrajectory {
     states: Vec<Py<PyState>>,
     state_lookup: BTreeMap<u64, usize>,
     common_mesh: Option<Py<PyMesh>>,
+    native: eqiora_numerics::CommonTrajectory,
 }
 
 impl PartialEq for PyTrajectory {
@@ -699,6 +700,31 @@ impl Hash for PyTrajectory {
 
 #[pymethods]
 impl PyTrajectory {
+    /// Canonical immutable Run request and requested output States.
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        self.native
+            .to_bytes()
+            .map(|bytes| PyBytes::new(py, &bytes))
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))
+    }
+
+    /// Decode one producer-independent spatial Trajectory against its Plan.
+    #[staticmethod]
+    fn from_bytes(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        data: &[u8],
+    ) -> PyResult<Self> {
+        let native = eqiora_numerics::CommonTrajectory::from_bytes(data, plan.native())
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        if native.spatial_states().is_none() {
+            return Err(PyValueError::new_err(
+                "Trajectory.from_bytes requires a transient-flow or fixed-reference FSI artifact",
+            ));
+        }
+        Self::from_common(py, plan, native)
+    }
+
     #[getter]
     fn model_digest(&self) -> &str {
         &self.model_digest
@@ -799,9 +825,14 @@ impl PyTrajectory {
     pub(crate) fn from_common(
         py: Python<'_>,
         plan: &crate::common_plan::PyPlan,
-        run_identity: &str,
-        states: Vec<(usize, CommonState)>,
+        native: eqiora_numerics::CommonTrajectory,
     ) -> PyResult<Self> {
+        let request_identity = native.request_identity().to_owned();
+        let trajectory_digest = native.identity().to_owned();
+        let states = native
+            .spatial_states()
+            .expect("Python spatial Trajectory requires spatial native States")
+            .to_vec();
         let (model_digest, plan_identity, realization_digest, is_fsi) =
             if let Some(native) = plan.transient_native() {
                 (
@@ -824,15 +855,6 @@ impl PyTrajectory {
             };
         let mesh = plan.mesh_handle(py);
         let mesh_ref = mesh.borrow(py);
-        let trajectory_digest = {
-            let mut hasher = Sha256::new();
-            hasher.update(b"eqiora.common-trajectory/v1\0");
-            hasher.update(run_identity.as_bytes());
-            for (_, state) in &states {
-                hasher.update(state.identity().as_bytes());
-            }
-            hex_sha256(hasher.finalize().as_slice())
-        };
         let mut state_lookup = BTreeMap::new();
         let mut projected = Vec::with_capacity(states.len());
         for (step, state) in states {
@@ -845,7 +867,7 @@ impl PyTrajectory {
             }
             let projected_state = if is_fsi {
                 let mut value =
-                    PyState::from_common_fsi(py, plan, state, step, Some(run_identity))?;
+                    PyState::from_common_fsi(py, plan, state, step, Some(&request_identity))?;
                 value.source_trajectory_identity = Some(trajectory_digest.clone());
                 value
             } else {
@@ -854,7 +876,7 @@ impl PyTrajectory {
                     plan,
                     state,
                     step,
-                    Some(run_identity),
+                    Some(&request_identity),
                     Some(&trajectory_digest),
                 )?
             };
@@ -871,14 +893,15 @@ impl PyTrajectory {
             mesh_digest,
             realization_digest,
             plan_identity: Some(plan_identity),
-            run_digest: Some(run_identity.to_owned()),
-            request_identity: Some(run_identity.to_owned()),
+            run_digest: Some(request_identity.clone()),
+            request_identity: Some(request_identity),
             trajectory_digest,
             coordinates: ReadOnlyMatrix::new(0, 2, Vec::new()),
             cells: ReadOnlyMatrix::new(0, 0, Vec::new()),
             states: projected,
             state_lookup,
             common_mesh: Some(mesh),
+            native,
         })
     }
 }

@@ -201,6 +201,9 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/trajectory.rs" kind="
 ```python
 @final
 class Trajectory:
+    def to_bytes(self) -> bytes: ...
+    @staticmethod
+    def from_bytes(plan: Plan, data: bytes) -> Trajectory: ...
     @property
     def model_digest(self) -> str: ...
     @property

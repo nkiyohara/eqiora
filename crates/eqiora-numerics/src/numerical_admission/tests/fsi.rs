@@ -149,6 +149,21 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         .advance(&initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     assert!(accepted.fsi_accepted_solution().is_some());
+    let request =
+        CommonFsiRunRequest::from_steps(automatic.clone(), initial.clone(), 1, vec![1]).unwrap();
+    let trajectory =
+        crate::CommonTrajectory::accept_fsi(request, vec![(1, accepted.clone())]).unwrap();
+    let trajectory_bytes = trajectory.to_bytes().unwrap();
+    let replayed_trajectory = crate::CommonTrajectory::from_bytes(
+        &trajectory_bytes,
+        &ResolvedCommonPlan::Fsi(Box::new(automatic.clone())),
+    )
+    .unwrap();
+    assert_eq!(replayed_trajectory.identity(), trajectory.identity());
+    assert_eq!(replayed_trajectory.to_bytes().unwrap(), trajectory_bytes);
+    let replayed_states = replayed_trajectory.spatial_states().unwrap();
+    assert_eq!(replayed_states[0].1.identity(), accepted.identity());
+    assert!(replayed_states[0].1.fsi_accepted_solution().is_none());
     let accepted_bytes = accepted.to_bytes().unwrap();
     let replayed_accepted = CommonState::from_bytes(
         &accepted_bytes,

@@ -19,6 +19,7 @@ mod cartesian_incompressible;
 mod cartesian_periodic_3d;
 mod cartesian_transport;
 mod common_ode;
+mod common_trajectory;
 mod diffusion;
 mod discrete_block;
 mod discrete_space;
@@ -34,9 +35,9 @@ pub use canonical_stokes::{
     ScalingMode2d, ScalingRule2d,
 };
 pub use common_ode::{
-    CommonOdePlan, CommonOdeRunRequest, CommonOdeRunResult, CommonOdeState, CommonTsitouras45,
-    CommonTsitourasTolerance,
+    CommonOdePlan, CommonOdeRunRequest, CommonOdeState, CommonTsitouras45, CommonTsitourasTolerance,
 };
+pub use common_trajectory::CommonTrajectory;
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonBackwardEuler, CommonElasticityObservation,
     CommonElasticityPlan, CommonElasticityRunOutput, CommonFormulationDescription, CommonFsiPlan,
