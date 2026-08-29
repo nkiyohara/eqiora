@@ -6,6 +6,26 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.1.0a5] - 2026-08-29
+
+### Added
+
+- Added bounded canonical artifacts for the resolved common Plan, restartable
+  State, complete Trajectory, and complete Result. Decoding is native-owned,
+  bounded, and bound to exact upstream identities; installed Python exposes
+  byte round trips without becoming a second serialization authority.
+
+- Added inspectable effective Formulations and exact caller overrides across
+  the admitted common spatial path. Stokes consumes an explicit mixed
+  Formulation, conservative flow consumes an integral Formulation, and
+  unsupported or incompatible choices fail before numerical execution.
+
+- Added the shared semantic `eqiora.View` V0-V3 projection for Geometry, Mesh,
+  selections, and scalar vertex/cell Fields. The optional installed-wheel
+  viewer uses one Rust-owned semantic scene across the standard display path
+  and Marimo; Studio integration, 3D/vector/tensor/trajectory viewing, and cloud
+  delivery remain later #625 milestones.
+
 ### Changed
 
 - Changed installed-Python locked package compilation from a self-contained
@@ -13,6 +33,17 @@ are recorded here.
   Geometry and Parameters. The resulting ordinary Model now enters the common
   Mesh, Plan, and Run lifecycle, with exact package-compilation lineage retained
   on Model, Plan, and Run and no package-specific resolver or Run semantics.
+
+- Converged common execution on one native Plan sum and one ordinary
+  Model/Formulation/Realization boundary. Portable realization graphs are now
+  authoritative for common spatial Plans, solver decisions occur before
+  numerical work, and compiler lowering is split by responsibility rather than
+  physics-name dispatch.
+
+- Converged static scalar, elasticity, and Stokes execution on the common
+  Result owner and retired their displaced raw run and root observation/output
+  seams. Dynamic Results retain complete common Trajectories and family-specific
+  scientific evidence without duplicating the product output authority.
 
 ## [0.1.0a4] - 2026-08-28
 
@@ -230,7 +261,8 @@ Detailed claims and nonclaims are the responsibility of the
 [capability matrix](docs/capability-matrix.md) and registered
 [`verify/`](verify/) cases rather than this summary.
 
-[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a4...HEAD
+[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a5...HEAD
+[0.1.0a5]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a5
 [0.1.0a4]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a4
 [0.1.0a3]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a3
 [0.1.0a2]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a2

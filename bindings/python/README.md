@@ -7,17 +7,17 @@ ownership, bounded first-order PyTorch and JAX adapters, and an optional
 Matplotlib Result adapter plus a bounded optional Notebook viewer without
 reimplementing model meaning in Python or JavaScript.
 
-> **Alpha — `0.1.0a4`.** The supported boundary is intentionally narrow.
+> **Alpha — `0.1.0a5`.** The supported boundary is intentionally narrow.
 > Consult the [capability matrix](https://eqiora.org/capabilities/) before
 > relying on a method, backend, or platform.
 
 ## Install
 
-Eqiora `0.1.0a4` supports ordinary-GIL CPython 3.11–3.14 on
+Eqiora `0.1.0a5` supports ordinary-GIL CPython 3.11–3.14 on
 manylinux x86-64:
 
 ```console
-python -m pip install eqiora==0.1.0a4
+python -m pip install eqiora==0.1.0a5
 ```
 
 Automatic exact-cylinder meshing requires Gmsh 4.15.2. The conventional Linux
@@ -25,7 +25,7 @@ installation is:
 
 ```console
 sudo apt-get install libglu1-mesa
-python -m pip install "eqiora[gmsh]==0.1.0a4"
+python -m pip install "eqiora[gmsh]==0.1.0a5"
 ```
 
 The Gmsh extra is separate so the base `manylinux_2_17` package keeps its
@@ -34,14 +34,14 @@ compatibility floor; the current Gmsh wheel has a newer Linux floor.
 Optional first-order framework adapters are explicit:
 
 ```console
-python -m pip install "eqiora[torch]==0.1.0a4"
-python -m pip install "eqiora[jax]==0.1.0a4"
-python -m pip install "eqiora[matplotlib]==0.1.0a4"
-python -m pip install "eqiora[viewer]==0.1.0a4"
+python -m pip install "eqiora[torch]==0.1.0a5"
+python -m pip install "eqiora[jax]==0.1.0a5"
+python -m pip install "eqiora[matplotlib]==0.1.0a5"
+python -m pip install "eqiora[viewer]==0.1.0a5"
 ```
 
 The exact-cylinder pressure example combines the mesher and plot adapter:
-`python -m pip install "eqiora[gmsh,matplotlib]==0.1.0a4"`.
+`python -m pip install "eqiora[gmsh,matplotlib]==0.1.0a5"`.
 
 The base package imports none of these optional libraries. The viewer extra
 pins `anywidget==0.11.0`; its JavaScript and CSS are already carried inside the
@@ -455,7 +455,7 @@ not claimed. See
 
 ## Compatibility and limitations
 
-`0.1.0a4` is an alpha prerelease. Public Python names and serialized contracts
+`0.1.0a5` is an alpha prerelease. Public Python names and serialized contracts
 change only deliberately and are documented in release notes, but breaking
 changes may occur before 1.0. Corrections to a published artifact use a new
 version; an existing release is never overwritten.

@@ -629,7 +629,7 @@ fn assert_exact_package_evidence(store: &impl PackageStore, resolution: &Resolut
             .digest()
             .expect("compilation digest")
             .to_hex(),
-        "c1218f8672d1a9009b91f0ea26a3c989fd6e4cc03bf645ead6ab82ff4c24276d"
+        "ffb3743341f8e4f89cbc26e7fc66a2cedec4ac2bcf6b7c20ac7bbdbae1c57a4b"
     );
     assert_eq!(
         expected["run_digest"].as_str().expect("run digest"),
@@ -637,7 +637,7 @@ fn assert_exact_package_evidence(store: &impl PackageStore, resolution: &Resolut
     );
     assert_eq!(
         run.digest().expect("run digest").as_str(),
-        "1d5f5a57048eb4dd3aef60ce4463de3a1b783bd88127e7b1981062d6823a5ed0"
+        "0da68df3411ac83069002c860c7ecaa0a6bd3bf21cb8adf0a120fa3d35b391e0"
     );
     assert_eq!(
         expected["run_binding_digest"]
@@ -647,6 +647,6 @@ fn assert_exact_package_evidence(store: &impl PackageStore, resolution: &Resolut
     );
     assert_eq!(
         binding.digest().expect("run binding digest").to_hex(),
-        "6867fb502c7466c4c220f0d69fa05a0f8f5cf722fba57bc171140181e39b22db"
+        "afcfe5b86b928537a0ebdddb683eaf1e2a0e0e5d21488d576ae88e8313bfc7e4"
     );
 }
