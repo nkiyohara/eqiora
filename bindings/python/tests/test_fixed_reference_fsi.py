@@ -256,6 +256,13 @@ def test_common_worker_run_outputs_restart_and_observation_evidence() -> None:
     assert trajectory.plan_identity == plan.identity
     assert trajectory.request_identity == run.plan_key
     assert trajectory.run_digest == run.plan_key
+    trajectory_bytes = trajectory.to_bytes()
+    replayed_trajectory = eqiora.trajectory.Trajectory.from_bytes(plan, trajectory_bytes)
+    assert replayed_trajectory == trajectory
+    assert replayed_trajectory.to_bytes() == trajectory_bytes
+    assert tuple(state.digest for state in replayed_trajectory.states) == tuple(
+        state.digest for state in trajectory.states
+    )
     for output in outputs:
         assert output.source_plan_identity == plan.identity
         assert output.source_request_identity == run.plan_key

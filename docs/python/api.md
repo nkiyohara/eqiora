@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 152 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 580 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 152 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 582 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 182 literal public spellings, 152 canonical grouped declarations, 777 visible method signatures (580 non-dunder and 197 dunder), and 73 visible class assignments.
+Inventory: 18 modules, 182 literal public spellings, 152 canonical grouped declarations, 779 visible method signatures (582 non-dunder and 197 dunder), and 73 visible class assignments.
 
 Regenerate with:
 
@@ -3294,6 +3294,9 @@ Authority: [`crates/eqiora-python/src/trajectory.rs::PyTrajectory`](../../crates
 ```python
 @final
 class Trajectory:
+    def to_bytes(self) -> bytes: ...
+    @staticmethod
+    def from_bytes(plan: Plan, data: bytes) -> Trajectory: ...
     @property
     def model_digest(self) -> str: ...
     @property

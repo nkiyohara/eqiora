@@ -1308,6 +1308,13 @@ assert mini_one_sync.trajectory.digest == mini_one_time.trajectory.digest
 mini_two = package.run(mini, state=mini_zero, steps=2, output_steps=(1, 2))
 assert tuple(state.step for state in mini_two.trajectory.states) == (1, 2)
 assert tuple(state.time_s for state in mini_two.trajectory.states) == (0.01, 0.02)
+mini_trajectory_bytes = mini_two.trajectory.to_bytes()
+mini_trajectory_replayed = package.trajectory.Trajectory.from_bytes(mini, mini_trajectory_bytes)
+assert mini_trajectory_replayed == mini_two.trajectory
+assert mini_trajectory_replayed.to_bytes() == mini_trajectory_bytes
+assert tuple(state.digest for state in mini_trajectory_replayed.states) == tuple(
+    state.digest for state in mini_two.trajectory.states
+)
 mini_restart = package.State.from_result(custom, mini_one_sync, time_s=0.01)
 assert mini_restart.state_space_identity == mini_zero.state_space_identity
 assert mini_restart.source_plan_identity == mini.identity

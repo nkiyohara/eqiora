@@ -8,7 +8,7 @@ from typing import final
 import numpy as np
 import numpy.typing as npt
 
-from . import FieldRef, State
+from . import FieldRef, Plan, State
 from .geometry import GeometrySelection
 
 
@@ -167,6 +167,9 @@ class Trajectory:
     Authority: ``crates/eqiora-python/src/trajectory.rs::PyTrajectory``.
     """
 
+    def to_bytes(self) -> bytes: ...
+    @staticmethod
+    def from_bytes(plan: Plan, data: bytes) -> Trajectory: ...
     @property
     def model_digest(self) -> str: ...
     @property

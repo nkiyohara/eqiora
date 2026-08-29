@@ -10,8 +10,7 @@ use std::thread;
 use eqiora::diagnostic::codes;
 use eqiora::{Diagnostic, GraphPath};
 use eqiora_numerics::{
-    CommonFsiRunRequest, CommonOdeRunRequest, CommonState, CommonTransientRunRequest,
-    ResolvedCommonPlan,
+    CommonFsiRunRequest, CommonOdeRunRequest, CommonTransientRunRequest, ResolvedCommonPlan,
 };
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -64,12 +63,8 @@ enum NativeRunOutput {
         result: Box<eqiora_numerics::CommonSteadyStokesRunOutput>,
         elapsed_seconds: f64,
     },
-    Transient {
-        states: Vec<(usize, CommonState)>,
-        elapsed_seconds: f64,
-    },
-    Ode {
-        result: Box<eqiora_numerics::CommonOdeRunResult>,
+    Trajectory {
+        trajectory: Box<eqiora_numerics::CommonTrajectory>,
         elapsed_seconds: f64,
     },
 }
@@ -813,27 +808,15 @@ fn materialize_result(
         )
         .and_then(|result| Py::new(py, result))
         .map(Py::into_any),
-        NativeRunOutput::Transient {
-            states,
+        NativeRunOutput::Trajectory {
+            trajectory,
             elapsed_seconds,
-        } => crate::result::materialize_common_transient(
+        } => crate::result::materialize_common_trajectory(
             py,
             plan.borrow(py),
             identity.clone(),
             elapsed_seconds,
-            states,
-        )
-        .and_then(|result| Py::new(py, result))
-        .map(Py::into_any),
-        NativeRunOutput::Ode {
-            result,
-            elapsed_seconds,
-        } => crate::result::materialize_common_ode(
-            py,
-            plan.borrow(py),
-            identity.clone(),
-            elapsed_seconds,
-            *result,
+            *trajectory,
         )
         .and_then(|result| Py::new(py, result))
         .map(Py::into_any),
