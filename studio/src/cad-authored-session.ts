@@ -3,7 +3,6 @@ import { protocolFailure } from "./bridge-contract";
 import {
   CAD_AUTHORED_EXPORT_PROTOCOL,
   CAD_AUTHORED_PROTOCOL,
-  type CadAuthoredBuildRequest,
   type CadAuthoredExportRender,
   type CadAuthoredExportRequest,
   type CadAuthoredExportSave,
@@ -17,6 +16,7 @@ import {
   cadAuthoredProjectionSchema,
   cadAuthoredSelectionRequestSchema,
   cadAuthoredSelectionResultSchema,
+  type GeometryBuildReceiptRequest,
 } from "./cad-authored-protocol";
 import { type BridgeEnvelope, bridgeEnvelopeSchema, type StudioDiagnostic } from "./protocol";
 
@@ -28,7 +28,7 @@ export const CAD_AUTHORED_SAVE_PYTHON_COMMAND = "save_cad_authored_python";
 
 /** Transport boundary: exactly four closed native calls, all replayable. */
 export interface CadAuthoredBridge {
-  build(request: CadAuthoredBuildRequest): Promise<BridgeEnvelope<CadAuthoredProjection>>;
+  build(request: GeometryBuildReceiptRequest): Promise<BridgeEnvelope<CadAuthoredProjection>>;
   resolve(
     request: CadAuthoredSelectionRequest,
   ): Promise<BridgeEnvelope<CadAuthoredSelectionResult>>;
@@ -59,7 +59,7 @@ async function checkedInvoke<T>(
  * parity: four steps without a cut, the full eight-step chain with one.
  */
 export function cadAuthoredProjectionMatchesRequest(
-  request: CadAuthoredBuildRequest,
+  request: GeometryBuildReceiptRequest,
   projection: CadAuthoredProjection,
 ): boolean {
   const sketchPlane = projection.history[0];
@@ -199,7 +199,7 @@ export const cadAuthoredBridge: CadAuthoredBridge =
     ? nativeCadAuthoredBridge
     : previewCadAuthoredBridge;
 
-export type CadAuthoredBuildState =
+export type GeometryBuildReceiptState =
   | Readonly<{ kind: "idle" }>
   | Readonly<{ kind: "building" }>
   | Readonly<{ kind: "ready"; projection: CadAuthoredProjection }>
@@ -235,7 +235,7 @@ export type CadAuthoredExportState = Readonly<{
 }>;
 
 export type CadAuthoredSessionState = Readonly<{
-  build: CadAuthoredBuildState;
+  build: GeometryBuildReceiptState;
   selection: CadAuthoredSelectionState;
   export: CadAuthoredExportState;
 }>;
@@ -289,7 +289,7 @@ export class CadAuthoredSession {
   }
 
   /** Replay one closed scalar request in the native owner. */
-  async build(request: CadAuthoredBuildRequest): Promise<CadAuthoredSessionState> {
+  async build(request: GeometryBuildReceiptRequest): Promise<CadAuthoredSessionState> {
     const generation = ++this.#buildGeneration;
     this.#selectionGeneration += 1;
     // Rebuilding discards the previous graph's export state entirely; an

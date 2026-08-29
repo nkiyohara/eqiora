@@ -10,7 +10,7 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
 
-use crate::{CadAuthoredFaceHandle, CadAuthoredGraph, PlanarFace, PlanarRegion};
+use crate::{GeometryFaceHandle, GeometrySolidOperation, PlanarFace, PlanarRegion};
 
 const MINIMUM_TRIANGLES: usize = 2;
 const MAXIMUM_REFERENCE_TRIANGLES: usize = 100_000;
@@ -28,7 +28,7 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 #[derive(Clone, Debug, PartialEq)]
 pub struct CadAuthoredFaceMesh {
     source_graph_digest: [u8; 32],
-    source_face: CadAuthoredFaceHandle,
+    source_face: GeometryFaceHandle,
     geometry_classification_tolerance_m: f64,
     target_maximum_edge_length_m: f64,
     maximum_triangles: usize,
@@ -64,8 +64,8 @@ impl CadAuthoredFaceMesh {
     /// Accepted topology is then subject to the unchanged `SimplicialMesh`
     /// `EQ0803` orientation and quality gate.
     pub fn from_face(
-        graph: &CadAuthoredGraph,
-        source_face: &CadAuthoredFaceHandle,
+        graph: &GeometrySolidOperation,
+        source_face: &GeometryFaceHandle,
         geometry_classification_tolerance_m: f64,
         target_maximum_edge_length_m: f64,
         maximum_triangles: usize,
@@ -154,7 +154,7 @@ impl CadAuthoredFaceMesh {
 
     /// Graph-bound authored face supplying this surface realization.
     #[must_use]
-    pub const fn source_face(&self) -> &CadAuthoredFaceHandle {
+    pub const fn source_face(&self) -> &GeometryFaceHandle {
         &self.source_face
     }
 

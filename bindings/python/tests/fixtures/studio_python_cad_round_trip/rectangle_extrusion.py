@@ -2,7 +2,8 @@
 # Length arguments are coherent-SI metres.
 import eqiora
 
-authored_graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+geometry_graph = eqiora.geometry.GeometryGraph()
+authored_graph = geometry_graph.rectangle_extrusion(
     x_bounds=(-2.0, 3.0),
     y_bounds=(-1.0, 2.0),
     plane_z=0.5,

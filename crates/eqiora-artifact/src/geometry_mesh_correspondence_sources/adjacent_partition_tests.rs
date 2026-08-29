@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
-use eqiora_geometry::{PlanarOperationGraph, PlanarTopologyHandle};
+use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
 
 use super::*;
 use crate::MeshProductionLineageEnvelopeV1;
 
 fn geometry() -> CanonicalGeometryV1 {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let left = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let right = graph.rectangle([1.0, 2.0], [0.0, 1.0]).unwrap();
     let left_edges = left.boundaries();

@@ -10,7 +10,7 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
 
-use crate::{AxisAlignedBox3, CadAuthoredFaceMesh, CadAuthoredGraph};
+use crate::{AxisAlignedBox3, CadAuthoredFaceMesh, GeometrySolidOperation};
 
 const TETRAHEDRA_PER_TRIANGULAR_PRISM: usize = 3;
 const MINIMUM_TETRAHEDRA: usize = 3;
@@ -30,7 +30,7 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 #[derive(Clone, Debug, PartialEq)]
 pub struct CadAuthoredSweptMesh {
     source_surface: CadAuthoredFaceMesh,
-    target_graph: CadAuthoredGraph,
+    target_graph: GeometrySolidOperation,
     inward_direction: [f64; 3],
     normal_axis: usize,
     sweep_distance_m: f64,
@@ -59,7 +59,7 @@ impl CadAuthoredSweptMesh {
     /// to the unchanged `SimplicialMesh` `EQ0803` orientation and quality gate.
     pub fn through_body(
         source_surface: &CadAuthoredFaceMesh,
-        target_graph: &CadAuthoredGraph,
+        target_graph: &GeometrySolidOperation,
         layers: usize,
         growth_rate: f64,
         maximum_tetrahedra: usize,
@@ -115,7 +115,7 @@ impl CadAuthoredSweptMesh {
 
     /// Exact one-body authored graph swept by this realization.
     #[must_use]
-    pub const fn target_graph(&self) -> &CadAuthoredGraph {
+    pub const fn target_graph(&self) -> &GeometrySolidOperation {
         &self.target_graph
     }
 
@@ -239,7 +239,7 @@ fn validate_request(
 
 fn validate_target(
     source_surface: &CadAuthoredFaceMesh,
-    target_graph: &CadAuthoredGraph,
+    target_graph: &GeometrySolidOperation,
 ) -> Result<(), Diagnostic> {
     if source_surface.source_graph_digest_bytes() != target_graph.digest_bytes() {
         return Err(invalid(

@@ -4,18 +4,25 @@ use eqiora::artifact::{
     GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, SimplicialMeshEnvelopeV1,
 };
 use eqiora::diagnostic::codes;
-use eqiora::geometry::{CadAuthoredFaceMesh, CadAuthoredGraph, ConstrainedRectangleV1};
+use eqiora::geometry::{CadAuthoredFaceMesh, GeometryGraph, GeometrySolidOperation};
 use eqiora::meshing::{MeshEntity, MeshQualityGate, MeshTopology};
 
 const GEOMETRY_TOLERANCE_M: f64 = 5.0e-10;
 
-fn graph() -> CadAuthoredGraph {
-    CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((-2.0, 3.0), (-1.0, 2.0), 0.5).unwrap(),
-        4.0,
-        1.0e-9,
-    )
-    .unwrap()
+fn graph() -> GeometrySolidOperation {
+    rectangle_graph((-2.0, 3.0), (-1.0, 2.0), 0.5, 4.0, 1.0e-9)
+}
+
+fn rectangle_graph(
+    x_bounds: (f64, f64),
+    y_bounds: (f64, f64),
+    plane_z: f64,
+    depth: f64,
+    tolerance: f64,
+) -> GeometrySolidOperation {
+    GeometryGraph::new()
+        .rectangle_extrusion(x_bounds, y_bounds, plane_z, depth, tolerance)
+        .unwrap()
 }
 
 fn quality(minimum: f64) -> MeshQualityGate {
@@ -23,7 +30,7 @@ fn quality(minimum: f64) -> MeshQualityGate {
 }
 
 fn realize(
-    graph: &CadAuthoredGraph,
+    graph: &GeometrySolidOperation,
     provenance: &str,
     tolerance_m: f64,
     target_m: f64,
@@ -280,13 +287,13 @@ fn binary64_minimality_boundaries_and_estimate_correction_are_exact() {
     assert_eq!(n7_gap.hypot(n7_gap).to_bits(), 0x3fef_844a_57e8_1353);
     assert!(n7_gap.hypot(n7_gap) > replacement_target);
 
-    let replacement_graph = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((0.0, replacement_length), (0.0, replacement_length), 0.0)
-            .unwrap(),
+    let replacement_graph = rectangle_graph(
+        (0.0, replacement_length),
+        (0.0, replacement_length),
+        0.0,
         1.0,
         1.0e-9,
-    )
-    .unwrap();
+    );
     let replacement = realize(
         &replacement_graph,
         "end-cap",
@@ -326,12 +333,7 @@ fn retained_regression_witness_corrects_nominal_seven_to_eight() {
     let n8_gap = maximum_realized_axis_gap(length, 8);
     assert!(n8_gap.hypot(n8_gap) <= target);
 
-    let graph = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((0.0, length), (0.0, 1.0), 0.0).unwrap(),
-        1.0,
-        1.0e-9,
-    )
-    .unwrap();
+    let graph = rectangle_graph((0.0, length), (0.0, 1.0), 0.0, 1.0, 1.0e-9);
     let corrected = realize(&graph, "end-cap", GEOMETRY_TOLERANCE_M, target, 16, 0.5);
     assert_eq!((corrected.u_divisions(), corrected.v_divisions()), (8, 1));
 }
@@ -364,12 +366,7 @@ fn both_axes_of_a_non_square_face_snap_independently_before_acceptance() {
     assert!(u_accepted_gap.hypot(u_accepted_gap) <= target);
     assert!(v_accepted_gap.hypot(v_accepted_gap) <= target);
 
-    let graph = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((0.0, u_length), (0.0, v_length), 0.0).unwrap(),
-        1.0,
-        1.0e-9,
-    )
-    .unwrap();
+    let graph = rectangle_graph((0.0, u_length), (0.0, v_length), 0.0, 1.0, 1.0e-9);
     let realization = realize(&graph, "end-cap", GEOMETRY_TOLERANCE_M, target, 1000, 0.5);
     assert_eq!(
         (realization.u_divisions(), realization.v_divisions()),
@@ -416,12 +413,7 @@ fn endpoint_snapping_is_measured_before_a_target_is_accepted() {
     );
     assert!(realized_gap.hypot(realized_gap) > target);
 
-    let graph = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((0.0, length), (0.0, length), 0.0).unwrap(),
-        1.0,
-        1.0e-9,
-    )
-    .unwrap();
+    let graph = rectangle_graph((0.0, length), (0.0, length), 0.0, 1.0, 1.0e-9);
     let realization = realize(&graph, "end-cap", GEOMETRY_TOLERANCE_M, target, 128, 0.5);
     assert_eq!(
         (realization.u_divisions(), realization.v_divisions()),
@@ -455,7 +447,10 @@ fn endpoint_snapping_is_measured_before_a_target_is_accepted() {
 
 #[test]
 fn source_policy_budget_and_quality_falsifiers_fail_closed() {
-    let graph = graph();
+    let owner = GeometryGraph::new();
+    let graph = owner
+        .rectangle_extrusion((-2.0, 3.0), (-1.0, 2.0), 0.5, 4.0, 1.0e-9)
+        .unwrap();
     let face = graph.face_handle("end-cap").unwrap();
     let accepted =
         CadAuthoredFaceMesh::from_face(&graph, &face, GEOMETRY_TOLERANCE_M, 2.0, 24, quality(0.95))
@@ -512,7 +507,7 @@ fn source_policy_budget_and_quality_falsifiers_fail_closed() {
         );
     }
 
-    let changed_identity = CadAuthoredGraph::new(graph.sketch(), 4.0, 2.0e-9).unwrap();
+    let changed_identity = rectangle_graph((-2.0, 3.0), (-1.0, 2.0), 0.5, 4.0, 2.0e-9);
     let stale = CadAuthoredFaceMesh::from_face(
         &changed_identity,
         &face,
@@ -536,8 +531,8 @@ fn source_policy_budget_and_quality_falsifiers_fail_closed() {
         .unwrap();
     }
 
-    let cut = graph
-        .circular_through_cut([0.0, 0.0], 0.25, 1.0e-9)
+    let cut = owner
+        .circular_through_cut(&graph, [0.0, 0.0], 0.25, 1.0e-9)
         .unwrap();
     assert_eq!(
         CadAuthoredFaceMesh::from_face(&cut, &face, GEOMETRY_TOLERANCE_M, 2.0, 24, quality(0.5),)

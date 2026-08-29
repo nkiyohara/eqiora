@@ -1,5 +1,5 @@
 use eqiora_geometry::{
-    CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1, ConstrainedRectangleV1,
+    CadRepairDispositionV1, GeometryFaceHandle, GeometryGraph, GeometrySolidOperation,
 };
 
 const WIRE: &str = r#"{"schema":"eqiora.cad-authored-operation-graph-envelope/v2","encoding":"eqiora.canonical-json/v1","length_unit":"metre","requested_modeling_tolerance_m":1e-10,"sketch_plane":{"id":"sketch-plane","kind":"xy","z_m":0.0},"profile":{"id":"rectangle-profile","kind":"axis-aligned-rectangle","sketch_plane":"sketch-plane","constraint":"closed-by-construction","x_bounds_m":[-0.04,0.04],"y_bounds_m":[-0.025,0.025]},"face":{"id":"profile-face","kind":"one-closed-loop-face","profile":"rectangle-profile","region_count":1},"extrusion":{"id":"positive-z-extrusion","kind":"positive-z","face":"profile-face","depth_m":0.02,"repair":"none"},"cut_sketch_plane":{"id":"cut-sketch-plane","kind":"on-face","face":"end-cap"},"cut_profile":{"id":"circle-profile","kind":"circle","sketch_plane":"cut-sketch-plane","constraint":"closed-by-construction","center_m":[0.02,0.0],"radius_m":0.008},"cut_face":{"id":"cut-profile-face","kind":"one-closed-loop-face","profile":"circle-profile","region_count":1},"cut":{"id":"circular-through-cut","kind":"difference-through-all-negative-z","target":"positive-z-extrusion","tool_face":"cut-profile-face","requested_tolerance_m":1e-9,"repair":"none"},"selections":["start-cap","end-cap","profile-x-lower","profile-x-upper","profile-y-lower","profile-y-upper","cut-wall"]}"#;
@@ -11,19 +11,40 @@ const DIGEST: [u8; 32] = [
 
 const RELATIVE_TOLERANCE: f64 = 4.0e-15;
 
-fn base(modeling_tolerance_m: f64) -> CadAuthoredGraph {
-    CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((-0.04, 0.04), (-0.025, 0.025), 0.0).unwrap(),
-        0.02,
-        modeling_tolerance_m,
-    )
-    .unwrap()
+fn base(modeling_tolerance_m: f64) -> (GeometryGraph, GeometrySolidOperation) {
+    let graph = GeometryGraph::new();
+    let operation = graph
+        .rectangle_extrusion(
+            (-0.04, 0.04),
+            (-0.025, 0.025),
+            0.0,
+            0.02,
+            modeling_tolerance_m,
+        )
+        .unwrap();
+    (graph, operation)
 }
 
-fn witness() -> CadAuthoredGraph {
-    base(1.0e-10)
-        .circular_through_cut([0.02, 0.0], 0.008, 1.0e-9)
-        .unwrap()
+fn cut(
+    modeling_tolerance_m: f64,
+    center_m: [f64; 2],
+    radius_m: f64,
+    boolean_tolerance_m: f64,
+) -> Result<GeometrySolidOperation, eqiora_core::Diagnostic> {
+    let (graph, base) = base(modeling_tolerance_m);
+    graph.circular_through_cut(&base, center_m, radius_m, boolean_tolerance_m)
+}
+
+fn witness_owned() -> (GeometryGraph, GeometrySolidOperation) {
+    let (graph, base) = base(1.0e-10);
+    let operation = graph
+        .circular_through_cut(&base, [0.02, 0.0], 0.008, 1.0e-9)
+        .unwrap();
+    (graph, operation)
+}
+
+fn witness() -> GeometrySolidOperation {
+    witness_owned().1
 }
 
 fn close(actual: f64, expected: f64) {
@@ -33,16 +54,16 @@ fn close(actual: f64, expected: f64) {
     );
 }
 
-fn keys(handles: &[CadAuthoredFaceHandle]) -> Vec<&'static str> {
+fn keys(handles: &[GeometryFaceHandle]) -> Vec<&'static str> {
     handles
         .iter()
-        .map(CadAuthoredFaceHandle::provenance_key)
+        .map(GeometryFaceHandle::provenance_key)
         .collect()
 }
 
 #[test]
 fn independent_oracles_freeze_wire_geometry_and_face_observations() {
-    let graph = witness();
+    let (owner, graph) = witness_owned();
     assert_eq!(graph.canonical_bytes(), WIRE.as_bytes());
     assert_eq!(graph.canonical_bytes().len(), 1292);
     assert_eq!(graph.digest_bytes(), DIGEST);
@@ -82,7 +103,9 @@ fn independent_oracles_freeze_wire_geometry_and_face_observations() {
         ("cut-wall", 0.001_005_309_649_148_734, 2),
     ] {
         let handle = graph.face_handle(provenance_key).unwrap();
-        let replayed = CadAuthoredFaceHandle::decode_canonical(handle.canonical_bytes()).unwrap();
+        let replayed = owner
+            .decode_face_handle(&graph, handle.canonical_bytes())
+            .unwrap();
         assert_eq!(handle.provenance_key(), provenance_key);
         assert_eq!(graph.resolve_face(&replayed).unwrap(), provenance_key);
         close(graph.face_area_m2(&replayed).unwrap(), area);
@@ -96,8 +119,8 @@ fn independent_oracles_freeze_wire_geometry_and_face_observations() {
 
 #[test]
 fn build_receipt_keeps_tolerances_provenance_repair_and_lineage_distinct() {
-    let graph = witness();
-    let build = graph.build_analytic().unwrap();
+    let (owner, graph) = witness_owned();
+    let build = owner.build_solid(&graph).unwrap();
     assert_eq!(build.graph_digest_bytes(), graph.digest_bytes());
     assert_eq!(
         build.provider_profile(),
@@ -125,10 +148,10 @@ fn build_receipt_keeps_tolerances_provenance_repair_and_lineage_distinct() {
     assert!(build.split().is_empty());
     assert!(build.merged().is_empty());
 
-    let receipt_discriminator = base(1.0e-10)
-        .circular_through_cut([0.02, 0.0], 0.008, 1.0e-11)
-        .unwrap()
-        .build_analytic()
+    let (owner, base) = base(1.0e-10);
+    let receipt_discriminator = owner
+        .circular_through_cut(&base, [0.02, 0.0], 0.008, 1.0e-11)
+        .and_then(|operation| owner.build_solid(&operation))
         .unwrap();
     assert_eq!(
         receipt_discriminator.requested_modeling_tolerance_m(),
@@ -146,31 +169,21 @@ fn build_receipt_keeps_tolerances_provenance_repair_and_lineage_distinct() {
 
 #[test]
 fn signed_clearance_and_strict_boundary_reject_before_identity() {
-    assert!(
-        base(1.0e-10)
-            .circular_through_cut([0.10, 0.0], 0.008, 1.0e-9)
-            .is_err()
-    );
-    assert!(
-        base(1.0e-10)
-            .circular_through_cut([0.0335, 0.0], 0.008, 1.0e-9)
-            .is_err()
-    );
+    assert!(cut(1.0e-10, [0.10, 0.0], 0.008, 1.0e-9).is_err());
+    assert!(cut(1.0e-10, [0.0335, 0.0], 0.008, 1.0e-9).is_err());
 
-    let exact_boundary = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((0.0, 4.0e-9), (0.0, 4.0e-9), 0.0).unwrap(),
-        1.0,
-        1.0e-10,
-    )
-    .unwrap();
+    let exact_owner = GeometryGraph::new();
+    let exact_boundary = exact_owner
+        .rectangle_extrusion((0.0, 4.0e-9), (0.0, 4.0e-9), 0.0, 1.0, 1.0e-10)
+        .unwrap();
     assert!(
-        exact_boundary
-            .circular_through_cut([2.0e-9, 2.0e-9], 1.0e-9, 1.0e-9)
+        exact_owner
+            .circular_through_cut(&exact_boundary, [2.0e-9, 2.0e-9], 1.0e-9, 1.0e-9)
             .is_err()
     );
     assert!(
-        exact_boundary
-            .circular_through_cut([2.0e-9, 2.0e-9], 0.5e-9, 1.0e-9)
+        exact_owner
+            .circular_through_cut(&exact_boundary, [2.0e-9, 2.0e-9], 0.5e-9, 1.0e-9)
             .is_ok()
     );
 
@@ -181,11 +194,7 @@ fn signed_clearance_and_strict_boundary_reject_before_identity() {
         (0.008, 0.0),
         (0.008, f64::INFINITY),
     ] {
-        assert!(
-            base(1.0e-10)
-                .circular_through_cut([0.02, 0.0], radius, tolerance)
-                .is_err()
-        );
+        assert!(cut(1.0e-10, [0.02, 0.0], radius, tolerance).is_err());
     }
 }
 
@@ -194,7 +203,8 @@ fn wire_and_handles_fail_closed_without_rebinding() {
     let graph = witness();
     let value: serde_json::Value = serde_json::from_str(WIRE).unwrap();
     let reordered = serde_json::to_vec(&value).unwrap();
-    let replayed = CadAuthoredGraph::decode_canonical(&reordered).unwrap();
+    let decoder = GeometryGraph::new();
+    let replayed = decoder.decode_solid(&reordered).unwrap();
     assert_eq!(replayed, graph);
     assert_eq!(replayed.canonical_bytes(), WIRE.as_bytes());
 
@@ -214,18 +224,16 @@ fn wire_and_handles_fail_closed_without_rebinding() {
         WIRE.replace(",\"cut-wall\"]", "]"),
     ] {
         assert!(
-            CadAuthoredGraph::decode_canonical(mutant.as_bytes()).is_err(),
+            decoder.decode_solid(mutant.as_bytes()).is_err(),
             "wire mutant must reject: {mutant}"
         );
     }
 
-    let base_graph = base(1.0e-10);
+    let (_, base_graph) = base(1.0e-10);
     let old_handle = base_graph.face_handle("end-cap").unwrap();
     assert!(graph.resolve_face(&old_handle).is_err());
 
-    let changed = base(1.0e-10)
-        .circular_through_cut([0.02, 0.0], 0.008, 2.0e-9)
-        .unwrap();
+    let changed = cut(1.0e-10, [0.02, 0.0], 0.008, 2.0e-9).unwrap();
     let handle = graph.face_handle("cut-wall").unwrap();
     assert!(changed.resolve_face(&handle).is_err());
 
@@ -235,6 +243,9 @@ fn wire_and_handles_fail_closed_without_rebinding() {
         "10acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47",
         1,
     );
-    let foreign = CadAuthoredFaceHandle::decode_canonical(foreign_wire.as_bytes()).unwrap();
-    assert!(graph.resolve_face(&foreign).is_err());
+    assert!(
+        decoder
+            .decode_face_handle(&replayed, foreign_wire.as_bytes())
+            .is_err()
+    );
 }

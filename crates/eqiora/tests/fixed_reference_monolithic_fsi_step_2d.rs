@@ -5,7 +5,7 @@ use eqiora::artifact::{
     AffineTriangleMeshCellsV1, GeometryMeshCorrespondenceEnvelopeV1,
     MeshProductionLineageEnvelopeV1, ModelEnvelope,
 };
-use eqiora::geometry::{PlanarOperationGraph, PlanarTopologyHandle};
+use eqiora::geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora::realization::{SolveRoot, TransformationNode};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
@@ -173,7 +173,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         ),
     );
 
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let fluid = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let solid = graph.rectangle([1.0, 2.0], [0.0, 1.0]).unwrap();
     let fluid_edges = fluid.boundaries();

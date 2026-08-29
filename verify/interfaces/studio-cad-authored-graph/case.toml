@@ -13,7 +13,7 @@ capabilities = [
 [canonical_contract]
 protocol = "eqiora.studio.cad-authored/v1"
 histories = "rectangle-closed-face-positive-z-extrusion; optional one strictly interior circular through-cut"
-graph_owner = "eqiora-geometry::CadAuthoredGraph"
+graph_owner = "eqiora-geometry::GeometrySolidOperation"
 rectangle_authority = "geometry.cad-authored-rectangle-extrusion"
 cut_authority = "geometry.cad-authored-circular-through-cut"
 maximum_operations = 8

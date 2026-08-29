@@ -372,7 +372,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     let mut foreign_resources = resources(&foreign);
     if let NativeMeshResources::Cartesian { geometry, .. } = &mut foreign_resources.resources {
         *geometry = {
-            let graph = PlanarOperationGraph::new();
+            let graph = GeometryGraph::new();
             let rectangle = graph.rectangle([0.0, 2.0], [0.0, 1.0]).unwrap();
             let edges = rectangle.boundaries();
             graph

@@ -326,7 +326,7 @@ fn select_cad_entity(
 
 #[tauri::command]
 fn build_cad_authored_graph(
-    request: cad_authored::CadAuthoredBuildRequestDto,
+    request: cad_authored::GeometryBuildReceiptRequestDto,
 ) -> BridgeEnvelope<cad_authored::CadAuthoredProjectionDto> {
     match cad_authored::build_graph(&request) {
         Ok(projection) => BridgeEnvelope::success(projection),

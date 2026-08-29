@@ -10,10 +10,8 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use serde::{Deserialize, Serialize};
 
-use crate::cad_authored_build::CadAuthoredBuild;
 use crate::cad_authored_cut::{CircularThroughCut, GRAPH_SCHEMA_V2, decode_v2, encode_v2};
-use crate::cad_authored_selection::{CadAuthoredFaceHandle, FaceKey, WireFaceSelectionV1};
-use crate::cad_authored_sketch::CadAuthoredSketch;
+use crate::cad_authored_selection::{FaceKey, GeometryFaceHandle, WireFaceSelectionV1};
 use crate::canonical::{CANONICAL_ENCODING, WireLengthUnit, digest_with_schema};
 use crate::{AxisAlignedBox3, CadRepairDispositionV1, ConstrainedRectangleV1};
 
@@ -47,15 +45,25 @@ enum GraphKind {
 /// Persisted v1 and v2 schemas remain closed private variants.  Existing v1
 /// bytes and digests are reproduced exactly while callers use one feature-
 /// neutral Rust surface before Python and Studio projection.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CadAuthoredGraph {
+#[derive(Clone, Debug)]
+pub struct GeometrySolidOperation {
+    authoring_owner: u64,
     core: GraphCore,
     kind: GraphKind,
     bytes: Vec<u8>,
     digest: [u8; 32],
 }
 
-impl CadAuthoredGraph {
+impl PartialEq for GeometrySolidOperation {
+    fn eq(&self, other: &Self) -> bool {
+        self.core == other.core
+            && self.kind == other.kind
+            && self.bytes == other.bytes
+            && self.digest == other.digest
+    }
+}
+
+impl GeometrySolidOperation {
     /// Construct the frozen rectangle → face → positive-z extrusion history.
     ///
     /// The requested modeling tolerance is identity-only.  It is never used
@@ -64,25 +72,18 @@ impl CadAuthoredGraph {
     /// # Errors
     /// Returns `EQ0901` for a non-positive/non-finite depth or tolerance, a
     /// non-finite derived extent, or unexpected canonical serialization.
-    pub fn new(
+    pub(crate) fn from_rectangle(
+        authoring_owner: u64,
         sketch: ConstrainedRectangleV1,
         extrusion_depth_m: f64,
         requested_modeling_tolerance_m: f64,
-    ) -> Result<Self, Diagnostic> {
-        CadAuthoredSketch::rectangle_xy(sketch, requested_modeling_tolerance_m)?
-            .extrude_positive_z(extrusion_depth_m)
-    }
-
-    pub(crate) fn from_rectangle_sketch(
-        sketch: ConstrainedRectangleV1,
-        requested_modeling_tolerance_m: f64,
-        extrusion_depth_m: f64,
     ) -> Result<Self, Diagnostic> {
         let core = validate_extrusion(sketch, extrusion_depth_m, requested_modeling_tolerance_m)?;
-        let wire = WireCadAuthoredGraphV1::from_core(core);
+        let wire = WireGeometrySolidOperationV1::from_core(core);
         let bytes = serde_json::to_vec(&wire)
             .map_err(|error| invalid(format!("cannot serialize authored CAD graph: {error}")))?;
         Ok(Self::from_encoded(
+            authoring_owner,
             core,
             GraphKind::RectangleExtrusion,
             GRAPH_SCHEMA_V1,
@@ -100,27 +101,10 @@ impl CadAuthoredGraph {
     /// Returns `EQ0901` unless the predecessor is the closed v1 history and
     /// the finite positive circle lies strictly inside every rectangle side by
     /// more than the requested Boolean tolerance.
-    pub fn circular_through_cut(
+    pub(crate) fn append_circular_through_cut(
         &self,
         center_m: [f64; 2],
         radius_m: f64,
-        requested_boolean_tolerance_m: f64,
-    ) -> Result<Self, Diagnostic> {
-        let sketch =
-            CadAuthoredSketch::circle_on_face(self.face_handle("end-cap")?, center_m, radius_m)?;
-        self.through_cut(&sketch, requested_boolean_tolerance_m)
-    }
-
-    /// Apply the one admitted circular through-cut to its exact predecessor.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` unless this is a v1 rectangle-extrusion graph, the
-    /// sketch is a circle bound to this graph's canonical `end-cap`, and the
-    /// existing finite positive tolerance and strict signed-clearance
-    /// predicates are satisfied.
-    pub fn through_cut(
-        &self,
-        sketch: &CadAuthoredSketch,
         requested_boolean_tolerance_m: f64,
     ) -> Result<Self, Diagnostic> {
         if !matches!(self.kind, GraphKind::RectangleExtrusion) {
@@ -128,14 +112,7 @@ impl CadAuthoredGraph {
                 "authored CAD v2 admits exactly one cut after the rectangle extrusion",
             ));
         }
-        let (face, circle) = sketch.circle_parts().ok_or_else(|| {
-            invalid("circular through-cut requires the admitted circle-on-face sketch")
-        })?;
-        if self.resolve_face_key(face)? != FaceKey::end_cap() {
-            return Err(invalid(
-                "authored CAD circular through-cut requires this graph's end cap",
-            ));
-        }
+        let circle = crate::cad_authored_cut::AdmittedCircle::new(center_m, radius_m)?;
         let cut = CircularThroughCut::new(self.core.sketch, circle, requested_boolean_tolerance_m)?;
         let bytes = encode_v2(
             self.core.sketch,
@@ -144,6 +121,7 @@ impl CadAuthoredGraph {
             cut,
         )?;
         Ok(Self::from_encoded(
+            self.authoring_owner,
             self.core,
             GraphKind::CircularThroughCut(cut),
             GRAPH_SCHEMA_V2,
@@ -158,33 +136,35 @@ impl CadAuthoredGraph {
     ///
     /// # Errors
     /// Returns `EQ0901` for excess bytes or a malformed/unsupported graph.
-    pub fn decode_canonical(bytes: &[u8]) -> Result<Self, Diagnostic> {
+    pub(crate) fn decode_for_owner(authoring_owner: u64, bytes: &[u8]) -> Result<Self, Diagnostic> {
         if bytes.len() > MAX_GRAPH_BYTES {
             return Err(invalid(format!(
                 "authored CAD graph has {} bytes, exceeding the {MAX_GRAPH_BYTES} byte decoder limit",
                 bytes.len()
             )));
         }
-        if let Ok(wire) = serde_json::from_slice::<WireCadAuthoredGraphV1>(bytes) {
+        if let Ok(wire) = serde_json::from_slice::<WireGeometrySolidOperationV1>(bytes) {
             wire.check_contract()?;
             let sketch = ConstrainedRectangleV1::new(
                 (wire.profile.x_bounds_m[0], wire.profile.x_bounds_m[1]),
                 (wire.profile.y_bounds_m[0], wire.profile.y_bounds_m[1]),
                 wire.sketch_plane.z_m,
             )?;
-            return Self::new(
+            return Self::from_rectangle(
+                authoring_owner,
                 sketch,
                 wire.extrusion.depth_m,
                 wire.requested_modeling_tolerance_m,
             );
         }
         if let Ok(decoded) = decode_v2(bytes) {
-            let base = Self::new(
+            let base = Self::from_rectangle(
+                authoring_owner,
                 decoded.sketch,
                 decoded.extrusion_depth_m,
                 decoded.requested_modeling_tolerance_m,
             )?;
-            return base.circular_through_cut(
+            return base.append_circular_through_cut(
                 decoded.center_m,
                 decoded.radius_m,
                 decoded.requested_boolean_tolerance_m,
@@ -193,13 +173,24 @@ impl CadAuthoredGraph {
         Err(invalid("unsupported or malformed authored CAD graph wire"))
     }
 
-    fn from_encoded(core: GraphCore, kind: GraphKind, schema: &str, bytes: Vec<u8>) -> Self {
+    fn from_encoded(
+        authoring_owner: u64,
+        core: GraphCore,
+        kind: GraphKind,
+        schema: &str,
+        bytes: Vec<u8>,
+    ) -> Self {
         Self {
+            authoring_owner,
             core,
             kind,
             digest: digest_with_schema(schema, &bytes),
             bytes,
         }
+    }
+
+    pub(crate) const fn authoring_owner(&self) -> u64 {
+        self.authoring_owner
     }
 
     /// Fully constrained rectangle owned by the graph.
@@ -374,7 +365,7 @@ impl CadAuthoredGraph {
     /// # Errors
     /// Returns `EQ0901` only for an unexpected canonical handle serialization
     /// failure.
-    pub fn face_handles(&self) -> Result<Vec<CadAuthoredFaceHandle>, Diagnostic> {
+    pub fn face_handles(&self) -> Result<Vec<GeometryFaceHandle>, Diagnostic> {
         self.face_inventory()
             .iter()
             .copied()
@@ -387,7 +378,7 @@ impl CadAuthoredGraph {
     /// # Errors
     /// Returns `EQ0901` for an unknown or inadmissible provenance key or an
     /// unexpected canonical handle serialization failure.
-    pub fn face_handle(&self, provenance_key: &str) -> Result<CadAuthoredFaceHandle, Diagnostic> {
+    pub fn face_handle(&self, provenance_key: &str) -> Result<GeometryFaceHandle, Diagnostic> {
         let face = FaceKey::from_provenance_key(provenance_key)
             .filter(|candidate| self.face_inventory().contains(candidate))
             .ok_or_else(|| {
@@ -398,16 +389,17 @@ impl CadAuthoredGraph {
         self.face_handle_for(face)
     }
 
-    pub(crate) fn face_handle_for(
-        &self,
-        face: FaceKey,
-    ) -> Result<CadAuthoredFaceHandle, Diagnostic> {
+    pub(crate) fn face_handle_for(&self, face: FaceKey) -> Result<GeometryFaceHandle, Diagnostic> {
         if !self.face_inventory().contains(&face) {
             return Err(invalid("face is not admitted by this authored graph"));
         }
         match self.kind {
-            GraphKind::RectangleExtrusion => CadAuthoredFaceHandle::bind_v1(self.digest, face),
-            GraphKind::CircularThroughCut(_) => CadAuthoredFaceHandle::bind_v2(self.digest, face),
+            GraphKind::RectangleExtrusion => {
+                GeometryFaceHandle::bind_v1(self.authoring_owner, self.digest, face)
+            }
+            GraphKind::CircularThroughCut(_) => {
+                GeometryFaceHandle::bind_v2(self.authoring_owner, self.digest, face)
+            }
         }
     }
 
@@ -416,16 +408,19 @@ impl CadAuthoredGraph {
     /// # Errors
     /// Returns `EQ0901` before lookup for any foreign/stale graph digest or
     /// handle schema, then rejects a face outside this graph inventory.
-    pub fn resolve_face(&self, handle: &CadAuthoredFaceHandle) -> Result<&'static str, Diagnostic> {
+    pub fn resolve_face(&self, handle: &GeometryFaceHandle) -> Result<&'static str, Diagnostic> {
         Ok(self.resolve_face_key(handle)?.provenance_key())
     }
 
     pub(crate) fn resolve_face_key(
         &self,
-        handle: &CadAuthoredFaceHandle,
+        handle: &GeometryFaceHandle,
     ) -> Result<FaceKey, Diagnostic> {
         let expected_v1 = matches!(self.kind, GraphKind::RectangleExtrusion);
-        if handle.graph_digest_bytes() != self.digest || handle.is_v1() != expected_v1 {
+        if handle.authoring_owner() != self.authoring_owner
+            || handle.graph_digest_bytes() != self.digest
+            || handle.is_v1() != expected_v1
+        {
             return Err(invalid(
                 "CAD face handle belongs to a foreign authored graph identity or wire variant",
             ));
@@ -440,14 +435,14 @@ impl CadAuthoredGraph {
     }
 
     /// Exact face area after validating the graph-bound handle.
-    pub fn face_area_m2(&self, handle: &CadAuthoredFaceHandle) -> Result<f64, Diagnostic> {
+    pub fn face_area_m2(&self, handle: &GeometryFaceHandle) -> Result<f64, Diagnostic> {
         Ok(self.face_area_for(self.resolve_face_key(handle)?))
     }
 
     /// Exact number of analytic boundary loops on the selected face.
     pub fn face_boundary_loop_count(
         &self,
-        handle: &CadAuthoredFaceHandle,
+        handle: &GeometryFaceHandle,
     ) -> Result<usize, Diagnostic> {
         let selection = self.resolve_face_key(handle)?;
         Ok(match self.kind {
@@ -465,7 +460,7 @@ impl CadAuthoredGraph {
     /// Four outward-oriented vertices for a rectangular face, when applicable.
     pub fn rectangular_face_vertices_m(
         &self,
-        handle: &CadAuthoredFaceHandle,
+        handle: &GeometryFaceHandle,
     ) -> Result<Option<[[f64; 3]; 4]>, Diagnostic> {
         let selection = self.resolve_face_key(handle)?;
         Ok(self.rectangular_face_cycle(selection))
@@ -474,7 +469,7 @@ impl CadAuthoredGraph {
     /// Centroid of a rectangular selected face, when applicable.
     pub fn rectangular_face_centroid_m(
         &self,
-        handle: &CadAuthoredFaceHandle,
+        handle: &GeometryFaceHandle,
     ) -> Result<Option<[f64; 3]>, Diagnostic> {
         Ok(self.rectangular_face_vertices_m(handle)?.map(centroid))
     }
@@ -482,7 +477,7 @@ impl CadAuthoredGraph {
     /// Constant outward unit normal for a planar selected face.
     pub fn planar_face_outward_normal(
         &self,
-        handle: &CadAuthoredFaceHandle,
+        handle: &GeometryFaceHandle,
     ) -> Result<Option<[f64; 3]>, Diagnostic> {
         let selection = self.resolve_face_key(handle)?;
         Ok(if selection == FaceKey::cut_wall() {
@@ -490,33 +485,6 @@ impl CadAuthoredGraph {
         } else {
             Some(planar_normal(selection))
         })
-    }
-
-    /// Execute the bounded built-in analytic profile and close its receipt.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` only if graph-bound lineage handles cannot be formed.
-    pub fn build_analytic(&self) -> Result<CadAuthoredBuild, Diagnostic> {
-        CadAuthoredBuild::from_graph(self)
-    }
-
-    /// Build and accept this graph's immutable planar circular-hole result.
-    ///
-    /// The returned build is the result owner: it projects graph-bound source
-    /// handles and atomically binds complete named result topology without a
-    /// coordinate classifier or a duplicate planar-result wrapper.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` unless this graph contains the admitted circular
-    /// through-cut and its complete analytic build evidence is accepted.
-    pub fn planar_result(&self) -> Result<CadAuthoredBuild, Diagnostic> {
-        let build = self.build_analytic()?;
-        if !build.has_planar_result() {
-            return Err(invalid(
-                "planar result requires the admitted circular through-cut graph",
-            ));
-        }
-        Ok(build)
     }
 
     fn face_area_for(&self, selection: FaceKey) -> f64 {
@@ -583,14 +551,6 @@ impl CadAuthoredGraph {
             cut.radius_m(),
         ))
     }
-
-    pub(crate) fn predecessor_digest_bytes(&self) -> Option<[u8; 32]> {
-        self.is_cut().then(|| {
-            let bytes = serde_json::to_vec(&WireCadAuthoredGraphV1::from_core(self.core))
-                .expect("validated authored graph core always has canonical JSON");
-            digest_with_schema(GRAPH_SCHEMA_V1, &bytes)
-        })
-    }
 }
 
 fn validate_extrusion(
@@ -598,6 +558,11 @@ fn validate_extrusion(
     extrusion_depth_m: f64,
     requested_modeling_tolerance_m: f64,
 ) -> Result<GraphCore, Diagnostic> {
+    if !requested_modeling_tolerance_m.is_finite() || requested_modeling_tolerance_m <= 0.0 {
+        return Err(invalid(
+            "authored CAD modeling tolerance must be finite and positive in metres",
+        ));
+    }
     if !extrusion_depth_m.is_finite() || extrusion_depth_m <= 0.0 {
         return Err(invalid(
             "authored CAD extrusion depth must be finite and positive in metres",
@@ -617,7 +582,7 @@ fn validate_extrusion(
     Ok(GraphCore {
         sketch,
         extrusion_depth_m,
-        requested_modeling_tolerance_m,
+        requested_modeling_tolerance_m: canonical_zero(requested_modeling_tolerance_m),
         bounds,
     })
 }
@@ -650,7 +615,7 @@ const fn canonical_zero(value: f64) -> f64 {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCadAuthoredGraphV1 {
+struct WireGeometrySolidOperationV1 {
     schema: String,
     encoding: String,
     length_unit: WireLengthUnit,
@@ -662,7 +627,7 @@ struct WireCadAuthoredGraphV1 {
     selections: Vec<WireFaceSelectionV1>,
 }
 
-impl WireCadAuthoredGraphV1 {
+impl WireGeometrySolidOperationV1 {
     fn from_core(core: GraphCore) -> Self {
         Self {
             schema: GRAPH_SCHEMA_V1.to_owned(),

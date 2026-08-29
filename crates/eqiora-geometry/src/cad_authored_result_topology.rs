@@ -7,8 +7,8 @@ use eqiora_core::diagnostic::codes;
 
 use crate::cad_authored_selection::FaceKey;
 use crate::{
-    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph,
-    CanonicalPlanarCircularHoleGeometryV2, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
+    CanonicalPlanarCircularHoleGeometryV2, EDGE_DIMENSION, FACE_DIMENSION, GeometryBuildReceipt,
+    GeometryFaceHandle, GeometrySolidOperation, NamedEntitySet,
 };
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
@@ -129,8 +129,8 @@ pub(crate) struct CadAuthoredResultTopology {
 
 impl CadAuthoredResultTopology {
     pub(crate) fn from_build(
-        graph: &CadAuthoredGraph,
-        build: &CadAuthoredBuild,
+        graph: &GeometrySolidOperation,
+        build: &GeometryBuildReceipt,
     ) -> Result<Self, Diagnostic> {
         let lineage = LineageProjection {
             retained_unchanged: keys(build.retained_unchanged()),
@@ -144,7 +144,7 @@ impl CadAuthoredResultTopology {
     }
 
     fn admit(
-        graph: &CadAuthoredGraph,
+        graph: &GeometrySolidOperation,
         build_graph_digest: [u8; 32],
         lineage: LineageProjection,
     ) -> Result<Self, Diagnostic> {
@@ -196,7 +196,7 @@ impl CadAuthoredResultTopology {
     /// Returns `EQ0901` for a foreign, stale, deleted, or non-section handle.
     pub fn project(
         &self,
-        source: &CadAuthoredFaceHandle,
+        source: &GeometryFaceHandle,
     ) -> Result<CadAuthoredResultTopologyHandle, Diagnostic> {
         if source.graph_digest_bytes() != self.owner_graph_digest || source.is_v1() {
             return Err(invalid(
@@ -289,11 +289,8 @@ impl CadAuthoredResultTopology {
     }
 }
 
-fn keys(handles: &[CadAuthoredFaceHandle]) -> Vec<FaceKey> {
-    handles
-        .iter()
-        .map(CadAuthoredFaceHandle::face_key)
-        .collect()
+fn keys(handles: &[GeometryFaceHandle]) -> Vec<FaceKey> {
+    handles.iter().map(GeometryFaceHandle::face_key).collect()
 }
 
 fn edge_member(source: FaceKey) -> Option<usize> {
@@ -315,21 +312,31 @@ fn edge_member(source: FaceKey) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ConstrainedRectangleV1;
+    use crate::GeometryGraph;
 
-    fn scaled_graph(scale: f64) -> CadAuthoredGraph {
-        CadAuthoredGraph::new(
-            ConstrainedRectangleV1::new((0.0, 2.2 * scale), (0.0, 0.41 * scale), 0.0).unwrap(),
-            scale,
-            1.0e-10 * scale,
-        )
-        .unwrap()
-        .circular_through_cut([0.2 * scale, 0.2 * scale], 0.05 * scale, 1.0e-10 * scale)
-        .unwrap()
+    fn scaled_graph(scale: f64) -> GeometrySolidOperation {
+        let graph = GeometryGraph::new();
+        let base = graph
+            .rectangle_extrusion(
+                (0.0, 2.2 * scale),
+                (0.0, 0.41 * scale),
+                0.0,
+                scale,
+                1.0e-10 * scale,
+            )
+            .unwrap();
+        graph
+            .circular_through_cut(
+                &base,
+                [0.2 * scale, 0.2 * scale],
+                0.05 * scale,
+                1.0e-10 * scale,
+            )
+            .unwrap()
     }
 
     fn named(
-        graph: &CadAuthoredGraph,
+        graph: &GeometrySolidOperation,
         topology: &CadAuthoredResultTopology,
     ) -> BTreeMap<String, Vec<CadAuthoredResultTopologyHandle>> {
         let project = |name| topology.project(&graph.face_handle(name).unwrap()).unwrap();
@@ -350,7 +357,7 @@ mod tests {
         let mut membership = None;
         for exponent in [-40, 0, 40] {
             let graph = scaled_graph(2.0_f64.powi(exponent));
-            let build = graph.build_analytic().unwrap();
+            let build = GeometryBuildReceipt::from_graph(&graph).unwrap();
             let topology = CadAuthoredResultTopology::from_build(&graph, &build).unwrap();
             let named = named(&graph, &topology);
             let actual_membership = named
@@ -396,9 +403,11 @@ mod tests {
     #[test]
     fn owner_dimension_and_complete_membership_fail_closed() {
         let graph = scaled_graph(1.0);
-        let topology =
-            CadAuthoredResultTopology::from_build(&graph, &graph.build_analytic().unwrap())
-                .unwrap();
+        let topology = CadAuthoredResultTopology::from_build(
+            &graph,
+            &GeometryBuildReceipt::from_graph(&graph).unwrap(),
+        )
+        .unwrap();
         assert!(
             topology
                 .project(&graph.face_handle("start-cap").unwrap())
@@ -434,7 +443,7 @@ mod tests {
     #[test]
     fn mutated_deleted_split_or_merged_lineage_rejects() {
         let graph = scaled_graph(1.0);
-        let build = graph.build_analytic().unwrap();
+        let build = GeometryBuildReceipt::from_graph(&graph).unwrap();
         let baseline = LineageProjection {
             retained_unchanged: keys(build.retained_unchanged()),
             retained_modified: keys(build.retained_modified()),

@@ -85,7 +85,7 @@ export const cadAuthoredBuildRequestSchema = z
   })
   .strict();
 
-export type CadAuthoredBuildRequest = z.infer<typeof cadAuthoredBuildRequestSchema>;
+export type GeometryBuildReceiptRequest = z.infer<typeof cadAuthoredBuildRequestSchema>;
 
 const historyOperationSchema = z.discriminatedUnion("kind", [
   z
@@ -227,7 +227,7 @@ const cadAuthoredBuildReceiptSchema = z
   })
   .strict();
 
-export type CadAuthoredBuildReceipt = z.infer<typeof cadAuthoredBuildReceiptSchema>;
+export type GeometryBuildReceiptReceipt = z.infer<typeof cadAuthoredBuildReceiptSchema>;
 
 const cadAuthoredObservationsSchema = z
   .object({

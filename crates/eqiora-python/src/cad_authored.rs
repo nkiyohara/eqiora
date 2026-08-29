@@ -1,4 +1,4 @@
-//! Transparent Python projection of the closed authored-CAD graph.
+//! Solid-operation projection used by the common Python Geometry graph.
 
 use std::collections::BTreeMap;
 use std::collections::hash_map::DefaultHasher;
@@ -6,155 +6,36 @@ use std::hash::{Hash, Hasher};
 
 use eqiora::Diagnostic;
 use eqiora::geometry::{
-    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CadAuthoredSketch,
-    CadRepairDispositionV1, ConstrainedRectangleV1,
+    CadRepairDispositionV1, GeometryBuildReceipt, GeometryFaceHandle, GeometrySolidOperation,
 };
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyMapping, PyModule, PySequence, PyTuple};
 
 use crate::error::validation_error;
-use crate::geometry::{PyGeometry, digest_to_hex};
+use crate::geometry::digest_to_hex;
 
-/// One immutable native-owned authored-CAD operation graph.
+/// One immutable solid operation owned by a common Geometry graph session.
 #[pyclass(
-    name = "CadAuthoredGraph",
+    name = "GeometrySolidOperation",
     module = "eqiora._eqiora",
     frozen,
     eq,
     skip_from_py_object
 )]
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PyCadAuthoredGraph {
-    graph: CadAuthoredGraph,
+#[derive(Clone, Debug)]
+pub(crate) struct PyGeometrySolidOperation {
+    pub(crate) graph: GeometrySolidOperation,
 }
 
-/// One opaque native-owned input for the closed authored-CAD operations.
-#[pyclass(
-    name = "CadAuthoredSketch",
-    module = "eqiora._eqiora",
-    frozen,
-    eq,
-    skip_from_py_object
-)]
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PyCadAuthoredSketch {
-    sketch: CadAuthoredSketch,
-}
-
-#[pymethods]
-impl PyCadAuthoredSketch {
-    /// Admit the one constrained XY rectangle input.
-    #[staticmethod]
-    #[pyo3(signature = (
-        *,
-        x_bounds,
-        y_bounds,
-        plane_z,
-        modeling_tolerance
-    ))]
-    fn rectangle_xy(
-        py: Python<'_>,
-        #[pyo3(from_py_with = extract_rectangle_pair)] x_bounds: (f64, f64),
-        #[pyo3(from_py_with = extract_rectangle_pair)] y_bounds: (f64, f64),
-        plane_z: f64,
-        modeling_tolerance: f64,
-    ) -> PyResult<Self> {
-        let rectangle = ConstrainedRectangleV1::new(x_bounds, y_bounds, plane_z)
-            .map_err(|diagnostic| native_error(py, diagnostic))?;
-        CadAuthoredSketch::rectangle_xy(rectangle, modeling_tolerance)
-            .map(|sketch| Self { sketch })
-            .map_err(|diagnostic| native_error(py, diagnostic))
-    }
-
-    /// Admit one exact circle bound to a predecessor graph's end cap.
-    #[staticmethod]
-    #[pyo3(signature = (face, /, *, center, radius))]
-    fn circle_on_face(
-        py: Python<'_>,
-        face: &PyCadAuthoredFaceHandle,
-        #[pyo3(from_py_with = extract_sequence_pair)] center: [f64; 2],
-        radius: f64,
-    ) -> PyResult<Self> {
-        CadAuthoredSketch::circle_on_face(face.handle.clone(), center, radius)
-            .map(|sketch| Self { sketch })
-            .map_err(|diagnostic| native_error(py, diagnostic))
-    }
-
-    /// Apply the one admitted positive-z extrusion.
-    #[pyo3(signature = (*, depth))]
-    fn extrude_positive_z(&self, py: Python<'_>, depth: f64) -> PyResult<PyCadAuthoredGraph> {
-        self.sketch
-            .extrude_positive_z(depth)
-            .map(|graph| PyCadAuthoredGraph { graph })
-            .map_err(|diagnostic| native_error(py, diagnostic))
+impl PartialEq for PyGeometrySolidOperation {
+    fn eq(&self, other: &Self) -> bool {
+        self.graph == other.graph
     }
 }
 
 #[pymethods]
-impl PyCadAuthoredGraph {
-    /// Construct the closed rectangle, face, and positive-z extrusion history.
-    #[staticmethod]
-    #[pyo3(signature = (
-        *,
-        x_bounds,
-        y_bounds,
-        plane_z,
-        depth,
-        modeling_tolerance
-    ))]
-    fn rectangle_extrusion(
-        py: Python<'_>,
-        x_bounds: (f64, f64),
-        y_bounds: (f64, f64),
-        plane_z: f64,
-        depth: f64,
-        modeling_tolerance: f64,
-    ) -> PyResult<Self> {
-        let sketch = ConstrainedRectangleV1::new(x_bounds, y_bounds, plane_z)
-            .map_err(|diagnostic| native_error(py, diagnostic))?;
-        let graph = CadAuthoredGraph::new(sketch, depth, modeling_tolerance)
-            .map_err(|diagnostic| native_error(py, diagnostic))?;
-        Ok(Self { graph })
-    }
-
-    /// Replay either frozen canonical graph wire through the native decoder.
-    #[staticmethod]
-    fn decode_canonical(py: Python<'_>, data: &[u8]) -> PyResult<Self> {
-        CadAuthoredGraph::decode_canonical(data)
-            .map(|graph| Self { graph })
-            .map_err(|diagnostic| native_error(py, diagnostic))
-    }
-
-    /// Return a successor graph containing the one admitted circular cut.
-    #[pyo3(signature = (*, center, radius, boolean_tolerance))]
-    fn circular_through_cut(
-        &self,
-        py: Python<'_>,
-        center: [f64; 2],
-        radius: f64,
-        boolean_tolerance: f64,
-    ) -> PyResult<Self> {
-        self.graph
-            .circular_through_cut(center, radius, boolean_tolerance)
-            .map(|graph| Self { graph })
-            .map_err(|diagnostic| native_error(py, diagnostic))
-    }
-
-    /// Return a successor graph containing the admitted sketch's through-cut.
-    #[pyo3(signature = (sketch, /, *, boolean_tolerance))]
-    fn through_cut(
-        &self,
-        py: Python<'_>,
-        sketch: &PyCadAuthoredSketch,
-        boolean_tolerance: f64,
-    ) -> PyResult<Self> {
-        self.graph
-            .through_cut(&sketch.sketch, boolean_tolerance)
-            .map(|graph| Self { graph })
-            .map_err(|diagnostic| native_error(py, diagnostic))
-    }
-
+impl PyGeometrySolidOperation {
     /// Exact compact canonical graph bytes owned by Rust.
     #[getter]
     fn canonical_bytes(&self, py: Python<'_>) -> Py<PyBytes> {
@@ -265,18 +146,14 @@ impl PyCadAuthoredGraph {
             .graph
             .face_handles()
             .map_err(|diagnostic| native_error(py, diagnostic))?;
-        Ok(PyTuple::new(
-            py,
-            handles.iter().map(CadAuthoredFaceHandle::provenance_key),
-        )?
-        .unbind())
+        Ok(PyTuple::new(py, handles.iter().map(GeometryFaceHandle::provenance_key))?.unbind())
     }
 
     /// Create an opaque handle bound to this exact graph identity.
-    fn face_handle(&self, py: Python<'_>, name: &str) -> PyResult<PyCadAuthoredFaceHandle> {
+    fn face_handle(&self, py: Python<'_>, name: &str) -> PyResult<PyGeometryFaceHandle> {
         self.graph
             .face_handle(name)
-            .map(|handle| PyCadAuthoredFaceHandle { handle })
+            .map(|handle| PyGeometryFaceHandle { handle })
             .map_err(|diagnostic| native_error(py, diagnostic))
     }
 
@@ -284,14 +161,14 @@ impl PyCadAuthoredGraph {
     fn resolve_face(
         &self,
         py: Python<'_>,
-        handle: &PyCadAuthoredFaceHandle,
+        handle: &PyGeometryFaceHandle,
     ) -> PyResult<&'static str> {
         self.graph
             .resolve_face(&handle.handle)
             .map_err(|diagnostic| native_error(py, diagnostic))
     }
 
-    fn face_area(&self, py: Python<'_>, handle: &PyCadAuthoredFaceHandle) -> PyResult<f64> {
+    fn face_area(&self, py: Python<'_>, handle: &PyGeometryFaceHandle) -> PyResult<f64> {
         self.graph
             .face_area_m2(&handle.handle)
             .map_err(|diagnostic| native_error(py, diagnostic))
@@ -300,7 +177,7 @@ impl PyCadAuthoredGraph {
     fn face_boundary_loop_count(
         &self,
         py: Python<'_>,
-        handle: &PyCadAuthoredFaceHandle,
+        handle: &PyGeometryFaceHandle,
     ) -> PyResult<usize> {
         self.graph
             .face_boundary_loop_count(&handle.handle)
@@ -310,7 +187,7 @@ impl PyCadAuthoredGraph {
     fn rectangular_face_vertices(
         &self,
         py: Python<'_>,
-        handle: &PyCadAuthoredFaceHandle,
+        handle: &PyGeometryFaceHandle,
     ) -> PyResult<Option<Py<PyTuple>>> {
         let vertices = self
             .graph
@@ -330,7 +207,7 @@ impl PyCadAuthoredGraph {
     fn rectangular_face_centroid(
         &self,
         py: Python<'_>,
-        handle: &PyCadAuthoredFaceHandle,
+        handle: &PyGeometryFaceHandle,
     ) -> PyResult<Option<(f64, f64, f64)>> {
         self.graph
             .rectangular_face_centroid_m(&handle.handle)
@@ -341,37 +218,12 @@ impl PyCadAuthoredGraph {
     fn planar_face_outward_normal(
         &self,
         py: Python<'_>,
-        handle: &PyCadAuthoredFaceHandle,
+        handle: &PyGeometryFaceHandle,
     ) -> PyResult<Option<(f64, f64, f64)>> {
         self.graph
             .planar_face_outward_normal(&handle.handle)
             .map(|normal| normal.map(Into::into))
             .map_err(|diagnostic| native_error(py, diagnostic))
-    }
-
-    /// Execute and admit the bounded analytic provider profile.
-    ///
-    /// With `named_topology`, atomically project the supplied construction
-    /// handles through the accepted build and publish common Geometry.
-    #[pyo3(signature = (*, named_topology=None))]
-    fn build(
-        &self,
-        py: Python<'_>,
-        named_topology: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Py<PyAny>> {
-        let build = self
-            .graph
-            .build_analytic()
-            .map_err(|diagnostic| native_error(py, diagnostic))?;
-        let Some(named_topology) = named_topology else {
-            return Py::new(py, PyCadAuthoredBuild { build }).map(Py::into_any);
-        };
-        let named_topology = extract_named_topology(named_topology)?;
-        build
-            .with_named_topology(&named_topology)
-            .map(PyGeometry::from_geometry)
-            .map_err(|diagnostic| native_error(py, diagnostic))
-            .and_then(|geometry| Py::new(py, geometry).map(Py::into_any))
     }
 
     fn __hash__(&self) -> u64 {
@@ -380,7 +232,7 @@ impl PyCadAuthoredGraph {
 
     fn __repr__(&self) -> String {
         format!(
-            "CadAuthoredGraph(graph_digest={:?}, selections={}, cut={})",
+            "GeometrySolidOperation(graph_digest={:?}, selections={}, cut={})",
             self.graph_digest(),
             self.graph.face_count(),
             self.graph.cut_radius_m().is_some(),
@@ -390,26 +242,27 @@ impl PyCadAuthoredGraph {
 
 /// Opaque authored-face provenance bound to one exact graph digest.
 #[pyclass(
-    name = "CadAuthoredFaceHandle",
+    name = "GeometryFaceHandle",
     module = "eqiora._eqiora",
     frozen,
     eq,
     skip_from_py_object
 )]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PyCadAuthoredFaceHandle {
-    handle: CadAuthoredFaceHandle,
+#[derive(Clone, Debug)]
+pub(crate) struct PyGeometryFaceHandle {
+    pub(crate) handle: GeometryFaceHandle,
 }
 
-#[pymethods]
-impl PyCadAuthoredFaceHandle {
-    #[staticmethod]
-    fn decode_canonical(py: Python<'_>, data: &[u8]) -> PyResult<Self> {
-        CadAuthoredFaceHandle::decode_canonical(data)
-            .map(|handle| Self { handle })
-            .map_err(|diagnostic| native_error(py, diagnostic))
+impl PartialEq for PyGeometryFaceHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.handle == other.handle
     }
+}
 
+impl Eq for PyGeometryFaceHandle {}
+
+#[pymethods]
+impl PyGeometryFaceHandle {
     #[getter]
     fn canonical_bytes(&self, py: Python<'_>) -> Py<PyBytes> {
         PyBytes::new(py, self.handle.canonical_bytes()).unbind()
@@ -431,7 +284,7 @@ impl PyCadAuthoredFaceHandle {
 
     fn __repr__(&self) -> String {
         format!(
-            "CadAuthoredFaceHandle(graph_digest={:?}, provenance_key={:?})",
+            "GeometryFaceHandle(graph_digest={:?}, provenance_key={:?})",
             self.graph_digest(),
             self.provenance_key(),
         )
@@ -440,19 +293,25 @@ impl PyCadAuthoredFaceHandle {
 
 /// Complete read-only receipt from the bounded native analytic CAD profile.
 #[pyclass(
-    name = "CadAuthoredBuild",
+    name = "GeometryBuildReceipt",
     module = "eqiora._eqiora",
     frozen,
     eq,
     skip_from_py_object
 )]
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PyCadAuthoredBuild {
-    build: CadAuthoredBuild,
+#[derive(Clone, Debug)]
+pub(crate) struct PyGeometryBuildReceipt {
+    pub(crate) build: GeometryBuildReceipt,
+}
+
+impl PartialEq for PyGeometryBuildReceipt {
+    fn eq(&self, other: &Self) -> bool {
+        self.build == other.build
+    }
 }
 
 #[pymethods]
-impl PyCadAuthoredBuild {
+impl PyGeometryBuildReceipt {
     #[getter]
     fn graph_digest(&self) -> String {
         digest_to_hex(&self.build.graph_digest_bytes())
@@ -530,7 +389,7 @@ impl PyCadAuthoredBuild {
 
     fn __repr__(&self) -> String {
         format!(
-            "CadAuthoredBuild(graph_digest={:?}, provider_profile={:?}, repair={:?})",
+            "GeometryBuildReceipt(graph_digest={:?}, provider_profile={:?}, repair={:?})",
             self.graph_digest(),
             self.provider_profile(),
             self.repair(),
@@ -538,18 +397,18 @@ impl PyCadAuthoredBuild {
     }
 }
 
-fn handle_tuple(py: Python<'_>, handles: &[CadAuthoredFaceHandle]) -> PyResult<Py<PyTuple>> {
+fn handle_tuple(py: Python<'_>, handles: &[GeometryFaceHandle]) -> PyResult<Py<PyTuple>> {
     let projected = handles
         .iter()
         .cloned()
-        .map(|handle| Py::new(py, PyCadAuthoredFaceHandle { handle }))
+        .map(|handle| Py::new(py, PyGeometryFaceHandle { handle }))
         .collect::<PyResult<Vec<_>>>()?;
     Ok(PyTuple::new(py, projected)?.unbind())
 }
 
-fn extract_named_topology(
+pub(crate) fn extract_named_topology(
     value: &Bound<'_, PyAny>,
-) -> PyResult<BTreeMap<String, Vec<CadAuthoredFaceHandle>>> {
+) -> PyResult<BTreeMap<String, Vec<GeometryFaceHandle>>> {
     let mapping = value.cast::<PyMapping>().map_err(|_| {
         PyTypeError::new_err(
             "named_topology must be one mapping from strings to construction handles",
@@ -564,7 +423,7 @@ fn extract_named_topology(
             .extract::<String>()
             .map_err(|_| PyTypeError::new_err("named_topology keys must be strings"))?;
         let raw = pair.get_item(1)?;
-        let handles = if let Ok(handle) = raw.extract::<PyRef<'_, PyCadAuthoredFaceHandle>>() {
+        let handles = if let Ok(handle) = raw.extract::<PyRef<'_, PyGeometryFaceHandle>>() {
             vec![handle.handle.clone()]
         } else {
             let sequence = raw.cast::<PySequence>().map_err(|_| {
@@ -576,7 +435,7 @@ fn extract_named_topology(
             for member in sequence.try_iter()? {
                 let member = member?;
                 let handle = member
-                    .extract::<PyRef<'_, PyCadAuthoredFaceHandle>>()
+                    .extract::<PyRef<'_, PyGeometryFaceHandle>>()
                     .map_err(|_| {
                         PyTypeError::new_err(
                             "named_topology sequences must contain only construction handles",
@@ -611,7 +470,9 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
     hasher.finish()
 }
 
-fn extract_rectangle_pair(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<(f64, f64)> {
+pub(crate) fn extract_rectangle_pair(
+    value: &Bound<'_, pyo3::types::PyAny>,
+) -> PyResult<(f64, f64)> {
     let extracted = value.extract::<(f64, f64)>();
     match extracted {
         Err(error) if error.is_instance_of::<PyValueError>(value.py()) => {
@@ -647,8 +508,7 @@ pub(crate) fn extract_sequence_pair(value: &Bound<'_, pyo3::types::PyAny>) -> Py
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<PyCadAuthoredGraph>()?;
-    module.add_class::<PyCadAuthoredSketch>()?;
-    module.add_class::<PyCadAuthoredFaceHandle>()?;
-    module.add_class::<PyCadAuthoredBuild>()
+    module.add_class::<PyGeometrySolidOperation>()?;
+    module.add_class::<PyGeometryFaceHandle>()?;
+    module.add_class::<PyGeometryBuildReceipt>()
 }

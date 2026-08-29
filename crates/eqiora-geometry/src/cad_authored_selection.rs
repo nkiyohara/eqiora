@@ -118,20 +118,21 @@ impl FaceKey {
 /// canonical bytes.  Resolution always checks the graph digest and admitted
 /// selection inventory before returning the selection.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct CadAuthoredFaceHandle {
+pub struct GeometryFaceHandle {
+    authoring_owner: u64,
     graph_digest: [u8; 32],
     selection: FaceKey,
     version: HandleVersion,
     bytes: Vec<u8>,
 }
 
-impl CadAuthoredFaceHandle {
+impl GeometryFaceHandle {
     /// Decode either closed handle wire through its exact schema vocabulary.
     ///
     /// # Errors
     /// Returns `EQ0901` for excess bytes, malformed or unknown wire data, or a
     /// digest outside 64 lowercase hexadecimal digits.
-    pub fn decode_canonical(bytes: &[u8]) -> Result<Self, Diagnostic> {
+    pub(crate) fn decode_for_owner(authoring_owner: u64, bytes: &[u8]) -> Result<Self, Diagnostic> {
         if bytes.len() > MAX_HANDLE_BYTES {
             return Err(invalid(format!(
                 "CAD face handle has {} bytes, exceeding the {MAX_HANDLE_BYTES} byte decoder limit",
@@ -143,6 +144,7 @@ impl CadAuthoredFaceHandle {
             && wire.encoding == CANONICAL_ENCODING
         {
             return Self::bind_v1(
+                authoring_owner,
                 decode_digest(&wire.graph_digest_sha256)?,
                 wire.selection.into(),
             );
@@ -152,6 +154,7 @@ impl CadAuthoredFaceHandle {
             && wire.encoding == CANONICAL_ENCODING
         {
             return Self::bind_v2(
+                authoring_owner,
                 decode_digest(&wire.graph_digest_sha256)?,
                 wire.selection.into(),
             );
@@ -177,7 +180,11 @@ impl CadAuthoredFaceHandle {
         &self.bytes
     }
 
-    pub(crate) fn bind_v1(graph_digest: [u8; 32], selection: FaceKey) -> Result<Self, Diagnostic> {
+    pub(crate) fn bind_v1(
+        authoring_owner: u64,
+        graph_digest: [u8; 32],
+        selection: FaceKey,
+    ) -> Result<Self, Diagnostic> {
         let selection = WireFaceSelectionV1::try_from(selection)?;
         let wire = WireFaceHandleV1 {
             schema: HANDLE_SCHEMA_V1.to_owned(),
@@ -185,10 +192,20 @@ impl CadAuthoredFaceHandle {
             graph_digest_sha256: encode_hex(graph_digest),
             selection,
         };
-        Self::from_wire(graph_digest, selection.into(), HandleVersion::V1, &wire)
+        Self::from_wire(
+            authoring_owner,
+            graph_digest,
+            selection.into(),
+            HandleVersion::V1,
+            &wire,
+        )
     }
 
-    pub(crate) fn bind_v2(graph_digest: [u8; 32], selection: FaceKey) -> Result<Self, Diagnostic> {
+    pub(crate) fn bind_v2(
+        authoring_owner: u64,
+        graph_digest: [u8; 32],
+        selection: FaceKey,
+    ) -> Result<Self, Diagnostic> {
         let selection = WireFaceSelectionV2::from(selection);
         let wire = WireFaceHandleV2 {
             schema: HANDLE_SCHEMA_V2.to_owned(),
@@ -196,10 +213,17 @@ impl CadAuthoredFaceHandle {
             graph_digest_sha256: encode_hex(graph_digest),
             selection,
         };
-        Self::from_wire(graph_digest, selection.into(), HandleVersion::V2, &wire)
+        Self::from_wire(
+            authoring_owner,
+            graph_digest,
+            selection.into(),
+            HandleVersion::V2,
+            &wire,
+        )
     }
 
     fn from_wire<T: Serialize>(
+        authoring_owner: u64,
         graph_digest: [u8; 32],
         selection: FaceKey,
         version: HandleVersion,
@@ -208,6 +232,7 @@ impl CadAuthoredFaceHandle {
         let bytes = serde_json::to_vec(wire)
             .map_err(|error| invalid(format!("cannot serialize CAD face handle: {error}")))?;
         Ok(Self {
+            authoring_owner,
             graph_digest,
             selection,
             version,
@@ -221,6 +246,10 @@ impl CadAuthoredFaceHandle {
 
     pub(crate) const fn face_key(&self) -> FaceKey {
         self.selection
+    }
+
+    pub(crate) const fn authoring_owner(&self) -> u64 {
+        self.authoring_owner
     }
 }
 

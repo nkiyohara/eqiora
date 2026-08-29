@@ -461,7 +461,7 @@ ceiling = 22
 
 [[public_surface]]
 crate = "eqiora-geometry"
-ceiling = 39
+ceiling = 38
 reason = """
 Raised from 23 as an architecture change, not as drift. The seven added names
 are the authored-region vocabulary: a canonical straight-edged planar region,

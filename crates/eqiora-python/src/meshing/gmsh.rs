@@ -561,12 +561,12 @@ fn invalid_import(message: impl Into<String>) -> Diagnostic {
 mod tests {
     use std::collections::BTreeMap;
 
-    use eqiora::geometry::PlanarOperationGraph;
+    use eqiora::geometry::GeometryGraph;
 
     use super::*;
 
     fn circular_hole(bounds: [[f64; 2]; 2], center: [f64; 2], radius: f64) -> CanonicalGeometryV1 {
-        let graph = PlanarOperationGraph::new();
+        let graph = GeometryGraph::new();
         let rectangle = graph.rectangle(bounds[0], bounds[1]).unwrap();
         let circle = graph.circle(center, radius).unwrap();
         let region = graph.subtract(&rectangle, &circle).unwrap();

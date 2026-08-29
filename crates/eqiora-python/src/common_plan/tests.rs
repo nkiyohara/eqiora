@@ -1,9 +1,7 @@
 use std::collections::BTreeMap;
 
 use eqiora::api::ModelDocument;
-use eqiora::geometry::{
-    CanonicalGeometryV1, NamedEntitySet, PlanarOperationGraph, PlanarTopologyHandle,
-};
+use eqiora::geometry::{CanonicalGeometryV1, GeometryGraph, NamedEntitySet, PlanarTopologyHandle};
 use eqiora::{DimExponents, DynQuantity};
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
@@ -84,7 +82,7 @@ type SupportBinding<'a> = (
 );
 
 fn rectangle_geometry(xmax: f64) -> CanonicalGeometryV1 {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, xmax], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
     graph

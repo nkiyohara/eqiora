@@ -13,7 +13,7 @@ use std::path::Path;
 
 use eqiora::Diagnostic;
 use eqiora::diagnostic::codes;
-use eqiora::geometry::CadAuthoredGraph;
+use eqiora::geometry::GeometrySolidOperation;
 use serde::{Deserialize, Serialize};
 
 use crate::cad_authored;
@@ -111,13 +111,14 @@ pub(super) fn save_export(
 /// substituted graph fails here, before any source or dialog is exposed.
 fn replay_bound_graph(
     request: &CadAuthoredExportRequestDto,
-) -> Result<(CadAuthoredGraph, String), Diagnostic> {
+) -> Result<(GeometrySolidOperation, String), Diagnostic> {
     if request.protocol != CAD_AUTHORED_EXPORT_PROTOCOL {
         return Err(invalid(
             "unsupported Studio authored-CAD Python-export protocol",
         ));
     }
-    let (graph, digest_hex) = cad_authored::replay_canonical_graph(&request.canonical_graph_hex)?;
+    let (_owner, graph, digest_hex) =
+        cad_authored::replay_canonical_graph(&request.canonical_graph_hex)?;
     if request.graph_digest != digest_hex {
         return Err(invalid(
             "authored-CAD Python export references a stale or foreign graph identity",
@@ -140,9 +141,12 @@ fn python_scalar(value: f64) -> String {
 
 /// The one closed projection for the two admitted histories. This is a fixed
 /// template over the owner's replayed scalars, not a code generator: it calls
-/// only the public constructor and the one public immutable cut successor,
+/// only the common public graph owner and its typed solid operations,
 /// and ends with the digest guard against incompatible reconstruction.
-fn render_python_source(graph: &CadAuthoredGraph, digest_hex: &str) -> Result<String, Diagnostic> {
+fn render_python_source(
+    graph: &GeometrySolidOperation,
+    digest_hex: &str,
+) -> Result<String, Diagnostic> {
     let sketch = graph.sketch();
     let (x_lower, x_upper) = sketch.x_bounds_m();
     let (y_lower, y_upper) = sketch.y_bounds_m();
@@ -151,7 +155,8 @@ fn render_python_source(graph: &CadAuthoredGraph, digest_hex: &str) -> Result<St
          # Length arguments are coherent-SI metres.\n\
          import eqiora\n\
          \n\
-         authored_graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(\n\
+         geometry_graph = eqiora.geometry.GeometryGraph()\n\
+         authored_graph = geometry_graph.rectangle_extrusion(\n\
          \x20   x_bounds=({}, {}),\n\
          \x20   y_bounds=({}, {}),\n\
          \x20   plane_z={},\n\
@@ -172,7 +177,8 @@ fn render_python_source(graph: &CadAuthoredGraph, digest_hex: &str) -> Result<St
         graph.requested_boolean_tolerance_m(),
     ) {
         source.push_str(&format!(
-            "authored_graph = authored_graph.circular_through_cut(\n\
+            "authored_graph = geometry_graph.circular_through_cut(\n\
+             \x20   authored_graph,\n\
              \x20   center=({}, {}),\n\
              \x20   radius={},\n\
              \x20   boolean_tolerance={},\n\
@@ -213,7 +219,7 @@ fn write_source_file(path: &Path, source: &str) -> Result<(), Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use eqiora::geometry::ConstrainedRectangleV1;
+    use eqiora::geometry::GeometryGraph;
     use std::path::PathBuf;
 
     // The two precommitted oracle programs; consumed byte-for-byte, never
@@ -233,16 +239,19 @@ mod tests {
     const V1_DIGEST_HEX: &str = "919545f70118840c04da9715829deb2da947460a51311ebabec6a34038c66f36";
     const V2_DIGEST_HEX: &str = "00acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47";
 
-    fn v1_owner() -> CadAuthoredGraph {
-        let sketch = ConstrainedRectangleV1::new((-2.0, 3.0), (-1.0, 2.0), 0.5).unwrap();
-        CadAuthoredGraph::new(sketch, 4.0, 1.0e-9).unwrap()
+    fn v1_owner() -> GeometrySolidOperation {
+        GeometryGraph::new()
+            .rectangle_extrusion((-2.0, 3.0), (-1.0, 2.0), 0.5, 4.0, 1.0e-9)
+            .unwrap()
     }
 
-    fn v2_owner() -> CadAuthoredGraph {
-        let sketch = ConstrainedRectangleV1::new((-0.04, 0.04), (-0.025, 0.025), 0.0).unwrap();
-        CadAuthoredGraph::new(sketch, 0.02, 1.0e-10)
-            .unwrap()
-            .circular_through_cut([0.02, 0.0], 0.008, 1.0e-9)
+    fn v2_owner() -> GeometrySolidOperation {
+        let owner = GeometryGraph::new();
+        let base = owner
+            .rectangle_extrusion((-0.04, 0.04), (-0.025, 0.025), 0.0, 0.02, 1.0e-10)
+            .unwrap();
+        owner
+            .circular_through_cut(&base, [0.02, 0.0], 0.008, 1.0e-9)
             .unwrap()
     }
 
@@ -250,7 +259,10 @@ mod tests {
         bytes.iter().map(|byte| format!("{byte:02x}")).collect()
     }
 
-    fn request_for(graph: &CadAuthoredGraph, digest_hex: &str) -> CadAuthoredExportRequestDto {
+    fn request_for(
+        graph: &GeometrySolidOperation,
+        digest_hex: &str,
+    ) -> CadAuthoredExportRequestDto {
         CadAuthoredExportRequestDto {
             protocol: CAD_AUTHORED_EXPORT_PROTOCOL.to_owned(),
             canonical_graph_hex: hex(graph.canonical_bytes()),
@@ -329,10 +341,12 @@ mod tests {
     fn signed_zero_equivalent_input_replays_the_one_accepted_identity_and_source() {
         // The owner canonicalizes IEEE-754 signed zero at construction, so a
         // `-0.0` spelling reaches this adapter as the one accepted graph.
-        let sketch = ConstrainedRectangleV1::new((-0.04, 0.04), (-0.025, 0.025), -0.0).unwrap();
-        let graph = CadAuthoredGraph::new(sketch, 0.02, 1.0e-10)
-            .unwrap()
-            .circular_through_cut([0.02, -0.0], 0.008, 1.0e-9)
+        let owner = GeometryGraph::new();
+        let base = owner
+            .rectangle_extrusion((-0.04, 0.04), (-0.025, 0.025), -0.0, 0.02, 1.0e-10)
+            .unwrap();
+        let graph = owner
+            .circular_through_cut(&base, [0.02, -0.0], 0.008, 1.0e-9)
             .unwrap();
         let render = render_export(&request_for(&graph, V2_DIGEST_HEX)).unwrap();
         assert_eq!(render.graph_digest, V2_DIGEST_HEX);
@@ -489,11 +503,15 @@ mod tests {
                     request.graph_digest = V1_DIGEST_HEX.to_owned();
                 }
                 "construct-v1-with-modeling-tolerance-keep-v1-digest" => {
-                    let sketch =
-                        ConstrainedRectangleV1::new((-2.0, 3.0), (-1.0, 2.0), 0.5).unwrap();
-                    let graph =
-                        CadAuthoredGraph::new(sketch, 4.0, mutant["value"].as_f64().unwrap())
-                            .unwrap();
+                    let graph = GeometryGraph::new()
+                        .rectangle_extrusion(
+                            (-2.0, 3.0),
+                            (-1.0, 2.0),
+                            0.5,
+                            4.0,
+                            mutant["value"].as_f64().unwrap(),
+                        )
+                        .unwrap();
                     request = request_for(&graph, V1_DIGEST_HEX);
                 }
                 _ => panic!("unsupported bridge corpus mutation {mutation}"),

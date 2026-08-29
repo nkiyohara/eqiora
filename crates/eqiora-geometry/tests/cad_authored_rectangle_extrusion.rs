@@ -1,14 +1,11 @@
 use eqiora_geometry::{
-    CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1, ConstrainedRectangleV1,
+    CadRepairDispositionV1, GeometryFaceHandle, GeometryGraph, GeometrySolidOperation,
 };
 
-fn graph(depth_m: f64, tolerance_m: f64) -> CadAuthoredGraph {
-    CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((-2.0, 3.0), (-1.0, 2.0), 0.5).unwrap(),
-        depth_m,
-        tolerance_m,
-    )
-    .unwrap()
+fn graph(depth_m: f64, tolerance_m: f64) -> GeometrySolidOperation {
+    GeometryGraph::new()
+        .rectangle_extrusion((-2.0, 3.0), (-1.0, 2.0), 0.5, depth_m, tolerance_m)
+        .unwrap()
 }
 
 const WITNESS_A_CANONICAL: &str = r#"{"schema":"eqiora.cad-authored-operation-graph-envelope/v1","encoding":"eqiora.canonical-json/v1","length_unit":"metre","requested_modeling_tolerance_m":1e-9,"sketch_plane":{"id":"sketch-plane","kind":"xy","z_m":0.5},"profile":{"id":"rectangle-profile","kind":"axis-aligned-rectangle","sketch_plane":"sketch-plane","constraint":"closed-by-construction","x_bounds_m":[-2.0,3.0],"y_bounds_m":[-1.0,2.0]},"face":{"id":"profile-face","kind":"one-closed-loop-face","profile":"rectangle-profile","region_count":1},"extrusion":{"id":"positive-z-extrusion","kind":"positive-z","face":"profile-face","depth_m":4.0,"repair":"none"},"selections":["start-cap","end-cap","profile-x-lower","profile-x-upper","profile-y-lower","profile-y-upper"]}"#;
@@ -20,7 +17,10 @@ const WITNESS_A_DIGEST: [u8; 32] = [
 
 #[test]
 fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
-    let graph = graph(4.0, 1.0e-9);
+    let owner = GeometryGraph::new();
+    let graph = owner
+        .rectangle_extrusion((-2.0, 3.0), (-1.0, 2.0), 0.5, 4.0, 1.0e-9)
+        .unwrap();
 
     assert_eq!(graph.canonical_bytes(), WITNESS_A_CANONICAL.as_bytes());
     assert_eq!(graph.canonical_bytes().len(), 731);
@@ -124,7 +124,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
             .face_handles()
             .unwrap()
             .iter()
-            .map(CadAuthoredFaceHandle::provenance_key)
+            .map(GeometryFaceHandle::provenance_key)
             .collect::<Vec<_>>(),
         expected
             .iter()
@@ -136,8 +136,9 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
 
     for (provenance_key, centroid, area, normal, vertices) in expected {
         let handle = graph.face_handle(provenance_key).unwrap();
-        let replayed_handle =
-            CadAuthoredFaceHandle::decode_canonical(handle.canonical_bytes()).unwrap();
+        let replayed_handle = owner
+            .decode_face_handle(&graph, handle.canonical_bytes())
+            .unwrap();
         assert_eq!(replayed_handle, handle);
         assert_eq!(handle.provenance_key(), provenance_key);
         assert_eq!(
@@ -159,7 +160,9 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
         );
     }
 
-    let replayed = CadAuthoredGraph::decode_canonical(graph.canonical_bytes()).unwrap();
+    let replayed = GeometryGraph::new()
+        .decode_solid(graph.canonical_bytes())
+        .unwrap();
     assert_eq!(replayed, graph);
 }
 
@@ -186,7 +189,8 @@ fn tolerance_changes_identity_not_geometry_and_handles_never_rebind() {
 fn member_order_is_nonsemantic_but_wire_vocabulary_is_closed() {
     let expected = graph(4.0, 1.0e-9);
     let permuted = br#"{"selections":["start-cap","end-cap","profile-x-lower","profile-x-upper","profile-y-lower","profile-y-upper"],"extrusion":{"repair":"none","depth_m":4.0,"face":"profile-face","kind":"positive-z","id":"positive-z-extrusion"},"face":{"region_count":1,"profile":"rectangle-profile","kind":"one-closed-loop-face","id":"profile-face"},"profile":{"y_bounds_m":[-1.0,2.0],"x_bounds_m":[-2.0,3.0],"constraint":"closed-by-construction","sketch_plane":"sketch-plane","kind":"axis-aligned-rectangle","id":"rectangle-profile"},"sketch_plane":{"z_m":0.5,"kind":"xy","id":"sketch-plane"},"requested_modeling_tolerance_m":1e-9,"length_unit":"metre","encoding":"eqiora.canonical-json/v1","schema":"eqiora.cad-authored-operation-graph-envelope/v1"}"#;
-    let decoded = CadAuthoredGraph::decode_canonical(permuted).unwrap();
+    let decoder = GeometryGraph::new();
+    let decoded = decoder.decode_solid(permuted).unwrap();
     assert_eq!(decoded, expected);
     assert_eq!(decoded.canonical_bytes(), expected.canonical_bytes());
 
@@ -210,7 +214,7 @@ fn member_order_is_nonsemantic_but_wire_vocabulary_is_closed() {
         canonical.replace("\"repair\":\"none\"", "\"repair\":\"healed\""),
     ] {
         assert!(
-            CadAuthoredGraph::decode_canonical(mutant.as_bytes()).is_err(),
+            decoder.decode_solid(mutant.as_bytes()).is_err(),
             "wire mutant must reject: {mutant}"
         );
     }
@@ -218,7 +222,7 @@ fn member_order_is_nonsemantic_but_wire_vocabulary_is_closed() {
 
 #[test]
 fn invalid_scalars_and_signed_zero_fail_or_canonicalize_as_contract_requires() {
-    let sketch = || ConstrainedRectangleV1::new((0.0, 1.0), (0.0, 1.0), 0.0).unwrap();
+    let graph = GeometryGraph::new();
     for (depth, tolerance) in [
         (0.0, 1.0e-9),
         (-1.0, 1.0e-9),
@@ -227,18 +231,29 @@ fn invalid_scalars_and_signed_zero_fail_or_canonicalize_as_contract_requires() {
         (1.0, -1.0),
         (1.0, f64::INFINITY),
     ] {
-        assert!(CadAuthoredGraph::new(sketch(), depth, tolerance).is_err());
+        assert!(
+            graph
+                .rectangle_extrusion((0.0, 1.0), (0.0, 1.0), 0.0, depth, tolerance)
+                .is_err()
+        );
     }
-    assert!(ConstrainedRectangleV1::new((1.0, 1.0), (0.0, 1.0), 0.0).is_err());
-    assert!(ConstrainedRectangleV1::new((0.0, 1.0), (2.0, 1.0), 0.0).is_err());
+    assert!(
+        graph
+            .rectangle_extrusion((1.0, 1.0), (0.0, 1.0), 0.0, 1.0, 1.0e-9)
+            .is_err()
+    );
+    assert!(
+        graph
+            .rectangle_extrusion((0.0, 1.0), (2.0, 1.0), 0.0, 1.0, 1.0e-9)
+            .is_err()
+    );
 
-    let positive = CadAuthoredGraph::new(sketch(), 1.0, 1.0e-9).unwrap();
-    let negative = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((-0.0, 1.0), (-0.0, 1.0), -0.0).unwrap(),
-        1.0,
-        1.0e-9,
-    )
-    .unwrap();
+    let positive = graph
+        .rectangle_extrusion((0.0, 1.0), (0.0, 1.0), 0.0, 1.0, 1.0e-9)
+        .unwrap();
+    let negative = graph
+        .rectangle_extrusion((-0.0, 1.0), (-0.0, 1.0), -0.0, 1.0, 1.0e-9)
+        .unwrap();
     assert_eq!(negative.canonical_bytes(), positive.canonical_bytes());
     assert_eq!(negative.digest_bytes(), positive.digest_bytes());
 }

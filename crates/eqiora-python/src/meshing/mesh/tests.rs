@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use eqiora::artifact::{AffineTriangleMeshCellsV1, GeometryMeshCorrespondenceEnvelopeV1};
-use eqiora::geometry::{CanonicalGeometryV1, PlanarOperationGraph};
+use eqiora::geometry::{CanonicalGeometryV1, GeometryGraph};
 
 use super::*;
 
@@ -18,7 +18,7 @@ fn revision_bound_selection_dimension_must_match_correspondence_membership() {
 }
 
 fn rectangle(xmax: f64) -> CanonicalGeometryV1 {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, xmax], [-1.0, 2.0]).unwrap();
     let edges = rectangle.boundaries();
     graph

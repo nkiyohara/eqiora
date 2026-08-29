@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
-use eqiora_geometry::{PlanarOperationGraph, PlanarTopologyHandle};
+use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora_meshing::EntityIncidence;
 
 use super::*;
 use crate::{CartesianMeshCellsV1, MeshProductionLineageEnvelopeV1};
 
 fn rectangle() -> CanonicalGeometryV1 {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 2.0], [-1.0, 2.0]).unwrap();
     let edges = rectangle.boundaries();
     graph
@@ -32,7 +32,7 @@ fn entity_indices(entities: Vec<MeshEntity>) -> Vec<usize> {
 }
 
 fn non_rectangle() -> CanonicalGeometryV1 {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 2.0], [-1.0, 2.0]).unwrap();
     let circle = graph.circle([1.0, 0.5], 0.25).unwrap();
     let cut = graph.subtract(&rectangle, &circle).unwrap();
@@ -331,7 +331,7 @@ fn rectangle_correspondence_rejects_wire_and_resource_mutations() {
         );
     }
     let alternate_geometry = {
-        let graph = PlanarOperationGraph::new();
+        let graph = GeometryGraph::new();
         let rectangle = graph.rectangle([0.0, 3.0], [-1.0, 2.0]).unwrap();
         let edges = rectangle.boundaries();
         graph
@@ -624,7 +624,7 @@ fn rectangle_affine_triangle_resources_are_exact_and_fail_closed() {
 }
 
 fn rectangle_with_xmax(xmax: f64) -> CanonicalGeometryV1 {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, xmax], [-1.0, 2.0]).unwrap();
     let edges = rectangle.boundaries();
     graph

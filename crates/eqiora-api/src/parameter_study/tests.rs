@@ -8,7 +8,7 @@ use eqiora_artifact::{
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_geometry::{PlanarOperationGraph, PlanarTopologyHandle};
+use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
     resolve_common_plan,
@@ -381,7 +381,7 @@ fn program_for(
 }
 
 fn document_from_source(source: &str) -> ModelDocument {
-    let graph = PlanarOperationGraph::new();
+    let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
     let geometry = graph

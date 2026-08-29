@@ -1,7 +1,7 @@
 # Python exact circular-hole geometry verification
 
 This case freezes one deliberately bounded Python projection from the accepted
-`CadAuthoredGraph` to common immutable `eqiora.geometry.Geometry`. Rust derives
+`GeometrySolidOperation` to common immutable `eqiora.geometry.Geometry`. Rust derives
 the exact planar section from the accepted circular-through-cut history and
 delegates its meaning to the existing canonical owner. Python exposes common
 dimension, bounds, classification tolerance, canonical bytes, digest, and the
