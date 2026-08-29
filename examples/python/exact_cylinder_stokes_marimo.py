@@ -134,7 +134,7 @@ def _(
         </div>
         <div data-testid="eqiora-stokes-result">
           {type(result).__name__} {result_identity};
-          pressure vertices {pressure.vertex_count}
+          pressure vertices {pressure.coefficient_count("vertex")}
         </div>
         """
     )

@@ -41,7 +41,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
     return geometry, eqiora.meshing.generate(geometry, plan=mesh_plan)
 
 
-def accepted() -> tuple[eqiora.Model, eqiora.Plan, eqiora.Result]:
+def accepted() -> tuple[eqiora.geometry.Geometry, eqiora.Model, eqiora.Plan, eqiora.Result]:
     geometry, mesh = geometry_and_mesh()
     model = eqiora.compile(
         path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
@@ -64,11 +64,11 @@ def accepted() -> tuple[eqiora.Model, eqiora.Plan, eqiora.Result]:
         ),
         scaling=None,
     )
-    return model, plan, eqiora.run(plan)
+    return geometry, model, plan, eqiora.run(plan)
 
 
 def test_root_plan_result_and_observation_close_exact_lineage() -> None:
-    model, plan, result = accepted()
+    geometry, model, plan, result = accepted()
     pressure = result.output(plan.capability.pressure)
     evidence = eqiora.fluid.steady_stokes_evidence(result)
 
@@ -76,14 +76,24 @@ def test_root_plan_result_and_observation_close_exact_lineage() -> None:
     assert result.plan_key == plan.identity == evidence.plan_key
     assert pressure.field == plan.capability.pressure
     assert pressure.mesh is plan.mesh
-    assert pressure.vertex_count == plan.mesh.vertex_count
-    assert pressure.components == 1
-    values = pressure.vertex_values.numpy(copy=False)
+    assert pressure.coefficient_count("vertex") == plan.mesh.vertex_count
+    assert pressure.value_shape == ()
+    values = pressure.values("vertex").numpy(copy=False)
     assert values.shape == (plan.mesh.vertex_count,)
     assert not values.flags.writeable
     assert np.isfinite(values).all()
     assert float(values.min()) == evidence.pressure_minimum
     assert float(values.max()) == evidence.pressure_maximum
+
+    cylinder_force = result.boundary_force(geometry.selection("cylinder"))
+    inlet_flux = result.boundary_flux(geometry.selection("inlet"))
+    outlet_flux = result.boundary_flux(geometry.selection("outlet"))
+    assert cylinder_force.on_domain == evidence.cylinder_force_on_fluid
+    assert cylinder_force.source_digest == result.plan_key
+    assert cylinder_force.source_kind == "result"
+    assert inlet_flux.value == evidence.inlet_flux
+    assert outlet_flux.value == evidence.outlet_flux
+    assert inlet_flux.value + outlet_flux.value == evidence.net_flux
 
     assert evidence.exact_bounds == ((0.0, 2.2), (0.0, 0.41))
     assert evidence.net_flux == evidence.inlet_flux + evidence.outlet_flux
@@ -93,7 +103,7 @@ def test_root_plan_result_and_observation_close_exact_lineage() -> None:
 
 
 def test_fresh_and_replayed_models_use_the_same_root_resolver() -> None:
-    model, plan, _ = accepted()
+    _, model, plan, _ = accepted()
     replayed = eqiora.replay(model.to_json())
     again = eqiora.resolve(
         replayed,

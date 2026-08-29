@@ -159,16 +159,16 @@ def transient_vorticity(cylinder_case):
         fields=(
             eqiora.InitialField(
                 plan.capability.velocity,
-                vertex_values=np.asarray(steady_velocity.vertex_values).reshape(
+                vertex_values=np.asarray(steady_velocity.values("vertex")).reshape(
                     mesh.vertex_count, 2
                 ),
-                cell_values=np.asarray(steady_velocity.cell_bubble_values).reshape(
+                cell_values=np.asarray(steady_velocity.values("cell-bubble")).reshape(
                     mesh.cell_count, 2
                 ),
             ),
             eqiora.InitialField(
                 plan.capability.pressure,
-                vertex_values=np.asarray(steady_pressure.vertex_values),
+                vertex_values=np.asarray(steady_pressure.values("vertex")),
             ),
         ),
     )
@@ -197,7 +197,7 @@ def test_scalar_field_uses_exact_plan_field_output(
     output = result.output(field)
     expected_coordinates = output.mesh.coordinates.copy()
     expected_cells = output.mesh.cells.copy()
-    expected_values = output.vertex_values.numpy(copy=False).copy()
+    expected_values = output.values("vertex").numpy(copy=False).copy()
     observed: dict[str, np.ndarray] = {}
     original = Axes.tripcolor
 
@@ -266,8 +266,8 @@ def test_deformed_field_uses_exact_plan_field_output(
     field = plan.capability.displacement
     output = result.output(field)
     figure = eqplot.plot_deformed_field(result, field=field, scale=2.0)
-    assert output.vertex_count == 289
-    assert output.components == 2
+    assert output.coefficient_count("vertex") == 289
+    assert output.value_shape == (2,)
     assert output.mesh.cells.shape == (256, 4)
     assert len(figure.axes) == 1
     assert "scale 2" in figure.axes[0].get_title()

@@ -88,6 +88,7 @@ use eqiora_realization::{
     resolve_fieldwise, resolve_transient_cell_centered_incompressible_flow,
     resolve_transient_fieldwise,
 };
+use eqiora_schema::kernel::KernelNode;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     ExecutionProvider, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
@@ -533,6 +534,7 @@ pub struct CommonScalarPlan {
     production_digest: String,
     field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
     field_id: String,
+    field_dimension: DimExponents,
     cells: [usize; 2],
 }
 

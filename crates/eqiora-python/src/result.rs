@@ -20,86 +20,17 @@ use crate::diagnostic_error;
 use crate::elasticity::PyLinearElasticityEvidence;
 use crate::execution::RunIdentity;
 use crate::fsi_evidence::PyFsiEvidence;
+use crate::geometry::PyGeometrySelection;
 use crate::meshing::PyMesh;
 use crate::model::PyModelFieldRef;
 use crate::realization::PyLinearSolveSummary;
 use crate::steady_stokes::PySteadyStokesEvidence;
-use crate::trajectory::{PyState, PyTrajectory};
+use crate::trajectory::{PyBoundaryFlux, PyBoundaryForce, PyState, PyTrajectory};
 
-/// Immutable coefficients for one exact Model Field on one exact Mesh.
-#[pyclass(
-    name = "FieldOutput",
-    module = "eqiora._eqiora",
-    frozen,
-    skip_from_py_object
-)]
-pub(crate) struct PyFieldOutput {
-    field: Py<PyModelFieldRef>,
-    mesh: Py<PyMesh>,
-    dimension: DimExponents,
-    components: usize,
-    vertex_values: Py<PyArrayBuffer>,
-    vertex_count: usize,
-    cell_bubble_values: Option<Py<PyArrayBuffer>>,
-    cell_bubble_count: usize,
-}
+mod field_output;
 
-#[pymethods]
-impl PyFieldOutput {
-    #[getter]
-    fn field(&self, py: Python<'_>) -> Py<PyModelFieldRef> {
-        self.field.clone_ref(py)
-    }
-    #[getter]
-    fn mesh(&self, py: Python<'_>) -> Py<PyMesh> {
-        self.mesh.clone_ref(py)
-    }
-    #[getter]
-    fn dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
-        let value = self.dimension;
-        (
-            value.mass,
-            value.length,
-            value.time,
-            value.current,
-            value.temperature,
-            value.amount,
-            value.luminous_intensity,
-        )
-    }
-    #[getter]
-    const fn components(&self) -> usize {
-        self.components
-    }
-    #[getter]
-    const fn vertex_count(&self) -> usize {
-        self.vertex_count
-    }
-    #[getter]
-    fn vertex_values(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
-        self.vertex_values.clone_ref(py)
-    }
-    #[getter]
-    const fn cell_bubble_count(&self) -> usize {
-        self.cell_bubble_count
-    }
-    #[getter]
-    fn cell_bubble_values(&self, py: Python<'_>) -> Option<Py<PyArrayBuffer>> {
-        self.cell_bubble_values
-            .as_ref()
-            .map(|values| values.clone_ref(py))
-    }
-
-    fn __repr__(&self, py: Python<'_>) -> String {
-        format!(
-            "FieldOutput(field={:?}, components={}, vertex_count={}, cell_bubble_count={})",
-            self.field.borrow(py).exact_id(),
-            self.components,
-            self.vertex_count,
-            self.cell_bubble_count,
-        )
-    }
-}
+use field_output::FieldOutputBlock;
+pub(crate) use field_output::PyFieldOutput;
 
 /// One read-only, field-local sampled series in SI units.
 #[pyclass(name = "Series", module = "eqiora._eqiora", frozen)]
@@ -178,20 +109,12 @@ enum StaticScientificEvidence {
     LinearElasticity(Py<PyLinearElasticityEvidence>),
 }
 
-struct ScalarResultPayload {
-    field_id: String,
-    mesh: Py<PyMesh>,
-    values: Py<PyArrayBuffer>,
-    field_location: &'static str,
-    logical_shape: [usize; 2],
-    solve: Py<PyLinearSolveSummary>,
-}
-
 struct CommonFieldResultPayload {
     outputs: Vec<Py<PyFieldOutput>>,
     lookup: BTreeMap<String, usize>,
     solve: Py<PyLinearSolveSummary>,
-    evidence: StaticScientificEvidence,
+    evidence: Option<StaticScientificEvidence>,
+    steady_stokes_observation: Option<CommonSteadyStokesObservation>,
 }
 
 struct CommonTrajectoryResultPayload {
@@ -206,10 +129,9 @@ struct CommonOdeResultPayload {
 }
 
 enum ResultPayload {
-    Scalar(ScalarResultPayload),
-    CommonFields(CommonFieldResultPayload),
-    CommonTrajectory(CommonTrajectoryResultPayload),
-    CommonOde(CommonOdeResultPayload),
+    Fields(Box<CommonFieldResultPayload>),
+    Trajectory(CommonTrajectoryResultPayload),
+    Ode(CommonOdeResultPayload),
 }
 
 /// One accepted execution occurrence with typed output relationships.
@@ -232,7 +154,7 @@ impl PyRunResult {
         state_space_identity: &str,
         time_s: f64,
     ) -> Option<Py<PyState>> {
-        let ResultPayload::CommonTrajectory(payload) = &self.payload else {
+        let ResultPayload::Trajectory(payload) = &self.payload else {
             return None;
         };
         payload
@@ -291,14 +213,12 @@ impl PyRunResult {
     #[getter]
     fn fields(&self, py: Python<'_>) -> Vec<Py<PySeries>> {
         match &self.payload {
-            ResultPayload::CommonOde(payload) => payload
+            ResultPayload::Ode(payload) => payload
                 .fields
                 .iter()
                 .map(|field| field.clone_ref(py))
                 .collect(),
-            ResultPayload::Scalar(_)
-            | ResultPayload::CommonFields(_)
-            | ResultPayload::CommonTrajectory(_) => Vec::new(),
+            ResultPayload::Fields(_) | ResultPayload::Trajectory(_) => Vec::new(),
         }
     }
 
@@ -310,7 +230,7 @@ impl PyRunResult {
                 "FieldRef belongs to a different exact Model artifact",
             ));
         }
-        let ResultPayload::CommonOde(payload) = &self.payload else {
+        let ResultPayload::Ode(payload) = &self.payload else {
             return Err(PyKeyError::new_err(field.exact_id().to_owned()));
         };
         let index = payload
@@ -325,10 +245,8 @@ impl PyRunResult {
     #[getter]
     fn trajectory(&self, py: Python<'_>) -> PyResult<Py<PyTrajectory>> {
         match &self.payload {
-            ResultPayload::CommonTrajectory(payload) => Ok(payload.trajectory.clone_ref(py)),
-            ResultPayload::Scalar(_)
-            | ResultPayload::CommonFields(_)
-            | ResultPayload::CommonOde(_) => Err(capability_error(
+            ResultPayload::Trajectory(payload) => Ok(payload.trajectory.clone_ref(py)),
+            ResultPayload::Fields(_) | ResultPayload::Ode(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no spatial Trajectory",
             )),
@@ -338,59 +256,18 @@ impl PyRunResult {
     /// Select the exact accepted Mesh paired with one static Field.
     #[pyo3(signature = (field, /))]
     fn mesh(&self, py: Python<'_>, field: &PyModelFieldRef) -> PyResult<Py<PyMesh>> {
-        if let ResultPayload::Scalar(payload) = &self.payload {
-            self.validate_scalar_field(field)?;
-            return Ok(payload.mesh.clone_ref(py));
-        }
-        if let ResultPayload::CommonFields(_) = &self.payload {
+        if let ResultPayload::Fields(_) = &self.payload {
             return self
                 .common_output(py, field)
-                .map(|output| output.borrow(py).mesh.clone_ref(py));
+                .map(|output| output.borrow(py).mesh_handle(py));
         }
         Err(PyKeyError::new_err(field.exact_id().to_owned()))
-    }
-
-    /// Exact primary scalar coefficients for a common scalar Plan Result.
-    #[getter]
-    fn values(&self, py: Python<'_>) -> PyResult<Py<PyArrayBuffer>> {
-        match &self.payload {
-            ResultPayload::Scalar(payload) => Ok(payload.values.clone_ref(py)),
-            _ => Err(capability_error(
-                py,
-                "this Result occurrence has no primary scalar coefficient buffer",
-            )),
-        }
-    }
-
-    #[getter]
-    fn field_location(&self, py: Python<'_>) -> PyResult<&'static str> {
-        match &self.payload {
-            ResultPayload::Scalar(payload) => Ok(payload.field_location),
-            _ => Err(capability_error(
-                py,
-                "this Result occurrence has no scalar Field location",
-            )),
-        }
-    }
-
-    #[getter]
-    fn logical_shape(&self, py: Python<'_>) -> PyResult<(usize, usize)> {
-        match &self.payload {
-            ResultPayload::Scalar(payload) => {
-                Ok((payload.logical_shape[0], payload.logical_shape[1]))
-            }
-            _ => Err(capability_error(
-                py,
-                "this Result occurrence has no scalar logical shape",
-            )),
-        }
     }
 
     #[getter]
     fn solve(&self, py: Python<'_>) -> PyResult<Py<PyLinearSolveSummary>> {
         match &self.payload {
-            ResultPayload::Scalar(payload) => Ok(payload.solve.clone_ref(py)),
-            ResultPayload::CommonFields(payload) => Ok(payload.solve.clone_ref(py)),
+            ResultPayload::Fields(payload) => Ok(payload.solve.clone_ref(py)),
             _ => Err(capability_error(
                 py,
                 "this Result occurrence has no linear solve summary",
@@ -404,12 +281,91 @@ impl PyRunResult {
         self.common_output(py, field)
     }
 
+    /// Signed force pair on one exact Geometry boundary of this Result.
+    #[pyo3(signature = (selection, /))]
+    fn boundary_force(
+        &self,
+        py: Python<'_>,
+        selection: Py<PyGeometrySelection>,
+    ) -> PyResult<Py<PyBoundaryForce>> {
+        let payload = self.steady_stokes_payload(py, "boundary-force")?;
+        let selected = selection.borrow(py);
+        self.validate_observable_selection(py, payload, &selected)?;
+        let name = selected.canonical_name().to_owned();
+        if name != "cylinder" {
+            return Err(PyKeyError::new_err(format!(
+                "this Result has no boundary-force observable for {name:?}"
+            )));
+        }
+        let geometry_digest = selected.bound_source_digest().to_owned();
+        drop(selected);
+        let mesh = payload.outputs[0].borrow(py).mesh_handle(py);
+        let mesh_digest = mesh.borrow(py).exact_mesh_digest().to_owned();
+        let force = payload
+            .steady_stokes_observation
+            .as_ref()
+            .expect("validated steady-Stokes observation")
+            .cylinder_force_on_fluid();
+        Py::new(
+            py,
+            PyBoundaryForce::new(
+                selection,
+                name,
+                geometry_digest,
+                self.identity.plan_key(),
+                "result",
+                &mesh_digest,
+                force,
+            ),
+        )
+    }
+
+    /// Signed volume flux on one exact Geometry boundary of this Result.
+    #[pyo3(signature = (selection, /))]
+    fn boundary_flux(
+        &self,
+        py: Python<'_>,
+        selection: Py<PyGeometrySelection>,
+    ) -> PyResult<Py<PyBoundaryFlux>> {
+        let payload = self.steady_stokes_payload(py, "boundary-flux")?;
+        let selected = selection.borrow(py);
+        self.validate_observable_selection(py, payload, &selected)?;
+        let name = selected.canonical_name().to_owned();
+        let observation = payload
+            .steady_stokes_observation
+            .as_ref()
+            .expect("validated steady-Stokes observation");
+        let value = match name.as_str() {
+            "inlet" => observation.inlet_flux(),
+            "outlet" => observation.outlet_flux(),
+            _ => {
+                return Err(PyKeyError::new_err(format!(
+                    "this Result has no boundary-flux observable for {name:?}"
+                )));
+            }
+        };
+        let geometry_digest = selected.bound_source_digest().to_owned();
+        drop(selected);
+        let mesh = payload.outputs[0].borrow(py).mesh_handle(py);
+        let mesh_digest = mesh.borrow(py).exact_mesh_digest().to_owned();
+        Py::new(
+            py,
+            PyBoundaryFlux::new(
+                selection,
+                name,
+                geometry_digest,
+                self.identity.plan_key(),
+                &mesh_digest,
+                value,
+            ),
+        )
+    }
+
     fn __repr__(&self) -> String {
         let fields = match &self.payload {
-            ResultPayload::Scalar(_)
-            | ResultPayload::CommonFields(_)
-            | ResultPayload::CommonTrajectory(_) => 0,
-            ResultPayload::CommonOde(payload) => payload.fields.len(),
+            ResultPayload::Fields(payload) => payload.outputs.len(),
+            ResultPayload::Trajectory(_) => 0,
+            ResultPayload::Ode(payload) => payload.fields.len(),
         };
         format!(
             "Result(fields={}, model_digest={:?}, plan_key={:?})",
@@ -429,7 +385,7 @@ impl PyRunResult {
         state_space_identity: &str,
         time_s: f64,
     ) -> Option<eqiora_numerics::CommonOdeState> {
-        let ResultPayload::CommonOde(payload) = &self.payload else {
+        let ResultPayload::Ode(payload) = &self.payload else {
             return None;
         };
         payload
@@ -442,21 +398,6 @@ impl PyRunResult {
             .cloned()
     }
 
-    fn validate_scalar_field(&self, field: &PyModelFieldRef) -> PyResult<()> {
-        if field.exact_model_digest() != self.identity.model_digest() {
-            return Err(PyValueError::new_err(
-                "FieldRef belongs to a different exact Model artifact",
-            ));
-        }
-        let ResultPayload::Scalar(payload) = &self.payload else {
-            return Err(PyKeyError::new_err(field.exact_id().to_owned()));
-        };
-        if field.exact_id() != payload.field_id {
-            return Err(PyKeyError::new_err(field.exact_id().to_owned()));
-        }
-        Ok(())
-    }
-
     fn common_output(
         &self,
         py: Python<'_>,
@@ -467,7 +408,7 @@ impl PyRunResult {
                 "FieldRef belongs to a different exact Model artifact",
             ));
         }
-        let ResultPayload::CommonFields(payload) = &self.payload else {
+        let ResultPayload::Fields(payload) = &self.payload else {
             return Err(PyKeyError::new_err(field.exact_id().to_owned()));
         };
         let index = payload
@@ -478,42 +419,106 @@ impl PyRunResult {
         Ok(payload.outputs[index].clone_ref(py))
     }
 
+    fn steady_stokes_payload(
+        &self,
+        py: Python<'_>,
+        observable: &str,
+    ) -> PyResult<&CommonFieldResultPayload> {
+        let ResultPayload::Fields(payload) = &self.payload else {
+            return Err(capability_error(
+                py,
+                &format!("this Result occurrence has no {observable} observable"),
+            ));
+        };
+        if payload.steady_stokes_observation.is_none() {
+            return Err(capability_error(
+                py,
+                &format!("this Result occurrence has no {observable} observable"),
+            ));
+        }
+        Ok(payload)
+    }
+
+    fn validate_observable_selection(
+        &self,
+        py: Python<'_>,
+        payload: &CommonFieldResultPayload,
+        selection: &PyGeometrySelection,
+    ) -> PyResult<()> {
+        let mesh = payload.outputs[0].borrow(py).mesh_handle(py);
+        let source_digest = mesh.borrow(py).source_digest_value().to_owned();
+        if selection.bound_source_digest() != source_digest {
+            return Err(PyValueError::new_err(
+                "GeometrySelection belongs to a foreign or stale Geometry revision",
+            ));
+        }
+        if selection.canonical_dimension() != 1 {
+            return Err(PyValueError::new_err(
+                "Result boundary observables require a codimension-one GeometrySelection",
+            ));
+        }
+        Ok(())
+    }
+
     pub(crate) fn from_common_scalar(
         py: Python<'_>,
         identity: RunIdentity,
         mesh: Py<PyMesh>,
-        field_id: String,
+        field: (String, DimExponents),
         cells: [usize; 2],
         elapsed: Duration,
         run: ResolvedScalarEllipticCartesianSolution,
     ) -> PyResult<Self> {
-        let (values, solve, field_location, logical_shape) = match run {
+        let (field_id, field_dimension) = field;
+        let (values, solve, association, logical_shape, space) = match run {
             ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) => (
                 solution.field().vertex_values().to_vec(),
                 solution.solve_report().clone(),
                 "vertex",
                 [cells[0] + 1, cells[1] + 1],
+                "continuous-lagrange-p1",
             ),
             ResolvedScalarEllipticCartesianSolution::FiniteVolume(solution) => (
                 solution.cell_values().to_vec(),
                 solution.solve_report().clone(),
-                "cell-center",
+                "cell",
                 cells,
+                "cell-constant",
             ),
         };
         let values = PyArrayBuffer::from_owned_result(py, values)?;
         let solve = Py::new(py, PyLinearSolveSummary::from_report(&solve))?;
+        let field = Py::new(
+            py,
+            PyModelFieldRef::from_exact(identity.model_digest().to_owned(), field_id.clone()),
+        )?;
+        let coefficient_count = logical_shape[0] * logical_shape[1];
+        let output = Py::new(
+            py,
+            PyFieldOutput::new(
+                field,
+                mesh,
+                field_dimension,
+                Vec::new(),
+                space,
+                vec![FieldOutputBlock::new(
+                    association,
+                    values,
+                    coefficient_count,
+                    logical_shape.to_vec(),
+                )],
+            ),
+        )?;
         Ok(Self {
             identity,
             elapsed_seconds: elapsed.as_secs_f64(),
-            payload: ResultPayload::Scalar(ScalarResultPayload {
-                field_id,
-                mesh,
-                values,
-                field_location,
-                logical_shape,
+            payload: ResultPayload::Fields(Box::new(CommonFieldResultPayload {
+                outputs: vec![output],
+                lookup: BTreeMap::from([(field_id, 0)]),
                 solve,
-            }),
+                evidence: None,
+                steady_stokes_observation: None,
+            })),
         })
     }
 
@@ -575,49 +580,64 @@ impl PyRunResult {
         )?;
         let velocity = Py::new(
             py,
-            PyFieldOutput {
-                field: velocity_field,
-                mesh: mesh.clone_ref(py),
-                dimension: DimExponents {
+            PyFieldOutput::new(
+                velocity_field,
+                mesh.clone_ref(py),
+                DimExponents {
                     length: 1,
                     time: -1,
                     ..DimExponents::DIMENSIONLESS
                 },
-                components: 2,
-                vertex_values: PyArrayBuffer::from_owned_result(py, velocity_vertices)?,
-                vertex_count: velocity_vertex_count,
-                cell_bubble_values: Some(PyArrayBuffer::from_owned_result(py, velocity_cells)?),
-                cell_bubble_count: velocity_cell_count,
-            },
+                vec![2],
+                "simplex-p1-bubble",
+                vec![
+                    FieldOutputBlock::new(
+                        "vertex",
+                        PyArrayBuffer::from_owned_result(py, velocity_vertices)?,
+                        velocity_vertex_count,
+                        vec![velocity_vertex_count, 2],
+                    ),
+                    FieldOutputBlock::new(
+                        "cell-bubble",
+                        PyArrayBuffer::from_owned_result(py, velocity_cells)?,
+                        velocity_cell_count,
+                        vec![velocity_cell_count, 2],
+                    ),
+                ],
+            ),
         )?;
         let pressure = Py::new(
             py,
-            PyFieldOutput {
-                field: pressure_field,
+            PyFieldOutput::new(
+                pressure_field,
                 mesh,
-                dimension: DimExponents {
+                DimExponents {
                     mass: 1,
                     length: -1,
                     time: -2,
                     ..DimExponents::DIMENSIONLESS
                 },
-                components: 1,
-                vertex_values: PyArrayBuffer::from_owned_result(py, pressure_vertices)?,
-                vertex_count: pressure_vertex_count,
-                cell_bubble_values: None,
-                cell_bubble_count: 0,
-            },
+                Vec::new(),
+                "continuous-lagrange-p1",
+                vec![FieldOutputBlock::new(
+                    "vertex",
+                    PyArrayBuffer::from_owned_result(py, pressure_vertices)?,
+                    pressure_vertex_count,
+                    vec![pressure_vertex_count],
+                )],
+            ),
         )?;
         let lookup = BTreeMap::from([(velocity_field_id, 0), (pressure_field_id, 1)]);
         Ok(Self {
             identity,
             elapsed_seconds: elapsed.as_secs_f64(),
-            payload: ResultPayload::CommonFields(CommonFieldResultPayload {
+            payload: ResultPayload::Fields(Box::new(CommonFieldResultPayload {
                 outputs: vec![velocity, pressure],
                 lookup,
                 solve,
-                evidence: StaticScientificEvidence::SteadyStokes(evidence),
-            }),
+                evidence: Some(StaticScientificEvidence::SteadyStokes(evidence)),
+                steady_stokes_observation: Some(observation),
+            })),
         })
     }
 
@@ -651,29 +671,33 @@ impl PyRunResult {
         )?;
         let displacement = Py::new(
             py,
-            PyFieldOutput {
+            PyFieldOutput::new(
                 field,
                 mesh,
-                dimension: DimExponents {
+                DimExponents {
                     length: 1,
                     ..DimExponents::DIMENSIONLESS
                 },
-                components: 2,
-                vertex_values: PyArrayBuffer::from_owned_result(py, values)?,
-                vertex_count,
-                cell_bubble_values: None,
-                cell_bubble_count: 0,
-            },
+                vec![2],
+                "continuous-lagrange-p1",
+                vec![FieldOutputBlock::new(
+                    "vertex",
+                    PyArrayBuffer::from_owned_result(py, values)?,
+                    vertex_count,
+                    vec![vertex_count, 2],
+                )],
+            ),
         )?;
         Ok(Self {
             identity,
             elapsed_seconds: elapsed.as_secs_f64(),
-            payload: ResultPayload::CommonFields(CommonFieldResultPayload {
+            payload: ResultPayload::Fields(Box::new(CommonFieldResultPayload {
                 outputs: vec![displacement],
                 lookup: BTreeMap::from([(displacement_field_id, 0)]),
                 solve,
-                evidence: StaticScientificEvidence::LinearElasticity(evidence),
-            }),
+                evidence: Some(StaticScientificEvidence::LinearElasticity(evidence)),
+                steady_stokes_observation: None,
+            })),
         })
     }
 
@@ -682,21 +706,19 @@ impl PyRunResult {
         py: Python<'_>,
     ) -> PyResult<Py<PySteadyStokesEvidence>> {
         match &self.payload {
-            ResultPayload::Scalar(_) => Err(capability_error(
+            ResultPayload::Fields(payload) => match &payload.evidence {
+                Some(StaticScientificEvidence::SteadyStokes(evidence)) => {
+                    Ok(evidence.clone_ref(py))
+                }
+                _ => Err(capability_error(
+                    py,
+                    "this Result occurrence has no steady-Stokes evidence",
+                )),
+            },
+            ResultPayload::Trajectory(_) | ResultPayload::Ode(_) => Err(capability_error(
                 py,
-                "this Result occurrence has no steady-Stokes evidence",
+                "this transient Result has no steady-Stokes evidence",
             )),
-            ResultPayload::CommonFields(CommonFieldResultPayload {
-                evidence: StaticScientificEvidence::SteadyStokes(evidence),
-                ..
-            }) => Ok(evidence.clone_ref(py)),
-            ResultPayload::CommonFields(_) => Err(capability_error(
-                py,
-                "this Result occurrence has no steady-Stokes evidence",
-            )),
-            ResultPayload::CommonTrajectory(_) | ResultPayload::CommonOde(_) => Err(
-                capability_error(py, "this transient Result has no steady-Stokes evidence"),
-            ),
         }
     }
 
@@ -705,14 +727,16 @@ impl PyRunResult {
         py: Python<'_>,
     ) -> PyResult<Py<PyLinearElasticityEvidence>> {
         match &self.payload {
-            ResultPayload::CommonFields(CommonFieldResultPayload {
-                evidence: StaticScientificEvidence::LinearElasticity(evidence),
-                ..
-            }) => Ok(evidence.clone_ref(py)),
-            ResultPayload::Scalar(_)
-            | ResultPayload::CommonFields(_)
-            | ResultPayload::CommonTrajectory(_)
-            | ResultPayload::CommonOde(_) => Err(capability_error(
+            ResultPayload::Fields(payload) => match &payload.evidence {
+                Some(StaticScientificEvidence::LinearElasticity(evidence)) => {
+                    Ok(evidence.clone_ref(py))
+                }
+                _ => Err(capability_error(
+                    py,
+                    "this Result occurrence has no linear-elasticity evidence",
+                )),
+            },
+            ResultPayload::Trajectory(_) | ResultPayload::Ode(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no linear-elasticity evidence",
             )),
@@ -721,14 +745,12 @@ impl PyRunResult {
 
     pub(crate) fn fsi_evidence(&self, py: Python<'_>) -> PyResult<Py<PyFsiEvidence>> {
         match &self.payload {
-            ResultPayload::CommonTrajectory(payload) => payload
+            ResultPayload::Trajectory(payload) => payload
                 .fsi_evidence
                 .as_ref()
                 .map(|evidence| evidence.clone_ref(py))
                 .ok_or_else(|| capability_error(py, "this transient Result has no FSI evidence")),
-            ResultPayload::Scalar(_)
-            | ResultPayload::CommonFields(_)
-            | ResultPayload::CommonOde(_) => Err(capability_error(
+            ResultPayload::Fields(_) | ResultPayload::Ode(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no FSI evidence",
             )),
@@ -752,7 +774,7 @@ pub(crate) fn materialize_common_scalar(
         py,
         identity,
         plan.mesh_handle(py),
-        native.field_id().to_owned(),
+        (native.field_id().to_owned(), native.field_dimension()),
         native.cells(),
         Duration::from_secs_f64(elapsed_seconds),
         result,
@@ -850,7 +872,7 @@ pub(crate) fn materialize_common_transient(
     Ok(PyRunResult {
         identity,
         elapsed_seconds,
-        payload: ResultPayload::CommonTrajectory(CommonTrajectoryResultPayload {
+        payload: ResultPayload::Trajectory(CommonTrajectoryResultPayload {
             trajectory,
             fsi_evidence,
         }),
@@ -903,7 +925,7 @@ pub(crate) fn materialize_common_ode(
     Ok(PyRunResult {
         identity,
         elapsed_seconds,
-        payload: ResultPayload::CommonOde(CommonOdeResultPayload {
+        payload: ResultPayload::Ode(CommonOdeResultPayload {
             fields,
             lookup,
             states,

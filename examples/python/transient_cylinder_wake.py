@@ -90,16 +90,16 @@ def solve() -> tuple[
         fields=(
             eqiora.InitialField(
                 plan.capability.velocity,
-                vertex_values=np.asarray(steady_velocity.vertex_values).reshape(
+                vertex_values=np.asarray(steady_velocity.values("vertex")).reshape(
                     mesh.vertex_count, 2
                 ),
-                cell_values=np.asarray(steady_velocity.cell_bubble_values).reshape(
+                cell_values=np.asarray(steady_velocity.values("cell-bubble")).reshape(
                     mesh.cell_count, 2
                 ),
             ),
             eqiora.InitialField(
                 plan.capability.pressure,
-                vertex_values=np.asarray(steady_pressure.vertex_values),
+                vertex_values=np.asarray(steady_pressure.values("vertex")),
             ),
         ),
     )

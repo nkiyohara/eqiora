@@ -45,7 +45,7 @@ def _(mo, plan, displacement, result):
         </div>
         <div data-testid="eqiora-elasticity-result">
           {type(result).__name__} {result.plan_key};
-          displacement vertices {displacement.vertex_count}
+          displacement vertices {displacement.coefficient_count("vertex")}
         </div>
         """
     )

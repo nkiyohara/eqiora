@@ -65,10 +65,10 @@ def test_common_plan_result_and_observation_close_exact_lineage() -> None:
     assert result.plan_key == plan.identity == evidence.plan_key
     assert output.field == displacement
     assert output.mesh is plan.mesh
-    assert output.vertex_count == 289
-    assert output.components == 2
+    assert output.coefficient_count("vertex") == 289
+    assert output.value_shape == (2,)
     assert output.dimension == (0, 1, 0, 0, 0, 0, 0)
-    values = output.vertex_values.numpy(copy=False).reshape(289, 2)
+    values = output.values("vertex").numpy(copy=False).reshape(289, 2)
     assert values.shape == (289, 2)
     assert not values.flags.writeable
     assert np.isfinite(values).all()

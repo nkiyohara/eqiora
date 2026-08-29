@@ -21,8 +21,8 @@ python -m pip install "eqiora[gmsh]==0.1.0a4"
 ```
 
 Build an exact rectangle-with-circular-hole geometry, resolve its Gmsh mesh,
-run the accepted steady-Stokes application, and inspect typed evidence from the
-immutable `Result`:
+run the accepted steady-Stokes application, and inspect typed outputs and
+boundary observables from the immutable `Result`:
 
 ![Accepted exact-cylinder steady-Stokes pressure field](docs/site/src/assets/gallery/exact-cylinder-pressure.png)
 
@@ -69,21 +69,25 @@ plan = eqiora.resolve(
     model, mesh=mesh, spatial=eqiora.fem.MiniP1(), solve=linear, scaling=None,
 )
 result = eqiora.run(plan)
-evidence = eqiora.fluid.steady_stokes_evidence(result)
+pressure = result.output(plan.capability.pressure)
+pressure_values = pressure.values("vertex")
+cylinder_force = result.boundary_force(geometry.selection("cylinder"))
+inlet_flux = result.boundary_flux(geometry.selection("inlet"))
+outlet_flux = result.boundary_flux(geometry.selection("outlet"))
 
 print(result.plan_key)
-print(evidence.solve)
-print("pressure", evidence.pressure_minimum, evidence.pressure_maximum, "Pa")
-print("cylinder force on fluid", evidence.cylinder_force_on_fluid, "N/m")
-print("net flux", evidence.net_flux, "m^2/s")
+print(result.solve)
+print("pressure", min(pressure_values), max(pressure_values), "Pa")
+print("cylinder force on fluid", cylinder_force.on_domain, "N/m")
+print("net flux", inlet_flux.value + outlet_flux.value, "m^2/s")
 ```
 
 This is deliberately one bounded case rather than a claim of general CFD. It
 shows the distinction Eqiora is built around: exact geometry and model meaning
 remain immutable, meshing and solver choices live in explicit resolved plans,
-and the returned evidence stays tied to the same Geometry, Model, Mesh, Plan,
-and Result
-lineage. [Walk through the pressure result](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
+and every returned output stays tied to the same Geometry, Model, Mesh, Plan,
+and Result lineage. Verification-oriented evidence remains available separately.
+[Walk through the pressure result](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
 or run the complete
 [`examples/python/exact_cylinder_stokes.py`](examples/python/exact_cylinder_stokes.py)
 script with optional Matplotlib output.

@@ -60,7 +60,7 @@ evidence = eqiora.fluid.steady_stokes_evidence(result)
 pressure = result.output(plan.capability.pressure)
 assert result.model_digest == model.digest
 assert result.plan_key == plan.identity
-assert pressure.vertex_count == mesh.vertex_count
+assert pressure.coefficient_count("vertex") == mesh.vertex_count
 assert evidence.plan_key == plan.identity
 assert evidence.solve.true_residual_norm <= evidence.solve.residual_target
 assert not hasattr(eqiora.fluid, "SteadyStokes")

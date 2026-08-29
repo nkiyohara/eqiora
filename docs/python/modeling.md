@@ -257,11 +257,14 @@ plan = eqiora.resolve(
 result = eqiora.run(plan)
 
 pressure = result.output(plan.capability.pressure)
-evidence = eqiora.fluid.steady_stokes_evidence(result)
-print(result.plan_key, pressure.vertex_count)
-print(evidence.solve)
-print(evidence.pressure_minimum, evidence.pressure_maximum)
-print(evidence.cylinder_force_on_fluid, evidence.net_flux)
+pressure_values = pressure.values("vertex")
+print(result.plan_key, pressure.coefficient_count("vertex"))
+print(result.solve)
+print(min(pressure_values), max(pressure_values))
+force = result.boundary_force(geometry.selection("cylinder"))
+inlet = result.boundary_flux(geometry.selection("inlet"))
+outlet = result.boundary_flux(geometry.selection("outlet"))
+print(force.on_domain, inlet.value + outlet.value)
 ```
 
 Freshly compiled and replayed Models use the same root resolver. The source or
@@ -270,12 +273,14 @@ and values enter identity. `compile` is keyword-only and accepts exactly one of
 `path=` or `source=`; `filename=` labels diagnostics only for `source=`.
 The Plan exposes the exact spaces, scales, solver tuple, backend, placement,
 and existing Realization bytes before a worker starts.
-The common `Result` exposes one immutable pressure `FieldOutput`, selected by
-its exact Model-bound `FieldRef`; that output retains the paired common `Mesh`.
+The common `Result` exposes immutable velocity and pressure `FieldOutput`
+objects selected by exact Model-bound `FieldRef` values; each output retains
+the paired common `Mesh`.
 Field values and Mesh coordinates/connectivity lazily publish
-read-only NumPy views in matching mesh order. Solver- and physics-specific
-observations remain available through
-`eqiora.fluid.steady_stokes_evidence(result)`.
+read-only NumPy views in matching mesh order. Exact `GeometrySelection` values
+select the supported boundary force and inlet/outlet flux observations directly
+from the Result. `eqiora.fluid.steady_stokes_evidence(result)` remains an
+optional verification projection over the same accepted observations.
 
 This operation admits only the checked exact-cylinder component, Geometry,
 mesh, MINI/P1 policy, and SparseLU request. It is not a general Model catalog,

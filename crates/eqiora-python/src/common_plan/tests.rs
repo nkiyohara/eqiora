@@ -445,11 +445,15 @@ tpfa_result = package.run(tpfa)
 assert q1_result.model_digest == q1.model_digest
 assert q1_result.plan_key == q1.identity
 assert q1_result.mesh(q1.capability.field) is mesh
-assert q1_result.logical_shape == (3, 4)
-assert len(q1_result.values) == 12
+q1_output = q1_result.output(q1.capability.field)
+assert q1_output.associations == ("vertex",)
+assert q1_output.logical_shape("vertex") == (3, 4)
+assert len(q1_output.values("vertex")) == 12
 assert not hasattr(q1_result, "run_manifest")
-assert tpfa_result.logical_shape == (2, 3)
-assert len(tpfa_result.values) == 6
+tpfa_output = tpfa_result.output(tpfa.capability.field)
+assert tpfa_output.associations == ("cell",)
+assert tpfa_output.logical_shape("cell") == (2, 3)
+assert len(tpfa_output.values("cell")) == 6
 try:
     package.resolve(foreign_model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 except package.ValidationError:
@@ -701,17 +705,31 @@ assert velocity.field == plan.capability.velocity
 assert pressure.field == plan.capability.pressure
 assert velocity.mesh is pressure.mesh is mesh
 assert velocity.dimension == (0, 1, -1, 0, 0, 0, 0)
-assert velocity.components == 2
-assert velocity.vertex_count == mesh.vertex_count
-assert len(velocity.vertex_values) == mesh.vertex_count * 2
-assert velocity.cell_bubble_count == mesh.cell_count
-assert len(velocity.cell_bubble_values) == mesh.cell_count * 2
+assert velocity.value_shape == (2,)
+assert velocity.associations == ("vertex", "cell-bubble")
+assert velocity.coefficient_count("vertex") == mesh.vertex_count
+assert len(velocity.values("vertex")) == mesh.vertex_count * 2
+assert velocity.coefficient_count("cell-bubble") == mesh.cell_count
+assert len(velocity.values("cell-bubble")) == mesh.cell_count * 2
 assert pressure.dimension == (1, -1, -2, 0, 0, 0, 0)
-assert pressure.components == 1
-assert pressure.vertex_count == mesh.vertex_count
-assert len(pressure.vertex_values) == mesh.vertex_count
-assert pressure.cell_bubble_count == 0
-assert pressure.cell_bubble_values is None
+assert pressure.value_shape == ()
+assert pressure.associations == ("vertex",)
+assert pressure.coefficient_count("vertex") == mesh.vertex_count
+assert len(pressure.values("vertex")) == mesh.vertex_count
+cylinder = source.selection("cylinder")
+inlet = source.selection("inlet")
+outlet = source.selection("outlet")
+cylinder_force = result.boundary_force(cylinder)
+inlet_flux = result.boundary_flux(inlet)
+outlet_flux = result.boundary_flux(outlet)
+assert cylinder_force.selection == cylinder
+assert cylinder_force.source_digest == result.plan_key
+assert cylinder_force.source_kind == "result"
+assert cylinder_force.on_domain == stokes_evidence.cylinder_force_on_fluid
+assert inlet_flux.selection == inlet and outlet_flux.selection == outlet
+assert inlet_flux.value == stokes_evidence.inlet_flux
+assert outlet_flux.value == stokes_evidence.outlet_flux
+assert inlet_flux.value + outlet_flux.value == stokes_evidence.net_flux
 assert result.solve.algorithm == "sparse-lu"
 foreign_field = foreign_model.field(foreign_model.field_ids[0])
 try:
@@ -847,18 +865,18 @@ state = package.State.initial(
     fields=(
         package.InitialField(
             plan.capability.velocity,
-            vertex_values=np.asarray(steady_velocity.vertex_values).reshape(mesh.vertex_count, 2),
-            cell_values=np.asarray(steady_velocity.cell_bubble_values).reshape(mesh.cell_count, 2),
+            vertex_values=np.asarray(steady_velocity.values("vertex")).reshape(mesh.vertex_count, 2),
+            cell_values=np.asarray(steady_velocity.values("cell-bubble")).reshape(mesh.cell_count, 2),
         ),
         package.InitialField(
             plan.capability.pressure,
-            vertex_values=np.asarray(steady_pressure.vertex_values),
+            vertex_values=np.asarray(steady_pressure.values("vertex")),
         ),
     ),
 )
 assert plan.model is model and plan.mesh is mesh
 assert plan.capability.pressure_gauge is package.fluid.PressureGauge2d.BoundaryTraction
-assert np.max(np.abs(np.asarray(steady_velocity.vertex_values))) > 0.0
+assert np.max(np.abs(np.asarray(steady_velocity.values("vertex")))) > 0.0
 assert state.field(plan.capability.velocity).associations == ("vertex", "cell")
 result = package.run(plan, state=state, steps=1, output_steps=(1,))
 assert len(result.trajectory.states) == 1
@@ -893,7 +911,8 @@ assert np.isfinite(front_pressure.value) and np.isfinite(rear_pressure.value)
 assert wake_state.sample(plan.capability.pressure, at=(0.15, 0.2)) == front_pressure
 cylinder = source.selection("cylinder")
 cylinder_force = wake_state.boundary_force(cylinder)
-assert cylinder_force.source_state_digest == wake_state.digest
+assert cylinder_force.source_digest == wake_state.digest
+assert cylinder_force.source_kind == "state"
 assert cylinder_force.selection == cylinder
 assert cylinder_force.geometry_digest == source.digest
 assert cylinder_force.mesh_digest == mesh.digest
@@ -1268,13 +1287,13 @@ assert elasticity_evidence.exact_bounds == ((0.0, 1.0), (0.0, 1.0))
 output = result.output(plan.capability.displacement)
 assert output.field == plan.capability.displacement
 assert output.mesh is mesh
-assert output.components == 2
-assert output.vertex_count == 12
-assert len(output.vertex_values) == 24
+assert output.value_shape == (2,)
+assert output.coefficient_count("vertex") == 12
+assert len(output.values("vertex")) == 24
 assert output.dimension == (0, 1, 0, 0, 0, 0, 0)
-assert output.cell_bubble_values is None and output.cell_bubble_count == 0
+assert output.associations == ("vertex",)
 assert result.mesh(plan.capability.displacement) is mesh
-assert package.submit(plan).result().output(plan.capability.displacement).vertex_count == 12
+assert package.submit(plan).result().output(plan.capability.displacement).coefficient_count("vertex") == 12
 
 load_potential_id = model.field_ids[0]
 if load_potential_id == plan.capability.displacement.id:

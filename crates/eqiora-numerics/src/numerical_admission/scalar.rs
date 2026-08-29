@@ -126,6 +126,14 @@ impl CommonScalarPlan {
         let portable = resolve_common_scalar_portable(&admission, lowered, mesh, cells)?;
         let field = lowered.field_id();
         let field_id = field.ulid().to_string();
+        let field_dimension = match admission.program.node(field.erase()) {
+            Some(KernelNode::Field(definition)) => definition.dimension(),
+            _ => {
+                return Err(invalid(
+                    "common scalar admission lost its exact semantic Field definition",
+                ));
+            }
+        };
         let mut identity_bytes = Vec::new();
         for value in [
             admission.model_digest(),
@@ -156,6 +164,7 @@ impl CommonScalarPlan {
             production_digest,
             field,
             field_id,
+            field_dimension,
             cells,
         })
     }
@@ -394,6 +403,12 @@ impl CommonScalarPlan {
     #[must_use]
     pub const fn field(&self) -> eqiora_core::Id<eqiora_core::entity::kinds::Field> {
         self.field
+    }
+
+    /// Coherent-SI dimension of the exact scalar Field represented by this Plan.
+    #[must_use]
+    pub const fn field_dimension(&self) -> DimExponents {
+        self.field_dimension
     }
 
     #[must_use]

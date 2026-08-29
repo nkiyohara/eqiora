@@ -7,7 +7,7 @@ from pathlib import Path
 import eqiora
 
 
-def solve() -> tuple[eqiora.Result, eqiora.FieldRef]:
+def solve() -> tuple[eqiora.Result, eqiora.FieldRef, eqiora.geometry.Geometry]:
     graph = eqiora.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
     circle = graph.circle(center=(0.2, 0.2), radius=0.05)
@@ -53,7 +53,7 @@ def solve() -> tuple[eqiora.Result, eqiora.FieldRef]:
         solve=linear,
         scaling=None,
     )
-    return eqiora.run(plan), plan.capability.pressure
+    return eqiora.run(plan), plan.capability.pressure, geometry
 
 
 def main() -> None:
@@ -65,21 +65,24 @@ def main() -> None:
     )
     arguments = parser.parse_args()
 
-    result, pressure_field = solve()
+    result, pressure_field, geometry = solve()
     pressure = result.output(pressure_field)
-    evidence = eqiora.fluid.steady_stokes_evidence(result)
+    pressure_values = pressure.values("vertex")
+    cylinder_force = result.boundary_force(geometry.selection("cylinder"))
+    inlet_flux = result.boundary_flux(geometry.selection("inlet"))
+    outlet_flux = result.boundary_flux(geometry.selection("outlet"))
     print(result.plan_key)
-    print(evidence.solve)
+    print(result.solve)
     print(
         "pressure",
-        evidence.pressure_minimum,
-        evidence.pressure_maximum,
+        min(pressure_values),
+        max(pressure_values),
         "Pa on",
-        pressure.vertex_count,
+        pressure.coefficient_count("vertex"),
         "vertices",
     )
-    print("cylinder force on fluid", evidence.cylinder_force_on_fluid, "N/m")
-    print("net flux", evidence.net_flux, "m^2/s")
+    print("cylinder force on fluid", cylinder_force.on_domain, "N/m")
+    print("net flux", inlet_flux.value + outlet_flux.value, "m^2/s")
     if arguments.pressure_png is not None:
         import eqiora.matplotlib as eqplot
 
