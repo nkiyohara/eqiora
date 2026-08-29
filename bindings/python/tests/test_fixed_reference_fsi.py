@@ -151,7 +151,12 @@ def test_only_common_model_first_fsi_surface_is_public() -> None:
     assert not hasattr(eqiora.fsi, "FixedMeshMonolithic")
     assert not hasattr(eqiora.fsi, "FixedMeshMonolithicPlan")
     assert not hasattr(eqiora.fsi, "resolve")
-    assert eqiora.fsi.__all__ == ["FsiEvidence", "FsiStateEvidence", "evidence"]
+    assert eqiora.fsi.__all__ == [
+        "FixedReferenceFsiPlanView",
+        "FsiEvidence",
+        "FsiStateEvidence",
+        "evidence",
+    ]
 
 
 def test_plan_binds_exact_model_mesh_scopes_provider_and_scaling_receipt() -> None:
@@ -171,15 +176,16 @@ def test_plan_binds_exact_model_mesh_scopes_provider_and_scaling_receipt() -> No
     )
     assert plan.temporal.step_s == 0.05
     assert plan.solve.maximum_iterations == 20_000
-    assert plan.scaling is not None
-    assert plan.scaling_receipt.production_digest == mesh.production_lineage_digest
-    assert plan.pressure_gauge is None
+    assert isinstance(plan.capability, eqiora.fsi.FixedReferenceFsiPlanView)
+    assert plan.capability.scaling is not None
+    assert plan.capability.scaling_receipt.production_digest == mesh.production_lineage_digest
+    assert not hasattr(plan.capability, "pressure_gauge")
     assert plan.solve.algorithm == "minimum-residual"
-    assert plan.solver_backend == "eqiora.reference"
-    assert plan.execution_provider == "eqiora.host.serial"
-    assert plan.placement == "host-serial"
+    assert plan.solve.backend == "eqiora.reference"
+    assert plan.execution.provider == "eqiora.host.serial"
+    assert plan.execution.placement == "host-serial"
     assert len(set(plan.fields)) == 4
-    assert plan.fields[:2] == (plan.velocity_field, plan.pressure_field)
+    assert plan.fields[:2] == (plan.capability.fluid_velocity, plan.capability.pressure)
 
 
 def test_initial_state_is_exact_field_bound_complete_and_gauge_free() -> None:
@@ -189,7 +195,7 @@ def test_initial_state_is_exact_field_bound_complete_and_gauge_free() -> None:
     assert state.mesh is mesh
     assert state.time_s == 0.0
     np.testing.assert_array_equal(
-        state.field(plan.pressure_field).values("vertex"), 0.25
+        state.field(plan.capability.pressure).values("vertex"), 0.25
     )
     expected_displacement = np.zeros((6, 2))
     expected_displacement[1, 0] = 0.02
@@ -201,7 +207,7 @@ def test_initial_state_is_exact_field_bound_complete_and_gauge_free() -> None:
     with pytest.raises(eqiora.ValidationError):
         eqiora.State.initial(plan, time_s=0.0, fields=())
     with pytest.raises(TypeError):
-        eqiora.InitialField(plan.pressure_field, values=[0.0])
+        eqiora.InitialField(plan.capability.pressure, values=[0.0])
 
 
 def test_common_worker_run_outputs_restart_and_observation_evidence() -> None:
@@ -478,9 +484,9 @@ def test_independent_runs_do_not_share_observation_storage() -> None:
     first_evidence = eqiora.fsi.evidence(first)
     second_evidence = eqiora.fsi.evidence(second)
     for field, association in (
-        (plan.velocity_field, "vertex"),
-        (plan.velocity_field, "cell"),
-        (plan.pressure_field, "vertex"),
+        (plan.capability.fluid_velocity, "vertex"),
+        (plan.capability.fluid_velocity, "cell"),
+        (plan.capability.pressure, "vertex"),
         (plan.fields[3], "vertex"),
     ):
         for left_state, right_state in zip(
@@ -510,8 +516,8 @@ def test_observation_arrays_survive_result_deletion() -> None:
     arrays = (
         trajectory.coordinates,
         trajectory.cells,
-        state.field(plan.velocity_field).values("vertex"),
-        state.field(plan.pressure_field).values("vertex"),
+        state.field(plan.capability.fluid_velocity).values("vertex"),
+        state.field(plan.capability.pressure).values("vertex"),
         state.field(plan.fields[3]).values("vertex"),
         state_evidence.fluid_action,
     )

@@ -140,6 +140,8 @@ EXPECTED_EQIORA_ALL = [
     "Relation",
     "Result",
     "Revision",
+    "ResolvedExecution",
+    "ScalarPlanView",
     "Run",
     "RunStatus",
     "Series",

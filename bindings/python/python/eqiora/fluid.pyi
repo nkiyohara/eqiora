@@ -5,7 +5,30 @@ Authority: ``bindings/python/python/eqiora/fluid.py``.
 
 from typing import ClassVar, final
 
-from . import LinearSolveSummary, Result
+from . import FieldRef, LinearSolveSummary, Result
+
+@final
+class IncompressibleFlowPlanView:
+    """Resolved incompressible-flow roles, spaces, gauge, and scales.
+
+    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyIncompressibleFlowPlanView``.
+    """
+    @property
+    def kind(self) -> str: ...
+    @property
+    def velocity(self) -> FieldRef: ...
+    @property
+    def pressure(self) -> FieldRef: ...
+    @property
+    def velocity_space(self) -> str: ...
+    @property
+    def pressure_space(self) -> str: ...
+    @property
+    def pressure_gauge(self) -> PressureGauge2d | None: ...
+    @property
+    def scaling(self) -> IncompressibleScales: ...
+    @property
+    def scaling_receipt(self) -> IncompressibleScalingReceipt2d: ...
 
 @final
 class IncompressibleScaling:
@@ -242,6 +265,7 @@ def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence:
     ...
 
 __all__ = [
+    "IncompressibleFlowPlanView",
     "IncompressibleScales",
     "IncompressibleScaling",
     "IncompressibleScalingAuthority2d",

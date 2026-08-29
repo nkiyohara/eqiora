@@ -53,7 +53,7 @@ def solve() -> tuple[eqiora.Result, eqiora.FieldRef]:
         solve=linear,
         scaling=None,
     )
-    return eqiora.run(plan), plan.pressure_field
+    return eqiora.run(plan), plan.capability.pressure
 
 
 def main() -> None:

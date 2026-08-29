@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/po
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/time.pyi" kind="blob">bindings/python/python/eqiora/time.pyi</ExactSourceLink>
 
-This module publishes **2** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **3** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-time-BackwardEuler"></a>
 
@@ -31,6 +31,26 @@ class BackwardEuler:
     def __new__(cls, step_s: float) -> Self: ...
     @property
     def step_s(self) -> float: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-time-OdePlanView"></a>
+
+## `OdePlanView`
+
+Resolved no-Mesh ODE capability.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/capability_view.rs" kind="blob">crates/eqiora-python/src/common_plan/capability_view.rs::PyOdePlanView</ExactSourceLink>
+
+```python
+@final
+class OdePlanView:
+    @property
+    def kind(self) -> str: ...
+    @property
+    def backend(self) -> str: ...
+    @property
+    def backend_version(self) -> str: ...
     def __repr__(self) -> str: ...
 ```
 

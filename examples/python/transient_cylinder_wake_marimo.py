@@ -121,14 +121,14 @@ def _(eqiora, geometry, linear, mesh, parameters, source_root):
 
 @app.cell
 def _(eqiora, mesh, np, plan, steady_plan, steady_result):
-    steady_velocity = steady_result.output(steady_plan.velocity_field)
-    steady_pressure = steady_result.output(steady_plan.pressure_field)
+    steady_velocity = steady_result.output(steady_plan.capability.velocity)
+    steady_pressure = steady_result.output(steady_plan.capability.pressure)
     state = eqiora.State.initial(
         plan,
         time_s=0.0,
         fields=(
             eqiora.InitialField(
-                plan.velocity_field,
+                plan.capability.velocity,
                 vertex_values=np.asarray(steady_velocity.vertex_values).reshape(
                     mesh.vertex_count, 2
                 ),
@@ -137,7 +137,7 @@ def _(eqiora, mesh, np, plan, steady_plan, steady_result):
                 ),
             ),
             eqiora.InitialField(
-                plan.pressure_field,
+                plan.capability.pressure,
                 vertex_values=np.asarray(steady_pressure.vertex_values),
             ),
         ),
@@ -149,10 +149,10 @@ def _(eqiora, mesh, np, plan, steady_plan, steady_result):
 def _(eqiora, geometry, plan, state):
     result = eqiora.run(plan, state=state, steps=10, output_steps=tuple(range(1, 11)))
     accepted = result.trajectory.state(10)
-    vorticity = accepted.curl(plan.velocity_field)
+    vorticity = accepted.curl(plan.capability.velocity)
     cylinder_force = accepted.boundary_force(geometry.selection("cylinder"))
-    front_pressure = accepted.sample(plan.pressure_field, at=(0.15, 0.2))
-    rear_pressure = accepted.sample(plan.pressure_field, at=(0.25, 0.2))
+    front_pressure = accepted.sample(plan.capability.pressure, at=(0.15, 0.2))
+    rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
     return accepted, cylinder_force, front_pressure, rear_pressure, result, vorticity
 
 

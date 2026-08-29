@@ -324,9 +324,9 @@ def _solve_once(eqiora: Any) -> tuple[Any, Any, Any, Any, Any, Any, Any]:
 
 
 def _lineage(eqiora: Any, geometry: Any, mesh: Any, plan: Any, result: Any) -> tuple[dict[str, Any], Any]:
-    if type(result) is not eqiora.Result or plan.pressure_field is None:
+    if type(result) is not eqiora.Result or type(plan.capability) is not eqiora.fluid.IncompressibleFlowPlanView:
         raise ProducerError("canonical solve did not return one common Eqiora pressure output")
-    pressure = result.output(plan.pressure_field)
+    pressure = result.output(plan.capability.pressure)
     if pressure.mesh is not mesh:
         raise ProducerError("Result output mesh differs from the solved pressure lineage")
     if pressure.field.model_digest != result.model_digest:

@@ -117,7 +117,7 @@ def compile_program(model, method):
         model.parameter("diffusion"),
         model.parameter("boundary_offset"),
     ]
-    output = plan.field
+    output = plan.capability.field
     return eqiora.diff.compile(
         plan,
         inputs=inputs,
@@ -365,7 +365,7 @@ try:
     eqiora.diff.compile(
         foreign_plan,
         inputs=[original.parameter("source_scale")],
-        output=original_plan.field,
+        output=original_plan.capability.field,
     )
 except eqiora.ValidationError:
     pass
@@ -376,7 +376,7 @@ try:
     eqiora.diff.compile(
         foreign_plan,
         inputs=[original.parameter("source_scale")],
-        output=original_plan.field,
+        output=original_plan.capability.field,
     )
 except eqiora.ValidationError:
     pass
@@ -388,7 +388,7 @@ try:
         original,
         original_plan,
         inputs=[original.parameter("source_scale")],
-        output=original_plan.field,
+        output=original_plan.capability.field,
     )
 except TypeError:
     pass

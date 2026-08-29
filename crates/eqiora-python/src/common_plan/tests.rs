@@ -435,16 +435,16 @@ assert fresh_model.digest != model.digest
 assert fresh_plan.model_digest == fresh_model.digest
 assert fresh_plan.identity != q1.identity
 assert q1.identity != tpfa.identity
-assert q1.cells == (2, 3)
-assert q1.scaling is None
-assert q1.scaling_receipt is None
+assert q1.mesh.cells.shape == (6, 4)
+assert isinstance(q1.capability, package.ScalarPlanView)
+assert not hasattr(q1.capability, "scaling")
 assert q1.requested_solve is linear
 assert q1.solve.algorithm == "conjugate-gradient"
 q1_result = package.run(q1)
 tpfa_result = package.run(tpfa)
 assert q1_result.model_digest == q1.model_digest
 assert q1_result.plan_key == q1.identity
-assert q1_result.mesh(q1.field) is mesh
+assert q1_result.mesh(q1.capability.field) is mesh
 assert q1_result.logical_shape == (3, 4)
 assert len(q1_result.values) == 12
 assert not hasattr(q1_result, "run_manifest")
@@ -593,17 +593,17 @@ assert partial_changed.realization_digest != plan.realization_digest
 assert partial_equal.identity != plan.identity
 assert manual_equal.identity != plan.identity
 assert partial_equal.identity != manual_equal.identity
-assert plan.scaling.length_m == 0.41
-assert plan.scaling.velocity_m_per_s == 0.3
-assert plan.scaling.pressure_pa == 0.001 * 0.3 / 0.41
-assert partial_changed.scaling.length_m == 0.82
-assert partial_changed.scaling.velocity_m_per_s == 0.3
-assert partial_changed.scaling.pressure_pa == 0.001 * 0.3 / 0.82
-assert partial_equal.scaling.pressure_pa == plan.scaling.pressure_pa
-assert manual_equal.scaling.pressure_pa == plan.scaling.pressure_pa
-receipt = plan.scaling_receipt
-partial_receipt = partial_equal.scaling_receipt
-manual_receipt = manual_equal.scaling_receipt
+assert plan.capability.scaling.length_m == 0.41
+assert plan.capability.scaling.velocity_m_per_s == 0.3
+assert plan.capability.scaling.pressure_pa == 0.001 * 0.3 / 0.41
+assert partial_changed.capability.scaling.length_m == 0.82
+assert partial_changed.capability.scaling.velocity_m_per_s == 0.3
+assert partial_changed.capability.scaling.pressure_pa == 0.001 * 0.3 / 0.82
+assert partial_equal.capability.scaling.pressure_pa == plan.capability.scaling.pressure_pa
+assert manual_equal.capability.scaling.pressure_pa == plan.capability.scaling.pressure_pa
+receipt = plan.capability.scaling_receipt
+partial_receipt = partial_equal.capability.scaling_receipt
+manual_receipt = manual_equal.capability.scaling_receipt
 assert receipt.model_digest == plan.model_digest
 assert receipt.geometry_digest == plan.geometry_digest
 assert receipt.correspondence_digest == plan.correspondence_digest
@@ -654,7 +654,7 @@ assert receipt.provenance_digest != partial_receipt.provenance_digest
 assert receipt.provenance_digest != manual_receipt.provenance_digest
 assert partial_receipt.provenance_digest != manual_receipt.provenance_digest
 try:
-    plan.scaling.length_m = 1.0
+    plan.capability.scaling.length_m = 1.0
 except AttributeError:
     pass
 else:
@@ -665,9 +665,8 @@ except AttributeError:
     pass
 else:
     raise AssertionError("scaling receipt was mutable")
-assert plan.discretization == "mini-p1"
-assert plan.mesh_kind == "imported-affine-simplicial"
-assert plan.solver_backend == "eqiora.faer"
+assert plan.spatial.method == "mini-p1"
+assert plan.solve.backend == "eqiora.faer"
 assert plan.requested_solve is linear
 assert plan.solve.algorithm == "sparse-lu"
 assert plan.solve.operator == "symmetric-indefinite"
@@ -691,15 +690,15 @@ assert result.plan_key == plan.identity
 assert package.run(partial_equal).plan_key == partial_equal.identity
 assert package.run(manual_equal).plan_key == manual_equal.identity
 assert len(plan.fields) == 2
-assert plan.fields == (plan.velocity_field, plan.pressure_field)
-assert plan.field is None
+assert plan.fields == (plan.capability.velocity, plan.capability.pressure)
+assert isinstance(plan.capability, package.fluid.IncompressibleFlowPlanView)
 assert not hasattr(result, "outputs")
-velocity = result.output(plan.velocity_field)
-pressure = result.output(plan.pressure_field)
-assert result.mesh(plan.velocity_field) is mesh
-assert result.mesh(plan.pressure_field) is mesh
-assert velocity.field == plan.velocity_field
-assert pressure.field == plan.pressure_field
+velocity = result.output(plan.capability.velocity)
+pressure = result.output(plan.capability.pressure)
+assert result.mesh(plan.capability.velocity) is mesh
+assert result.mesh(plan.capability.pressure) is mesh
+assert velocity.field == plan.capability.velocity
+assert pressure.field == plan.capability.pressure
 assert velocity.mesh is pressure.mesh is mesh
 assert velocity.dimension == (0, 1, -1, 0, 0, 0, 0)
 assert velocity.components == 2
@@ -828,8 +827,8 @@ steady_plan = package.resolve(
     ),
 )
 steady_result = package.run(steady_plan)
-steady_velocity = steady_result.output(steady_plan.velocity_field)
-steady_pressure = steady_result.output(steady_plan.pressure_field)
+steady_velocity = steady_result.output(steady_plan.capability.velocity)
+steady_pressure = steady_result.output(steady_plan.capability.pressure)
 plan = package.resolve(
     model,
     mesh=mesh,
@@ -847,31 +846,31 @@ state = package.State.initial(
     time_s=0.0,
     fields=(
         package.InitialField(
-            plan.velocity_field,
+            plan.capability.velocity,
             vertex_values=np.asarray(steady_velocity.vertex_values).reshape(mesh.vertex_count, 2),
             cell_values=np.asarray(steady_velocity.cell_bubble_values).reshape(mesh.cell_count, 2),
         ),
         package.InitialField(
-            plan.pressure_field,
+            plan.capability.pressure,
             vertex_values=np.asarray(steady_pressure.vertex_values),
         ),
     ),
 )
 assert plan.model is model and plan.mesh is mesh
-assert plan.pressure_gauge is package.fluid.PressureGauge2d.BoundaryTraction
+assert plan.capability.pressure_gauge is package.fluid.PressureGauge2d.BoundaryTraction
 assert np.max(np.abs(np.asarray(steady_velocity.vertex_values))) > 0.0
-assert state.field(plan.velocity_field).associations == ("vertex", "cell")
+assert state.field(plan.capability.velocity).associations == ("vertex", "cell")
 result = package.run(plan, state=state, steps=1, output_steps=(1,))
 assert len(result.trajectory.states) == 1
 wake_state = result.trajectory.states[0]
 assert wake_state.time_s == 0.0001
-assert np.max(np.abs(wake_state.field(plan.velocity_field).values("vertex"))) > 0.0
-vorticity = wake_state.curl(plan.velocity_field)
+assert np.max(np.abs(wake_state.field(plan.capability.velocity).values("vertex"))) > 0.0
+vorticity = wake_state.curl(plan.capability.velocity)
 assert vorticity.operator == "curl"
 assert vorticity.source_state_digest == wake_state.digest
-assert vorticity.source_field == plan.velocity_field
+assert vorticity.source_field == plan.capability.velocity
 assert vorticity.mesh_digest == mesh.digest
-assert vorticity.support_domain_id == wake_state.field(plan.velocity_field).support_domain_id
+assert vorticity.support_domain_id == wake_state.field(plan.capability.velocity).support_domain_id
 assert vorticity.dimension == (0, 0, -1, 0, 0, 0, 0)
 assert vorticity.value_shape == ()
 assert vorticity.frame == "spatial-axial"
@@ -880,18 +879,18 @@ assert np.array_equal(vorticity.support_indices("cell"), np.arange(mesh.cell_cou
 assert np.all(np.isfinite(vorticity.values("cell")))
 assert np.max(np.abs(vorticity.values("cell"))) > 0.0
 assert not vorticity.values("cell").flags.writeable
-assert wake_state.curl(plan.velocity_field) == vorticity
-front_pressure = wake_state.sample(plan.pressure_field, at=(0.15, 0.2))
-rear_pressure = wake_state.sample(plan.pressure_field, at=(0.25, 0.2))
+assert wake_state.curl(plan.capability.velocity) == vorticity
+front_pressure = wake_state.sample(plan.capability.pressure, at=(0.15, 0.2))
+rear_pressure = wake_state.sample(plan.capability.pressure, at=(0.25, 0.2))
 assert front_pressure.source_state_digest == wake_state.digest
-assert front_pressure.field == plan.pressure_field
+assert front_pressure.field == plan.capability.pressure
 assert front_pressure.mesh_digest == mesh.digest
-assert front_pressure.support_domain_id == wake_state.field(plan.pressure_field).support_domain_id
+assert front_pressure.support_domain_id == wake_state.field(plan.capability.pressure).support_domain_id
 assert front_pressure.point_m == (0.15, 0.2)
 assert front_pressure.dimension == (1, -1, -2, 0, 0, 0, 0)
 assert front_pressure.frame == "invariant"
 assert np.isfinite(front_pressure.value) and np.isfinite(rear_pressure.value)
-assert wake_state.sample(plan.pressure_field, at=(0.15, 0.2)) == front_pressure
+assert wake_state.sample(plan.capability.pressure, at=(0.15, 0.2)) == front_pressure
 cylinder = source.selection("cylinder")
 cylinder_force = wake_state.boundary_force(cylinder)
 assert cylinder_force.source_state_digest == wake_state.digest
@@ -904,7 +903,7 @@ assert np.all(np.isfinite(cylinder_force.on_domain))
 assert cylinder_force.on_selection == tuple(-value for value in cylinder_force.on_domain)
 assert wake_state.boundary_force(cylinder) == cylinder_force
 try:
-    wake_state.curl(plan.pressure_field)
+    wake_state.curl(plan.capability.pressure)
 except ValueError as error:
     assert "velocity FieldRef" in str(error)
 else:
@@ -912,11 +911,11 @@ else:
 for invalid_sample in range(3):
     try:
         if invalid_sample == 0:
-            wake_state.sample(plan.velocity_field, at=(0.15, 0.2))
+            wake_state.sample(plan.capability.velocity, at=(0.15, 0.2))
         elif invalid_sample == 1:
-            wake_state.sample(plan.pressure_field, at=(3.0, 3.0))
+            wake_state.sample(plan.capability.pressure, at=(3.0, 3.0))
         else:
-            wake_state.sample(plan.pressure_field, at=(True, 0.2))
+            wake_state.sample(plan.capability.pressure, at=(True, 0.2))
     except (ValueError, package.ValidationError):
         pass
     else:
@@ -1000,8 +999,8 @@ assert mini.identity != fvm.identity
 assert mini.identity != custom.identity
 assert mini.model is model and mini.mesh is affine
 assert fvm.model is model and fvm.mesh is cartesian
-assert mini.fields == (mini.velocity_field, mini.pressure_field)
-assert fvm.fields == (fvm.velocity_field, fvm.pressure_field)
+assert mini.fields == (mini.capability.velocity, mini.capability.pressure)
+assert fvm.fields == (fvm.capability.velocity, fvm.capability.pressure)
 assert mini.solve is not newton and mini.solve.linear is not linear
 assert mini.requested_solve is newton
 assert mini.solve.relative_tolerance == 1e-9
@@ -1017,20 +1016,17 @@ assert custom.solve.maximum_iterations == 19
 assert custom.solve.maximum_line_search_steps == 7
 assert mini.temporal is temporal and mini.temporal.step_s == 0.01
 assert mini.realization_digest is None and fvm.realization_digest is None
-assert mini.space is None and fvm.space is None
-assert mini.velocity_space == "simplex-p1-bubble"
-assert mini.pressure_space == "continuous-lagrange-p1"
-assert fvm.velocity_space == fvm.pressure_space == "cell-constant"
-assert mini.pressure_gauge is package.fluid.PressureGauge2d.ZeroIntegral
-assert fvm.pressure_gauge is package.fluid.PressureGauge2d.ZeroIntegral
-assert mini.mesh_kind == "imported-affine-simplicial"
-assert fvm.mesh_kind == "supplied-cartesian"
+assert mini.capability.velocity_space == "simplex-p1-bubble"
+assert mini.capability.pressure_space == "continuous-lagrange-p1"
+assert fvm.capability.velocity_space == fvm.capability.pressure_space == "cell-constant"
+assert mini.capability.pressure_gauge is package.fluid.PressureGauge2d.ZeroIntegral
+assert fvm.capability.pressure_gauge is package.fluid.PressureGauge2d.ZeroIntegral
 assert mini.solve.linear.algorithm == "sparse-lu"
 assert fvm.solve.linear.algorithm == "bicgstab"
 assert mini.solve.linear.reduction == "fast" and fvm.solve.linear.reduction == "reproducible"
-assert mini.solver_backend == "eqiora.faer"
-assert fvm.solver_backend == "eqiora.reference"
-assert mini.scaling.length_m == 1.0 and mini.scaling.velocity_m_per_s == 2.0 and mini.scaling.pressure_pa == 3.0
+assert mini.solve.linear.backend == "eqiora.faer"
+assert fvm.solve.linear.backend == "eqiora.reference"
+assert mini.capability.scaling.length_m == 1.0 and mini.capability.scaling.velocity_m_per_s == 2.0 and mini.capability.scaling.pressure_pa == 3.0
 
 for kwargs in (
     dict(temporal=None),
@@ -1099,8 +1095,8 @@ assert mini_zero.source_request_identity is None
 assert mini_zero.source_trajectory_identity is None
 assert mini_zero.source_kind == "zero"
 assert len(mini_zero.fields) == 2
-assert mini_zero.field(mini.velocity_field).associations == ("vertex", "cell")
-assert mini_zero.field(mini.pressure_field).associations == ("vertex",)
+assert mini_zero.field(mini.capability.velocity).associations == ("vertex", "cell")
+assert mini_zero.field(mini.capability.pressure).associations == ("vertex",)
 
 mini_one_sync = package.run(mini, state=mini_zero, steps=1, output_steps=(1,))
 mini_one_async = package.submit(mini, state=mini_zero, steps=1, output_steps=(1,)).result()
@@ -1117,12 +1113,12 @@ assert mini_restart.source_request_identity == mini_one_sync.plan_key
 assert mini_restart.source_trajectory_identity == mini_one_sync.trajectory.digest
 assert mini_restart.source_kind == "result"
 assert mini_restart.mesh is affine
-assert mini_restart.field(mini.velocity_field).values("vertex").flags.writeable is False
+assert mini_restart.field(mini.capability.velocity).values("vertex").flags.writeable is False
 
 fvm_zero = package.State.zero(fvm)
 assert fvm_zero.mesh is cartesian
-assert fvm_zero.field(fvm.velocity_field).associations == ("cell",)
-assert fvm_zero.field(fvm.pressure_field).associations == ("cell",)
+assert fvm_zero.field(fvm.capability.velocity).associations == ("cell",)
+assert fvm_zero.field(fvm.capability.pressure).associations == ("cell",)
 fvm_two = package.run(fvm, state=fvm_zero, steps=2, output_steps=(2,))
 assert fvm_two.trajectory.plan_identity == fvm.identity
 assert fvm_two.trajectory.realization_digest is None
@@ -1251,37 +1247,37 @@ assert alternate_plan.identity != plan.identity
 assert alternate_plan.model_digest == alternate.digest
 assert plan.model is model
 assert plan.mesh is mesh
-assert plan.field == model.field(plan.field.id)
-assert plan.fields == (plan.field,)
-assert plan.velocity_field is None and plan.pressure_field is None
-assert plan.cells == (2, 3)
+assert isinstance(plan.capability, package.solid.ElasticityPlanView)
+assert plan.capability.displacement == model.field(plan.capability.displacement.id)
+assert plan.fields == (plan.capability.displacement,)
+assert plan.mesh.cells.shape == (6, 4)
 assert plan.spatial == package.fem.Q1()
 assert plan.requested_solve is linear
 assert plan.solve.algorithm == "conjugate-gradient"
-assert plan.scaling is None and plan.scaling_receipt is None
+assert not hasattr(plan.capability, "scaling")
 assert plan.temporal is None
 assert plan.solve.preconditioner == "identity"
 assert plan.solve.reduction == "reproducible"
-assert plan.placement == "host-serial" and plan.workers == 1
+assert plan.execution.placement == "host-serial" and plan.execution.workers == 1
 
 result = package.run(plan)
 elasticity_evidence = package.solid.linear_elasticity_evidence(result)
 assert isinstance(elasticity_evidence, package.solid.LinearElasticityEvidence)
 assert elasticity_evidence.plan_key == result.plan_key
 assert elasticity_evidence.exact_bounds == ((0.0, 1.0), (0.0, 1.0))
-output = result.output(plan.field)
-assert output.field == plan.field
+output = result.output(plan.capability.displacement)
+assert output.field == plan.capability.displacement
 assert output.mesh is mesh
 assert output.components == 2
 assert output.vertex_count == 12
 assert len(output.vertex_values) == 24
 assert output.dimension == (0, 1, 0, 0, 0, 0, 0)
 assert output.cell_bubble_values is None and output.cell_bubble_count == 0
-assert result.mesh(plan.field) is mesh
-assert package.submit(plan).result().output(plan.field).vertex_count == 12
+assert result.mesh(plan.capability.displacement) is mesh
+assert package.submit(plan).result().output(plan.capability.displacement).vertex_count == 12
 
 load_potential_id = model.field_ids[0]
-if load_potential_id == plan.field.id:
+if load_potential_id == plan.capability.displacement.id:
     load_potential_id = model.field_ids[1]
 load_potential = model.field(load_potential_id)
 try:
@@ -1297,7 +1293,7 @@ except TypeError:
 else:
     raise AssertionError("string Field lookup was admitted")
 try:
-    result.output(alternate_plan.field)
+    result.output(alternate_plan.capability.displacement)
 except ValueError:
     pass
 else:

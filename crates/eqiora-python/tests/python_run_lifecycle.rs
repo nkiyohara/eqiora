@@ -40,7 +40,8 @@ field, plan = resolve(model)
 assert plan.mesh is None
 assert plan.spatial is None
 assert plan.solve is None
-assert plan.scaling is None
+assert isinstance(plan.capability, eqiora.time.OdePlanView)
+assert not hasattr(plan.capability, "scaling")
 assert plan.solve is None
 assert plan.temporal is not None
 assert plan.temporal.absolute_tolerances == {field: 1.0e-11}

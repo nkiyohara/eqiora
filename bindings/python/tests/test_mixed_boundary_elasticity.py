@@ -57,8 +57,7 @@ def accepted() -> tuple[eqiora.Model, eqiora.Plan, eqiora.Result]:
 
 def test_common_plan_result_and_observation_close_exact_lineage() -> None:
     model, plan, result = accepted()
-    displacement = plan.field
-    assert displacement is not None
+    displacement = plan.capability.displacement
     output = result.output(displacement)
     evidence = eqiora.solid.linear_elasticity_evidence(result)
 
@@ -109,8 +108,7 @@ def test_root_plan_rejects_foreign_model_field_and_observation() -> None:
     )
     assert foreign_plan.identity != plan.identity
     with pytest.raises(ValueError, match="different exact Model"):
-        assert foreign_plan.field is not None
-        result.output(foreign_plan.field)
+        result.output(foreign_plan.capability.displacement)
     with pytest.raises(eqiora.ValidationError):
         eqiora.resolve(
             model,

@@ -98,8 +98,8 @@ def _(eqiora, stokes_plan):
 
 @app.cell
 def _(eqplot, result, stokes_plan):
-    pressure = result.output(stokes_plan.pressure_field)
-    pressure_figure = eqplot.plot_scalar_field(result, field=stokes_plan.pressure_field)
+    pressure = result.output(stokes_plan.capability.pressure)
+    pressure_figure = eqplot.plot_scalar_field(result, field=stokes_plan.capability.pressure)
     return pressure, pressure_figure
 
 

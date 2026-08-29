@@ -161,7 +161,7 @@ def produce(poster: Path, reduced_motion: Path, webm: Path, mp4: Path) -> None:
     triangles = np.asarray(trajectory.cells)
     frames = []
     for state in trajectory.states:
-        vorticity = state.curl(plan.velocity_field)
+        vorticity = state.curl(plan.capability.velocity)
         frames.append((state.step, state.time_s, np.asarray(vorticity.values("cell"))))
     if len(frames) != 10:
         raise RuntimeError("the startup media requires exactly ten accepted output states")

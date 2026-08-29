@@ -57,7 +57,7 @@ plan = eqiora.resolve(
 )
 result = eqiora.run(plan)
 evidence = eqiora.fluid.steady_stokes_evidence(result)
-pressure = result.output(plan.pressure_field)
+pressure = result.output(plan.capability.pressure)
 assert result.model_digest == model.digest
 assert result.plan_key == plan.identity
 assert pressure.vertex_count == mesh.vertex_count

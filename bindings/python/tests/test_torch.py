@@ -104,7 +104,7 @@ def differentiable_program(method) -> eqiora.DifferentiableProgram:
             model.parameter("diffusion"),
             model.parameter("boundary_offset"),
         ),
-        output=plan.field,
+        output=plan.capability.field,
     )
 
 

@@ -111,7 +111,7 @@ Physics comes from the Model; a policy does not select an application facade.
 
 ```python
 result = eqiora.run(plan)
-pressure = result.output(plan.pressure_field)
+pressure = result.output(plan.capability.pressure)
 evidence = eqiora.fluid.steady_stokes_evidence(result)
 ```
 

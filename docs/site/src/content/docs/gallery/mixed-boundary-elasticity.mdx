@@ -103,7 +103,7 @@ return plan, eqiora.run(plan)
 The displacement is selected only by the Plan-owned field handle:
 
 ```python
-displacement = result.output(plan.field)
+displacement = result.output(plan.capability.displacement)
 ```
 
 The thin notebook surfaces reuse that function; they do not restate geometry,

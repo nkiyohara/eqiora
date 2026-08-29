@@ -20,6 +20,11 @@ use crate::error::validation_error;
 use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelFieldRef};
 
+mod capability_view;
+use capability_view::{
+    PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyIncompressibleFlowPlanView, PyOdePlanView,
+    PyScalarPlanView,
+};
 mod policy;
 use policy::{
     PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyLinear, PyMiniP1, PyNewton, PyP1,
@@ -29,6 +34,8 @@ mod scaling;
 use scaling::{PyIncompressibleScales, PyIncompressibleScaling, PyIncompressibleScalingReceipt2d};
 mod resolved_solve;
 use resolved_solve::{PyResolvedLinear, PyResolvedNewton};
+mod resolved_execution;
+use resolved_execution::PyResolvedExecution;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SpatialPolicy {
@@ -42,33 +49,6 @@ enum SpatialPolicy {
 enum SpatialHandle {
     Uniform(SpatialPolicy),
     Scoped(Vec<Py<PyScopedSpatialBinding>>),
-}
-
-impl SpatialPolicy {
-    const fn discretization(self) -> &'static str {
-        match self {
-            Self::Q1 => "q1",
-            Self::CellCenteredTpfa => "cell-centered-tpfa",
-            Self::MiniP1 => "mini-p1",
-            Self::CellCentered => "cell-centered",
-        }
-    }
-    const fn space(self) -> &'static str {
-        match self {
-            Self::Q1 => "continuous-lagrange-q1",
-            Self::CellCenteredTpfa => "cell-constant",
-            Self::MiniP1 => "(simplex-p1-bubble)^2/continuous-lagrange-p1",
-            Self::CellCentered => "cell-constant-velocity/cell-constant-pressure",
-        }
-    }
-    const fn quadrature(self) -> &'static str {
-        match self {
-            Self::Q1 => "gauss-legendre-2-per-axis",
-            Self::CellCenteredTpfa => "cell-centroid/facet-midpoint",
-            Self::MiniP1 => "triangle-duffy-gauss-legendre-3-per-axis",
-            Self::CellCentered => "cell-centroid/facet-midpoint",
-        }
-    }
 }
 
 fn space_name(space: Space) -> &'static str {
@@ -371,20 +351,113 @@ impl PyPlan {
         self.mesh.as_ref().map(|mesh| mesh.clone_ref(py))
     }
     #[getter]
-    fn field(&self) -> Option<PyModelFieldRef> {
+    fn capability(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.native {
-            CommonPlanKind::Scalar(plan) => Some(PyModelFieldRef::from_exact(
-                plan.model_digest().to_owned(),
-                plan.field_id().to_owned(),
-            )),
-            CommonPlanKind::Elasticity(plan) => Some(PyModelFieldRef::from_exact(
-                plan.model_digest().to_owned(),
-                plan.displacement_field_id().to_owned(),
-            )),
-            CommonPlanKind::Ode(_)
-            | CommonPlanKind::SteadyStokes(_)
-            | CommonPlanKind::TransientFlow(_)
-            | CommonPlanKind::Fsi(_) => None,
+            CommonPlanKind::Ode(plan) => Py::new(
+                py,
+                PyOdePlanView {
+                    backend: plan.backend().id().as_str(),
+                    backend_version: plan.backend().version().as_str(),
+                },
+            )
+            .map(Py::into_any),
+            CommonPlanKind::Scalar(plan) => Py::new(
+                py,
+                PyScalarPlanView {
+                    field: PyModelFieldRef::from_exact(
+                        plan.model_digest().to_owned(),
+                        plan.field_id().to_owned(),
+                    ),
+                },
+            )
+            .map(Py::into_any),
+            CommonPlanKind::Elasticity(plan) => Py::new(
+                py,
+                PyElasticityPlanView {
+                    displacement: PyModelFieldRef::from_exact(
+                        plan.model_digest().to_owned(),
+                        plan.displacement_field_id().to_owned(),
+                    ),
+                },
+            )
+            .map(Py::into_any),
+            CommonPlanKind::SteadyStokes(plan) => Py::new(
+                py,
+                PyIncompressibleFlowPlanView {
+                    kind: "steady-stokes",
+                    velocity: PyModelFieldRef::from_exact(
+                        plan.model_digest().to_owned(),
+                        plan.velocity_field_id().to_owned(),
+                    ),
+                    pressure: PyModelFieldRef::from_exact(
+                        plan.model_digest().to_owned(),
+                        plan.pressure_field_id().to_owned(),
+                    ),
+                    velocity_space: space_name(plan.velocity_space()),
+                    pressure_space: space_name(plan.pressure_space()),
+                    pressure_gauge: None,
+                    scaling: Py::new(py, PyIncompressibleScales::from_native(plan.scales()))?,
+                    scaling_receipt: Py::new(
+                        py,
+                        PyIncompressibleScalingReceipt2d::from_native(
+                            plan.scaling_receipt().clone(),
+                        ),
+                    )?,
+                },
+            )
+            .map(Py::into_any),
+            CommonPlanKind::TransientFlow(plan) => Py::new(
+                py,
+                PyIncompressibleFlowPlanView {
+                    kind: "transient-incompressible-flow",
+                    velocity: PyModelFieldRef::from_exact(
+                        plan.model_digest().to_owned(),
+                        plan.velocity_field_id().to_owned(),
+                    ),
+                    pressure: PyModelFieldRef::from_exact(
+                        plan.model_digest().to_owned(),
+                        plan.pressure_field_id().to_owned(),
+                    ),
+                    velocity_space: space_name(plan.velocity_space()),
+                    pressure_space: space_name(plan.pressure_space()),
+                    pressure_gauge: Some(plan.gauge().into()),
+                    scaling: Py::new(py, PyIncompressibleScales::from_native(plan.scales()))?,
+                    scaling_receipt: Py::new(
+                        py,
+                        PyIncompressibleScalingReceipt2d::from_native(
+                            plan.scaling_receipt().clone(),
+                        ),
+                    )?,
+                },
+            )
+            .map(Py::into_any),
+            CommonPlanKind::Fsi(plan) => {
+                let fields = plan.field_ids();
+                let model = plan.model_digest().to_owned();
+                Py::new(
+                    py,
+                    PyFixedReferenceFsiPlanView {
+                        fluid_velocity: PyModelFieldRef::from_exact(
+                            model.clone(),
+                            fields[0].clone(),
+                        ),
+                        pressure: PyModelFieldRef::from_exact(model.clone(), fields[1].clone()),
+                        solid_velocity: PyModelFieldRef::from_exact(
+                            model.clone(),
+                            fields[2].clone(),
+                        ),
+                        displacement: PyModelFieldRef::from_exact(model, fields[3].clone()),
+                        scaling: Py::new(py, PyIncompressibleScales::from_fsi(plan.scaling()))?,
+                        scaling_receipt: Py::new(
+                            py,
+                            PyIncompressibleScalingReceipt2d::from_native(
+                                plan.scaling_receipt().clone(),
+                            ),
+                        )?,
+                    },
+                )
+                .map(Py::into_any)
+            }
         }
     }
     #[getter]
@@ -424,46 +497,6 @@ impl PyPlan {
                 .collect(),
         };
         Ok(PyTuple::new(py, fields)?.unbind())
-    }
-    #[getter]
-    fn velocity_field(&self) -> Option<PyModelFieldRef> {
-        match &self.native {
-            CommonPlanKind::SteadyStokes(plan) => Some(PyModelFieldRef::from_exact(
-                plan.model_digest().to_owned(),
-                plan.velocity_field_id().to_owned(),
-            )),
-            CommonPlanKind::TransientFlow(plan) => Some(PyModelFieldRef::from_exact(
-                plan.model_digest().to_owned(),
-                plan.velocity_field_id().to_owned(),
-            )),
-            CommonPlanKind::Fsi(plan) => Some(PyModelFieldRef::from_exact(
-                plan.model_digest().to_owned(),
-                plan.field_ids()[0].clone(),
-            )),
-            CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
-                None
-            }
-        }
-    }
-    #[getter]
-    fn pressure_field(&self) -> Option<PyModelFieldRef> {
-        match &self.native {
-            CommonPlanKind::SteadyStokes(plan) => Some(PyModelFieldRef::from_exact(
-                plan.model_digest().to_owned(),
-                plan.pressure_field_id().to_owned(),
-            )),
-            CommonPlanKind::TransientFlow(plan) => Some(PyModelFieldRef::from_exact(
-                plan.model_digest().to_owned(),
-                plan.pressure_field_id().to_owned(),
-            )),
-            CommonPlanKind::Fsi(plan) => Some(PyModelFieldRef::from_exact(
-                plan.model_digest().to_owned(),
-                plan.field_ids()[1].clone(),
-            )),
-            CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
-                None
-            }
-        }
     }
     #[getter]
     fn spatial(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
@@ -509,184 +542,9 @@ impl PyPlan {
         })
     }
     #[getter]
-    fn discretization(&self) -> Option<&'static str> {
-        self.spatial.as_ref().map(|spatial| match spatial {
-            SpatialHandle::Uniform(value) => value.discretization(),
-            SpatialHandle::Scoped(_) => "mini-p1@fluid+p1@solid",
-        })
+    fn execution(&self, py: Python<'_>) -> PyResult<Py<PyResolvedExecution>> {
+        Py::new(py, PyResolvedExecution)
     }
-    #[getter]
-    fn space(&self) -> Option<&'static str> {
-        match self.native {
-            CommonPlanKind::Ode(_) | CommonPlanKind::TransientFlow(_) | CommonPlanKind::Fsi(_) => {
-                None
-            }
-            CommonPlanKind::Scalar(_)
-            | CommonPlanKind::Elasticity(_)
-            | CommonPlanKind::SteadyStokes(_) => {
-                self.spatial.as_ref().and_then(|spatial| match spatial {
-                    SpatialHandle::Uniform(value) => Some(value.space()),
-                    SpatialHandle::Scoped(_) => None,
-                })
-            }
-        }
-    }
-    #[getter]
-    fn velocity_space(&self) -> Option<&'static str> {
-        match &self.native {
-            CommonPlanKind::SteadyStokes(plan) => Some(space_name(plan.velocity_space())),
-            CommonPlanKind::TransientFlow(plan) => Some(space_name(plan.velocity_space())),
-            CommonPlanKind::Fsi(_) => Some("shared-vertex-p1 + fluid-cell-bubble"),
-            CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
-                None
-            }
-        }
-    }
-    #[getter]
-    fn pressure_space(&self) -> Option<&'static str> {
-        match &self.native {
-            CommonPlanKind::SteadyStokes(plan) => Some(space_name(plan.pressure_space())),
-            CommonPlanKind::TransientFlow(plan) => Some(space_name(plan.pressure_space())),
-            CommonPlanKind::Fsi(_) => Some("continuous-lagrange-p1@fluid"),
-            CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
-                None
-            }
-        }
-    }
-    #[getter]
-    fn pressure_gauge(&self) -> Option<PyPressureGauge2d> {
-        match &self.native {
-            CommonPlanKind::TransientFlow(plan) => Some(plan.gauge().into()),
-            CommonPlanKind::Ode(_)
-            | CommonPlanKind::Scalar(_)
-            | CommonPlanKind::Elasticity(_)
-            | CommonPlanKind::SteadyStokes(_) => None,
-            CommonPlanKind::Fsi(_) => None,
-        }
-    }
-    #[getter]
-    fn quadrature(&self) -> Option<&'static str> {
-        self.spatial.as_ref().map(|spatial| match spatial {
-            SpatialHandle::Uniform(value) => value.quadrature(),
-            SpatialHandle::Scoped(_) => "triangle-duffy-gauss-legendre-4-per-axis",
-        })
-    }
-    #[getter]
-    fn mesh_kind(&self) -> Option<&'static str> {
-        match &self.native {
-            CommonPlanKind::Ode(_) => None,
-            CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
-                Some("structured-cartesian")
-            }
-            CommonPlanKind::SteadyStokes(_) => Some("imported-affine-simplicial"),
-            CommonPlanKind::TransientFlow(plan) => match plan.spatial() {
-                CommonSpatialPolicy::MiniP1 => Some("imported-affine-simplicial"),
-                CommonSpatialPolicy::CellCentered => Some("supplied-cartesian"),
-                _ => unreachable!("closed transient spatial policy"),
-            },
-            CommonPlanKind::Fsi(_) => Some("imported-adjacent-partition-affine-simplicial"),
-        }
-    }
-    #[getter]
-    fn spatial_dimension(&self) -> Option<usize> {
-        self.spatial.as_ref().map(|_| 2)
-    }
-    #[getter]
-    fn cells(&self) -> Option<(usize, usize)> {
-        match &self.native {
-            CommonPlanKind::Scalar(plan) => {
-                let [x, y] = plan.cells();
-                Some((x, y))
-            }
-            CommonPlanKind::Elasticity(plan) => {
-                let [x, y] = plan.cells();
-                Some((x, y))
-            }
-            CommonPlanKind::Ode(_) | CommonPlanKind::SteadyStokes(_) => None,
-            CommonPlanKind::TransientFlow(_) => None,
-            CommonPlanKind::Fsi(_) => None,
-        }
-    }
-    #[getter]
-    const fn scalar_type(&self) -> &'static str {
-        "f64"
-    }
-    #[getter]
-    const fn vector_layout(&self) -> &'static str {
-        "replicated"
-    }
-    #[getter]
-    const fn schedule(&self) -> &'static str {
-        "offline"
-    }
-    #[getter]
-    fn solver_backend(&self) -> &'static str {
-        self.native.solver_backend()
-    }
-    #[getter]
-    fn solver_backend_version(&self) -> &'static str {
-        self.native.solver_backend_version()
-    }
-    #[getter]
-    const fn execution_provider(&self) -> &'static str {
-        eqiora::solver::SERIAL_EXECUTION_PROVIDER.id().as_str()
-    }
-    #[getter]
-    const fn execution_provider_version(&self) -> &'static str {
-        eqiora::solver::SERIAL_EXECUTION_PROVIDER.implementation_version()
-    }
-    #[getter]
-    const fn placement(&self) -> &'static str {
-        "host-serial"
-    }
-    #[getter]
-    const fn workers(&self) -> usize {
-        1
-    }
-    #[getter]
-    fn scaling(&self, py: Python<'_>) -> PyResult<Option<Py<PyIncompressibleScales>>> {
-        match &self.native {
-            CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
-                Ok(None)
-            }
-            CommonPlanKind::SteadyStokes(plan) => {
-                Py::new(py, PyIncompressibleScales::from_native(plan.scales())).map(Some)
-            }
-            CommonPlanKind::TransientFlow(plan) => {
-                Py::new(py, PyIncompressibleScales::from_native(plan.scales())).map(Some)
-            }
-            CommonPlanKind::Fsi(plan) => {
-                Py::new(py, PyIncompressibleScales::from_fsi(plan.scaling())).map(Some)
-            }
-        }
-    }
-    #[getter]
-    fn scaling_receipt(
-        &self,
-        py: Python<'_>,
-    ) -> PyResult<Option<Py<PyIncompressibleScalingReceipt2d>>> {
-        match &self.native {
-            CommonPlanKind::Ode(_) | CommonPlanKind::Scalar(_) | CommonPlanKind::Elasticity(_) => {
-                Ok(None)
-            }
-            CommonPlanKind::SteadyStokes(plan) => Py::new(
-                py,
-                PyIncompressibleScalingReceipt2d::from_native(plan.scaling_receipt().clone()),
-            )
-            .map(Some),
-            CommonPlanKind::TransientFlow(plan) => Py::new(
-                py,
-                PyIncompressibleScalingReceipt2d::from_native(plan.scaling_receipt().clone()),
-            )
-            .map(Some),
-            CommonPlanKind::Fsi(plan) => Py::new(
-                py,
-                PyIncompressibleScalingReceipt2d::from_native(plan.scaling_receipt().clone()),
-            )
-            .map(Some),
-        }
-    }
-
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
         other
             .extract::<PyRef<'_, Self>>()
@@ -699,11 +557,10 @@ impl PyPlan {
     }
     fn __repr__(&self) -> String {
         format!(
-            "Plan(identity={:?}, model_digest={:?}, mesh_digest={:?}, discretization={:?})",
+            "Plan(identity={:?}, model_digest={:?}, mesh_digest={:?})",
             self.identity(),
             self.model_digest(),
-            self.mesh_digest(),
-            self.discretization()
+            self.mesh_digest()
         )
     }
 }
@@ -975,6 +832,12 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyNewton>()?;
     module.add_class::<PyResolvedLinear>()?;
     module.add_class::<PyResolvedNewton>()?;
+    module.add_class::<PyResolvedExecution>()?;
+    module.add_class::<PyOdePlanView>()?;
+    module.add_class::<PyScalarPlanView>()?;
+    module.add_class::<PyElasticityPlanView>()?;
+    module.add_class::<PyIncompressibleFlowPlanView>()?;
+    module.add_class::<PyFixedReferenceFsiPlanView>()?;
     module.add_class::<PyPressureGauge2d>()?;
     module.add_class::<PyBackwardEuler>()?;
     module.add_class::<PyTsitouras45>()?;
