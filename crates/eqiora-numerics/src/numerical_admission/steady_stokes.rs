@@ -97,7 +97,7 @@ impl CommonSteadyStokesPlan {
     }
 
     /// Execute solely from the state retained by this Plan.
-    pub fn run(
+    fn run(
         &self,
         backend: &dyn LinearSolverBackend,
     ) -> Result<crate::fluid::SteadyStokesMiniSolution2d, Diagnostic> {
@@ -220,13 +220,12 @@ impl CommonSteadyStokesPlan {
             integrated_body_force,
             integrated_boundary_traction,
             momentum_closure,
-            solve: solution.dimensionless_solution().solve_report().clone(),
             continuity_residual_norm,
         })
     }
 
     /// Execute and authenticate observations without exposing a re-pairing seam.
-    pub fn run_observed(
+    pub(crate) fn run_observed(
         &self,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonSteadyStokesRunOutput, Diagnostic> {
@@ -237,6 +236,14 @@ impl CommonSteadyStokesPlan {
             solution,
             observation,
         })
+    }
+
+    /// Execute directly into the common producer-independent Result authority.
+    pub fn run_result(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<crate::CommonResult, Diagnostic> {
+        crate::CommonResult::accept_steady_stokes(self.clone(), 0.0, self.run_observed(backend)?)
     }
 
     #[must_use]

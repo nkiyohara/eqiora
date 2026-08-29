@@ -91,8 +91,8 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     ExecutionProvider, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
     LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    ResolvedHostSerialSolverPlan, SERIAL_EXECUTION_PROVIDER, ScalarType, SolveReport,
-    SolverCapabilities, SolverCapability, SolverPlan, SolverPlanningObjective, SolverProvider,
+    ResolvedHostSerialSolverPlan, SERIAL_EXECUTION_PROVIDER, ScalarType, SolverCapabilities,
+    SolverCapability, SolverPlan, SolverPlanningObjective, SolverProvider,
 };
 use eqiora_time::TimeBackendIdentity;
 use sha2::{Digest, Sha256};
@@ -818,7 +818,7 @@ pub struct CommonSteadyStokesPlan {
 
 /// Plan-authenticated scientific observations for one common steady-Stokes solve.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CommonSteadyStokesObservation {
+pub(crate) struct CommonSteadyStokesObservation {
     pressure_minimum: f64,
     pressure_maximum: f64,
     exact_bounds: [[f64; 2]; 2],
@@ -830,13 +830,12 @@ pub struct CommonSteadyStokesObservation {
     integrated_body_force: [f64; 2],
     integrated_boundary_traction: [f64; 2],
     momentum_closure: [f64; 2],
-    solve: SolveReport,
     continuity_residual_norm: f64,
 }
 
 /// Exact paired output produced by one common steady-Stokes Plan execution.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CommonSteadyStokesRunOutput {
+pub(crate) struct CommonSteadyStokesRunOutput {
     plan_identity: String,
     solution: crate::fluid::SteadyStokesMiniSolution2d,
     observation: CommonSteadyStokesObservation,
@@ -844,12 +843,12 @@ pub struct CommonSteadyStokesRunOutput {
 
 impl CommonSteadyStokesRunOutput {
     #[must_use]
-    pub fn plan_identity(&self) -> &str {
+    pub(crate) fn plan_identity(&self) -> &str {
         &self.plan_identity
     }
 
     #[must_use]
-    pub fn into_parts(
+    pub(crate) fn into_parts(
         self,
     ) -> (
         crate::fluid::SteadyStokesMiniSolution2d,
@@ -861,73 +860,66 @@ impl CommonSteadyStokesRunOutput {
 
 impl CommonSteadyStokesObservation {
     #[must_use]
-    pub const fn pressure_minimum(&self) -> f64 {
+    pub(crate) const fn pressure_minimum(&self) -> f64 {
         self.pressure_minimum
     }
     #[must_use]
-    pub const fn pressure_maximum(&self) -> f64 {
+    pub(crate) const fn pressure_maximum(&self) -> f64 {
         self.pressure_maximum
     }
     #[must_use]
-    pub const fn exact_bounds(&self) -> [[f64; 2]; 2] {
+    pub(crate) const fn exact_bounds(&self) -> [[f64; 2]; 2] {
         self.exact_bounds
     }
     #[must_use]
-    pub const fn cylinder_force_on_fluid(&self) -> [f64; 2] {
+    pub(crate) const fn cylinder_force_on_fluid(&self) -> [f64; 2] {
         self.cylinder_force_on_fluid
     }
     #[must_use]
-    pub const fn inlet_flux(&self) -> f64 {
+    pub(crate) const fn inlet_flux(&self) -> f64 {
         self.inlet_flux
     }
     #[must_use]
-    pub const fn outlet_flux(&self) -> f64 {
+    pub(crate) const fn outlet_flux(&self) -> f64 {
         self.outlet_flux
     }
     #[must_use]
-    pub const fn net_flux(&self) -> f64 {
+    pub(crate) const fn net_flux(&self) -> f64 {
         self.net_flux
     }
     #[must_use]
-    pub const fn constrained_reaction(&self) -> [f64; 2] {
+    pub(crate) const fn constrained_reaction(&self) -> [f64; 2] {
         self.constrained_reaction
     }
     #[must_use]
-    pub const fn integrated_body_force(&self) -> [f64; 2] {
+    pub(crate) const fn integrated_body_force(&self) -> [f64; 2] {
         self.integrated_body_force
     }
     #[must_use]
-    pub const fn integrated_boundary_traction(&self) -> [f64; 2] {
+    pub(crate) const fn integrated_boundary_traction(&self) -> [f64; 2] {
         self.integrated_boundary_traction
     }
     #[must_use]
-    pub const fn momentum_closure(&self) -> [f64; 2] {
+    pub(crate) const fn momentum_closure(&self) -> [f64; 2] {
         self.momentum_closure
     }
     #[must_use]
-    pub const fn solve(&self) -> &SolveReport {
-        &self.solve
-    }
-    #[must_use]
-    pub const fn continuity_residual_norm(&self) -> f64 {
+    pub(crate) const fn continuity_residual_norm(&self) -> f64 {
         self.continuity_residual_norm
     }
 }
 
 /// Plan-authenticated scientific observations for one common elasticity solve.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CommonElasticityObservation {
+pub(crate) struct CommonElasticityObservation {
     constrained_reaction: [f64; 2],
     integrated_body_force: [f64; 2],
-    assembly_packets: usize,
-    assembly_targets: usize,
-    solve: SolveReport,
     exact_bounds: [[f64; 2]; 2],
 }
 
 /// Exact paired output produced by one common elasticity Plan execution.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CommonElasticityRunOutput {
+pub(crate) struct CommonElasticityRunOutput {
     plan_identity: String,
     solution: CartesianLinearElasticity2dSolution,
     observation: CommonElasticityObservation,
@@ -935,12 +927,12 @@ pub struct CommonElasticityRunOutput {
 
 impl CommonElasticityRunOutput {
     #[must_use]
-    pub fn plan_identity(&self) -> &str {
+    pub(crate) fn plan_identity(&self) -> &str {
         &self.plan_identity
     }
 
     #[must_use]
-    pub fn into_parts(
+    pub(crate) fn into_parts(
         self,
     ) -> (
         CartesianLinearElasticity2dSolution,
@@ -952,27 +944,15 @@ impl CommonElasticityRunOutput {
 
 impl CommonElasticityObservation {
     #[must_use]
-    pub const fn constrained_reaction(&self) -> [f64; 2] {
+    pub(crate) const fn constrained_reaction(&self) -> [f64; 2] {
         self.constrained_reaction
     }
     #[must_use]
-    pub const fn integrated_body_force(&self) -> [f64; 2] {
+    pub(crate) const fn integrated_body_force(&self) -> [f64; 2] {
         self.integrated_body_force
     }
     #[must_use]
-    pub const fn assembly_packets(&self) -> usize {
-        self.assembly_packets
-    }
-    #[must_use]
-    pub const fn assembly_targets(&self) -> usize {
-        self.assembly_targets
-    }
-    #[must_use]
-    pub const fn solve(&self) -> &SolveReport {
-        &self.solve
-    }
-    #[must_use]
-    pub const fn exact_bounds(&self) -> [[f64; 2]; 2] {
+    pub(crate) const fn exact_bounds(&self) -> [[f64; 2]; 2] {
         self.exact_bounds
     }
 }

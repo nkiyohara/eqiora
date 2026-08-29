@@ -10,7 +10,7 @@ use eqiora::geometry::{CanonicalGeometryV1, GeometryGraph, PlanarTopologyHandle}
 use eqiora::meshing::{MeshEntity, MeshTopology};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonElasticityPlan, CommonElasticityRunOutput, CommonSolvePolicy,
+    AuthenticatedCommonMesh, CommonElasticityPlan, CommonResult, CommonSolvePolicy,
     CommonSpatialPolicy, resolve_common_plan,
 };
 use serde_json::{Value, json};
@@ -59,7 +59,7 @@ struct Accepted {
     mesh: CartesianMeshEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
     plan: CommonElasticityPlan,
-    output: CommonElasticityRunOutput,
+    result: CommonResult,
 }
 
 fn accepted() -> Accepted {
@@ -140,14 +140,14 @@ fn accepted() -> Accepted {
         |_| panic!("elasticity fixture resolved as transient flow"),
         |_| panic!("elasticity fixture resolved as FSI"),
     );
-    let output = plan.run_observed().unwrap();
+    let result = plan.run_result().unwrap();
     Accepted {
         document,
         geometry,
         mesh,
         correspondence,
         plan,
-        output,
+        result,
     }
 }
 
@@ -184,7 +184,7 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
         }
     }
 
-    assert_eq!(accepted.output.plan_identity(), accepted.plan.identity());
+    assert_eq!(accepted.result.plan().identity(), accepted.plan.identity());
     assert_eq!(
         accepted.plan.model_digest(),
         accepted.document.digest().unwrap()
@@ -208,25 +208,37 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
         )
         .unwrap();
 
-    let (solution, observation) = accepted.output.into_parts();
-    assert_eq!(solution.displacement().values().len(), 578);
+    let (association, displacement, shape) = accepted.result.field_block(0, 0).unwrap();
+    assert_eq!(association, "vertex");
+    assert_eq!(shape, [289, 2]);
+    assert_eq!(displacement.len(), 578);
+    assert!(displacement.iter().all(|value| value.is_finite()));
+    let (constrained_reaction, integrated_body_force, assembly_counts, exact_bounds) =
+        accepted.result.elasticity_observation().unwrap();
+    assert_eq!(exact_bounds, [[0.0, 1.0], [0.0, 1.0]]);
+    assert!(constrained_reaction.into_iter().all(f64::is_finite));
+    assert!(integrated_body_force.into_iter().all(f64::is_finite));
+    assert!(assembly_counts.into_iter().all(|count| count > 0));
     assert!(
-        solution
-            .displacement()
-            .values()
-            .iter()
-            .all(|value| value.is_finite())
+        accepted.result.solve_true_residual_norm(None).unwrap()
+            <= accepted.result.solve_residual_target(None).unwrap()
     );
-    assert_eq!(observation.exact_bounds(), [[0.0, 1.0], [0.0, 1.0]]);
+
+    let result_bytes = accepted.result.to_bytes().unwrap();
+    let replayed = CommonResult::from_bytes(&result_bytes, accepted.result.plan()).unwrap();
+    assert_eq!(replayed.to_bytes().unwrap(), result_bytes);
     assert_eq!(
-        observation.constrained_reaction(),
-        solution.boundary_reaction()
+        replayed.field_block(0, 0).unwrap(),
+        accepted.result.field_block(0, 0).unwrap()
     );
     assert_eq!(
-        observation.integrated_body_force(),
-        solution.integrated_body_force()
+        replayed.elasticity_observation().unwrap(),
+        accepted.result.elasticity_observation().unwrap()
     );
-    assert!(observation.solve().true_residual_norm() <= observation.solve().residual_target());
+
+    let mut noncanonical = result_bytes;
+    noncanonical.push(b'\n');
+    assert!(CommonResult::from_bytes(&noncanonical, accepted.result.plan()).is_err());
 }
 
 #[test]

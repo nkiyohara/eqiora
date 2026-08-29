@@ -164,10 +164,14 @@ impl CommonScalarPlan {
         })
     }
 
-    /// Execute solely from retained Plan state.
-    pub fn run(&self) -> Result<ResolvedScalarEllipticCartesianSolution, Diagnostic> {
+    pub(crate) fn run(&self) -> Result<ResolvedScalarEllipticCartesianSolution, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.execute_scalar(&REFERENCE_LINEAR_SOLVER)
+    }
+
+    /// Execute solely from retained Plan state and publish one complete Result.
+    pub fn run_result(&self) -> Result<crate::CommonResult, Diagnostic> {
+        crate::CommonResult::accept_scalar(self.clone(), 0.0, self.run()?)
     }
 
     /// Accept one selected Parameter point through this Plan's exact supplied Mesh and policies.

@@ -153,6 +153,30 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         CommonFsiRunRequest::from_steps(automatic.clone(), initial.clone(), 1, vec![1]).unwrap();
     let trajectory =
         crate::CommonTrajectory::accept_fsi(request, vec![(1, accepted.clone())]).unwrap();
+    let result = crate::CommonResult::accept_trajectory(0.5, trajectory.clone()).unwrap();
+    let result_bytes = result.to_bytes().unwrap();
+    let replayed_result = crate::CommonResult::from_bytes(
+        &result_bytes,
+        &ResolvedCommonPlan::Fsi(Box::new(automatic.clone())),
+    )
+    .unwrap();
+    assert_eq!(replayed_result.identity(), result.identity());
+    assert_eq!(replayed_result.to_bytes().unwrap(), result_bytes);
+    assert_eq!(replayed_result.fsi_state_count(), 1);
+    assert_eq!(
+        replayed_result.fsi_state_identity(0),
+        Some(accepted.identity())
+    );
+    let mut forged_result: serde_json::Value = serde_json::from_slice(&result_bytes).unwrap();
+    forged_result["content"]["payload"]["fsi"]["states"][0]["metrics"][8] =
+        serde_json::Value::from(-1.0);
+    assert!(
+        crate::CommonResult::from_bytes(
+            &serde_json::to_vec(&forged_result).unwrap(),
+            &ResolvedCommonPlan::Fsi(Box::new(automatic.clone())),
+        )
+        .is_err()
+    );
     let trajectory_bytes = trajectory.to_bytes().unwrap();
     let replayed_trajectory = crate::CommonTrajectory::from_bytes(
         &trajectory_bytes,

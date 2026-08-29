@@ -194,63 +194,76 @@ impl PyFsiEvidence {
         plan: &PyPlan,
         trajectory: &PyTrajectory,
         request_identity: &str,
+        result: &eqiora_numerics::CommonResult,
     ) -> PyResult<Self> {
         let native_plan = plan
             .fsi_native()
             .ok_or_else(|| PyValueError::new_err("FSI evidence requires an FSI Plan"))?;
         let owners = trajectory.state_handles(py);
+        if owners.len() != result.fsi_state_count() {
+            return Err(PyValueError::new_err(
+                "FSI Result evidence disagrees with its Trajectory State count",
+            ));
+        }
         let mut states = Vec::with_capacity(owners.len());
-        for owner in &owners {
+        for (index, owner) in owners.iter().enumerate() {
             let state = owner.borrow(py);
-            let native = state
-                .common_native()
-                .and_then(|state| state.fsi_accepted_solution())
-                .ok_or_else(|| {
-                    PyValueError::new_err("FSI evidence requires accepted common FSI output states")
-                })?;
-            let numerical = native.numerical_evidence();
-            let energy = numerical.energy_balance();
-            let actions = numerical.interface_actions();
-            let mut interface_vertices = Vec::with_capacity(actions.len());
-            let mut fluid_action = Vec::with_capacity(actions.len() * 2);
-            let mut solid_action = Vec::with_capacity(actions.len() * 2);
-            let mut imbalance = Vec::with_capacity(actions.len() * 2);
-            for action in actions {
-                interface_vertices.push(u32::try_from(action.vertex().index()).map_err(|_| {
+            if Some(state.digest_value()) != result.fsi_state_identity(index) {
+                return Err(PyValueError::new_err(
+                    "FSI Result evidence crossed a different output State",
+                ));
+            }
+            let action_count = result.fsi_interface_action_count(index);
+            let mut interface_vertices = Vec::with_capacity(action_count);
+            let mut fluid_action = Vec::with_capacity(action_count * 2);
+            let mut solid_action = Vec::with_capacity(action_count * 2);
+            let mut imbalance = Vec::with_capacity(action_count * 2);
+            for action in 0..action_count {
+                let (vertex, fluid, solid) =
+                    result.fsi_interface_action(index, action).ok_or_else(|| {
+                        PyValueError::new_err("FSI Result omitted an interface action")
+                    })?;
+                interface_vertices.push(u32::try_from(vertex).map_err(|_| {
                     PyOverflowError::new_err("FSI interface vertex exceeds uint32")
                 })?);
-                fluid_action.extend(action.fluid());
-                solid_action.extend(action.solid());
-                imbalance.extend(action.imbalance());
+                fluid_action.extend(fluid);
+                solid_action.extend(solid);
+                imbalance.extend(std::array::from_fn::<_, 2, _>(|component| {
+                    fluid[component] + solid[component]
+                }));
             }
-            let assembly = numerical.assembly_report();
+            let metrics = result
+                .fsi_state_metrics(index)
+                .ok_or_else(|| PyValueError::new_err("FSI Result omitted State metrics"))?;
+            let (assembly_packets, assembly_targets) = result
+                .fsi_state_assembly_counts(index)
+                .ok_or_else(|| PyValueError::new_err("FSI Result omitted assembly evidence"))?;
+            let solve = PyLinearSolveSummary::from_common_result(result, Some(index))
+                .ok_or_else(|| PyValueError::new_err("FSI Result omitted solve evidence"))?;
             states.push(Py::new(
                 py,
                 PyFsiStateEvidence {
                     state_digest: state.digest_value().to_owned(),
                     interface_vertices: ReadOnlyVector::new(interface_vertices),
-                    fluid_action: ReadOnlyMatrix::new(actions.len(), 2, fluid_action),
-                    solid_action: ReadOnlyMatrix::new(actions.len(), 2, solid_action),
-                    action_imbalance: ReadOnlyMatrix::new(actions.len(), 2, imbalance),
-                    previous_kinetic_energy_j_per_m: energy.previous_kinetic(),
-                    next_kinetic_energy_j_per_m: energy.next_kinetic(),
-                    previous_elastic_energy_j_per_m: energy.previous_elastic(),
-                    next_elastic_energy_j_per_m: energy.next_elastic(),
-                    kinetic_increment_j_per_m: energy.kinetic_increment(),
-                    elastic_increment_j_per_m: energy.elastic_increment(),
-                    viscous_dissipation_j_per_m: energy.viscous_dissipation(),
-                    energy_defect_j_per_m: energy.defect(),
-                    numerical_residual_norm: numerical.residual_norm(),
-                    continuity_residual_norm: numerical.continuity_residual_norm(),
-                    kinematic_residual_norm: numerical.kinematic_residual_norm(),
-                    interface_velocity_jump_norm: numerical.interface_velocity_jump_norm(),
-                    interface_action_imbalance_n_per_m: numerical.interface_action_imbalance_norm(),
-                    solve: Py::new(
-                        py,
-                        PyLinearSolveSummary::from_report(numerical.solve_report()),
-                    )?,
-                    assembly_packets: assembly.packet_count(),
-                    assembly_targets: assembly.target_count(),
+                    fluid_action: ReadOnlyMatrix::new(action_count, 2, fluid_action),
+                    solid_action: ReadOnlyMatrix::new(action_count, 2, solid_action),
+                    action_imbalance: ReadOnlyMatrix::new(action_count, 2, imbalance),
+                    previous_kinetic_energy_j_per_m: metrics[0],
+                    next_kinetic_energy_j_per_m: metrics[1],
+                    previous_elastic_energy_j_per_m: metrics[2],
+                    next_elastic_energy_j_per_m: metrics[3],
+                    kinetic_increment_j_per_m: metrics[4],
+                    elastic_increment_j_per_m: metrics[5],
+                    viscous_dissipation_j_per_m: metrics[6],
+                    energy_defect_j_per_m: metrics[7],
+                    numerical_residual_norm: metrics[8],
+                    continuity_residual_norm: metrics[9],
+                    kinematic_residual_norm: metrics[10],
+                    interface_velocity_jump_norm: metrics[11],
+                    interface_action_imbalance_n_per_m: metrics[12],
+                    solve: Py::new(py, solve)?,
+                    assembly_packets,
+                    assembly_targets,
                 },
             )?);
         }

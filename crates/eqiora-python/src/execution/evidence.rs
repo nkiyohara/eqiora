@@ -116,6 +116,34 @@ pub(crate) struct RunIdentity {
 }
 
 impl RunIdentity {
+    pub(crate) fn from_common_result(result: &eqiora_numerics::CommonResult) -> Option<Self> {
+        if let Some(trajectory) = result.trajectory() {
+            return Some(match trajectory {
+                eqiora_numerics::CommonTrajectory::Ode { request, .. } => {
+                    Self::from_common_ode(request)
+                }
+                eqiora_numerics::CommonTrajectory::TransientFlow { request, .. } => {
+                    Self::from_common_transient(request)
+                }
+                eqiora_numerics::CommonTrajectory::Fsi { request, .. } => {
+                    Self::from_common_fsi(request)
+                }
+            });
+        }
+        Some(match result.plan() {
+            eqiora_numerics::ResolvedCommonPlan::Scalar(plan) => Self::from_common_plan(plan),
+            eqiora_numerics::ResolvedCommonPlan::Elasticity(plan) => {
+                Self::from_common_elasticity(plan)
+            }
+            eqiora_numerics::ResolvedCommonPlan::SteadyStokes(plan) => {
+                Self::from_common_steady_stokes(plan)
+            }
+            eqiora_numerics::ResolvedCommonPlan::Ode(_)
+            | eqiora_numerics::ResolvedCommonPlan::TransientFlow(_)
+            | eqiora_numerics::ResolvedCommonPlan::Fsi(_) => return None,
+        })
+    }
+
     pub(crate) fn from_common_ode(request: &CommonOdeRunRequest) -> Self {
         let plan = request.plan();
         Self {
