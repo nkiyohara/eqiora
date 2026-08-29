@@ -24,6 +24,7 @@ mod realization;
 mod result;
 mod steady_stokes;
 mod trajectory;
+mod viewer;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
@@ -276,6 +277,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     realization::register(module)?;
     steady_stokes::register(module)?;
     trajectory::register(module)?;
+    viewer::register(module)?;
     module.add_function(wrap_pyfunction!(compile, module)?)?;
     Ok(())
 }

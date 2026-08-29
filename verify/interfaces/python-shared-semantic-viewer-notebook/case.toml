@@ -1,0 +1,78 @@
+id = "interfaces.python-shared-semantic-viewer-notebook"
+status = "verified"
+scope = "installed-python-shared-semantic-viewer-v3-marimo-host"
+reference_kind = "current-product-composition-plus-clean-candidate-marimo-reachability"
+
+capabilities = [
+  "python-private-typed-viewer-scene",
+  "python-planar-geometry-mesh-selection-viewer",
+  "python-installed-anywidget-marimo-host",
+  "python-viewer-explicit-lifecycle",
+]
+
+[contract]
+issue = 625
+body_sha256 = "60ba168facd8ce682afb608bacaa4622e0d5150e46dde21b7d5be15ac6f3683a"
+predecessor_commit = "aeccc716cea7b8298db179f0a7e03ed24030c94d"
+predecessor_tree = "897108240ec928edee41a12643ea420d227e3f90"
+
+[problem]
+application = "examples/python/shared_semantic_viewer_marimo.py"
+entry = "marimo 0.23.16 checked-in Python application"
+environment = "exact Linux x86-64 CPython 3.13 candidate notebook profile"
+package = "one non-editable installed eqiora candidate with its exact viewer extra"
+composition = "accepted planar Geometry -> Cartesian Mesh -> View.add(Geometry).add(Mesh) -> shared anywidget renderer"
+presentation = "typed identity summary plus read-only interactive Geometry/Mesh/Selection scene"
+
+[oracle]
+accepted_counts = "a 4-by-3 Cartesian grid independently implies (4+1)*(3+1)=20 vertices and 4*3=12 cells"
+browser = "live Marimo DOM exposes the private scene marker, shared controls, exact Mesh selection, and read-only canvas"
+network = "all runtime HTTP and websocket traffic remains on exact 127.0.0.1 loopback"
+science = "none; no value, tolerance, pixel, camera, colour, or triangulation is an oracle"
+
+[acceptance]
+canonical_checked_in_application = true
+installed_eqiora_import_only = true
+exact_viewer_extra = "anywidget==0.11.0"
+accepted_geometry_mesh_types_visible = true
+independently_derived_counts_visible = true
+private_scene_schema_marker_visible = true
+shared_camera_controls_operable = true
+exact_mesh_selection_operable = true
+read_only_canvas_visible = true
+no_external_runtime_network = true
+isolated_interpreter_flag = true
+exact_marimo_candidate_host = true
+owned_host_cleanup = true
+
+[falsifiers]
+missing_application = "candidate profile rejects before host launch"
+missing_viewer_extra_or_assets = "rich display cannot reach the live viewer region"
+foreign_or_fabricated_semantics = "Rust and TypeScript focused owner/correspondence admission tests reject"
+external_asset_fetch = "browser traffic oracle rejects any non-loopback request or websocket"
+text_only_success = "browser requires the live scene region, controls, selection, and canvas"
+wrong_cartesian_projection = "typed summary must report independently derived 20 vertices and 12 cells"
+host_leak = "the candidate cleanup-and-mutation observation rejects retained or foreign process mutation"
+
+[claim_boundary]
+v0_through_v3_only = true
+ordinary_gil_cpython = "3.13"
+operating_system = "linux"
+architecture = "x86_64"
+marimo = "0.23.16"
+planar_geometry = true
+quadrilateral_mesh = true
+named_selection = true
+private_unpersisted_transport = true
+new_scientific_values_or_tolerances = false
+jupyterlab_execution = false
+studio_or_cloud = false
+three_dimensional = false
+vector_tensor_or_trajectory = false
+animation_contour_or_streamline = false
+pixel_identity = false
+performance_or_production_scale = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_distribution_gate.py"

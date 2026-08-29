@@ -123,14 +123,21 @@ CONTENT_BOUND_RESOURCE_LIMITS = {
     "byte_steps": ABSTRACT_BYTE_STEPS_LIMIT,
 }
 DIRECT_PINS = {
-    "typescript": "7.0.2",
+    "three": "0.185.1",
+    "@anywidget/types": "0.4.0",
     "@biomejs/biome": "2.5.6",
     "@playwright/test": "1.62.1",
+    "@types/three": "0.185.4",
+    "typescript": "7.0.2",
+    "vite": "8.2.0",
+    "vitest": "4.1.10",
 }
 CONFIG_NAMES = (
     "biome.json",
     "playwright.config.ts",
+    "playwright.viewer.config.ts",
     "tsconfig.json",
+    "vite.config.ts",
 )
 ENVIRONMENT_ALLOWLIST = (
     "HOME",
@@ -1722,7 +1729,7 @@ def _frontend_inputs(
     dependencies = package.get("dependencies", {})
     dev_dependencies = package.get("devDependencies")
     if (
-        dependencies != {}
+        not isinstance(dependencies, dict)
         or not isinstance(dev_dependencies, dict)
         or {**dependencies, **dev_dependencies} != DIRECT_PINS
     ):

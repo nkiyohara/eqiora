@@ -19,6 +19,7 @@ python examples/python/transient_cylinder_wake.py \
 marimo run examples/python/transient_cylinder_wake_marimo.py
 jupyter lab examples/python/transient_cylinder_wake_jupyter.ipynb
 marimo run examples/python/exact_cylinder_stokes_marimo.py
+marimo run examples/python/shared_semantic_viewer_marimo.py
 jupyter lab examples/python/exact_cylinder_stokes_jupyter.ipynb
 python examples/python/mixed_boundary_elasticity.py
 marimo run examples/python/mixed_boundary_elasticity_marimo.py
@@ -35,6 +36,7 @@ python examples/python/fixed_reference_fsi.py
 | `steady-cylinder-source` | [`python/steady_cylinder_source.py`](python/steady_cylinder_source.py) | From an installed `eqiora` package, author the complete equations-only steady-cylinder Component as bounded `eqiora.lang.Source` values and emit readable deterministic `.eqi` through the same compiler ingress used by hand-written source. |
 | `exact-cylinder-stokes` | [`python/exact_cylinder_stokes.py`](python/exact_cylinder_stokes.py) | From an installed `eqiora` package, define the sole concrete Geometry in Python, compile it with the shipped equations-only `.eqi` Component, resolve the common MINI/P1 and linear-solve policies, inspect immutable pressure, solver, force, and flux evidence, and optionally save the pressure through `eqiora[gmsh,matplotlib]`. |
 | `exact-cylinder-stokes-marimo` | [`python/exact_cylinder_stokes_marimo.py`](python/exact_cylinder_stokes_marimo.py) | In Marimo, compose the same Python-authored Geometry, installed `.eqi` Component, Mesh, common root Plan, and direct `run` Result, then inspect their live identities and caller-owned pressure Figure. |
+| `shared-semantic-viewer-marimo` | [`python/shared_semantic_viewer_marimo.py`](python/shared_semantic_viewer_marimo.py) | From an installed `eqiora[viewer]` wheel, compose accepted planar Geometry and Cartesian Mesh values in the shared read-only anywidget viewer. This V0--V3 host path adds no scientific or Studio claim. |
 | `exact-cylinder-stokes-jupyter` | [`python/exact_cylinder_stokes_jupyter.ipynb`](python/exact_cylinder_stokes_jupyter.ipynb) | In Jupyter, compose the same public Geometry, installed `.eqi` Component, Mesh, common root Plan, direct `run` Result, identity summary, and caller-owned pressure Figure without a rich-Mesh widget. |
 | `transient-cylinder-wake` | [`python/transient_cylinder_wake.py`](python/transient_cylinder_wake.py) | From an installed package, compose the Python-authored cylinder Geometry, packaged steady and transient equation Components, common Mesh and typed policies, ten accepted nonzero startup States through 0.1 s, typed cell-average vorticity, and an optional caller-owned Figure. This bounded product example is explicitly unverified and does not show a developed wake. |
 | `transient-cylinder-wake-marimo` | [`python/transient_cylinder_wake_marimo.py`](python/transient_cylinder_wake_marimo.py) | In Marimo, follow the same public ten-step startup workflow, inspect exact Geometry/Mesh/Model/Plan/Trajectory lineage, and render the final typed cell-average vorticity through a caller-owned Figure. The experience is explicitly unverified. |

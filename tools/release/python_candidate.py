@@ -68,6 +68,15 @@ EXACT_CYLINDER_STOKES_MARIMO_ORACLE_FLAG = (
 EXACT_CYLINDER_STOKES_MARIMO_MUTANT_FAILURE = (
     "ModuleNotFoundError: No module named 'examples'"
 )
+SHARED_SEMANTIC_VIEWER_MARIMO_APP = Path(
+    "examples/python/shared_semantic_viewer_marimo.py"
+)
+SHARED_SEMANTIC_VIEWER_MARIMO_CHECK = (
+    "cp313:marimo-0.23.16-shared-semantic-viewer"
+)
+SHARED_SEMANTIC_VIEWER_MARIMO_ORACLE_FLAG = (
+    "EQIORA_SHARED_SEMANTIC_VIEWER_MARIMO_ORACLE"
+)
 PYTHON_TEST_FIXTURES = candidate_profiles.PYTHON_TEST_FIXTURES
 PYTHON_TEST_RESOURCES = candidate_profiles.PYTHON_TEST_RESOURCES
 GIT_SHA = re.compile(r"[0-9a-f]{40}")
@@ -549,9 +558,13 @@ def inspect_wheel(
             "eqiora/fsi.pyi",
             "eqiora/jax.pyi",
             "eqiora/matplotlib.pyi",
+            "eqiora/viewer.pyi",
             "eqiora/solid.pyi",
             "eqiora/torch.pyi",
             "eqiora/py.typed",
+            "eqiora/_viewer/THIRD_PARTY_NOTICES.txt",
+            "eqiora/_viewer/static/viewer.css",
+            "eqiora/_viewer/static/viewer.mjs",
             "eqiora/examples/steady-flow-past-cylinder.eqi",
             "eqiora/examples/transient-flow-past-cylinder.eqi",
             "eqiora/examples/mixed-boundary-elasticity.eqi",
@@ -607,13 +620,18 @@ def inspect_wheel(
     gmsh_requirements = [item for item in normalized if item.startswith("gmsh")]
     if gmsh_requirements != ['gmsh==4.15.2;extra=="gmsh"']:
         raise CandidateError("wheel must declare exactly the Gmsh 4.15.2 extra")
-    for framework in ("torch", "jax", "jaxlib", "matplotlib"):
+    for framework in ("torch", "jax", "jaxlib", "matplotlib", "anywidget"):
         declarations = [item for item in normalized if item.startswith(framework)]
         if not declarations or any("extra==" not in item for item in declarations):
             raise CandidateError(
                 f"{framework} must remain an optional-extra dependency"
             )
-    expected_extras = ["gmsh", "jax", "matplotlib", "torch"]
+    anywidget_requirements = [
+        item for item in normalized if item.startswith("anywidget")
+    ]
+    if anywidget_requirements != ['anywidget==0.11.0;extra=="viewer"']:
+        raise CandidateError("wheel must declare exactly the anywidget 0.11.0 extra")
+    expected_extras = ["gmsh", "jax", "matplotlib", "torch", "viewer"]
     if sorted(metadata.get_all("Provides-Extra", [])) != expected_extras:
         raise CandidateError(
             "wheel must expose exactly the reviewed optional extras"
@@ -1718,7 +1736,7 @@ def run_notebook_profile(
             interpreter=interpreter,
             environment=workspace.environment,
             requirements=[
-                f"{wheel}[gmsh,matplotlib]",
+                f"{wheel}[gmsh,matplotlib,viewer]",
                 config.pytest,
                 "marimo==0.23.16",
             ],
@@ -2111,6 +2129,24 @@ def run_notebook_profile(
         if name == "browser" and not Path(state["browser-executable"]).is_file():
             raise CandidateError("accepted managed Chromium executable is missing")
 
+    def run_shared_semantic_viewer_marimo() -> None:
+        python = state.get("python")
+        if not isinstance(python, Path):
+            raise CandidateError(
+                "Shared semantic viewer Marimo app ran before the Python environment"
+            )
+        app = stage_single_file(
+            extracted / SHARED_SEMANTIC_VIEWER_MARIMO_APP,
+            workspace.root / "shared-semantic-viewer-marimo-positive",
+        )
+        run_host(
+            "marimo-0.23.16",
+            app.name,
+            source_root=app.parent,
+            test_spec="tests/shared-semantic-viewer-marimo.spec.ts",
+            extra_environment={SHARED_SEMANTIC_VIEWER_MARIMO_ORACLE_FLAG: "1"},
+        )
+
     def run_exact_cylinder_profile() -> None:
         install_notebook()
         run_exact_cylinder_stokes_marimo()
@@ -2119,6 +2155,7 @@ def run_notebook_profile(
         ("frontend:lock-integrity", lambda: require_frontend_binding("lock")),
         ("frontend:dependency-inventory", lambda: require_frontend_binding("dependencies")),
         (EXACT_CYLINDER_STOKES_MARIMO_CHECK, run_exact_cylinder_profile),
+        (SHARED_SEMANTIC_VIEWER_MARIMO_CHECK, run_shared_semantic_viewer_marimo),
         ("cp313:notebook-managed-chromium-r1234", lambda: require_host_observation("browser")),
         ("cp313:notebook-no-external-network", lambda: require_host_observation("network")),
         ("cp313:notebook-cleanup-and-mutation", lambda: require_host_observation("cleanup")),

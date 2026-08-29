@@ -65,6 +65,7 @@ NOTEBOOK_CHECK_NAMES = (
     "frontend:lock-integrity",
     "frontend:dependency-inventory",
     "cp313:marimo-0.23.16-exact-cylinder-stokes",
+    "cp313:marimo-0.23.16-shared-semantic-viewer",
     "cp313:notebook-managed-chromium-r1234",
     "cp313:notebook-no-external-network",
     "cp313:notebook-cleanup-and-mutation",

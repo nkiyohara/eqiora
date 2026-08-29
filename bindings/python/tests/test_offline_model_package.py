@@ -154,6 +154,7 @@ EXPECTED_EQIORA_ALL = [
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",
+    "View",
     "across",
     "check_package_conformance",
     "compile",

@@ -1015,6 +1015,8 @@ dependencies = [
  "numpy",
  "pyo3",
  "rustix",
+ "serde",
+ "serde_json",
  "sha2",
  "ulid",
 ]

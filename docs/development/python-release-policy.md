@@ -37,7 +37,8 @@ A candidate is accepted only from a clean source commit. The release gate:
 4. installs each wheel into an isolated environment outside the source tree;
 5. runs exact Gmsh 4.15.2 meshing plus the base, NumPy ownership,
    async/cancellation, typing, PyTorch, JAX, Matplotlib, and exact CPython 3.13
-   Notebook profiles within their declared boundaries;
+   Notebook profiles, including the shared viewer host, within their declared
+   boundaries;
 6. replays the public base quick start on every wheel and the public framework
    quick starts on the exact framework interpreter before upload;
 7. verifies NumPy 2.1.0 separately on CPython 3.12 while retaining the ordinary
@@ -121,8 +122,9 @@ NumPy is the only mandatory Python runtime dependency. Exact `gmsh==4.15.2` is
 the optional `gmsh` extra and is launched only by the admitted automatic
 meshing path; separating it preserves the base package's `manylinux_2_17`
 floor. The Linux Gmsh wheel also requires `libGLU.so.1`. PyTorch, JAX,
-and Matplotlib remain optional extras, and importing the base package must
-neither require nor import any of them. Marimo, Playwright, and Chromium are
+Matplotlib, and exact `anywidget==0.11.0` remain optional extras, and importing
+the base package must neither require nor import any of them. The wheel carries
+the viewer JavaScript and CSS. Marimo, Playwright, and Chromium are
 verified candidate-host inputs and do not become Eqiora runtime dependencies.
 The first Matplotlib adapter uses exact release 3.11.1 with the headless Agg
 backend. Its registered adapter profile runs on ordinary-GIL CPython 3.13;

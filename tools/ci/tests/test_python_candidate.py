@@ -70,7 +70,7 @@ EXACT_WHEEL_PAYLOAD_SHA256 = {
 EXACT_WHEEL_MEMBER = "eqiora-0.1.0a1.dist-info/WHEEL"
 EXACT_RECORD_MEMBER = "eqiora-0.1.0a1.dist-info/RECORD"
 PLAYWRIGHT_CORE_LOCK_SHA256 = (
-    "ef175d70219878eee08a4742aa421b3de137ffd0c9c3c7ff4acc439216821c8e"
+    "9f59bf6b37e7288b00d03c9c549063ada65910ff3443f5f301a7b75aa93087a1"
 )
 PLAYWRIGHT_CORE_PACKAGE_SHA256 = (
     "07c47543631fef9508760365dee9fbe958c562093ec8d122543949ed231f233f"
@@ -97,12 +97,28 @@ LIFECYCLE_SCRIPT_SOURCE_UNION = (
         "node-gyp rebuild",
         ("lockfile", "packument"),
     ),
+    (
+        "node_modules/vite/node_modules/fsevents",
+        "fsevents",
+        "2.3.3",
+        "install",
+        "node-gyp rebuild",
+        ("lockfile", "packument"),
+    ),
 )
 PACKUMENT_INSTALL_SCRIPT_ADMISSIONS = (
     (
         "node_modules/fsevents",
         "fsevents",
         "2.3.2",
+        "install",
+        "node-gyp rebuild",
+        "packument",
+    ),
+    (
+        "node_modules/vite/node_modules/fsevents",
+        "fsevents",
+        "2.3.3",
         "install",
         "node-gyp rebuild",
         "packument",
@@ -152,6 +168,7 @@ NOTEBOOK_PROFILE_CHECKS = (
     "frontend:lock-integrity",
     "frontend:dependency-inventory",
     "cp313:marimo-0.23.16-exact-cylinder-stokes",
+    "cp313:marimo-0.23.16-shared-semantic-viewer",
     "cp313:notebook-managed-chromium-r1234",
     "cp313:notebook-no-external-network",
     "cp313:notebook-cleanup-and-mutation",
@@ -559,12 +576,14 @@ Provides-Extra: jax
 Provides-Extra: gmsh
 Provides-Extra: matplotlib
 Provides-Extra: torch
+Provides-Extra: viewer
 Requires-Dist: numpy<3,>=2.1
 Requires-Dist: gmsh==4.15.2 ; extra == 'gmsh'
 Requires-Dist: torch>=2.13,<2.14; extra == "torch"
 Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: matplotlib==3.11.1; extra == "matplotlib"
+Requires-Dist: anywidget==0.11.0; extra == "viewer"
 
 typed candidate
 """
@@ -579,9 +598,13 @@ typed candidate
                     "eqiora/fsi.pyi",
                     "eqiora/jax.pyi",
                     "eqiora/matplotlib.pyi",
+                    "eqiora/viewer.pyi",
                     "eqiora/solid.pyi",
                     "eqiora/torch.pyi",
                     "eqiora/py.typed",
+                    "eqiora/_viewer/THIRD_PARTY_NOTICES.txt",
+                    "eqiora/_viewer/static/viewer.css",
+                    "eqiora/_viewer/static/viewer.mjs",
                     "eqiora/examples/steady-flow-past-cylinder.eqi",
                     "eqiora/examples/transient-flow-past-cylinder.eqi",
                     "eqiora/examples/mixed-boundary-elasticity.eqi",
@@ -627,12 +650,14 @@ Provides-Extra: jax
 Provides-Extra: gmsh
 Provides-Extra: matplotlib
 Provides-Extra: torch
+Provides-Extra: viewer
 Requires-Dist: numpy<3,>=2.1
 Requires-Dist: gmsh==4.15.2; extra == "gmsh"
 Requires-Dist: torch>=2.13,<2.14
 Requires-Dist: jax==0.11.0; extra == "jax"
 Requires-Dist: jaxlib==0.11.0; extra == "jax"
 Requires-Dist: matplotlib==3.11.1; extra == "matplotlib"
+Requires-Dist: anywidget==0.11.0; extra == "viewer"
 
 invalid candidate
 """
@@ -647,9 +672,13 @@ invalid candidate
                     "eqiora/fsi.pyi",
                     "eqiora/jax.pyi",
                     "eqiora/matplotlib.pyi",
+                    "eqiora/viewer.pyi",
                     "eqiora/solid.pyi",
                     "eqiora/torch.pyi",
                     "eqiora/py.typed",
+                    "eqiora/_viewer/THIRD_PARTY_NOTICES.txt",
+                    "eqiora/_viewer/static/viewer.css",
+                    "eqiora/_viewer/static/viewer.mjs",
                     "eqiora/examples/steady-flow-past-cylinder.eqi",
                     "eqiora/examples/transient-flow-past-cylinder.eqi",
                     "eqiora/examples/mixed-boundary-elasticity.eqi",
@@ -5123,7 +5152,7 @@ write(JSON.stringify({calls,output,failure}));
                 interpreter="/reviewed/python3.13",
                 environment=workspace.environment,
                 requirements=[
-                    f"{root / 'candidate.whl'}[gmsh,matplotlib]",
+                    f"{root / 'candidate.whl'}[gmsh,matplotlib,viewer]",
                     python_candidate_module.load_config().pytest,
                     "marimo==0.23.16",
                 ],
@@ -6849,6 +6878,7 @@ write(JSON.stringify({calls,output,failure}));
             "frontend:lock-integrity",
             "frontend:dependency-inventory",
             "cp313:marimo-0.23.16-exact-cylinder-stokes",
+            "cp313:marimo-0.23.16-shared-semantic-viewer",
             "cp313:notebook-managed-chromium-r1234",
             "cp313:notebook-no-external-network",
             "cp313:notebook-cleanup-and-mutation",
@@ -7729,6 +7759,10 @@ while True:
         exact_app = extracted / python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_APP
         exact_app.parent.mkdir(parents=True, exist_ok=True)
         exact_app.write_text("import marimo\n", encoding="utf-8")
+        shared_viewer_app = (
+            extracted / python_candidate_module.SHARED_SEMANTIC_VIEWER_MARIMO_APP
+        )
+        shared_viewer_app.write_text("import marimo\n", encoding="utf-8")
         exact_mutant = (
             extracted / python_candidate_module.EXACT_CYLINDER_STOKES_MARIMO_MUTANT
         )
@@ -7905,7 +7939,12 @@ while True:
             *,
             emit: Callable[[str], None],
         ) -> tuple[str, ...]:
-            selected = observations[:6]
+            selected = tuple(
+                observation
+                for observation in observations
+                if observation[0]
+                != python_candidate_module.SHARED_SEMANTIC_VIEWER_MARIMO_CHECK
+            )
             for name, observe in selected:
                 observe()
                 emit(name)

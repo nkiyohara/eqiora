@@ -104,7 +104,6 @@ impl PyMesh {
     pub(crate) fn correspondence_digest_value(&self) -> &str {
         &self.lineage.correspondence_digest
     }
-
     pub(crate) fn from_authenticated(
         py: Python<'_>,
         owner: AuthenticatedCommonMesh,
@@ -935,3 +934,6 @@ fn validated_entity_count(
 #[cfg(test)]
 #[path = "mesh/tests.rs"]
 mod tests;
+
+#[path = "mesh/viewer.rs"]
+mod viewer;

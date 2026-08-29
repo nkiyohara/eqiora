@@ -61,7 +61,9 @@ def test_every_class_is_declared_in_the_stub(name: str, cls: type) -> None:
     from pathlib import Path
 
     stub = Path(eqiora.__file__).with_name("__init__.pyi")
-    assert f"class {name}" in stub.read_text(encoding="utf-8"), (
+    contents = stub.read_text(encoding="utf-8")
+    declarations = (f"class {name}", f"import {name} as {name}")
+    assert any(declaration in contents for declaration in declarations), (
         f"{name} is exported but absent from __init__.pyi, so type checkers cannot see it"
     )
 

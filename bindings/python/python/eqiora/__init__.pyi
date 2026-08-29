@@ -35,6 +35,7 @@ from . import solve as solve
 from . import solve as solve_module
 from . import time as time
 from . import trajectory as trajectory
+from .viewer import View as View
 
 _Float64Array = npt.NDArray[np.float64]
 
@@ -1401,6 +1402,7 @@ __all__ = [
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",
+    "View",
     "across",
     "check_package_conformance",
     "compile",

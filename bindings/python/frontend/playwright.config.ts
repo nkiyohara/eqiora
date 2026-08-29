@@ -15,6 +15,7 @@ const marimoUrl = exactLoopbackUrl("EQIORA_MARIMO_URL", "http://127.0.0.1:18889/
 
 export default defineConfig({
 	testDir: "./tests",
+	testIgnore: "viewer-spike.spec.ts",
 	// The exact-cylinder Marimo host starts a native solve before its assertions.
 	// This is a hang backstop; per-assertion timeouts remain the binding bounds.
 	timeout: 600_000,

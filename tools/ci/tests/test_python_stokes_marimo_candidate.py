@@ -25,6 +25,7 @@ if str(RELEASE) not in sys.path:
 
 APP_PATH = Path("examples/python/exact_cylinder_stokes_marimo.py")
 APP = ROOT / APP_PATH
+SHARED_VIEWER_APP_PATH = Path("examples/python/shared_semantic_viewer_marimo.py")
 MUTANT_PATH = Path(
     "verify/interfaces/python-exact-cylinder-stokes-marimo/references/"
     "exact_cylinder_stokes_marimo_repository_helper_mutant.py"
@@ -166,6 +167,8 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             fake_app = extracted / APP_PATH
             fake_app.parent.mkdir(parents=True)
             fake_app.write_text("import marimo\n", encoding="utf-8")
+            fake_shared_viewer_app = extracted / SHARED_VIEWER_APP_PATH
+            fake_shared_viewer_app.write_text("import marimo\n", encoding="utf-8")
             fake_mutant = extracted / MUTANT_PATH
             fake_mutant.parent.mkdir(parents=True)
             fake_mutant.write_bytes(MUTANT.read_bytes())
@@ -405,10 +408,10 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                     launch_inventories["negative"],
                     (MUTANT_PATH.name,),
                 )
-                self.assertEqual(len(host_identities), 1)
-                self.assertEqual(len(set(host_identities)), 1)
-                self.assertEqual(len(direct_launch_identities), 1)
-                self.assertEqual(len(set(direct_launch_identities)), 1)
+                self.assertEqual(len(host_identities), 2)
+                self.assertEqual(len(set(host_identities)), 2)
+                self.assertEqual(len(direct_launch_identities), 2)
+                self.assertEqual(len(set(direct_launch_identities)), 2)
                 return observed, launches, checked_commands, installs
 
             observed, launches, checked_commands, installs = execute_profile(
@@ -425,6 +428,7 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             self.assertTrue(candidate_requirements)
             self.assertIn("gmsh", "\n".join(candidate_requirements))
             self.assertIn("matplotlib", "\n".join(candidate_requirements))
+            self.assertIn("viewer", "\n".join(candidate_requirements))
             self.assertNotIn("notebook", "\n".join(candidate_requirements))
 
             positive_launches = [

@@ -88,6 +88,7 @@ from ._eqiora import (
 )
 
 from . import diff
+from .viewer import View
 
 
 class PackageConformancePackage(NamedTuple):
@@ -173,6 +174,7 @@ __all__ = [
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",
+    "View",
     "across",
     "check_package_conformance",
     "compile",
