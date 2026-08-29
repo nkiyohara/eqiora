@@ -1,5 +1,6 @@
 use super::*;
 use eqiora_artifact::{ArtifactDigest, RunManifestV1};
+use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_package::{
     AuthorManifestV1, BundleEntryV1, DependencyRequirementV1, ExactVersion, InMemoryPackageStore,
     NormalizedRelativePath, PackageReleaseV1, SourceFileV1,
@@ -51,6 +52,98 @@ fn release(
         .map(|(_, release)| (*release).clone())
         .collect::<Vec<_>>();
     prepare_package_release_v1(sources, &dependency_releases).expect("compiler-derived release")
+}
+
+fn caller_geometry(volume: &str) -> CanonicalGeometryV1 {
+    CanonicalGeometryV1::from_circular_hole_named_roles(
+        [[0.0, 2.2], [0.0, 0.41]],
+        [0.2, 0.2],
+        0.05,
+        1.0e-12,
+        volume,
+        "inlet",
+        "outlet",
+        "walls",
+        "walls",
+        "cylinder",
+    )
+    .expect("caller Geometry")
+}
+
+#[test]
+fn locked_component_binds_caller_geometry_into_ordinary_model() {
+    const SOURCE: &str = r#"
+public component SpatialLaw {
+  public support fluid: volume(ambient_dimension = 2);
+  public parameter forcing: 1;
+  representation space = continuum;
+  field state on fluid as space: 1 = 0;
+  relation balance continuous on fluid { state - forcing = 0; }
+}
+"#;
+    let root = release("org.example.SpatialLaw", SOURCE, &[]);
+    let mut store = InMemoryPackageStore::default();
+    store.insert(&root).expect("store root");
+    let resolution = ResolutionRecordV1::from_exact_releases(&root, &[]).expect("resolution");
+    let geometry = caller_geometry("fluid");
+
+    let packaged = PackagedModelDocument::compile_locked_with_geometry(
+        &store,
+        &resolution,
+        "SpatialLaw",
+        &geometry,
+        &[("forcing", 2.0)],
+    )
+    .expect("Geometry-bound package compilation");
+
+    packaged
+        .compilation()
+        .validate_against(&resolution)
+        .expect("compilation retains exact resolution");
+    assert_eq!(
+        packaged.compilation().model_digest(),
+        CanonicalModelDigest::parse(&packaged.model().digest().expect("Model digest"))
+            .expect("canonical Model digest")
+    );
+    assert_eq!(
+        packaged.model().aliases()["definition.forcing"].kind(),
+        eqiora_core::EntityKind::Parameter
+    );
+
+    let foreign = caller_geometry("other");
+    let error = PackagedModelDocument::compile_locked_with_geometry(
+        &store,
+        &resolution,
+        "SpatialLaw",
+        &foreign,
+        &[("forcing", 2.0)],
+    )
+    .expect_err("support names cannot fall back to matching bounds");
+    assert!(format!("{error:?}").contains("fluid"), "{error:?}");
+
+    let duplicated_geometry = release(
+        "org.example.DuplicatedGeometry",
+        &format!("{SOURCE}\nmodel Legacy {{ domain fluid = box(0, 1, 0, 1); }}\n"),
+        &[],
+    );
+    let mut duplicated_store = InMemoryPackageStore::default();
+    duplicated_store
+        .insert(&duplicated_geometry)
+        .expect("store duplicated Geometry package");
+    let duplicated_resolution = ResolutionRecordV1::from_exact_releases(&duplicated_geometry, &[])
+        .expect("duplicated Geometry resolution");
+    let error = PackagedModelDocument::compile_locked_with_geometry(
+        &duplicated_store,
+        &duplicated_resolution,
+        "SpatialLaw",
+        &geometry,
+        &[("forcing", 2.0)],
+    )
+    .expect_err("package-authored root Geometry cannot coexist with caller Geometry");
+    assert!(
+        format!("{error:?}").contains("definitions-only root package"),
+        "{error:?}"
+    );
 }
 
 #[test]

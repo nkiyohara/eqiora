@@ -1,44 +1,36 @@
-# Installed Python projection of one exact Model Package
+# Installed Python package Component to common Run
 
-This case projects the already accepted `packages.offline-model-package`
-fixture through the installed Python wheel. The caller supplies one explicit
-content-addressed store root, the exact canonical resolution bytes, and the
-bare root-local Model selector `Main`. The returned ordinary immutable
-`Model` must retain the frozen Model identity while separately exposing the
-exact package-compilation digest.
+This case prepares one exact locked package whose public scalar elliptic
+Component owns equations, Fields, Parameters, and abstract volume/boundary
+supports only. The installed Python boundary binds it to caller-owned
+rectangle Geometry by exact support name and returns the ordinary immutable
+`Model`.
 
-The registered executor runs the existing installed-wheel package gate and
-the exact `eqiora-python` `python_offline_model_package` Cargo integration
-target. The latter directly compares diagnostic fields and ordering with
-`PackagedModelDocument::compile_locked`; neither oracle is implied by the
-other.
+The same caller Geometry produces the exact Mesh. The resulting Model enters
+the root `resolve(model, mesh=..., spatial=..., solve=...)` path and completes
+the ordinary asynchronous Run. Model, Plan, and Run expose the same exact
+package-compilation digest; Model, Geometry, Mesh, correspondence, provider,
+Plan, and Run identities remain independently owned.
 
-The positive oracle reads the accepted store and deterministic Model and
-compilation artifacts in place. Repository formatting adds one terminal LF to
-the JSON fixtures; the public resolution input removes exactly that LF before
-the call, and every other byte must equal the canonical wire. Expected Model
-and compilation identities are never regenerated through the Python adapter.
-
-The secondary `org.example.poisson` store fixture exists only to prove that a
-valid `Model.commit(edit)` clears package lineage. Its release, resolution,
-Model, and compilation identities were already accepted by
-`packages.typed-compilation-lineage`; this case adds no new Model or numerical
-claim.
+The registered executor runs the installed-wheel gate and the focused
+`eqiora-python` Cargo integration target. The Cargo target prepares its package
+release and canonical resolution through the ordinary Rust package authoring
+contract, publishes the exact release into HOME-backed scratch, and then calls
+only the public native Python surface.
 
 ## Falsifiers
 
-The installed-wheel and native tests reject non-canonical resolution bytes,
-resolution/store mismatch, missing or hostile exact entries, non-bare Model
-selectors, and invalid Python argument shapes. Every filesystem rejection is
-checked against a before/after store snapshot. Source compilation, native
-definition, replay, and committed children cannot acquire or retain package
-lineage. Compiler diagnostics are compared field-for-field with the direct
-Rust `PackagedModelDocument::compile_locked` result.
+The test rejects noncanonical resolution bytes, missing required arguments,
+and a distinct caller Geometry that has equal bounds but omits the exact
+support selection name. It also replays the Geometry-referencing bare Model
+bytes and requires the replayed Model to resolve to the same Plan identity
+with the exact Mesh. Bare Model bytes cannot fabricate the package sidecar, so
+the replayed Plan reports no package-compilation digest.
 
 ## Boundary
 
-This is a synchronous, read-only Python projection of existing Rust package
-semantics. It does not claim discovery, lock-file reading, workspace behavior,
-package authoring or installation, network access, imported Model roots,
-lineage persistence in Model JSON, execution, science, Studio behavior, or a
-general package/provenance object.
+This is one synchronous package compilation followed by the existing common
+local Mesh/Plan/Run lifecycle. It adds no package-specific resolver,
+Realization, execution binding, compatibility alias, Run semantics, registry,
+network fetch, arbitrary CAD, persisted package sidecar, or general numerical
+or scientific claim.

@@ -8,6 +8,7 @@ use eqiora_compiler::projection::{PhysicalExposureContract, PhysicalExposureProj
 use eqiora_compiler::provenance::ProvenanceMap;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_package::{
     BoundRunManifestSchemaV1, CanonicalModelDigest, CanonicalRealizationDigest, CanonicalRunDigest,
     CompilationToolchainV1, ExactResolver, ExactVersion, PackageCompilationRecordV1,
@@ -35,6 +36,67 @@ pub struct PackagedModelDocument {
 }
 
 impl PackagedModelDocument {
+    /// Compile one root-package public Component against caller-owned
+    /// Geometry while retaining the exact locked package lineage on the
+    /// resulting ordinary Model.
+    ///
+    /// # Errors
+    /// Returns the original resolver, package contract, source, Geometry
+    /// binding, compiler, semantic-admission, or artifact failure. No partial
+    /// Model or package lineage is returned.
+    pub fn compile_locked_with_geometry(
+        store: &impl PackageStore,
+        resolution: &ResolutionRecordV1,
+        component: &str,
+        geometry: &CanonicalGeometryV1,
+        parameters: &[(&str, f64)],
+    ) -> Result<Self, PackageCompilationError> {
+        let resolved = ExactResolver.resolve(resolution, store)?;
+        let namespaces = compilation_namespaces(&resolved)?;
+        let input = compiler_input(&resolved, &namespaces)?;
+        let analyzed = analyze_resolved_hierarchy(input)?;
+        verify_semantic_content(&resolved, &namespaces, &analyzed)?;
+        let validated = analyzed.validate_definitions()?;
+
+        let compiled =
+            validated.compile_external_geometry_component(geometry, component, parameters)?;
+        let provenance = compiled.provenance().cloned().ok_or_else(|| {
+            PackageCompilationError::Diagnostics(vec![Diagnostic::error(
+                codes::LANGUAGE_LOWERING_ERROR,
+                "locked package compilation did not produce hierarchy provenance",
+            )])
+        })?;
+        let physical_exposures = compiled.physical_exposures().clone();
+        let model = ModelDocument::accept_external_compiled(compiled, geometry)?;
+        let model_digest = CanonicalModelDigest::parse(&model.digest()?)?;
+        let toolchain = CompilationToolchainV1::new(
+            QualifiedName::parse(COMPILER_IDENTITY)?,
+            ExactVersion::parse(env!("CARGO_PKG_VERSION"))?,
+            CONTRACT_VERSION_V1,
+            CONTRACT_VERSION_V1,
+            CONTRACT_VERSION_V1,
+        );
+        let compilation = PackageCompilationRecordV1::new(model_digest, &resolved, toolchain)?;
+        let physical_exposure_catalog = (!physical_exposures.is_empty())
+            .then(|| {
+                seal_physical_exposure_catalog(
+                    &model,
+                    &compilation,
+                    &provenance,
+                    &physical_exposures,
+                )
+            })
+            .transpose()?;
+
+        Ok(Self {
+            model,
+            compilation,
+            provenance,
+            physical_exposures,
+            physical_exposure_catalog,
+        })
+    }
+
     /// Resolve a locked package graph offline, verify source semantics, and
     /// compile one package-local Model from the exact root.
     ///

@@ -216,6 +216,43 @@ pub(crate) fn compile_external_component(
             range,
         )
         .map_err(|error| vec![error])?;
+    compile_external_component_from_definition(&elaborator, &checked, component, binding, limits)
+}
+
+pub(crate) fn compile_resolved_external_component(
+    analysis: &AnalyzedResolvedHierarchy,
+    checked: &CheckedDefinitionGraph,
+    binding: &ExternalComponentBinding,
+    limits: HierarchyLimits,
+) -> Result<CompiledModel, Vec<Diagnostic>> {
+    let file = analysis
+        .units
+        .iter()
+        .find(|unit| unit.namespace == analysis.root)
+        .map_or("<resolved-package>", |unit| unit.file.as_str());
+    validate_external_support_inventory(file, binding.supports())?;
+    let elaborator = Elaborator::new_resolved(analysis, limits)?;
+    let range = TextRange::default();
+    let component_path = NamePath::from_segments([binding.component()], range)
+        .map_err(|error| vec![hierarchy_error(error.message())])?;
+    let namespace = preflight::DefinitionNamespace::Resolved(analysis.root.clone());
+    let component = elaborator
+        .resolve_component(&namespace, &component_path, file, range)
+        .map_err(|error| vec![error])?;
+    compile_external_component_from_definition(&elaborator, checked, component, binding, limits)
+}
+
+fn compile_external_component_from_definition<'a>(
+    elaborator: &Elaborator<'a>,
+    checked: &CheckedDefinitionGraph,
+    component: preflight::ComponentDefinition<'a>,
+    binding: &ExternalComponentBinding,
+    limits: HierarchyLimits,
+) -> Result<CompiledModel, Vec<Diagnostic>> {
+    let file = component.file;
+    let range = TextRange::default();
+    let component_path = NamePath::from_segments([binding.component()], range)
+        .map_err(|error| vec![hierarchy_error(error.message())])?;
     if component.visibility() != eqiora_lang::VisibilitySyntax::Public {
         return Err(vec![source_error(
             codes::LANGUAGE_TYPE_ERROR,
@@ -229,7 +266,7 @@ pub(crate) fn compile_external_component(
     }
     validate_external_parameters(file, &component, binding.parameters())?;
     let key = preflight::DefinitionKey {
-        namespace: preflight::DefinitionNamespace::Local,
+        namespace: component.namespace.clone(),
         name: component.name().to_owned(),
     };
     let summary = checked.component_summary(&key).ok_or_else(|| {
@@ -313,12 +350,12 @@ pub(crate) fn compile_external_component(
     let root = SourceAstFactory::model(binding.model(), root_items, range)
         .map_err(|error| vec![hierarchy_error(error.message())])?;
     let model = preflight::ModelDefinition {
-        namespace: preflight::DefinitionNamespace::Local,
+        namespace: component.namespace.clone(),
         file,
         declaration: &root,
     };
     RootExpansion::new(
-        &elaborator,
+        elaborator,
         model,
         preflight::ExpansionSize {
             declarations,

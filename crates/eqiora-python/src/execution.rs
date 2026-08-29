@@ -666,6 +666,12 @@ impl PyRun {
     }
 
     #[getter]
+    fn package_compilation_digest(&self, py: Python<'_>) -> PyResult<Option<String>> {
+        let ResultMaterializationContext::CommonPlan { plan } = &self.materialization;
+        plan.borrow(py).package_compilation_digest_value(py)
+    }
+
+    #[getter]
     fn plan_key(&self) -> &str {
         self.identity.plan_key()
     }

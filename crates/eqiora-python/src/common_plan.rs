@@ -302,6 +302,16 @@ impl PyPlan {
     pub(crate) fn native(&self) -> &CommonPlanKind {
         &self.native
     }
+
+    pub(crate) fn package_compilation_digest_value(
+        &self,
+        py: Python<'_>,
+    ) -> PyResult<Option<String>> {
+        self.model
+            .borrow(py)
+            .package_compilation_digest_value()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
 }
 
 #[pymethods]
@@ -321,6 +331,10 @@ impl PyPlan {
     #[getter]
     fn model_revision(&self) -> u64 {
         self.native.model_revision()
+    }
+    #[getter]
+    fn package_compilation_digest(&self, py: Python<'_>) -> PyResult<Option<String>> {
+        self.package_compilation_digest_value(py)
     }
     #[getter]
     fn geometry_digest(&self) -> Option<&str> {

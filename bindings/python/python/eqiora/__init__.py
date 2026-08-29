@@ -327,6 +327,10 @@ class Run:
         return self._native.model_revision
 
     @property
+    def package_compilation_digest(self) -> str | None:
+        return self._native.package_compilation_digest
+
+    @property
     def plan_key(self) -> str:
         return self._native.plan_key
 

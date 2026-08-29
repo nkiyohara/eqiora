@@ -69,10 +69,11 @@ lift. It is not arbitrary Python-to-Eqiora translation, a Python weak-form
 runtime, Geometry/mesh/Plan authoring, package authoring, or a stable Python AST
 schema.
 
-## Compile one exact locked Model Package
+## Compile one exact locked package Component
 
-Python can project an existing content-addressed Model Package into the same
-ordinary immutable `Model` without reimplementing package semantics:
+Python can bind an existing content-addressed package's public Component to
+caller-owned Geometry and produce the same ordinary immutable `Model` used by
+local source compilation:
 
 ```python
 from pathlib import Path
@@ -84,7 +85,9 @@ resolution = Path("resolution.canonical.json").read_bytes()
 model = eqiora.compile_package(
     store_root,
     resolution,
-    entry_model="Main",
+    geometry=geometry,
+    component="PoissonRectangle",
+    parameters={"wave_number": 3.14159, "source_scale": 19.7392},
 )
 
 print(model.digest)
@@ -92,18 +95,22 @@ print(model.package_compilation_digest)
 ```
 
 The caller selects one explicit store directory, supplies the exact bytes from
-`ResolutionRecordV1.canonical_json()`, and names one bare root-local Model.
-Rust opens the capability-rooted store, verifies the complete locked closure,
-compiles it through the shared package/compiler path, and returns the existing
-`Model` type. Human-formatted, reordered, newline-terminated, duplicate-key, or
-store-mismatched resolution bytes fail closed.
+`ResolutionRecordV1.canonical_json()`, names one public Component in the root
+package, and owns its Geometry and parameter values. Rust verifies the complete
+locked closure, binds abstract support slots by exact Geometry selection name,
+and expands the same compiler-owned root occurrence used by definitions-only
+local source. Human-formatted, reordered, newline-terminated, duplicate-key,
+or store-mismatched resolution bytes fail closed. Missing or ambiguous support
+bindings fail instead of matching Geometry by bounds, coordinates, or digest.
 
-`package_compilation_digest` is read-only lineage for the accepted call. It is
-absent on source-compiled, natively defined, replayed, and edited Models; it is
-also deliberately excluded from Model JSON, equality, hashing, revision, and
-structural comparison. This surface does not discover stores or lock files,
-author or install packages, access registries or networks, select imported
-Model roots, execute the Model, or add a Studio package workflow.
+`package_compilation_digest` is read-only lineage for the accepted compilation.
+The resulting `Model` enters ordinary `eqiora.resolve(model, mesh=..., ...)` and
+`eqiora.run(plan)`; its `Plan` and `Run` retain the same digest. Bare Model JSON
+still carries Model/Geometry meaning but not the package sidecar, so replayed
+Models use the same resolver with `package_compilation_digest is None`. Package
+lineage persistence belongs to the symmetric Model artifact I/O work. This
+surface does not discover stores or lock files, author or install packages,
+access registries or networks, or add a Studio package workflow.
 
 ## Check one exact package structurally
 
