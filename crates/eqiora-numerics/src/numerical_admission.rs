@@ -337,10 +337,25 @@ pub enum CommonSolvePolicy {
 }
 
 impl CommonSolvePolicy {
+    /// Construct one admitted algorithm-neutral linear request.
+    pub fn linear(
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+    ) -> Result<Self, Diagnostic> {
+        CommonLinearControls::new(relative_tolerance, absolute_tolerance, maximum_iterations)
+            .map(Self::Linear)
+    }
+
     /// Construct one admitted bounded Newton policy around exact linear controls.
-    #[must_use]
-    pub const fn newton(linear: CommonLinearControls, nonlinear: NonlinearSolvePlan) -> Self {
-        Self::Newton { nonlinear, linear }
+    pub fn newton(
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+        nonlinear: NonlinearSolvePlan,
+    ) -> Result<Self, Diagnostic> {
+        CommonLinearControls::new(relative_tolerance, absolute_tolerance, maximum_iterations)
+            .map(|linear| Self::Newton { nonlinear, linear })
     }
 }
 

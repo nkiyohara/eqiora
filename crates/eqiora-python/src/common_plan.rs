@@ -857,15 +857,25 @@ fn resolve_plan(
     };
     let (solve_native, requested_solve_handle) = if let Ok(linear) = solve.extract::<Py<PyLinear>>()
     {
-        let native = linear.borrow(py).controls();
+        let (relative_tolerance, absolute_tolerance, maximum_iterations) =
+            linear.borrow(py).controls();
         (
-            CommonSolvePolicy::Linear(native),
+            CommonSolvePolicy::linear(relative_tolerance, absolute_tolerance, maximum_iterations)
+                .expect("validated Python linear controls remain valid"),
             RequestedSolveHandle::Linear(linear),
         )
     } else if let Ok(newton) = solve.extract::<Py<PyNewton>>() {
         let newton_ref = newton.borrow(py);
         let linear = newton_ref.linear.clone_ref(py);
-        let native = CommonSolvePolicy::newton(linear.borrow(py).controls(), newton_ref.native);
+        let (relative_tolerance, absolute_tolerance, maximum_iterations) =
+            linear.borrow(py).controls();
+        let native = CommonSolvePolicy::newton(
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+            newton_ref.native,
+        )
+        .expect("validated Python linear controls remain valid");
         drop(newton_ref);
         (native, RequestedSolveHandle::Newton(newton))
     } else {

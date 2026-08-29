@@ -1,5 +1,9 @@
 use super::*;
 
+fn newton_policy(linear: CommonLinearControls, nonlinear: NonlinearSolvePlan) -> CommonSolvePolicy {
+    CommonSolvePolicy::Newton { nonlinear, linear }
+}
+
 #[test]
 pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_resources() {
     let geometry = rectangle();
@@ -20,7 +24,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             model,
             owner,
             spatial,
-            CommonSolvePolicy::newton(linear, nonlinear),
+            newton_policy(linear, nonlinear),
             Some(scaling),
             Some(temporal),
             &ResolveOnlyBackend,
@@ -56,7 +60,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         &model,
         affine_resources(&geometry),
         CommonSpatialPolicy::MiniP1,
-        CommonSolvePolicy::newton(linear, custom_nonlinear),
+        newton_policy(linear, custom_nonlinear),
         Some(scaling),
         Some(temporal),
         &ResolveOnlyBackend,
@@ -76,7 +80,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         &model,
         resources(&geometry),
         CommonSpatialPolicy::CellCentered,
-        CommonSolvePolicy::newton(linear, nonlinear),
+        newton_policy(linear, nonlinear),
         Some(alternate_scaling),
         Some(temporal),
         &ResolveOnlyBackend,
@@ -175,7 +179,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &model,
             affine_resources(&geometry),
             CommonSpatialPolicy::MiniP1,
-            CommonSolvePolicy::newton(linear, nonlinear),
+            newton_policy(linear, nonlinear),
             Some(IncompressibleScalingRequest2d::from_si(Some(1.0), None, Some(3.0)).unwrap()),
             Some(temporal),
             &ResolveOnlyBackend,
@@ -187,7 +191,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &model,
             affine_resources(&geometry),
             CommonSpatialPolicy::MiniP1,
-            CommonSolvePolicy::newton(linear, nonlinear),
+            newton_policy(linear, nonlinear),
             Some(scaling),
             None,
             &ResolveOnlyBackend,
@@ -199,7 +203,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &model,
             resources(&geometry),
             CommonSpatialPolicy::MiniP1,
-            CommonSolvePolicy::newton(linear, nonlinear),
+            newton_policy(linear, nonlinear),
             Some(scaling),
             Some(temporal),
             &ResolveOnlyBackend,

@@ -7,7 +7,7 @@ use std::num::NonZeroUsize;
 use eqiora::realization::NonlinearSolvePlan;
 use eqiora::{Id, kinds};
 use eqiora_numerics::{
-    CommonBackwardEuler, CommonLinearControls, CommonPressureGauge2d, CommonTsitouras45,
+    CommonBackwardEuler, CommonPressureGauge2d, CommonSolvePolicy, CommonTsitouras45,
     CommonTsitourasTolerance,
 };
 use pyo3::exceptions::PyTypeError;
@@ -212,13 +212,12 @@ pub(crate) struct PyLinear {
 }
 
 impl PyLinear {
-    pub(super) fn controls(&self) -> CommonLinearControls {
-        CommonLinearControls::new(
+    pub(super) const fn controls(&self) -> (f64, f64, NonZeroUsize) {
+        (
             self.relative_tolerance,
             self.absolute_tolerance,
             self.maximum_iterations,
         )
-        .expect("validated linear controls remain valid")
     }
 }
 
@@ -234,7 +233,7 @@ impl PyLinear {
     ) -> PyResult<Self> {
         let maximum_iterations = NonZeroUsize::new(maximum_iterations)
             .ok_or_else(|| PyTypeError::new_err("maximum_iterations must be a positive integer"))?;
-        CommonLinearControls::new(relative_tolerance, absolute_tolerance, maximum_iterations)
+        CommonSolvePolicy::linear(relative_tolerance, absolute_tolerance, maximum_iterations)
             .map(|_| Self {
                 relative_tolerance,
                 absolute_tolerance,

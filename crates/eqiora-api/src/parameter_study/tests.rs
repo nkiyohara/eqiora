@@ -10,8 +10,8 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_geometry::{PlanarOperationGraph, PlanarTopologyHandle};
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonLinearControls, CommonScalarPlan, CommonSolvePolicy,
-    CommonSpatialPolicy, resolve_common_plan,
+    AuthenticatedCommonMesh, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
+    resolve_common_plan,
 };
 use eqiora_realization::RealizationRevision;
 use eqiora_solver::REFERENCE_LINEAR_SOLVER;
@@ -455,7 +455,7 @@ fn plan_for(
     } else {
         2.0e-10
     };
-    let solver = CommonLinearControls::new(
+    let solver = CommonSolvePolicy::linear(
         relative_tolerance,
         1.0e-12,
         NonZeroUsize::new(10_000).unwrap(),
@@ -466,7 +466,7 @@ fn plan_for(
         &model,
         owner,
         spatial,
-        CommonSolvePolicy::Linear(solver),
+        solver,
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,

@@ -10,8 +10,8 @@ use eqiora::realization::{SolveRoot, TransformationNode};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonBackwardEuler, CommonInitialField, CommonInitialValues,
-    CommonLinearControls, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy,
-    CommonSpatialRequest, IncompressibleScalingRequest2d, common::PhysicalBoundaryDisposition,
+    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSpatialRequest,
+    IncompressibleScalingRequest2d, common::PhysicalBoundaryDisposition,
     fsi::FixedReferenceFsiCartesianModel2d, fsi::lower_fixed_reference_fsi_cartesian_2d,
     resolve_common_plan,
 };
@@ -271,7 +271,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         CommonScopedSpatialPolicy::new(model_digest.clone(), solid_domain, CommonSpatialPolicy::P1),
     ]);
     let requested =
-        CommonLinearControls::new(1.0e-11, 1.0e-13, NonZeroUsize::new(20_000).unwrap()).unwrap();
+        CommonSolvePolicy::linear(1.0e-11, 1.0e-13, NonZeroUsize::new(20_000).unwrap()).unwrap();
     let common_plans = [
         (
             "manual legacy scaling",
@@ -284,7 +284,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             &common_model,
             resources.clone(),
             scoped.clone(),
-            CommonSolvePolicy::Linear(requested),
+            requested,
             scaling,
             Some(CommonBackwardEuler::from_seconds(0.05).unwrap()),
             &REFERENCE_LINEAR_SOLVER,

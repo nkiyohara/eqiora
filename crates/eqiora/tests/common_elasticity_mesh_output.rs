@@ -10,8 +10,8 @@ use eqiora::geometry::{CanonicalGeometryV1, PlanarOperationGraph, PlanarTopology
 use eqiora::meshing::{MeshEntity, MeshTopology};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonElasticityPlan, CommonElasticityRunOutput, CommonLinearControls,
-    CommonSolvePolicy, CommonSpatialPolicy, resolve_common_plan,
+    AuthenticatedCommonMesh, CommonElasticityPlan, CommonElasticityRunOutput, CommonSolvePolicy,
+    CommonSpatialPolicy, resolve_common_plan,
 };
 use serde_json::{Value, json};
 
@@ -120,13 +120,13 @@ fn accepted() -> Accepted {
     )
     .unwrap();
     let solver =
-        CommonLinearControls::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
+        CommonSolvePolicy::linear(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let plan = resolve_common_plan(
         &model,
         owner,
         CommonSpatialPolicy::Q1,
-        CommonSolvePolicy::Linear(solver),
+        solver,
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
