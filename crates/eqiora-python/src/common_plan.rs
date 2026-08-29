@@ -4,15 +4,12 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use eqiora::artifact::CanonicalModelArtifact;
-use eqiora::backends::faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
+use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::realization::{Space, SpaceFamily};
-use eqiora::solver::{
-    LinearOperatorProperties, REFERENCE_SOLVER_PROVIDER, SolverPlan, SolverPlanningObjective,
-};
 use eqiora_numerics::{
-    CommonElasticityPlan, CommonFsiPlan, CommonMethodRequest, CommonOdePlan, CommonScalarPlan,
-    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSteadyStokesPlan,
-    CommonTransientFlowPlan, resolve_common_ode_plan, resolve_common_plan,
+    CommonFsiPlan, CommonMethodRequest, CommonOdePlan, CommonScalarPlan, CommonScopedSpatialPolicy,
+    CommonSolvePolicy, CommonSpatialPolicy, CommonTransientFlowPlan, ResolvedCommonPlan,
+    resolve_common_ode_plan, resolve_common_plan,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -66,209 +63,6 @@ fn space_name(space: Space) -> &'static str {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum CommonPlanKind {
-    Ode(Box<CommonOdePlan>),
-    Scalar(Box<CommonScalarPlan>),
-    Elasticity(Box<CommonElasticityPlan>),
-    SteadyStokes(Box<CommonSteadyStokesPlan>),
-    TransientFlow(Box<CommonTransientFlowPlan>),
-    Fsi(Box<CommonFsiPlan>),
-}
-
-impl CommonPlanKind {
-    fn identity(&self) -> &str {
-        match self {
-            Self::Ode(plan) => plan.identity(),
-            Self::Scalar(plan) => plan.identity(),
-            Self::Elasticity(plan) => plan.identity(),
-            Self::SteadyStokes(plan) => plan.identity(),
-            Self::TransientFlow(plan) => plan.identity(),
-            Self::Fsi(plan) => plan.identity(),
-        }
-    }
-    fn model_id(&self) -> &str {
-        match self {
-            Self::Ode(plan) => plan.model_id(),
-            Self::Scalar(plan) => plan.model_id(),
-            Self::Elasticity(plan) => plan.model_id(),
-            Self::SteadyStokes(plan) => plan.model_id(),
-            Self::TransientFlow(plan) => plan.model_id(),
-            Self::Fsi(plan) => plan.model_id(),
-        }
-    }
-    fn model_digest(&self) -> &str {
-        match self {
-            Self::Ode(plan) => plan.model_digest(),
-            Self::Scalar(plan) => plan.model_digest(),
-            Self::Elasticity(plan) => plan.model_digest(),
-            Self::SteadyStokes(plan) => plan.model_digest(),
-            Self::TransientFlow(plan) => plan.model_digest(),
-            Self::Fsi(plan) => plan.model_digest(),
-        }
-    }
-    const fn model_revision(&self) -> u64 {
-        match self {
-            Self::Ode(plan) => plan.model_revision(),
-            Self::Scalar(plan) => plan.model_revision(),
-            Self::Elasticity(plan) => plan.model_revision(),
-            Self::SteadyStokes(plan) => plan.model_revision(),
-            Self::TransientFlow(plan) => plan.model_revision(),
-            Self::Fsi(plan) => plan.model_revision(),
-        }
-    }
-    fn geometry_digest(&self) -> Option<&str> {
-        match self {
-            Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.geometry_digest()),
-            Self::Elasticity(plan) => Some(plan.geometry_digest()),
-            Self::SteadyStokes(plan) => Some(plan.geometry_digest()),
-            Self::TransientFlow(plan) => Some(plan.geometry_digest()),
-            Self::Fsi(plan) => Some(plan.geometry_digest()),
-        }
-    }
-    fn mesh_digest(&self) -> Option<&str> {
-        match self {
-            Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.mesh_digest()),
-            Self::Elasticity(plan) => Some(plan.mesh_digest()),
-            Self::SteadyStokes(plan) => Some(plan.mesh_digest()),
-            Self::TransientFlow(plan) => Some(plan.mesh_digest()),
-            Self::Fsi(plan) => Some(plan.mesh_digest()),
-        }
-    }
-    fn correspondence_digest(&self) -> Option<&str> {
-        match self {
-            Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.correspondence_digest()),
-            Self::Elasticity(plan) => Some(plan.correspondence_digest()),
-            Self::SteadyStokes(plan) => Some(plan.correspondence_digest()),
-            Self::TransientFlow(plan) => Some(plan.correspondence_digest()),
-            Self::Fsi(plan) => Some(plan.correspondence_digest()),
-        }
-    }
-    fn production_digest(&self) -> Option<&str> {
-        match self {
-            Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.production_digest()),
-            Self::Elasticity(plan) => Some(plan.production_digest()),
-            Self::SteadyStokes(plan) => Some(plan.production_digest()),
-            Self::TransientFlow(plan) => Some(plan.production_digest()),
-            Self::Fsi(plan) => Some(plan.production_digest()),
-        }
-    }
-    const fn effective_solver(&self) -> Option<SolverPlan> {
-        match self {
-            Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.linear()),
-            Self::Elasticity(plan) => Some(plan.linear()),
-            Self::SteadyStokes(plan) => Some(plan.linear()),
-            Self::TransientFlow(plan) => Some(plan.linear()),
-            Self::Fsi(plan) => Some(plan.linear()),
-        }
-    }
-    fn realization_digest(&self) -> Option<&str> {
-        match self {
-            Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.realization_digest()),
-            Self::Elasticity(plan) => Some(plan.realization_digest()),
-            Self::SteadyStokes(plan) => Some(plan.realization_digest()),
-            Self::TransientFlow(plan) => Some(plan.realization_digest()),
-            Self::Fsi(plan) => Some(plan.realization_digest()),
-        }
-    }
-
-    const fn operator_properties(&self) -> Option<LinearOperatorProperties> {
-        match self {
-            Self::Ode(_) => None,
-            Self::Scalar(_) | Self::Elasticity(_) => {
-                Some(LinearOperatorProperties::SymmetricPositiveDefinite)
-            }
-            Self::SteadyStokes(_) | Self::Fsi(_) => {
-                Some(LinearOperatorProperties::SymmetricIndefinite)
-            }
-            Self::TransientFlow(_) => Some(LinearOperatorProperties::General),
-        }
-    }
-
-    fn solver_backend(&self) -> &'static str {
-        match self {
-            Self::Ode(plan) => plan.backend().id().as_str(),
-            Self::Scalar(_) | Self::Elasticity(_) => REFERENCE_SOLVER_PROVIDER.id().as_str(),
-            Self::SteadyStokes(_) => FAER_SOLVER_PROVIDER.id().as_str(),
-            Self::TransientFlow(plan) => plan.solver_provider().id().as_str(),
-            Self::Fsi(_) => REFERENCE_SOLVER_PROVIDER.id().as_str(),
-        }
-    }
-
-    fn solver_backend_version(&self) -> &'static str {
-        match self {
-            Self::Ode(plan) => plan.backend().version().as_str(),
-            Self::Scalar(_) | Self::Elasticity(_) => {
-                REFERENCE_SOLVER_PROVIDER.implementation_version()
-            }
-            Self::SteadyStokes(_) => FAER_SOLVER_PROVIDER.implementation_version(),
-            Self::TransientFlow(plan) => plan.solver_provider().implementation_version(),
-            Self::Fsi(_) => REFERENCE_SOLVER_PROVIDER.implementation_version(),
-        }
-    }
-
-    const fn solver_planning_objective(&self) -> Option<SolverPlanningObjective> {
-        match self {
-            Self::TransientFlow(plan) => plan.solver_planning_objective(),
-            Self::Ode(_)
-            | Self::Scalar(_)
-            | Self::Elasticity(_)
-            | Self::SteadyStokes(_)
-            | Self::Fsi(_) => None,
-        }
-    }
-
-    const fn solver_planning_policy_id(&self) -> Option<&'static str> {
-        match self {
-            Self::TransientFlow(plan) => plan.solver_planning_policy_id(),
-            Self::Ode(_)
-            | Self::Scalar(_)
-            | Self::Elasticity(_)
-            | Self::SteadyStokes(_)
-            | Self::Fsi(_) => None,
-        }
-    }
-
-    const fn selected_solver_candidate_id(&self) -> Option<&'static str> {
-        match self {
-            Self::TransientFlow(plan) => plan.selected_solver_candidate_id(),
-            Self::Ode(_)
-            | Self::Scalar(_)
-            | Self::Elasticity(_)
-            | Self::SteadyStokes(_)
-            | Self::Fsi(_) => None,
-        }
-    }
-
-    const fn selected_solver_evidence_case(&self) -> Option<&'static str> {
-        match self {
-            Self::TransientFlow(plan) => plan.selected_solver_evidence_case(),
-            Self::Ode(_)
-            | Self::Scalar(_)
-            | Self::Elasticity(_)
-            | Self::SteadyStokes(_)
-            | Self::Fsi(_) => None,
-        }
-    }
-
-    fn solver_planning_reasons(&self) -> &[(&'static str, &'static str)] {
-        match self {
-            Self::TransientFlow(plan) => plan.solver_planning_reasons(),
-            Self::Ode(_)
-            | Self::Scalar(_)
-            | Self::Elasticity(_)
-            | Self::SteadyStokes(_)
-            | Self::Fsi(_) => &[],
-        }
-    }
-}
-
 #[derive(Debug)]
 enum RequestedSolveHandle {
     Linear(Py<PyLinear>),
@@ -291,7 +85,7 @@ enum TemporalHandle {
 #[pyclass(name = "Plan", module = "eqiora._eqiora", frozen, skip_from_py_object)]
 #[derive(Debug)]
 pub(crate) struct PyPlan {
-    native: CommonPlanKind,
+    native: ResolvedCommonPlan,
     model: Py<PyModel>,
     mesh: Option<Py<PyMesh>>,
     spatial: Option<SpatialHandle>,
@@ -314,41 +108,41 @@ impl PyPlan {
 
     pub(crate) fn ode_native(&self) -> Option<&CommonOdePlan> {
         match &self.native {
-            CommonPlanKind::Ode(plan) => Some(plan),
+            ResolvedCommonPlan::Ode(plan) => Some(plan),
             _ => None,
         }
     }
 
     pub(crate) fn transient_native(&self) -> Option<&CommonTransientFlowPlan> {
         match &self.native {
-            CommonPlanKind::TransientFlow(plan) => Some(plan),
-            CommonPlanKind::Ode(_)
-            | CommonPlanKind::Scalar(_)
-            | CommonPlanKind::Elasticity(_)
-            | CommonPlanKind::SteadyStokes(_)
-            | CommonPlanKind::Fsi(_) => None,
+            ResolvedCommonPlan::TransientFlow(plan) => Some(plan),
+            ResolvedCommonPlan::Ode(_)
+            | ResolvedCommonPlan::Scalar(_)
+            | ResolvedCommonPlan::Elasticity(_)
+            | ResolvedCommonPlan::SteadyStokes(_)
+            | ResolvedCommonPlan::Fsi(_) => None,
         }
     }
 
     pub(crate) fn fsi_native(&self) -> Option<&CommonFsiPlan> {
         match &self.native {
-            CommonPlanKind::Fsi(plan) => Some(plan),
+            ResolvedCommonPlan::Fsi(plan) => Some(plan),
             _ => None,
         }
     }
 
     pub(crate) fn scalar_native(&self) -> Option<&CommonScalarPlan> {
         match &self.native {
-            CommonPlanKind::Scalar(plan) => Some(plan),
-            CommonPlanKind::Ode(_)
-            | CommonPlanKind::Elasticity(_)
-            | CommonPlanKind::SteadyStokes(_)
-            | CommonPlanKind::TransientFlow(_)
-            | CommonPlanKind::Fsi(_) => None,
+            ResolvedCommonPlan::Scalar(plan) => Some(plan),
+            ResolvedCommonPlan::Ode(_)
+            | ResolvedCommonPlan::Elasticity(_)
+            | ResolvedCommonPlan::SteadyStokes(_)
+            | ResolvedCommonPlan::TransientFlow(_)
+            | ResolvedCommonPlan::Fsi(_) => None,
         }
     }
 
-    pub(crate) fn native(&self) -> &CommonPlanKind {
+    pub(crate) fn native(&self) -> &ResolvedCommonPlan {
         &self.native
     }
 
@@ -416,12 +210,12 @@ impl PyPlan {
     #[getter]
     fn formulation(&self, py: Python<'_>) -> PyResult<Option<Py<PyFormulationView>>> {
         let description = match &self.native {
-            CommonPlanKind::SteadyStokes(plan) => Some(plan.formulation()),
-            CommonPlanKind::TransientFlow(plan) => Some(plan.formulation()),
-            CommonPlanKind::Ode(_)
-            | CommonPlanKind::Scalar(_)
-            | CommonPlanKind::Elasticity(_)
-            | CommonPlanKind::Fsi(_) => None,
+            ResolvedCommonPlan::SteadyStokes(plan) => Some(plan.formulation()),
+            ResolvedCommonPlan::TransientFlow(plan) => Some(plan.formulation()),
+            ResolvedCommonPlan::Ode(_)
+            | ResolvedCommonPlan::Scalar(_)
+            | ResolvedCommonPlan::Elasticity(_)
+            | ResolvedCommonPlan::Fsi(_) => None,
         };
         description
             .map(|description| Py::new(py, PyFormulationView::from_native(description)))
@@ -430,7 +224,7 @@ impl PyPlan {
     #[getter]
     fn capability(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.native {
-            CommonPlanKind::Ode(plan) => Py::new(
+            ResolvedCommonPlan::Ode(plan) => Py::new(
                 py,
                 PyOdePlanView {
                     backend: plan.backend().id().as_str(),
@@ -438,7 +232,7 @@ impl PyPlan {
                 },
             )
             .map(Py::into_any),
-            CommonPlanKind::Scalar(plan) => Py::new(
+            ResolvedCommonPlan::Scalar(plan) => Py::new(
                 py,
                 PyScalarPlanView {
                     field: PyModelFieldRef::from_exact(
@@ -448,7 +242,7 @@ impl PyPlan {
                 },
             )
             .map(Py::into_any),
-            CommonPlanKind::Elasticity(plan) => Py::new(
+            ResolvedCommonPlan::Elasticity(plan) => Py::new(
                 py,
                 PyElasticityPlanView {
                     displacement: PyModelFieldRef::from_exact(
@@ -458,7 +252,7 @@ impl PyPlan {
                 },
             )
             .map(Py::into_any),
-            CommonPlanKind::SteadyStokes(plan) => Py::new(
+            ResolvedCommonPlan::SteadyStokes(plan) => Py::new(
                 py,
                 PyIncompressibleFlowPlanView {
                     kind: "steady-stokes",
@@ -483,7 +277,7 @@ impl PyPlan {
                 },
             )
             .map(Py::into_any),
-            CommonPlanKind::TransientFlow(plan) => Py::new(
+            ResolvedCommonPlan::TransientFlow(plan) => Py::new(
                 py,
                 PyIncompressibleFlowPlanView {
                     kind: "transient-incompressible-flow",
@@ -508,7 +302,7 @@ impl PyPlan {
                 },
             )
             .map(Py::into_any),
-            CommonPlanKind::Fsi(plan) => {
+            ResolvedCommonPlan::Fsi(plan) => {
                 let fields = plan.field_ids();
                 let model = plan.model_digest().to_owned();
                 Py::new(
@@ -541,33 +335,33 @@ impl PyPlan {
     fn fields(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         let model_digest = self.native.model_digest().to_owned();
         let fields = match &self.native {
-            CommonPlanKind::Ode(plan) => plan
+            ResolvedCommonPlan::Ode(plan) => plan
                 .field_ids()
                 .map(|field| PyModelFieldRef::from_exact(model_digest.clone(), field.to_string()))
                 .collect(),
-            CommonPlanKind::Scalar(plan) => vec![PyModelFieldRef::from_exact(
+            ResolvedCommonPlan::Scalar(plan) => vec![PyModelFieldRef::from_exact(
                 model_digest,
                 plan.field_id().to_owned(),
             )],
-            CommonPlanKind::Elasticity(plan) => vec![PyModelFieldRef::from_exact(
+            ResolvedCommonPlan::Elasticity(plan) => vec![PyModelFieldRef::from_exact(
                 model_digest,
                 plan.displacement_field_id().to_owned(),
             )],
-            CommonPlanKind::SteadyStokes(plan) => vec![
+            ResolvedCommonPlan::SteadyStokes(plan) => vec![
                 PyModelFieldRef::from_exact(
                     model_digest.clone(),
                     plan.velocity_field_id().to_owned(),
                 ),
                 PyModelFieldRef::from_exact(model_digest, plan.pressure_field_id().to_owned()),
             ],
-            CommonPlanKind::TransientFlow(plan) => vec![
+            ResolvedCommonPlan::TransientFlow(plan) => vec![
                 PyModelFieldRef::from_exact(
                     model_digest.clone(),
                     plan.velocity_field_id().to_owned(),
                 ),
                 PyModelFieldRef::from_exact(model_digest, plan.pressure_field_id().to_owned()),
             ],
-            CommonPlanKind::Fsi(plan) => plan
+            ResolvedCommonPlan::Fsi(plan) => plan
                 .field_ids()
                 .iter()
                 .map(|field| PyModelFieldRef::from_exact(model_digest.clone(), field.clone()))
@@ -690,16 +484,6 @@ fn resolve_plan(
             temporal_ref.native.clone(),
             eqiora::backends::diffsol::DIFFSOL_TIME_BACKEND,
         )
-        .map(|plan| {
-            plan.project(
-                |plan| CommonPlanKind::Ode(Box::new(plan)),
-                |plan| CommonPlanKind::Scalar(Box::new(plan)),
-                |plan| CommonPlanKind::Elasticity(Box::new(plan)),
-                |plan| CommonPlanKind::SteadyStokes(Box::new(plan)),
-                |plan| CommonPlanKind::TransientFlow(Box::new(plan)),
-                |plan| CommonPlanKind::Fsi(Box::new(plan)),
-            )
-        })
         .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         drop(temporal_ref);
         drop(model_ref);
@@ -892,16 +676,6 @@ fn resolve_plan(
         temporal_native,
         &FaerLinearSolver,
     )
-    .map(|plan| {
-        plan.project(
-            |plan| CommonPlanKind::Ode(Box::new(plan)),
-            |plan| CommonPlanKind::Scalar(Box::new(plan)),
-            |plan| CommonPlanKind::Elasticity(Box::new(plan)),
-            |plan| CommonPlanKind::SteadyStokes(Box::new(plan)),
-            |plan| CommonPlanKind::TransientFlow(Box::new(plan)),
-            |plan| CommonPlanKind::Fsi(Box::new(plan)),
-        )
-    })
     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
     if native.mesh_digest() != Some(mesh_ref.exact_mesh_digest()) {
         return Err(PyTypeError::new_err(
@@ -938,15 +712,15 @@ fn resolve_plan(
         ),
     )?;
     let solve_handle = match &native {
-        CommonPlanKind::TransientFlow(plan) => ResolvedSolveHandle::Newton(Py::new(
+        ResolvedCommonPlan::TransientFlow(plan) => ResolvedSolveHandle::Newton(Py::new(
             py,
             PyResolvedNewton::new(linear, plan.nonlinear()),
         )?),
-        CommonPlanKind::Ode(_) => unreachable!("spatial resolver cannot return an ODE Plan"),
-        CommonPlanKind::Scalar(_)
-        | CommonPlanKind::Elasticity(_)
-        | CommonPlanKind::SteadyStokes(_)
-        | CommonPlanKind::Fsi(_) => ResolvedSolveHandle::Linear(linear),
+        ResolvedCommonPlan::Ode(_) => unreachable!("spatial resolver cannot return an ODE Plan"),
+        ResolvedCommonPlan::Scalar(_)
+        | ResolvedCommonPlan::Elasticity(_)
+        | ResolvedCommonPlan::SteadyStokes(_)
+        | ResolvedCommonPlan::Fsi(_) => ResolvedSolveHandle::Linear(linear),
     };
     drop(mesh_ref);
     drop(model_ref);

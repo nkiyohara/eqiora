@@ -11,12 +11,13 @@ use eqiora::diagnostic::codes;
 use eqiora::{Diagnostic, GraphPath};
 use eqiora_numerics::{
     CommonFsiRunRequest, CommonOdeRunRequest, CommonState, CommonTransientRunRequest,
+    ResolvedCommonPlan,
 };
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
-use crate::common_plan::{CommonPlanKind, PyPlan};
+use crate::common_plan::PyPlan;
 use crate::error::{
     cancellation_error, catch_native_panic, execution_error, internal_diagnostic_error,
     internal_error, panic_boundary, validation_error,
@@ -493,76 +494,76 @@ impl PyRun {
             plan_ref.native(),
             request,
         ) {
-            (CommonPlanKind::Ode(_), Some(CommonRunRequest::Ode(request))) => (
+            (ResolvedCommonPlan::Ode(_), Some(CommonRunRequest::Ode(request))) => (
                 RunIdentity::from_common_ode(&request),
                 NativeRunJob::Ode(request),
                 "eqiora-common-ode-run",
                 false,
             ),
-            (CommonPlanKind::Scalar(native), None) => (
+            (ResolvedCommonPlan::Scalar(native), None) => (
                 RunIdentity::from_common_plan(native),
                 NativeRunJob::Scalar(native.clone()),
                 "eqiora-common-scalar-run",
                 true,
             ),
-            (CommonPlanKind::Elasticity(native), None) => (
+            (ResolvedCommonPlan::Elasticity(native), None) => (
                 RunIdentity::from_common_elasticity(native),
                 NativeRunJob::Elasticity(native.clone()),
                 "eqiora-common-elasticity-run",
                 true,
             ),
-            (CommonPlanKind::SteadyStokes(native), None) => (
+            (ResolvedCommonPlan::SteadyStokes(native), None) => (
                 RunIdentity::from_common_steady_stokes(native),
                 NativeRunJob::SteadyStokes(native.clone()),
                 "eqiora-common-steady-stokes-run",
                 true,
             ),
-            (CommonPlanKind::TransientFlow(_), Some(CommonRunRequest::Transient(request))) => (
+            (ResolvedCommonPlan::TransientFlow(_), Some(CommonRunRequest::Transient(request))) => (
                 RunIdentity::from_common_transient(&request),
                 NativeRunJob::Transient(request),
                 "eqiora-common-transient-run",
                 true,
             ),
-            (CommonPlanKind::Fsi(_), Some(CommonRunRequest::Fsi(request))) => (
+            (ResolvedCommonPlan::Fsi(_), Some(CommonRunRequest::Fsi(request))) => (
                 RunIdentity::from_common_fsi(&request),
                 NativeRunJob::Fsi(request),
                 "eqiora-common-fsi-run",
                 true,
             ),
-            (CommonPlanKind::TransientFlow(_), None) => {
+            (ResolvedCommonPlan::TransientFlow(_), None) => {
                 return Err(PyTypeError::new_err(
                     "transient submit requires State and one explicit horizon/output schedule family",
                 ));
             }
-            (CommonPlanKind::Fsi(_), None) => {
+            (ResolvedCommonPlan::Fsi(_), None) => {
                 return Err(PyTypeError::new_err(
                     "FSI submit requires State and one explicit horizon/output schedule family",
                 ));
             }
-            (CommonPlanKind::Ode(_), None) => {
+            (ResolvedCommonPlan::Ode(_), None) => {
                 return Err(PyTypeError::new_err(
                     "ODE submit requires State, until_s, and output_times_s",
                 ));
             }
-            (CommonPlanKind::TransientFlow(_), Some(CommonRunRequest::Ode(_))) => {
+            (ResolvedCommonPlan::TransientFlow(_), Some(CommonRunRequest::Ode(_))) => {
                 return Err(PyTypeError::new_err(
                     "ODE Run request crossed a spatial transient Plan",
                 ));
             }
             (
-                CommonPlanKind::Fsi(_),
+                ResolvedCommonPlan::Fsi(_),
                 Some(CommonRunRequest::Ode(_) | CommonRunRequest::Transient(_)),
             )
-            | (CommonPlanKind::TransientFlow(_), Some(CommonRunRequest::Fsi(_))) => {
+            | (ResolvedCommonPlan::TransientFlow(_), Some(CommonRunRequest::Fsi(_))) => {
                 return Err(PyTypeError::new_err(
                     "common Run request crossed an incompatible transient Plan",
                 ));
             }
             (
-                CommonPlanKind::Scalar(_)
-                | CommonPlanKind::Elasticity(_)
-                | CommonPlanKind::SteadyStokes(_)
-                | CommonPlanKind::Ode(_),
+                ResolvedCommonPlan::Scalar(_)
+                | ResolvedCommonPlan::Elasticity(_)
+                | ResolvedCommonPlan::SteadyStokes(_)
+                | ResolvedCommonPlan::Ode(_),
                 Some(_),
             ) => {
                 return Err(PyTypeError::new_err(
