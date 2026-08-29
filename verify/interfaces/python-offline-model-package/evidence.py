@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run both registered oracles for the offline Model Package Python projection."""
+"""Run the installed boundary and package-Geometry common Run lifecycle."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def main() -> int:
             ]
         )
     except (OSError, subprocess.CalledProcessError) as error:
-        print(f"offline Model Package Python evidence failed: {error}", file=sys.stderr)
+        print(f"package Component Python lifecycle evidence failed: {error}", file=sys.stderr)
         return 2
     return 0
 

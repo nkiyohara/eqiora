@@ -439,8 +439,8 @@ impl AnalyzedResolvedHierarchy {
 /// crossed the compiler-owned static validation barrier.
 #[derive(Clone, Debug)]
 pub struct ValidatedResolvedHierarchy {
-    analysis: AnalyzedResolvedHierarchy,
-    checked: crate::hierarchy::CheckedDefinitionGraph,
+    pub(crate) analysis: AnalyzedResolvedHierarchy,
+    pub(crate) checked: crate::hierarchy::CheckedDefinitionGraph,
 }
 
 impl ValidatedResolvedHierarchy {

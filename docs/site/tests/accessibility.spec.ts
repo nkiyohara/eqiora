@@ -280,8 +280,8 @@ test('02 exact table inventory is complete before parent or product matrix resul
     componentTotal += expected.component;
   }
   expect({ tableTotal, directTotal, componentTotal }).toEqual({
-    tableTotal: 973,
-    directTotal: 972,
+    tableTotal: 974,
+    directTotal: 973,
     componentTotal: 1,
   });
   await page.goto('/reference/python/eqiora/');

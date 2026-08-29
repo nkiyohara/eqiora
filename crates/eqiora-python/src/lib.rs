@@ -188,7 +188,7 @@ fn admitted_compile_source(
     }
 }
 
-fn extract_parameter_values(
+pub(crate) fn extract_parameter_values(
     parameters: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<Vec<(String, f64)>> {
     let Some(parameters) = parameters else {

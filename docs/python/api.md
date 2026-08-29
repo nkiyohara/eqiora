@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 16 module summaries and all 142 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 554 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 16 module summaries and all 142 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 556 signature-only entries under documented owning types**.
 
-Inventory: 16 modules, 167 literal public spellings, 142 canonical grouped declarations, 740 visible method signatures (554 non-dunder and 186 dunder), and 65 visible class assignments.
+Inventory: 16 modules, 167 literal public spellings, 142 canonical grouped declarations, 742 visible method signatures (556 non-dunder and 186 dunder), and 65 visible class assignments.
 
 Regenerate with:
 
@@ -851,6 +851,8 @@ class Plan:
     @property
     def model_revision(self) -> int: ...
     @property
+    def package_compilation_digest(self) -> str | None: ...
+    @property
     def geometry_digest(self) -> str | None: ...
     @property
     def mesh_digest(self) -> str | None: ...
@@ -1058,6 +1060,8 @@ class Run(Generic[_RunResultT]):
     def model_digest(self) -> str: ...
     @property
     def model_revision(self) -> int: ...
+    @property
+    def package_compilation_digest(self) -> str | None: ...
     @property
     def plan_key(self) -> str: ...
     @property
@@ -1300,12 +1304,12 @@ def compile(*, path: str | PathLike[str] | None=None, source: str | lang.Source 
 
 ### `eqiora.compile_package`
 
-Compile one root-local model from a selected locked package store.
+Compile one root-package Component against caller-owned Geometry.
 
 Authority: [`crates/eqiora-python/src/package.rs::compile_package`](../../crates/eqiora-python/src/package.rs)
 
 ```python
-def compile_package(store_root: str | PathLike[str], resolution: bytes, *, entry_model: str) -> Model: ...
+def compile_package(store_root: str | PathLike[str], resolution: bytes, *, geometry: geometry.Geometry, component: str, parameters: dict[str, float | int] | None=None) -> Model: ...
 ```
 
 <a id="api-eqiora-connect"></a>

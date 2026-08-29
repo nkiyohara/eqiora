@@ -6,6 +6,14 @@ are recorded here.
 
 ## [Unreleased]
 
+### Changed
+
+- Changed installed-Python locked package compilation from a self-contained
+  root Model projection to a root public Component bound to caller-owned
+  Geometry and Parameters. The resulting ordinary Model now enters the common
+  Mesh, Plan, and Run lifecycle, with exact package-compilation lineage retained
+  on Model, Plan, and Run and no package-specific resolver or Run semantics.
+
 ## [0.1.0a4] - 2026-08-28
 
 ### Added

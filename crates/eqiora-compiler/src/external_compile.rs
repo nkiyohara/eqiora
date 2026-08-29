@@ -13,7 +13,28 @@ use crate::external::{
     ExternalComponentBinding, ExternalGeometrySupportBinding, ExternalParameterBinding,
 };
 use crate::lower::CompiledModel;
+use crate::resolved::ValidatedResolvedHierarchy;
 use crate::source_identity::LocalSourceIdentityLimits;
+
+impl ValidatedResolvedHierarchy {
+    /// Elaborate one root-package public Component as an ephemeral Model
+    /// occurrence bound to exact caller-owned Geometry.
+    ///
+    /// # Errors
+    /// Returns accumulated selection, binding, hierarchy, or typed-lowering
+    /// diagnostics. No partial transaction is returned.
+    #[doc(hidden)]
+    pub fn compile_external_geometry_component(
+        &self,
+        geometry: &CanonicalGeometryV1,
+        component: &str,
+        parameters: &[(&str, f64)],
+    ) -> Result<CompiledModel, Vec<Diagnostic>> {
+        CompiledModel::compile_resolved_external_geometry_component(
+            self, geometry, component, parameters,
+        )
+    }
+}
 
 impl CompiledModel {
     fn external_component_binding_limit() -> usize {
@@ -83,101 +104,69 @@ impl CompiledModel {
             }
         };
 
-        let mut supports = Vec::new();
-        for item in selected.items() {
-            let ComponentItem::Support(slot) = item else {
-                continue;
-            };
-            let selection = geometry.entity_set(slot.name()).ok_or_else(|| {
-                vec![source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    slot.range(),
-                    format!(
-                        "supplied Geometry has no exact selection named {:?} for support slot {:?}",
-                        slot.name(),
-                        slot.name()
-                    ),
-                )]
-            })?;
-            let parent = match slot.syntax() {
-                SupportSlotSyntax::Volume { .. } => None,
-                SupportSlotSyntax::Boundary { parent } => Some((
-                    parent.as_str(),
-                    geometry.entity_set(parent).ok_or_else(|| {
-                        vec![source_error(
-                            codes::LANGUAGE_TYPE_ERROR,
-                            file,
-                            slot.range(),
-                            format!(
-                                "supplied Geometry has no exact parent selection named {parent:?} for boundary support {:?}",
-                                slot.name()
-                            ),
-                        )]
-                    })?,
-                )),
-                SupportSlotSyntax::CompleteExterior { .. } => {
-                    return Err(vec![source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        slot.range(),
-                        format!(
-                            "complete-exterior support slot {:?} is not eligible for singular exact-name Geometry binding",
-                            slot.name()
-                        ),
-                    )]);
-                }
-                _ => {
-                    return Err(vec![source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        slot.range(),
-                        format!(
-                            "support slot {:?} uses a newer contract than exact-name Geometry binding",
-                            slot.name()
-                        ),
-                    )]);
-                }
-            };
-            supports.push((slot.name(), selection, parent));
-        }
+        let binding = external_geometry_binding(file, selected, geometry, "Main", parameters)?;
+        crate::hierarchy::compile_external_component(file, source, &binding)
+    }
 
-        let declarations = selected
-            .items()
+    /// Compile one root-package public Component against one exact caller
+    /// Geometry through the same ephemeral root occurrence used by local
+    /// definitions-only source.
+    #[doc(hidden)]
+    pub(crate) fn compile_resolved_external_geometry_component(
+        hierarchy: &ValidatedResolvedHierarchy,
+        geometry: &CanonicalGeometryV1,
+        component: &str,
+        parameters: &[(&str, f64)],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if let Some(unit) = hierarchy
+            .analysis
+            .units
             .iter()
-            .filter_map(|item| match item {
-                ComponentItem::Parameter(parameter) => Some((parameter.name(), parameter)),
-                _ => None,
-            })
-            .collect::<BTreeMap<_, _>>();
-        let mut dimensioned = Vec::with_capacity(parameters.len());
-        for (name, value) in parameters {
-            if !value.is_finite() {
-                return Err(vec![source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    TextRange::default(),
-                    format!("external Parameter `{name}` must have a finite coherent-SI value"),
-                )]);
-            }
-            let dimension = declarations
-                .get(name)
-                .map(|declaration| {
-                    crate::dimensions::lower_dimension(file, declaration.dimension())
-                })
-                .transpose()
-                .map_err(|diagnostic| vec![diagnostic])?
-                .unwrap_or(eqiora_core::DimExponents::DIMENSIONLESS);
-            dimensioned.push((*name, DynQuantity::new(*value, dimension)));
+            .filter(|unit| unit.namespace == hierarchy.analysis.root)
+            .find(|unit| !unit.document.models().is_empty())
+        {
+            return Err(vec![source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                &unit.file,
+                TextRange::default(),
+                "Geometry-backed package compilation requires a definitions-only root package without a Model",
+            )]);
         }
-        Self::compile_external_component(
-            file,
-            source,
-            "Main",
-            selected.name(),
-            geometry,
-            &supports,
-            &dimensioned,
+        let selected = hierarchy
+            .analysis
+            .units
+            .iter()
+            .filter(|unit| unit.namespace == hierarchy.analysis.root)
+            .flat_map(|unit| {
+                unit.document
+                    .components()
+                    .iter()
+                    .filter(move |candidate| candidate.name() == component)
+                    .map(move |candidate| (unit.file.as_str(), candidate))
+            })
+            .collect::<Vec<_>>();
+        let [(file, selected)] = selected.as_slice() else {
+            return Err(vec![source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                "<resolved-package>",
+                TextRange::default(),
+                format!("component={component:?} must name exactly one root-package Component"),
+            )]);
+        };
+        if selected.visibility() != VisibilitySyntax::Public {
+            return Err(vec![source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                selected.range(),
+                format!("external Component `{component}` must be declared public"),
+            )]);
+        }
+        let binding = external_geometry_binding(file, selected, geometry, "Main", parameters)?;
+        crate::hierarchy::compile_resolved_external_component(
+            &hierarchy.analysis,
+            &hierarchy.checked,
+            &binding,
+            crate::hierarchy::HierarchyLimits::default(),
         )
     }
 
@@ -235,6 +224,131 @@ impl CompiledModel {
         let binding = ExternalComponentBinding::new(model, component, supports, parameters);
         crate::hierarchy::compile_external_component(file, source, &binding)
     }
+}
+
+fn external_geometry_binding(
+    file: &str,
+    selected: &eqiora_lang::ComponentDecl,
+    geometry: &CanonicalGeometryV1,
+    model: &str,
+    parameters: &[(&str, f64)],
+) -> Result<ExternalComponentBinding, Vec<Diagnostic>> {
+    let mut supports = Vec::new();
+    for item in selected.items() {
+        let ComponentItem::Support(slot) = item else {
+            continue;
+        };
+        let selection = geometry.entity_set(slot.name()).ok_or_else(|| {
+            vec![source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                slot.range(),
+                format!(
+                    "supplied Geometry has no exact selection named {:?} for support slot {:?}",
+                    slot.name(),
+                    slot.name()
+                ),
+            )]
+        })?;
+        let parent = match slot.syntax() {
+            SupportSlotSyntax::Volume { .. } => None,
+            SupportSlotSyntax::Boundary { parent } => Some((
+                parent.as_str(),
+                geometry.entity_set(parent).ok_or_else(|| {
+                    vec![source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        slot.range(),
+                        format!(
+                            "supplied Geometry has no exact parent selection named {parent:?} for boundary support {:?}",
+                            slot.name()
+                        ),
+                    )]
+                })?,
+            )),
+            SupportSlotSyntax::CompleteExterior { .. } => {
+                return Err(vec![source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    slot.range(),
+                    format!(
+                        "complete-exterior support slot {:?} is not eligible for singular exact-name Geometry binding",
+                        slot.name()
+                    ),
+                )]);
+            }
+            _ => {
+                return Err(vec![source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    slot.range(),
+                    format!(
+                        "support slot {:?} uses a newer contract than exact-name Geometry binding",
+                        slot.name()
+                    ),
+                )]);
+            }
+        };
+        supports.push((slot.name(), selection, parent));
+    }
+
+    let declarations = selected
+        .items()
+        .iter()
+        .filter_map(|item| match item {
+            ComponentItem::Parameter(parameter) => Some((parameter.name(), parameter)),
+            _ => None,
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut dimensioned = Vec::with_capacity(parameters.len());
+    for (name, value) in parameters {
+        if !value.is_finite() {
+            return Err(vec![source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                TextRange::default(),
+                format!("external Parameter `{name}` must have a finite coherent-SI value"),
+            )]);
+        }
+        let dimension = declarations
+            .get(name)
+            .map(|declaration| crate::dimensions::lower_dimension(file, declaration.dimension()))
+            .transpose()
+            .map_err(|diagnostic| vec![diagnostic])?
+            .unwrap_or(eqiora_core::DimExponents::DIMENSIONLESS);
+        dimensioned.push((*name, DynQuantity::new(*value, dimension)));
+    }
+    validate_binding_counts(file, supports.len(), dimensioned.len())?;
+    validate_external_name_limits(file, model, selected.name(), &supports, &dimensioned)?;
+    validate_geometry_bindings(file, geometry, &supports)?;
+    let digest = GeometryDigest::new(geometry.digest_bytes());
+    let supports = supports
+        .iter()
+        .map(|(slot, selection, parent)| match parent {
+            Some((parent_slot, _)) => ExternalGeometrySupportBinding::boundary(
+                *slot,
+                digest,
+                selection.name(),
+                *parent_slot,
+            ),
+            None => ExternalGeometrySupportBinding::region(
+                *slot,
+                digest,
+                selection.name(),
+                geometry.ambient_dimension(),
+            ),
+        })
+        .collect();
+    let parameters = dimensioned
+        .iter()
+        .map(|(parameter, value)| ExternalParameterBinding::new(*parameter, *value))
+        .collect();
+    Ok(ExternalComponentBinding::new(
+        model,
+        selected.name(),
+        supports,
+        parameters,
+    ))
 }
 
 #[allow(

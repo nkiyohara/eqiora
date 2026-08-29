@@ -89,10 +89,19 @@ exact resolution record + content-addressed store
   → verified release graph
   → parse and index every exact model source
   → compare compiler canonical declarations with every release
-  → elaborate the selected root
+  → select either a self-contained root Model or a root public Component
+  → for a Component, bind abstract supports to caller-owned Geometry by exact name
+  → elaborate through the common compiler-owned root occurrence
   → ordinary Transaction / Model artifact
   → package compilation sidecar
 ```
+
+The installed package-to-execution path selects the Component form. Its
+package source contains no concrete `box(...)` or caller application roles;
+Geometry and Mesh remain caller authorities. The resulting Model enters the
+same root `resolve(Model, Mesh, typed policies) -> Plan -> run/submit` path as
+local source. Package compilation is retained as lineage on the in-memory
+Model, Plan, and Run, never as a package-specific resolver or execution mode.
 
 `eqiora-package` owns closed manifest, semantic content, source bundle,
 resolution, store, and compilation-record contracts but has no compiler

@@ -65,7 +65,7 @@ impl ModelDocument {
         Self::accept_external_compiled(compiled, geometry)
     }
 
-    fn accept_external_compiled(
+    pub(crate) fn accept_external_compiled(
         compiled: CompiledModel,
         geometry: &CanonicalGeometryV1,
     ) -> Result<Self, Vec<Diagnostic>> {

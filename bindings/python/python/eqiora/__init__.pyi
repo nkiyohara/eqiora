@@ -670,6 +670,8 @@ class Plan:
     @property
     def model_revision(self) -> int: ...
     @property
+    def package_compilation_digest(self) -> str | None: ...
+    @property
     def geometry_digest(self) -> str | None: ...
     @property
     def mesh_digest(self) -> str | None: ...
@@ -1106,6 +1108,8 @@ class Run(Generic[_RunResultT]):
     @property
     def model_revision(self) -> int: ...
     @property
+    def package_compilation_digest(self) -> str | None: ...
+    @property
     def plan_key(self) -> str: ...
     @property
     def adapter(self) -> str: ...
@@ -1154,9 +1158,11 @@ def compile_package(
     store_root: str | PathLike[str],
     resolution: bytes,
     *,
-    entry_model: str,
+    geometry: geometry.Geometry,
+    component: str,
+    parameters: dict[str, float | int] | None = None,
 ) -> Model:
-    """Compile one root-local model from a selected locked package store.
+    """Compile one root-package Component against caller-owned Geometry.
 
     Authority: ``crates/eqiora-python/src/package.rs::compile_package``.
     """

@@ -321,6 +321,19 @@ pub(crate) struct PyModel {
 }
 
 impl PyModel {
+    pub(crate) fn package_compilation_digest_value(&self) -> Result<Option<String>, Diagnostic> {
+        self.package_compilation
+            .as_ref()
+            .map(|compilation| compilation.digest().map(|digest| digest.to_hex()))
+            .transpose()
+            .map_err(|_| {
+                Diagnostic::error(
+                    codes::INTERNAL_FAILURE,
+                    "accepted package-compilation lineage could not be projected",
+                )
+            })
+    }
+
     pub(crate) fn from_document(py: Python<'_>, document: ModelDocument) -> PyResult<Self> {
         let reference = document
             .artifact_reference()
@@ -373,6 +386,16 @@ impl PyModel {
         let compilation = packaged.compilation().clone();
         let mut model = Self::from_document(py, packaged.model().clone())?;
         model.package_compilation = Some(compilation);
+        Ok(model)
+    }
+
+    pub(crate) fn from_packaged_with_geometry(
+        py: Python<'_>,
+        packaged: PackagedModelDocument,
+        geometry: Py<PyGeometry>,
+    ) -> PyResult<Self> {
+        let mut model = Self::from_packaged(py, packaged)?;
+        model._geometry = Some(geometry);
         Ok(model)
     }
 
@@ -492,19 +515,15 @@ impl PyModel {
     /// Exact accepted package-compilation lineage, absent after any derivation or replay.
     #[getter]
     fn package_compilation_digest(&self, py: Python<'_>) -> PyResult<Option<String>> {
-        self.package_compilation
-            .as_ref()
-            .map(|compilation| compilation.digest().map(|digest| digest.to_hex()))
-            .transpose()
-            .map_err(|_| {
-                internal_diagnostic_error(
-                    py,
-                    &[Diagnostic::error(
-                        codes::INTERNAL_FAILURE,
-                        "accepted package-compilation lineage could not be projected",
-                    )],
-                )
-            })
+        self.package_compilation_digest_value().map_err(|_| {
+            internal_diagnostic_error(
+                py,
+                &[Diagnostic::error(
+                    codes::INTERNAL_FAILURE,
+                    "accepted package-compilation lineage could not be projected",
+                )],
+            )
+        })
     }
 
     /// Alpha-normalized structural evidence, separate from exact artifact identity.

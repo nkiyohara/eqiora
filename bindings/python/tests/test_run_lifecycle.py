@@ -71,6 +71,8 @@ def test_sync_and_submitted_runs_share_one_result_contract() -> None:
     assert submitted.model_id == model.model_id == first.model_id
     assert submitted.model_digest == model.digest == first.model_digest
     assert submitted.model_revision == model.revision.number == first.model_revision
+    assert plan.package_compilation_digest is None
+    assert submitted.package_compilation_digest is None
     assert submitted.plan_key == first.plan_key
     assert submitted.adapter == first.adapter == "eqiora.time.diffsol"
     assert submitted.adapter_version == first.adapter_version == "0.16.1"
