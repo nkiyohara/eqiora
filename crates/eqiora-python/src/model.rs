@@ -2,6 +2,7 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::path::PathBuf;
 
 use eqiora::api::package::PackagedModelDocument;
 use eqiora::api::{ModelDocument, ModelParameterRef, StructuralSemanticFingerprint, ValueEditPlan};
@@ -10,11 +11,13 @@ use eqiora::diagnostic::codes;
 use eqiora::graph::Op;
 use eqiora::package::PackageCompilationRecordV1;
 use eqiora::{Diagnostic, EntityKind, RawId};
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes, PyModule};
+use pyo3::types::{PyAny, PyBytes, PyModule, PyString};
 
 use crate::error::{diagnostic_error, internal_diagnostic_error, panic_boundary, validation_error};
 use crate::geometry::PyGeometry;
+use crate::model_io::{self, DecodedModel};
 
 /// Exact identity of one immutable canonical Model artifact.
 #[pyclass(
@@ -484,13 +487,58 @@ impl PyModel {
         })
     }
 
-    /// Canonical, versioned Model artifact bytes.
-    fn to_json<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+    /// Exact canonical, versioned compiled Model artifact bytes.
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         panic_boundary(py, || {
             self.artifact
                 .canonical_json()
                 .map(|bytes| PyBytes::new(py, &bytes))
                 .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))
+        })
+    }
+
+    /// Decode exact canonical compiled Model artifact bytes.
+    #[staticmethod]
+    fn from_bytes(py: Python<'_>, data: &[u8]) -> PyResult<Self> {
+        panic_boundary(py, || {
+            let data = data.to_vec();
+            py.detach(move || model_io::decode_model(&data))
+                .map_err(|diagnostics| crate::error::compatibility_error(py, &diagnostics))
+                .and_then(|decoded| match decoded {
+                    DecodedModel::Document(document) => Self::from_document(py, *document),
+                    DecodedModel::Deferred(artifact) => Self::from_artifact(py, artifact),
+                })
+        })
+    }
+
+    /// Atomically write this compiled Model to a `.eqmodel` file.
+    fn write(&self, py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<()> {
+        panic_boundary(py, || {
+            let path = unicode_model_path(py, path)?;
+            let bytes = self
+                .artifact
+                .canonical_json()
+                .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
+            py.detach(move || model_io::write_model_bytes(&path, &bytes))
+                .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))
+        })
+    }
+
+    /// Read and decode one exact canonical compiled Model `.eqmodel` file.
+    #[staticmethod]
+    fn read(py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<Self> {
+        panic_boundary(py, || {
+            let path = unicode_model_path(py, path)?;
+            let bytes = py
+                .detach(move || model_io::read_model_bytes(&path))
+                .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))?;
+            let decoded = py
+                .detach(move || model_io::decode_model(&bytes))
+                .map_err(|diagnostics| crate::error::compatibility_error(py, &diagnostics))?;
+            match decoded {
+                DecodedModel::Document(document) => Self::from_document(py, *document),
+                DecodedModel::Deferred(artifact) => Self::from_artifact(py, artifact),
+            }
         })
     }
 
@@ -512,7 +560,7 @@ impl PyModel {
         &self.revision.digest
     }
 
-    /// Exact accepted package-compilation lineage, absent after any derivation or replay.
+    /// Exact accepted package-compilation lineage, absent after derivation or decoding.
     #[getter]
     fn package_compilation_digest(&self, py: Python<'_>) -> PyResult<Option<String>> {
         self.package_compilation_digest_value().map_err(|_| {
@@ -737,6 +785,14 @@ impl PyModel {
             self.revision.model_id, self.revision.number, self.revision.digest
         )
     }
+}
+
+fn unicode_model_path(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<PathBuf> {
+    let path = py.import("os")?.getattr("fspath")?.call1((value,))?;
+    let path = path
+        .cast::<PyString>()
+        .map_err(|_| PyTypeError::new_err("path must resolve to a Unicode filesystem path"))?;
+    Ok(PathBuf::from(path.to_str()?))
 }
 
 fn hash_value(value: &impl Hash) -> u64 {

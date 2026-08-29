@@ -411,7 +411,8 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         );
 
         let replayed_child = module
-            .getattr("replay")?
+            .getattr("Model")?
+            .getattr("from_bytes")?
             .call1((PyBytes::new(py, &child_bytes),))?;
         let parameter_id = replayed_child
             .getattr("parameter_ids")?
@@ -448,7 +449,8 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         )?;
 
         let malformed = module
-            .getattr("replay")?
+            .getattr("Model")?
+            .getattr("from_bytes")?
             .call1((PyBytes::new(py, b"{}"),))
             .expect_err("malformed current Model wire must fail closed");
         assert_exception(
@@ -677,7 +679,7 @@ fn assert_pairwise_distinct<T: std::fmt::Debug + PartialEq>(values: &[T; 3]) {
 }
 
 fn model_bytes(model: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
-    model.call_method0("to_json")?.extract()
+    model.call_method0("to_bytes")?.extract()
 }
 
 fn revision_number(model: &Bound<'_, PyAny>) -> PyResult<u64> {

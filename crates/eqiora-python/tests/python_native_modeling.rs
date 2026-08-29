@@ -434,7 +434,7 @@ fn replay_python_model(locals: &Bound<'_, PyDict>, name: &str) -> eqiora::api::M
         .get_item(name)
         .unwrap()
         .unwrap()
-        .call_method0("to_json")
+        .call_method0("to_bytes")
         .unwrap()
         .extract()
         .unwrap();

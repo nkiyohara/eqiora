@@ -160,7 +160,6 @@ EXPECTED_EQIORA_ALL = [
     "div",
     "grad",
     "lang",
-    "replay",
     "resolve",
     "run",
     "submit",

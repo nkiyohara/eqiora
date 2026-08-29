@@ -104,7 +104,7 @@ def test_root_plan_result_and_observation_close_exact_lineage() -> None:
 
 def test_fresh_and_replayed_models_use_the_same_root_resolver() -> None:
     _, model, plan, _ = accepted()
-    replayed = eqiora.replay(model.to_json())
+    replayed = eqiora.Model.from_bytes(model.to_bytes())
     again = eqiora.resolve(
         replayed,
         mesh=plan.mesh,

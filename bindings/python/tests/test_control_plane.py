@@ -77,12 +77,12 @@ def test_compile_contract_is_claim_local_at_runtime_and_in_the_stub() -> None:
     assert ast.unparse(declaration.returns) == "Model"
 
 
-def test_revision_identity_is_exact_across_artifact_replay() -> None:
+def test_revision_identity_is_exact_across_artifact_bytes() -> None:
     import eqiora
 
     model = eqiora.compile(source=SOURCE, filename="decay.eqi")
     revision = model.revision
-    replay = eqiora.replay(model.to_json())
+    replay = eqiora.Model.from_bytes(model.to_bytes())
 
     assert revision.number == 1
     assert revision.model_id == model.model_id
@@ -93,7 +93,7 @@ def test_revision_identity_is_exact_across_artifact_replay() -> None:
     assert hash(replay.revision) == hash(revision)
 
 
-def test_current_only_surface_rejects_retired_selectors_and_malformed_replay() -> None:
+def test_current_only_surface_rejects_retired_selectors_and_malformed_bytes() -> None:
     import eqiora
 
     for retired in (
@@ -101,13 +101,96 @@ def test_current_only_surface_rejects_retired_selectors_and_malformed_replay() -
         "ExactModelCodec",
         "compile_exact",
         "define_exact",
+        "replay",
         "replay_exact",
     ):
         assert not hasattr(eqiora, retired)
 
     with pytest.raises(eqiora.CompatibilityError) as caught:
-        eqiora.replay(MALFORMED_RETIRED_SCHEMA_SPECIMEN)
+        eqiora.Model.from_bytes(MALFORMED_RETIRED_SCHEMA_SPECIMEN)
     assert [diagnostic.code for diagnostic in caught.value.diagnostics] == ["EQ0901"]
+
+
+def test_model_bytes_and_eqmodel_files_are_symmetric_and_exact(tmp_path: Path) -> None:
+    import eqiora
+
+    model = eqiora.compile(source=SOURCE, filename="decay.eqi")
+    encoded = model.to_bytes()
+    restored = eqiora.Model.from_bytes(encoded)
+
+    assert restored == model
+    assert restored.revision == model.revision
+    assert restored.to_bytes() == encoded
+
+    path = tmp_path / "decay.eqmodel"
+    path.write_bytes(b"not a Model")
+    model.write(path)
+    assert path.read_bytes() == encoded
+    assert not list(tmp_path.glob(".eqiora-model-*.tmp"))
+
+    reopened = eqiora.Model.read(path)
+    assert reopened == model
+    assert reopened.revision == model.revision
+    assert reopened.to_bytes() == encoded
+
+
+def test_model_artifact_io_fails_closed_at_format_and_file_boundaries(
+    tmp_path: Path,
+) -> None:
+    import eqiora
+
+    model = eqiora.compile(source=SOURCE, filename="decay.eqi")
+    encoded = model.to_bytes()
+
+    rejected_bytes = (
+        encoded[:-1],
+        encoded + b"\n",
+        b"foreign",
+        b"[" * 65 + b"0" + b"]" * 65,
+        b"x" * (16 * 1024 * 1024 + 1),
+    )
+    for rejected in rejected_bytes:
+        with pytest.raises(eqiora.CompatibilityError) as caught:
+            eqiora.Model.from_bytes(rejected)
+        assert caught.value.category == "compatibility"
+        assert [diagnostic.code for diagnostic in caught.value.diagnostics] == ["EQ0901"]
+
+    wrong_suffix = tmp_path / "decay.eqi"
+    with pytest.raises(eqiora.CompatibilityError):
+        model.write(wrong_suffix)
+    assert not wrong_suffix.exists()
+
+    with pytest.raises(eqiora.CompatibilityError):
+        eqiora.Model.read(wrong_suffix)
+
+    directory = tmp_path / "directory.eqmodel"
+    directory.mkdir()
+    with pytest.raises(eqiora.CompatibilityError):
+        eqiora.Model.read(directory)
+    with pytest.raises(eqiora.CompatibilityError):
+        model.write(directory)
+
+    target = tmp_path / "target.eqmodel"
+    target.write_bytes(encoded)
+    symlink = tmp_path / "symlink.eqmodel"
+    symlink.symlink_to(target)
+    with pytest.raises(eqiora.CompatibilityError):
+        eqiora.Model.read(symlink)
+    with pytest.raises(eqiora.CompatibilityError):
+        model.write(symlink)
+    assert target.read_bytes() == encoded
+
+    missing_parent = tmp_path / "missing" / "decay.eqmodel"
+    with pytest.raises(eqiora.CompatibilityError):
+        model.write(missing_parent)
+    assert not missing_parent.exists()
+    assert not list(tmp_path.glob(".eqiora-model-*.tmp"))
+
+    oversized = tmp_path / "oversized.eqmodel"
+    oversized.write_bytes(b"x" * (16 * 1024 * 1024 + 1))
+    with pytest.raises(eqiora.CompatibilityError) as caught:
+        eqiora.Model.read(oversized)
+    assert caught.value.diagnostics[0].code == "EQ0901"
 
 
 def test_value_edit_is_atomic_immutable_and_stale_base_safe() -> None:
@@ -127,7 +210,7 @@ def test_value_edit_is_atomic_immutable_and_stale_base_safe() -> None:
     assert edit == base.preview_value_edit("rate", 2.0)
     assert hash(edit) == hash(base.preview_value_edit("rate", 2.0))
 
-    replay = eqiora.replay(child.to_json())
+    replay = eqiora.Model.from_bytes(child.to_bytes())
     assert replay == child
 
     with pytest.raises(eqiora.ValidationError) as caught:
@@ -165,7 +248,7 @@ def test_exception_taxonomy_keeps_structured_diagnostics() -> None:
     assert validation.value.diagnostics[0].source_span is not None
 
     with pytest.raises(eqiora.CompatibilityError) as compatibility:
-        eqiora.replay(b"{}")
+        eqiora.Model.from_bytes(b"{}")
     assert compatibility.value.category == "compatibility"
     assert compatibility.value.diagnostics[0].code == "EQ0901"
 

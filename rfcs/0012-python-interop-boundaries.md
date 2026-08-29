@@ -84,7 +84,7 @@ public in-memory types or bypasses constructors.
 
 The immutable `ModelEnvelopeV1` remains the portable execution input. A
 transaction is an edit request, not a replacement for a validated model
-snapshot. Python `Model.to_json()` therefore emits the model envelope, while
+snapshot. Python `Model.to_bytes()` therefore emits the model envelope, while
 transaction serialization is exposed only on editing/commit objects once the
 ergonomic editor is implemented.
 

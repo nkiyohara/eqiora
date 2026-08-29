@@ -44,7 +44,7 @@ def test_installed_path_and_loaded_source_have_one_model_meaning() -> None:
         parameters=parameters(source),
     )
     assert from_path.digest == from_text.digest
-    assert eqiora.replay(from_path.to_json()).digest == from_path.digest
+    assert eqiora.Model.from_bytes(from_path.to_bytes()).digest == from_path.digest
 
 
 def test_source_shape_and_argument_admission_fail_closed(tmp_path: Path) -> None:

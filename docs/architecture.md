@@ -732,7 +732,7 @@ support, operator applicability, and residual rules remain owned by the same
 identity-parametric Semantic Kernel typing used for source models.
 The native path uses a client-neutral immutable `ModelDraft`; it neither
 manufactures source text nor assigns graph IDs before draft closure. Python
-`compile`, `Model.define`, and `replay` use the same current contract as Rust
+`compile`, `Model.define`, and `Model.from_bytes` use the same current contract as Rust
 and Studio without a generation argument. Historical Model bytes reject; replay
 does not sniff, retry, or migrate them. Both authoring paths cross the current
 bounded Transaction envelope, commit atomically, and reconstruct the immutable

@@ -142,7 +142,7 @@ assert run.package_compilation_digest == model.package_compilation_digest
 result = run.result()
 assert result.model_digest == model.digest
 
-replayed = package.replay(model.to_json())
+replayed = package.Model.from_bytes(model.to_bytes())
 replayed_plan = package._resolve_plan(replayed, mesh=mesh, spatial=package.Q1(), solve=linear)
 assert replayed_plan.identity == plan.identity
 assert replayed_plan.package_compilation_digest is None

@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 16 module summaries and all 142 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 556 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 16 module summaries and all 141 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 559 signature-only entries under documented owning types**.
 
-Inventory: 16 modules, 167 literal public spellings, 142 canonical grouped declarations, 742 visible method signatures (556 non-dunder and 186 dunder), and 65 visible class assignments.
+Inventory: 16 modules, 166 literal public spellings, 141 canonical grouped declarations, 745 visible method signatures (559 non-dunder and 186 dunder), and 65 visible class assignments.
 
 Regenerate with:
 
@@ -687,7 +687,12 @@ Authority: [`crates/eqiora-python/src/model.rs::PyModel`](../../crates/eqiora-py
 class Model:
     @staticmethod
     def define(name: str, *declarations: _ModelDeclaration) -> Model: ...
-    def to_json(self) -> bytes: ...
+    @staticmethod
+    def from_bytes(data: bytes) -> Model: ...
+    @staticmethod
+    def read(path: str | PathLike[str]) -> Model: ...
+    def to_bytes(self) -> bytes: ...
+    def write(self, path: str | PathLike[str]) -> None: ...
     def preview_value_edit(self, target: str, value: float) -> ValueEdit: ...
     def commit(self, edit: ValueEdit) -> Model: ...
     def parameter(self, selection: str) -> ParameterRef: ...
@@ -1369,18 +1374,6 @@ def grad(value: _ExpressionLike) -> Expression: ...
 Bounded Python authoring for deterministic Eqiora Language source.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py`](../../bindings/python/python/eqiora/lang/__init__.py)
-
-<a id="api-eqiora-replay"></a>
-
-### `eqiora.replay`
-
-Replay one canonical artifact through the current model contract.
-
-Authority: [`crates/eqiora-python/src/lib.rs::replay`](../../crates/eqiora-python/src/lib.rs)
-
-```python
-def replay(data: bytes) -> Model: ...
-```
 
 <a id="api-eqiora-resolve"></a>
 

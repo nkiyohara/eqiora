@@ -421,7 +421,7 @@ linear = package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12
 q1 = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 q1_repeat = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 tpfa = package.resolve(model, mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=linear)
-replayed = package.replay(model.to_json())
+replayed = package.Model.from_bytes(model.to_bytes())
 replayed_plan = package.resolve(replayed, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 fresh_plan = package.resolve(fresh_model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 assert q1.model is model
@@ -578,7 +578,7 @@ manual_equal = package.resolve(
         pressure_pa=0.001 * 0.3 / 0.41,
     ),
 )
-replayed = package.replay(model.to_json())
+replayed = package.Model.from_bytes(model.to_bytes())
 replayed_plan = package.resolve(replayed, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear)
 fresh_plan = package.resolve(fresh_model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear)
 assert plan.identity == explicit_none.identity == all_auto.identity == replayed_plan.identity == fresh_plan.identity
@@ -1009,7 +1009,7 @@ scaling = package.fluid.IncompressibleScaling(length_m=1.0, velocity_m_per_s=2.0
 
 mini = package.resolve(model, mesh=affine, spatial=package.fem.MiniP1(), solve=newton, scaling=scaling, temporal=temporal)
 fvm = package.resolve(model, mesh=cartesian, spatial=package.fvm.CellCentered(), solve=newton, scaling=scaling, temporal=temporal)
-replayed = package.resolve(package.replay(model.to_json()), mesh=affine, spatial=package.fem.MiniP1(), solve=newton, scaling=scaling, temporal=temporal)
+replayed = package.resolve(package.Model.from_bytes(model.to_bytes()), mesh=affine, spatial=package.fem.MiniP1(), solve=newton, scaling=scaling, temporal=temporal)
 custom = package.resolve(model, mesh=affine, spatial=package.fem.MiniP1(), solve=custom_newton, scaling=scaling, temporal=temporal)
 assert mini.identity == replayed.identity
 assert mini.identity != fvm.identity
@@ -1248,7 +1248,7 @@ model = package.compile(
     geometry=geometry,
     parameters={"mu": 3.0, "lambda": 0.0, "length_scale": 1.0},
 )
-replayed = package.replay(model.to_json())
+replayed = package.Model.from_bytes(model.to_bytes())
 alternate = package.compile(
     source=elasticity_source,
     filename="alternate-elasticity.eqi",
