@@ -29,9 +29,15 @@ use super::{
 use crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d;
 use crate::cartesian_incompressible::{
     CartesianIncompressibleOperator2d, CellCenteredPressureField2d, CellCenteredVelocityField2d,
-    CollocatedNewtonEvidence2d, CollocatedPoint2d, solve_collocated_step_2d,
+    CollocatedPoint2d, solve_collocated_step_2d,
 };
+use crate::form_compiler::vocabulary::IntegralConservativeCorrespondence;
 use eqiora_meshing::CartesianMesh;
+
+use super::navier_stokes_fvm_acceptance::accept_collocated_step;
+use super::navier_stokes_integral_formulation::{
+    integral_conservative_correspondence, replay_integral_conservative_correspondence,
+};
 
 const DIMENSION: usize = 2;
 const TIME: DimExponents = DimExponents {
@@ -196,27 +202,27 @@ impl ResolvedCellCenteredNavierStokesState2d {
 /// Inspectable acceptance evidence for one monolithic collocated step.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CellCenteredNavierStokesStepEvidence2d {
-    iterations: usize,
-    initial_residual_norm: f64,
-    initial_momentum_norm: f64,
-    initial_continuity_norm: f64,
-    residual_target: f64,
-    momentum_residual_target: f64,
-    continuity_residual_target: f64,
-    gauge_residual_target: f64,
-    momentum_residual_norm: f64,
-    continuity_residual_norm: f64,
-    gauge_residual: f64,
-    maximum_momentum_replay_defect: f64,
-    maximum_continuity_replay_defect: f64,
-    maximum_centered_jvp_defect: f64,
-    maximum_face_cancellation_defect: f64,
-    maximum_flux_reuse_defect: f64,
-    global_mass_defect: f64,
-    replay_tolerance: f64,
-    maximum_affine_pressure_correction: f64,
-    minimum_checkerboard_correction_norm: f64,
-    linear_solves: Vec<SolveReport>,
+    pub(super) iterations: usize,
+    pub(super) initial_residual_norm: f64,
+    pub(super) initial_momentum_norm: f64,
+    pub(super) initial_continuity_norm: f64,
+    pub(super) residual_target: f64,
+    pub(super) momentum_residual_target: f64,
+    pub(super) continuity_residual_target: f64,
+    pub(super) gauge_residual_target: f64,
+    pub(super) momentum_residual_norm: f64,
+    pub(super) continuity_residual_norm: f64,
+    pub(super) gauge_residual: f64,
+    pub(super) maximum_momentum_replay_defect: f64,
+    pub(super) maximum_continuity_replay_defect: f64,
+    pub(super) maximum_centered_jvp_defect: f64,
+    pub(super) maximum_face_cancellation_defect: f64,
+    pub(super) maximum_flux_reuse_defect: f64,
+    pub(super) global_mass_defect: f64,
+    pub(super) replay_tolerance: f64,
+    pub(super) maximum_affine_pressure_correction: f64,
+    pub(super) minimum_checkerboard_correction_norm: f64,
+    pub(super) linear_solves: Vec<SolveReport>,
 }
 
 impl CellCenteredNavierStokesStepEvidence2d {
@@ -331,6 +337,7 @@ impl CellCenteredNavierStokesStepEvidence2d {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedCellCenteredNavierStokesTrajectory2d {
     model: TransientIncompressibleNavierStokesCartesianModel2d,
+    _formulation: IntegralConservativeCorrespondence,
     realization: ResolvedTransientCellCenteredIncompressibleFlowRealization,
     realization_graph: PortableRealizationGraph,
     solver_backend: BackendId,
@@ -423,6 +430,9 @@ pub fn transient_navier_stokes_cell_centered_plan_2d(
     nonlinear: NonlinearSolvePlan,
     solver: SolverPlan,
 ) -> Result<TransientCellCenteredIncompressibleFlowRealizationPlan, Diagnostic> {
+    let formulation = integral_conservative_correspondence(model);
+    replay_integral_conservative_correspondence(&formulation, model)
+        .map_err(invalid_realization)?;
     if !matches!(
         mesh,
         MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. }
@@ -519,8 +529,9 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
     }
     let model = super::lower_transient_incompressible_navier_stokes_cartesian_2d(program)?;
     super::navier_stokes_realization::require_complete_zero_trace(&model)?;
+    let formulation = integral_conservative_correspondence(&model);
     let graph = resolved.portable_graph()?;
-    let scales = require_exact_cell_centered_plan(&model, resolved, &graph)?;
+    let scales = require_exact_cell_centered_plan(&model, &formulation, resolved, &graph)?;
     let (artifact, cells_per_axis) = match resolved
         .plan()
         .fieldwise()
@@ -707,6 +718,7 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
     }
     Ok(ResolvedCellCenteredNavierStokesTrajectory2d {
         model,
+        _formulation: formulation,
         realization: resolved.clone(),
         realization_graph: graph,
         solver_backend: solver.id(),
@@ -718,9 +730,11 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
 
 fn require_exact_cell_centered_plan(
     model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    formulation: &IntegralConservativeCorrespondence,
     resolved: &ResolvedTransientCellCenteredIncompressibleFlowRealization,
     graph: &PortableRealizationGraph,
 ) -> Result<IncompressibleFlowScaleProfile2d, Diagnostic> {
+    replay_integral_conservative_correspondence(formulation, model).map_err(invalid_realization)?;
     if resolved.requirements() != &transient_navier_stokes_cell_centered_requirements_2d(model) {
         return Err(invalid_realization(
             "collocated flow requirements differ from the exact canonical lowerer inventory",
@@ -826,110 +840,6 @@ fn require_exact_cell_centered_plan(
     Ok(scales)
 }
 
-fn accept_collocated_step(
-    mesh: &CartesianMesh,
-    cells: &[crate::cartesian_fvm_geometry::CartesianCellMetrics2d],
-    operator: &CartesianIncompressibleOperator2d,
-    accepted: &CollocatedPoint2d,
-    residual: &crate::cartesian_incompressible::CollocatedResidual2d,
-    newton: CollocatedNewtonEvidence2d,
-) -> Result<CellCenteredNavierStokesStepEvidence2d, Diagnostic> {
-    let replay = operator.replay(accepted, residual)?;
-    let constant = vec![1.0; operator.cell_count()];
-    let affine = cells
-        .iter()
-        .map(|cell| 1.0 + 2.0 * cell.center[0] - 3.0 * cell.center[1])
-        .collect::<Vec<_>>();
-    let maximum_affine_pressure_correction = constant
-        .iter()
-        .map(|_| 0.0)
-        .chain(operator.pressure_corrections(&constant)?)
-        .chain(operator.pressure_corrections(&affine)?)
-        .fold(0.0_f64, |maximum, value| maximum.max(value.abs()));
-    let mut checkerboard_norms = Vec::new();
-    for axes in [[true, false], [false, true], [true, true]] {
-        let pressure = (0..operator.cell_count())
-            .map(|cell| {
-                let indices = mesh
-                    .cell_multi_index(eqiora_meshing::MeshEntity::new(DIMENSION, cell))
-                    .expect("accepted Cartesian cell owns its multi-index");
-                let parity = usize::from(axes[0]) * indices[0] + usize::from(axes[1]) * indices[1];
-                if parity & 1 == 0 { 1.0 } else { -1.0 }
-            })
-            .collect::<Vec<_>>();
-        let squared = operator
-            .pressure_corrections(&pressure)?
-            .iter()
-            .map(|value| value * value)
-            .sum::<f64>();
-        checkerboard_norms.push(squared.sqrt());
-    }
-    let minimum_checkerboard_correction_norm =
-        checkerboard_norms.into_iter().fold(f64::INFINITY, f64::min);
-    let scale = operator
-        .momentum_diagonal()
-        .iter()
-        .flatten()
-        .copied()
-        .fold(1.0_f64, f64::max);
-    let affine_tolerance = 1024.0 * f64::EPSILON * scale;
-    require_pressure_coupling_evidence(
-        maximum_affine_pressure_correction,
-        minimum_checkerboard_correction_norm,
-        affine_tolerance,
-    )?;
-    if newton.maximum_centered_jvp_defect > 2.0e-7
-        || residual.momentum_norm > newton.momentum_target
-        || residual.continuity_norm > newton.continuity_target
-        || residual.gauge_residual.abs() > newton.gauge_target
-    {
-        return Err(invalid_realization(
-            "collocated step failed residual, JVP, affine-pressure, checkerboard, gauge, or face-cancellation acceptance",
-        ));
-    }
-    Ok(CellCenteredNavierStokesStepEvidence2d {
-        iterations: newton.iterations,
-        initial_residual_norm: newton.initial_residual_norm,
-        initial_momentum_norm: newton.initial_momentum_norm,
-        initial_continuity_norm: newton.initial_continuity_norm,
-        residual_target: newton.residual_target,
-        momentum_residual_target: newton.momentum_target,
-        continuity_residual_target: newton.continuity_target,
-        gauge_residual_target: newton.gauge_target,
-        momentum_residual_norm: residual.momentum_norm,
-        continuity_residual_norm: residual.continuity_norm,
-        gauge_residual: residual.gauge_residual,
-        maximum_momentum_replay_defect: replay.maximum_momentum_defect,
-        maximum_continuity_replay_defect: replay.maximum_continuity_defect,
-        maximum_centered_jvp_defect: newton.maximum_centered_jvp_defect,
-        maximum_face_cancellation_defect: replay.maximum_face_cancellation_defect,
-        maximum_flux_reuse_defect: replay.maximum_flux_reuse_defect,
-        global_mass_defect: replay.global_mass_defect,
-        replay_tolerance: replay.tolerance,
-        maximum_affine_pressure_correction,
-        minimum_checkerboard_correction_norm,
-        linear_solves: newton.linear_solves,
-    })
-}
-
-fn require_pressure_coupling_evidence(
-    maximum_affine_correction: f64,
-    minimum_checkerboard_action: f64,
-    affine_tolerance: f64,
-) -> Result<(), Diagnostic> {
-    if !maximum_affine_correction.is_finite()
-        || maximum_affine_correction > affine_tolerance
-        || !minimum_checkerboard_action.is_finite()
-        || minimum_checkerboard_action <= 1024.0 * f64::EPSILON
-    {
-        Err(invalid_realization(
-            "collocated pressure coupling failed affine exactness or admitted an unstabilized checkerboard null action",
-        ))
-    } else {
-        Ok(())
-    }
-}
-
 fn domain_id(model: &TransientIncompressibleNavierStokesCartesianModel2d) -> Id<kinds::Domain> {
     model
         .domain()
@@ -973,15 +883,4 @@ fn realization_error(error: Diagnostic) -> Diagnostic {
 
 fn invalid_realization(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(eqiora_core::diagnostic::codes::INVALID_REALIZATION, message)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::require_pressure_coupling_evidence;
-
-    #[test]
-    fn omitted_checkerboard_action_is_an_active_acceptance_falsifier() {
-        assert!(require_pressure_coupling_evidence(0.0, 0.0, 1.0e-12).is_err());
-        assert!(require_pressure_coupling_evidence(0.0, 1.0e-6, 1.0e-12).is_ok());
-    }
 }

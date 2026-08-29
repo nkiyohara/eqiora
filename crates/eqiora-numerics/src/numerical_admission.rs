@@ -24,7 +24,7 @@ use crate::canonical_stokes::{
     TransientNavierStokesInitialState2d, TransientNavierStokesRun2d,
     advance_resolved_transient_navier_stokes_cell_centered_2d,
     advance_resolved_transient_navier_stokes_geometry_mini_2d,
-    advance_resolved_transient_navier_stokes_mini_2d,
+    advance_resolved_transient_navier_stokes_mini_2d, integral_conservative_correspondence,
     lower_transient_incompressible_navier_stokes_cartesian_2d,
     recognize_steady_incompressible_stokes_geometry_mathematics,
     recognize_transient_incompressible_navier_stokes_geometry_mathematics,
@@ -455,11 +455,29 @@ enum CommonTransientResolvedSpatial {
     CellCentered(ResolvedTransientCellCenteredIncompressibleFlowRealization),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CommonTransientFormulation {
+    /// Existing dedicated MINI path; its typed transient mixed correspondence
+    /// remains the next explicit convergence cell.
+    DedicatedMiniP1,
+    IntegralConservative(Box<crate::form_compiler::vocabulary::IntegralConservativeCorrespondence>),
+}
+
+impl CommonTransientFormulation {
+    const fn identity(&self) -> &'static [u8] {
+        match self {
+            Self::DedicatedMiniP1 => b"dedicated-mini-p1-formulation/v1",
+            Self::IntegralConservative(_) => b"integral-conservative-formulation/v1",
+        }
+    }
+}
+
 /// Opaque transient-flow Plan owning exact caller resources and numerical policy.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonTransientFlowPlan {
     admission: NativeNumericalAdmission,
     resolved: CommonTransientResolvedSpatial,
+    formulation: CommonTransientFormulation,
     scaling: ResolvedIncompressibleScaling2d,
     temporal: CommonBackwardEuler,
     nonlinear: NonlinearSolvePlan,

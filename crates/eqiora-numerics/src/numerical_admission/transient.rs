@@ -24,7 +24,7 @@ impl CommonTransientFlowPlan {
         let velocity_field_id = velocity.ulid().to_string();
         let pressure_field_id = pressure.ulid().to_string();
         let solver = admission.linear.solver;
-        let (resolved, velocity_space, pressure_space, gauge) =
+        let (resolved, formulation, velocity_space, pressure_space, gauge) =
             match (admission.spatial, &admission.resources) {
                 (
                     NativeSpatialPolicy::TransientMiniP1(scales),
@@ -72,6 +72,7 @@ impl CommonTransientFlowPlan {
                     };
                     (
                         CommonTransientResolvedSpatial::MiniP1(resolved),
+                        CommonTransientFormulation::DedicatedMiniP1,
                         Space::simplex_p1_bubble(),
                         Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                         gauge,
@@ -123,6 +124,7 @@ impl CommonTransientFlowPlan {
                     };
                     (
                         CommonTransientResolvedSpatial::MiniP1(resolved),
+                        CommonTransientFormulation::DedicatedMiniP1,
                         Space::simplex_p1_bubble(),
                         Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                         gauge,
@@ -175,6 +177,9 @@ impl CommonTransientFlowPlan {
                     )?;
                     (
                         CommonTransientResolvedSpatial::CellCentered(resolved),
+                        CommonTransientFormulation::IntegralConservative(Box::new(
+                            integral_conservative_correspondence(transient),
+                        )),
                         Space::cell_constant(),
                         Space::cell_constant(),
                         CommonPressureGauge2d::ZeroIntegral,
@@ -250,6 +255,7 @@ impl CommonTransientFlowPlan {
                 CommonPressureGauge2d::BoundaryTraction => b"boundary-traction",
             },
         );
+        push_framed(&mut identity_bytes, formulation.identity());
         for discriminant in [
             b"f64".as_slice(),
             b"replicated".as_slice(),
@@ -270,6 +276,7 @@ impl CommonTransientFlowPlan {
         Ok(Self {
             admission,
             resolved,
+            formulation,
             scaling,
             temporal,
             nonlinear,
@@ -404,6 +411,7 @@ impl CommonTransientFlowPlan {
                 CommonPressureGauge2d::BoundaryTraction => b"boundary-traction",
             },
         );
+        push_framed(&mut bytes, self.formulation.identity());
         push_framed(
             &mut bytes,
             match self.spatial() {

@@ -8,7 +8,9 @@ mod expression;
 mod geometry_realization;
 mod inertial;
 mod navier_stokes;
+mod navier_stokes_fvm_acceptance;
 mod navier_stokes_fvm_realization;
+mod navier_stokes_integral_formulation;
 mod navier_stokes_realization;
 mod physical;
 mod prescribed_velocity;
@@ -56,6 +58,7 @@ pub use navier_stokes_fvm_realization::{
     transient_navier_stokes_cell_centered_plan_2d,
     transient_navier_stokes_cell_centered_requirements_2d,
 };
+pub(crate) use navier_stokes_integral_formulation::integral_conservative_correspondence;
 pub(crate) use navier_stokes_realization::require_complete_zero_trace;
 pub use navier_stokes_realization::{
     ResolvedTransientNavierStokesState2d, ResolvedTransientNavierStokesTrajectory2d,
