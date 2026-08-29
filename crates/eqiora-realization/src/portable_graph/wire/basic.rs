@@ -1,0 +1,763 @@
+use std::num::{NonZeroU16, NonZeroU64, NonZeroUsize};
+
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Entity, Id, ScalarType};
+use eqiora_solver::{
+    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
+};
+use serde::{Deserialize, Serialize};
+use ulid::Ulid;
+
+use crate::{
+    AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, CellCenteredConvectionScheme,
+    Discretization, DiscretizationMethod, ExecutionSchedule, MeshArtifactReference, MeshPolicy,
+    NonlinearSolvePlan, PositiveMomentumDiagonal, PositivePhysicalScale, QuadraturePolicy, Space,
+    SpaceFamily, SymmetricCongruenceScaling, TransientFaceFluxHistory, VectorLayoutKind,
+    invalid_realization,
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct WireDimension {
+    mass: i8,
+    length: i8,
+    time: i8,
+    current: i8,
+    temperature: i8,
+    amount: i8,
+    luminous_intensity: i8,
+}
+
+impl WireDimension {
+    pub(super) const fn encode(value: DimExponents) -> Self {
+        Self {
+            mass: value.mass,
+            length: value.length,
+            time: value.time,
+            current: value.current,
+            temperature: value.temperature,
+            amount: value.amount,
+            luminous_intensity: value.luminous_intensity,
+        }
+    }
+
+    const fn decode(self) -> DimExponents {
+        DimExponents {
+            mass: self.mass,
+            length: self.length,
+            time: self.time,
+            current: self.current,
+            temperature: self.temperature,
+            amount: self.amount,
+            luminous_intensity: self.luminous_intensity,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct WireQuantity {
+    coherent_si_value: f64,
+    dimension: WireDimension,
+}
+
+impl WireQuantity {
+    pub(super) const fn encode(value: DynQuantity) -> Self {
+        Self {
+            coherent_si_value: normalize_zero(value.value()),
+            dimension: WireDimension::encode(value.dim()),
+        }
+    }
+
+    pub(super) const fn decode(self) -> DynQuantity {
+        DynQuantity::new(self.coherent_si_value, self.dimension.decode())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct WirePositiveScale {
+    quantity: WireQuantity,
+}
+
+impl WirePositiveScale {
+    pub(super) const fn encode(value: PositivePhysicalScale) -> Self {
+        Self {
+            quantity: WireQuantity::encode(value.quantity()),
+        }
+    }
+
+    pub(super) fn decode(self) -> Result<PositivePhysicalScale, Diagnostic> {
+        PositivePhysicalScale::new(self.quantity.decode())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "family", rename_all = "kebab-case", deny_unknown_fields)]
+pub(super) enum WireSpace {
+    ContinuousLagrange { order: u16 },
+    SimplexP1Bubble,
+    CellConstant,
+}
+
+impl WireSpace {
+    pub(super) fn encode(value: Space) -> Self {
+        match value.family() {
+            SpaceFamily::ContinuousLagrange { order } => {
+                Self::ContinuousLagrange { order: order.get() }
+            }
+            SpaceFamily::SimplexP1Bubble => Self::SimplexP1Bubble,
+            SpaceFamily::CellConstant => Self::CellConstant,
+        }
+    }
+
+    pub(super) fn decode(self) -> Result<Space, Diagnostic> {
+        match self {
+            Self::ContinuousLagrange { order } => Ok(Space::continuous_lagrange(
+                NonZeroU16::new(order)
+                    .ok_or_else(|| invalid_realization("portable graph space order is zero"))?,
+            )),
+            Self::SimplexP1Bubble => Ok(Space::simplex_p1_bubble()),
+            Self::CellConstant => Ok(Space::cell_constant()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum WireDiscretizationMethod {
+    ContinuousGalerkin,
+    CellCenteredFiniteVolume,
+}
+
+impl WireDiscretizationMethod {
+    const fn encode(value: DiscretizationMethod) -> Self {
+        match value {
+            DiscretizationMethod::ContinuousGalerkin => Self::ContinuousGalerkin,
+            DiscretizationMethod::CellCenteredFiniteVolume => Self::CellCenteredFiniteVolume,
+        }
+    }
+
+    const fn decode(self) -> DiscretizationMethod {
+        match self {
+            Self::ContinuousGalerkin => DiscretizationMethod::ContinuousGalerkin,
+            Self::CellCenteredFiniteVolume => DiscretizationMethod::CellCenteredFiniteVolume,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+enum WireMesh {
+    GeneratedUniform {
+        cells_per_axis: u64,
+    },
+    SuppliedCartesian {
+        artifact_sha256: String,
+        cells: [u64; 2],
+    },
+    ImportedSimplicial {
+        artifact_sha256: String,
+    },
+}
+
+impl WireMesh {
+    fn encode(value: MeshPolicy) -> Result<Self, Diagnostic> {
+        match value {
+            MeshPolicy::GeneratedUniform { cells_per_axis } => Ok(Self::GeneratedUniform {
+                cells_per_axis: encode_usize(cells_per_axis.get(), "cells per axis")?,
+            }),
+            MeshPolicy::SuppliedCartesian { artifact, cells } => Ok(Self::SuppliedCartesian {
+                artifact_sha256: hex_bytes(&artifact.sha256()),
+                cells: [
+                    encode_usize(cells[0].get(), "Cartesian x cells")?,
+                    encode_usize(cells[1].get(), "Cartesian y cells")?,
+                ],
+            }),
+            MeshPolicy::ImportedSimplicial { artifact } => Ok(Self::ImportedSimplicial {
+                artifact_sha256: hex_bytes(&artifact.sha256()),
+            }),
+        }
+    }
+
+    fn decode(self) -> Result<MeshPolicy, Diagnostic> {
+        match self {
+            Self::GeneratedUniform { cells_per_axis } => Ok(MeshPolicy::GeneratedUniform {
+                cells_per_axis: decode_nonzero_usize(cells_per_axis, "cells per axis")?,
+            }),
+            Self::SuppliedCartesian {
+                artifact_sha256,
+                cells,
+            } => Ok(MeshPolicy::SuppliedCartesian {
+                artifact: MeshArtifactReference::from_sha256(parse_sha256(&artifact_sha256)?),
+                cells: [
+                    decode_nonzero_usize(cells[0], "Cartesian x cells")?,
+                    decode_nonzero_usize(cells[1], "Cartesian y cells")?,
+                ],
+            }),
+            Self::ImportedSimplicial { artifact_sha256 } => Ok(MeshPolicy::ImportedSimplicial {
+                artifact: MeshArtifactReference::from_sha256(parse_sha256(&artifact_sha256)?),
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+enum WireQuadrature {
+    GaussLegendre {
+        points_per_axis: u64,
+    },
+    CellCentroid,
+    SimplexCentroid,
+    TriangleDuffyGaussLegendre {
+        points_per_axis: u64,
+    },
+    SimplexDuffyGaussLegendre {
+        spatial_dimension: u64,
+        points_per_axis: u64,
+    },
+}
+
+impl WireQuadrature {
+    fn encode(value: QuadraturePolicy) -> Result<Self, Diagnostic> {
+        match value {
+            QuadraturePolicy::GaussLegendre { points_per_axis } => Ok(Self::GaussLegendre {
+                points_per_axis: encode_usize(points_per_axis.get(), "quadrature points")?,
+            }),
+            QuadraturePolicy::CellCentroid => Ok(Self::CellCentroid),
+            QuadraturePolicy::SimplexCentroid => Ok(Self::SimplexCentroid),
+            QuadraturePolicy::TriangleDuffyGaussLegendre { points_per_axis } => {
+                Ok(Self::TriangleDuffyGaussLegendre {
+                    points_per_axis: encode_usize(points_per_axis.get(), "quadrature points")?,
+                })
+            }
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension,
+                points_per_axis,
+            } => Ok(Self::SimplexDuffyGaussLegendre {
+                spatial_dimension: encode_usize(
+                    spatial_dimension.get(),
+                    "quadrature spatial dimension",
+                )?,
+                points_per_axis: encode_usize(points_per_axis.get(), "quadrature points")?,
+            }),
+        }
+    }
+
+    fn decode(self) -> Result<QuadraturePolicy, Diagnostic> {
+        match self {
+            Self::GaussLegendre { points_per_axis } => Ok(QuadraturePolicy::GaussLegendre {
+                points_per_axis: decode_nonzero_usize(points_per_axis, "quadrature points")?,
+            }),
+            Self::CellCentroid => Ok(QuadraturePolicy::CellCentroid),
+            Self::SimplexCentroid => Ok(QuadraturePolicy::SimplexCentroid),
+            Self::TriangleDuffyGaussLegendre { points_per_axis } => {
+                Ok(QuadraturePolicy::TriangleDuffyGaussLegendre {
+                    points_per_axis: decode_nonzero_usize(points_per_axis, "quadrature points")?,
+                })
+            }
+            Self::SimplexDuffyGaussLegendre {
+                spatial_dimension,
+                points_per_axis,
+            } => Ok(QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: decode_nonzero_usize(
+                    spatial_dimension,
+                    "quadrature spatial dimension",
+                )?,
+                points_per_axis: decode_nonzero_usize(points_per_axis, "quadrature points")?,
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct WireDiscretization {
+    method: WireDiscretizationMethod,
+    mesh: WireMesh,
+    quadrature: WireQuadrature,
+}
+
+impl WireDiscretization {
+    pub(super) fn encode(value: Discretization) -> Result<Self, Diagnostic> {
+        Ok(Self {
+            method: WireDiscretizationMethod::encode(value.method()),
+            mesh: WireMesh::encode(value.mesh())?,
+            quadrature: WireQuadrature::encode(value.quadrature())?,
+        })
+    }
+
+    pub(super) fn decode(self) -> Result<Discretization, Diagnostic> {
+        Ok(Discretization::new(
+            self.method.decode(),
+            self.mesh.decode()?,
+            self.quadrature.decode()?,
+        ))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum WireLinearSolver {
+    ConjugateGradient,
+    MinimumResidual,
+    BiConjugateGradientStabilized,
+    SparseLu,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum WirePreconditioner {
+    Identity,
+    Jacobi,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum WireReduction {
+    Reproducible,
+    Fast,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct WireSolverPlan {
+    algorithm: WireLinearSolver,
+    preconditioner: WirePreconditioner,
+    reduction: WireReduction,
+    relative_tolerance: f64,
+    absolute_tolerance: f64,
+    maximum_iterations: u64,
+}
+
+impl WireSolverPlan {
+    pub(super) fn encode(value: SolverPlan) -> Result<Self, Diagnostic> {
+        Ok(Self {
+            algorithm: match value.algorithm() {
+                LinearSolver::ConjugateGradient => WireLinearSolver::ConjugateGradient,
+                LinearSolver::MinimumResidual => WireLinearSolver::MinimumResidual,
+                LinearSolver::BiConjugateGradientStabilized => {
+                    WireLinearSolver::BiConjugateGradientStabilized
+                }
+                LinearSolver::SparseLu => WireLinearSolver::SparseLu,
+            },
+            preconditioner: match value.preconditioner() {
+                PreconditionerPolicy::Identity => WirePreconditioner::Identity,
+                PreconditionerPolicy::Jacobi => WirePreconditioner::Jacobi,
+            },
+            reduction: match value.reduction() {
+                ReductionPolicy::Reproducible => WireReduction::Reproducible,
+                ReductionPolicy::Fast => WireReduction::Fast,
+            },
+            relative_tolerance: normalize_zero(value.relative_tolerance()),
+            absolute_tolerance: normalize_zero(value.absolute_tolerance()),
+            maximum_iterations: encode_usize(
+                value.maximum_iterations().get(),
+                "linear maximum iterations",
+            )?,
+        })
+    }
+
+    pub(super) fn decode(self) -> Result<SolverPlan, Diagnostic> {
+        let algorithm = match self.algorithm {
+            WireLinearSolver::ConjugateGradient => LinearSolver::ConjugateGradient,
+            WireLinearSolver::MinimumResidual => LinearSolver::MinimumResidual,
+            WireLinearSolver::BiConjugateGradientStabilized => {
+                LinearSolver::BiConjugateGradientStabilized
+            }
+            WireLinearSolver::SparseLu => LinearSolver::SparseLu,
+        };
+        let preconditioner = match self.preconditioner {
+            WirePreconditioner::Identity => PreconditionerPolicy::Identity,
+            WirePreconditioner::Jacobi => PreconditionerPolicy::Jacobi,
+        };
+        let reduction = match self.reduction {
+            WireReduction::Reproducible => ReductionPolicy::Reproducible,
+            WireReduction::Fast => ReductionPolicy::Fast,
+        };
+        Ok(SolverPlan::new(
+            algorithm,
+            self.relative_tolerance,
+            self.absolute_tolerance,
+            decode_nonzero_usize(self.maximum_iterations, "linear maximum iterations")?,
+        )?
+        .with_preconditioner(preconditioner)
+        .with_reduction(reduction))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum WireOperatorProperties {
+    General,
+    SymmetricPositiveDefinite,
+    SymmetricIndefinite,
+}
+
+impl WireOperatorProperties {
+    pub(super) const fn encode(value: LinearOperatorProperties) -> Self {
+        match value {
+            LinearOperatorProperties::General => Self::General,
+            LinearOperatorProperties::SymmetricPositiveDefinite => Self::SymmetricPositiveDefinite,
+            LinearOperatorProperties::SymmetricIndefinite => Self::SymmetricIndefinite,
+        }
+    }
+
+    pub(super) const fn decode(self) -> LinearOperatorProperties {
+        match self {
+            Self::General => LinearOperatorProperties::General,
+            Self::SymmetricPositiveDefinite => LinearOperatorProperties::SymmetricPositiveDefinite,
+            Self::SymmetricIndefinite => LinearOperatorProperties::SymmetricIndefinite,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum WireScalarType {
+    F32,
+    F64,
+}
+
+impl WireScalarType {
+    pub(super) const fn encode(value: ScalarType) -> Self {
+        match value {
+            ScalarType::F32 => Self::F32,
+            ScalarType::F64 => Self::F64,
+        }
+    }
+
+    pub(super) const fn decode(self) -> ScalarType {
+        match self {
+            Self::F32 => ScalarType::F32,
+            Self::F64 => ScalarType::F64,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum WireVectorLayout {
+    Replicated,
+    Distributed,
+}
+
+impl WireVectorLayout {
+    pub(super) const fn encode(value: VectorLayoutKind) -> Self {
+        match value {
+            VectorLayoutKind::Replicated => Self::Replicated,
+            VectorLayoutKind::Distributed => Self::Distributed,
+        }
+    }
+
+    pub(super) const fn decode(self) -> VectorLayoutKind {
+        match self {
+            Self::Replicated => VectorLayoutKind::Replicated,
+            Self::Distributed => VectorLayoutKind::Distributed,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub(super) enum WireSchedule {
+    Offline,
+    RealTime { priority: u16, deadline_ns: u64 },
+}
+
+impl WireSchedule {
+    pub(super) const fn encode(value: ExecutionSchedule) -> Self {
+        match value {
+            ExecutionSchedule::Offline => Self::Offline,
+            ExecutionSchedule::RealTime {
+                priority,
+                deadline_ns,
+            } => Self::RealTime {
+                priority,
+                deadline_ns: deadline_ns.get(),
+            },
+        }
+    }
+
+    pub(super) fn decode(self) -> Result<ExecutionSchedule, Diagnostic> {
+        match self {
+            Self::Offline => Ok(ExecutionSchedule::Offline),
+            Self::RealTime {
+                priority,
+                deadline_ns,
+            } => Ok(ExecutionSchedule::RealTime {
+                priority,
+                deadline_ns: NonZeroU64::new(deadline_ns)
+                    .ok_or_else(|| invalid_realization("real-time deadline is zero"))?,
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct WireNonlinearPlan {
+    relative_tolerance: f64,
+    absolute_tolerance: f64,
+    maximum_iterations: u64,
+    maximum_line_search_steps: u64,
+}
+
+impl WireNonlinearPlan {
+    pub(super) fn encode(value: NonlinearSolvePlan) -> Result<Self, Diagnostic> {
+        Ok(Self {
+            relative_tolerance: normalize_zero(value.relative_tolerance()),
+            absolute_tolerance: normalize_zero(value.absolute_tolerance()),
+            maximum_iterations: encode_usize(
+                value.maximum_iterations().get(),
+                "nonlinear maximum iterations",
+            )?,
+            maximum_line_search_steps: encode_usize(
+                value.maximum_line_search_steps(),
+                "maximum line-search steps",
+            )?,
+        })
+    }
+
+    pub(super) fn decode(self) -> Result<NonlinearSolvePlan, Diagnostic> {
+        NonlinearSolvePlan::new(
+            self.relative_tolerance,
+            self.absolute_tolerance,
+            decode_nonzero_usize(self.maximum_iterations, "nonlinear maximum iterations")?,
+            decode_usize(self.maximum_line_search_steps, "maximum line-search steps")?,
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub(super) enum WireScaling {
+    Dimensional,
+    SymmetricCongruence {
+        block_scales: Vec<WireBlockScale>,
+        weak_functional_scale: WirePositiveScale,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct WireBlockScale {
+    block: WireAlgebraicBlock,
+    scale: WirePositiveScale,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub(super) enum WireAlgebraicBlock {
+    Field { field_ulid: String },
+    ConstraintMultiplier { field_ulid: String },
+}
+
+impl WireAlgebraicBlock {
+    pub(super) fn encode(value: AlgebraicBlock) -> Self {
+        match value {
+            AlgebraicBlock::Field(field) => Self::Field {
+                field_ulid: field.ulid().to_string(),
+            },
+            AlgebraicBlock::ConstraintMultiplier { field } => Self::ConstraintMultiplier {
+                field_ulid: field.ulid().to_string(),
+            },
+        }
+    }
+
+    pub(super) fn decode(self) -> Result<AlgebraicBlock, Diagnostic> {
+        match self {
+            Self::Field { field_ulid } => Ok(AlgebraicBlock::Field(parse_id(&field_ulid)?)),
+            Self::ConstraintMultiplier { field_ulid } => Ok(AlgebraicBlock::ConstraintMultiplier {
+                field: parse_id(&field_ulid)?,
+            }),
+        }
+    }
+}
+
+impl WireScaling {
+    pub(super) fn encode(value: &super::super::SystemScaling) -> Self {
+        match value {
+            super::super::SystemScaling::Dimensional => Self::Dimensional,
+            super::super::SystemScaling::SymmetricCongruence(scaling) => {
+                Self::SymmetricCongruence {
+                    block_scales: scaling
+                        .block_scales()
+                        .iter()
+                        .map(|entry| WireBlockScale {
+                            block: WireAlgebraicBlock::encode(entry.block()),
+                            scale: WirePositiveScale::encode(entry.scale()),
+                        })
+                        .collect(),
+                    weak_functional_scale: WirePositiveScale::encode(
+                        scaling.weak_functional_scale(),
+                    ),
+                }
+            }
+        }
+    }
+
+    pub(super) fn decode(self) -> Result<super::super::SystemScaling, Diagnostic> {
+        match self {
+            Self::Dimensional => Ok(super::super::SystemScaling::Dimensional),
+            Self::SymmetricCongruence {
+                block_scales,
+                weak_functional_scale,
+            } => Ok(super::super::SystemScaling::SymmetricCongruence(
+                SymmetricCongruenceScaling::new(
+                    block_scales
+                        .into_iter()
+                        .map(|entry| {
+                            Ok(AlgebraicBlockScale::new(
+                                entry.block.decode()?,
+                                entry.scale.decode()?,
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, Diagnostic>>()?,
+                    weak_functional_scale.decode()?,
+                )?,
+            )),
+        }
+    }
+}
+
+pub(super) fn encode_constraint(value: AlgebraicConstraint) -> WireAlgebraicBlock {
+    match value {
+        AlgebraicConstraint::ZeroIntegral { field } => WireAlgebraicBlock::ConstraintMultiplier {
+            field_ulid: field.ulid().to_string(),
+        },
+    }
+}
+
+pub(super) fn decode_constraint(
+    value: WireAlgebraicBlock,
+) -> Result<AlgebraicConstraint, Diagnostic> {
+    match value {
+        WireAlgebraicBlock::ConstraintMultiplier { field_ulid } => {
+            Ok(AlgebraicConstraint::ZeroIntegral {
+                field: parse_id(&field_ulid)?,
+            })
+        }
+        WireAlgebraicBlock::Field { .. } => Err(invalid_realization(
+            "portable graph constraint wire contains a Field block",
+        )),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum WireConvectionScheme {
+    ImplicitFirstOrderUpwind,
+    ExplicitPreviousStateCartesianMinmod,
+}
+
+impl WireConvectionScheme {
+    pub(super) const fn encode(value: CellCenteredConvectionScheme) -> Self {
+        match value {
+            CellCenteredConvectionScheme::ImplicitFirstOrderUpwind => {
+                Self::ImplicitFirstOrderUpwind
+            }
+            CellCenteredConvectionScheme::ExplicitPreviousStateCartesianMinmod => {
+                Self::ExplicitPreviousStateCartesianMinmod
+            }
+        }
+    }
+
+    pub(super) const fn decode(self) -> CellCenteredConvectionScheme {
+        match self {
+            Self::ImplicitFirstOrderUpwind => {
+                CellCenteredConvectionScheme::ImplicitFirstOrderUpwind
+            }
+            Self::ExplicitPreviousStateCartesianMinmod => {
+                CellCenteredConvectionScheme::ExplicitPreviousStateCartesianMinmod
+            }
+        }
+    }
+}
+
+pub(super) fn encode_momentum_diagonal(value: PositiveMomentumDiagonal) -> &'static str {
+    #[allow(deprecated)]
+    match value {
+        PositiveMomentumDiagonal::BackwardEulerMassAndLocalNewtonianV1 => {
+            "backward-euler-mass-and-local-newtonian"
+        }
+    }
+}
+
+pub(super) fn decode_momentum_diagonal(
+    value: &str,
+) -> Result<PositiveMomentumDiagonal, Diagnostic> {
+    match value {
+        "backward-euler-mass-and-local-newtonian" => {
+            Ok(PositiveMomentumDiagonal::BackwardEulerMassAndLocalNewtonian)
+        }
+        _ => Err(invalid_realization(
+            "portable graph has an unknown momentum-diagonal policy",
+        )),
+    }
+}
+
+pub(super) fn encode_face_history(value: TransientFaceFluxHistory) -> &'static str {
+    #[allow(deprecated)]
+    match value {
+        TransientFaceFluxHistory::Bdf1PreviousAcceptedV1 => "bdf1-previous-accepted",
+    }
+}
+
+pub(super) fn decode_face_history(value: &str) -> Result<TransientFaceFluxHistory, Diagnostic> {
+    match value {
+        "bdf1-previous-accepted" => Ok(TransientFaceFluxHistory::Bdf1PreviousAccepted),
+        _ => Err(invalid_realization(
+            "portable graph has an unknown transient face-history policy",
+        )),
+    }
+}
+
+pub(super) fn parse_id<E: Entity>(value: &str) -> Result<Id<E>, Diagnostic> {
+    value
+        .parse::<Ulid>()
+        .map(Id::from_ulid)
+        .map_err(|_| invalid_realization("portable graph contains an invalid ULID"))
+}
+
+pub(super) fn encode_usize(value: usize, label: &str) -> Result<u64, Diagnostic> {
+    u64::try_from(value)
+        .map_err(|_| invalid_realization(format!("portable graph {label} exceeds u64")))
+}
+
+pub(super) fn decode_usize(value: u64, label: &str) -> Result<usize, Diagnostic> {
+    usize::try_from(value)
+        .map_err(|_| invalid_realization(format!("portable graph {label} exceeds usize")))
+}
+
+pub(super) fn decode_nonzero_usize(value: u64, label: &str) -> Result<NonZeroUsize, Diagnostic> {
+    NonZeroUsize::new(decode_usize(value, label)?)
+        .ok_or_else(|| invalid_realization(format!("portable graph {label} is zero")))
+}
+
+fn hex_bytes(value: &[u8; 32]) -> String {
+    value.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn parse_sha256(value: &str) -> Result<[u8; 32], Diagnostic> {
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(invalid_realization(
+            "portable graph contains an invalid SHA-256 identity",
+        ));
+    }
+    let mut result = [0_u8; 32];
+    for (index, byte) in result.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).map_err(|_| {
+            invalid_realization("portable graph contains an invalid SHA-256 identity")
+        })?;
+    }
+    Ok(result)
+}
+
+pub(super) const fn normalize_zero(value: f64) -> f64 {
+    if value == 0.0 { 0.0 } else { value }
+}

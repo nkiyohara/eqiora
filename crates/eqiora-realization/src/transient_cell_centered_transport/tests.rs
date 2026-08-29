@@ -42,6 +42,10 @@ fn exact_transport_request_resolves_to_one_linear_portable_graph() {
     assert_eq!(resolved.fieldwise().plan(), request.plan().fieldwise());
 
     let graph = resolved.portable_graph().unwrap();
+    assert_eq!(
+        crate::PortableRealizationGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(),
+        graph
+    );
     assert_eq!(graph.domains().len(), 1);
     assert_eq!(graph.fields().len(), 1);
     assert_eq!(graph.systems().len(), 1);

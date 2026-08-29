@@ -54,6 +54,10 @@ fn exact_collocated_request_resolves_to_one_nonlinear_portable_graph() {
     assert_eq!(resolved.model(), request.model());
     assert_eq!(resolved.plan(), request.plan());
     let graph = resolved.portable_graph().unwrap();
+    assert_eq!(
+        crate::PortableRealizationGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(),
+        graph
+    );
     assert_eq!(graph.domains().len(), 1);
     assert_eq!(graph.fields().len(), 2);
     assert_eq!(graph.transformations().len(), 4);

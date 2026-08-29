@@ -24,6 +24,10 @@ fn closed_ale_plan_projects_one_geometry_action_and_nonlinear_root() {
     let fixture = Fixture::new();
     let resolved = fixture.resolve(&capabilities(true));
     let graph = resolved.portable_graph().unwrap();
+    assert_eq!(
+        crate::PortableRealizationGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(),
+        graph
+    );
 
     assert_eq!(graph.geometry_actions().len(), 1);
     let GeometryActionNode::P1HarmonicExtension {

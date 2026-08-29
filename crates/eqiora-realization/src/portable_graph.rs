@@ -1,9 +1,9 @@
-//! Canonical in-memory projection of a resolved portable Realization.
+//! Canonical portable projection of a resolved Realization.
 //!
-//! Accepted typed plans remain the authoring and wire contracts. After their
-//! existing validators succeed, this module lowers them into one small, typed
-//! DAG. It deliberately has no arbitrary node, edge, payload, runtime handle,
-//! device ordinal, or allocation vocabulary.
+//! Accepted typed plans remain authoring contracts. After their validators
+//! succeed, this module lowers them into one small, typed DAG with a canonical,
+//! bounded wire representation. It deliberately has no arbitrary node, edge,
+//! payload, runtime handle, device ordinal, or allocation vocabulary.
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DynQuantity, Id};
@@ -19,6 +19,7 @@ use crate::{
 
 mod projection;
 mod validation;
+mod wire;
 
 use projection::portable_placement;
 use validation::{strictly_sorted_unique_by, validate_geometry_actions, validate_system};
@@ -477,13 +478,12 @@ pub enum SolveRoot {
 
 /// Canonical portable DAG projected from one already resolved Realization.
 ///
-/// This type is intentionally in-memory only. Frozen artifact envelopes retain
-/// their bytes and digests; a graph-native wire is considered only after all
-/// accepted plan families prove lossless projection. Graph validation proves
-/// structural closure and solver compatibility. An equation-aware consumer
-/// must additionally compare all claimed Semantic identities and mathematical
-/// properties with its accepted lowering before this graph can authorize a
-/// run or become evidence.
+/// Its canonical wire preserves every graph family currently projected by this
+/// crate. Graph validation proves structural closure and solver compatibility.
+/// An equation-aware consumer must additionally compare all claimed Semantic
+/// identities and mathematical properties with its accepted lowering before
+/// this graph can authorize a run or become evidence. Model, Mesh, and provider
+/// payloads remain separate content-addressed dependencies.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PortableRealizationGraph {
     lineage: RealizationLineage,
