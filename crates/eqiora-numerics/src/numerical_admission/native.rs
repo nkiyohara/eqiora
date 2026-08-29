@@ -26,6 +26,11 @@ pub(super) struct NativeLinearPolicy {
     pub(super) capabilities: SolverCapabilities,
     pub(super) execution: ExecutionProvider,
     pub(super) workers: NonZeroUsize,
+    pub(super) planning_objective: Option<SolverPlanningObjective>,
+    pub(super) planning_policy_id: Option<&'static str>,
+    pub(super) selected_candidate_id: Option<&'static str>,
+    pub(super) selected_evidence_case: Option<&'static str>,
+    pub(super) planning_reasons: Vec<(&'static str, &'static str)>,
 }
 
 impl NativeLinearPolicy {
@@ -49,7 +54,49 @@ impl NativeLinearPolicy {
             capabilities: backend.capabilities(),
             execution: SERIAL_EXECUTION_PROVIDER,
             workers: NonZeroUsize::MIN,
+            planning_objective: None,
+            planning_policy_id: None,
+            selected_candidate_id: None,
+            selected_evidence_case: None,
+            planning_reasons: Vec::new(),
         })
+    }
+
+    pub(super) fn with_planning(
+        mut self,
+        decision: &ResolvedHostSerialSolverPlan<'_>,
+    ) -> Result<Self, Diagnostic> {
+        if self.solver != decision.solver_plan()
+            || self.provider != decision.solver_provider()
+            || self.execution != decision.execution_provider()
+        {
+            return Err(invalid(
+                "solver planning audit does not authenticate the effective linear policy",
+            ));
+        }
+        self.planning_objective = Some(decision.objective());
+        self.planning_policy_id = Some(decision.policy_id());
+        self.selected_candidate_id = Some(decision.selected_candidate_id());
+        self.selected_evidence_case = Some(decision.selected_evidence_case());
+        self.planning_reasons = decision.reasons().collect();
+        Ok(self)
+    }
+
+    pub(super) fn planning_audit_is_coherent(&self) -> bool {
+        match self.planning_objective {
+            None => {
+                self.planning_policy_id.is_none()
+                    && self.selected_candidate_id.is_none()
+                    && self.selected_evidence_case.is_none()
+                    && self.planning_reasons.is_empty()
+            }
+            Some(_) => {
+                self.planning_policy_id.is_some()
+                    && self.selected_candidate_id.is_some()
+                    && self.selected_evidence_case.is_some()
+                    && !self.planning_reasons.is_empty()
+            }
+        }
     }
 }
 

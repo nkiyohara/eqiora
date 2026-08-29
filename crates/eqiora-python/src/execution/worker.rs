@@ -3,11 +3,12 @@ use std::time::Instant;
 
 use eqiora::Diagnostic;
 use eqiora::backends::diffsol::DiffsolTimeBackend;
-use eqiora::backends::faer::FaerLinearSolver;
-use eqiora::solver::REFERENCE_LINEAR_SOLVER;
+use eqiora::backends::faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
+use eqiora::diagnostic::codes;
+use eqiora::solver::{REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER};
 use eqiora_numerics::{
     CommonElasticityPlan, CommonFsiRunRequest, CommonOdeRunRequest, CommonOdeRunResult,
-    CommonScalarPlan, CommonSpatialPolicy, CommonSteadyStokesPlan, CommonTransientRunRequest,
+    CommonScalarPlan, CommonSteadyStokesPlan, CommonTransientRunRequest,
 };
 
 use super::evidence::PyCommonTransientRunProgress;
@@ -113,14 +114,18 @@ fn execute_job(
                 request.state().clone(),
                 maximum_steps,
                 request.output_steps(),
-                |state| match request.plan().spatial() {
-                    CommonSpatialPolicy::MiniP1 => {
+                |state| {
+                    let provider = request.plan().solver_provider();
+                    if provider == FAER_SOLVER_PROVIDER {
                         request.plan().advance_one(&state, &FaerLinearSolver)
-                    }
-                    CommonSpatialPolicy::CellCentered => {
+                    } else if provider == REFERENCE_SOLVER_PROVIDER {
                         request.plan().advance_one(&state, &REFERENCE_LINEAR_SOLVER)
+                    } else {
+                        Err(Diagnostic::error(
+                            codes::INVALID_REALIZATION,
+                            "transient execution rejected a solver provider outside the resolved common Plan",
+                        ))
                     }
-                    _ => unreachable!("closed transient spatial policy"),
                 },
                 |accepted_steps, state| {
                     if accepted_steps > 0 {

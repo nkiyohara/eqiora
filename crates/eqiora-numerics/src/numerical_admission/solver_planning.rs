@@ -8,10 +8,11 @@ use super::spatial_planning::TransientSpatialDecision;
 use super::*;
 
 pub(super) fn resolve_reference_spd(
-    controls: CommonLinearControls,
+    request: CommonLinearRequest,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
+    require_method_specific(request, "reference-SPD")?;
     resolve_exact(
-        controls,
+        request,
         LinearSolver::ConjugateGradient,
         ReductionPolicy::Reproducible,
         LinearOperatorProperties::SymmetricPositiveDefinite,
@@ -20,11 +21,12 @@ pub(super) fn resolve_reference_spd(
 }
 
 pub(super) fn resolve_stokes_mini(
-    controls: CommonLinearControls,
+    request: CommonLinearRequest,
     backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
+    require_method_specific(request, "steady-Stokes MINI/P1")?;
     resolve_exact(
-        controls,
+        request,
         LinearSolver::SparseLu,
         ReductionPolicy::Fast,
         LinearOperatorProperties::SymmetricIndefinite,
@@ -33,32 +35,71 @@ pub(super) fn resolve_stokes_mini(
 }
 
 pub(super) fn resolve_transient_flow(
-    controls: CommonLinearControls,
+    request: CommonLinearRequest,
     spatial: TransientSpatialDecision,
     mini_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
     match spatial {
-        TransientSpatialDecision::MiniP1 => resolve_exact(
-            controls,
-            LinearSolver::SparseLu,
-            ReductionPolicy::Fast,
-            LinearOperatorProperties::General,
-            mini_backend,
-        ),
-        TransientSpatialDecision::CellCentered => resolve_exact(
-            controls,
-            LinearSolver::BiConjugateGradientStabilized,
-            ReductionPolicy::Reproducible,
-            LinearOperatorProperties::General,
-            &REFERENCE_LINEAR_SOLVER,
-        ),
+        TransientSpatialDecision::MiniP1 => {
+            if request.objective().is_some() {
+                return Err(invalid(
+                    "program-controlled host-serial planning currently admits only the cell-centered General canonical-CSR transient profile",
+                ));
+            }
+            resolve_exact(
+                request,
+                LinearSolver::SparseLu,
+                ReductionPolicy::Fast,
+                LinearOperatorProperties::General,
+                mini_backend,
+            )
+        }
+        TransientSpatialDecision::CellCentered => match request.objective() {
+            None => resolve_exact(
+                request,
+                LinearSolver::BiConjugateGradientStabilized,
+                ReductionPolicy::Reproducible,
+                LinearOperatorProperties::General,
+                &REFERENCE_LINEAR_SOLVER,
+            ),
+            Some(objective) => resolve_program_controlled(request, objective, mini_backend),
+        },
     }
 }
 
+fn resolve_program_controlled(
+    request: CommonLinearRequest,
+    objective: SolverPlanningObjective,
+    faer_backend: &dyn LinearSolverBackend,
+) -> Result<NativeLinearPolicy, Diagnostic> {
+    let decision = eqiora_solver::plan_host_serial_solver_v1(
+        eqiora_solver::HostSerialSolverProfile::general_canonical_csr(),
+        objective,
+        request.relative_tolerance(),
+        request.absolute_tolerance(),
+        request.maximum_iterations(),
+        &REFERENCE_LINEAR_SOLVER,
+        faer_backend,
+    )?;
+    let backend: &dyn LinearSolverBackend = if decision.solver_provider()
+        == REFERENCE_LINEAR_SOLVER.provider()
+    {
+        &REFERENCE_LINEAR_SOLVER
+    } else if decision.solver_provider() == faer_backend.provider() {
+        faer_backend
+    } else {
+        return Err(invalid(
+            "host-serial planning selected a provider outside the admitted common resolver catalog",
+        ));
+    };
+    NativeLinearPolicy::exact(decision.solver_plan(), backend)?.with_planning(&decision)
+}
+
 pub(super) fn resolve_fixed_reference_fsi(
-    controls: CommonLinearControls,
+    request: CommonLinearRequest,
 ) -> Result<SolverPlan, Diagnostic> {
-    let plan = controls.resolve(LinearSolver::MinimumResidual, ReductionPolicy::Reproducible)?;
+    require_method_specific(request, "fixed-reference FSI")?;
+    let plan = request.resolve(LinearSolver::MinimumResidual, ReductionPolicy::Reproducible)?;
     REFERENCE_LINEAR_SOLVER.capabilities().require_problem(
         plan,
         ScalarType::F64,
@@ -67,8 +108,17 @@ pub(super) fn resolve_fixed_reference_fsi(
     Ok(plan)
 }
 
+fn require_method_specific(request: CommonLinearRequest, profile: &str) -> Result<(), Diagnostic> {
+    if request.objective().is_some() {
+        return Err(invalid(format!(
+            "program-controlled host-serial planning does not admit the {profile} profile"
+        )));
+    }
+    Ok(())
+}
+
 fn resolve_exact(
-    controls: CommonLinearControls,
+    controls: CommonLinearRequest,
     algorithm: LinearSolver,
     reduction: ReductionPolicy,
     properties: LinearOperatorProperties,
@@ -126,8 +176,8 @@ mod tests {
         }
     }
 
-    fn controls() -> CommonLinearControls {
-        CommonLinearControls::new(1.0e-8, 1.0e-10, NonZeroUsize::new(100).unwrap()).unwrap()
+    fn controls() -> CommonLinearRequest {
+        CommonLinearRequest::new(1.0e-8, 1.0e-10, NonZeroUsize::new(100).unwrap()).unwrap()
     }
 
     #[test]

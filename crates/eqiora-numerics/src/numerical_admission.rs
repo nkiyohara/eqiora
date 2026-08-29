@@ -93,8 +93,8 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     ExecutionProvider, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
     LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    SERIAL_EXECUTION_PROVIDER, ScalarType, SolveReport, SolverCapabilities, SolverCapability,
-    SolverPlan, SolverProvider,
+    ResolvedHostSerialSolverPlan, SERIAL_EXECUTION_PROVIDER, ScalarType, SolveReport,
+    SolverCapabilities, SolverCapability, SolverPlan, SolverPlanningObjective, SolverProvider,
 };
 use eqiora_time::TimeBackendIdentity;
 use sha2::{Digest, Sha256};
@@ -292,15 +292,16 @@ impl CommonBackwardEuler {
     }
 }
 
-/// Algorithm-neutral convergence controls requested from the common resolver.
+/// Algorithm-neutral linear request admitted by the common resolver.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CommonLinearControls {
+pub struct CommonLinearRequest {
     relative_tolerance: f64,
     absolute_tolerance: f64,
     maximum_iterations: NonZeroUsize,
+    objective: Option<SolverPlanningObjective>,
 }
 
-impl CommonLinearControls {
+impl CommonLinearRequest {
     /// Construct validated convergence controls without selecting an algorithm.
     pub fn new(
         relative_tolerance: f64,
@@ -321,6 +322,21 @@ impl CommonLinearControls {
             relative_tolerance,
             absolute_tolerance,
             maximum_iterations,
+            objective: None,
+        })
+    }
+
+    /// Construct a program-controlled request ranked by the versioned
+    /// host-serial policy after hard capability admission.
+    pub fn program_controlled(
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+        objective: SolverPlanningObjective,
+    ) -> Result<Self, Diagnostic> {
+        Self::new(relative_tolerance, absolute_tolerance, maximum_iterations).map(|mut request| {
+            request.objective = Some(objective);
+            request
         })
     }
 
@@ -342,6 +358,13 @@ impl CommonLinearControls {
         self.maximum_iterations
     }
 
+    /// Program-controlled objective, or `None` for the capability's existing
+    /// exact method-specific request.
+    #[must_use]
+    pub const fn objective(self) -> Option<SolverPlanningObjective> {
+        self.objective
+    }
+
     fn resolve(
         self,
         algorithm: LinearSolver,
@@ -361,13 +384,13 @@ impl CommonLinearControls {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CommonSolvePolicy {
     /// One linear solve for a steady linearized problem.
-    Linear(CommonLinearControls),
+    Linear(CommonLinearRequest),
     /// One bounded Newton policy owning its nested linear controls.
     Newton {
         /// Nonlinear convergence/globalization policy.
         nonlinear: NonlinearSolvePlan,
         /// Nested linear controls.
-        linear: CommonLinearControls,
+        linear: CommonLinearRequest,
     },
 }
 
@@ -378,7 +401,7 @@ impl CommonSolvePolicy {
         absolute_tolerance: f64,
         maximum_iterations: NonZeroUsize,
     ) -> Result<Self, Diagnostic> {
-        CommonLinearControls::new(relative_tolerance, absolute_tolerance, maximum_iterations)
+        CommonLinearRequest::new(relative_tolerance, absolute_tolerance, maximum_iterations)
             .map(Self::Linear)
     }
 
@@ -389,8 +412,26 @@ impl CommonSolvePolicy {
         maximum_iterations: NonZeroUsize,
         nonlinear: NonlinearSolvePlan,
     ) -> Result<Self, Diagnostic> {
-        CommonLinearControls::new(relative_tolerance, absolute_tolerance, maximum_iterations)
+        CommonLinearRequest::new(relative_tolerance, absolute_tolerance, maximum_iterations)
             .map(|linear| Self::Newton { nonlinear, linear })
+    }
+
+    /// Construct one bounded Newton request whose nested linear solve is
+    /// selected by the versioned host-serial planning policy.
+    pub fn newton_program_controlled(
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+        nonlinear: NonlinearSolvePlan,
+        objective: SolverPlanningObjective,
+    ) -> Result<Self, Diagnostic> {
+        CommonLinearRequest::program_controlled(
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+            objective,
+        )
+        .map(|linear| Self::Newton { nonlinear, linear })
     }
 }
 

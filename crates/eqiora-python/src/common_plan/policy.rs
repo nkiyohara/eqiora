@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
 
 use eqiora::realization::NonlinearSolvePlan;
+use eqiora::solver::SolverPlanningObjective;
 use eqiora::{Id, kinds};
 use eqiora_numerics::{
     CommonBackwardEuler, CommonPressureGauge2d, CommonSolvePolicy, CommonTsitouras45,
@@ -295,6 +296,42 @@ impl PyCellCentered {
     }
 }
 
+/// Program-owned preference used by the versioned host-serial solver planner.
+#[pyclass(
+    name = "SolverPlanningObjective",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    from_py_object
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum PySolverPlanningObjective {
+    Robust,
+    Fast,
+    LowMemory,
+}
+
+impl From<PySolverPlanningObjective> for SolverPlanningObjective {
+    fn from(value: PySolverPlanningObjective) -> Self {
+        match value {
+            PySolverPlanningObjective::Robust => Self::Robust,
+            PySolverPlanningObjective::Fast => Self::Fast,
+            PySolverPlanningObjective::LowMemory => Self::LowMemory,
+        }
+    }
+}
+
+impl From<SolverPlanningObjective> for PySolverPlanningObjective {
+    fn from(value: SolverPlanningObjective) -> Self {
+        match value {
+            SolverPlanningObjective::Robust => Self::Robust,
+            SolverPlanningObjective::Fast => Self::Fast,
+            SolverPlanningObjective::LowMemory => Self::LowMemory,
+        }
+    }
+}
+
 /// Closed linear-solve controls resolved against Model-owned operator meaning.
 #[pyclass(
     name = "Linear",
@@ -307,14 +344,18 @@ pub(crate) struct PyLinear {
     relative_tolerance: f64,
     absolute_tolerance: f64,
     maximum_iterations: NonZeroUsize,
+    objective: Option<PySolverPlanningObjective>,
 }
 
 impl PyLinear {
-    pub(super) const fn controls(&self) -> (f64, f64, NonZeroUsize) {
+    pub(super) const fn controls(
+        &self,
+    ) -> (f64, f64, NonZeroUsize, Option<PySolverPlanningObjective>) {
         (
             self.relative_tolerance,
             self.absolute_tolerance,
             self.maximum_iterations,
+            self.objective,
         )
     }
 }
@@ -322,12 +363,13 @@ impl PyLinear {
 #[pymethods]
 impl PyLinear {
     #[new]
-    #[pyo3(signature = (*, relative_tolerance, absolute_tolerance, maximum_iterations))]
+    #[pyo3(signature = (*, relative_tolerance, absolute_tolerance, maximum_iterations, objective=None))]
     fn new(
         py: Python<'_>,
         relative_tolerance: f64,
         absolute_tolerance: f64,
         maximum_iterations: usize,
+        objective: Option<PySolverPlanningObjective>,
     ) -> PyResult<Self> {
         let maximum_iterations = NonZeroUsize::new(maximum_iterations)
             .ok_or_else(|| PyTypeError::new_err("maximum_iterations must be a positive integer"))?;
@@ -336,6 +378,7 @@ impl PyLinear {
                 relative_tolerance,
                 absolute_tolerance,
                 maximum_iterations,
+                objective,
             })
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))
     }
@@ -352,6 +395,10 @@ impl PyLinear {
     fn maximum_iterations(&self) -> usize {
         self.maximum_iterations.get()
     }
+    #[getter]
+    const fn objective(&self) -> Option<PySolverPlanningObjective> {
+        self.objective
+    }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
         other
@@ -364,15 +411,17 @@ impl PyLinear {
         self.relative_tolerance().to_bits().hash(&mut hasher);
         self.absolute_tolerance().to_bits().hash(&mut hasher);
         self.maximum_iterations().hash(&mut hasher);
+        self.objective.hash(&mut hasher);
         hasher.finish() as isize
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Linear(relative_tolerance={}, absolute_tolerance={}, maximum_iterations={})",
+            "Linear(relative_tolerance={}, absolute_tolerance={}, maximum_iterations={}, objective={:?})",
             self.relative_tolerance(),
             self.absolute_tolerance(),
-            self.maximum_iterations()
+            self.maximum_iterations(),
+            self.objective,
         )
     }
 }

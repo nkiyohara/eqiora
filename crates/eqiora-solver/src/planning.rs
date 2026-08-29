@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
@@ -31,10 +33,6 @@ const FAER_PROVIDER: SolverProvider = SolverProvider::new(
     FAER_LIBRARIES,
 );
 
-const RELATIVE_TOLERANCE_BITS: u64 = 0x3d71_9799_812d_ea11;
-const ABSOLUTE_TOLERANCE_BITS: u64 = 0x3d06_849b_86a1_2b9b;
-const MAXIMUM_ITERATIONS: usize = 100;
-
 /// Deterministic preference table used by bounded host-serial solver planning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SolverPlanningObjective {
@@ -46,9 +44,26 @@ pub enum SolverPlanningObjective {
     LowMemory,
 }
 
+/// Structural operator facts admitted before host-serial numerical work.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HostSerialSolverProfile {
+    facts: PlanningProfileFacts,
+}
+
+impl HostSerialSolverProfile {
+    /// Describe a normal-orientation, complete-diagonal canonical CSR General
+    /// operator without constructing or applying its numerical coefficients.
+    #[must_use]
+    pub const fn general_canonical_csr() -> Self {
+        Self {
+            facts: PlanningProfileFacts::GENERAL_CANONICAL_CSR,
+        }
+    }
+}
+
 /// One untrusted member of the frozen host-serial solver catalog.
 #[derive(Debug, Clone, Copy)]
-pub struct HostSerialSolverCandidate<'backend> {
+struct HostSerialSolverCandidate<'backend> {
     id: &'static str,
     evidence_case: &'static str,
     request: LinearSolveRequest<'backend>,
@@ -57,10 +72,10 @@ pub struct HostSerialSolverCandidate<'backend> {
 impl<'backend> HostSerialSolverCandidate<'backend> {
     /// Bind a candidate identity and evidence claim to an executable request.
     ///
-    /// Construction performs no admission. [`resolve_host_serial_solver_v1`]
+    /// Construction performs no admission. The shared catalog resolver
     /// validates the complete catalog before ranking.
     #[must_use]
-    pub const fn new(
+    const fn new(
         id: &'static str,
         evidence_case: &'static str,
         request: LinearSolveRequest<'backend>,
@@ -74,26 +89,27 @@ impl<'backend> HostSerialSolverCandidate<'backend> {
 
     /// Frozen catalog identity supplied by the caller.
     #[must_use]
-    pub const fn id(self) -> &'static str {
+    const fn id(self) -> &'static str {
         self.id
     }
 
     /// Registered evidence identity supplied by the caller.
     #[must_use]
-    pub const fn evidence_case(self) -> &'static str {
+    const fn evidence_case(self) -> &'static str {
         self.evidence_case
     }
 
     /// Exact backend and solver plan supplied by the caller.
     #[must_use]
-    pub const fn request(self) -> LinearSolveRequest<'backend> {
+    const fn request(self) -> LinearSolveRequest<'backend> {
         self.request
     }
 }
 
 /// One inspected decision bound to the exact problem against which it resolved.
+#[cfg(test)]
 #[derive(Debug)]
-pub struct HostSerialSolverDecision<'problem, 'backend> {
+struct HostSerialSolverDecision<'problem, 'backend> {
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
     selected: HostSerialSolverCandidate<'backend>,
@@ -101,8 +117,72 @@ pub struct HostSerialSolverDecision<'problem, 'backend> {
     reasons: Vec<(&'static str, &'static str)>,
 }
 
+#[cfg(test)]
 impl<'problem, 'backend> HostSerialSolverDecision<'problem, 'backend> {
     /// Frozen objective used to rank the admitted candidates.
+    #[must_use]
+    const fn objective(&self) -> SolverPlanningObjective {
+        self.objective
+    }
+
+    /// Versioned deterministic planning-policy identity.
+    #[must_use]
+    const fn policy_id(&self) -> &'static str {
+        POLICY_ID
+    }
+
+    /// Exact selected catalog member.
+    #[must_use]
+    const fn selected(&self) -> HostSerialSolverCandidate<'backend> {
+        self.selected
+    }
+
+    /// Exact problem borrowed during resolution.
+    #[must_use]
+    const fn problem(&self) -> &'problem LinearProblem<'problem> {
+        self.problem
+    }
+
+    /// Exact selected solver provider release.
+    #[must_use]
+    const fn solver_provider(&self) -> SolverProvider {
+        self.solver_provider
+    }
+
+    /// Frozen host-serial execution provider.
+    #[must_use]
+    const fn execution_provider(&self) -> ExecutionProvider {
+        SERIAL_EXECUTION_PROVIDER
+    }
+
+    /// Stable candidate-ID/reason-code trace in ascending candidate-ID order.
+    fn reasons(&self) -> impl ExactSizeIterator<Item = (&'static str, &'static str)> + '_ {
+        self.reasons.iter().copied()
+    }
+
+    /// Execute exactly the selected request against the resolved problem.
+    ///
+    /// # Errors
+    /// Returns the selected backend's capability or numerical diagnostic. No
+    /// retry, fallback, plan mutation, or problem substitution is performed.
+    fn solve(&self) -> Result<LinearSolution, Diagnostic> {
+        self.selected.request.solve(self.problem)
+    }
+}
+
+/// Exact executable plan selected from the v1 host-serial catalog before
+/// numerical operator construction.
+#[derive(Debug)]
+pub struct ResolvedHostSerialSolverPlan<'backend> {
+    profile: HostSerialSolverProfile,
+    objective: SolverPlanningObjective,
+    selected: HostSerialSolverCandidate<'backend>,
+    solver_provider: SolverProvider,
+    reasons: Vec<(&'static str, &'static str)>,
+}
+
+impl<'backend> ResolvedHostSerialSolverPlan<'backend> {
+    /// Frozen objective used to rank admitted candidates.
     #[must_use]
     pub const fn objective(&self) -> SolverPlanningObjective {
         self.objective
@@ -114,16 +194,22 @@ impl<'problem, 'backend> HostSerialSolverDecision<'problem, 'backend> {
         POLICY_ID
     }
 
-    /// Exact selected catalog member.
+    /// Exact selected catalog-member identity.
     #[must_use]
-    pub const fn selected(&self) -> HostSerialSolverCandidate<'backend> {
-        self.selected
+    pub const fn selected_candidate_id(&self) -> &'static str {
+        self.selected.id()
     }
 
-    /// Exact problem borrowed during resolution.
+    /// Registered evidence identity attached to the selected catalog member.
     #[must_use]
-    pub const fn problem(&self) -> &'problem LinearProblem<'problem> {
-        self.problem
+    pub const fn selected_evidence_case(&self) -> &'static str {
+        self.selected.evidence_case()
+    }
+
+    /// Exact selected solver plan.
+    #[must_use]
+    pub const fn solver_plan(&self) -> SolverPlan {
+        self.selected.request().plan()
     }
 
     /// Exact selected solver provider release.
@@ -143,13 +229,47 @@ impl<'problem, 'backend> HostSerialSolverDecision<'problem, 'backend> {
         self.reasons.iter().copied()
     }
 
-    /// Execute exactly the selected request against the resolved problem.
+    /// Execute exactly the selected request after reauthenticating the actual
+    /// problem against the structural profile used during planning.
     ///
     /// # Errors
-    /// Returns the selected backend's capability or numerical diagnostic. No
-    /// retry, fallback, plan mutation, or problem substitution is performed.
-    pub fn solve(&self) -> Result<LinearSolution, Diagnostic> {
-        self.selected.request.solve(self.problem)
+    /// Returns a profile diagnostic before backend work, or the selected
+    /// backend's capability/numerical diagnostic. No retry or fallback occurs.
+    pub fn solve(&self, problem: &LinearProblem<'_>) -> Result<LinearSolution, Diagnostic> {
+        let actual = PlanningProfileFacts::from_problem(problem);
+        if actual != self.profile.facts {
+            return Err(invalid_profile(actual));
+        }
+        self.selected.request().solve(problem)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PlanningProfileFacts {
+    properties: LinearOperatorProperties,
+    orientation: LinearOperatorOrientation,
+    canonical_csr: bool,
+    complete_diagonal: bool,
+}
+
+impl PlanningProfileFacts {
+    const GENERAL_CANONICAL_CSR: Self = Self {
+        properties: LinearOperatorProperties::General,
+        orientation: LinearOperatorOrientation::Normal,
+        canonical_csr: true,
+        complete_diagonal: true,
+    };
+
+    fn from_problem(problem: &LinearProblem<'_>) -> Self {
+        let system = problem.canonical_csr_system();
+        Self {
+            properties: problem.properties(),
+            orientation: problem.operator().orientation(),
+            canonical_csr: system.is_some(),
+            complete_diagonal: system.is_some_and(|system| {
+                has_complete_diagonal(system.rows(), system.row_offsets(), system.column_indices())
+            }),
+        }
     }
 }
 
@@ -159,17 +279,131 @@ struct CandidateEvaluation<'backend> {
     rejection: Option<&'static str>,
 }
 
+#[derive(Debug)]
+struct ResolvedCandidateSet<'backend> {
+    selected: HostSerialSolverCandidate<'backend>,
+    solver_provider: SolverProvider,
+    reasons: Vec<(&'static str, &'static str)>,
+}
+
+/// Plan one exact executable candidate from the frozen v1 host-serial catalog
+/// using structural operator facts and caller-owned convergence controls.
+///
+/// # Errors
+/// Returns `EQ0807` when controls, provider identity, the exact capability
+/// tuples, or the structural profile fail admission. Planning performs no
+/// numerical operator action and executes no backend.
+pub fn plan_host_serial_solver_v1<'backend>(
+    profile: HostSerialSolverProfile,
+    objective: SolverPlanningObjective,
+    relative_tolerance: f64,
+    absolute_tolerance: f64,
+    maximum_iterations: NonZeroUsize,
+    reference_backend: &'backend dyn crate::LinearSolverBackend,
+    faer_backend: &'backend dyn crate::LinearSolverBackend,
+) -> Result<ResolvedHostSerialSolverPlan<'backend>, Diagnostic> {
+    let reference = catalog_plan(
+        LinearSolver::BiConjugateGradientStabilized,
+        PreconditionerPolicy::Jacobi,
+        ReductionPolicy::Reproducible,
+        relative_tolerance,
+        absolute_tolerance,
+        maximum_iterations,
+    )?;
+    let faer_bicgstab = catalog_plan(
+        LinearSolver::BiConjugateGradientStabilized,
+        PreconditionerPolicy::Jacobi,
+        ReductionPolicy::Fast,
+        relative_tolerance,
+        absolute_tolerance,
+        maximum_iterations,
+    )?;
+    let faer_sparse_lu = catalog_plan(
+        LinearSolver::SparseLu,
+        PreconditionerPolicy::Identity,
+        ReductionPolicy::Fast,
+        relative_tolerance,
+        absolute_tolerance,
+        maximum_iterations,
+    )?;
+    let candidates = [
+        HostSerialSolverCandidate::new(
+            REFERENCE_ID,
+            REFERENCE_EVIDENCE,
+            LinearSolveRequest::new(reference_backend, reference),
+        ),
+        HostSerialSolverCandidate::new(
+            FAER_BICGSTAB_ID,
+            FAER_EVIDENCE,
+            LinearSolveRequest::new(faer_backend, faer_bicgstab),
+        ),
+        HostSerialSolverCandidate::new(
+            FAER_SPARSE_LU_ID,
+            FAER_EVIDENCE,
+            LinearSolveRequest::new(faer_backend, faer_sparse_lu),
+        ),
+    ];
+    let resolved = resolve_candidates(profile.facts, objective, &candidates)?;
+    Ok(ResolvedHostSerialSolverPlan {
+        profile,
+        objective,
+        selected: resolved.selected,
+        solver_provider: resolved.solver_provider,
+        reasons: resolved.reasons,
+    })
+}
+
+fn catalog_plan(
+    algorithm: LinearSolver,
+    preconditioner: PreconditionerPolicy,
+    reduction: ReductionPolicy,
+    relative_tolerance: f64,
+    absolute_tolerance: f64,
+    maximum_iterations: NonZeroUsize,
+) -> Result<SolverPlan, Diagnostic> {
+    SolverPlan::new(
+        algorithm,
+        relative_tolerance,
+        absolute_tolerance,
+        maximum_iterations,
+    )
+    .map(|plan| {
+        plan.with_preconditioner(preconditioner)
+            .with_reduction(reduction)
+    })
+}
+
 /// Resolve one exact candidate from the frozen v1 host-serial catalog.
 ///
 /// # Errors
 /// Returns `EQ0807` when inventory, common controls, catalog identity, problem
 /// profile, or exact backend capability admission fails. Resolution performs
 /// no numerical operator action and executes no backend.
-pub fn resolve_host_serial_solver_v1<'problem, 'backend>(
+#[cfg(test)]
+fn resolve_host_serial_solver_v1<'problem, 'backend>(
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
     candidates: &[HostSerialSolverCandidate<'backend>],
 ) -> Result<HostSerialSolverDecision<'problem, 'backend>, Diagnostic> {
+    let resolved = resolve_candidates(
+        PlanningProfileFacts::from_problem(problem),
+        objective,
+        candidates,
+    )?;
+    Ok(HostSerialSolverDecision {
+        problem,
+        objective,
+        selected: resolved.selected,
+        solver_provider: resolved.solver_provider,
+        reasons: resolved.reasons,
+    })
+}
+
+fn resolve_candidates<'backend>(
+    profile: PlanningProfileFacts,
+    objective: SolverPlanningObjective,
+    candidates: &[HostSerialSolverCandidate<'backend>],
+) -> Result<ResolvedCandidateSet<'backend>, Diagnostic> {
     validate_inventory(candidates)?;
     validate_common_controls(candidates)?;
 
@@ -179,7 +413,7 @@ pub fn resolve_host_serial_solver_v1<'problem, 'backend>(
         .into_iter()
         .map(|candidate| CandidateEvaluation {
             candidate,
-            rejection: rejection_reason(problem, candidate),
+            rejection: rejection_reason(profile, candidate),
         })
         .collect::<Vec<_>>();
 
@@ -225,9 +459,7 @@ pub fn resolve_host_serial_solver_v1<'problem, 'backend>(
         }
     }
 
-    Ok(HostSerialSolverDecision {
-        problem,
-        objective,
+    Ok(ResolvedCandidateSet {
         selected,
         solver_provider,
         reasons,
@@ -262,11 +494,16 @@ fn validate_inventory(candidates: &[HostSerialSolverCandidate<'_>]) -> Result<()
 fn validate_common_controls(
     candidates: &[HostSerialSolverCandidate<'_>],
 ) -> Result<(), Diagnostic> {
+    let first = candidates
+        .first()
+        .expect("inventory validation requires a complete nonempty catalog")
+        .request()
+        .plan();
     let controls_match = candidates.iter().all(|candidate| {
         let plan = candidate.request().plan();
-        plan.relative_tolerance().to_bits() == RELATIVE_TOLERANCE_BITS
-            && plan.absolute_tolerance().to_bits() == ABSOLUTE_TOLERANCE_BITS
-            && plan.maximum_iterations().get() == MAXIMUM_ITERATIONS
+        plan.relative_tolerance().to_bits() == first.relative_tolerance().to_bits()
+            && plan.absolute_tolerance().to_bits() == first.absolute_tolerance().to_bits()
+            && plan.maximum_iterations() == first.maximum_iterations()
     });
     if !controls_match {
         return Err(invalid_catalog("catalog.control-mismatch"));
@@ -275,7 +512,7 @@ fn validate_common_controls(
 }
 
 fn rejection_reason(
-    problem: &LinearProblem<'_>,
+    profile: PlanningProfileFacts,
     candidate: HostSerialSolverCandidate<'_>,
 ) -> Option<&'static str> {
     let expected = expected_candidate(candidate.id());
@@ -288,16 +525,16 @@ fn rejection_reason(
     if !plan_tuple_matches(candidate.request().plan(), expected) {
         return Some("catalog.plan-mismatch");
     }
-    if problem.properties() != LinearOperatorProperties::General {
+    if profile.properties != LinearOperatorProperties::General {
         return Some("profile.general-required");
     }
-    if problem.operator().orientation() != LinearOperatorOrientation::Normal {
+    if profile.orientation != LinearOperatorOrientation::Normal {
         return Some("profile.normal-required");
     }
-    let Some(system) = problem.canonical_csr_system() else {
+    if !profile.canonical_csr {
         return Some("profile.canonical-csr-required");
-    };
-    if !has_complete_diagonal(system.rows(), system.row_offsets(), system.column_indices()) {
+    }
+    if !profile.complete_diagonal {
         return Some("profile.complete-diagonal-required");
     }
     let required = SolverCapability {
@@ -405,6 +642,22 @@ fn invalid_catalog(fragment: &'static str) -> Diagnostic {
     Diagnostic::error(
         codes::INVALID_REALIZATION,
         format!("{POLICY_ID} rejected catalog: {fragment}"),
+    )
+}
+
+fn invalid_profile(actual: PlanningProfileFacts) -> Diagnostic {
+    let reason = if actual.properties != LinearOperatorProperties::General {
+        "profile.general-required"
+    } else if actual.orientation != LinearOperatorOrientation::Normal {
+        "profile.normal-required"
+    } else if !actual.canonical_csr {
+        "profile.canonical-csr-required"
+    } else {
+        "profile.complete-diagonal-required"
+    };
+    Diagnostic::error(
+        codes::INVALID_REALIZATION,
+        format!("{POLICY_ID} rejected execution problem: {reason}"),
     )
 }
 

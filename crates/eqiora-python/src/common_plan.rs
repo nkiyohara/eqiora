@@ -6,7 +6,9 @@ use std::hash::{Hash, Hasher};
 use eqiora::artifact::CanonicalModelArtifact;
 use eqiora::backends::faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
 use eqiora::realization::{Space, SpaceFamily};
-use eqiora::solver::{LinearOperatorProperties, REFERENCE_SOLVER_PROVIDER, SolverPlan};
+use eqiora::solver::{
+    LinearOperatorProperties, REFERENCE_SOLVER_PROVIDER, SolverPlan, SolverPlanningObjective,
+};
 use eqiora_numerics::{
     CommonElasticityPlan, CommonFsiPlan, CommonMethodRequest, CommonOdePlan, CommonScalarPlan,
     CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSteadyStokesPlan,
@@ -29,12 +31,13 @@ use capability_view::{
 mod policy;
 use policy::{
     PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyLinear, PyMiniP1, PyNewton, PyP1,
-    PyPressureGauge2d, PyQ1, PyScopedSpatialBinding, PyTsitouras45, ScopedSpatialKind,
+    PyPressureGauge2d, PyQ1, PyScopedSpatialBinding, PySolverPlanningObjective, PyTsitouras45,
+    ScopedSpatialKind,
 };
 mod scaling;
 use scaling::{PyIncompressibleScales, PyIncompressibleScaling, PyIncompressibleScalingReceipt2d};
 mod resolved_solve;
-use resolved_solve::{PyResolvedLinear, PyResolvedNewton};
+use resolved_solve::{PyResolvedLinear, PyResolvedNewton, SolverPlanningAudit};
 mod resolved_execution;
 use resolved_execution::PyResolvedExecution;
 
@@ -193,11 +196,7 @@ impl CommonPlanKind {
             Self::Ode(plan) => plan.backend().id().as_str(),
             Self::Scalar(_) | Self::Elasticity(_) => REFERENCE_SOLVER_PROVIDER.id().as_str(),
             Self::SteadyStokes(_) => FAER_SOLVER_PROVIDER.id().as_str(),
-            Self::TransientFlow(plan) => match plan.spatial() {
-                CommonSpatialPolicy::MiniP1 => FAER_SOLVER_PROVIDER.id().as_str(),
-                CommonSpatialPolicy::CellCentered => REFERENCE_SOLVER_PROVIDER.id().as_str(),
-                _ => unreachable!("closed transient spatial policy"),
-            },
+            Self::TransientFlow(plan) => plan.solver_provider().id().as_str(),
             Self::Fsi(_) => REFERENCE_SOLVER_PROVIDER.id().as_str(),
         }
     }
@@ -209,14 +208,63 @@ impl CommonPlanKind {
                 REFERENCE_SOLVER_PROVIDER.implementation_version()
             }
             Self::SteadyStokes(_) => FAER_SOLVER_PROVIDER.implementation_version(),
-            Self::TransientFlow(plan) => match plan.spatial() {
-                CommonSpatialPolicy::MiniP1 => FAER_SOLVER_PROVIDER.implementation_version(),
-                CommonSpatialPolicy::CellCentered => {
-                    REFERENCE_SOLVER_PROVIDER.implementation_version()
-                }
-                _ => unreachable!("closed transient spatial policy"),
-            },
+            Self::TransientFlow(plan) => plan.solver_provider().implementation_version(),
             Self::Fsi(_) => REFERENCE_SOLVER_PROVIDER.implementation_version(),
+        }
+    }
+
+    const fn solver_planning_objective(&self) -> Option<SolverPlanningObjective> {
+        match self {
+            Self::TransientFlow(plan) => plan.solver_planning_objective(),
+            Self::Ode(_)
+            | Self::Scalar(_)
+            | Self::Elasticity(_)
+            | Self::SteadyStokes(_)
+            | Self::Fsi(_) => None,
+        }
+    }
+
+    const fn solver_planning_policy_id(&self) -> Option<&'static str> {
+        match self {
+            Self::TransientFlow(plan) => plan.solver_planning_policy_id(),
+            Self::Ode(_)
+            | Self::Scalar(_)
+            | Self::Elasticity(_)
+            | Self::SteadyStokes(_)
+            | Self::Fsi(_) => None,
+        }
+    }
+
+    const fn selected_solver_candidate_id(&self) -> Option<&'static str> {
+        match self {
+            Self::TransientFlow(plan) => plan.selected_solver_candidate_id(),
+            Self::Ode(_)
+            | Self::Scalar(_)
+            | Self::Elasticity(_)
+            | Self::SteadyStokes(_)
+            | Self::Fsi(_) => None,
+        }
+    }
+
+    const fn selected_solver_evidence_case(&self) -> Option<&'static str> {
+        match self {
+            Self::TransientFlow(plan) => plan.selected_solver_evidence_case(),
+            Self::Ode(_)
+            | Self::Scalar(_)
+            | Self::Elasticity(_)
+            | Self::SteadyStokes(_)
+            | Self::Fsi(_) => None,
+        }
+    }
+
+    fn solver_planning_reasons(&self) -> &[(&'static str, &'static str)] {
+        match self {
+            Self::TransientFlow(plan) => plan.solver_planning_reasons(),
+            Self::Ode(_)
+            | Self::Scalar(_)
+            | Self::Elasticity(_)
+            | Self::SteadyStokes(_)
+            | Self::Fsi(_) => &[],
         }
     }
 }
@@ -776,8 +824,13 @@ fn resolve_plan(
     };
     let (solve_native, requested_solve_handle) = if let Ok(linear) = solve.extract::<Py<PyLinear>>()
     {
-        let (relative_tolerance, absolute_tolerance, maximum_iterations) =
+        let (relative_tolerance, absolute_tolerance, maximum_iterations, objective) =
             linear.borrow(py).controls();
+        if objective.is_some() {
+            return Err(PyTypeError::new_err(
+                "program-controlled solver planning currently requires a Newton solve over an admitted transient cell-centered model",
+            ));
+        }
         (
             CommonSolvePolicy::linear(relative_tolerance, absolute_tolerance, maximum_iterations)
                 .expect("validated Python linear controls remain valid"),
@@ -786,14 +839,23 @@ fn resolve_plan(
     } else if let Ok(newton) = solve.extract::<Py<PyNewton>>() {
         let newton_ref = newton.borrow(py);
         let linear = newton_ref.linear.clone_ref(py);
-        let (relative_tolerance, absolute_tolerance, maximum_iterations) =
+        let (relative_tolerance, absolute_tolerance, maximum_iterations, objective) =
             linear.borrow(py).controls();
-        let native = CommonSolvePolicy::newton(
-            relative_tolerance,
-            absolute_tolerance,
-            maximum_iterations,
-            newton_ref.native,
-        )
+        let native = match objective {
+            None => CommonSolvePolicy::newton(
+                relative_tolerance,
+                absolute_tolerance,
+                maximum_iterations,
+                newton_ref.native,
+            ),
+            Some(objective) => CommonSolvePolicy::newton_program_controlled(
+                relative_tolerance,
+                absolute_tolerance,
+                maximum_iterations,
+                newton_ref.native,
+                objective.into(),
+            ),
+        }
         .expect("validated Python linear controls remain valid");
         drop(newton_ref);
         (native, RequestedSolveHandle::Newton(newton))
@@ -846,6 +908,21 @@ fn resolve_plan(
             "resolved Plan did not retain the exact caller Mesh occurrence",
         ));
     }
+    let solver_planning_audit = native.solver_planning_objective().map(|objective| {
+        SolverPlanningAudit::new(
+            objective.into(),
+            native
+                .solver_planning_policy_id()
+                .expect("planned solver retains its policy identity"),
+            native
+                .selected_solver_candidate_id()
+                .expect("planned solver retains its selected candidate"),
+            native
+                .selected_solver_evidence_case()
+                .expect("planned solver retains its evidence identity"),
+            native.solver_planning_reasons().to_vec(),
+        )
+    });
     let linear = Py::new(
         py,
         PyResolvedLinear::new(
@@ -857,6 +934,7 @@ fn resolve_plan(
                 .expect("spatial common Plan owns operator properties"),
             native.solver_backend(),
             native.solver_backend_version(),
+            solver_planning_audit,
         ),
     )?;
     let solve_handle = match &native {
@@ -890,6 +968,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyScopedSpatialBinding>()?;
     module.add_class::<PyCellCenteredTpfa>()?;
     module.add_class::<PyCellCentered>()?;
+    module.add_class::<PySolverPlanningObjective>()?;
     module.add_class::<PyLinear>()?;
     module.add_class::<PyNewton>()?;
     module.add_class::<PyResolvedLinear>()?;

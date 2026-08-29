@@ -30,8 +30,8 @@ pub use operator::{
 };
 pub use plan::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan};
 pub use planning::{
-    HostSerialSolverCandidate, HostSerialSolverDecision, SolverPlanningObjective,
-    resolve_host_serial_solver_v1,
+    HostSerialSolverProfile, ResolvedHostSerialSolverPlan, SolverPlanningObjective,
+    plan_host_serial_solver_v1,
 };
 pub use provider::{ExecutionProvider, ProviderLibrary, SolverProvider};
 pub use reference::{REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, ReferenceLinearSolver};
