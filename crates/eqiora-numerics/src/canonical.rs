@@ -14,8 +14,8 @@ use eqiora_meshing::{
 };
 use eqiora_realization::{
     Discretization, DiscretizationMethod, MeshArtifactReference, MeshPolicy,
-    PlacementRequirementNode, QuadraturePolicy, ResolvedRealization, SingleFieldOperatorClaim,
-    SolveRoot, Space, SpaceFamily, Target, VectorLayoutKind,
+    PlacementRequirementNode, QuadraturePolicy, ResolvedRealization, SolveRoot, Space, SpaceFamily,
+    Target, VectorLayoutKind,
 };
 use eqiora_schema::kernel::{
     BoundarySide, DomainKind, ExprDag, ExprId, ExprNode, KernelNode, RepresentationKind, SymbolRef,
@@ -1096,11 +1096,11 @@ fn project_scalar_operator(
     domain: Id<kinds::Domain>,
     field: Id<kinds::Field>,
 ) -> Result<SingleFieldGraphSelection, Diagnostic> {
-    let graph = resolved.portable_graph(SingleFieldOperatorClaim::new(
+    let graph = resolved.portable_graph(
         domain,
         field,
         LinearOperatorProperties::SymmetricPositiveDefinite,
-    ))?;
+    )?;
     let SolveRoot::Linear(root) = graph.root() else {
         return Err(invalid_realization(
             "scalar elliptic execution requires a linear portable Realization root",

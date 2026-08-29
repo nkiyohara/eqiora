@@ -99,56 +99,6 @@ pub enum DomainConfiguration {
     },
 }
 
-/// Equation-aware identity and operator claim for a sole semantic Field.
-///
-/// Compatibility `RealizationPlan` values predate Domain, Field, and operator
-/// identity. A canonical lowerer supplies this structurally typed claim, then
-/// the equation-aware execution finalizer must compare it with the exact
-/// accepted lowering before execution. The portable projection seals its
-/// operator property against the capability tuple retained at resolution; it
-/// never invents anonymous identities or infers mathematics from the selected
-/// solver, but it does not independently prove caller-supplied identities.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SingleFieldOperatorClaim {
-    domain: Id<kinds::Domain>,
-    field: Id<kinds::Field>,
-    operator_properties: LinearOperatorProperties,
-}
-
-impl SingleFieldOperatorClaim {
-    /// Claim one exact Domain/Field pair and its equation-aware operator class.
-    #[must_use]
-    pub const fn new(
-        domain: Id<kinds::Domain>,
-        field: Id<kinds::Field>,
-        operator_properties: LinearOperatorProperties,
-    ) -> Self {
-        Self {
-            domain,
-            field,
-            operator_properties,
-        }
-    }
-
-    /// Exact Semantic Domain.
-    #[must_use]
-    pub const fn domain(self) -> Id<kinds::Domain> {
-        self.domain
-    }
-
-    /// Exact Semantic Field.
-    #[must_use]
-    pub const fn field(self) -> Id<kinds::Field> {
-        self.field
-    }
-
-    /// Mathematical property claimed by the equation-aware lowerer.
-    #[must_use]
-    pub const fn operator_properties(self) -> LinearOperatorProperties {
-        self.operator_properties
-    }
-}
-
 /// One exact Semantic Domain and its portable spatial selection.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DomainDiscretizationNode {
@@ -549,6 +499,66 @@ pub struct PortableRealizationGraph {
 }
 
 impl PortableRealizationGraph {
+    /// Resolve one graph-native linear single-Field realization.
+    /// The equation-aware caller supplies the exact Semantic identities and
+    /// operator class. This constructor owns graph closure and solver
+    /// compatibility; provider capability admission remains a separate step.
+    /// # Errors
+    /// Returns `EQ0807` when the supplied choices cannot form one connected
+    /// portable linear-solve graph.
+    #[allow(clippy::too_many_arguments)]
+    pub fn linear_single_field(
+        lineage: RealizationLineage,
+        domain: Id<kinds::Domain>,
+        field: Id<kinds::Field>,
+        space: Space,
+        discretization: Discretization,
+        operator_properties: LinearOperatorProperties,
+        scalar_type: ScalarType,
+        vector_layout: VectorLayoutKind,
+        solver: SolverPlan,
+        target: Target,
+        schedule: ExecutionSchedule,
+    ) -> Result<Self, Diagnostic> {
+        discretization.validate_space(space)?;
+        crate::execution::validate_target_schedule(target, schedule)?;
+        let graph = Self {
+            lineage,
+            domains: vec![DomainDiscretizationNode {
+                domain,
+                coordinates: CoordinateTreatment::Physical,
+                configuration: DomainConfiguration::FixedGeometry,
+                discretization,
+            }],
+            fields: vec![FieldRepresentationNode {
+                domain: DomainDiscretizationId::new(0),
+                field,
+                space,
+            }],
+            geometry_actions: Vec::new(),
+            transformations: Vec::new(),
+            systems: vec![AlgebraicSystemNode {
+                blocks: vec![SystemBlock::Field(FieldRepresentationId::new(0))],
+                transformations: Vec::new(),
+                scaling: SystemScaling::Dimensional,
+                operator_properties,
+                scalar_type,
+                partition: vector_layout,
+            }],
+            linear_solves: vec![LinearSolveNode {
+                system: AlgebraicSystemId::new(0),
+                plan: solver,
+                placement: PlacementRequirementId::new(0),
+                schedule,
+            }],
+            nonlinear_solves: Vec::new(),
+            placements: vec![portable_placement(target)],
+            root: SolveRoot::Linear(LinearSolveId::new(0)),
+        };
+        graph.validate()?;
+        Ok(graph)
+    }
+
     /// Exact Model and Realization lineage.
     #[must_use]
     pub const fn lineage(&self) -> RealizationLineage {
@@ -748,46 +758,26 @@ impl ResolvedRealization {
     /// portable linear-solve DAG.
     pub fn portable_graph(
         &self,
-        claim: SingleFieldOperatorClaim,
+        domain: Id<kinds::Domain>,
+        field: Id<kinds::Field>,
+        operator_properties: LinearOperatorProperties,
     ) -> Result<PortableRealizationGraph, Diagnostic> {
-        self.require_admitted_operator_properties(claim.operator_properties())?;
+        self.require_admitted_operator_properties(operator_properties)?;
         let plan = self.plan();
         let requirements = self.requirements();
-        let graph = PortableRealizationGraph {
-            lineage: RealizationLineage::new(self.model(), self.semantic_revision(), self.source()),
-            domains: vec![DomainDiscretizationNode {
-                domain: claim.domain(),
-                coordinates: CoordinateTreatment::Physical,
-                configuration: DomainConfiguration::FixedGeometry,
-                discretization: plan.discretization(),
-            }],
-            fields: vec![FieldRepresentationNode {
-                domain: DomainDiscretizationId::new(0),
-                field: claim.field(),
-                space: plan.space(),
-            }],
-            geometry_actions: Vec::new(),
-            transformations: Vec::new(),
-            systems: vec![AlgebraicSystemNode {
-                blocks: vec![SystemBlock::Field(FieldRepresentationId::new(0))],
-                transformations: Vec::new(),
-                scaling: SystemScaling::Dimensional,
-                operator_properties: claim.operator_properties(),
-                scalar_type: requirements.scalar_type(),
-                partition: requirements.vector_layout(),
-            }],
-            linear_solves: vec![LinearSolveNode {
-                system: AlgebraicSystemId::new(0),
-                plan: plan.solver(),
-                placement: PlacementRequirementId::new(0),
-                schedule: plan.schedule(),
-            }],
-            nonlinear_solves: Vec::new(),
-            placements: vec![portable_placement(plan.target())],
-            root: SolveRoot::Linear(LinearSolveId::new(0)),
-        };
-        graph.validate()?;
-        Ok(graph)
+        PortableRealizationGraph::linear_single_field(
+            RealizationLineage::new(self.model(), self.semantic_revision(), self.source()),
+            domain,
+            field,
+            plan.space(),
+            plan.discretization(),
+            operator_properties,
+            requirements.scalar_type(),
+            requirements.vector_layout(),
+            plan.solver(),
+            plan.target(),
+            plan.schedule(),
+        )
     }
 }
 

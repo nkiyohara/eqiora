@@ -104,11 +104,11 @@ fn default_and_equal_explicit_fem_resolve_to_the_same_plan() {
     let domain = Id::<kinds::Domain>::new();
     let field = Id::<kinds::Field>::new();
     let graph = explicit
-        .portable_graph(SingleFieldOperatorClaim::new(
+        .portable_graph(
             domain,
             field,
             eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
-        ))
+        )
         .unwrap();
     assert_eq!(graph.domains()[0].domain(), domain);
     assert_eq!(graph.fields()[0].field(), field);
@@ -164,11 +164,11 @@ fn portable_projection_rejects_solver_operator_contradiction() {
     .unwrap();
     assert_eq!(
         resolved
-            .portable_graph(SingleFieldOperatorClaim::new(
+            .portable_graph(
                 Id::new(),
                 Id::new(),
                 eqiora_solver::LinearOperatorProperties::General,
-            ))
+            )
             .unwrap_err()
             .code(),
         codes::INVALID_REALIZATION
