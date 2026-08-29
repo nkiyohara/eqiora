@@ -16,6 +16,26 @@ use crate::lower::CompiledModel;
 use crate::resolved::ValidatedResolvedHierarchy;
 use crate::source_identity::LocalSourceIdentityLimits;
 
+impl ValidatedResolvedHierarchy {
+    /// Elaborate one root-package public Component as an ephemeral Model
+    /// occurrence bound to exact caller-owned Geometry.
+    ///
+    /// # Errors
+    /// Returns accumulated selection, binding, hierarchy, or typed-lowering
+    /// diagnostics. No partial transaction is returned.
+    #[doc(hidden)]
+    pub fn compile_external_geometry_component(
+        &self,
+        geometry: &CanonicalGeometryV1,
+        component: &str,
+        parameters: &[(&str, f64)],
+    ) -> Result<CompiledModel, Vec<Diagnostic>> {
+        CompiledModel::compile_resolved_external_geometry_component(
+            self, geometry, component, parameters,
+        )
+    }
+}
+
 impl CompiledModel {
     fn external_component_binding_limit() -> usize {
         LocalSourceIdentityLimits::default().max_bindings_per_instance
@@ -99,10 +119,10 @@ impl CompiledModel {
         parameters: &[(&str, f64)],
     ) -> Result<Self, Vec<Diagnostic>> {
         if let Some(unit) = hierarchy
-            .analysis()
+            .analysis
             .units
             .iter()
-            .filter(|unit| unit.namespace == hierarchy.analysis().root)
+            .filter(|unit| unit.namespace == hierarchy.analysis.root)
             .find(|unit| !unit.document.models().is_empty())
         {
             return Err(vec![source_error(
@@ -113,10 +133,10 @@ impl CompiledModel {
             )]);
         }
         let selected = hierarchy
-            .analysis()
+            .analysis
             .units
             .iter()
-            .filter(|unit| unit.namespace == hierarchy.analysis().root)
+            .filter(|unit| unit.namespace == hierarchy.analysis.root)
             .flat_map(|unit| {
                 unit.document
                     .components()
@@ -143,8 +163,8 @@ impl CompiledModel {
         }
         let binding = external_geometry_binding(file, selected, geometry, "Main", parameters)?;
         crate::hierarchy::compile_resolved_external_component(
-            hierarchy.analysis(),
-            hierarchy.checked(),
+            &hierarchy.analysis,
+            &hierarchy.checked,
             &binding,
             crate::hierarchy::HierarchyLimits::default(),
         )

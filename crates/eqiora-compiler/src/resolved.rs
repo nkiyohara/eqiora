@@ -439,19 +439,11 @@ impl AnalyzedResolvedHierarchy {
 /// crossed the compiler-owned static validation barrier.
 #[derive(Clone, Debug)]
 pub struct ValidatedResolvedHierarchy {
-    analysis: AnalyzedResolvedHierarchy,
-    checked: crate::hierarchy::CheckedDefinitionGraph,
+    pub(crate) analysis: AnalyzedResolvedHierarchy,
+    pub(crate) checked: crate::hierarchy::CheckedDefinitionGraph,
 }
 
 impl ValidatedResolvedHierarchy {
-    pub(crate) const fn analysis(&self) -> &AnalyzedResolvedHierarchy {
-        &self.analysis
-    }
-
-    pub(crate) const fn checked(&self) -> &crate::hierarchy::CheckedDefinitionGraph {
-        &self.checked
-    }
-
     /// Exact namespace containing the selected executable Model.
     #[must_use]
     pub const fn root(&self) -> &CompilationNamespaceId {
@@ -475,24 +467,6 @@ impl ValidatedResolvedHierarchy {
             &self.checked,
             model,
             HierarchyLimits::default(),
-        )
-    }
-
-    /// Elaborate one root-package public Component as an ephemeral Model
-    /// occurrence bound to exact caller-owned Geometry.
-    ///
-    /// # Errors
-    /// Returns accumulated selection, binding, hierarchy, or typed-lowering
-    /// diagnostics. No partial transaction is returned.
-    #[doc(hidden)]
-    pub fn compile_external_geometry_component(
-        &self,
-        geometry: &eqiora_geometry::CanonicalGeometryV1,
-        component: &str,
-        parameters: &[(&str, f64)],
-    ) -> Result<CompiledModel, Vec<Diagnostic>> {
-        CompiledModel::compile_resolved_external_geometry_component(
-            self, geometry, component, parameters,
         )
     }
 }
