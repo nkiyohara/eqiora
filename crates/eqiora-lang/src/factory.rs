@@ -3,6 +3,7 @@
 use core::fmt;
 
 mod domain_validation;
+mod property;
 
 use crate::ast::{
     ActivationSyntax, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
@@ -60,6 +61,8 @@ impl std::error::Error for AstConstructionError {}
 pub struct SourceAstFactory;
 
 impl SourceAstFactory {
+    /// Materialize compiler-validated nominal properties as ordinary scalar
+    /// Parameters and bindings while retaining their source metadata.
     /// Close one nonempty compilation unit into a formatter-compatible document.
     ///
     /// A declarations-only document is valid source syntax for a package
@@ -78,6 +81,8 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            property_contracts: Vec::new(),
+            property_releases: Vec::new(),
             connectors,
             components,
             pure_operators: Vec::new(),
@@ -108,6 +113,8 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            property_contracts: Vec::new(),
+            property_releases: Vec::new(),
             connectors,
             components,
             pure_operators,
@@ -126,6 +133,8 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            property_contracts: Vec::new(),
+            property_releases: Vec::new(),
             connectors: Vec::new(),
             components: Vec::new(),
             pure_operators: Vec::new(),
@@ -284,6 +293,7 @@ impl SourceAstFactory {
             visibility,
             name: checked_identifier(name, "component")?,
             items,
+            property_requirements: Vec::new(),
             range: checked_range(range)?,
         })
     }
@@ -903,6 +913,7 @@ impl SourceAstFactory {
             support_bindings,
             boundary_set_bindings,
             field_bindings,
+            property_bindings: Vec::new(),
             range: checked_range(range)?,
         })
     }
@@ -1013,28 +1024,6 @@ impl SourceAstFactory {
             numerator,
             denominator,
         }
-    }
-}
-
-impl NamePath {
-    /// Construct a structurally segmented, nonempty source name.
-    ///
-    /// # Errors
-    /// Returns an error when the path is empty, a segment is not a valid
-    /// Eqiora identifier, or the source range is reversed.
-    pub fn from_segments<I, S>(segments: I, range: TextRange) -> Result<Self, AstConstructionError>
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        let segments = segments.into_iter().map(Into::into).collect::<Vec<_>>();
-        if segments.is_empty() {
-            return Err(AstConstructionError::new("a NamePath cannot be empty"));
-        }
-        for segment in &segments {
-            validate_identifier(segment, "NamePath segment")?;
-        }
-        Ok(Self::from_parsed_segments(segments, checked_range(range)?))
     }
 }
 

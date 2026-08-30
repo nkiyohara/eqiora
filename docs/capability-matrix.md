@@ -184,6 +184,8 @@ below.
 | Canonical model diff | 🟨 | 🟨 | ⬜ | ⬜ | Revision changes can be observed; semantic, topology-aware diff remains |
 | Merge and conflict semantics | 🟨 | 🟨 | ⬜ | ⬜ | Atomic preconditions reject stale edits; a true three-way semantic merge remains |
 
+| Nominal scalar property contract and exact release | ✅ | ✅ | ⬜ | ⬜ | Eqiora source can declare one package-nominal scalar property contract, an immutable constant release with explicit source-unit/coherent-SI normalization and provenance, a Component requirement, and an exact release binding. Locked package compilation and offline replay retain an inspectable contract/release/binding projection while the effective Law reuses ordinary Component Parameter elaboration. This initial slice has unconditional validity and no independent-variable or State dependencies. It does not provide a catalog, registry, importer, uncertainty/tensor/table data, numerical property dispatch, or a verified scientific execution claim. |
+
 ## 2. Language, packages, and authoring
 
 | Capability | C | X | V | M | Current boundary / mature destination |

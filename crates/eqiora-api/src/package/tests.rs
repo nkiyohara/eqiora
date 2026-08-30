@@ -71,6 +71,79 @@ fn caller_geometry(volume: &str) -> CanonicalGeometryV1 {
 }
 
 #[test]
+fn locked_scalar_property_replays_offline_with_inspectable_provenance() {
+    const SOURCE: &str = r#"
+public property contract Diffusivity {
+  scalar value: m ^ 2 / s;
+}
+property release ReferenceDiffusivity implements Diffusivity {
+  value = 25;
+  source_unit: m ^ 2 / s = 1 / 1000;
+  validity = unconditional;
+  citation = org.example.measurement;
+  license = spdx.CC0_1_0;
+}
+public component Diffusion {
+  public property diffusivity: Diffusivity;
+  relation law continuous { diffusivity = 0; }
+}
+model Main {
+  instance domain: Diffusion(property diffusivity = ReferenceDiffusivity);
+}
+"#;
+    let root = release("org.example.Property", SOURCE, &[]);
+    assert!(
+        root.semantic()
+            .declarations()
+            .iter()
+            .any(|value| { value.kind() == DeclarationKindV1::PropertyContract })
+    );
+    assert!(
+        root.semantic()
+            .declarations()
+            .iter()
+            .any(|value| { value.kind() == DeclarationKindV1::PropertyRelease })
+    );
+    let mut store = InMemoryPackageStore::default();
+    store.insert(&root).expect("store exact release");
+    let resolution = ResolutionRecordV1::from_exact_releases(&root, &[]).expect("exact lock");
+    let first = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("first offline compile");
+    let replay =
+        PackagedModelDocument::compile_locked(&store, &resolution, "Main").expect("offline replay");
+    assert_eq!(
+        first.model().digest().unwrap(),
+        replay.model().digest().unwrap()
+    );
+    assert_eq!(first.compilation(), replay.compilation());
+    assert_eq!(
+        first.property_bindings().collect::<Vec<_>>(),
+        replay.property_bindings().collect::<Vec<_>>()
+    );
+    let binding = first.property_bindings().next().unwrap();
+    assert_eq!(binding.4, 0.025);
+    assert_eq!(binding.3, "diffusivity");
+    assert_eq!(binding.5, "org.example.measurement");
+    assert_eq!(binding.6, "spdx.CC0_1_0");
+
+    let changed_source = SOURCE.replace("org.example.measurement", "org.example.remeasurement");
+    let changed = release("org.example.Property", &changed_source, &[]);
+    let mut changed_store = InMemoryPackageStore::default();
+    changed_store
+        .insert(&changed)
+        .expect("store changed release");
+    let changed_resolution =
+        ResolutionRecordV1::from_exact_releases(&changed, &[]).expect("changed exact lock");
+    let changed_model =
+        PackagedModelDocument::compile_locked(&changed_store, &changed_resolution, "Main")
+            .expect("changed provenance compiles");
+    assert_ne!(
+        first.model().digest().unwrap(),
+        changed_model.model().digest().unwrap()
+    );
+}
+
+#[test]
 fn locked_component_binds_caller_geometry_into_ordinary_model() {
     const SOURCE: &str = r#"
 public component SpatialLaw {

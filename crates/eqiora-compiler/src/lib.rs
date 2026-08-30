@@ -16,6 +16,7 @@ mod hierarchy;
 pub mod identity;
 mod lower;
 pub mod projection;
+mod property;
 #[doc(hidden)]
 pub mod provenance;
 mod pure_operator;

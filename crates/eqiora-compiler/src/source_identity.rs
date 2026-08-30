@@ -9,20 +9,21 @@ use core::fmt;
 use std::collections::BTreeMap;
 
 mod domain;
+mod instance;
+mod visibility;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_lang::{
     ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
     BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
-    BoundarySetBindingDecl, BoundarySideSyntax, CartesianCoordinateSyntax, ClockDecl,
-    ComponentDecl, ComponentItem, ComponentParameterDecl, ComponentPortDecl,
-    ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl, ConnectorSyntax,
-    Document, DomainDecl, DomainSyntax, Expr, ExprKind, FieldDecl, FieldSlotDecl, FrameSyntax,
-    InstanceDecl, Item, ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
-    RelationDecl, RelationFamilyDecl, RepresentationDecl, RepresentationSyntax,
-    SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, UnaryOp, ValueShapeSyntax,
-    VisibilitySyntax,
+    BoundarySideSyntax, CartesianCoordinateSyntax, ClockDecl, ComponentDecl, ComponentItem,
+    ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
+    ConnectionSyntax, ConnectorDecl, ConnectorSyntax, Document, DomainDecl, DomainSyntax, Expr,
+    ExprKind, FieldDecl, FieldSlotDecl, FrameSyntax, Item, ModelDecl, NamePath, ParameterDecl,
+    PortDecl, PortSyntax, PureOperatorDecl, RelationDecl, RelationFamilyDecl, RepresentationDecl,
+    RepresentationSyntax, SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, TextRange,
+    UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use sha2::{Digest, Sha256};
 
@@ -32,6 +33,8 @@ use crate::connection_sets::{
 use crate::identity::IdentityNamespace;
 use crate::pure_operator::compile_definition;
 use domain::encode_domain;
+use instance::encode_instance;
+use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
 const CANONICAL_VERSION: u16 = 1;
@@ -186,9 +189,11 @@ fn canonical_source_bytes_with_aliases(
     resolved_aliases: BTreeMap<String, Box<[String]>>,
 ) -> Result<Vec<u8>, Diagnostic> {
     let top_level_count = document
-        .connectors()
+        .property_contract_syntax()
         .len()
-        .checked_add(document.pure_operators().len())
+        .checked_add(document.property_release_syntax().len())
+        .and_then(|count| count.checked_add(document.connectors().len()))
+        .and_then(|count| count.checked_add(document.pure_operators().len()))
         .and_then(|count| count.checked_add(document.components().len()))
         .and_then(|count| count.checked_add(document.models().len()))
         .ok_or_else(|| source_identity_error("top-level declaration count overflows usize"))?;
@@ -201,6 +206,18 @@ fn canonical_source_bytes_with_aliases(
 
     let mut budget = Budget::with_resolved_aliases(limits, resolved_aliases);
     let connectors = encode_sorted_records(document.connectors(), &mut budget, encode_connector)?;
+    let property_contract_syntax = document.property_contract_syntax().collect::<Vec<_>>();
+    let property_release_syntax = document.property_release_syntax().collect::<Vec<_>>();
+    let property_contracts = encode_sorted_records(
+        &property_contract_syntax,
+        &mut budget,
+        encode_property_contract,
+    )?;
+    let property_releases = encode_sorted_records(
+        &property_release_syntax,
+        &mut budget,
+        encode_property_release,
+    )?;
     let pure_operators =
         encode_sorted_records(document.pure_operators(), &mut budget, encode_pure_operator)?;
     let components = encode_sorted_records(document.components(), &mut budget, encode_component)?;
@@ -214,6 +231,62 @@ fn canonical_source_bytes_with_aliases(
     encoder.field(3, |encoder| encoder.records(&models))?;
     if !pure_operators.is_empty() {
         encoder.field(4, |encoder| encoder.records(&pure_operators))?;
+    }
+    if !property_contracts.is_empty() {
+        encoder.field(5, |encoder| encoder.records(&property_contracts))?;
+    }
+    if !property_releases.is_empty() {
+        encoder.field(6, |encoder| encoder.records(&property_releases))?;
+    }
+    encoder.finish()
+}
+
+fn encode_property_contract(
+    declaration: &(VisibilitySyntax, &str, &Expr, TextRange),
+    budget: &mut Budget,
+) -> Result<Vec<u8>, Diagnostic> {
+    let (visibility, name, dimension, _) = *declaration;
+    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
+    encoder.field(1, |encoder| encode_name(encoder, name, budget))?;
+    encoder.field(2, |encoder| {
+        encode_expression(encoder, dimension, budget, 1)
+    })?;
+    if visibility == VisibilitySyntax::Public {
+        encoder.field(3, |encoder| encode_visibility(encoder, visibility))?;
+    }
+    encoder.finish()
+}
+
+fn encode_property_release(
+    declaration: &(
+        VisibilitySyntax,
+        &str,
+        &NamePath,
+        &Expr,
+        &Expr,
+        &Expr,
+        &NamePath,
+        &NamePath,
+        TextRange,
+    ),
+    budget: &mut Budget,
+) -> Result<Vec<u8>, Diagnostic> {
+    let (visibility, name, contract, source_value, source_dimension, scale, citation, license, _) =
+        *declaration;
+    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
+    encoder.field(1, |encoder| encode_name(encoder, name, budget))?;
+    encoder.field(2, |encoder| encode_type_path(encoder, contract, budget))?;
+    encoder.field(3, |encoder| {
+        encode_expression(encoder, source_value, budget, 1)
+    })?;
+    encoder.field(4, |encoder| {
+        encode_expression(encoder, source_dimension, budget, 1)
+    })?;
+    encoder.field(5, |encoder| encode_expression(encoder, scale, budget, 1))?;
+    encoder.field(6, |encoder| encode_type_path(encoder, citation, budget))?;
+    encoder.field(7, |encoder| encode_type_path(encoder, license, budget))?;
+    if visibility == VisibilitySyntax::Public {
+        encoder.field(8, |encoder| encode_visibility(encoder, visibility))?;
     }
     encoder.finish()
 }
@@ -297,7 +370,12 @@ fn encode_component(
     declaration: &ComponentDecl,
     budget: &mut Budget,
 ) -> Result<Vec<u8>, Diagnostic> {
-    budget.account_members(declaration.items().len(), "component")?;
+    let member_count = declaration
+        .items()
+        .len()
+        .checked_add(declaration.property_requirement_syntax().len())
+        .ok_or_else(|| source_identity_error("component member count overflows usize"))?;
+    budget.account_members(member_count, "component")?;
     let members = encode_container_records(
         declaration.items(),
         budget,
@@ -315,6 +393,25 @@ fn encode_component(
             encode_visibility(encoder, declaration.visibility())
         })?;
     }
+    let property_syntax = declaration
+        .property_requirement_syntax()
+        .collect::<Vec<_>>();
+    if !property_syntax.is_empty() {
+        let properties =
+            encode_sorted_records(&property_syntax, budget, encode_component_property)?;
+        encoder.field(4, |encoder| encoder.records(&properties))?;
+    }
+    encoder.finish()
+}
+
+fn encode_component_property(
+    declaration: &(&str, &NamePath, TextRange),
+    budget: &mut Budget,
+) -> Result<Vec<u8>, Diagnostic> {
+    let (name, contract, _) = *declaration;
+    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
+    encoder.field(1, |encoder| encode_name(encoder, name, budget))?;
+    encoder.field(2, |encoder| encode_type_path(encoder, contract, budget))?;
     encoder.finish()
 }
 
@@ -1072,104 +1169,6 @@ fn encode_boundary(
     budget.check_connection_members(declaration.port_paths().len(), "Boundary")?;
     let paths = encode_sorted_paths(declaration.port_paths(), budget)?;
     encoder.field(1, |encoder| encoder.records(&paths))
-}
-
-fn encode_instance(
-    encoder: &mut Encoder,
-    declaration: &InstanceDecl,
-    budget: &mut Budget,
-) -> Result<(), Diagnostic> {
-    let binding_count = declaration
-        .bindings()
-        .len()
-        .checked_add(declaration.support_bindings().len())
-        .and_then(|count| count.checked_add(declaration.boundary_set_bindings().len()))
-        .and_then(|count| count.checked_add(declaration.field_bindings().len()))
-        .ok_or_else(|| source_identity_error("instance binding count overflows usize"))?;
-    if binding_count > budget.limits.max_bindings_per_instance {
-        return Err(source_identity_error(format!(
-            "instance `{}` has {} bindings, exceeding the {} binding limit",
-            declaration.name(),
-            binding_count,
-            budget.limits.max_bindings_per_instance
-        )));
-    }
-    encoder.field(1, |encoder| {
-        encode_name(encoder, declaration.name(), budget)
-    })?;
-    encoder.field(2, |encoder| {
-        encode_type_path(encoder, declaration.definition(), budget)
-    })?;
-    let bindings = encode_sorted_records(declaration.bindings(), budget, |binding, budget| {
-        let mut binding_encoder = Encoder::new(budget.limits.max_canonical_bytes);
-        binding_encoder.field(1, |encoder| {
-            encode_name(encoder, binding.parameter(), budget)
-        })?;
-        binding_encoder.field(2, |encoder| {
-            encode_expression(encoder, binding.value(), budget, 1)
-        })?;
-        binding_encoder.finish()
-    })?;
-    encoder.field(3, |encoder| encoder.records(&bindings))?;
-    if !declaration.support_bindings().is_empty() {
-        let support_bindings =
-            encode_sorted_records(declaration.support_bindings(), budget, |binding, budget| {
-                let mut binding_encoder = Encoder::new(budget.limits.max_canonical_bytes);
-                binding_encoder.field(1, |encoder| encode_name(encoder, binding.slot(), budget))?;
-                binding_encoder
-                    .field(2, |encoder| encode_name(encoder, binding.target(), budget))?;
-                binding_encoder.finish()
-            })?;
-        encoder.field(4, |encoder| encoder.records(&support_bindings))?;
-    }
-    if !declaration.field_bindings().is_empty() {
-        let field_bindings =
-            encode_sorted_records(declaration.field_bindings(), budget, |binding, budget| {
-                let mut binding_encoder = Encoder::new(budget.limits.max_canonical_bytes);
-                binding_encoder.field(1, |encoder| encode_name(encoder, binding.slot(), budget))?;
-                binding_encoder
-                    .field(2, |encoder| encode_name(encoder, binding.target(), budget))?;
-                binding_encoder.finish()
-            })?;
-        encoder.field(5, |encoder| encoder.records(&field_bindings))?;
-    }
-    if !declaration.boundary_set_bindings().is_empty() {
-        let boundary_set_bindings = encode_sorted_records(
-            declaration.boundary_set_bindings(),
-            budget,
-            encode_boundary_set_binding,
-        )?;
-        // Append-only optional field: legacy instances retain their exact v1
-        // records when no complete-exterior binding is present.
-        encoder.field(6, |encoder| encoder.records(&boundary_set_bindings))?;
-    }
-    Ok(())
-}
-
-fn encode_boundary_set_binding(
-    binding: &BoundarySetBindingDecl,
-    budget: &mut Budget,
-) -> Result<Vec<u8>, Diagnostic> {
-    budget.account_boundary_set_members(binding.members().len())?;
-    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
-    encoder.field(1, |encoder| encode_name(encoder, binding.slot(), budget))?;
-    let members = encode_sorted_records(binding.members(), budget, |member, budget| {
-        let mut member_encoder = Encoder::new(budget.limits.max_canonical_bytes);
-        encode_name(&mut member_encoder, member.target(), budget)?;
-        member_encoder.finish()
-    })?;
-    encoder.field(2, |encoder| encoder.records(&members))?;
-    encoder.finish()
-}
-
-fn encode_visibility(
-    encoder: &mut Encoder,
-    visibility: VisibilitySyntax,
-) -> Result<(), Diagnostic> {
-    encoder.u8(match visibility {
-        VisibilitySyntax::Private => 1,
-        VisibilitySyntax::Public => 2,
-    })
 }
 
 fn encode_optional_name(

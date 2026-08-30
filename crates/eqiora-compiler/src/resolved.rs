@@ -18,6 +18,11 @@ use crate::diagnostics::stable_sort;
 use crate::hierarchy::HierarchyLimits;
 use crate::source_identity::LocalSourceIdentity;
 
+mod declaration;
+pub use declaration::{
+    CanonicalDeclarationIdentity, CanonicalDeclarationKind, CanonicalDeclarationVisibility,
+};
+
 const MAX_NAMESPACE_SEGMENTS: usize = 31;
 const MAX_NAMESPACE_SEGMENT_BYTES: usize = 4_096;
 const MAX_SOURCE_UNITS: usize = 1_000_000;
@@ -310,80 +315,6 @@ where
     Ok(())
 }
 
-/// Top-level declaration families currently understood by package lowering.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-#[non_exhaustive]
-pub enum CanonicalDeclarationKind {
-    /// Bounded content-addressed pure operator.
-    PureOperator,
-    /// Nominal physical connector family.
-    Connector,
-    /// Reusable component definition.
-    Component,
-    /// Package-local executable entry model.
-    Model,
-}
-
-/// Package visibility after parsing private-by-default source syntax.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum CanonicalDeclarationVisibility {
-    /// Visible only inside the exact owning package.
-    Private,
-    /// Available through a declared direct dependency alias.
-    Public,
-}
-
-impl From<VisibilitySyntax> for CanonicalDeclarationVisibility {
-    fn from(value: VisibilitySyntax) -> Self {
-        match value {
-            VisibilitySyntax::Private => Self::Private,
-            VisibilitySyntax::Public => Self::Public,
-        }
-    }
-}
-
-/// File-layout-independent canonical declaration emitted by the compiler.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CanonicalDeclarationIdentity {
-    namespace: CompilationNamespaceId,
-    path: String,
-    kind: CanonicalDeclarationKind,
-    visibility: CanonicalDeclarationVisibility,
-    canonical_form: String,
-}
-
-impl CanonicalDeclarationIdentity {
-    /// Owning package namespace.
-    #[must_use]
-    pub const fn namespace(&self) -> &CompilationNamespaceId {
-        &self.namespace
-    }
-
-    /// Package-relative top-level declaration path.
-    #[must_use]
-    pub fn path(&self) -> &str {
-        &self.path
-    }
-
-    /// Closed declaration family.
-    #[must_use]
-    pub const fn kind(&self) -> CanonicalDeclarationKind {
-        self.kind
-    }
-
-    /// Exact package visibility recognized by the compiler.
-    #[must_use]
-    pub const fn visibility(&self) -> CanonicalDeclarationVisibility {
-        self.visibility
-    }
-
-    /// Domain-separated canonical source-declaration identity string.
-    #[must_use]
-    pub fn canonical_form(&self) -> &str {
-        &self.canonical_form
-    }
-}
-
 #[derive(Clone, Debug)]
 pub(crate) struct AnalyzedSourceUnit {
     pub(crate) namespace: CompilationNamespaceId,
@@ -404,6 +335,7 @@ pub struct AnalyzedResolvedHierarchy {
     pub(crate) units: Vec<AnalyzedSourceUnit>,
     pub(crate) aliases: Vec<ResolvedAlias>,
     canonical_declarations: Box<[CanonicalDeclarationIdentity]>,
+    property_bindings: Box<[crate::property::ResolvedPropertyBinding]>,
 }
 
 impl AnalyzedResolvedHierarchy {
@@ -417,6 +349,24 @@ impl AnalyzedResolvedHierarchy {
     #[must_use]
     pub fn canonical_declarations(&self) -> &[CanonicalDeclarationIdentity] {
         &self.canonical_declarations
+    }
+
+    /// Read-only nominal property bindings retained through elaboration.
+    #[must_use]
+    pub fn property_bindings(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (&str, &str, &str, &str, f64, &str, &str)> {
+        self.property_bindings.iter().map(|value| {
+            (
+                value.contract(),
+                value.release(),
+                value.component(),
+                value.requirement(),
+                value.normalized_value(),
+                value.citation(),
+                value.license(),
+            )
+        })
     }
 
     /// Validate every distributable definition before selected-root
@@ -525,10 +475,14 @@ pub fn analyze_resolved_hierarchy(
         units,
         aliases: input.aliases,
         canonical_declarations: Box::new([]),
+        property_bindings: Box::new([]),
     };
+    let canonical_units = analysis.units.clone();
+    analysis.property_bindings =
+        crate::property::validate_and_elaborate(&mut analysis.units, &analysis.aliases)?;
     crate::hierarchy::validate_resolved_hierarchy(&analysis, limits)?;
     analysis.canonical_declarations =
-        collect_canonical_declarations(&analysis.units, &analysis.aliases, &mut diagnostics)
+        collect_canonical_declarations(&canonical_units, &analysis.aliases, &mut diagnostics)
             .into_boxed_slice();
     if diagnostics.is_empty() {
         Ok(analysis)
@@ -621,6 +575,25 @@ fn collect_canonical_declarations(
                 )
             })
             .collect::<BTreeMap<_, _>>();
+        for (name, visibility, is_contract, document) in
+            unit.document.isolated_property_declarations()
+        {
+            push_canonical(
+                &mut result,
+                &mut paths,
+                &unit.namespace,
+                &name,
+                if is_contract {
+                    CanonicalDeclarationKind::PropertyContract
+                } else {
+                    CanonicalDeclarationKind::PropertyRelease
+                },
+                visibility,
+                &document,
+                &resolved_aliases,
+                diagnostics,
+            );
+        }
         for connector in unit.document.connectors() {
             let document =
                 SourceAstFactory::document(vec![connector.clone()], Vec::new(), Vec::new())

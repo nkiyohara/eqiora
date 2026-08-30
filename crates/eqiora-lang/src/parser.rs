@@ -4,6 +4,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Span};
 
 mod domain;
+mod property;
 mod relation;
 
 use crate::ast::{
@@ -156,6 +157,8 @@ enum ParsedConnection {
 
 impl Parser<'_> {
     fn parse_document(&mut self) -> Option<Document> {
+        let mut property_contracts = Vec::new();
+        let mut property_releases = Vec::new();
         let mut connectors = Vec::new();
         let mut components = Vec::new();
         let mut pure_operators = Vec::new();
@@ -177,7 +180,15 @@ impl Parser<'_> {
                 |(_, token)| token.range().start(),
             );
 
-            if self.at_keyword("connector") {
+            if self.at_keyword("property") {
+                self.parse_top_property(
+                    declaration_start,
+                    visibility,
+                    models_started,
+                    &mut property_contracts,
+                    &mut property_releases,
+                );
+            } else if self.at_keyword("connector") {
                 if models_started {
                     self.error_here(
                         "compilation-unit Connector declarations must precede model declarations",
@@ -225,16 +236,20 @@ impl Parser<'_> {
                 }
             } else {
                 self.error_here(
-                    "expected `connector`, `component`, `pure operator`, or `model` declaration",
+                    "expected `property`, `connector`, `component`, `pure operator`, or `model` declaration",
                 );
                 self.recover_top_level();
             }
         }
-        (!(connectors.is_empty()
+        (!(property_contracts.is_empty()
+            && property_releases.is_empty()
+            && connectors.is_empty()
             && components.is_empty()
             && pure_operators.is_empty()
             && models.is_empty()))
         .then_some(Document {
+            property_contracts,
+            property_releases,
             connectors,
             components,
             pure_operators,
@@ -482,7 +497,12 @@ impl Parser<'_> {
         let name = self.expect_identifier("component name")?.text().to_owned();
         self.expect(TokenKind::LeftBrace, "`{` after component name")?;
         let mut items = Vec::new();
+        let mut property_requirements = Vec::new();
         while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
+            if self.at_component_property() {
+                property_requirements.push(self.parse_component_property()?);
+                continue;
+            }
             match self.parse_component_item() {
                 Some(ParsedComponentItem::Retained(item)) => items.push(*item),
                 Some(ParsedComponentItem::Discarded) => {}
@@ -497,6 +517,7 @@ impl Parser<'_> {
             visibility,
             name,
             items,
+            property_requirements,
             range: TextRange::new(start, end),
         })
     }
@@ -1327,6 +1348,7 @@ impl Parser<'_> {
         let mut support_bindings = Vec::new();
         let mut boundary_set_bindings = Vec::new();
         let mut field_bindings = Vec::new();
+        let mut property_bindings = Vec::new();
         if self.at(TokenKind::LeftParen) {
             self.bump();
             if !self.at(TokenKind::RightParen) {
@@ -1399,6 +1421,14 @@ impl Parser<'_> {
                         self.bump();
                         continue;
                     }
+                    if self.at_keyword("property") {
+                        property_bindings.push(self.parse_property_binding(binding_start)?);
+                        if !self.at(TokenKind::Comma) {
+                            break;
+                        }
+                        self.bump();
+                        continue;
+                    }
                     let parameter = self
                         .expect_identifier("public Parameter binding name")?
                         .text()
@@ -1429,6 +1459,7 @@ impl Parser<'_> {
             support_bindings,
             boundary_set_bindings,
             field_bindings,
+            property_bindings,
             range: TextRange::new(start, end),
         })
     }
@@ -1695,6 +1726,7 @@ impl Parser<'_> {
 
     fn recover_top_level(&mut self) {
         while !self.at(TokenKind::Eof)
+            && !self.at_keyword("property")
             && !self.at_keyword("connector")
             && !self.at_keyword("component")
             && !self.at_keyword("pure")
@@ -1706,42 +1738,6 @@ impl Parser<'_> {
 
     fn at_keyword(&mut self, keyword: &str) -> bool {
         self.current().kind() == TokenKind::Identifier && self.current().text() == keyword
-    }
-
-    fn at_support_binding(&mut self) -> bool {
-        self.at_discriminated_binding("support")
-    }
-
-    fn at_field_binding(&mut self) -> bool {
-        self.at_discriminated_binding("field")
-    }
-
-    fn at_discriminated_binding(&mut self, discriminator: &str) -> bool {
-        self.at_keyword(discriminator)
-            && self
-                .following_significant_token()
-                .is_some_and(|token| token.kind() == TokenKind::Identifier)
-    }
-
-    fn at_field_slot_declaration(&mut self) -> bool {
-        self.at_keyword("field")
-            && self.following_significant_token().is_some_and(|token| {
-                token.kind() == TokenKind::Identifier && token.text() == "slot"
-            })
-    }
-
-    fn following_significant_token(&self) -> Option<&Token> {
-        self.tokens[self.cursor.saturating_add(1)..]
-            .iter()
-            .find(|token| !token.kind().is_trivia())
-    }
-
-    fn previous_significant_range(&self) -> TextRange {
-        self.tokens[..self.cursor]
-            .iter()
-            .rev()
-            .find(|token| !token.kind().is_trivia())
-            .map_or(TextRange::new(0, 0), Token::range)
     }
 
     fn expect_keyword(&mut self, keyword: &str) -> Option<Token> {

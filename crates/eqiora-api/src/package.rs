@@ -734,6 +734,8 @@ fn semantic_content_for_namespace(
         .filter(|declaration| declaration.namespace() == namespace)
         .map(|declaration| {
             let kind = match declaration.kind() {
+                CanonicalDeclarationKind::PropertyContract => DeclarationKindV1::PropertyContract,
+                CanonicalDeclarationKind::PropertyRelease => DeclarationKindV1::PropertyRelease,
                 CanonicalDeclarationKind::PureOperator => DeclarationKindV1::PureOperator,
                 CanonicalDeclarationKind::Connector => DeclarationKindV1::Connector,
                 CanonicalDeclarationKind::Component => DeclarationKindV1::Component,
