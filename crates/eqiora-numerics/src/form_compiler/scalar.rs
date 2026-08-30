@@ -21,11 +21,14 @@ use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::vocabulary::{
     BoundarySource, FormulationKind, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
 };
+
+mod authored;
 #[cfg(test)]
 use crate::form_compiler::{
     DIVERGENCE_BY_PARTS, HOMOGENEOUS_ESSENTIAL_DISCHARGE, MatrixSlot, SOURCE_PAIRING, TEST_PAIRING,
     WeakSign, WeakTermSlot,
 };
+pub(crate) use authored::AcceptedAuthoredScalarPrimalForm;
 
 const MAX_DAG_NODES: usize = 4_096;
 const MAX_DERIVATIVE_ORDER: usize = 1;

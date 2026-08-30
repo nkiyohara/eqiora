@@ -24,6 +24,9 @@ impl CommonTransientFlowPlan {
                         FormulationSelectionMode::Exact => {
                             "eqiora.formulation.exact.mixed-galerkin-admitted/v1"
                         }
+                        FormulationSelectionMode::Authored => {
+                            unreachable!("authored transient forms are not admitted")
+                        }
                     },
                 )
             }

@@ -864,6 +864,9 @@ fn resolve_plan(
         scaling,
         temporal_native,
         &FaerLinearSolver,
+        model_ref
+            .authored_scalar_primal_projection()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
     )
     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
     if native.mesh_digest() != Some(mesh_ref.exact_mesh_digest()) {

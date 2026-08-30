@@ -123,17 +123,11 @@ impl CompiledModel {
     #[must_use]
     pub fn authored_formulations(
         &self,
-    ) -> impl ExactSizeIterator<Item = (String, RawId, RawId, RawId, &str, TextRange)> {
-        self.authored_formulations.iter().map(|form| {
-            (
-                form.source_identity().to_string(),
-                form.relation().erase(),
-                form.domain().erase(),
-                form.trial().erase(),
-                form.file(),
-                form.range(),
-            )
-        })
+    ) -> impl ExactSizeIterator<Item = (String, RawId, RawId, RawId, Vec<u8>, &str, TextRange)>
+    {
+        self.authored_formulations
+            .iter()
+            .map(AuthoredScalarPrimalForm::projection)
     }
 
     /// Consume into the transaction, model ID, and source symbol map.

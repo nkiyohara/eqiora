@@ -39,6 +39,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             scaling,
             Some(temporal),
             &ResolveOnlyBackend,
+            None,
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend).project(
@@ -224,6 +225,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             None,
             Some(temporal),
             &ResolveOnlyBackend,
+            None,
         )
         .is_err()
     );

@@ -18,7 +18,7 @@ use crate::{ScalingComponent2d, ScalingMode2d};
 
 use super::*;
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v1";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v2";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -141,7 +141,7 @@ enum WireTemporal {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireResolvedCommonPlanV1 {
+struct WireResolvedCommonPlanV2 {
     schema: String,
     encoding: String,
     family: WirePlanFamily,
@@ -155,6 +155,8 @@ struct WireResolvedCommonPlanV1 {
     requested_formulation: Option<WireFormulation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     effective_formulation: Option<WireFormulation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    authored_formulation_base64: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     scaling: Option<WireScalingRequest>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -297,7 +299,7 @@ impl ResolvedCommonPlan {
 
     /// Encode this complete resolved Plan and its exact replay roots.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireResolvedCommonPlanV1::from_plan(self)?).map_err(|error| {
+        serde_json::to_vec(&WireResolvedCommonPlanV2::from_plan(self)?).map_err(|error| {
             invalid(format!(
                 "cannot encode resolved common Plan artifact: {error}"
             ))
@@ -319,7 +321,7 @@ impl ResolvedCommonPlan {
                 bytes.len()
             )));
         }
-        let wire: WireResolvedCommonPlanV1 = serde_json::from_slice(bytes)
+        let wire: WireResolvedCommonPlanV2 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid resolved common Plan JSON: {error}")))?;
         wire.validate_header()?;
         let resolved = wire.resolve(linear_backend, time_backend)?;
@@ -332,7 +334,7 @@ impl ResolvedCommonPlan {
     }
 }
 
-impl WireResolvedCommonPlanV1 {
+impl WireResolvedCommonPlanV2 {
     fn from_plan(plan: &ResolvedCommonPlan) -> Result<Self, Diagnostic> {
         let model = plan_model_artifact(plan).canonical_json()?;
         let mesh = plan_authenticated_mesh(plan)
@@ -355,6 +357,10 @@ impl WireResolvedCommonPlanV1 {
                     .then(|| description.effective().into())
             }),
             effective_formulation: description.map(|description| description.effective().into()),
+            authored_formulation_base64: match plan {
+                ResolvedCommonPlan::Scalar(plan) => plan.authored_formulation_bytes().map(encode),
+                _ => None,
+            },
             scaling: scaling_request(plan),
             solve: solve_request(plan),
             temporal: temporal_request(plan),
@@ -389,6 +395,15 @@ impl WireResolvedCommonPlanV1 {
         if self.requested_formulation.is_some() && self.effective_formulation.is_none() {
             return Err(invalid(
                 "resolved common Plan requests a Formulation without an effective Formulation",
+            ));
+        }
+        if self.authored_formulation_base64.is_some()
+            && (self.family != WirePlanFamily::Scalar
+                || self.requested_formulation.is_some()
+                || self.effective_formulation != Some(WireFormulation::PrimalGalerkin))
+        {
+            return Err(invalid(
+                "authored Formulation payload requires one scalar authored primal Plan",
             ));
         }
         Ok(())
@@ -484,6 +499,11 @@ impl WireResolvedCommonPlanV1 {
             scaling,
             temporal,
             linear_backend,
+            self.authored_formulation_base64
+                .as_deref()
+                .map(|value| decode(value, "authored Formulation"))
+                .transpose()?
+                .as_deref(),
         )
     }
 }

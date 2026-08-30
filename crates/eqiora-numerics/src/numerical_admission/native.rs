@@ -480,7 +480,7 @@ impl NativeNumericalAdmission {
                     &boundary,
                     &quadrature,
                     &REFERENCE_ASSEMBLY_BACKEND,
-                    None,
+                    lowered.compiled_form.as_ref(),
                 )?;
                 let (system, state) = finalized.into_canonical()?;
                 let solved = solve.solve(&system.linear_problem()?)?;

@@ -428,6 +428,7 @@ fn resolve_scalar(document: &ModelDocument, geometry: &CanonicalGeometryV1) -> C
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
+        None,
     )
     .unwrap()
     .project(
