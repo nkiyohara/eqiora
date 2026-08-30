@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 152 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 586 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 153 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 595 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 182 literal public spellings, 152 canonical grouped declarations, 783 visible method signatures (586 non-dunder and 197 dunder), and 73 visible class assignments.
+Inventory: 18 modules, 183 literal public spellings, 153 canonical grouped declarations, 792 visible method signatures (595 non-dunder and 197 dunder), and 73 visible class assignments.
 
 Regenerate with:
 
@@ -763,6 +763,8 @@ class Model:
     @property
     def package_compilation_digest(self) -> str | None: ...
     @property
+    def property_bindings(self) -> tuple[PropertyBinding, ...]: ...
+    @property
     def structural_fingerprint(self) -> StructuralSemanticFingerprint: ...
     @property
     def revision(self) -> Revision: ...
@@ -889,6 +891,35 @@ class PhysicalDomain:
     def across_dimension(self) -> Dimension: ...
     @property
     def through_dimension(self) -> Dimension: ...
+```
+
+<a id="api-eqiora-PropertyBinding"></a>
+
+### `eqiora.PropertyBinding`
+
+Exact package-owned scalar property binding inspection.
+
+Authority: [`crates/eqiora-python/src/model.rs::PyPropertyBinding`](../../crates/eqiora-python/src/model.rs)
+
+```python
+@final
+class PropertyBinding:
+    @property
+    def contract(self) -> str: ...
+    @property
+    def release(self) -> str: ...
+    @property
+    def component(self) -> str: ...
+    @property
+    def requirement(self) -> str: ...
+    @property
+    def normalized_value(self) -> float: ...
+    @property
+    def validity(self) -> str: ...
+    @property
+    def citation(self) -> str: ...
+    @property
+    def license(self) -> str: ...
 ```
 
 <a id="api-eqiora-Plan"></a>

@@ -166,6 +166,30 @@ class PackageConformanceReport(NamedTuple):
     deterministic_replay_agreement: bool
 
 @final
+class PropertyBinding:
+    """Exact package-owned scalar property binding inspection.
+
+    Authority: ``crates/eqiora-python/src/model.rs::PyPropertyBinding``.
+    """
+
+    @property
+    def contract(self) -> str: ...
+    @property
+    def release(self) -> str: ...
+    @property
+    def component(self) -> str: ...
+    @property
+    def requirement(self) -> str: ...
+    @property
+    def normalized_value(self) -> float: ...
+    @property
+    def validity(self) -> str: ...
+    @property
+    def citation(self) -> str: ...
+    @property
+    def license(self) -> str: ...
+
+@final
 class Dimension:
     """SI base-dimension exponents in M, L, T, I, Θ, N, J order.
 
@@ -610,6 +634,8 @@ class Model:
     def digest(self) -> str: ...
     @property
     def package_compilation_digest(self) -> str | None: ...
+    @property
+    def property_bindings(self) -> tuple[PropertyBinding, ...]: ...
     @property
     def structural_fingerprint(self) -> StructuralSemanticFingerprint: ...
     @property
@@ -1393,6 +1419,7 @@ __all__ = [
     "Parameter",
     "ParameterRef",
     "PhysicalDomain",
+    "PropertyBinding",
     "Plan",
     "Representation",
     "Relation",

@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **83** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **84** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -755,6 +755,8 @@ class Model:
     @property
     def package_compilation_digest(self) -> str | None: ...
     @property
+    def property_bindings(self) -> tuple[PropertyBinding, ...]: ...
+    @property
     def structural_fingerprint(self) -> StructuralSemanticFingerprint: ...
     @property
     def revision(self) -> Revision: ...
@@ -881,6 +883,35 @@ class PhysicalDomain:
     def across_dimension(self) -> Dimension: ...
     @property
     def through_dimension(self) -> Dimension: ...
+```
+
+<a id="api-eqiora-PropertyBinding"></a>
+
+## `PropertyBinding`
+
+Exact package-owned scalar property binding inspection.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/model.rs" kind="blob">crates/eqiora-python/src/model.rs::PyPropertyBinding</ExactSourceLink>
+
+```python
+@final
+class PropertyBinding:
+    @property
+    def contract(self) -> str: ...
+    @property
+    def release(self) -> str: ...
+    @property
+    def component(self) -> str: ...
+    @property
+    def requirement(self) -> str: ...
+    @property
+    def normalized_value(self) -> float: ...
+    @property
+    def validity(self) -> str: ...
+    @property
+    def citation(self) -> str: ...
+    @property
+    def license(self) -> str: ...
 ```
 
 <a id="api-eqiora-Plan"></a>

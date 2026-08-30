@@ -13,7 +13,7 @@ use eqiora::package::PackageCompilationRecordV1;
 use eqiora::{Diagnostic, EntityKind, RawId};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes, PyModule, PyString};
+use pyo3::types::{PyAny, PyBytes, PyModule, PyString, PyTuple};
 
 use crate::error::{diagnostic_error, internal_diagnostic_error, panic_boundary, validation_error};
 use crate::geometry::PyGeometry;
@@ -47,6 +47,82 @@ pub(crate) struct PyRevision {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PyStructuralSemanticFingerprint {
     value: StructuralSemanticFingerprint,
+}
+
+/// Immutable inspection of one exact package-owned scalar property binding.
+#[pyclass(
+    name = "PropertyBinding",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Debug, Clone)]
+pub(crate) struct PyPropertyBinding {
+    contract: String,
+    release: String,
+    component: String,
+    requirement: String,
+    normalized_value: f64,
+    validity: String,
+    citation: String,
+    license: String,
+}
+
+#[pymethods]
+impl PyPropertyBinding {
+    #[getter]
+    fn contract(&self) -> &str {
+        &self.contract
+    }
+
+    #[getter]
+    fn release(&self) -> &str {
+        &self.release
+    }
+
+    #[getter]
+    fn component(&self) -> &str {
+        &self.component
+    }
+
+    #[getter]
+    fn requirement(&self) -> &str {
+        &self.requirement
+    }
+
+    #[getter]
+    const fn normalized_value(&self) -> f64 {
+        self.normalized_value
+    }
+
+    #[getter]
+    fn validity(&self) -> &str {
+        &self.validity
+    }
+
+    #[getter]
+    fn citation(&self) -> &str {
+        &self.citation
+    }
+
+    #[getter]
+    fn license(&self) -> &str {
+        &self.license
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "PropertyBinding(contract={:?}, release={:?}, component={:?}, requirement={:?}, normalized_value={:?}, validity={:?}, citation={:?}, license={:?})",
+            self.contract,
+            self.release,
+            self.component,
+            self.requirement,
+            self.normalized_value,
+            self.validity,
+            self.citation,
+            self.license,
+        )
+    }
 }
 
 #[pymethods]
@@ -322,6 +398,7 @@ pub(crate) struct PyModel {
     artifact: ModelEnvelope,
     revision: PyRevision,
     package_compilation: Option<PackageCompilationRecordV1>,
+    property_bindings: Box<[PyPropertyBinding]>,
     /// Retains the exact caller-owned Python Geometry handle for a fresh
     /// geometry-closed compilation; artifact identity remains Rust-owned.
     _geometry: Option<Py<PyGeometry>>,
@@ -358,6 +435,7 @@ impl PyModel {
             document: Some(document),
             artifact,
             package_compilation: None,
+            property_bindings: Box::new([]),
             _geometry: None,
         })
     }
@@ -385,14 +463,40 @@ impl PyModel {
             document: None,
             artifact,
             package_compilation: None,
+            property_bindings: Box::new([]),
             _geometry: None,
         })
     }
 
     pub(crate) fn from_packaged(py: Python<'_>, packaged: PackagedModelDocument) -> PyResult<Self> {
         let compilation = packaged.compilation().clone();
+        let property_bindings = packaged
+            .property_bindings()
+            .map(
+                |(
+                    contract,
+                    release,
+                    component,
+                    requirement,
+                    normalized_value,
+                    validity,
+                    citation,
+                    license,
+                )| PyPropertyBinding {
+                    contract: contract.to_owned(),
+                    release: release.to_owned(),
+                    component: component.to_owned(),
+                    requirement: requirement.to_owned(),
+                    normalized_value,
+                    validity: validity.to_owned(),
+                    citation: citation.to_owned(),
+                    license: license.to_owned(),
+                },
+            )
+            .collect();
         let mut model = Self::from_document(py, packaged.model().clone())?;
         model.package_compilation = Some(compilation);
+        model.property_bindings = property_bindings;
         Ok(model)
     }
 
@@ -576,6 +680,18 @@ impl PyModel {
                 )],
             )
         })
+    }
+
+    /// Exact package-owned property bindings, absent without package lineage.
+    #[getter]
+    fn property_bindings(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let bindings = self
+            .property_bindings
+            .iter()
+            .cloned()
+            .map(|binding| Py::new(py, binding))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PyTuple::new(py, bindings)?.unbind())
     }
 
     /// Alpha-normalized structural evidence, separate from exact artifact identity.
@@ -807,6 +923,7 @@ fn hash_value(value: &impl Hash) -> u64 {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyStructuralSemanticFingerprint>()?;
+    module.add_class::<PyPropertyBinding>()?;
     module.add_class::<PyRevision>()?;
     module.add_class::<PyValueEdit>()?;
     module.add_class::<PyModelParameterRef>()?;
