@@ -1140,6 +1140,8 @@ dependencies = [
  "eqiora-graph",
  "eqiora-lang",
  "eqiora-schema",
+ "serde",
+ "serde_json",
  "sha2 0.11.0",
  "ulid",
 ]
