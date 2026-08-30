@@ -1,6 +1,14 @@
 use eqiora_lang::VisibilitySyntax;
 
-use super::CompilationNamespaceId;
+use super::{AnalyzedResolvedHierarchy, CompilationNamespaceId};
+
+impl AnalyzedResolvedHierarchy {
+    /// Compiler-canonical declarations in `(namespace, path, kind)` order.
+    #[must_use]
+    pub fn canonical_declarations(&self) -> &[CanonicalDeclarationIdentity] {
+        &self.canonical_declarations
+    }
+}
 
 /// Top-level declaration families currently understood by package lowering.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

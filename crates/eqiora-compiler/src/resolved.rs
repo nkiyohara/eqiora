@@ -345,17 +345,11 @@ impl AnalyzedResolvedHierarchy {
         &self.root
     }
 
-    /// Compiler-canonical declarations in `(namespace, path, kind)` order.
-    #[must_use]
-    pub fn canonical_declarations(&self) -> &[CanonicalDeclarationIdentity] {
-        &self.canonical_declarations
-    }
-
     /// Read-only nominal property bindings retained through elaboration.
     #[must_use]
     pub fn property_bindings(
         &self,
-    ) -> impl ExactSizeIterator<Item = (&str, &str, &str, &str, f64, &str, &str)> {
+    ) -> impl ExactSizeIterator<Item = (&str, &str, &str, &str, f64, &str, &str, &str)> {
         self.property_bindings.iter().map(|value| {
             (
                 value.contract(),
@@ -363,6 +357,7 @@ impl AnalyzedResolvedHierarchy {
                 value.component(),
                 value.requirement(),
                 value.normalized_value(),
+                value.validity(),
                 value.citation(),
                 value.license(),
             )

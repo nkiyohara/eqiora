@@ -123,8 +123,9 @@ model Main {
     let binding = first.property_bindings().next().unwrap();
     assert_eq!(binding.4, 0.025);
     assert_eq!(binding.3, "diffusivity");
-    assert_eq!(binding.5, "org.example.measurement");
-    assert_eq!(binding.6, "spdx.CC0_1_0");
+    assert_eq!(binding.5, "unconditional");
+    assert_eq!(binding.6, "org.example.measurement");
+    assert_eq!(binding.7, "spdx.CC0_1_0");
 
     let changed_source = SOURCE.replace("org.example.measurement", "org.example.remeasurement");
     let changed = release("org.example.Property", &changed_source, &[]);

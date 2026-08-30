@@ -31,13 +31,23 @@ fn collect_property_bindings(
     analyzed
         .property_bindings()
         .map(
-            |(contract, release, component, requirement, normalized_value, citation, license)| {
+            |(
+                contract,
+                release,
+                component,
+                requirement,
+                normalized_value,
+                validity,
+                citation,
+                license,
+            )| {
                 PropertyBindingProjection {
                     contract: contract.to_owned(),
                     release: release.to_owned(),
                     component: component.to_owned(),
                     requirement: requirement.to_owned(),
                     normalized_value,
+                    validity: validity.to_owned(),
                     citation: citation.to_owned(),
                     license: license.to_owned(),
                 }
@@ -65,6 +75,7 @@ struct PropertyBindingProjection {
     component: String,
     requirement: String,
     normalized_value: f64,
+    validity: String,
     citation: String,
     license: String,
 }
@@ -217,11 +228,11 @@ impl PackagedModelDocument {
     /// Exact nominal property bindings used by this compilation.
     ///
     /// Each item is `(contract, release, component, requirement,
-    /// normalized_value, citation, license)`.
+    /// normalized_value, validity, citation, license)`.
     #[must_use]
     pub fn property_bindings(
         &self,
-    ) -> impl ExactSizeIterator<Item = (&str, &str, &str, &str, f64, &str, &str)> {
+    ) -> impl ExactSizeIterator<Item = (&str, &str, &str, &str, f64, &str, &str, &str)> {
         self.property_bindings.iter().map(|value| {
             (
                 value.contract.as_str(),
@@ -229,6 +240,7 @@ impl PackagedModelDocument {
                 value.component.as_str(),
                 value.requirement.as_str(),
                 value.normalized_value,
+                value.validity.as_str(),
                 value.citation.as_str(),
                 value.license.as_str(),
             )

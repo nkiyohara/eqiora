@@ -20,6 +20,7 @@ pub(crate) struct ResolvedPropertyBinding {
     component: String,
     requirement: String,
     normalized_value: f64,
+    validity: &'static str,
     citation: String,
     license: String,
 }
@@ -44,6 +45,10 @@ impl ResolvedPropertyBinding {
     #[must_use]
     pub const fn normalized_value(&self) -> f64 {
         self.normalized_value
+    }
+    #[must_use]
+    pub const fn validity(&self) -> &'static str {
+        self.validity
     }
     #[must_use]
     pub fn citation(&self) -> &str {
@@ -402,6 +407,7 @@ fn validate_instance(
             component: qualified(&component_key),
             requirement: requirement.to_owned(),
             normalized_value: release.value,
+            validity: "unconditional",
             citation: release.citation.clone(),
             license: release.license.clone(),
         });
