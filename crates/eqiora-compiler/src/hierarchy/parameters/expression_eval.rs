@@ -144,18 +144,16 @@ pub(super) fn coerce_parameter_with_label(
     } else {
         evaluated.dimension
     };
-    if let EvaluatedDimension::Known(dimension) = dimension {
-        if dimension != target {
+    match dimension {
+        EvaluatedDimension::Known(actual) if actual != target => {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,
                 range,
-                format!(
-                    "{label} has dimension [{}], expected [{}]",
-                    dimension, target
-                ),
+                format!("{label} has dimension [{}], expected [{}]", actual, target),
             ));
         }
+        _ => {}
     }
     let expression = evaluated.expression.map(|expression| {
         if evaluated.bare_literal {
