@@ -23,7 +23,7 @@ pub use ast::{
     ComponentItem, ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl,
     ConnectionDecl, ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax,
     Document, DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl,
-    FieldDecl, FieldSlotDecl, FrameSyntax, InstanceDecl, Item, ModelDecl, NamePath,
+    FieldDecl, FieldSlotDecl, FrameSyntax, InstanceDecl, Item, LetDecl, ModelDecl, NamePath,
     ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp,
     PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
     PureValueClassSyntax, RationalSyntax, RelationDecl, RelationFamilyDecl, RepresentationDecl,

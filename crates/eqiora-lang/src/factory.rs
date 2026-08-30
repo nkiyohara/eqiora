@@ -13,7 +13,7 @@ use crate::ast::{
     ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorQuantitySyntax, ConnectorSyntax, Document, DomainDecl, DomainSyntax,
     ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, FieldSlotDecl, InstanceDecl,
-    Item, ModelDecl, NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax,
+    Item, LetDecl, ModelDecl, NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax,
     PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
     PureValueClassSyntax, RationalSyntax, RelationDecl, RelationFamilyDecl, RepresentationDecl,
     RepresentationSyntax, SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange,
@@ -561,6 +561,26 @@ impl SourceAstFactory {
             name: checked_identifier(name, "Parameter")?,
             dimension,
             initial,
+            range: checked_range(range)?,
+        })
+    }
+
+    /// Construct a model-local typed compile-time expression alias.
+    ///
+    /// # Errors
+    /// Returns an error for malformed source expressions, names, or ranges.
+    pub fn let_alias(
+        name: impl Into<String>,
+        dimension: Expr,
+        value: Expr,
+        range: TextRange,
+    ) -> Result<LetDecl, AstConstructionError> {
+        validate_expression(&dimension)?;
+        validate_expression(&value)?;
+        Ok(LetDecl {
+            name: checked_identifier(name, "let alias")?,
+            dimension,
+            value,
             range: checked_range(range)?,
         })
     }

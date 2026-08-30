@@ -20,10 +20,10 @@ use eqiora_lang::{
     BoundarySideSyntax, CartesianCoordinateSyntax, ClockDecl, ComponentDecl, ComponentItem,
     ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
     ConnectionSyntax, ConnectorDecl, ConnectorSyntax, Document, DomainDecl, DomainSyntax, Expr,
-    ExprKind, FieldDecl, FieldSlotDecl, FrameSyntax, Item, ModelDecl, NamePath, ParameterDecl,
-    PortDecl, PortSyntax, PureOperatorDecl, RelationDecl, RelationFamilyDecl, RepresentationDecl,
-    RepresentationSyntax, SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, TextRange,
-    UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    ExprKind, FieldDecl, FieldSlotDecl, FrameSyntax, Item, LetDecl, ModelDecl, NamePath,
+    ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, RelationDecl, RelationFamilyDecl,
+    RepresentationDecl, RepresentationSyntax, SignalDirectionSyntax, SupportSlotDecl,
+    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use sha2::{Digest, Sha256};
 
@@ -46,6 +46,7 @@ const COMPONENT_BOUNDARY_CONNECTION_ITEM_TAG: u16 = 13;
 const MODEL_BOUNDARY_CONNECTION_ITEM_TAG: u16 = 11;
 const COMPONENT_SPATIAL_PERIODIC_CONNECTION_ITEM_TAG: u16 = 14;
 const MODEL_SPATIAL_PERIODIC_CONNECTION_ITEM_TAG: u16 = 12;
+const MODEL_LET_ITEM_TAG: u16 = 13;
 
 /// Bounded resource policy for local source-unit identity construction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -675,6 +676,10 @@ fn encode_model_item(item: &Item, budget: &mut Budget) -> Result<Vec<u8>, Diagno
             encoder.u16(4)?;
             encode_parameter(&mut encoder, declaration, budget)?;
         }
+        Item::Let(declaration) => {
+            encoder.u16(MODEL_LET_ITEM_TAG)?;
+            encode_let(&mut encoder, declaration, budget)?;
+        }
         Item::Port(declaration) => {
             encoder.u16(5)?;
             encode_port(&mut encoder, declaration, budget)?;
@@ -888,6 +893,22 @@ fn encode_parameter(
         encode_expression(encoder, declaration.dimension(), budget, 1)
     })?;
     encoder.field(3, |encoder| encoder.f64(declaration.initial()))
+}
+
+fn encode_let(
+    encoder: &mut Encoder,
+    declaration: &LetDecl,
+    budget: &mut Budget,
+) -> Result<(), Diagnostic> {
+    encoder.field(1, |encoder| {
+        encode_name(encoder, declaration.name(), budget)
+    })?;
+    encoder.field(2, |encoder| {
+        encode_expression(encoder, declaration.dimension(), budget, 1)
+    })?;
+    encoder.field(3, |encoder| {
+        encode_expression(encoder, declaration.value(), budget, 1)
+    })
 }
 
 fn encode_port(
@@ -2158,6 +2179,18 @@ model M {
         assert_ne!(identity(base), identity(changed_value));
         assert_ne!(identity(base), identity(changed_operator));
         assert_ne!(identity(base), identity(changed_activation));
+    }
+
+    #[test]
+    fn let_alias_source_structure_has_exact_identity() {
+        let base = "model m { parameter p: m = 2; let k: 1 / m = math.pi / p; }";
+        let reformatted = "model m {\n parameter p: m = 2;\n let k: 1/m = math.pi/p;\n}";
+        let renamed = "model m { parameter p: m = 2; let wave: 1 / m = math.pi / p; }";
+        let changed = "model m { parameter p: m = 2; let k: 1 / m = 2 / p; }";
+
+        assert_eq!(identity(base), identity(reformatted));
+        assert_ne!(identity(base), identity(renamed));
+        assert_ne!(identity(base), identity(changed));
     }
 
     #[test]

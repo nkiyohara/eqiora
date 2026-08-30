@@ -932,6 +932,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 Item::Connection(_)
                 | Item::BoundaryConnection(_)
                 | Item::Boundary(_)
+                | Item::Let(_)
                 | Item::Instance(_) => continue,
                 _ => {
                     return Err(source_error(
@@ -969,6 +970,25 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 )));
             }
             identities.entities.insert(name.to_owned(), identity);
+        }
+        let mut compile_time_values = scope.symbolic_parameters();
+        super::parameters::resolve_model_lets(self.model.file, &model, &mut compile_time_values)
+            .map_err(|diagnostics| {
+                diagnostics
+                    .into_iter()
+                    .next()
+                    .unwrap_or_else(|| hierarchy_error("let alias resolution failed"))
+            })?;
+        for item in model.items() {
+            let Item::Let(declaration) = item else {
+                continue;
+            };
+            let value = compile_time_values
+                .remove(declaration.name())
+                .ok_or_else(|| hierarchy_error("resolved let alias is missing"))?;
+            scope
+                .insert_let(declaration.name().to_owned(), value)
+                .map_err(hierarchy_error)?;
         }
         for item in model.items() {
             let Item::Domain(declaration) = item else {
@@ -2289,7 +2309,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         range: declaration.range(),
                     });
                 }
-                Item::Instance(_) => {}
+                Item::Let(_) | Item::Instance(_) => {}
                 _ => {
                     return Err(source_error(
                         codes::LANGUAGE_LOWERING_ERROR,

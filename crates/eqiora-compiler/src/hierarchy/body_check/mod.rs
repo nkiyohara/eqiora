@@ -39,8 +39,9 @@ pub(super) fn validate_component_body(
 pub(super) fn validate_model_body(
     elaborator: &Elaborator<'_>,
     definition: &ModelDefinition<'_>,
+    compile_time_values: &SymbolicParameterMap,
 ) -> Result<DefinitionBodyProof, Vec<Diagnostic>> {
-    model::validate(elaborator, definition)
+    model::validate(elaborator, definition, compile_time_values)
 }
 
 /// A physical endpoint selected and type-checked in one definition body.
@@ -186,7 +187,7 @@ mod tests {
                 (definition.declaration.name() == model).then(|| definition.clone())
             })
             .expect("selected Model exists");
-        validate_model_body(&elaborator, &definition).map(|_| ())
+        validate_model_body(&elaborator, &definition, &SymbolicParameterMap::new()).map(|_| ())
     }
 
     #[test]
