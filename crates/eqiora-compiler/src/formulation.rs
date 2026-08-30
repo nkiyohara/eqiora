@@ -305,10 +305,23 @@ impl ExpressionContext<'_> {
                 None,
             )),
             ExprKind::Name(name) => self.compile_name(expression, name),
-            ExprKind::Path(_) | ExprKind::BoundaryPortSelection { .. } => Err(error(
+            ExprKind::Path(path) => match crate::math::constant(path) {
+                Some(value) => Ok(typed(
+                    AuthoredFormExpressionKind::Number(value),
+                    DimExponents::DIMENSIONLESS,
+                    ValueShape::scalar(),
+                    None,
+                )),
+                None => Err(error(
+                    self.file,
+                    expression.range(),
+                    "qualified names are not accepted in scalar-primal forms",
+                )),
+            },
+            ExprKind::BoundaryPortSelection { .. } => Err(error(
                 self.file,
                 expression.range(),
-                "qualified and boundary-selected names are not accepted in scalar-primal forms",
+                "boundary-selected names are not accepted in scalar-primal forms",
             )),
             ExprKind::Unary {
                 op: UnaryOp::Neg,

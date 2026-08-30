@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
 #[cfg(test)]
 use eqiora_lang::SourceAstFactory;
 use eqiora_lang::{
@@ -506,12 +506,18 @@ pub(super) fn rewrite_expression_with_boundary_member(
                 expression.range(),
             )
         }
-        ExprKind::Path(path) => LoweringExpression::name(
-            resolve_expression_symbol(file, path, scope)?
-                .internal_name
-                .clone(),
-            expression.range(),
-        ),
+        ExprKind::Path(path) => match crate::math::constant(path) {
+            Some(value) => LoweringExpression::quantity(
+                DynQuantity::new(value, DimExponents::DIMENSIONLESS),
+                expression.range(),
+            ),
+            None => LoweringExpression::name(
+                resolve_expression_symbol(file, path, scope)?
+                    .internal_name
+                    .clone(),
+                expression.range(),
+            ),
+        },
         ExprKind::BoundaryPortSelection { port, selector } => LoweringExpression::name(
             resolve_boundary_family_selection(file, port, selector, scope, active)?
                 .internal_name

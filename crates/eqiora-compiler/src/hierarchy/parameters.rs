@@ -159,14 +159,26 @@ fn evaluate_parameter_expression(
             lineage: Some(ParameterLineage::Constant),
         },
         ExprKind::Name(name) => resolve(name, expression.range())?.into(),
-        ExprKind::Path(path) => {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                path.range(),
-                context.qualified_name_message(path),
-            ));
-        }
+        ExprKind::Path(path) => match crate::math::constant(path) {
+            Some(value) => EvaluatedParameter {
+                value: Some(value),
+                dimension: EvaluatedDimension::Known(DimExponents::DIMENSIONLESS),
+                bare_literal: false,
+                expression: Some(LoweringExpression::quantity(
+                    DynQuantity::new(value, DimExponents::DIMENSIONLESS),
+                    expression.range(),
+                )),
+                lineage: Some(ParameterLineage::Constant),
+            },
+            None => {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    path.range(),
+                    context.qualified_name_message(path),
+                ));
+            }
+        },
         ExprKind::Call { callee, .. } => {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
@@ -481,6 +493,7 @@ fn collect_default_dependencies(
                     ));
                 }
             }
+            ExprKind::Path(path) if crate::math::constant(path).is_some() => {}
             ExprKind::Path(path) => diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,

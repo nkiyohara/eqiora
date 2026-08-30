@@ -481,6 +481,7 @@ fn resolve_path<T>(
 fn constant(file: &str, expression: &Expr) -> Result<f64, Diagnostic> {
     let value = match expression.kind() {
         ExprKind::Number(value) => *value,
+        ExprKind::Path(path) if let Some(value) = crate::math::constant(path) => value,
         ExprKind::Unary {
             op: UnaryOp::Neg,
             value,
