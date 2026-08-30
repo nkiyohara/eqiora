@@ -160,6 +160,15 @@ fn coherent_dimension(name: &str) -> Option<DimExponents> {
     Some(dimension)
 }
 
+pub(crate) fn dimension_overflow(file: &str, range: TextRange) -> Diagnostic {
+    source_error(
+        codes::LANGUAGE_TYPE_ERROR,
+        file,
+        range,
+        "physical-dimension exponent arithmetic overflows i8",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use eqiora_lang::parse;
@@ -215,13 +224,4 @@ model Catalog {
         assert!(compiled.symbols().get("pressure").is_some());
         assert!(compiled.symbols().get("frequency").is_some());
     }
-}
-
-pub(crate) fn dimension_overflow(file: &str, range: TextRange) -> Diagnostic {
-    source_error(
-        codes::LANGUAGE_TYPE_ERROR,
-        file,
-        range,
-        "physical-dimension exponent arithmetic overflows i8",
-    )
 }
