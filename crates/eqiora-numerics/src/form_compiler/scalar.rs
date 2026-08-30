@@ -409,7 +409,7 @@ fn boundary_inventory(
             DomainKind::GeometryBoundary { .. } if geometry_backed => {
                 let side = (
                     geometry_side / 2,
-                    if geometry_side % 2 == 0 {
+                    if geometry_side.is_multiple_of(2) {
                         BoundarySide::Lower
                     } else {
                         BoundarySide::Upper
