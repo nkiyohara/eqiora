@@ -171,6 +171,8 @@ impl PyOdePlanView {
 #[derive(Debug)]
 pub(crate) struct PyScalarPlanView {
     pub(super) field: PyModelFieldRef,
+    pub(super) coefficient_sampling: &'static str,
+    pub(super) face_coefficient_policy: &'static str,
 }
 
 #[pymethods]
@@ -184,8 +186,21 @@ impl PyScalarPlanView {
     fn field(&self) -> PyModelFieldRef {
         self.field.clone()
     }
+    #[getter]
+    const fn coefficient_sampling(&self) -> &'static str {
+        self.coefficient_sampling
+    }
+    #[getter]
+    const fn face_coefficient_policy(&self) -> &'static str {
+        self.face_coefficient_policy
+    }
     fn __repr__(&self) -> String {
-        format!("ScalarPlanView(field={:?})", self.field.exact_id())
+        format!(
+            "ScalarPlanView(field={:?}, coefficient_sampling={:?}, face_coefficient_policy={:?})",
+            self.field.exact_id(),
+            self.coefficient_sampling,
+            self.face_coefficient_policy,
+        )
     }
 }
 

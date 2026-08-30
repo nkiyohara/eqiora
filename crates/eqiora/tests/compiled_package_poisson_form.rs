@@ -94,10 +94,16 @@ fn e2_compiled_and_existing_paths_match_every_local_csr_and_rhs() {
     let mesh = CartesianMesh::uniform(model.bounds(), &[4, 4]).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
     let source = |point: &[f64]| model.source().evaluate(point).unwrap_or(f64::NAN);
+    let coefficient = |point: &[f64]| {
+        model
+            .coefficient_expression()
+            .evaluate(point)
+            .unwrap_or(f64::NAN)
+    };
     let legacy_backend = RecordingBackend::default();
     let legacy_solution = solve_scalar_elliptic_cartesian_fem_with_assembly(
         &mesh,
-        model.coefficient(),
+        &coefficient,
         &source,
         &|_: &[f64]| 0.0,
         &quadrature,

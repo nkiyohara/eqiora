@@ -184,6 +184,204 @@ fn accepted_point_keeps_equal_primal_systems_with_different_derivatives_distinct
     );
 }
 
+#[test]
+fn affine_coordinate_coefficient_uses_the_existing_fem_and_fvm_finalizers() {
+    let source = SOURCE.replace(
+        "diffusion * grad(potential)",
+        "diffusion * (1 + wave_number * coordinate(0)) * grad(potential)",
+    );
+    let program = compile_program("affine-coordinate-coefficient.eqi", &source);
+    let model = lower_scalar_elliptic_cartesian(&program).unwrap();
+    assert_eq!(
+        model
+            .coefficient_expression()
+            .evaluate(&[0.0, 0.5])
+            .unwrap(),
+        1.0
+    );
+    assert!(
+        model
+            .coefficient_expression()
+            .evaluate(&[1.0, 0.5])
+            .unwrap()
+            > 4.0
+    );
+    let wave_number = model
+        .parameter_fields()
+        .iter()
+        .copied()
+        .zip(model.parameter_values())
+        .find_map(|(parameter, value)| {
+            (value.to_bits() == std::f64::consts::PI.to_bits()).then_some(parameter)
+        })
+        .unwrap();
+    let mut parameter_tangent = vec![0.0; model.parameter_fields().len()];
+    parameter_tangent[model
+        .parameter_fields()
+        .iter()
+        .position(|parameter| *parameter == wave_number)
+        .unwrap()] = 1.0;
+    let (coefficient, coefficient_tangent) = model
+        .coefficient_jvp(&[0.5, 0.5], &[0.0, 0.0], &parameter_tangent)
+        .unwrap();
+    assert!(coefficient > 2.0);
+    assert_eq!(coefficient_tangent, 0.5);
+
+    for method in [
+        DiscretizationMethod::ContinuousGalerkin,
+        DiscretizationMethod::CellCenteredFiniteVolume,
+    ] {
+        let resolved = resolve_plan_with_method(&program, method);
+        let finalized = finalize_scalar_elliptic_parameter_point(model.clone(), &resolved).unwrap();
+        let solved = REFERENCE_LINEAR_SOLVER
+            .solve(
+                &finalized.linear_problem().unwrap(),
+                finalized.solver_plan(),
+            )
+            .unwrap();
+        let accepted = finalized.finish(solved).unwrap();
+        let (relation, _) = accepted
+            .linearize(&[SpatialDesignCoordinate::ModelParameter(wave_number)])
+            .unwrap();
+        assert!(
+            relation
+                .design_jacobian()
+                .iter()
+                .all(|value| value.is_finite())
+        );
+        assert!(
+            relation
+                .design_jacobian()
+                .iter()
+                .any(|value| value.abs() > 1.0e-12)
+        );
+        let finite = match accepted.solution() {
+            eqiora_numerics::scalar::ResolvedScalarEllipticCartesianSolution::FiniteElement(
+                solution,
+            ) => solution
+                .field()
+                .vertex_values()
+                .iter()
+                .all(|value| value.is_finite()),
+            eqiora_numerics::scalar::ResolvedScalarEllipticCartesianSolution::FiniteVolume(
+                solution,
+            ) => solution.cell_values().iter().all(|value| value.is_finite()),
+        };
+        assert!(finite);
+    }
+}
+
+#[test]
+fn coordinate_coefficient_fails_closed_without_affinity_or_domain_positivity() {
+    for (file, coefficient) in [
+        (
+            "nonaffine-coordinate-coefficient.eqi",
+            "diffusion * (1 + (wave_number * coordinate(0)) ^ 2)",
+        ),
+        (
+            "nonpositive-coordinate-coefficient.eqi",
+            "diffusion * (wave_number * coordinate(0) - 1)",
+        ),
+    ] {
+        let source = SOURCE.replace(
+            "diffusion * grad(potential)",
+            &format!("{coefficient} * grad(potential)"),
+        );
+        let program = compile_program(file, &source);
+        assert!(lower_scalar_elliptic_cartesian(&program).is_err());
+    }
+}
+
+#[test]
+fn mixed_natural_boundary_reuses_the_volume_coefficient_for_fem_and_fvm() {
+    let coefficient = "diffusion * (1 + wave_number * coordinate(0))";
+    let source = SOURCE
+        .replace(
+            "diffusion * grad(potential)",
+            &format!("{coefficient} * grad(potential)"),
+        )
+        .replace(
+            "relation y_upper_value continuous on y_upper { trace(potential) - boundary_offset = 0; }",
+            &format!(
+                "relation y_upper_value continuous on y_upper {{ normal({coefficient} * grad(potential)) = wave_number; }}"
+            ),
+        );
+    let program = compile_program("mixed-natural-affine-coefficient.eqi", &source);
+    let model = lower_scalar_elliptic_cartesian(&program).unwrap();
+    let wave_number = model
+        .parameter_fields()
+        .iter()
+        .copied()
+        .zip(model.parameter_values())
+        .find_map(|(parameter, value)| {
+            (value.to_bits() == std::f64::consts::PI.to_bits()).then_some(parameter)
+        })
+        .unwrap();
+    for method in [
+        DiscretizationMethod::ContinuousGalerkin,
+        DiscretizationMethod::CellCenteredFiniteVolume,
+    ] {
+        let resolved = resolve_plan_with_method(&program, method);
+        let finalized = finalize_scalar_elliptic_parameter_point(model.clone(), &resolved).unwrap();
+        let solved = REFERENCE_LINEAR_SOLVER
+            .solve(
+                &finalized.linear_problem().unwrap(),
+                finalized.solver_plan(),
+            )
+            .unwrap();
+        let accepted = finalized.finish(solved).unwrap();
+        let (relation, _) = accepted
+            .linearize(&[SpatialDesignCoordinate::ModelParameter(wave_number)])
+            .unwrap();
+        assert!(
+            relation
+                .design_jacobian()
+                .iter()
+                .all(|value| value.is_finite())
+        );
+    }
+
+    let drifted = source.replace(
+        &format!("normal({coefficient} * grad(potential))"),
+        "normal(diffusion * grad(potential))",
+    );
+    let drifted = compile_program("drifted-natural-coefficient.eqi", &drifted);
+    assert!(lower_scalar_elliptic_cartesian(&drifted).is_err());
+}
+
+#[test]
+fn unrelated_declaration_order_does_not_change_the_effective_coefficient_or_operator() {
+    let reordered = SOURCE.replace(
+        "  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;\n  parameter boundary_offset: 1 = 0;",
+        "  parameter boundary_offset: 1 = 0;\n  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;",
+    );
+    let original = compile_program("declaration-order.eqi", SOURCE);
+    let reordered = compile_program("declaration-order.eqi", &reordered);
+    let original_model = lower_scalar_elliptic_cartesian(&original).unwrap();
+    let reordered_model = lower_scalar_elliptic_cartesian(&reordered).unwrap();
+    for coordinates in [[0.0, 0.0], [0.5, 0.25], [1.0, 1.0]] {
+        assert_eq!(
+            original_model
+                .coefficient_expression()
+                .evaluate(&coordinates)
+                .unwrap(),
+            reordered_model
+                .coefficient_expression()
+                .evaluate(&coordinates)
+                .unwrap(),
+        );
+    }
+    let original =
+        finalize_scalar_elliptic_parameter_point(original_model, &resolve_plan(&original)).unwrap();
+    let reordered =
+        finalize_scalar_elliptic_parameter_point(reordered_model, &resolve_plan(&reordered))
+            .unwrap();
+    assert_eq!(
+        original.canonical_csr_system_view(),
+        reordered.canonical_csr_system_view()
+    );
+}
+
 fn compile_program(file: &str, source: &str) -> KernelProgram {
     let mut compiled = compile(file, source).unwrap();
     let (transaction, model, _) = compiled.remove(0).into_parts();
@@ -193,16 +391,32 @@ fn compile_program(file: &str, source: &str) -> KernelProgram {
 }
 
 fn resolve_plan(program: &KernelProgram) -> ResolvedRealization {
-    let plan = RealizationPlan::new(
-        Space::continuous_lagrange(NonZeroU16::MIN),
-        Discretization::new(
-            DiscretizationMethod::ContinuousGalerkin,
-            MeshPolicy::GeneratedUniform {
-                cells_per_axis: NonZeroUsize::new(3).unwrap(),
-            },
+    resolve_plan_with_method(program, DiscretizationMethod::ContinuousGalerkin)
+}
+
+fn resolve_plan_with_method(
+    program: &KernelProgram,
+    method: DiscretizationMethod,
+) -> ResolvedRealization {
+    let (space, quadrature) = match method {
+        DiscretizationMethod::ContinuousGalerkin => (
+            Space::continuous_lagrange(NonZeroU16::MIN),
             QuadraturePolicy::GaussLegendre {
                 points_per_axis: NonZeroUsize::new(2).unwrap(),
             },
+        ),
+        DiscretizationMethod::CellCenteredFiniteVolume => {
+            (Space::cell_constant(), QuadraturePolicy::CellCentroid)
+        }
+    };
+    let plan = RealizationPlan::new(
+        space,
+        Discretization::new(
+            method,
+            MeshPolicy::GeneratedUniform {
+                cells_per_axis: NonZeroUsize::new(3).unwrap(),
+            },
+            quadrature,
         ),
         SolverPlan::new(
             LinearSolver::ConjugateGradient,

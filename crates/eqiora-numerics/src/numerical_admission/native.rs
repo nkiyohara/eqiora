@@ -449,43 +449,62 @@ impl NativeNumericalAdmission {
         };
         let source =
             |coordinates: &[f64]| lowered.source().evaluate(coordinates).unwrap_or(f64::NAN);
-        let boundary = |coordinates: &[f64]| {
+        let coefficient = |coordinates: &[f64]| {
             lowered
-                .essential_boundary_jvp(
-                    coordinates,
-                    &vec![0.0; coordinates.len()],
-                    &vec![0.0; lowered.parameter_fields().len()],
-                )
-                .map(|value| value.0)
+                .coefficient_expression()
+                .evaluate(coordinates)
                 .unwrap_or(f64::NAN)
+        };
+        let boundary = |axis: usize, side: BoundarySide, coordinates: &[f64]| {
+            let condition = lowered
+                .boundary(axis, side)
+                .expect("lowered Cartesian model owns every side");
+            let value = condition.value().evaluate(coordinates).unwrap_or(f64::NAN);
+            match condition {
+                ScalarEllipticCartesianBoundary::Essential(_) => {
+                    CartesianBoundaryValue::Essential(value)
+                }
+                ScalarEllipticCartesianBoundary::Natural(_) => {
+                    CartesianBoundaryValue::Natural(value)
+                }
+            }
         };
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         match self.spatial {
             NativeSpatialPolicy::ScalarQ1 => {
                 let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2)?;
-                solve_scalar_elliptic_cartesian_fem(
+                let finalized = finalize_scalar_elliptic_cartesian_fem(
                     mesh.mesh(),
-                    lowered.coefficient(),
+                    &coefficient,
                     &source,
                     &boundary,
                     &quadrature,
-                    solve,
-                )
-                .map(ResolvedScalarEllipticCartesianSolution::FiniteElement)
+                    &REFERENCE_ASSEMBLY_BACKEND,
+                    None,
+                )?;
+                let (system, state) = finalized.into_canonical()?;
+                let solved = solve.solve(&system.linear_problem()?)?;
+                state
+                    .finish(solved, system)
+                    .map(ResolvedScalarEllipticCartesianSolution::FiniteElement)
             }
             NativeSpatialPolicy::ScalarTpfa => {
                 let cell = QuadratureRule::tensor_product_gauss_legendre(2, 1)?;
                 let facet = QuadratureRule::gauss_legendre(1)?;
-                solve_scalar_elliptic_cartesian_fvm(
+                let finalized = finalize_scalar_elliptic_cartesian_fvm(
                     mesh.mesh(),
-                    lowered.coefficient(),
+                    &coefficient,
                     &source,
                     &boundary,
                     &cell,
                     &facet,
-                    solve,
-                )
-                .map(ResolvedScalarEllipticCartesianSolution::FiniteVolume)
+                    &REFERENCE_ASSEMBLY_BACKEND,
+                )?;
+                let (system, state) = finalized.into_canonical()?;
+                let solved = solve.solve(&system.linear_problem()?)?;
+                state
+                    .finish(solved, system)
+                    .map(ResolvedScalarEllipticCartesianSolution::FiniteVolume)
             }
             NativeSpatialPolicy::ElasticityQ1 => Err(invalid(
                 "scalar execution received an elasticity spatial policy",

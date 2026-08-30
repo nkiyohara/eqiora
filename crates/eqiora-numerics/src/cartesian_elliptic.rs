@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
+#[cfg(test)]
+use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_assembly::{
     AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
-    DofId, IndexedAssemblyWork, LinearSystem, LocalContribution, LocalUnknown,
-    REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+    DofId, IndexedAssemblyWork, LinearSystem, LocalContribution, LocalUnknown, TargetAssemblyMap,
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -12,6 +13,7 @@ use eqiora_meshing::{
     AffineGeometryLinearization, AffineGeometryMap, CartesianMesh, GeometryMap, MeshEntity,
     MeshGeometry, MeshTopology, QuadratureRule, ReferenceCell,
 };
+use eqiora_schema::kernel::BoundarySide;
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearSolution, LinearSolveRequest,
     SolveReport,
@@ -31,6 +33,12 @@ use crate::spatial_design::SpatialDesignCoordinate;
 mod design;
 
 use design::{activate_model_parameter, design_geometry, select_design_coordinates};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum CartesianBoundaryValue {
+    Essential(f64),
+    Natural(f64),
+}
 
 /// Continuous scalar Q1 field on a Cartesian mesh.
 ///
@@ -413,8 +421,6 @@ pub(crate) struct FinalizedCartesianFvmAssembly {
     reconstruction_mesh: CartesianMesh,
     reconstruction_boundary_values: Vec<Option<f64>>,
     facets: Vec<CartesianFacetPacket>,
-    diffusion: f64,
-    facet_quadrature: QuadratureRule,
     assembly_report: AssemblyReport,
 }
 
@@ -429,8 +435,6 @@ impl FinalizedCartesianFvmAssembly {
             reconstruction_mesh,
             reconstruction_boundary_values,
             facets,
-            diffusion,
-            facet_quadrature,
             assembly_report,
         } = self;
         let canonical_system = Arc::new(CanonicalCsrSystemView::new(
@@ -445,8 +449,6 @@ impl FinalizedCartesianFvmAssembly {
                 reconstruction_mesh,
                 reconstruction_boundary_values,
                 facets,
-                diffusion,
-                facet_quadrature,
                 assembly_report,
             },
         ))
@@ -460,8 +462,6 @@ pub(crate) struct FinalizedCartesianFvmState {
     reconstruction_mesh: CartesianMesh,
     reconstruction_boundary_values: Vec<Option<f64>>,
     facets: Vec<CartesianFacetPacket>,
-    diffusion: f64,
-    facet_quadrature: QuadratureRule,
     assembly_report: AssemblyReport,
 }
 
@@ -481,28 +481,24 @@ impl FinalizedCartesianFvmState {
             ));
         }
         let (cell_values, solve_report) = solved.into_parts();
-        let (boundary_flux_sum, boundary_load_sum) = self
-            .facets
-            .iter()
-            .filter_map(|facet| match facet.kind {
-                CartesianFacetKind::Interior { .. } => None,
-                CartesianFacetKind::Boundary { cell, value } => Some((facet, cell, value)),
-            })
-            .try_fold((0.0, 0.0), |(flux, load), (facet, cell, value)| {
-                let context = FluxContext {
-                    facet_geometry: &facet.geometry,
-                    distance: facet.distance,
-                    diffusion: self.diffusion,
-                };
-                let transmissibility = transmissibility(&context, &self.facet_quadrature)?;
-                let cell_value = cell_values.get(cell).copied().ok_or_else(|| {
-                    invalid("Cartesian FVM boundary facet exceeds its finalized field")
+        let (boundary_flux_sum, boundary_load_sum) =
+            self.facets
+                .iter()
+                .try_fold((0.0, 0.0), |(flux, load), facet| match facet.kind {
+                    CartesianFacetKind::Interior { .. } => Ok((flux, load)),
+                    CartesianFacetKind::Essential { cell, value, .. } => {
+                        let cell_value = cell_values.get(cell).copied().ok_or_else(|| {
+                            invalid("Cartesian FVM boundary facet exceeds its finalized field")
+                        })?;
+                        Ok::<_, Diagnostic>((
+                            flux + facet.transmissibility * (value - cell_value),
+                            load + facet.transmissibility * value,
+                        ))
+                    }
+                    CartesianFacetKind::Natural { flux_integral, .. } => {
+                        Ok((flux + flux_integral, load + flux_integral))
+                    }
                 })?;
-                Ok::<_, Diagnostic>((
-                    flux + transmissibility * (value - cell_value),
-                    load + transmissibility * value,
-                ))
-            })?;
         if !boundary_flux_sum.is_finite() {
             return Err(invalid("Cartesian FVM boundary flux sum is non-finite"));
         }
@@ -516,6 +512,7 @@ impl FinalizedCartesianFvmState {
             &self.mesh,
             &cell_values,
             self.reconstruction_boundary_values,
+            &self.facets,
         )?;
 
         Ok(ScalarEllipticCartesianFvmSolution {
@@ -538,6 +535,7 @@ impl FinalizedCartesianFvmState {
 /// # Errors
 /// Returns a numerical diagnostic for invalid coefficients, quadrature,
 /// boundary/source evaluation, mesh constraints, assembly, or solve failure.
+#[cfg(test)]
 pub fn solve_scalar_elliptic_cartesian_fem<S, B>(
     mesh: &CartesianMesh,
     diffusion: f64,
@@ -552,7 +550,7 @@ where
 {
     solve_scalar_elliptic_cartesian_fem_with_assembly(
         mesh,
-        diffusion,
+        &move |_: &[f64]| diffusion,
         source,
         boundary,
         quadrature,
@@ -572,12 +570,15 @@ where
 /// # Errors
 /// Returns a numerical or Operator-IR diagnostic for an invalid coefficient,
 /// quadrature rule, cell geometry, local contribution, or batch shape.
-pub fn lower_cartesian_q1_diffusion_local_action(
+pub fn lower_cartesian_q1_diffusion_local_action<K>(
     mesh: &CartesianMesh,
-    diffusion: f64,
+    coefficient: &K,
     quadrature: &QuadratureRule,
-) -> Result<LocalLinearActionIr, Diagnostic> {
-    validate_problem(mesh, diffusion, quadrature)?;
+) -> Result<LocalLinearActionIr, Diagnostic>
+where
+    K: Fn(&[f64]) -> f64 + ?Sized,
+{
+    validate_problem(mesh, quadrature)?;
     let dimension = mesh.topological_dimension();
     let cell_count = mesh.entity_count(dimension).expect("mesh owns cells");
     let local_width = HypercubeQ1Space::new(dimension)?.local_dofs().len();
@@ -596,7 +597,7 @@ pub fn lower_cartesian_q1_diffusion_local_action(
     let zero_source = |_: &[f64]| 0.0;
     let compiled = compile_cartesian_q1_form(dimension, quadrature)?;
     let operator = CartesianEllipticCell {
-        diffusion,
+        coefficient,
         source: &zero_source,
         compiled: &compiled,
     };
@@ -623,9 +624,9 @@ pub fn lower_cartesian_q1_diffusion_local_action(
 /// # Errors
 /// Preserves the reference entry point diagnostics and the selected assembly
 /// backend's complete-operation diagnostics.
-pub fn solve_scalar_elliptic_cartesian_fem_with_assembly<S, B>(
+pub fn solve_scalar_elliptic_cartesian_fem_with_assembly<K, S, B>(
     mesh: &CartesianMesh,
-    diffusion: f64,
+    coefficient: &K,
     source: &S,
     boundary: &B,
     quadrature: &QuadratureRule,
@@ -633,20 +634,30 @@ pub fn solve_scalar_elliptic_cartesian_fem_with_assembly<S, B>(
     solver: LinearSolveRequest<'_>,
 ) -> Result<ScalarEllipticCartesianFemSolution, Diagnostic>
 where
+    K: Fn(&[f64]) -> f64 + Sync + ?Sized,
     S: Fn(&[f64]) -> f64 + Sync + ?Sized,
     B: Fn(&[f64]) -> f64 + ?Sized,
 {
+    let boundary = |_: usize, _: BoundarySide, coordinates: &[f64]| {
+        CartesianBoundaryValue::Essential(boundary(coordinates))
+    };
     let finalized = finalize_scalar_elliptic_cartesian_fem(
-        mesh, diffusion, source, boundary, quadrature, assembly, None,
+        mesh,
+        coefficient,
+        source,
+        &boundary,
+        quadrature,
+        assembly,
+        None,
     )?;
     let (canonical_system, state) = finalized.into_canonical()?;
     let solved = solver.solve(&canonical_system.linear_problem()?)?;
     state.finish(solved, canonical_system)
 }
 
-pub(crate) fn finalize_scalar_elliptic_cartesian_fem<S, B>(
+pub(crate) fn finalize_scalar_elliptic_cartesian_fem<K, S, B>(
     mesh: &CartesianMesh,
-    diffusion: f64,
+    coefficient: &K,
     source: &S,
     boundary: &B,
     quadrature: &QuadratureRule,
@@ -654,17 +665,18 @@ pub(crate) fn finalize_scalar_elliptic_cartesian_fem<S, B>(
     form: Option<&DerivedScalarGalerkinForm>,
 ) -> Result<FinalizedCartesianFemAssembly, Diagnostic>
 where
+    K: Fn(&[f64]) -> f64 + Sync + ?Sized,
     S: Fn(&[f64]) -> f64 + Sync + ?Sized,
-    B: Fn(&[f64]) -> f64 + ?Sized,
+    B: Fn(usize, BoundarySide, &[f64]) -> CartesianBoundaryValue + ?Sized,
 {
-    validate_problem(mesh, diffusion, quadrature)?;
+    validate_problem(mesh, quadrature)?;
     let dimension = mesh.topological_dimension();
     let compiled = match form {
         Some(form) => form.admit_quadrature(quadrature)?,
         None => compile_cartesian_q1_form(dimension, quadrature)?,
     };
     let operator = CartesianEllipticCell {
-        diffusion,
+        coefficient,
         source,
         compiled: &compiled,
     };
@@ -681,11 +693,20 @@ where
             let coordinates = mesh
                 .vertex_coordinates(vertex)
                 .expect("mesh vertex has geometry");
-            let value = boundary(&coordinates);
-            if !value.is_finite() {
-                return Err(invalid("Cartesian boundary returned a non-finite value"));
+            let essential = boundary_sides(mesh, &coordinates)?
+                .into_iter()
+                .filter_map(|(axis, side)| match boundary(axis, side, &coordinates) {
+                    CartesianBoundaryValue::Essential(value) => Some(value),
+                    CartesianBoundaryValue::Natural(_) => None,
+                })
+                .try_fold(None, |accepted: Option<f64>, candidate| {
+                    require_compatible_boundary_value(accepted, candidate)
+                })?;
+            fixed_values.push(essential);
+            if essential.is_none() {
+                *free_index = Some(DofId::new(free_count));
+                free_count += 1;
             }
-            fixed_values.push(Some(value));
         } else {
             fixed_values.push(None);
             *free_index = Some(DofId::new(free_count));
@@ -697,7 +718,53 @@ where
             "Cartesian Q1 system requires at least one unconstrained interior vertex",
         ));
     }
+    if fixed_values.iter().all(Option::is_none) {
+        return Err(invalid(
+            "Cartesian Q1 system requires at least one essential boundary vertex",
+        ));
+    }
     let cell_count = mesh.entity_count(dimension).expect("mesh owns cells");
+    let facet_quadrature = scalar_facet_quadrature(dimension)?;
+    let facet_dimension = dimension - 1;
+    let natural_facets = (0..mesh
+        .entity_count(facet_dimension)
+        .expect("mesh owns facets"))
+        .filter_map(|facet_index| {
+            let facet = MeshEntity::new(facet_dimension, facet_index);
+            cartesian_boundary_facet_side(mesh, facet)
+                .transpose()
+                .map(|side| side.map(|side| (facet, side)))
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?
+        .into_iter()
+        .filter_map(|(facet, (axis, side))| {
+            let geometry = mesh.geometry_map(facet).expect("mesh facet has geometry");
+            let coordinates = geometry.origin();
+            matches!(
+                boundary(axis, side, coordinates),
+                CartesianBoundaryValue::Natural(_)
+            )
+            .then_some((facet, axis, side))
+        })
+        .map(|(facet, axis, side)| {
+            let geometry = mesh.geometry_map(facet).expect("mesh facet has geometry");
+            let vertices = mesh
+                .entity_vertices(facet)
+                .expect("mesh facet has a vertex closure");
+            let local =
+                natural_fem_facet_contribution(&geometry, &facet_quadrature, &|coordinates| {
+                    match boundary(axis, side, coordinates) {
+                        CartesianBoundaryValue::Natural(value) => value,
+                        CartesianBoundaryValue::Essential(_) => f64::NAN,
+                    }
+                })?;
+            Ok((local, vertices))
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+    let natural_load = natural_facets
+        .iter()
+        .flat_map(|(local, _)| local.rhs())
+        .sum::<f64>();
     let assembly_plan = AssemblyPlan::new(vec![
         AssemblyTarget::new(free_count)?,
         AssemblyTarget::new(vertex_count)?,
@@ -708,15 +775,23 @@ where
     let full_target = assembly_plan
         .target_id(1)
         .expect("two-target FEM assembly plan owns its full target");
-    let work = IndexedAssemblyWork::new(cell_count, |cell_index| {
-        let cell = MeshEntity::new(dimension, cell_index);
-        let geometry = mesh
-            .geometry_map(cell)
-            .expect("mesh cell has affine geometry");
-        let local = operator.evaluate(&geometry, quadrature)?;
-        let vertices = mesh
-            .entity_vertices(cell)
-            .expect("mesh cell has a vertex closure");
+    let packet_count = cell_count
+        .checked_add(natural_facets.len())
+        .ok_or_else(|| invalid("Cartesian FEM packet count overflows usize"))?;
+    let work = IndexedAssemblyWork::new(packet_count, |packet_index| {
+        let (local, vertices) = if packet_index < cell_count {
+            let cell = MeshEntity::new(dimension, packet_index);
+            let geometry = mesh
+                .geometry_map(cell)
+                .expect("mesh cell has affine geometry");
+            (
+                operator.evaluate(&geometry, quadrature)?,
+                mesh.entity_vertices(cell)
+                    .expect("mesh cell has a vertex closure"),
+            )
+        } else {
+            natural_facets[packet_index - cell_count].clone()
+        };
         let equations = vertices
             .iter()
             .map(|vertex| free_indices[vertex.index()])
@@ -764,7 +839,7 @@ where
         .expect("two-target FEM assembly returns its full system");
     debug_assert!(systems.next().is_none());
 
-    let integrated_source = full_system.rhs().iter().sum::<f64>();
+    let integrated_source = full_system.rhs().iter().sum::<f64>() - natural_load;
     if !integrated_source.is_finite() {
         return Err(invalid("Cartesian FEM source integral is non-finite"));
     }
@@ -795,6 +870,7 @@ where
 /// # Errors
 /// Returns a numerical diagnostic for invalid coefficients, quadrature,
 /// boundary/source evaluation, topology, assembly, or solve failure.
+#[cfg(test)]
 pub fn solve_scalar_elliptic_cartesian_fvm<S, B>(
     mesh: &CartesianMesh,
     diffusion: f64,
@@ -810,7 +886,7 @@ where
 {
     solve_scalar_elliptic_cartesian_fvm_with_assembly(
         mesh,
-        diffusion,
+        &move |_: &[f64]| diffusion,
         source,
         boundary,
         cell_quadrature,
@@ -831,9 +907,9 @@ where
 /// Preserves the reference entry point diagnostics and the selected assembly
 /// backend's complete-operation diagnostics.
 #[allow(clippy::too_many_arguments)]
-pub fn solve_scalar_elliptic_cartesian_fvm_with_assembly<S, B>(
+pub fn solve_scalar_elliptic_cartesian_fvm_with_assembly<K, S, B>(
     mesh: &CartesianMesh,
-    diffusion: f64,
+    coefficient: &K,
     source: &S,
     boundary: &B,
     cell_quadrature: &QuadratureRule,
@@ -842,14 +918,18 @@ pub fn solve_scalar_elliptic_cartesian_fvm_with_assembly<S, B>(
     solver: LinearSolveRequest<'_>,
 ) -> Result<ScalarEllipticCartesianFvmSolution, Diagnostic>
 where
+    K: Fn(&[f64]) -> f64 + Sync + ?Sized,
     S: Fn(&[f64]) -> f64 + Sync + ?Sized,
     B: Fn(&[f64]) -> f64 + ?Sized,
 {
+    let boundary = |_: usize, _: BoundarySide, coordinates: &[f64]| {
+        CartesianBoundaryValue::Essential(boundary(coordinates))
+    };
     let finalized = finalize_scalar_elliptic_cartesian_fvm(
         mesh,
-        diffusion,
+        coefficient,
         source,
-        boundary,
+        &boundary,
         cell_quadrature,
         facet_quadrature,
         assembly,
@@ -860,9 +940,9 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn finalize_scalar_elliptic_cartesian_fvm<S, B>(
+pub(crate) fn finalize_scalar_elliptic_cartesian_fvm<K, S, B>(
     mesh: &CartesianMesh,
-    diffusion: f64,
+    coefficient: &K,
     source: &S,
     boundary: &B,
     cell_quadrature: &QuadratureRule,
@@ -870,10 +950,11 @@ pub(crate) fn finalize_scalar_elliptic_cartesian_fvm<S, B>(
     assembly: &dyn AssemblyBackend,
 ) -> Result<FinalizedCartesianFvmAssembly, Diagnostic>
 where
+    K: Fn(&[f64]) -> f64 + Sync + ?Sized,
     S: Fn(&[f64]) -> f64 + Sync + ?Sized,
-    B: Fn(&[f64]) -> f64 + ?Sized,
+    B: Fn(usize, BoundarySide, &[f64]) -> CartesianBoundaryValue + ?Sized,
 {
-    validate_problem(mesh, diffusion, cell_quadrature)?;
+    validate_problem(mesh, cell_quadrature)?;
     let dimension = mesh.topological_dimension();
     require_facet_rule(dimension, facet_quadrature)?;
     let cell_count = mesh.entity_count(dimension).expect("mesh owns cells");
@@ -923,18 +1004,39 @@ where
                     let center = &cell_centers[cell.entity.index()];
                     let boundary_coordinates = facet_geometry.origin();
                     let distance = (boundary_coordinates[normal_axis] - center[normal_axis]).abs();
-                    let boundary_value = boundary(boundary_coordinates);
-                    if !boundary_value.is_finite() {
-                        return Err(invalid("Cartesian boundary returned a non-finite value"));
-                    }
+                    let (axis, side) = cartesian_boundary_facet_side(mesh, facet)?
+                        .expect("one-cell Cartesian facet is on the boundary");
                     require_positive_distance(distance)?;
-                    (
-                        CartesianFacetKind::Boundary {
-                            cell: cell.entity.index(),
-                            value: boundary_value,
-                        },
-                        distance,
-                    )
+                    let kind = match boundary(axis, side, boundary_coordinates) {
+                        CartesianBoundaryValue::Essential(value) if value.is_finite() => {
+                            CartesianFacetKind::Essential {
+                                axis,
+                                side,
+                                cell: cell.entity.index(),
+                                value,
+                            }
+                        }
+                        CartesianBoundaryValue::Natural(_) => {
+                            let flux_integral = integrate_boundary_flux(
+                                &facet_geometry,
+                                facet_quadrature,
+                                &|coordinates| match boundary(axis, side, coordinates) {
+                                    CartesianBoundaryValue::Natural(value) => value,
+                                    CartesianBoundaryValue::Essential(_) => f64::NAN,
+                                },
+                            )?;
+                            CartesianFacetKind::Natural {
+                                axis,
+                                side,
+                                cell: cell.entity.index(),
+                                flux_integral,
+                            }
+                        }
+                        CartesianBoundaryValue::Essential(_) => {
+                            return Err(invalid("Cartesian boundary returned a non-finite value"));
+                        }
+                    };
+                    (kind, distance)
                 }
                 _ => {
                     return Err(invalid(
@@ -942,13 +1044,29 @@ where
                     ));
                 }
             };
-            Ok(CartesianFacetPacket {
-                geometry: facet_geometry,
+            let mut face_centroid = vec![0.0; dimension];
+            facet_geometry.map_point(&vec![0.0; facet_dimension], &mut face_centroid)?;
+            let coefficient_value = coefficient(&face_centroid);
+            let transmissibility = facet_transmissibility(
+                &facet_geometry,
                 distance,
+                coefficient_value,
+                facet_quadrature,
+            )?;
+            Ok(CartesianFacetPacket {
+                transmissibility,
                 kind,
             })
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
+    if facets
+        .iter()
+        .all(|facet| !matches!(facet.kind, CartesianFacetKind::Essential { .. }))
+    {
+        return Err(invalid(
+            "Cartesian TPFA system requires at least one essential boundary facet",
+        ));
+    }
     let (reconstruction_mesh, reconstruction_boundary_values) =
         prepare_cell_field_reconstruction(mesh, boundary)?;
 
@@ -972,29 +1090,36 @@ where
             (local, map)
         } else {
             let facet = &facets[packet_index - cell_count];
-            let context = FluxContext {
-                facet_geometry: &facet.geometry,
-                distance: facet.distance,
-                diffusion,
-            };
             match facet.kind {
                 CartesianFacetKind::Interior { left, right } => {
                     let left = DofId::new(left);
                     let right = DofId::new(right);
-                    let local = CartesianInteriorFlux.evaluate(&context, facet_quadrature)?;
+                    let local = CartesianInteriorFlux
+                        .evaluate(&facet.transmissibility, facet_quadrature)?;
                     let map = AssemblyMap::new(
                         vec![Some(left), Some(right)],
                         vec![LocalUnknown::Free(left), LocalUnknown::Free(right)],
                     )?;
                     (local, map)
                 }
-                CartesianFacetKind::Boundary { cell, value } => {
+                CartesianFacetKind::Essential { cell, value, .. } => {
                     let cell = DofId::new(cell);
-                    let local = CartesianBoundaryFlux.evaluate(&context, facet_quadrature)?;
+                    let local = CartesianBoundaryFlux
+                        .evaluate(&facet.transmissibility, facet_quadrature)?;
                     let map = AssemblyMap::new(
                         vec![Some(cell)],
                         vec![LocalUnknown::Free(cell), LocalUnknown::Fixed(value)],
                     )?;
+                    (local, map)
+                }
+                CartesianFacetKind::Natural {
+                    cell,
+                    flux_integral,
+                    ..
+                } => {
+                    let cell = DofId::new(cell);
+                    let local = LocalContribution::new(1, 1, vec![0.0], vec![flux_integral])?;
+                    let map = AssemblyMap::new(vec![Some(cell)], vec![LocalUnknown::Free(cell)])?;
                     (local, map)
                 }
             }
@@ -1015,8 +1140,6 @@ where
         reconstruction_mesh,
         reconstruction_boundary_values,
         facets,
-        diffusion,
-        facet_quadrature: facet_quadrature.clone(),
         assembly_report,
     })
 }
@@ -1062,7 +1185,6 @@ pub fn linearize_scalar_elliptic_cartesian_fem(
 
     for (coordinate, action) in selected.actions.iter().copied().enumerate() {
         activate_model_parameter(action, &mut parameter_tangent);
-        let (diffusion, diffusion_tangent) = model.coefficient_jvp(&parameter_tangent)?;
         for cell_index in 0..mesh.entity_count(dimension).expect("mesh owns cells") {
             let cell = MeshEntity::new(dimension, cell_index);
             let geometry = design_geometry(mesh, cell, action)?;
@@ -1096,6 +1218,8 @@ pub fn linearize_scalar_elliptic_cartesian_fem(
             for point in quadrature.points() {
                 let basis = space.tabulate(&point.coordinates)?;
                 geometry.map_point_jvp(&point.coordinates, &mut physical, &mut physical_tangent)?;
+                let (diffusion, diffusion_tangent) =
+                    model.coefficient_jvp(&physical, &physical_tangent, &parameter_tangent)?;
                 let (source, source_tangent) =
                     model.source_jvp(&physical, &physical_tangent, &parameter_tangent)?;
                 let scale = point.weight * map.measure_scale();
@@ -1151,6 +1275,58 @@ pub fn linearize_scalar_elliptic_cartesian_fem(
                 }
             }
         }
+        let facet_quadrature = scalar_facet_quadrature(dimension)?;
+        let facet_dimension = dimension - 1;
+        let facet_space = HypercubeQ1Space::new(facet_dimension)?;
+        for facet_index in 0..mesh
+            .entity_count(facet_dimension)
+            .expect("mesh owns facets")
+        {
+            let facet = MeshEntity::new(facet_dimension, facet_index);
+            let Some((axis, side)) = cartesian_boundary_facet_side(mesh, facet)? else {
+                continue;
+            };
+            let geometry = design_geometry(mesh, facet, action)?;
+            let map = geometry.map();
+            let (condition, _, _) = model.boundary_jvp(
+                axis,
+                side,
+                map.origin(),
+                geometry.origin_tangent(),
+                &parameter_tangent,
+            )?;
+            if !matches!(
+                condition,
+                crate::canonical::ScalarEllipticCartesianBoundary::Natural(_)
+            ) {
+                continue;
+            }
+            let vertices = mesh
+                .entity_vertices(facet)
+                .expect("mesh facet has a vertex closure");
+            let mut physical = vec![0.0; dimension];
+            let mut physical_tangent = vec![0.0; dimension];
+            for point in facet_quadrature.points() {
+                let basis = facet_space.tabulate(&point.coordinates)?;
+                geometry.map_point_jvp(&point.coordinates, &mut physical, &mut physical_tangent)?;
+                let (_, flux, flux_tangent) = model.boundary_jvp(
+                    axis,
+                    side,
+                    &physical,
+                    &physical_tangent,
+                    &parameter_tangent,
+                )?;
+                let scale = point.weight * map.measure_scale();
+                let scale_tangent = point.weight * geometry.measure_scale_tangent();
+                for (local_row, vertex) in vertices.iter().enumerate() {
+                    let Some(global_row) = free_indices[vertex.index()] else {
+                        continue;
+                    };
+                    design_jacobian[global_row * design_dimension + coordinate] -=
+                        (scale_tangent * flux + scale * flux_tangent) * basis.values()[local_row];
+                }
+            }
+        }
         parameter_tangent.fill(0.0);
     }
     ensure_finite_design_assembly(&design_jacobian)?;
@@ -1191,7 +1367,6 @@ pub fn linearize_scalar_elliptic_cartesian_fvm(
 
     for (coordinate, action) in selected.actions.iter().copied().enumerate() {
         activate_model_parameter(action, &mut parameter_tangent);
-        let (diffusion, diffusion_tangent) = model.coefficient_jvp(&parameter_tangent)?;
         for cell_index in 0..cell_count {
             let geometry = design_geometry(mesh, MeshEntity::new(dimension, cell_index), action)?;
             let map = geometry.map();
@@ -1228,6 +1403,11 @@ pub fn linearize_scalar_elliptic_cartesian_fvm(
                 .incidence(facet, dimension)
                 .ok_or_else(|| invalid("Cartesian facet adjacency is unavailable"))?;
             let (area, area_tangent) = facet_measure_jvp(&geometry, facet_quadrature)?;
+            let (diffusion, diffusion_tangent) = model.coefficient_jvp(
+                map.origin(),
+                geometry.origin_tangent(),
+                &parameter_tangent,
+            )?;
             match cells.as_slice() {
                 [left, right] => {
                     let left_index = left.entity.index();
@@ -1259,6 +1439,43 @@ pub fn linearize_scalar_elliptic_cartesian_fvm(
                     let cell_index = cell.entity.index();
                     let cell_geometry = design_geometry(mesh, cell.entity, action)?;
                     let boundary_coordinates = map.origin();
+                    let (axis, side) = cartesian_boundary_facet_side(mesh, facet)?
+                        .expect("one-cell Cartesian facet is on the boundary");
+                    let (condition, boundary, boundary_tangent) = model.boundary_jvp(
+                        axis,
+                        side,
+                        boundary_coordinates,
+                        geometry.origin_tangent(),
+                        &parameter_tangent,
+                    )?;
+                    if matches!(
+                        condition,
+                        crate::canonical::ScalarEllipticCartesianBoundary::Natural(_)
+                    ) {
+                        let mut physical = vec![0.0; dimension];
+                        let mut physical_tangent = vec![0.0; dimension];
+                        let mut flux_tangent_integral = 0.0;
+                        for point in facet_quadrature.points() {
+                            geometry.map_point_jvp(
+                                &point.coordinates,
+                                &mut physical,
+                                &mut physical_tangent,
+                            )?;
+                            let (_, flux, flux_tangent) = model.boundary_jvp(
+                                axis,
+                                side,
+                                &physical,
+                                &physical_tangent,
+                                &parameter_tangent,
+                            )?;
+                            flux_tangent_integral += point.weight
+                                * (geometry.measure_scale_tangent() * flux
+                                    + map.measure_scale() * flux_tangent);
+                        }
+                        design_jacobian[cell_index * design_dimension + coordinate] -=
+                            flux_tangent_integral;
+                        continue;
+                    }
                     let delta = boundary_coordinates[normal_axis]
                         - solution.cell_centers()[cell_index][normal_axis];
                     let distance = delta.abs();
@@ -1266,11 +1483,6 @@ pub fn linearize_scalar_elliptic_cartesian_fvm(
                     let distance_tangent = delta.signum()
                         * (geometry.origin_tangent()[normal_axis]
                             - cell_geometry.origin_tangent()[normal_axis]);
-                    let (boundary, boundary_tangent) = model.essential_boundary_jvp(
-                        boundary_coordinates,
-                        geometry.origin_tangent(),
-                        &parameter_tangent,
-                    )?;
                     let transmissibility = diffusion * area / distance;
                     let transmissibility_tangent = transmissibility_jvp(
                         diffusion,
@@ -1402,377 +1614,8 @@ pub fn linearize_scalar_elliptic_cartesian_fvm_output(
     )
 }
 
-fn validate_linearization_inputs(
-    model: &ScalarEllipticCartesianModel,
-    mesh: &CartesianMesh,
-    solution_mesh: &CartesianMesh,
-    quadrature: &QuadratureRule,
-) -> Result<(), Diagnostic> {
-    let bounds_match = (0..model.dimension()).all(|axis| {
-        mesh.axis_bounds(axis).is_some_and(|bounds| {
-            bounds[0].to_bits() == model.bounds()[axis][0].to_bits()
-                && bounds[1].to_bits() == model.bounds()[axis][1].to_bits()
-        })
-    });
-    if mesh != solution_mesh || mesh.topological_dimension() != model.dimension() || !bounds_match {
-        return Err(invalid(
-            "Cartesian linearization requires the exact primal mesh, model dimension, and Domain bounds",
-        ));
-    }
-    validate_problem(mesh, model.coefficient(), quadrature)
-}
-
-fn facet_measure_jvp(
-    geometry: &AffineGeometryLinearization,
-    quadrature: &QuadratureRule,
-) -> Result<(f64, f64), Diagnostic> {
-    require_geometry_rule(geometry.map(), quadrature)?;
-    let area = quadrature
-        .points()
-        .iter()
-        .map(|point| point.weight * geometry.map().measure_scale())
-        .sum::<f64>();
-    let tangent = quadrature
-        .points()
-        .iter()
-        .map(|point| point.weight * geometry.measure_scale_tangent())
-        .sum::<f64>();
-    if !area.is_finite() || area <= 0.0 || !tangent.is_finite() {
-        return Err(invalid(
-            "Cartesian facet measure/JVP must be finite with positive primal measure",
-        ));
-    }
-    Ok((area, tangent))
-}
-
-fn transmissibility_jvp(
-    diffusion: f64,
-    diffusion_tangent: f64,
-    area: f64,
-    area_tangent: f64,
-    distance: f64,
-    distance_tangent: f64,
-) -> Result<f64, Diagnostic> {
-    let tangent = (diffusion_tangent * area + diffusion * area_tangent) / distance
-        - diffusion * area * distance_tangent / distance.powi(2);
-    if !tangent.is_finite() {
-        return Err(invalid(
-            "Cartesian transmissibility JVP produced a non-finite value",
-        ));
-    }
-    Ok(tangent)
-}
-
-fn require_positive_distance(distance: f64) -> Result<(), Diagnostic> {
-    (distance.is_finite() && distance > 0.0)
-        .then_some(())
-        .ok_or_else(|| invalid("Cartesian two-point flux distance must be positive and finite"))
-}
-
-fn ensure_finite_design_assembly(values: &[f64]) -> Result<(), Diagnostic> {
-    values
-        .iter()
-        .all(|value| value.is_finite())
-        .then_some(())
-        .ok_or_else(|| invalid("Cartesian design derivative assembly produced a non-finite value"))
-}
-
-struct CartesianEllipticCell<'a, S: ?Sized> {
-    diffusion: f64,
-    source: &'a S,
-    compiled: &'a AdmittedScalarGalerkinForm<'a>,
-}
-
-impl<S> LocalOperator<AffineGeometryMap> for CartesianEllipticCell<'_, S>
-where
-    S: Fn(&[f64]) -> f64 + ?Sized,
-{
-    fn evaluate(
-        &self,
-        geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
-        self.compiled
-            .evaluate(geometry, quadrature, self.diffusion, self.source)
-    }
-}
-
-struct CartesianSourceCell<'a, S: ?Sized> {
-    source: &'a S,
-}
-
-impl<S> LocalOperator<AffineGeometryMap> for CartesianSourceCell<'_, S>
-where
-    S: Fn(&[f64]) -> f64 + ?Sized,
-{
-    fn evaluate(
-        &self,
-        geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
-        require_geometry_rule(geometry, quadrature)?;
-        let mut physical = vec![0.0; geometry.physical_dimension()];
-        let mut integral = 0.0;
-        for point in quadrature.points() {
-            geometry.map_point(&point.coordinates, &mut physical)?;
-            let source = (self.source)(&physical);
-            if !source.is_finite() {
-                return Err(invalid("Cartesian source returned a non-finite value"));
-            }
-            integral += point.weight * geometry.measure_scale() * source;
-        }
-        LocalContribution::new(1, 1, vec![0.0], vec![integral])
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct CartesianFacetPacket {
-    geometry: AffineGeometryMap,
-    distance: f64,
-    kind: CartesianFacetKind,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum CartesianFacetKind {
-    Interior { left: usize, right: usize },
-    Boundary { cell: usize, value: f64 },
-}
-
-struct FluxContext<'a> {
-    facet_geometry: &'a AffineGeometryMap,
-    distance: f64,
-    diffusion: f64,
-}
-
-struct CartesianInteriorFlux;
-
-impl LocalOperator<FluxContext<'_>> for CartesianInteriorFlux {
-    fn evaluate(
-        &self,
-        context: &FluxContext<'_>,
-        quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
-        let transmissibility = transmissibility(context, quadrature)?;
-        LocalContribution::new(
-            2,
-            2,
-            vec![
-                transmissibility,
-                -transmissibility,
-                -transmissibility,
-                transmissibility,
-            ],
-            vec![0.0, 0.0],
-        )
-    }
-}
-
-struct CartesianBoundaryFlux;
-
-impl LocalOperator<FluxContext<'_>> for CartesianBoundaryFlux {
-    fn evaluate(
-        &self,
-        context: &FluxContext<'_>,
-        quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
-        let transmissibility = transmissibility(context, quadrature)?;
-        LocalContribution::new(1, 2, vec![transmissibility, -transmissibility], vec![0.0])
-    }
-}
-
-fn transmissibility(
-    context: &FluxContext<'_>,
-    quadrature: &QuadratureRule,
-) -> Result<f64, Diagnostic> {
-    require_geometry_rule(context.facet_geometry, quadrature)?;
-    if !context.distance.is_finite() || context.distance <= 0.0 {
-        return Err(invalid(
-            "Cartesian two-point flux requires a positive finite normal distance",
-        ));
-    }
-    let area = quadrature
-        .points()
-        .iter()
-        .map(|point| point.weight * context.facet_geometry.measure_scale())
-        .sum::<f64>();
-    let transmissibility = context.diffusion * area / context.distance;
-    if !transmissibility.is_finite() || transmissibility <= 0.0 {
-        return Err(invalid(
-            "Cartesian two-point transmissibility must be finite and positive",
-        ));
-    }
-    Ok(transmissibility)
-}
-
-fn prepare_cell_field_reconstruction<B>(
-    mesh: &CartesianMesh,
-    boundary: &B,
-) -> Result<(CartesianMesh, Vec<Option<f64>>), Diagnostic>
-where
-    B: Fn(&[f64]) -> f64 + ?Sized,
-{
-    let dimension = mesh.topological_dimension();
-    let axes = (0..dimension)
-        .map(|axis| {
-            let coordinates = mesh
-                .axis_coordinates(axis)
-                .expect("mesh owns every physical axis");
-            let mut dual = Vec::with_capacity(coordinates.len() + 1);
-            dual.push(coordinates[0]);
-            dual.extend(
-                coordinates
-                    .windows(2)
-                    .map(|pair| pair[0] + 0.5 * (pair[1] - pair[0])),
-            );
-            dual.push(coordinates[coordinates.len() - 1]);
-            dual
-        })
-        .collect::<Vec<_>>();
-    let reconstruction_mesh = CartesianMesh::from_axes(axes)?;
-    let vertex_count = reconstruction_mesh
-        .entity_count(0)
-        .expect("reconstruction mesh owns vertices");
-    let mut boundary_values = Vec::with_capacity(vertex_count);
-    for vertex_index in 0..vertex_count {
-        let vertex = MeshEntity::new(0, vertex_index);
-        if reconstruction_mesh
-            .is_boundary_entity(vertex)
-            .expect("reconstruction vertex has boundary classification")
-        {
-            let coordinates = reconstruction_mesh
-                .vertex_coordinates(vertex)
-                .expect("reconstruction vertex has geometry");
-            let value = boundary(&coordinates);
-            if !value.is_finite() {
-                return Err(invalid("Cartesian boundary returned a non-finite value"));
-            }
-            boundary_values.push(Some(value));
-        } else {
-            boundary_values.push(None);
-        }
-    }
-    Ok((reconstruction_mesh, boundary_values))
-}
-
-fn reconstruct_cell_field_from_boundary_values(
-    reconstruction_mesh: CartesianMesh,
-    source_mesh: &CartesianMesh,
-    cell_values: &[f64],
-    boundary_values: Vec<Option<f64>>,
-) -> Result<CartesianQ1Field, Diagnostic> {
-    let dimension = source_mesh.topological_dimension();
-    let reconstruction_vertex_count = reconstruction_mesh
-        .entity_count(0)
-        .ok_or_else(|| invalid("Cartesian reconstruction mesh has no vertex stratum"))?;
-    if Some(cell_values.len()) != source_mesh.entity_count(dimension)
-        || boundary_values.len() != reconstruction_vertex_count
-    {
-        return Err(invalid(
-            "Cartesian reconstruction state differs from its finalized system",
-        ));
-    }
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(boundary_values.len())
-        .map_err(|_| {
-            finish_allocation("Cartesian FVM reconstruction allocation exceeds platform capacity")
-        })?;
-    for (vertex_index, boundary_value) in boundary_values.into_iter().enumerate() {
-        if let Some(value) = boundary_value {
-            values.push(value);
-            continue;
-        }
-        let vertex = MeshEntity::new(0, vertex_index);
-        let source_indices = reconstruction_mesh
-            .vertex_multi_index(vertex)
-            .ok_or_else(|| invalid("Cartesian reconstruction vertex has no multi-index"))?;
-        let source_cell_index = source_indices.iter().enumerate().try_fold(
-            0_usize,
-            |linear, (axis, &dual_index)| {
-                let cell_count = source_mesh.axis_cell_count(axis).ok_or_else(|| {
-                    invalid("Cartesian reconstruction source axis is unavailable")
-                })?;
-                let source_index = dual_index.checked_sub(1).ok_or_else(|| {
-                    invalid("Cartesian reconstruction interior index is on the boundary")
-                })?;
-                if source_index >= cell_count {
-                    return Err(invalid(
-                        "Cartesian reconstruction interior index exceeds its source axis",
-                    ));
-                }
-                linear
-                    .checked_mul(cell_count)
-                    .and_then(|linear| linear.checked_add(source_index))
-                    .ok_or_else(|| invalid("Cartesian reconstruction cell index overflows usize"))
-            },
-        )?;
-        let value = cell_values.get(source_cell_index).copied().ok_or_else(|| {
-            invalid("Cartesian reconstruction cell index exceeds its finalized field")
-        })?;
-        values.push(value);
-    }
-    CartesianQ1Field::new(reconstruction_mesh, values)
-}
-
-fn fallible_zeroed(length: usize, allocation_error: &'static str) -> Result<Vec<f64>, Diagnostic> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(length)
-        .map_err(|_| finish_allocation(allocation_error))?;
-    values.resize(length, 0.0);
-    Ok(values)
-}
-
-fn finish_allocation(message: &'static str) -> Diagnostic {
-    Diagnostic::error(codes::NUMERICAL_SOLVE_FAILED, message)
-}
-
-fn validate_problem(
-    mesh: &CartesianMesh,
-    diffusion: f64,
-    quadrature: &QuadratureRule,
-) -> Result<(), Diagnostic> {
-    if !diffusion.is_finite() || diffusion <= 0.0 {
-        return Err(invalid(
-            "Cartesian scalar diffusion coefficient must be finite and positive",
-        ));
-    }
-    require_cell_rule(mesh, quadrature)
-}
-
-fn require_cell_rule(mesh: &CartesianMesh, quadrature: &QuadratureRule) -> Result<(), Diagnostic> {
-    let expected = ReferenceCell::hypercube(mesh.topological_dimension())?;
-    require_reference(quadrature, expected)
-}
-
-fn require_facet_rule(dimension: usize, quadrature: &QuadratureRule) -> Result<(), Diagnostic> {
-    let expected = if dimension == 1 {
-        ReferenceCell::point()
-    } else {
-        ReferenceCell::hypercube(dimension - 1)?
-    };
-    require_reference(quadrature, expected)
-}
-
-fn require_geometry_rule(
-    geometry: &AffineGeometryMap,
-    quadrature: &QuadratureRule,
-) -> Result<(), Diagnostic> {
-    require_reference(quadrature, geometry.reference_cell())
-}
-
-fn require_reference(
-    quadrature: &QuadratureRule,
-    expected: ReferenceCell,
-) -> Result<(), Diagnostic> {
-    (quadrature.reference_cell() == expected)
-        .then_some(())
-        .ok_or_else(|| invalid("Cartesian quadrature reference cell does not match its consumer"))
-}
-
-fn invalid(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_DISCRETIZATION, message)
-}
+mod support;
+use support::*;
 
 #[cfg(test)]
 mod tests {
@@ -1801,7 +1644,8 @@ mod tests {
     fn q1_diffusion_lowers_to_anonymous_uniform_local_action() {
         let mesh = CartesianMesh::from_axes(vec![vec![0.0, 0.2, 1.0], vec![-1.0, 0.5]]).unwrap();
         let rule = QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
-        let action = lower_cartesian_q1_diffusion_local_action(&mesh, 1.7, &rule).unwrap();
+        let action =
+            lower_cartesian_q1_diffusion_local_action(&mesh, &|_: &[f64]| 1.7, &rule).unwrap();
         let input = vec![1.0; action.input_len()];
         let mut output = vec![f64::NAN; action.output_len()];
 

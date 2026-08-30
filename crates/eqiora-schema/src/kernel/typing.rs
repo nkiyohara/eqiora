@@ -610,7 +610,7 @@ pub fn additive<I: Clone + Eq>(
         dimension: left.dimension,
         shape: left.shape.clone(),
         frame: left.frame,
-        support: combine_support(&left.support, &right.support)?,
+        support: combine_additive_support(&left.support, &right.support)?,
     })
 }
 
@@ -892,7 +892,14 @@ fn boundary_operator<I: Clone + Eq>(
     else {
         return Err(TypeViolation::BoundaryOperatorRequiresBoundaryScope);
     };
-    if operand.support.as_ref().map(SpatialSupport::domain) != Some(parent) {
+    let operand_is_parent_volume =
+        operand.support.as_ref().map(SpatialSupport::domain) == Some(parent);
+    let operand_is_this_boundary = normal_component
+        && operand
+            .support
+            .as_ref()
+            .is_some_and(|support| support == relation.expect("boundary scope was matched"));
+    if !operand_is_parent_volume && !operand_is_this_boundary {
         return Err(TypeViolation::BoundaryOperandSupportMismatch);
     }
     let shape = if normal_component {
@@ -926,6 +933,40 @@ fn boundary_operator<I: Clone + Eq>(
 }
 
 fn combine_support<I: Clone + Eq>(
+    left: &Option<SpatialSupport<I>>,
+    right: &Option<SpatialSupport<I>>,
+) -> Result<Option<SpatialSupport<I>>, TypeViolation<I>> {
+    match (left, right) {
+        (None, support) | (support, None) => Ok(support.clone()),
+        (Some(left), Some(right)) if left == right => Ok(Some(left.clone())),
+        (
+            Some(SpatialSupport::Volume { domain, dimensions }),
+            Some(
+                boundary @ SpatialSupport::Boundary {
+                    parent,
+                    dimensions: boundary_dimensions,
+                    ..
+                },
+            ),
+        )
+        | (
+            Some(
+                boundary @ SpatialSupport::Boundary {
+                    parent,
+                    dimensions: boundary_dimensions,
+                    ..
+                },
+            ),
+            Some(SpatialSupport::Volume { domain, dimensions }),
+        ) if domain == parent && dimensions == boundary_dimensions => Ok(Some(boundary.clone())),
+        (Some(left), Some(right)) => Err(TypeViolation::IncompatibleSupport {
+            left: Box::new(left.clone()),
+            right: Box::new(right.clone()),
+        }),
+    }
+}
+
+fn combine_additive_support<I: Clone + Eq>(
     left: &Option<SpatialSupport<I>>,
     right: &Option<SpatialSupport<I>>,
 ) -> Result<Option<SpatialSupport<I>>, TypeViolation<I>> {
@@ -989,302 +1030,4 @@ fn scale_dimension(dimension: DimExponents, exponent: i32) -> Option<DimExponent
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use eqiora_core::Id;
-    use eqiora_core::entity::kinds;
-
-    fn volume(name: &'static str) -> SpatialSupport<&'static str> {
-        SpatialSupport::Volume {
-            domain: name,
-            dimensions: 2,
-        }
-    }
-
-    #[test]
-    fn spatial_rules_are_identity_parametric_and_shape_aware() {
-        let scalar = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("left")));
-        let gradient = gradient(&scalar).expect("gradient");
-        assert_eq!(gradient.shape.extents()[0].get(), 2);
-        assert!(divergence(&scalar).is_err());
-
-        let other = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("right")));
-        assert!(matches!(
-            additive(&scalar, &other),
-            Err(TypeViolation::IncompatibleSupport { .. })
-        ));
-    }
-
-    #[test]
-    fn tensor_structure_comes_only_from_exact_spatial_types() {
-        let dimension = DimExponents {
-            mass: 1,
-            length: -1,
-            time: -2,
-            ..DimExponents::DIMENSIONLESS
-        };
-        let tensor = ExpressionType::shaped(
-            dimension,
-            ValueShape::new([2, 2]).unwrap(),
-            ValueFrame::SpatialCartesian,
-            Some(volume("body")),
-        );
-        assert_eq!(symmetric_part(&tensor).unwrap(), tensor);
-
-        for shape in [
-            ValueShape::new([2]).unwrap(),
-            ValueShape::new([2, 3]).unwrap(),
-        ] {
-            let invalid = ExpressionType::shaped(
-                dimension,
-                shape,
-                ValueFrame::SpatialCartesian,
-                Some(volume("body")),
-            );
-            assert!(matches!(
-                symmetric_part(&invalid),
-                Err(TypeViolation::SymmetricPartRequiresSquareSpatialTensor)
-            ));
-        }
-        let wrong_frame = ExpressionType::shaped(
-            dimension,
-            ValueShape::new([2, 2]).unwrap(),
-            ValueFrame::Invariant,
-            Some(volume("body")),
-        );
-        assert!(symmetric_part(&wrong_frame).is_err());
-
-        let scalar = ExpressionType::scalar(dimension, Some(volume("body")));
-        let isotropic = isotropic_lift(&scalar).unwrap();
-        assert_eq!(isotropic.dimension, dimension);
-        assert_eq!(isotropic.shape, ValueShape::new([2, 2]).unwrap());
-        assert_eq!(isotropic.frame, ValueFrame::SpatialCartesian);
-        assert_eq!(isotropic.support, scalar.support);
-
-        let global = ExpressionType::<&str>::scalar(dimension, None);
-        assert!(matches!(
-            isotropic_lift(&global),
-            Err(TypeViolation::IsotropicLiftRequiresVolume)
-        ));
-        assert!(matches!(
-            isotropic_lift(&tensor),
-            Err(TypeViolation::IsotropicLiftRequiresInvariantScalar)
-        ));
-    }
-
-    #[test]
-    fn tensor_structure_rejects_boundary_support() {
-        let boundary = SpatialSupport::Boundary {
-            domain: "wall",
-            parent: "body",
-            dimensions: 2,
-        };
-        let tensor = ExpressionType::shaped(
-            DimExponents::DIMENSIONLESS,
-            ValueShape::new([2, 2]).unwrap(),
-            ValueFrame::SpatialCartesian,
-            Some(boundary.clone()),
-        );
-        let scalar = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(boundary));
-        assert!(matches!(
-            symmetric_part(&tensor),
-            Err(TypeViolation::SymmetricPartRequiresVolume)
-        ));
-        assert!(matches!(
-            isotropic_lift(&scalar),
-            Err(TypeViolation::IsotropicLiftRequiresVolume)
-        ));
-    }
-
-    #[test]
-    fn typed_residual_separates_componentwise_relations_from_scalar_activations() {
-        let port = Id::<kinds::Port>::new();
-        let mut builder = super::super::ExprDagBuilder::new();
-        let root = builder.symbol(SymbolRef::PortTrace(port)).unwrap();
-        let expression = builder.finish([root]).unwrap();
-        let vector = ExpressionType::shaped(
-            DimExponents::DIMENSIONLESS,
-            ValueShape::new([2]).unwrap(),
-            ValueFrame::SpatialCartesian,
-            None::<SpatialSupport<RawTestId>>,
-        );
-
-        let typed = TypedResidual::infer(
-            expression.clone(),
-            None,
-            RootContract::ComponentwiseResidual,
-            |_| Ok::<_, ()>(vector.clone()),
-        )
-        .unwrap();
-        assert_eq!(typed.node_type(root).unwrap().shape.extents()[0].get(), 2);
-
-        let errors = TypedResidual::infer(expression, None, RootContract::ScalarActivation, |_| {
-            Ok::<_, ()>(vector.clone())
-        })
-        .unwrap_err();
-        assert!(matches!(
-            errors.as_slice(),
-            [TypedResidualError::Type {
-                error: TypeViolation::RootRequiresScalar,
-                ..
-            }]
-        ));
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    struct RawTestId;
-
-    #[test]
-    fn coordinate_and_boundary_rules_use_relation_support() {
-        assert!(matches!(
-            coordinate::<&str>(0, None),
-            Err(TypeViolation::CoordinateRequiresSpatialScope)
-        ));
-        assert!(matches!(
-            coordinate(2, Some(&volume("body"))),
-            Err(TypeViolation::CoordinateAxisOutOfRange { .. })
-        ));
-
-        let boundary = SpatialSupport::Boundary {
-            domain: "wall",
-            parent: "body",
-            dimensions: 2,
-        };
-        let body = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("body")));
-        assert_eq!(
-            trace(&body, Some(&boundary))
-                .expect("trace")
-                .support
-                .as_ref()
-                .map(SpatialSupport::domain),
-            Some(&"wall")
-        );
-        assert!(normal(&body, Some(&boundary)).is_err());
-    }
-
-    #[test]
-    fn generic_pure_application_derives_shape_support_and_dimension_from_its_table() {
-        let left = Id::<kinds::Field>::new();
-        let right = Id::<kinds::Field>::new();
-        let definition = crate::kernel::pure_operator::PureOperatorDefinition::dyadic_product()
-            .expect("standard definition");
-        let mut builder = super::super::ExprDagBuilder::new();
-        let left_value = builder.symbol(SymbolRef::Field(left)).unwrap();
-        let right_value = builder.symbol(SymbolRef::Field(right)).unwrap();
-        let product = builder
-            .pure_operator(&definition, [left_value, right_value])
-            .unwrap();
-        let expression = builder.finish([product]).unwrap();
-        let length = DimExponents {
-            length: 1,
-            ..DimExponents::DIMENSIONLESS
-        };
-        let inverse_time = DimExponents {
-            time: -1,
-            ..DimExponents::DIMENSIONLESS
-        };
-
-        let typed = TypedResidual::infer(
-            expression,
-            Some(volume("body")),
-            RootContract::ComponentwiseResidual,
-            |symbol| {
-                let dimension = match symbol {
-                    SymbolRef::Field(field) if field == left => length,
-                    SymbolRef::Field(field) if field == right => inverse_time,
-                    _ => unreachable!(),
-                };
-                Ok::<_, ()>(ExpressionType::shaped(
-                    dimension,
-                    ValueShape::new([2]).unwrap(),
-                    ValueFrame::SpatialCartesian,
-                    Some(volume("body")),
-                ))
-            },
-        )
-        .unwrap();
-
-        let result = typed.node_type(product).unwrap();
-        assert_eq!(result.shape, ValueShape::new([2, 2]).unwrap());
-        assert_eq!(result.support, Some(volume("body")));
-        assert_eq!(
-            result.dimension,
-            DimExponents {
-                length: 1,
-                time: -1,
-                ..DimExponents::DIMENSIONLESS
-            }
-        );
-    }
-
-    #[test]
-    fn generic_pure_application_rejects_argument_type_and_support_mismatches() {
-        let left = Id::<kinds::Field>::new();
-        let right = Id::<kinds::Field>::new();
-        let definition = crate::kernel::pure_operator::PureOperatorDefinition::dyadic_product()
-            .expect("standard definition");
-        let expression = {
-            let mut builder = super::super::ExprDagBuilder::new();
-            let left = builder.symbol(SymbolRef::Field(left)).unwrap();
-            let right = builder.symbol(SymbolRef::Field(right)).unwrap();
-            let product = builder.pure_operator(&definition, [left, right]).unwrap();
-            builder.finish([product]).unwrap()
-        };
-        let vector = |domain| {
-            ExpressionType::shaped(
-                DimExponents::DIMENSIONLESS,
-                ValueShape::new([2]).unwrap(),
-                ValueFrame::SpatialCartesian,
-                Some(volume(domain)),
-            )
-        };
-
-        let support_errors = TypedResidual::infer(
-            expression.clone(),
-            Some(volume("body")),
-            RootContract::ComponentwiseResidual,
-            |symbol| {
-                Ok::<_, ()>(match symbol {
-                    SymbolRef::Field(field) if field == left => vector("body"),
-                    SymbolRef::Field(field) if field == right => vector("other"),
-                    _ => unreachable!(),
-                })
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(
-            support_errors.as_slice(),
-            [TypedResidualError::Type {
-                error: TypeViolation::PureOperatorApplication(
-                    PureOperatorError::CommonVolumeMismatch
-                ),
-                ..
-            }]
-        ));
-
-        let type_errors = TypedResidual::infer(
-            expression,
-            Some(volume("body")),
-            RootContract::ComponentwiseResidual,
-            |symbol| {
-                Ok::<_, ()>(match symbol {
-                    SymbolRef::Field(field) if field == left => vector("body"),
-                    SymbolRef::Field(field) if field == right => {
-                        ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("body")))
-                    }
-                    _ => unreachable!(),
-                })
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(
-            type_errors.as_slice(),
-            [TypedResidualError::Type {
-                error: TypeViolation::PureOperatorApplication(
-                    PureOperatorError::FormalTypeMismatch
-                ),
-                ..
-            }]
-        ));
-    }
-}
+mod tests;

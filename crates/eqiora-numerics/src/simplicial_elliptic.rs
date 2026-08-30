@@ -186,10 +186,7 @@ pub fn solve_scalar_elliptic_simplicial_fem_with_assembly(
         ));
     }
 
-    let operator = SimplicialEllipticCell {
-        diffusion: model.coefficient(),
-        source: model,
-    };
+    let operator = SimplicialEllipticCell { source: model };
     let cell_count = mesh
         .entity_count(dimension)
         .expect("mesh owns its top stratum");
@@ -334,7 +331,6 @@ pub fn linearize_scalar_elliptic_simplicial_fem(
 
     for (coordinate, action) in selected.actions.iter().enumerate() {
         activate_parameter(action, &mut parameter_tangent);
-        let (diffusion, diffusion_tangent) = model.coefficient_jvp(&parameter_tangent)?;
         for cell_index in 0..mesh.entity_count(dimension).expect("mesh owns cells") {
             let cell = MeshEntity::new(dimension, cell_index);
             let geometry = design_geometry(mesh, cell, action)?;
@@ -371,6 +367,8 @@ pub fn linearize_scalar_elliptic_simplicial_fem(
             for point in quadrature.points() {
                 let basis = space.tabulate(&point.coordinates)?;
                 geometry.map_point_jvp(&point.coordinates, &mut physical, &mut physical_tangent)?;
+                let (diffusion, diffusion_tangent) =
+                    model.coefficient_jvp(&physical, &physical_tangent, &parameter_tangent)?;
                 let (source, source_tangent) =
                     model.source_jvp(&physical, &physical_tangent, &parameter_tangent)?;
                 let scale = point.weight * map.measure_scale();
@@ -535,7 +533,6 @@ pub fn linearize_scalar_elliptic_simplicial_compliance(
 }
 
 struct SimplicialEllipticCell<'a> {
-    diffusion: f64,
     source: &'a ScalarEllipticCartesianModel,
 }
 
@@ -546,11 +543,6 @@ impl LocalOperator<AffineGeometryMap> for SimplicialEllipticCell<'_> {
         quadrature: &QuadratureRule,
     ) -> Result<LocalContribution, Diagnostic> {
         require_geometry_rule(geometry, quadrature)?;
-        if !self.diffusion.is_finite() || self.diffusion <= 0.0 {
-            return Err(invalid(
-                "simplicial scalar diffusion coefficient must be finite and positive",
-            ));
-        }
         let dimension = geometry.reference_cell().dimension();
         let space = SimplexP1Space::new(dimension)?;
         let dof_count = dimension + 1;
@@ -561,6 +553,12 @@ impl LocalOperator<AffineGeometryMap> for SimplicialEllipticCell<'_> {
         for point in quadrature.points() {
             let basis = space.tabulate(&point.coordinates)?;
             geometry.map_point(&point.coordinates, &mut physical)?;
+            let diffusion = self.source.coefficient_expression().evaluate(&physical)?;
+            if !diffusion.is_finite() || diffusion <= 0.0 {
+                return Err(invalid(
+                    "simplicial scalar diffusion coefficient must be finite and positive",
+                ));
+            }
             let source = self.source.source().evaluate(&physical)?;
             let scale = point.weight * geometry.measure_scale();
             let gradients = basis
@@ -572,7 +570,7 @@ impl LocalOperator<AffineGeometryMap> for SimplicialEllipticCell<'_> {
                 rhs[row] += scale * source * basis.values()[row];
                 for column in 0..dof_count {
                     matrix[row * dof_count + column] +=
-                        scale * self.diffusion * dot(&gradients[row], &gradients[column]);
+                        scale * diffusion * dot(&gradients[row], &gradients[column]);
                 }
             }
         }
@@ -713,8 +711,6 @@ fn validate_problem(
 ) -> Result<(), Diagnostic> {
     if model.dimension() != mesh.topological_dimension()
         || mesh.geometric_dimension() != mesh.topological_dimension()
-        || !model.coefficient().is_finite()
-        || model.coefficient() <= 0.0
     {
         return Err(invalid(
             "simplicial FEM requires matching full dimension and a positive coefficient",

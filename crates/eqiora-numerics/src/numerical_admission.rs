@@ -5,7 +5,8 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use crate::canonical::{
-    lower_scalar_elliptic_cartesian_with_resources, recognize_scalar_elliptic_geometry_mathematics,
+    ScalarEllipticCartesianBoundary, lower_scalar_elliptic_cartesian_with_resources,
+    recognize_scalar_elliptic_geometry_mathematics,
 };
 use crate::canonical_elasticity::{
     IsotropicElasticityCartesianModel2d, finalize_isotropic_elasticity_cartesian_q1_on_mesh,
@@ -35,12 +36,10 @@ use crate::canonical_stokes::{
 };
 use crate::cartesian_elasticity::CartesianLinearElasticity2dSolution;
 use crate::cartesian_elliptic::{
-    finalize_scalar_elliptic_cartesian_fem, finalize_scalar_elliptic_cartesian_fvm,
-    linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
-    linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
-};
-use crate::cartesian_elliptic::{
-    solve_scalar_elliptic_cartesian_fem, solve_scalar_elliptic_cartesian_fvm,
+    CartesianBoundaryValue, finalize_scalar_elliptic_cartesian_fem,
+    finalize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fem,
+    linearize_scalar_elliptic_cartesian_fem_output, linearize_scalar_elliptic_cartesian_fvm,
+    linearize_scalar_elliptic_cartesian_fvm_output,
 };
 use crate::common::{AssembledLinearizedRelation, SpatialDesignCoordinate};
 use crate::common_ode::{CommonOdePlan, CommonTsitouras45};
@@ -86,7 +85,7 @@ use eqiora_realization::{
     resolve_fieldwise, resolve_transient_cell_centered_incompressible_flow,
     resolve_transient_fieldwise,
 };
-use eqiora_schema::kernel::KernelNode;
+use eqiora_schema::kernel::{BoundarySide, KernelNode};
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     ExecutionProvider, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
