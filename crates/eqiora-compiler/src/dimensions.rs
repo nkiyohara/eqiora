@@ -18,7 +18,7 @@ pub(crate) fn lower_dimension(file: &str, expression: &Expr) -> Result<DimExpone
                 codes::LANGUAGE_TYPE_ERROR,
                 file,
                 expression.range(),
-                format!("unknown coherent-SI dimension symbol `{name}`"),
+                format!("unknown SI base-dimension symbol `{name}`"),
             )
         }),
         ExprKind::Binary { op, left, right } if matches!(op, BinaryOp::Mul | BinaryOp::Div) => {
