@@ -162,9 +162,14 @@ impl ExpressionChecker<'_, '_, '_> {
                 Ok(ExpressionType::scalar(time_dimension(), None))
             }
             ExprKind::Name(name) => self.scalar_local_symbol(expression, name),
-            ExprKind::Path(path) => {
-                self.scalar_contract(expression, path.as_str(), self.scope.resolve_symbol(path)?)
-            }
+            ExprKind::Path(path) => match crate::math::constant(path) {
+                Some(_) => Ok(ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)),
+                None => self.scalar_contract(
+                    expression,
+                    path.as_str(),
+                    self.scope.resolve_symbol(path)?,
+                ),
+            },
             ExprKind::BoundaryPortSelection { port, selector } => {
                 let Some(family_scope) = self.family_scope else {
                     return Err(source_error(

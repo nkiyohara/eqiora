@@ -14,13 +14,15 @@ use super::scope::{
     unresolved, validate_connection, validate_model_boundary_connection,
 };
 use super::{ChildInstanceProof, DefinitionBodyProof, LocalPhysicalPortProof, validate_clock};
+use crate::hierarchy::parameters::SymbolicParameterMap;
 use crate::hierarchy::preflight::{DefinitionKey, Elaborator, ModelDefinition};
 
 pub(super) fn validate(
     elaborator: &Elaborator<'_>,
     definition: &ModelDefinition<'_>,
+    compile_time_values: &SymbolicParameterMap,
 ) -> Result<DefinitionBodyProof, Vec<Diagnostic>> {
-    let mut checker = ModelBodyChecker::new(elaborator, definition);
+    let mut checker = ModelBodyChecker::new(elaborator, definition, compile_time_values);
     checker.validate();
     if checker.diagnostics.is_empty() {
         Ok(checker.proof)
@@ -35,10 +37,15 @@ struct ModelBodyChecker<'e, 'd> {
     connected_ports: BTreeSet<Vec<String>>,
     proof: DefinitionBodyProof,
     diagnostics: Vec<Diagnostic>,
+    compile_time_values: &'e SymbolicParameterMap,
 }
 
 impl<'e, 'd> ModelBodyChecker<'e, 'd> {
-    fn new(elaborator: &'e Elaborator<'d>, definition: &'e ModelDefinition<'d>) -> Self {
+    fn new(
+        elaborator: &'e Elaborator<'d>,
+        definition: &'e ModelDefinition<'d>,
+        compile_time_values: &'e SymbolicParameterMap,
+    ) -> Self {
         Self {
             definition,
             scope: DefinitionScope::new(elaborator, definition.namespace.clone(), definition.file),
@@ -49,6 +56,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                 elaborator.limits.connection_sets,
             ),
             diagnostics: Vec::new(),
+            compile_time_values,
         }
     }
 
@@ -103,6 +111,26 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         ))
                     })
                 }
+                Item::Let(declaration) => self
+                    .compile_time_values
+                    .get(declaration.name())
+                    .map(|value| {
+                        Some((
+                            declaration.name(),
+                            SymbolContract::Parameter(ExpressionType::scalar(
+                                value.dimension,
+                                None,
+                            )),
+                        ))
+                    })
+                    .ok_or_else(|| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            self.scope.file,
+                            declaration.range(),
+                            format!("unresolved let alias `{}`", declaration.name()),
+                        )
+                    }),
                 Item::Clock(declaration) => Ok(Some((declaration.name(), SymbolContract::Clock))),
                 Item::Relation(declaration) => {
                     Ok(Some((declaration.name(), SymbolContract::Relation)))
@@ -272,7 +300,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                     }
                 }
                 Item::Field(declaration) => self.validate_field(declaration),
-                Item::Parameter(_) | Item::Port(_) | Item::Instance(_) => {}
+                Item::Parameter(_) | Item::Let(_) | Item::Port(_) | Item::Instance(_) => {}
                 Item::Clock(declaration) => {
                     if let Err(error) = validate_clock(
                         self.scope.file,

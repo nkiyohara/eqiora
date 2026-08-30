@@ -553,6 +553,7 @@ impl<'a> Elaborator<'a> {
                     Item::Representation(value) => Some((value.name(), value.range())),
                     Item::Field(value) => Some((value.name(), value.range())),
                     Item::Parameter(value) => Some((value.name(), value.range())),
+                    Item::Let(value) => Some((value.name(), value.range())),
                     Item::Port(value) => Some((value.name(), value.range())),
                     Item::Clock(value) => Some((value.name(), value.range())),
                     Item::Relation(value) => Some((value.name(), value.range())),

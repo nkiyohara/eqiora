@@ -240,35 +240,7 @@ enum LoweringExpressionNode {
 
 impl LoweringExpression {
     pub(crate) fn from_source(expression: &Expr) -> Self {
-        let kind = match expression.kind() {
-            ExprKind::Number(value) => LoweringExpressionNode::Quantity(DynQuantity::new(
-                normalize_zero(*value),
-                DimExponents::DIMENSIONLESS,
-            )),
-            ExprKind::Name(name) => LoweringExpressionNode::Name(name.clone()),
-            ExprKind::Unary {
-                op: UnaryOp::Neg,
-                value,
-            } => return Self::neg(Self::from_source(value), expression.range()),
-            ExprKind::Binary { op, left, right } => LoweringExpressionNode::Binary {
-                operator: *op,
-                left: Self::from_source(left),
-                right: Self::from_source(right),
-            },
-            ExprKind::Call { callee, arguments }
-                if !callee.is_qualified() && arguments.len() == 1 =>
-            {
-                LoweringExpressionNode::Call {
-                    callee: callee.as_str().to_owned(),
-                    argument: Self::from_source(&arguments[0]),
-                }
-            }
-            _ => LoweringExpressionNode::Unsupported,
-        };
-        Self {
-            node: Arc::new(kind),
-            range: expression.range(),
-        }
+        expression::from_source(expression)
     }
 
     pub(crate) fn quantity(value: DynQuantity, range: TextRange) -> Self {

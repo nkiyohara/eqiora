@@ -792,7 +792,7 @@ fn model_local_footprint(
                 "Connection",
                 diagnostics,
             ),
-            Item::Boundary(_) | Item::Instance(_) => {}
+            Item::Boundary(_) | Item::Instance(_) | Item::Let(_) => {}
             _ => checked_local_add(
                 &mut footprint.declarations,
                 1,

@@ -16,6 +16,7 @@ mod hierarchy;
 #[doc(hidden)]
 pub mod identity;
 mod lower;
+mod math;
 pub mod projection;
 mod property;
 #[doc(hidden)]

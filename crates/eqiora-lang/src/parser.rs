@@ -3,6 +3,7 @@
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Span};
 
+mod compile_time;
 mod domain;
 mod formulation;
 mod property;
@@ -16,7 +17,7 @@ use crate::ast::{
     ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax, Document,
     DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl,
     FieldSlotDecl, FrameSyntax, InstanceDecl, Item, ModelDecl, NamePath, ParameterBindingDecl,
-    ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr,
+    PortDecl, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr,
     PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RationalSyntax,
     RepresentationDecl, RepresentationSyntax, SignalDirectionSyntax, SupportBindingDecl,
     SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
@@ -625,6 +626,8 @@ impl Parser<'_> {
             self.parse_field().map(Item::Field)
         } else if self.at_keyword("parameter") {
             self.parse_parameter().map(Item::Parameter)
+        } else if self.at_keyword("let") {
+            self.parse_let().map(Item::Let)
         } else if self.at_keyword("port") {
             self.parse_port().map(Item::Port)
         } else if self.at_keyword("clock") {
@@ -643,7 +646,7 @@ impl Parser<'_> {
             self.parse_instance().map(Item::Instance)
         } else {
             self.error_here(
-                "expected domain, representation, field, parameter, port, clock, relation, connect, boundary, or instance",
+                "expected domain, representation, field, parameter, let, port, clock, relation, connect, boundary, or instance",
             );
             None
         }
@@ -885,28 +888,6 @@ impl Parser<'_> {
             domain,
             representation,
             shape,
-            dimension,
-            initial,
-            range: TextRange::new(start, end),
-        })
-    }
-
-    fn parse_parameter(&mut self) -> Option<ParameterDecl> {
-        let start = self.expect_keyword("parameter")?.range().start();
-        let name = self
-            .expect_identifier("declaration name")?
-            .text()
-            .to_owned();
-        self.expect(TokenKind::Colon, "`:` before dimension")?;
-        let dimension = self.parse_expression(0)?;
-        self.expect(TokenKind::Equal, "`=` before value")?;
-        let initial = self.parse_signed_number()?;
-        let end = self
-            .expect(TokenKind::Semicolon, "`;` after declaration")?
-            .range()
-            .end();
-        Some(ParameterDecl {
-            name,
             dimension,
             initial,
             range: TextRange::new(start, end),
@@ -2566,5 +2547,21 @@ model periodic {
             assert!(!result.diagnostics().is_empty(), "{case} must fail closed");
             assert!(result.into_document().is_err(), "{case} cannot compile");
         }
+    }
+
+    #[test]
+    fn parser_and_formatter_retain_typed_let_aliases() {
+        let source = "model M { let wave_number: 1 / m = math.pi / length; }";
+        let document = parse("let.eqi", source)
+            .into_document()
+            .expect("typed let parses");
+        let Item::Let(declaration) = &document.models()[0].items()[0] else {
+            panic!("model item is a let alias");
+        };
+        assert_eq!(declaration.name(), "wave_number");
+        assert_eq!(
+            crate::format(&document),
+            "model M {\n  let wave_number: 1 / m = math.pi / length;\n}\n"
+        );
     }
 }

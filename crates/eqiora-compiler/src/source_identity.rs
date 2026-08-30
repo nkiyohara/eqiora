@@ -7,6 +7,7 @@
 use core::fmt;
 use std::collections::BTreeMap;
 
+mod compile_time;
 mod domain;
 pub(crate) mod formulation;
 mod instance;
@@ -32,6 +33,7 @@ use crate::connection_sets::{
 };
 use crate::identity::IdentityNamespace;
 use crate::pure_operator::compile_definition;
+use compile_time::{encode_let, encode_parameter};
 use domain::encode_domain;
 use instance::encode_instance;
 use visibility::encode_visibility;
@@ -46,6 +48,7 @@ const COMPONENT_BOUNDARY_CONNECTION_ITEM_TAG: u16 = 13;
 const MODEL_BOUNDARY_CONNECTION_ITEM_TAG: u16 = 11;
 const COMPONENT_SPATIAL_PERIODIC_CONNECTION_ITEM_TAG: u16 = 14;
 const MODEL_SPATIAL_PERIODIC_CONNECTION_ITEM_TAG: u16 = 12;
+const MODEL_LET_ITEM_TAG: u16 = 13;
 
 /// Bounded resource policy for local source-unit identity construction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -675,6 +678,10 @@ fn encode_model_item(item: &Item, budget: &mut Budget) -> Result<Vec<u8>, Diagno
             encoder.u16(4)?;
             encode_parameter(&mut encoder, declaration, budget)?;
         }
+        Item::Let(_) => {
+            encoder.u16(MODEL_LET_ITEM_TAG)?;
+            encode_let(&mut encoder, item, budget)?;
+        }
         Item::Port(declaration) => {
             encoder.u16(5)?;
             encode_port(&mut encoder, declaration, budget)?;
@@ -874,20 +881,6 @@ fn encode_field(
         encoder.field(6, |encoder| encode_value_shape(encoder, shape))?;
     }
     Ok(())
-}
-
-fn encode_parameter(
-    encoder: &mut Encoder,
-    declaration: &ParameterDecl,
-    budget: &mut Budget,
-) -> Result<(), Diagnostic> {
-    encoder.field(1, |encoder| {
-        encode_name(encoder, declaration.name(), budget)
-    })?;
-    encoder.field(2, |encoder| {
-        encode_expression(encoder, declaration.dimension(), budget, 1)
-    })?;
-    encoder.field(3, |encoder| encoder.f64(declaration.initial()))
 }
 
 fn encode_port(
@@ -1670,6 +1663,8 @@ mod tests {
     use eqiora_lang::{format, parse};
 
     use super::*;
+
+    mod let_alias;
 
     fn document(source: &str) -> Document {
         parse("fixture.eqi", source).into_document().unwrap()

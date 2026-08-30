@@ -7,6 +7,79 @@ use crate::identity::{DeclarationPath, ElaborationKey, InstancePath};
 use crate::projection::PhysicalExposureContract;
 use crate::source_identity::LocalSourceIdentity;
 
+#[test]
+fn model_let_alias_expands_without_a_kernel_entity() {
+    let source = r#"
+component Law {
+  public parameter phase: 1;
+  relation balance continuous { phase - 1 = 0; }
+}
+model Derived {
+  parameter length: m = 2;
+  let wave_number: 1 / m = math.pi / length;
+  let phase: 1 = wave_number * length;
+  field state: 1 = 0;
+  relation balance continuous { state + phase = 0; }
+  instance law: Law(phase = phase);
+}
+"#;
+    let mut compiled = crate::compile("let.eqi", source).expect("typed let aliases compile");
+    let compiled = compiled.pop().expect("one Model");
+    assert!(compiled.symbols().get("wave_number").is_none());
+    assert!(compiled.symbols().get("phase").is_none());
+    assert_eq!(
+        compiled
+            .transaction()
+            .ops()
+            .iter()
+            .filter(|operation| matches!(
+                operation,
+                Op::DefineKernelNode {
+                    node: KernelNode::Parameter(_)
+                }
+            ))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn model_let_alias_rejects_forward_references_and_dimension_mismatches() {
+    let invalid = [
+        (
+            "forward",
+            "model M { let first: 1 = second; let second: 1 = 2; }",
+            "aliases may refer only to earlier let declarations",
+        ),
+        (
+            "dimension",
+            "model M { parameter length: m = 2; let wrong: s = math.pi / length; }",
+            "let alias has dimension",
+        ),
+        (
+            "cycle",
+            "model M { let self_reference: 1 = self_reference; }",
+            "aliases may refer only to earlier let declarations",
+        ),
+        (
+            "shadow",
+            "model M { parameter value: 1 = 2; let value: 1 = 3; }",
+            "duplicate name `value`",
+        ),
+    ];
+    for (name, source, message) in invalid {
+        let file = format!("{name}.eqi");
+        let diagnostics =
+            crate::compile(&file, source).expect_err("invalid let alias fails closed");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message().contains(message)),
+            "{name}: {diagnostics:?}"
+        );
+    }
+}
+
 const EXTERNAL_SPATIAL_COMPONENT: &str = r#"
 public component BoundaryLaw {
   public support body: volume(ambient_dimension = 2);

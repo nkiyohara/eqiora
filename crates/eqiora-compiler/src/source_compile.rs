@@ -38,7 +38,7 @@ pub fn compile(file: &str, source: &str) -> Result<Vec<CompiledModel>, Vec<Diagn
             model
                 .items()
                 .iter()
-                .any(|item| matches!(item, Item::Instance(_)))
+                .any(|item| matches!(item, Item::Instance(_) | Item::Let(_)))
         });
     if has_hierarchy {
         return crate::hierarchy::compile_hierarchy(file, source.len(), &document);

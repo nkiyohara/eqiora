@@ -38,6 +38,8 @@ use super::flat::{
 
 mod cartesian;
 mod external;
+mod model_lets;
+mod names;
 use super::parameters::{
     ConstantValue, ParameterLineage, ParameterResolver, ResolvedParameter, normalize_zero,
 };
@@ -55,6 +57,7 @@ use super::supports::{
     CompleteExteriorMembershipBudget, ResolvedBoundaryTarget, ResolvedSupportBindings,
     component_support_interface, resolve_instance_support_bindings,
 };
+use names::{boundary_family_display, display_child, internal_name};
 
 fn instance_binding_locations(file: &str, instance: &InstanceDecl) -> Vec<SourceLocation> {
     let mut ranges = instance
@@ -932,6 +935,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 Item::Connection(_)
                 | Item::BoundaryConnection(_)
                 | Item::Boundary(_)
+                | Item::Let(_)
                 | Item::Instance(_) => continue,
                 _ => {
                     return Err(source_error(
@@ -970,6 +974,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             }
             identities.entities.insert(name.to_owned(), identity);
         }
+        self.allocate_model_lets(scope, &model)?;
         for item in model.items() {
             let Item::Domain(declaration) = item else {
                 continue;
@@ -2289,7 +2294,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         range: declaration.range(),
                     });
                 }
-                Item::Instance(_) => {}
+                Item::Let(_) | Item::Instance(_) => {}
                 _ => {
                     return Err(source_error(
                         codes::LANGUAGE_LOWERING_ERROR,
@@ -2819,10 +2824,6 @@ fn compare_physical_connection_origins(
         })
 }
 
-fn internal_name(identity: FullElaborationIdentity) -> String {
-    format!("e{identity}")
-}
-
 fn child_instance_path(
     parent: &InstancePath,
     child: &str,
@@ -2836,22 +2837,6 @@ fn child_instance_path(
             .chain(core::iter::once(child)),
         limits,
     )
-}
-
-fn display_child(parent: &str, child: &str) -> String {
-    if parent.is_empty() {
-        child.to_owned()
-    } else {
-        format!("{parent}.{child}")
-    }
-}
-
-fn boundary_family_display(parent: &str, family: &str, axis: usize, side: BoundarySide) -> String {
-    let side = match side {
-        BoundarySide::Lower => "lower",
-        BoundarySide::Upper => "upper",
-    };
-    format!("{}[axis={axis},side={side}]", display_child(parent, family))
 }
 
 fn boundary_family_bindings(

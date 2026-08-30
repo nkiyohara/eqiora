@@ -22,7 +22,7 @@ use super::field_slots::{
 };
 use super::parameters::{
     SymbolicParameterMap, SymbolicParameterValue, resolve_component_parameters_symbolically,
-    validate_instance_parameters_symbolically,
+    resolve_model_lets, validate_instance_parameters_symbolically,
 };
 use super::preflight::{DefinitionKey, Elaborator};
 use super::supports::{
@@ -224,12 +224,6 @@ fn validate_definition_bodies_and_parameters(
     }
 
     for (key, definition) in elaborator.models() {
-        match super::body_check::validate_model_body(elaborator, definition) {
-            Ok(proof) => {
-                body_proofs.models.insert(key.clone(), proof);
-            }
-            Err(errors) => diagnostics.extend(errors),
-        }
         let mut parameters = SymbolicParameterMap::new();
         let mut occurrences_valid = true;
         let model_supports = match model_spatial_supports(definition.file, definition.declaration) {
@@ -266,6 +260,18 @@ fn validate_definition_bodies_and_parameters(
                     }
                 }
             }
+        }
+        if let Err(errors) =
+            resolve_model_lets(definition.file, definition.declaration, &mut parameters)
+        {
+            occurrences_valid = false;
+            diagnostics.extend(errors);
+        }
+        match super::body_check::validate_model_body(elaborator, definition, &parameters) {
+            Ok(proof) => {
+                body_proofs.models.insert(key.clone(), proof);
+            }
+            Err(errors) => diagnostics.extend(errors),
         }
         for item in definition.declaration.items() {
             let Item::Instance(instance) = item else {
@@ -418,10 +424,16 @@ fn enforce_parameter_term_limit(elaborator: &Elaborator<'_>) -> Result<(), Diagn
     }
     for (_, definition) in elaborator.models() {
         for item in definition.declaration.items() {
-            if let Item::Instance(instance) = item {
-                for binding in instance.bindings() {
-                    count_expression_terms(binding.value(), &mut terms, elaborator)?;
+            match item {
+                Item::Let(declaration) => {
+                    count_expression_terms(declaration.value(), &mut terms, elaborator)?;
                 }
+                Item::Instance(instance) => {
+                    for binding in instance.bindings() {
+                        count_expression_terms(binding.value(), &mut terms, elaborator)?;
+                    }
+                }
+                _ => {}
             }
         }
     }

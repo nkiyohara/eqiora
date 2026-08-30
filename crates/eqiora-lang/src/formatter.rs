@@ -3,6 +3,7 @@
 use core::fmt::Write;
 
 mod cartesian;
+mod compile_time;
 mod formulation;
 mod helpers;
 mod property;
@@ -18,6 +19,7 @@ use crate::ast::{
     ValueShapeSyntax, VisibilitySyntax,
 };
 use cartesian::format_cartesian_coordinate;
+use compile_time::{format_let, format_parameter};
 use formulation::format_component;
 use helpers::{format_name_paths, format_scalar_physical, write_indent};
 use property::{format_component_requirements, format_properties};
@@ -317,12 +319,8 @@ fn format_item(item: &Item, indent: usize, output: &mut String) {
             format_representation(declaration, indent, output);
         }
         Item::Field(declaration) => format_field(declaration, indent, output),
-        Item::Parameter(declaration) => {
-            write_indent(output, indent);
-            write!(output, "parameter {}: ", declaration.name).expect("String write");
-            format_expression(&declaration.dimension, 0, output);
-            writeln!(output, " = {};", format_number(declaration.initial)).expect("String write");
-        }
+        Item::Parameter(declaration) => format_parameter(declaration, indent, output),
+        Item::Let(declaration) => format_let(declaration, indent, output),
         Item::Port(declaration) => {
             write_indent(output, indent);
             write!(output, "port {}: ", declaration.name).expect("String write");

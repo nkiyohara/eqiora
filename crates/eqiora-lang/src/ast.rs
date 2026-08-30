@@ -1,6 +1,9 @@
 //! Source-oriented syntax tree. Semantic types are assigned during lowering.
 
+mod compile_time;
 pub(crate) mod formulation;
+
+pub use compile_time::{LetDecl, ParameterDecl};
 
 use crate::ast_property::{
     ComponentPropertyDecl, PropertyBindingDecl, PropertyContractDecl, PropertyReleaseDecl,
@@ -809,6 +812,8 @@ pub enum Item {
     Field(FieldDecl),
     /// Revision-local design value.
     Parameter(ParameterDecl),
+    /// Typed compile-time expression alias expanded before Kernel lowering.
+    Let(LetDecl),
     /// Causal or conserving interface.
     Port(PortDecl),
     /// Exact periodic clock.
@@ -1153,41 +1158,6 @@ impl FieldDecl {
     /// contract exists; absence never means an implicit zero broadcast.
     #[must_use]
     pub const fn initial(&self) -> Option<f64> {
-        self.initial
-    }
-
-    /// Full declaration range.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
-/// Parameter source declaration.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ParameterDecl {
-    pub(crate) name: String,
-    pub(crate) dimension: Expr,
-    pub(crate) initial: f64,
-    pub(crate) range: TextRange,
-}
-
-impl ParameterDecl {
-    /// Source name.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Static SI dimension expression.
-    #[must_use]
-    pub const fn dimension(&self) -> &Expr {
-        &self.dimension
-    }
-
-    /// Value literal in coherent SI units.
-    #[must_use]
-    pub const fn initial(&self) -> f64 {
         self.initial
     }
 
