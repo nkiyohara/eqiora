@@ -3,18 +3,22 @@
 use core::fmt::Write;
 
 mod cartesian;
+mod helpers;
+mod property;
 mod relation;
 
 use crate::ast::{
     BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax, BoundaryPairingSyntax,
     BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, BoundarySideSyntax, ClockDecl,
     ComponentItem, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax,
-    Document, DomainSyntax, Expr, ExprKind, FieldDecl, FrameSyntax, InstanceDecl, Item, NamePath,
-    PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
+    Document, DomainSyntax, Expr, ExprKind, FieldDecl, FrameSyntax, InstanceDecl, Item, PortSyntax,
+    PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
     PureValueClassSyntax, RepresentationSyntax, SignalDirectionSyntax, SupportSlotSyntax, UnaryOp,
     ValueShapeSyntax, VisibilitySyntax,
 };
 use cartesian::format_cartesian_coordinate;
+use helpers::{format_name_paths, format_scalar_physical, write_indent};
+use property::{format_component_requirements, format_properties};
 use relation::{format_relation, format_relation_family};
 
 /// Format a syntax tree into canonical Eqiora Language source.
@@ -22,6 +26,7 @@ use relation::{format_relation, format_relation_family};
 pub fn format(document: &Document) -> String {
     let mut output = String::new();
     let mut declaration_count = 0;
+    format_properties(document, &mut output, &mut declaration_count);
     for connector in &document.connectors {
         separate_declaration(&mut output, &mut declaration_count);
         if connector.visibility == VisibilitySyntax::Public {
@@ -72,6 +77,7 @@ pub fn format(document: &Document) -> String {
             output.push_str("public ");
         }
         writeln!(output, "component {} {{", component.name).expect("String write");
+        format_component_requirements(component, &mut output);
         for item in &component.items {
             format_component_item(item, 2, &mut output);
         }
@@ -345,14 +351,6 @@ fn format_item(item: &Item, indent: usize, output: &mut String) {
     }
 }
 
-fn format_scalar_physical(across: &Expr, through: &Expr, output: &mut String) {
-    output.push_str("scalar_physical(across = ");
-    format_expression(across, 0, output);
-    output.push_str(", through = ");
-    format_expression(through, 0, output);
-    output.push(')');
-}
-
 fn format_representation(
     declaration: &crate::ast::RepresentationDecl,
     indent: usize,
@@ -539,7 +537,8 @@ fn format_instance(declaration: &InstanceDecl, indent: usize, output: &mut Strin
     if !(declaration.bindings.is_empty()
         && declaration.support_bindings.is_empty()
         && declaration.boundary_set_bindings.is_empty()
-        && declaration.field_bindings.is_empty())
+        && declaration.field_bindings.is_empty()
+        && declaration.property_bindings.is_empty())
     {
         output.push('(');
         let mut separated = false;
@@ -577,23 +576,23 @@ fn format_instance(declaration: &InstanceDecl, indent: usize, output: &mut Strin
                 output.push_str(", ");
             }
             write!(output, "field {} = {}", binding.slot, binding.target).expect("String write");
+            separated = true;
+        }
+        for binding in &declaration.property_bindings {
+            if separated {
+                output.push_str(", ");
+            }
+            write!(
+                output,
+                "property {} = {}",
+                binding.property, binding.release
+            )
+            .expect("String write");
+            separated = true;
         }
         output.push(')');
     }
     output.push_str(";\n");
-}
-
-fn format_name_paths(paths: &[NamePath], output: &mut String) {
-    for (index, path) in paths.iter().enumerate() {
-        if index != 0 {
-            output.push_str(", ");
-        }
-        write!(output, "{path}").expect("String write");
-    }
-}
-
-fn write_indent(output: &mut String, indent: usize) {
-    output.extend(core::iter::repeat_n(' ', indent));
 }
 
 fn format_expression(expression: &Expr, parent_precedence: u8, output: &mut String) {

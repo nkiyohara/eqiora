@@ -1,6 +1,8 @@
 //! Source-oriented syntax tree. Semantic types are assigned during lowering.
 
-use core::fmt;
+use crate::ast_property::{
+    ComponentPropertyDecl, PropertyBindingDecl, PropertyContractDecl, PropertyReleaseDecl,
+};
 use std::ops::Range;
 
 pub use crate::cartesian::{BoundarySideSyntax, CartesianCoordinateSyntax};
@@ -87,12 +89,6 @@ impl NamePath {
         self.segments.iter().map(|range| &self.text[range.clone()])
     }
 
-    /// Whether this path selects through at least one lexical owner.
-    #[must_use]
-    pub fn is_qualified(&self) -> bool {
-        self.segments.len() > 1
-    }
-
     /// Full qualified-name range.
     #[must_use]
     pub const fn range(&self) -> TextRange {
@@ -100,15 +96,11 @@ impl NamePath {
     }
 }
 
-impl fmt::Display for NamePath {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.text)
-    }
-}
-
 /// One parsed source file.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Document {
+    pub(crate) property_contracts: Vec<PropertyContractDecl>,
+    pub(crate) property_releases: Vec<PropertyReleaseDecl>,
     pub(crate) connectors: Vec<ConnectorDecl>,
     pub(crate) components: Vec<ComponentDecl>,
     pub(crate) pure_operators: Vec<PureOperatorDecl>,
@@ -454,6 +446,7 @@ pub struct ComponentDecl {
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
     pub(crate) items: Vec<ComponentItem>,
+    pub(crate) property_requirements: Vec<ComponentPropertyDecl>,
     pub(crate) range: TextRange,
 }
 
@@ -843,6 +836,7 @@ pub struct InstanceDecl {
     pub(crate) support_bindings: Vec<SupportBindingDecl>,
     pub(crate) boundary_set_bindings: Vec<BoundarySetBindingDecl>,
     pub(crate) field_bindings: Vec<FieldBindingDecl>,
+    pub(crate) property_bindings: Vec<PropertyBindingDecl>,
     pub(crate) range: TextRange,
 }
 

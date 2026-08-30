@@ -18,6 +18,11 @@ const MAX_TOTAL_DECLARATION_BYTES: usize = 64 * 1024 * 1024;
 pub enum DeclarationKindV1 {
     Module,
     Constant,
+    // Alpha-v1 additive vocabulary: older readers reject these unknown kinds
+    // rather than guessing, while exact semantic/toolchain identity prevents
+    // fallback to a parallel schema.
+    PropertyContract,
+    PropertyRelease,
     PureOperator,
     Connector,
     Component,

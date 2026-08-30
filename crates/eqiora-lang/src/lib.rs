@@ -7,6 +7,7 @@
 //! graph storage.
 
 mod ast;
+mod ast_property;
 mod cartesian;
 mod draft;
 mod draft_spatial;

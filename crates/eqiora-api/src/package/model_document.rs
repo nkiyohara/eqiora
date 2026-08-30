@@ -3,9 +3,9 @@ use eqiora_artifact::{
     PhysicalExposureProjectionV1, PhysicalExposureQuantityV1, PhysicalExposureSourceOriginV1,
     PhysicalExposureSourceSpanV1, RealizationEnvelopeV1, RunManifestV1, RunManifestV2,
 };
-use eqiora_compiler::analyze_resolved_hierarchy;
 use eqiora_compiler::projection::{PhysicalExposureContract, PhysicalExposureProjectionMap};
 use eqiora_compiler::provenance::ProvenanceMap;
+use eqiora_compiler::{AnalyzedResolvedHierarchy, analyze_resolved_hierarchy};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_geometry::CanonicalGeometryV1;
@@ -25,6 +25,38 @@ use crate::ModelDocument;
 const COMPILER_IDENTITY: &str = "Eqiora.Compiler";
 const CONTRACT_VERSION_V1: u32 = 1;
 
+fn collect_property_bindings(
+    analyzed: &AnalyzedResolvedHierarchy,
+) -> Box<[PropertyBindingProjection]> {
+    analyzed
+        .property_bindings()
+        .map(
+            |(
+                contract,
+                release,
+                component,
+                requirement,
+                normalized_value,
+                validity,
+                citation,
+                license,
+            )| {
+                PropertyBindingProjection {
+                    contract: contract.to_owned(),
+                    release: release.to_owned(),
+                    component: component.to_owned(),
+                    requirement: requirement.to_owned(),
+                    normalized_value,
+                    validity: validity.to_owned(),
+                    citation: citation.to_owned(),
+                    license: license.to_owned(),
+                }
+            },
+        )
+        .collect::<Vec<_>>()
+        .into_boxed_slice()
+}
+
 /// One admitted canonical model plus exact package compilation provenance.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PackagedModelDocument {
@@ -33,6 +65,19 @@ pub struct PackagedModelDocument {
     provenance: ProvenanceMap,
     physical_exposures: PhysicalExposureProjectionMap,
     physical_exposure_catalog: Option<PhysicalExposureCatalogEnvelopeV1>,
+    property_bindings: Box<[PropertyBindingProjection]>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct PropertyBindingProjection {
+    contract: String,
+    release: String,
+    component: String,
+    requirement: String,
+    normalized_value: f64,
+    validity: String,
+    citation: String,
+    license: String,
 }
 
 impl PackagedModelDocument {
@@ -56,6 +101,7 @@ impl PackagedModelDocument {
         let input = compiler_input(&resolved, &namespaces)?;
         let analyzed = analyze_resolved_hierarchy(input)?;
         verify_semantic_content(&resolved, &namespaces, &analyzed)?;
+        let property_bindings = collect_property_bindings(&analyzed);
         let validated = analyzed.validate_definitions()?;
 
         let compiled =
@@ -94,6 +140,7 @@ impl PackagedModelDocument {
             provenance,
             physical_exposures,
             physical_exposure_catalog,
+            property_bindings,
         })
     }
 
@@ -118,6 +165,7 @@ impl PackagedModelDocument {
         let input = compiler_input(&resolved, &namespaces)?;
         let analyzed = analyze_resolved_hierarchy(input)?;
         verify_semantic_content(&resolved, &namespaces, &analyzed)?;
+        let property_bindings = collect_property_bindings(&analyzed);
         let validated = analyzed.validate_definitions()?;
 
         let compiled = validated.compile_root(entry_model)?;
@@ -155,6 +203,7 @@ impl PackagedModelDocument {
             provenance,
             physical_exposures,
             physical_exposure_catalog,
+            property_bindings,
         })
     }
 
@@ -174,6 +223,28 @@ impl PackagedModelDocument {
     #[must_use]
     pub const fn provenance(&self) -> &ProvenanceMap {
         &self.provenance
+    }
+
+    /// Exact nominal property bindings used by this compilation.
+    ///
+    /// Each item is `(contract, release, component, requirement,
+    /// normalized_value, validity, citation, license)`.
+    #[must_use]
+    pub fn property_bindings(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (&str, &str, &str, &str, f64, &str, &str, &str)> {
+        self.property_bindings.iter().map(|value| {
+            (
+                value.contract.as_str(),
+                value.release.as_str(),
+                value.component.as_str(),
+                value.requirement.as_str(),
+                value.normalized_value,
+                value.validity.as_str(),
+                value.citation.as_str(),
+                value.license.as_str(),
+            )
+        })
     }
 
     /// Versioned, content-addressed observation cuts for every ownerless
