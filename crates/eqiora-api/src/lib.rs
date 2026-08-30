@@ -48,7 +48,7 @@ use eqiora_artifact::{
     AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactReference, ModelDecoderLimits,
     ModelTransactionEnvelope, ReplayableCanonicalModelArtifact,
 };
-use eqiora_compiler::{AuthoredScalarPrimalForm, CompiledModel, ModelSymbols};
+use eqiora_compiler::{CompiledModel, ModelSymbols};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_geometry::CanonicalGeometryV1;
@@ -65,7 +65,33 @@ pub struct ModelDocument {
     aliases: BTreeMap<String, RawId>,
     store: InMemoryGraphStore,
     geometry_authority: Vec<CanonicalGeometryV1>,
-    authored_formulations: Vec<AuthoredScalarPrimalForm>,
+    authored_formulations: Vec<AuthoredFormulationSummary>,
+}
+
+#[derive(Debug, Clone)]
+struct AuthoredFormulationSummary {
+    source_identity: String,
+    relation: RawId,
+    domain: RawId,
+    trial: RawId,
+    file: String,
+    range: eqiora_lang::TextRange,
+}
+
+fn authored_formulation_summaries(compiled: &CompiledModel) -> Vec<AuthoredFormulationSummary> {
+    compiled
+        .authored_formulations()
+        .map(
+            |(source_identity, relation, domain, trial, file, range)| AuthoredFormulationSummary {
+                source_identity,
+                relation,
+                domain,
+                trial,
+                file: file.to_owned(),
+                range,
+            },
+        )
+        .collect()
 }
 
 impl PartialEq for ModelDocument {
@@ -113,7 +139,7 @@ impl ModelDocument {
 
     pub(crate) fn accept_compiled(compiled: CompiledModel) -> Result<Self, Vec<Diagnostic>> {
         let aliases = aliases(compiled.symbols());
-        let authored_formulations = compiled.authored_formulations().to_vec();
+        let authored_formulations = authored_formulation_summaries(&compiled);
         let model = compiled.model();
 
         // Every source/UI/language client crosses the same bounded,
@@ -187,8 +213,20 @@ impl ModelDocument {
     /// Canonical Model artifacts deliberately exclude this compiler sidecar;
     /// replay therefore returns an empty slice instead of fabricating a form.
     #[must_use]
-    pub fn authored_formulations(&self) -> &[AuthoredScalarPrimalForm] {
-        &self.authored_formulations
+    pub fn authored_formulations(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (&str, RawId, RawId, RawId, &str, eqiora_lang::TextRange)>
+    {
+        self.authored_formulations.iter().map(|form| {
+            (
+                form.source_identity.as_str(),
+                form.relation,
+                form.domain,
+                form.trial,
+                form.file.as_str(),
+                form.range,
+            )
+        })
     }
 
     /// Validated immutable execution input.

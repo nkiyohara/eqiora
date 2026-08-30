@@ -24,7 +24,7 @@ use eqiora_graph::{EdgeKind, Op, Transaction};
 use eqiora_lang::{
     ActivationSyntax, BinaryOp, BoundarySideSyntax, ConnectionSyntax, DomainSyntax, Expr, ExprKind,
     Item, ModelDecl, ModelDraft, PortSyntax, RepresentationSyntax, SignalDirectionSyntax,
-    TextRange, UnaryOp, ValueShapeSyntax, parse,
+    TextRange, UnaryOp, ValueShapeSyntax,
 };
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::scalar_connection::{
@@ -38,13 +38,13 @@ use eqiora_schema::kernel::{
 };
 use eqiora_schema::{Model, ModelView};
 
-use crate::AuthoredScalarPrimalForm;
 use crate::connection_sets::{ConnectionFragment, ConnectionSetLimits, normalize_connection_sets};
 use crate::diagnostics::{native_diagnostic, source_error};
 use crate::dimensions::{
     checked_dimensions, checked_scale_dimension, dimension_overflow, length_dimension,
     lower_dimension, time_dimension,
 };
+use crate::formulation::AuthoredScalarPrimalForm;
 use crate::projection::PhysicalExposureProjectionMap;
 use crate::provenance::ProvenanceMap;
 
@@ -121,8 +121,19 @@ impl CompiledModel {
 
     /// Typed authored mathematics retained only by fresh source compilation.
     #[must_use]
-    pub fn authored_formulations(&self) -> &[AuthoredScalarPrimalForm] {
-        &self.authored_formulations
+    pub fn authored_formulations(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (String, RawId, RawId, RawId, &str, TextRange)> {
+        self.authored_formulations.iter().map(|form| {
+            (
+                form.source_identity().to_string(),
+                form.relation().erase(),
+                form.domain().erase(),
+                form.trial().erase(),
+                form.file(),
+                form.range(),
+            )
+        })
     }
 
     /// Consume into the transaction, model ID, and source symbol map.
@@ -149,52 +160,6 @@ impl CompiledModel {
     ) -> Self {
         self.authored_formulations = formulations;
         self
-    }
-}
-
-/// Parse and type-lower every model in one source file.
-///
-/// # Errors
-/// Returns accumulated parser diagnostics, or type/lowering diagnostics from
-/// every model that could be independently checked.
-pub fn compile(file: &str, source: &str) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
-    let document = parse(file, source).into_compilation_document()?;
-    if let Some(component) = document
-        .components()
-        .iter()
-        .find(|component| !component.formulations().is_empty())
-    {
-        return Err(vec![source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            component.formulations()[0].range(),
-            "authored Component formulations require fresh external-Geometry component compilation",
-        )]);
-    }
-    let has_hierarchy = !document.connectors().is_empty()
-        || !document.components().is_empty()
-        || !document.pure_operators().is_empty()
-        || document.models().iter().any(|model| {
-            model
-                .items()
-                .iter()
-                .any(|item| matches!(item, Item::Instance(_)))
-        });
-    if has_hierarchy {
-        return crate::hierarchy::compile_hierarchy(file, source.len(), &document);
-    }
-    let mut compiled = Vec::new();
-    let mut diagnostics = Vec::new();
-    for model in document.models() {
-        match lower_model(file, model) {
-            Ok(value) => compiled.push(value),
-            Err(mut errors) => diagnostics.append(&mut errors),
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(compiled)
-    } else {
-        Err(diagnostics)
     }
 }
 

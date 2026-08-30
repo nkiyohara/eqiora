@@ -75,17 +75,16 @@ pub(super) fn project(py: Python<'_>, document: Option<&ModelDocument>) -> PyRes
     let formulations = document
         .into_iter()
         .flat_map(ModelDocument::authored_formulations)
-        .map(|form| {
-            let range = form.range();
-            PyAuthoredFormulation {
-                source_identity: form.source_identity().to_string(),
-                relation_id: form.relation().ulid().to_string(),
-                domain_id: form.domain().ulid().to_string(),
-                trial_field_id: form.trial().ulid().to_string(),
-                filename: form.file().to_owned(),
+        .map(
+            |(source_identity, relation, domain, trial, filename, range)| PyAuthoredFormulation {
+                source_identity: source_identity.to_owned(),
+                relation_id: relation.ulid().to_string(),
+                domain_id: domain.ulid().to_string(),
+                trial_field_id: trial.ulid().to_string(),
+                filename: filename.to_owned(),
                 range: (range.start(), range.end()),
-            }
-        })
+            },
+        )
         .map(|form| Py::new(py, form))
         .collect::<PyResult<Vec<_>>>()?;
     Ok(PyTuple::new(py, formulations)?.unbind())

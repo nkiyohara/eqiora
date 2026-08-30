@@ -6,56 +6,27 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueShape};
 use eqiora_graph::{EdgeKind, Op, Transaction};
-use eqiora_lang::{
-    BinaryOp, ComponentDecl, Expr, ExprKind, FormulationDecl, FormulationSyntax, NamePath,
-    TextRange, UnaryOp,
-};
+use eqiora_lang::{BinaryOp, ComponentDecl, Expr, ExprKind, NamePath, TextRange, UnaryOp};
 use eqiora_schema::kernel::{KernelNode, ParameterDef};
 
 use crate::diagnostics::source_error;
 use crate::dimensions::{checked_dimensions, checked_scale_dimension, length_dimension};
 use crate::lower::ModelSymbols;
-use crate::source_identity::AuthoredFormSourceIdentity;
+use crate::source_identity::formulation::AuthoredFormSourceIdentity;
 
 /// One typed expression in an authored Formulation.
 #[derive(Debug, Clone, PartialEq)]
-pub struct AuthoredFormExpression {
+pub(crate) struct AuthoredFormExpression {
     kind: AuthoredFormExpressionKind,
     dimension: DimExponents,
     shape: ValueShape,
     support: Option<Id<kinds::Domain>>,
 }
 
-impl AuthoredFormExpression {
-    /// Typed expression topology.
-    #[must_use]
-    pub const fn kind(&self) -> &AuthoredFormExpressionKind {
-        &self.kind
-    }
-
-    /// Exact coherent-SI dimension.
-    #[must_use]
-    pub const fn dimension(&self) -> DimExponents {
-        self.dimension
-    }
-
-    /// Exact mathematical value shape.
-    #[must_use]
-    pub const fn shape(&self) -> &ValueShape {
-        &self.shape
-    }
-
-    /// Spatial support before an enclosing integration removes it.
-    #[must_use]
-    pub const fn support(&self) -> Option<Id<kinds::Domain>> {
-        self.support
-    }
-}
-
 /// Closed expression vocabulary accepted by the first scalar-primal compiler.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
-pub enum AuthoredFormExpressionKind {
+pub(crate) enum AuthoredFormExpressionKind {
     /// Dimensionless scalar literal.
     Number(f64),
     /// Scalar Field value.
@@ -96,7 +67,7 @@ pub enum AuthoredFormExpressionKind {
 
 /// A typed scalar primal equality retained beside a freshly compiled Model.
 #[derive(Debug, Clone, PartialEq)]
-pub struct AuthoredScalarPrimalForm {
+pub(crate) struct AuthoredScalarPrimalForm {
     source_identity: AuthoredFormSourceIdentity,
     relation: Id<kinds::Relation>,
     domain: Id<kinds::Domain>,
@@ -132,18 +103,6 @@ impl AuthoredScalarPrimalForm {
         self.trial
     }
 
-    /// Typed left side.
-    #[must_use]
-    pub const fn left(&self) -> &AuthoredFormExpression {
-        &self.left
-    }
-
-    /// Typed right side.
-    #[must_use]
-    pub const fn right(&self) -> &AuthoredFormExpression {
-        &self.right
-    }
-
     /// Source filename used for diagnostics and inspection.
     #[must_use]
     pub fn file(&self) -> &str {
@@ -165,7 +124,7 @@ pub(crate) fn compile_component_formulations(
     ambient_dimension: usize,
     topological_dimension: usize,
 ) -> Result<Vec<AuthoredScalarPrimalForm>, Vec<Diagnostic>> {
-    if component.formulations().is_empty() {
+    if component.formulations().len() == 0 {
         return Ok(Vec::new());
     }
     if component.formulations().len() != 1 {
@@ -181,7 +140,6 @@ pub(crate) fn compile_component_formulations(
     let index = KernelIndex::new(transaction);
     component
         .formulations()
-        .iter()
         .map(|form| {
             compile_formulation(
                 file,
@@ -240,28 +198,18 @@ impl<'a> KernelIndex<'a> {
 
 fn compile_formulation(
     file: &str,
-    form: &FormulationDecl,
+    form: (&str, &Expr, &Expr, TextRange),
     source_identity: AuthoredFormSourceIdentity,
     symbols: &ModelSymbols,
     index: &KernelIndex<'_>,
     ambient_dimension: usize,
     topological_dimension: usize,
 ) -> Result<AuthoredScalarPrimalForm, Diagnostic> {
-    if form.kind() != FormulationSyntax::Primal {
-        return Err(error(
-            file,
-            form.range(),
-            "unsupported authored Formulation kind",
-        ));
-    }
-    let relation_raw = resolve_symbol(file, form.range(), form.relation(), symbols)?;
-    let relation = relation_raw.downcast::<kinds::Relation>().ok_or_else(|| {
-        error(
-            file,
-            form.range(),
-            format!("`{}` is not a Relation", form.relation()),
-        )
-    })?;
+    let (relation_name, left_source, right_source, range) = form;
+    let relation_raw = resolve_symbol(file, range, relation_name, symbols)?;
+    let relation = relation_raw
+        .downcast::<kinds::Relation>()
+        .ok_or_else(|| error(file, range, format!("`{relation_name}` is not a Relation")))?;
     let domain = index
         .applies_on
         .get(&relation_raw)
@@ -270,7 +218,7 @@ fn compile_formulation(
         .ok_or_else(|| {
             error(
                 file,
-                form.range(),
+                range,
                 "Formulation Relation has no exact AppliesOn Domain",
             )
         })?;
@@ -283,19 +231,19 @@ fn compile_formulation(
         relation_domain: domain,
         trial: None,
     };
-    let left = context.compile_root(form.left())?;
-    let right = context.compile_root(form.right())?;
+    let left = context.compile_root(left_source)?;
+    let right = context.compile_root(right_source)?;
     if left.dimension != right.dimension || left.shape != right.shape {
         return Err(error(
             file,
-            form.range(),
+            range,
             "Formulation equality sides must have identical dimension and shape",
         ));
     }
     let trial = context.trial.ok_or_else(|| {
         error(
             file,
-            form.range(),
+            range,
             "scalar primal Formulation must contain test(field)",
         )
     })?;
@@ -307,7 +255,7 @@ fn compile_formulation(
         left,
         right,
         file: file.to_owned(),
-        range: form.range(),
+        range,
     })
 }
 

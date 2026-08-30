@@ -192,7 +192,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/lower.rs"
-ceiling = 1185
+ceiling = 1179
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -222,7 +222,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/ast.rs"
-ceiling = 1730
+ceiling = 1728
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -234,19 +234,19 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/factory.rs"
-ceiling = 2087
+ceiling = 2065
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/formatter.rs"
-ceiling = 1009
+ceiling = 1003
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/parser.rs"
-ceiling = 2604
+ceiling = 2570
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 

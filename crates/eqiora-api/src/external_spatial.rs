@@ -10,7 +10,7 @@ use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora_graph::{GraphStore, InMemoryGraphStore, Revision};
 use eqiora_sem::KernelProgram;
 
-use crate::{ModelDocument, aliases, single_diagnostic};
+use crate::{ModelDocument, aliases, authored_formulation_summaries, single_diagnostic};
 
 impl ModelDocument {
     /// Compile one definitions-only `.eqi` Component against exact-name
@@ -70,7 +70,7 @@ impl ModelDocument {
         geometry: &CanonicalGeometryV1,
     ) -> Result<Self, Vec<Diagnostic>> {
         let aliases = aliases(compiled.symbols());
-        let authored_formulations = compiled.authored_formulations().to_vec();
+        let authored_formulations = authored_formulation_summaries(&compiled);
         let model = compiled.model();
         let transaction = ModelTransactionEnvelope::from_transaction(compiled.transaction())
             .and_then(|envelope| envelope.to_transaction())
@@ -288,10 +288,14 @@ public component SteadyFlowPastCylinder {
         )
         .unwrap();
 
-        let [form] = with_form.authored_formulations() else {
+        let forms = with_form.authored_formulations().collect::<Vec<_>>();
+        let [(_, relation, domain, trial, _, _)] = forms.as_slice() else {
             panic!("fresh compilation must retain exactly one typed form")
         };
-        assert_eq!(form.domain(), with_form.domain_ref("fluid").unwrap().id());
+        assert_eq!(
+            domain.downcast(),
+            Some(with_form.domain_ref("fluid").unwrap().id())
+        );
         let local_alias = |name: &str| {
             let suffix = format!(".{name}");
             with_form
@@ -301,18 +305,18 @@ public component SteadyFlowPastCylinder {
                 .unwrap()
         };
         assert_eq!(
-            form.trial(),
+            trial.downcast().unwrap(),
             local_alias("potential")
                 .downcast::<eqiora_core::entity::kinds::Field>()
                 .unwrap()
         );
         assert_eq!(
-            form.relation(),
+            relation.downcast().unwrap(),
             local_alias("balance")
                 .downcast::<eqiora_core::entity::kinds::Relation>()
                 .unwrap()
         );
-        assert!(without_form.authored_formulations().is_empty());
+        assert_eq!(without_form.authored_formulations().len(), 0);
         assert_eq!(
             with_form.canonical_json().unwrap(),
             without_form.canonical_json().unwrap()

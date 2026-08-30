@@ -2,6 +2,7 @@
 
 use core::fmt;
 
+mod component;
 mod domain_validation;
 mod property;
 
@@ -11,12 +12,12 @@ use crate::ast::{
     BoundarySetMemberSyntax, ClockDecl, ComponentDecl, ComponentItem, ComponentParameterDecl,
     ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorQuantitySyntax, ConnectorSyntax, Document, DomainDecl, DomainSyntax,
-    ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, FieldSlotDecl,
-    FormulationDecl, FormulationSyntax, InstanceDecl, Item, ModelDecl, NamePath,
-    ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, PureOperatorExpr,
-    PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RationalSyntax, RelationDecl,
-    RelationFamilyDecl, RepresentationDecl, RepresentationSyntax, SupportBindingDecl,
-    SupportSlotDecl, SupportSlotSyntax, TextRange, ValueShapeSyntax, VisibilitySyntax,
+    ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, FieldSlotDecl, InstanceDecl,
+    Item, ModelDecl, NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax,
+    PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
+    PureValueClassSyntax, RationalSyntax, RelationDecl, RelationFamilyDecl, RepresentationDecl,
+    RepresentationSyntax, SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange,
+    ValueShapeSyntax, VisibilitySyntax,
 };
 use domain_validation::validate_domain_syntax;
 
@@ -271,83 +272,6 @@ impl SourceAstFactory {
         Ok(ConnectorQuantitySyntax {
             name: checked_identifier(name, "Connector quantity")?,
             dimension,
-        })
-    }
-
-    /// Construct one reusable Component declaration.
-    ///
-    /// # Errors
-    /// Returns an error for an invalid source identifier, member shape, or
-    /// byte range. Name resolution and component semantics remain compiler
-    /// responsibilities.
-    pub fn component(
-        visibility: VisibilitySyntax,
-        name: impl Into<String>,
-        items: Vec<ComponentItem>,
-        range: TextRange,
-    ) -> Result<ComponentDecl, AstConstructionError> {
-        for item in &items {
-            validate_component_item(item)?;
-        }
-        Ok(ComponentDecl {
-            visibility,
-            name: checked_identifier(name, "component")?,
-            items,
-            formulations: Vec::new(),
-            property_requirements: Vec::new(),
-            range: checked_range(range)?,
-        })
-    }
-
-    /// Construct one reusable Component with authored forms after its members.
-    ///
-    /// # Errors
-    /// Returns an error for an invalid member, form, identifier, or byte range.
-    pub fn component_with_formulations(
-        visibility: VisibilitySyntax,
-        name: impl Into<String>,
-        items: Vec<ComponentItem>,
-        formulations: Vec<FormulationDecl>,
-        range: TextRange,
-    ) -> Result<ComponentDecl, AstConstructionError> {
-        for item in &items {
-            validate_component_item(item)?;
-        }
-        for formulation in &formulations {
-            validate_identifier(&formulation.relation, "Formulation Relation")?;
-            validate_expression(&formulation.left)?;
-            validate_expression(&formulation.right)?;
-            checked_range(formulation.range)?;
-        }
-        Ok(ComponentDecl {
-            visibility,
-            name: checked_identifier(name, "component")?,
-            items,
-            formulations,
-            property_requirements: Vec::new(),
-            range: checked_range(range)?,
-        })
-    }
-
-    /// Construct one natural authored Formulation equality.
-    ///
-    /// # Errors
-    /// Returns an error for an invalid Relation name, expression, or byte range.
-    pub fn formulation(
-        kind: FormulationSyntax,
-        relation: impl Into<String>,
-        left: Expr,
-        right: Expr,
-        range: TextRange,
-    ) -> Result<FormulationDecl, AstConstructionError> {
-        validate_expression(&left)?;
-        validate_expression(&right)?;
-        Ok(FormulationDecl {
-            kind,
-            relation: checked_identifier(relation, "Formulation Relation")?,
-            left,
-            right,
-            range: checked_range(range)?,
         })
     }
 
@@ -1453,37 +1377,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn factory_constructs_authored_form_without_model_item_coercion() {
-        let parsed = crate::parse(
-            "form.eqi",
-            "component C { relation balance continuous { 1 = 0; } form primal for balance { integrate(region, test(value)) = integrate(region, test(value)); } }",
-        )
-        .into_document()
-        .unwrap();
-        let parsed_component = &parsed.components()[0];
-        let parsed_form = &parsed_component.formulations()[0];
-        let form = SourceAstFactory::formulation(
-            FormulationSyntax::Primal,
-            "balance",
-            parsed_form.left().clone(),
-            parsed_form.right().clone(),
-            parsed_form.range(),
-        )
-        .unwrap();
-        let component = SourceAstFactory::component_with_formulations(
-            VisibilitySyntax::Private,
-            "C",
-            parsed_component.items().to_vec(),
-            vec![form],
-            parsed_component.range(),
-        )
-        .unwrap();
-        let document = SourceAstFactory::document(Vec::new(), vec![component], Vec::new()).unwrap();
-
-        assert_eq!(document.components()[0].formulations().len(), 1);
-        assert!(crate::format(&document).contains("form primal for balance"));
-    }
     use crate::cartesian::CartesianCoordinateSyntax;
 
     fn range(start: u32, end: u32) -> TextRange {
