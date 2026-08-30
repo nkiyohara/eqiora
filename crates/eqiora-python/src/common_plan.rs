@@ -423,6 +423,18 @@ impl PyPlan {
                         plan.model_digest().to_owned(),
                         plan.field_id().to_owned(),
                     ),
+                    coefficient_sampling: match plan.spatial() {
+                        eqiora_numerics::CommonSpatialPolicy::Q1 => "quadrature-point",
+                        eqiora_numerics::CommonSpatialPolicy::CellCenteredTpfa => "facet-centroid",
+                        _ => unreachable!("common scalar Plan cannot own a non-scalar policy"),
+                    },
+                    face_coefficient_policy: match plan.spatial() {
+                        eqiora_numerics::CommonSpatialPolicy::Q1 => "not-applicable",
+                        eqiora_numerics::CommonSpatialPolicy::CellCenteredTpfa => {
+                            "direct-centroid-evaluation"
+                        }
+                        _ => unreachable!("common scalar Plan cannot own a non-scalar policy"),
+                    },
                 },
             )
             .map(Py::into_any),

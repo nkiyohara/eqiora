@@ -338,7 +338,8 @@ fn cartesian_q1_packet_action_matches_csr_and_solves_in_one_through_three_dimens
         let mesh = CartesianMesh::uniform(&bounds, &cells_per_axis).unwrap();
         let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2).unwrap();
         let local_action =
-            lower_cartesian_q1_diffusion_local_action(&mesh, 1.25, &quadrature).unwrap();
+            lower_cartesian_q1_diffusion_local_action(&mesh, &|_: &[f64]| 1.25, &quadrature)
+                .unwrap();
         let vertex_count = mesh.entity_count(0).unwrap();
         let cell_count = mesh.entity_count(dimension).unwrap();
         let width = local_action.columns();

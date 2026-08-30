@@ -8,7 +8,8 @@ fn action_case(dimension: usize) -> (eqiora_ir::LocalLinearActionIr, Vec<f64>) {
     let cells = vec![2; dimension];
     let mesh = CartesianMesh::uniform(&bounds, &cells).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2).unwrap();
-    let action = lower_cartesian_q1_diffusion_local_action(&mesh, 1.25, &quadrature).unwrap();
+    let action =
+        lower_cartesian_q1_diffusion_local_action(&mesh, &|_: &[f64]| 1.25, &quadrature).unwrap();
     let input = (0..action.input_len())
         .map(|index| {
             let signed = i32::try_from(index % 13).unwrap() - 6;

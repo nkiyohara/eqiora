@@ -29,7 +29,7 @@ use eqiora_solver::{
 
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::cartesian_elliptic::{
-    ScalarEllipticCartesianFemSolution, ScalarEllipticCartesianFvmSolution,
+    CartesianBoundaryValue, ScalarEllipticCartesianFemSolution, ScalarEllipticCartesianFvmSolution,
     finalize_scalar_elliptic_cartesian_fem, finalize_scalar_elliptic_cartesian_fvm,
     linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
     linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
@@ -235,14 +235,6 @@ impl ScalarEllipticCartesianModel {
         self.bounds.len()
     }
 
-    /// Positive constant constitutive coefficient in coherent SI units.
-    #[must_use]
-    pub fn coefficient(&self) -> f64 {
-        self.coefficient
-            .constant_value()
-            .expect("Cartesian lowerer accepts a spatially constant coefficient")
-    }
-
     /// Canonical constitutive-coefficient expression at this revision.
     #[must_use]
     pub const fn coefficient_expression(&self) -> &ScalarSpatialExpression {
@@ -332,16 +324,12 @@ impl ScalarEllipticCartesianModel {
         let coefficient = self
             .coefficient
             .bind_parameter_point(&self.parameter_fields, &parameter_values)?;
-        let coefficient_value = coefficient.constant_value().ok_or_else(|| {
-            invalid_parameter_binding(
-                "bound scalar elliptic coefficient is not a finite spatial constant",
-            )
-        })?;
-        if coefficient_value <= 0.0 {
-            return Err(invalid_parameter_binding(
-                "bound scalar elliptic coefficient must be positive",
-            ));
-        }
+        validate_positive_affine_coefficient(&coefficient, &self.bounds, self.domain())
+            .map_err(|_| {
+                invalid_parameter_binding(
+                    "bound scalar elliptic coefficient must be affine and strictly positive on the complete Domain",
+                )
+            })?;
         let source = self
             .source
             .bind_parameter_point(&self.parameter_fields, &parameter_values)?;
@@ -381,19 +369,6 @@ impl ScalarEllipticCartesianModel {
         side: BoundarySide,
     ) -> Option<&ScalarEllipticCartesianBoundary> {
         self.boundaries.get(&(axis, side))
-    }
-
-    /// Evaluate the constitutive coefficient and one canonical-Parameter JVP.
-    ///
-    /// # Errors
-    /// Preserves lowered-expression shape and finite-value diagnostics.
-    pub fn coefficient_jvp(&self, parameter_tangent: &[f64]) -> Result<(f64, f64), Diagnostic> {
-        self.evaluate_expression_jvp(
-            &self.coefficient,
-            &vec![0.0; self.dimension()],
-            &vec![0.0; self.dimension()],
-            parameter_tangent,
-        )
     }
 
     /// Evaluate source meaning and its coordinate/Parameter JVP.
@@ -452,10 +427,7 @@ impl ScalarEllipticCartesianModel {
                     .boundary(axis, side)
                     .expect("Cartesian lowerer produces a complete boundary set");
                 let ScalarEllipticCartesianBoundary::Essential(expression) = boundary else {
-                    return Err(lowering_error(
-                        self.domain(),
-                        "Cartesian numerical path requires essential boundary data",
-                    ));
+                    continue;
                 };
                 let candidate = self.evaluate_expression_jvp(
                     expression,
@@ -767,13 +739,10 @@ pub(crate) fn recognize_scalar_elliptic_geometry_mathematics(
     let field = unique_continuum_field(program, *domain)?;
     let volume_relation = unique_relation_on(program, *domain)?;
     let (coefficient, source) = lower_volume_relation(program, volume_relation, field, 2)?;
-    let coefficient_value = coefficient
-        .constant_value()
-        .expect("flux coefficient is validated as spatially constant");
-    if !coefficient_value.is_finite() || coefficient_value <= 0.0 {
+    if coefficient.affine_gradient().is_none() {
         return Err(lowering_error(
             volume_relation,
-            "elliptic coefficient must be finite and positive",
+            "scalar elliptic coefficient must be affine in coordinates and bound Parameters",
         ));
     }
     let boundaries = program
@@ -817,15 +786,7 @@ fn lower_scalar_elliptic_cartesian_support(
     let field = unique_continuum_field(program, domain)?;
     let volume_relation = unique_relation_on(program, domain)?;
     let (coefficient, source) = lower_volume_relation(program, volume_relation, field, dimension)?;
-    let coefficient_value = coefficient
-        .constant_value()
-        .expect("flux coefficient is validated as spatially constant");
-    if !coefficient_value.is_finite() || coefficient_value <= 0.0 {
-        return Err(lowering_error(
-            volume_relation,
-            "elliptic coefficient must be finite and positive",
-        ));
-    }
+    validate_positive_affine_coefficient(&coefficient, &bounds, volume_relation)?;
 
     let mut boundaries = BTreeMap::new();
     for ((axis, side), boundary_domain) in boundary_domains {
@@ -868,6 +829,9 @@ fn lower_scalar_elliptic_cartesian_support(
         compiled_form,
     })
 }
+
+mod scalar_coefficient;
+use scalar_coefficient::validate_positive_affine_coefficient;
 
 pub(crate) type ScalarCartesianSupport =
     (RawId, Vec<[f64; 2]>, BTreeMap<(usize, BoundarySide), RawId>);
@@ -1498,16 +1462,6 @@ pub fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
             model.dimension()
         )));
     }
-    if model
-        .boundaries
-        .values()
-        .any(|boundary| !boundary.is_essential())
-    {
-        return Err(invalid_realization(
-            "Cartesian FEM/FVM v0 requires essential conditions on every box side",
-        ));
-    }
-
     let selection = project_scalar_operator(resolved, model.domain_id(), model.field_id())?;
     let target = resolved.plan().target();
     require_legacy_deployment_binding(selection.placement, target)?;
@@ -1533,8 +1487,24 @@ pub fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
     };
     let mesh = CartesianMesh::uniform(model.bounds(), &vec![cells; model.dimension()])?;
     let source = |coordinates: &[f64]| model.source().evaluate(coordinates).unwrap_or(f64::NAN);
-    let boundary =
-        |coordinates: &[f64]| evaluate_essential_boundary(model, coordinates).unwrap_or(f64::NAN);
+    let coefficient = |coordinates: &[f64]| {
+        model
+            .coefficient_expression()
+            .evaluate(coordinates)
+            .unwrap_or(f64::NAN)
+    };
+    let boundary = |axis: usize, side: BoundarySide, coordinates: &[f64]| {
+        let condition = model
+            .boundary(axis, side)
+            .expect("lowered Cartesian model owns every side");
+        let value = condition.value().evaluate(coordinates).unwrap_or(f64::NAN);
+        match condition {
+            ScalarEllipticCartesianBoundary::Essential(_) => {
+                CartesianBoundaryValue::Essential(value)
+            }
+            ScalarEllipticCartesianBoundary::Natural(_) => CartesianBoundaryValue::Natural(value),
+        }
+    };
     let finalized = match selection.discretization.method() {
         DiscretizationMethod::ContinuousGalerkin => {
             if selection.space.family()
@@ -1564,7 +1534,7 @@ pub fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
                 target,
                 finalize_scalar_elliptic_cartesian_fem(
                     &mesh,
-                    model.coefficient(),
+                    &coefficient,
                     &source,
                     &boundary,
                     &quadrature,
@@ -1595,7 +1565,7 @@ pub fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
                 target,
                 finalize_scalar_elliptic_cartesian_fvm(
                     &mesh,
-                    model.coefficient(),
+                    &coefficient,
                     &source,
                     &boundary,
                     &cell_quadrature,
@@ -2052,7 +2022,7 @@ pub(crate) use recognize::{
     model_lowering_error, relation_expression, relations_on, unique_relation_on, unique_root,
 };
 use recognize::{
-    collect_parameter_coordinates, evaluate_essential_boundary, invalid_parameter_binding,
-    invalid_realization, lower_cartesian_boundary_relation, lower_constant_boundary_1d,
-    lower_volume_relation, unique_continuum_field,
+    collect_parameter_coordinates, invalid_parameter_binding, invalid_realization,
+    lower_cartesian_boundary_relation, lower_constant_boundary_1d, lower_volume_relation,
+    unique_continuum_field,
 };

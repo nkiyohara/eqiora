@@ -109,6 +109,14 @@ fn rectangle_geometry(xmax: f64) -> CanonicalGeometryV1 {
 }
 
 fn scalar_document(geometry: &CanonicalGeometryV1, source_scale: f64) -> ModelDocument {
+    scalar_document_from_source(geometry, source_scale, COMPONENT)
+}
+
+fn scalar_document_from_source(
+    geometry: &CanonicalGeometryV1,
+    source_scale: f64,
+    component: &str,
+) -> ModelDocument {
     let region = geometry.entity_set("region").unwrap();
     let supports: [SupportBinding<'_>; 5] = [
         ("region", region, None),
@@ -157,7 +165,7 @@ fn scalar_document(geometry: &CanonicalGeometryV1, source_scale: f64) -> ModelDo
     ];
     ModelDocument::compile_external_component(
         "python-common-plan.eqi",
-        COMPONENT,
+        component,
         geometry,
         "PoissonRectangleModel",
         "PoissonRectangle",
@@ -412,15 +420,38 @@ mesh = package.meshing.generate(source, plan=mesh_plan)
             py,
             scalar_document(&rectangle_geometry(2.0), 2.0 * std::f64::consts::PI.powi(2)),
         )?;
+        let variable_coefficient = "(1 + wave_number * coordinate(0))";
+        let variable_component = COMPONENT
+            .replace(
+                "-div(grad(potential))",
+                &format!("-div({variable_coefficient} * grad(potential))"),
+            )
+            .replace(
+                "relation top_value continuous on top { trace(potential) = 0; }",
+                &format!(
+                    "relation top_value continuous on top {{ normal({variable_coefficient} * grad(potential)) = wave_number; }}"
+                ),
+            );
+        let variable_model = PyModel::from_document(
+            py,
+            scalar_document_from_source(
+                &geometry,
+                2.0 * std::f64::consts::PI.powi(2),
+                &variable_component,
+            ),
+        )?;
         locals.set_item("model", Py::new(py, model)?)?;
         locals.set_item("fresh_model", Py::new(py, fresh_model)?)?;
         locals.set_item("foreign_model", Py::new(py, foreign_model)?)?;
+        locals.set_item("variable_model", Py::new(py, variable_model)?)?;
         py.run(
                 c_str!(r#"
 linear = package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=10000)
 q1 = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 q1_repeat = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 tpfa = package.resolve(model, mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=linear)
+variable_q1 = package.resolve(variable_model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
+variable_tpfa = package.resolve(variable_model, mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=linear)
 q1_bytes = q1.to_bytes()
 portable_q1 = package.Plan.from_bytes(q1_bytes)
 replayed = package.Model.from_bytes(model.to_bytes())
@@ -469,6 +500,10 @@ assert q1.realization_digest == replayed_plan.realization_digest
 assert q1.realization_digest != tpfa.realization_digest
 assert q1.mesh.cells.shape == (6, 4)
 assert isinstance(q1.capability, package.ScalarPlanView)
+assert q1.capability.coefficient_sampling == "quadrature-point"
+assert q1.capability.face_coefficient_policy == "not-applicable"
+assert tpfa.capability.coefficient_sampling == "facet-centroid"
+assert tpfa.capability.face_coefficient_policy == "direct-centroid-evaluation"
 assert q1.formulation is None
 assert not hasattr(q1.capability, "scaling")
 assert q1.requested_solve is linear
@@ -480,6 +515,10 @@ assert replayed_q1_result.to_bytes() == q1_result_bytes
 assert replayed_q1_result.output(q1.capability.field).values("vertex").numpy().tolist() == q1_result.output(q1.capability.field).values("vertex").numpy().tolist()
 portable_q1_result = package.run(portable_q1)
 tpfa_result = package.run(tpfa)
+variable_q1_result = package.run(variable_q1)
+variable_tpfa_result = package.run(variable_tpfa)
+assert variable_q1_result.output(variable_q1.capability.field).coefficient_count("vertex") == mesh.vertex_count
+assert variable_tpfa_result.output(variable_tpfa.capability.field).coefficient_count("cell") == mesh.cell_count
 assert q1_result.model_digest == q1.model_digest
 assert q1_result.plan_key == q1.identity
 assert q1_result.mesh(q1.capability.field) is mesh

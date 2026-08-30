@@ -214,15 +214,25 @@ impl CommonScalarPlan {
         };
         let mesh = mesh.mesh();
         let source = |coordinates: &[f64]| bound.source().evaluate(coordinates).unwrap_or(f64::NAN);
-        let boundary = |coordinates: &[f64]| {
+        let coefficient = |coordinates: &[f64]| {
             bound
-                .essential_boundary_jvp(
-                    coordinates,
-                    &vec![0.0; coordinates.len()],
-                    &vec![0.0; bound.parameter_fields().len()],
-                )
-                .map(|value| value.0)
+                .coefficient_expression()
+                .evaluate(coordinates)
                 .unwrap_or(f64::NAN)
+        };
+        let boundary = |axis: usize, side: BoundarySide, coordinates: &[f64]| {
+            let condition = bound
+                .boundary(axis, side)
+                .expect("lowered Cartesian model owns every side");
+            let value = condition.value().evaluate(coordinates).unwrap_or(f64::NAN);
+            match condition {
+                ScalarEllipticCartesianBoundary::Essential(_) => {
+                    CartesianBoundaryValue::Essential(value)
+                }
+                ScalarEllipticCartesianBoundary::Natural(_) => {
+                    CartesianBoundaryValue::Natural(value)
+                }
+            }
         };
         let solver = self.admission.linear.solver;
         let target = Target::HostCpu {
@@ -233,7 +243,7 @@ impl CommonScalarPlan {
                 let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2)?;
                 let assembly = finalize_scalar_elliptic_cartesian_fem(
                     mesh,
-                    bound.coefficient(),
+                    &coefficient,
                     &source,
                     &boundary,
                     &quadrature,
@@ -253,7 +263,7 @@ impl CommonScalarPlan {
                 let facet = QuadratureRule::gauss_legendre(1)?;
                 let assembly = finalize_scalar_elliptic_cartesian_fvm(
                     mesh,
-                    bound.coefficient(),
+                    &coefficient,
                     &source,
                     &boundary,
                     &cell,

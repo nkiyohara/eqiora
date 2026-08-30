@@ -181,14 +181,15 @@ pub(crate) fn compile_cartesian_q1_form(
 }
 
 impl AdmittedScalarGalerkinForm<'_> {
-    pub(crate) fn evaluate<S>(
+    pub(crate) fn evaluate<K, S>(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-        coefficient: f64,
+        coefficient: &K,
         source: &S,
     ) -> Result<LocalContribution, Diagnostic>
     where
+        K: Fn(&[f64]) -> f64 + ?Sized,
         S: Fn(&[f64]) -> f64 + ?Sized,
     {
         self.validate_realization(geometry, quadrature)?;
@@ -201,6 +202,12 @@ impl AdmittedScalarGalerkinForm<'_> {
         for point in quadrature.points() {
             let basis = space.tabulate(&point.coordinates)?;
             geometry.map_point(&point.coordinates, &mut physical)?;
+            let coefficient_value = coefficient(&physical);
+            if !coefficient_value.is_finite() || coefficient_value <= 0.0 {
+                return Err(self.realization_error(
+                    "compiled Q1 coefficient produced a non-positive or non-finite value",
+                ));
+            }
             let source_value = source(&physical);
             if !source_value.is_finite() {
                 return Err(
@@ -221,7 +228,7 @@ impl AdmittedScalarGalerkinForm<'_> {
                 rhs[test] += scale * source_value * basis.values()[test];
                 for trial in 0..dof_count {
                     matrix[test * dof_count + trial] += scale
-                        * coefficient
+                        * coefficient_value
                         * gradients[test]
                             .iter()
                             .zip(&gradients[trial])

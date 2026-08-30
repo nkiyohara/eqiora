@@ -55,13 +55,13 @@ fn e1_element_fixture_matches_frozen_matrix_loads_and_certificate() {
     let geometry = fixture_geometry();
     let source = |point: &[f64]| 2.0 * PI.powi(2) * (PI * point[0]).sin() * (PI * point[1]).sin();
     let local = admitted
-        .evaluate(&geometry, &quadrature, 1.0, &source)
+        .evaluate(&geometry, &quadrature, &|_: &[f64]| 1.0, &source)
         .unwrap();
     assert_relative_slice(local.matrix(), &MATRIX, MATRIX_RELATIVE);
     assert_relative_slice(local.rhs(), &LOAD, LOAD_RELATIVE);
 
     let constant = admitted
-        .evaluate(&geometry, &quadrature, 1.0, &|_: &[f64]| 1.0)
+        .evaluate(&geometry, &quadrature, &|_: &[f64]| 1.0, &|_: &[f64]| 1.0)
         .unwrap();
     assert_relative_slice(constant.rhs(), &[0.031_25; 4], MATRIX_RELATIVE);
     assert_matrix_invariants(local.matrix(), 4);
@@ -96,7 +96,7 @@ fn e1_rejects_certificate_sign_slot_quadrature_aspect_and_coefficient_mutants() 
     let source = |point: &[f64]| 2.0 * PI.powi(2) * (PI * point[0]).sin() * (PI * point[1]).sin();
     let admitted = form.admit_quadrature(&quadrature).unwrap();
     let local = admitted
-        .evaluate(&geometry, &quadrature, 1.0, &source)
+        .evaluate(&geometry, &quadrature, &|_: &[f64]| 1.0, &source)
         .unwrap();
 
     let mut sign_mutant = form.clone();
@@ -120,7 +120,7 @@ fn e1_rejects_certificate_sign_slot_quadrature_aspect_and_coefficient_mutants() 
     assert!(maximum_relative(&aspect_mutant, &MATRIX) > MATRIX_RELATIVE);
 
     let scaled = admitted
-        .evaluate(&geometry, &quadrature, 2.0, &source)
+        .evaluate(&geometry, &quadrature, &|_: &[f64]| 2.0, &source)
         .unwrap();
     assert!(maximum_relative(scaled.matrix(), &MATRIX) > MATRIX_RELATIVE);
 }
@@ -133,7 +133,7 @@ fn e1_independent_actions_reject_corrupted_jvp_and_primal_as_vjp() {
     let local = form
         .admit_quadrature(&quadrature)
         .unwrap()
-        .evaluate(&fixture_geometry(), &quadrature, 1.0, &source)
+        .evaluate(&fixture_geometry(), &quadrature, &|_: &[f64]| 1.0, &source)
         .unwrap();
     let direction = normalized_direction(4);
     let state = direction.clone();
@@ -167,7 +167,7 @@ fn runtime_dimensional_1d_and_3d_elements_match_the_frozen_oracles() {
         .evaluate(
             &fixture_geometry_1d(),
             &quadrature_1d,
-            1.0,
+            &|_: &[f64]| 1.0,
             &|_: &[f64]| 1.0,
         )
         .unwrap();
@@ -184,7 +184,7 @@ fn runtime_dimensional_1d_and_3d_elements_match_the_frozen_oracles() {
         .evaluate(
             &fixture_geometry_3d(),
             &quadrature_3d,
-            1.0,
+            &|_: &[f64]| 1.0,
             &|_: &[f64]| 1.0,
         )
         .unwrap();

@@ -223,56 +223,6 @@ pub(crate) fn collect_parameter_coordinates(
     (fields, values)
 }
 
-pub(crate) fn evaluate_essential_boundary(
-    model: &ScalarEllipticCartesianModel,
-    coordinates: &[f64],
-) -> Result<f64, Diagnostic> {
-    if coordinates.len() != model.dimension() {
-        return Err(lowering_error(
-            model.domain(),
-            "Cartesian boundary evaluation received the wrong coordinate dimension",
-        ));
-    }
-    let mut value: Option<f64> = None;
-    for (axis, bounds) in model.bounds().iter().enumerate() {
-        for (side, coordinate) in [
-            (BoundarySide::Lower, bounds[0]),
-            (BoundarySide::Upper, bounds[1]),
-        ] {
-            if coordinates[axis].to_bits() != coordinate.to_bits() {
-                continue;
-            }
-            let boundary = model
-                .boundary(axis, side)
-                .expect("Cartesian lowerer produces a complete boundary set");
-            let ScalarEllipticCartesianBoundary::Essential(expression) = boundary else {
-                return Err(lowering_error(
-                    model.domain(),
-                    "Cartesian numerical path requires essential boundary data",
-                ));
-            };
-            let candidate = expression.evaluate(coordinates)?;
-            if let Some(previous) = value {
-                let scale = previous.abs().max(candidate.abs()).max(1.0);
-                if (previous - candidate).abs() > 256.0 * f64::EPSILON * scale {
-                    return Err(lowering_error(
-                        model.domain(),
-                        "Cartesian boundary expressions disagree at an edge or corner",
-                    ));
-                }
-            } else {
-                value = Some(candidate);
-            }
-        }
-    }
-    value.ok_or_else(|| {
-        lowering_error(
-            model.domain(),
-            "Cartesian boundary evaluation point is not on the box boundary",
-        )
-    })
-}
-
 pub(crate) fn lower_flux_coefficient(
     program: &KernelProgram,
     expression: &ExprDag,
@@ -301,17 +251,11 @@ pub(crate) fn lower_flux_coefficient(
             owner,
             coordinate_dimension,
         )?;
-        let factor = lower_constant_spatial_factor(
-            program,
-            expression,
-            *right,
-            owner,
-            coordinate_dimension,
-        )?;
+        let factor =
+            lower_spatial_factor(program, expression, *right, owner, coordinate_dimension)?;
         Ok(coefficient.multiply(factor))
     } else if contains_gradient_of(expression, *right, field) {
-        let factor =
-            lower_constant_spatial_factor(program, expression, *left, owner, coordinate_dimension)?;
+        let factor = lower_spatial_factor(program, expression, *left, owner, coordinate_dimension)?;
         let coefficient = lower_flux_coefficient(
             program,
             expression,
@@ -329,22 +273,14 @@ pub(crate) fn lower_flux_coefficient(
     }
 }
 
-pub(crate) fn lower_constant_spatial_factor(
+pub(crate) fn lower_spatial_factor(
     program: &KernelProgram,
     expression: &ExprDag,
     value: ExprId,
     owner: RawId,
     coordinate_dimension: usize,
 ) -> Result<ScalarSpatialExpression, Diagnostic> {
-    let factor =
-        spatial_expression::lower(program, expression, value, owner, coordinate_dimension)?;
-    if factor.is_coordinate_dependent() {
-        return Err(lowering_error(
-            owner,
-            "Cartesian scalar elliptic coefficient must be spatially constant",
-        ));
-    }
-    Ok(factor)
+    spatial_expression::lower(program, expression, value, owner, coordinate_dimension)
 }
 
 pub(crate) fn contains_gradient_of(expression: &ExprDag, value: ExprId, field: RawId) -> bool {
