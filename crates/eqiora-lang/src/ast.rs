@@ -809,6 +809,8 @@ pub enum Item {
     Field(FieldDecl),
     /// Revision-local design value.
     Parameter(ParameterDecl),
+    /// Typed compile-time expression alias expanded before Kernel lowering.
+    Let(LetDecl),
     /// Causal or conserving interface.
     Port(PortDecl),
     /// Exact periodic clock.
@@ -1189,6 +1191,41 @@ impl ParameterDecl {
     #[must_use]
     pub const fn initial(&self) -> f64 {
         self.initial
+    }
+
+    /// Full declaration range.
+    #[must_use]
+    pub const fn range(&self) -> TextRange {
+        self.range
+    }
+}
+
+/// Model-local typed compile-time expression alias.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LetDecl {
+    pub(crate) name: String,
+    pub(crate) dimension: Expr,
+    pub(crate) value: Expr,
+    pub(crate) range: TextRange,
+}
+
+impl LetDecl {
+    /// Source name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Declared static SI dimension.
+    #[must_use]
+    pub const fn dimension(&self) -> &Expr {
+        &self.dimension
+    }
+
+    /// Derived scalar expression.
+    #[must_use]
+    pub const fn value(&self) -> &Expr {
+        &self.value
     }
 
     /// Full declaration range.

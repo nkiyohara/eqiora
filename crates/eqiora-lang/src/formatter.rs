@@ -323,6 +323,14 @@ fn format_item(item: &Item, indent: usize, output: &mut String) {
             format_expression(&declaration.dimension, 0, output);
             writeln!(output, " = {};", format_number(declaration.initial)).expect("String write");
         }
+        Item::Let(declaration) => {
+            write_indent(output, indent);
+            write!(output, "let {}: ", declaration.name).expect("String write");
+            format_expression(&declaration.dimension, 0, output);
+            output.push_str(" = ");
+            format_expression(&declaration.value, 0, output);
+            output.push_str(";\n");
+        }
         Item::Port(declaration) => {
             write_indent(output, indent);
             write!(output, "port {}: ", declaration.name).expect("String write");
