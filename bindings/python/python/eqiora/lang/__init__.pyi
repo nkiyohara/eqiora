@@ -117,6 +117,14 @@ class Component:
         on: Support,
         residual: Expression | int | float,
         doc: str | None = None,
+    ) -> object: ...
+    def primal_form(
+        self,
+        relation: object,
+        *,
+        left: Expression,
+        right: Expression,
+        doc: str | None = None,
     ) -> None: ...
     def instance(
         self,
@@ -209,10 +217,48 @@ def grad(value: Expression) -> Expression:
 
     ...
 
+def test(field: Expression) -> Expression:
+    """Return the test function associated with one Source Field.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::test``.
+    """
+
+    ...
+
+def dot(
+    left: Expression | float | int,
+    right: Expression | float | int,
+) -> Expression:
+    """Return the inner product of two authored expressions.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::dot``.
+    """
+
+    ...
+
+def integrate(
+    domain: Support,
+    integrand: Expression | float | int,
+) -> Expression:
+    """Return one volume integral over an exact Source Support.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::integrate``.
+    """
+
+    ...
+
 def div(value: Expression) -> Expression:
     """Return the language divergence of one expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::div``.
+    """
+
+    ...
+
+def sin(value: Expression | float | int) -> Expression:
+    """Return the language sine of one expression.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::sin``.
     """
 
     ...
@@ -258,12 +304,16 @@ __all__ = [
     "SourceError",
     "Support",
     "coordinate",
+    "dot",
     "div",
     "grad",
+    "integrate",
     "isotropic_lift",
     "normal",
+    "sin",
     "spatial_vector",
     "symmetric_part",
+    "test",
     "trace",
     "units",
 ]

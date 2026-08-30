@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 156 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 607 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 160 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 608 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 186 literal public spellings, 156 canonical grouped declarations, 804 visible method signatures (607 non-dunder and 197 dunder), and 73 visible class assignments.
+Inventory: 18 modules, 190 literal public spellings, 160 canonical grouped declarations, 805 visible method signatures (608 non-dunder and 197 dunder), and 73 visible class assignments.
 
 Regenerate with:
 
@@ -2002,7 +2002,8 @@ class Component:
     def parameter(self, name: str, *, unit: _Unit, public: bool=True, doc: str | None=None) -> Expression: ...
     def property(self, name: str, *, contract: PropertyContract, public: bool=True, doc: str | None=None) -> Expression: ...
     def field(self, name: str, *, on: Support, unit: _Unit, shape: _Shape | None=None, initial: int | float | None=None, doc: str | None=None) -> Expression: ...
-    def relation(self, name: str, *, on: Support, residual: Expression | int | float, doc: str | None=None) -> None: ...
+    def relation(self, name: str, *, on: Support, residual: Expression | int | float, doc: str | None=None) -> object: ...
+    def primal_form(self, relation: object, *, left: Expression, right: Expression, doc: str | None=None) -> None: ...
     def instance(self, name: str, *, component: Component, supports: Mapping[Support, Support], parameters: Mapping[Expression, Expression | int | float], properties: Mapping[Expression, PropertyRelease], doc: str | None=None) -> None: ...
 ```
 
@@ -2116,6 +2117,18 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::coordinate`](../../
 def coordinate(axis: int) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-dot"></a>
+
+### `eqiora.lang.dot`
+
+Return the inner product of two authored expressions.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::dot`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def dot(left: Expression | float | int, right: Expression | float | int) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-div"></a>
 
 ### `eqiora.lang.div`
@@ -2138,6 +2151,18 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::grad`](../../bindin
 
 ```python
 def grad(value: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-integrate"></a>
+
+### `eqiora.lang.integrate`
+
+Return one volume integral over an exact Source Support.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::integrate`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def integrate(domain: Support, integrand: Expression | float | int) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-isotropic_lift"></a>
@@ -2164,6 +2189,18 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::normal`](../../bind
 def normal(value: Expression) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-sin"></a>
+
+### `eqiora.lang.sin`
+
+Return the language sine of one expression.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::sin`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def sin(value: Expression | float | int) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-spatial_vector"></a>
 
 ### `eqiora.lang.spatial_vector`
@@ -2186,6 +2223,18 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::symmetric_part`](..
 
 ```python
 def symmetric_part(value: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-test"></a>
+
+### `eqiora.lang.test`
+
+Return the test function associated with one Source Field.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::test`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def test(field: Expression) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-trace"></a>
