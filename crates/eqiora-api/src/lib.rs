@@ -48,7 +48,9 @@ use eqiora_artifact::{
     AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactReference, ModelDecoderLimits,
     ModelTransactionEnvelope, ReplayableCanonicalModelArtifact,
 };
-use eqiora_compiler::{CompiledModel, ModelSymbols};
+use eqiora_compiler::{
+    AuthoredFormulationProjection, CompiledAuthoredFormulation, CompiledModel, ModelSymbols,
+};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_geometry::CanonicalGeometryV1;
@@ -65,37 +67,7 @@ pub struct ModelDocument {
     aliases: BTreeMap<String, RawId>,
     store: InMemoryGraphStore,
     geometry_authority: Vec<CanonicalGeometryV1>,
-    authored_formulations: Vec<AuthoredFormulationSummary>,
-}
-
-#[derive(Debug, Clone)]
-struct AuthoredFormulationSummary {
-    source_identity: String,
-    relation: RawId,
-    domain: RawId,
-    trial: RawId,
-    projection: Vec<u8>,
-    file: String,
-    range: eqiora_lang::TextRange,
-}
-
-fn authored_formulation_summaries(compiled: &CompiledModel) -> Vec<AuthoredFormulationSummary> {
-    compiled
-        .authored_formulations()
-        .map(
-            |(source_identity, relation, domain, trial, projection, file, range)| {
-                AuthoredFormulationSummary {
-                    source_identity,
-                    relation,
-                    domain,
-                    trial,
-                    projection,
-                    file: file.to_owned(),
-                    range,
-                }
-            },
-        )
-        .collect()
+    authored_formulations: Vec<CompiledAuthoredFormulation>,
 }
 
 impl PartialEq for ModelDocument {
@@ -143,7 +115,7 @@ impl ModelDocument {
 
     pub(crate) fn accept_compiled(compiled: CompiledModel) -> Result<Self, Vec<Diagnostic>> {
         let aliases = aliases(compiled.symbols());
-        let authored_formulations = authored_formulation_summaries(&compiled);
+        let authored_formulations = compiled.authored_formulations().cloned().collect();
         let model = compiled.model();
 
         // Every source/UI/language client crosses the same bounded,
@@ -219,30 +191,24 @@ impl ModelDocument {
     #[must_use]
     pub fn authored_formulations(
         &self,
-    ) -> impl ExactSizeIterator<Item = (&str, RawId, RawId, RawId, &str, eqiora_lang::TextRange)>
-    {
-        self.authored_formulations.iter().map(|form| {
-            (
-                form.source_identity.as_str(),
-                form.relation,
-                form.domain,
-                form.trial,
-                form.file.as_str(),
-                form.range,
-            )
-        })
+    ) -> impl ExactSizeIterator<Item = &CompiledAuthoredFormulation> {
+        self.authored_formulations.iter()
     }
 
     /// Closed typed scalar-primal projection consumed by common resolution.
     ///
-    /// The bytes are compiler-owned and versioned; callers must treat them as opaque.
+    /// The compiler owns the versioned representation and its canonical codec;
+    /// callers may inspect the closed typed expression vocabulary but cannot
+    /// construct an unchecked projection.
     ///
     /// # Errors
     /// Returns a diagnostic if compilation retained more than one authored form.
-    pub fn authored_scalar_primal_projection(&self) -> Result<Option<&[u8]>, Diagnostic> {
+    pub fn authored_scalar_primal_projection(
+        &self,
+    ) -> Result<Option<&AuthoredFormulationProjection>, Diagnostic> {
         match self.authored_formulations.as_slice() {
             [] => Ok(None),
-            [form] => Ok(Some(form.projection.as_slice())),
+            [form] => Ok(Some(form.projection())),
             _ => Err(Diagnostic::error(
                 codes::LANGUAGE_TYPE_ERROR,
                 "common scalar resolve accepts exactly one authored primal Formulation",

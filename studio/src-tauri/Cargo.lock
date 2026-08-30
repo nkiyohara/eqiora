@@ -1251,6 +1251,7 @@ dependencies = [
  "base64 0.22.1",
  "eqiora-artifact",
  "eqiora-assembly",
+ "eqiora-compiler",
  "eqiora-core",
  "eqiora-distributed",
  "eqiora-execution",

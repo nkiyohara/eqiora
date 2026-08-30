@@ -107,16 +107,11 @@ impl CommonScalarPlan {
             let derived = lowered.compiled_form.as_ref().ok_or_else(|| {
                 invalid("authored scalar-primal Plan lost its effective derived Formulation")
             })?;
-            let replayed = crate::form_compiler::AcceptedAuthoredScalarPrimalForm::admit(
-                authored.bytes(),
+            crate::form_compiler::admit_authored_scalar_primal_form(
+                authored,
                 &self.admission.program,
                 derived,
             )?;
-            if &replayed != authored {
-                return Err(invalid(
-                    "authored scalar-primal Formulation changed during Plan replay",
-                ));
-            }
         }
         require_portable_realization(
             &self.portable,
@@ -128,7 +123,7 @@ impl CommonScalarPlan {
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
         formulation_selection: Option<FormulationSelectionMode>,
-        authored_formulation: Option<&[u8]>,
+        authored_formulation: Option<&AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
         let NativeMeshResources::Cartesian {
@@ -165,14 +160,13 @@ impl CommonScalarPlan {
             Some(selection) => {
                 match derive_candidate(&admission.program, lowered.domain_id().erase())? {
                     Some(derived) => {
-                        if let Some(bytes) = authored_formulation {
-                            accepted_authored_formulation = Some(
-                                crate::form_compiler::AcceptedAuthoredScalarPrimalForm::admit(
-                                    bytes,
-                                    &admission.program,
-                                    &derived,
-                                )?,
-                            );
+                        if let Some(projection) = authored_formulation {
+                            crate::form_compiler::admit_authored_scalar_primal_form(
+                                projection,
+                                &admission.program,
+                                &derived,
+                            )?;
+                            accepted_authored_formulation = Some(projection.clone());
                         }
                         let (kind, boundary_treatment, rule_ids) =
                             derived.formulation_description();
@@ -238,7 +232,7 @@ impl CommonScalarPlan {
         );
         if let Some(authored) = &accepted_authored_formulation {
             push_framed(&mut identity_bytes, authored.source_identity().as_bytes());
-            push_framed(&mut identity_bytes, authored.bytes());
+            push_framed(&mut identity_bytes, authored.canonical_bytes());
         }
         let identity = hex_bytes(&Sha256::digest(
             [
@@ -281,7 +275,7 @@ impl CommonScalarPlan {
     pub(crate) fn authored_formulation_bytes(&self) -> Option<&[u8]> {
         self.authored_formulation
             .as_ref()
-            .map(crate::form_compiler::AcceptedAuthoredScalarPrimalForm::bytes)
+            .map(AuthoredFormulationProjection::canonical_bytes)
     }
 
     /// Execute solely from retained Plan state and publish one complete Result.
