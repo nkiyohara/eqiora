@@ -38,6 +38,8 @@ use super::flat::{
 
 mod cartesian;
 mod external;
+mod model_lets;
+mod names;
 use super::parameters::{
     ConstantValue, ParameterLineage, ParameterResolver, ResolvedParameter, normalize_zero,
 };
@@ -55,6 +57,7 @@ use super::supports::{
     CompleteExteriorMembershipBudget, ResolvedBoundaryTarget, ResolvedSupportBindings,
     component_support_interface, resolve_instance_support_bindings,
 };
+use names::{boundary_family_display, display_child, internal_name};
 
 fn instance_binding_locations(file: &str, instance: &InstanceDecl) -> Vec<SourceLocation> {
     let mut ranges = instance
@@ -971,25 +974,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             }
             identities.entities.insert(name.to_owned(), identity);
         }
-        let mut compile_time_values = scope.symbolic_parameters();
-        super::parameters::resolve_model_lets(self.model.file, &model, &mut compile_time_values)
-            .map_err(|diagnostics| {
-                diagnostics
-                    .into_iter()
-                    .next()
-                    .unwrap_or_else(|| hierarchy_error("let alias resolution failed"))
-            })?;
-        for item in model.items() {
-            let Item::Let(declaration) = item else {
-                continue;
-            };
-            let value = compile_time_values
-                .remove(declaration.name())
-                .ok_or_else(|| hierarchy_error("resolved let alias is missing"))?;
-            scope
-                .insert_let(declaration.name().to_owned(), value)
-                .map_err(hierarchy_error)?;
-        }
+        self.allocate_model_lets(scope, &model)?;
         for item in model.items() {
             let Item::Domain(declaration) = item else {
                 continue;
@@ -2839,10 +2824,6 @@ fn compare_physical_connection_origins(
         })
 }
 
-fn internal_name(identity: FullElaborationIdentity) -> String {
-    format!("e{identity}")
-}
-
 fn child_instance_path(
     parent: &InstancePath,
     child: &str,
@@ -2856,22 +2837,6 @@ fn child_instance_path(
             .chain(core::iter::once(child)),
         limits,
     )
-}
-
-fn display_child(parent: &str, child: &str) -> String {
-    if parent.is_empty() {
-        child.to_owned()
-    } else {
-        format!("{parent}.{child}")
-    }
-}
-
-fn boundary_family_display(parent: &str, family: &str, axis: usize, side: BoundarySide) -> String {
-    let side = match side {
-        BoundarySide::Lower => "lower",
-        BoundarySide::Upper => "upper",
-    };
-    format!("{}[axis={axis},side={side}]", display_child(parent, family))
 }
 
 fn boundary_family_bindings(

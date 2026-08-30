@@ -1,5 +1,43 @@
 use super::*;
 
+pub(super) fn from_source(expression: &Expr) -> LoweringExpression {
+    let kind = match expression.kind() {
+        ExprKind::Number(value) => LoweringExpressionNode::Quantity(DynQuantity::new(
+            normalize_zero(*value),
+            DimExponents::DIMENSIONLESS,
+        )),
+        ExprKind::Path(path) => {
+            crate::math::constant(path).map_or(LoweringExpressionNode::Unsupported, |value| {
+                LoweringExpressionNode::Quantity(DynQuantity::new(
+                    value,
+                    DimExponents::DIMENSIONLESS,
+                ))
+            })
+        }
+        ExprKind::Name(name) => LoweringExpressionNode::Name(name.clone()),
+        ExprKind::Unary {
+            op: UnaryOp::Neg,
+            value,
+        } => return LoweringExpression::neg(from_source(value), expression.range()),
+        ExprKind::Binary { op, left, right } => LoweringExpressionNode::Binary {
+            operator: *op,
+            left: from_source(left),
+            right: from_source(right),
+        },
+        ExprKind::Call { callee, arguments } if !callee.is_qualified() && arguments.len() == 1 => {
+            LoweringExpressionNode::Call {
+                callee: callee.as_str().to_owned(),
+                argument: from_source(&arguments[0]),
+            }
+        }
+        _ => LoweringExpressionNode::Unsupported,
+    };
+    LoweringExpression {
+        node: Arc::new(kind),
+        range: expression.range(),
+    }
+}
+
 pub(super) struct LoweredRelation {
     pub(super) residuals: ExprDag,
     pub(super) dependencies: BTreeSet<RawId>,

@@ -17,13 +17,11 @@ use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 use super::flat::SourceLocation;
-use super::parameters::{
-    ConstantValue, ParameterLineage, ResolvedParameter, SymbolicParameterMap,
-    SymbolicParameterValue,
-};
+use super::parameters::ResolvedParameter;
 use super::supports::ResolvedBoundarySet;
 
 mod external;
+mod lets;
 
 #[derive(Debug, Clone)]
 pub(super) struct FlatSymbol {
@@ -300,58 +298,6 @@ impl Scope {
 
     pub(super) fn forwarded_boundary_set_resolution_bindings(&self) -> &[SourceLocation] {
         &self.forwarded_boundary_set_resolution_bindings
-    }
-
-    pub(super) fn insert_parameter(
-        &mut self,
-        name: String,
-        parameter: ResolvedParameter,
-    ) -> Option<ResolvedParameter> {
-        self.parameters.insert(name, parameter)
-    }
-
-    pub(super) fn parameter(&self, name: &str) -> Option<&ResolvedParameter> {
-        self.parameters.get(name)
-    }
-
-    pub(super) fn symbolic_parameters(&self) -> SymbolicParameterMap {
-        self.parameters
-            .iter()
-            .map(|(name, value)| {
-                (
-                    name.clone(),
-                    SymbolicParameterValue {
-                        value: Some(value.value.value),
-                        dimension: value.value.dimension,
-                        expression: Some(value.expression.clone()),
-                        lineage: Some(value.lineage.clone()),
-                    },
-                )
-            })
-            .collect()
-    }
-
-    pub(super) fn insert_let(
-        &mut self,
-        name: String,
-        value: SymbolicParameterValue,
-    ) -> Result<(), &'static str> {
-        let (Some(scalar), Some(expression)) = (value.value, value.expression) else {
-            return Err("model let alias did not resolve to a closed expression");
-        };
-        let resolved = ResolvedParameter {
-            value: ConstantValue {
-                value: scalar,
-                dimension: value.dimension,
-            },
-            expression,
-            lineage: ParameterLineage::Derived,
-        };
-        if self.parameters.insert(name, resolved).is_some() {
-            Err("model let alias collides with a compile-time value")
-        } else {
-            Ok(())
-        }
     }
 
     pub(super) fn resolve_port(&self, path: &NamePath) -> Option<&FlatSymbol> {

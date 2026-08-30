@@ -4,7 +4,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_lang::{
     BinaryOp, ComponentDecl, ComponentItem, ComponentParameterDecl, Expr, ExprKind, InstanceDecl,
-    Item, ModelDecl, TextRange, UnaryOp, VisibilitySyntax,
+    TextRange, UnaryOp, VisibilitySyntax,
 };
 
 use crate::diagnostics::{source_error, stable_sort};
@@ -13,6 +13,11 @@ use crate::identity::FullElaborationIdentity;
 use crate::lower::LoweringExpression;
 
 use super::hierarchy_error;
+
+mod expression_eval;
+mod model_lets;
+use expression_eval::{ExpressionContext, coerce_parameter, evaluate_parameter_expression};
+pub(super) use model_lets::resolve_model_lets;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct ConstantValue {
@@ -102,244 +107,6 @@ impl From<SymbolicParameterValue> for EvaluatedParameter {
             lineage: value.lineage,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum ExpressionContext {
-    Binding,
-    Default,
-    Let,
-}
-
-impl ExpressionContext {
-    fn qualified_name_message(self, path: &impl std::fmt::Display) -> String {
-        match self {
-            Self::Binding => format!(
-                "qualified name `{path}` is not allowed in a compile-time Parameter binding"
-            ),
-            Self::Default => {
-                format!("qualified name `{path}` is not allowed in a Parameter default")
-            }
-            Self::Let => format!("qualified name `{path}` is not allowed in a let alias"),
-        }
-    }
-
-    fn call_message(self, callee: &str) -> String {
-        match self {
-            Self::Binding => {
-                format!("operator `{callee}(...)` is not allowed in a compile-time binding")
-            }
-            Self::Default => {
-                format!("operator `{callee}(...)` is not allowed in a Parameter default")
-            }
-            Self::Let => format!("operator `{callee}(...)` is not allowed in a let alias"),
-        }
-    }
-
-    const fn unsupported_message(self) -> &'static str {
-        match self {
-            Self::Binding => "binding expression syntax is newer than this compiler",
-            Self::Default => "Parameter default syntax is newer than this compiler",
-            Self::Let => "let expression syntax is newer than this compiler",
-        }
-    }
-}
-
-pub(super) fn resolve_model_lets(
-    file: &str,
-    model: &ModelDecl,
-    values: &mut SymbolicParameterMap,
-) -> Result<(), Vec<Diagnostic>> {
-    let let_names = model
-        .items()
-        .iter()
-        .filter_map(|item| match item {
-            Item::Let(declaration) => Some(declaration.name()),
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
-    let mut diagnostics = Vec::new();
-    for item in model.items() {
-        let Item::Let(declaration) = item else {
-            continue;
-        };
-        let target = match lower_dimension(file, declaration.dimension()) {
-            Ok(target) => target,
-            Err(error) => {
-                diagnostics.push(error);
-                continue;
-            }
-        };
-        let evaluated = evaluate_parameter_expression(
-            file,
-            declaration.value(),
-            ExpressionContext::Let,
-            &mut |name, range| {
-                values.get(name).cloned().ok_or_else(|| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        range,
-                        if let_names.contains(name) {
-                            format!(
-                                "let alias `{name}` is not available here; aliases may refer only to earlier let declarations"
-                            )
-                        } else {
-                            format!("unknown Parameter or earlier let alias `{name}`")
-                        },
-                    )
-                })
-            },
-        );
-        match evaluated.and_then(|value| {
-            coerce_parameter_with_label(file, declaration.range(), value, target, "let alias")
-        }) {
-            Ok(mut value) => {
-                value.lineage = Some(ParameterLineage::Derived);
-                values.insert(declaration.name().to_owned(), value);
-            }
-            Err(error) => diagnostics.push(error),
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
-}
-
-fn evaluate_parameter_expression(
-    file: &str,
-    expression: &Expr,
-    context: ExpressionContext,
-    resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
-) -> Result<EvaluatedParameter, Diagnostic> {
-    let evaluated = match expression.kind() {
-        ExprKind::Number(value) => EvaluatedParameter {
-            value: Some(normalize_zero(*value)),
-            dimension: EvaluatedDimension::Known(DimExponents::DIMENSIONLESS),
-            bare_literal: true,
-            expression: Some(LoweringExpression::quantity(
-                DynQuantity::new(normalize_zero(*value), DimExponents::DIMENSIONLESS),
-                expression.range(),
-            )),
-            lineage: Some(ParameterLineage::Constant),
-        },
-        ExprKind::Name(name) => resolve(name, expression.range())?.into(),
-        ExprKind::Path(path) => match crate::math::constant(path) {
-            Some(value) => EvaluatedParameter {
-                value: Some(value),
-                dimension: EvaluatedDimension::Known(DimExponents::DIMENSIONLESS),
-                bare_literal: false,
-                expression: Some(LoweringExpression::quantity(
-                    DynQuantity::new(value, DimExponents::DIMENSIONLESS),
-                    expression.range(),
-                )),
-                lineage: Some(ParameterLineage::Constant),
-            },
-            None => {
-                return Err(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    path.range(),
-                    context.qualified_name_message(path),
-                ));
-            }
-        },
-        ExprKind::Call { callee, .. } => {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                expression.range(),
-                context.call_message(callee.as_str()),
-            ));
-        }
-        ExprKind::Unary {
-            op: UnaryOp::Neg,
-            value,
-        } => {
-            let operand = evaluate_parameter_expression(file, value, context, resolve)?;
-            let negated = operand
-                .value
-                .map(|value| finite_constant(file, expression.range(), -value))
-                .transpose()?;
-            EvaluatedParameter {
-                value: negated,
-                dimension: operand.dimension,
-                bare_literal: operand.bare_literal,
-                expression: operand
-                    .expression
-                    .map(|value| LoweringExpression::neg(value, expression.range())),
-                lineage: transform_lineage(operand.lineage),
-            }
-        }
-        ExprKind::Binary { op, left, right } => {
-            let left = evaluate_parameter_expression(file, left, context, resolve)?;
-            let right = evaluate_parameter_expression(file, right, context, resolve)?;
-            combine_parameters(file, expression.range(), *op, left, right)?
-        }
-        _ => {
-            return Err(source_error(
-                codes::LANGUAGE_LOWERING_ERROR,
-                file,
-                expression.range(),
-                context.unsupported_message(),
-            ));
-        }
-    };
-    Ok(evaluated)
-}
-
-fn coerce_parameter(
-    file: &str,
-    range: TextRange,
-    evaluated: EvaluatedParameter,
-    target: DimExponents,
-) -> Result<SymbolicParameterValue, Diagnostic> {
-    coerce_parameter_with_label(file, range, evaluated, target, "Parameter binding")
-}
-
-fn coerce_parameter_with_label(
-    file: &str,
-    range: TextRange,
-    evaluated: EvaluatedParameter,
-    target: DimExponents,
-    label: &str,
-) -> Result<SymbolicParameterValue, Diagnostic> {
-    let dimension = if evaluated.bare_literal {
-        EvaluatedDimension::Known(target)
-    } else {
-        evaluated.dimension
-    };
-    if let EvaluatedDimension::Known(dimension) = dimension
-        && dimension != target
-    {
-        return Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            range,
-            format!(
-                "{label} has dimension [{}], expected [{}]",
-                dimension, target,
-            ),
-        ));
-    }
-    let expression = evaluated.expression.map(|expression| {
-        if evaluated.bare_literal {
-            expression.with_quantity_dimension(target)
-        } else {
-            expression
-        }
-    });
-    // A deferred power dimension is an occurrence-time obligation. The
-    // declaration target constrains its symbolic interface here; the same
-    // evaluator reconstructs and proves it once all occurrence values exist.
-    Ok(SymbolicParameterValue {
-        value: evaluated.value,
-        dimension: target,
-        expression,
-        lineage: evaluated.lineage,
-    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

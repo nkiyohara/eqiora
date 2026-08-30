@@ -1,6 +1,9 @@
 //! Source-oriented syntax tree. Semantic types are assigned during lowering.
 
+mod compile_time;
 pub(crate) mod formulation;
+
+pub use compile_time::{LetDecl, ParameterDecl};
 
 use crate::ast_property::{
     ComponentPropertyDecl, PropertyBindingDecl, PropertyContractDecl, PropertyReleaseDecl,
@@ -1156,76 +1159,6 @@ impl FieldDecl {
     #[must_use]
     pub const fn initial(&self) -> Option<f64> {
         self.initial
-    }
-
-    /// Full declaration range.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
-/// Parameter source declaration.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ParameterDecl {
-    pub(crate) name: String,
-    pub(crate) dimension: Expr,
-    pub(crate) initial: f64,
-    pub(crate) range: TextRange,
-}
-
-impl ParameterDecl {
-    /// Source name.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Static SI dimension expression.
-    #[must_use]
-    pub const fn dimension(&self) -> &Expr {
-        &self.dimension
-    }
-
-    /// Value literal in coherent SI units.
-    #[must_use]
-    pub const fn initial(&self) -> f64 {
-        self.initial
-    }
-
-    /// Full declaration range.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
-/// Model-local typed compile-time expression alias.
-#[derive(Debug, Clone, PartialEq)]
-pub struct LetDecl {
-    pub(crate) name: String,
-    pub(crate) dimension: Expr,
-    pub(crate) value: Expr,
-    pub(crate) range: TextRange,
-}
-
-impl LetDecl {
-    /// Source name.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Declared static SI dimension.
-    #[must_use]
-    pub const fn dimension(&self) -> &Expr {
-        &self.dimension
-    }
-
-    /// Derived scalar expression.
-    #[must_use]
-    pub const fn value(&self) -> &Expr {
-        &self.value
     }
 
     /// Full declaration range.

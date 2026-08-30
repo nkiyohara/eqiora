@@ -7,6 +7,7 @@
 use core::fmt;
 use std::collections::BTreeMap;
 
+mod compile_time;
 mod domain;
 pub(crate) mod formulation;
 mod instance;
@@ -20,10 +21,10 @@ use eqiora_lang::{
     BoundarySideSyntax, CartesianCoordinateSyntax, ClockDecl, ComponentDecl, ComponentItem,
     ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
     ConnectionSyntax, ConnectorDecl, ConnectorSyntax, Document, DomainDecl, DomainSyntax, Expr,
-    ExprKind, FieldDecl, FieldSlotDecl, FrameSyntax, Item, LetDecl, ModelDecl, NamePath,
-    ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, RelationDecl, RelationFamilyDecl,
-    RepresentationDecl, RepresentationSyntax, SignalDirectionSyntax, SupportSlotDecl,
-    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    ExprKind, FieldDecl, FieldSlotDecl, FrameSyntax, Item, ModelDecl, NamePath, ParameterDecl,
+    PortDecl, PortSyntax, PureOperatorDecl, RelationDecl, RelationFamilyDecl, RepresentationDecl,
+    RepresentationSyntax, SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, TextRange,
+    UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use sha2::{Digest, Sha256};
 
@@ -32,6 +33,7 @@ use crate::connection_sets::{
 };
 use crate::identity::IdentityNamespace;
 use crate::pure_operator::compile_definition;
+use compile_time::{encode_let, encode_parameter};
 use domain::encode_domain;
 use instance::encode_instance;
 use visibility::encode_visibility;
@@ -676,9 +678,9 @@ fn encode_model_item(item: &Item, budget: &mut Budget) -> Result<Vec<u8>, Diagno
             encoder.u16(4)?;
             encode_parameter(&mut encoder, declaration, budget)?;
         }
-        Item::Let(declaration) => {
+        Item::Let(_) => {
             encoder.u16(MODEL_LET_ITEM_TAG)?;
-            encode_let(&mut encoder, declaration, budget)?;
+            encode_let(&mut encoder, item, budget)?;
         }
         Item::Port(declaration) => {
             encoder.u16(5)?;
@@ -879,36 +881,6 @@ fn encode_field(
         encoder.field(6, |encoder| encode_value_shape(encoder, shape))?;
     }
     Ok(())
-}
-
-fn encode_parameter(
-    encoder: &mut Encoder,
-    declaration: &ParameterDecl,
-    budget: &mut Budget,
-) -> Result<(), Diagnostic> {
-    encoder.field(1, |encoder| {
-        encode_name(encoder, declaration.name(), budget)
-    })?;
-    encoder.field(2, |encoder| {
-        encode_expression(encoder, declaration.dimension(), budget, 1)
-    })?;
-    encoder.field(3, |encoder| encoder.f64(declaration.initial()))
-}
-
-fn encode_let(
-    encoder: &mut Encoder,
-    declaration: &LetDecl,
-    budget: &mut Budget,
-) -> Result<(), Diagnostic> {
-    encoder.field(1, |encoder| {
-        encode_name(encoder, declaration.name(), budget)
-    })?;
-    encoder.field(2, |encoder| {
-        encode_expression(encoder, declaration.dimension(), budget, 1)
-    })?;
-    encoder.field(3, |encoder| {
-        encode_expression(encoder, declaration.value(), budget, 1)
-    })
 }
 
 fn encode_port(
@@ -1692,6 +1664,8 @@ mod tests {
 
     use super::*;
 
+    mod let_alias;
+
     fn document(source: &str) -> Document {
         parse("fixture.eqi", source).into_document().unwrap()
     }
@@ -2179,18 +2153,6 @@ model M {
         assert_ne!(identity(base), identity(changed_value));
         assert_ne!(identity(base), identity(changed_operator));
         assert_ne!(identity(base), identity(changed_activation));
-    }
-
-    #[test]
-    fn let_alias_source_structure_has_exact_identity() {
-        let base = "model m { parameter p: m = 2; let k: 1 / m = math.pi / p; }";
-        let reformatted = "model m {\n parameter p: m = 2;\n let k: 1/m = math.pi/p;\n}";
-        let renamed = "model m { parameter p: m = 2; let wave: 1 / m = math.pi / p; }";
-        let changed = "model m { parameter p: m = 2; let k: 1 / m = 2 / p; }";
-
-        assert_eq!(identity(base), identity(reformatted));
-        assert_ne!(identity(base), identity(renamed));
-        assert_ne!(identity(base), identity(changed));
     }
 
     #[test]
