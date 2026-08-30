@@ -76,11 +76,11 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     let model = model(&geometry);
     let linear =
         CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
-    let resolve_scalar = |spatial, solve| {
+    let resolve_scalar = |method, solve| {
         let resolved = resolve_common_plan(
             &model,
             resources(&geometry),
-            spatial,
+            method,
             CommonSolvePolicy::Linear(solve),
             None,
             None,
@@ -96,17 +96,53 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
             |_| panic!("scalar Model resolved as FSI"),
         )
     };
-    let q1 = resolve_scalar(CommonSpatialPolicy::Q1, linear);
-    let repeat = resolve_scalar(CommonSpatialPolicy::Q1, linear);
-    let tpfa = resolve_scalar(CommonSpatialPolicy::CellCenteredTpfa, linear);
+    let q1 = resolve_scalar(
+        CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
+        linear,
+    );
+    let repeat = resolve_scalar(
+        CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
+        linear,
+    );
+    let exact = resolve_scalar(
+        CommonMethodRequest::Exact {
+            spatial: CommonSpatialPolicy::Q1,
+            formulation: FormulationKind::PrimalGalerkin,
+        },
+        linear,
+    );
+    let tpfa = resolve_scalar(
+        CommonMethodRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa),
+        linear,
+    );
     let alternate_tolerance = resolve_scalar(
-        CommonSpatialPolicy::Q1,
+        CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
         CommonLinearRequest::new(1.0e-9, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap(),
     );
 
     assert_eq!(q1.identity(), repeat.identity());
     assert_ne!(q1.identity(), tpfa.identity());
     assert_ne!(q1.identity(), alternate_tolerance.identity());
+    assert_ne!(q1.identity(), exact.identity());
+    assert_eq!(q1.realization_digest(), exact.realization_digest());
+    let automatic_form = q1.formulation().unwrap();
+    let exact_form = exact.formulation().unwrap();
+    assert_eq!(automatic_form.effective(), FormulationKind::PrimalGalerkin);
+    assert_eq!(
+        automatic_form.requested(),
+        FormulationSelectionMode::Automatic
+    );
+    assert_eq!(exact_form.requested(), FormulationSelectionMode::Exact);
+    assert_eq!(
+        automatic_form.boundary_treatment(),
+        "complete-homogeneous-essential"
+    );
+    assert_eq!(automatic_form.rule_ids().len(), 4);
+    assert_eq!(
+        automatic_form.selection_reason_codes(),
+        ["eqiora.formulation.auto.primal-galerkin-for-q1/v1"]
+    );
+    assert!(tpfa.formulation().is_none());
     assert_eq!(q1.realization_digest(), repeat.realization_digest());
     assert_ne!(q1.realization_digest(), tpfa.realization_digest());
     assert_eq!(
@@ -125,6 +161,21 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
             &model,
             resources(&geometry),
             CommonSpatialPolicy::MiniP1,
+            CommonSolvePolicy::Linear(linear),
+            None,
+            None,
+            &ResolveOnlyBackend,
+        )
+        .is_err()
+    );
+    assert!(
+        resolve_common_plan(
+            &model,
+            resources(&geometry),
+            CommonMethodRequest::Exact {
+                spatial: CommonSpatialPolicy::Q1,
+                formulation: FormulationKind::MixedGalerkin,
+            },
             CommonSolvePolicy::Linear(linear),
             None,
             None,

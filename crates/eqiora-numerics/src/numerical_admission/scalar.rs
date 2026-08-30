@@ -1,4 +1,27 @@
 use super::*;
+use crate::form_compiler::derive_candidate;
+
+fn describe_primal(
+    kind: FormulationKind,
+    boundary_treatment: &'static str,
+    rule_ids: [&'static str; 4],
+    requested: FormulationSelectionMode,
+) -> CommonFormulationDescription {
+    CommonFormulationDescription {
+        requested,
+        kind,
+        boundary_treatment,
+        rule_ids: rule_ids.into(),
+        selection_reason_codes: Box::new([match requested {
+            FormulationSelectionMode::Automatic => {
+                "eqiora.formulation.auto.primal-galerkin-for-q1/v1"
+            }
+            FormulationSelectionMode::Exact => {
+                "eqiora.formulation.exact.primal-galerkin-admitted/v1"
+            }
+        }]),
+    }
+}
 
 pub(super) fn resolve_common_scalar_portable(
     admission: &NativeNumericalAdmission,
@@ -85,6 +108,7 @@ impl CommonScalarPlan {
     pub(super) fn from_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
+        formulation_selection: Option<FormulationSelectionMode>,
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
         let NativeMeshResources::Cartesian {
@@ -115,6 +139,29 @@ impl CommonScalarPlan {
                 "common scalar Plan admitted non-scalar mathematics",
             ));
         };
+        let formulation = match formulation_selection {
+            None => None,
+            Some(selection) => {
+                match derive_candidate(&admission.program, lowered.domain_id().erase())? {
+                    Some(derived) => {
+                        let (kind, boundary_treatment, rule_ids) =
+                            derived.formulation_description();
+                        Some(describe_primal(
+                            kind,
+                            boundary_treatment,
+                            rule_ids,
+                            selection,
+                        ))
+                    }
+                    None if selection == FormulationSelectionMode::Automatic => None,
+                    None => {
+                        return Err(invalid(
+                            "exact scalar Q1 primal Formulation requires the admitted complete homogeneous-essential boundary class",
+                        ));
+                    }
+                }
+            }
+        };
         let portable = resolve_common_scalar_portable(&admission, lowered, mesh, cells)?;
         let realization_digest = hex_bytes(&portable.digest()?);
         let field = lowered.field_id();
@@ -139,6 +186,13 @@ impl CommonScalarPlan {
         ] {
             push_framed(&mut identity_bytes, value.as_bytes());
         }
+        push_framed(
+            &mut identity_bytes,
+            formulation
+                .as_ref()
+                .map(|description| description.requested().identity())
+                .unwrap_or(b"no-proof-carrying-formulation"),
+        );
         let identity = hex_bytes(&Sha256::digest(
             [
                 b"eqiora.common-scalar-plan/v1\0".as_slice(),
@@ -149,6 +203,7 @@ impl CommonScalarPlan {
         Ok(Self {
             admission,
             portable,
+            formulation,
             identity,
             model_id: model_reference.model().ulid().to_string(),
             model_revision: model_reference.semantic_revision().get(),
@@ -167,6 +222,12 @@ impl CommonScalarPlan {
     pub(crate) fn run(&self) -> Result<ResolvedScalarEllipticCartesianSolution, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.execute_scalar(&REFERENCE_LINEAR_SOLVER)
+    }
+
+    /// Effective primal Galerkin Formulation for Q1, when one is admitted.
+    #[must_use]
+    pub fn formulation(&self) -> Option<CommonFormulationDescription> {
+        self.formulation.clone()
     }
 
     /// Execute solely from retained Plan state and publish one complete Result.

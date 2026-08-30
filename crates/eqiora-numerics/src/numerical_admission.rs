@@ -468,9 +468,10 @@ impl ResolvedCommonPlan {
     #[must_use]
     pub fn formulation(&self) -> Option<CommonFormulationDescription> {
         match self {
+            Self::Scalar(plan) => plan.formulation(),
             Self::SteadyStokes(plan) => Some(plan.formulation()),
             Self::TransientFlow(plan) => Some(plan.formulation()),
-            Self::Ode(_) | Self::Scalar(_) | Self::Elasticity(_) | Self::Fsi(_) => None,
+            Self::Ode(_) | Self::Elasticity(_) | Self::Fsi(_) => None,
         }
     }
 
@@ -739,6 +740,7 @@ pub struct CommonFsiRunRequest {
 pub struct CommonScalarPlan {
     admission: NativeNumericalAdmission,
     portable: PortableRealizationGraph,
+    formulation: Option<CommonFormulationDescription>,
     identity: String,
     model_id: String,
     model_revision: u64,

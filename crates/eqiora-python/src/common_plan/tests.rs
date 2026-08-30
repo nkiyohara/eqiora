@@ -449,6 +449,10 @@ mesh = package.meshing.generate(source, plan=mesh_plan)
 linear = package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=10000)
 q1 = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 q1_repeat = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
+q1_exact = package.resolve(
+    model, mesh=mesh, spatial=package.fem.Q1(),
+    formulation=package.formulation.PrimalGalerkin, solve=linear,
+)
 tpfa = package.resolve(model, mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=linear)
 variable_q1 = package.resolve(variable_model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 variable_tpfa = package.resolve(variable_model, mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=linear)
@@ -504,7 +508,47 @@ assert q1.capability.coefficient_sampling == "quadrature-point"
 assert q1.capability.face_coefficient_policy == "not-applicable"
 assert tpfa.capability.coefficient_sampling == "facet-centroid"
 assert tpfa.capability.face_coefficient_policy == "direct-centroid-evaluation"
-assert q1.formulation is None
+assert isinstance(q1.formulation, package.FormulationView)
+assert q1.formulation.requested is package.FormulationSelectionMode.Automatic
+assert q1.formulation.effective is package.formulation.PrimalGalerkin
+assert q1.formulation.boundary_treatment == "complete-homogeneous-essential"
+assert q1.formulation.rule_ids == [
+    "fem.derive.v1.test-pairing",
+    "fem.derive.v1.divergence-by-parts",
+    "fem.derive.v1.boundary-discharge.essential-homogeneous",
+    "fem.derive.v1.source-pairing",
+]
+assert q1.formulation.selection_reason_codes == [
+    "eqiora.formulation.auto.primal-galerkin-for-q1/v1",
+]
+assert q1_exact.formulation.requested is package.FormulationSelectionMode.Exact
+assert q1_exact.formulation.effective is q1.formulation.effective
+assert q1_exact.identity != q1.identity
+assert q1_exact.realization_digest == q1.realization_digest
+assert tpfa.formulation is None
+assert variable_q1.formulation is None
+for label, wrong_spatial, wrong_formulation in (
+    ("Q1 mixed", package.fem.Q1(), package.formulation.MixedGalerkin),
+    ("TPFA primal", package.fvm.CellCenteredTpfa(), package.formulation.PrimalGalerkin),
+):
+    try:
+        package.resolve(
+            model, mesh=mesh, spatial=wrong_spatial,
+            formulation=wrong_formulation, solve=linear,
+        )
+    except package.ValidationError:
+        pass
+    else:
+        raise AssertionError(f"incompatible scalar Formulation must reject: {label}")
+try:
+    package.resolve(
+        variable_model, mesh=mesh, spatial=package.fem.Q1(),
+        formulation=package.formulation.PrimalGalerkin, solve=linear,
+    )
+except package.ValidationError:
+    pass
+else:
+    raise AssertionError("exact primal Formulation must reject an unproved natural boundary")
 assert not hasattr(q1.capability, "scaling")
 assert q1.requested_solve is linear
 assert q1.solve.algorithm == "conjugate-gradient"

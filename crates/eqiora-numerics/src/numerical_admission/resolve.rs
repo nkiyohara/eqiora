@@ -20,7 +20,6 @@ pub fn resolve_common_plan(
     let (spatial, formulation) = method.into().split();
     match recognized.capability {
         NativeCapability::ScalarElliptic => {
-            reject_unsupported_formulation_request(formulation, "scalar-elliptic")?;
             let CommonSolvePolicy::Linear(solve) = solve else {
                 return Err(invalid(
                     "scalar-elliptic mathematics requires Linear solve policy",
@@ -37,9 +36,21 @@ pub fn resolve_common_plan(
                 ));
             }
             let spatial = resolve_scalar(spatial)?;
+            let formulation_selection = match spatial {
+                NativeSpatialPolicy::ScalarQ1 => Some(resolve_formulation_request(
+                    formulation,
+                    FormulationKind::PrimalGalerkin,
+                    "scalar-elliptic Q1",
+                )?),
+                NativeSpatialPolicy::ScalarTpfa => {
+                    reject_unsupported_formulation_request(formulation, "scalar-elliptic TPFA")?;
+                    None
+                }
+                _ => unreachable!("scalar resolution returns only scalar policies"),
+            };
             let linear = resolve_reference_spd(solve)?;
             let admission = recognized.complete(spatial, linear, None, None)?;
-            CommonScalarPlan::from_admission(model, admission)
+            CommonScalarPlan::from_admission(model, admission, formulation_selection)
                 .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
         }
         NativeCapability::IsotropicElasticity => {

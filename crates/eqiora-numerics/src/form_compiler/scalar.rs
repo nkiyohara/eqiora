@@ -19,7 +19,7 @@ use crate::affine_fem::physical_gradient;
 use crate::canonical::{boundary_parent, continuum_fields_on, lowering_error, relations_on};
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::vocabulary::{
-    BoundarySource, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
+    BoundarySource, FormulationKind, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
 };
 #[cfg(test)]
 use crate::form_compiler::{
@@ -87,6 +87,19 @@ impl DerivedScalarGalerkinForm {
     #[cfg(test)]
     pub(super) const fn correspondence(&self) -> &PrimalGalerkinCorrespondence {
         &self.certificate
+    }
+
+    pub(crate) fn formulation_description(
+        &self,
+    ) -> (FormulationKind, &'static str, [&'static str; 4]) {
+        (
+            self.certificate.formulation.kind,
+            self.certificate.formulation.boundary_treatment.id(),
+            self.certificate
+                .formulation
+                .rules
+                .map(crate::form_compiler::vocabulary::FormulationRule::id),
+        )
     }
 
     pub(crate) fn admit_quadrature(
@@ -360,12 +373,15 @@ fn cartesian_q1_dimension(program: &KernelProgram, domain: RawId) -> Option<usiz
     let Some(KernelNode::Domain(definition)) = program.node(domain) else {
         return None;
     };
-    if !matches!(definition.kind(), DomainKind::CartesianBox { .. }) {
-        return None;
+    if matches!(definition.kind(), DomainKind::GeometryRegion { .. }) {
+        return Some(2);
     }
-    let bounds = program.resolved_cartesian_bounds(definition.id()).ok()?;
-    let dimensions = bounds.len();
-    (1..=3).contains(&dimensions).then_some(dimensions)
+    if matches!(definition.kind(), DomainKind::CartesianBox { .. }) {
+        let bounds = program.resolved_cartesian_bounds(definition.id()).ok()?;
+        let dimensions = bounds.len();
+        return (1..=3).contains(&dimensions).then_some(dimensions);
+    }
+    None
 }
 
 fn boundary_inventory(
@@ -375,16 +391,35 @@ fn boundary_inventory(
     dimension: usize,
 ) -> Result<Option<Vec<BoundaryRole>>, Diagnostic> {
     let mut by_side = BTreeMap::new();
+    let geometry_backed = matches!(
+        program.node(parent),
+        Some(KernelNode::Domain(domain))
+            if matches!(domain.kind(), DomainKind::GeometryRegion { .. })
+    );
+    let mut geometry_side = 0_usize;
     for node in program.nodes() {
         let KernelNode::Domain(domain) = node else {
-            continue;
-        };
-        let DomainKind::CartesianBoundary { axis, side } = domain.kind() else {
             continue;
         };
         if boundary_parent(program, domain.id().erase()) != Some(parent) {
             continue;
         }
+        let (axis, side) = match domain.kind() {
+            DomainKind::CartesianBoundary { axis, side } => (*axis, *side),
+            DomainKind::GeometryBoundary { .. } if geometry_backed => {
+                let side = (
+                    geometry_side / 2,
+                    if geometry_side.is_multiple_of(2) {
+                        BoundarySide::Lower
+                    } else {
+                        BoundarySide::Upper
+                    },
+                );
+                geometry_side += 1;
+                side
+            }
+            _ => continue,
+        };
         let relations = relations_on(program, domain.id().erase());
         if relations.len() != 1 {
             return Err(role_error(
@@ -404,11 +439,11 @@ fn boundary_inventory(
         let role = BoundaryRole {
             domain: domain.id().erase(),
             relation,
-            axis: *axis,
-            side: *side,
+            axis,
+            side,
             trace_node: nodes.trace,
         };
-        if by_side.insert((*axis, *side), role).is_some() {
+        if by_side.insert((axis, side), role).is_some() {
             return Err(role_error(
                 domain.id().erase(),
                 "compiled Q1 boundary side is ambiguous",
