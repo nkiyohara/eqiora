@@ -5,7 +5,7 @@ Authority: ``bindings/python/python/eqiora/lang/__init__.py``.
 
 from collections.abc import Mapping
 from os import PathLike
-from typing import final
+from typing import Final, final
 
 @final
 class SourceError(ValueError):
@@ -196,6 +196,14 @@ class _Units:
 #: Authority: ``bindings/python/python/eqiora/lang/units.py``.
 units: _Units
 
+class _Math:
+    pi: Final[Expression]
+
+#: Exact language constants used by Source expressions.
+#:
+#: Authority: ``bindings/python/python/eqiora/lang/__init__.py::math``.
+math: _Math
+
 #: The current ambient-dimension-sized continuum vector shape.
 #:
 #: Authority: ``bindings/python/python/eqiora/lang/__init__.py::spatial_vector``.
@@ -309,6 +317,7 @@ __all__ = [
     "grad",
     "integrate",
     "isotropic_lift",
+    "math",
     "normal",
     "sin",
     "spatial_vector",

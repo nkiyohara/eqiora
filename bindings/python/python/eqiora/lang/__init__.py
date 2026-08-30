@@ -7,7 +7,7 @@ lowerer, and compiler remain the sole authority for mathematical meaning.
 from __future__ import annotations
 
 from collections.abc import Mapping
-import math
+import math as _stdlib_math
 import os
 from pathlib import Path
 import re
@@ -204,6 +204,14 @@ class Expression:
         )
 
 
+class _Math:
+    __slots__ = ()
+    pi: Final = Expression(_CREATE, "math.pi", None, 1, 1, 100)
+
+
+math: Final = _Math()
+
+
 class _Parameter(Expression):
     __slots__ = ("_component", "_name")
 
@@ -287,7 +295,7 @@ class Support:
 def _number(value: object) -> str:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError("numeric literals must be finite int or float values, not bool")
-    if isinstance(value, float) and not math.isfinite(value):
+    if isinstance(value, float) and not _stdlib_math.isfinite(value):
         raise SourceError("numeric literals must be finite")
     if isinstance(value, int) and value.bit_length() > 1_024:
         raise SourceError("integer literal exceeds the 1024-bit authoring limit")
@@ -1183,6 +1191,7 @@ __all__ = [
     "grad",
     "integrate",
     "isotropic_lift",
+    "math",
     "normal",
     "sin",
     "spatial_vector",

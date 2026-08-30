@@ -40,10 +40,16 @@ source = q.Source()
 component = source.component("Diffusion", public=True)
 body = component.volume("body", dimensions=2, public=True)
 value = component.field("value", on=body, unit=u.m)
-component.relation("balance", on=body, residual=q.div(q.grad(value)))
+length = component.parameter("length", unit=u.m)
+wave_number = q.math.pi / length
+component.relation(
+    "balance",
+    on=body,
+    residual=q.div(q.grad(value)) + wave_number**2 * value,
+)
 
 text = source.to_eqi()
-model = eqiora.compile(source=source, geometry=geometry, parameters={})
+model = eqiora.compile(source=source, geometry=geometry, parameters={"length": 1.0})
 ```
 
 The Source draft owns exact supports and expressions, rejects foreign handles
@@ -58,6 +64,10 @@ lowerer, Geometry/support binder, and compiler used by a file path. Consequently
 direct and emitted-file compilation with identical bindings have the same Model
 meaning and identity, while comments affect source presentation but not semantic
 identity. Compiler failures retain the existing structured diagnostics.
+`q.math.pi` is one immutable, ownerless Source expression that emits exactly
+`math.pi`; composing it with a Source-owned expression adopts that Source's
+existing ownership. It is not a Python float, and the native compiler remains
+the authority for its exact value and dimension.
 
 The same Source owner can emit the bounded scalar property declarations used by
 an exact Model Package:
