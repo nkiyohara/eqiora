@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 160 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 608 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 160 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 609 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 190 literal public spellings, 160 canonical grouped declarations, 805 visible method signatures (608 non-dunder and 197 dunder), and 73 visible class assignments.
+Inventory: 18 modules, 190 literal public spellings, 160 canonical grouped declarations, 806 visible method signatures (609 non-dunder and 197 dunder), and 74 visible class assignments.
 
 Regenerate with:
 
@@ -631,6 +631,8 @@ class FormulationView:
     def rule_ids(self) -> list[str]: ...
     @property
     def selection_reason_codes(self) -> list[str]: ...
+    @property
+    def requested_source_identity(self) -> str | None: ...
     def __repr__(self) -> str: ...
 ```
 
@@ -665,6 +667,7 @@ Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulat
 class FormulationSelectionMode:
     Automatic: ClassVar[FormulationSelectionMode]
     Exact: ClassVar[FormulationSelectionMode]
+    Authored: ClassVar[FormulationSelectionMode]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```
