@@ -3,7 +3,7 @@
 Keep this file a short routing map for recurring facts that code cannot reveal.
 
 - [AI-authored platform strategy](docs/development/ai-authored-platform-strategy.md) — optimization boundaries, including pre-1.0 API convergence.
-- [Evidence-development freeze](rfcs/0088-freeze-evidence-development.md) — preserve existing evidence; develop product behavior with focused tests.
+- [Claim-local evidence](rfcs/0089-resume-claim-local-evidence-development.md) — independently derive evidence at the narrowest durable claim boundary.
 - [High-risk and parallel development](docs/development/vertical-slice-development.md) — read only for high-risk capability work or explicitly requested parallel writes.
 - [Local verification](docs/development/local-verification.md) — focused checks and gate tiers.
 
@@ -46,9 +46,9 @@ Use the smallest conventional local tool and existing seam. Add a public abstrac
 current invariant with real consumers. If a ceiling blocks work, simplify or split it; add no bypass.
 
 Pre-1.0 APIs and schemas optimize for one coherent final surface, not backward compatibility.
-Migrate repository consumers atomically while preserving frozen evidence; delete displaced schemas,
-aliases, overloads, shims, decoders, and parallel paths. Immutable releases remain historical
-records; only explicit stable or external interoperability promises retain compatibility.
+Migrate repository consumers and evidence atomically; delete displaced schemas, aliases, overloads,
+shims, decoders, and parallel paths. Immutable releases remain historical records; only explicit
+stable or external interoperability promises retain compatibility.
 
 Parallelize only when requested or when independent work can shorten the critical path.
 Read-heavy exploration is the safest use. Parallel writes need disjoint paths and separate
@@ -59,21 +59,20 @@ nearest code and instructions, and fetch additional context only when the task n
 
 ## Claims and evidence
 
-Evidence development is stopped. Existing cases and oracles remain executable, read-only
-verification inputs; run them, but do not add, extend, tune, regenerate, replace, or migrate
-evidence, expected values, tolerances, falsifiers, exact inventories, evidence schemas, or evidence
-infrastructure. A mismatch is a product, build-reproducibility, or claim-scope problem, never a
-reason to change the evidence. Ordinary focused product and compatibility tests remain allowed.
-Evidence development may resume only under a future explicit owner instruction that unfreezes a
-named evidence scope.
+Evidence development is active. Add or change registered evidence only for a durable claim that
+focused product tests cannot adequately cover. Derive expected values, tolerances, and falsifiers
+independently of implementation output. Bind the smallest semantic projection that can falsify the
+claim; do not pin unrelated whole files, package roots, generated trees, or broad inventories.
+Exact bytes are appropriate only when byte identity is the claim. A mismatch is investigated,
+never copied into an expectation to make a run pass.
 
 When a change adds, removes, narrows, or extends an executable or user-visible capability,
 update [the capability matrix](docs/capability-matrix.md) in the same pull request. The case
 manifests under `verify/` remain authoritative; the matrix is their index.
 
 - Assess contract, execution, verification, and maturity independently.
-- Mark verification present only when unchanged pre-freeze evidence already proves the exact claim.
-- Leave new capability verification absent unless unchanged pre-freeze evidence supports it.
+- Mark verification present only after reproducible, independently derived evidence proves the
+  exact claim.
 - State the narrowest honest boundary and important non-claims.
 - A pure refactor needs no status change, but check that the matrix remains truthful.
 - Use `cargo run -p eqiora-verify -- index`; maintain no second evidence registry.
