@@ -20,10 +20,10 @@ use eqiora_lang::{
     BoundarySideSyntax, CartesianCoordinateSyntax, ClockDecl, ComponentDecl, ComponentItem,
     ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
     ConnectionSyntax, ConnectorDecl, ConnectorSyntax, Document, DomainDecl, DomainSyntax, Expr,
-    ExprKind, FieldDecl, FieldSlotDecl, FrameSyntax, Item, ModelDecl, NamePath, ParameterDecl,
-    PortDecl, PortSyntax, PureOperatorDecl, RelationDecl, RelationFamilyDecl, RepresentationDecl,
-    RepresentationSyntax, SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, TextRange,
-    UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    ExprKind, FieldDecl, FieldSlotDecl, FormulationDecl, FormulationSyntax, FrameSyntax, Item,
+    ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, RelationDecl,
+    RelationFamilyDecl, RepresentationDecl, RepresentationSyntax, SignalDirectionSyntax,
+    SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use sha2::{Digest, Sha256};
 
@@ -37,6 +37,7 @@ use instance::encode_instance;
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
+const FORMULATION_MAGIC: &[u8; 8] = b"EQIORAFM";
 const CANONICAL_VERSION: u16 = 1;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
@@ -108,6 +109,55 @@ impl Default for LocalSourceIdentityLimits {
 /// Domain-separated SHA-256 identity of one typed local source unit.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalSourceIdentity([u8; 32]);
+
+/// Domain-separated identity of the authored Formulation source attached to
+/// one Component definition.
+///
+/// This identity is intentionally separate from [`LocalSourceIdentity`],
+/// which seeds Model entity allocation. Changing only a Formulation must not
+/// renumber or otherwise change any Model-owned entity.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AuthoredFormSourceIdentity([u8; 32]);
+
+impl AuthoredFormSourceIdentity {
+    /// Compute the bounded canonical identity for one Component's forms.
+    pub fn from_component(component: &ComponentDecl) -> Result<Self, Diagnostic> {
+        let limits = LocalSourceIdentityLimits::default();
+        let mut budget = Budget::new(limits);
+        budget.account_members(component.formulations().len(), "Formulation")?;
+        let formulations =
+            encode_sorted_records(component.formulations(), &mut budget, encode_formulation)?;
+        let mut encoder = Encoder::new(limits.max_canonical_bytes);
+        encoder.raw(FORMULATION_MAGIC)?;
+        encoder.u16(CANONICAL_VERSION)?;
+        encoder.field(1, |encoder| {
+            encode_name(encoder, component.name(), &mut budget)
+        })?;
+        encoder.field(2, |encoder| encoder.records(&formulations))?;
+        Ok(Self(Sha256::digest(encoder.finish()?).into()))
+    }
+
+    /// Exact SHA-256 bytes.
+    #[must_use]
+    pub const fn digest(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl fmt::Debug for AuthoredFormSourceIdentity {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "AuthoredFormSourceIdentity({self})")
+    }
+}
+
+impl fmt::Display for AuthoredFormSourceIdentity {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for byte in self.0 {
+            write!(formatter, "{byte:02x}")?;
+        }
+        Ok(())
+    }
+}
 
 impl LocalSourceIdentity {
     /// Compute an identity with the default bounded resource policy.
@@ -401,6 +451,32 @@ fn encode_component(
             encode_sorted_records(&property_syntax, budget, encode_component_property)?;
         encoder.field(4, |encoder| encoder.records(&properties))?;
     }
+    encoder.finish()
+}
+
+fn encode_formulation(
+    declaration: &FormulationDecl,
+    budget: &mut Budget,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
+    let kind = match declaration.kind() {
+        FormulationSyntax::Primal => 1,
+        _ => {
+            return Err(source_identity_error(
+                "Formulation syntax is newer than source identity v1",
+            ));
+        }
+    };
+    encoder.field(1, |encoder| encoder.u16(kind))?;
+    encoder.field(2, |encoder| {
+        encode_name(encoder, declaration.relation(), budget)
+    })?;
+    encoder.field(3, |encoder| {
+        encode_expression(encoder, declaration.left(), budget, 1)
+    })?;
+    encoder.field(4, |encoder| {
+        encode_expression(encoder, declaration.right(), budget, 1)
+    })?;
     encoder.finish()
 }
 
@@ -1677,6 +1753,26 @@ mod tests {
 
     fn identity(source: &str) -> LocalSourceIdentity {
         LocalSourceIdentity::from_document(&document(source)).unwrap()
+    }
+
+    #[test]
+    fn authored_form_identity_is_separate_from_model_allocation_identity() {
+        let without = "component D { relation balance continuous { 1 = 0; } }";
+        let first = "component D { relation balance continuous { 1 = 0; } form primal for balance { integrate(region, dot(grad(test(u)), grad(u))) = integrate(region, test(u) * f); } }";
+        let changed = "component D { relation balance continuous { 1 = 0; } form primal for balance { integrate(region, dot(grad(test(u)), k * grad(u))) = integrate(region, test(u) * f); } }";
+
+        assert_eq!(identity(without), identity(first));
+        assert_eq!(identity(first), identity(changed));
+        assert_eq!(identity(first), identity(&format(&document(first))));
+        let form_identity = |source| {
+            AuthoredFormSourceIdentity::from_component(&document(source).components()[0]).unwrap()
+        };
+        assert_ne!(form_identity(without), form_identity(first));
+        assert_ne!(form_identity(first), form_identity(changed));
+        assert_eq!(
+            form_identity(first),
+            form_identity(&format(&document(first)))
+        );
     }
 
     #[test]

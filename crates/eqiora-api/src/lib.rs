@@ -48,7 +48,7 @@ use eqiora_artifact::{
     AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactReference, ModelDecoderLimits,
     ModelTransactionEnvelope, ReplayableCanonicalModelArtifact,
 };
-use eqiora_compiler::{CompiledModel, ModelSymbols};
+use eqiora_compiler::{AuthoredScalarPrimalForm, CompiledModel, ModelSymbols};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_geometry::CanonicalGeometryV1;
@@ -65,6 +65,7 @@ pub struct ModelDocument {
     aliases: BTreeMap<String, RawId>,
     store: InMemoryGraphStore,
     geometry_authority: Vec<CanonicalGeometryV1>,
+    authored_formulations: Vec<AuthoredScalarPrimalForm>,
 }
 
 impl PartialEq for ModelDocument {
@@ -112,6 +113,7 @@ impl ModelDocument {
 
     pub(crate) fn accept_compiled(compiled: CompiledModel) -> Result<Self, Vec<Diagnostic>> {
         let aliases = aliases(compiled.symbols());
+        let authored_formulations = compiled.authored_formulations().to_vec();
         let model = compiled.model();
 
         // Every source/UI/language client crosses the same bounded,
@@ -123,7 +125,9 @@ impl ModelDocument {
         let mut store = InMemoryGraphStore::new();
         store.commit(transaction)?;
         let program = KernelProgram::from_snapshot(&store.snapshot(), model)?;
-        Self::from_store(store, program, aliases)
+        let mut document = Self::from_store(store, program, aliases)?;
+        document.authored_formulations = authored_formulations;
+        Ok(document)
     }
 
     /// Replay one self-contained artifact through the single current Model
@@ -151,6 +155,7 @@ impl ModelDocument {
             aliases: BTreeMap::new(),
             store,
             geometry_authority: Vec::new(),
+            authored_formulations: Vec::new(),
         })
     }
 
@@ -173,7 +178,17 @@ impl ModelDocument {
             aliases,
             store,
             geometry_authority: Vec::new(),
+            authored_formulations: Vec::new(),
         })
+    }
+
+    /// Typed authored mathematics available only after fresh source compilation.
+    ///
+    /// Canonical Model artifacts deliberately exclude this compiler sidecar;
+    /// replay therefore returns an empty slice instead of fabricating a form.
+    #[must_use]
+    pub fn authored_formulations(&self) -> &[AuthoredScalarPrimalForm] {
+        &self.authored_formulations
     }
 
     /// Validated immutable execution input.

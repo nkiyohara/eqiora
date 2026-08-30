@@ -213,6 +213,35 @@ class _Parameter(Expression):
         object.__setattr__(self, "_name", name)
 
 
+class _Field(Expression):
+    __slots__ = ("_component", "_name")
+
+    def __init__(self, owner: object, component: object, name: str) -> None:
+        super().__init__(_CREATE, name, owner, 1, 1, 100)
+        object.__setattr__(self, "_component", component)
+        object.__setattr__(self, "_name", name)
+
+
+class _Relation:
+    __slots__ = ("_component", "_name", "_owner")
+
+    def __init__(
+        self,
+        token: object = _MISSING,
+        owner: object = _MISSING,
+        component: object = _MISSING,
+        name: str = "",
+    ) -> None:
+        if token is not _CREATE:
+            raise TypeError("relations are created by Component.relation()")
+        object.__setattr__(self, "_owner", owner)
+        object.__setattr__(self, "_component", component)
+        object.__setattr__(self, "_name", name)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("Relation handles are immutable")
+
+
 class _PropertyRequirement(Expression):
     __slots__ = ("_component", "_contract", "_name")
 
@@ -332,8 +361,48 @@ def grad(value: object) -> Expression:
     return _unary("grad", value)
 
 
+def test(field: object) -> Expression:
+    if not isinstance(field, _Field):
+        raise SourceError("test() requires a Field from this Source")
+    return _unary("test", field)
+
+
+def dot(left: object, right: object) -> Expression:
+    left_expression = _expression(left)
+    right_expression = _expression(right)
+    owner = _owner(left_expression, right_expression)
+    return Expression(
+        _CREATE,
+        f"dot({left_expression._text}, {right_expression._text})",
+        owner,
+        max(left_expression._depth, right_expression._depth) + 1,
+        left_expression._nodes + right_expression._nodes + 1,
+        100,
+    )
+
+
+def integrate(domain: Support, integrand: object) -> Expression:
+    if not isinstance(domain, Support) or domain._kind != "volume":
+        raise SourceError("integrate() requires a volume Support")
+    expression = _expression(integrand)
+    if expression._owner is not None and expression._owner is not domain._owner:
+        raise SourceError("integrand and Support must belong to the same Source")
+    return Expression(
+        _CREATE,
+        f"integrate({domain._name}, {expression._text})",
+        domain._owner,
+        expression._depth + 1,
+        expression._nodes + 1,
+        100,
+    )
+
+
 def div(value: object) -> Expression:
     return _unary("div", value)
+
+
+def sin(value: object) -> Expression:
+    return _unary("sin", value)
 
 
 def trace(value: object) -> Expression:
@@ -415,6 +484,7 @@ class Component:
         "_declaration_count",
         "_doc",
         "_fields",
+        "_formulations",
         "_instances",
         "_name",
         "_names",
@@ -455,6 +525,9 @@ class Component:
             ]
         ] = []
         self._relations: list[tuple[str, Support, Expression, tuple[str, ...]]] = []
+        self._formulations: list[
+            tuple[_Relation, Expression, Expression, tuple[str, ...]]
+        ] = []
         self._instances: list[
             tuple[
                 str,
@@ -595,7 +668,7 @@ class Component:
         if initial is not None:
             _number(initial)
         admitted = self._add_name(name)
-        expression = Expression(_CREATE, admitted, self._owner, 1, 1, 100)
+        expression = _Field(self._owner, self._component_token, admitted)
         self._fields.append((expression, on, unit, shape, initial, _doc(doc)))
         return expression
 
@@ -606,7 +679,7 @@ class Component:
         on: Support,
         residual: Expression | int | float,
         doc: str | None = None,
-    ) -> None:
+    ) -> _Relation:
         on = self._support(on)
         expression = _expression(residual)
         if expression._owner is None:
@@ -629,6 +702,48 @@ class Component:
                 f"Component relation expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
             )
         self._relations.append((admitted, on, expression, _doc(doc)))
+        return _Relation(_CREATE, self._owner, self._component_token, admitted)
+
+    def primal_form(
+        self,
+        relation: _Relation,
+        *,
+        left: Expression,
+        right: Expression,
+        doc: str | None = None,
+    ) -> None:
+        """Attach one natural scalar-primal equality to a Relation."""
+
+        self._source._ensure_open()
+        if (
+            not isinstance(relation, _Relation)
+            or relation._component is not self._component_token
+        ):
+            raise SourceError("form relation must belong to this Component")
+        left_expression = _expression(left)
+        right_expression = _expression(right)
+        for expression in (left_expression, right_expression):
+            if expression._owner is not self._owner:
+                raise SourceError("form expressions must belong to this Source")
+        if self._formulations:
+            raise SourceError("the scalar-primal Source vocabulary admits one form")
+        total_nodes = (
+            sum(item[2]._nodes for item in self._relations)
+            + left_expression._nodes
+            + right_expression._nodes
+        )
+        if total_nodes > _MAX_EXPRESSION_NODES:
+            raise SourceError(
+                f"Component relation and form expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
+            )
+        if self._declaration_count >= _MAX_DECLARATIONS:
+            raise SourceError(
+                f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit"
+            )
+        self._declaration_count += 1
+        self._formulations.append(
+            (relation, left_expression, right_expression, _doc(doc))
+        )
 
     def instance(
         self,
@@ -787,6 +902,14 @@ class Component:
                 lines.append(f"  instance {name}: {component._name};")
             if index + 1 != len(self._instances):
                 lines.append("")
+        if self._formulations:
+            if self._relations or self._instances:
+                lines.append("")
+            for relation, left, right, doc in self._formulations:
+                lines.extend(_comment(doc, "  "))
+                lines.append(f"  form primal for {relation._name} {{")
+                lines.append(f"    {left._text} = {right._text};")
+                lines.append("  }")
         lines.append("}")
         return "\n".join(lines) + "\n"
 
@@ -1055,12 +1178,16 @@ __all__ = [
     "SourceError",
     "Support",
     "coordinate",
+    "dot",
     "div",
     "grad",
+    "integrate",
     "isotropic_lift",
     "normal",
+    "sin",
     "spatial_vector",
     "symmetric_part",
+    "test",
     "trace",
     "units",
 ]

@@ -11,6 +11,7 @@ mod diagnostics;
 mod dimensions;
 mod external;
 mod external_compile;
+mod formulation;
 mod hierarchy;
 #[doc(hidden)]
 pub mod identity;
@@ -24,6 +25,9 @@ mod resolved;
 #[doc(hidden)]
 pub mod source_identity;
 
+pub use formulation::{
+    AuthoredFormExpression, AuthoredFormExpressionKind, AuthoredScalarPrimalForm,
+};
 pub use lower::{CompiledModel, ModelSymbols, compile, lower_draft, lower_model};
 pub use resolved::{
     AnalyzedResolvedHierarchy, CanonicalDeclarationIdentity, CanonicalDeclarationKind,
@@ -31,3 +35,4 @@ pub use resolved::{
     ResolvedSourceUnit, ValidatedResolvedHierarchy, analyze_resolved_hierarchy,
     preflight_resolved_hierarchy,
 };
+pub use source_identity::AuthoredFormSourceIdentity;

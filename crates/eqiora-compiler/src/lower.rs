@@ -38,6 +38,7 @@ use eqiora_schema::kernel::{
 };
 use eqiora_schema::{Model, ModelView};
 
+use crate::AuthoredScalarPrimalForm;
 use crate::connection_sets::{ConnectionFragment, ConnectionSetLimits, normalize_connection_sets};
 use crate::diagnostics::{native_diagnostic, source_error};
 use crate::dimensions::{
@@ -78,6 +79,7 @@ pub struct CompiledModel {
     symbols: ModelSymbols,
     provenance: Option<ProvenanceMap>,
     physical_exposures: PhysicalExposureProjectionMap,
+    authored_formulations: Vec<AuthoredScalarPrimalForm>,
 }
 
 impl CompiledModel {
@@ -117,6 +119,12 @@ impl CompiledModel {
         &self.physical_exposures
     }
 
+    /// Typed authored mathematics retained only by fresh source compilation.
+    #[must_use]
+    pub fn authored_formulations(&self) -> &[AuthoredScalarPrimalForm] {
+        &self.authored_formulations
+    }
+
     /// Consume into the transaction, model ID, and source symbol map.
     #[must_use]
     pub fn into_parts(self) -> (Transaction, OntologyId<Model>, ModelSymbols) {
@@ -134,6 +142,14 @@ impl CompiledModel {
         self.physical_exposures = physical_exposures;
         self
     }
+
+    pub(crate) fn with_authored_formulations(
+        mut self,
+        formulations: Vec<AuthoredScalarPrimalForm>,
+    ) -> Self {
+        self.authored_formulations = formulations;
+        self
+    }
 }
 
 /// Parse and type-lower every model in one source file.
@@ -143,6 +159,18 @@ impl CompiledModel {
 /// every model that could be independently checked.
 pub fn compile(file: &str, source: &str) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
     let document = parse(file, source).into_compilation_document()?;
+    if let Some(component) = document
+        .components()
+        .iter()
+        .find(|component| !component.formulations().is_empty())
+    {
+        return Err(vec![source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            component.formulations()[0].range(),
+            "authored Component formulations require fresh external-Geometry component compilation",
+        )]);
+    }
     let has_hierarchy = !document.connectors().is_empty()
         || !document.components().is_empty()
         || !document.pure_operators().is_empty()
@@ -1090,6 +1118,7 @@ pub(crate) fn lower_typed_model(
         symbols: ModelSymbols::from_map(symbols),
         provenance: None,
         physical_exposures: PhysicalExposureProjectionMap::default(),
+        authored_formulations: Vec::new(),
     })
 }
 

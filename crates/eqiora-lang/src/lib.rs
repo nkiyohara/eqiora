@@ -23,12 +23,12 @@ pub use ast::{
     ComponentItem, ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl,
     ConnectionDecl, ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax,
     Document, DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl,
-    FieldDecl, FieldSlotDecl, FrameSyntax, InstanceDecl, Item, ModelDecl, NamePath,
-    ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp,
-    PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
-    PureValueClassSyntax, RationalSyntax, RelationDecl, RelationFamilyDecl, RepresentationDecl,
-    RepresentationSyntax, SignalDirectionSyntax, SupportBindingDecl, SupportSlotDecl,
-    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    FieldDecl, FieldSlotDecl, FormulationDecl, FormulationSyntax, FrameSyntax, InstanceDecl, Item,
+    ModelDecl, NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax,
+    PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
+    PureOperatorFormal, PureValueClassSyntax, RationalSyntax, RelationDecl, RelationFamilyDecl,
+    RepresentationDecl, RepresentationSyntax, SignalDirectionSyntax, SupportBindingDecl,
+    SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 pub use cartesian::CartesianCoordinateSyntax;
 pub use draft::{

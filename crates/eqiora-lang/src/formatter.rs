@@ -3,6 +3,7 @@
 use core::fmt::Write;
 
 mod cartesian;
+mod formulation;
 mod helpers;
 mod property;
 mod relation;
@@ -17,6 +18,7 @@ use crate::ast::{
     ValueShapeSyntax, VisibilitySyntax,
 };
 use cartesian::format_cartesian_coordinate;
+use formulation::format_formulation;
 use helpers::{format_name_paths, format_scalar_physical, write_indent};
 use property::{format_component_requirements, format_properties};
 use relation::{format_relation, format_relation_family};
@@ -80,6 +82,9 @@ pub fn format(document: &Document) -> String {
         format_component_requirements(component, &mut output);
         for item in &component.items {
             format_component_item(item, 2, &mut output);
+        }
+        for formulation in &component.formulations {
+            format_formulation(formulation, 2, &mut output);
         }
         output.push_str("}\n");
     }
@@ -680,6 +685,24 @@ mod tests {
     use crate::parse;
 
     use super::*;
+
+    #[test]
+    fn authored_primal_form_has_one_canonical_roundtrip() {
+        let source = "component D{public support region:volume(ambient_dimension=2);representation s=continuum;field u on region as s:1=0;relation balance continuous on region{-div(grad(u))=f;}form primal for balance{integrate(region,dot(grad(test(u)),grad(u)))=integrate(region,test(u)*f);}}";
+        let first = parse("form.eqi", source)
+            .into_document()
+            .expect("authored form parses");
+        let formatted = format(&first);
+        let second = parse("form.eqi", &formatted)
+            .into_document()
+            .expect("canonical authored form parses");
+
+        assert_eq!(format(&second), formatted);
+        assert!(formatted.contains("form primal for balance {\n"));
+        assert!(formatted.contains(
+            "integrate(region, dot(grad(test(u)), grad(u))) = integrate(region, test(u) * f);"
+        ));
+    }
 
     #[test]
     fn canonical_format_is_idempotent() {

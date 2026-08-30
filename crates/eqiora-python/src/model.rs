@@ -19,6 +19,8 @@ use crate::error::{diagnostic_error, internal_diagnostic_error, panic_boundary, 
 use crate::geometry::PyGeometry;
 use crate::model_io::{self, DecodedModel};
 
+mod authored_formulation;
+
 /// Exact identity of one immutable canonical Model artifact.
 #[pyclass(
     name = "Revision",
@@ -694,6 +696,12 @@ impl PyModel {
         Ok(PyTuple::new(py, bindings)?.unbind())
     }
 
+    /// Authored mathematics retained by fresh source compilation only.
+    #[getter]
+    fn authored_formulations(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        authored_formulation::project(py, self.document.as_ref())
+    }
+
     /// Alpha-normalized structural evidence, separate from exact artifact identity.
     #[getter]
     fn structural_fingerprint(&self, py: Python<'_>) -> PyResult<PyStructuralSemanticFingerprint> {
@@ -922,6 +930,7 @@ fn hash_value(value: &impl Hash) -> u64 {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    authored_formulation::register(module)?;
     module.add_class::<PyStructuralSemanticFingerprint>()?;
     module.add_class::<PyPropertyBinding>()?;
     module.add_class::<PyRevision>()?;

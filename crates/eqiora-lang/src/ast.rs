@@ -446,6 +446,7 @@ pub struct ComponentDecl {
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
     pub(crate) items: Vec<ComponentItem>,
+    pub(crate) formulations: Vec<FormulationDecl>,
     pub(crate) property_requirements: Vec<ComponentPropertyDecl>,
     pub(crate) range: TextRange,
 }
@@ -469,11 +470,71 @@ impl ComponentDecl {
         &self.items
     }
 
+    /// Authored mathematical formulations in source order.
+    ///
+    /// Formulations are deliberately not component items: deterministic
+    /// hierarchy elaboration may project them, but they never lower into the
+    /// Model transaction or change canonical Model identity.
+    #[must_use]
+    pub fn formulations(&self) -> &[FormulationDecl] {
+        &self.formulations
+    }
+
     /// Full component declaration range, including a visibility modifier.
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
     }
+}
+
+/// One authored mathematical formulation corresponding to a named Relation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FormulationDecl {
+    pub(crate) kind: FormulationSyntax,
+    pub(crate) relation: String,
+    pub(crate) left: Expr,
+    pub(crate) right: Expr,
+    pub(crate) range: TextRange,
+}
+
+impl FormulationDecl {
+    /// Closed mathematical form kind.
+    #[must_use]
+    pub const fn kind(&self) -> FormulationSyntax {
+        self.kind
+    }
+
+    /// Component-local Relation whose mathematics this form represents.
+    #[must_use]
+    pub fn relation(&self) -> &str {
+        &self.relation
+    }
+
+    /// Left side of the authored natural equality.
+    #[must_use]
+    pub const fn left(&self) -> &Expr {
+        &self.left
+    }
+
+    /// Right side of the authored natural equality.
+    #[must_use]
+    pub const fn right(&self) -> &Expr {
+        &self.right
+    }
+
+    /// Full declaration range.
+    #[must_use]
+    pub const fn range(&self) -> TextRange {
+        self.range
+    }
+}
+
+/// Closed source-level mathematical formulation kinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum FormulationSyntax {
+    /// Scalar primal Galerkin variational form.
+    Primal,
 }
 
 /// Source declaration visibility. Absence of a modifier parses as private.

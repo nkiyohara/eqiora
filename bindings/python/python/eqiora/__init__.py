@@ -22,6 +22,7 @@ from ._eqiora import (
     __version__,
     _check_package_conformance,
     Array,
+    AuthoredFormulation,
     BoundarySide,
     CancellationError,
     CapabilityError,
@@ -121,6 +122,7 @@ class PackageConformanceReport(NamedTuple):
 __all__ = [
     "__version__",
     "Array",
+    "AuthoredFormulation",
     "BoundarySide",
     "CancellationError",
     "CapabilityError",
