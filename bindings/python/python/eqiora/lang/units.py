@@ -41,5 +41,6 @@ class Unit:
 kg = Unit(_CREATE_UNIT, "kg")
 m = Unit(_CREATE_UNIT, "m")
 s = Unit(_CREATE_UNIT, "s")
+one = Unit(_CREATE_UNIT, "1")
 
-__all__ = ["kg", "m", "s"]
+__all__ = ["kg", "m", "one", "s"]

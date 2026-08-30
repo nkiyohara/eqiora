@@ -59,15 +59,61 @@ direct and emitted-file compilation with identical bindings have the same Model
 meaning and identity, while comments affect source presentation but not semantic
 identity. Compiler failures retain the existing structured diagnostics.
 
+The same Source owner can emit the bounded scalar property declarations used by
+an exact Model Package:
+
+```python
+source = q.Source()
+contract = source.scalar_property_contract("Diffusivity", unit=u.one)
+release = source.scalar_property_release(
+    "ReferenceDiffusivity",
+    implements=contract,
+    value=25,
+    source_unit=u.one,
+    source_scale=0.001,
+    citation="org.example.measurement",
+    license="spdx.CC0_1_0",
+)
+law = source.component("DiffusionLaw")
+law_body = law.volume("body", dimensions=2)
+diffusivity = law.property("diffusivity", contract=contract)
+value = law.field("value", on=law_body, unit=u.one, initial=0)
+law.relation(
+    "balance",
+    on=law_body,
+    residual=-q.div(diffusivity * q.grad(value)),
+)
+root = source.component("DiffusionProblem")
+root_body = root.volume("body", dimensions=2)
+root.instance(
+    "equation",
+    component=law,
+    supports={law_body: root_body},
+    parameters={},
+    properties={diffusivity: release},
+)
+source.write_eqi("src/property-diffusion.eqi")
+```
+
+Property contracts and releases are package-nominal. Passing this Source to
+ordinary `eqiora.compile(source=...)` therefore fails with a focused
+`SourceError`: that path has no exact package namespace. Emit the `.eqi` into an
+exact Model Package and use `compile_package` after the package has been locked.
+Python does not synthesize package lineage, normalize the release, or evaluate
+the property. The locked Rust compiler remains the owner, and its resulting
+Model exposes the existing immutable `property_bindings` inspection.
+
 The complete current vocabulary and steady-cylinder Component are shown in
 [`examples/python/steady_cylinder_source.py`](../../examples/python/steady_cylinder_source.py).
-This first slice has one public Component, public volume/parent-boundary supports
-and parameters, scalar or spatial-vector continuum fields, continuous residual
-Relations, structural SI units, constants, coordinates, arithmetic, powers,
-gradient, divergence, trace, normal contraction, symmetric part, and isotropic
-lift. It is not arbitrary Python-to-Eqiora translation, a Python weak-form
-runtime, Geometry/mesh/Plan authoring, package authoring, or a stable Python AST
-schema.
+The baseline slice has one public Component, public volume/parent-boundary
+supports and parameters, scalar or spatial-vector continuum fields, continuous
+residual Relations, structural SI units, constants, coordinates, arithmetic,
+powers, gradient, divergence, trace, normal contraction, symmetric part, and
+isotropic lift. The property extension admits exactly one scalar contract, one
+constant unconditional release, one consumer plus one root Component, and one
+complete instance binding. It is not arbitrary Python-to-Eqiora translation, a
+Python weak-form runtime, Geometry/mesh/Plan authoring, a package manifest or
+installer, evaluated/table/tensor properties, or a stable Python AST schema.
 
 ## Compile one exact locked package Component
 

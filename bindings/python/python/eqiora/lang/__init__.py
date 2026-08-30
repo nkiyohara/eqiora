@@ -6,6 +6,7 @@ lowerer, and compiler remain the sole authority for mathematical meaning.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import math
 import os
 from pathlib import Path
@@ -18,6 +19,7 @@ from . import units
 from .units import Unit
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+_NAME_PATH = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\Z")
 _MAX_DECLARATIONS = 256
 _MAX_IDENTIFIER_BYTES = 1_024
 _MAX_EXPRESSION_DEPTH = 64
@@ -45,6 +47,75 @@ class _Shape:
 
 
 spatial_vector: Final = _Shape(_CREATE, "spatial_vector")
+
+
+class PropertyContract:
+    """An identity-bearing scalar property contract declaration handle."""
+
+    __slots__ = ("_doc", "_name", "_owner", "_unit")
+
+    def __init__(
+        self,
+        _token: object = _MISSING,
+        _owner: object = _MISSING,
+        _name_value: str = "",
+        _unit: Unit | None = None,
+        _doc: tuple[str, ...] = (),
+    ) -> None:
+        if _token is not _CREATE or _unit is None:
+            raise TypeError("property contracts are created by Source")
+        object.__setattr__(self, "_owner", _owner)
+        object.__setattr__(self, "_name", _name_value)
+        object.__setattr__(self, "_unit", _unit)
+        object.__setattr__(self, "_doc", _doc)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("PropertyContract handles are immutable")
+
+
+class PropertyRelease:
+    """An identity-bearing constant scalar property release handle."""
+
+    __slots__ = (
+        "_citation",
+        "_contract",
+        "_doc",
+        "_license",
+        "_name",
+        "_owner",
+        "_source_scale",
+        "_source_unit",
+        "_value",
+    )
+
+    def __init__(
+        self,
+        _token: object = _MISSING,
+        *,
+        _owner: object = _MISSING,
+        _name_value: str = "",
+        _contract: PropertyContract | None = None,
+        _value: int | float = 0,
+        _source_unit: Unit | None = None,
+        _source_scale: int | float = 1,
+        _citation: str = "",
+        _license: str = "",
+        _doc: tuple[str, ...] = (),
+    ) -> None:
+        if _token is not _CREATE or _contract is None or _source_unit is None:
+            raise TypeError("property releases are created by Source")
+        object.__setattr__(self, "_owner", _owner)
+        object.__setattr__(self, "_name", _name_value)
+        object.__setattr__(self, "_contract", _contract)
+        object.__setattr__(self, "_value", _value)
+        object.__setattr__(self, "_source_unit", _source_unit)
+        object.__setattr__(self, "_source_scale", _source_scale)
+        object.__setattr__(self, "_citation", _citation)
+        object.__setattr__(self, "_license", _license)
+        object.__setattr__(self, "_doc", _doc)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("PropertyRelease handles are immutable")
 
 
 class Expression:
@@ -131,6 +202,31 @@ class Expression:
             self._nodes + 1,
             40,
         )
+
+
+class _Parameter(Expression):
+    __slots__ = ("_component", "_name")
+
+    def __init__(self, owner: object, component: object, name: str) -> None:
+        super().__init__(_CREATE, name, owner, 1, 1, 100)
+        object.__setattr__(self, "_component", component)
+        object.__setattr__(self, "_name", name)
+
+
+class _PropertyRequirement(Expression):
+    __slots__ = ("_component", "_contract", "_name")
+
+    def __init__(
+        self,
+        owner: object,
+        component: object,
+        name: str,
+        contract: PropertyContract,
+    ) -> None:
+        super().__init__(_CREATE, name, owner, 1, 1, 100)
+        object.__setattr__(self, "_component", component)
+        object.__setattr__(self, "_name", name)
+        object.__setattr__(self, "_contract", contract)
 
 
 class Support:
@@ -264,6 +360,17 @@ def _name(value: object) -> str:
     return value
 
 
+def _name_path(value: object, label: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{label} must be a string")
+    if (
+        not _NAME_PATH.fullmatch(value)
+        or len(value.encode("utf-8")) > _MAX_IDENTIFIER_BYTES
+    ):
+        raise SourceError(f"invalid Eqiora Language {label} {value!r}")
+    return value
+
+
 def _doc(value: object | None) -> tuple[str, ...]:
     if value is None:
         return ()
@@ -308,10 +415,12 @@ class Component:
         "_declaration_count",
         "_doc",
         "_fields",
+        "_instances",
         "_name",
         "_names",
         "_owner",
         "_parameters",
+        "_properties",
         "_relations",
         "_source",
         "_supports",
@@ -331,16 +440,31 @@ class Component:
         self._owner = _source._owner
         self._component_token = object()
         self._name = _name(_name_value)
-        self._doc = _doc(_doc_value)
+        self._doc = (
+            _doc_value if isinstance(_doc_value, tuple) else _doc(_doc_value)
+        )
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
-        self._parameters: list[tuple[str, Unit, tuple[str, ...]]] = []
+        self._parameters: list[tuple[_Parameter, Unit, tuple[str, ...]]] = []
+        self._properties: list[
+            tuple[_PropertyRequirement, PropertyContract, tuple[str, ...]]
+        ] = []
         self._fields: list[
             tuple[
                 Expression, Support, Unit, _Shape | None, object | None, tuple[str, ...]
             ]
         ] = []
         self._relations: list[tuple[str, Support, Expression, tuple[str, ...]]] = []
+        self._instances: list[
+            tuple[
+                str,
+                Component,
+                tuple[tuple[Support, Support], ...],
+                tuple[tuple[_Parameter, Expression], ...],
+                tuple[tuple[_PropertyRequirement, PropertyRelease], ...],
+                tuple[str, ...],
+            ]
+        ] = []
         self._declaration_count = 0
 
     def _add_name(self, name: object) -> str:
@@ -424,8 +548,30 @@ class Component:
         if not isinstance(unit, Unit):
             raise TypeError("unit must be an eqiora.lang.units.Unit")
         admitted = self._add_name(name)
-        self._parameters.append((admitted, unit, _doc(doc)))
-        return Expression(_CREATE, admitted, self._owner, 1, 1, 100)
+        parameter = _Parameter(self._owner, self._component_token, admitted)
+        self._parameters.append((parameter, unit, _doc(doc)))
+        return parameter
+
+    def property(
+        self,
+        name: str,
+        *,
+        contract: PropertyContract,
+        public: bool = True,
+        doc: str | None = None,
+    ) -> Expression:
+        if public is not True:
+            raise SourceError(
+                "the scalar property Source vocabulary admits only public requirements"
+            )
+        if not isinstance(contract, PropertyContract) or contract._owner is not self._owner:
+            raise SourceError("property contract must belong to this Source")
+        admitted = self._add_name(name)
+        requirement = _PropertyRequirement(
+            self._owner, self._component_token, admitted, contract
+        )
+        self._properties.append((requirement, contract, _doc(doc)))
+        return requirement
 
     def field(
         self,
@@ -484,9 +630,95 @@ class Component:
             )
         self._relations.append((admitted, on, expression, _doc(doc)))
 
+    def instance(
+        self,
+        name: str,
+        *,
+        component: Component,
+        supports: Mapping[Support, Support],
+        parameters: Mapping[Expression, Expression | int | float],
+        properties: Mapping[Expression, PropertyRelease],
+        doc: str | None = None,
+    ) -> None:
+        if not isinstance(component, Component) or component._owner is not self._owner:
+            raise SourceError("instance component must belong to this Source")
+        if component is self:
+            raise SourceError("a Component cannot instantiate itself")
+        if not isinstance(supports, Mapping):
+            raise TypeError("supports must be a mapping of target to enclosing Support handles")
+        if not isinstance(parameters, Mapping):
+            raise TypeError("parameters must be a mapping of target Parameter expressions")
+        if not isinstance(properties, Mapping):
+            raise TypeError("properties must be a mapping of target property requirements")
+
+        target_supports = [item[0] for item in component._supports]
+        target_parameters = [item[0] for item in component._parameters]
+        target_properties = [item[0] for item in component._properties]
+        if set(supports) != set(target_supports):
+            raise SourceError("instance support bindings must be complete and exact")
+        if set(parameters) != set(target_parameters):
+            raise SourceError("instance Parameter bindings must be complete and exact")
+        if set(properties) != set(target_properties):
+            raise SourceError("instance property bindings must be complete and exact")
+
+        support_bindings: list[tuple[Support, Support]] = []
+        for target in target_supports:
+            enclosing = supports[target]
+            if (
+                not isinstance(enclosing, Support)
+                or enclosing._component is not self._component_token
+            ):
+                raise SourceError(
+                    "instance support targets must belong to the enclosing Component"
+                )
+            support_bindings.append((target, enclosing))
+
+        parameter_bindings: list[tuple[_Parameter, Expression]] = []
+        for target in target_parameters:
+            value = _expression(parameters[target])
+            if value._owner is not None and value._owner is not self._owner:
+                raise SourceError("instance Parameter values must belong to this Source")
+            parameter_bindings.append((target, value))
+
+        property_bindings: list[tuple[_PropertyRequirement, PropertyRelease]] = []
+        for target in target_properties:
+            release = properties[target]
+            if not isinstance(release, PropertyRelease) or release._owner is not self._owner:
+                raise SourceError("instance property releases must belong to this Source")
+            if release._contract is not target._contract:
+                raise SourceError(
+                    "instance property release must implement the exact required contract"
+                )
+            property_bindings.append((target, release))
+
+        admitted = self._add_name(name)
+        self._instances.append(
+            (
+                admitted,
+                component,
+                tuple(support_bindings),
+                tuple(parameter_bindings),
+                tuple(property_bindings),
+                _doc(doc),
+            )
+        )
+
     def _render(self) -> str:
         lines = _comment(self._doc, "")
         lines.append(f"public component {self._name} {{")
+        for requirement, contract, doc in self._properties:
+            lines.extend(_comment(doc, "  "))
+            lines.append(
+                f"  public property {requirement._name}: {contract._name};"
+            )
+        if self._properties and (
+            self._supports
+            or self._parameters
+            or self._fields
+            or self._relations
+            or self._instances
+        ):
+            lines.append("")
         for support, kind, detail, doc in self._supports:
             lines.extend(_comment(doc, "  "))
             if kind == "volume":
@@ -494,12 +726,14 @@ class Component:
             else:
                 syntax = f"boundary(parent = {detail._name})"
             lines.append(f"  public support {support._name}: {syntax};")
-        if self._supports and (self._parameters or self._fields or self._relations):
+        if self._supports and (
+            self._parameters or self._fields or self._relations or self._instances
+        ):
             lines.append("")
-        for name, unit, doc in self._parameters:
+        for parameter, unit, doc in self._parameters:
             lines.extend(_comment(doc, "  "))
-            lines.append(f"  public parameter {name}: {unit._text};")
-        if self._parameters and (self._fields or self._relations):
+            lines.append(f"  public parameter {parameter._name}: {unit._text};")
+        if self._parameters and (self._fields or self._relations or self._instances):
             lines.append("")
         if self._fields:
             lines.append("  representation space = continuum;")
@@ -511,7 +745,7 @@ class Component:
                     f"  field {field._text} on {support._name} as space: "
                     f"{unit._text}{suffix}{initialized};"
                 )
-        if self._fields and self._relations:
+        if self._fields and (self._relations or self._instances):
             lines.append("")
         for index, (name, support, residual, doc) in enumerate(self._relations):
             lines.extend(_comment(doc, "  "))
@@ -520,23 +754,69 @@ class Component:
             lines.append("  }")
             if index + 1 != len(self._relations):
                 lines.append("")
+        if self._relations and self._instances:
+            lines.append("")
+        for index, (
+            name,
+            component,
+            support_bindings,
+            parameter_bindings,
+            property_bindings,
+            doc,
+        ) in enumerate(self._instances):
+            lines.extend(_comment(doc, "  "))
+            bindings = [
+                f"support {target._name} = {enclosing._name}"
+                for target, enclosing in support_bindings
+            ]
+            bindings.extend(
+                f"{target._name} = {value._text}"
+                for target, value in parameter_bindings
+            )
+            bindings.extend(
+                f"property {target._name} = {release._name}"
+                for target, release in property_bindings
+            )
+            if bindings:
+                lines.append(f"  instance {name}: {component._name}(")
+                for binding_index, binding in enumerate(bindings):
+                    comma = "," if binding_index + 1 != len(bindings) else ""
+                    lines.append(f"    {binding}{comma}")
+                lines.append("  );")
+            else:
+                lines.append(f"  instance {name}: {component._name};")
+            if index + 1 != len(self._instances):
+                lines.append("")
         lines.append("}")
         return "\n".join(lines) + "\n"
 
 
 class Source:
-    """A bounded one-Component draft that freezes on its first emission."""
+    """A bounded language draft that freezes on its first emission."""
 
-    __slots__ = ("_component", "_frozen_text", "_owner")
+    __slots__ = (
+        "_components",
+        "_contract",
+        "_frozen_text",
+        "_owner",
+        "_release",
+        "_top_names",
+    )
 
     def __init__(self) -> None:
         self._owner = object()
-        self._component: Component | None = None
+        self._components: list[Component] = []
+        self._contract: PropertyContract | None = None
+        self._release: PropertyRelease | None = None
+        self._top_names: set[str] = set()
         self._frozen_text: str | None = None
 
     def _ensure_open(self) -> None:
         if self._frozen_text is not None:
             raise SourceError("Source is frozen after emission or compilation")
+
+    def _requires_package_compilation(self) -> bool:
+        return self._contract is not None
 
     def component(
         self,
@@ -548,22 +828,181 @@ class Source:
         self._ensure_open()
         if public is not True:
             raise SourceError(
-                "the initial Source vocabulary admits one public Component"
+                "the bounded Source vocabulary admits only public Components"
             )
-        if self._component is not None:
-            raise SourceError("Source admits exactly one Component")
-        self._component = Component(_CREATE, self, name, doc)
-        return self._component
+        maximum = 2 if self._contract is not None else 1
+        if len(self._components) >= maximum:
+            if maximum == 1:
+                raise SourceError(
+                    "Source admits a second Component only for scalar property binding"
+                )
+            raise SourceError(
+                "the scalar property Source vocabulary admits exactly two Components"
+            )
+        admitted = _name(name)
+        if admitted in self._top_names:
+            raise SourceError(f"duplicate top-level declaration name {admitted!r}")
+        doc_lines = _doc(doc)
+        self._top_names.add(admitted)
+        component = Component(_CREATE, self, admitted, doc_lines)
+        self._components.append(component)
+        return component
+
+    def scalar_property_contract(
+        self,
+        name: str,
+        *,
+        unit: Unit,
+        public: bool = True,
+        doc: str | None = None,
+    ) -> PropertyContract:
+        self._ensure_open()
+        if self._components:
+            raise SourceError("property declarations must precede Components")
+        if public is not True:
+            raise SourceError("the scalar property contract must be public")
+        if self._contract is not None:
+            raise SourceError("Source admits exactly one scalar property contract")
+        if not isinstance(unit, Unit):
+            raise TypeError("unit must be an eqiora.lang.units.Unit")
+        admitted = _name(name)
+        if admitted in self._top_names:
+            raise SourceError(f"duplicate top-level declaration name {admitted!r}")
+        doc_lines = _doc(doc)
+        self._top_names.add(admitted)
+        contract = PropertyContract(
+            _CREATE,
+            self._owner,
+            admitted,
+            unit,
+            doc_lines,
+        )
+        self._contract = contract
+        return contract
+
+    def scalar_property_release(
+        self,
+        name: str,
+        *,
+        implements: PropertyContract,
+        value: int | float,
+        source_unit: Unit,
+        source_scale: int | float,
+        validity: str = "unconditional",
+        citation: str,
+        license: str,
+        public: bool = True,
+        doc: str | None = None,
+    ) -> PropertyRelease:
+        self._ensure_open()
+        if self._components:
+            raise SourceError("property declarations must precede Components")
+        if public is not True:
+            raise SourceError("the scalar property release must be public")
+        if self._release is not None:
+            raise SourceError("Source admits exactly one scalar property release")
+        if (
+            not isinstance(implements, PropertyContract)
+            or implements._owner is not self._owner
+            or implements is not self._contract
+        ):
+            raise SourceError("release contract must be the exact contract from this Source")
+        if not isinstance(source_unit, Unit):
+            raise TypeError("source_unit must be an eqiora.lang.units.Unit")
+        _number(value)
+        _number(source_scale)
+        if source_scale <= 0:
+            raise SourceError("source_scale must be finite and strictly positive")
+        if validity != "unconditional":
+            raise SourceError("the scalar property Source admits unconditional validity only")
+        admitted = _name(name)
+        if admitted in self._top_names:
+            raise SourceError(f"duplicate top-level declaration name {admitted!r}")
+        citation_identity = _name_path(citation, "citation identity")
+        license_identity = _name_path(license, "license identity")
+        doc_lines = _doc(doc)
+        self._top_names.add(admitted)
+        release = PropertyRelease(
+            _CREATE,
+            _owner=self._owner,
+            _name_value=admitted,
+            _contract=implements,
+            _value=value,
+            _source_unit=source_unit,
+            _source_scale=source_scale,
+            _citation=citation_identity,
+            _license=license_identity,
+            _doc=doc_lines,
+        )
+        self._release = release
+        return release
 
     def to_eqi(self) -> str:
         """Return deterministic UTF-8 Eqiora Language text and freeze this Source."""
 
         if self._frozen_text is None:
-            if self._component is None:
+            if not self._components:
                 raise SourceError(
                     "Source requires one public Component before emission"
                 )
-            text = self._component._render()
+            declarations: list[str] = []
+            if self._contract is not None:
+                if self._release is None or len(self._components) != 2:
+                    raise SourceError(
+                        "scalar property Source requires one release, one consumer, and one root Component"
+                    )
+                consumer, root = self._components
+                if (
+                    len(consumer._properties) != 1
+                    or consumer._instances
+                    or root._properties
+                    or len(root._instances) != 1
+                ):
+                    raise SourceError(
+                        "scalar property Source requires one consumer requirement and one root instance"
+                    )
+                instance = root._instances[0]
+                if (
+                    instance[1] is not consumer
+                    or len(instance[4]) != 1
+                    or instance[4][0][0] is not consumer._properties[0][0]
+                    or instance[4][0][1] is not self._release
+                ):
+                    raise SourceError(
+                        "root instance must bind the exact release to the consumer requirement"
+                    )
+                declarations.extend(_comment(self._contract._doc, ""))
+                declarations.append(
+                    f"public property contract {self._contract._name} {{"
+                )
+                declarations.append(
+                    f"  scalar value: {self._contract._unit._text};"
+                )
+                declarations.append("}")
+                declarations.append("")
+                declarations.extend(_comment(self._release._doc, ""))
+                declarations.append(
+                    "public property release "
+                    f"{self._release._name} implements {self._contract._name} {{"
+                )
+                declarations.append(f"  value = {_number(self._release._value)};")
+                declarations.append(
+                    "  source_unit: "
+                    f"{self._release._source_unit._text} = "
+                    f"{_number(self._release._source_scale)};"
+                )
+                declarations.append("  validity = unconditional;")
+                declarations.append(f"  citation = {self._release._citation};")
+                declarations.append(f"  license = {self._release._license};")
+                declarations.append("}")
+                declarations.append("")
+            declarations.append(
+                "\n\n".join(
+                    component._render().rstrip("\n")
+                    for component in self._components
+                )
+            )
+            text = "\n".join(declarations) + "\n"
             if len(text.encode("utf-8")) > _MAX_OUTPUT_BYTES:
                 raise SourceError(
                     f"emitted source exceeds the {_MAX_OUTPUT_BYTES}-byte limit"
@@ -610,6 +1049,8 @@ class Source:
 __all__ = [
     "Component",
     "Expression",
+    "PropertyContract",
+    "PropertyRelease",
     "Source",
     "SourceError",
     "Support",
