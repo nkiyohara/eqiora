@@ -236,7 +236,7 @@ impl Parser<'_> {
                 }
             } else {
                 self.error_here(
-                    "expected `property`, `connector`, `component`, `pure operator`, or `model` declaration",
+                    "expected `connector`, `component`, `pure operator`, or `model` declaration",
                 );
                 self.recover_top_level();
             }
