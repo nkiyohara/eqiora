@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 155 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 599 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 156 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 607 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 185 literal public spellings, 155 canonical grouped declarations, 796 visible method signatures (599 non-dunder and 197 dunder), and 73 visible class assignments.
+Inventory: 18 modules, 186 literal public spellings, 156 canonical grouped declarations, 804 visible method signatures (607 non-dunder and 197 dunder), and 73 visible class assignments.
 
 Regenerate with:
 
@@ -74,6 +74,33 @@ class Array:
     @property
     def origin_copy_occurred(self) -> bool: ...
     def __len__(self) -> int: ...
+```
+
+<a id="api-eqiora-AuthoredFormulation"></a>
+
+### `eqiora.AuthoredFormulation`
+
+Fresh-compile authored scalar primal Formulation inspection.
+
+Authority: [`crates/eqiora-python/src/model/authored_formulation.rs`](../../crates/eqiora-python/src/model/authored_formulation.rs)
+
+```python
+@final
+class AuthoredFormulation:
+    @property
+    def kind(self) -> str: ...
+    @property
+    def source_identity(self) -> str: ...
+    @property
+    def relation_id(self) -> str: ...
+    @property
+    def domain_id(self) -> str: ...
+    @property
+    def trial_field_id(self) -> str: ...
+    @property
+    def filename(self) -> str: ...
+    @property
+    def source_range(self) -> tuple[int, int]: ...
 ```
 
 <a id="api-eqiora-BoundarySide"></a>
@@ -764,6 +791,8 @@ class Model:
     def package_compilation_digest(self) -> str | None: ...
     @property
     def property_bindings(self) -> tuple[PropertyBinding, ...]: ...
+    @property
+    def authored_formulations(self) -> tuple[AuthoredFormulation, ...]: ...
     @property
     def structural_fingerprint(self) -> StructuralSemanticFingerprint: ...
     @property
