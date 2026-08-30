@@ -288,6 +288,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             scaling,
             Some(CommonBackwardEuler::from_seconds(0.05).unwrap()),
             &REFERENCE_LINEAR_SOLVER,
+            None,
         )
         .unwrap()
         .project(

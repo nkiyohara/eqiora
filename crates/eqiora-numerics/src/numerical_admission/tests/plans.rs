@@ -85,6 +85,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
             None,
             None,
             &ResolveOnlyBackend,
+            None,
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend).project(
@@ -165,6 +166,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
             None,
             None,
             &ResolveOnlyBackend,
+            None,
         )
         .is_err()
     );
@@ -180,6 +182,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
             None,
             None,
             &ResolveOnlyBackend,
+            None,
         )
         .is_err()
     );
@@ -201,6 +204,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
             None,
             None,
             &ResolveOnlyBackend,
+            None,
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend).project(
@@ -242,6 +246,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
             None,
             None,
             &ResolveOnlyBackend,
+            None,
         )
         .is_err()
     );

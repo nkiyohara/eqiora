@@ -74,6 +74,7 @@ struct AuthoredFormulationSummary {
     relation: RawId,
     domain: RawId,
     trial: RawId,
+    projection: Vec<u8>,
     file: String,
     range: eqiora_lang::TextRange,
 }
@@ -82,13 +83,16 @@ fn authored_formulation_summaries(compiled: &CompiledModel) -> Vec<AuthoredFormu
     compiled
         .authored_formulations()
         .map(
-            |(source_identity, relation, domain, trial, file, range)| AuthoredFormulationSummary {
-                source_identity,
-                relation,
-                domain,
-                trial,
-                file: file.to_owned(),
-                range,
+            |(source_identity, relation, domain, trial, projection, file, range)| {
+                AuthoredFormulationSummary {
+                    source_identity,
+                    relation,
+                    domain,
+                    trial,
+                    projection,
+                    file: file.to_owned(),
+                    range,
+                }
             },
         )
         .collect()
@@ -227,6 +231,23 @@ impl ModelDocument {
                 form.range,
             )
         })
+    }
+
+    /// Closed typed scalar-primal projection consumed by common resolution.
+    ///
+    /// The bytes are compiler-owned and versioned; callers must treat them as opaque.
+    ///
+    /// # Errors
+    /// Returns a diagnostic if compilation retained more than one authored form.
+    pub fn authored_scalar_primal_projection(&self) -> Result<Option<&[u8]>, Diagnostic> {
+        match self.authored_formulations.as_slice() {
+            [] => Ok(None),
+            [form] => Ok(Some(form.projection.as_slice())),
+            _ => Err(Diagnostic::error(
+                codes::LANGUAGE_TYPE_ERROR,
+                "common scalar resolve accepts exactly one authored primal Formulation",
+            )),
+        }
     }
 
     /// Validated immutable execution input.

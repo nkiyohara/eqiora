@@ -18,6 +18,9 @@ impl CommonSteadyStokesPlan {
                 FormulationSelectionMode::Exact => {
                     "eqiora.formulation.exact.mixed-galerkin-admitted/v1"
                 }
+                FormulationSelectionMode::Authored => {
+                    unreachable!("authored steady-Stokes forms are not admitted")
+                }
             },
         )
     }

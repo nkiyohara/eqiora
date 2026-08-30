@@ -35,6 +35,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(scaling),
             Some(temporal),
             &ResolveOnlyBackend,
+            None,
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend).project(
@@ -80,6 +81,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(scaling),
             Some(temporal),
             &PlanningFaerBackend,
+            None,
         )
         .unwrap()
         .project(
@@ -116,6 +118,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         Some(scaling),
         Some(temporal),
         &ResolveOnlyBackend,
+        None,
     )
     .unwrap()
     .project(
@@ -136,6 +139,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         Some(alternate_scaling),
         Some(temporal),
         &ResolveOnlyBackend,
+        None,
     )
     .unwrap()
     .project(
@@ -195,6 +199,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         Some(scaling),
         Some(temporal),
         &PlanningFaerBackend,
+        None,
     )
     .unwrap_err();
     assert!(
@@ -365,6 +370,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(scaling),
             Some(temporal),
             &ResolveOnlyBackend,
+            None,
         )
         .is_err()
     );
@@ -377,6 +383,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(IncompressibleScalingRequest2d::from_si(Some(1.0), None, Some(3.0)).unwrap()),
             Some(temporal),
             &ResolveOnlyBackend,
+            None,
         )
         .is_err()
     );
@@ -389,6 +396,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(scaling),
             None,
             &ResolveOnlyBackend,
+            None,
         )
         .is_err()
     );
@@ -401,6 +409,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(scaling),
             Some(temporal),
             &ResolveOnlyBackend,
+            None,
         )
         .is_err()
     );
@@ -416,6 +425,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(scaling),
             Some(temporal),
             &ResolveOnlyBackend,
+            None,
         )
         .is_err()
     );
@@ -431,6 +441,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(scaling),
             Some(temporal),
             &ResolveOnlyBackend,
+            None,
         )
         .is_err()
     );

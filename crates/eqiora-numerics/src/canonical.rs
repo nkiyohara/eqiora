@@ -93,7 +93,7 @@ pub struct ScalarEllipticCartesianModel {
     boundaries: BTreeMap<(usize, BoundarySide), ScalarEllipticCartesianBoundary>,
     parameter_fields: Vec<Id<kinds::Parameter>>,
     parameter_values: Vec<f64>,
-    compiled_form: Option<DerivedScalarGalerkinForm>,
+    pub(crate) compiled_form: Option<DerivedScalarGalerkinForm>,
 }
 
 /// One lowered Parameter point paired with the exact finalized system it produced.

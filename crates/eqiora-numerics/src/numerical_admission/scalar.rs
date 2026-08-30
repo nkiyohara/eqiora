@@ -19,7 +19,11 @@ fn describe_primal(
             FormulationSelectionMode::Exact => {
                 "eqiora.formulation.exact.primal-galerkin-admitted/v1"
             }
+            FormulationSelectionMode::Authored => {
+                "eqiora.formulation.authored.primal-galerkin-admitted/v1"
+            }
         }]),
+        requested_source_identity: None,
     }
 }
 
@@ -99,6 +103,21 @@ impl CommonScalarPlan {
                 "common scalar Plan lost its recognized mathematical materialization",
             ));
         };
+        if let Some(authored) = &self.authored_formulation {
+            let derived = lowered.compiled_form.as_ref().ok_or_else(|| {
+                invalid("authored scalar-primal Plan lost its effective derived Formulation")
+            })?;
+            let replayed = crate::form_compiler::AcceptedAuthoredScalarPrimalForm::admit(
+                authored.bytes(),
+                &self.admission.program,
+                derived,
+            )?;
+            if &replayed != authored {
+                return Err(invalid(
+                    "authored scalar-primal Formulation changed during Plan replay",
+                ));
+            }
+        }
         require_portable_realization(
             &self.portable,
             resolve_common_scalar_portable(&self.admission, lowered, mesh, self.cells)?,
@@ -109,6 +128,7 @@ impl CommonScalarPlan {
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
         formulation_selection: Option<FormulationSelectionMode>,
+        authored_formulation: Option<&[u8]>,
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
         let NativeMeshResources::Cartesian {
@@ -139,19 +159,42 @@ impl CommonScalarPlan {
                 "common scalar Plan admitted non-scalar mathematics",
             ));
         };
+        let mut accepted_authored_formulation = None;
         let formulation = match formulation_selection {
             None => None,
             Some(selection) => {
                 match derive_candidate(&admission.program, lowered.domain_id().erase())? {
                     Some(derived) => {
+                        if let Some(bytes) = authored_formulation {
+                            accepted_authored_formulation = Some(
+                                crate::form_compiler::AcceptedAuthoredScalarPrimalForm::admit(
+                                    bytes,
+                                    &admission.program,
+                                    &derived,
+                                )?,
+                            );
+                        }
                         let (kind, boundary_treatment, rule_ids) =
                             derived.formulation_description();
-                        Some(describe_primal(
+                        let mut description = describe_primal(
                             kind,
                             boundary_treatment,
                             rule_ids,
-                            selection,
-                        ))
+                            if authored_formulation.is_some() {
+                                FormulationSelectionMode::Authored
+                            } else {
+                                selection
+                            },
+                        );
+                        description.requested_source_identity = accepted_authored_formulation
+                            .as_ref()
+                            .map(|form| form.source_identity().to_owned());
+                        Some(description)
+                    }
+                    None if authored_formulation.is_some() => {
+                        return Err(invalid(
+                            "authored scalar Q1 primal Formulation requires the admitted complete homogeneous-essential boundary class",
+                        ));
                     }
                     None if selection == FormulationSelectionMode::Automatic => None,
                     None => {
@@ -193,9 +236,13 @@ impl CommonScalarPlan {
                 .map(|description| description.requested().identity())
                 .unwrap_or(b"no-proof-carrying-formulation"),
         );
+        if let Some(authored) = &accepted_authored_formulation {
+            push_framed(&mut identity_bytes, authored.source_identity().as_bytes());
+            push_framed(&mut identity_bytes, authored.bytes());
+        }
         let identity = hex_bytes(&Sha256::digest(
             [
-                b"eqiora.common-scalar-plan/v1\0".as_slice(),
+                b"eqiora.common-scalar-plan/v2\0".as_slice(),
                 identity_bytes.as_slice(),
             ]
             .concat(),
@@ -204,6 +251,7 @@ impl CommonScalarPlan {
             admission,
             portable,
             formulation,
+            authored_formulation: accepted_authored_formulation,
             identity,
             model_id: model_reference.model().ulid().to_string(),
             model_revision: model_reference.semantic_revision().get(),
@@ -228,6 +276,12 @@ impl CommonScalarPlan {
     #[must_use]
     pub fn formulation(&self) -> Option<CommonFormulationDescription> {
         self.formulation.clone()
+    }
+
+    pub(crate) fn authored_formulation_bytes(&self) -> Option<&[u8]> {
+        self.authored_formulation
+            .as_ref()
+            .map(crate::form_compiler::AcceptedAuthoredScalarPrimalForm::bytes)
     }
 
     /// Execute solely from retained Plan state and publish one complete Result.

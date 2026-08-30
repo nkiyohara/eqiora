@@ -520,6 +520,14 @@ impl PyModel {
         &self.artifact
     }
 
+    pub(crate) fn authored_scalar_primal_projection(&self) -> Result<Option<&[u8]>, Diagnostic> {
+        self.document
+            .as_ref()
+            .map(ModelDocument::authored_scalar_primal_projection)
+            .transpose()
+            .map(Option::flatten)
+    }
+
     #[allow(dead_code)]
     pub(crate) fn field_ref_from_id(
         &self,

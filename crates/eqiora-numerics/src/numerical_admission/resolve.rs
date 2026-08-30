@@ -7,6 +7,10 @@ use super::spatial_planning::{
 };
 use super::*;
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the opaque compiler projection is a separate Formulation input, not numerical policy"
+)]
 pub fn resolve_common_plan(
     model: &ModelEnvelope,
     owner: AuthenticatedCommonMesh,
@@ -15,8 +19,16 @@ pub fn resolve_common_plan(
     scaling: Option<IncompressibleScalingRequest2d>,
     temporal: Option<CommonBackwardEuler>,
     stokes_backend: &dyn LinearSolverBackend,
+    authored_formulation: Option<&[u8]>,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
     let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
+    if authored_formulation.is_some()
+        && !matches!(recognized.capability, NativeCapability::ScalarElliptic)
+    {
+        return Err(invalid(
+            "authored scalar-primal Formulation requires scalar Q1 mathematics",
+        ));
+    }
     let (spatial, formulation) = method.into().split();
     match recognized.capability {
         NativeCapability::ScalarElliptic => {
@@ -43,6 +55,11 @@ pub fn resolve_common_plan(
                     "scalar-elliptic Q1",
                 )?),
                 NativeSpatialPolicy::ScalarTpfa => {
+                    if authored_formulation.is_some() {
+                        return Err(invalid(
+                            "authored scalar-primal Formulation requires the scalar Q1 realization",
+                        ));
+                    }
                     reject_unsupported_formulation_request(formulation, "scalar-elliptic TPFA")?;
                     None
                 }
@@ -50,8 +67,13 @@ pub fn resolve_common_plan(
             };
             let linear = resolve_reference_spd(solve)?;
             let admission = recognized.complete(spatial, linear, None, None)?;
-            CommonScalarPlan::from_admission(model, admission, formulation_selection)
-                .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
+            CommonScalarPlan::from_admission(
+                model,
+                admission,
+                formulation_selection,
+                authored_formulation,
+            )
+            .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
         }
         NativeCapability::IsotropicElasticity => {
             reject_unsupported_formulation_request(formulation, "linear-elasticity")?;

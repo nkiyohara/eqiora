@@ -62,6 +62,7 @@ impl From<PyFormulationKind> for FormulationKind {
 pub(crate) enum PyFormulationSelectionMode {
     Automatic,
     Exact,
+    Authored,
 }
 
 /// Inspectable effective mathematical Formulation selected before Realization.
@@ -80,6 +81,7 @@ pub(crate) struct PyFormulationView {
     boundary_treatment: &'static str,
     rule_ids: Vec<&'static str>,
     selection_reason_codes: Vec<&'static str>,
+    requested_source_identity: Option<String>,
 }
 
 impl PyFormulationView {
@@ -87,14 +89,17 @@ impl PyFormulationView {
         let requested = match description.requested() {
             FormulationSelectionMode::Automatic => PyFormulationSelectionMode::Automatic,
             FormulationSelectionMode::Exact => PyFormulationSelectionMode::Exact,
+            FormulationSelectionMode::Authored => PyFormulationSelectionMode::Authored,
         };
         let effective = description.effective().into();
+        let requested_source_identity = description.requested_source_identity().map(str::to_owned);
         Self {
             requested,
             effective,
             boundary_treatment: description.boundary_treatment(),
             rule_ids: description.rule_ids().to_vec(),
             selection_reason_codes: description.selection_reason_codes().to_vec(),
+            requested_source_identity,
         }
     }
 }
@@ -120,6 +125,10 @@ impl PyFormulationView {
     #[getter]
     fn selection_reason_codes(&self) -> Vec<&'static str> {
         self.selection_reason_codes.clone()
+    }
+    #[getter]
+    fn requested_source_identity(&self) -> Option<String> {
+        self.requested_source_identity.clone()
     }
     fn __repr__(&self) -> String {
         format!(

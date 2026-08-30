@@ -470,6 +470,7 @@ fn plan_for(
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
+        None,
     )
     .unwrap()
     .project(

@@ -556,6 +556,8 @@ pub enum FormulationSelectionMode {
     Automatic,
     /// The caller requested the exact effective formulation.
     Exact,
+    /// Fresh source supplied one checked authored formulation.
+    Authored,
 }
 
 impl FormulationSelectionMode {
@@ -563,6 +565,7 @@ impl FormulationSelectionMode {
         match self {
             Self::Automatic => b"automatic",
             Self::Exact => b"exact",
+            Self::Authored => b"authored",
         }
     }
 }
@@ -581,6 +584,7 @@ pub struct CommonFormulationDescription {
     boundary_treatment: &'static str,
     rule_ids: Box<[&'static str]>,
     selection_reason_codes: Box<[&'static str]>,
+    requested_source_identity: Option<String>,
 }
 
 impl CommonFormulationDescription {
@@ -599,6 +603,7 @@ impl CommonFormulationDescription {
                 .map(crate::form_compiler::vocabulary::MixedFormulationRule::id)
                 .into(),
             selection_reason_codes: Box::new([reason]),
+            requested_source_identity: None,
         }
     }
 
@@ -622,7 +627,11 @@ impl CommonFormulationDescription {
                 FormulationSelectionMode::Exact => {
                     "eqiora.formulation.exact.integral-conservative-admitted/v1"
                 }
+                FormulationSelectionMode::Authored => {
+                    unreachable!("authored integral-conservative forms are not admitted")
+                }
             }]),
+            requested_source_identity: None,
         }
     }
 
@@ -630,6 +639,12 @@ impl CommonFormulationDescription {
     #[must_use]
     pub const fn requested(&self) -> FormulationSelectionMode {
         self.requested
+    }
+
+    /// Fresh-compile source identity when selection admitted an authored form.
+    #[must_use]
+    pub fn requested_source_identity(&self) -> Option<&str> {
+        self.requested_source_identity.as_deref()
     }
 
     /// Exact effective mathematical form.
@@ -741,6 +756,7 @@ pub struct CommonScalarPlan {
     admission: NativeNumericalAdmission,
     portable: PortableRealizationGraph,
     formulation: Option<CommonFormulationDescription>,
+    authored_formulation: Option<crate::form_compiler::AcceptedAuthoredScalarPrimalForm>,
     identity: String,
     model_id: String,
     model_revision: u64,

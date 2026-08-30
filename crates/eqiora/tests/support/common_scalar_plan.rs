@@ -106,6 +106,7 @@ pub(crate) fn plan_for_document(
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
+        None,
     )
     .unwrap()
     .project(
@@ -207,6 +208,7 @@ fn document_and_plans_with_source(
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
+            None,
         )
         .unwrap()
         .project(

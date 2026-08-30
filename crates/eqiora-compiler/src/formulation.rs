@@ -14,6 +14,8 @@ use crate::dimensions::{checked_dimensions, checked_scale_dimension, length_dime
 use crate::lower::ModelSymbols;
 use crate::source_identity::formulation::AuthoredFormSourceIdentity;
 
+mod wire;
+
 /// One typed expression in an authored Formulation.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct AuthoredFormExpression {
@@ -79,6 +81,22 @@ pub(crate) struct AuthoredScalarPrimalForm {
 }
 
 impl AuthoredScalarPrimalForm {
+    pub(crate) fn projection(&self) -> (String, RawId, RawId, RawId, Vec<u8>, &str, TextRange) {
+        (
+            self.source_identity().to_string(),
+            self.relation().erase(),
+            self.domain().erase(),
+            self.trial().erase(),
+            self.projection_bytes(),
+            self.file(),
+            self.range(),
+        )
+    }
+
+    pub(crate) fn projection_bytes(&self) -> Vec<u8> {
+        wire::encode(self)
+    }
+
     /// Identity of the Component's canonical authored-form source.
     #[must_use]
     pub const fn source_identity(&self) -> AuthoredFormSourceIdentity {
