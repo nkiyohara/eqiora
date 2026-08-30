@@ -35,6 +35,7 @@ struct WireForm {
 
 /// Closed expression vocabulary persisted by
 /// [`AuthoredFormulationProjection`].
+#[doc(hidden)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 #[non_exhaustive]
