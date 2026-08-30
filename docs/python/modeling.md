@@ -92,6 +92,9 @@ model = eqiora.compile_package(
 
 print(model.digest)
 print(model.package_compilation_digest)
+for binding in model.property_bindings:
+    print(binding.contract, binding.release, binding.normalized_value)
+    print(binding.validity, binding.citation, binding.license)
 ```
 
 The caller selects one explicit store directory, supplies the exact bytes from
@@ -104,11 +107,16 @@ or store-mismatched resolution bytes fail closed. Missing or ambiguous support
 bindings fail instead of matching Geometry by bounds, coordinates, or digest.
 
 `package_compilation_digest` is read-only lineage for the accepted compilation.
+When the package binds an exact scalar property release, `property_bindings` is
+an immutable projection of the compiler-owned contract, release, consuming
+Component, requirement, coherent-SI value, validity, citation, and license. It
+is inspection metadata beside the compilation, not a second property evaluator.
 The resulting `Model` enters ordinary `eqiora.resolve(model, mesh=..., ...)` and
 `eqiora.run(plan)`; its `Plan` and `Run` retain the same digest. Bare Model JSON
 still carries Model/Geometry meaning but not the package sidecar, so replayed
-Models use the same resolver with `package_compilation_digest is None`. Package
-lineage persistence belongs to the symmetric Model artifact I/O work. This
+Models use the same resolver with `package_compilation_digest is None` and an
+empty `property_bindings` tuple. Package lineage persistence belongs to the
+symmetric Model artifact I/O work. This
 surface does not discover stores or lock files, author or install packages,
 access registries or networks, or add a Studio package workflow.
 

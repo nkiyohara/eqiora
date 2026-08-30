@@ -12,6 +12,37 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 
 const SOURCE: &str = r#"
+public property contract Diffusivity { scalar value: 1; }
+public property release ReferenceDiffusivity implements Diffusivity {
+  value = 25;
+  source_unit: 1 = 1 / 1000;
+  validity = unconditional;
+  citation = org.example.measurement;
+  license = spdx.CC0_1_0;
+}
+
+public component PoissonLaw {
+  public support region: volume(ambient_dimension = 2);
+  public support left: boundary(parent = region);
+  public support right: boundary(parent = region);
+  public support bottom: boundary(parent = region);
+  public support top: boundary(parent = region);
+  public parameter wave_number: 1 / m;
+  public parameter source_scale: 1 / m ^ 2;
+  public property diffusivity: Diffusivity;
+  representation space = continuum;
+  field potential on region as space: 1 = 0;
+  relation balance continuous on region {
+    -div(diffusivity * grad(potential))
+      - source_scale * sin(wave_number * coordinate(0))
+        * sin(wave_number * coordinate(1)) = 0;
+  }
+  relation left_value continuous on left { trace(potential) = 0; }
+  relation right_value continuous on right { trace(potential) = 0; }
+  relation bottom_value continuous on bottom { trace(potential) = 0; }
+  relation top_value continuous on top { trace(potential) = 0; }
+}
+
 public component PoissonRectangle {
   public support region: volume(ambient_dimension = 2);
   public support left: boundary(parent = region);
@@ -20,17 +51,16 @@ public component PoissonRectangle {
   public support top: boundary(parent = region);
   public parameter wave_number: 1 / m;
   public parameter source_scale: 1 / m ^ 2;
-  representation space = continuum;
-  field potential on region as space: 1 = 0;
-  relation balance continuous on region {
-    -div(grad(potential))
-      - source_scale * sin(wave_number * coordinate(0))
-        * sin(wave_number * coordinate(1)) = 0;
-  }
-  relation left_value continuous on left { trace(potential) = 0; }
-  relation right_value continuous on right { trace(potential) = 0; }
-  relation bottom_value continuous on bottom { trace(potential) = 0; }
-  relation top_value continuous on top { trace(potential) = 0; }
+  instance equation: PoissonLaw(
+    support region = region,
+    support left = left,
+    support right = right,
+    support bottom = bottom,
+    support top = top,
+    wave_number = wave_number,
+    source_scale = source_scale,
+    property diffusivity = ReferenceDiffusivity
+  );
 }
 "#;
 
@@ -57,7 +87,7 @@ impl Drop for Scratch {
     }
 }
 
-fn locked_store() -> (Scratch, Vec<u8>) {
+fn locked_store() -> (Scratch, Vec<u8>, String) {
     let path = NormalizedRelativePath::parse("src/poisson.eqi").expect("source path");
     let manifest = AuthorManifestV1::new(
         QualifiedName::parse("org.example.geometry_poisson").expect("package name"),
@@ -76,6 +106,13 @@ fn locked_store() -> (Scratch, Vec<u8>) {
     )
     .expect("closed package sources");
     let release = prepare_package_release_v1(sources, &[]).expect("prepared package release");
+    let identity = release.package_identity().expect("exact package identity");
+    let namespace = format!(
+        "{}/{}/{}",
+        identity.name,
+        identity.version,
+        identity.semantic_digest.to_hex()
+    );
     let resolution = ResolutionRecordV1::from_exact_releases(&release, &[])
         .expect("exact package resolution")
         .canonical_json()
@@ -87,12 +124,12 @@ fn locked_store() -> (Scratch, Vec<u8>) {
         release.canonical_json().expect("canonical release"),
     )
     .expect("publish exact release into selected store");
-    (scratch, resolution)
+    (scratch, resolution, namespace)
 }
 
 #[test]
 fn package_component_uses_caller_geometry_common_plan_and_run() -> PyResult<()> {
-    let (store, resolution) = locked_store();
+    let (store, resolution, namespace) = locked_store();
     Python::initialize();
     Python::attach(|py| {
         let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
@@ -103,6 +140,7 @@ fn package_component_uses_caller_geometry_common_plan_and_run() -> PyResult<()> 
             store.0.to_str().expect("Unicode HOME-backed scratch"),
         )?;
         locals.set_item("resolution", PyBytes::new(py, &resolution))?;
+        locals.set_item("namespace", namespace)?;
         py.run(
             c_str!(
                 r#"
@@ -124,6 +162,29 @@ model = package.compile_package(
 )
 assert model.package_compilation_digest is not None
 assert model.domain_ids
+assert isinstance(model.property_bindings, tuple)
+assert len(model.property_bindings) == 1
+binding = model.property_bindings[0]
+assert binding.contract == f"{namespace}::Diffusivity"
+assert binding.release == f"{namespace}::ReferenceDiffusivity"
+assert binding.component == f"{namespace}::PoissonLaw"
+assert binding.requirement == "diffusivity"
+assert binding.normalized_value == 0.025
+assert binding.validity == "unconditional"
+assert binding.citation == "org.example.measurement"
+assert binding.license == "spdx.CC0_1_0"
+try:
+    package.PropertyBinding()
+except TypeError:
+    pass
+else:
+    raise AssertionError("Python forged a package-owned property binding")
+try:
+    binding.citation = "org.example.rewritten"
+except AttributeError:
+    pass
+else:
+    raise AssertionError("Python mutated a package-owned property binding")
 
 mesher = package.CartesianMesher(cells=(4, 4))
 mesh_plan = package.resolve(geometry, mesher)
@@ -141,8 +202,10 @@ run = package.submit_plan(plan)
 assert run.package_compilation_digest == model.package_compilation_digest
 result = run.result()
 assert result.model_digest == model.digest
+assert model.property_bindings[0].citation == "org.example.measurement"
 
 replayed = package.Model.from_bytes(model.to_bytes())
+assert replayed.property_bindings == ()
 replayed_plan = package._resolve_plan(replayed, mesh=mesh, spatial=package.Q1(), solve=linear)
 assert replayed_plan.identity == plan.identity
 assert replayed_plan.package_compilation_digest is None
@@ -194,7 +257,7 @@ else:
 
 #[test]
 fn package_compile_argument_and_resolution_boundaries_fail_closed() -> PyResult<()> {
-    let (store, resolution) = locked_store();
+    let (store, resolution, _) = locked_store();
     Python::initialize();
     Python::attach(|py| {
         let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);

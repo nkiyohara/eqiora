@@ -138,6 +138,7 @@ EXPECTED_EQIORA_ALL = [
     "Parameter",
     "ParameterRef",
     "PhysicalDomain",
+    "PropertyBinding",
     "Plan",
     "Representation",
     "Relation",
