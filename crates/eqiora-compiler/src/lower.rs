@@ -245,11 +245,13 @@ impl LoweringExpression {
                 normalize_zero(*value),
                 DimExponents::DIMENSIONLESS,
             )),
-            ExprKind::Path(path) if let Some(value) = crate::math::constant(path) => {
-                LoweringExpressionNode::Quantity(DynQuantity::new(
-                    value,
-                    DimExponents::DIMENSIONLESS,
-                ))
+            ExprKind::Path(path) => {
+                crate::math::constant(path).map_or(LoweringExpressionNode::Unsupported, |value| {
+                    LoweringExpressionNode::Quantity(DynQuantity::new(
+                        value,
+                        DimExponents::DIMENSIONLESS,
+                    ))
+                })
             }
             ExprKind::Name(name) => LoweringExpressionNode::Name(name.clone()),
             ExprKind::Unary {
