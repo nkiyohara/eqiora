@@ -318,6 +318,10 @@ public component SteadyFlowPastCylinder {
             without_form.canonical_json().unwrap()
         );
         assert_eq!(with_form.digest().unwrap(), without_form.digest().unwrap());
+        assert_eq!(
+            with_form.structural_fingerprint().unwrap(),
+            without_form.structural_fingerprint().unwrap()
+        );
     }
 
     #[test]
