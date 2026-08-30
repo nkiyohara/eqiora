@@ -1,6 +1,28 @@
 use super::*;
 use crate::form_compiler::derive_candidate;
 
+fn describe_primal(
+    kind: FormulationKind,
+    boundary_treatment: &'static str,
+    rule_ids: [&'static str; 4],
+    requested: FormulationSelectionMode,
+) -> CommonFormulationDescription {
+    CommonFormulationDescription {
+        requested,
+        kind,
+        boundary_treatment,
+        rule_ids: rule_ids.into(),
+        selection_reason_codes: Box::new([match requested {
+            FormulationSelectionMode::Automatic => {
+                "eqiora.formulation.auto.primal-galerkin-for-q1/v1"
+            }
+            FormulationSelectionMode::Exact => {
+                "eqiora.formulation.exact.primal-galerkin-admitted/v1"
+            }
+        }]),
+    }
+}
+
 pub(super) fn resolve_common_scalar_portable(
     admission: &NativeNumericalAdmission,
     lowered: &ScalarEllipticCartesianModel,
@@ -124,7 +146,7 @@ impl CommonScalarPlan {
                     Some(derived) => {
                         let (kind, boundary_treatment, rule_ids) =
                             derived.formulation_description();
-                        Some(CommonFormulationDescription::primal(
+                        Some(describe_primal(
                             kind,
                             boundary_treatment,
                             rule_ids,
