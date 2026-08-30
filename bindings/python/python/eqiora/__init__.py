@@ -218,7 +218,13 @@ def compile(
     """Compile text, a path, or one :class:`eqiora.lang.Source` canonically."""
 
     if isinstance(source, lang.Source):
-        source = source.to_eqi()
+        text = source.to_eqi()
+        if source._requires_package_compilation():
+            raise lang.SourceError(
+                "a property-bearing Source requires an exact Model Package; "
+                "emit it with to_eqi() or write_eqi() and compile the locked package"
+            )
+        source = text
         if filename is None:
             filename = "<python-source>"
     return _compile(

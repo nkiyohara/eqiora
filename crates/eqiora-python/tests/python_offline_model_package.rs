@@ -9,7 +9,7 @@ use eqiora::package::{
 };
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict};
+use pyo3::types::{PyBytes, PyDict, PyModule};
 
 const SOURCE: &str = r#"
 public property contract Diffusivity { scalar value: 1; }
@@ -87,7 +87,7 @@ impl Drop for Scratch {
     }
 }
 
-fn locked_store() -> (Scratch, Vec<u8>, String) {
+fn locked_store(source: &str) -> (Scratch, Vec<u8>, String) {
     let path = NormalizedRelativePath::parse("src/poisson.eqi").expect("source path");
     let manifest = AuthorManifestV1::new(
         QualifiedName::parse("org.example.geometry_poisson").expect("package name"),
@@ -101,7 +101,7 @@ fn locked_store() -> (Scratch, Vec<u8>, String) {
         vec![SourceFileV1::new(
             path,
             BundleRoleV1::ModelSource,
-            SOURCE.as_bytes().to_vec(),
+            source.as_bytes().to_vec(),
         )],
     )
     .expect("closed package sources");
@@ -129,9 +129,77 @@ fn locked_store() -> (Scratch, Vec<u8>, String) {
 
 #[test]
 fn package_component_uses_caller_geometry_common_plan_and_run() -> PyResult<()> {
-    let (store, resolution, namespace) = locked_store();
     Python::initialize();
     Python::attach(|py| {
+        let public = public_module(py)?;
+        let author_locals = PyDict::new(py);
+        author_locals.set_item("eqiora", public)?;
+        py.run(
+            c_str!(
+                r#"
+q = eqiora.lang
+u = q.units
+source = q.Source()
+contract = source.scalar_property_contract("Diffusivity", unit=u.one)
+release = source.scalar_property_release(
+    "ReferenceDiffusivity",
+    implements=contract,
+    value=25,
+    source_unit=u.one,
+    source_scale=0.001,
+    citation="org.example.measurement",
+    license="spdx.CC0_1_0",
+)
+law = source.component("PoissonLaw")
+region = law.volume("region", dimensions=2)
+left = law.boundary("left", parent=region)
+right = law.boundary("right", parent=region)
+bottom = law.boundary("bottom", parent=region)
+top = law.boundary("top", parent=region)
+source_scale = law.parameter("source_scale", unit=u.one / u.m**2)
+diffusivity = law.property("diffusivity", contract=contract)
+potential = law.field("potential", on=region, unit=u.one, initial=0)
+law.relation(
+    "balance",
+    on=region,
+    residual=-q.div(diffusivity * q.grad(potential)) - source_scale,
+)
+law.relation("left_value", on=left, residual=q.trace(potential))
+law.relation("right_value", on=right, residual=q.trace(potential))
+law.relation("bottom_value", on=bottom, residual=q.trace(potential))
+law.relation("top_value", on=top, residual=q.trace(potential))
+
+root = source.component("PoissonRectangle")
+root_region = root.volume("region", dimensions=2)
+root_left = root.boundary("left", parent=root_region)
+root_right = root.boundary("right", parent=root_region)
+root_bottom = root.boundary("bottom", parent=root_region)
+root_top = root.boundary("top", parent=root_region)
+root_source_scale = root.parameter("source_scale", unit=u.one / u.m**2)
+root.instance(
+    "equation",
+    component=law,
+    supports={
+        region: root_region,
+        left: root_left,
+        right: root_right,
+        bottom: root_bottom,
+        top: root_top,
+    },
+    parameters={source_scale: root_source_scale},
+    properties={diffusivity: release},
+)
+authored_source = source.to_eqi()
+"#
+            ),
+            None,
+            Some(&author_locals),
+        )?;
+        let authored_source = author_locals
+            .get_item("authored_source")?
+            .expect("authored source")
+            .extract::<String>()?;
+        let (store, resolution, namespace) = locked_store(&authored_source);
         let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
         let locals = PyDict::new(py);
         locals.set_item("package", native.bind(py))?;
@@ -158,7 +226,7 @@ model = package.compile_package(
     resolution,
     geometry=geometry,
     component="PoissonRectangle",
-    parameters={"wave_number": 3.141592653589793, "source_scale": 19.739208802178716},
+    parameters={"source_scale": 1.0},
 )
 assert model.package_compilation_digest is not None
 assert model.domain_ids
@@ -241,7 +309,7 @@ try:
         resolution,
         geometry=foreign,
         component="PoissonRectangle",
-        parameters={"wave_number": 3.141592653589793, "source_scale": 19.739208802178716},
+        parameters={"source_scale": 1.0},
     )
 except package.ValidationError as error:
     assert "region" in error.diagnostics[0].message
@@ -257,7 +325,7 @@ else:
 
 #[test]
 fn package_compile_argument_and_resolution_boundaries_fail_closed() -> PyResult<()> {
-    let (store, resolution, _) = locked_store();
+    let (store, resolution, _) = locked_store(SOURCE);
     Python::initialize();
     Python::attach(|py| {
         let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
@@ -306,4 +374,40 @@ else:
             Some(&locals),
         )
     })
+}
+
+fn public_module(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
+    let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+    let package_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../bindings/python/python/eqiora")
+        .canonicalize()?;
+    let locals = PyDict::new(py);
+    locals.set_item("native", native.bind(py))?;
+    locals.set_item("package_directory", package_directory.to_string_lossy())?;
+    py.run(
+        c_str!(
+            r#"
+import importlib.util
+import pathlib
+import sys
+
+package_path = pathlib.Path(package_directory)
+spec = importlib.util.spec_from_file_location(
+    "eqiora",
+    package_path / "__init__.py",
+    submodule_search_locations=[str(package_path)],
+)
+package = importlib.util.module_from_spec(spec)
+sys.modules["eqiora"] = package
+sys.modules["eqiora._eqiora"] = native
+spec.loader.exec_module(package)
+"#
+        ),
+        None,
+        Some(&locals),
+    )?;
+    Ok(locals
+        .get_item("package")?
+        .expect("public package must load")
+        .cast_into::<PyModule>()?)
 }

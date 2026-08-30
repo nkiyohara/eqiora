@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 153 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 595 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 155 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 599 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 183 literal public spellings, 153 canonical grouped declarations, 792 visible method signatures (595 non-dunder and 197 dunder), and 73 visible class assignments.
+Inventory: 18 modules, 185 literal public spellings, 155 canonical grouped declarations, 796 visible method signatures (599 non-dunder and 197 dunder), and 73 visible class assignments.
 
 Regenerate with:
 
@@ -1961,7 +1961,7 @@ Shipped stub: [`bindings/python/python/eqiora/lang/__init__.pyi`](../../bindings
 
 ### `eqiora.lang.Component`
 
-Author declarations in one bounded public equations-only Component.
+Author one bounded public Component and an admitted exact instance binding.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::Component`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -1971,8 +1971,10 @@ class Component:
     def volume(self, name: str, *, dimensions: int, public: bool=True, doc: str | None=None) -> Support: ...
     def boundary(self, name: str, *, parent: Support, public: bool=True, doc: str | None=None) -> Support: ...
     def parameter(self, name: str, *, unit: _Unit, public: bool=True, doc: str | None=None) -> Expression: ...
+    def property(self, name: str, *, contract: PropertyContract, public: bool=True, doc: str | None=None) -> Expression: ...
     def field(self, name: str, *, on: Support, unit: _Unit, shape: _Shape | None=None, initial: int | float | None=None, doc: str | None=None) -> Expression: ...
     def relation(self, name: str, *, on: Support, residual: Expression | int | float, doc: str | None=None) -> None: ...
+    def instance(self, name: str, *, component: Component, supports: Mapping[Support, Support], parameters: Mapping[Expression, Expression | int | float], properties: Mapping[Expression, PropertyRelease], doc: str | None=None) -> None: ...
 ```
 
 <a id="api-eqiora-lang-Expression"></a>
@@ -1998,11 +2000,39 @@ class Expression:
     def __neg__(self) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-PropertyContract"></a>
+
+### `eqiora.lang.PropertyContract`
+
+Identify one scalar property contract in its exact Source.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::PropertyContract`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class PropertyContract:
+    ...
+```
+
+<a id="api-eqiora-lang-PropertyRelease"></a>
+
+### `eqiora.lang.PropertyRelease`
+
+Identify one exact constant scalar release in its exact Source.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::PropertyRelease`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class PropertyRelease:
+    ...
+```
+
 <a id="api-eqiora-lang-Source"></a>
 
 ### `eqiora.lang.Source`
 
-Own one Component draft and freeze it on deterministic emission.
+Own one baseline or scalar-property draft and freeze it on emission.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::Source`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -2011,6 +2041,8 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::Source`](../../bind
 class Source:
     def __init__(self) -> None: ...
     def component(self, name: str, *, public: bool=True, doc: str | None=None) -> Component: ...
+    def scalar_property_contract(self, name: str, *, unit: _Unit, public: bool=True, doc: str | None=None) -> PropertyContract: ...
+    def scalar_property_release(self, name: str, *, implements: PropertyContract, value: int | float, source_unit: _Unit, source_scale: int | float, validity: str='unconditional', citation: str, license: str, public: bool=True, doc: str | None=None) -> PropertyRelease: ...
     def to_eqi(self) -> str: ...
     def write_eqi(self, path: str | PathLike[str]) -> None: ...
 ```

@@ -3,6 +3,7 @@
 Authority: ``bindings/python/python/eqiora/lang/__init__.py``.
 """
 
+from collections.abc import Mapping
 from os import PathLike
 from typing import final
 
@@ -43,8 +44,26 @@ class Support:
     ...
 
 @final
+class PropertyContract:
+    """Identify one scalar property contract in its exact Source.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::PropertyContract``.
+    """
+
+    ...
+
+@final
+class PropertyRelease:
+    """Identify one exact constant scalar release in its exact Source.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::PropertyRelease``.
+    """
+
+    ...
+
+@final
 class Component:
-    """Author declarations in one bounded public equations-only Component.
+    """Author one bounded public Component and an admitted exact instance binding.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component``.
     """
@@ -73,6 +92,14 @@ class Component:
         public: bool = True,
         doc: str | None = None,
     ) -> Expression: ...
+    def property(
+        self,
+        name: str,
+        *,
+        contract: PropertyContract,
+        public: bool = True,
+        doc: str | None = None,
+    ) -> Expression: ...
     def field(
         self,
         name: str,
@@ -91,10 +118,20 @@ class Component:
         residual: Expression | int | float,
         doc: str | None = None,
     ) -> None: ...
+    def instance(
+        self,
+        name: str,
+        *,
+        component: Component,
+        supports: Mapping[Support, Support],
+        parameters: Mapping[Expression, Expression | int | float],
+        properties: Mapping[Expression, PropertyRelease],
+        doc: str | None = None,
+    ) -> None: ...
 
 @final
 class Source:
-    """Own one Component draft and freeze it on deterministic emission.
+    """Own one baseline or scalar-property draft and freeze it on emission.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Source``.
     """
@@ -107,6 +144,28 @@ class Source:
         public: bool = True,
         doc: str | None = None,
     ) -> Component: ...
+    def scalar_property_contract(
+        self,
+        name: str,
+        *,
+        unit: _Unit,
+        public: bool = True,
+        doc: str | None = None,
+    ) -> PropertyContract: ...
+    def scalar_property_release(
+        self,
+        name: str,
+        *,
+        implements: PropertyContract,
+        value: int | float,
+        source_unit: _Unit,
+        source_scale: int | float,
+        validity: str = "unconditional",
+        citation: str,
+        license: str,
+        public: bool = True,
+        doc: str | None = None,
+    ) -> PropertyRelease: ...
     def to_eqi(self) -> str: ...
     def write_eqi(self, path: str | PathLike[str]) -> None: ...
 
@@ -121,6 +180,7 @@ class _Unit:
 class _Units:
     kg: _Unit
     m: _Unit
+    one: _Unit
     s: _Unit
 
 #: Structural SI-unit expressions used by Source declarations.
@@ -192,6 +252,8 @@ def isotropic_lift(value: Expression) -> Expression:
 __all__ = [
     "Component",
     "Expression",
+    "PropertyContract",
+    "PropertyRelease",
     "Source",
     "SourceError",
     "Support",

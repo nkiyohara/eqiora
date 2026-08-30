@@ -96,6 +96,81 @@ PARAMETERS = {
 }
 
 
+def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."):
+    source = q.Source()
+    contract = source.scalar_property_contract("Diffusivity", unit=u.one)
+    release = source.scalar_property_release(
+        "ReferenceDiffusivity",
+        implements=contract,
+        value=25,
+        source_unit=u.one,
+        source_scale=0.001,
+        validity="unconditional",
+        citation="org.example.measurement",
+        license="spdx.CC0_1_0",
+        doc=doc,
+    )
+
+    law = source.component("PoissonLaw")
+    law_region = law.volume("region", dimensions=2)
+    law_left = law.boundary("left", parent=law_region)
+    law_right = law.boundary("right", parent=law_region)
+    law_bottom = law.boundary("bottom", parent=law_region)
+    law_top = law.boundary("top", parent=law_region)
+    law_source_scale = law.parameter("source_scale", unit=u.one / u.m**2)
+    diffusivity = law.property("diffusivity", contract=contract)
+    potential = law.field("potential", on=law_region, unit=u.one, initial=0)
+    law.relation(
+        "balance",
+        on=law_region,
+        residual=(
+            -q.div(diffusivity * q.grad(potential))
+            - law_source_scale
+        ),
+    )
+    law.relation("left_value", on=law_left, residual=q.trace(potential))
+    law.relation("right_value", on=law_right, residual=q.trace(potential))
+    law.relation("bottom_value", on=law_bottom, residual=q.trace(potential))
+    law.relation("top_value", on=law_top, residual=q.trace(potential))
+
+    root = source.component("PoissonRectangle")
+    root_region = root.volume("region", dimensions=2)
+    root_left = root.boundary("left", parent=root_region)
+    root_right = root.boundary("right", parent=root_region)
+    root_bottom = root.boundary("bottom", parent=root_region)
+    root_top = root.boundary("top", parent=root_region)
+    root_source_scale = root.parameter("source_scale", unit=u.one / u.m**2)
+    root.instance(
+        "equation",
+        component=law,
+        supports={
+            law_region: root_region,
+            law_left: root_left,
+            law_right: root_right,
+            law_bottom: root_bottom,
+            law_top: root_top,
+        },
+        parameters={law_source_scale: root_source_scale},
+        properties={diffusivity: release},
+    )
+    return source
+
+
+def rectangle_geometry():
+    graph = eqiora.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+    return graph.build(
+        rectangle,
+        named_topology={
+            "region": rectangle.region,
+            "left": rectangle.boundaries[0],
+            "right": rectangle.boundaries[1],
+            "bottom": rectangle.boundaries[2],
+            "top": rectangle.boundaries[3],
+        },
+    )
+
+
 def test_source_is_deterministic_and_direct_file_compilation_has_one_identity(
     tmp_path: Path,
 ) -> None:
@@ -120,6 +195,99 @@ def test_source_is_deterministic_and_direct_file_compilation_has_one_identity(
         parameters=PARAMETERS,
     )
     assert direct.digest == emitted.digest == other_comments.digest
+
+
+def test_scalar_property_source_emits_for_the_exact_package_path(
+    tmp_path: Path,
+) -> None:
+    first = scalar_property_source()
+    second = scalar_property_source()
+    assert first.to_eqi() == second.to_eqi()
+    assert "public property contract Diffusivity" in first.to_eqi()
+    assert "property diffusivity = ReferenceDiffusivity" in first.to_eqi()
+
+    with pytest.raises(q.SourceError, match="requires an exact Model Package"):
+        eqiora.compile(
+            source=first,
+            geometry=rectangle_geometry(),
+            component="PoissonRectangle",
+            parameters={"source_scale": 1.0},
+        )
+    path = tmp_path / "property-poisson.eqi"
+    first.write_eqi(path)
+    assert path.read_text(encoding="utf-8") == first.to_eqi()
+    assert scalar_property_source(doc="Different release documentation.").to_eqi().replace(
+        "// Different release documentation.\n", ""
+    ) == first.to_eqi().replace("// Reference scalar diffusivity release.\n", "")
+
+
+def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> None:
+    source = q.Source()
+    contract = source.scalar_property_contract("Diffusivity", unit=u.one)
+    with pytest.raises(TypeError):
+        q.PropertyContract()
+    with pytest.raises(TypeError):
+        q.PropertyRelease()
+    with pytest.raises(q.SourceError, match="strictly positive"):
+        source.scalar_property_release(
+            "ReferenceDiffusivity",
+            implements=contract,
+            value=25,
+            source_unit=u.one,
+            source_scale=0,
+            citation="org.example.measurement",
+            license="spdx.CC0_1_0",
+        )
+    with pytest.raises(q.SourceError, match="citation identity"):
+        source.scalar_property_release(
+            "ReferenceDiffusivity",
+            implements=contract,
+            value=25,
+            source_unit=u.one,
+            source_scale=0.001,
+            citation="not/a/name/path",
+            license="spdx.CC0_1_0",
+        )
+    release = source.scalar_property_release(
+        "ReferenceDiffusivity",
+        implements=contract,
+        value=25,
+        source_unit=u.one,
+        source_scale=0.001,
+        citation="org.example.measurement",
+        license="spdx.CC0_1_0",
+    )
+    with pytest.raises(AttributeError):
+        contract.name = "Other"
+    with pytest.raises(AttributeError):
+        release.value = 1
+
+    foreign = q.Source()
+    foreign_component = foreign.component("Foreign")
+    with pytest.raises(q.SourceError, match="belong to this Source"):
+        foreign_component.property("diffusivity", contract=contract)
+
+    consumer = source.component("Consumer")
+    requirement = consumer.property("diffusivity", contract=contract)
+    root = source.component("Root")
+    with pytest.raises(q.SourceError, match="property bindings must be complete"):
+        root.instance(
+            "equation",
+            component=consumer,
+            supports={},
+            parameters={},
+            properties={},
+        )
+    root.instance(
+        "equation",
+        component=consumer,
+        supports={},
+        parameters={},
+        properties={requirement: release},
+    )
+    assert "property diffusivity = ReferenceDiffusivity" in source.to_eqi()
+    with pytest.raises(q.SourceError):
+        source.component("Third")
 
 
 def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
