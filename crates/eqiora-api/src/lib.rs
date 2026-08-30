@@ -65,6 +65,33 @@ pub struct ModelDocument {
     aliases: BTreeMap<String, RawId>,
     store: InMemoryGraphStore,
     geometry_authority: Vec<CanonicalGeometryV1>,
+    authored_formulations: Vec<AuthoredFormulationSummary>,
+}
+
+#[derive(Debug, Clone)]
+struct AuthoredFormulationSummary {
+    source_identity: String,
+    relation: RawId,
+    domain: RawId,
+    trial: RawId,
+    file: String,
+    range: eqiora_lang::TextRange,
+}
+
+fn authored_formulation_summaries(compiled: &CompiledModel) -> Vec<AuthoredFormulationSummary> {
+    compiled
+        .authored_formulations()
+        .map(
+            |(source_identity, relation, domain, trial, file, range)| AuthoredFormulationSummary {
+                source_identity,
+                relation,
+                domain,
+                trial,
+                file: file.to_owned(),
+                range,
+            },
+        )
+        .collect()
 }
 
 impl PartialEq for ModelDocument {
@@ -112,6 +139,7 @@ impl ModelDocument {
 
     pub(crate) fn accept_compiled(compiled: CompiledModel) -> Result<Self, Vec<Diagnostic>> {
         let aliases = aliases(compiled.symbols());
+        let authored_formulations = authored_formulation_summaries(&compiled);
         let model = compiled.model();
 
         // Every source/UI/language client crosses the same bounded,
@@ -123,7 +151,9 @@ impl ModelDocument {
         let mut store = InMemoryGraphStore::new();
         store.commit(transaction)?;
         let program = KernelProgram::from_snapshot(&store.snapshot(), model)?;
-        Self::from_store(store, program, aliases)
+        let mut document = Self::from_store(store, program, aliases)?;
+        document.authored_formulations = authored_formulations;
+        Ok(document)
     }
 
     /// Replay one self-contained artifact through the single current Model
@@ -151,6 +181,7 @@ impl ModelDocument {
             aliases: BTreeMap::new(),
             store,
             geometry_authority: Vec::new(),
+            authored_formulations: Vec::new(),
         })
     }
 
@@ -173,6 +204,28 @@ impl ModelDocument {
             aliases,
             store,
             geometry_authority: Vec::new(),
+            authored_formulations: Vec::new(),
+        })
+    }
+
+    /// Typed authored mathematics available only after fresh source compilation.
+    ///
+    /// Canonical Model artifacts deliberately exclude this compiler sidecar;
+    /// replay therefore returns an empty slice instead of fabricating a form.
+    #[must_use]
+    pub fn authored_formulations(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (&str, RawId, RawId, RawId, &str, eqiora_lang::TextRange)>
+    {
+        self.authored_formulations.iter().map(|form| {
+            (
+                form.source_identity.as_str(),
+                form.relation,
+                form.domain,
+                form.trial,
+                form.file.as_str(),
+                form.range,
+            )
         })
     }
 

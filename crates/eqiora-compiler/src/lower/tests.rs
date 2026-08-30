@@ -1,4 +1,6 @@
 use super::*;
+use crate::compile;
+use eqiora_lang::parse;
 
 #[test]
 fn entity_symbols_are_ordered_and_exact() {

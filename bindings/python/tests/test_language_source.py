@@ -171,6 +171,61 @@ def rectangle_geometry():
     )
 
 
+def scalar_primal_source():
+    source = q.Source()
+    law = source.component("ScalarDiffusion")
+    region = law.volume("region", dimensions=2)
+    diffusion = law.parameter("diffusion", unit=u.one)
+    wave_number = law.parameter("wave_number", unit=u.one / u.m)
+    source_scale = law.parameter("source_scale", unit=u.one / u.m**2)
+    potential = law.field("potential", on=region, unit=u.one, initial=0)
+    balance = law.relation(
+        "balance",
+        on=region,
+        residual=(
+            -q.div(diffusion * q.grad(potential))
+            - source_scale * q.sin(wave_number * q.coordinate(0))
+        ),
+    )
+    law.primal_form(
+        balance,
+        left=q.integrate(
+            region,
+            q.dot(q.grad(q.test(potential)), diffusion * q.grad(potential)),
+        ),
+        right=q.integrate(
+            region,
+            q.test(potential)
+            * source_scale
+            * q.sin(wave_number * q.coordinate(0)),
+        ),
+        doc="Authored scalar primal form.",
+    )
+    return source
+
+
+def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form() -> None:
+    source = scalar_primal_source()
+    text = source.to_eqi()
+    assert "form primal for balance" in text
+    assert "// Authored scalar primal form." in text
+
+    model = eqiora.compile(
+        source=source,
+        geometry=rectangle_geometry(),
+        parameters={"diffusion": 1.0, "wave_number": 2.0, "source_scale": 2.0},
+    )
+    assert len(model.authored_formulations) == 1
+    form = model.authored_formulations[0]
+    assert form.kind == "primal"
+    assert len(form.source_identity) == 64
+    assert form.filename == "<python-source>"
+    assert form.trial_field_id in model.field_ids
+
+    replayed = eqiora.Model.from_bytes(model.to_bytes())
+    assert replayed.authored_formulations == ()
+
+
 def test_source_is_deterministic_and_direct_file_compilation_has_one_identity(
     tmp_path: Path,
 ) -> None:

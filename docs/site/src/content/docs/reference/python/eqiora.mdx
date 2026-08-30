@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **84** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **85** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -66,6 +66,33 @@ class Array:
     @property
     def origin_copy_occurred(self) -> bool: ...
     def __len__(self) -> int: ...
+```
+
+<a id="api-eqiora-AuthoredFormulation"></a>
+
+## `AuthoredFormulation`
+
+Fresh-compile authored scalar primal Formulation inspection.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/model/authored_formulation.rs" kind="blob">crates/eqiora-python/src/model/authored_formulation.rs</ExactSourceLink>
+
+```python
+@final
+class AuthoredFormulation:
+    @property
+    def kind(self) -> str: ...
+    @property
+    def source_identity(self) -> str: ...
+    @property
+    def relation_id(self) -> str: ...
+    @property
+    def domain_id(self) -> str: ...
+    @property
+    def trial_field_id(self) -> str: ...
+    @property
+    def filename(self) -> str: ...
+    @property
+    def source_range(self) -> tuple[int, int]: ...
 ```
 
 <a id="api-eqiora-BoundarySide"></a>
@@ -756,6 +783,8 @@ class Model:
     def package_compilation_digest(self) -> str | None: ...
     @property
     def property_bindings(self) -> tuple[PropertyBinding, ...]: ...
+    @property
+    def authored_formulations(self) -> tuple[AuthoredFormulation, ...]: ...
     @property
     def structural_fingerprint(self) -> StructuralSemanticFingerprint: ...
     @property

@@ -2,6 +2,7 @@
 
 use core::fmt;
 
+mod component;
 mod domain_validation;
 mod property;
 
@@ -271,30 +272,6 @@ impl SourceAstFactory {
         Ok(ConnectorQuantitySyntax {
             name: checked_identifier(name, "Connector quantity")?,
             dimension,
-        })
-    }
-
-    /// Construct one reusable Component declaration.
-    ///
-    /// # Errors
-    /// Returns an error for an invalid source identifier, member shape, or
-    /// byte range. Name resolution and component semantics remain compiler
-    /// responsibilities.
-    pub fn component(
-        visibility: VisibilitySyntax,
-        name: impl Into<String>,
-        items: Vec<ComponentItem>,
-        range: TextRange,
-    ) -> Result<ComponentDecl, AstConstructionError> {
-        for item in &items {
-            validate_component_item(item)?;
-        }
-        Ok(ComponentDecl {
-            visibility,
-            name: checked_identifier(name, "component")?,
-            items,
-            property_requirements: Vec::new(),
-            range: checked_range(range)?,
         })
     }
 
@@ -1399,6 +1376,7 @@ mod tests {
     };
 
     use super::*;
+
     use crate::cartesian::CartesianCoordinateSyntax;
 
     fn range(start: u32, end: u32) -> TextRange {

@@ -190,6 +190,28 @@ class PropertyBinding:
     def license(self) -> str: ...
 
 @final
+class AuthoredFormulation:
+    """Fresh-compile authored scalar primal Formulation inspection.
+
+    Authority: ``crates/eqiora-python/src/model/authored_formulation.rs``.
+    """
+
+    @property
+    def kind(self) -> str: ...
+    @property
+    def source_identity(self) -> str: ...
+    @property
+    def relation_id(self) -> str: ...
+    @property
+    def domain_id(self) -> str: ...
+    @property
+    def trial_field_id(self) -> str: ...
+    @property
+    def filename(self) -> str: ...
+    @property
+    def source_range(self) -> tuple[int, int]: ...
+
+@final
 class Dimension:
     """SI base-dimension exponents in M, L, T, I, Θ, N, J order.
 
@@ -636,6 +658,8 @@ class Model:
     def package_compilation_digest(self) -> str | None: ...
     @property
     def property_bindings(self) -> tuple[PropertyBinding, ...]: ...
+    @property
+    def authored_formulations(self) -> tuple[AuthoredFormulation, ...]: ...
     @property
     def structural_fingerprint(self) -> StructuralSemanticFingerprint: ...
     @property
@@ -1381,6 +1405,7 @@ from . import diff as diff
 __all__ = [
     "__version__",
     "Array",
+    "AuthoredFormulation",
     "BoundarySide",
     "CancellationError",
     "CapabilityError",

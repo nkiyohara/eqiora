@@ -105,7 +105,16 @@ impl CompiledModel {
         };
 
         let binding = external_geometry_binding(file, selected, geometry, "Main", parameters)?;
-        crate::hierarchy::compile_external_component(file, source, &binding)
+        let compiled = crate::hierarchy::compile_external_component(file, source, &binding)?;
+        let formulations = crate::formulation::compile_component_formulations(
+            file,
+            selected,
+            compiled.symbols(),
+            compiled.transaction(),
+            geometry.ambient_dimension(),
+            geometry.topological_dimension(),
+        )?;
+        Ok(compiled.with_authored_formulations(formulations))
     }
 
     /// Compile one root-package public Component against one exact caller
@@ -162,12 +171,21 @@ impl CompiledModel {
             )]);
         }
         let binding = external_geometry_binding(file, selected, geometry, "Main", parameters)?;
-        crate::hierarchy::compile_resolved_external_component(
+        let compiled = crate::hierarchy::compile_resolved_external_component(
             &hierarchy.analysis,
             &hierarchy.checked,
             &binding,
             crate::hierarchy::HierarchyLimits::default(),
-        )
+        )?;
+        let formulations = crate::formulation::compile_component_formulations(
+            file,
+            selected,
+            compiled.symbols(),
+            compiled.transaction(),
+            geometry.ambient_dimension(),
+            geometry.topological_dimension(),
+        )?;
+        Ok(compiled.with_authored_formulations(formulations))
     }
 
     /// Compile one selected public local Component against selections borrowed

@@ -10,7 +10,7 @@ use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora_graph::{GraphStore, InMemoryGraphStore, Revision};
 use eqiora_sem::KernelProgram;
 
-use crate::{ModelDocument, aliases, single_diagnostic};
+use crate::{ModelDocument, aliases, authored_formulation_summaries, single_diagnostic};
 
 impl ModelDocument {
     /// Compile one definitions-only `.eqi` Component against exact-name
@@ -70,6 +70,7 @@ impl ModelDocument {
         geometry: &CanonicalGeometryV1,
     ) -> Result<Self, Vec<Diagnostic>> {
         let aliases = aliases(compiled.symbols());
+        let authored_formulations = authored_formulation_summaries(&compiled);
         let model = compiled.model();
         let transaction = ModelTransactionEnvelope::from_transaction(compiled.transaction())
             .and_then(|envelope| envelope.to_transaction())
@@ -104,6 +105,7 @@ impl ModelDocument {
             aliases,
             store,
             geometry_authority: vec![geometry.clone()],
+            authored_formulations,
         };
         document
             .replay_with_retained_geometry()
@@ -138,6 +140,28 @@ public component FluidBoundaryLaw {
   relation outlet_law continuous on outlet { trace(state) = 0; }
   relation walls_law continuous on walls { trace(state) = 0; }
   relation cylinder_law continuous on cylinder { trace(state) = 0; }
+}
+"#;
+
+    const SCALAR_PRIMAL_SOURCE: &str = r#"
+public component ScalarDiffusion {
+  public support fluid: volume(ambient_dimension = 2);
+  public parameter diffusion: 1;
+  public parameter wave_number: 1 / m;
+  public parameter source_scale: 1 / m ^ 2;
+  representation space = continuum;
+  field potential on fluid as space: 1 = 0;
+  relation balance continuous on fluid {
+    -div(diffusion * grad(potential))
+      = source_scale * sin(wave_number * coordinate(0));
+  }
+  form primal for balance {
+    integrate(fluid, dot(grad(test(potential)), diffusion * grad(potential)))
+      = integrate(
+          fluid,
+          test(potential) * source_scale * sin(wave_number * coordinate(0))
+        );
+  }
 }
 "#;
 
@@ -233,6 +257,169 @@ public component SteadyFlowPastCylinder {
                 ]),
             )
             .unwrap()
+    }
+
+    #[test]
+    fn fresh_geometry_compile_retains_typed_form_without_changing_model_artifact() {
+        let geometry = fixture_geometry();
+        let parameters = [
+            ("diffusion", 1.0),
+            ("wave_number", 2.0),
+            ("source_scale", 2.0),
+        ];
+        let with_form = ModelDocument::compile_with_geometry(
+            "scalar-primal.eqi",
+            SCALAR_PRIMAL_SOURCE,
+            &geometry,
+            None,
+            &parameters,
+        )
+        .unwrap();
+        let without_form_source = format!(
+            "{}}}\n",
+            SCALAR_PRIMAL_SOURCE.split_once("  form primal").unwrap().0
+        );
+        let without_form = ModelDocument::compile_with_geometry(
+            "scalar-primal.eqi",
+            &without_form_source,
+            &geometry,
+            None,
+            &parameters,
+        )
+        .unwrap();
+
+        let forms = with_form.authored_formulations().collect::<Vec<_>>();
+        let [(_, relation, domain, trial, _, _)] = forms.as_slice() else {
+            panic!("fresh compilation must retain exactly one typed form")
+        };
+        assert_eq!(
+            domain.downcast(),
+            Some(with_form.domain_ref("fluid").unwrap().id())
+        );
+        let local_alias = |name: &str| {
+            let suffix = format!(".{name}");
+            with_form
+                .aliases()
+                .iter()
+                .find_map(|(candidate, id)| candidate.ends_with(&suffix).then_some(*id))
+                .unwrap()
+        };
+        assert_eq!(
+            trial.downcast().unwrap(),
+            local_alias("potential")
+                .downcast::<eqiora_core::entity::kinds::Field>()
+                .unwrap()
+        );
+        assert_eq!(
+            relation.downcast().unwrap(),
+            local_alias("balance")
+                .downcast::<eqiora_core::entity::kinds::Relation>()
+                .unwrap()
+        );
+        assert_eq!(without_form.authored_formulations().len(), 0);
+        assert_eq!(
+            with_form.canonical_json().unwrap(),
+            without_form.canonical_json().unwrap()
+        );
+        assert_eq!(with_form.digest().unwrap(), without_form.digest().unwrap());
+        assert_eq!(
+            with_form.structural_fingerprint().unwrap(),
+            without_form.structural_fingerprint().unwrap()
+        );
+    }
+
+    #[test]
+    fn scalar_primal_form_dimension_mismatch_fails_closed() {
+        let geometry = fixture_geometry();
+        let invalid = SCALAR_PRIMAL_SOURCE.replace(
+            "test(potential) * source_scale",
+            "test(potential) * diffusion",
+        );
+        let diagnostics = ModelDocument::compile_with_geometry(
+            "invalid-primal.eqi",
+            &invalid,
+            &geometry,
+            None,
+            &[
+                ("diffusion", 1.0),
+                ("wave_number", 2.0),
+                ("source_scale", 2.0),
+            ],
+        )
+        .unwrap_err();
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message()
+                .contains("equality sides must have identical dimension")
+        }));
+    }
+
+    #[test]
+    fn scalar_primal_form_role_contraction_and_operator_errors_fail_closed() {
+        let geometry = fixture_geometry();
+        let parameters = [
+            ("diffusion", 1.0),
+            ("wave_number", 2.0),
+            ("source_scale", 2.0),
+        ];
+        let invalid = [
+            (
+                SCALAR_PRIMAL_SOURCE.replace("for balance", "for missing"),
+                "unknown Formulation symbol `missing`",
+            ),
+            (
+                SCALAR_PRIMAL_SOURCE.replace("test(potential)", "test(diffusion)"),
+                "test argument is not a Field",
+            ),
+            (
+                SCALAR_PRIMAL_SOURCE.replace(
+                    "dot(grad(test(potential)), diffusion * grad(potential))",
+                    "dot(test(potential), diffusion * grad(potential))",
+                ),
+                "dot requires equal non-scalar vector shapes",
+            ),
+            (
+                SCALAR_PRIMAL_SOURCE.replacen("integrate(fluid", "integrate(missing", 1),
+                "unknown Formulation symbol `missing`",
+            ),
+            (
+                SCALAR_PRIMAL_SOURCE.replace(
+                    "test(potential) * source_scale * sin",
+                    "div(test(potential)) * source_scale * sin",
+                ),
+                "unsupported scalar-primal operator `div`",
+            ),
+        ];
+        for (source, expected) in invalid {
+            let diagnostics = ModelDocument::compile_with_geometry(
+                "invalid-primal.eqi",
+                &source,
+                &geometry,
+                None,
+                &parameters,
+            )
+            .unwrap_err();
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message().contains(expected)),
+                "missing {expected:?} in {diagnostics:?}",
+            );
+        }
+
+        let ordinary_source = format!(
+            "{SCALAR_PRIMAL_SOURCE}\nmodel root {{ field x: 1 = 0; relation hold continuous {{ x = 0; }} }}\n"
+        );
+        let diagnostics = ModelDocument::compile("unsupported.eqi", &ordinary_source)
+            .expect_err("ordinary Model compilation cannot discard authored forms");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message()
+                    .contains("require fresh external-Geometry component compilation")
+            }),
+            "unexpected diagnostics: {diagnostics:?}",
+        );
     }
 
     fn cylinder_parameters() -> [(&'static str, DynQuantity); 4] {

@@ -100,6 +100,7 @@ CONFORMANCE_REPORT_FIELDS = (
 EXPECTED_EQIORA_ALL = [
     "__version__",
     "Array",
+    "AuthoredFormulation",
     "BoundarySide",
     "CancellationError",
     "CapabilityError",

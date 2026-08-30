@@ -4,22 +4,22 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Span};
 
 mod domain;
+mod formulation;
 mod property;
 mod relation;
 
 use crate::ast::{
     BinaryOp, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
     BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
-    BoundarySetBindingDecl, BoundarySetMemberSyntax, BoundarySideSyntax, ClockDecl, ComponentDecl,
-    ComponentItem, ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl,
-    ConnectionDecl, ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax,
-    Document, DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl,
-    FieldDecl, FieldSlotDecl, FrameSyntax, InstanceDecl, Item, ModelDecl, NamePath,
-    ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp,
-    PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
-    PureValueClassSyntax, RationalSyntax, RepresentationDecl, RepresentationSyntax,
-    SignalDirectionSyntax, SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange,
-    UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    BoundarySetBindingDecl, BoundarySetMemberSyntax, BoundarySideSyntax, ClockDecl, ComponentItem,
+    ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
+    ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax, Document,
+    DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl,
+    FieldSlotDecl, FrameSyntax, InstanceDecl, Item, ModelDecl, NamePath, ParameterBindingDecl,
+    ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr,
+    PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RationalSyntax,
+    RepresentationDecl, RepresentationSyntax, SignalDirectionSyntax, SupportBindingDecl,
+    SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use crate::lexer::{Token, TokenKind, lex};
 use relation::ParsedRelation;
@@ -484,40 +484,6 @@ impl Parser<'_> {
             visibility,
             name,
             syntax,
-            range: TextRange::new(start, end),
-        })
-    }
-
-    fn parse_component(
-        &mut self,
-        start: u32,
-        visibility: VisibilitySyntax,
-    ) -> Option<ComponentDecl> {
-        self.expect_keyword("component")?;
-        let name = self.expect_identifier("component name")?.text().to_owned();
-        self.expect(TokenKind::LeftBrace, "`{` after component name")?;
-        let mut items = Vec::new();
-        let mut property_requirements = Vec::new();
-        while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
-            if self.at_component_property() {
-                property_requirements.push(self.parse_component_property()?);
-                continue;
-            }
-            match self.parse_component_item() {
-                Some(ParsedComponentItem::Retained(item)) => items.push(*item),
-                Some(ParsedComponentItem::Discarded) => {}
-                None => self.recover_item(),
-            }
-        }
-        let end = self
-            .expect(TokenKind::RightBrace, "`}` to close component")?
-            .range()
-            .end();
-        Some(ComponentDecl {
-            visibility,
-            name,
-            items,
-            property_requirements,
             range: TextRange::new(start, end),
         })
     }

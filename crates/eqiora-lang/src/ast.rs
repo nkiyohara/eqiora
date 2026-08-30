@@ -1,8 +1,11 @@
 //! Source-oriented syntax tree. Semantic types are assigned during lowering.
 
+pub(crate) mod formulation;
+
 use crate::ast_property::{
     ComponentPropertyDecl, PropertyBindingDecl, PropertyContractDecl, PropertyReleaseDecl,
 };
+use formulation::FormulationDecl;
 use std::ops::Range;
 
 pub use crate::cartesian::{BoundarySideSyntax, CartesianCoordinateSyntax};
@@ -446,6 +449,7 @@ pub struct ComponentDecl {
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
     pub(crate) items: Vec<ComponentItem>,
+    pub(crate) formulations: Vec<FormulationDecl>,
     pub(crate) property_requirements: Vec<ComponentPropertyDecl>,
     pub(crate) range: TextRange,
 }
@@ -467,12 +471,6 @@ impl ComponentDecl {
     #[must_use]
     pub fn items(&self) -> &[ComponentItem] {
         &self.items
-    }
-
-    /// Full component declaration range, including a visibility modifier.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
     }
 }
 

@@ -3,6 +3,7 @@
 use core::fmt::Write;
 
 mod cartesian;
+mod formulation;
 mod helpers;
 mod property;
 mod relation;
@@ -17,6 +18,7 @@ use crate::ast::{
     ValueShapeSyntax, VisibilitySyntax,
 };
 use cartesian::format_cartesian_coordinate;
+use formulation::format_component;
 use helpers::{format_name_paths, format_scalar_physical, write_indent};
 use property::{format_component_requirements, format_properties};
 use relation::{format_relation, format_relation_family};
@@ -73,15 +75,7 @@ pub fn format(document: &Document) -> String {
     }
     for component in &document.components {
         separate_declaration(&mut output, &mut declaration_count);
-        if component.visibility == VisibilitySyntax::Public {
-            output.push_str("public ");
-        }
-        writeln!(output, "component {} {{", component.name).expect("String write");
-        format_component_requirements(component, &mut output);
-        for item in &component.items {
-            format_component_item(item, 2, &mut output);
-        }
-        output.push_str("}\n");
+        format_component(component, &mut output);
     }
     for model in &document.models {
         separate_declaration(&mut output, &mut declaration_count);

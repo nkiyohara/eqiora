@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__in
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.pyi" kind="blob">bindings/python/python/eqiora/lang/__init__.pyi</ExactSourceLink>
 
-This module publishes **16** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **20** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-lang-Component"></a>
 
@@ -33,7 +33,8 @@ class Component:
     def parameter(self, name: str, *, unit: _Unit, public: bool=True, doc: str | None=None) -> Expression: ...
     def property(self, name: str, *, contract: PropertyContract, public: bool=True, doc: str | None=None) -> Expression: ...
     def field(self, name: str, *, on: Support, unit: _Unit, shape: _Shape | None=None, initial: int | float | None=None, doc: str | None=None) -> Expression: ...
-    def relation(self, name: str, *, on: Support, residual: Expression | int | float, doc: str | None=None) -> None: ...
+    def relation(self, name: str, *, on: Support, residual: Expression | int | float, doc: str | None=None) -> object: ...
+    def primal_form(self, relation: object, *, left: Expression, right: Expression, doc: str | None=None) -> None: ...
     def instance(self, name: str, *, component: Component, supports: Mapping[Support, Support], parameters: Mapping[Expression, Expression | int | float], properties: Mapping[Expression, PropertyRelease], doc: str | None=None) -> None: ...
 ```
 
@@ -147,6 +148,18 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 def coordinate(axis: int) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-dot"></a>
+
+## `dot`
+
+Return the inner product of two authored expressions.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::dot</ExactSourceLink>
+
+```python
+def dot(left: Expression | float | int, right: Expression | float | int) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-div"></a>
 
 ## `div`
@@ -169,6 +182,18 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 
 ```python
 def grad(value: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-integrate"></a>
+
+## `integrate`
+
+Return one volume integral over an exact Source Support.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::integrate</ExactSourceLink>
+
+```python
+def integrate(domain: Support, integrand: Expression | float | int) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-isotropic_lift"></a>
@@ -195,6 +220,18 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 def normal(value: Expression) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-sin"></a>
+
+## `sin`
+
+Return the language sine of one expression.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::sin</ExactSourceLink>
+
+```python
+def sin(value: Expression | float | int) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-spatial_vector"></a>
 
 ## `spatial_vector`
@@ -217,6 +254,18 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 
 ```python
 def symmetric_part(value: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-test"></a>
+
+## `test`
+
+Return the test function associated with one Source Field.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::test</ExactSourceLink>
+
+```python
+def test(field: Expression) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-trace"></a>

@@ -1,14 +1,14 @@
 //! Canonical identity of one typed local Eqiora source unit.
 //!
 //! The identity is derived from parsed semantic syntax, never source bytes or
-//! source spans. It seeds deterministic elaboration namespaces without making
-//! whitespace, formatting, file location, or declaration traversal order part
-//! of model meaning.
+//! source spans. It seeds deterministic elaboration namespaces independently
+//! of whitespace, file location, and declaration traversal order.
 
 use core::fmt;
 use std::collections::BTreeMap;
 
 mod domain;
+pub(crate) mod formulation;
 mod instance;
 mod visibility;
 
