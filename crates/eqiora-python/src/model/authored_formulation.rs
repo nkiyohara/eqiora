@@ -57,6 +57,18 @@ impl PyAuthoredFormulation {
     const fn source_range(&self) -> (u32, u32) {
         self.range
     }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "AuthoredFormulation(kind='primal', source_identity={:?}, relation_id={:?}, domain_id={:?}, trial_field_id={:?}, filename={:?}, source_range={:?})",
+            self.source_identity,
+            self.relation_id,
+            self.domain_id,
+            self.trial_field_id,
+            self.filename,
+            self.range,
+        )
+    }
 }
 
 pub(super) fn project(py: Python<'_>, document: Option<&ModelDocument>) -> PyResult<Py<PyTuple>> {
