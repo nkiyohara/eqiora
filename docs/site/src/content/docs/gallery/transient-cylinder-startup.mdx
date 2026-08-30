@@ -76,7 +76,7 @@ Mesh with correspondence and production lineage.
 ```python
 request = eqiora.meshing.GmshMesher(
     maximum_boundary_error=1e-4,
-    maximum_target_size=0.05,
+    maximum_target_size=0.025,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
 )
@@ -148,8 +148,8 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
 
 <ResultFigure
   src={poster.src}
-  alt="Cell-average vorticity in inverse seconds after ten accepted startup steps around a circular obstacle in a channel. Red and blue layers remain concentrated around the cylinder; no developed alternating wake is shown."
-  caption="Final accepted startup output at t = 0.1 s. Presentation only; the visible field is not a benchmark or validation result."
+  alt="Final cell-average vorticity beside its change from the first accepted output. Both remain concentrated around the circular obstacle; no developed alternating wake is shown."
+  caption="Final absolute field and change from the first output at t = 0.1 s. Presentation only; the visible fields are not a benchmark or validation result."
   units="s⁻¹"
   sourcePath="tools/site/produce_transient_cylinder_startup_media.py"
   sourceLabel="View the caller-owned media producer"
@@ -174,10 +174,11 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
   <img
     class="eq-gallery-motion__still"
     src={reducedMotion.src}
-    alt="Side-by-side cell-average vorticity fields at startup steps 1 and 10, using the same inverse-seconds color scale. The near-cylinder layers strengthen slightly while the downstream field remains nearly symmetric."
+    alt="The first accepted cell-average vorticity field beside the change in vorticity by step 10. The change panel makes the strengthening and slight downstream extension of the near-cylinder layers visible."
   />
   <figcaption>
-    Ten actual accepted outputs, played at four frames per second. Motion is
+    Ten actual accepted outputs, played at two frames per second so the subtle
+    startup change remains legible. Motion is
     disabled when the browser requests reduced motion; the first/final still is
     shown instead. Presentation only, not evidence.
   </figcaption>
@@ -185,9 +186,10 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
 
 <div id="startup-motion-description">
 
-  From 0.01 to 0.1 seconds, the red positive-vorticity layer below the cylinder
-  and blue negative-vorticity layer above it intensify and extend slightly
-  downstream. The sequence stays largely symmetric and attached. It does not
+  The right-hand panel shows Δω relative to the first output at 0.01 seconds,
+  using one fixed symmetric scale across the sequence. By 0.1 seconds, the
+  near-cylinder layers have intensified and extended slightly downstream. The
+  sequence stays largely symmetric and attached. It does not
   show, and must not be read as, periodic shedding or a developed vortex street.
 
 </div>

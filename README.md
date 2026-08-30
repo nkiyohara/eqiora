@@ -24,7 +24,7 @@ Build an exact rectangle-with-circular-hole geometry, resolve its Gmsh mesh,
 run the accepted steady-Stokes application, and inspect typed outputs and
 boundary observables from the immutable `Result`:
 
-![Accepted exact-cylinder steady-Stokes pressure field](docs/site/src/assets/gallery/exact-cylinder-pressure.png)
+![Fine-mesh exact-cylinder steady-Stokes pressure field](docs/site/src/assets/gallery/exact-cylinder-pressure-presentation.png)
 
 ```python
 from importlib.resources import files
@@ -44,6 +44,7 @@ geometry = graph.build(fluid, named_topology={
 })
 mesh_request = eqiora.meshing.GmshMesher(
     maximum_boundary_error=1e-4,
+    maximum_target_size=0.025,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
 )

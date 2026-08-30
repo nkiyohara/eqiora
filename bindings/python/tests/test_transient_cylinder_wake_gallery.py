@@ -171,13 +171,13 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
             "plot_scalar_field(",
         )
         for source in (self.notebook_source, self.marimo_source):
-            self.assertIn("maximum_target_size=0.05", source)
+            self.assertIn("maximum_target_size=0.025", source)
             cursor = 0
             for marker in ordered_markers:
                 cursor = source.index(marker, cursor) + len(marker)
 
     def test_plain_script_contains_the_same_computational_path(self) -> None:
-        self.assertIn("maximum_target_size=0.05", self.plain_source)
+        self.assertIn("maximum_target_size=0.025", self.plain_source)
         plain_calls = call_inventory(self.plain_source, PLAIN.as_posix())
         for call, count in PRESENTATION_CALLS.items():
             expected = 2 if call == "result.trajectory.state" else count
@@ -205,6 +205,10 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         self.assertIn("does not\ndepend on maintainer-owned Drive state", page)
         self.assertIn("prefers-reduced-motion: reduce", styles)
         self.assertIn("trajectory.states", producer)
+        self.assertIn("FRAME_RATE = 2", producer)
+        self.assertIn("values - reference_values", producer)
+        self.assertIn("startup vorticity change", producer)
+        self.assertIn("Δω", page)
         self.assertNotIn("verify/", producer)
 
         self.assertTrue(MEDIA["poster"].read_bytes().startswith(b"\x89PNG\r\n\x1a\n"))
