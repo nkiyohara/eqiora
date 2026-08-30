@@ -17,6 +17,7 @@ pub mod package;
 mod parameter_regeneration;
 mod parameter_study;
 mod remeshing_trajectory;
+mod run_request;
 mod value_edit;
 
 pub use cad::*;
@@ -40,6 +41,7 @@ pub use remeshing_trajectory::{
     XdmfHdf5TrajectoryExportLimits, export_xdmf_hdf5_trajectory_v1,
     verify_xdmf_hdf5_trajectory_storage_v1,
 };
+pub use run_request::RunRequest;
 pub use value_edit::{ValueEditPlan, ValueEditResult};
 
 use std::collections::BTreeMap;
