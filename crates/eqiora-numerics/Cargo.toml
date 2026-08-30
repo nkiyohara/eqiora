@@ -11,6 +11,7 @@ rust-version.workspace = true
 base64 = { workspace = true }
 eqiora-assembly = { workspace = true }
 eqiora-artifact = { workspace = true }
+eqiora-compiler = { workspace = true }
 eqiora-core = { workspace = true }
 eqiora-distributed = { workspace = true }
 eqiora-execution = { workspace = true }
@@ -30,9 +31,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 ulid = { workspace = true }
-
-[dev-dependencies]
-eqiora-compiler = { workspace = true }
 
 [lints]
 workspace = true

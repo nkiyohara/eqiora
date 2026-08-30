@@ -491,6 +491,13 @@ impl WireResolvedCommonPlanV2 {
                 return Err(invalid("spatial Plan carries an ODE temporal policy"));
             }
         };
+        let authored_formulation = self
+            .authored_formulation_base64
+            .as_deref()
+            .map(|value| decode(value, "authored Formulation"))
+            .transpose()?
+            .map(|bytes| AuthoredFormulationProjection::decode(&bytes))
+            .transpose()?;
         resolve_common_plan(
             &model,
             mesh,
@@ -499,11 +506,7 @@ impl WireResolvedCommonPlanV2 {
             scaling,
             temporal,
             linear_backend,
-            self.authored_formulation_base64
-                .as_deref()
-                .map(|value| decode(value, "authored Formulation"))
-                .transpose()?
-                .as_deref(),
+            authored_formulation.as_ref(),
         )
     }
 }

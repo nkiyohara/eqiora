@@ -26,6 +26,9 @@ mod source_compile;
 #[doc(hidden)]
 pub mod source_identity;
 
+pub use formulation::{
+    AuthoredFormExpressionV1, AuthoredFormulationProjection, CompiledAuthoredFormulation,
+};
 pub use lower::{CompiledModel, ModelSymbols, lower_draft, lower_model};
 pub use resolved::{
     AnalyzedResolvedHierarchy, CanonicalDeclarationIdentity, CanonicalDeclarationKind,

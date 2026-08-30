@@ -192,7 +192,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/lower.rs"
-ceiling = 1173
+ceiling = 1170
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -431,7 +431,7 @@ ceiling = 6
 
 [[public_surface]]
 crate = "eqiora-compiler"
-ceiling = 46
+ceiling = 49
 
 [[public_surface]]
 crate = "eqiora-core"

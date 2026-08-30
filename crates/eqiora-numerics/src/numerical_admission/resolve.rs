@@ -19,7 +19,7 @@ pub fn resolve_common_plan(
     scaling: Option<IncompressibleScalingRequest2d>,
     temporal: Option<CommonBackwardEuler>,
     stokes_backend: &dyn LinearSolverBackend,
-    authored_formulation: Option<&[u8]>,
+    authored_formulation: Option<&AuthoredFormulationProjection>,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
     let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
     if authored_formulation.is_some()

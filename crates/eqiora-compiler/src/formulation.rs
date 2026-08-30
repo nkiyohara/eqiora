@@ -16,6 +16,8 @@ use crate::source_identity::formulation::AuthoredFormSourceIdentity;
 
 mod wire;
 
+pub use wire::{AuthoredFormExpressionV1, AuthoredFormulationProjection};
+
 /// One typed expression in an authored Formulation.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct AuthoredFormExpression {
@@ -67,40 +69,22 @@ pub(crate) enum AuthoredFormExpressionKind {
     },
 }
 
-/// A typed scalar primal equality retained beside a freshly compiled Model.
+/// One compiler-owned authored Formulation retained beside a freshly compiled Model.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct AuthoredScalarPrimalForm {
-    source_identity: AuthoredFormSourceIdentity,
+pub struct CompiledAuthoredFormulation {
     relation: Id<kinds::Relation>,
     domain: Id<kinds::Domain>,
     trial: Id<kinds::Field>,
-    left: AuthoredFormExpression,
-    right: AuthoredFormExpression,
+    projection: AuthoredFormulationProjection,
     file: String,
     range: TextRange,
 }
 
-impl AuthoredScalarPrimalForm {
-    pub(crate) fn projection(&self) -> (String, RawId, RawId, RawId, Vec<u8>, &str, TextRange) {
-        (
-            self.source_identity().to_string(),
-            self.relation().erase(),
-            self.domain().erase(),
-            self.trial().erase(),
-            self.projection_bytes(),
-            self.file(),
-            self.range(),
-        )
-    }
-
-    pub(crate) fn projection_bytes(&self) -> Vec<u8> {
-        wire::encode(self)
-    }
-
+impl CompiledAuthoredFormulation {
     /// Identity of the Component's canonical authored-form source.
     #[must_use]
-    pub const fn source_identity(&self) -> AuthoredFormSourceIdentity {
-        self.source_identity
+    pub fn source_identity(&self) -> &str {
+        self.projection.source_identity()
     }
 
     /// Relation represented by this form.
@@ -119,6 +103,12 @@ impl AuthoredScalarPrimalForm {
     #[must_use]
     pub const fn trial(&self) -> Id<kinds::Field> {
         self.trial
+    }
+
+    /// Exact canonical projection consumed by resolution and Plan replay.
+    #[must_use]
+    pub const fn projection(&self) -> &AuthoredFormulationProjection {
+        &self.projection
     }
 
     /// Source filename used for diagnostics and inspection.
@@ -141,7 +131,7 @@ pub(crate) fn compile_component_formulations(
     transaction: &Transaction,
     ambient_dimension: usize,
     topological_dimension: usize,
-) -> Result<Vec<AuthoredScalarPrimalForm>, Vec<Diagnostic>> {
+) -> Result<Vec<CompiledAuthoredFormulation>, Vec<Diagnostic>> {
     if component.formulations().len() == 0 {
         return Ok(Vec::new());
     }
@@ -222,7 +212,7 @@ fn compile_formulation(
     index: &KernelIndex<'_>,
     ambient_dimension: usize,
     topological_dimension: usize,
-) -> Result<AuthoredScalarPrimalForm, Diagnostic> {
+) -> Result<CompiledAuthoredFormulation, Diagnostic> {
     let (relation_name, left_source, right_source, range) = form;
     let relation_raw = resolve_symbol(file, range, relation_name, symbols)?;
     let relation = relation_raw
@@ -265,13 +255,19 @@ fn compile_formulation(
             "scalar primal Formulation must contain test(field)",
         )
     })?;
-    Ok(AuthoredScalarPrimalForm {
-        source_identity,
+    let projection = AuthoredFormulationProjection::encode(
+        source_identity.to_string(),
+        relation.erase(),
+        domain.erase(),
+        trial.erase(),
+        &left,
+        &right,
+    );
+    Ok(CompiledAuthoredFormulation {
         relation,
         domain,
         trial,
-        left,
-        right,
+        projection,
         file: file.to_owned(),
         range,
     })

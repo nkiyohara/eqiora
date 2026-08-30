@@ -861,6 +861,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "eqiora-compiler"
+version = "0.1.0-alpha.5"
+dependencies = [
+ "eqiora-core",
+ "eqiora-geometry",
+ "eqiora-graph",
+ "eqiora-lang",
+ "eqiora-schema",
+ "serde",
+ "serde_json",
+ "sha2",
+ "ulid",
+]
+
+[[package]]
 name = "eqiora-core"
 version = "0.1.0-alpha.5"
 dependencies = [
@@ -943,6 +958,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "eqiora-lang"
+version = "0.1.0-alpha.5"
+dependencies = [
+ "eqiora-core",
+]
+
+[[package]]
 name = "eqiora-meshing"
 version = "0.1.0-alpha.5"
 dependencies = [
@@ -959,6 +981,7 @@ dependencies = [
  "base64",
  "eqiora-artifact",
  "eqiora-assembly",
+ "eqiora-compiler",
  "eqiora-core",
  "eqiora-distributed",
  "eqiora-execution",

@@ -44,7 +44,7 @@ use crate::dimensions::{
     checked_dimensions, checked_scale_dimension, dimension_overflow, length_dimension,
     lower_dimension, time_dimension,
 };
-use crate::formulation::AuthoredScalarPrimalForm;
+use crate::formulation::CompiledAuthoredFormulation;
 use crate::projection::PhysicalExposureProjectionMap;
 use crate::provenance::ProvenanceMap;
 
@@ -79,7 +79,7 @@ pub struct CompiledModel {
     symbols: ModelSymbols,
     provenance: Option<ProvenanceMap>,
     physical_exposures: PhysicalExposureProjectionMap,
-    authored_formulations: Vec<AuthoredScalarPrimalForm>,
+    authored_formulations: Vec<CompiledAuthoredFormulation>,
 }
 
 impl CompiledModel {
@@ -123,11 +123,8 @@ impl CompiledModel {
     #[must_use]
     pub fn authored_formulations(
         &self,
-    ) -> impl ExactSizeIterator<Item = (String, RawId, RawId, RawId, Vec<u8>, &str, TextRange)>
-    {
-        self.authored_formulations
-            .iter()
-            .map(AuthoredScalarPrimalForm::projection)
+    ) -> impl ExactSizeIterator<Item = &CompiledAuthoredFormulation> {
+        self.authored_formulations.iter()
     }
 
     /// Consume into the transaction, model ID, and source symbol map.
@@ -150,7 +147,7 @@ impl CompiledModel {
 
     pub(crate) fn with_authored_formulations(
         mut self,
-        formulations: Vec<AuthoredScalarPrimalForm>,
+        formulations: Vec<CompiledAuthoredFormulation>,
     ) -> Self {
         self.authored_formulations = formulations;
         self

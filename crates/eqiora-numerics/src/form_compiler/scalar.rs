@@ -28,7 +28,7 @@ use crate::form_compiler::{
     DIVERGENCE_BY_PARTS, HOMOGENEOUS_ESSENTIAL_DISCHARGE, MatrixSlot, SOURCE_PAIRING, TEST_PAIRING,
     WeakSign, WeakTermSlot,
 };
-pub(crate) use authored::AcceptedAuthoredScalarPrimalForm;
+pub(crate) use authored::admit as admit_authored_scalar_primal_form;
 
 const MAX_DAG_NODES: usize = 4_096;
 const MAX_DERIVATIVE_ORDER: usize = 1;

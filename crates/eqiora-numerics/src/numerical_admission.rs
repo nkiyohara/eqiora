@@ -62,6 +62,7 @@ use eqiora_artifact::{
     MeshProductionLineageEnvelopeV1, ModelEnvelope, SimplicialMeshEnvelopeV1,
 };
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
+use eqiora_compiler::AuthoredFormulationProjection;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_execution::{
@@ -756,7 +757,7 @@ pub struct CommonScalarPlan {
     admission: NativeNumericalAdmission,
     portable: PortableRealizationGraph,
     formulation: Option<CommonFormulationDescription>,
-    authored_formulation: Option<crate::form_compiler::AcceptedAuthoredScalarPrimalForm>,
+    authored_formulation: Option<AuthoredFormulationProjection>,
     identity: String,
     model_id: String,
     model_revision: u64,
