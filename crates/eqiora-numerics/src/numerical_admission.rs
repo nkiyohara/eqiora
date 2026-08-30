@@ -468,9 +468,10 @@ impl ResolvedCommonPlan {
     #[must_use]
     pub fn formulation(&self) -> Option<CommonFormulationDescription> {
         match self {
+            Self::Scalar(plan) => plan.formulation(),
             Self::SteadyStokes(plan) => Some(plan.formulation()),
             Self::TransientFlow(plan) => Some(plan.formulation()),
-            Self::Ode(_) | Self::Scalar(_) | Self::Elasticity(_) | Self::Fsi(_) => None,
+            Self::Ode(_) | Self::Elasticity(_) | Self::Fsi(_) => None,
         }
     }
 
@@ -583,6 +584,28 @@ pub struct CommonFormulationDescription {
 }
 
 impl CommonFormulationDescription {
+    fn primal(
+        kind: FormulationKind,
+        boundary_treatment: &'static str,
+        rule_ids: [&'static str; 4],
+        requested: FormulationSelectionMode,
+    ) -> Self {
+        Self {
+            requested,
+            kind,
+            boundary_treatment,
+            rule_ids: rule_ids.into(),
+            selection_reason_codes: Box::new([match requested {
+                FormulationSelectionMode::Automatic => {
+                    "eqiora.formulation.auto.primal-galerkin-for-q1/v1"
+                }
+                FormulationSelectionMode::Exact => {
+                    "eqiora.formulation.exact.primal-galerkin-admitted/v1"
+                }
+            }]),
+        }
+    }
+
     fn mixed(
         correspondence: &crate::form_compiler::vocabulary::MixedGalerkinCorrespondence,
         requested: FormulationSelectionMode,
@@ -739,6 +762,7 @@ pub struct CommonFsiRunRequest {
 pub struct CommonScalarPlan {
     admission: NativeNumericalAdmission,
     portable: PortableRealizationGraph,
+    formulation: Option<CommonFormulationDescription>,
     identity: String,
     model_id: String,
     model_revision: u64,

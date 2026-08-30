@@ -393,14 +393,7 @@ impl PyPlan {
     }
     #[getter]
     fn formulation(&self, py: Python<'_>) -> PyResult<Option<Py<PyFormulationView>>> {
-        let description = match &self.native {
-            ResolvedCommonPlan::SteadyStokes(plan) => Some(plan.formulation()),
-            ResolvedCommonPlan::TransientFlow(plan) => Some(plan.formulation()),
-            ResolvedCommonPlan::Ode(_)
-            | ResolvedCommonPlan::Scalar(_)
-            | ResolvedCommonPlan::Elasticity(_)
-            | ResolvedCommonPlan::Fsi(_) => None,
-        };
+        let description = self.native.formulation();
         description
             .map(|description| Py::new(py, PyFormulationView::from_native(description)))
             .transpose()

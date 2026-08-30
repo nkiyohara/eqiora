@@ -64,7 +64,7 @@ pub(super) enum FormulationRule {
 }
 
 impl FormulationRule {
-    const fn id(self) -> &'static str {
+    pub(super) const fn id(self) -> &'static str {
         match self {
             Self::TestPairing => TEST_PAIRING,
             Self::DivergenceByParts => DIVERGENCE_BY_PARTS,
