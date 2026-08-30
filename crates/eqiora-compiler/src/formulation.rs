@@ -68,14 +68,15 @@ pub enum AuthoredFormExpressionKind {
     Test(Id<kinds::Field>),
     /// Arithmetic negation.
     Neg(Box<AuthoredFormExpression>),
-    /// Binary addition.
-    Add(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
-    /// Binary subtraction.
-    Sub(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
-    /// Scalar multiplication, or scalar scaling of a vector.
-    Mul(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
-    /// Division by a scalar.
-    Div(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
+    /// One typed binary operation.
+    Binary {
+        /// Mathematical operation.
+        operator: BinaryOp,
+        /// Left operand.
+        left: Box<AuthoredFormExpression>,
+        /// Right operand.
+        right: Box<AuthoredFormExpression>,
+    },
     /// Integer power of a scalar.
     Pow(Box<AuthoredFormExpression>, i32),
     /// Spatial gradient.
@@ -481,17 +482,12 @@ impl ExpressionContext<'_> {
                         "addition and subtraction require identical dimension and shape",
                     ));
                 }
-                let kind = if op == BinaryOp::Add {
-                    AuthoredFormExpressionKind::Add(
-                        Box::new(left_value.clone()),
-                        Box::new(right_value),
-                    )
+                let operator = if op == BinaryOp::Add {
+                    BinaryOp::Add
                 } else {
-                    AuthoredFormExpressionKind::Sub(
-                        Box::new(left_value.clone()),
-                        Box::new(right_value),
-                    )
+                    BinaryOp::Sub
                 };
+                let kind = binary(operator, left_value.clone(), right_value);
                 (kind, left_value.dimension, left_value.shape.clone())
             }
             BinaryOp::Mul => {
@@ -520,7 +516,7 @@ impl ExpressionContext<'_> {
                     left_value.shape.clone()
                 };
                 (
-                    AuthoredFormExpressionKind::Mul(Box::new(left_value), Box::new(right_value)),
+                    binary(BinaryOp::Mul, left_value, right_value),
                     dimension,
                     shape,
                 )
@@ -541,7 +537,7 @@ impl ExpressionContext<'_> {
                 })?;
                 let shape = left_value.shape.clone();
                 (
-                    AuthoredFormExpressionKind::Div(Box::new(left_value), Box::new(right_value)),
+                    binary(BinaryOp::Div, left_value, right_value),
                     dimension,
                     shape,
                 )
@@ -825,6 +821,18 @@ fn typed(
         dimension,
         shape,
         support,
+    }
+}
+
+fn binary(
+    operator: BinaryOp,
+    left: AuthoredFormExpression,
+    right: AuthoredFormExpression,
+) -> AuthoredFormExpressionKind {
+    AuthoredFormExpressionKind::Binary {
+        operator,
+        left: Box::new(left),
+        right: Box::new(right),
     }
 }
 
