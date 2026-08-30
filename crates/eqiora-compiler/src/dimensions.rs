@@ -189,6 +189,32 @@ mod tests {
             assert_eq!(parameter_dimension(alias), parameter_dimension(expanded));
         }
     }
+
+    #[test]
+    fn coherent_aliases_compile_across_model_declarations() {
+        let source = r#"
+model Catalog {
+  parameter length: m = 2;
+  parameter force: N = 3;
+  parameter duration: s = 1;
+  let energy: J = force * length;
+  field power: W = 0;
+  field pressure: Pa = 0;
+  port frequency: signal input Hz;
+  relation balance continuous {
+    power = energy / duration;
+    pressure = 0;
+  }
+}
+"#;
+        let mut compiled = crate::compile("catalog.eqi", source)
+            .expect("coherent aliases compile through the shared dimension checker");
+        let compiled = compiled.pop().expect("one Model");
+        assert!(compiled.symbols().get("energy").is_none());
+        assert!(compiled.symbols().get("power").is_some());
+        assert!(compiled.symbols().get("pressure").is_some());
+        assert!(compiled.symbols().get("frequency").is_some());
+    }
 }
 
 pub(crate) fn dimension_overflow(file: &str, range: TextRange) -> Diagnostic {
