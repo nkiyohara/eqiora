@@ -39,6 +39,7 @@ from local_verify import (  # noqa: E402
     run_plan,
     selected_case_ids,
 )
+from classify_changes import impact_plan  # noqa: E402
 from check_docs import check as check_docs  # noqa: E402
 from verification_scheduler import (  # noqa: E402
     _available_memory_mib,
@@ -139,6 +140,22 @@ class PackageSelectionTests(unittest.TestCase):
 
 
 class PlanTests(unittest.TestCase):
+    def test_local_planner_consumes_the_shared_impact_plan_owner(self) -> None:
+        with mock.patch("local_verify.impact_plan", wraps=impact_plan) as owner:
+            plan = build_plan(
+                "fast",
+                ["crates/eqiora-core/src/lib.rs"],
+                [],
+                workspace(),
+            )
+
+        owner.assert_called_once_with(
+            ["crates/eqiora-core/src/lib.rs"],
+            target_authority="local-worktree",
+            base_authority="local-change-set",
+        )
+        self.assertIn("eqiora-core", plan.packages)
+
     def test_affected_selects_live_changed_cases_but_not_deleted_cases(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
