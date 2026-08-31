@@ -40,8 +40,8 @@ async function assertCylinderContent(page: Page): Promise<void> {
   await assertSupportedStatement(page);
   await assertVisibleSourceFallback(page);
   const figures = page.getByRole('figure').getByRole('img');
-  await expect(figures).toHaveCount(2);
-  for (let offset = 0; offset < 2; offset += 1) await expect(figures.nth(offset)).toBeVisible();
+  await expect(figures).toHaveCount(3);
+  for (let offset = 0; offset < 3; offset += 1) await expect(figures.nth(offset)).toBeVisible();
   expect(await page.locator('math').count()).toBeGreaterThanOrEqual(2);
   expect(await page.locator('math[display="block"]').count()).toBeGreaterThan(0);
   expect(await page.locator('math:not([display="block"])').count()).toBeGreaterThan(0);
