@@ -10,7 +10,7 @@ import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
 import displacementImage from '../../../assets/gallery/mixed-boundary-elasticity-displacement.png';
 import publication from '../../../data/gallery/mixed-boundary-elasticity.publication.json';
 
-**Static walkthrough · shared Python, Marimo, and Jupyter workflow**
+**Static walkthrough · shared Python workflow**
 
 [Gallery](/gallery/)
 
@@ -106,11 +106,8 @@ The displacement is selected only by the Plan-owned field handle:
 displacement = result.output(plan.capability.displacement)
 ```
 
-The thin notebook surfaces reuse that function; they do not restate geometry,
-physics, mesh generation, or solve policy.
-
-<ExactSourceLink path="examples/python/mixed_boundary_elasticity_marimo.py" kind="blob">Open the Marimo surface</ExactSourceLink>
-· <ExactSourceLink path="examples/python/mixed_boundary_elasticity_jupyter.ipynb" kind="blob">Open the Jupyter surface</ExactSourceLink>
+The plotting path reuses that function; it does not restate geometry, physics,
+mesh generation, or solve policy.
 
 </NotebookStage>
 

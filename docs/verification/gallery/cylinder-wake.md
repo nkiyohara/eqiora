@@ -6,8 +6,8 @@ the current evidence freeze is explicitly lifted for that scientific scope; evid
 not block the earlier product path.
 
 Status: the unverified product path now executes ten nonzero accepted startup
-steps and is available as matching plain-Python, Marimo, and Jupyter sources,
-plus an accessible static-site walkthrough. It does not advance the scientific
+steps and is available as matching plain-Python and Colab sources, plus an
+accessible static-site walkthrough. It does not advance the scientific
 `fluid.flow-past-cylinder` claim.
 
 ## Current unverified product boundary

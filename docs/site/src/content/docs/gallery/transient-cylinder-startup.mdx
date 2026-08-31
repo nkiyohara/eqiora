@@ -17,9 +17,9 @@ export const colabRelease = /^0\.1\.0a([0-9]+)$/u.exec(process.env.EQIORA_SITE_P
 export const colabMinimumSerial = 4;
 export const colabMinimumRelease = `0.1.0a${colabMinimumSerial}`;
 export const colabReady = colabRelease !== null && Number(colabRelease[1]) >= colabMinimumSerial;
-export const colabUrl = `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${process.env.EQIORA_SITE_SOURCE_SHA}/examples/python/transient_cylinder_wake_jupyter.ipynb`;
+export const colabUrl = `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${process.env.EQIORA_SITE_SOURCE_SHA}/examples/python/transient_cylinder_wake_colab.ipynb`;
 
-**Unverified product example · Python, Marimo, and Jupyter**
+**Unverified product example · Python and Colab**
 
 [Gallery](/gallery/)
 
@@ -117,9 +117,6 @@ result = eqiora.run(
 )
 ```
 
-<ExactSourceLink path="examples/python/transient_cylinder_wake_marimo.py" kind="blob">Open the Marimo app</ExactSourceLink>
-· <ExactSourceLink path="examples/python/transient_cylinder_wake_jupyter.ipynb" kind="blob">Open the Jupyter notebook</ExactSourceLink>
-
 {colabReady && (
   <LinkButton href={colabUrl} variant="primary">Open in Colab</LinkButton>
 )}
@@ -198,7 +195,7 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
   title="Explicitly unverified product boundary"
   supported={[
     'One installed-Python channel-minus-circle composition reaches a ten-output transient Result through exact Geometry, typed meshing and numerical policies, root resolution, State, and Run.',
-    'Plain Python, Marimo, and Jupyter use the same public computational call order and final accepted State.',
+    'Plain Python and Colab use the same public computational call order and final accepted State.',
     'Caller-owned poster, video, reduced-motion still, and text describe vorticity from one coherent product lineage.',
     'Cylinder force and pressure probes are typed Result observables; no displayed number is promoted to evidence.',
   ]}

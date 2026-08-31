@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import importlib.util
 import json
 import os
@@ -22,8 +21,6 @@ SPEC.loader.exec_module(checker)
 
 RECORD = ROOT / checker.ELASTICITY_RECORD
 MEDIA = ROOT / checker.ELASTICITY_MEDIA
-MARIMO = ROOT / "examples/python/mixed_boundary_elasticity_marimo.py"
-JUPYTER = ROOT / "examples/python/mixed_boundary_elasticity_jupyter.ipynb"
 SHARED = ROOT / "examples/python/mixed_boundary_elasticity.py"
 
 
@@ -37,18 +34,6 @@ def canonical_file(value: object) -> bytes:
             separators=(",", ":"),
         ).encode("utf-8")
         + b"\n"
-    )
-
-
-def calls(source: str, name: str) -> int:
-    tree = ast.parse(source)
-    return sum(
-        isinstance(node, ast.Call)
-        and (
-            (isinstance(node.func, ast.Name) and node.func.id == name)
-            or (isinstance(node.func, ast.Attribute) and node.func.attr == name)
-        )
-        for node in ast.walk(tree)
     )
 
 
@@ -149,29 +134,6 @@ class MixedBoundaryElasticityGalleryTests(unittest.TestCase):
             set(record["publication_payload"]["lineage"]),
             {"field", "identities", "methods"},
         )
-
-    def test_marimo_and_jupyter_share_one_workflow_without_reauthoring_it(self) -> None:
-        marimo = MARIMO.read_text(encoding="utf-8")
-        notebook = json.loads(JUPYTER.read_text(encoding="utf-8"))
-        self.assertEqual(notebook["nbformat"], 4)
-        self.assertTrue(all(cell.get("outputs", []) == [] for cell in notebook["cells"]))
-        jupyter = "\n".join(
-            "".join(cell["source"])
-            for cell in notebook["cells"]
-            if cell["cell_type"] == "code"
-        )
-        for source in (marimo, jupyter):
-            self.assertIn("from mixed_boundary_elasticity import solve", source)
-            self.assertEqual(calls(source, "solve"), 1)
-            self.assertEqual(calls(source, "plot_deformed_field"), 1)
-            for duplicated_owner in (
-                "GeometryGraph",
-                "CartesianMesher",
-                "eqiora.compile",
-                "eqiora.resolve",
-                "eqiora.run",
-            ):
-                self.assertNotIn(duplicated_owner, source)
 
     def test_shared_workflow_owns_one_direct_common_run(self) -> None:
         source = SHARED.read_text(encoding="utf-8")

@@ -50,10 +50,10 @@ declares `torch>=2.13,<2.14`; this release verifies exactly PyTorch 2.13.0. It
 also verifies the exact JAX/JAXLIB 0.11.0 pair and Matplotlib 3.11.1 on
 CPython 3.13. The JAX extra requires Python 3.12 or newer.
 
-The verified Linux x86-64 CPython 3.13 candidate composes the exact-cylinder
-Geometry → Gmsh Mesh → root Plan workflow in marimo 0.23.16 and displays its
-caller-owned Matplotlib Figure. The bounded viewer is a separate read-only
-presentation surface and adds no rich display semantics to `Trajectory`.
+The exact-cylinder example composes the Geometry → Gmsh Mesh → root Plan
+workflow and displays its caller-owned Matplotlib Figure. The bounded viewer is
+a separate read-only presentation surface and adds no rich display semantics
+to `Trajectory`.
 
 ## Geometry to evidence
 
@@ -219,7 +219,7 @@ Notebook viewer without converting them to renderer-shaped dictionaries:
 # `geometry`, `mesh`, and `result` come from one accepted Plan/Run workflow.
 pressure = result.output(plan.capability.pressure)
 view = eqiora.View().add(geometry).add(mesh).add(pressure)
-view.show()  # Jupyter-compatible and Marimo-compatible anywidget display
+view.show()  # Display through the configured anywidget host.
 
 # Release the widget, browser resources, and retained accepted objects when done.
 view.close()

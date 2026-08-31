@@ -12,8 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PLAIN = ROOT / "examples/python/transient_cylinder_wake.py"
-MARIMO = ROOT / "examples/python/transient_cylinder_wake_marimo.py"
-NOTEBOOK = ROOT / "examples/python/transient_cylinder_wake_jupyter.ipynb"
+COLAB = ROOT / "examples/python/transient_cylinder_wake_colab.ipynb"
 PAGE = ROOT / "docs/site/src/content/docs/gallery/transient-cylinder-startup.mdx"
 GALLERY_INDEX = ROOT / "docs/site/src/content/docs/gallery/index.mdx"
 SITE_STYLES = ROOT / "docs/site/src/styles/site/components.css"
@@ -87,11 +86,10 @@ def call_inventory(source: str, filename: str) -> Counter[str]:
 
 class TransientCylinderWakeGalleryProduct(unittest.TestCase):
     def setUp(self) -> None:
-        if not PLAIN.is_file() or not MARIMO.is_file() or not NOTEBOOK.is_file():
+        if not PLAIN.is_file() or not COLAB.is_file():
             self.skipTest("consumer tree does not carry the checked-in wake sources")
         self.plain_source = PLAIN.read_text(encoding="utf-8")
-        self.marimo_source = MARIMO.read_text(encoding="utf-8")
-        self.notebook = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
+        self.notebook = json.loads(COLAB.read_text(encoding="utf-8"))
         self.notebook_source = notebook_source(self.notebook)
 
     def test_notebook_is_clean_valid_python(self) -> None:
@@ -108,7 +106,7 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
                 continue
             self.assertIsNone(cell["execution_count"])
             self.assertEqual(cell["outputs"], [])
-            compile("".join(cell["source"]), NOTEBOOK.as_posix(), "exec")
+            compile("".join(cell["source"]), COLAB.as_posix(), "exec")
 
         self.assertIn('find_spec("eqiora") is None', self.notebook_source)
         self.assertIn('find_spec("google.colab") is not None', self.notebook_source)
@@ -118,10 +116,9 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         self.assertIn("subprocess.run(", self.notebook_source)
         self.assertNotIn("drive.mount", self.notebook_source)
 
-    def test_three_sources_use_only_the_current_public_route(self) -> None:
+    def test_plain_and_colab_use_only_the_current_public_route(self) -> None:
         for source in (
             self.plain_source,
-            self.marimo_source,
             self.notebook_source,
         ):
             for retired in (
@@ -144,12 +141,10 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
             self.assertIn("output_steps=tuple(range(1, 11))", source)
             self.assertIn("trajectory.state(10)", source)
 
-    def test_jupyter_and_marimo_share_the_public_composition(self) -> None:
-        notebook_calls = call_inventory(self.notebook_source, NOTEBOOK.as_posix())
-        marimo_calls = call_inventory(self.marimo_source, MARIMO.as_posix())
+    def test_colab_has_the_public_composition(self) -> None:
+        notebook_calls = call_inventory(self.notebook_source, COLAB.as_posix())
         for call, count in PRESENTATION_CALLS.items():
             self.assertEqual(notebook_calls[call], count, call)
-            self.assertEqual(marimo_calls[call], count, call)
 
         ordered_markers = (
             "GeometryGraph()",
@@ -170,11 +165,10 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
             ".sample(",
             "plot_scalar_field(",
         )
-        for source in (self.notebook_source, self.marimo_source):
-            self.assertIn("maximum_target_size=0.025", source)
-            cursor = 0
-            for marker in ordered_markers:
-                cursor = source.index(marker, cursor) + len(marker)
+        self.assertIn("maximum_target_size=0.025", self.notebook_source)
+        cursor = 0
+        for marker in ordered_markers:
+            cursor = self.notebook_source.index(marker, cursor) + len(marker)
 
     def test_plain_script_contains_the_same_computational_path(self) -> None:
         self.assertIn("maximum_target_size=0.025", self.plain_source)
