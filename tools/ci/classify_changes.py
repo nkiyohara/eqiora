@@ -613,6 +613,16 @@ def main() -> int:
     parser.add_argument("--reuse-attestation", default="")
     parser.add_argument("--workflow", choices=("ci.yml", "pages.yml"), default="ci.yml")
     arguments = parser.parse_args()
+    if not arguments.previous:
+        arguments.previous = os.environ.get("EQIORA_PREVIOUS_SHA", "")
+    if not arguments.reuse_attestation:
+        arguments.reuse_attestation = os.environ.get("EQIORA_REUSE_ATTESTATION", "")
+    environment_workflow = os.environ.get("EQIORA_REUSE_WORKFLOW", "")
+    if environment_workflow:
+        if environment_workflow not in {"ci.yml", "pages.yml"}:
+            print("CI classification failed: invalid reuse workflow", file=sys.stderr)
+            return 2
+        arguments.workflow = environment_workflow
 
     try:
         target_sha = exact_head(arguments.requested_commit)

@@ -31,13 +31,9 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Classify the complete documentation input closure
-        id: site_closure
+      - name: Authenticate successful documentation work on the previous PR head
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          SITE_EVENT_NAME: ${{ github.event_name }}
-          SITE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          SITE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SITE_PREVIOUS_SHA: ${{ github.event.before }}
           SITE_PULL_REQUEST: ${{ github.event.pull_request.number }}
           SITE_REPOSITORY: ${{ github.repository }}
@@ -49,17 +45,26 @@ jobs:
             --previous-sha "$SITE_PREVIOUS_SHA" \
             --workflow pages.yml \
             --output "$attestation"
+          {
+            printf 'EQIORA_PREVIOUS_SHA=%s\n' "$SITE_PREVIOUS_SHA"
+            printf 'EQIORA_REUSE_ATTESTATION=%s\n' "$attestation"
+            printf 'EQIORA_REUSE_WORKFLOW=pages.yml\n'
+          } >> "$GITHUB_ENV"
           if printf '%s' "$SITE_PREVIOUS_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
             git fetch --no-tags --no-recurse-submodules --no-write-fetch-head \
               origin "$SITE_PREVIOUS_SHA" || true
           fi
+      - name: Classify the complete documentation input closure
+        id: site_closure
+        env:
+          SITE_EVENT_NAME: ${{ github.event_name }}
+          SITE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SITE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
           exec python3 tools/ci/classify_changes.py \
             --event "$SITE_EVENT_NAME" \
             --base "$SITE_BASE_SHA" \
             --head "$SITE_HEAD_SHA" \
-            --previous "$SITE_PREVIOUS_SHA" \
-            --reuse-attestation "$attestation" \
-            --workflow pages.yml \
             --github-output "$GITHUB_OUTPUT"
       - name: Summarize the exact documentation decision
         env:
