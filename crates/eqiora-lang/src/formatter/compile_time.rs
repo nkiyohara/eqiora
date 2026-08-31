@@ -1,8 +1,14 @@
 use core::fmt::Write;
 
-use crate::ast::{LetDecl, ParameterDecl};
+use crate::ast::{DimensionDecl, LetDecl, ParameterDecl};
 
 use super::{format_expression, format_number, write_indent};
+
+pub(super) fn format_dimension(declaration: &DimensionDecl, output: &mut String) {
+    write!(output, "dimension {} = ", declaration.name).expect("String write");
+    format_expression(&declaration.expression, 0, output);
+    output.push_str(";\n");
+}
 
 pub(super) fn format_parameter(declaration: &ParameterDecl, indent: usize, output: &mut String) {
     write_indent(output, indent);

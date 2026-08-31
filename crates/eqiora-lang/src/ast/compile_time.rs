@@ -1,5 +1,33 @@
 use super::{Expr, TextRange};
 
+/// Compilation-unit structural dimension alias.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct DimensionDecl {
+    pub(crate) name: String,
+    pub(crate) expression: Expr,
+    pub(crate) range: TextRange,
+}
+
+impl DimensionDecl {
+    /// Returns the declared alias name.
+    #[must_use]
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the structural dimension expression.
+    #[must_use]
+    pub(crate) const fn expression(&self) -> &Expr {
+        &self.expression
+    }
+
+    /// Returns the declaration's source range.
+    #[must_use]
+    pub(crate) const fn range(&self) -> TextRange {
+        self.range
+    }
+}
+
 /// Parameter source declaration.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterDecl {

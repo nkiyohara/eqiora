@@ -19,6 +19,7 @@ use crate::hierarchy::HierarchyLimits;
 use crate::source_identity::LocalSourceIdentity;
 
 mod declaration;
+mod graph;
 pub use declaration::{
     CanonicalDeclarationIdentity, CanonicalDeclarationKind, CanonicalDeclarationVisibility,
 };
@@ -460,7 +461,7 @@ pub fn analyze_resolved_hierarchy(
         }
     }
 
-    validate_graph_shape(&input.root, &units, &input.aliases, &mut diagnostics);
+    graph::validate_graph_shape(&input.root, &units, &input.aliases, &mut diagnostics);
     if !diagnostics.is_empty() {
         stable_sort(&mut diagnostics);
         return Err(diagnostics);
@@ -473,6 +474,17 @@ pub fn analyze_resolved_hierarchy(
         property_bindings: Box::new([]),
     };
     let canonical_units = analysis.units.clone();
+    for unit in &mut analysis.units {
+        if let Err(mut errors) =
+            crate::dimensions::elaborate_dimension_aliases_in_place(&unit.file, &mut unit.document)
+        {
+            diagnostics.append(&mut errors);
+        }
+    }
+    if !diagnostics.is_empty() {
+        stable_sort(&mut diagnostics);
+        return Err(diagnostics);
+    }
     analysis.property_bindings =
         crate::property::validate_and_elaborate(&mut analysis.units, &analysis.aliases)?;
     crate::hierarchy::validate_resolved_hierarchy(&analysis, limits)?;
@@ -484,71 +496,6 @@ pub fn analyze_resolved_hierarchy(
     } else {
         stable_sort(&mut diagnostics);
         Err(diagnostics)
-    }
-}
-
-fn validate_graph_shape(
-    root: &CompilationNamespaceId,
-    units: &[AnalyzedSourceUnit],
-    aliases: &[ResolvedAlias],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let namespaces = units
-        .iter()
-        .map(|unit| unit.namespace.clone())
-        .collect::<BTreeSet<_>>();
-    if !namespaces.contains(root) {
-        diagnostics.push(resolved_error(format!(
-            "root compilation namespace `{root}` has no source unit"
-        )));
-    }
-
-    let mut files = BTreeSet::new();
-    for unit in units {
-        if !files.insert((unit.namespace.clone(), unit.file.clone())) {
-            diagnostics.push(resolved_error(format!(
-                "duplicate source unit `{}` in namespace `{}`",
-                unit.file, unit.namespace
-            )));
-        }
-    }
-
-    let mut alias_index = BTreeMap::new();
-    for alias in aliases {
-        if !is_identifier(alias.alias()) {
-            diagnostics.push(resolved_error(format!(
-                "direct alias `{}` is not an Eqiora identifier",
-                alias.alias()
-            )));
-        }
-        if !namespaces.contains(alias.declaring()) {
-            diagnostics.push(resolved_error(format!(
-                "direct alias `{}` has unknown declaring namespace `{}`",
-                alias.alias(),
-                alias.declaring()
-            )));
-        }
-        if !namespaces.contains(alias.target()) {
-            diagnostics.push(resolved_error(format!(
-                "direct alias `{}` has unknown target namespace `{}`",
-                alias.alias(),
-                alias.target()
-            )));
-        }
-        if alias.declaring() == alias.target() {
-            diagnostics.push(resolved_error(format!(
-                "direct alias `{}` cannot target its declaring namespace",
-                alias.alias()
-            )));
-        }
-        let key = (alias.declaring().clone(), alias.alias().to_owned());
-        if alias_index.insert(key, alias.target()).is_some() {
-            diagnostics.push(resolved_error(format!(
-                "duplicate direct alias `{}` in namespace `{}`",
-                alias.alias(),
-                alias.declaring()
-            )));
-        }
     }
 }
 

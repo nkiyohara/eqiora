@@ -32,6 +32,7 @@ pub fn compile(file: &str, source: &str) -> Result<Vec<CompiledModel>, Vec<Diagn
         )]);
     }
     let has_hierarchy = !document.connectors().is_empty()
+        || document.dimension_syntax().len() != 0
         || !document.components().is_empty()
         || !document.pure_operators().is_empty()
         || document.models().iter().any(|model| {
