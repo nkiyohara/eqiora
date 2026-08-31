@@ -16,10 +16,11 @@ def build_mesh_plan() -> tuple[eqiora.meshing.MeshPlan, eqiora.meshing.Mesh]:
         "cylinder": circle.boundaries[0],
     })
     request = eqiora.meshing.GmshMesher(
-            maximum_boundary_error=1e-4,
-            minimum_mean_ratio=1e-5,
-            maximum_boundary_facets=50,
-        )
+        maximum_boundary_error=1e-4,
+        maximum_target_size=0.025,
+        minimum_mean_ratio=1e-5,
+        maximum_boundary_facets=50,
+    )
     plan = eqiora.meshing.resolve(geometry, request)
     return plan, eqiora.meshing.generate(geometry, plan=plan)
 

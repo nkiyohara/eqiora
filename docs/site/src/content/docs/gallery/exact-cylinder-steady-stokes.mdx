@@ -1,6 +1,6 @@
 ---
 title: Exact-cylinder steady Stokes
-description: A six-stage static walkthrough of one frozen 2D steady incompressible Stokes demonstration.
+description: A six-stage static walkthrough of one fine-mesh 2D steady incompressible Stokes demonstration.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -9,14 +9,15 @@ import ClaimBoundary from '../../../components/gallery/ClaimBoundary.astro';
 import ResultFigure from '../../../components/gallery/ResultFigure.astro';
 import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
 import geometryDiagram from '../../../assets/gallery/exact-cylinder-geometry.svg';
-import pressureImage from '../../../assets/gallery/exact-cylinder-pressure.png';
+import pressureImage from '../../../assets/gallery/exact-cylinder-pressure-presentation.png';
+import admittedPressureImage from '../../../assets/gallery/exact-cylinder-pressure.png';
 import publication from '../../../data/gallery/exact-cylinder-steady-stokes.publication.json';
 
 **Static walkthrough · canonical Marimo source available**
 
 [Gallery](/gallery/)
 
-This page follows one frozen demonstration from exact authored geometry to a
+This page follows one current presentation from exact authored geometry to a
 common `Result`. It does not execute a notebook or solve in the browser. The
 checked-in source shows the installed workflow. Source links and evidence
 dossiers resolve through the exact site build revision; none follows a branch.
@@ -177,6 +178,7 @@ resolves and generates the source-bound mesh:
 ```python
 mesh_request = eqiora.meshing.GmshMesher(
     maximum_boundary_error=1e-4,
+    maximum_target_size=0.025,
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
 )
@@ -187,7 +189,8 @@ mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
 <Aside type="caution" title="Bounded Gmsh demonstration mesh">
 
 `GmshMesher` derives its boundary subdivision directly from the exact Geometry
-and typed error/facet policy, then lets locked Gmsh 4.15.2 own the emitted
+and typed error/facet policy, applies the same 0.025 m global target used by the
+transient startup, then lets locked Gmsh 4.15.2 own the emitted
 straight-edged mesh. Output counts are deliberately not a public or scientific
 oracle. This walkthrough makes no mesh-convergence or PDE-convergence claim.
 
@@ -256,6 +259,19 @@ pressure_figure = eqplot.plot_scalar_field(result, field=plan.capability.pressur
 
 <ResultFigure
   src={pressureImage.src}
+  alt="Pressure field from the current fine-mesh steady Stokes cylinder presentation. Pressure is highest upstream of the circular obstacle and decreases through the channel."
+  caption="Current 0.025 m presentation mesh. Pixels and values are illustrative product output, not scientific evidence."
+  units="Pa"
+  sourcePath="tools/site/produce_exact_cylinder_pressure_presentation.py"
+  sourceLabel="View the presentation producer"
+/>
+
+Color and pixel values are presentation only. This current image is separate
+from the retained historical publication artifact; it is not validation and
+does not establish flow quality.
+
+<ResultFigure
+  src={admittedPressureImage.src}
   alt={publication.publication_payload.text.alt}
   caption={publication.publication_payload.text.caption}
   units="Pa"
@@ -263,8 +279,9 @@ pressure_figure = eqplot.plot_scalar_field(result, field=plan.capability.pressur
   sourceLabel="View the runnable pressure example"
 />
 
-Color and pixel values are presentation only. They are not validation and do
-not establish flow quality.
+The historical admitted image above remains unchanged so existing publication
+links stay exact. The current fine-mesh presentation is the first figure in this
+stage; neither image is a numerical or mesh-output oracle.
 
 </NotebookStage>
 

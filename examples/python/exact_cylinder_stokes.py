@@ -23,10 +23,11 @@ def solve() -> tuple[eqiora.Result, eqiora.FieldRef, eqiora.geometry.Geometry]:
         },
     )
     mesh_request = eqiora.meshing.GmshMesher(
-            maximum_boundary_error=1e-4,
-            minimum_mean_ratio=1e-5,
-            maximum_boundary_facets=50,
-        )
+        maximum_boundary_error=1e-4,
+        maximum_target_size=0.025,
+        minimum_mean_ratio=1e-5,
+        maximum_boundary_facets=50,
+    )
     mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
     mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
     source_path = files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi")

@@ -13,6 +13,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 NOTEBOOK = ROOT / "examples/python/exact_cylinder_stokes_jupyter.ipynb"
 MARIMO = ROOT / "examples/python/exact_cylinder_stokes_marimo.py"
+PLAIN = ROOT / "examples/python/exact_cylinder_stokes.py"
+PRESENTATION_PRODUCER = (
+    ROOT / "tools/site/produce_exact_cylinder_pressure_presentation.py"
+)
+PRESENTATION_IMAGE = (
+    ROOT
+    / "docs/site/src/assets/gallery/exact-cylinder-pressure-presentation.png"
+)
+HISTORICAL_IMAGE = ROOT / "docs/site/src/assets/gallery/exact-cylinder-pressure.png"
 
 PUBLIC_CALLS = {
     "eqiora.geometry.GeometryGraph": 1,
@@ -103,6 +112,10 @@ class ExactCylinderStokesJupyterProduct(unittest.TestCase):
         self.assertIn("result.plan_key == stokes_plan.identity", self.source)
 
     def test_jupyter_and_marimo_share_the_public_composition(self) -> None:
+        self.assertIn("maximum_target_size=0.025", self.source)
+        self.assertIn(
+            "maximum_target_size=0.025", MARIMO.read_text(encoding="utf-8")
+        )
         notebook_calls = call_inventory(self.source, NOTEBOOK.as_posix())
         marimo_calls = call_inventory(
             MARIMO.read_text(encoding="utf-8"), MARIMO.as_posix()
@@ -126,6 +139,15 @@ class ExactCylinderStokesJupyterProduct(unittest.TestCase):
         )
         positions = [self.source.index(marker) for marker in ordered_markers]
         self.assertEqual(positions, sorted(positions))
+
+    def test_current_fine_mesh_image_is_presentation_only(self) -> None:
+        self.assertIn("maximum_target_size=0.025", PLAIN.read_text(encoding="utf-8"))
+        producer = PRESENTATION_PRODUCER.read_text(encoding="utf-8")
+        self.assertIn("from exact_cylinder_stokes import solve", producer)
+        self.assertIn("fine-mesh steady-cylinder presentation", producer)
+        self.assertNotIn("verify/", producer)
+        self.assertTrue(PRESENTATION_IMAGE.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertTrue(HISTORICAL_IMAGE.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"))
 
 
 if __name__ == "__main__":
