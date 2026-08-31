@@ -9,6 +9,9 @@ use eqiora::Diagnostic;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
 use eqiora::diagnostic::codes;
+use pyo3::exceptions::PyTypeError;
+use pyo3::prelude::*;
+use pyo3::types::{PyAny, PyString};
 
 pub(crate) const MODEL_FILE_EXTENSION: &str = "eqmodel";
 
@@ -63,6 +66,14 @@ pub(crate) fn read_model_bytes(path: &Path) -> Result<Vec<u8>, Diagnostic> {
 
 pub(crate) fn write_model_bytes(path: &Path, bytes: &[u8]) -> Result<(), Diagnostic> {
     write_artifact_bytes(path, bytes, model_file_spec())
+}
+
+pub(crate) fn unicode_artifact_path(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<PathBuf> {
+    let path = py.import("os")?.getattr("fspath")?.call1((value,))?;
+    let path = path
+        .cast::<PyString>()
+        .map_err(|_| PyTypeError::new_err("path must resolve to a Unicode filesystem path"))?;
+    Ok(PathBuf::from(path.to_str()?))
 }
 
 pub(crate) fn read_artifact_bytes(
