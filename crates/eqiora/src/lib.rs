@@ -43,13 +43,13 @@ pub mod api {
         DifferentiablePrimal, DifferentiableProgram, DifferentiableProgramIdentity,
         DifferentiableScalarType, DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
         LinearizationState, MlDatasetArtifactsV1, MlDatasetBlockArrayV1, MlDatasetDerivationPlanV1,
-        MlDatasetDescriptorRoleV1, MlDatasetFieldSelectionV1, MlDatasetMaterializationLimitsV1,
-        MlDatasetMaterializationV1, MlDatasetSampleArraysV1, MlDatasetSampleSelectionV1,
-        MlDatasetSampleSplitV1, ModelDocument, ModelFieldRef, ModelParameterRef,
-        ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult, ParameterStudyPlan,
-        ParameterStudyPointKey, ParameterStudyTerminalReport, RemeshingTrajectoryReplayInputV1,
-        SemanticFingerprintGeneration, StructuralSemanticFingerprint, ValueEditPlan,
-        ValueEditResult, VerifiedMlDatasetV1, derive_ml_dataset_v1, verify_ml_dataset_v1,
+        MlDatasetFieldSelectionV1, MlDatasetMaterializationLimitsV1, MlDatasetMaterializationV1,
+        MlDatasetSampleArraysV1, MlDatasetSampleSelectionV1, ModelDocument, ModelFieldRef,
+        ModelParameterRef, ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult,
+        ParameterStudyPlan, ParameterStudyPointKey, ParameterStudyTerminalReport,
+        RemeshingTrajectoryReplayInputV1, RunRequest, SemanticFingerprintGeneration,
+        StructuralSemanticFingerprint, ValueEditPlan, ValueEditResult, VerifiedMlDatasetV1,
+        derive_ml_dataset_v1, verify_ml_dataset_v1,
     };
 
     /// Fresh XDMF artifact derivation and verified persisted replay.

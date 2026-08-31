@@ -750,10 +750,10 @@ fn assert_ml_dataset_vertical_slice(
     target_partition: &FixedReferenceFsiPartition2d,
 ) {
     use eqiora::api::{
-        MlDatasetDerivationPlanV1, MlDatasetDescriptorRoleV1, MlDatasetFieldSelectionV1,
-        MlDatasetMaterializationLimitsV1, MlDatasetSampleSelectionV1, MlDatasetSampleSplitV1,
-        derive_ml_dataset_v1, verify_ml_dataset_v1,
+        MlDatasetDerivationPlanV1, MlDatasetFieldSelectionV1, MlDatasetMaterializationLimitsV1,
+        MlDatasetSampleSelectionV1, derive_ml_dataset_v1, verify_ml_dataset_v1,
     };
+    use eqiora::artifact::{MlDatasetDescriptorRoleV1, MlDatasetSampleSplitV1};
 
     let fields = [
         MlDatasetFieldSelectionV1::new(
