@@ -652,6 +652,26 @@ noncanonical, oversized, non-regular, symlinked, or wrongly suffixed inputs.
 This local file is not a project archive, cloud protocol, or historical
 migration format.
 
+Complete Results and spatial Trajectories use the same exact, type-owned file
+boundary. Reopening always requires the owning Plan:
+
+```python
+result.write("run.eqresult")
+reopened = eqiora.Result.read(portable, "run.eqresult")
+
+trajectory = reopened.trajectory
+trajectory.write("run.eqtrajectory")
+same_trajectory = eqiora.trajectory.Trajectory.read(
+    portable, "run.eqtrajectory"
+)
+```
+
+The files contain exactly `result.to_bytes()` and `trajectory.to_bytes()`.
+For a dynamic Result, the Result remains the single complete root and owns its
+Trajectory; the separate Trajectory file is an optional spatial projection,
+not a second occurrence record. Process-local Runs, restart checkpoints,
+archives, and cloud transport remain outside this boundary.
+
 ## Exact revisions and compiled Model files
 
 `Model` owns one immutable canonical artifact. Previewing an edit never

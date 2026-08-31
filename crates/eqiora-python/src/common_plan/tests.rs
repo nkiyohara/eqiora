@@ -1504,6 +1504,64 @@ assert mini_trajectory_replayed.to_bytes() == mini_trajectory_bytes
 assert tuple(state.digest for state in mini_trajectory_replayed.states) == tuple(
     state.digest for state in mini_two.trajectory.states
 )
+trajectory_directory_owner = tempfile.TemporaryDirectory(
+    dir=package_path.parents[3] / "target"
+)
+trajectory_directory = pathlib.Path(trajectory_directory_owner.name)
+trajectory_path = trajectory_directory / "run.eqtrajectory"
+mini_two.trajectory.write(trajectory_path)
+assert trajectory_path.read_bytes() == mini_trajectory_bytes
+mini_trajectory_file = package.trajectory.Trajectory.read(mini, trajectory_path)
+assert mini_trajectory_file == mini_two.trajectory
+assert mini_trajectory_file.to_bytes() == mini_trajectory_bytes
+assert tuple(state.digest for state in mini_trajectory_file.states) == tuple(
+    state.digest for state in mini_two.trajectory.states
+)
+
+mini_result_bytes = mini_two.to_bytes()
+mini_result_path = trajectory_directory / "run.eqresult"
+mini_two.write(mini_result_path)
+mini_result_file = package.Result.read(mini, mini_result_path)
+assert mini_result_path.read_bytes() == mini_result_bytes
+assert mini_result_file.to_bytes() == mini_result_bytes
+assert mini_result_file.trajectory.to_bytes() == mini_trajectory_bytes
+
+for name, rejected in (
+    ("truncated.eqtrajectory", mini_trajectory_bytes[:-1]),
+    ("trailing.eqtrajectory", mini_trajectory_bytes + b"\n"),
+    (
+        "unknown-version.eqtrajectory",
+        mini_trajectory_bytes.replace(b"common-trajectory/v1", b"common-trajectory/v9"),
+    ),
+):
+    rejected_path = trajectory_directory / name
+    rejected_path.write_bytes(rejected)
+    try:
+        package.trajectory.Trajectory.read(mini, rejected_path)
+    except package.CompatibilityError:
+        pass
+    else:
+        raise AssertionError(f"hostile Trajectory file must reject: {name}")
+
+wrong_trajectory_suffix = trajectory_directory / "run.json"
+for operation in (
+    lambda: mini_two.trajectory.write(wrong_trajectory_suffix),
+    lambda: package.trajectory.Trajectory.read(mini, wrong_trajectory_suffix),
+):
+    try:
+        operation()
+    except package.CompatibilityError:
+        pass
+    else:
+        raise AssertionError("Trajectory file paths require the exact .eqtrajectory suffix")
+
+try:
+    package.trajectory.Trajectory.read(fvm, trajectory_path)
+except package.CompatibilityError:
+    pass
+else:
+    raise AssertionError("Trajectory file was crossed with a different Plan")
+trajectory_directory_owner.cleanup()
 mini_restart = package.State.from_result(custom, mini_one_sync, time_s=0.01)
 assert mini_restart.state_space_identity == mini_zero.state_space_identity
 assert mini_restart.source_plan_identity == mini.identity

@@ -18,6 +18,9 @@ use crate::fsi_evidence::PyFsiEvidence;
 use crate::geometry::PyGeometrySelection;
 use crate::meshing::PyMesh;
 use crate::model::PyModelFieldRef;
+use crate::model_io::{
+    ArtifactFileSpec, read_artifact_bytes, unicode_artifact_path, write_artifact_bytes,
+};
 use crate::realization::PyLinearSolveSummary;
 use crate::steady_stokes::PySteadyStokesEvidence;
 use crate::trajectory::{PyBoundaryFlux, PyBoundaryForce, PyState, PyTrajectory};
@@ -26,6 +29,14 @@ mod field_output;
 
 use field_output::FieldOutputBlock;
 pub(crate) use field_output::PyFieldOutput;
+
+const RESULT_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
+    artifact_name: "complete Result",
+    extension: "eqresult",
+    staging_name: "result",
+    // This is the pre-read counterpart of the canonical Result decoder's bound.
+    max_bytes: 512 * 1024 * 1024,
+};
 
 /// One read-only, field-local sampled series in SI units.
 #[pyclass(name = "Series", module = "eqiora._eqiora", frozen)]
@@ -218,6 +229,32 @@ impl PyRunResult {
     fn from_bytes(py: Python<'_>, plan: PyRef<'_, PyPlan>, data: &[u8]) -> PyResult<Self> {
         let native = eqiora_numerics::CommonResult::from_bytes(data, plan.native())
             .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        let identity = RunIdentity::from_common_result(&native).ok_or_else(|| {
+            PyRuntimeError::new_err("Result artifact has no valid execution occurrence")
+        })?;
+        materialize_common_result(py, plan, identity, native)
+    }
+
+    /// Atomically write this exact complete Result to an `.eqresult` file.
+    fn write(&self, py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<()> {
+        let path = unicode_artifact_path(py, path)?;
+        let bytes = self
+            .native
+            .to_bytes()
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        py.detach(move || write_artifact_bytes(&path, &bytes, RESULT_FILE_SPEC))
+            .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))
+    }
+
+    /// Read one complete Result against its exact owning Plan.
+    #[staticmethod]
+    fn read(py: Python<'_>, plan: PyRef<'_, PyPlan>, path: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let path = unicode_artifact_path(py, path)?;
+        let bytes = py
+            .detach(move || read_artifact_bytes(&path, RESULT_FILE_SPEC))
+            .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))?;
+        let native = eqiora_numerics::CommonResult::from_bytes(&bytes, plan.native())
+            .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))?;
         let identity = RunIdentity::from_common_result(&native).ok_or_else(|| {
             PyRuntimeError::new_err("Result artifact has no valid execution occurrence")
         })?;
