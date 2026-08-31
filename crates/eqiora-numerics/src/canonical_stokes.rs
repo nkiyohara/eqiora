@@ -1,5 +1,6 @@
 //! Method-neutral lowering of exact incompressible Newtonian fluid subsets.
 
+mod additive_boundary;
 mod api;
 mod block;
 mod boundary;

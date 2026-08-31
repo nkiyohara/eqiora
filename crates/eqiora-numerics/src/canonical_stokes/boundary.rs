@@ -15,6 +15,9 @@ use crate::canonical_boundary::{
 };
 use crate::spatial_expression::ScalarSpatialExpression;
 
+use super::additive_boundary::{
+    additive_prescribed_complete_velocity_parts, additive_prescribed_normal_velocity_parts,
+};
 use super::expression::{
     IncompressibleStressForm, load_definition_root, lower_incompressible_stress_viscosity,
 };
@@ -23,6 +26,7 @@ use super::support::{
     is_field, lowering_error, relation_expression, relations_on, require_continuous_relation,
     typed_relation, unique_root,
 };
+use crate::additive_residual::AdditiveResidualView;
 
 #[derive(Debug)]
 pub(crate) struct LoweredStokesBoundary<const D: usize> {
@@ -416,9 +420,11 @@ fn direct_disposition(
     let [root] = expression.roots() else {
         return Ok(None);
     };
-    if prescribed_complete_velocity_parts(expression, *root, velocity).is_some()
-        || prescribed_normal_velocity_parts(program, expression, *root, velocity, relation)?
-            .is_some()
+    if additive_prescribed_complete_velocity_parts(expression, *root, velocity, relation)?.is_some()
+        || additive_prescribed_normal_velocity_parts(
+            program, expression, *root, velocity, relation,
+        )?
+        .is_some()
     {
         return Ok(Some(BoundaryCandidate {
             disposition: PhysicalBoundaryDisposition::Prescribed(PrescribedBoundaryLaw::new(
@@ -435,23 +441,42 @@ fn direct_disposition(
         volume_viscosity,
         stress_form,
     };
-    match expression.node(*root) {
-        Some(ExprNode::Trace(value)) if is_field(expression, *value, velocity) => {
+    let view = AdditiveResidualView::derive(expression, *root, relation)?;
+    match view.leaves() {
+        [leaf]
+            if matches!(
+                expression.node(leaf.value()),
+                Some(ExprNode::Trace(value)) if is_field(expression, *value, velocity)
+            ) =>
+        {
             Ok(Some(BoundaryCandidate {
                 disposition: PhysicalBoundaryDisposition::TraceZero,
                 normal_pressure: None,
             }))
         }
-        Some(ExprNode::NormalComponent(stress)) => {
+        [leaf]
+            if matches!(
+                expression.node(leaf.value()),
+                Some(ExprNode::NormalComponent(_))
+            ) =>
+        {
+            let Some(ExprNode::NormalComponent(stress)) = expression.node(leaf.value()) else {
+                unreachable!("guard proves normal component")
+            };
             require_matching_stress(expression, *stress, relation, stress_context)?;
             Ok(Some(BoundaryCandidate {
                 disposition: PhysicalBoundaryDisposition::FluxZero,
                 normal_pressure: Some(NormalPressureSource2d::Zero),
             }))
         }
-        Some(ExprNode::Add(left, right)) => {
-            let Some(field) =
-                direct_normal_pressure_field(expression, *left, *right, relation, stress_context)?
+        [first, second] if first.sign() == second.sign() => {
+            let Some(field) = direct_normal_pressure_field(
+                expression,
+                first.value(),
+                second.value(),
+                relation,
+                stress_context,
+            )?
             else {
                 return Ok(None);
             };
@@ -496,7 +521,9 @@ fn prescribed_velocity_trace<const D: usize>(
             "prescribed velocity trace requires exactly one residual root",
         ));
     };
-    if let Some(potential) = prescribed_complete_velocity_parts(expression, *root, velocity) {
+    if let Some(potential) =
+        additive_prescribed_complete_velocity_parts(expression, *root, velocity, relation)?
+    {
         if D != 2 {
             return Err(lowering_error(
                 relation,
@@ -591,33 +618,6 @@ fn exact_complete_potential_source(expression: &ExprDag, source: ExprId) -> Opti
         })
 }
 
-fn prescribed_complete_velocity_parts(
-    expression: &ExprDag,
-    root: ExprId,
-    velocity: RawId,
-) -> Option<ExprId> {
-    let ExprNode::Sub(left, right) = expression.node(root)? else {
-        return None;
-    };
-    let ExprNode::Trace(velocity_value) = expression.node(*left)? else {
-        return None;
-    };
-    if !is_field(expression, *velocity_value, velocity) {
-        return None;
-    }
-    let ExprNode::Trace(gradient) = expression.node(*right)? else {
-        return None;
-    };
-    let ExprNode::Gradient(potential) = expression.node(*gradient)? else {
-        return None;
-    };
-    matches!(
-        expression.node(*potential),
-        Some(ExprNode::Symbol(SymbolRef::Field(_)))
-    )
-    .then_some(*potential)
-}
-
 fn direct_normal_pressure_field(
     expression: &ExprDag,
     first: ExprId,
@@ -661,20 +661,26 @@ fn normalized_pressure_source(
                     "normal-pressure terminal requires exactly one residual root",
                 ));
             };
-            let Some(ExprNode::Sub(first, second)) = expression.node(*root) else {
+            let view = AdditiveResidualView::derive(expression, *root, law.relation())?;
+            let [first, second] = view.leaves() else {
                 return Err(lowering_error(
                     law.relation(),
-                    "normal-pressure terminal must prescribe positive terminal flux as `flux(port) - normal(isotropic_lift(pressure)) = 0`",
+                    "normal-pressure terminal requires exactly one terminal-flux and one pressure leaf",
                 ));
             };
+            if !first.sign().is_opposite(second.sign()) {
+                return Err(view.mismatch(
+                    "normal-pressure terminal flux and pressure roles must have opposite signs, up to whole-equation reversal",
+                ));
+            }
             let (terminal_port, pressure_value) = if let Some(port) =
-                port_flux(expression, *first).filter(|port| *port != interface_port)
+                port_flux(expression, first.value()).filter(|port| *port != interface_port)
             {
-                (port, *second)
+                (port, second.value())
             } else if let Some(port) =
-                port_flux(expression, *second).filter(|port| *port != interface_port)
+                port_flux(expression, second.value()).filter(|port| *port != interface_port)
             {
-                (port, *first)
+                (port, first.value())
             } else {
                 return Err(lowering_error(
                     law.relation(),
@@ -711,7 +717,7 @@ fn prescribed_normal_velocity_expression<const D: usize>(
         ));
     };
     let Some((value, sign)) =
-        prescribed_normal_velocity_parts(program, expression, *root, velocity, relation)?
+        additive_prescribed_normal_velocity_parts(program, expression, *root, velocity, relation)?
     else {
         return Err(lowering_error(
             relation,
@@ -754,53 +760,6 @@ fn prescribed_normal_velocity_expression<const D: usize>(
     )?
     .multiply(ScalarSpatialExpression::constant(D, sign));
     Ok((expression, field, definition))
-}
-
-fn prescribed_normal_velocity_parts(
-    program: &KernelProgram,
-    expression: &ExprDag,
-    root: ExprId,
-    velocity: RawId,
-    relation: RawId,
-) -> Result<Option<(ExprId, f64)>, Diagnostic> {
-    let (left, right, sign) = match expression.node(root) {
-        Some(ExprNode::Add(left, right)) => (*left, *right, -1.0),
-        Some(ExprNode::Sub(left, right)) => (*left, *right, 1.0),
-        _ => return Ok(None),
-    };
-    for (trace, normal) in [(left, right), (right, left)] {
-        if !is_velocity_or_port_trace(expression, trace, velocity) {
-            continue;
-        }
-        let Some(ExprNode::NormalComponent(tensor)) = expression.node(normal) else {
-            continue;
-        };
-        let typed = typed_relation(program, relation)?;
-        let Some(proof) =
-            OperatorApplicationProof::classify(&typed, *tensor, StandardPureOperator::IsotropicLift)
-                .map_err(|error| {
-                    lowering_error(
-                        relation,
-                        format!(
-                            "prescribed velocity isotropic-lift proof failed at expression node {}: {error}",
-                            tensor.index()
-                        ),
-                    )
-                })?
-        else {
-            continue;
-        };
-        return Ok(Some((proof.operand(), sign)));
-    }
-    Ok(None)
-}
-
-fn is_velocity_or_port_trace(expression: &ExprDag, value: ExprId, velocity: RawId) -> bool {
-    match expression.node(value) {
-        Some(ExprNode::Trace(field)) => is_field(expression, *field, velocity),
-        Some(ExprNode::Symbol(SymbolRef::PortTrace(_))) => true,
-        _ => false,
-    }
 }
 
 fn normal_pressure_field(
@@ -895,19 +854,25 @@ fn interface_port(
     let mut trace_port = None;
     let mut flux_port = None;
     for root in [*first, *second] {
-        let Some(ExprNode::Sub(left, right)) = expression.node(root) else {
+        let view = AdditiveResidualView::derive(expression, root, relation)?;
+        let [left, right] = view.leaves() else {
             continue;
         };
-        if matches!(expression.node(*left), Some(ExprNode::Trace(value)) if is_field(expression, *value, velocity))
-        {
-            trace_port = port_trace(expression, *right);
+        if !left.sign().is_opposite(right.sign()) {
             continue;
         }
-        if let Some(ExprNode::NormalComponent(stress)) = expression.node(*left)
-            && let Some(port) = port_flux(expression, *right)
-        {
-            require_matching_stress(expression, *stress, relation, stress_context)?;
-            flux_port = Some(port);
+        for (operator, port) in [(left, right), (right, left)] {
+            if matches!(expression.node(operator.value()), Some(ExprNode::Trace(value)) if is_field(expression, *value, velocity))
+            {
+                trace_port = port_trace(expression, port.value());
+                continue;
+            }
+            if let Some(ExprNode::NormalComponent(stress)) = expression.node(operator.value())
+                && let Some(port) = port_flux(expression, port.value())
+            {
+                require_matching_stress(expression, *stress, relation, stress_context)?;
+                flux_port = Some(port);
+            }
         }
     }
     match (trace_port, flux_port) {

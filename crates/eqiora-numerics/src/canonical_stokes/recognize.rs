@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use eqiora_core::{Diagnostic, DimExponents, RawId, ValueShape};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::EdgeKind;
+use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, SymbolRef, ValueFrame};
 use eqiora_sem::KernelProgram;
 
@@ -16,8 +17,8 @@ use super::api::{
 };
 use super::boundary::{self, NormalPressureSource2d};
 use super::expression::{
-    is_divergence_of_field, load_definition_root, lower_exact_twice_viscosity,
-    momentum_viscous_root,
+    additive_load_definition_root, is_additive_divergence_of_field, load_definition_root,
+    lower_exact_twice_viscosity, momentum_viscous_root,
 };
 use super::support::{
     continuum_representation, has_edge, lowering_error, model_lowering_error, relation_expression,
@@ -216,29 +217,22 @@ fn lower_steady_incompressible_stokes_2d_on(
         .iter()
         .map(|relation| Ok((*relation, typed_relation(program, *relation)?)))
         .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
+    let additive_inventory = additive_volume_inventory(&typed_relations, &volume_relations)?;
 
-    let incompressibility = volume_relations
-        .iter()
-        .copied()
-        .filter(|relation| {
-            typed_relations
-                .get(relation)
-                .and_then(|typed| {
-                    unique_root(typed.expression(), *relation)
-                        .ok()
-                        .map(|root| (typed.expression(), root))
-                })
-                .is_some_and(|(expression, root)| {
-                    is_divergence_of_field(expression, root, velocity)
-                })
-        })
-        .collect::<Vec<_>>();
+    let mut incompressibility = Vec::new();
+    for relation in &volume_relations {
+        let typed = &typed_relations[relation];
+        let root = unique_root(typed.expression(), *relation)?;
+        if is_additive_divergence_of_field(typed.expression(), root, velocity, *relation)? {
+            incompressibility.push(*relation);
+        }
+    }
     if incompressibility.len() != 1 {
         return Err(lowering_error(
             domain,
             format!(
-                "2D steady Stokes requires exactly one `div(u) = 0` Relation, found {}",
-                incompressibility.len()
+                "2D steady Stokes requires exactly one `div(u) = 0` Relation, found {}; unmatched signed leaves by owning Relation: {additive_inventory}",
+                incompressibility.len(),
             ),
         ));
     }
@@ -249,16 +243,16 @@ fn lower_steady_incompressible_stokes_2d_on(
             if pressure == force_potential {
                 continue;
             }
-            let definitions = volume_relations
-                .iter()
-                .copied()
-                .filter_map(|relation| {
-                    let expression = typed_relations.get(&relation)?.expression();
-                    let root = unique_root(expression, relation).ok()?;
-                    load_definition_root(expression, root, force_potential)
-                        .map(|source| (relation, source))
-                })
-                .collect::<Vec<_>>();
+            let mut definitions = Vec::new();
+            for relation in &volume_relations {
+                let expression = typed_relations[relation].expression();
+                let root = unique_root(expression, *relation)?;
+                if let Some(source) =
+                    additive_load_definition_root(expression, root, force_potential, *relation)?
+                {
+                    definitions.push((*relation, source));
+                }
+            }
             let mut momenta = Vec::new();
             for relation in &volume_relations {
                 let typed = &typed_relations[relation];
@@ -288,8 +282,8 @@ fn lower_steady_incompressible_stokes_2d_on(
         return Err(lowering_error(
             domain,
             format!(
-                "pressure, force-potential definition, and exact Stokes momentum balance must have one unique identity assignment, found {}",
-                candidates.len()
+                "pressure, force-potential definition, and exact Stokes momentum balance must have one unique identity assignment, found {}; unmatched signed leaves by owning Relation: {additive_inventory}",
+                candidates.len(),
             ),
         ));
     }
@@ -402,6 +396,24 @@ fn lower_steady_incompressible_stokes_2d_on(
         model,
         cartesian_entries: boundary.cartesian_entries,
     })
+}
+
+fn additive_volume_inventory(
+    typed_relations: &BTreeMap<RawId, TypedResidual<RawId>>,
+    relations: &[RawId],
+) -> Result<String, Diagnostic> {
+    relations
+        .iter()
+        .map(|relation| {
+            let expression = typed_relations[relation].expression();
+            let root = unique_root(expression, *relation)?;
+            let view = crate::additive_residual::AdditiveResidualView::derive(
+                expression, root, *relation,
+            )?;
+            Ok(format!("Relation {relation}: [{}]", view.signed_leaves()))
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()
+        .map(|inventory| inventory.join("; "))
 }
 
 pub(super) fn lower_stokes_dissipation_profile_model_2d(
