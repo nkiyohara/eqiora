@@ -1045,6 +1045,7 @@ dependencies = [
 name = "eqiora-api"
 version = "0.1.0-alpha.5"
 dependencies = [
+ "base64 0.22.1",
  "eqiora-artifact",
  "eqiora-assembly",
  "eqiora-backend-rayon",
@@ -1063,6 +1064,7 @@ dependencies = [
  "eqiora-schema",
  "eqiora-sem",
  "eqiora-solver",
+ "eqiora-time",
  "serde",
  "serde_json",
  "sha2 0.11.0",

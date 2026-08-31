@@ -4,11 +4,10 @@ use std::collections::BTreeMap;
 
 use eqiora_artifact::{
     ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, MlDatasetChannelStatisticsV1,
-    MlDatasetDecoderLimits, MlDatasetEnvelopeV1, MlDatasetFieldDescriptorV1,
-    MlDatasetObservationReferenceV1, MlDatasetSampleV1, MlDatasetStateReferenceV1,
-    ReplayableCanonicalModelArtifact,
+    MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1, MlDatasetEnvelopeV1,
+    MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1, MlDatasetSampleSplitV1,
+    MlDatasetSampleV1, MlDatasetStateReferenceV1, ReplayableCanonicalModelArtifact,
 };
-pub use eqiora_artifact::{MlDatasetDescriptorRoleV1, MlDatasetSampleSplitV1};
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_meshing::DiscreteFieldAssociation;
