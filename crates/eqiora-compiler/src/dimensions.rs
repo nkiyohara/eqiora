@@ -13,7 +13,7 @@ use crate::diagnostics::source_error;
 pub(crate) fn lower_dimension(file: &str, expression: &Expr) -> Result<DimExponents, Diagnostic> {
     match expression.kind() {
         ExprKind::Number(value) if *value == 1.0 => Ok(DimExponents::DIMENSIONLESS),
-        ExprKind::Name(name) => base_dimension(name).ok_or_else(|| {
+        ExprKind::Name(name) => coherent_dimension(name).ok_or_else(|| {
             source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,
@@ -124,7 +124,7 @@ pub(crate) const fn length_dimension() -> DimExponents {
     }
 }
 
-fn base_dimension(name: &str) -> Option<DimExponents> {
+fn coherent_dimension(name: &str) -> Option<DimExponents> {
     let mut dimension = DimExponents::DIMENSIONLESS;
     match name {
         "kg" => dimension.mass = 1,
@@ -134,6 +134,27 @@ fn base_dimension(name: &str) -> Option<DimExponents> {
         "K" => dimension.temperature = 1,
         "mol" => dimension.amount = 1,
         "cd" => dimension.luminous_intensity = 1,
+        "Hz" => dimension.time = -1,
+        "N" => {
+            dimension.mass = 1;
+            dimension.length = 1;
+            dimension.time = -2;
+        }
+        "Pa" => {
+            dimension.mass = 1;
+            dimension.length = -1;
+            dimension.time = -2;
+        }
+        "J" => {
+            dimension.mass = 1;
+            dimension.length = 2;
+            dimension.time = -2;
+        }
+        "W" => {
+            dimension.mass = 1;
+            dimension.length = 2;
+            dimension.time = -3;
+        }
         _ => return None,
     }
     Some(dimension)
@@ -146,4 +167,61 @@ pub(crate) fn dimension_overflow(file: &str, range: TextRange) -> Diagnostic {
         range,
         "physical-dimension exponent arithmetic overflows i8",
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use eqiora_lang::parse;
+
+    use super::lower_dimension;
+
+    fn parameter_dimension(source: &str) -> eqiora_core::DimExponents {
+        let source = format!("model M {{ parameter value: {source} = 1; }}");
+        let document = parse("dimension.eqi", &source)
+            .into_document()
+            .expect("dimension source parses");
+        let eqiora_lang::Item::Parameter(parameter) = &document.models()[0].items()[0] else {
+            panic!("one Parameter declaration");
+        };
+        lower_dimension("dimension.eqi", parameter.dimension()).expect("dimension lowers")
+    }
+
+    #[test]
+    fn coherent_aliases_equal_their_base_si_expansions() {
+        for (alias, expanded) in [
+            ("Hz", "1 / s"),
+            ("N", "kg * m / s ^ 2"),
+            ("Pa", "kg / (m * s ^ 2)"),
+            ("J", "kg * m ^ 2 / s ^ 2"),
+            ("W", "kg * m ^ 2 / s ^ 3"),
+        ] {
+            assert_eq!(parameter_dimension(alias), parameter_dimension(expanded));
+        }
+    }
+
+    #[test]
+    fn coherent_aliases_compile_across_model_declarations() {
+        let source = r#"
+model Catalog {
+  parameter length: m = 2;
+  parameter force: N = 3;
+  parameter duration: s = 1;
+  let energy: J = force * length;
+  field power: W = 0;
+  field pressure: Pa = 0;
+  port frequency: signal input Hz;
+  relation balance continuous {
+    power = energy / duration;
+    pressure = 0;
+  }
+}
+"#;
+        let mut compiled = crate::compile("catalog.eqi", source)
+            .expect("coherent aliases compile through the shared dimension checker");
+        let compiled = compiled.pop().expect("one Model");
+        assert!(compiled.symbols().get("energy").is_none());
+        assert!(compiled.symbols().get("power").is_some());
+        assert!(compiled.symbols().get("pressure").is_some());
+        assert!(compiled.symbols().get("frequency").is_some());
+    }
 }
