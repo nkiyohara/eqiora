@@ -778,18 +778,13 @@ pub(crate) fn lower_typed_model(
                                     normalize_zero(initial),
                                     resolved.dimension,
                                 )),
+                            (true, None) => Ok(FieldDef::new(id, resolved.dimension)),
                             (false, None) => FieldDef::shaped(
                                 id,
                                 resolved.dimension,
                                 resolved.shape,
                                 resolved.frame,
                             ),
-                            (true, None) => Err(source_error(
-                                codes::LANGUAGE_TYPE_ERROR,
-                                file,
-                                *range,
-                                "scalar Field requires one scalar initial value",
-                            )),
                             (false, Some(_)) => Err(source_error(
                                 codes::LANGUAGE_TYPE_ERROR,
                                 file,

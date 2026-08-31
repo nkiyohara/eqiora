@@ -3,6 +3,85 @@ use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::runtime::{CpuExecutor, CpuProgram};
 use eqiora::sem::{Interpreter, KernelProgram, ReferenceConfig};
 
+fn compile_program(source: &str) -> (KernelProgram, eqiora::compiler::ModelSymbols) {
+    let mut models = compile("optional-initial.eqi", source).expect("typed source");
+    let compiled = models.pop().expect("one model");
+    let symbols = compiled.symbols().clone();
+    let (transaction, model, _) = compiled.into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).expect("atomic source commit");
+    (
+        KernelProgram::from_snapshot(&store.snapshot(), model).expect("whole model"),
+        symbols,
+    )
+}
+
+#[test]
+fn uninitialized_algebraic_field_runs_without_a_model_owned_value() {
+    let (program, symbols) = compile_program(
+        "model algebraic { field pressure: 1; relation balance continuous { pressure - 2 = 0; } }",
+    );
+    let pressure = symbols.get("pressure").expect("pressure ID");
+    assert_eq!(program.value(pressure), None);
+
+    let trajectory = Interpreter::new()
+        .run(
+            &program,
+            ReferenceConfig::new(0.0, 0.01).expect("reference config"),
+        )
+        .expect("static algebraic execution");
+    assert_eq!(
+        trajectory
+            .last_value(pressure)
+            .expect("pressure sample")
+            .value(),
+        2.0
+    );
+}
+
+#[test]
+fn uninitialized_differential_field_fails_at_execution_admission() {
+    let (program, symbols) = compile_program(
+        "model transient { field state: 1; parameter rate: 1 / s = 1; relation evolution continuous { derivative(state) + rate * state = 0; } }",
+    );
+    assert_eq!(program.value(symbols.get("state").expect("state ID")), None);
+
+    let diagnostics = Interpreter::new()
+        .run(
+            &program,
+            ReferenceConfig::new(0.1, 0.01).expect("reference config"),
+        )
+        .expect_err("stateful execution requires an initial value");
+    assert_eq!(
+        diagnostics[0].code(),
+        eqiora_core::diagnostic::codes::MISSING_EXECUTION_INPUT
+    );
+    assert!(
+        diagnostics[0]
+            .message()
+            .contains("requires an initial value")
+    );
+}
+
+#[test]
+fn uninitialized_discrete_field_fails_at_execution_admission() {
+    let (program, symbols) = compile_program(
+        "model discrete { field state: 1; clock tick = periodic(period = 1 / 1, phase = 0 / 1); relation update periodic(tick) { next(state) - pre(state) = 0; } }",
+    );
+    assert_eq!(program.value(symbols.get("state").expect("state ID")), None);
+
+    let diagnostics = Interpreter::new()
+        .run(
+            &program,
+            ReferenceConfig::new(0.0, 0.01).expect("reference config"),
+        )
+        .expect_err("discrete execution requires an initial value");
+    assert_eq!(
+        diagnostics[0].code(),
+        eqiora_core::diagnostic::codes::MISSING_EXECUTION_INPUT
+    );
+}
+
 #[test]
 fn source_lowers_to_the_reference_thermal_controller_trajectory() {
     let source = r#"

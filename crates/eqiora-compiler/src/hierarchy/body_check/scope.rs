@@ -494,15 +494,7 @@ pub(in crate::hierarchy) fn field_expression_type<I>(
         support,
     )?;
     match (inferred.shape.is_scalar(), declaration.initial()) {
-        (true, Some(_)) | (false, None) => {}
-        (true, None) => {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                declaration.range(),
-                "scalar Field requires one scalar initial value",
-            ));
-        }
+        (true, Some(_)) | (true, None) | (false, None) => {}
         (false, Some(_)) => {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,

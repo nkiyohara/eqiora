@@ -766,8 +766,8 @@ impl Parser<'_> {
             matches!(shape, ValueShapeSyntax::Scalar)
                 || matches!(shape, ValueShapeSyntax::Exact(extents) if extents.is_empty())
         });
-        let initial = if scalar {
-            self.expect(TokenKind::Equal, "`=` before scalar Field initial value")?;
+        let initial = if scalar && self.at(TokenKind::Equal) {
+            self.bump();
             Some(self.parse_signed_number()?)
         } else if self.at(TokenKind::Equal) {
             self.error_here(
