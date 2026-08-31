@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed over conditional GitHub Actions job results."""
+"""Fail closed over explicit GitHub Actions lane conclusions."""
 
 from __future__ import annotations
 
@@ -30,8 +30,8 @@ def evaluate(relevance: Mapping[str, bool], results: Mapping[str, str]) -> list[
 
     for job, surfaces in JOB_SURFACES.items():
         result = results.get(job)
-        if result not in {"success", "skipped"}:
-            failures.append(f"conditional job {job} was {result!r}")
+        if result != "success":
+            failures.append(f"lane conclusion {job} was {result!r}")
         for surface in surfaces:
             if relevance.get(surface) and result != "success":
                 failures.append(
@@ -72,7 +72,7 @@ def parse_relevance(raw: Mapping[str, object]) -> dict[str, bool]:
 
 
 def parse_results(raw: Mapping[str, object]) -> dict[str, str]:
-    """Require one result for every always-required and conditional job."""
+    """Require one result for every always-required and lane-conclusion job."""
     expected = {"changes", "documentation", *JOB_SURFACES}
     actual = set(raw)
     if actual != expected:
