@@ -1209,7 +1209,7 @@ fn revised_oracle_sequence() {
     accounting.operation();
     assert_eq!(
         malformed[1].message(),
-        "expected `connector`, `component`, `pure operator`, or `model` declaration"
+        "expected `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
     );
     accounting.operation();
     let span1 = malformed[1].source_span().expect("second malformed span");

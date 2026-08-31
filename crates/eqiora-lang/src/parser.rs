@@ -4,6 +4,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Span};
 
 mod compile_time;
+mod document;
 mod domain;
 mod formulation;
 mod property;
@@ -157,107 +158,6 @@ enum ParsedConnection {
 }
 
 impl Parser<'_> {
-    fn parse_document(&mut self) -> Option<Document> {
-        let mut property_contracts = Vec::new();
-        let mut property_releases = Vec::new();
-        let mut connectors = Vec::new();
-        let mut components = Vec::new();
-        let mut pure_operators = Vec::new();
-        let mut models = Vec::new();
-        let mut models_started = false;
-        while !self.at(TokenKind::Eof) {
-            let modifier = if self.at_keyword("public") {
-                Some((VisibilitySyntax::Public, self.bump().clone()))
-            } else if self.at_keyword("private") {
-                Some((VisibilitySyntax::Private, self.bump().clone()))
-            } else {
-                None
-            };
-            let visibility = modifier
-                .as_ref()
-                .map_or(VisibilitySyntax::Private, |(visibility, _)| *visibility);
-            let declaration_start = modifier.as_ref().map_or_else(
-                || self.current().range().start(),
-                |(_, token)| token.range().start(),
-            );
-
-            if self.at_keyword("property") {
-                self.parse_top_property(
-                    declaration_start,
-                    visibility,
-                    models_started,
-                    &mut property_contracts,
-                    &mut property_releases,
-                );
-            } else if self.at_keyword("connector") {
-                if models_started {
-                    self.error_here(
-                        "compilation-unit Connector declarations must precede model declarations",
-                    );
-                }
-                if let Some(connector) = self.parse_connector(declaration_start, visibility) {
-                    connectors.push(connector);
-                } else {
-                    self.recover_top_level();
-                }
-            } else if self.at_keyword("component") {
-                if models_started {
-                    self.error_here(
-                        "compilation-unit component declarations must precede model declarations",
-                    );
-                }
-                if let Some(component) = self.parse_component(declaration_start, visibility) {
-                    components.push(component);
-                } else {
-                    self.recover_top_level();
-                }
-            } else if self.at_keyword("pure") {
-                if models_started {
-                    self.error_here(
-                        "compilation-unit pure operator declarations must precede model declarations",
-                    );
-                }
-                if let Some(operator) = self.parse_pure_operator(declaration_start, visibility) {
-                    pure_operators.push(operator);
-                } else {
-                    self.recover_top_level();
-                }
-            } else if self.at_keyword("model") {
-                if let Some((VisibilitySyntax::Public, token)) = &modifier {
-                    self.error_token(
-                        token,
-                        "`model` declarations are package-local and cannot be public in v1",
-                    );
-                }
-                models_started = true;
-                if let Some(model) = self.parse_model() {
-                    models.push(model);
-                } else {
-                    self.recover_top_level();
-                }
-            } else {
-                self.error_here(
-                    "expected `connector`, `component`, `pure operator`, or `model` declaration",
-                );
-                self.recover_top_level();
-            }
-        }
-        (!(property_contracts.is_empty()
-            && property_releases.is_empty()
-            && connectors.is_empty()
-            && components.is_empty()
-            && pure_operators.is_empty()
-            && models.is_empty()))
-        .then_some(Document {
-            property_contracts,
-            property_releases,
-            connectors,
-            components,
-            pure_operators,
-            models,
-        })
-    }
-
     fn parse_pure_operator(
         &mut self,
         start: u32,
@@ -2562,6 +2462,38 @@ model periodic {
         assert_eq!(
             crate::format(&document),
             "model M {\n  let wave_number: 1 / m = math.pi / length;\n}\n"
+        );
+    }
+
+    #[test]
+    fn parser_and_formatter_retain_ordered_dimension_prefix_with_exact_ranges() {
+        let source = "dimension Speed = m / s;\ndimension Acceleration = Speed / s;\nmodel M { field velocity: Speed = 0; }";
+        let document = parse("dimensions.eqi", source)
+            .into_document()
+            .expect("dimension prefix parses");
+
+        assert_eq!(document.dimension_syntax().len(), 2);
+        let (name, _, range) = document.dimension_syntax().next().expect("first alias");
+        assert_eq!(name, "Speed");
+        assert_eq!(
+            &source[range.start() as usize..range.end() as usize],
+            "dimension Speed = m / s;"
+        );
+        let formatted = crate::format(&document);
+        let reparsed = parse("dimensions.eqi", &formatted)
+            .into_document()
+            .expect("formatted prefix reparses");
+        assert_eq!(crate::format(&reparsed), formatted);
+
+        let misplaced = parse(
+            "misplaced.eqi",
+            "model M { field x: m = 0; } dimension Length = m;",
+        );
+        assert!(
+            misplaced
+                .diagnostics()
+                .iter()
+                .any(|diagnostic| diagnostic.message().contains("must form a prefix"))
         );
     }
 }

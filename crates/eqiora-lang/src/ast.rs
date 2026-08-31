@@ -1,13 +1,14 @@
 //! Source-oriented syntax tree. Semantic types are assigned during lowering.
 
 mod compile_time;
+mod document;
 pub(crate) mod formulation;
 
+pub(crate) use compile_time::DimensionDecl;
 pub use compile_time::{LetDecl, ParameterDecl};
+pub use document::Document;
 
-use crate::ast_property::{
-    ComponentPropertyDecl, PropertyBindingDecl, PropertyContractDecl, PropertyReleaseDecl,
-};
+use crate::ast_property::{ComponentPropertyDecl, PropertyBindingDecl};
 use formulation::FormulationDecl;
 use std::ops::Range;
 
@@ -99,43 +100,6 @@ impl NamePath {
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
-    }
-}
-
-/// One parsed source file.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Document {
-    pub(crate) property_contracts: Vec<PropertyContractDecl>,
-    pub(crate) property_releases: Vec<PropertyReleaseDecl>,
-    pub(crate) connectors: Vec<ConnectorDecl>,
-    pub(crate) components: Vec<ComponentDecl>,
-    pub(crate) pure_operators: Vec<PureOperatorDecl>,
-    pub(crate) models: Vec<ModelDecl>,
-}
-
-impl Document {
-    /// Compilation-unit connector declarations in source order.
-    #[must_use]
-    pub fn connectors(&self) -> &[ConnectorDecl] {
-        &self.connectors
-    }
-
-    /// Compilation-unit component declarations in source order.
-    #[must_use]
-    pub fn components(&self) -> &[ComponentDecl] {
-        &self.components
-    }
-
-    /// Compilation-unit pure operator declarations in source order.
-    #[must_use]
-    pub fn pure_operators(&self) -> &[PureOperatorDecl] {
-        &self.pure_operators
-    }
-
-    /// Model declarations in source order.
-    #[must_use]
-    pub fn models(&self) -> &[ModelDecl] {
-        &self.models
     }
 }
 

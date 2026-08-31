@@ -203,7 +203,14 @@ pub(crate) fn compile_external_component(
 
     let source_identity =
         LocalSourceIdentity::from_document(&document).map_err(|error| vec![error])?;
-    let elaborator = Elaborator::new(file, source.len(), &document, source_identity, limits)?;
+    let document = crate::dimensions::elaborate_dimension_aliases(file, &document)?;
+    let elaborator = Elaborator::new(
+        file,
+        source.len(),
+        document.as_ref(),
+        source_identity,
+        limits,
+    )?;
     let checked = check::validate(&elaborator)?;
     let range = TextRange::default();
     let component_path = NamePath::from_segments([binding.component()], range)
@@ -534,7 +541,14 @@ fn compile_hierarchy_with_limits(
     }
     let source_identity =
         LocalSourceIdentity::from_document(document).map_err(|error| vec![error])?;
-    let elaborator = Elaborator::new(file, source_bytes, document, source_identity, limits)?;
+    let document = crate::dimensions::elaborate_dimension_aliases(file, document)?;
+    let elaborator = Elaborator::new(
+        file,
+        source_bytes,
+        document.as_ref(),
+        source_identity,
+        limits,
+    )?;
     let checked = check::validate(&elaborator)?;
     let mut compiled = Vec::new();
     let mut diagnostics = Vec::new();

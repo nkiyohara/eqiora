@@ -4,6 +4,10 @@ use super::{format_expression, separate_declaration};
 use crate::ast::{ComponentDecl, Document, VisibilitySyntax};
 
 pub(super) fn format_properties(document: &Document, output: &mut String, count: &mut usize) {
+    for dimension in &document.dimensions {
+        separate_declaration(output, count);
+        super::compile_time::format_dimension(dimension, output);
+    }
     for (visibility, name, dimension, _) in document.property_contract_syntax() {
         separate_declaration(output, count);
         if visibility == VisibilitySyntax::Public {

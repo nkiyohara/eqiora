@@ -8,9 +8,11 @@ use core::fmt;
 use std::collections::BTreeMap;
 
 mod compile_time;
+mod dimension;
 mod domain;
 pub(crate) mod formulation;
 mod instance;
+mod property;
 mod visibility;
 
 use eqiora_core::Diagnostic;
@@ -34,8 +36,10 @@ use crate::connection_sets::{
 use crate::identity::IdentityNamespace;
 use crate::pure_operator::compile_definition;
 use compile_time::{encode_let, encode_parameter};
+use dimension::encode_dimensions;
 use domain::encode_domain;
 use instance::encode_instance;
+use property::{encode_property_contract, encode_property_release};
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
@@ -192,9 +196,10 @@ fn canonical_source_bytes_with_aliases(
     resolved_aliases: BTreeMap<String, Box<[String]>>,
 ) -> Result<Vec<u8>, Diagnostic> {
     let top_level_count = document
-        .property_contract_syntax()
+        .dimension_syntax()
         .len()
-        .checked_add(document.property_release_syntax().len())
+        .checked_add(document.property_contract_syntax().len())
+        .and_then(|count| count.checked_add(document.property_release_syntax().len()))
         .and_then(|count| count.checked_add(document.connectors().len()))
         .and_then(|count| count.checked_add(document.pure_operators().len()))
         .and_then(|count| count.checked_add(document.components().len()))
@@ -208,6 +213,7 @@ fn canonical_source_bytes_with_aliases(
     }
 
     let mut budget = Budget::with_resolved_aliases(limits, resolved_aliases);
+    let dimensions = encode_dimensions(document.dimension_syntax(), &mut budget)?;
     let connectors = encode_sorted_records(document.connectors(), &mut budget, encode_connector)?;
     let property_contract_syntax = document.property_contract_syntax().collect::<Vec<_>>();
     let property_release_syntax = document.property_release_syntax().collect::<Vec<_>>();
@@ -241,55 +247,8 @@ fn canonical_source_bytes_with_aliases(
     if !property_releases.is_empty() {
         encoder.field(6, |encoder| encoder.records(&property_releases))?;
     }
-    encoder.finish()
-}
-
-fn encode_property_contract(
-    declaration: &(VisibilitySyntax, &str, &Expr, TextRange),
-    budget: &mut Budget,
-) -> Result<Vec<u8>, Diagnostic> {
-    let (visibility, name, dimension, _) = *declaration;
-    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
-    encoder.field(1, |encoder| encode_name(encoder, name, budget))?;
-    encoder.field(2, |encoder| {
-        encode_expression(encoder, dimension, budget, 1)
-    })?;
-    if visibility == VisibilitySyntax::Public {
-        encoder.field(3, |encoder| encode_visibility(encoder, visibility))?;
-    }
-    encoder.finish()
-}
-
-fn encode_property_release(
-    declaration: &(
-        VisibilitySyntax,
-        &str,
-        &NamePath,
-        &Expr,
-        &Expr,
-        &Expr,
-        &NamePath,
-        &NamePath,
-        TextRange,
-    ),
-    budget: &mut Budget,
-) -> Result<Vec<u8>, Diagnostic> {
-    let (visibility, name, contract, source_value, source_dimension, scale, citation, license, _) =
-        *declaration;
-    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
-    encoder.field(1, |encoder| encode_name(encoder, name, budget))?;
-    encoder.field(2, |encoder| encode_type_path(encoder, contract, budget))?;
-    encoder.field(3, |encoder| {
-        encode_expression(encoder, source_value, budget, 1)
-    })?;
-    encoder.field(4, |encoder| {
-        encode_expression(encoder, source_dimension, budget, 1)
-    })?;
-    encoder.field(5, |encoder| encode_expression(encoder, scale, budget, 1))?;
-    encoder.field(6, |encoder| encode_type_path(encoder, citation, budget))?;
-    encoder.field(7, |encoder| encode_type_path(encoder, license, budget))?;
-    if visibility == VisibilitySyntax::Public {
-        encoder.field(8, |encoder| encode_visibility(encoder, visibility))?;
+    if !dimensions.is_empty() {
+        encoder.field(7, |encoder| encoder.records(&dimensions))?;
     }
     encoder.finish()
 }
