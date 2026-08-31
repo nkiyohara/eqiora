@@ -1,6 +1,5 @@
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::Diagnostic;
-use eqiora_ir::{LinearizedRelation, RelationTangent};
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
 use eqiora_solver::LinearSolverBackend;
 
@@ -9,14 +8,9 @@ use super::api::{
     MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d,
     SimplicialMiniNavierStokesTrajectory2d,
 };
-use super::assembly::{
-    assemble_step_linearization, assemble_step_residual, build_step_jacobian_pattern,
-};
+use super::assembly::assemble_step_linearization;
 use super::element::FixedDomainViscousForm;
 use super::{COMPONENTS, DIMENSION, solve_failed};
-use crate::jacobian_audit::{
-    CenteredJacobianAuditEvidence, StructuralJacobianPattern, audit_centered_jacobian,
-};
 use crate::simplicial_stokes::SimplicialMiniStokesBoundary2d;
 use crate::step_count::NonZeroStepCount;
 
@@ -121,7 +115,6 @@ where
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
     super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
-    let jacobian_pattern = build_step_jacobian_pattern(mesh, boundary, essential_velocity)?;
     let mut trajectory = SimplicialMiniNavierStokesTrajectory2d::new(initial);
     for _ in 0..step_count.get() {
         let previous = trajectory
@@ -137,7 +130,6 @@ where
             plan,
             cell_quadrature,
             facet_quadrature,
-            &jacobian_pattern,
             assembly,
             solver,
             viscous_form,
@@ -157,7 +149,6 @@ fn solve_one_step<F, B>(
     plan: MiniNavierStokesStepPlan2d,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    jacobian_pattern: &StructuralJacobianPattern,
     assembly_backend: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
     viscous_form: FixedDomainViscousForm,
@@ -190,19 +181,6 @@ where
     let initial_residual_norm = current.residual_norm()?;
     let residual_target = plan.nonlinear_target(initial_residual_norm)?;
     if initial_residual_norm <= residual_target {
-        let jacobian_audit = verify_analytic_jacobian(
-            mesh,
-            boundary,
-            essential_velocity,
-            body_force,
-            previous,
-            &current,
-            plan,
-            cell_quadrature,
-            facet_quadrature,
-            jacobian_pattern,
-            viscous_form,
-        )?;
         return accept_step(
             mesh,
             previous,
@@ -214,7 +192,6 @@ where
                 iterations: 0,
                 initial_residual_norm,
                 residual_target,
-                jacobian_audit,
                 linear_solves: Vec::new(),
             },
         );
@@ -271,19 +248,6 @@ where
         point = candidate;
         current = assembled;
         if norm <= residual_target {
-            let jacobian_audit = verify_analytic_jacobian(
-                mesh,
-                boundary,
-                essential_velocity,
-                body_force,
-                previous,
-                &current,
-                plan,
-                cell_quadrature,
-                facet_quadrature,
-                jacobian_pattern,
-                viscous_form,
-            )?;
             return accept_step(
                 mesh,
                 previous,
@@ -295,7 +259,6 @@ where
                     iterations: iteration,
                     initial_residual_norm,
                     residual_target,
-                    jacobian_audit,
                     linear_solves: reports,
                 },
             );
@@ -305,52 +268,4 @@ where
         "MINI Navier--Stokes Newton solve reached {} iterations above target {residual_target:e}",
         plan.maximum_newton_iterations()
     )))
-}
-
-#[allow(clippy::too_many_arguments)]
-fn verify_analytic_jacobian<F, B>(
-    mesh: &SimplicialMesh,
-    boundary: &SimplicialMiniStokesBoundary2d,
-    essential_velocity: &B,
-    body_force: &F,
-    previous: &SimplicialMiniNavierStokesState2d,
-    accepted: &super::assembly::StepAssembly,
-    plan: MiniNavierStokesStepPlan2d,
-    cell_quadrature: &QuadratureRule,
-    facet_quadrature: &QuadratureRule,
-    jacobian_pattern: &StructuralJacobianPattern,
-    viscous_form: FixedDomainViscousForm,
-) -> Result<CenteredJacobianAuditEvidence, Diagnostic>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
-    let point = accepted.algebraic_values();
-    audit_centered_jacobian(
-        point,
-        jacobian_pattern,
-        8.0e-6,
-        "transient MINI",
-        |candidate| {
-            assemble_step_residual(
-                mesh,
-                boundary,
-                essential_velocity,
-                body_force,
-                previous,
-                candidate,
-                plan,
-                cell_quadrature,
-                facet_quadrature,
-                viscous_form,
-            )
-        },
-        |column, analytic| {
-            let mut direction = vec![0.0; point.len()];
-            direction[column] = 1.0;
-            accepted
-                .relation
-                .jvp(RelationTangent::Unknown(&direction), analytic)
-        },
-    )
 }

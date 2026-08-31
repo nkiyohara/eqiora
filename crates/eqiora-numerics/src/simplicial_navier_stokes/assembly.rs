@@ -56,10 +56,6 @@ impl StepAssembly {
             .sum::<f64>()
             .sqrt()
     }
-
-    pub(super) fn algebraic_values(&self) -> &[f64] {
-        self.relation.accepted_unknowns()
-    }
 }
 
 struct EvaluatedStepPacket {

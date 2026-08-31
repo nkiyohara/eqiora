@@ -10,7 +10,6 @@ use super::element::{
     evaluate_velocity, integrate_convective_evidence, local_velocity_coefficients,
 };
 use super::{invalid, solve_failed};
-use crate::jacobian_audit::CenteredJacobianAuditEvidence;
 use crate::simplicial_stokes::acceptance::{
     integrate_pressure, require_weak_incompressibility, require_zero_gauge_multiplier,
 };
@@ -20,7 +19,6 @@ pub(super) struct NewtonEvidence {
     pub(super) iterations: usize,
     pub(super) initial_residual_norm: f64,
     pub(super) residual_target: f64,
-    pub(super) jacobian_audit: CenteredJacobianAuditEvidence,
     pub(super) linear_solves: Vec<eqiora_solver::SolveReport>,
 }
 
@@ -237,7 +235,6 @@ pub(super) fn accept_step(
         convective.skew_power,
         convective.conservative_defect_norm,
         named_boundary_reactions,
-        newton.jacobian_audit,
         assembly.assembly_report,
         newton.linear_solves,
     );

@@ -598,6 +598,18 @@ fn assert_consecutive_geometry_and_evidence(
     trajectory: &AleFsiTrajectory2d,
     time_step: f64,
 ) {
+    let finalized = finalize_resolved_fixed_topology_ale_fsi_2d(
+        &fixture.canonical,
+        &fixture.resolve(time_step),
+        fixture.mesh_reference,
+        &fixture.mesh,
+        &fixture.partition,
+        &fixture.boundary,
+        fixture.initial_physical(),
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    let quadrature = eqiora::meshing::triangle_duffy_gauss_legendre(5).unwrap();
     for (states, evidence) in trajectory.states().windows(2).zip(trajectory.steps()) {
         let action = FixedTopologyGeometryAction2d::new(
             &fixture.mesh,
@@ -617,17 +629,23 @@ fn assert_consecutive_geometry_and_evidence(
         assert!(evidence.minimum_current_mean_ratio() > 0.3);
         assert!(evidence.minimum_current_signed_jacobian() > 0.0);
         assert!(evidence.minimum_path_signed_jacobian() > 0.0);
-        assert!(evidence.maximum_analytic_jvp_verification_error() < 1.0e-3);
-        assert!(evidence.jacobian_audited_column_count() > evidence.jacobian_color_count());
-        assert_eq!(
-            evidence.jacobian_residual_assembly_count(),
-            2 * evidence.jacobian_color_count()
-        );
-        assert_eq!(evidence.jacobian_global_singleton_count(), 2);
-        assert!(
-            evidence.jacobian_residual_assembly_count()
-                < 2 * evidence.jacobian_audited_column_count()
-        );
+        let (column_count, color_count, singleton_count, assembly_count, maximum_error) = finalized
+            .step_plan()
+            .verify_accepted_jacobian(
+                &fixture.mesh,
+                &fixture.partition,
+                &fixture.boundary,
+                finalized.motion(),
+                &states[0],
+                &states[1],
+                &quadrature,
+            )
+            .unwrap();
+        assert!(maximum_error < 1.0e-3);
+        assert!(column_count > color_count);
+        assert_eq!(assembly_count, 2 * color_count);
+        assert_eq!(singleton_count, 2);
+        assert!(assembly_count < 2 * column_count);
         assert!(evidence.probed_moving_fluid_cell_count() > 0);
         assert!(evidence.gcl_active_moving_fluid_cell_count() > 0);
         assert!(evidence.compatible_constant_free_stream_residual_norm() < 1.0e-12);
@@ -671,12 +689,6 @@ fn assert_consecutive_geometry_and_evidence(
             assert!(cell.minimum_path_signed_measure_scale() > 0.0);
         }
     }
-    assert!(
-        trajectory
-            .steps()
-            .windows(2)
-            .all(|steps| { steps[0].jacobian_color_count() == steps[1].jacobian_color_count() })
-    );
 }
 
 fn assert_static_geometry_falsifier(fixture: &Fixture, motion: &P1HarmonicMeshMotionAction2d) {

@@ -6,7 +6,6 @@ use eqiora_realization::Target;
 use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolveReport, SolverPlan};
 
 use super::{COMPONENTS, invalid, solve_failed};
-use crate::jacobian_audit::CenteredJacobianAuditEvidence;
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_stokes::{
     SimplicialMiniStokesPressureReference2d, SimplicialMiniStokesSolution2d,
@@ -293,7 +292,6 @@ pub struct SimplicialMiniNavierStokesStepEvidence2d {
     convective_power: f64,
     conservative_advection_defect_norm: f64,
     named_boundary_reactions: Vec<(String, [f64; COMPONENTS])>,
-    jacobian_audit: CenteredJacobianAuditEvidence,
     assembly_report: AssemblyReport,
     linear_solves: Vec<SolveReport>,
 }
@@ -312,7 +310,6 @@ impl SimplicialMiniNavierStokesStepEvidence2d {
         convective_power: f64,
         conservative_advection_defect_norm: f64,
         named_boundary_reactions: Vec<(String, [f64; COMPONENTS])>,
-        jacobian_audit: CenteredJacobianAuditEvidence,
         assembly_report: AssemblyReport,
         linear_solves: Vec<SolveReport>,
     ) -> Self {
@@ -328,7 +325,6 @@ impl SimplicialMiniNavierStokesStepEvidence2d {
             convective_power,
             conservative_advection_defect_norm,
             named_boundary_reactions,
-            jacobian_audit,
             assembly_report,
             linear_solves,
         }
@@ -410,30 +406,6 @@ impl SimplicialMiniNavierStokesStepEvidence2d {
 
     pub(crate) fn named_boundary_reactions(&self) -> &[(String, [f64; COMPONENTS])] {
         &self.named_boundary_reactions
-    }
-
-    /// Number of analytic columns independently reconstructed by the audit.
-    #[must_use]
-    pub fn jacobian_audited_column_count(&self) -> usize {
-        self.jacobian_audit.column_count()
-    }
-
-    /// Number of conservative structural colors.
-    #[must_use]
-    pub const fn jacobian_color_count(&self) -> usize {
-        self.jacobian_audit.color_count()
-    }
-
-    /// Complete residual assemblies used by the centered audit.
-    #[must_use]
-    pub const fn jacobian_residual_assembly_count(&self) -> usize {
-        self.jacobian_audit.residual_assembly_count()
-    }
-
-    /// Maximum per-column analytic versus centered-reassembly error.
-    #[must_use]
-    pub const fn maximum_analytic_jvp_verification_error(&self) -> f64 {
-        self.jacobian_audit.maximum_error()
     }
 
     /// Accepted assembly placement and packet shape for the final point.

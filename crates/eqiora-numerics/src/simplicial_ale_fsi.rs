@@ -8,6 +8,7 @@ mod contract;
 mod element;
 mod motion;
 mod newton;
+mod verification;
 
 #[allow(unused_imports)]
 pub(crate) use boundary_step::{
