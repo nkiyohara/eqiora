@@ -3,6 +3,7 @@
 Authority: ``bindings/python/python/eqiora/trajectory.py``.
 """
 
+from os import PathLike
 from typing import final
 
 import numpy as np
@@ -170,6 +171,9 @@ class Trajectory:
     def to_bytes(self) -> bytes: ...
     @staticmethod
     def from_bytes(plan: Plan, data: bytes) -> Trajectory: ...
+    @staticmethod
+    def read(plan: Plan, path: str | PathLike[str]) -> Trajectory: ...
+    def write(self, path: str | PathLike[str]) -> None: ...
     @property
     def model_digest(self) -> str: ...
     @property

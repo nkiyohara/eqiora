@@ -19,11 +19,22 @@ use crate::geometry::PyGeometrySelection;
 use crate::matrix::{ReadOnlyMatrix, ReadOnlyVector};
 use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelFieldRef};
+use crate::model_io::{
+    ArtifactFileSpec, read_artifact_bytes, unicode_artifact_path, write_artifact_bytes,
+};
 mod field;
 use field::{PyDerivedFieldSnapshot, PyFieldSnapshot, PyInitialField};
 mod observation;
 use observation::PyFieldSample;
 pub(crate) use observation::{PyBoundaryFlux, PyBoundaryForce};
+
+const TRAJECTORY_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
+    artifact_name: "spatial Trajectory",
+    extension: "eqtrajectory",
+    staging_name: "trajectory",
+    // This is the pre-read counterpart of the canonical Trajectory decoder's bound.
+    max_bytes: 512 * 1024 * 1024,
+};
 
 /// Immutable installed-Python projection of one state in a common execution.
 #[pyclass(
@@ -720,6 +731,38 @@ impl PyTrajectory {
         if native.spatial_states().is_none() {
             return Err(PyValueError::new_err(
                 "Trajectory.from_bytes requires a transient-flow or fixed-reference FSI artifact",
+            ));
+        }
+        Self::from_common(py, plan, native)
+    }
+
+    /// Atomically write this exact spatial Trajectory to an `.eqtrajectory` file.
+    fn write(&self, py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<()> {
+        let path = unicode_artifact_path(py, path)?;
+        let bytes = self
+            .native
+            .to_bytes()
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        py.detach(move || write_artifact_bytes(&path, &bytes, TRAJECTORY_FILE_SPEC))
+            .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))
+    }
+
+    /// Read one producer-independent spatial Trajectory against its exact Plan.
+    #[staticmethod]
+    fn read(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        path: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let path = unicode_artifact_path(py, path)?;
+        let bytes = py
+            .detach(move || read_artifact_bytes(&path, TRAJECTORY_FILE_SPEC))
+            .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))?;
+        let native = eqiora_numerics::CommonTrajectory::from_bytes(&bytes, plan.native())
+            .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))?;
+        if native.spatial_states().is_none() {
+            return Err(PyValueError::new_err(
+                "Trajectory.read requires a transient-flow or fixed-reference FSI artifact",
             ));
         }
         Self::from_common(py, plan, native)

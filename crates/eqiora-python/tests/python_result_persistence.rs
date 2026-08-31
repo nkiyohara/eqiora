@@ -14,6 +14,10 @@ fn python_ode_result_round_trips_complete_canonical_content() -> PyResult<()> {
         py.run(
             c_str!(
                 r#"
+import os
+import pathlib
+import tempfile
+
 source = """
 model result_decay {
   field x: 1 = 1;
@@ -47,6 +51,83 @@ assert replayed.plan_key == result.plan_key
 assert replayed.elapsed_seconds == result.elapsed_seconds
 assert replayed.series(field).values.numpy().tolist() == result.series(field).values.numpy().tolist()
 
+result_directory_owner = tempfile.TemporaryDirectory()
+result_directory = pathlib.Path(result_directory_owner.name)
+result_path = result_directory / "run.eqresult"
+result_path.write_bytes(b"incomplete previous output")
+result.write(result_path)
+assert result_path.read_bytes() == result_bytes
+assert not list(result_directory.glob(".eqiora-result-*.tmp"))
+reopened = eqiora.Result.read(plan, result_path)
+assert reopened.to_bytes() == result_bytes
+assert reopened.plan_key == result.plan_key
+assert reopened.series(field).values.numpy().tolist() == result.series(field).values.numpy().tolist()
+
+for name, rejected in (
+    ("truncated.eqresult", result_bytes[:-1]),
+    ("trailing.eqresult", result_bytes + b"\n"),
+    ("unknown-version.eqresult", result_bytes.replace(b"common-result/v1", b"common-result/v9")),
+):
+    path = result_directory / name
+    path.write_bytes(rejected)
+    try:
+        eqiora.Result.read(plan, path)
+    except eqiora.CompatibilityError:
+        pass
+    else:
+        raise AssertionError(f"hostile Result file must reject: {name}")
+
+wrong_suffix = result_directory / "run.json"
+for operation in (
+    lambda: result.write(wrong_suffix),
+    lambda: eqiora.Result.read(plan, wrong_suffix),
+):
+    try:
+        operation()
+    except eqiora.CompatibilityError:
+        pass
+    else:
+        raise AssertionError("Result file paths require the exact .eqresult suffix")
+
+directory_path = result_directory / "directory.eqresult"
+directory_path.mkdir()
+for operation in (
+    lambda: result.write(directory_path),
+    lambda: eqiora.Result.read(plan, directory_path),
+):
+    try:
+        operation()
+    except eqiora.CompatibilityError:
+        pass
+    else:
+        raise AssertionError("Result file I/O must reject non-regular paths")
+
+if os.name != "nt":
+    target = result_directory / "target.eqresult"
+    target.write_bytes(result_bytes)
+    symlink = result_directory / "symlink.eqresult"
+    symlink.symlink_to(target)
+    for operation in (
+        lambda: result.write(symlink),
+        lambda: eqiora.Result.read(plan, symlink),
+    ):
+        try:
+            operation()
+        except eqiora.CompatibilityError:
+            pass
+        else:
+            raise AssertionError("Result file I/O must reject symlinks")
+
+oversized = result_directory / "oversized.eqresult"
+with oversized.open("wb") as stream:
+    stream.truncate(512 * 1024 * 1024 + 1)
+try:
+    eqiora.Result.read(plan, oversized)
+except eqiora.CompatibilityError:
+    pass
+else:
+    raise AssertionError("Result pre-read must enforce the decoder bound")
+
 try:
     eqiora.Result.from_bytes(plan, result_bytes + b"\n")
 except eqiora.ValidationError:
@@ -68,6 +149,13 @@ except eqiora.ValidationError:
     pass
 else:
     raise AssertionError("Result bytes were crossed with a different Plan")
+try:
+    eqiora.Result.read(changed, result_path)
+except eqiora.CompatibilityError:
+    pass
+else:
+    raise AssertionError("Result file was crossed with a different Plan")
+result_directory_owner.cleanup()
 "#
             ),
             Some(&locals),
