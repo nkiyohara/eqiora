@@ -277,6 +277,26 @@ def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form(
     assert replayed.authored_formulations == ()
 
 
+def test_uninitialized_scalar_field_compiles_from_source_and_emitted_file(
+    tmp_path: Path,
+) -> None:
+    source = q.Source()
+    law = source.component("AlgebraicField")
+    region = law.volume("region", dimensions=2)
+    potential = law.field("potential", on=region, unit=u.one)
+    law.relation("balance", on=region, residual=potential)
+
+    text = source.to_eqi()
+    assert "field potential on region as space: 1;" in text
+    assert "field potential on region as space: 1 =" not in text
+
+    direct = eqiora.compile(source=source, geometry=rectangle_geometry())
+    path = tmp_path / "uninitialized-scalar.eqi"
+    source.write_eqi(path)
+    emitted = eqiora.compile(path=path, geometry=rectangle_geometry())
+    assert direct.digest == emitted.digest
+
+
 def test_source_is_deterministic_and_direct_file_compilation_has_one_identity(
     tmp_path: Path,
 ) -> None:

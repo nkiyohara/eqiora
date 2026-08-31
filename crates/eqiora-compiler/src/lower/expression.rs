@@ -1,5 +1,7 @@
 use super::*;
 
+use eqiora_schema::kernel::typing::{self, ExpressionType, SpatialSupport};
+
 pub(super) fn from_source(expression: &Expr) -> LoweringExpression {
     let kind = match expression.kind() {
         ExprKind::Number(value) => LoweringExpressionNode::Quantity(DynQuantity::new(
@@ -92,6 +94,7 @@ pub(super) fn lower_relation(
     };
     let mut roots = Vec::new();
     for residual in residuals {
+        validate_spatial_operator_types(file, residual, bindings)?;
         roots.push(lowerer.lower(residual)?.id);
     }
     let residuals = lowerer.builder.finish(roots).map_err(|diagnostic| {
@@ -107,6 +110,148 @@ pub(super) fn lower_relation(
         dependencies: lowerer.dependencies,
         ports: lowerer.ports,
     })
+}
+
+/// Apply the shared shape/frame rules before the legacy flat DAG lowerer
+/// erases that information. `None` means this bounded pass encountered a
+/// physical accessor or another expression family whose existing owner still
+/// performs admission; nested spatial operators have already been checked.
+fn validate_spatial_operator_types(
+    file: &str,
+    expression: &LoweringExpression,
+    bindings: &BTreeMap<String, Binding>,
+) -> Result<Option<ExpressionType<RawId>>, Diagnostic> {
+    let typed = match expression.node.as_ref() {
+        LoweringExpressionNode::Quantity(value) => Some(ExpressionType::scalar(value.dim(), None)),
+        LoweringExpressionNode::Name(name) if name == "time" => {
+            Some(ExpressionType::scalar(time_dimension(), None))
+        }
+        LoweringExpressionNode::Name(name) => match bindings.get(name) {
+            Some(Binding::Field(_, contract)) => Some(field_expression_type(
+                file,
+                expression.range(),
+                contract,
+                bindings,
+            )?),
+            Some(Binding::Parameter(_, dimension)) => {
+                Some(ExpressionType::scalar(*dimension, None))
+            }
+            _ => None,
+        },
+        LoweringExpressionNode::Neg(value) => {
+            validate_spatial_operator_types(file, value, bindings)?
+        }
+        LoweringExpressionNode::Binary {
+            operator,
+            left,
+            right,
+        } => {
+            let exponent = (*operator == BinaryOp::Pow)
+                .then(|| lowering_integer_literal(right))
+                .flatten();
+            let left = validate_spatial_operator_types(file, left, bindings)?;
+            let right = validate_spatial_operator_types(file, right, bindings)?;
+            match (left, right) {
+                (Some(left), Some(right)) => {
+                    let result = match operator {
+                        BinaryOp::Add | BinaryOp::Sub if left.dimension != right.dimension => {
+                            // Preserve the established flat-lowerer diagnostic,
+                            // which reports the two dimensions compactly.
+                            return Ok(None);
+                        }
+                        BinaryOp::Add | BinaryOp::Sub => typing::additive(&left, &right),
+                        BinaryOp::Mul => typing::multiply(&left, &right),
+                        BinaryOp::Div => typing::divide(&left, &right),
+                        BinaryOp::Pow => {
+                            let Some(exponent) = exponent else {
+                                return Ok(None);
+                            };
+                            typing::power(&left, exponent)
+                        }
+                    };
+                    // Arithmetic diagnostics retain their established owner
+                    // and graph path. Successful composition is needed here
+                    // only to type a surrounding spatial operator.
+                    result.ok()
+                }
+                _ => None,
+            }
+        }
+        LoweringExpressionNode::Call { callee, argument } => {
+            let operand = validate_spatial_operator_types(file, argument, bindings)?;
+            match (callee.as_str(), operand) {
+                ("grad", Some(operand)) => Some(
+                    typing::gradient(&operand)
+                        .map_err(|error| spatial_type_error(file, expression, error))?,
+                ),
+                ("div", Some(operand)) => Some(
+                    typing::divergence(&operand)
+                        .map_err(|error| spatial_type_error(file, expression, error))?,
+                ),
+                ("symmetric_part", Some(operand)) => Some(
+                    typing::symmetric_part(&operand)
+                        .map_err(|error| spatial_type_error(file, expression, error))?,
+                ),
+                ("isotropic_lift", Some(operand)) => Some(
+                    typing::isotropic_lift(&operand)
+                        .map_err(|error| spatial_type_error(file, expression, error))?,
+                ),
+                ("sin", Some(operand)) => typing::sine(&operand).ok(),
+                _ => None,
+            }
+        }
+        LoweringExpressionNode::PureOperator { arguments, .. } => {
+            for argument in arguments {
+                validate_spatial_operator_types(file, argument, bindings)?;
+            }
+            None
+        }
+        LoweringExpressionNode::Unsupported => None,
+    };
+    Ok(typed)
+}
+
+fn field_expression_type(
+    file: &str,
+    range: TextRange,
+    contract: &FieldContract,
+    bindings: &BTreeMap<String, Binding>,
+) -> Result<ExpressionType<RawId>, Diagnostic> {
+    let resolved = resolve_field_contract(file, range, contract, bindings)?;
+    let support = contract.domain.as_deref().and_then(|domain| {
+        let Binding::Domain(
+            id,
+            DomainContract::Spatial {
+                dimensions: Some(dimensions),
+            },
+        ) = bindings.get(domain)?
+        else {
+            return None;
+        };
+        Some(SpatialSupport::Volume {
+            domain: id.erase(),
+            dimensions: *dimensions,
+        })
+    });
+    Ok(ExpressionType::shaped(
+        resolved.dimension,
+        resolved.shape,
+        resolved.frame,
+        support,
+    ))
+}
+
+fn spatial_type_error(
+    file: &str,
+    expression: &LoweringExpression,
+    error: impl std::fmt::Display,
+) -> Diagnostic {
+    source_error(
+        codes::LANGUAGE_TYPE_ERROR,
+        file,
+        expression.range(),
+        error.to_string(),
+    )
 }
 
 struct ExpressionLowerer<'a> {

@@ -413,7 +413,8 @@ impl SourceAstFactory {
     ///
     /// # Errors
     /// Returns the same structural errors as [`Self::field`], plus malformed
-    /// exact shape extents.
+    /// exact shape extents. Scalar Fields may omit `initial`; this preserves
+    /// absence for execution admission rather than supplying an implicit zero.
     pub fn field_with_shape(
         name: impl Into<String>,
         domain: Option<String>,
@@ -444,11 +445,7 @@ impl SourceAstFactory {
         });
         match (scalar, initial) {
             (true, Some(initial)) => validate_finite(initial, "Field initial value")?,
-            (true, None) => {
-                return Err(AstConstructionError::new(
-                    "scalar Field requires one finite scalar initial value",
-                ));
-            }
+            (true, None) => {}
             (false, Some(_)) => {
                 return Err(AstConstructionError::new(
                     "non-scalar Field cannot have a scalar initial value",

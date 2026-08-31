@@ -307,6 +307,34 @@ model elastic_relation {
 }
 
 #[test]
+fn flat_semantic_typing_distinguishes_scalar_gradients_from_vector_strain() {
+    let scalar = r#"
+model scalar_poisson {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field potential on body as space: 1;
+  relation balance continuous on body { -div(grad(potential)) = 0; }
+}
+"#;
+    compile("scalar-poisson.eqi", scalar).expect("a scalar gradient remains admissible");
+
+    let wrong_displacement = scalar
+        .replace(
+            "field potential on body as space: 1;",
+            "field potential on body as space: 1 shape scalar;",
+        )
+        .replace("-div(grad(potential))", "symmetric_part(grad(potential))");
+    let diagnostics = compile("wrong-strain.eqi", &wrong_displacement)
+        .expect_err("symmetric strain requires a spatial-vector Field");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.code() == codes::LANGUAGE_TYPE_ERROR
+            && diagnostic
+                .message()
+                .contains("symmetric_part requires an exact")
+    }));
+}
+
+#[test]
 fn compiler_lowers_source_declared_pure_operator_as_one_generic_application() {
     let source = r#"
 public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
