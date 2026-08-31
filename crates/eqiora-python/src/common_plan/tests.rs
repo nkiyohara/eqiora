@@ -1204,7 +1204,7 @@ fn root_plan_resolves_and_runs_transient_flow_through_common_state() -> PyResult
         locals.set_item("model", Py::new(py, model)?)?;
         py.run(
                 c_str!(r#"
-import importlib.util, pathlib, sys
+import importlib.util, pathlib, sys, tempfile
 package_path = pathlib.Path(package_directory)
 spec = importlib.util.spec_from_file_location("eqiora", package_path / "__init__.py", submodule_search_locations=[str(package_path)])
 package = importlib.util.module_from_spec(spec)
@@ -1544,12 +1544,12 @@ for name, rejected in (
         raise AssertionError(f"hostile Trajectory file must reject: {name}")
 
 wrong_trajectory_suffix = trajectory_directory / "run.json"
-for operation in (
-    lambda: mini_two.trajectory.write(wrong_trajectory_suffix),
-    lambda: package.trajectory.Trajectory.read(mini, wrong_trajectory_suffix),
-):
+for operation in ("write", "read"):
     try:
-        operation()
+        if operation == "write":
+            mini_two.trajectory.write(wrong_trajectory_suffix)
+        else:
+            package.trajectory.Trajectory.read(mini, wrong_trajectory_suffix)
     except package.CompatibilityError:
         pass
     else:
