@@ -6,6 +6,42 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.1.0a6] - 2026-08-31
+
+### Added
+
+- Added exact scalar property contracts to the common compiler and execution
+  path, including Python-authored bindings and affine coefficient evaluation.
+
+- Added authored scalar primal Formulations, directional Stokes correspondence,
+  and inspectable Plan identity for the selected formulation.
+
+- Added canonical `math.pi`, typed model-local `let`, and coherent derived
+  dimension aliases to Eqiora Language and its bounded Python Source projection.
+
+- Added optional scalar Field initialization and exact local file I/O for
+  resolved Plans, complete Results, and complete Trajectories. Rust also gains
+  a bounded common transient `RunRequest` artifact.
+
+### Changed
+
+- Generalized admitted equations across additive orientations, including
+  equivalent `A = -B` and whole-equation reversal forms, without changing the
+  canonical residual meaning.
+
+- Increased the steady and startup Cylinder presentation meshes and retimed the
+  startup media so the accepted state change is visible at the documented scale.
+
+### Fixed
+
+- Fixed clean Google Colab Gmsh startup and corrected the Cylinder gallery's
+  accessible figure inventory.
+
+### Removed
+
+- Removed unsupported Python Source choice knobs and duplicate transitional ML
+  artifact aliases instead of carrying pre-1.0 compatibility shims.
+
 ## [0.1.0a5] - 2026-08-29
 
 ### Added
@@ -261,7 +297,8 @@ Detailed claims and nonclaims are the responsibility of the
 [capability matrix](docs/capability-matrix.md) and registered
 [`verify/`](verify/) cases rather than this summary.
 
-[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a5...HEAD
+[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a6...HEAD
+[0.1.0a6]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a6
 [0.1.0a5]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a5
 [0.1.0a4]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a4
 [0.1.0a3]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a3

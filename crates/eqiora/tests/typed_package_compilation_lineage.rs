@@ -116,6 +116,6 @@ fn exact_package_compilation_and_model_replay_retain_identity() {
     );
     assert_eq!(
         packaged.compilation().digest().unwrap().to_hex(),
-        "0591dab99aca104a7208b40537b3d55f2492f049aa873a96ac48dc464d1d9d90"
+        "7022e5ec74667cef0e08ba72f6fe89a4f243ce698d9b1f52119952150e4a7093"
     );
 }
