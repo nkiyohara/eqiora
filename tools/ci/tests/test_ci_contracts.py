@@ -810,7 +810,6 @@ jobs:
         expected_job_contract = (
             "    name: Stable quality gate\n"
             "    needs: changes\n"
-            "    if: needs.changes.outputs.rust == 'true'\n"
             "    runs-on: ubuntu-latest\n"
             "    timeout-minutes: 180\n"
         )
@@ -818,13 +817,16 @@ jobs:
             (
                 "      - name: Tests\n",
                 "      - name: Full feature tests\n",
-                (),
+                ("needs.changes.outputs.rust == 'true'",),
                 "cargo +stable test --workspace --all-targets --locked",
             ),
             (
                 "      - name: Full feature tests\n",
                 "      - name: Dependency layers\n",
-                ("needs.changes.outputs.full == 'true'",),
+                (
+                    "needs.changes.outputs.rust == 'true' && "
+                    "needs.changes.outputs.full == 'true'",
+                ),
                 "cargo +stable test --workspace --all-targets --all-features --locked",
             ),
         )
@@ -876,7 +878,6 @@ jobs:
         expected_job_contract = (
             "    name: Host-CPU verification evidence\n"
             "    needs: changes\n"
-            "    if: needs.changes.outputs.rust == 'true'\n"
             "    runs-on: ubuntu-latest\n"
             "    timeout-minutes: 120\n"
         )
@@ -903,7 +904,10 @@ jobs:
 
         step = host_evidence.split(marker, maxsplit=1)[1]
         self.assertNotRegex(step, r"(?m)^      - ")
-        self.assertNotRegex(step, r"(?m)^        if:")
+        self.assertEqual(
+            re.findall(r"(?m)^        if: (.+)$", step),
+            ["needs.changes.outputs.rust == 'true'"],
+        )
         environment = step.split("        env:\n", maxsplit=1)[1].split(
             "        run:", maxsplit=1
         )[0]
@@ -1693,21 +1697,22 @@ class AggregateGateTests(unittest.TestCase):
         self.results = {
             "changes": "success",
             "documentation": "success",
-            "quality": "skipped",
-            "host_evidence": "skipped",
-            "python_host_evidence": "skipped",
-            "msrv": "skipped",
-            "dependency_policy": "skipped",
-            "cubecl_experiment": "skipped",
-            "python_wheel": "skipped",
-            "studio": "skipped",
+            "quality": "success",
+            "host_evidence": "success",
+            "python_host_evidence": "success",
+            "msrv": "success",
+            "dependency_policy": "success",
+            "cubecl_experiment": "success",
+            "python_wheel": "success",
+            "studio": "success",
         }
 
     def test_documentation_only_run_is_accepted(self) -> None:
         self.assertEqual(evaluate(self.relevance, self.results), [])
 
-    def test_relevant_skip_and_any_failure_are_rejected(self) -> None:
+    def test_any_skip_or_failure_is_rejected(self) -> None:
         self.relevance["rust"] = True
+        self.results["quality"] = "skipped"
         self.assertTrue(evaluate(self.relevance, self.results))
         self.relevance["rust"] = False
         self.results["quality"] = "failure"
@@ -1721,12 +1726,63 @@ class AggregateGateTests(unittest.TestCase):
 
     def test_rust_surface_requires_quality_and_registered_evidence(self) -> None:
         self.relevance["rust"] = True
-        self.results["quality"] = "success"
+        self.results["host_evidence"] = "skipped"
+        self.results["python_host_evidence"] = "skipped"
         self.assertTrue(evaluate(self.relevance, self.results))
         self.results["host_evidence"] = "success"
         self.assertTrue(evaluate(self.relevance, self.results))
         self.results["python_host_evidence"] = "success"
         self.assertEqual(evaluate(self.relevance, self.results), [])
+
+    def test_every_lane_job_returns_an_explicit_success_conclusion(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        )
+        selectors = {
+            "quality": "rust",
+            "host_evidence": "rust",
+            "python_host_evidence": "python_host_evidence",
+            "msrv": "msrv",
+            "dependency_policy": "dependency_policy",
+            "cubecl_experiment": "cubecl_experiment",
+            "python_wheel": "python",
+            "studio": "studio",
+        }
+        jobs = workflow.split("jobs:\n", maxsplit=1)[1]
+        for job, selector in selectors.items():
+            with self.subTest(job=job):
+                match = re.search(
+                    rf"(?ms)^  {job}:\n(.*?)(?=^  [a-z][a-z0-9_]*:\n|\Z)",
+                    jobs,
+                )
+                self.assertIsNotNone(match)
+                assert match is not None
+                body = match.group(1)
+                header, steps = body.split("    steps:\n", maxsplit=1)
+                self.assertNotRegex(header, r"(?m)^    if:")
+                step_blocks = [
+                    block
+                    for block in re.split(r"(?m)(?=^      - )", steps)
+                    if block.startswith("      - ")
+                ]
+                quick = [
+                    block
+                    for block in step_blocks
+                    if "name: Complete the unchanged input closure" in block
+                ]
+                self.assertEqual(len(quick), 1)
+                self.assertIn(
+                    f"if: needs.changes.outputs.{selector} != 'true'",
+                    quick[0],
+                )
+                self.assertIn("heavy execution did not run", quick[0])
+                for block in step_blocks:
+                    if block is quick[0]:
+                        continue
+                    self.assertIn(
+                        f"if: needs.changes.outputs.{selector} == 'true'",
+                        block,
+                    )
 
     def test_relevance_contract_rejects_missing_and_malformed_values(self) -> None:
         complete = {surface: "false" for surface in SURFACES}
