@@ -400,6 +400,15 @@ impl CommonFsiPlan {
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonState, Diagnostic> {
+        self.authenticate_execution(state, backend)?;
+        self.advance_authenticated(state, backend)
+    }
+
+    pub(super) fn authenticate_execution(
+        &self,
+        state: &CommonState,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<(), Diagnostic> {
         self.reauthenticate_portable_realization()?;
         if state.state_space_identity() != self.state_space_identity() {
             return Err(invalid(
@@ -413,6 +422,14 @@ impl CommonFsiPlan {
                 "FSI execution backend differs from admitted MINRES provider/capabilities",
             ));
         }
+        Ok(())
+    }
+
+    pub(super) fn advance_authenticated(
+        &self,
+        state: &CommonState,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonState, Diagnostic> {
         let CommonStateKind::Fsi {
             state: previous, ..
         } = &state.kind

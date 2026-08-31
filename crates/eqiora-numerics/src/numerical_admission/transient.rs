@@ -724,6 +724,15 @@ impl CommonTransientFlowPlan {
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonState, Diagnostic> {
+        self.authenticate_execution(state, backend)?;
+        self.advance_one_authenticated(state, backend)
+    }
+
+    pub(super) fn authenticate_execution(
+        &self,
+        state: &CommonState,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<(), Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
         if state.state_space_identity != self.state_space_identity() {
@@ -738,6 +747,14 @@ impl CommonTransientFlowPlan {
                 "transient execution backend differs from the admitted provider or capabilities",
             ));
         }
+        Ok(())
+    }
+
+    pub(super) fn advance_one_authenticated(
+        &self,
+        state: &CommonState,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonState, Diagnostic> {
         let run = TransientNavierStokesRun2d::new(NonZeroStepCount::new(NonZeroUsize::MIN));
         let (next_kind, named_boundary_forces_on_domain) =
             match (&self.resolved, &self.admission.resources, &state.kind) {
