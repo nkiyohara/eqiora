@@ -1,7 +1,22 @@
 # Release notes
 
-Eqiora `0.1.0a5` is the current public alpha. It establishes a coherent public
+Eqiora `0.1.0a6` is the current public alpha. It establishes a coherent public
 identity and a bounded compatibility policy; it is not a stable-1.0 promise.
+
+## 0.1.0a6
+
+The language and compiler now carry exact scalar property bindings, affine
+coefficients, authored scalar primal Formulations, directional Stokes
+correspondence, canonical `math.pi`, typed model-local `let`, and coherent
+derived-dimension aliases through the ordinary product path. Equivalent
+additive equation orientations enter the same canonical residual meaning.
+
+Resolved Plans, complete Results, and complete Trajectories can be written to
+and read from bounded local artifacts, and Rust exposes an exact common
+transient `RunRequest`. These are local interchange primitives; this release
+does not claim cloud transport or a universal remote job format. Cylinder
+presentation meshes and startup media are refined, while their existing
+scientific claim boundary remains unchanged.
 
 ## 0.1.0a5
 
