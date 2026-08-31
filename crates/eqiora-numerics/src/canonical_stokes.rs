@@ -8,6 +8,7 @@ mod dissipation_profile;
 mod expression;
 mod geometry_realization;
 mod inertial;
+mod mixed_certificate;
 mod navier_stokes;
 mod navier_stokes_fvm_acceptance;
 mod navier_stokes_fvm_realization;

@@ -12,6 +12,7 @@ use super::{
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 use crate::form_compiler::vocabulary::{
     BoundaryTreatment, FormulationKind, IntegralConservativeRule, MixedFormulationRule,
+    MixedTermRole, MixedTermSign,
 };
 
 const SOURCE: &str = r#"
@@ -143,6 +144,52 @@ fn assert_rejected(source: &str) {
             .code(),
         codes::INVALID_SPATIAL_LOWERING
     );
+}
+
+#[test]
+fn steady_stokes_directional_certificate_rejects_structural_mutants() {
+    let program = compile_program(SOURCE);
+    let model = lower_steady_incompressible_stokes_cartesian_2d(&program)
+        .expect("canonical steady Stokes lowers");
+    let common = model.common();
+    let certified = common.correspondence().entries.clone();
+    super::mixed_certificate::check_model(&program, common, &certified)
+        .expect("live DAG matches the admitted certificate");
+
+    let mut missing = certified.clone();
+    missing.pop();
+    assert!(super::mixed_certificate::check_model(&program, common, &missing).is_err());
+
+    let mut duplicate = certified.clone();
+    duplicate.push(duplicate[0]);
+    assert!(super::mixed_certificate::check_model(&program, common, &duplicate).is_err());
+
+    let mut reversed = certified.clone();
+    let momentum = reversed
+        .iter_mut()
+        .find(|entry| entry.role == MixedTermRole::MomentumBodySource)
+        .expect("momentum source entry");
+    momentum.source_sign = match momentum.source_sign {
+        MixedTermSign::Positive => MixedTermSign::Negative,
+        MixedTermSign::Negative => MixedTermSign::Positive,
+    };
+    assert!(super::mixed_certificate::check_model(&program, common, &reversed).is_err());
+
+    let mut crosswired = certified;
+    crosswired
+        .iter_mut()
+        .find(|entry| entry.role == MixedTermRole::ContinuityConstraint)
+        .expect("continuity entry")
+        .test = Some(common.velocity());
+    assert!(super::mixed_certificate::check_model(&program, common, &crosswired).is_err());
+
+    let mut inward = common.correspondence().entries.clone();
+    inward
+        .iter_mut()
+        .find(|entry| entry.role == MixedTermRole::BoundaryLaw)
+        .expect("boundary entry")
+        .normal = crate::form_compiler::vocabulary::MixedNormalOrientation::ParentOutward;
+    assert!(super::mixed_certificate::check_model(&program, common, &inward).is_err());
 }
 
 fn assert_transient_navier_stokes_rejected(source: &str) {

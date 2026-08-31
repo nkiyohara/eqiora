@@ -362,6 +362,23 @@ fn lower_steady_incompressible_stokes_2d_on(
         .iter()
         .map(|binding| binding.relation())
         .collect::<Vec<_>>();
+    let boundary_dispositions = boundary
+        .entries
+        .values()
+        .map(|entry| (entry.boundary, entry.disposition))
+        .collect::<BTreeMap<_, _>>();
+    let certificate_source = super::mixed_certificate::SteadyStokesCertificateSource {
+        domain,
+        velocity,
+        pressure,
+        source_definition: force_potential_definition,
+        source_node: source,
+        momentum_relation,
+        incompressibility_relation,
+        boundaries: &boundary.boundary_relations,
+        boundary_dispositions: &boundary_dispositions,
+    };
+    let certificate = super::mixed_certificate::derive(program, &certificate_source)?;
     let correspondence = MixedGalerkinCorrespondence::derive(MixedGalerkinSource {
         domain,
         velocity,
@@ -371,7 +388,8 @@ fn lower_steady_incompressible_stokes_2d_on(
         momentum_relation,
         incompressibility_relation,
         boundary_relations: &boundary_relation_ids,
-    });
+    })
+    .with_entries(certificate);
     let model = SteadyIncompressibleStokesModel2d {
         correspondence,
         bounds,

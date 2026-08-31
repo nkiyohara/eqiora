@@ -171,6 +171,9 @@ impl SteadyIncompressibleStokesModel2d {
     }
 
     pub(super) fn replay_correspondence(&self) -> Result<(), &'static str> {
+        if self.correspondence.entries.is_empty() {
+            return Err("steady mixed correspondence has no term-complete certificate");
+        }
         let boundary_relations = self
             .boundary_relations
             .iter()
