@@ -15,12 +15,12 @@ def cylinder_source(
     velocity_shape=q.spatial_vector,
 ):
     source = q.Source()
-    stokes = source.component("SteadyFlowPastCylinder", public=True, doc=doc)
-    fluid = stokes.volume("fluid", dimensions=2, public=True)
-    inlet = stokes.boundary("inlet", parent=fluid, public=True)
-    outlet = stokes.boundary("outlet", parent=fluid, public=True)
-    walls = stokes.boundary("walls", parent=fluid, public=True)
-    cylinder = stokes.boundary("cylinder", parent=fluid, public=True)
+    stokes = source.component("SteadyFlowPastCylinder", doc=doc)
+    fluid = stokes.volume("fluid", dimensions=2)
+    inlet = stokes.boundary("inlet", parent=fluid)
+    outlet = stokes.boundary("outlet", parent=fluid)
+    walls = stokes.boundary("walls", parent=fluid)
+    cylinder = stokes.boundary("cylinder", parent=fluid)
 
     dynamic_viscosity = stokes.parameter("dynamic_viscosity", unit=u.kg / (u.m * u.s))
     zero_pressure = stokes.parameter("zero_pressure", unit=u.kg / (u.m * u.s**2))
@@ -105,7 +105,6 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
         value=25,
         source_unit=u.one,
         source_scale=0.001,
-        validity="unconditional",
         citation="org.example.measurement",
         license="spdx.CC0_1_0",
         doc=doc,
@@ -154,6 +153,46 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
         properties={diffusivity: release},
     )
     return source
+
+
+def test_removed_source_choice_keywords_are_unexpected() -> None:
+    source = q.Source()
+    with pytest.raises(TypeError, match="unexpected keyword argument 'public'"):
+        source.component("Component", public=True)
+
+    contract_source = q.Source()
+    with pytest.raises(TypeError, match="unexpected keyword argument 'public'"):
+        contract_source.scalar_property_contract("Diffusivity", unit=u.one, public=True)
+    contract = contract_source.scalar_property_contract("Diffusivity", unit=u.one)
+    release_arguments = {
+        "implements": contract,
+        "value": 25,
+        "source_unit": u.one,
+        "source_scale": 0.001,
+        "citation": "org.example.measurement",
+        "license": "spdx.CC0_1_0",
+    }
+    with pytest.raises(TypeError, match="unexpected keyword argument 'public'"):
+        contract_source.scalar_property_release(
+            "ReferenceDiffusivity", **release_arguments, public=True
+        )
+    with pytest.raises(TypeError, match="unexpected keyword argument 'validity'"):
+        contract_source.scalar_property_release(
+            "ReferenceDiffusivity",
+            **release_arguments,
+            validity="unconditional",
+        )
+
+    component = contract_source.component("Component")
+    volume = component.volume("volume", dimensions=2)
+    for operation in (
+        lambda: component.volume("other_volume", dimensions=2, public=True),
+        lambda: component.boundary("boundary", parent=volume, public=True),
+        lambda: component.parameter("parameter", unit=u.one, public=True),
+        lambda: component.property("property", contract=contract, public=True),
+    ):
+        with pytest.raises(TypeError, match="unexpected keyword argument 'public'"):
+            operation()
 
 
 def rectangle_geometry():
