@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Iterable
@@ -31,6 +32,35 @@ CLASSIFIED_SURFACES = (*SURFACES, "site")
 PYTHON_HOST_EVIDENCE_SURFACES = ("rust", "python")
 
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
+
+
+@dataclass(frozen=True)
+class LaneImpact:
+    """One deterministic private lane-selection decision."""
+
+    lane: str
+    selected: bool
+    reason: str
+    owning_changed_inputs: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ImpactPlan:
+    """The single private owner of hosted and local surface selection."""
+
+    target_authority: str
+    base_authority: str
+    full: bool
+    lanes: tuple[LaneImpact, ...]
+
+    def selections(self) -> dict[str, bool]:
+        return {decision.lane: decision.selected for decision in self.lanes}
+
+    def lane(self, name: str) -> LaneImpact:
+        for decision in self.lanes:
+            if decision.lane == name:
+                return decision
+        raise KeyError(name)
 
 
 def documentation_path(path: str) -> bool:
@@ -167,51 +197,143 @@ def recognized_path(path: str) -> bool:
     )
 
 
-def classify(paths: Iterable[str], *, full: bool = False) -> dict[str, bool]:
-    """Map normalized repository paths to conditional CI surfaces."""
-    selected = {surface: full for surface in CLASSIFIED_SURFACES}
-    if full:
-        return selected
-
-    normalized: list[str] = []
+def _normalized_paths(paths: Iterable[str]) -> tuple[str, ...]:
+    normalized: set[str] = set()
     for raw_path in paths:
         path = raw_path.replace("\\", "/")
         if path.startswith("./"):
             path = path[2:]
         if not path:
             continue
-        normalized.append(path)
+        normalized.add(path)
+    return tuple(sorted(normalized))
+
+
+def impact_plan(
+    paths: Iterable[str],
+    *,
+    full: bool = False,
+    target_authority: str = "unspecified-target",
+    base_authority: str = "unspecified-base",
+    unsafe_mode: bool = False,
+) -> ImpactPlan:
+    """Derive one deterministic private plan without changing lane policy."""
+    normalized = _normalized_paths(paths)
+    owning_inputs = {surface: set() for surface in CLASSIFIED_SURFACES}
+    selected = {surface: full for surface in CLASSIFIED_SURFACES}
+
+    if full:
+        return ImpactPlan(
+            target_authority,
+            base_authority,
+            True,
+            tuple(
+                LaneImpact(surface, True, "full compatibility run", normalized)
+                for surface in CLASSIFIED_SURFACES
+            ),
+        )
 
     for path in normalized:
         if site_input_path(path):
             selected["site"] = True
+            owning_inputs["site"].add(path)
+
+    if unsafe_mode:
+        selected["site"] = True
+        owning_inputs["site"].update(normalized)
 
     if normalized and all(documentation_path(path) for path in normalized):
-        return selected
+        return _impact_plan_from_selection(
+            selected,
+            owning_inputs,
+            target_authority=target_authority,
+            base_authority=base_authority,
+            unsafe_mode=unsafe_mode,
+        )
+
+    protected_inputs = tuple(
+        path
+        for path in normalized
+        if path.startswith((".github/workflows/", "tools/ci/"))
+    )
+    unknown_inputs = tuple(path for path in normalized if not recognized_path(path))
+    fail_closed_inputs = protected_inputs or unknown_inputs
+    if fail_closed_inputs:
+        reason = (
+            "protected CI input: full selection"
+            if protected_inputs
+            else "unrecognized input: full selection"
+        )
+        return ImpactPlan(
+            target_authority,
+            base_authority,
+            False,
+            tuple(
+                LaneImpact(surface, True, reason, fail_closed_inputs)
+                for surface in CLASSIFIED_SURFACES
+            ),
+        )
 
     for path in normalized:
-        if path.startswith((".github/workflows/", "tools/ci/")):
-            return {surface: True for surface in CLASSIFIED_SURFACES}
-
-        known = recognized_path(path)
         if root_rust_path(path):
             selected["rust"] = True
+            owning_inputs["rust"].add(path)
         if msrv_path(path):
             selected["msrv"] = True
+            owning_inputs["msrv"].add(path)
         if path.startswith(
             ("bindings/python/", "crates/eqiora-python/")
         ) or public_facade_path(path):
             selected["python"] = True
+            owning_inputs["python"].add(path)
         if path.startswith("studio/") or public_facade_path(path):
             selected["studio"] = True
+            owning_inputs["studio"].add(path)
         if dependency_policy_path(path):
             selected["dependency_policy"] = True
+            owning_inputs["dependency_policy"].add(path)
         if path.startswith("experiments/cubecl-local-action/"):
             selected["cubecl_experiment"] = True
-        if not known:
-            return {surface: True for surface in CLASSIFIED_SURFACES}
+            owning_inputs["cubecl_experiment"].add(path)
 
-    return selected
+    return _impact_plan_from_selection(
+        selected,
+        owning_inputs,
+        target_authority=target_authority,
+        base_authority=base_authority,
+        unsafe_mode=unsafe_mode,
+    )
+
+
+def _impact_plan_from_selection(
+    selected: dict[str, bool],
+    owning_inputs: dict[str, set[str]],
+    *,
+    target_authority: str,
+    base_authority: str,
+    unsafe_mode: bool,
+) -> ImpactPlan:
+    decisions: list[LaneImpact] = []
+    for surface in CLASSIFIED_SURFACES:
+        inputs = tuple(sorted(owning_inputs[surface]))
+        if surface == "site" and unsafe_mode:
+            reason = "file mode or type change: full build"
+        elif selected[surface]:
+            reason = "changed input closure"
+        else:
+            reason = "unchanged input closure"
+        decisions.append(LaneImpact(surface, selected[surface], reason, inputs))
+    return ImpactPlan(
+        target_authority,
+        base_authority,
+        False,
+        tuple(decisions),
+    )
+
+
+def classify(paths: Iterable[str], *, full: bool = False) -> dict[str, bool]:
+    """Compatibility projection of the private impact-plan owner."""
+    return impact_plan(paths, full=full).selections()
 
 
 def changed_paths(base: str, head: str) -> tuple[list[str], bool]:
@@ -408,23 +530,25 @@ def main() -> int:
             paths, unsafe_mode = changed_paths(arguments.base, arguments.head)
             if not paths:
                 raise ValueError("pull-request diff is unexpectedly empty")
-        selected = classify(paths, full=full)
+        plan = impact_plan(
+            paths,
+            full=full,
+            target_authority=target_sha,
+            base_authority=site_source_sha,
+            unsafe_mode=unsafe_mode if not full else False,
+        )
+        selected = plan.selections()
         if not full:
-            if unsafe_mode:
-                selected["site"] = True
             if selected["site"]:
                 site_source_sha = target_sha
-                site_reason = (
-                    "file mode or type change: full build"
-                    if unsafe_mode
-                    else (
-                        "unrecognized input: full build"
-                        if any(not recognized_path(path) for path in paths)
-                        else "changed input closure"
-                    )
-                )
+                if unsafe_mode:
+                    site_reason = "file mode or type change: full build"
+                elif any(not recognized_path(path) for path in paths):
+                    site_reason = "unrecognized input: full build"
+                else:
+                    site_reason = plan.lane("site").reason
             else:
-                site_reason = "unchanged input closure"
+                site_reason = plan.lane("site").reason
     except (
         OSError,
         subprocess.CalledProcessError,
@@ -437,7 +561,12 @@ def main() -> int:
             except (OSError, subprocess.CalledProcessError, ValueError):
                 pass
             else:
-                selected = classify([], full=True)
+                selected = impact_plan(
+                    [],
+                    full=True,
+                    target_authority=target_sha,
+                    base_authority=target_sha,
+                ).selections()
                 print(f"CI classification failed closed: {error}", file=sys.stderr)
                 rendered = render_outputs(
                     target_sha,

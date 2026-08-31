@@ -26,6 +26,7 @@ from classify_changes import (  # noqa: E402
     append_github_outputs,
     changed_paths,
     classify,
+    impact_plan,
     render_outputs,
 )
 from local_verify import HOSTED_TEST_PROFILE  # noqa: E402
@@ -1278,6 +1279,87 @@ class PythonPackageGateTests(unittest.TestCase):
 
 
 class ChangeClassificationTests(unittest.TestCase):
+    def test_impact_plan_is_deterministic_and_binds_authorities(self) -> None:
+        paths = [
+            "crates/eqiora-numerics/src/lib.rs",
+            "./crates/eqiora/src/lib.rs",
+            "crates\\eqiora-numerics\\src\\lib.rs",
+        ]
+        first = impact_plan(
+            paths,
+            target_authority="head",
+            base_authority="base",
+        )
+        second = impact_plan(
+            reversed(paths),
+            target_authority="head",
+            base_authority="base",
+        )
+
+        self.assertEqual(first, second)
+        self.assertEqual(first.target_authority, "head")
+        self.assertEqual(first.base_authority, "base")
+        self.assertEqual(
+            tuple(decision.lane for decision in first.lanes),
+            CLASSIFIED_SURFACES,
+        )
+        self.assertEqual(
+            first.lane("rust").owning_changed_inputs,
+            (
+                "crates/eqiora-numerics/src/lib.rs",
+                "crates/eqiora/src/lib.rs",
+            ),
+        )
+        self.assertEqual(first.lane("rust").reason, "changed input closure")
+        self.assertEqual(
+            first.lane("cubecl_experiment").reason,
+            "unchanged input closure",
+        )
+
+    def test_impact_plan_preserves_public_and_private_lane_selection(self) -> None:
+        private = impact_plan(["crates/eqiora-numerics/src/lib.rs"])
+        self.assertTrue(private.lane("rust").selected)
+        self.assertTrue(private.lane("msrv").selected)
+        self.assertTrue(private.lane("site").selected)
+        self.assertFalse(private.lane("python").selected)
+        self.assertFalse(private.lane("studio").selected)
+
+        public = impact_plan(["crates/eqiora/src/lib.rs"])
+        for lane in ("rust", "msrv", "python", "studio", "site"):
+            with self.subTest(lane=lane):
+                self.assertTrue(public.lane(lane).selected)
+                self.assertEqual(
+                    public.lane(lane).owning_changed_inputs,
+                    ("crates/eqiora/src/lib.rs",),
+                )
+
+    def test_impact_plan_fail_closed_reasons_are_stable(self) -> None:
+        unknown = impact_plan(["new-area/file.bin", "docs/architecture.md"])
+        protected = impact_plan(
+            ["new-area/file.bin", "tools/ci/check_gate.py"]
+        )
+        for decision in unknown.lanes:
+            self.assertTrue(decision.selected)
+            self.assertEqual(decision.reason, "unrecognized input: full selection")
+            self.assertEqual(decision.owning_changed_inputs, ("new-area/file.bin",))
+        for decision in protected.lanes:
+            self.assertTrue(decision.selected)
+            self.assertEqual(decision.reason, "protected CI input: full selection")
+            self.assertEqual(
+                decision.owning_changed_inputs,
+                ("tools/ci/check_gate.py",),
+            )
+
+    def test_impact_plan_records_unsafe_site_input_without_widening_code(self) -> None:
+        plan = impact_plan(["studio/src/state.ts"], unsafe_mode=True)
+        self.assertTrue(plan.lane("site").selected)
+        self.assertEqual(
+            plan.lane("site").reason,
+            "file mode or type change: full build",
+        )
+        self.assertFalse(plan.lane("rust").selected)
+        self.assertTrue(plan.lane("studio").selected)
+
     def test_documentation_only_selects_no_heavy_surface(self) -> None:
         selected = classify(
             ["docs/architecture.md", "README.md", "bindings/python/README.md"]
@@ -1421,6 +1503,11 @@ class ChangeClassificationTests(unittest.TestCase):
         self.assertFalse(unsafe_mode)
         selected = classify(paths)
         self.assertTrue(selected["site"])
+        plan = impact_plan(paths)
+        self.assertEqual(
+            plan.lane("site").owning_changed_inputs,
+            ("tools/xtask/src/old.rs",),
+        )
 
     def test_deleted_site_input_still_selects_full_build(self) -> None:
         completed = mock.Mock(
@@ -1433,6 +1520,10 @@ class ChangeClassificationTests(unittest.TestCase):
             paths, unsafe_mode = changed_paths("base", "head")
         self.assertFalse(unsafe_mode)
         self.assertTrue(classify(paths)["site"])
+        self.assertEqual(
+            impact_plan(paths).lane("site").owning_changed_inputs,
+            ("tools/xtask/src/removed.rs",),
+        )
 
     def test_site_classifier_failure_falls_back_to_full_build(self) -> None:
         result = subprocess.run(

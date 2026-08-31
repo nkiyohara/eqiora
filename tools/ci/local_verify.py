@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping, Sequence
 
-from classify_changes import classify
+from classify_changes import impact_plan
 from verification_scheduler import (
     CUBECL_LANE,
     DEPENDENCY_POLICY_LANE,
@@ -434,7 +434,12 @@ def build_plan(
         chrome_executable if chrome_executable is not None else CHROME_EXECUTABLE
     ).exists()
     if tier == "periodic":
-        surfaces = classify([], full=True)
+        surfaces = impact_plan(
+            [],
+            full=True,
+            target_authority="local-worktree",
+            base_authority="local-periodic-run",
+        ).selections()
         selected_packages = set(packages)
         cases = all_case_ids(root)
         ci_contract_lane = (
@@ -549,7 +554,11 @@ def build_plan(
             "Studio native and browser commands require their documented system dependencies.",
         )
     else:
-        surfaces = classify(paths)
+        surfaces = impact_plan(
+            paths,
+            target_authority="local-worktree",
+            base_authority="local-change-set",
+        ).selections()
         direct = direct_packages(paths, packages)
         selected_packages = (
             reverse_dependency_closure(direct, packages)
