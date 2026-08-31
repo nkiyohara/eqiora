@@ -17,7 +17,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from pathlib import PurePosixPath
-from typing import Iterable
+from typing import Any, Iterable
 
 
 SURFACES = (
@@ -84,15 +84,11 @@ def documentation_path(path: str) -> bool:
 
 
 def root_rust_path(path: str) -> bool:
-    return (
-        path.startswith(("api/", "crates/", "tools/xtask/", "verify/"))
-        or path
-        in {
-            "Cargo.toml",
-            "Cargo.lock",
-            "rustfmt.toml",
-        }
-    )
+    return path.startswith(("api/", "crates/", "tools/xtask/", "verify/")) or path in {
+        "Cargo.toml",
+        "Cargo.lock",
+        "rustfmt.toml",
+    }
 
 
 def msrv_path(path: str) -> bool:
@@ -336,10 +332,10 @@ def classify(paths: Iterable[str], *, full: bool = False) -> dict[str, bool]:
     return impact_plan(paths, full=full).selections()
 
 
-def changed_paths(base: str, head: str) -> tuple[list[str], bool]:
-    """Read paths and file modes from the complete merge-base diff."""
+def _raw_changed_paths(revision_range: str) -> tuple[list[str], bool]:
+    """Read paths and file modes from one exact raw Git diff."""
     output = subprocess.run(
-        ["git", "diff", "--raw", "--no-renames", "-z", f"{base}...{head}"],
+        ["git", "diff", "--raw", "--no-renames", "-z", revision_range],
         check=True,
         stdout=subprocess.PIPE,
     ).stdout
@@ -365,14 +361,82 @@ def changed_paths(base: str, head: str) -> tuple[list[str], bool]:
             old_mode not in regular_or_absent
             or new_mode not in regular_or_absent
             or (
-                old_mode != b"000000"
-                and new_mode != b"000000"
-                and old_mode != new_mode
+                old_mode != b"000000" and new_mode != b"000000" and old_mode != new_mode
             )
         ):
             unsafe_mode = True
         paths.append(raw_path.decode("utf-8"))
     return paths, unsafe_mode
+
+
+def changed_paths(base: str, head: str) -> tuple[list[str], bool]:
+    """Read paths and file modes from the complete merge-base diff."""
+    return _raw_changed_paths(f"{base}...{head}")
+
+
+def snapshot_changed_paths(previous: str, current: str) -> tuple[list[str], bool]:
+    """Compare exact trees without assuming ancestry after a rebase."""
+    return _raw_changed_paths(f"{previous}..{current}")
+
+
+def apply_previous_run_reuse(
+    plan: ImpactPlan,
+    *,
+    previous_sha: str,
+    current_sha: str,
+    workflow: str,
+    attestation: dict[str, Any],
+) -> ImpactPlan:
+    """Reuse authenticated heavy work only for snapshot-identical lane inputs."""
+    if not previous_sha or not attestation:
+        return plan
+    previous = exact_commit(previous_sha, "previous pull-request head")
+    if (
+        attestation.get("version") != 1
+        or attestation.get("workflow") != workflow
+        or attestation.get("previous_sha") != previous
+        or not isinstance(attestation.get("run_id"), int)
+        or not isinstance(attestation.get("run_url"), str)
+        or not isinstance(attestation.get("lanes"), dict)
+    ):
+        raise ValueError("previous-run attestation is malformed or mismatched")
+    paths, unsafe_mode = snapshot_changed_paths(previous, current_sha)
+    closure_delta = impact_plan(
+        paths,
+        target_authority=current_sha,
+        base_authority=previous,
+        unsafe_mode=unsafe_mode,
+    )
+    run_id = attestation["run_id"]
+    run_url = attestation["run_url"]
+    canonical_run_url = re.fullmatch(
+        r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[0-9]+",
+        run_url,
+    )
+    if canonical_run_url is None:
+        raise ValueError("previous-run attestation has a non-canonical run URL")
+    lanes = attestation["lanes"]
+    decisions: list[LaneImpact] = []
+    for decision in plan.lanes:
+        reusable = (
+            decision.selected
+            and closure_delta.lane(decision.lane).selected is False
+            and lanes.get(decision.lane) is True
+        )
+        if reusable:
+            reason = (
+                f"reused successful heavy run {run_id} from {previous}; "
+                f"exact {decision.lane} input closure unchanged; {run_url}"
+            )
+            decisions.append(LaneImpact(decision.lane, False, reason, ()))
+        else:
+            decisions.append(decision)
+    return ImpactPlan(
+        plan.target_authority,
+        plan.base_authority,
+        plan.full,
+        tuple(decisions),
+    )
 
 
 def exact_commit(value: str, label: str) -> str:
@@ -416,17 +480,36 @@ def render_outputs(
     full: bool,
     site_source_sha: str = "",
     site_reason: str = "",
+    reasons: dict[str, str] | None = None,
 ) -> str:
     """Render stable GitHub Actions outputs."""
     lines = [f"target_sha={target_sha}", f"full={'true' if full else 'false'}"]
     lines.extend(
         f"{surface}={'true' if selected[surface] else 'false'}" for surface in SURFACES
     )
+    reasons = reasons or {}
+    lines.extend(
+        f"{surface}_reason={reasons.get(surface, 'changed input closure' if selected[surface] else 'unchanged input closure')}"
+        for surface in SURFACES
+    )
     lines.append(f"site={'true' if selected['site'] else 'false'}")
     python_host_evidence = any(
         selected[surface] for surface in PYTHON_HOST_EVIDENCE_SURFACES
     )
     lines.append(f"python_host_evidence={'true' if python_host_evidence else 'false'}")
+    python_host_reasons = [
+        f"{surface}: {reasons[surface]}"
+        for surface in PYTHON_HOST_EVIDENCE_SURFACES
+        if reasons.get(surface, "").startswith("reused successful heavy run")
+    ]
+    lines.append(
+        "python_host_evidence_reason="
+        + (
+            "changed input closure"
+            if python_host_evidence
+            else " | ".join(python_host_reasons) or "unchanged input closure"
+        )
+    )
     lines.append(f"site_source_sha={site_source_sha or target_sha}")
     lines.append(
         "site_reason="
@@ -450,8 +533,10 @@ def append_github_outputs(path: Path, rendered: str) -> None:
         "target_sha",
         "full",
         *SURFACES,
+        *(f"{surface}_reason" for surface in SURFACES),
         "site",
         "python_host_evidence",
+        "python_host_evidence_reason",
         "site_source_sha",
         "site_reason",
         "python_versions",
@@ -461,19 +546,29 @@ def append_github_outputs(path: Path, rendered: str) -> None:
         raise ValueError("classification output contains a malformed record")
     keys = tuple(key for key, _, _ in records)
     if keys != expected_keys:
-        raise ValueError("classification output keys are missing, duplicated, or reordered")
+        raise ValueError(
+            "classification output keys are missing, duplicated, or reordered"
+        )
     values = {key: value for key, _, value in records}
-    if FULL_SHA.fullmatch(values["target_sha"]) is None or FULL_SHA.fullmatch(
-        values["site_source_sha"]
-    ) is None:
+    if (
+        FULL_SHA.fullmatch(values["target_sha"]) is None
+        or FULL_SHA.fullmatch(values["site_source_sha"]) is None
+    ):
         raise ValueError("classification output contains an invalid source identity")
     for key in ("full", *SURFACES, "site", "python_host_evidence"):
         if values[key] not in {"true", "false"}:
-            raise ValueError(f"classification output contains an invalid {key} decision")
+            raise ValueError(
+                f"classification output contains an invalid {key} decision"
+            )
+    for surface in (*SURFACES, "python_host_evidence"):
+        if not values[f"{surface}_reason"]:
+            raise ValueError(f"classification output omits the {surface} reason")
     try:
         versions = json.loads(values["python_versions"])
     except json.JSONDecodeError as error:
-        raise ValueError("classification output contains invalid Python versions") from error
+        raise ValueError(
+            "classification output contains invalid Python versions"
+        ) from error
     expected_versions = (
         ["3.11", "3.12", "3.13", "3.14"]
         if values["full"] == "true"
@@ -483,7 +578,10 @@ def append_github_outputs(path: Path, rendered: str) -> None:
         raise ValueError("classification output contains inconsistent Python versions")
     if values["site"] == "false" and (
         values["full"] != "false"
-        or values["site_reason"] != "unchanged input closure"
+        or (
+            values["site_reason"] != "unchanged input closure"
+            and not values["site_reason"].startswith("reused successful heavy run")
+        )
     ):
         raise ValueError("a quick site decision is incomplete or inconsistent")
     if values["full"] == "true" and values["site"] != "true":
@@ -511,6 +609,9 @@ def main() -> int:
     parser.add_argument("--head", default="")
     parser.add_argument("--requested-commit", default="")
     parser.add_argument("--github-output", default="")
+    parser.add_argument("--previous", default="")
+    parser.add_argument("--reuse-attestation", default="")
+    parser.add_argument("--workflow", choices=("ci.yml", "pages.yml"), default="ci.yml")
     arguments = parser.parse_args()
 
     try:
@@ -537,6 +638,22 @@ def main() -> int:
             base_authority=site_source_sha,
             unsafe_mode=unsafe_mode if not full else False,
         )
+        if not full and arguments.previous and arguments.reuse_attestation:
+            attestation_path = Path(arguments.reuse_attestation)
+            if not attestation_path.is_absolute() or attestation_path.is_symlink():
+                raise ValueError(
+                    "reuse attestation must be an absolute non-symlink path"
+                )
+            attestation = json.loads(attestation_path.read_text(encoding="utf-8"))
+            if not isinstance(attestation, dict):
+                raise ValueError("reuse attestation is not an object")
+            plan = apply_previous_run_reuse(
+                plan,
+                previous_sha=arguments.previous,
+                current_sha=target_sha,
+                workflow=arguments.workflow,
+                attestation=attestation,
+            )
         selected = plan.selections()
         if not full:
             if selected["site"]:
@@ -549,6 +666,8 @@ def main() -> int:
                     site_reason = plan.lane("site").reason
             else:
                 site_reason = plan.lane("site").reason
+                if site_reason.startswith("reused successful heavy run"):
+                    site_source_sha = arguments.previous
     except (
         OSError,
         subprocess.CalledProcessError,
@@ -578,7 +697,10 @@ def main() -> int:
                 try:
                     emit_outputs(arguments, rendered)
                 except (OSError, ValueError) as output_error:
-                    print(f"CI classification output failed: {output_error}", file=sys.stderr)
+                    print(
+                        f"CI classification output failed: {output_error}",
+                        file=sys.stderr,
+                    )
                     return 2
                 return 0
         print(f"CI classification failed: {error}", file=sys.stderr)
@@ -590,6 +712,7 @@ def main() -> int:
         full=full,
         site_source_sha=site_source_sha,
         site_reason=site_reason,
+        reasons={decision.lane: decision.reason for decision in plan.lanes},
     )
     try:
         emit_outputs(arguments, rendered)

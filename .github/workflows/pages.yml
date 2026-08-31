@@ -7,7 +7,9 @@ on:
       - main
   workflow_dispatch:
 permissions:
+  actions: read
   contents: read
+  pull-requests: read
 concurrency:
   group: pages-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -32,15 +34,41 @@ jobs:
       - name: Classify the complete documentation input closure
         id: site_closure
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           SITE_EVENT_NAME: ${{ github.event_name }}
           SITE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           SITE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SITE_PREVIOUS_SHA: ${{ github.event.before }}
+          SITE_PULL_REQUEST: ${{ github.event.pull_request.number }}
+          SITE_REPOSITORY: ${{ github.repository }}
         run: |
+          attestation="$RUNNER_TEMP/eqiora-previous-pages.json"
+          python3 tools/ci/authenticate_previous_run.py \
+            --repository "$SITE_REPOSITORY" \
+            --pull-request "${SITE_PULL_REQUEST:-0}" \
+            --previous-sha "$SITE_PREVIOUS_SHA" \
+            --workflow pages.yml \
+            --output "$attestation"
+          if printf '%s' "$SITE_PREVIOUS_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            git fetch --no-tags --no-recurse-submodules --no-write-fetch-head \
+              origin "$SITE_PREVIOUS_SHA" || true
+          fi
           exec python3 tools/ci/classify_changes.py \
             --event "$SITE_EVENT_NAME" \
             --base "$SITE_BASE_SHA" \
             --head "$SITE_HEAD_SHA" \
+            --previous "$SITE_PREVIOUS_SHA" \
+            --reuse-attestation "$attestation" \
+            --workflow pages.yml \
             --github-output "$GITHUB_OUTPUT"
+      - name: Summarize the exact documentation decision
+        env:
+          SITE_RUN: ${{ steps.site_closure.outputs.site }}
+          SITE_REASON: ${{ steps.site_closure.outputs.site_reason }}
+          SITE_SOURCE_SHA: ${{ steps.site_closure.outputs.site_source_sha }}
+        run: |
+          printf -- '- site: run=%s — %s (content authority %s)\n' \
+            "$SITE_RUN" "$SITE_REASON" "$SITE_SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
       - name: Bind the classified source authority
         env:
           SITE_SOURCE_SHA: ${{ steps.site_closure.outputs.site_source_sha }}
@@ -53,7 +81,7 @@ jobs:
           SITE_REASON: ${{ steps.site_closure.outputs.site_reason }}
           SITE_SOURCE_SHA: ${{ steps.site_closure.outputs.site_source_sha }}
         run: |
-          test "$SITE_REASON" = "unchanged input closure"
+          test -n "$SITE_REASON"
           printf 'Documentation Site: %s (content authority %s)\n' \
             "$SITE_REASON" "$SITE_SOURCE_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Configure GitHub Pages
