@@ -1,4 +1,4 @@
-//! Bounded local-file boundary for canonical Python Model artifacts.
+//! Bounded local-file boundary for canonical Python artifacts.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
@@ -9,8 +9,28 @@ use eqiora::Diagnostic;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
 use eqiora::diagnostic::codes;
+use pyo3::exceptions::PyTypeError;
+use pyo3::prelude::*;
+use pyo3::types::{PyAny, PyString};
 
 pub(crate) const MODEL_FILE_EXTENSION: &str = "eqmodel";
+
+#[derive(Clone, Copy)]
+pub(crate) struct ArtifactFileSpec {
+    pub(crate) artifact_name: &'static str,
+    pub(crate) extension: &'static str,
+    pub(crate) staging_name: &'static str,
+    pub(crate) max_bytes: usize,
+}
+
+fn model_file_spec() -> ArtifactFileSpec {
+    ArtifactFileSpec {
+        artifact_name: "compiled Model",
+        extension: MODEL_FILE_EXTENSION,
+        staging_name: "model",
+        max_bytes: ModelDecoderLimits::default().json.max_bytes,
+    }
+}
 
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -26,7 +46,7 @@ pub(crate) fn decode_model(bytes: &[u8]) -> Result<DecodedModel, Vec<Diagnostic>
         .canonical_json()
         .map_err(|diagnostic| vec![diagnostic])?;
     if canonical != bytes {
-        return Err(vec![invalid_model_artifact(
+        return Err(vec![invalid_artifact(
             "Model artifact bytes are not the exact canonical encoding",
         )]);
     }
@@ -40,91 +60,126 @@ pub(crate) fn decode_model(bytes: &[u8]) -> Result<DecodedModel, Vec<Diagnostic>
     }
 }
 
-pub(crate) fn validate_model_path(path: &Path) -> Result<(), Diagnostic> {
-    if path
-        .extension()
-        .is_none_or(|suffix| suffix != MODEL_FILE_EXTENSION)
-    {
-        return Err(invalid_model_artifact(format!(
-            "compiled Model paths must use the .{MODEL_FILE_EXTENSION} suffix"
-        )));
-    }
-    Ok(())
+pub(crate) fn read_model_bytes(path: &Path) -> Result<Vec<u8>, Diagnostic> {
+    read_artifact_bytes(path, model_file_spec())
 }
 
-pub(crate) fn read_model_bytes(path: &Path) -> Result<Vec<u8>, Diagnostic> {
-    validate_model_path(path)?;
-    let link_metadata =
-        fs::symlink_metadata(path).map_err(|error| model_io_error("inspect", path, &error))?;
+pub(crate) fn write_model_bytes(path: &Path, bytes: &[u8]) -> Result<(), Diagnostic> {
+    write_artifact_bytes(path, bytes, model_file_spec())
+}
+
+pub(crate) fn unicode_artifact_path(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<PathBuf> {
+    let path = py.import("os")?.getattr("fspath")?.call1((value,))?;
+    let path = path
+        .cast::<PyString>()
+        .map_err(|_| PyTypeError::new_err("path must resolve to a Unicode filesystem path"))?;
+    Ok(PathBuf::from(path.to_str()?))
+}
+
+pub(crate) fn read_artifact_bytes(
+    path: &Path,
+    spec: ArtifactFileSpec,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_artifact_path(path, spec)?;
+    let link_metadata = fs::symlink_metadata(path)
+        .map_err(|error| artifact_io_error("inspect", path, spec, &error))?;
     if !link_metadata.file_type().is_file() {
-        return Err(invalid_model_artifact(format!(
-            "compiled Model input {:?} is not a regular file",
+        return Err(invalid_artifact(format!(
+            "{} input {:?} is not a regular file",
+            spec.artifact_name,
             path.display()
         )));
     }
 
-    let file = File::open(path).map_err(|error| model_io_error("open", path, &error))?;
+    let file = File::open(path).map_err(|error| artifact_io_error("open", path, spec, &error))?;
     let metadata = file
         .metadata()
-        .map_err(|error| model_io_error("inspect opened", path, &error))?;
+        .map_err(|error| artifact_io_error("inspect opened", path, spec, &error))?;
     if !metadata.file_type().is_file() {
-        return Err(invalid_model_artifact(format!(
-            "compiled Model input {:?} did not remain a regular file",
+        return Err(invalid_artifact(format!(
+            "{} input {:?} did not remain a regular file",
+            spec.artifact_name,
             path.display()
         )));
     }
 
-    let max_bytes = ModelDecoderLimits::default().json.max_bytes;
+    let max_bytes = spec.max_bytes;
     if metadata.len() > max_bytes as u64 {
-        return Err(invalid_model_artifact(format!(
-            "compiled Model input has {} bytes, exceeding the {max_bytes} byte decoder limit",
+        return Err(invalid_artifact(format!(
+            "{} input has {} bytes, exceeding the {max_bytes} byte decoder limit",
+            spec.artifact_name,
             metadata.len()
         )));
     }
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
     file.take((max_bytes + 1) as u64)
         .read_to_end(&mut bytes)
-        .map_err(|error| model_io_error("read", path, &error))?;
+        .map_err(|error| artifact_io_error("read", path, spec, &error))?;
     if bytes.len() > max_bytes {
-        return Err(invalid_model_artifact(format!(
-            "compiled Model input exceeds the {max_bytes} byte decoder limit"
+        return Err(invalid_artifact(format!(
+            "{} input exceeds the {max_bytes} byte decoder limit",
+            spec.artifact_name,
         )));
     }
     Ok(bytes)
 }
 
-pub(crate) fn write_model_bytes(path: &Path, bytes: &[u8]) -> Result<(), Diagnostic> {
-    validate_model_path(path)?;
+pub(crate) fn write_artifact_bytes(
+    path: &Path,
+    bytes: &[u8],
+    spec: ArtifactFileSpec,
+) -> Result<(), Diagnostic> {
+    validate_artifact_path(path, spec)?;
     match fs::symlink_metadata(path) {
         Ok(metadata) if !metadata.file_type().is_file() => {
-            return Err(invalid_model_artifact(format!(
-                "compiled Model output {:?} is not a regular file",
+            return Err(invalid_artifact(format!(
+                "{} output {:?} is not a regular file",
+                spec.artifact_name,
                 path.display()
             )));
         }
         Ok(_) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(model_io_error("inspect output", path, &error)),
+        Err(error) => return Err(artifact_io_error("inspect output", path, spec, &error)),
     }
 
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let (staging_path, mut staging) = create_staging_file(parent, path)?;
+    let (staging_path, mut staging) = create_staging_file(parent, path, spec)?;
     let mut cleanup = StagingCleanup::new(staging_path.clone());
     staging
         .write_all(bytes)
         .and_then(|()| staging.sync_all())
-        .map_err(|error| model_io_error("write", &staging_path, &error))?;
+        .map_err(|error| artifact_io_error("write", &staging_path, spec, &error))?;
     drop(staging);
-    fs::rename(&staging_path, path).map_err(|error| model_io_error("publish", path, &error))?;
+    fs::rename(&staging_path, path)
+        .map_err(|error| artifact_io_error("publish", path, spec, &error))?;
     cleanup.published = true;
     Ok(())
 }
 
-fn create_staging_file(parent: &Path, target: &Path) -> Result<(PathBuf, File), Diagnostic> {
+fn validate_artifact_path(path: &Path, spec: ArtifactFileSpec) -> Result<(), Diagnostic> {
+    if path
+        .extension()
+        .is_none_or(|suffix| suffix != spec.extension)
+    {
+        return Err(invalid_artifact(format!(
+            "{} paths must use the .{} suffix",
+            spec.artifact_name, spec.extension
+        )));
+    }
+    Ok(())
+}
+
+fn create_staging_file(
+    parent: &Path,
+    target: &Path,
+    spec: ArtifactFileSpec,
+) -> Result<(PathBuf, File), Diagnostic> {
     for _ in 0..128 {
         let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
         let staging_path = parent.join(format!(
-            ".eqiora-model-{}-{sequence}.tmp",
+            ".eqiora-{}-{}-{sequence}.tmp",
+            spec.staging_name,
             std::process::id()
         ));
         match OpenOptions::new()
@@ -134,11 +189,12 @@ fn create_staging_file(parent: &Path, target: &Path) -> Result<(PathBuf, File), 
         {
             Ok(file) => return Ok((staging_path, file)),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(model_io_error("stage", target, &error)),
+            Err(error) => return Err(artifact_io_error("stage", target, spec, &error)),
         }
     }
-    Err(invalid_model_artifact(format!(
-        "could not allocate a staging file beside compiled Model output {:?}",
+    Err(invalid_artifact(format!(
+        "could not allocate a staging file beside {} output {:?}",
+        spec.artifact_name,
         target.display()
     )))
 }
@@ -165,13 +221,19 @@ impl Drop for StagingCleanup {
     }
 }
 
-fn model_io_error(action: &str, path: &Path, error: &std::io::Error) -> Diagnostic {
-    invalid_model_artifact(format!(
-        "could not {action} compiled Model path {:?}: {error}",
+fn artifact_io_error(
+    action: &str,
+    path: &Path,
+    spec: ArtifactFileSpec,
+    error: &std::io::Error,
+) -> Diagnostic {
+    invalid_artifact(format!(
+        "could not {action} {} path {:?}: {error}",
+        spec.artifact_name,
         path.display()
     ))
 }
 
-fn invalid_model_artifact(message: impl Into<String>) -> Diagnostic {
+fn invalid_artifact(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_ARTIFACT, message)
 }

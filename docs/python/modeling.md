@@ -637,6 +637,21 @@ equations-only component with that Geometry, and call
 accepts only `eqiora.run(plan)` or `eqiora.submit(plan)`. Specialized scalar
 requests and model-plus-realization execution are absent.
 
+The same resolved Plan can be moved as one exact local artifact without its
+producer process:
+
+```python
+plan.write("case.eqplan")
+portable = eqiora.Plan.read("case.eqplan")
+result = eqiora.run(portable)
+```
+
+`.eqplan` contains exactly `plan.to_bytes()`. Reading re-resolves the Plan
+against the locally admitted provider identities and rejects unknown,
+noncanonical, oversized, non-regular, symlinked, or wrongly suffixed inputs.
+This local file is not a project archive, cloud protocol, or historical
+migration format.
+
 ## Exact revisions and compiled Model files
 
 `Model` owns one immutable canonical artifact. Previewing an edit never
