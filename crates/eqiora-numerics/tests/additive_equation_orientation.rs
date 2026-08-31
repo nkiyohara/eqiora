@@ -136,4 +136,25 @@ fn scalar_elliptic_orientation_retains_composite_source_and_boundary_values() {
     let model = lower_scalar_elliptic_cartesian(&compile_program(&additive))
         .expect("additive orientation retains one grouped composite source role");
     assert_eq!(model.source().constant_value(), Some(6.0));
+
+    let reversed = SOURCE
+        .replace(
+            "-div(diffusion * grad(potential)) - source = 0;",
+            "div(diffusion * grad(potential)) = -(source + source);",
+        )
+        .replace(
+            "trace(potential) - value = 0;",
+            "(value + value) - trace(potential) = 0;",
+        );
+    let model = lower_scalar_elliptic_cartesian(&compile_program(&reversed))
+        .expect("whole reversal retains grouped composite scalar roles");
+    assert_eq!(model.source().constant_value(), Some(6.0));
+    assert_eq!(
+        model
+            .boundary(0, BoundarySide::Lower)
+            .unwrap()
+            .value()
+            .constant_value(),
+        Some(8.0)
+    );
 }

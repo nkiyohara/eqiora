@@ -164,6 +164,11 @@ fn scalar_volume_top_roles(expression: &ExprDag, root: ExprId) -> Option<(ExprId
         ExprNode::Sub(left, right) => {
             if let Some(flux) = negative_divergence_flux(expression, *left) {
                 Some((flux, Some(*right)))
+            } else if let (Some(flux), Some(ExprNode::Neg(source))) = (
+                positive_divergence_flux(expression, *left),
+                expression.node(*right),
+            ) {
+                Some((flux, Some(*source)))
             } else {
                 negative_divergence_flux(expression, *right).map(|flux| (flux, Some(*left)))
             }
@@ -206,19 +211,7 @@ pub(crate) fn lower_cartesian_boundary_relation(
 ) -> Result<ScalarEllipticCartesianBoundary, Diagnostic> {
     let expression = relation_expression(program, relation)?;
     let root = unique_root(expression, relation)?;
-    let legacy_roles = match expression.node(root) {
-        Some(ExprNode::Sub(operator, value))
-            if matches!(
-                expression.node(*operator),
-                Some(ExprNode::Trace(_)) | Some(ExprNode::NormalComponent(_))
-            ) =>
-        {
-            Some((*operator, Some(*value)))
-        }
-        Some(ExprNode::Trace(_)) | Some(ExprNode::NormalComponent(_)) => Some((root, None)),
-        _ => None,
-    };
-    if let Some((operator, value)) = legacy_roles {
+    if let Some((operator, value)) = scalar_boundary_top_roles(expression, root) {
         let value = match value {
             Some(value) => spatial_expression::lower(
                 program,
@@ -290,6 +283,52 @@ pub(crate) fn lower_cartesian_boundary_relation(
         field,
         volume_coefficient,
         coordinate_dimension,
+    )
+}
+
+fn scalar_boundary_top_roles(
+    expression: &ExprDag,
+    root: ExprId,
+) -> Option<(ExprId, Option<ExprId>)> {
+    match expression.node(root)? {
+        ExprNode::Sub(left, right) => {
+            if is_scalar_boundary_operator(expression, *left) {
+                Some((*left, Some(*right)))
+            } else if is_scalar_boundary_operator(expression, *right) {
+                Some((*right, Some(*left)))
+            } else {
+                None
+            }
+        }
+        ExprNode::Add(left, right) => {
+            if is_scalar_boundary_operator(expression, *left) {
+                match expression.node(*right) {
+                    Some(ExprNode::Neg(value)) => Some((*left, Some(*value))),
+                    _ => None,
+                }
+            } else {
+                match expression.node(*left) {
+                    Some(ExprNode::Neg(operator))
+                        if is_scalar_boundary_operator(expression, *operator) =>
+                    {
+                        Some((*operator, Some(*right)))
+                    }
+                    _ => None,
+                }
+            }
+        }
+        ExprNode::Neg(operator) if is_scalar_boundary_operator(expression, *operator) => {
+            Some((*operator, None))
+        }
+        ExprNode::Trace(_) | ExprNode::NormalComponent(_) => Some((root, None)),
+        _ => None,
+    }
+}
+
+fn is_scalar_boundary_operator(expression: &ExprDag, value: ExprId) -> bool {
+    matches!(
+        expression.node(value),
+        Some(ExprNode::Trace(_)) | Some(ExprNode::NormalComponent(_))
     )
 }
 
