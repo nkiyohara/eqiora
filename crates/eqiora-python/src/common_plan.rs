@@ -2,6 +2,7 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::path::PathBuf;
 
 use eqiora::artifact::CanonicalModelArtifact;
 use eqiora::backends::faer::FaerLinearSolver;
@@ -13,11 +14,20 @@ use eqiora_numerics::{
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes, PyModule, PyTuple};
+use pyo3::types::{PyAny, PyBytes, PyModule, PyString, PyTuple};
 
-use crate::error::validation_error;
+use crate::error::{compatibility_error, validation_error};
 use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelDomainRef, PyModelFieldRef};
+use crate::model_io::{ArtifactFileSpec, read_artifact_bytes, write_artifact_bytes};
+
+const PLAN_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
+    artifact_name: "resolved Plan",
+    extension: "eqplan",
+    staging_name: "plan",
+    // This is the pre-read counterpart of the canonical Plan decoder's bound.
+    max_bytes: 256 * 1024 * 1024,
+};
 
 mod capability_view;
 use capability_view::{
@@ -341,6 +351,34 @@ impl PyPlan {
         )
         .map_err(|diagnostic| validation_error(py, &[diagnostic]))
         .and_then(|native| Self::from_native_artifact(py, native))
+    }
+
+    /// Atomically write this exact resolved Plan to an `.eqplan` file.
+    fn write(&self, py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<()> {
+        let path = unicode_plan_path(py, path)?;
+        let bytes = self
+            .native
+            .to_bytes()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        py.detach(move || write_artifact_bytes(&path, &bytes, PLAN_FILE_SPEC))
+            .map_err(|diagnostic| compatibility_error(py, &[diagnostic]))
+    }
+
+    /// Read and independently resolve one exact canonical `.eqplan` file.
+    #[staticmethod]
+    fn read(py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let path = unicode_plan_path(py, path)?;
+        let native = py
+            .detach(move || {
+                let bytes = read_artifact_bytes(&path, PLAN_FILE_SPEC)?;
+                ResolvedCommonPlan::from_bytes(
+                    &bytes,
+                    &FaerLinearSolver,
+                    eqiora::backends::diffsol::DIFFSOL_TIME_BACKEND,
+                )
+            })
+            .map_err(|diagnostic| compatibility_error(py, &[diagnostic]))?;
+        Self::from_native_artifact(py, native)
     }
 
     #[getter]
@@ -925,6 +963,14 @@ fn resolve_plan(
         solve: Some(solve_handle),
         temporal: temporal_handle,
     })
+}
+
+fn unicode_plan_path(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<PathBuf> {
+    let path = py.import("os")?.getattr("fspath")?.call1((value,))?;
+    let path = path
+        .cast::<PyString>()
+        .map_err(|_| PyTypeError::new_err("path must resolve to a Unicode filesystem path"))?;
+    Ok(PathBuf::from(path.to_str()?))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

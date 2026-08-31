@@ -378,7 +378,7 @@ fn installed_root_resolve_and_run_retain_exact_python_objects() -> PyResult<()> 
         locals.set_item("package_directory", package_directory.to_string_lossy())?;
         py.run(
                 c_str!(r#"
-import importlib.util, pathlib, sys
+import importlib.util, os, pathlib, sys, tempfile
 package_path = pathlib.Path(package_directory)
 spec = importlib.util.spec_from_file_location("eqiora", package_path / "__init__.py", submodule_search_locations=[str(package_path)])
 package = importlib.util.module_from_spec(spec)
@@ -458,6 +458,101 @@ variable_q1 = package.resolve(variable_model, mesh=mesh, spatial=package.fem.Q1(
 variable_tpfa = package.resolve(variable_model, mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=linear)
 q1_bytes = q1.to_bytes()
 portable_q1 = package.Plan.from_bytes(q1_bytes)
+plan_directory_owner = tempfile.TemporaryDirectory(
+    dir=package_path.parents[3] / "target"
+)
+plan_directory = pathlib.Path(plan_directory_owner.name)
+plan_path = plan_directory / "q1.eqplan"
+plan_path.write_bytes(b"incomplete previous output")
+q1.write(plan_path)
+assert plan_path.read_bytes() == q1_bytes
+assert not list(plan_directory.glob(".eqiora-plan-*.tmp"))
+file_q1 = package.Plan.read(plan_path)
+assert file_q1.identity == q1.identity
+assert file_q1.to_bytes() == q1_bytes
+
+for rejected_name, rejected_bytes in (
+    ("truncated.eqplan", q1_bytes[:-1]),
+    ("trailing.eqplan", q1_bytes + b"\n"),
+    ("unknown-version.eqplan", q1_bytes.replace(b"resolved-common-plan/v2", b"resolved-common-plan/v9")),
+):
+    rejected_path = plan_directory / rejected_name
+    rejected_path.write_bytes(rejected_bytes)
+    try:
+        package.Plan.read(rejected_path)
+    except package.CompatibilityError:
+        pass
+    else:
+        raise AssertionError(f"hostile Plan file must reject: {rejected_name}")
+
+wrong_suffix = plan_directory / "q1.json"
+try:
+    q1.write(wrong_suffix)
+except package.CompatibilityError:
+    pass
+else:
+    raise AssertionError("Plan file paths require the exact .eqplan suffix")
+try:
+    package.Plan.read(wrong_suffix)
+except package.CompatibilityError:
+    pass
+else:
+    raise AssertionError("Plan file paths require the exact .eqplan suffix")
+assert not wrong_suffix.exists()
+
+directory_path = plan_directory / "directory.eqplan"
+directory_path.mkdir()
+try:
+    q1.write(directory_path)
+except package.CompatibilityError:
+    pass
+else:
+    raise AssertionError("Plan file I/O must reject non-regular paths")
+try:
+    package.Plan.read(directory_path)
+except package.CompatibilityError:
+    pass
+else:
+    raise AssertionError("Plan file I/O must reject non-regular paths")
+
+if os.name != "nt":
+    symlink_target = plan_directory / "target.eqplan"
+    symlink_target.write_bytes(q1_bytes)
+    symlink_path = plan_directory / "symlink.eqplan"
+    symlink_path.symlink_to(symlink_target)
+    try:
+        q1.write(symlink_path)
+    except package.CompatibilityError:
+        pass
+    else:
+        raise AssertionError("Plan file I/O must reject symlinks")
+    try:
+        package.Plan.read(symlink_path)
+    except package.CompatibilityError:
+        pass
+    else:
+        raise AssertionError("Plan file I/O must reject symlinks")
+    assert symlink_target.read_bytes() == q1_bytes
+
+oversized_path = plan_directory / "oversized.eqplan"
+with oversized_path.open("wb") as oversized:
+    oversized.truncate(256 * 1024 * 1024 + 1)
+try:
+    package.Plan.read(oversized_path)
+except package.CompatibilityError:
+    pass
+else:
+    raise AssertionError("Plan file I/O must reject input above the decoder bound")
+
+missing_parent_path = plan_directory / "missing" / "q1.eqplan"
+try:
+    q1.write(missing_parent_path)
+except package.CompatibilityError:
+    pass
+else:
+    raise AssertionError("Plan publication must reject a missing staging directory")
+assert not missing_parent_path.exists()
+assert not list(plan_directory.glob(".eqiora-plan-*.tmp"))
 replayed = package.Model.from_bytes(model.to_bytes())
 replayed_plan = package.resolve(replayed, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 mesh_bytes = mesh.to_bytes()
@@ -558,6 +653,7 @@ replayed_q1_result = package.Result.from_bytes(q1, q1_result_bytes)
 assert replayed_q1_result.to_bytes() == q1_result_bytes
 assert replayed_q1_result.output(q1.capability.field).values("vertex").numpy().tolist() == q1_result.output(q1.capability.field).values("vertex").numpy().tolist()
 portable_q1_result = package.run(portable_q1)
+file_q1_result = package.run(file_q1)
 tpfa_result = package.run(tpfa)
 variable_q1_result = package.run(variable_q1)
 variable_tpfa_result = package.run(variable_tpfa)
@@ -571,6 +667,8 @@ assert q1_output.associations == ("vertex",)
 assert q1_output.logical_shape("vertex") == (3, 4)
 assert len(q1_output.values("vertex")) == 12
 assert portable_q1_result.output(portable_q1.capability.field).logical_shape("vertex") == (3, 4)
+assert file_q1_result.output(file_q1.capability.field).logical_shape("vertex") == (3, 4)
+plan_directory_owner.cleanup()
 assert not hasattr(q1_result, "run_manifest")
 tpfa_output = tpfa_result.output(tpfa.capability.field)
 assert tpfa_output.associations == ("cell",)

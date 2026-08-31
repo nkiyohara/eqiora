@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 161 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 609 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 161 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 611 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 191 literal public spellings, 161 canonical grouped declarations, 806 visible method signatures (609 non-dunder and 197 dunder), and 74 visible class assignments.
+Inventory: 18 modules, 191 literal public spellings, 161 canonical grouped declarations, 808 visible method signatures (611 non-dunder and 197 dunder), and 74 visible class assignments.
 
 Regenerate with:
 
@@ -971,7 +971,10 @@ Authority: [`crates/eqiora-python/src/common_plan.rs::PyPlan`](../../crates/eqio
 class Plan:
     @staticmethod
     def from_bytes(data: bytes) -> Plan: ...
+    @staticmethod
+    def read(path: str | PathLike[str]) -> Plan: ...
     def to_bytes(self) -> bytes: ...
+    def write(self, path: str | PathLike[str]) -> None: ...
     @property
     def identity(self) -> str: ...
     @property
