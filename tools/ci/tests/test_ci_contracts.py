@@ -18,16 +18,19 @@ REPOSITORY_ROOT = CI_ROOT.parents[1]
 sys.path.insert(0, str(CI_ROOT))
 
 import python_package_gate as python_package_gate_module  # noqa: E402
+from authenticate_previous_run import authenticate  # noqa: E402
 
 from check_gate import JOB_SURFACES, evaluate, parse_relevance, parse_results  # noqa: E402
 from classify_changes import (  # noqa: E402
     CLASSIFIED_SURFACES,
     SURFACES,
     append_github_outputs,
+    apply_previous_run_reuse,
     changed_paths,
     classify,
     impact_plan,
     render_outputs,
+    snapshot_changed_paths,
 )
 from local_verify import HOSTED_TEST_PROFILE  # noqa: E402
 from python_jax_gate import uv_gate_command as jax_uv_gate_command  # noqa: E402
@@ -125,7 +128,6 @@ class HostedTriggerTests(unittest.TestCase):
         test_start = changes.index(test_step)
 
         self.assertNotIn("jdx/mise-action@", workflow)
-        self.assertNotIn("github.token", changes)
         self.assertNotIn("secrets.", changes)
         self.assertEqual(
             changes[stage_start:test_start],
@@ -135,6 +137,12 @@ class HostedTriggerTests(unittest.TestCase):
             "      - name: Classify exact change surface", maxsplit=1
         )[0]
         self.assertIn('EQIORA_CI_CONTRACT_ONLY: "1"', contract_step)
+        self.assertNotIn("github.token", changes[:test_start])
+        self.assertEqual(changes.count("GITHUB_TOKEN: ${{ github.token }}"), 1)
+        self.assertLess(
+            changes.index(test_step),
+            changes.index("Authenticate successful heavy work on the previous PR head"),
+        )
         self.assertEqual(workflow.count("EQIORA_CI_CONTRACT_ONLY"), 1)
 
     def test_windows_compile_probe_is_visible_complete_and_non_gating(self) -> None:
@@ -1339,9 +1347,7 @@ class ChangeClassificationTests(unittest.TestCase):
 
     def test_impact_plan_fail_closed_reasons_are_stable(self) -> None:
         unknown = impact_plan(["new-area/file.bin", "docs/architecture.md"])
-        protected = impact_plan(
-            ["new-area/file.bin", "tools/ci/check_gate.py"]
-        )
+        protected = impact_plan(["new-area/file.bin", "tools/ci/check_gate.py"])
         for decision in unknown.lanes:
             self.assertTrue(decision.selected)
             self.assertEqual(decision.reason, "unrecognized input: full selection")
@@ -1584,8 +1590,12 @@ class ChangeClassificationTests(unittest.TestCase):
     def test_advanced_base_is_the_unchanged_site_content_authority(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.home()) as value:
             repository = Path(value)
-            subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repository, check=True)
-            subprocess.run(["git", "config", "user.name", "oracle"], cwd=repository, check=True)
+            subprocess.run(
+                ["git", "init", "-q", "-b", "main"], cwd=repository, check=True
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "oracle"], cwd=repository, check=True
+            )
             subprocess.run(
                 ["git", "config", "user.email", "oracle@example.invalid"],
                 cwd=repository,
@@ -1612,12 +1622,17 @@ class ChangeClassificationTests(unittest.TestCase):
 
     def test_irrelevant_regular_change_skips_but_symlink_changes_build(self) -> None:
         for mutation in ("regular", "symlink-add", "symlink-conversion"):
-            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory(
-                dir=Path.home()
-            ) as value:
+            with (
+                self.subTest(mutation=mutation),
+                tempfile.TemporaryDirectory(dir=Path.home()) as value,
+            ):
                 repository = Path(value)
-                subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repository, check=True)
-                subprocess.run(["git", "config", "user.name", "oracle"], cwd=repository, check=True)
+                subprocess.run(
+                    ["git", "init", "-q", "-b", "main"], cwd=repository, check=True
+                )
+                subprocess.run(
+                    ["git", "config", "user.name", "oracle"], cwd=repository, check=True
+                )
                 subprocess.run(
                     ["git", "config", "user.email", "oracle@example.invalid"],
                     cwd=repository,
@@ -1689,6 +1704,171 @@ class ChangeClassificationTests(unittest.TestCase):
         selected = classify(["docs/architecture.md"])
         rendered = render_outputs("a" * 40, selected, full=False)
         self.assertIn("python_host_evidence=false", rendered)
+
+    def test_patch_equivalent_head_reuses_only_authenticated_unchanged_lanes(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as value:
+            repository = Path(value)
+            subprocess.run(
+                ["git", "init", "-q", "-b", "main"], cwd=repository, check=True
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "oracle"], cwd=repository, check=True
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "oracle@example.invalid"],
+                cwd=repository,
+                check=True,
+            )
+            source = repository / "crates/eqiora-numerics/src/lib.rs"
+            source.parent.mkdir(parents=True)
+            source.write_text("base\n", encoding="utf-8")
+            self._commit(repository, "base")
+            source.write_text("pull request\n", encoding="utf-8")
+            previous = self._commit(repository, "previous head")
+            subprocess.run(
+                ["git", "commit", "--allow-empty", "-qm", "equivalent head"],
+                cwd=repository,
+                check=True,
+            )
+            current = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=repository, text=True
+            ).strip()
+            plan = impact_plan(
+                ["crates/eqiora-numerics/src/lib.rs"],
+                target_authority=current,
+            )
+            attestation = {
+                "version": 1,
+                "workflow": "ci.yml",
+                "previous_sha": previous,
+                "run_id": 42,
+                "run_url": "https://github.com/nkiyohara/eqiora/actions/runs/42",
+                "lanes": {lane: True for lane in SURFACES},
+            }
+            original_run = subprocess.run
+            with mock.patch("classify_changes.subprocess.run") as run:
+                # Use the fixture repository while retaining the production Git calls.
+                run.side_effect = lambda arguments, **kwargs: original_run(
+                    arguments, cwd=repository, **kwargs
+                )
+                reused = apply_previous_run_reuse(
+                    plan,
+                    previous_sha=previous,
+                    current_sha=current,
+                    workflow="ci.yml",
+                    attestation=attestation,
+                )
+            self.assertFalse(reused.lane("rust").selected)
+            self.assertIn("run 42", reused.lane("rust").reason)
+
+            source.write_text(
+                "conflict resolution changed semantics\n", encoding="utf-8"
+            )
+            changed = self._commit(repository, "non-equivalent head")
+            with mock.patch("classify_changes.subprocess.run") as run:
+                run.side_effect = lambda arguments, **kwargs: original_run(
+                    arguments, cwd=repository, **kwargs
+                )
+                not_reused = apply_previous_run_reuse(
+                    plan,
+                    previous_sha=previous,
+                    current_sha=changed,
+                    workflow="ci.yml",
+                    attestation=attestation,
+                )
+            self.assertTrue(not_reused.lane("rust").selected)
+            self.assertEqual(not_reused.lane("rust").reason, "changed input closure")
+
+    def test_snapshot_comparison_uses_exact_trees_not_a_merge_base(self) -> None:
+        completed = mock.Mock(stdout=b"")
+        with mock.patch(
+            "classify_changes.subprocess.run", return_value=completed
+        ) as run:
+            self.assertEqual(snapshot_changed_paths("previous", "current"), ([], False))
+        self.assertEqual(
+            run.call_args.args[0],
+            ["git", "diff", "--raw", "--no-renames", "-z", "previous..current"],
+        )
+
+
+class PreviousRunAuthenticationTests(unittest.TestCase):
+    def test_authenticates_exact_same_pr_heavy_witnesses(self) -> None:
+        previous = "a" * 40
+        run = {
+            "id": 91,
+            "head_sha": previous,
+            "event": "pull_request",
+            "status": "completed",
+            "conclusion": "success",
+            "pull_requests": [{"number": 716}],
+            "html_url": "https://github.com/nkiyohara/eqiora/actions/runs/91",
+        }
+        required = (
+            ("Stable quality gate", "Tests"),
+            ("Host-CPU verification evidence", "Run registered Cargo host evidence"),
+            (
+                "Host-CPU Python installed-wheel evidence",
+                "Run registered Python installed-wheel host evidence",
+            ),
+        )
+        jobs = [
+            {
+                "name": job,
+                "conclusion": "success",
+                "steps": [
+                    {
+                        "name": step,
+                        "status": "completed",
+                        "conclusion": "success",
+                    }
+                ],
+            }
+            for job, step in required
+        ]
+
+        def fetch(url: str) -> object:
+            if "/commits/" in url:
+                return [{"number": 716}]
+            return (
+                {"total_count": len(jobs), "jobs": jobs}
+                if "/jobs?" in url
+                else {"total_count": 1, "workflow_runs": [run]}
+            )
+
+        result = authenticate(
+            repository="nkiyohara/eqiora",
+            pull_request=716,
+            previous_sha=previous,
+            workflow="ci.yml",
+            fetch=fetch,
+        )
+        self.assertTrue(result["lanes"]["rust"])
+        self.assertFalse(result["lanes"]["msrv"])
+
+    def test_rejects_cross_pr_or_ambiguous_success(self) -> None:
+        previous = "b" * 40
+        wrong_pr = {
+            "id": 92,
+            "head_sha": previous,
+            "event": "pull_request",
+            "status": "completed",
+            "conclusion": "success",
+            "pull_requests": [{"number": 999}],
+        }
+        with self.assertRaises(ValueError):
+            authenticate(
+                repository="nkiyohara/eqiora",
+                pull_request=716,
+                previous_sha=previous,
+                workflow="ci.yml",
+                fetch=lambda url: (
+                    [{"number": 999}]
+                    if "/commits/" in url
+                    else {"total_count": 1, "workflow_runs": [wrong_pr]}
+                ),
+            )
 
 
 class AggregateGateTests(unittest.TestCase):

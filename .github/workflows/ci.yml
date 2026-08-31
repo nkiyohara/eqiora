@@ -13,7 +13,9 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || inputs.commit }}
@@ -32,12 +34,19 @@ jobs:
       target_sha: ${{ steps.classify.outputs.target_sha }}
       full: ${{ steps.classify.outputs.full }}
       rust: ${{ steps.classify.outputs.rust }}
+      rust_reason: ${{ steps.classify.outputs.rust_reason }}
       msrv: ${{ steps.classify.outputs.msrv }}
+      msrv_reason: ${{ steps.classify.outputs.msrv_reason }}
       python: ${{ steps.classify.outputs.python }}
+      python_reason: ${{ steps.classify.outputs.python_reason }}
       studio: ${{ steps.classify.outputs.studio }}
+      studio_reason: ${{ steps.classify.outputs.studio_reason }}
       dependency_policy: ${{ steps.classify.outputs.dependency_policy }}
+      dependency_policy_reason: ${{ steps.classify.outputs.dependency_policy_reason }}
       cubecl_experiment: ${{ steps.classify.outputs.cubecl_experiment }}
+      cubecl_experiment_reason: ${{ steps.classify.outputs.cubecl_experiment_reason }}
       python_host_evidence: ${{ steps.classify.outputs.python_host_evidence }}
+      python_host_evidence_reason: ${{ steps.classify.outputs.python_host_evidence_reason }}
       python_versions: ${{ steps.classify.outputs.python_versions }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -63,6 +72,25 @@ jobs:
         env:
           EQIORA_CI_CONTRACT_ONLY: "1"
         run: python3 -m unittest discover -s tools/ci/tests -v
+      - name: Authenticate successful heavy work on the previous PR head
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_PREVIOUS_SHA: ${{ github.event.before }}
+          CI_PULL_REQUEST: ${{ github.event.pull_request.number }}
+          CI_REPOSITORY: ${{ github.repository }}
+        run: |
+          attestation="$RUNNER_TEMP/eqiora-previous-ci.json"
+          python3 tools/ci/authenticate_previous_run.py \
+            --repository "$CI_REPOSITORY" \
+            --pull-request "${CI_PULL_REQUEST:-0}" \
+            --previous-sha "$CI_PREVIOUS_SHA" \
+            --workflow ci.yml \
+            --output "$attestation"
+          printf 'EQIORA_PREVIOUS_CI_ATTESTATION=%s\n' "$attestation" >> "$GITHUB_ENV"
+          if printf '%s' "$CI_PREVIOUS_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            git fetch --no-tags --no-recurse-submodules --no-write-fetch-head \
+              origin "$CI_PREVIOUS_SHA" || true
+          fi
       - name: Classify exact change surface
         id: classify
         env:
@@ -70,12 +98,39 @@ jobs:
           CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CI_REQUESTED_COMMIT: ${{ inputs.commit }}
+          CI_PREVIOUS_SHA: ${{ github.event.before }}
         run: |
           python3 tools/ci/classify_changes.py \
             --event "$CI_EVENT_NAME" \
             --base "$CI_BASE_SHA" \
             --head "$CI_HEAD_SHA" \
+            --previous "$CI_PREVIOUS_SHA" \
+            --reuse-attestation "$EQIORA_PREVIOUS_CI_ATTESTATION" \
+            --workflow ci.yml \
             --requested-commit "$CI_REQUESTED_COMMIT" >> "$GITHUB_OUTPUT"
+      - name: Summarize exact lane decisions
+        env:
+          RUST_RUN: ${{ steps.classify.outputs.rust }}
+          RUST_REASON: ${{ steps.classify.outputs.rust_reason }}
+          MSRV_RUN: ${{ steps.classify.outputs.msrv }}
+          MSRV_REASON: ${{ steps.classify.outputs.msrv_reason }}
+          PYTHON_RUN: ${{ steps.classify.outputs.python }}
+          PYTHON_REASON: ${{ steps.classify.outputs.python_reason }}
+          STUDIO_RUN: ${{ steps.classify.outputs.studio }}
+          STUDIO_REASON: ${{ steps.classify.outputs.studio_reason }}
+          DEPENDENCY_RUN: ${{ steps.classify.outputs.dependency_policy }}
+          DEPENDENCY_REASON: ${{ steps.classify.outputs.dependency_policy_reason }}
+          CUBECL_RUN: ${{ steps.classify.outputs.cubecl_experiment }}
+          CUBECL_REASON: ${{ steps.classify.outputs.cubecl_experiment_reason }}
+        run: |
+          {
+            printf -- '- rust: run=%s — %s\n' "$RUST_RUN" "$RUST_REASON"
+            printf -- '- msrv: run=%s — %s\n' "$MSRV_RUN" "$MSRV_REASON"
+            printf -- '- python: run=%s — %s\n' "$PYTHON_RUN" "$PYTHON_REASON"
+            printf -- '- studio: run=%s — %s\n' "$STUDIO_RUN" "$STUDIO_REASON"
+            printf -- '- dependency_policy: run=%s — %s\n' "$DEPENDENCY_RUN" "$DEPENDENCY_REASON"
+            printf -- '- cubecl_experiment: run=%s — %s\n' "$CUBECL_RUN" "$CUBECL_REASON"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   documentation:
     name: Documentation contract
@@ -102,10 +157,12 @@ jobs:
         if: needs.changes.outputs.rust != 'true'
         env:
           TARGET_SHA: ${{ needs.changes.outputs.target_sha }}
+          LANE_REASON: ${{ needs.changes.outputs.rust_reason }}
         run: |
           test -n "$TARGET_SHA"
-          printf 'Stable quality gate: unchanged input closure; heavy execution did not run on %s.\n' \
-            "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+          test -n "$LANE_REASON"
+          printf 'Stable quality gate: %s; heavy execution did not run on %s.\n' \
+            "$LANE_REASON" "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.rust == 'true'
         with:
@@ -186,10 +243,12 @@ jobs:
         if: needs.changes.outputs.rust != 'true'
         env:
           TARGET_SHA: ${{ needs.changes.outputs.target_sha }}
+          LANE_REASON: ${{ needs.changes.outputs.rust_reason }}
         run: |
           test -n "$TARGET_SHA"
-          printf 'Host-CPU verification evidence: unchanged input closure; heavy execution did not run on %s.\n' \
-            "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+          test -n "$LANE_REASON"
+          printf 'Host-CPU verification evidence: %s; heavy execution did not run on %s.\n' \
+            "$LANE_REASON" "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.rust == 'true'
         with:
@@ -243,10 +302,12 @@ jobs:
         if: needs.changes.outputs.python_host_evidence != 'true'
         env:
           TARGET_SHA: ${{ needs.changes.outputs.target_sha }}
+          LANE_REASON: ${{ needs.changes.outputs.python_host_evidence_reason }}
         run: |
           test -n "$TARGET_SHA"
-          printf 'Host-CPU Python installed-wheel evidence: unchanged input closure; heavy execution did not run on %s.\n' \
-            "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+          test -n "$LANE_REASON"
+          printf 'Host-CPU Python installed-wheel evidence: %s; heavy execution did not run on %s.\n' \
+            "$LANE_REASON" "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.python_host_evidence == 'true'
         with:
@@ -312,10 +373,12 @@ jobs:
         if: needs.changes.outputs.msrv != 'true'
         env:
           TARGET_SHA: ${{ needs.changes.outputs.target_sha }}
+          LANE_REASON: ${{ needs.changes.outputs.msrv_reason }}
         run: |
           test -n "$TARGET_SHA"
-          printf 'MSRV 1.89: unchanged input closure; heavy execution did not run on %s.\n' \
-            "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+          test -n "$LANE_REASON"
+          printf 'MSRV 1.89: %s; heavy execution did not run on %s.\n' \
+            "$LANE_REASON" "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.msrv == 'true'
         with:
@@ -343,10 +406,12 @@ jobs:
         if: needs.changes.outputs.dependency_policy != 'true'
         env:
           TARGET_SHA: ${{ needs.changes.outputs.target_sha }}
+          LANE_REASON: ${{ needs.changes.outputs.dependency_policy_reason }}
         run: |
           test -n "$TARGET_SHA"
-          printf 'Dependency policy: unchanged input closure; heavy execution did not run on %s.\n' \
-            "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+          test -n "$LANE_REASON"
+          printf 'Dependency policy: %s; heavy execution did not run on %s.\n' \
+            "$LANE_REASON" "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.dependency_policy == 'true'
         with:
@@ -376,10 +441,12 @@ jobs:
         if: needs.changes.outputs.cubecl_experiment != 'true'
         env:
           TARGET_SHA: ${{ needs.changes.outputs.target_sha }}
+          LANE_REASON: ${{ needs.changes.outputs.cubecl_experiment_reason }}
         run: |
           test -n "$TARGET_SHA"
-          printf 'Isolated CubeCL contract experiment: unchanged input closure; heavy execution did not run on %s.\n' \
-            "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+          test -n "$LANE_REASON"
+          printf 'Isolated CubeCL contract experiment: %s; heavy execution did not run on %s.\n' \
+            "$LANE_REASON" "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.cubecl_experiment == 'true'
         with:
@@ -412,10 +479,12 @@ jobs:
         if: needs.changes.outputs.python != 'true'
         env:
           TARGET_SHA: ${{ needs.changes.outputs.target_sha }}
+          LANE_REASON: ${{ needs.changes.outputs.python_reason }}
         run: |
           test -n "$TARGET_SHA"
-          printf 'Python %s installed wheel: unchanged input closure; heavy execution did not run on %s.\n' \
-            '${{ matrix.python }}' "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+          test -n "$LANE_REASON"
+          printf 'Python %s installed wheel: %s; heavy execution did not run on %s.\n' \
+            '${{ matrix.python }}' "$LANE_REASON" "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.python == 'true'
         with:
@@ -447,10 +516,12 @@ jobs:
         if: needs.changes.outputs.studio != 'true'
         env:
           TARGET_SHA: ${{ needs.changes.outputs.target_sha }}
+          LANE_REASON: ${{ needs.changes.outputs.studio_reason }}
         run: |
           test -n "$TARGET_SHA"
-          printf 'Studio projection and native boundary: unchanged input closure; heavy execution did not run on %s.\n' \
-            "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+          test -n "$LANE_REASON"
+          printf 'Studio projection and native boundary: %s; heavy execution did not run on %s.\n' \
+            "$LANE_REASON" "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.studio == 'true'
         with:
