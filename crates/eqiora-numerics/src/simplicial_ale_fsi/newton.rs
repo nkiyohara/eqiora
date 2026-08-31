@@ -3,16 +3,12 @@
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_ir::{LinearizedRelation, RelationTangent};
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
 use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolverBackend, ScalarType};
 
 use super::acceptance::{NewtonEvidence, accept_step};
 use super::api::{AleFsiStepEvidence, AleFsiTrajectory, AleFsiTrajectory2d, AleFsiTrajectory3d};
-use super::assembly::{
-    StepAssembly, assemble_step_linearization_prepared, assemble_step_residual_prepared,
-    build_step_jacobian_pattern, initial_point_prepared,
-};
+use super::assembly::{assemble_step_linearization_prepared, initial_point_prepared};
 use super::boundary_step::PreparedAleFsiBoundaryStep;
 use super::contract::{
     AleFsiBoundary, AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState, AleFsiState2d, AleFsiState3d,
@@ -20,9 +16,6 @@ use super::contract::{
 };
 use super::{
     P1HarmonicMeshMotionAction, P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
-};
-use crate::jacobian_audit::{
-    CenteredJacobianAuditEvidence, StructuralJacobianPattern, audit_centered_jacobian,
 };
 use crate::simplicial_fsi::{
     FixedReferenceFsiPartition, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
@@ -162,7 +155,6 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
         LinearOperatorProperties::General,
     )?;
     initial.validate_against(reference, partition, motion)?;
-    let jacobian_pattern = build_step_jacobian_pattern(reference, partition, boundary, motion)?;
     let mut trajectory = AleFsiTrajectory::<D>::new(initial);
     for _ in 0..step_count.get() {
         let previous = trajectory
@@ -170,16 +162,7 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
             .last()
             .expect("ALE FSI trajectory owns its initial state");
         let (next, evidence) = solve_one_step::<D>(
-            reference,
-            partition,
-            boundary,
-            motion,
-            previous,
-            plan,
-            quadrature,
-            &jacobian_pattern,
-            assembly,
-            solver,
+            reference, partition, boundary, motion, previous, plan, quadrature, assembly, solver,
         )?;
         trajectory.push(next, evidence)?;
     }
@@ -195,7 +178,6 @@ pub(super) fn solve_one_step<const D: usize>(
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    jacobian_pattern: &StructuralJacobianPattern,
     assembly_backend: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
@@ -226,17 +208,6 @@ pub(super) fn solve_one_step<const D: usize>(
     let initial_residual_norm = current.residual_norm()?;
     let residual_target = nonlinear_target::<D>(plan, initial_residual_norm)?;
     if initial_residual_norm <= residual_target {
-        let jacobian_audit = verify_analytic_jacobian::<D>(
-            reference,
-            partition,
-            &prepared,
-            motion,
-            previous,
-            &current,
-            plan,
-            quadrature,
-            jacobian_pattern,
-        )?;
         return accept_step::<D>(
             reference,
             partition,
@@ -250,7 +221,6 @@ pub(super) fn solve_one_step<const D: usize>(
             NewtonEvidence {
                 iterations: 0,
                 initial_residual_norm,
-                jacobian_audit,
                 linear_solves: Vec::new(),
             },
         );
@@ -315,17 +285,6 @@ pub(super) fn solve_one_step<const D: usize>(
         point = candidate;
         current = assembled;
         if norm <= residual_target {
-            let jacobian_audit = verify_analytic_jacobian::<D>(
-                reference,
-                partition,
-                &prepared,
-                motion,
-                previous,
-                &current,
-                plan,
-                quadrature,
-                jacobian_pattern,
-            )?;
             return accept_step::<D>(
                 reference,
                 partition,
@@ -339,7 +298,6 @@ pub(super) fn solve_one_step<const D: usize>(
                 NewtonEvidence {
                     iterations: iteration,
                     initial_residual_norm,
-                    jacobian_audit,
                     linear_solves: reports,
                 },
             );
@@ -348,39 +306,6 @@ pub(super) fn solve_one_step<const D: usize>(
     Err(solve_failed(format!(
         "ALE FSI Newton solve reached {maximum_iterations} iterations above target {residual_target:e}"
     )))
-}
-
-#[allow(clippy::too_many_arguments)]
-fn verify_analytic_jacobian<const D: usize>(
-    reference: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<D>,
-    boundary: &PreparedAleFsiBoundaryStep<D>,
-    motion: &P1HarmonicMeshMotionAction<D>,
-    previous: &AleFsiState<D>,
-    accepted: &StepAssembly<D>,
-    plan: AleFsiStepPlan<D>,
-    quadrature: &QuadratureRule,
-    jacobian_pattern: &StructuralJacobianPattern,
-) -> Result<CenteredJacobianAuditEvidence, Diagnostic> {
-    let point = accepted.algebraic_values();
-    audit_centered_jacobian(
-        point,
-        jacobian_pattern,
-        2.0e-5,
-        "ALE FSI",
-        |candidate| {
-            assemble_step_residual_prepared::<D>(
-                reference, partition, boundary, motion, previous, candidate, plan, quadrature,
-            )
-        },
-        |column, analytic| {
-            let mut direction = vec![0.0; point.len()];
-            direction[column] = 1.0;
-            accepted
-                .relation
-                .jvp(RelationTangent::Unknown(&direction), analytic)
-        },
-    )
 }
 
 fn nonlinear_target<const D: usize>(
@@ -465,7 +390,6 @@ mod tests {
             assert!(evidence.minimum_current_mean_ratio() > 0.3);
             assert!(evidence.minimum_current_signed_jacobian() > 0.0);
             assert!(evidence.minimum_path_signed_jacobian() > 0.0);
-            assert!(evidence.maximum_analytic_jvp_verification_error() < 1.0e-3);
             assert!(evidence.probed_moving_fluid_cell_count() > 0);
             assert!(evidence.gcl_active_moving_fluid_cell_count() > 0);
             assert!(evidence.compatible_constant_free_stream_residual_norm() < 1.0e-12);
@@ -536,7 +460,6 @@ mod tests {
         assert!(evidence.minimum_current_mean_ratio() > 0.0);
         assert!(evidence.minimum_current_signed_jacobian() > 0.0);
         assert!(evidence.minimum_path_signed_jacobian() > 0.0);
-        assert!(evidence.maximum_analytic_jvp_verification_error() < 1.0e-3);
         assert!(evidence.probed_moving_fluid_cell_count() > 0);
         assert!(evidence.gcl_active_moving_fluid_cell_count() > 0);
         assert!(evidence.compatible_constant_free_stream_residual_norm() < 1.0e-12);

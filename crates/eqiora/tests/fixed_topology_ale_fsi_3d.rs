@@ -94,7 +94,20 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
     assert_eq!(fine.final_state().time(), FINAL_TIME);
 
     for trajectory in [&coarse, &medium, &fine] {
-        for step in trajectory.steps() {
+        let finalized = finalize_resolved_fixed_topology_ale_fsi_3d(
+            &fixture.canonical,
+            &fixture.resolve(trajectory.states()[1].time() - trajectory.states()[0].time()),
+            fixture.mesh_reference,
+            &fixture.mesh,
+            &fixture.partition,
+            &fixture.boundary,
+            fixture.initial(),
+            &FaerLinearSolver,
+        )
+        .unwrap();
+        let quadrature = eqiora::meshing::simplex_duffy_gauss_legendre(3, 7).unwrap();
+        let mut previous_color_count = None;
+        for (states, step) in trajectory.states().windows(2).zip(trajectory.steps()) {
             assert!(step.final_residual_norm() <= step.residual_target());
             assert!(step.continuity_residual_norm() <= step.residual_target() + 1.0e-8);
             assert!(step.kinematic_residual_norm() < 1.0e-12);
@@ -103,16 +116,27 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
             assert!(step.minimum_current_mean_ratio() > 0.0);
             assert!(step.minimum_current_signed_jacobian() > 0.0);
             assert!(step.minimum_path_signed_jacobian() > 0.0);
-            assert!(step.maximum_analytic_jvp_verification_error() < 1.0e-3);
-            assert!(step.jacobian_audited_column_count() > step.jacobian_color_count());
-            assert_eq!(
-                step.jacobian_residual_assembly_count(),
-                2 * step.jacobian_color_count()
-            );
-            assert_eq!(step.jacobian_global_singleton_count(), 3);
-            assert!(
-                step.jacobian_residual_assembly_count() < 2 * step.jacobian_audited_column_count()
-            );
+            let (column_count, color_count, singleton_count, assembly_count, maximum_error) =
+                finalized
+                    .step_plan()
+                    .verify_accepted_jacobian(
+                        &fixture.mesh,
+                        &fixture.partition,
+                        &fixture.boundary,
+                        finalized.motion(),
+                        &states[0],
+                        &states[1],
+                        &quadrature,
+                    )
+                    .unwrap();
+            assert!(maximum_error < 1.0e-3);
+            assert!(column_count > color_count);
+            assert_eq!(assembly_count, 2 * color_count);
+            assert_eq!(singleton_count, 3);
+            assert!(assembly_count < 2 * column_count);
+            if let Some(previous) = previous_color_count.replace(color_count) {
+                assert_eq!(previous, color_count);
+            }
             assert!(step.probed_moving_fluid_cell_count() > 0);
             assert!(step.gcl_active_moving_fluid_cell_count() > 0);
             assert!(step.compatible_constant_free_stream_residual_norm() < 1.0e-12);
@@ -120,11 +144,6 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
             assert!(step.interface_action_imbalance_norm() < 1.0e-9);
             assert!(step.interface_power_imbalance().abs() < 1.0e-9);
         }
-        assert!(
-            trajectory.steps().windows(2).all(|steps| {
-                steps[0].jacobian_color_count() == steps[1].jacobian_color_count()
-            })
-        );
     }
 
     let coarse_medium = solid_displacement_mass_distance(

@@ -10,8 +10,6 @@ use eqiora_core::Diagnostic;
 use eqiora_meshing::FixedTopologyGeometryAction;
 use eqiora_meshing::{AffineGeometryLinearization, QuadratureRule, SimplicialMesh};
 
-use crate::jacobian_audit::CenteredJacobianAuditEvidence;
-
 use super::api::{AleFsiInterfaceAction, AleFsiStepEvidence, AleFsiStepEvidenceInput};
 use super::assembly::{StepAssembly, assemble_step_linearization};
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
@@ -23,7 +21,6 @@ use crate::simplicial_fsi::FixedReferenceFsiPartition;
 pub(super) struct NewtonEvidence {
     pub(super) iterations: usize,
     pub(super) initial_residual_norm: f64,
-    pub(super) jacobian_audit: CenteredJacobianAuditEvidence,
     pub(super) linear_solves: Vec<eqiora_solver::SolveReport>,
 }
 
@@ -163,7 +160,6 @@ pub(super) fn accept_step<const D: usize>(
             kinematic_residual_norm,
             interface_velocity_jump_norm,
             interface_actions,
-            jacobian_audit: newton.jacobian_audit,
             probed_moving_fluid_cell_count: free_stream.probed_moving_fluid_cell_count,
             gcl_active_moving_fluid_cell_count: free_stream.gcl_active_moving_fluid_cell_count,
             compatible_constant_free_stream_residual_norm: free_stream.residual_norm,

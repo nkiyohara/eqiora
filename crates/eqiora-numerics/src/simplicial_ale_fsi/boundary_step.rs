@@ -8,7 +8,6 @@ use eqiora_meshing::{MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh, V
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType};
 
 use super::api::AleFsiStepEvidence;
-use super::assembly::build_step_jacobian_pattern_prepared;
 use super::contract::{AleFsiState, AleFsiStepPlan};
 use super::newton::solve_one_step;
 use super::{P1HarmonicMeshMotionAction, invalid};
@@ -370,6 +369,37 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
         layout.reduce(&vertex_velocity, &bubbles, &pressure)
     }
 
+    pub(super) fn reduce_current_point(
+        &self,
+        current: &AleFsiState<D>,
+        plan: AleFsiStepPlan<D>,
+        layout: &FsiLayout<D>,
+    ) -> Result<Vec<f64>, Diagnostic> {
+        if current.time().to_bits() != self.current_endpoint.time_bits() {
+            return Err(invalid(
+                "ALE FSI verification state differs from its prepared current endpoint",
+            ));
+        }
+        let velocity_scale = plan.scale().velocity();
+        let pressure_scale = plan.scale().pressure();
+        let velocity = current
+            .vertex_velocity()
+            .iter()
+            .map(|value| value.map(|component| component / velocity_scale))
+            .collect::<Vec<_>>();
+        let bubbles = current
+            .fluid_cell_bubble_velocity()
+            .iter()
+            .map(|value| value.map(|component| component / velocity_scale))
+            .collect::<Vec<_>>();
+        let pressure = current
+            .fluid_pressure()
+            .iter()
+            .map(|value| value / pressure_scale)
+            .collect::<Vec<_>>();
+        layout.reduce(&velocity, &bubbles, &pressure)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn reconstruct_current_state(
         &self,
@@ -528,19 +558,8 @@ pub(crate) fn advance_simplicial_ale_fsi_prepared_step<const D: usize>(
     previous.validate_against(reference, partition, motion)?;
     prepared.validate_inputs(reference, partition, motion, previous, plan, quadrature)?;
     let boundary = prepared.as_boundary();
-    let jacobian_pattern =
-        build_step_jacobian_pattern_prepared(reference, partition, prepared, motion)?;
     solve_one_step::<D>(
-        reference,
-        partition,
-        &boundary,
-        motion,
-        previous,
-        plan,
-        quadrature,
-        &jacobian_pattern,
-        assembly,
-        solver,
+        reference, partition, &boundary, motion, previous, plan, quadrature, assembly, solver,
     )
 }
 

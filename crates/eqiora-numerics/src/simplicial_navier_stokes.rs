@@ -11,6 +11,7 @@ mod api;
 mod assembly;
 pub(crate) mod element;
 mod newton;
+mod verification;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
