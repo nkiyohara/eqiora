@@ -154,6 +154,11 @@ fn validate_spatial_operator_types(
             match (left, right) {
                 (Some(left), Some(right)) => {
                     let result = match operator {
+                        BinaryOp::Add | BinaryOp::Sub if left.dimension != right.dimension => {
+                            // Preserve the established flat-lowerer diagnostic,
+                            // which reports the two dimensions compactly.
+                            return Ok(None);
+                        }
                         BinaryOp::Add | BinaryOp::Sub => typing::additive(&left, &right),
                         BinaryOp::Mul => typing::multiply(&left, &right),
                         BinaryOp::Div => typing::divide(&left, &right),
@@ -164,7 +169,10 @@ fn validate_spatial_operator_types(
                             typing::power(&left, exponent)
                         }
                     };
-                    Some(result.map_err(|error| spatial_type_error(file, expression, error))?)
+                    // Arithmetic diagnostics retain their established owner
+                    // and graph path. Successful composition is needed here
+                    // only to type a surrounding spatial operator.
+                    result.ok()
                 }
                 _ => None,
             }
@@ -188,10 +196,7 @@ fn validate_spatial_operator_types(
                     typing::isotropic_lift(&operand)
                         .map_err(|error| spatial_type_error(file, expression, error))?,
                 ),
-                ("sin", Some(operand)) => Some(
-                    typing::sine(&operand)
-                        .map_err(|error| spatial_type_error(file, expression, error))?,
-                ),
+                ("sin", Some(operand)) => typing::sine(&operand).ok(),
                 _ => None,
             }
         }
