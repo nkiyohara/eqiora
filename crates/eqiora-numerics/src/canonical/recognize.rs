@@ -88,43 +88,113 @@ pub(crate) fn lower_volume_relation(
 ) -> Result<(ScalarSpatialExpression, ScalarSpatialExpression), Diagnostic> {
     let expression = relation_expression(program, relation)?;
     let root = unique_root(expression, relation)?;
-    let (operator, source) = match expression.node(root) {
-        Some(ExprNode::Sub(operator, source)) => (*operator, Some(*source)),
-        _ => (root, None),
-    };
-    let divergence = match expression.node(operator) {
-        Some(ExprNode::Neg(value)) => *value,
-        _ => {
-            return Err(lowering_error(
+    if let Some((flux, source)) = scalar_volume_top_roles(expression, root) {
+        let coefficient = lower_flux_coefficient(
+            program,
+            expression,
+            flux,
+            field,
+            relation,
+            coordinate_dimension,
+        )?;
+        let source = match source {
+            Some(source) => spatial_expression::lower(
+                program,
+                expression,
+                source,
                 relation,
-                "volume residual must start with `-div(...)`",
-            ));
-        }
-    };
-    let flux = match expression.node(divergence) {
-        Some(ExprNode::Divergence(value)) => *value,
-        _ => {
-            return Err(lowering_error(
-                relation,
-                "volume residual must contain physical divergence",
-            ));
-        }
+                coordinate_dimension,
+            )?,
+            None => ScalarSpatialExpression::constant(coordinate_dimension, 0.0),
+        };
+        return Ok((coefficient, source));
+    }
+    let view = crate::additive_residual::AdditiveResidualView::derive(expression, root, relation)?;
+    if !(1..=2).contains(&view.leaves().len()) {
+        return Err(view.mismatch(
+            "scalar elliptic volume residual requires one divergence and at most one source leaf",
+        ));
+    }
+    let divergence_leaves = view
+        .leaves()
+        .iter()
+        .filter_map(|leaf| match expression.node(leaf.value()) {
+            Some(ExprNode::Divergence(flux)) => Some((leaf, *flux)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(operator, flux)] = divergence_leaves.as_slice() else {
+        return Err(view.mismatch(
+            "scalar elliptic volume residual requires exactly one physical divergence leaf",
+        ));
     };
     let coefficient = lower_flux_coefficient(
         program,
         expression,
-        flux,
+        *flux,
         field,
         relation,
         coordinate_dimension,
     )?;
-    let source = match source {
-        Some(source) => {
-            spatial_expression::lower(program, expression, source, relation, coordinate_dimension)?
+    let sources = view
+        .leaves()
+        .iter()
+        .filter(|leaf| leaf.value() != operator.value())
+        .collect::<Vec<_>>();
+    let source = match sources.as_slice() {
+        [] => ScalarSpatialExpression::constant(coordinate_dimension, 0.0),
+        [source] if source.sign() == operator.sign() => spatial_expression::lower(
+            program,
+            expression,
+            source.value(),
+            relation,
+            coordinate_dimension,
+        )?,
+        _ => {
+            return Err(view.mismatch(
+                "scalar elliptic divergence and source must have the same sign, up to whole-equation reversal",
+            ));
         }
-        None => ScalarSpatialExpression::constant(coordinate_dimension, 0.0),
     };
     Ok((coefficient, source))
+}
+
+fn scalar_volume_top_roles(expression: &ExprDag, root: ExprId) -> Option<(ExprId, Option<ExprId>)> {
+    match expression.node(root)? {
+        ExprNode::Sub(left, right) => {
+            if let Some(flux) = negative_divergence_flux(expression, *left) {
+                Some((flux, Some(*right)))
+            } else {
+                negative_divergence_flux(expression, *right).map(|flux| (flux, Some(*left)))
+            }
+        }
+        ExprNode::Add(left, right) => {
+            match (
+                negative_divergence_flux(expression, *left),
+                expression.node(*right),
+            ) {
+                (Some(flux), Some(ExprNode::Neg(source))) => Some((flux, Some(*source))),
+                _ => positive_divergence_flux(expression, *left).map(|flux| (flux, Some(*right))),
+            }
+        }
+        ExprNode::Neg(_) => negative_divergence_flux(expression, root).map(|flux| (flux, None)),
+        ExprNode::Divergence(flux) => Some((*flux, None)),
+        _ => None,
+    }
+}
+
+fn negative_divergence_flux(expression: &ExprDag, value: ExprId) -> Option<ExprId> {
+    let ExprNode::Neg(divergence) = expression.node(value)? else {
+        return None;
+    };
+    positive_divergence_flux(expression, *divergence)
+}
+
+fn positive_divergence_flux(expression: &ExprDag, value: ExprId) -> Option<ExprId> {
+    let ExprNode::Divergence(flux) = expression.node(value)? else {
+        return None;
+    };
+    Some(*flux)
 }
 
 pub(crate) fn lower_cartesian_boundary_relation(
@@ -136,16 +206,104 @@ pub(crate) fn lower_cartesian_boundary_relation(
 ) -> Result<ScalarEllipticCartesianBoundary, Diagnostic> {
     let expression = relation_expression(program, relation)?;
     let root = unique_root(expression, relation)?;
-    let (operator, value) = match expression.node(root) {
-        Some(ExprNode::Sub(operator, value)) => (*operator, Some(*value)),
-        _ => (root, None),
-    };
-    let value = match value {
-        Some(value) => {
-            spatial_expression::lower(program, expression, value, relation, coordinate_dimension)?
+    let legacy_roles = match expression.node(root) {
+        Some(ExprNode::Sub(operator, value))
+            if matches!(
+                expression.node(*operator),
+                Some(ExprNode::Trace(_)) | Some(ExprNode::NormalComponent(_))
+            ) =>
+        {
+            Some((*operator, Some(*value)))
         }
-        None => ScalarSpatialExpression::constant(coordinate_dimension, 0.0),
+        Some(ExprNode::Trace(_)) | Some(ExprNode::NormalComponent(_)) => Some((root, None)),
+        _ => None,
     };
+    if let Some((operator, value)) = legacy_roles {
+        let value = match value {
+            Some(value) => spatial_expression::lower(
+                program,
+                expression,
+                value,
+                relation,
+                coordinate_dimension,
+            )?,
+            None => ScalarSpatialExpression::constant(coordinate_dimension, 0.0),
+        };
+        return lower_scalar_boundary_operator(
+            program,
+            expression,
+            operator,
+            value,
+            relation,
+            field,
+            volume_coefficient,
+            coordinate_dimension,
+        );
+    }
+    let view = crate::additive_residual::AdditiveResidualView::derive(expression, root, relation)?;
+    if !(1..=2).contains(&view.leaves().len()) {
+        return Err(view.mismatch(
+            "scalar elliptic boundary residual requires one boundary operator and at most one value leaf",
+        ));
+    }
+    let operators = view
+        .leaves()
+        .iter()
+        .filter(|leaf| {
+            matches!(
+                expression.node(leaf.value()),
+                Some(ExprNode::Trace(_)) | Some(ExprNode::NormalComponent(_))
+            )
+        })
+        .collect::<Vec<_>>();
+    let [operator] = operators.as_slice() else {
+        return Err(view.mismatch(
+            "scalar elliptic boundary residual requires exactly one trace or normal-flux leaf",
+        ));
+    };
+    let values = view
+        .leaves()
+        .iter()
+        .filter(|leaf| leaf.value() != operator.value())
+        .collect::<Vec<_>>();
+    let value = match values.as_slice() {
+        [] => ScalarSpatialExpression::constant(coordinate_dimension, 0.0),
+        [value] if value.sign().is_opposite(operator.sign()) => spatial_expression::lower(
+            program,
+            expression,
+            value.value(),
+            relation,
+            coordinate_dimension,
+        )?,
+        _ => {
+            return Err(view.mismatch(
+                "scalar elliptic boundary value must oppose its operator, up to whole-equation reversal",
+            ));
+        }
+    };
+    lower_scalar_boundary_operator(
+        program,
+        expression,
+        operator.value(),
+        value,
+        relation,
+        field,
+        volume_coefficient,
+        coordinate_dimension,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_scalar_boundary_operator(
+    program: &KernelProgram,
+    expression: &ExprDag,
+    operator: ExprId,
+    value: ScalarSpatialExpression,
+    relation: RawId,
+    field: RawId,
+    volume_coefficient: &ScalarSpatialExpression,
+    coordinate_dimension: usize,
+) -> Result<ScalarEllipticCartesianBoundary, Diagnostic> {
     match expression.node(operator) {
         Some(ExprNode::Trace(trace_operand)) if is_field(expression, *trace_operand, field) => {
             Ok(ScalarEllipticCartesianBoundary::Essential(value))

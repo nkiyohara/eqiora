@@ -335,6 +335,64 @@ fn lowers_exact_meaning_without_numerical_choices() {
 }
 
 #[test]
+fn admits_additive_stokes_orientations_without_rewriting_the_model() {
+    let additive = SOURCE
+        .replace(
+            "force_potential - load_scale * coordinate(0) / length_scale = 0;",
+            "force_potential + -(load_scale * coordinate(0) / length_scale) = 0;",
+        )
+        .replace(
+            ") - grad(force_potential) = 0;",
+            ") + -grad(force_potential) = 0;",
+        );
+    let additive_program = compile_program(&additive);
+    let additive_identity = (additive_program.model(), additive_program.revision());
+    let additive_model = lower_steady_incompressible_stokes_cartesian_2d(&additive_program)
+        .expect("additively grouped Stokes roles lower");
+    assert_eq!(
+        (additive_program.model(), additive_program.revision()),
+        additive_identity
+    );
+    assert_eq!(additive_model.dynamic_viscosity(), 2.5);
+    assert!(
+        (additive_model
+            .force_potential_expression()
+            .evaluate(&[0.4, 0.0])
+            .unwrap()
+            - 0.6)
+            .abs()
+            < 1.0e-15
+    );
+
+    let reversed = SOURCE
+        .replace(
+            "force_potential - load_scale * coordinate(0) / length_scale = 0;",
+            "load_scale * coordinate(0) / length_scale - force_potential = 0;",
+        )
+        .replace("-div(\n      2 * mu", "div(\n      2 * mu")
+        .replace(
+            ") - grad(force_potential) = 0;",
+            ") + grad(force_potential) = 0;",
+        )
+        .replace("div(velocity) = 0;", "-div(velocity) = 0;")
+        .replace("trace(velocity) = 0;", "-trace(velocity) = 0;");
+    lower_steady_incompressible_stokes_cartesian_2d(&compile_program(&reversed))
+        .expect("whole-equation Stokes sign reversal lowers");
+}
+
+#[test]
+fn rejects_inconsistent_or_duplicate_additive_stokes_roles() {
+    assert_rejected(&SOURCE.replace(
+        ") - grad(force_potential) = 0;",
+        ") + grad(force_potential) = 0;",
+    ));
+    assert_rejected(&SOURCE.replace(
+        ") - grad(force_potential) = 0;",
+        ") - grad(force_potential) - grad(force_potential) = 0;",
+    ));
+}
+
+#[test]
 fn retains_exact_flux_zero_meaning_without_claiming_a_realization() {
     let source = SOURCE.replace(
         "relation x_upper_zero continuous on x_upper { trace(velocity) = 0; }",
@@ -379,6 +437,24 @@ fn lowers_direct_normal_pressure_without_leaking_it_into_shared_boundary_meaning
     assert!(pressure.coefficient_field().is_some());
     assert!(pressure.definition_relation().is_some());
     assert_eq!(pressure.expression().constant_value(), Some(4.5));
+}
+
+#[test]
+fn lowers_natural_equality_normal_pressure_orientation() {
+    let source = source_with_normal_pressure('+').replace(
+        ") + normal(isotropic_lift(ambient_pressure)) = 0;",
+        ") = -normal(isotropic_lift(ambient_pressure));",
+    );
+    let model = lower_steady_incompressible_stokes_cartesian_2d(&compile_program(&source))
+        .expect("natural equality pressure orientation lowers");
+    assert_eq!(
+        model
+            .normal_pressure(0, BoundarySide::Upper)
+            .expect("normal-pressure tape")
+            .expression()
+            .constant_value(),
+        Some(4.5)
+    );
 }
 
 #[test]

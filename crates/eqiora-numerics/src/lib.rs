@@ -4,6 +4,7 @@
 //! surface is organized by scientific responsibility. Implementation modules
 //! and lowering bridges remain private; each public item has one owner path.
 
+mod additive_residual;
 mod affine_fem;
 mod assembled_linearization;
 mod canonical;

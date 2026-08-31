@@ -7,6 +7,7 @@ use eqiora_sem::KernelProgram;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
 
 use super::support::{is_field, lowering_error};
+use crate::additive_residual::AdditiveResidualView;
 
 /// Exact constitutive carrier selected by one private semantic lowerer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,13 +24,30 @@ pub(super) fn momentum_viscous_root(
     owner: RawId,
 ) -> Result<Option<ExprId>, Diagnostic> {
     let expression = residual.expression();
-    let Some(ExprNode::Sub(operator, forcing)) = expression.node(root) else {
+    let view = AdditiveResidualView::derive(expression, root, owner)?;
+    if view.leaves().len() != 2 {
         return Ok(None);
-    };
-    let Some(ExprNode::Neg(divergence)) = expression.node(*operator) else {
-        return Ok(None);
-    };
-    let Some(ExprNode::Divergence(stress)) = expression.node(*divergence) else {
+    }
+    let divergences = view
+        .leaves()
+        .iter()
+        .filter_map(|leaf| match expression.node(leaf.value()) {
+            Some(ExprNode::Divergence(stress)) => Some((leaf, *stress)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let forcings = view
+        .leaves()
+        .iter()
+        .filter(|leaf| {
+            matches!(
+                expression.node(leaf.value()),
+                Some(ExprNode::Gradient(force_value))
+                    if is_field(expression, *force_value, force_potential)
+            )
+        })
+        .collect::<Vec<_>>();
+    let ([(divergence, stress)], [forcing]) = (divergences.as_slice(), forcings.as_slice()) else {
         return Ok(None);
     };
     let Some(viscous) =
@@ -37,10 +55,12 @@ pub(super) fn momentum_viscous_root(
     else {
         return Ok(None);
     };
-    let Some(ExprNode::Gradient(force_value)) = expression.node(*forcing) else {
-        return Ok(None);
-    };
-    Ok(is_field(expression, *force_value, force_potential).then_some(viscous))
+    if divergence.sign() != forcing.sign() {
+        return Err(view.mismatch(
+            "Stokes momentum divergence and force-gradient roles must have the same sign, up to whole-equation reversal",
+        ));
+    }
+    Ok(Some(viscous))
 }
 
 /// Lower the dynamic-viscosity tape from one exact Newtonian stress value.
@@ -288,6 +308,23 @@ pub(super) fn is_divergence_of_field(expression: &ExprDag, value: ExprId, field:
     )
 }
 
+pub(super) fn is_additive_divergence_of_field(
+    expression: &ExprDag,
+    root: ExprId,
+    field: RawId,
+    owner: RawId,
+) -> Result<bool, Diagnostic> {
+    let view = AdditiveResidualView::derive(expression, root, owner)?;
+    Ok(matches!(
+        view.leaves(),
+        [leaf]
+            if matches!(
+                expression.node(leaf.value()),
+                Some(ExprNode::Divergence(argument)) if is_field(expression, *argument, field)
+            )
+    ))
+}
+
 pub(super) fn load_definition_root(
     expression: &ExprDag,
     root: ExprId,
@@ -297,4 +334,58 @@ pub(super) fn load_definition_root(
         return None;
     };
     is_field(expression, *left, field).then_some(*right)
+}
+
+pub(super) fn additive_load_definition_root(
+    expression: &ExprDag,
+    root: ExprId,
+    field: RawId,
+    owner: RawId,
+) -> Result<Option<ExprId>, Diagnostic> {
+    match expression.node(root) {
+        Some(ExprNode::Sub(left, right)) if is_field(expression, *left, field) => {
+            return Ok(Some(*right));
+        }
+        Some(ExprNode::Sub(left, right)) if is_field(expression, *right, field) => {
+            return Ok(Some(*left));
+        }
+        Some(ExprNode::Add(left, right)) if is_field(expression, *left, field) => {
+            if let Some(ExprNode::Neg(source)) = expression.node(*right) {
+                return Ok(Some(*source));
+            }
+        }
+        Some(ExprNode::Add(left, right)) => match expression.node(*left) {
+            Some(ExprNode::Neg(negated_field)) if is_field(expression, *negated_field, field) => {
+                return Ok(Some(*right));
+            }
+            _ => {}
+        },
+        _ => {}
+    }
+    let view = AdditiveResidualView::derive(expression, root, owner)?;
+    if view.leaves().len() != 2 {
+        return Ok(None);
+    }
+    let fields = view
+        .leaves()
+        .iter()
+        .filter(|leaf| is_field(expression, leaf.value(), field))
+        .collect::<Vec<_>>();
+    let [field_leaf] = fields.as_slice() else {
+        return Ok(None);
+    };
+    let sources = view
+        .leaves()
+        .iter()
+        .filter(|leaf| leaf.value() != field_leaf.value())
+        .collect::<Vec<_>>();
+    let [source] = sources.as_slice() else {
+        return Ok(None);
+    };
+    if !field_leaf.sign().is_opposite(source.sign()) {
+        return Err(view.mismatch(
+            "Stokes field-definition roles must have opposite signs, up to whole-equation reversal",
+        ));
+    }
+    Ok(Some(source.value()))
 }
