@@ -10,6 +10,8 @@ import ResultFigure from '../../../components/gallery/ResultFigure.astro';
 import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
 import geometryDiagram from '../../../assets/gallery/exact-cylinder-geometry.svg';
 import pressureImage from '../../../assets/gallery/exact-cylinder-pressure-presentation.png';
+import admittedPressureImage from '../../../assets/gallery/exact-cylinder-pressure.png';
+import publication from '../../../data/gallery/exact-cylinder-steady-stokes.publication.json';
 
 **Static walkthrough · canonical Marimo source available**
 
@@ -267,6 +269,19 @@ pressure_figure = eqplot.plot_scalar_field(result, field=plan.capability.pressur
 Color and pixel values are presentation only. This current image is separate
 from the retained historical publication artifact; it is not validation and
 does not establish flow quality.
+
+<ResultFigure
+  src={admittedPressureImage.src}
+  alt={publication.publication_payload.text.alt}
+  caption={publication.publication_payload.text.caption}
+  units="Pa"
+  sourcePath="examples/python/exact_cylinder_stokes.py"
+  sourceLabel="View the runnable pressure example"
+/>
+
+The historical admitted image above remains unchanged so existing publication
+links stay exact. The current fine-mesh presentation is the first figure in this
+stage; neither image is a numerical or mesh-output oracle.
 
 </NotebookStage>
 

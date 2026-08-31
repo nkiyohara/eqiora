@@ -4,7 +4,8 @@ description: Source-traced, static walkthroughs built from admitted Eqiora resul
 ---
 
 import GalleryGrid from '../../../components/gallery/GalleryGrid.astro';
-import pressureImage from '../../../assets/gallery/exact-cylinder-pressure-presentation.png';
+import pressureImage from '../../../assets/gallery/exact-cylinder-pressure.png';
+import publication from '../../../data/gallery/exact-cylinder-steady-stokes.publication.json';
 import displacementImage from '../../../assets/gallery/mixed-boundary-elasticity-displacement.png';
 import elasticityPublication from '../../../data/gallery/mixed-boundary-elasticity.publication.json';
 import startupPoster from '../../../assets/gallery/transient-cylinder-startup-poster.png';
@@ -27,9 +28,9 @@ claim.
     {
       href: '/gallery/exact-cylinder-steady-stokes/',
       title: 'Exact-cylinder steady Stokes',
-      description: 'A static, source-traced walkthrough of one fine-mesh 2D steady incompressible Stokes demonstration.',
+      description: 'A static, source-traced walkthrough of one frozen 2D steady incompressible Stokes demonstration.',
       imageSrc: pressureImage.src,
-      imageAlt: 'Pressure field from the current fine-mesh steady Stokes cylinder presentation.',
+      imageAlt: publication.publication_payload.text.alt,
       tags: ['Python', '2D', 'steady Stokes'],
     },
     {

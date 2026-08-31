@@ -7,7 +7,8 @@ template: splash
 import { Aside, Card, CardGrid, LinkButton, LinkCard } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
-import pressureImage from '../../assets/gallery/exact-cylinder-pressure-presentation.png';
+import pressureImage from '../../assets/gallery/exact-cylinder-pressure.png';
+import publication from '../../data/gallery/exact-cylinder-steady-stokes.publication.json';
 
 Eqiora is an open-source, meaning-first foundation for scientific modeling, simulation, differentiation, and execution.
 
@@ -25,9 +26,9 @@ That separation lets block diagrams, acausal physical networks, PDE fields, hybr
 ## Featured walkthrough
 
 <Card title="Exact-cylinder steady Stokes">
-  Follow one fine-mesh 2D steady-Stokes problem from model definition and named boundaries through one submit/Result path to a presentation-only static pressure image.
+  Follow one frozen 2D steady-Stokes problem from model definition and named boundaries through one submit/Result path to an independently admitted static pressure image.
 
-  <img src={pressureImage.src} alt="Pressure field from the current fine-mesh steady Stokes cylinder presentation." />
+  <img src={pressureImage.src} alt={publication.publication_payload.text.alt} />
 
   **Python** · **2D** · **steady Stokes**
 
