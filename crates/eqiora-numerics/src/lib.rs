@@ -10,6 +10,8 @@ mod assembled_linearization;
 mod canonical;
 mod canonical_boundary;
 mod canonical_elasticity;
+#[allow(dead_code)]
+mod canonical_euler;
 mod canonical_fsi;
 mod canonical_stokes;
 mod canonical_transport;
