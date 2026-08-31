@@ -29,8 +29,9 @@ The bounded `eqiora.lang.Source` draft additionally authors one equations-only
 Component as deterministic readable `.eqi`. Direct Source compilation and
 emitted-file compilation both enter the existing Rust parser, type checker,
 lowerer, and Geometry binder; Python owns neither equation meaning nor a second
-lowerer. The initial vocabulary is exactly the one needed by the complete
-steady-cylinder Stokes Component.
+lowerer. Its immutable `math.pi` expression emits that exact spelling and leaves
+the value and dimension to the native compiler. The initial vocabulary is
+exactly the one needed by the complete steady-cylinder Stokes Component.
 
 Start with the complete [five-minute example](../get-started.md), then read
 the maintained

@@ -184,7 +184,7 @@ def scalar_primal_source():
         on=region,
         residual=(
             -q.div(diffusion * q.grad(potential))
-            - source_scale * q.sin(wave_number * q.coordinate(0))
+            - source_scale * q.sin(q.math.pi * wave_number * q.coordinate(0))
         ),
     )
     law.primal_form(
@@ -197,18 +197,21 @@ def scalar_primal_source():
             region,
             q.test(potential)
             * source_scale
-            * q.sin(wave_number * q.coordinate(0)),
+            * q.sin(q.math.pi * wave_number * q.coordinate(0)),
         ),
         doc="Authored scalar primal form.",
     )
     return source
 
 
-def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form() -> None:
+def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form(
+    tmp_path: Path,
+) -> None:
     source = scalar_primal_source()
     text = source.to_eqi()
     assert "form primal for balance" in text
     assert "// Authored scalar primal form." in text
+    assert text.count("math.pi") == 2
 
     model = eqiora.compile(
         source=source,
@@ -221,6 +224,15 @@ def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form() -> 
     assert len(form.source_identity) == 64
     assert form.filename == "<python-source>"
     assert form.trial_field_id in model.field_ids
+
+    path = tmp_path / "scalar-primal.eqi"
+    source.write_eqi(path)
+    emitted = eqiora.compile(
+        path=path,
+        geometry=rectangle_geometry(),
+        parameters={"diffusion": 1.0, "wave_number": 2.0, "source_scale": 2.0},
+    )
+    assert emitted.digest == model.digest
 
     replayed = eqiora.Model.from_bytes(model.to_bytes())
     assert replayed.authored_formulations == ()
@@ -368,6 +380,15 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
         with pytest.raises(q.SourceError):
             operation()
 
+    assert isinstance(q.math.pi, q.Expression)
+    assert q.math.pi is q.math.pi
+    with pytest.raises(TypeError):
+        float(q.math.pi)
+    with pytest.raises(AttributeError):
+        q.math.pi = left_value
+    with pytest.raises(q.SourceError, match="different Source"):
+        q.math.pi + left_value + right_value
+
     with pytest.raises(q.SourceError):
         q.Source().component("not-valid")
     with pytest.raises(q.SourceError):
@@ -375,7 +396,7 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
     with pytest.raises(q.SourceError):
         left_component.field("huge", on=left_volume, unit=u.m, initial=1 << 1025)
 
-    deep = q.coordinate(0)
+    deep = q.math.pi
     with pytest.raises(q.SourceError):
         for _ in range(100):
             deep = q.grad(deep)
