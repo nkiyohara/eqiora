@@ -37,8 +37,8 @@ from eqiora import lang as q
 from eqiora.lang import units as u
 
 source = q.Source()
-component = source.component("Diffusion", public=True)
-body = component.volume("body", dimensions=2, public=True)
+component = source.component("Diffusion")
+body = component.volume("body", dimensions=2)
 value = component.field("value", on=body, unit=u.m)
 length = component.parameter("length", unit=u.m)
 wave_number = q.math.pi / length

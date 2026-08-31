@@ -24,12 +24,12 @@ u = q.units
 
 def cylinder_source(*, doc="Equations-only steady incompressible flow component.", velocity_shape=q.spatial_vector):
     source = q.Source()
-    stokes = source.component("SteadyFlowPastCylinder", public=True, doc=doc)
-    fluid = stokes.volume("fluid", dimensions=2, public=True)
-    inlet = stokes.boundary("inlet", parent=fluid, public=True)
-    outlet = stokes.boundary("outlet", parent=fluid, public=True)
-    walls = stokes.boundary("walls", parent=fluid, public=True)
-    cylinder = stokes.boundary("cylinder", parent=fluid, public=True)
+    stokes = source.component("SteadyFlowPastCylinder", doc=doc)
+    fluid = stokes.volume("fluid", dimensions=2)
+    inlet = stokes.boundary("inlet", parent=fluid)
+    outlet = stokes.boundary("outlet", parent=fluid)
+    walls = stokes.boundary("walls", parent=fluid)
+    cylinder = stokes.boundary("cylinder", parent=fluid)
 
     dynamic_viscosity = stokes.parameter("dynamic_viscosity", unit=u.kg / (u.m * u.s))
     zero_pressure = stokes.parameter("zero_pressure", unit=u.kg / (u.m * u.s**2))

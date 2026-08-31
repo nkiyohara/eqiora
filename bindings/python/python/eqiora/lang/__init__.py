@@ -574,13 +574,8 @@ class Component:
         name: str,
         *,
         dimensions: int,
-        public: bool = True,
         doc: str | None = None,
     ) -> Support:
-        if public is not True:
-            raise SourceError(
-                "the initial Source vocabulary admits only public supports"
-            )
         if isinstance(dimensions, bool) or not isinstance(dimensions, int):
             raise TypeError("volume dimensions must be an integer")
         if not 1 <= dimensions <= 15:
@@ -597,13 +592,8 @@ class Component:
         name: str,
         *,
         parent: Support,
-        public: bool = True,
         doc: str | None = None,
     ) -> Support:
-        if public is not True:
-            raise SourceError(
-                "the initial Source vocabulary admits only public supports"
-            )
         parent = self._support(parent)
         if parent._kind != "volume":
             raise SourceError("a boundary parent must be a volume from this Component")
@@ -619,13 +609,8 @@ class Component:
         name: str,
         *,
         unit: Unit,
-        public: bool = True,
         doc: str | None = None,
     ) -> Expression:
-        if public is not True:
-            raise SourceError(
-                "the initial Source vocabulary admits only public parameters"
-            )
         if not isinstance(unit, Unit):
             raise TypeError("unit must be an eqiora.lang.units.Unit")
         admitted = self._add_name(name)
@@ -638,13 +623,8 @@ class Component:
         name: str,
         *,
         contract: PropertyContract,
-        public: bool = True,
         doc: str | None = None,
     ) -> Expression:
-        if public is not True:
-            raise SourceError(
-                "the scalar property Source vocabulary admits only public requirements"
-            )
         if not isinstance(contract, PropertyContract) or contract._owner is not self._owner:
             raise SourceError("property contract must belong to this Source")
         admitted = self._add_name(name)
@@ -953,14 +933,9 @@ class Source:
         self,
         name: str,
         *,
-        public: bool = True,
         doc: str | None = None,
     ) -> Component:
         self._ensure_open()
-        if public is not True:
-            raise SourceError(
-                "the bounded Source vocabulary admits only public Components"
-            )
         maximum = 2 if self._contract is not None else 1
         if len(self._components) >= maximum:
             if maximum == 1:
@@ -984,14 +959,11 @@ class Source:
         name: str,
         *,
         unit: Unit,
-        public: bool = True,
         doc: str | None = None,
     ) -> PropertyContract:
         self._ensure_open()
         if self._components:
             raise SourceError("property declarations must precede Components")
-        if public is not True:
-            raise SourceError("the scalar property contract must be public")
         if self._contract is not None:
             raise SourceError("Source admits exactly one scalar property contract")
         if not isinstance(unit, Unit):
@@ -1019,17 +991,13 @@ class Source:
         value: int | float,
         source_unit: Unit,
         source_scale: int | float,
-        validity: str = "unconditional",
         citation: str,
         license: str,
-        public: bool = True,
         doc: str | None = None,
     ) -> PropertyRelease:
         self._ensure_open()
         if self._components:
             raise SourceError("property declarations must precede Components")
-        if public is not True:
-            raise SourceError("the scalar property release must be public")
         if self._release is not None:
             raise SourceError("Source admits exactly one scalar property release")
         if (
@@ -1044,8 +1012,6 @@ class Source:
         _number(source_scale)
         if source_scale <= 0:
             raise SourceError("source_scale must be finite and strictly positive")
-        if validity != "unconditional":
-            raise SourceError("the scalar property Source admits unconditional validity only")
         admitted = _name(name)
         if admitted in self._top_names:
             raise SourceError(f"duplicate top-level declaration name {admitted!r}")

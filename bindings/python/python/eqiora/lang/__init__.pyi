@@ -73,7 +73,6 @@ class Component:
         name: str,
         *,
         dimensions: int,
-        public: bool = True,
         doc: str | None = None,
     ) -> Support: ...
     def boundary(
@@ -81,7 +80,6 @@ class Component:
         name: str,
         *,
         parent: Support,
-        public: bool = True,
         doc: str | None = None,
     ) -> Support: ...
     def parameter(
@@ -89,7 +87,6 @@ class Component:
         name: str,
         *,
         unit: _Unit,
-        public: bool = True,
         doc: str | None = None,
     ) -> Expression: ...
     def property(
@@ -97,7 +94,6 @@ class Component:
         name: str,
         *,
         contract: PropertyContract,
-        public: bool = True,
         doc: str | None = None,
     ) -> Expression: ...
     def field(
@@ -149,7 +145,6 @@ class Source:
         self,
         name: str,
         *,
-        public: bool = True,
         doc: str | None = None,
     ) -> Component: ...
     def scalar_property_contract(
@@ -157,7 +152,6 @@ class Source:
         name: str,
         *,
         unit: _Unit,
-        public: bool = True,
         doc: str | None = None,
     ) -> PropertyContract: ...
     def scalar_property_release(
@@ -168,10 +162,8 @@ class Source:
         value: int | float,
         source_unit: _Unit,
         source_scale: int | float,
-        validity: str = "unconditional",
         citation: str,
         license: str,
-        public: bool = True,
         doc: str | None = None,
     ) -> PropertyRelease: ...
     def to_eqi(self) -> str: ...
