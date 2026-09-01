@@ -21,9 +21,10 @@ use eqiora_solver::{
 
 use super::{
     COMPONENTS, CartesianEssentialSides2d, CartesianQ1VectorField2d, DIMENSION, global_dof,
-    invalid, validate_problem,
+    invalid, require_cell_rule, require_two_dimensional_mesh,
 };
 use crate::form_compiler::compile_cartesian_q1_elasticity_form_2d;
+use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::spatial_expression::ScalarSpatialExpression;
 use eqiora_meshing::CartesianMesh;
 
@@ -375,8 +376,7 @@ impl FinalizedConformingCartesianElasticityPair2dState {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
     meshes: [CartesianMesh; 2],
-    shear_moduli: [f64; 2],
-    first_lame_parameters: [f64; 2],
+    materials: [IsotropicElasticityMaterial<DIMENSION>; 2],
     body_force_potentials: [&ScalarSpatialExpression; 2],
     quadrature: &QuadratureRule,
     interface_axis: usize,
@@ -384,12 +384,8 @@ pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
     assembly: &dyn AssemblyBackend,
 ) -> Result<FinalizedConformingCartesianElasticityPair2dAssembly, Diagnostic> {
     for subdomain in 0..2 {
-        validate_problem(
-            &meshes[subdomain],
-            shear_moduli[subdomain],
-            first_lame_parameters[subdomain],
-            quadrature,
-        )?;
+        require_two_dimensional_mesh(&meshes[subdomain])?;
+        require_cell_rule(&meshes[subdomain], quadrature)?;
         if body_force_potentials[subdomain].coordinate_dimension() != DIMENSION {
             return Err(invalid(format!(
                 "elasticity body-force potential for subdomain {subdomain} expects {} coordinates, not {DIMENSION}",
@@ -484,8 +480,8 @@ pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
         let local = operator.evaluate(
             &geometry,
             quadrature,
-            shear_moduli[subdomain],
-            first_lame_parameters[subdomain],
+            materials[subdomain].shear_modulus(),
+            materials[subdomain].first_lame_parameter(),
             Some(body_force_potentials[subdomain]),
         )?;
         let vertices = mesh

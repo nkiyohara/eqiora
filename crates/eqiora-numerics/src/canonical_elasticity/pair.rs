@@ -368,11 +368,7 @@ pub fn finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, execution.points_per_axis)?;
     let assembly = finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
         meshes,
-        model.subdomains.each_ref().map(|body| body.shear_modulus()),
-        model
-            .subdomains
-            .each_ref()
-            .map(|body| body.first_lame_parameter()),
+        model.subdomains.each_ref().map(|body| body.material()),
         model
             .subdomains
             .each_ref()

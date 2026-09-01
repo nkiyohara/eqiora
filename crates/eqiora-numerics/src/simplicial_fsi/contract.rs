@@ -38,13 +38,26 @@ impl<const D: usize> FixedReferenceFsiMaterial<D> {
         require_supported_dimension::<D>()?;
         let solid =
             IsotropicElasticityMaterial::<D>::new(solid_shear_modulus, solid_first_lame_parameter);
+        let Some(solid) = solid else {
+            return Err(invalid(
+                "fixed-reference FSI material data must be finite and coercive in its admitted dimension",
+            ));
+        };
+        Self::from_admitted_solid(fluid_density, fluid_dynamic_viscosity, solid_density, solid)
+    }
+
+    pub(crate) fn from_admitted_solid(
+        fluid_density: f64,
+        fluid_dynamic_viscosity: f64,
+        solid_density: f64,
+        solid: IsotropicElasticityMaterial<D>,
+    ) -> Result<Self, Diagnostic> {
         if !fluid_density.is_finite()
             || fluid_density <= 0.0
             || !fluid_dynamic_viscosity.is_finite()
             || fluid_dynamic_viscosity <= 0.0
             || !solid_density.is_finite()
             || solid_density <= 0.0
-            || solid.is_none()
         {
             return Err(invalid(
                 "fixed-reference FSI material data must be finite and coercive in its admitted dimension",
@@ -54,7 +67,7 @@ impl<const D: usize> FixedReferenceFsiMaterial<D> {
             fluid_density,
             fluid_dynamic_viscosity,
             solid_density,
-            solid: solid.expect("validated dimension-coercive solid material"),
+            solid,
         })
     }
 

@@ -678,12 +678,11 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
         partition,
         LinearSolveRequest::new(harmonic_backend, motion_policy.solver()),
     )?;
-    let material = FixedReferenceFsiMaterial::<D>::new(
+    let material = FixedReferenceFsiMaterial::<D>::from_admitted_solid(
         model.fluid().mass_density(),
         model.fluid().dynamic_viscosity(),
         model.solid().mass_density(),
-        model.solid().shear_modulus(),
-        model.solid().first_lame_parameter(),
+        model.solid().material(),
     )?;
     let step_plan = AleFsiStepPlan::<D>::new(
         plan.fluid_time_step().duration().value(),
