@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use crate::canonical::{
-    ScalarEllipticCartesianBoundary, lower_scalar_elliptic_cartesian_with_resources,
+    ScalarEllipticCartesianBoundary, geometry_cartesian_support, lower_steady_scalar_conservation,
 };
 use crate::canonical_elasticity::{
     IsotropicElasticityCartesianModel2d, finalize_isotropic_elasticity_cartesian_q1_on_mesh,
@@ -57,6 +57,7 @@ use crate::scalar::{
     CartesianScalarFieldLinearization, ResolvedScalarEllipticCartesianSolution,
     ScalarEllipticCartesianModel,
 };
+use crate::scalar_conservation::{ScalarRegionSupport, recognize_scalar_conservation_on_supports};
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::step_count::NonZeroStepCount;
 use eqiora_artifact::{

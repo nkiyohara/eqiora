@@ -269,7 +269,13 @@ pub(crate) fn lower_scalar_candidate(
             "scalar elliptic lowering requires authenticated Cartesian resources",
         ));
     };
-    lower_scalar_elliptic_cartesian_with_resources(program, geometry, mesh, correspondence)
+    let (domain, bounds, boundaries) =
+        geometry_cartesian_support(program, geometry, mesh, correspondence)?;
+    let descriptor = recognize_scalar_conservation_on_supports(
+        program,
+        vec![ScalarRegionSupport::new(domain, bounds, boundaries)],
+    )?;
+    lower_steady_scalar_conservation(program, &descriptor)
 }
 
 pub(crate) fn require_policy_compatibility(

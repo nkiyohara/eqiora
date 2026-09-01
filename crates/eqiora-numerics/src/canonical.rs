@@ -1,13 +1,11 @@
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
-use eqiora_artifact::{CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1};
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::Id;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, GraphPath, RawId};
-use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::EdgeKind;
 use eqiora_meshing::{
     LineMesh, MeshTopology, QuadratureRule, SimplicialMesh, simplex_centroid_rule,
@@ -704,17 +702,6 @@ pub fn lower_scalar_elliptic_cartesian(
     lower_scalar_elliptic_cartesian_support(program, domain, bounds, boundary_domains)
 }
 
-pub(crate) fn lower_scalar_elliptic_cartesian_with_resources(
-    program: &KernelProgram,
-    geometry: &CanonicalGeometryV1,
-    mesh: &CartesianMeshEnvelopeV1,
-    correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
-) -> Result<ScalarEllipticCartesianModel, Diagnostic> {
-    let (domain, bounds, boundary_domains) =
-        geometry_cartesian_support(program, geometry, mesh, correspondence)?;
-    lower_scalar_elliptic_cartesian_support(program, domain, bounds, boundary_domains)
-}
-
 fn lower_scalar_elliptic_cartesian_support(
     program: &KernelProgram,
     domain: RawId,
@@ -772,6 +759,8 @@ fn lower_scalar_elliptic_cartesian_support(
 
 mod scalar_coefficient;
 pub(crate) use scalar_coefficient::validate_positive_affine_coefficient;
+mod scalar_conservation_projection;
+pub(crate) use scalar_conservation_projection::lower_steady_scalar_conservation;
 mod geometry_support;
 pub(crate) use geometry_support::{
     geometry_cartesian_support, geometry_rectangle_cartesian_support,

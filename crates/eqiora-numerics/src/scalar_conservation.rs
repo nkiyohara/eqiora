@@ -300,6 +300,27 @@ pub(crate) struct ScalarConservationDescriptor {
     parameters: Vec<Id<kinds::Parameter>>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ScalarRegionSupport {
+    domain: RawId,
+    bounds: Vec<[f64; 2]>,
+    boundaries: BTreeMap<(usize, BoundarySide), RawId>,
+}
+
+impl ScalarRegionSupport {
+    pub(crate) fn new(
+        domain: RawId,
+        bounds: Vec<[f64; 2]>,
+        boundaries: BTreeMap<(usize, BoundarySide), RawId>,
+    ) -> Self {
+        Self {
+            domain,
+            bounds,
+            boundaries,
+        }
+    }
+}
+
 impl ScalarConservationDescriptor {
     pub(crate) const fn model(&self) -> OntologyId<Model> {
         self.model
@@ -335,6 +356,13 @@ pub(crate) fn recognize_scalar_conservation(
     program: &KernelProgram,
 ) -> Result<ScalarConservationDescriptor, Diagnostic> {
     recognize::recognize_scalar_conservation(program)
+}
+
+pub(crate) fn recognize_scalar_conservation_on_supports(
+    program: &KernelProgram,
+    supports: Vec<ScalarRegionSupport>,
+) -> Result<ScalarConservationDescriptor, Diagnostic> {
+    recognize::recognize_scalar_conservation_on_supports(program, supports)
 }
 
 #[cfg(test)]
