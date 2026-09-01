@@ -35,13 +35,12 @@ use super::{
 use crate::discrete_block::DiscreteBlockSystem;
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_navier_stokes::{
-    MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d,
+    MiniNavierStokesStepPlan2d, PreparedStepStructure, SimplicialMiniNavierStokesState2d,
     SimplicialMiniNavierStokesStepEvidence2d,
-    advance_simplicial_mini_navier_stokes_2d_with_assembly,
+    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure, prepare_step_structure,
 };
 use crate::simplicial_stokes::{
-    SimplicialMiniStokesBoundary2d, SimplicialMiniStokesPressureReference2d,
-    SimplicialMiniVelocityField2d,
+    SimplicialMiniStokesPressureReference2d, SimplicialMiniVelocityField2d,
 };
 use crate::step_count::NonZeroStepCount;
 
@@ -434,11 +433,11 @@ pub(crate) struct PreparedResolvedTransientMiniRun2d<'a> {
     mesh_artifact: MeshArtifactReference,
     physical_mesh: &'a SimplicialMesh,
     normalized: NormalizedCartesianSimplicialMesh2d,
-    boundary: SimplicialMiniStokesBoundary2d,
     scales: IncompressibleFlowScaleProfile2d,
     numerical_plan: MiniNavierStokesStepPlan2d,
     realization_graph: PortableRealizationGraph,
     block_system: DiscreteBlockSystem,
+    step_structure: PreparedStepStructure,
     assembly: &'a dyn AssemblyBackend,
     cell_quadrature: QuadratureRule,
     facet_quadrature: QuadratureRule,
@@ -488,12 +487,9 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
             let force = common.conservative_body_force(&coordinate)?;
             Ok([length * force[0] / pressure, length * force[1] / pressure])
         };
-        let essential_velocity =
-            |coordinate_hat| boundary::essential_velocity(model, scales, coordinate_hat);
-        let numerical = advance_simplicial_mini_navier_stokes_2d_with_assembly(
+        let numerical = advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
             &self.normalized.mesh,
-            &self.boundary,
-            &essential_velocity,
+            &self.step_structure,
             &body_force,
             numerical_initial,
             run.step_count,
@@ -589,6 +585,9 @@ fn prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly<'a>(
         resolved,
         scales,
     )?;
+    let essential_velocity =
+        |coordinate_hat| boundary::essential_velocity(&model, scales, coordinate_hat);
+    let step_structure = prepare_step_structure(&normalized.mesh, &boundary, &essential_velocity)?;
     Ok(PreparedResolvedTransientMiniRun2d {
         model,
         common,
@@ -596,11 +595,11 @@ fn prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly<'a>(
         mesh_artifact,
         physical_mesh: mesh.mesh(),
         normalized,
-        boundary,
         scales,
         numerical_plan,
         realization_graph,
         block_system,
+        step_structure,
         assembly,
         cell_quadrature: triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?,
         facet_quadrature: simplex_duffy_gauss_legendre(DIMENSION - 1, 2)?,

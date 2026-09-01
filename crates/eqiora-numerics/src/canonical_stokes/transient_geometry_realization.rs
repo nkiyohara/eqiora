@@ -34,7 +34,8 @@ use super::navier_stokes_realization::{
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 use crate::discrete_block::DiscreteBlockSystem;
 use crate::simplicial_navier_stokes::{
-    MiniNavierStokesStepPlan2d, advance_simplicial_mini_navier_stokes_2d_with_assembly,
+    MiniNavierStokesStepPlan2d, PreparedStepStructure,
+    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure, prepare_step_structure,
 };
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
@@ -306,8 +307,7 @@ pub(crate) struct PreparedResolvedTransientGeometryMiniRun2d<'a> {
     mesh_artifact: MeshArtifactReference,
     physical_mesh: &'a SimplicialMesh,
     normalized: SimplicialMesh,
-    geometry_boundary: TransientGeometryBoundary2d,
-    fixed_velocity: BTreeMap<(u64, u64), [f64; DIMENSION]>,
+    step_structure: PreparedStepStructure,
     scales: IncompressibleFlowScaleProfile2d,
     numerical_plan: MiniNavierStokesStepPlan2d,
     block_system: DiscreteBlockSystem,
@@ -339,17 +339,6 @@ impl PreparedResolvedTransientGeometryMiniRun2d<'_> {
                 "transient Navier--Stokes initial fields are stale for the selected mesh artifact",
             ));
         }
-        let fixed_velocity = &self.fixed_velocity;
-        let essential_velocity = |coordinate: [f64; DIMENSION]| {
-            fixed_velocity
-                .get(&(coordinate[0].to_bits(), coordinate[1].to_bits()))
-                .copied()
-                .ok_or_else(|| {
-                    invalid_realization(
-                        "an essential geometry vertex is absent from correspondence-derived trace data",
-                    )
-                })
-        };
         let numerical_initial =
             normalize_state(&initial, &self.normalized, self.scales, self.with_gauge)?;
         let checked_assembly = self
@@ -366,10 +355,9 @@ impl PreparedResolvedTransientGeometryMiniRun2d<'_> {
             let force = common.conservative_body_force(&coordinate)?;
             Ok([length * force[0] / pressure, length * force[1] / pressure])
         };
-        let numerical = advance_simplicial_mini_navier_stokes_2d_with_assembly(
+        let numerical = advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
             &self.normalized,
-            &self.geometry_boundary.boundary,
-            &essential_velocity,
+            &self.step_structure,
             &body_force,
             numerical_initial,
             run.step_count(),
@@ -437,7 +425,7 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
             geometry_boundary.fixed_velocity[index]
                 .map(|value| ((coordinate[0].to_bits(), coordinate[1].to_bits()), value))
         })
-        .collect();
+        .collect::<BTreeMap<_, _>>();
     let block_system = super::block::transient_navier_stokes_block_system(
         program,
         common,
@@ -447,13 +435,27 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
         resolved,
         scales,
     )?;
+    let essential_velocity = |coordinate: [f64; DIMENSION]| {
+        fixed_velocity
+            .get(&(coordinate[0].to_bits(), coordinate[1].to_bits()))
+            .copied()
+            .ok_or_else(|| {
+                invalid_realization(
+                    "an essential geometry vertex is absent from correspondence-derived trace data",
+                )
+            })
+    };
+    let step_structure = prepare_step_structure(
+        &normalized,
+        &geometry_boundary.boundary,
+        &essential_velocity,
+    )?;
     Ok(PreparedResolvedTransientGeometryMiniRun2d {
         binding,
         mesh_artifact,
         physical_mesh: mesh.mesh(),
         normalized,
-        geometry_boundary,
-        fixed_velocity,
+        step_structure,
         scales,
         numerical_plan,
         block_system,
