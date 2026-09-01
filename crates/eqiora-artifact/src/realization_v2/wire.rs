@@ -494,7 +494,9 @@ impl WireMesh {
             MeshPolicy::ImportedSimplicial { artifact } => Ok(Self::ImportedSimplicial {
                 artifact_sha256: ArtifactDigest::from_sha256(artifact.sha256()).to_string(),
             }),
-            MeshPolicy::SuppliedCartesian { .. } => Err(invalid_artifact(
+            MeshPolicy::SuppliedCartesian { .. }
+            | MeshPolicy::SuppliedCartesian1d { .. }
+            | MeshPolicy::SuppliedCartesian3d { .. } => Err(invalid_artifact(
                 "realization-envelope/v2--v5 cannot encode supplied Cartesian mesh policy",
             )),
         }

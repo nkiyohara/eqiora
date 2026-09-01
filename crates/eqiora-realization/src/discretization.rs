@@ -113,6 +113,20 @@ pub enum MeshPolicy {
         /// Exact non-zero cell counts on the two Cartesian axes.
         cells: [NonZeroUsize; 2],
     },
+    /// Use one caller-supplied one-dimensional Cartesian mesh artifact.
+    SuppliedCartesian1d {
+        /// Content identity resolved by the artifact/control plane.
+        artifact: MeshArtifactReference,
+        /// Exact non-zero cell count on the Cartesian axis.
+        cells: [NonZeroUsize; 1],
+    },
+    /// Use one caller-supplied three-dimensional Cartesian mesh artifact.
+    SuppliedCartesian3d {
+        /// Content identity resolved by the artifact/control plane.
+        artifact: MeshArtifactReference,
+        /// Exact non-zero cell counts on the three Cartesian axes.
+        cells: [NonZeroUsize; 3],
+    },
     /// Use one independently versioned affine-simplex mesh artifact.
     ImportedSimplicial {
         /// Content identity resolved by the artifact/control plane.
@@ -126,7 +140,9 @@ impl MeshPolicy {
     pub const fn kind(self) -> MeshKind {
         match self {
             Self::GeneratedUniform { .. } => MeshKind::GeneratedCartesian,
-            Self::SuppliedCartesian { .. } => MeshKind::SuppliedCartesian,
+            Self::SuppliedCartesian { .. }
+            | Self::SuppliedCartesian1d { .. }
+            | Self::SuppliedCartesian3d { .. } => MeshKind::SuppliedCartesian,
             Self::ImportedSimplicial { .. } => MeshKind::ImportedAffineSimplicial,
         }
     }
@@ -207,13 +223,19 @@ impl Discretization {
             (
                 DiscretizationMethod::ContinuousGalerkin,
                 SpaceFamily::ContinuousLagrange { .. },
-                MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. },
+                MeshPolicy::GeneratedUniform { .. }
+                | MeshPolicy::SuppliedCartesian { .. }
+                | MeshPolicy::SuppliedCartesian1d { .. }
+                | MeshPolicy::SuppliedCartesian3d { .. },
                 QuadraturePolicy::GaussLegendre { .. },
             )
             | (
                 DiscretizationMethod::CellCenteredFiniteVolume,
                 SpaceFamily::CellConstant,
-                MeshPolicy::GeneratedUniform { .. } | MeshPolicy::SuppliedCartesian { .. },
+                MeshPolicy::GeneratedUniform { .. }
+                | MeshPolicy::SuppliedCartesian { .. }
+                | MeshPolicy::SuppliedCartesian1d { .. }
+                | MeshPolicy::SuppliedCartesian3d { .. },
                 QuadraturePolicy::CellCentroid,
             ) => Ok(()),
             (

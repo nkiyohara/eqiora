@@ -712,6 +712,11 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_cell_centered_run_2d<'a>(
         .mesh()
     {
         MeshPolicy::SuppliedCartesian { artifact, cells } => (artifact, cells),
+        MeshPolicy::SuppliedCartesian1d { .. } | MeshPolicy::SuppliedCartesian3d { .. } => {
+            return Err(invalid_realization(
+                "collocated common execution requires a two-dimensional supplied Cartesian envelope",
+            ));
+        }
         MeshPolicy::GeneratedUniform { .. } => {
             return Err(invalid_realization(
                 "collocated common execution requires the exact supplied Cartesian envelope",

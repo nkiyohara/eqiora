@@ -1181,7 +1181,7 @@ fn solve_resolved_scalar_elliptic_1d_impl(
                 "interval v0 execution requires a generated uniform mesh",
             ));
         }
-        MeshPolicy::SuppliedCartesian { .. } => {
+        _ => {
             return Err(invalid_realization(
                 "interval execution does not admit a supplied Cartesian mesh",
             ));
@@ -1479,7 +1479,7 @@ pub fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
                 "Cartesian v0 execution requires a generated uniform mesh; use the simplicial realization entry point for an imported mesh",
             ));
         }
-        MeshPolicy::SuppliedCartesian { .. } => {
+        _ => {
             return Err(invalid_realization(
                 "legacy Cartesian execution does not admit a supplied mesh",
             ));
@@ -1700,7 +1700,7 @@ pub fn solve_resolved_scalar_elliptic_simplicial_with_assembly(
                 "simplicial execution requires an imported mesh policy",
             ));
         }
-        MeshPolicy::SuppliedCartesian { .. } => {
+        _ => {
             return Err(invalid_realization(
                 "simplicial execution does not admit a supplied Cartesian mesh",
             ));
@@ -1861,7 +1861,7 @@ fn linearize_accepted_scalar_elliptic_cartesian(
                 "Cartesian linearization requires the generated mesh used by its successful primal solve",
             ));
         }
-        MeshPolicy::SuppliedCartesian { .. } => {
+        _ => {
             return Err(invalid_realization(
                 "legacy Cartesian linearization does not admit a supplied mesh",
             ));

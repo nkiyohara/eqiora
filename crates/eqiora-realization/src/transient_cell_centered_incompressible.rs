@@ -319,7 +319,9 @@ impl TransientCellCenteredIncompressibleFlowRealizationPlan {
         let cells = match spatial.discretization().mesh() {
             MeshPolicy::GeneratedUniform { cells_per_axis } => [cells_per_axis; 2],
             MeshPolicy::SuppliedCartesian { cells, .. } => cells,
-            MeshPolicy::ImportedSimplicial { .. } => {
+            MeshPolicy::SuppliedCartesian1d { .. }
+            | MeshPolicy::SuppliedCartesian3d { .. }
+            | MeshPolicy::ImportedSimplicial { .. } => {
                 unreachable!("the exact Cartesian-mesh match above already succeeded")
             }
         };
