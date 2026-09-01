@@ -152,14 +152,16 @@ DIRECT_PINS = {
     "katex": "0.18.4",
     "@playwright/test": "1.62.1",
     "@axe-core/playwright": "4.13.0",
+    "axe-core": "4.13.0",
 }
+DEVELOPMENT_PACKAGES = {"@playwright/test", "@axe-core/playwright", "axe-core"}
 RUNTIME_PINS = {
     name: version
     for name, version in DIRECT_PINS.items()
-    if name not in {"@playwright/test", "@axe-core/playwright"}
+    if name not in DEVELOPMENT_PACKAGES
 }
 DEVELOPMENT_PINS = {
-    name: version for name, version in DIRECT_PINS.items() if name not in RUNTIME_PINS
+    name: version for name, version in DIRECT_PINS.items() if name in DEVELOPMENT_PACKAGES
 }
 ROOT_DEPENDENCY_SECTIONS = {
     "dependencies": RUNTIME_PINS,
