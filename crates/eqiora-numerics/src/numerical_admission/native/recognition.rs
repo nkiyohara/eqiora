@@ -106,7 +106,7 @@ pub(crate) fn resource_artifact_digests(
 
 pub(crate) fn recognize_capability(
     program: &KernelProgram,
-    scalar: &Result<ScalarEllipticCartesianModel, Diagnostic>,
+    scalar: &Result<ExecutableSteadyScalarConservation, Diagnostic>,
     transient: &Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
     transient_geometry: &Result<(), Diagnostic>,
     fsi: &Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
@@ -171,7 +171,7 @@ pub(crate) fn recognize_exact_model(
     capability: NativeCapability,
     program: &KernelProgram,
     resources: &NativeMeshResources,
-    scalar: Result<ScalarEllipticCartesianModel, Diagnostic>,
+    scalar: Result<ExecutableSteadyScalarConservation, Diagnostic>,
     transient: Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
     fsi: Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
@@ -257,7 +257,7 @@ pub(crate) fn recognize_exact_model(
 pub(crate) fn lower_scalar_candidate(
     program: &KernelProgram,
     resources: &NativeMeshResources,
-) -> Result<ScalarEllipticCartesianModel, Diagnostic> {
+) -> Result<ExecutableSteadyScalarConservation, Diagnostic> {
     let NativeMeshResources::Cartesian {
         geometry,
         mesh,
@@ -275,7 +275,7 @@ pub(crate) fn lower_scalar_candidate(
         program,
         vec![ScalarRegionSupport::new(domain, bounds, boundaries)],
     )?;
-    lower_steady_scalar_conservation(program, &descriptor)
+    ExecutableSteadyScalarConservation::new(program, descriptor)
 }
 
 pub(crate) fn require_policy_compatibility(

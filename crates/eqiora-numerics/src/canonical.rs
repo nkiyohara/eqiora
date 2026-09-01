@@ -760,7 +760,7 @@ fn lower_scalar_elliptic_cartesian_support(
 mod scalar_coefficient;
 pub(crate) use scalar_coefficient::validate_positive_affine_coefficient;
 mod scalar_conservation_projection;
-pub(crate) use scalar_conservation_projection::lower_steady_scalar_conservation;
+pub(crate) use scalar_conservation_projection::project_scalar_conservation_for_differentiation;
 mod geometry_support;
 pub(crate) use geometry_support::{
     geometry_cartesian_support, geometry_rectangle_cartesian_support,

@@ -1,43 +1,21 @@
 use std::collections::BTreeMap;
 
-use eqiora_core::Diagnostic;
-use eqiora_schema::kernel::BoundarySide;
-use eqiora_sem::KernelProgram;
-
+use crate::form_compiler::DerivedScalarGalerkinForm;
 use crate::scalar_conservation::{ScalarConservationDescriptor, ScalarExteriorLaw};
 use crate::spatial_expression::ScalarSpatialExpression;
 
 use super::{
     ScalarEllipticCartesianBoundary, ScalarEllipticCartesianModel, collect_parameter_coordinates,
-    derive_candidate_with_dimension, lowering_error, model_lowering_error,
 };
 
-pub(crate) fn lower_steady_scalar_conservation(
-    program: &KernelProgram,
+pub(crate) fn project_scalar_conservation_for_differentiation(
     descriptor: &ScalarConservationDescriptor,
-) -> Result<ScalarEllipticCartesianModel, Diagnostic> {
-    if descriptor.model() != program.model()
-        || descriptor.semantic_revision() != program.revision().0
-    {
-        return Err(model_lowering_error(
-            program,
-            "scalar-conservation descriptor differs from the exact Kernel Program",
-        ));
-    }
-    let regions = descriptor.regions().collect::<Vec<_>>();
-    let [region] = regions.as_slice() else {
-        return Err(model_lowering_error(
-            program,
-            "steady Cartesian execution requires exactly one scalar-conservation region",
-        ));
-    };
-    if region.storage().is_some() || descriptor.interfaces().len() != 0 {
-        return Err(lowering_error(
-            region.domain(),
-            "steady Cartesian execution does not admit storage or material interfaces",
-        ));
-    }
-
+    compiled_form: Option<&DerivedScalarGalerkinForm>,
+) -> ScalarEllipticCartesianModel {
+    let region = descriptor
+        .regions()
+        .next()
+        .expect("steady scalar admission owns exactly one region");
     let dimension = region.dimensions();
     let coefficient = region.flux().coefficient().clone();
     let source = region.source().map_or_else(
@@ -57,28 +35,15 @@ pub(crate) fn lower_steady_scalar_conservation(
                 ScalarSpatialExpression::constant(dimension, 0.0),
             ),
             ScalarExteriorLaw::Robin { .. } => {
-                return Err(lowering_error(
-                    boundary.boundary(),
-                    "steady Cartesian Q1/TPFA execution does not yet admit Robin boundaries",
-                ));
+                unreachable!("steady scalar admission rejects Robin boundaries")
             }
         };
         boundaries.insert((boundary.axis(), boundary.side()), condition);
     }
-    for axis in 0..dimension {
-        for side in [BoundarySide::Lower, BoundarySide::Upper] {
-            if !boundaries.contains_key(&(axis, side)) {
-                return Err(lowering_error(
-                    region.domain(),
-                    format!("steady Cartesian execution is missing boundary axis {axis} {side:?}"),
-                ));
-            }
-        }
-    }
 
     let (parameter_fields, parameter_values) =
         collect_parameter_coordinates(&coefficient, &source, &boundaries);
-    Ok(ScalarEllipticCartesianModel {
+    ScalarEllipticCartesianModel {
         semantic_model: descriptor.model(),
         semantic_revision: descriptor.semantic_revision(),
         domain: region.domain(),
@@ -89,6 +54,6 @@ pub(crate) fn lower_steady_scalar_conservation(
         boundaries,
         parameter_fields,
         parameter_values,
-        compiled_form: derive_candidate_with_dimension(program, region.domain(), dimension)?,
-    })
+        compiled_form: compiled_form.cloned(),
+    }
 }
