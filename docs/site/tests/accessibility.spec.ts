@@ -13,24 +13,30 @@ import {
   assertOrdinaryRoutePlan,
   assertParentCylinderRed,
   assertParentForcedTableBoundary,
+  assertProductTableRouteInvariant,
   assertProductTableRouteGreen,
   assertReducedMotion,
   assertSemanticStages,
   assertSupportedStatement,
-  assertTableInventory,
   assertVisibleSourceFallback,
   attachGrossScreenshot,
   BASE_URL,
+  conditionDependentAxeRuleIds,
   createOrdinaryRoutePlan,
   DIAGNOSTIC_ROUTE,
   installTableObserver,
   launchOfficialBrowser,
   layoutCssState,
+  measureSitePhase,
+  navigateSitePage,
   PARENT_LAYOUT_SHA256,
   rejectExternalRequests,
+  reportSitePhaseMetrics,
+  resetSitePhaseMetrics,
   ROUTES,
   SITE_ROUTES,
   TABLE_ROUTES,
+  type ConditionAxeProjection,
 } from './support';
 
 async function assertCylinderContent(page: Page): Promise<void> {
@@ -82,8 +88,7 @@ async function runOrdinaryChunk(id: 'A' | 'B' | 'C'): Promise<void> {
   const external = await rejectExternalRequests(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   for (const route of plan[id]) {
-    const response = await page.goto(route);
-    expect(response?.ok(), route).toBe(true);
+    await navigateSitePage(page, route);
     await assertOrdinaryRoutePage(page, route);
     if (route !== '/gallery/exact-cylinder-steady-stokes/') {
       await assertNoSeriousAxeViolations(page);
@@ -94,18 +99,29 @@ async function runOrdinaryChunk(id: 'A' | 'B' | 'C'): Promise<void> {
   expect(context.pages()).toEqual([]);
 }
 
+type ProductTableProjection = 'invariant' | 'dynamic' | 'forced-color';
+
 type ProductTableMatrixCell = Readonly<{
   forcedColors: 'none' | 'active';
   width: 1280 | 390 | 320;
+  projections: readonly ProductTableProjection[];
 }>;
 
 const PRODUCT_TABLE_MATRIX = [
-  { forcedColors: 'none', width: 1280 },
-  { forcedColors: 'none', width: 390 },
-  { forcedColors: 'none', width: 320 },
-  { forcedColors: 'active', width: 1280 },
-  { forcedColors: 'active', width: 390 },
-  { forcedColors: 'active', width: 320 },
+  {
+    forcedColors: 'none',
+    width: 1280,
+    projections: ['invariant', 'dynamic', 'forced-color'],
+  },
+  { forcedColors: 'none', width: 390, projections: ['dynamic'] },
+  { forcedColors: 'none', width: 320, projections: ['dynamic'] },
+  {
+    forcedColors: 'active',
+    width: 1280,
+    projections: ['dynamic', 'forced-color'],
+  },
+  { forcedColors: 'active', width: 390, projections: ['dynamic'] },
+  { forcedColors: 'active', width: 320, projections: ['dynamic'] },
 ] as const satisfies readonly ProductTableMatrixCell[];
 
 const EXPECTED_PRODUCT_TABLE_MATRIX_KEYS = [
@@ -119,6 +135,19 @@ const EXPECTED_PRODUCT_TABLE_MATRIX_KEYS = [
 
 function tableMatrixKey(cell: ProductTableMatrixCell): string {
   return `${cell.forcedColors}/${cell.width}`;
+}
+
+function hasTableProjection(
+  cell: ProductTableMatrixCell,
+  projection: ProductTableProjection,
+): boolean {
+  return cell.projections.includes(projection);
+}
+
+function axeProjectionForCell(
+  cell: ProductTableMatrixCell,
+): ConditionAxeProjection {
+  return hasTableProjection(cell, 'forced-color') ? 'forced-color' : 'scroll-only';
 }
 
 function validateProductTableMatrix(plan: readonly ProductTableMatrixCell[]): void {
@@ -143,6 +172,22 @@ function validateProductTableMatrix(plan: readonly ProductTableMatrixCell[]): vo
       `TABLE-MATRIX-ORDER: ${actualKeys[outOfOrder]} at ${outOfOrder}, expected ${expectedKeys[outOfOrder]}`,
     );
   }
+  const invariantCells = plan.filter((cell) => hasTableProjection(cell, 'invariant'));
+  if (invariantCells.length !== 1 || tableMatrixKey(invariantCells[0]) !== 'none/1280') {
+    throw new Error(
+      `TABLE-MATRIX-INVARIANT: ${invariantCells.map(tableMatrixKey).join(',') || 'missing'}`,
+    );
+  }
+  const missingDynamic = plan.find((cell) => !hasTableProjection(cell, 'dynamic'));
+  if (missingDynamic) {
+    throw new Error(`TABLE-MATRIX-DYNAMIC: ${tableMatrixKey(missingDynamic)}`);
+  }
+  const forcedColorKeys = plan
+    .filter((cell) => hasTableProjection(cell, 'forced-color'))
+    .map(tableMatrixKey);
+  if (forcedColorKeys.join(',') !== 'none/1280,active/1280') {
+    throw new Error(`TABLE-MATRIX-FORCED-COLOR: ${forcedColorKeys.join(',') || 'missing'}`);
+  }
 }
 
 function assertProductTableMatrixPlan(): void {
@@ -163,6 +208,42 @@ function assertProductTableMatrixPlan(): void {
   expect(() => validateProductTableMatrix(forcedBeforeOrdinary)).toThrow(
     'TABLE-MATRIX-ORDER: active/1280 at 0, expected none/1280',
   );
+
+  const omittedInvariant = positive.map((cell) => ({
+    ...cell,
+    projections: cell.projections.filter((projection) => projection !== 'invariant'),
+  }));
+  expect(() => validateProductTableMatrix(omittedInvariant)).toThrow(
+    'TABLE-MATRIX-INVARIANT: missing',
+  );
+
+  const duplicatedInvariant = positive.map((cell, index) => ({
+    ...cell,
+    projections:
+      index === 1 ? [...cell.projections, 'invariant' as const] : cell.projections,
+  }));
+  expect(() => validateProductTableMatrix(duplicatedInvariant)).toThrow(
+    'TABLE-MATRIX-INVARIANT: none/1280,none/390',
+  );
+
+  const omittedDynamic = positive.map((cell, index) => ({
+    ...cell,
+    projections:
+      index === 5
+        ? cell.projections.filter((projection) => projection !== 'dynamic')
+        : cell.projections,
+  }));
+  expect(() => validateProductTableMatrix(omittedDynamic)).toThrow(
+    'TABLE-MATRIX-DYNAMIC: active/320',
+  );
+
+  const omittedForcedColor = positive.map((cell) => ({
+    ...cell,
+    projections: cell.projections.filter((projection) => projection !== 'forced-color'),
+  }));
+  expect(() => validateProductTableMatrix(omittedForcedColor)).toThrow(
+    'TABLE-MATRIX-FORCED-COLOR: missing',
+  );
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -170,11 +251,13 @@ test.describe.configure({ mode: 'serial' });
 let browser: Browser;
 
 test.beforeAll(async () => {
+  resetSitePhaseMetrics();
   browser = await launchOfficialBrowser(true);
 });
 
 test.afterAll(async () => {
-  await browser?.close();
+  if (browser) await measureSitePhase('browserLifecycle', () => browser.close());
+  reportSitePhaseMetrics('accessibility.spec.ts');
 });
 
 for (const id of ['A', 'B', 'C'] as const) {
@@ -197,8 +280,7 @@ test('00D exact real Rustdoc Diagnostic ordinary chunk is complete and green', a
   const page = await context.newPage();
   const external = await rejectExternalRequests(page);
   await page.setViewportSize({ width: 1280, height: 900 });
-  const response = await page.goto(DIAGNOSTIC_ROUTE);
-  expect(response?.ok()).toBe(true);
+  await navigateSitePage(page, DIAGNOSTIC_ROUTE);
   await assertOrdinaryRoutePage(page, DIAGNOSTIC_ROUTE);
   await assertDiagnosticIdentity(page);
   expect(external).toEqual([]);
@@ -216,7 +298,7 @@ test('01 honest 320px O-1 through O-4 composition and retained interaction contr
   const page = await context.newPage();
   const external = await rejectExternalRequests(page);
   await page.setViewportSize({ width: 320, height: 844 });
-  await page.goto('/');
+  await navigateSitePage(page, '/');
   await assertHonest320Reflow(page);
   await assertNoPageOverflow(page);
   await assertMinimumTargetSizes(page.getByRole('banner').getByRole('link'));
@@ -225,7 +307,7 @@ test('01 honest 320px O-1 through O-4 composition and retained interaction contr
   await assertMinimumTargetSizes(page.getByRole('link', { name: 'Explore gallery', exact: true }));
   await assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Get started', exact: true }));
 
-  await page.goto('/gallery/exact-cylinder-steady-stokes/');
+  await navigateSitePage(page, '/gallery/exact-cylinder-steady-stokes/');
   await assertHonest320Reflow(page);
   await assertCoreVisible(page);
   await assertNoPageOverflow(page);
@@ -234,23 +316,23 @@ test('01 honest 320px O-1 through O-4 composition and retained interaction contr
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme, forcedColors: 'none' });
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto('/');
+    await navigateSitePage(page, '/');
     await attachGrossScreenshot(page, testInfo, `home-desktop-${colorScheme}`);
-    await page.goto('/gallery/exact-cylinder-steady-stokes/');
+    await navigateSitePage(page, '/gallery/exact-cylinder-steady-stokes/');
     await attachGrossScreenshot(page, testInfo, `cylinder-desktop-${colorScheme}`);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
+    await navigateSitePage(page, '/');
     await assertNoPageOverflow(page);
     await attachGrossScreenshot(page, testInfo, `home-mobile-${colorScheme}`);
-    await page.goto('/gallery/exact-cylinder-steady-stokes/');
+    await navigateSitePage(page, '/gallery/exact-cylinder-steady-stokes/');
     await assertNoPageOverflow(page);
     await attachGrossScreenshot(page, testInfo, `cylinder-mobile-${colorScheme}`);
   }
 
   await page.emulateMedia({ colorScheme: 'light', forcedColors: 'none', reducedMotion: 'reduce' });
-  await page.goto('/gallery/exact-cylinder-steady-stokes/');
+  await navigateSitePage(page, '/gallery/exact-cylinder-steady-stokes/');
   await assertReducedMotion(page);
-  await page.goto('/gallery/mixed-boundary-elasticity/');
+  await navigateSitePage(page, '/gallery/mixed-boundary-elasticity/');
   await assertReducedMotion(page);
   expect(external).toEqual([]);
   await context.close();
@@ -267,14 +349,21 @@ test('02 exact table inventory is complete before parent or product matrix resul
   const page = await context.newPage();
   await installTableObserver(page);
   const external = await rejectExternalRequests(page);
-  await page.setViewportSize({ width: 1280, height: 900 });
+  const invariantCell = PRODUCT_TABLE_MATRIX.find((cell) =>
+    hasTableProjection(cell, 'invariant'),
+  );
+  if (!invariantCell) throw new Error('TABLE-MATRIX-INVARIANT: missing');
+  await page.emulateMedia({ forcedColors: invariantCell.forcedColors });
+  await page.setViewportSize({ width: invariantCell.width, height: 900 });
 
   let tableTotal = 0;
   let directTotal = 0;
   let componentTotal = 0;
+  let invariantRoutes = 0;
   for (const expected of TABLE_ROUTES) {
-    await page.goto(expected.route);
-    await assertTableInventory(page, expected);
+    const observation = await assertProductTableRouteInvariant(page, expected);
+    expect(observation.counts.main).toBe(expected.tables);
+    invariantRoutes += 1;
     tableTotal += expected.tables;
     directTotal += expected.direct;
     componentTotal += expected.component;
@@ -284,7 +373,11 @@ test('02 exact table inventory is complete before parent or product matrix resul
     directTotal: 977,
     componentTotal: 1,
   });
-  await page.goto('/reference/python/eqiora/');
+  expect({ invariantRoutes, invariantTableVisits: tableTotal }).toEqual({
+    invariantRoutes: 6,
+    invariantTableVisits: 978,
+  });
+  await navigateSitePage(page, '/reference/python/eqiora/');
   await expect(page.locator('main table')).toHaveCount(0);
 
   expect(external).toEqual([]);
@@ -331,39 +424,81 @@ test('02A authenticated parent table boundary is complete or product sentinel is
   expect(context.pages()).toEqual([]);
 });
 
-for (const { forcedColors, width } of PRODUCT_TABLE_MATRIX) {
-  test(`02B product table matrix forcedColors=${forcedColors} width=${width} is complete or parent sentinel is exact`, async () => {
-    test.setTimeout(600_000);
-    const state = await layoutCssState();
-    if (state.parent) {
-      expect(state.sha256).toBe(PARENT_LAYOUT_SHA256);
-      return;
-    }
+test('02B exact product table matrix is complete or parent sentinel is exact', async () => {
+  test.setTimeout(1_200_000);
+  const state = await layoutCssState();
+  if (state.parent) {
+    expect(state.sha256).toBe(PARENT_LAYOUT_SHA256);
+    return;
+  }
 
-    expect(state.sha256).not.toBe(PARENT_LAYOUT_SHA256);
-    assertExactTableSelectorScope(state.css);
-    const context = await browser.newContext({
-      baseURL: BASE_URL,
-      locale: 'en-GB',
-      serviceWorkers: 'block',
-    });
-    const page = await context.newPage();
-    await installTableObserver(page);
-    const external = await rejectExternalRequests(page);
-    await page.emulateMedia({ forcedColors });
-    await page.setViewportSize({ width, height: 900 });
-
-    try {
-      for (const expected of TABLE_ROUTES) {
-        await assertProductTableRouteGreen(page, expected);
-      }
-      expect(external).toEqual([]);
-    } finally {
-      await context.close();
-    }
-    expect(context.pages()).toEqual([]);
+  expect(state.sha256).not.toBe(PARENT_LAYOUT_SHA256);
+  assertExactTableSelectorScope(state.css);
+  const context = await browser.newContext({
+    baseURL: BASE_URL,
+    locale: 'en-GB',
+    serviceWorkers: 'block',
   });
-}
+  const page = await context.newPage();
+  await installTableObserver(page);
+  const external = await rejectExternalRequests(page);
+  const work = {
+    cells: 0,
+    routes: 0,
+    tableVisits: 0,
+    dynamicProjections: 0,
+    conditionAxeCalls: 0,
+    conditionAxeRuleApplications: 0,
+    contexts: 1,
+    pages: 1,
+  };
+
+  try {
+    for (const cell of PRODUCT_TABLE_MATRIX) {
+      const key = tableMatrixKey(cell);
+      await test.step(`matrix ${key}`, async () => {
+        await page.emulateMedia({ forcedColors: cell.forcedColors });
+        await page.setViewportSize({ width: cell.width, height: 900 });
+        for (const expected of TABLE_ROUTES) {
+          const externalBefore = external.length;
+          await test.step(`${key} ${expected.route}`, async () => {
+            await assertProductTableRouteGreen(
+              page,
+              expected,
+              axeProjectionForCell(cell),
+            );
+            expect(
+              external.slice(externalBefore),
+              `external requests at ${key} ${expected.route}`,
+            ).toEqual([]);
+          });
+          work.routes += 1;
+          work.tableVisits += expected.tables;
+          work.dynamicProjections += 1;
+          work.conditionAxeCalls += 1;
+          work.conditionAxeRuleApplications += conditionDependentAxeRuleIds(
+            axeProjectionForCell(cell),
+          ).length;
+        }
+      });
+      work.cells += 1;
+    }
+    expect(external).toEqual([]);
+    expect(work).toEqual({
+      cells: 6,
+      routes: 36,
+      tableVisits: 5_868,
+      dynamicProjections: 36,
+      conditionAxeCalls: 36,
+      conditionAxeRuleApplications: 60,
+      contexts: 1,
+      pages: 1,
+    });
+  } finally {
+    await context.close();
+  }
+  expect(context.pages()).toEqual([]);
+});
 
 test('03 forced colours retain core content and exact non-table accessibility boundaries', async () => {
   test.setTimeout(300_000);
@@ -377,7 +512,7 @@ test('03 forced colours retain core content and exact non-table accessibility bo
   await page.emulateMedia({ forcedColors: 'active' });
   await page.setViewportSize({ width: 320, height: 844 });
   for (const route of ROUTES) {
-    await page.goto(route);
+    await navigateSitePage(page, route);
     await assertCoreVisible(page);
     await assertNoPageOverflow(page);
     if (route === '/gallery/exact-cylinder-steady-stokes/') {
@@ -387,7 +522,7 @@ test('03 forced colours retain core content and exact non-table accessibility bo
       await assertNoSeriousAxeViolations(page);
     }
   }
-  await page.goto('/');
+  await navigateSitePage(page, '/');
   await assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Get started', exact: true }));
   expect(external).toEqual([]);
   await context.close();

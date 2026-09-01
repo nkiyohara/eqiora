@@ -2,6 +2,7 @@ import { expect, test, type Browser } from '@playwright/test';
 
 import {
   assertCoreVisible,
+  assertConditionDependentAxeProjectionEquivalent,
   assertExactTableSelectorScope,
   assertHonest320Reflow,
   assertKeyboardFocusVisible,
@@ -11,6 +12,7 @@ import {
   assertNoSeriousAxeViolations,
   assertOrdinaryRoutePlan,
   assertSemanticStages,
+  assertSeriousAxeProjectionEquivalent,
   assertSupportedStatement,
   assertTableFixtureGreen,
   assertTableFixtureOnlyFailure,
@@ -82,7 +84,25 @@ test('00 official browser and every synthetic ordinary control pass first', asyn
   await installTableObserver(page);
   await page.setContent(positive);
   await assertCoreVisible(page);
+  await assertSeriousAxeProjectionEquivalent(page);
+  await assertConditionDependentAxeProjectionEquivalent(page);
   await assertNoSeriousAxeViolations(page);
+
+  await page.emulateMedia({ forcedColors: 'active' });
+  await page.setContent(positive);
+  await assertConditionDependentAxeProjectionEquivalent(page);
+  await page.emulateMedia({ forcedColors: 'none' });
+
+  await page.setContent(
+    positive.replace(
+      '</main>',
+      '<button aria-label="Search">Open search</button></main>',
+    ),
+  );
+  await assertSeriousAxeProjectionEquivalent(page);
+  await assertNoSeriousAxeViolations(page);
+
+  await page.setContent(positive);
   await assertNoPageOverflow(page);
   await assertMinimumTargetSizes(page.getByRole('link', { name: 'Home' }));
   await assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Home' }));
@@ -124,6 +144,15 @@ test('00 official browser and every synthetic ordinary control pass first', asyn
     ),
   );
   expect(external).toEqual([]);
+
+  await page.setContent(
+    positive.replace(
+      '</main>',
+      '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></main>',
+    ),
+  );
+  await assertSeriousAxeProjectionEquivalent(page);
+  expect((await seriousAxeViolations(page)).map(({ id }) => id)).toContain('image-alt');
 
   await page.setContent(tableFixture());
   assertExactTableSelectorScope(exactTableCss);
@@ -185,9 +214,25 @@ test('01 predecessor JavaScript, forced-colour, request, and basic accessibility
     assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Home' })),
   ).rejects.toThrow();
   await page.setContent(positive.replace('<p>', '<p style="color:#777;background:#777">'));
+  await assertConditionDependentAxeProjectionEquivalent(page);
   await expect(
     assertTextContrast(page.getByText('This positive path is usable without client JavaScript.')),
   ).rejects.toThrow();
+  await page.setContent(
+    positive
+      .replace(
+        '</style>',
+        'p{background:#fff;color:#555;font:16px Arial;text-decoration:none solid #555}p a{background:#fff;color:#333;font:16px Arial;text-decoration:none solid #555;border:none;outline:none}</style>',
+      )
+      .replace(
+        '</main>',
+        '<p>Read the <a href="/documentation/">documentation</a> for details.</p></main>',
+      ),
+  );
+  await assertConditionDependentAxeProjectionEquivalent(page);
+  expect((await seriousAxeViolations(page)).map(({ id }) => id)).toContain(
+    'link-in-text-block',
+  );
   await context.close();
 });
 
@@ -449,7 +494,10 @@ test('04 exact two-shape table scope and concealment/focus/vacuity mutants are c
     ' <a href="/documentation/">Documentation</a>',
     '',
   );
+  await page.emulateMedia({ forcedColors: 'active' });
   await page.setContent(focusParentFixture);
+  await assertSeriousAxeProjectionEquivalent(page);
+  await assertConditionDependentAxeProjectionEquivalent(page);
   expect(await page.locator('a').count()).toBe(0);
   for (const selector of ['.sl-markdown-content > table', '.eq-stage__body > table']) {
     expect(

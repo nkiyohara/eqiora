@@ -1,4 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
+import axe from 'axe-core';
 import {
   chromium,
   expect,
@@ -12,6 +13,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
@@ -173,40 +175,170 @@ export const PARENT_LAYOUT_SHA256 =
   '9a6aa92fe82bdc7ed7d70a3891c369d10bd73ae0cf2f11d087dd721d02befe0a';
 const PARENT_LAYOUT_COMMIT = '4fc67a9fc94aeedd44a4ace31d406ac949c81f12';
 
-export async function launchOfficialBrowser(headless = true): Promise<Browser> {
-  const browserRoot = process.env.PLAYWRIGHT_BROWSERS_PATH;
-  expect(browserRoot?.endsWith('/eqiora-pw-1.62.1-r1234')).toBe(true);
-  const root = await realpath(browserRoot!);
-  expect(root.endsWith('/eqiora-pw-1.62.1-r1234')).toBe(true);
-  const executablePath = resolve(root, 'chromium-1234/chrome-linux64/chrome');
-  const executableLink = await lstat(executablePath);
-  expect(executableLink.isSymbolicLink()).toBe(false);
-  expect(executableLink.isFile()).toBe(true);
-  expect(executableLink.mode & 0o777).toBe(0o755);
-  expect(executableLink.size).toBe(CHROME_BYTES);
-  expect(createHash('sha256').update(await readFile(executablePath)).digest('hex')).toBe(
-    CHROME_SHA256,
-  );
+type AxeRuleDefinition = Readonly<{
+  id: string;
+  impact: string | null;
+  enabled: boolean;
+  tags: string[];
+}>;
 
-  const require = createRequire(import.meta.url);
-  const corePackage = require.resolve('playwright-core/package.json');
-  const browsersJson = resolve(dirname(corePackage), 'browsers.json');
-  expect(createHash('sha256').update(await readFile(browsersJson)).digest('hex')).toBe(
-    BROWSERS_JSON_SHA256,
+const axeInternals = axe as typeof axe & {
+  _audit: { rules: AxeRuleDefinition[]; tagExclude: string[] };
+};
+
+if (axe.version !== '4.13.0') {
+  throw new Error(`unexpected axe identity: ${axe.version}`);
+}
+
+const axeExcludedTags = Object.freeze([...axeInternals._audit.tagExclude].sort());
+if (axeExcludedTags.join(',') !== 'deprecated,experimental') {
+  throw new Error(`axe default excluded tags changed: ${axeExcludedTags.join(',')}`);
+}
+
+export const SERIOUS_CRITICAL_AXE_RULE_IDS = Object.freeze(
+  axeInternals._audit.rules
+    .filter(
+      (rule) =>
+        rule.enabled &&
+        (rule.impact === 'serious' || rule.impact === 'critical') &&
+        !rule.tags.some((tag) => axeExcludedTags.includes(tag)),
+    )
+    .map((rule) => rule.id),
+);
+
+export const CONDITION_DEPENDENT_AXE_RULE_IDS = Object.freeze([
+  'color-contrast',
+  'link-in-text-block',
+  'scrollable-region-focusable',
+]);
+
+export type ConditionAxeProjection = 'forced-color' | 'scroll-only';
+
+export function conditionDependentAxeRuleIds(
+  projection: ConditionAxeProjection,
+): readonly string[] {
+  return projection === 'forced-color'
+    ? CONDITION_DEPENDENT_AXE_RULE_IDS
+    : ['scrollable-region-focusable'];
+}
+
+if (
+  SERIOUS_CRITICAL_AXE_RULE_IDS.length !== 63 ||
+  new Set(SERIOUS_CRITICAL_AXE_RULE_IDS).size !== 63
+) {
+  throw new Error(
+    `axe serious/critical projection changed: ${SERIOUS_CRITICAL_AXE_RULE_IDS.length}`,
   );
-  const manifest = JSON.parse(await readFile(browsersJson, 'utf8')) as {
-    browsers: Array<{ name: string; revision: string; browserVersion: string }>;
-  };
-  for (const name of ['chromium', 'chromium-headless-shell']) {
-    expect(manifest.browsers.find((entry) => entry.name === name)).toMatchObject({
-      revision: '1234',
-      browserVersion: CHROME_VERSION,
-    });
+}
+
+export type SiteVerificationPhase =
+  | 'browserLifecycle'
+  | 'navigation'
+  | 'tableInvariant'
+  | 'tableDynamic'
+  | 'axeAnalysis'
+  | 'screenshot';
+
+type SitePhaseMetric = { calls: number; work: number; elapsedMs: number };
+
+const SITE_PHASES: readonly SiteVerificationPhase[] = [
+  'browserLifecycle',
+  'navigation',
+  'tableInvariant',
+  'tableDynamic',
+  'axeAnalysis',
+  'screenshot',
+];
+
+let sitePhaseMetrics = new Map<SiteVerificationPhase, SitePhaseMetric>();
+
+export function resetSitePhaseMetrics(): void {
+  sitePhaseMetrics = new Map(
+    SITE_PHASES.map((phase) => [phase, { calls: 0, work: 0, elapsedMs: 0 }]),
+  );
+}
+
+function recordSitePhase(
+  phase: SiteVerificationPhase,
+  elapsedMs: number,
+  work = 1,
+): void {
+  const metric = sitePhaseMetrics.get(phase) ?? { calls: 0, work: 0, elapsedMs: 0 };
+  metric.calls += 1;
+  metric.work += work;
+  metric.elapsedMs += elapsedMs;
+  sitePhaseMetrics.set(phase, metric);
+}
+
+export async function measureSitePhase<T>(
+  phase: SiteVerificationPhase,
+  task: () => Promise<T>,
+  work = 1,
+): Promise<T> {
+  const started = performance.now();
+  try {
+    return await task();
+  } finally {
+    recordSitePhase(phase, performance.now() - started, work);
   }
+}
 
-  const browser = await chromium.launch({ executablePath, headless });
-  expect(browser.version()).toBe(CHROME_VERSION);
-  return browser;
+export function reportSitePhaseMetrics(scope: string): void {
+  const metrics = Object.fromEntries(
+    SITE_PHASES.map((phase) => {
+      const metric = sitePhaseMetrics.get(phase) ?? { calls: 0, work: 0, elapsedMs: 0 };
+      return [phase, { ...metric, elapsedMs: Math.round(metric.elapsedMs) }];
+    }),
+  );
+  console.log(`EQIORA-SITE-WORK ${JSON.stringify({ scope, metrics })}`);
+}
+
+resetSitePhaseMetrics();
+
+export async function launchOfficialBrowser(headless = true): Promise<Browser> {
+  const started = performance.now();
+  try {
+    const browserRoot = process.env.PLAYWRIGHT_BROWSERS_PATH;
+    expect(browserRoot?.endsWith('/eqiora-pw-1.62.1-r1234')).toBe(true);
+    const root = await realpath(browserRoot!);
+    expect(root.endsWith('/eqiora-pw-1.62.1-r1234')).toBe(true);
+    const executablePath = resolve(root, 'chromium-1234/chrome-linux64/chrome');
+    const executableLink = await lstat(executablePath);
+    expect(executableLink.isSymbolicLink()).toBe(false);
+    expect(executableLink.isFile()).toBe(true);
+    expect(executableLink.mode & 0o777).toBe(0o755);
+    expect(executableLink.size).toBe(CHROME_BYTES);
+    expect(createHash('sha256').update(await readFile(executablePath)).digest('hex')).toBe(
+      CHROME_SHA256,
+    );
+
+    const require = createRequire(import.meta.url);
+    const corePackage = require.resolve('playwright-core/package.json');
+    const browsersJson = resolve(dirname(corePackage), 'browsers.json');
+    expect(createHash('sha256').update(await readFile(browsersJson)).digest('hex')).toBe(
+      BROWSERS_JSON_SHA256,
+    );
+    const manifest = JSON.parse(await readFile(browsersJson, 'utf8')) as {
+      browsers: Array<{ name: string; revision: string; browserVersion: string }>;
+    };
+    for (const name of ['chromium', 'chromium-headless-shell']) {
+      expect(manifest.browsers.find((entry) => entry.name === name)).toMatchObject({
+        revision: '1234',
+        browserVersion: CHROME_VERSION,
+      });
+    }
+
+    const browser = await chromium.launch({ executablePath, headless });
+    expect(browser.version()).toBe(CHROME_VERSION);
+    return browser;
+  } finally {
+    recordSitePhase('browserLifecycle', performance.now() - started);
+  }
+}
+
+export async function navigateSitePage(page: Page, route: string): Promise<void> {
+  const response = await measureSitePhase('navigation', () => page.goto(route));
+  expect(response?.ok(), route).toBe(true);
 }
 
 export async function rejectExternalRequests(page: Page): Promise<string[]> {
@@ -336,10 +468,76 @@ export async function assertVisibleSourceFallback(page: Page): Promise<void> {
 }
 
 export async function seriousAxeViolations(page: Page) {
-  const result = await new AxeBuilder({ page }).analyze();
-  return result.violations.filter(
+  const result = await measureSitePhase(
+    'axeAnalysis',
+    () =>
+      new AxeBuilder({ page })
+        .withRules([...SERIOUS_CRITICAL_AXE_RULE_IDS])
+        .analyze(),
+    SERIOUS_CRITICAL_AXE_RULE_IDS.length,
+  );
+  expect(
+    result.violations.every(
+      (violation) => violation.impact === 'serious' || violation.impact === 'critical',
+    ),
+  ).toBe(true);
+  return result.violations;
+}
+
+function normalizeAxeViolations(
+  violations: readonly Readonly<{
+    id: string;
+    impact: string | null;
+    nodes: readonly Readonly<{ target: unknown }>[];
+  }>[],
+) {
+  return violations
+    .map((violation) => ({
+      id: violation.id,
+      impact: violation.impact,
+      targets: violation.nodes.map(({ target }) => JSON.stringify(target)).sort(),
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+export async function assertSeriousAxeProjectionEquivalent(page: Page): Promise<void> {
+  const unrestrictedResult = await measureSitePhase(
+    'axeAnalysis',
+    () => new AxeBuilder({ page }).analyze(),
+    axeInternals._audit.rules.filter(({ enabled }) => enabled).length,
+  );
+  const unrestricted = unrestrictedResult.violations.filter(
     (violation) => violation.impact === 'serious' || violation.impact === 'critical',
   );
+  const projected = await seriousAxeViolations(page);
+  expect(normalizeAxeViolations(projected)).toEqual(normalizeAxeViolations(unrestricted));
+}
+
+export async function conditionDependentAxeViolations(
+  page: Page,
+  projection: ConditionAxeProjection = 'forced-color',
+) {
+  const rules = conditionDependentAxeRuleIds(projection);
+  expect(
+    rules.every((rule) => SERIOUS_CRITICAL_AXE_RULE_IDS.includes(rule)),
+  ).toBe(true);
+  const result = await measureSitePhase(
+    'axeAnalysis',
+    () =>
+      new AxeBuilder({ page })
+        .withRules([...rules])
+        .analyze(),
+    rules.length,
+  );
+  return result.violations;
+}
+
+export async function assertConditionDependentAxeProjectionEquivalent(
+  page: Page,
+): Promise<void> {
+  const projected = await seriousAxeViolations(page);
+  const conditional = await conditionDependentAxeViolations(page);
+  expect(normalizeAxeViolations(conditional)).toEqual(normalizeAxeViolations(projected));
 }
 
 export async function assertNoSeriousAxeViolations(page: Page): Promise<void> {
@@ -524,6 +722,7 @@ type TableObservation = {
     localOverflow: number;
     parentLocalOverflow: number;
   };
+  boundaries: Array<{ table: number; failures: string[] }>;
   tables: Array<{
     client: number;
     scroll: number;
@@ -537,10 +736,18 @@ type TableObservation = {
   }>;
 };
 
-async function observeTables(page: Page): Promise<TableObservation> {
+type TableProjection = 'complete' | 'invariant' | 'dynamic';
+
+async function observeTables(
+  page: Page,
+  projection: TableProjection = 'complete',
+): Promise<TableObservation> {
   const session = tableObserverSessions.get(page);
   if (!session) throw new Error('table observer was not installed before fixture or navigation');
-  const observation = await page.evaluate((selectors) => {
+  const started = performance.now();
+  const observation = await page.evaluate(({ selectors, projection }) => {
+    const runInvariant = projection !== 'dynamic';
+    const runDynamic = projection !== 'invariant';
     const normalize = (value: string) => value.trim().split(/\s+/u).filter(Boolean).join(' ');
     const tables = Array.from(document.querySelectorAll<HTMLTableElement>('main table'));
     const cssLength = (value: string, extent: number): number | null => {
@@ -749,7 +956,9 @@ async function observeTables(page: Page): Promise<TableObservation> {
       localOverflow: 0,
       parentLocalOverflow: 0,
     };
-    const observations = tables.map((table) => {
+    const boundaries: Array<{ table: number; failures: string[] }> = [];
+    const observations = tables.map((table, tableIndex) => {
+      const before = { ...failures };
       const style = getComputedStyle(table);
       const box = table.getBoundingClientRect();
       const direct = table.matches(selectors.direct);
@@ -757,45 +966,52 @@ async function observeTables(page: Page): Promise<TableObservation> {
       const generic = table.matches(selectors.generic);
       const chain = relevantChain(table);
       const parents = chain.slice(1);
-      const structural = [
-        table,
-        ...table.querySelectorAll('table, thead, tbody, tfoot, tr, th, td'),
-      ];
+      const structural = runInvariant
+        ? [table, ...table.querySelectorAll('table, thead, tbody, tfoot, tr, th, td')]
+        : [];
       const cells = Array.from(table.querySelectorAll<HTMLTableCellElement>('th, td'));
-      const guarded = [...new Set([...structural, ...parents])];
-      failures.tag += table.tagName === 'TABLE' ? 0 : 1;
-      failures.relation += generic && direct !== component ? 0 : 1;
-      failures.wrapper +=
-        table.parentElement?.matches('.sl-markdown-content, .eq-stage__body') === true ? 0 : 1;
-      failures.role += guarded.some((node) => node.hasAttribute('role')) ? 1 : 0;
-      failures.focus +=
-        chain.some(
-          (node) =>
-            node.hasAttribute('tabindex') ||
-            (node instanceof HTMLElement && node.tabIndex >= 0) ||
-            (node.getAttribute('contenteditable') ?? '').toLowerCase() === 'true',
-        ) || table.querySelector('[tabindex], [contenteditable="true" i]')
-          ? 1
-          : 0;
-      failures.handler += guarded.some((node) =>
-        ['keydown', 'keypress', 'keyup'].some(
-          (event) =>
-            node.hasAttribute(`on${event}`) ||
-            typeof (node as unknown as Record<string, unknown>)[`on${event}`] === 'function',
-        ),
-      ) ? 1 : 0;
-      failures.rows += table.rows.length > 0 && Array.from(table.rows).every((row) => row.cells.length > 0)
-        ? 0
-        : 1;
-      failures.headers += table.querySelectorAll('th').length > 0 ? 0 : 1;
-      failures.cells += cells.length > 0 ? 0 : 1;
-      const links = Array.from(table.querySelectorAll<HTMLAnchorElement>('a'));
-      failures.links += links.every(
-        (link) =>
-          normalize(link.innerText).length > 0 &&
-          Boolean(link.getAttribute('href')?.trim()) &&
-          !['#', 'javascript:void(0)'].includes(link.getAttribute('href')!.trim().toLowerCase()),
-      ) ? 0 : 1;
+      const guarded = runInvariant ? [...new Set([...structural, ...parents])] : [];
+      if (runInvariant) {
+        failures.tag += table.tagName === 'TABLE' ? 0 : 1;
+        failures.relation += generic && direct !== component ? 0 : 1;
+        failures.wrapper +=
+          table.parentElement?.matches('.sl-markdown-content, .eq-stage__body') === true ? 0 : 1;
+        failures.role += guarded.some((node) => node.hasAttribute('role')) ? 1 : 0;
+        failures.focus +=
+          chain.some(
+            (node) =>
+              node.hasAttribute('tabindex') ||
+              (node instanceof HTMLElement && node.tabIndex >= 0) ||
+              (node.getAttribute('contenteditable') ?? '').toLowerCase() === 'true',
+          ) || table.querySelector('[tabindex], [contenteditable="true" i]')
+            ? 1
+            : 0;
+        failures.handler += guarded.some((node) =>
+          ['keydown', 'keypress', 'keyup'].some(
+            (event) =>
+              node.hasAttribute(`on${event}`) ||
+              typeof (node as unknown as Record<string, unknown>)[`on${event}`] === 'function',
+          ),
+        ) ? 1 : 0;
+        failures.rows +=
+          table.rows.length > 0 &&
+          Array.from(table.rows).every((row) => row.cells.length > 0)
+            ? 0
+            : 1;
+        failures.headers += table.querySelectorAll('th').length > 0 ? 0 : 1;
+        failures.cells += cells.length > 0 ? 0 : 1;
+      }
+      const links = runInvariant
+        ? Array.from(table.querySelectorAll<HTMLAnchorElement>('a'))
+        : [];
+      if (runInvariant) {
+        failures.links += links.every(
+          (link) =>
+            normalize(link.innerText).length > 0 &&
+            Boolean(link.getAttribute('href')?.trim()) &&
+            !['#', 'javascript:void(0)'].includes(link.getAttribute('href')!.trim().toLowerCase()),
+        ) ? 0 : 1;
+      }
       const textNodes = cells.flatMap((cell) => {
         const nodes: Text[] = [];
         const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
@@ -805,108 +1021,130 @@ async function observeTables(page: Page): Promise<TableObservation> {
         }
         return nodes;
       });
-      const textFacts = textNodes.map((node) => {
-        const owner = node.parentElement;
-        const range = document.createRange();
-        range.selectNodeContents(node);
-        const boxes = Array.from(range.getClientRects());
-        const ancestors: Element[] = [];
-        let current: Element | null = owner;
-        while (current) {
-          ancestors.push(current);
-          if (current === table) break;
-          current = current.parentElement;
-        }
-        const styles = ancestors.map((element) => ({
-          element,
-          style: getComputedStyle(element),
-        }));
-        return {
-          bounded:
-            owner !== null &&
-            boxes.length > 0 &&
-            boxes.every((textBox) => textBox.width > 0 && textBox.height > 0) &&
-            Number.parseFloat(getComputedStyle(owner).fontSize) >= 12,
-          selectable: styles.every(({ style: textStyle }) => textStyle.userSelect !== 'none'),
-          visible: styles.every(({ element, style: textStyle }) => {
-            const horizontalTruncation =
-              element instanceof HTMLElement &&
-              /hidden|clip/u.test(textStyle.overflowX) &&
-              element.scrollWidth > element.clientWidth + 1;
-            const verticalTruncation =
-              element instanceof HTMLElement &&
-              /hidden|clip/u.test(textStyle.overflowY) &&
-              element.scrollHeight > element.clientHeight + 1;
+      const textFacts = runDynamic
+        ? textNodes.map((node) => {
+            const owner = node.parentElement;
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            const boxes = Array.from(range.getClientRects());
+            const ancestors: Element[] = [];
+            let current: Element | null = owner;
+            while (current) {
+              ancestors.push(current);
+              if (current === table) break;
+              current = current.parentElement;
+            }
+            const styles = ancestors.map((element) => ({
+              element,
+              style: getComputedStyle(element),
+            }));
+            return {
+              bounded:
+                owner !== null &&
+                boxes.length > 0 &&
+                boxes.every((textBox) => textBox.width > 0 && textBox.height > 0) &&
+                Number.parseFloat(getComputedStyle(owner).fontSize) >= 12,
+              selectable: styles.every(
+                ({ style: textStyle }) => textStyle.userSelect !== 'none',
+              ),
+              visible: styles.every(({ element, style: textStyle }) => {
+                const horizontalTruncation =
+                  element instanceof HTMLElement &&
+                  /hidden|clip/u.test(textStyle.overflowX) &&
+                  element.scrollWidth > element.clientWidth + 1;
+                const verticalTruncation =
+                  element instanceof HTMLElement &&
+                  /hidden|clip/u.test(textStyle.overflowY) &&
+                  element.scrollHeight > element.clientHeight + 1;
+                return (
+                  textStyle.display !== 'none' &&
+                  !/hidden|collapse/u.test(textStyle.visibility) &&
+                  Number.parseFloat(textStyle.opacity) > 0 &&
+                  !fullyClipped(element, textStyle) &&
+                  !horizontalTruncation &&
+                  !verticalTruncation &&
+                  !(textStyle.textOverflow === 'ellipsis' && horizontalTruncation)
+                );
+              }),
+            };
+          })
+        : [];
+      if (runInvariant) {
+        failures.text +=
+          textNodes.length > 0 &&
+          cells.every(
+            (cell) =>
+              normalize(cell.innerText).length > 0 &&
+              normalize(cell.textContent ?? '').length > 0,
+          )
+          ? 0
+          : 1;
+      }
+      if (runDynamic) {
+        failures.selection +=
+          textFacts.length > 0 && textFacts.every(({ selectable }) => selectable) ? 0 : 1;
+        failures.size +=
+          box.width > 0 &&
+          box.height > 0 &&
+          cells.every((cell) => {
+            const cellBox = cell.getBoundingClientRect();
             return (
-              textStyle.display !== 'none' &&
-              !/hidden|collapse/u.test(textStyle.visibility) &&
-              Number.parseFloat(textStyle.opacity) > 0 &&
-              !fullyClipped(element, textStyle) &&
-              !horizontalTruncation &&
-              !verticalTruncation &&
-              !(textStyle.textOverflow === 'ellipsis' && horizontalTruncation)
+              cellBox.width > 0 &&
+              cellBox.height > 0 &&
+              Number.parseFloat(getComputedStyle(cell).fontSize) >= 12
             );
-          }),
-        };
-      });
-      failures.text +=
-        textNodes.length > 0 &&
-        cells.every(
-          (cell) =>
-            normalize(cell.innerText).length > 0 &&
-            normalize(cell.textContent ?? '').length > 0,
+          }) &&
+          textFacts.every(({ bounded }) => bounded)
+            ? 0
+            : 1;
+        failures.bounds +=
+          box.left >= -1 && box.right <= document.documentElement.clientWidth + 1 ? 0 : 1;
+        const cellBoxes = cells.map((cell) => cell.getBoundingClientRect());
+        failures.overlap += cellBoxes.some((first, firstIndex) =>
+          cellBoxes.slice(firstIndex + 1).some(
+            (second) =>
+              Math.min(first.right, second.right) - Math.max(first.left, second.left) > 1 &&
+              Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top) > 1,
+          ),
         )
-        ? 0
-        : 1;
-      failures.selection +=
-        textFacts.length > 0 && textFacts.every(({ selectable }) => selectable) ? 0 : 1;
-      failures.size +=
-        box.width > 0 &&
-        box.height > 0 &&
-        cells.every((cell) => {
-          const cellBox = cell.getBoundingClientRect();
-          return cellBox.width > 0 && cellBox.height > 0 && Number.parseFloat(getComputedStyle(cell).fontSize) >= 12;
-        }) &&
-        textFacts.every(({ bounded }) => bounded)
-          ? 0
-          : 1;
-      failures.bounds += box.left >= -1 && box.right <= document.documentElement.clientWidth + 1 ? 0 : 1;
-      const cellBoxes = cells.map((cell) => cell.getBoundingClientRect());
-      failures.overlap += cellBoxes.some((first, firstIndex) =>
-        cellBoxes.slice(firstIndex + 1).some((second) =>
-          Math.min(first.right, second.right) - Math.max(first.left, second.left) > 1 &&
-          Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top) > 1,
-        ),
-      )
-        ? 1
-        : 0;
-      failures.concealment +=
-        style.visibility === 'visible' &&
-        Number.parseFloat(style.opacity) > 0 &&
-        !fullyClipped(table, style) &&
-        !/hidden|clip/.test(style.overflowX) &&
-        cells.every((cell) => {
-          const cellStyle = getComputedStyle(cell);
+          ? 1
+          : 0;
+        failures.concealment +=
+          style.visibility === 'visible' &&
+          Number.parseFloat(style.opacity) > 0 &&
+          !fullyClipped(table, style) &&
+          !/hidden|clip/.test(style.overflowX) &&
+          cells.every((cell) => {
+            const cellStyle = getComputedStyle(cell);
+            return (
+              cellStyle.visibility === 'visible' &&
+              Number.parseFloat(cellStyle.opacity) > 0 &&
+              !fullyClipped(cell, cellStyle) &&
+              !/hidden|clip/.test(cellStyle.overflowX) &&
+              cellStyle.textOverflow !== 'ellipsis'
+            );
+          }) &&
+          textFacts.every(({ visible }) => visible)
+            ? 0
+            : 1;
+        failures.localOverflow += table.scrollWidth > table.clientWidth + 1 ? 1 : 0;
+        failures.parentLocalOverflow += parents.some((parent) => {
+          const parentStyle = getComputedStyle(parent);
           return (
-            cellStyle.visibility === 'visible' &&
-            Number.parseFloat(cellStyle.opacity) > 0 &&
-            !fullyClipped(cell, cellStyle) &&
-            !/hidden|clip/.test(cellStyle.overflowX) &&
-            cellStyle.textOverflow !== 'ellipsis'
+            /auto|scroll/u.test(parentStyle.overflowX) &&
+            parent instanceof HTMLElement &&
+            parent.scrollWidth > parent.clientWidth + 1
           );
-        }) &&
-        textFacts.every(({ visible }) => visible)
-          ? 0
-          : 1;
-      failures.localOverflow += table.scrollWidth > table.clientWidth + 1 ? 1 : 0;
-      failures.parentLocalOverflow += parents.some((parent) => {
-        const parentStyle = getComputedStyle(parent);
-        return (
-          /auto|scroll/u.test(parentStyle.overflowX) &&
-          parent instanceof HTMLElement &&
-          parent.scrollWidth > parent.clientWidth + 1
-        );
-      }) ? 1 : 0;
+        }) ? 1 : 0;
+      }
+      const tableFailures = Object.keys(failures).filter(
+        (failure) =>
+          failures[failure as keyof typeof failures] >
+          before[failure as keyof typeof before],
+      );
+      if (tableFailures.length > 0) {
+        boundaries.push({ table: tableIndex, failures: tableFailures });
+      }
       return {
         client: table.clientWidth,
         scroll: table.scrollWidth,
@@ -934,11 +1172,13 @@ async function observeTables(page: Page): Promise<TableObservation> {
         component: document.querySelectorAll(selectors.component).length,
       },
       failures,
+      boundaries,
       tables: observations,
     };
-  }, TABLE_SELECTORS);
-  const registered = await session.send('Runtime.evaluate', {
-    expression: `(() => {
+  }, { selectors: TABLE_SELECTORS, projection });
+  if (projection !== 'dynamic') {
+    const registered = await session.send('Runtime.evaluate', {
+      expression: `(() => {
       const unique = new Set();
       for (const table of document.querySelectorAll('main table')) {
         unique.add(table);
@@ -956,33 +1196,82 @@ async function observeTables(page: Page): Promise<TableObservation> {
       }
       return count;
     })()`,
-    includeCommandLineAPI: true,
-    returnByValue: true,
-  });
-  if (registered.exceptionDetails || typeof registered.result.value !== 'number') {
-    throw new Error('registered keyboard-handler observation failed closed');
+      includeCommandLineAPI: true,
+      returnByValue: true,
+    });
+    if (registered.exceptionDetails || typeof registered.result.value !== 'number') {
+      throw new Error('registered keyboard-handler observation failed closed');
+    }
+    observation.failures.handler += registered.result.value > 0 ? 1 : 0;
+    if (registered.result.value > 0) {
+      observation.boundaries.push({ table: -1, failures: ['handler'] });
+    }
   }
-  observation.failures.handler += registered.result.value > 0 ? 1 : 0;
+  const elapsedMs = performance.now() - started;
+  if (projection !== 'dynamic') {
+    recordSitePhase('tableInvariant', elapsedMs, observation.counts.main);
+  }
+  if (projection !== 'invariant') {
+    recordSitePhase('tableDynamic', elapsedMs, observation.counts.main);
+  }
   return observation;
 }
 
-export async function assertTableInventory(page: Page, expected: TableRoute): Promise<TableObservation> {
+export async function assertTableInventory(
+  page: Page,
+  expected: TableRoute,
+  projection: TableProjection = 'complete',
+): Promise<TableObservation> {
   expect(new URL(page.url()).pathname).toBe(expected.route);
-  const observation = await observeTables(page);
-  expect(observation.counts).toEqual({
+  const observation = await observeTables(page, projection);
+  expect(observation.counts, `table inventory ${expected.route}`).toEqual({
     main: expected.tables,
     all: expected.tables,
     generic: expected.tables,
     direct: expected.direct,
     component: expected.component,
   });
-  expect(observation.failures.relation).toBe(0);
+  if (projection !== 'dynamic') {
+    expect(
+      observation.failures.relation,
+      `table relation boundaries ${expected.route}: ${JSON.stringify(observation.boundaries)}`,
+    ).toBe(0);
+  }
   expect(observation.tables.filter((table) => table.direct)).toHaveLength(expected.direct);
   expect(observation.tables.filter((table) => table.component)).toHaveLength(expected.component);
   return observation;
 }
 
+function assertTableInvariantFacts(observation: TableObservation): void {
+  expect({
+    tag: observation.failures.tag,
+    relation: observation.failures.relation,
+    wrapper: observation.failures.wrapper,
+    role: observation.failures.role,
+    focus: observation.failures.focus,
+    handler: observation.failures.handler,
+    rows: observation.failures.rows,
+    headers: observation.failures.headers,
+    cells: observation.failures.cells,
+    links: observation.failures.links,
+    text: observation.failures.text,
+  }, `invariant table boundaries: ${JSON.stringify(observation.boundaries)}`).toEqual({
+    tag: 0,
+    relation: 0,
+    wrapper: 0,
+    role: 0,
+    focus: 0,
+    handler: 0,
+    rows: 0,
+    headers: 0,
+    cells: 0,
+    links: 0,
+    text: 0,
+  });
+}
+
 function assertTableContentAndSemantics(observation: TableObservation): void {
+  assertTableInvariantFacts(observation);
   expect(observation.document.inner).toBeGreaterThanOrEqual(observation.document.client);
   expect(observation.document.scroll).toBeLessThanOrEqual(observation.document.client + 1);
   expect(observation.document.bodyScroll).toBeLessThanOrEqual(observation.document.client + 1);
@@ -1008,10 +1297,42 @@ function assertTableContentAndSemantics(observation: TableObservation): void {
   });
 }
 
+export async function assertProductTableRouteInvariant(
+  page: Page,
+  expected: TableRoute,
+): Promise<TableObservation> {
+  await navigateSitePage(page, expected.route);
+  await assertCoreVisible(page);
+  const observation = await assertTableInventory(page, expected, 'invariant');
+  assertTableInvariantFacts(observation);
+  return observation;
+}
+
+function assertTableDynamicFacts(observation: TableObservation): void {
+  expect(observation.document.inner).toBeGreaterThanOrEqual(observation.document.client);
+  expect(observation.document.scroll).toBeLessThanOrEqual(observation.document.client + 1);
+  expect(observation.document.bodyScroll).toBeLessThanOrEqual(observation.document.client + 1);
+  expect({
+    selection: observation.failures.selection,
+    size: observation.failures.size,
+    bounds: observation.failures.bounds,
+    overlap: observation.failures.overlap,
+    concealment: observation.failures.concealment,
+    parentLocalOverflow: observation.failures.parentLocalOverflow,
+  }, `dynamic table boundaries: ${JSON.stringify(observation.boundaries)}`).toEqual({
+    selection: 0,
+    size: 0,
+    bounds: 0,
+    overlap: 0,
+    concealment: 0,
+    parentLocalOverflow: 0,
+  });
+}
+
 export async function assertParentCylinderRed(page: Page): Promise<void> {
   const expected = TABLE_ROUTES.find(({ route }) => route === '/gallery/exact-cylinder-steady-stokes/');
   expect(expected).toBeDefined();
-  await page.goto(expected!.route);
+  await navigateSitePage(page, expected!.route);
   await assertCoreVisible(page);
   await assertSemanticStages(page);
   await assertSupportedStatement(page);
@@ -1034,20 +1355,29 @@ export async function assertParentCylinderRed(page: Page): Promise<void> {
   expect(violations[0].nodes[0].target).toEqual(['table']);
 }
 
-export async function assertProductTableRouteGreen(page: Page, expected: TableRoute): Promise<void> {
-  await page.goto(expected.route);
+export async function assertProductTableRouteGreen(
+  page: Page,
+  expected: TableRoute,
+  axeProjection: ConditionAxeProjection,
+): Promise<void> {
+  await navigateSitePage(page, expected.route);
   await assertCoreVisible(page);
-  const observation = await assertTableInventory(page, expected);
-  assertTableContentAndSemantics(observation);
-  expect(observation.failures.localOverflow).toBe(0);
-  expect(await seriousAxeViolations(page)).toEqual([]);
+  const observation = await assertTableInventory(page, expected, 'dynamic');
+  assertTableDynamicFacts(observation);
+  expect(
+    observation.failures.localOverflow,
+    `overflow table boundaries ${expected.route}: ${JSON.stringify(observation.boundaries)}`,
+  ).toBe(0);
+  expect(
+    await conditionDependentAxeViolations(page, axeProjection),
+  ).toEqual([]);
 }
 
 export async function assertParentForcedTableBoundary(
   page: Page,
   expected: TableRoute,
 ): Promise<void> {
-  await page.goto(expected.route);
+  await navigateSitePage(page, expected.route);
   await assertOrdinaryRoutePage(page, expected.route);
   await expect(page.locator('main table')).toHaveCount(expected.tables);
   const target = PARENT_FORCED_TABLE_RESULTS[expected.route];
@@ -1566,8 +1896,9 @@ export async function attachGrossScreenshot(
   expect(main).not.toBeNull();
   expect(main!.width).toBeGreaterThan(100);
   expect(main!.height).toBeGreaterThan(100);
+  const body = await measureSitePhase('screenshot', () => page.screenshot({ fullPage: true }));
   await testInfo.attach(name, {
-    body: await page.screenshot({ fullPage: true }),
+    body,
     contentType: 'image/png',
   });
 }
