@@ -742,6 +742,14 @@ fn validate_identifier(
     limits: HierarchyLimits,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if name == crate::math::ROOT {
+        diagnostics.push(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            range,
+            "identifier `math` is reserved for compiler-owned scalar mathematics",
+        ));
+    }
     if name.len() > limits.max_identifier_bytes {
         diagnostics.push(source_error(
             codes::LANGUAGE_LOWERING_ERROR,

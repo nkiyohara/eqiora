@@ -133,7 +133,7 @@ Coordinate-dependent data remains equally explicit:
 parameter wave_number: 1 / m = 3.141592653589793;
 parameter source_scale: 1 / m ^ 2 = 9.869604401089358;
 relation balance continuous on bar {
-  -div(grad(u)) - source_scale * sin(wave_number * coordinate(0)) = 0;
+  -div(grad(u)) - source_scale * math.sin(wave_number * coordinate(0)) = 0;
 }
 ```
 

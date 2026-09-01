@@ -192,13 +192,13 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/lower.rs"
-ceiling = 1137
+ceiling = 1113
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/resolved.rs"
-ceiling = 1290
+ceiling = 1238
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 

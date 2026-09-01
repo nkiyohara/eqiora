@@ -11,8 +11,8 @@ model Main {
   relation force_definition continuous on body {
     force_potential
       - force_scale * (
-          sin(wave_number * coordinate(0))
-          + sin(wave_number * coordinate(1))
+          math.sin(wave_number * coordinate(0))
+          + math.sin(wave_number * coordinate(1))
         ) = 0;
   }
   parameter force_scale: kg / (m * s ^ 2) = 1;

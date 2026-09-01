@@ -793,7 +793,7 @@ model parameterized_source {
   field u on interval as space: m ^ 2 = 0;
   parameter amplitude: m = 3;
   relation identity continuous on interval {
-    u - amplitude ^ 2 * sin(coordinate(0) / amplitude) = 0;
+    u - amplitude ^ 2 * math.sin(coordinate(0) / amplitude) = 0;
   }
 }
 "#;

@@ -153,13 +153,13 @@ public component ScalarDiffusion {
   field potential on fluid as space: 1 = 0;
   relation balance continuous on fluid {
     -div(diffusion * grad(potential))
-      = source_scale * sin(wave_number * coordinate(0));
+      = source_scale * math.sin(wave_number * coordinate(0));
   }
   form primal for balance {
     integrate(fluid, dot(grad(test(potential)), diffusion * grad(potential)))
       = integrate(
           fluid,
-          test(potential) * source_scale * sin(wave_number * coordinate(0))
+          test(potential) * source_scale * math.sin(wave_number * coordinate(0))
         );
   }
 }
@@ -381,8 +381,8 @@ public component SteadyFlowPastCylinder {
             ),
             (
                 SCALAR_PRIMAL_SOURCE.replace(
-                    "test(potential) * source_scale * sin",
-                    "div(test(potential)) * source_scale * sin",
+                    "test(potential) * source_scale * math.sin",
+                    "div(test(potential)) * source_scale * math.sin",
                 ),
                 "unsupported scalar-primal operator `div`",
             ),

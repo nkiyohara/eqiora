@@ -21,6 +21,16 @@ import tempfile
 q = eqiora.lang
 u = q.units
 
+namespace_probe = q.Source()
+probe_component = namespace_probe.component("ScalarMath")
+probe_body = probe_component.volume("body", dimensions=1)
+probe_value = probe_component.field("value", on=probe_body, unit=u.one, initial=0)
+probe_component.relation(
+    "law", on=probe_body, residual=probe_value - q.math.sin(q.math.pi)
+)
+assert "math.sin(math.pi)" in namespace_probe.to_eqi()
+assert not hasattr(q, "sin")
+
 
 def cylinder_source(*, doc="Equations-only steady incompressible flow component.", velocity_shape=q.spatial_vector):
     source = q.Source()

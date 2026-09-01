@@ -16,8 +16,8 @@ model Main {
   relation force_definition continuous on body {
     force_potential
       - force_scale * (
-          sin(wave_number * coordinate(0))
-          + sin(wave_number * coordinate(1))
+          math.sin(wave_number * coordinate(0))
+          + math.sin(wave_number * coordinate(1))
         ) = 0;
   }
   instance fluid_law: fluid.SteadyStokesWithPotential2d(

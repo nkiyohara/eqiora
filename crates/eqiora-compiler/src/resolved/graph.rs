@@ -34,6 +34,11 @@ pub(super) fn validate_graph_shape(
 
     let mut alias_index = BTreeMap::new();
     for alias in aliases {
+        if alias.alias() == crate::math::ROOT {
+            diagnostics.push(resolved_error(
+                "direct alias `math` is reserved for compiler-owned scalar mathematics",
+            ));
+        }
         if !is_identifier(alias.alias()) {
             diagnostics.push(resolved_error(format!(
                 "direct alias `{}` is not an Eqiora identifier",

@@ -235,6 +235,7 @@ enum LoweringExpressionNode {
         definition: PureOperatorDefinition,
         arguments: Vec<LoweringExpression>,
     },
+    UnknownMath(String),
     Unsupported,
 }
 
@@ -322,31 +323,6 @@ impl LoweringExpression {
         match self.node.as_ref() {
             LoweringExpressionNode::Name(name) => Some(name),
             _ => None,
-        }
-    }
-
-    pub(crate) fn collect_physical_port_names(&self, names: &mut BTreeSet<String>) -> bool {
-        match self.node.as_ref() {
-            LoweringExpressionNode::Call { callee, argument }
-                if matches!(callee.as_str(), "across" | "through" | "trace" | "flux") =>
-            {
-                if let LoweringExpressionNode::Name(name) = argument.node.as_ref() {
-                    names.insert(name.clone());
-                }
-                argument.collect_physical_port_names(names)
-            }
-            LoweringExpressionNode::Neg(value) => value.collect_physical_port_names(names),
-            LoweringExpressionNode::Binary { left, right, .. } => {
-                left.collect_physical_port_names(names) && right.collect_physical_port_names(names)
-            }
-            LoweringExpressionNode::Call { argument, .. } => {
-                argument.collect_physical_port_names(names)
-            }
-            LoweringExpressionNode::PureOperator { arguments, .. } => arguments
-                .iter()
-                .all(|argument| argument.collect_physical_port_names(names)),
-            LoweringExpressionNode::Quantity(_) | LoweringExpressionNode::Name(_) => true,
-            LoweringExpressionNode::Unsupported => false,
         }
     }
 }
@@ -563,7 +539,7 @@ pub(crate) fn lower_typed_model(
     identities: &mut impl LoweringIdentities,
 ) -> Result<CompiledModel, Vec<Diagnostic>> {
     let mut bindings = BTreeMap::new();
-    let mut diagnostics = Vec::new();
+    let mut diagnostics = crate::math::model_name_diagnostics(file, &model.name, model.range);
 
     for item in &model.items {
         match item {

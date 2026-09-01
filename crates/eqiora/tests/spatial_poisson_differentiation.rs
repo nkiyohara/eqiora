@@ -73,7 +73,12 @@ fn accepted_application_program_publishes_complete_field_jvp_and_vjp() {
 
 #[test]
 fn application_program_is_not_published_without_an_accepted_primal() {
-    let source = COMPONENT.replacen("source_scale * sin", "1e308 * source_scale * sin", 1);
+    let source = COMPONENT.replacen(
+        "source_scale * math.sin",
+        "1e308 * source_scale * math.sin",
+        1,
+    );
+    assert_ne!(source, COMPONENT, "the overflow falsifier must be applied");
     let (document, plan) = document_and_plan_with_source(CommonSpatialPolicy::Q1, &source);
     let inputs = [document.parameter_ref("source_scale").unwrap()];
     let output = document

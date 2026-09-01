@@ -99,6 +99,15 @@ pub(crate) fn elaborate_dimension_aliases<'a>(
     let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();
     for (name, expression, range) in document.dimension_syntax() {
+        if name == crate::math::ROOT {
+            diagnostics.push(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                range,
+                "identifier `math` is reserved for compiler-owned scalar mathematics",
+            ));
+            continue;
+        }
         if coherent_dimension(name).is_some() {
             diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,

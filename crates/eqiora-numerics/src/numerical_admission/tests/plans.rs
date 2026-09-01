@@ -409,7 +409,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     );
 
     let reaction_source = COMPONENT.replace(
-            "-div(grad(potential))\n      - source_scale * sin(wave_number * coordinate(0))\n        * sin(wave_number * coordinate(1)) = 0;",
+            "-div(grad(potential))\n      - source_scale * math.sin(wave_number * coordinate(0))\n        * math.sin(wave_number * coordinate(1)) = 0;",
             "potential - 1 = 0;",
         );
     let reaction = scalar_model_from_source(&geometry, &reaction_source);

@@ -716,6 +716,8 @@ fn resolved_error(message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
+    #[path = "additional_tests.rs"]
+    mod additional_tests;
     use eqiora_graph::{GraphStore, InMemoryGraphStore};
 
     use super::*;
@@ -858,60 +860,6 @@ public component Resistor {
     }
 
     #[test]
-    fn canonical_declarations_ignore_files_formatting_and_input_order() {
-        let package = namespace("org.example.library");
-        let split = ResolvedHierarchyInput::new(
-            package.clone(),
-            vec![
-                unit(
-                    &package,
-                    "z/component.eqi",
-                    "public component C { public parameter p: 1 = 2; public parameter q: 1 = 3; }",
-                ),
-                unit(
-                    &package,
-                    "a/connector.eqi",
-                    "public connector Pin = scalar_physical(across = 1, through = 1);",
-                ),
-            ],
-            vec![],
-        );
-        let moved = ResolvedHierarchyInput::new(
-            package,
-            vec![
-                unit(
-                    &namespace("org.example.library"),
-                    "elsewhere/pin.eqi",
-                    "// relocated\npublic connector Pin=scalar_physical(across=1,through=1);",
-                ),
-                unit(
-                    &namespace("org.example.library"),
-                    "elsewhere/c.eqi",
-                    "public component C {\n public parameter q: 1=3;\n public parameter p: 1=2;\n}",
-                ),
-            ],
-            vec![],
-        );
-
-        let first = analyze_resolved_hierarchy(split).expect("first analysis");
-        let second = analyze_resolved_hierarchy(moved).expect("second analysis");
-        assert_eq!(
-            first.canonical_declarations(),
-            second.canonical_declarations()
-        );
-        assert_eq!(
-            first.canonical_declarations()[0].path(),
-            "C",
-            "canonical declarations sort by path"
-        );
-        assert!(
-            first.canonical_declarations()[0]
-                .canonical_form()
-                .starts_with("eqiora.source-declaration.v1:sha256:")
-        );
-    }
-
-    #[test]
     fn canonical_declarations_normalize_aliases_to_exact_targets() {
         let root = namespace("root");
         let target = namespace("target");
@@ -992,7 +940,7 @@ public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
         };
 
         let first = analyzed("ops", "a/operator.eqi");
-        let renamed = analyzed("math", "relocated/definition.eqi");
+        let renamed = analyzed("tensor_ops", "relocated/definition.eqi");
         assert_eq!(
             first.canonical_declarations(),
             renamed.canonical_declarations()

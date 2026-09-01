@@ -35,6 +35,9 @@ impl LoweringExpression {
                     .map(LoweringExpression::detached_clone)
                     .collect(),
             },
+            LoweringExpressionNode::UnknownMath(path) => {
+                LoweringExpressionNode::UnknownMath(path.clone())
+            }
             LoweringExpressionNode::Unsupported => LoweringExpressionNode::Unsupported,
         };
         Self {

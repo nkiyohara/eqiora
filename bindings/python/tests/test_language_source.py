@@ -280,7 +280,7 @@ def scalar_primal_source():
         on=region,
         residual=(
             -q.div(diffusion * q.grad(potential))
-            - source_scale * q.sin(q.math.pi * wave_number * q.coordinate(0))
+            - source_scale * q.math.sin(q.math.pi * wave_number * q.coordinate(0))
         ),
     )
     law.primal_form(
@@ -293,7 +293,7 @@ def scalar_primal_source():
             region,
             q.test(potential)
             * source_scale
-            * q.sin(q.math.pi * wave_number * q.coordinate(0)),
+            * q.math.sin(q.math.pi * wave_number * q.coordinate(0)),
         ),
         doc="Authored scalar primal form.",
     )
@@ -308,6 +308,8 @@ def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form(
     assert "form primal for balance" in text
     assert "// Authored scalar primal form." in text
     assert text.count("math.pi") == 2
+    assert text.count("math.sin") == 2
+    assert not hasattr(q, "sin")
 
     model = eqiora.compile(
         source=source,

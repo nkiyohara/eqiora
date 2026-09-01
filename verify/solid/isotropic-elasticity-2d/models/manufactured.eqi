@@ -16,11 +16,11 @@ model manufactured_isotropic_elasticity_plane {
   relation load continuous on body {
     load_potential
       - load_scale * (
-          sin(wave_number * coordinate(0)) ^ 2
-          + sin(wave_number * coordinate(1)) ^ 2
+          math.sin(wave_number * coordinate(0)) ^ 2
+          + math.sin(wave_number * coordinate(1)) ^ 2
           - 4
-            * sin(wave_number * coordinate(0)) ^ 2
-            * sin(wave_number * coordinate(1)) ^ 2
+            * math.sin(wave_number * coordinate(0)) ^ 2
+            * math.sin(wave_number * coordinate(1)) ^ 2
         ) = 0;
   }
   relation balance continuous on body {

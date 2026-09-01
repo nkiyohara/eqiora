@@ -312,6 +312,11 @@ impl ExpressionContext<'_> {
                     ValueShape::scalar(),
                     None,
                 )),
+                None if crate::math::is_namespaced(path) => Err(error(
+                    self.file,
+                    expression.range(),
+                    format!("unknown compiler-owned scalar mathematics member `{path}`"),
+                )),
                 None => Err(error(
                     self.file,
                     expression.range(),
@@ -532,14 +537,14 @@ impl ExpressionContext<'_> {
         match (name, arguments) {
             ("test", [argument]) => self.compile_test(expression, argument),
             ("coordinate", [axis]) => self.compile_coordinate(expression, axis),
-            ("sin", [argument]) => {
+            ("math.sin", [argument]) => {
                 let argument = self.compile(argument)?;
                 require_scalar(self.file, expression.range(), &argument)?;
                 if argument.dimension != DimExponents::DIMENSIONLESS {
                     return Err(error(
                         self.file,
                         expression.range(),
-                        "sin requires a dimensionless argument",
+                        "math.sin requires a dimensionless argument",
                     ));
                 }
                 Ok(typed(
@@ -846,7 +851,13 @@ fn unqualified_callee<'a>(
     range: TextRange,
     callee: &'a NamePath,
 ) -> Result<&'a str, Diagnostic> {
-    if callee.is_qualified() {
+    if crate::math::is_namespaced(callee) && !crate::math::is_function(callee) {
+        Err(error(
+            file,
+            range,
+            format!("unknown compiler-owned scalar mathematics member `{callee}`"),
+        ))
+    } else if callee.is_qualified() && !crate::math::is_function(callee) {
         Err(error(
             file,
             range,

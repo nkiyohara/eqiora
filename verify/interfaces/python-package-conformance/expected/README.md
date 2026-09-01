@@ -13,3 +13,9 @@ Neutral key names keep these expected facts outside the current-identity
 transition vocabulary. No test regenerates this file through the operation
 under test. The facts freeze structural identity only; they are not a report
 wire, attestation, publisher statement, numerical oracle, or trust decision.
+
+The current accepted and deliberately false packages were reissued together
+when scalar sine moved from bare `sin` to compiler-owned `math.sin`. Their
+source, declaration, resolution, Model, and compilation identities therefore
+changed as one exact provenance closure; their equations and the deliberately
+false documentation claim did not.

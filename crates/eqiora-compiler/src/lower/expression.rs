@@ -2,20 +2,49 @@ use super::*;
 
 use eqiora_schema::kernel::typing::{self, ExpressionType, SpatialSupport};
 
+impl LoweringExpression {
+    pub(crate) fn collect_physical_port_names(&self, names: &mut BTreeSet<String>) -> bool {
+        match self.node.as_ref() {
+            LoweringExpressionNode::Call { callee, argument }
+                if matches!(callee.as_str(), "across" | "through" | "trace" | "flux") =>
+            {
+                if let LoweringExpressionNode::Name(name) = argument.node.as_ref() {
+                    names.insert(name.clone());
+                }
+                argument.collect_physical_port_names(names)
+            }
+            LoweringExpressionNode::Neg(value) => value.collect_physical_port_names(names),
+            LoweringExpressionNode::Binary { left, right, .. } => {
+                left.collect_physical_port_names(names) && right.collect_physical_port_names(names)
+            }
+            LoweringExpressionNode::Call { argument, .. } => {
+                argument.collect_physical_port_names(names)
+            }
+            LoweringExpressionNode::PureOperator { arguments, .. } => arguments
+                .iter()
+                .all(|argument| argument.collect_physical_port_names(names)),
+            LoweringExpressionNode::Quantity(_) | LoweringExpressionNode::Name(_) => true,
+            LoweringExpressionNode::UnknownMath(_) | LoweringExpressionNode::Unsupported => false,
+        }
+    }
+}
+
 pub(super) fn from_source(expression: &Expr) -> LoweringExpression {
     let kind = match expression.kind() {
         ExprKind::Number(value) => LoweringExpressionNode::Quantity(DynQuantity::new(
             normalize_zero(*value),
             DimExponents::DIMENSIONLESS,
         )),
-        ExprKind::Path(path) => {
-            crate::math::constant(path).map_or(LoweringExpressionNode::Unsupported, |value| {
-                LoweringExpressionNode::Quantity(DynQuantity::new(
-                    value,
-                    DimExponents::DIMENSIONLESS,
-                ))
-            })
-        }
+        ExprKind::Path(path) => match crate::math::constant(path) {
+            Some(value) => LoweringExpressionNode::Quantity(DynQuantity::new(
+                value,
+                DimExponents::DIMENSIONLESS,
+            )),
+            None if crate::math::is_namespaced(path) => {
+                LoweringExpressionNode::UnknownMath(path.as_str().to_owned())
+            }
+            None => LoweringExpressionNode::Unsupported,
+        },
         ExprKind::Name(name) => LoweringExpressionNode::Name(name.clone()),
         ExprKind::Unary {
             op: UnaryOp::Neg,
@@ -26,7 +55,10 @@ pub(super) fn from_source(expression: &Expr) -> LoweringExpression {
             left: from_source(left),
             right: from_source(right),
         },
-        ExprKind::Call { callee, arguments } if !callee.is_qualified() && arguments.len() == 1 => {
+        ExprKind::Call { callee, arguments }
+            if (!callee.is_qualified() || crate::math::is_namespaced(callee))
+                && arguments.len() == 1 =>
+        {
             LoweringExpressionNode::Call {
                 callee: callee.as_str().to_owned(),
                 argument: from_source(&arguments[0]),
@@ -196,7 +228,7 @@ fn validate_spatial_operator_types(
                     typing::isotropic_lift(&operand)
                         .map_err(|error| spatial_type_error(file, expression, error))?,
                 ),
-                ("sin", Some(operand)) => typing::sine(&operand).ok(),
+                ("math.sin", Some(operand)) => typing::sine(&operand).ok(),
                 _ => None,
             }
         }
@@ -206,7 +238,7 @@ fn validate_spatial_operator_types(
             }
             None
         }
-        LoweringExpressionNode::Unsupported => None,
+        LoweringExpressionNode::UnknownMath(_) | LoweringExpressionNode::Unsupported => None,
     };
     Ok(typed)
 }
@@ -316,6 +348,12 @@ impl ExpressionLowerer<'_> {
                 definition,
                 arguments,
             } => self.lower_pure_operator(expression, definition, arguments),
+            LoweringExpressionNode::UnknownMath(path) => Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.file,
+                expression.range(),
+                format!("unknown compiler-owned scalar mathematics member `{path}`"),
+            )),
             LoweringExpressionNode::Unsupported => Err(source_error(
                 codes::LANGUAGE_LOWERING_ERROR,
                 self.file,
@@ -400,6 +438,22 @@ impl ExpressionLowerer<'_> {
         callee: &str,
         argument: &LoweringExpression,
     ) -> Result<TypedExpression, Diagnostic> {
+        if callee == "sin" {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.file,
+                expression.range(),
+                "bare `sin` is not language vocabulary; use compiler-owned `math.sin`",
+            ));
+        }
+        if callee.starts_with("math.") && callee != "math.sin" {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.file,
+                expression.range(),
+                format!("unknown compiler-owned scalar mathematics member `{callee}`"),
+            ));
+        }
         let boundary_trace = callee == "trace"
             && matches!(
                 argument.node.as_ref(),
@@ -432,7 +486,7 @@ impl ExpressionLowerer<'_> {
                 })
                 .map_err(|diagnostic| self.builder_error(expression, diagnostic));
         }
-        if callee == "sin" {
+        if callee == "math.sin" {
             let operand = self.lower(argument)?;
             if operand.dimension != DimExponents::DIMENSIONLESS {
                 return Err(source_error(
@@ -440,7 +494,7 @@ impl ExpressionLowerer<'_> {
                     self.file,
                     argument.range(),
                     format!(
-                        "sin(...) requires a dimensionless scalar, received [{}]",
+                        "math.sin(...) requires a dimensionless scalar, received [{}]",
                         operand.dimension
                     ),
                 ));

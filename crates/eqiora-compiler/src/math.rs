@@ -1,4 +1,38 @@
-use eqiora_lang::NamePath;
+use eqiora_core::Diagnostic;
+use eqiora_core::diagnostic::codes;
+use eqiora_lang::{NamePath, TextRange};
+
+use crate::diagnostics::source_error;
+
+pub(crate) const ROOT: &str = "math";
+
+pub(crate) fn model_name_diagnostics(
+    file: &str,
+    model_name: &str,
+    range: TextRange,
+) -> Vec<Diagnostic> {
+    (model_name == ROOT)
+        .then(|| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                range,
+                "identifier `math` is reserved for compiler-owned scalar mathematics",
+            )
+        })
+        .into_iter()
+        .collect()
+}
+
+/// Whether a path belongs to the compiler-owned scalar-mathematics namespace.
+pub(crate) fn is_namespaced(path: &NamePath) -> bool {
+    path.segments().next() == Some(ROOT)
+}
+
+/// Whether a path names an admitted scalar mathematical function.
+pub(crate) fn is_function(path: &NamePath) -> bool {
+    path.as_str() == "math.sin"
+}
 
 /// Returns the compiler-owned value of a canonical mathematical constant.
 ///

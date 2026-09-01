@@ -23,24 +23,24 @@ use crate::diagnostics::source_error;
 /// Whether a call path denotes the closed source builtin vocabulary rather
 /// than a package-resolved pure definition.
 pub(crate) fn is_builtin_operator(path: &eqiora_lang::NamePath) -> bool {
-    !path.is_qualified()
-        && matches!(
-            path.as_str(),
-            "across"
-                | "through"
-                | "flux"
-                | "trace"
-                | "coordinate"
-                | "sin"
-                | "grad"
-                | "div"
-                | "symmetric_part"
-                | "isotropic_lift"
-                | "normal"
-                | "derivative"
-                | "pre"
-                | "next"
-        )
+    crate::math::is_function(path)
+        || (!path.is_qualified()
+            && matches!(
+                path.as_str(),
+                "across"
+                    | "through"
+                    | "flux"
+                    | "trace"
+                    | "coordinate"
+                    | "grad"
+                    | "div"
+                    | "symmetric_part"
+                    | "isotropic_lift"
+                    | "normal"
+                    | "derivative"
+                    | "pre"
+                    | "next"
+            ))
 }
 
 /// Compile one closed source declaration into its name-free Kernel meaning.

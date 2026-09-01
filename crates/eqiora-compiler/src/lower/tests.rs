@@ -248,9 +248,10 @@ model invalid {
   representation space = continuum;
   field u on interval as space: 1 = 0;
   relation balance continuous on interval {
-    -div(grad(u)) - sin(coordinate(0)) = 0;
+    -div(grad(u)) - math.sin(coordinate(0)) = 0;
   }
 }
+
 "#;
     let diagnostics = compile("invalid-sin.eqi", source)
         .expect_err("a physical coordinate is not an angle by itself");
@@ -259,6 +260,76 @@ model invalid {
         diagnostic.code() == codes::LANGUAGE_TYPE_ERROR
             && diagnostic.message().contains("dimensionless scalar")
     }));
+}
+
+#[test]
+fn compiler_owns_the_scalar_mathematics_namespace() {
+    let valid = r#"
+model valid {
+  domain interval = box(0, 1);
+  representation space = continuum;
+  field u on interval as space: 1 = 0;
+  relation balance continuous on interval {
+    u - math.sin(math.pi) = 0;
+  }
+}
+"#;
+    let compiled = compile("math-sin.eqi", valid).expect("the compiler-owned sine compiles");
+    let relation = compiled[0]
+        .transaction()
+        .ops()
+        .iter()
+        .find_map(|operation| match operation {
+            Op::DefineKernelNode {
+                node: KernelNode::Relation(relation),
+            } => Some(relation),
+            _ => None,
+        })
+        .expect("canonical Relation");
+    assert!(relation.residuals().nodes().iter().any(|node| matches!(
+        node,
+        eqiora_schema::kernel::ExprNode::UnaryMath(UnaryMathFunction::Sin, _)
+    )));
+    assert!(relation.residuals().nodes().iter().any(|node| matches!(
+        node,
+        eqiora_schema::kernel::ExprNode::Constant(value)
+            if value.value().to_bits() == 0x4009_21fb_5444_2d18
+    )));
+
+    for (source, expected) in [
+        (
+            "model invalid { domain d = box(0, 1); representation r = continuum; field u on d as r: 1 = 0; relation law continuous on d { u - sin(0) = 0; } }",
+            "bare `sin` is not language vocabulary",
+        ),
+        (
+            "model invalid { domain d = box(0, 1); representation r = continuum; field u on d as r: 1 = 0; relation law continuous on d { u - math.cos(0) = 0; } }",
+            "unknown compiler-owned scalar mathematics member `math.cos`",
+        ),
+        (
+            "model invalid { domain d = box(0, 1); representation r = continuum; field u on d as r: 1 = 0; relation law continuous on d { u - math.tau = 0; } }",
+            "unknown compiler-owned scalar mathematics member `math.tau`",
+        ),
+        (
+            "model invalid { parameter math: 1 = 1; }",
+            "identifier `math` is reserved for compiler-owned scalar mathematics",
+        ),
+        (
+            "model math { relation law continuous { 0 = 0; } }",
+            "identifier `math` is reserved for compiler-owned scalar mathematics",
+        ),
+        (
+            "dimension math = m; model invalid { relation law continuous { 0 = 0; } }",
+            "identifier `math` is reserved for compiler-owned scalar mathematics",
+        ),
+    ] {
+        let diagnostics = compile("invalid-math.eqi", source).expect_err(expected);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message().contains(expected)),
+            "missing diagnostic containing {expected:?}: {diagnostics:#?}"
+        );
+    }
 }
 
 #[test]

@@ -12,7 +12,7 @@ u_exact(x) = sin(pi x)
 ```
 
 The Eqiora Language model stores the manufactured source as
-`source_scale * sin(wave_number * coordinate(0))`. Compilation and semantic
+`source_scale * math.sin(wave_number * coordinate(0))`. Compilation and semantic
 validation produce one dimension-aware expression DAG; spatial lowering
 produces one immutable scalar tape evaluated by both methods.
 

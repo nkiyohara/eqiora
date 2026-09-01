@@ -11,11 +11,11 @@ model Main {
   relation load continuous on body {
     load_potential
       - load_scale * (
-          sin(wave_number * coordinate(0)) ^ 2
-          + sin(wave_number * coordinate(1)) ^ 2
+          math.sin(wave_number * coordinate(0)) ^ 2
+          + math.sin(wave_number * coordinate(1)) ^ 2
           - 4
-            * sin(wave_number * coordinate(0)) ^ 2
-            * sin(wave_number * coordinate(1)) ^ 2
+            * math.sin(wave_number * coordinate(0)) ^ 2
+            * math.sin(wave_number * coordinate(1)) ^ 2
         ) = 0;
   }
   parameter load_scale: kg / (m * s ^ 2) = 1;

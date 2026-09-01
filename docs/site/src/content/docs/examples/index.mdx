@@ -53,8 +53,8 @@ model Main {
   relation balance continuous on square {
     -div(grad(potential))
       - source_scale
-        * sin(wave_number * coordinate(0))
-        * sin(wave_number * coordinate(1)) = 0;
+        * math.sin(wave_number * coordinate(0))
+        * math.sin(wave_number * coordinate(1)) = 0;
   }
   relation x_lower_value continuous on x_lower { trace(potential) = 0; }
   // ... one boundary relation per side ...
@@ -62,6 +62,8 @@ model Main {
 ```
 
 Read that as a statement of *what must be true*. It names a domain, a field, two dimensioned parameters, and five relations. It does not name a mesh, an element, a quadrature rule, a linear solver, a tolerance, or a machine—because none of those are properties of the problem.
+
+Equation-structure operators such as `grad`, `div`, `trace`, and `coordinate` belong to Eqiora's small implicit prelude. Scalar mathematical functions and constants belong to the compiler-owned `math` namespace instead, currently `math.sin` and `math.pi`. Neither group is imported, and user declarations or packages cannot shadow `math`.
 
 ### Stage 1 — Geometry, Mesh, and Model
 

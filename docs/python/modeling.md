@@ -68,9 +68,12 @@ direct and emitted-file compilation with identical bindings have the same Model
 meaning and identity, while comments affect source presentation but not semantic
 identity. Compiler failures retain the existing structured diagnostics.
 `q.math.pi` is one immutable, ownerless Source expression that emits exactly
-`math.pi`; composing it with a Source-owned expression adopts that Source's
-existing ownership. It is not a Python float, and the native compiler remains
-the authority for its exact value and dimension.
+`math.pi`; `q.math.sin(expression)` emits the matching compiler-owned scalar
+operation. Composing either with a Source-owned expression adopts that Source's
+existing ownership. The top-level Source vocabulary is reserved for equation
+structure such as `q.grad` and `q.div`, while scalar functions and constants
+live under `q.math`. They are not Python numerical operations, and the native
+compiler remains the authority for their typing and value semantics.
 
 The same Source owner can emit the bounded scalar property declarations used by
 an exact Model Package:
