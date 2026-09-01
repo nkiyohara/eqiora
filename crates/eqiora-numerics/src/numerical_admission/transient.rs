@@ -9,22 +9,20 @@ pub(super) struct PreparedCommonTransientExecution<'a> {
 enum PreparedCommonTransientMethod<'a> {
     MiniP1(PreparedResolvedTransientMiniRun2d<'a>),
     GeometryMiniP1(PreparedResolvedTransientGeometryMiniRun2d<'a>),
+    CellCentered(PreparedResolvedTransientCellCenteredRun2d<'a>),
     ExistingOneStep,
 }
 
 impl PreparedCommonTransientExecution<'_> {
     pub(super) fn advance(&self, state: &CommonState) -> Result<CommonState, Diagnostic> {
-        let CommonStateKind::MiniP1(initial) = &state.kind else {
-            if matches!(self.method, PreparedCommonTransientMethod::ExistingOneStep) {
-                return self.plan.advance_one_authenticated(state, self.backend);
-            }
-            return Err(invalid(
-                "prepared MINI Run received a non-MINI common State",
-            ));
-        };
         let run = TransientNavierStokesRun2d::new(NonZeroStepCount::new(NonZeroUsize::MIN));
         match &self.method {
             PreparedCommonTransientMethod::MiniP1(prepared) => {
+                let CommonStateKind::MiniP1(initial) = &state.kind else {
+                    return Err(invalid(
+                        "prepared MINI Run received a non-MINI common State",
+                    ));
+                };
                 let trajectory = prepared.advance(initial.as_ref().clone(), run, self.backend)?;
                 let accepted = trajectory
                     .states()
@@ -38,6 +36,11 @@ impl PreparedCommonTransientExecution<'_> {
                 self.accept_mini(mesh, accepted)
             }
             PreparedCommonTransientMethod::GeometryMiniP1(prepared) => {
+                let CommonStateKind::MiniP1(initial) = &state.kind else {
+                    return Err(invalid(
+                        "prepared MINI Run received a non-MINI common State",
+                    ));
+                };
                 let states = prepared.advance(initial.as_ref().clone(), run, self.backend)?;
                 let accepted = states.last().ok_or_else(|| {
                     invalid("Geometry MINI transient step returned no accepted State")
@@ -48,6 +51,27 @@ impl PreparedCommonTransientExecution<'_> {
                     unreachable!("prepared Geometry MINI Run owns Gmsh resources")
                 };
                 self.accept_mini(mesh, accepted)
+            }
+            PreparedCommonTransientMethod::CellCentered(prepared) => {
+                let CommonStateKind::CellCentered(initial) = &state.kind else {
+                    return Err(invalid(
+                        "prepared cell-centered Run received incompatible method history",
+                    ));
+                };
+                let trajectory = prepared.advance(initial.as_ref().clone(), run, self.backend)?;
+                let accepted = trajectory.states().last().ok_or_else(|| {
+                    invalid("cell-centered transient step returned no accepted State")
+                })?;
+                CommonState::new_with_boundary_forces(
+                    self.plan.state_space_identity(),
+                    accepted.time().value(),
+                    Arc::new(self.plan.admission.model.clone()),
+                    Arc::new(self.plan.admission.resources.clone()),
+                    CommonStateKind::CellCentered(Box::new(cell_centered_initial_from_resolved(
+                        self.plan, accepted,
+                    )?)),
+                    Vec::new(),
+                )
             }
             PreparedCommonTransientMethod::ExistingOneStep => {
                 self.plan.advance_one_authenticated(state, self.backend)
@@ -858,6 +882,16 @@ impl CommonTransientFlowPlan {
                     )?,
                 )
             }
+            (
+                CommonTransientResolvedSpatial::CellCentered(resolved),
+                NativeMeshResources::Cartesian { mesh, .. },
+            ) => PreparedCommonTransientMethod::CellCentered(
+                prepare_resolved_transient_navier_stokes_cell_centered_run_2d(
+                    &self.admission.program,
+                    resolved,
+                    mesh,
+                )?,
+            ),
             _ => PreparedCommonTransientMethod::ExistingOneStep,
         };
         Ok(PreparedCommonTransientExecution {

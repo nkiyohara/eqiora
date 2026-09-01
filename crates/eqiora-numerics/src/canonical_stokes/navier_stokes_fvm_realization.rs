@@ -26,7 +26,7 @@ use super::{
     IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
     TransientNavierStokesRun2d,
 };
-use crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d;
+use crate::cartesian_fvm_geometry::{CartesianCellMetrics2d, cartesian_fvm_geometry_2d};
 use crate::cartesian_incompressible::{
     CartesianIncompressibleOperator2d, CellCenteredPressureField2d, CellCenteredVelocityField2d,
     CollocatedPoint2d, solve_collocated_step_2d,
@@ -506,20 +506,153 @@ pub fn transient_navier_stokes_cell_centered_plan_2d(
     .map_err(realization_error)
 }
 
-/// Advance the exact canonical fluid through the bounded collocated FVM path.
-///
-/// # Errors
-/// Rejects Model/revision, boundary, generated-mesh, Field identity, scaling,
-/// portable-graph, nonlinear, linear-solver, JVP, checkerboard, or conservation
-/// drift. A failed step never mutates the last accepted state.
-pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
+/// Ephemeral invariant structure for one exact cell-centered Run.
+pub(crate) struct PreparedResolvedTransientCellCenteredRun2d<'a> {
+    model: TransientIncompressibleNavierStokesCartesianModel2d,
+    formulation: IntegralConservativeCorrespondence,
+    resolved: &'a ResolvedTransientCellCenteredIncompressibleFlowRealization,
+    realization_graph: PortableRealizationGraph,
+    scales: IncompressibleFlowScaleProfile2d,
+    physical_mesh: CartesianMesh,
+    normalized_mesh: CartesianMesh,
+    normalized_cells: Vec<CartesianCellMetrics2d>,
+    body_force: Vec<[f64; DIMENSION]>,
+    duration: DynQuantity,
+    dimensionless_duration: f64,
+    density: f64,
+    viscosity: f64,
+    face_volume_flux_scale: f64,
+}
+
+impl PreparedResolvedTransientCellCenteredRun2d<'_> {
+    pub(crate) fn advance(
+        &self,
+        initial: CellCenteredNavierStokesInitialState2d,
+        run: TransientNavierStokesRun2d,
+        solver: &dyn LinearSolverBackend,
+    ) -> Result<ResolvedCellCenteredNavierStokesTrajectory2d, Diagnostic> {
+        if initial.velocity_field != velocity_id(&self.model)
+            || initial.pressure_field != pressure_id(&self.model)
+            || initial.velocity.mesh() != &self.physical_mesh
+            || initial.pressure.mesh() != &self.physical_mesh
+        {
+            return Err(invalid_realization(
+                "collocated initial state differs from the exact Model Fields or generated mesh",
+            ));
+        }
+        let mut numerical = CollocatedPoint2d {
+            velocity: initial
+                .velocity
+                .values()
+                .iter()
+                .map(|value| value.map(|component| component / self.scales.velocity_value()))
+                .collect(),
+            pressure: initial
+                .pressure
+                .values()
+                .iter()
+                .map(|value| value / self.scales.pressure_value())
+                .collect(),
+            gauge_multiplier: initial.gauge_multiplier / self.scales.gauge_value(),
+        };
+        let initial_face_volume_fluxes = initial.previous_face_volume_fluxes;
+        let mut previous_face_volume_fluxes = initial_face_volume_fluxes
+            .iter()
+            .map(|value| value / self.face_volume_flux_scale)
+            .collect::<Vec<_>>();
+        let mut time = initial.time;
+        let mut states = vec![ResolvedCellCenteredNavierStokesState2d {
+            time,
+            velocity_field: initial.velocity_field,
+            pressure_field: initial.pressure_field,
+            velocity: initial.velocity,
+            pressure: initial.pressure,
+            gauge_multiplier: initial.gauge_multiplier,
+            previous_face_volume_fluxes: initial_face_volume_fluxes,
+        }];
+        let mut steps = Vec::with_capacity(run.step_count().get());
+        for _ in 0..run.step_count().get() {
+            let operator = CartesianIncompressibleOperator2d::new(
+                self.normalized_mesh.clone(),
+                self.density,
+                self.viscosity,
+                self.dimensionless_duration,
+                numerical.velocity.clone(),
+                previous_face_volume_fluxes.clone(),
+                self.body_force.clone(),
+            )?;
+            let (accepted, residual, newton) = solve_collocated_step_2d(
+                &operator,
+                numerical.clone(),
+                self.resolved.plan().nonlinear(),
+                self.resolved.plan().fieldwise().solver(),
+                solver,
+            )?;
+            let evidence = accept_collocated_step(
+                &self.normalized_mesh,
+                &self.normalized_cells,
+                &operator,
+                &accepted,
+                &residual,
+                newton,
+            )?;
+            let accepted_face_volume_fluxes = residual.face_volume_fluxes();
+            time = DynQuantity::new(time.value() + self.duration.value(), TIME);
+            if !time.value().is_finite() {
+                return Err(invalid_realization(
+                    "collocated transient time cannot be represented after an accepted step",
+                ));
+            }
+            states.push(ResolvedCellCenteredNavierStokesState2d {
+                time,
+                velocity_field: velocity_id(&self.model),
+                pressure_field: pressure_id(&self.model),
+                velocity: CellCenteredVelocityField2d::new(
+                    self.physical_mesh.clone(),
+                    accepted
+                        .velocity
+                        .iter()
+                        .map(|value| {
+                            value.map(|component| component * self.scales.velocity_value())
+                        })
+                        .collect(),
+                )?,
+                pressure: CellCenteredPressureField2d::new(
+                    self.physical_mesh.clone(),
+                    accepted
+                        .pressure
+                        .iter()
+                        .map(|value| value * self.scales.pressure_value())
+                        .collect(),
+                )?,
+                gauge_multiplier: accepted.gauge_multiplier * self.scales.gauge_value(),
+                previous_face_volume_fluxes: accepted_face_volume_fluxes
+                    .iter()
+                    .map(|value| value * self.face_volume_flux_scale)
+                    .collect(),
+            });
+            numerical = accepted;
+            previous_face_volume_fluxes = accepted_face_volume_fluxes;
+            steps.push(evidence);
+        }
+        Ok(ResolvedCellCenteredNavierStokesTrajectory2d {
+            model: self.model.clone(),
+            _formulation: self.formulation.clone(),
+            realization: self.resolved.clone(),
+            realization_graph: self.realization_graph.clone(),
+            solver_backend: solver.id(),
+            scales: self.scales,
+            states,
+            steps,
+        })
+    }
+}
+
+pub(crate) fn prepare_resolved_transient_navier_stokes_cell_centered_run_2d<'a>(
     program: &KernelProgram,
-    resolved: &ResolvedTransientCellCenteredIncompressibleFlowRealization,
+    resolved: &'a ResolvedTransientCellCenteredIncompressibleFlowRealization,
     mesh: &CartesianMeshEnvelopeV1,
-    initial: CellCenteredNavierStokesInitialState2d,
-    run: TransientNavierStokesRun2d,
-    solver: &dyn LinearSolverBackend,
-) -> Result<ResolvedCellCenteredNavierStokesTrajectory2d, Diagnostic> {
+) -> Result<PreparedResolvedTransientCellCenteredRun2d<'a>, Diagnostic> {
     if program.model() != resolved.model()
         || program.revision().0 != resolved.semantic_revision().get()
     {
@@ -530,8 +663,9 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
     let model = super::lower_transient_incompressible_navier_stokes_cartesian_2d(program)?;
     super::navier_stokes_realization::require_complete_zero_trace(&model)?;
     let formulation = integral_conservative_correspondence(&model);
-    let graph = resolved.portable_graph()?;
-    let scales = require_exact_cell_centered_plan(&model, &formulation, resolved, &graph)?;
+    let realization_graph = resolved.portable_graph()?;
+    let scales =
+        require_exact_cell_centered_plan(&model, &formulation, resolved, &realization_graph)?;
     let (artifact, cells_per_axis) = match resolved
         .plan()
         .fieldwise()
@@ -561,15 +695,6 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
         ));
     }
     let physical_mesh = mesh.mesh().clone();
-    if initial.velocity_field != velocity_id(&model)
-        || initial.pressure_field != pressure_id(&model)
-        || initial.velocity.mesh() != &physical_mesh
-        || initial.pressure.mesh() != &physical_mesh
-    {
-        return Err(invalid_realization(
-            "collocated initial state differs from the exact Model Fields or generated mesh",
-        ));
-    }
     let length = scales.length_value();
     let normalized_bounds = model
         .bounds()
@@ -618,114 +743,40 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
     let density = model.mass_density() * scales.velocity_value().powi(2) / scales.pressure_value();
     let viscosity =
         model.dynamic_viscosity() * scales.velocity_value() / (scales.pressure_value() * length);
-    let step_count = run.step_count();
-    let mut numerical = CollocatedPoint2d {
-        velocity: initial
-            .velocity
-            .values()
-            .iter()
-            .map(|value| value.map(|component| component / scales.velocity_value()))
-            .collect(),
-        pressure: initial
-            .pressure
-            .values()
-            .iter()
-            .map(|value| value / scales.pressure_value())
-            .collect(),
-        gauge_multiplier: initial.gauge_multiplier / scales.gauge_value(),
-    };
-    // The restart boundary is coherent SI.  The collocated operator alone owns
-    // dimensionless history, so a State can be reused under a different valid
-    // numerical scaling without changing its physical meaning.
-    let face_volume_flux_scale = scales.velocity_value() * length;
-    let initial_face_volume_fluxes = initial.previous_face_volume_fluxes;
-    let mut previous_face_volume_fluxes = initial_face_volume_fluxes
-        .iter()
-        .map(|value| value / face_volume_flux_scale)
-        .collect::<Vec<_>>();
-    let mut time = initial.time;
-    let mut states = vec![ResolvedCellCenteredNavierStokesState2d {
-        time,
-        velocity_field: initial.velocity_field,
-        pressure_field: initial.pressure_field,
-        velocity: initial.velocity,
-        pressure: initial.pressure,
-        gauge_multiplier: initial.gauge_multiplier,
-        previous_face_volume_fluxes: initial_face_volume_fluxes,
-    }];
-    let mut steps = Vec::with_capacity(step_count.get());
-    for _ in 0..step_count.get() {
-        let operator = CartesianIncompressibleOperator2d::new(
-            normalized_mesh.clone(),
-            density,
-            viscosity,
-            dimensionless_duration,
-            numerical.velocity.clone(),
-            previous_face_volume_fluxes.clone(),
-            body_force.clone(),
-        )?;
-        let (accepted, residual, newton) = solve_collocated_step_2d(
-            &operator,
-            numerical.clone(),
-            resolved.plan().nonlinear(),
-            resolved.plan().fieldwise().solver(),
-            solver,
-        )?;
-        let evidence = accept_collocated_step(
-            &normalized_mesh,
-            &normalized_cells,
-            &operator,
-            &accepted,
-            &residual,
-            newton,
-        )?;
-        let accepted_face_volume_fluxes = residual.face_volume_fluxes();
-        time = DynQuantity::new(time.value() + duration.value(), TIME);
-        if !time.value().is_finite() {
-            return Err(invalid_realization(
-                "collocated transient time cannot be represented after an accepted step",
-            ));
-        }
-        states.push(ResolvedCellCenteredNavierStokesState2d {
-            time,
-            velocity_field: velocity_id(&model),
-            pressure_field: pressure_id(&model),
-            velocity: CellCenteredVelocityField2d::new(
-                physical_mesh.clone(),
-                accepted
-                    .velocity
-                    .iter()
-                    .map(|value| value.map(|component| component * scales.velocity_value()))
-                    .collect(),
-            )?,
-            pressure: CellCenteredPressureField2d::new(
-                physical_mesh.clone(),
-                accepted
-                    .pressure
-                    .iter()
-                    .map(|value| value * scales.pressure_value())
-                    .collect(),
-            )?,
-            gauge_multiplier: accepted.gauge_multiplier * scales.gauge_value(),
-            previous_face_volume_fluxes: accepted_face_volume_fluxes
-                .iter()
-                .map(|value| value * face_volume_flux_scale)
-                .collect(),
-        });
-        numerical = accepted;
-        previous_face_volume_fluxes = accepted_face_volume_fluxes;
-        steps.push(evidence);
-    }
-    Ok(ResolvedCellCenteredNavierStokesTrajectory2d {
+    Ok(PreparedResolvedTransientCellCenteredRun2d {
         model,
-        _formulation: formulation,
-        realization: resolved.clone(),
-        realization_graph: graph,
-        solver_backend: solver.id(),
+        formulation,
+        resolved,
+        realization_graph,
         scales,
-        states,
-        steps,
+        physical_mesh,
+        normalized_mesh,
+        normalized_cells,
+        body_force,
+        duration,
+        dimensionless_duration,
+        density,
+        viscosity,
+        face_volume_flux_scale: scales.velocity_value() * length,
     })
+}
+
+/// Advance the exact canonical fluid through the bounded collocated FVM path.
+///
+/// # Errors
+/// Rejects Model/revision, boundary, generated-mesh, Field identity, scaling,
+/// portable-graph, nonlinear, linear-solver, JVP, checkerboard, or conservation
+/// drift. A failed step never mutates the last accepted state.
+pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
+    program: &KernelProgram,
+    resolved: &ResolvedTransientCellCenteredIncompressibleFlowRealization,
+    mesh: &CartesianMeshEnvelopeV1,
+    initial: CellCenteredNavierStokesInitialState2d,
+    run: TransientNavierStokesRun2d,
+    solver: &dyn LinearSolverBackend,
+) -> Result<ResolvedCellCenteredNavierStokesTrajectory2d, Diagnostic> {
+    prepare_resolved_transient_navier_stokes_cell_centered_run_2d(program, resolved, mesh)?
+        .advance(initial, run, solver)
 }
 
 fn require_exact_cell_centered_plan(
