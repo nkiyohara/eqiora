@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 161 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 616 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 161 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 617 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 191 literal public spellings, 161 canonical grouped declarations, 813 visible method signatures (616 non-dunder and 197 dunder), and 74 visible class assignments.
+Inventory: 18 modules, 191 literal public spellings, 161 canonical grouped declarations, 814 visible method signatures (617 non-dunder and 197 dunder), and 74 visible class assignments.
 
 Regenerate with:
 
@@ -1739,7 +1739,7 @@ class Geometry:
     @property
     def dimension(self) -> int: ...
     @property
-    def bounds(self) -> tuple[tuple[float, float], tuple[float, float]]: ...
+    def bounds(self) -> tuple[tuple[float, float]] | tuple[tuple[float, float], tuple[float, float]] | tuple[tuple[float, float], tuple[float, float], tuple[float, float]]: ...
     @property
     def classification_tolerance(self) -> float | None: ...
     @property
@@ -1759,7 +1759,7 @@ class Geometry:
 
 ### `eqiora.geometry.GeometryBoundaryHandle`
 
-Direct construction-owned handle to one exact planar boundary.
+Direct construction-owned handle to one exact boundary.
 
 Authority: [`crates/eqiora-python/src/planar_operation.rs::PyGeometryBoundaryHandle`](../../crates/eqiora-python/src/planar_operation.rs)
 
@@ -1840,7 +1840,7 @@ class GeometryFaceHandle:
 
 ### `eqiora.geometry.GeometryGraph`
 
-Common owner of exact planar and solid authoring operations.
+Common owner of exact Cartesian, planar, and solid authoring operations.
 
 Authority: [`crates/eqiora-python/src/planar_operation.rs::PyGeometryGraph`](../../crates/eqiora-python/src/planar_operation.rs)
 
@@ -1848,6 +1848,7 @@ Authority: [`crates/eqiora-python/src/planar_operation.rs::PyGeometryGraph`](../
 @final
 class GeometryGraph:
     def __init__(self) -> None: ...
+    def interval(self, *, bounds: tuple[float, float]) -> GeometryOperation: ...
     def rectangle(self, *, x_bounds: tuple[float, float], y_bounds: tuple[float, float]) -> GeometryOperation: ...
     def circle(self, *, center: tuple[float, float], radius: float) -> GeometryOperation: ...
     def subtract(self, rectangle: GeometryOperation, circle: GeometryOperation) -> GeometryOperation: ...
@@ -1869,7 +1870,8 @@ class GeometryGraph:
 
 Immutable result of one exact primitive or Boolean operation.
 
-`boundaries` uses canonical construction order: a rectangle returns
+`boundaries` uses canonical construction order: an interval returns
+`(lower, upper)`, a rectangle returns
 `(x_lower, x_upper, y_lower, y_upper)`, a circle returns its sole curve,
 and subtract returns the four outer boundaries followed by the created cut.
 
@@ -1889,7 +1891,7 @@ class GeometryOperation:
 
 ### `eqiora.geometry.GeometryRegionHandle`
 
-Direct construction-owned handle to one exact planar region.
+Direct construction-owned handle to one exact region.
 
 Authority: [`crates/eqiora-python/src/planar_operation.rs::PyGeometryRegionHandle`](../../crates/eqiora-python/src/planar_operation.rs)
 
@@ -2333,9 +2335,9 @@ Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyCartesianMesher`](../..
 ```python
 @final
 class CartesianMesher:
-    def __new__(cls, *, cells: tuple[int, int]) -> Self: ...
+    def __new__(cls, *, cells: tuple[int] | tuple[int, int] | tuple[int, int, int]) -> Self: ...
     @property
-    def cells(self) -> tuple[int, int]: ...
+    def cells(self) -> tuple[int] | tuple[int, int] | tuple[int, int, int]: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __repr__(self) -> str: ...
 ```

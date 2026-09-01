@@ -31,7 +31,7 @@ class Geometry:
     @property
     def dimension(self) -> int: ...
     @property
-    def bounds(self) -> tuple[tuple[float, float], tuple[float, float]]: ...
+    def bounds(self) -> tuple[tuple[float, float]] | tuple[tuple[float, float], tuple[float, float]] | tuple[tuple[float, float], tuple[float, float], tuple[float, float]]: ...
     @property
     def classification_tolerance(self) -> float | None: ...
     @property
@@ -51,7 +51,7 @@ class Geometry:
 
 ## `GeometryBoundaryHandle`
 
-Direct construction-owned handle to one exact planar boundary.
+Direct construction-owned handle to one exact boundary.
 
 Authority: <ExactSourceLink path="crates/eqiora-python/src/planar_operation.rs" kind="blob">crates/eqiora-python/src/planar_operation.rs::PyGeometryBoundaryHandle</ExactSourceLink>
 
@@ -132,7 +132,7 @@ class GeometryFaceHandle:
 
 ## `GeometryGraph`
 
-Common owner of exact planar and solid authoring operations.
+Common owner of exact Cartesian, planar, and solid authoring operations.
 
 Authority: <ExactSourceLink path="crates/eqiora-python/src/planar_operation.rs" kind="blob">crates/eqiora-python/src/planar_operation.rs::PyGeometryGraph</ExactSourceLink>
 
@@ -140,6 +140,7 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/planar_operation.rs" 
 @final
 class GeometryGraph:
     def __init__(self) -> None: ...
+    def interval(self, *, bounds: tuple[float, float]) -> GeometryOperation: ...
     def rectangle(self, *, x_bounds: tuple[float, float], y_bounds: tuple[float, float]) -> GeometryOperation: ...
     def circle(self, *, center: tuple[float, float], radius: float) -> GeometryOperation: ...
     def subtract(self, rectangle: GeometryOperation, circle: GeometryOperation) -> GeometryOperation: ...
@@ -161,7 +162,8 @@ class GeometryGraph:
 
 Immutable result of one exact primitive or Boolean operation.
 
-`boundaries` uses canonical construction order: a rectangle returns
+`boundaries` uses canonical construction order: an interval returns
+`(lower, upper)`, a rectangle returns
 `(x_lower, x_upper, y_lower, y_upper)`, a circle returns its sole curve,
 and subtract returns the four outer boundaries followed by the created cut.
 
@@ -181,7 +183,7 @@ class GeometryOperation:
 
 ## `GeometryRegionHandle`
 
-Direct construction-owned handle to one exact planar region.
+Direct construction-owned handle to one exact region.
 
 Authority: <ExactSourceLink path="crates/eqiora-python/src/planar_operation.rs" kind="blob">crates/eqiora-python/src/planar_operation.rs::PyGeometryRegionHandle</ExactSourceLink>
 
