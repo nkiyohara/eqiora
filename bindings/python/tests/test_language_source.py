@@ -35,14 +35,14 @@ def cylinder_source(
     inlet_profile = stokes.field("inlet_profile", on=fluid, unit=u.m / u.s, initial=0)
 
     stokes.relation(
-        "force_definition", on=fluid, residual=force_potential - zero_pressure
+        "force_definition", on=fluid, left=force_potential, right=zero_pressure
     )
     stokes.relation(
         "inlet_profile_definition",
         on=fluid,
-        residual=(
-            inlet_profile
-            - 4
+        left=inlet_profile,
+        right=(
+            4
             * inlet_speed
             * q.coordinate(1)
             * (channel_height - q.coordinate(1))
@@ -68,6 +68,63 @@ def cylinder_source(
     stokes.relation("wall_velocity", on=walls, residual=q.trace(velocity))
     stokes.relation("cylinder_velocity", on=cylinder, residual=q.trace(velocity))
     return source
+
+
+def test_relation_accepts_exactly_residual_or_complete_natural_equation() -> None:
+    source = q.Source()
+    component = source.component("NaturalEquation")
+    body = component.volume("body", dimensions=2)
+    value = component.field("value", on=body, unit=u.one)
+    source_scale = component.parameter("source_scale", unit=u.one)
+
+    natural = component.relation(
+        "natural",
+        on=body,
+        left=q.div(q.grad(value)),
+        right=-source_scale,
+        doc="Natural equation.",
+    )
+    residual = component.relation("residual", on=body, residual=value)
+    assert isinstance(natural, q.Relation)
+    assert isinstance(residual, q.Relation)
+    with pytest.raises(TypeError):
+        q.Relation()
+    with pytest.raises(AttributeError):
+        natural.name = "other"
+
+    text = source.to_eqi()
+    assert "// Natural equation." in text
+    assert "div(grad(value)) = -source_scale;" in text
+    assert "value = 0;" in text
+
+
+def test_relation_rejects_mixed_incomplete_foreign_and_nonfinite_equations() -> None:
+    source = q.Source()
+    component = source.component("Relations")
+    body = component.volume("body", dimensions=2)
+    value = component.field("value", on=body, unit=u.one)
+    foreign = q.Source()
+    foreign_component = foreign.component("Foreign")
+    foreign_body = foreign_component.volume("body", dimensions=2)
+    foreign_value = foreign_component.field("value", on=foreign_body, unit=u.one)
+
+    invalid = (
+        lambda: component.relation("missing", on=body),
+        lambda: component.relation("left_only", on=body, left=value),
+        lambda: component.relation("right_only", on=body, right=value),
+        lambda: component.relation(
+            "mixed", on=body, residual=value, left=value, right=0
+        ),
+        lambda: component.relation(
+            "foreign", on=body, left=value, right=foreign_value
+        ),
+        lambda: component.relation(
+            "nonfinite", on=body, left=value, right=float("nan")
+        ),
+    )
+    for operation in invalid:
+        with pytest.raises((q.SourceError, TypeError)):
+            operation()
 
 
 def cylinder_geometry():

@@ -45,15 +45,18 @@ wave_number = q.math.pi / length
 component.relation(
     "balance",
     on=body,
-    residual=q.div(q.grad(value)) + wave_number**2 * value,
+    left=q.div(q.grad(value)),
+    right=-(wave_number**2) * value,
 )
 
 text = source.to_eqi()
 model = eqiora.compile(source=source, geometry=geometry, parameters={"length": 1.0})
 ```
 
-The Source draft owns exact supports and expressions, rejects foreign handles
-and resource-limit violations, and freezes on its first emission or compile.
+Relations accept either `residual=` or a complete `left=` and `right=` pair.
+The latter emits the ordinary Eqiora equation `left = right;`; Python `==` is
+not overloaded. The Source draft owns exact supports and expressions, rejects
+foreign handles and resource-limit violations, and freezes on its first emission or compile.
 It emits ordinary readable UTF-8 `.eqi`; `doc=` values become `//` comments.
 `write_eqi(path)` uses same-directory staging and atomic replacement, so an I/O
 failure does not publish a partly written source file.
