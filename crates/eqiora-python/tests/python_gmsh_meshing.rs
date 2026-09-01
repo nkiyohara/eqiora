@@ -32,7 +32,6 @@ plan = eqiora.meshing.resolve(geometry, provider)
 assert plan.provider == provider
 assert provider.maximum_target_size is None
 assert plan.source_digest == geometry.digest
-assert plan.boundary_facets <= provider.maximum_boundary_facets
 assert not hasattr(plan, "production_lineage_digest")
 assert not hasattr(eqiora.meshing, "ReferenceMesher")
 assert not hasattr(eqiora.meshing, "GmshImport")

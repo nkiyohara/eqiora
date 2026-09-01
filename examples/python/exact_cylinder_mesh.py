@@ -22,7 +22,7 @@ def build_mesh_plan() -> tuple[eqiora.meshing.MeshPlan, eqiora.meshing.Mesh]:
         maximum_boundary_facets=50,
     )
     plan = eqiora.meshing.resolve(geometry, request)
-    return plan, eqiora.meshing.generate(geometry, plan=plan)
+    return plan, eqiora.meshing.generate(plan)
 
 
 def build_mesh() -> eqiora.meshing.Mesh:
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     print(mesh.source_digest)
     print(mesh.digest)
     print(mesh.production_lineage_digest)
-    print(plan.provider, plan.boundary_facets)
+    print(plan.provider, plan.source_digest)
     print(mesh.dimension, mesh.vertex_count, mesh.cell_count)
     for selection in mesh.selection_names:
         print(selection, mesh.selection_entity_count(selection))

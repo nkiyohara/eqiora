@@ -83,7 +83,7 @@ mesh_request = eqiora.meshing.GmshMesher(
     maximum_boundary_facets=50,
 )
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
-mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+mesh = eqiora.meshing.generate(mesh_plan)
 
 model = eqiora.compile(
     path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
@@ -173,7 +173,7 @@ request = eqiora.meshing.GmshMesher(
     maximum_boundary_facets=50,
 )
 plan = eqiora.meshing.resolve(geometry, request)
-mesh = eqiora.meshing.generate(geometry, plan=plan)
+mesh = eqiora.meshing.generate(plan)
 print(geometry.digest, mesh.digest)
 print(mesh.selection_entity_count("cylinder"))
 ```
@@ -353,7 +353,7 @@ geometry = graph.build(rectangle, named_topology={
 })
 mesh_provider = eqiora.meshing.CartesianMesher(cells=(4, 4))
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_provider)
-mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+mesh = eqiora.meshing.generate(mesh_plan)
 
 model = eqiora.compile(
     source="""

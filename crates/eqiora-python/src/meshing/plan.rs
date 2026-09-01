@@ -269,8 +269,8 @@ pub(super) struct PyMeshPlan {
 
 pub(super) enum PlannedMesh {
     Gmsh(gmsh::GmshSizingReceipt),
-    Cartesian { boundary_facets: usize },
-    AffineTriangle { boundary_facets: usize },
+    Cartesian,
+    AffineTriangle,
 }
 
 #[pymethods]
@@ -285,26 +285,11 @@ impl PyMeshPlan {
         self.provider.to_python(py)
     }
 
-    /// Planned number of boundary facets selected by the provider policy.
-    #[getter]
-    fn boundary_facets(&self) -> usize {
-        match (&self.planned, self.provider) {
-            (PlannedMesh::Gmsh(sizing), MeshProviderPolicy::Gmsh(_)) => sizing.circle_segments(),
-            (PlannedMesh::Cartesian { boundary_facets }, MeshProviderPolicy::Cartesian(_))
-            | (
-                PlannedMesh::AffineTriangle { boundary_facets },
-                MeshProviderPolicy::AffineTriangle(_),
-            ) => *boundary_facets,
-            _ => unreachable!("planned mesh and provider remain paired"),
-        }
-    }
-
     fn __repr__(&self) -> String {
         format!(
-            "MeshPlan(provider={}, source_digest={:?}, boundary_facets={})",
+            "MeshPlan(provider={}, source_digest={:?})",
             self.provider.representation(),
             self.source_digest,
-            self.boundary_facets(),
         )
     }
 }
@@ -338,9 +323,8 @@ pub(super) fn resolve(
                         "CartesianMesher requires planar rectangle Geometry v2",
                     ));
                 }
-                PlannedMesh::Cartesian {
-                    boundary_facets: rectangle_boundary_facets(py, provider.policy.cells())?,
-                }
+                validate_rectangle_boundary_extent(py, provider.policy.cells())?;
+                PlannedMesh::Cartesian
             }
             MeshProviderPolicy::AffineTriangle(provider) => {
                 let is_rectangle = geometry.geometry().planar_rectangle_bounds().is_some();
@@ -360,9 +344,8 @@ pub(super) fn resolve(
                         "the admitted adjacent-partition AffineTriangleMesher plan requires cells=(2, 2)",
                     ));
                 }
-                PlannedMesh::AffineTriangle {
-                    boundary_facets: rectangle_boundary_facets(py, provider.policy.cells())?,
-                }
+                validate_rectangle_boundary_extent(py, provider.policy.cells())?;
+                PlannedMesh::AffineTriangle
             }
         };
         Ok(PyMeshPlan {
@@ -374,9 +357,10 @@ pub(super) fn resolve(
     })
 }
 
-fn rectangle_boundary_facets(py: Python<'_>, cells: [usize; 2]) -> PyResult<usize> {
+fn validate_rectangle_boundary_extent(py: Python<'_>, cells: [usize; 2]) -> PyResult<()> {
     cells[0]
         .checked_add(cells[1])
         .and_then(|sum| sum.checked_mul(2))
-        .ok_or_else(|| request_error(py, "planned rectangle boundary-facet count overflows usize"))
+        .map(|_| ())
+        .ok_or_else(|| request_error(py, "planned rectangle boundary extent overflows usize"))
 }

@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 162 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 617 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 162 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 616 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 192 literal public spellings, 162 canonical grouped declarations, 814 visible method signatures (617 non-dunder and 197 dunder), and 74 visible class assignments.
+Inventory: 18 modules, 192 literal public spellings, 162 canonical grouped declarations, 813 visible method signatures (616 non-dunder and 197 dunder), and 74 visible class assignments.
 
 Regenerate with:
 
@@ -2437,8 +2437,6 @@ class MeshPlan:
     def source_digest(self) -> str: ...
     @property
     def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher: ...
-    @property
-    def boundary_facets(self) -> int: ...
     def __repr__(self) -> str: ...
 ```
 
@@ -2451,7 +2449,7 @@ Execute a resolved provider plan and publish its accepted mesh.
 Authority: [`crates/eqiora-python/src/meshing/mesh.rs::generate`](../../crates/eqiora-python/src/meshing/mesh.rs)
 
 ```python
-def generate(geometry: Geometry, /, *, plan: MeshPlan) -> Mesh: ...
+def generate(plan: MeshPlan, /) -> Mesh: ...
 ```
 
 <a id="api-eqiora-meshing-resolve"></a>

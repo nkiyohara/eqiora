@@ -296,7 +296,7 @@ def _solve_once(eqiora: Any) -> tuple[Any, Any, Any, Any, Any, Any, Any]:
         maximum_boundary_facets=50,
     )
     mesh_plan = eqiora.meshing.resolve(geometry, request)
-    mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+    mesh = eqiora.meshing.generate(mesh_plan)
     model = eqiora.compile(
         path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
         geometry=geometry,

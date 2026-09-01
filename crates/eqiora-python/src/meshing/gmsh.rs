@@ -265,10 +265,6 @@ pub(super) struct GmshSizingReceipt {
 }
 
 impl GmshSizingReceipt {
-    pub(super) const fn circle_segments(self) -> usize {
-        self.circle_segments
-    }
-
     pub(super) const fn policy(self) -> GmshMeshPolicyV1 {
         self.policy
     }

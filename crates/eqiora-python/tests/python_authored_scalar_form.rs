@@ -51,7 +51,7 @@ geometry = graph.build(rectangle, named_topology={
 parameters = {"diffusion": 1.0, "other_diffusion": 2.0, "source_scale": 1.0, "other_source": 3.0}
 model = eqiora.compile(source=source, geometry=geometry, parameters=parameters)
 mesh_plan = eqiora.meshing.resolve(geometry, eqiora.meshing.CartesianMesher(cells=(3, 3)))
-mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+mesh = eqiora.meshing.generate(mesh_plan)
 linear = eqiora.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=1000)
 plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
 assert plan.formulation.requested == eqiora.FormulationSelectionMode.Authored

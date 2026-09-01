@@ -43,7 +43,7 @@ mesh_request = eqiora.meshing.GmshMesher(
     maximum_boundary_facets=50,
 )
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
-mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+mesh = eqiora.meshing.generate(mesh_plan)
 plan = eqiora.resolve(
     model,
     mesh=mesh,

@@ -75,8 +75,6 @@ class MeshPlan:
     def source_digest(self) -> str: ...
     @property
     def provider(self) -> AffineTriangleMesher | CartesianMesher | GmshMesher: ...
-    @property
-    def boundary_facets(self) -> int: ...
     def __repr__(self) -> str: ...
 
 @final
@@ -132,7 +130,7 @@ def resolve(
 
     ...
 
-def generate(geometry: Geometry, /, *, plan: MeshPlan) -> Mesh:
+def generate(plan: MeshPlan, /) -> Mesh:
     """Execute a resolved provider plan and publish its accepted mesh.
 
     Authority: ``crates/eqiora-python/src/meshing/mesh.rs::generate``.

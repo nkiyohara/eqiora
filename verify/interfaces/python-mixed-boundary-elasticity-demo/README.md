@@ -23,7 +23,7 @@ model = eqiora.compile(
 )
 mesh_provider = eqiora.meshing.CartesianMesher(cells=(16, 16))
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_provider)
-mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+mesh = eqiora.meshing.generate(mesh_plan)
 plan = eqiora.resolve(
     model,
     mesh=mesh,

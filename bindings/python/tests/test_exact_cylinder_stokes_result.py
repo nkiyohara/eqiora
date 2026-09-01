@@ -38,7 +38,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
         maximum_boundary_facets=50,
     )
     mesh_plan = eqiora.meshing.resolve(geometry, request)
-    return geometry, eqiora.meshing.generate(geometry, plan=mesh_plan)
+    return geometry, eqiora.meshing.generate(mesh_plan)
 
 
 def accepted() -> tuple[eqiora.geometry.Geometry, eqiora.Model, eqiora.Plan, eqiora.Result]:

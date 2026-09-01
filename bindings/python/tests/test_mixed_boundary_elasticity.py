@@ -32,7 +32,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
     )
     request = eqiora.meshing.CartesianMesher(cells=(16, 16))
     plan = eqiora.meshing.resolve(geometry, request)
-    return geometry, eqiora.meshing.generate(geometry, plan=plan)
+    return geometry, eqiora.meshing.generate(plan)
 
 
 def accepted() -> tuple[eqiora.Model, eqiora.Plan, eqiora.Result]:

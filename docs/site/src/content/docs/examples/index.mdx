@@ -74,7 +74,7 @@ circle = graph.circle(center=(0.2, 0.2), radius=0.05)
 fluid = graph.subtract(rectangle, circle)
 geometry = graph.build(fluid, named_topology={...})
 mesh_plan = eqiora.meshing.resolve(geometry, eqiora.meshing.GmshMesher(...))
-mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+mesh = eqiora.meshing.generate(mesh_plan)
 model = eqiora.compile(path=source_path, geometry=geometry, parameters={...})
 ```
 

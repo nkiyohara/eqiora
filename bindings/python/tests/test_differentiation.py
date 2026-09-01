@@ -83,7 +83,7 @@ def model_and_plan(method, *, diffusion: float = 1.0):
     )
     request = eqiora.meshing.CartesianMesher(cells=(4, 4))
     mesh_plan = eqiora.meshing.resolve(geometry, request)
-    mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+    mesh = eqiora.meshing.generate(mesh_plan)
     model = eqiora.compile(
         source=POISSON,
         geometry=geometry,
@@ -127,7 +127,7 @@ def elasticity_model_and_plan():
     )
     mesh_request = eqiora.meshing.CartesianMesher(cells=(4, 4))
     mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
-    mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+    mesh = eqiora.meshing.generate(mesh_plan)
     model = eqiora.compile(
         source=ELASTICITY,
         geometry=geometry,

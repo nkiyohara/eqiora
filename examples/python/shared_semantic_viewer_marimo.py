@@ -40,10 +40,7 @@ def _(eqiora):
         },
     )
     mesh_request = eqiora.meshing.CartesianMesher(cells=(4, 3))
-    mesh = eqiora.meshing.generate(
-        geometry,
-        plan=eqiora.meshing.resolve(geometry, mesh_request),
-    )
+    mesh = eqiora.meshing.generate(eqiora.meshing.resolve(geometry, mesh_request))
     return geometry, mesh
 
 

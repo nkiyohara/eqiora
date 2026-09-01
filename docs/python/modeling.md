@@ -269,10 +269,9 @@ request = eqiora.meshing.GmshMesher(
     maximum_boundary_facets=50,
 )
 plan = eqiora.meshing.resolve(geometry, request)
-mesh = eqiora.meshing.generate(geometry, plan=plan)
+mesh = eqiora.meshing.generate(plan)
 
 assert mesh.source_digest == geometry.digest
-assert plan.boundary_facets == mesh.selection_entity_count("cylinder")
 print(mesh.digest)
 ```
 
@@ -422,7 +421,7 @@ mesh_plan = eqiora.meshing.resolve(
     geometry,
     eqiora.meshing.CartesianMesher(cells=(16, 16)),
 )
-mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+mesh = eqiora.meshing.generate(mesh_plan)
 model = eqiora.compile(
     path=files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi"),
     geometry=geometry,
