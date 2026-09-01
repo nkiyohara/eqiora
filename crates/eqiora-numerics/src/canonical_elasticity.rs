@@ -179,17 +179,8 @@ impl IsotropicElasticityCartesianModel2d {
     /// # Errors
     /// Preserves the tape's exact shape and finite-evaluation diagnostics.
     pub fn conservative_body_force(&self, coordinates: &[f64]) -> Result<[f64; 2], Diagnostic> {
-        let zero_parameters = vec![0.0; self.load_potential_expression.parameter_fields().len()];
-        let mut gradient = [0.0; 2];
-        for axis in 0..2 {
-            let mut direction = [0.0; 2];
-            direction[axis] = 1.0;
-            gradient[axis] = self
-                .load_potential_expression
-                .evaluate_jvp(coordinates, &direction, &zero_parameters)?
-                .1;
-        }
-        Ok(gradient)
+        self.load_potential_expression
+            .evaluate_gradient(coordinates)
     }
 }
 
