@@ -630,6 +630,7 @@ def check_source(
         errors.extend(check_runner_source_topology_text(runner_text))
         errors.extend(check_runner_browser_supply_text(runner_text))
         runner_tokens = (
+            "build_products.py",
             "generate_interface_reference.py",
             "--repository",
             "--eqiora-binary",

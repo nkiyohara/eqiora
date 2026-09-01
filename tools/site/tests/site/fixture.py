@@ -543,6 +543,7 @@ export EQIORA_SITE_CARGO_VERSION=0.1.0-alpha.1 EQIORA_SITE_PYTHON_VERSION=0.1.0a
 python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
 python3 tools/site/check_site.py browser-supply --site-root docs/site --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
 python3 -m unittest tools.site.tests.test_site_tools -v
+python3 tools/site/build_products.py
 python3 tools/docs/generate_interface_reference.py --repository . --eqiora-binary bin/eqiora --mcp-binary bin/eqiora-mcp --check
 python3 tools/site/build_rust_reference.py --rustdoc-root rustdoc/doc --output rustdoc-stage
 python3 tools/site/generate_evidence_catalog.py

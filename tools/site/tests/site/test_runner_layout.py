@@ -33,6 +33,7 @@ TOOLCHAIN_BLOB = "73cb934de4706a914c15e8db2a3c037ce75699d9"
 TOOLCHAIN_SHA256 = "a6a0bbd29ffaa8182dc22d1d9149709f1091e47df40ed96eb8a78a711c66a4ce"
 MISMATCH_TOOLCHAIN = b'[toolchain]\nchannel = "1.85.0"\n'
 CHECKER_MODULES = (
+    "build_products.py",
     "check_site.py",
     "check_site_artifact.py",
     "check_site_html.py",
@@ -172,6 +173,7 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
                 "EQIORA_API_SCRATCH": str(scratch),
                 "EQIORA_SITE_SOURCE_ROOT": str(scratch / "source"),
                 "EQIORA_SITE_ASTRO_OUT_DIR": str(scratch / "astro"),
+                "EQIORA_SITE_CARGO_TARGET": str(scratch / "cargo-target"),
                 "EQIORA_SITE_RUSTDOC_TARGET": str(scratch / "rustdoc-target"),
                 "EQIORA_SITE_RUSTDOC_STAGE": str(scratch / "rustdoc-stage"),
                 "EQIORA_SITE_ARTIFACT": str(scratch / "build/site"),
@@ -554,6 +556,12 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         def missing_build(runner: Path, environment: dict[str, str]) -> None:
             Path(environment["EQIORA_API_SCRATCH"], "build").rmdir()
 
+        def stale_cargo_target(runner: Path, environment: dict[str, str]) -> None:
+            Path(environment["EQIORA_SITE_CARGO_TARGET"]).mkdir()
+
+        def stale_rustdoc_target(runner: Path, environment: dict[str, str]) -> None:
+            Path(environment["EQIORA_SITE_RUSTDOC_TARGET"]).mkdir()
+
         def linked_source(runner: Path, environment: dict[str, str]) -> None:
             source = Path(environment["EQIORA_SITE_SOURCE_ROOT"])
             backing = source.parent.parent / "source-backing"
@@ -563,6 +571,8 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         for label, mutate in (
             ("extra top-level entry", extra_entry),
             ("missing build directory", missing_build),
+            ("stale restored Cargo target", stale_cargo_target),
+            ("stale restored Rustdoc target", stale_rustdoc_target),
             ("linked source", linked_source),
         ):
             with (
