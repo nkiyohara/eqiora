@@ -18,10 +18,7 @@ use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolveRequest,
 use crate::affine_fem::physical_gradient;
 use crate::continuum_kinematics::symmetric_gradient;
 use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
-use crate::linear_elasticity::{
-    is_coercive_isotropic_material, isotropic_stiffness_entry, isotropic_strain_energy_density,
-    isotropic_stress,
-};
+use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::operator::LocalOperator;
 use crate::simplicial_boundary::validate_named_reaction_surfaces;
 use crate::simplicial_elliptic::SimplicialP1Field;
@@ -105,10 +102,12 @@ impl SimplicialP1Field {
         Diagnostic,
     > {
         let mesh = displacement[0].mesh();
+        let material =
+            IsotropicElasticityMaterial::<DIMENSION>::new(shear_modulus, first_lame_parameter);
         if displacement[1].mesh() != mesh
             || mesh.topological_dimension() != DIMENSION
             || mesh.geometric_dimension() != DIMENSION
-            || !valid_material(shear_modulus, first_lame_parameter)
+            || material.is_none()
         {
             return Err(invalid(
                 "simplicial elasticity cell state requires two fields on one triangle mesh and a coercive material",
@@ -122,7 +121,11 @@ impl SimplicialP1Field {
                 ]
             })
             .collect::<Vec<_>>();
-        recover_cell_states(mesh, &vertex_values, shear_modulus, first_lame_parameter)
+        recover_cell_states(
+            mesh,
+            &vertex_values,
+            material.expect("validated intrinsic-2D material"),
+        )
     }
 }
 
@@ -150,7 +153,7 @@ fn solve<B>(
 where
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
-    validate_problem(
+    let material = validate_problem(
         bounds,
         mesh,
         shear_modulus,
@@ -199,8 +202,7 @@ where
     }
 
     let operator = SimplicialElasticityCell {
-        shear_modulus,
-        first_lame_parameter,
+        material,
         body_force,
     };
     let cell_count = mesh
@@ -356,8 +358,7 @@ fn named_reaction_vertices(
 }
 
 struct SimplicialElasticityCell {
-    shear_modulus: f64,
-    first_lame_parameter: f64,
+    material: IsotropicElasticityMaterial<DIMENSION>,
     body_force: [f64; COMPONENTS],
 }
 
@@ -384,13 +385,11 @@ impl LocalOperator<AffineGeometryMap> for SimplicialElasticityCell {
                         for column_component in 0..COMPONENTS {
                             let column = local_dof(local_column, column_component)?;
                             matrix[row * LOCAL_DOFS + column] += scale
-                                * isotropic_stiffness_entry(
+                                * self.material.stiffness_entry(
                                     row_gradient,
                                     row_component,
                                     column_gradient,
                                     column_component,
-                                    self.shear_modulus,
-                                    self.first_lame_parameter,
                                 );
                         }
                     }
@@ -405,8 +404,7 @@ impl LocalOperator<AffineGeometryMap> for SimplicialElasticityCell {
 fn recover_cell_states(
     mesh: &SimplicialMesh,
     vertex_values: &[[f64; COMPONENTS]],
-    shear_modulus: f64,
-    first_lame_parameter: f64,
+    material: IsotropicElasticityMaterial<DIMENSION>,
 ) -> Result<
     (
         Vec<[[f64; COMPONENTS]; COMPONENTS]>,
@@ -440,8 +438,8 @@ fn recover_cell_states(
             }
         }
         let strain = symmetric_gradient(&displacement_gradient);
-        let stress = isotropic_stress(&strain, shear_modulus, first_lame_parameter);
-        let density = isotropic_strain_energy_density(&strain, shear_modulus, first_lame_parameter);
+        let stress = material.stress(&strain);
+        let density = material.strain_energy_density(&strain);
         energy += 0.5 * geometry.measure_scale() * density;
         strains.push(strain);
         stresses.push(stress);
@@ -496,10 +494,6 @@ fn local_dof(vertex: usize, component: usize) -> Result<usize, Diagnostic> {
         .ok_or_else(|| invalid("simplicial elasticity local DOF index overflows usize"))
 }
 
-fn valid_material(shear_modulus: f64, first_lame_parameter: f64) -> bool {
-    is_coercive_isotropic_material::<DIMENSION>(shear_modulus, first_lame_parameter)
-}
-
 fn validate_problem(
     bounds: &[[f64; 2]; DIMENSION],
     mesh: &SimplicialMesh,
@@ -507,15 +501,15 @@ fn validate_problem(
     first_lame_parameter: f64,
     body_force: [f64; COMPONENTS],
     quadrature: &QuadratureRule,
-) -> Result<(), Diagnostic> {
+) -> Result<IsotropicElasticityMaterial<DIMENSION>, Diagnostic> {
     if mesh.topological_dimension() != DIMENSION || mesh.geometric_dimension() != DIMENSION {
         return Err(invalid(
             "simplicial P1 elasticity requires a full-dimensional triangle mesh",
         ));
     }
-    if !valid_material(shear_modulus, first_lame_parameter)
-        || body_force.iter().any(|value| !value.is_finite())
-    {
+    let material =
+        IsotropicElasticityMaterial::<DIMENSION>::new(shear_modulus, first_lame_parameter);
+    if material.is_none() || body_force.iter().any(|value| !value.is_finite()) {
         return Err(invalid(
             "simplicial isotropic elasticity requires finite mu > 0, lambda + mu > 0, and body force",
         ));
@@ -535,7 +529,8 @@ fn validate_problem(
             "simplicial elasticity requires triangle quadrature exact through degree one",
         ));
     }
-    validate_box_conformity(bounds, mesh)
+    validate_box_conformity(bounds, mesh)?;
+    Ok(material.expect("validated intrinsic-2D material"))
 }
 
 fn validate_box_conformity(

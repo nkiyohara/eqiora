@@ -27,7 +27,7 @@ use eqiora_solver::{
 use crate::affine_fem::physical_gradient;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::compile_cartesian_q1_elasticity_form_2d;
-use crate::linear_elasticity::is_coercive_isotropic_material;
+use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::spatial_expression::ScalarSpatialExpression;
 use eqiora_meshing::CartesianMesh;
 
@@ -714,7 +714,8 @@ fn validate_problem(
     quadrature: &QuadratureRule,
 ) -> Result<(), Diagnostic> {
     require_two_dimensional_mesh(mesh)?;
-    if !is_coercive_isotropic_material::<DIMENSION>(shear_modulus, first_lame_parameter) {
+    if IsotropicElasticityMaterial::<DIMENSION>::new(shear_modulus, first_lame_parameter).is_none()
+    {
         return Err(invalid(
             "two-dimensional isotropic elasticity requires finite mu > 0 and lambda + mu > 0",
         ));

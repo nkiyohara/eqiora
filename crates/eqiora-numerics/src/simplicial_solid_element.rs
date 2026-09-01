@@ -7,7 +7,7 @@ use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
 use crate::affine_fem::physical_gradient;
 use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
-use crate::linear_elasticity::{is_coercive_isotropic_material, isotropic_stiffness_entry};
+use crate::linear_elasticity::IsotropicElasticityMaterial;
 
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::needless_range_loop)]
@@ -23,7 +23,7 @@ pub(crate) fn p1_solid_backward_euler_velocity<const D: usize>(
     velocity_scale: f64,
     power_scale: f64,
 ) -> Result<LocalContribution, Diagnostic> {
-    require_contract::<D>(
+    let material = require_contract::<D>(
         geometry,
         quadrature,
         density,
@@ -90,13 +90,11 @@ pub(crate) fn p1_solid_backward_euler_velocity<const D: usize>(
                         } else {
                             0.0
                         };
-                        let stiffness = isotropic_stiffness_entry(
+                        let stiffness = material.stiffness_entry(
                             &gradients[row_basis],
                             row_component,
                             &gradients[column_basis],
                             column_component,
-                            shear_modulus,
-                            first_lame_parameter,
                         );
                         matrix[row * local_size + column] += scale
                             * (mass + time_step * stiffness)
@@ -126,7 +124,7 @@ fn require_contract<const D: usize>(
     density: f64,
     shear_modulus: f64,
     first_lame_parameter: f64,
-) -> Result<(), Diagnostic> {
+) -> Result<IsotropicElasticityMaterial<D>, Diagnostic> {
     if !matches!(D, 2 | 3)
         || geometry.reference_cell() != quadrature.reference_cell()
         || geometry.reference_cell().dimension() != D
@@ -137,15 +135,13 @@ fn require_contract<const D: usize>(
             "P1 solid element requires matching intrinsic 2D/3D affine-simplex geometry and degree-two quadrature",
         ));
     }
-    if !density.is_finite()
-        || density <= 0.0
-        || !is_coercive_isotropic_material::<D>(shear_modulus, first_lame_parameter)
-    {
+    let material = IsotropicElasticityMaterial::<D>::new(shear_modulus, first_lame_parameter);
+    if !density.is_finite() || density <= 0.0 || material.is_none() {
         return Err(invalid(
             "P1 solid element requires finite positive density and dimension-coercive Lamé data",
         ));
     }
-    Ok(())
+    Ok(material.expect("validated dimension-coercive Lamé data"))
 }
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
