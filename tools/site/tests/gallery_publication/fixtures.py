@@ -51,7 +51,6 @@ SOURCE_ROLES = {
     "examples/python/exact_cylinder_geometry.py": ["geometry-adapter"],
     "examples/python/exact_cylinder_mesh.py": ["mesh-realization-owner"],
     "examples/python/exact_cylinder_stokes.py": ["plain-python-snippet"],
-    "examples/python/exact_cylinder_stokes_marimo.py": ["canonical-marimo-snippet"],
     "examples/steady-flow-past-cylinder.eqi": ["example-formula-owner"],
     "examples/steady-flow-past-cylinder.geometry.json": ["geometry"],
     "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi": ["current-package-formula-owner"],
@@ -64,7 +63,6 @@ CASE_ROLES = {
     "fluid.packaged-steady-stokes-2d": "evidence",
     "geometry.exact-circular-hole-geometry": "evidence",
     "interfaces.python-exact-circular-hole-geometry": "evidence",
-    "interfaces.python-exact-cylinder-stokes-marimo": "evidence",
 }
 RECEIPT_CHECKS = [
     "canonical-payload-and-wrapper",
