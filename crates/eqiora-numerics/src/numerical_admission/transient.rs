@@ -7,9 +7,9 @@ pub(super) struct PreparedCommonTransientExecution<'a> {
 }
 
 enum PreparedCommonTransientMethod<'a> {
-    MiniP1(PreparedResolvedTransientMiniRun2d<'a>),
-    GeometryMiniP1(PreparedResolvedTransientGeometryMiniRun2d<'a>),
-    CellCentered(PreparedResolvedTransientCellCenteredRun2d<'a>),
+    MiniP1(Box<PreparedResolvedTransientMiniRun2d<'a>>),
+    GeometryMiniP1(Box<PreparedResolvedTransientGeometryMiniRun2d<'a>>),
+    CellCentered(Box<PreparedResolvedTransientCellCenteredRun2d<'a>>),
     ExistingOneStep,
 }
 
@@ -857,13 +857,13 @@ impl CommonTransientFlowPlan {
             (
                 CommonTransientResolvedSpatial::MiniP1(resolved),
                 NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
-            ) => PreparedCommonTransientMethod::MiniP1(
+            ) => PreparedCommonTransientMethod::MiniP1(Box::new(
                 prepare_resolved_transient_navier_stokes_mini_run_2d(
                     &self.admission.program,
                     resolved,
                     mesh,
                 )?,
-            ),
+            )),
             (
                 CommonTransientResolvedSpatial::MiniP1(resolved),
                 NativeMeshResources::GmshSimplicial { .. },
@@ -874,24 +874,24 @@ impl CommonTransientFlowPlan {
                         "Gmsh transient Plan lost Geometry-backed Model meaning",
                     ));
                 };
-                PreparedCommonTransientMethod::GeometryMiniP1(
+                PreparedCommonTransientMethod::GeometryMiniP1(Box::new(
                     prepare_resolved_transient_navier_stokes_geometry_mini_run_2d(
                         &self.admission.program,
                         resolved,
                         binding,
                     )?,
-                )
+                ))
             }
             (
                 CommonTransientResolvedSpatial::CellCentered(resolved),
                 NativeMeshResources::Cartesian { mesh, .. },
-            ) => PreparedCommonTransientMethod::CellCentered(
+            ) => PreparedCommonTransientMethod::CellCentered(Box::new(
                 prepare_resolved_transient_navier_stokes_cell_centered_run_2d(
                     &self.admission.program,
                     resolved,
                     mesh,
                 )?,
-            ),
+            )),
             _ => PreparedCommonTransientMethod::ExistingOneStep,
         };
         Ok(PreparedCommonTransientExecution {
