@@ -36,5 +36,5 @@ scientific_output_accuracy_or_performance = false
 
 [evidence]
 runner = "cargo-library-test"
-package = "eqiora-artifact"
-test = "geometry_mesh_correspondence::cartesian_box_v1_correspondence::tests::registered_interval_cartesian_common_mesh_evidence"
+package = "eqiora-numerics"
+test = "numerical_admission::tests::mesh::registered_interval_cartesian_common_mesh_evidence"

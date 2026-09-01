@@ -303,7 +303,3 @@ fn local(value: u64, label: &str) -> Result<usize, Diagnostic> {
     usize::try_from(value)
         .map_err(|_| invalid_artifact(format!("{label} index exceeds local usize")))
 }
-
-#[cfg(test)]
-#[path = "geometry_mesh_correspondence_cartesian_box_v1/tests.rs"]
-mod tests;

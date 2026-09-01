@@ -1,5 +1,9 @@
 use super::*;
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use eqiora_meshing::{MeshEntity, MeshTopology, OrientationCode};
+
 #[test]
 fn authenticated_common_mesh_round_trips_canonically_and_rejects_aliases() {
     let rectangle = rectangle();
@@ -27,6 +31,175 @@ fn authenticated_common_mesh_round_trips_canonically_and_rejects_aliases() {
         AuthenticatedCommonMesh::from_bytes(&serde_json::to_vec(&wire).unwrap()).is_err(),
         "a resource-family cross-wire must fail before publication"
     );
+}
+
+#[test]
+fn registered_interval_cartesian_common_mesh_evidence() {
+    let geometry = interval_geometry(-1.0, 2.0);
+    let policy = CartesianMeshCellsV2::new([3]).unwrap();
+    let (mesh, correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_cartesian_box_v1(&geometry, policy.cells())
+            .unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
+        &policy,
+        &geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+
+    assert_eq!(mesh.dimension(), 1);
+    assert_eq!(mesh.mesh().entity_count(0), Some(4));
+    assert_eq!(mesh.mesh().entity_count(1), Some(3));
+    assert_eq!(
+        (0..4)
+            .map(|index| mesh
+                .mesh()
+                .vertex_coordinates(MeshEntity::new(0, index))
+                .unwrap())
+            .collect::<Vec<_>>(),
+        vec![vec![-1.0], vec![0.0], vec![1.0], vec![2.0]],
+    );
+    assert_eq!(
+        (0..3)
+            .map(|index| {
+                mesh.mesh()
+                    .entity_vertices(MeshEntity::new(1, index))
+                    .unwrap()
+                    .into_iter()
+                    .map(MeshEntity::index)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>(),
+        vec![vec![0, 1], vec![1, 2], vec![2, 3]],
+    );
+    let left = correspondence
+        .cartesian_box_v1_entity_set_entities(&geometry, "left")
+        .unwrap();
+    let right = correspondence
+        .cartesian_box_v1_entity_set_entities(&geometry, "right")
+        .unwrap();
+    assert_eq!(left, vec![MeshEntity::new(0, 0)]);
+    assert_eq!(right, vec![MeshEntity::new(0, 3)]);
+    for (facet, parent, ordinal) in [(left[0], 0, 0), (right[0], 2, 1)] {
+        let incidence = mesh.mesh().incidence(facet, 1).unwrap();
+        assert_eq!(incidence.len(), 1);
+        assert_eq!(incidence[0].entity, MeshEntity::new(1, parent));
+        assert_eq!(incidence[0].local_ordinal, ordinal);
+        assert_eq!(incidence[0].orientation, OrientationCode::identity());
+    }
+
+    correspondence
+        .validate_against_cartesian_box_v1(&geometry, &mesh, policy.cells())
+        .unwrap();
+    production
+        .validate_against_structured_cartesian_v2_resources(
+            &policy,
+            &geometry,
+            &mesh,
+            &correspondence,
+        )
+        .unwrap();
+    let owner = AuthenticatedCommonMesh::structured_cartesian(
+        geometry.clone(),
+        mesh.clone(),
+        correspondence.clone(),
+        production.clone(),
+    )
+    .unwrap();
+    let bytes = owner.to_bytes().unwrap();
+    let replayed = AuthenticatedCommonMesh::from_bytes(&bytes).unwrap();
+    assert_eq!(replayed, owner);
+    assert_eq!(replayed.to_bytes().unwrap(), bytes);
+    assert_eq!(replayed.geometry(), &geometry);
+    assert_eq!(replayed.cartesian_mesh(), Some(&mesh));
+    assert_eq!(replayed.correspondence(), &correspondence);
+    assert_eq!(replayed.production(), &production);
+
+    assert!(CartesianMeshCellsV2::new(Vec::<usize>::new()).is_err());
+    assert!(CartesianMeshCellsV2::new([0]).is_err());
+    assert!(CartesianMeshCellsV2::new([1, 1, 1, 1]).is_err());
+    assert!(
+        correspondence
+            .validate_against_cartesian_box_v1(
+                &interval_geometry(-1.0, 3.0),
+                &mesh,
+                policy.cells(),
+            )
+            .is_err()
+    );
+    assert!(
+        correspondence
+            .validate_against_cartesian_box_v1(&geometry, &mesh, &[4])
+            .is_err()
+    );
+
+    let foreign_policy = CartesianMeshCellsV2::new([4]).unwrap();
+    let (foreign_mesh, foreign_correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_cartesian_box_v1(
+            &geometry,
+            foreign_policy.cells(),
+        )
+        .unwrap();
+    let foreign_production =
+        MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
+            &foreign_policy,
+            &geometry,
+            &foreign_mesh,
+            &foreign_correspondence,
+        )
+        .unwrap();
+    assert!(
+        AuthenticatedCommonMesh::structured_cartesian(
+            geometry.clone(),
+            mesh.clone(),
+            correspondence.clone(),
+            foreign_production.clone(),
+        )
+        .is_err(),
+        "a foreign production lineage must fail exact resource authentication"
+    );
+
+    let mut cross_wired: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    cross_wired["production_base64"] = serde_json::Value::String(
+        BASE64_STANDARD.encode(foreign_production.canonical_json().unwrap()),
+    );
+    assert!(
+        AuthenticatedCommonMesh::from_bytes(&serde_json::to_vec(&cross_wired).unwrap()).is_err(),
+        "composite decoding must reject a foreign production-lineage payload"
+    );
+
+    let mut mutated_correspondence: serde_json::Value =
+        serde_json::from_slice(&correspondence.canonical_json().unwrap()).unwrap();
+    mutated_correspondence["sides"][0]["facet_indices"][0] = serde_json::Value::from(1);
+    let mut topology_mutation: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    topology_mutation["correspondence_base64"] = serde_json::Value::String(
+        BASE64_STANDARD.encode(serde_json::to_vec(&mutated_correspondence).unwrap()),
+    );
+    assert!(
+        AuthenticatedCommonMesh::from_bytes(&serde_json::to_vec(&topology_mutation).unwrap())
+            .is_err(),
+        "composite decoding must reject mutated endpoint membership"
+    );
+}
+
+fn interval_geometry(lower: f64, upper: f64) -> CanonicalGeometryV1 {
+    let graph = GeometryGraph::new();
+    let operation = graph.interval([lower, upper]).unwrap();
+    let [left, right]: [_; 2] = operation.boundaries().try_into().unwrap();
+    graph
+        .build(
+            &operation,
+            &BTreeMap::from([
+                (
+                    "body".to_owned(),
+                    vec![PlanarTopologyHandle::from(operation.region())],
+                ),
+                ("left".to_owned(), vec![PlanarTopologyHandle::from(left)]),
+                ("right".to_owned(), vec![PlanarTopologyHandle::from(right)]),
+            ]),
+        )
+        .unwrap()
 }
 
 #[test]
