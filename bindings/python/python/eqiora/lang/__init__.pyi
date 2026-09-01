@@ -214,7 +214,7 @@ units: _Units
 class _Math:
     pi: Final[Expression]
     @staticmethod
-    def sin(value: Expression | float | int, /) -> Expression: ...
+    def sin(value: Expression | float | int) -> Expression: ...
 
 #: Exact language constants used by Source expressions.
 #:
