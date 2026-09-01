@@ -150,6 +150,21 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         .advance(&initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     assert!(accepted.fsi_accepted_solution().is_some());
+    let ten_step =
+        CommonFsiRunRequest::from_steps(automatic.clone(), initial.clone(), 10, vec![10]).unwrap();
+    let std::ops::ControlFlow::Continue(prepared_outputs) = ten_step
+        .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+        .unwrap()
+    else {
+        panic!("uncancelled prepared FSI Run must finish")
+    };
+    let mut independently_accepted = initial.clone();
+    for _ in 0..10 {
+        independently_accepted = automatic
+            .advance(&independently_accepted, &REFERENCE_LINEAR_SOLVER)
+            .unwrap();
+    }
+    assert_eq!(prepared_outputs.as_slice(), &[(10, independently_accepted)]);
     let request =
         CommonFsiRunRequest::from_steps(automatic.clone(), initial.clone(), 1, vec![1]).unwrap();
     let trajectory =
