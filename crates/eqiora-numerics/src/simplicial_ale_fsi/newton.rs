@@ -136,6 +136,66 @@ pub fn advance_simplicial_ale_fsi_3d_with_assembly(
     )
 }
 
+struct PreparedAleFsiRun<'a, const D: usize> {
+    reference: &'a SimplicialMesh,
+    partition: &'a FixedReferenceFsiPartition<D>,
+    boundary: &'a AleFsiBoundary<D>,
+    motion: &'a P1HarmonicMeshMotionAction<D>,
+    plan: AleFsiStepPlan<D>,
+    quadrature: &'a QuadratureRule,
+    assembly: &'a dyn AssemblyBackend,
+    solver: &'a dyn LinearSolverBackend,
+}
+
+impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        reference: &'a SimplicialMesh,
+        partition: &'a FixedReferenceFsiPartition<D>,
+        boundary: &'a AleFsiBoundary<D>,
+        motion: &'a P1HarmonicMeshMotionAction<D>,
+        initial: &AleFsiState<D>,
+        plan: AleFsiStepPlan<D>,
+        quadrature: &'a QuadratureRule,
+        assembly: &'a dyn AssemblyBackend,
+        solver: &'a dyn LinearSolverBackend,
+    ) -> Result<Self, Diagnostic> {
+        solver.capabilities().require_problem(
+            plan.linear_solver(),
+            ScalarType::F64,
+            LinearOperatorProperties::General,
+        )?;
+        initial.validate_against(reference, partition, motion)?;
+        Ok(Self {
+            reference,
+            partition,
+            boundary,
+            motion,
+            plan,
+            quadrature,
+            assembly,
+            solver,
+        })
+    }
+
+    fn advance(
+        &self,
+        previous: &AleFsiState<D>,
+    ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
+        solve_one_step(
+            self.reference,
+            self.partition,
+            self.boundary,
+            self.motion,
+            previous,
+            self.plan,
+            self.quadrature,
+            self.assembly,
+            self.solver,
+        )
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
     reference: &SimplicialMesh,
@@ -149,21 +209,16 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
 ) -> Result<AleFsiTrajectory<D>, Diagnostic> {
-    solver.capabilities().require_problem(
-        plan.linear_solver(),
-        ScalarType::F64,
-        LinearOperatorProperties::General,
+    let prepared = PreparedAleFsiRun::new(
+        reference, partition, boundary, motion, &initial, plan, quadrature, assembly, solver,
     )?;
-    initial.validate_against(reference, partition, motion)?;
     let mut trajectory = AleFsiTrajectory::<D>::new(initial);
     for _ in 0..step_count.get() {
         let previous = trajectory
             .states()
             .last()
             .expect("ALE FSI trajectory owns its initial state");
-        let (next, evidence) = solve_one_step::<D>(
-            reference, partition, boundary, motion, previous, plan, quadrature, assembly, solver,
-        )?;
+        let (next, evidence) = prepared.advance(previous)?;
         trajectory.push(next, evidence)?;
     }
     Ok(trajectory)
