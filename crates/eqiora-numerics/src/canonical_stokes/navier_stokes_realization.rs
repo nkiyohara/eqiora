@@ -9,7 +9,9 @@ use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
-use eqiora_meshing::{SimplicialMesh, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre};
+use eqiora_meshing::{
+    QuadratureRule, SimplicialMesh, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
+};
 use eqiora_realization::{
     AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, BackwardEulerRelationStep,
     CoordinateTreatment, Discretization, DiscretizationMethod, EnergySkewConvection,
@@ -25,20 +27,28 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType, SolverPlan};
 
 use super::navier_stokes::TransientIncompressibleNavierStokesModel2d;
-use super::realization::normalize_cartesian_mesh;
+use super::realization::{NormalizedCartesianSimplicialMesh2d, normalize_cartesian_mesh};
+
+mod prepared;
 use super::{
     IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
     lower_transient_incompressible_navier_stokes_cartesian_2d,
 };
+use crate::discrete_block::DiscreteBlockSystem;
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_navier_stokes::{
-    SimplicialMiniNavierStokesState2d, SimplicialMiniNavierStokesStepEvidence2d,
-    advance_simplicial_mini_navier_stokes_2d_with_assembly,
+    MiniNavierStokesStepPlan2d, PreparedStepStructure, SimplicialMiniNavierStokesState2d,
+    SimplicialMiniNavierStokesStepEvidence2d,
+    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure, prepare_step_structure,
 };
 use crate::simplicial_stokes::{
     SimplicialMiniStokesPressureReference2d, SimplicialMiniVelocityField2d,
 };
 use crate::step_count::NonZeroStepCount;
+use prepared::prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly;
+pub(crate) use prepared::{
+    PreparedResolvedTransientMiniRun2d, prepare_resolved_transient_navier_stokes_mini_run_2d,
+};
 
 const DIMENSION: usize = 2;
 const DUFFY_POINTS_PER_AXIS: usize = 5;
@@ -464,112 +474,10 @@ pub fn advance_resolved_transient_navier_stokes_mini_2d_with_assembly(
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
 ) -> Result<ResolvedTransientNavierStokesTrajectory2d, Diagnostic> {
-    let mesh_artifact = mesh.artifact_reference()?;
-    let mesh_data = mesh.mesh();
-    if program.model() != resolved.model()
-        || program.revision().0 != resolved.semantic_revision().get()
-    {
-        return Err(invalid_realization(
-            "resolved transient realization does not reference this exact Semantic Model revision",
-        ));
-    }
-    let model = lower_transient_incompressible_navier_stokes_cartesian_2d(program)?;
-    let common = model.common_projection();
-    let with_gauge = boundary::pressure_uses_gauge(&common)?;
-    let realization_graph = resolved.portable_graph()?;
-    let (scales, numerical_plan) =
-        require_exact_transient_plan(&common, resolved, &realization_graph, mesh_artifact)?;
-    if initial.mesh_artifact != mesh_artifact
-        || initial.velocity_field != velocity_id(&common)
-        || initial.pressure_field != pressure_id(&common)
-    {
-        return Err(invalid_realization(
-            "transient initial state identity differs from the resolved Model or mesh revision",
-        ));
-    }
-    if initial.velocity.mesh() != mesh_data || initial.pressure.mesh() != mesh_data {
-        return Err(invalid_realization(
-            "transient Navier--Stokes initial fields are stale for the selected mesh artifact",
-        ));
-    }
-    let normalized = normalize_cartesian_mesh(
-        model.bounds(),
-        mesh_data,
-        scales.length_value(),
-        "Navier--Stokes",
-    )?;
-    let boundary = boundary::numerical_boundary(&model, &normalized)?;
-    if with_gauge {
-        boundary::require_compatible_complete_trace(&model, &normalized, scales)?;
-    }
-    let numerical_initial = normalize_state(&initial, &normalized.mesh, scales, with_gauge)?;
-    let block_system = super::block::transient_navier_stokes_block_system(
-        program,
-        &common,
-        mesh_artifact,
-        &normalized.mesh,
-        &boundary,
-        resolved,
-        scales,
-    )?;
-    let checked_assembly = block_system.checked_backend(assembly);
-    let lower = [model.bounds()[0][0], model.bounds()[1][0]];
-    let length = scales.length_value();
-    let pressure = scales.pressure_value();
-    let body_force = |coordinate_hat: [f64; DIMENSION]| {
-        let coordinate = [
-            lower[0] + length * coordinate_hat[0],
-            lower[1] + length * coordinate_hat[1],
-        ];
-        let force = common.conservative_body_force(&coordinate)?;
-        Ok([length * force[0] / pressure, length * force[1] / pressure])
-    };
-    let essential_velocity =
-        |coordinate_hat| boundary::essential_velocity(&model, scales, coordinate_hat);
-    let numerical = advance_simplicial_mini_navier_stokes_2d_with_assembly(
-        &normalized.mesh,
-        &boundary,
-        &essential_velocity,
-        &body_force,
-        numerical_initial,
-        run.step_count,
-        numerical_plan,
-        &triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?,
-        &simplex_duffy_gauss_legendre(DIMENSION - 1, 2)?,
-        &checked_assembly,
-        solver,
-    )?;
-    let validated_block_materializations = checked_assembly.validated_materialization_count();
-    if validated_block_materializations == 0 {
-        return Err(invalid_realization(
-            "transient execution returned without a validated block materialization",
-        ));
-    }
-    let states = numerical
-        .states()
-        .iter()
-        .enumerate()
-        .map(|(index, state)| {
-            reconstruct_state(
-                state,
-                mesh_data,
-                &common,
-                scales,
-                index.checked_sub(1).map(|step| &numerical.steps()[step]),
-            )
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
-    Ok(ResolvedTransientNavierStokesTrajectory2d {
-        model,
-        realization: resolved.clone(),
-        realization_graph,
-        solver_backend: solver.id(),
-        mesh_artifact,
-        scales,
-        states,
-        steps: numerical.steps().to_vec(),
-        validated_block_materializations,
-    })
+    prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly(
+        program, resolved, mesh, assembly,
+    )?
+    .advance(initial, run, solver)
 }
 
 pub(super) fn normalize_state(

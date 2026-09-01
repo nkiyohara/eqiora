@@ -6,6 +6,8 @@
 //! the sealed harmonic action derives the latter.  Every Jacobian column
 //! follows that same composition analytically.
 
+use std::sync::Arc;
+
 use eqiora_assembly::{
     AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
     DofId, IndexedAssemblyWork, LocalContribution, LocalUnknown, TargetAssemblyMap,
@@ -32,8 +34,44 @@ pub(super) struct StepAssembly<const D: usize> {
     pub(super) residual: Vec<f64>,
     pub(super) full_fluid_residual: Vec<f64>,
     pub(super) full_solid_residual: Vec<f64>,
-    pub(super) layout: FsiLayout<D>,
+    pub(super) layout: Arc<FsiLayout<D>>,
     pub(super) assembly_report: AssemblyReport,
+}
+
+struct PreparedAleFsiCell {
+    vertices: Vec<MeshEntity>,
+    reduced_map: AssemblyMap,
+    full_map: AssemblyMap,
+    dense_map: AssemblyMap,
+    fluid_position: Option<usize>,
+}
+
+/// Immutable layout and assembly structure shared by every action in one Run.
+pub(super) struct PreparedAleFsiStructure<const D: usize> {
+    boundary_template: PreparedAleFsiBoundaryStep<D>,
+    layout: Arc<FsiLayout<D>>,
+    directions: Vec<AlgebraicDirection<D>>,
+    assembly_plan: AssemblyPlan,
+    reduced_target: eqiora_assembly::AssemblyTargetId,
+    cells: Vec<PreparedAleFsiCell>,
+    #[cfg(test)]
+    phases: AleFsiStructuralPhaseCounts,
+}
+
+#[cfg(test)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(super) struct AleFsiStructuralPhaseCounts {
+    pub(super) authentication: usize,
+    pub(super) layout: usize,
+    pub(super) maps: usize,
+    pub(super) quadrature: usize,
+    pub(super) sparsity: usize,
+}
+
+/// Action-local endpoint binding over one immutable prepared structure.
+pub(super) struct PreparedAleFsiAction<const D: usize> {
+    boundary: PreparedAleFsiBoundaryStep<D>,
+    previous_reference: FixedReferenceFsiState<D>,
 }
 
 impl<const D: usize> StepAssembly<D> {
@@ -67,6 +105,150 @@ impl<const D: usize> StepAssembly<D> {
 
     pub(super) const fn assembly_report(&self) -> &AssemblyReport {
         &self.assembly_report
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn prepare_ale_fsi_structure<const D: usize>(
+    reference: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<D>,
+    boundary: &PreparedAleFsiBoundaryStep<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
+    initial: &AleFsiState<D>,
+    plan: AleFsiStepPlan<D>,
+    quadrature: &QuadratureRule,
+) -> Result<PreparedAleFsiStructure<D>, Diagnostic> {
+    #[cfg(test)]
+    let mut phases = AleFsiStructuralPhaseCounts::default();
+    boundary.validate_inputs(reference, partition, motion, initial, plan, quadrature)?;
+    #[cfg(test)]
+    {
+        phases.authentication += 1;
+        phases.quadrature += 1;
+    }
+    let layout = Arc::new(boundary.layout(reference, partition)?);
+    #[cfg(test)]
+    {
+        phases.layout += 1;
+    }
+    let directions = boundary.build_directions(partition, motion, plan, &layout)?;
+    let assembly_plan = AssemblyPlan::new(vec![AssemblyTarget::new(layout.reduced_size())?])?;
+    #[cfg(test)]
+    {
+        phases.sparsity += 1;
+    }
+    let reduced_target = assembly_plan
+        .target_id(0)
+        .expect("one-target ALE FSI plan owns its reduced target");
+    let cell_count = reference.entity_count(D).ok_or_else(|| {
+        invalid(format!(
+            "ALE FSI reference mesh omits its {D}D cell stratum"
+        ))
+    })?;
+    if cell_count != partition.cell_count() {
+        return Err(invalid(
+            "ALE FSI material partition differs from the reference cell inventory",
+        ));
+    }
+    let mut cells = Vec::with_capacity(cell_count);
+    for cell_index in 0..cell_count {
+        let vertices = reference
+            .entity_vertices(MeshEntity::new(D, cell_index))
+            .ok_or_else(|| {
+                invalid(format!(
+                    "ALE FSI cell packet {cell_index} has no reference vertex closure"
+                ))
+            })?;
+        require_simplex_closure::<D>(&vertices, reference.vertices().len())?;
+        let (reduced_map, full_map, fluid_position) = match partition.material(cell_index) {
+            CellMaterial::Fluid => {
+                let position = partition.fluid_position(cell_index).ok_or_else(|| {
+                    invalid(format!(
+                        "ALE FSI fluid cell {cell_index} has no canonical bubble position"
+                    ))
+                })?;
+                (
+                    layout.fluid_map(position, &vertices, true)?,
+                    layout.fluid_map(position, &vertices, false)?,
+                    Some(position),
+                )
+            }
+            CellMaterial::Solid => (
+                layout.solid_map(&vertices, true)?,
+                layout.solid_map(&vertices, false)?,
+                None,
+            ),
+            CellMaterial::Unassigned => {
+                return Err(invalid(format!(
+                    "ALE FSI cell packet {cell_index} has no material assignment"
+                )));
+            }
+        };
+        let dense_map = AssemblyMap::new(
+            reduced_map.equations().to_vec(),
+            (0..layout.reduced_size())
+                .map(|index| LocalUnknown::Free(DofId::new(index)))
+                .collect(),
+        )?;
+        cells.push(PreparedAleFsiCell {
+            vertices,
+            reduced_map,
+            full_map,
+            dense_map,
+            fluid_position,
+        });
+    }
+    #[cfg(test)]
+    {
+        phases.maps += 1;
+    }
+    Ok(PreparedAleFsiStructure {
+        boundary_template: boundary.clone(),
+        layout,
+        directions,
+        assembly_plan,
+        reduced_target,
+        cells,
+        #[cfg(test)]
+        phases,
+    })
+}
+
+impl<const D: usize> PreparedAleFsiStructure<D> {
+    #[cfg(test)]
+    pub(super) const fn phase_counts(&self) -> AleFsiStructuralPhaseCounts {
+        self.phases
+    }
+    pub(super) fn prepare_action(
+        &self,
+        reference: &SimplicialMesh,
+        partition: &FixedReferenceFsiPartition<D>,
+        boundary: PreparedAleFsiBoundaryStep<D>,
+        previous: &AleFsiState<D>,
+        plan: AleFsiStepPlan<D>,
+    ) -> Result<PreparedAleFsiAction<D>, Diagnostic> {
+        if !self.boundary_template.has_same_structure(&boundary) {
+            return Err(invalid(
+                "ALE FSI action boundary differs from its prepared Run structure",
+            ));
+        }
+        boundary.validate_action(previous, plan)?;
+        let previous_reference = previous.to_fixed_reference_state(reference, partition)?;
+        Ok(PreparedAleFsiAction {
+            boundary,
+            previous_reference,
+        })
+    }
+
+    pub(super) fn initial_point(
+        &self,
+        action: &PreparedAleFsiAction<D>,
+        previous: &AleFsiState<D>,
+        plan: AleFsiStepPlan<D>,
+    ) -> Result<Vec<f64>, Diagnostic> {
+        action
+            .boundary
+            .reduce_initial_point(previous, plan, &self.layout)
     }
 }
 
@@ -116,7 +298,7 @@ pub(super) fn initial_point_prepared<const D: usize>(
 /// containing every reduced state column.  The assembly backend therefore
 /// sees the same general sparse action used by the solver, while direct
 /// residual assembly remains independent of `A x - b` reconstruction.
-#[allow(clippy::too_many_arguments)]
+#[allow(dead_code, clippy::too_many_arguments)]
 pub(super) fn assemble_step_linearization<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
@@ -163,15 +345,33 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
 ) -> Result<StepAssembly<D>, Diagnostic> {
-    let prepared = prepare_step(
-        reference, partition, boundary, motion, previous, plan, quadrature, candidate,
+    let structure = prepare_ale_fsi_structure(
+        reference, partition, boundary, motion, previous, plan, quadrature,
     )?;
-    let directions = boundary.build_directions(partition, motion, plan, &prepared.layout)?;
-    let assembly_plan =
-        AssemblyPlan::new(vec![AssemblyTarget::new(prepared.layout.reduced_size())?])?;
-    let reduced_target = assembly_plan
-        .target_id(0)
-        .expect("one-target ALE FSI plan owns its reduced target");
+    let action =
+        structure.prepare_action(reference, partition, boundary.clone(), previous, plan)?;
+    assemble_step_linearization_with_structure(
+        reference, partition, &structure, &action, motion, previous, candidate, plan, quadrature,
+        assembly,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
+    reference: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<D>,
+    structure: &PreparedAleFsiStructure<D>,
+    action: &PreparedAleFsiAction<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
+    previous: &AleFsiState<D>,
+    candidate: &[f64],
+    plan: AleFsiStepPlan<D>,
+    quadrature: &QuadratureRule,
+    assembly: &dyn AssemblyBackend,
+) -> Result<StepAssembly<D>, Diagnostic> {
+    let prepared = prepare_step(
+        reference, partition, structure, action, motion, previous, plan, candidate,
+    )?;
     let evaluate = |cell_index| {
         evaluate_cell(
             cell_index,
@@ -179,21 +379,27 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
             partition,
             quadrature,
             previous,
-            &prepared.previous_reference,
+            &action.previous_reference,
             &prepared.current,
             &prepared.geometry_action,
             plan,
             candidate,
-            &directions,
-            &prepared.layout,
-            reduced_target,
+            &structure.directions,
+            structure
+                .cells
+                .get(cell_index)
+                .ok_or_else(|| invalid("ALE FSI cell is outside prepared Run structure"))?,
+            structure.reduced_target,
         )
     };
-    let work = IndexedAssemblyWork::new(prepared.cell_count, |cell_index| {
+    let work = IndexedAssemblyWork::new(structure.cells.len(), |cell_index| {
         evaluate(cell_index).map(|evaluated| evaluated.packet)
     });
-    let (systems, assembly_report) = assembly.assemble(&assembly_plan, &work)?.into_parts();
-    if assembly_report.packet_count() != prepared.cell_count || assembly_report.target_count() != 1
+    let (systems, assembly_report) = assembly
+        .assemble(&structure.assembly_plan, &work)?
+        .into_parts();
+    if assembly_report.packet_count() != structure.cells.len()
+        || assembly_report.target_count() != 1
     {
         return Err(invalid(
             "ALE FSI assembly evidence differs from its exact cell and target inventory",
@@ -201,7 +407,7 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
     }
 
     let direct = assemble_direct_residuals(
-        reference, partition, previous, candidate, plan, quadrature, &prepared,
+        reference, partition, structure, action, previous, candidate, plan, quadrature, &prepared,
     )?;
 
     let [linear_system]: [eqiora_assembly::LinearSystem; 1] =
@@ -230,7 +436,7 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
         residual: direct.reduced,
         full_fluid_residual: direct.full_fluid,
         full_solid_residual: direct.full_solid,
-        layout: prepared.layout,
+        layout: Arc::clone(&structure.layout),
         assembly_report,
     })
 }
@@ -287,11 +493,16 @@ pub(super) fn assemble_step_residual_prepared<const D: usize>(
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
 ) -> Result<Vec<f64>, Diagnostic> {
+    let structure = prepare_ale_fsi_structure(
+        reference, partition, boundary, motion, previous, plan, quadrature,
+    )?;
+    let action =
+        structure.prepare_action(reference, partition, boundary.clone(), previous, plan)?;
     let prepared = prepare_step(
-        reference, partition, boundary, motion, previous, plan, quadrature, candidate,
+        reference, partition, &structure, &action, motion, previous, plan, candidate,
     )?;
     Ok(assemble_direct_residuals(
-        reference, partition, previous, candidate, plan, quadrature, &prepared,
+        reference, partition, &structure, &action, previous, candidate, plan, quadrature, &prepared,
     )?
     .reduced)
 }
@@ -299,51 +510,39 @@ pub(super) fn assemble_step_residual_prepared<const D: usize>(
 struct PreparedStep<const D: usize> {
     current: AleFsiState<D>,
     geometry_action: FixedTopologyGeometryAction<D>,
-    previous_reference: FixedReferenceFsiState<D>,
-    layout: FsiLayout<D>,
-    cell_count: usize,
 }
 
 #[allow(clippy::too_many_arguments)]
 fn prepare_step<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    boundary: &PreparedAleFsiBoundaryStep<D>,
+    structure: &PreparedAleFsiStructure<D>,
+    action: &PreparedAleFsiAction<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
-    quadrature: &QuadratureRule,
     candidate: &[f64],
 ) -> Result<PreparedStep<D>, Diagnostic> {
-    boundary.validate_inputs(reference, partition, motion, previous, plan, quadrature)?;
-    let layout = boundary.layout(reference, partition)?;
-    if candidate.len() != layout.reduced_size() || candidate.iter().any(|value| !value.is_finite())
+    if candidate.len() != structure.layout.reduced_size()
+        || candidate.iter().any(|value| !value.is_finite())
     {
         return Err(invalid(
             "ALE FSI candidate must be finite and match the exact reduced quotient layout",
         ));
     }
-    let current = boundary.reconstruct_current_state(
-        reference, partition, motion, previous, candidate, plan, &layout,
+    let current = action.boundary.reconstruct_current_state(
+        reference,
+        partition,
+        motion,
+        previous,
+        candidate,
+        plan,
+        &structure.layout,
     )?;
     let geometry_action = plan.geometry_action(reference, partition, motion, previous, &current)?;
-    let previous_reference = previous.to_fixed_reference_state(reference, partition)?;
-    let cell_count = reference.entity_count(D).ok_or_else(|| {
-        invalid(format!(
-            "ALE FSI reference mesh omits its {D}D cell stratum"
-        ))
-    })?;
-    if cell_count != partition.cell_count() {
-        return Err(invalid(
-            "ALE FSI material partition differs from the reference cell inventory",
-        ));
-    }
     Ok(PreparedStep {
         current,
         geometry_action,
-        previous_reference,
-        layout,
-        cell_count,
     })
 }
 
@@ -357,28 +556,30 @@ struct DirectResiduals {
 fn assemble_direct_residuals<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
+    structure: &PreparedAleFsiStructure<D>,
+    action: &PreparedAleFsiAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     prepared: &PreparedStep<D>,
 ) -> Result<DirectResiduals, Diagnostic> {
-    let mut reduced = zeroed(prepared.layout.reduced_size(), "reduced residual")?;
-    let mut full_fluid = zeroed(prepared.layout.full_size(), "full fluid residual")?;
-    let mut full_solid = zeroed(prepared.layout.full_size(), "full solid residual")?;
-    for cell_index in 0..prepared.cell_count {
+    let mut reduced = zeroed(structure.layout.reduced_size(), "reduced residual")?;
+    let mut full_fluid = zeroed(structure.layout.full_size(), "full fluid residual")?;
+    let mut full_solid = zeroed(structure.layout.full_size(), "full solid residual")?;
+    for (cell_index, cell) in structure.cells.iter().enumerate() {
         let evaluated = evaluate_cell_residual(
             cell_index,
             reference,
             partition,
             quadrature,
             previous,
-            &prepared.previous_reference,
+            &action.previous_reference,
             &prepared.current,
             &prepared.geometry_action,
             plan,
             candidate,
-            &prepared.layout,
+            cell,
         )?;
         scatter_residual(
             &mut reduced,
@@ -443,7 +644,7 @@ fn evaluate_cell<const D: usize>(
     plan: AleFsiStepPlan<D>,
     candidate: &[f64],
     directions: &[AlgebraicDirection<D>],
-    layout: &FsiLayout<D>,
+    cell: &PreparedAleFsiCell,
     reduced_target: eqiora_assembly::AssemblyTargetId,
 ) -> Result<EvaluatedCell, Diagnostic> {
     let evaluated = evaluate_cell_residual(
@@ -457,7 +658,7 @@ fn evaluate_cell<const D: usize>(
         geometry_action,
         plan,
         candidate,
-        layout,
+        cell,
     )?;
     let matrix = match &evaluated.source {
         CellResidualSource::Fluid { fluid_position } => evaluate_fluid_jacobian(
@@ -472,22 +673,20 @@ fn evaluate_cell<const D: usize>(
             plan,
             candidate.len(),
             directions,
+            &cell.vertices,
         )?,
         CellResidualSource::Solid(local) => {
             embed_solid_jacobian(local, &evaluated.reduced_map, candidate.len())?
         }
     };
     let rhs = affine_rhs_from_residual(&matrix, candidate, &evaluated.residual)?;
-    let dense_map = AssemblyMap::new(
-        evaluated.reduced_map.equations().to_vec(),
-        (0..candidate.len())
-            .map(|index| LocalUnknown::Free(DofId::new(index)))
-            .collect(),
-    )?;
     Ok(EvaluatedCell {
         packet: AssemblyPacket::new(
             LocalContribution::new(evaluated.residual.len(), candidate.len(), matrix, rhs)?,
-            vec![TargetAssemblyMap::new(reduced_target, dense_map)],
+            vec![TargetAssemblyMap::new(
+                reduced_target,
+                cell.dense_map.clone(),
+            )],
         )?,
     })
 }
@@ -504,39 +703,30 @@ fn evaluate_cell_residual<const D: usize>(
     geometry_action: &FixedTopologyGeometryAction<D>,
     plan: AleFsiStepPlan<D>,
     candidate: &[f64],
-    layout: &FsiLayout<D>,
+    cell: &PreparedAleFsiCell,
 ) -> Result<EvaluatedCellResidual, Diagnostic> {
-    let cell = MeshEntity::new(D, cell_index);
-    let vertices = reference.entity_vertices(cell).ok_or_else(|| {
-        invalid(format!(
-            "ALE FSI cell packet {cell_index} has no reference vertex closure"
-        ))
-    })?;
-    require_simplex_closure::<D>(&vertices, reference.vertices().len())?;
     let material = partition.material(cell_index);
     let (residual, reduced_map, full_map, source) = match material {
         CellMaterial::Fluid => evaluate_fluid_residual(
             cell_index,
-            &vertices,
+            cell,
             partition,
             quadrature,
             previous,
             current,
             geometry_action,
             plan,
-            layout,
         )?,
         CellMaterial::Solid => evaluate_solid_residual(
             cell_index,
+            MeshEntity::new(D, cell_index),
             cell,
-            &vertices,
             reference,
             partition,
             quadrature,
             previous_reference,
             plan,
             candidate,
-            layout,
         )?,
         CellMaterial::Unassigned => {
             return Err(invalid(format!(
@@ -630,23 +820,27 @@ fn prepare_fluid_cell<'a, const D: usize>(
 #[allow(clippy::too_many_arguments)]
 fn evaluate_fluid_residual<const D: usize>(
     cell_index: usize,
-    vertices: &[MeshEntity],
+    cell: &PreparedAleFsiCell,
     partition: &FixedReferenceFsiPartition<D>,
     quadrature: &QuadratureRule,
     previous: &AleFsiState<D>,
     current: &AleFsiState<D>,
     geometry_action: &FixedTopologyGeometryAction<D>,
     plan: AleFsiStepPlan<D>,
-    layout: &FsiLayout<D>,
 ) -> Result<(Vec<f64>, AssemblyMap, AssemblyMap, CellResidualSource), Diagnostic> {
     let (fluid_position, prepared) = prepare_fluid_cell(
         cell_index,
-        vertices,
+        &cell.vertices,
         partition,
         previous,
         current,
         geometry_action,
     )?;
+    if cell.fluid_position != Some(fluid_position) {
+        return Err(invalid(
+            "ALE FSI fluid position changed after structural preparation",
+        ));
+    }
     let primal = prepared.operator(plan).residual(quadrature)?;
     let row_scales = fluid_row_scales(plan);
     if primal.len() != row_scales.len() {
@@ -666,8 +860,8 @@ fn evaluate_fluid_residual<const D: usize>(
     }
     Ok((
         residual,
-        layout.fluid_map(fluid_position, vertices, true)?,
-        layout.fluid_map(fluid_position, vertices, false)?,
+        cell.reduced_map.clone(),
+        cell.full_map.clone(),
         CellResidualSource::Fluid { fluid_position },
     ))
 }
@@ -685,22 +879,16 @@ fn evaluate_fluid_jacobian<const D: usize>(
     plan: AleFsiStepPlan<D>,
     candidate_width: usize,
     directions: &[AlgebraicDirection<D>],
+    vertices: &[MeshEntity],
 ) -> Result<Vec<f64>, Diagnostic> {
     if directions.len() != candidate_width {
         return Err(invalid(
             "ALE FSI analytic direction inventory differs from the candidate width",
         ));
     }
-    let cell = MeshEntity::new(D, cell_index);
-    let vertices = reference.entity_vertices(cell).ok_or_else(|| {
-        invalid(format!(
-            "ALE FSI fluid cell {cell_index} has no reference vertex closure"
-        ))
-    })?;
-    require_simplex_closure::<D>(&vertices, reference.vertices().len())?;
     let (fluid_position, prepared) = prepare_fluid_cell(
         cell_index,
-        &vertices,
+        vertices,
         partition,
         previous,
         current,
@@ -724,9 +912,9 @@ fn evaluate_fluid_jacobian<const D: usize>(
             .copied()
             .ok_or_else(|| invalid("ALE FSI fluid direction bubble inventory is incomplete"))?;
         let velocity_direction =
-            local_velocity_coefficients(&vertices, &direction.vertex_velocity, bubble_direction)?;
+            local_velocity_coefficients(vertices, &direction.vertex_velocity, bubble_direction)?;
         let pressure_direction =
-            local_pressure_coefficients(&vertices, partition, &direction.pressure)?;
+            local_pressure_coefficients(vertices, partition, &direction.pressure)?;
         if direction.coordinate.len() != reference.vertices().len() {
             return Err(invalid(
                 "ALE FSI coordinate direction differs from the mesh vertex inventory",
@@ -771,22 +959,21 @@ fn evaluate_fluid_jacobian<const D: usize>(
 #[allow(clippy::too_many_arguments)]
 fn evaluate_solid_residual<const D: usize>(
     cell_index: usize,
-    cell: MeshEntity,
-    vertices: &[MeshEntity],
+    entity: MeshEntity,
+    cell: &PreparedAleFsiCell,
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     quadrature: &QuadratureRule,
     previous: &FixedReferenceFsiState<D>,
     plan: AleFsiStepPlan<D>,
     candidate: &[f64],
-    layout: &FsiLayout<D>,
 ) -> Result<(Vec<f64>, AssemblyMap, AssemblyMap, CellResidualSource), Diagnostic> {
     if partition.material(cell_index) != CellMaterial::Solid {
         return Err(invalid(
             "ALE FSI solid residual received a non-solid material packet",
         ));
     }
-    let geometry = reference.geometry_map(cell).ok_or_else(|| {
+    let geometry = reference.geometry_map(entity).ok_or_else(|| {
         invalid(format!(
             "ALE FSI solid cell {cell_index} has no reference affine geometry"
         ))
@@ -795,13 +982,13 @@ fn evaluate_solid_residual<const D: usize>(
         &geometry,
         quadrature,
         plan.fixed_reference_config(),
-        vertices,
+        &cell.vertices,
         previous,
     )?;
-    let reduced_map = layout.solid_map(vertices, true)?;
+    let reduced_map = cell.reduced_map.clone();
     let local_point = local_point(&reduced_map, candidate)?;
     let residual = evaluate_affine_residual(&local, &local_point)?;
-    let full_map = layout.solid_map(vertices, false)?;
+    let full_map = cell.full_map.clone();
     Ok((
         residual,
         reduced_map,
@@ -1157,696 +1344,4 @@ fn zeroed(length: usize, name: &'static str) -> Result<Vec<f64>, Diagnostic> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::num::NonZeroUsize;
-
-    use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
-    use eqiora_ir::{LinearizedRelation, RelationTangent};
-    use eqiora_meshing::{
-        CellId, FacetId, MeshQualityGate, simplex_duffy_gauss_legendre,
-        triangle_duffy_gauss_legendre,
-    };
-    use eqiora_realization::{NonlinearSolvePlan, Target};
-    use eqiora_solver::{
-        LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-        ReductionPolicy, SolverPlan,
-    };
-
-    use super::*;
-    use crate::simplicial_ale_fsi::{
-        AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState2d, AleFsiState3d, AleFsiStepPlan2d,
-        AleFsiStepPlan3d, P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
-    };
-    use crate::simplicial_fsi::{
-        FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial2d,
-        FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
-        FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
-    };
-
-    const COMPONENTS: usize = 2;
-
-    struct Fixture {
-        mesh: SimplicialMesh,
-        partition: FixedReferenceFsiPartition2d,
-        boundary: AleFsiBoundary2d,
-        motion: P1HarmonicMeshMotionAction2d,
-        previous: AleFsiState2d,
-        plan: AleFsiStepPlan2d,
-    }
-
-    struct Fixture3d {
-        mesh: SimplicialMesh,
-        partition: FixedReferenceFsiPartition3d,
-        boundary: AleFsiBoundary3d,
-        motion: P1HarmonicMeshMotionAction3d,
-        previous: AleFsiState3d,
-        plan: AleFsiStepPlan3d,
-    }
-
-    #[test]
-    fn analytic_global_jvp_matches_centered_full_reassembly() {
-        let fixture = fixture();
-        let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
-        let mut point = initial_point(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            fixture.plan,
-            &quadrature,
-        )
-        .unwrap();
-        for (index, value) in point.iter_mut().enumerate() {
-            *value = 2.0e-3 * ((index % 7) as f64 - 3.0);
-        }
-        let direction = (0..point.len())
-            .map(|index| 0.1 * ((index % 5) as f64 - 2.0))
-            .collect::<Vec<_>>();
-        let assembled = assemble(&fixture, &point, &quadrature);
-        let residual_only = residual(&fixture, &point, &quadrature);
-        assert_eq!(
-            residual_only
-                .iter()
-                .map(|value| value.to_bits())
-                .collect::<Vec<_>>(),
-            assembled
-                .residual
-                .iter()
-                .map(|value| value.to_bits())
-                .collect::<Vec<_>>()
-        );
-        let mut captured_primal = vec![0.0; point.len()];
-        assembled.relation.primal(&mut captured_primal).unwrap();
-        let primal_defect = captured_primal
-            .iter()
-            .zip(&assembled.residual)
-            .map(|(captured, direct)| (captured - direct).powi(2))
-            .sum::<f64>()
-            .sqrt();
-        assert!(primal_defect < 1.0e-12, "{primal_defect:e}");
-        let mut analytic = vec![0.0; point.len()];
-        assembled
-            .relation
-            .jvp(RelationTangent::Unknown(&direction), &mut analytic)
-            .unwrap();
-
-        let epsilon = f64::EPSILON.cbrt();
-        let shifted = |sign: f64| {
-            point
-                .iter()
-                .zip(&direction)
-                .map(|(point, direction)| point + sign * epsilon * direction)
-                .collect::<Vec<_>>()
-        };
-        let plus = residual(&fixture, &shifted(1.0), &quadrature);
-        let minus = residual(&fixture, &shifted(-1.0), &quadrature);
-        let centered = plus
-            .iter()
-            .zip(minus)
-            .map(|(plus, minus)| (plus - minus) / (2.0 * epsilon))
-            .collect::<Vec<_>>();
-        let error = centered
-            .iter()
-            .zip(&analytic)
-            .map(|(centered, analytic)| (centered - analytic).powi(2))
-            .sum::<f64>()
-            .sqrt();
-        let scale = analytic
-            .iter()
-            .map(|value| value * value)
-            .sum::<f64>()
-            .sqrt();
-        assert!(error < 2.0e-6 * (1.0 + scale), "{error:e} versus {scale:e}");
-        assert_eq!(
-            assembled.assembly_report.packet_count(),
-            fixture.partition.cell_count()
-        );
-        assert_eq!(assembled.assembly_report.target_count(), 1);
-    }
-
-    #[test]
-    fn sealed_harmonic_driver_columns_are_singletons_in_real_ale_patterns() {
-        let fixture = fixture();
-        let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
-        let point = initial_point(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            fixture.plan,
-            &quadrature,
-        )
-        .unwrap();
-        let assembled = assemble(&fixture, &point, &quadrature);
-        let pattern = build_structural_jacobian_pattern(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.motion,
-            &assembled.layout,
-        )
-        .unwrap();
-        assert_harmonic_driver_singletons(&fixture.motion, &assembled.layout, &pattern);
-
-        let fixture = fixture_3d();
-        let quadrature = simplex_duffy_gauss_legendre(3, 7).unwrap();
-        let point = initial_point(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            fixture.plan,
-            &quadrature,
-        )
-        .unwrap();
-        let assembled = assemble_step_linearization(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            &point,
-            fixture.plan,
-            &quadrature,
-            &REFERENCE_ASSEMBLY_BACKEND,
-        )
-        .unwrap();
-        let pattern = build_structural_jacobian_pattern(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.motion,
-            &assembled.layout,
-        )
-        .unwrap();
-        assert_harmonic_driver_singletons(&fixture.motion, &assembled.layout, &pattern);
-    }
-
-    #[test]
-    fn zero_solid_update_produces_an_exact_static_geometry_action() {
-        let fixture = fixture();
-        let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
-        let point = initial_point(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            fixture.plan,
-            &quadrature,
-        )
-        .unwrap();
-        let assembled = assemble(&fixture, &point, &quadrature);
-        assert_eq!(
-            assembled.current_state().geometry(),
-            fixture.previous.geometry()
-        );
-        assert!(
-            assembled
-                .geometry_action()
-                .vertex_velocities()
-                .iter()
-                .flatten()
-                .all(|value| *value == 0.0)
-        );
-        for cell in assembled.geometry_action().cells() {
-            assert_eq!(cell.previous_map(), cell.current_map());
-            assert_eq!(cell.current_velocity_divergence(), 0.0);
-            assert_eq!(cell.skew_gcl_correction(), 0.0);
-            assert_eq!(cell.endpoint_metric_rate(), 0.0);
-        }
-    }
-
-    #[test]
-    fn degree_six_rule_is_rejected_before_ale_assembly() {
-        let fixture = fixture();
-        assert!(
-            initial_point(
-                &fixture.mesh,
-                &fixture.partition,
-                &fixture.boundary,
-                &fixture.motion,
-                &fixture.previous,
-                fixture.plan,
-                &triangle_duffy_gauss_legendre(4).unwrap(),
-            )
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn residual_only_rejects_nonfinite_and_wrong_shape_candidates() {
-        let fixture = fixture();
-        let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
-        let point = initial_point(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            fixture.plan,
-            &quadrature,
-        )
-        .unwrap();
-        let mut short = point.clone();
-        short.pop();
-        let shape_error = assemble_step_residual(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            &short,
-            fixture.plan,
-            &quadrature,
-        )
-        .unwrap_err();
-        assert!(
-            shape_error
-                .message()
-                .contains("exact reduced quotient layout")
-        );
-
-        let mut nonfinite = point;
-        nonfinite[0] = f64::NAN;
-        let finite_error = assemble_step_residual(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            &nonfinite,
-            fixture.plan,
-            &quadrature,
-        )
-        .unwrap_err();
-        assert!(finite_error.message().contains("finite"));
-    }
-
-    #[test]
-    fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
-        let fixture = fixture_3d();
-        let degree_nine = simplex_duffy_gauss_legendre(3, 6).unwrap();
-        let rejected = initial_point(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            fixture.plan,
-            &degree_nine,
-        )
-        .unwrap_err();
-        assert!(rejected.message().contains("at least 11"));
-
-        let quadrature = simplex_duffy_gauss_legendre(3, 7).unwrap();
-        let mut point = initial_point(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            fixture.plan,
-            &quadrature,
-        )
-        .unwrap();
-        for (index, value) in point.iter_mut().enumerate() {
-            *value = 2.0e-4 * ((index % 7) as f64 - 3.0);
-        }
-        let assembled = assemble_step_linearization(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            &point,
-            fixture.plan,
-            &quadrature,
-            &REFERENCE_ASSEMBLY_BACKEND,
-        )
-        .unwrap();
-        let residual_only = assemble_step_residual(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            &point,
-            fixture.plan,
-            &quadrature,
-        )
-        .unwrap();
-        assert_eq!(
-            residual_only
-                .iter()
-                .map(|value| value.to_bits())
-                .collect::<Vec<_>>(),
-            assembled
-                .residual
-                .iter()
-                .map(|value| value.to_bits())
-                .collect::<Vec<_>>()
-        );
-        let direction = (0..point.len())
-            .map(|index| 0.01 * ((index % 5) as f64 - 2.0))
-            .collect::<Vec<_>>();
-        let mut jvp = vec![0.0; point.len()];
-        assembled
-            .relation
-            .jvp(RelationTangent::Unknown(&direction), &mut jvp)
-            .unwrap();
-        assert!(jvp.iter().all(|value| value.is_finite()));
-        assert!(jvp.iter().any(|value| *value != 0.0));
-        assert!(
-            assembled
-                .geometry_action()
-                .vertex_velocities()
-                .iter()
-                .flatten()
-                .any(|value| *value != 0.0)
-        );
-
-        let epsilon = f64::EPSILON.cbrt();
-        let shifted_residual = |sign: f64| {
-            let shifted = point
-                .iter()
-                .zip(&direction)
-                .map(|(point, direction)| point + sign * epsilon * direction)
-                .collect::<Vec<_>>();
-            assemble_step_residual(
-                &fixture.mesh,
-                &fixture.partition,
-                &fixture.boundary,
-                &fixture.motion,
-                &fixture.previous,
-                &shifted,
-                fixture.plan,
-                &quadrature,
-            )
-            .unwrap()
-        };
-        let plus = shifted_residual(1.0);
-        let minus = shifted_residual(-1.0);
-        let centered = plus
-            .iter()
-            .zip(minus)
-            .map(|(plus, minus)| (plus - minus) / (2.0 * epsilon))
-            .collect::<Vec<_>>();
-        let error = centered
-            .iter()
-            .zip(&jvp)
-            .map(|(centered, analytic)| (centered - analytic).powi(2))
-            .sum::<f64>()
-            .sqrt();
-        let scale = jvp.iter().map(|value| value * value).sum::<f64>().sqrt();
-        assert!(error < 5.0e-6 * (1.0 + scale), "{error:e} versus {scale:e}");
-        assert_eq!(
-            assembled.assembly_report.packet_count(),
-            fixture.partition.cell_count()
-        );
-        assert_eq!(
-            assembled.geometry_action().cells().len(),
-            fixture.mesh.cells().len()
-        );
-
-        let row_scales = fluid_row_scales(fixture.plan);
-        assert_eq!(fixture.plan.scale().power(), 60.0);
-        assert_eq!(row_scales.len(), 19);
-        assert!(row_scales[..15].iter().all(|value| *value == 5.0 / 60.0));
-        assert!(row_scales[15..].iter().all(|value| *value == 3.0 / 60.0));
-    }
-
-    fn assemble(fixture: &Fixture, point: &[f64], quadrature: &QuadratureRule) -> StepAssembly<2> {
-        assemble_step_linearization(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            point,
-            fixture.plan,
-            quadrature,
-            &REFERENCE_ASSEMBLY_BACKEND,
-        )
-        .unwrap()
-    }
-
-    fn residual(fixture: &Fixture, point: &[f64], quadrature: &QuadratureRule) -> Vec<f64> {
-        assemble_step_residual(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            point,
-            fixture.plan,
-            quadrature,
-        )
-        .unwrap()
-    }
-
-    fn assert_harmonic_driver_singletons<const D: usize>(
-        motion: &P1HarmonicMeshMotionAction<D>,
-        layout: &FsiLayout<D>,
-        pattern: &StructuralJacobianPattern,
-    ) {
-        let mut represented_driver_columns = 0;
-        for driver in motion.driver_vertices() {
-            for component in 0..D {
-                if let Some(dof) = layout.reduced_vertex_velocity(driver.index(), component) {
-                    represented_driver_columns += 1;
-                    assert!(
-                        pattern.is_singleton(dof.index()),
-                        "harmonic driver vertex {} component {component} column {} is not singleton",
-                        driver.index(),
-                        dof.index()
-                    );
-                }
-            }
-        }
-        assert!(represented_driver_columns > 0);
-    }
-
-    fn fixture() -> Fixture {
-        let mesh = two_domain_mesh();
-        let (fluid, solid, interface) = inventories(&mesh);
-        let partition = FixedReferenceFsiPartition2d::new(&mesh, fluid, solid, interface).unwrap();
-        let boundary = AleFsiBoundary2d::homogeneous_exterior(&mesh).unwrap();
-        let motion =
-            P1HarmonicMeshMotionAction2d::new(&mesh, &partition, harmonic_solver()).unwrap();
-        let previous = AleFsiState2d::new(
-            0.0,
-            &mesh,
-            &partition,
-            &motion,
-            vec![[0.0; COMPONENTS]; mesh.vertices().len()],
-            vec![[0.0; COMPONENTS]; partition.fluid_cells().len()],
-            vec![0.0; partition.fluid_vertices().len()],
-            vec![[0.0; COMPONENTS]; mesh.vertices().len()],
-        )
-        .unwrap();
-        Fixture {
-            mesh,
-            partition,
-            boundary,
-            motion,
-            previous,
-            plan: step_plan(),
-        }
-    }
-
-    fn fixture_3d() -> Fixture3d {
-        let (mesh, fluid, solid, interface) = tetrahedral_problem();
-        let partition = FixedReferenceFsiPartition3d::new(&mesh, fluid, solid, interface).unwrap();
-        let boundary = AleFsiBoundary3d::homogeneous_exterior(&mesh).unwrap();
-        let motion =
-            P1HarmonicMeshMotionAction3d::new(&mesh, &partition, harmonic_solver()).unwrap();
-        let previous = AleFsiState3d::new(
-            0.0,
-            &mesh,
-            &partition,
-            &motion,
-            vec![[0.0; 3]; mesh.vertices().len()],
-            vec![[0.0; 3]; partition.fluid_cells().len()],
-            vec![0.0; partition.fluid_vertices().len()],
-            vec![[0.0; 3]; mesh.vertices().len()],
-        )
-        .unwrap();
-        Fixture3d {
-            mesh,
-            partition,
-            boundary,
-            motion,
-            previous,
-            plan: step_plan_3d(),
-        }
-    }
-
-    fn tetrahedral_problem() -> (SimplicialMesh, Vec<CellId>, Vec<CellId>, Vec<FacetId>) {
-        // A, B, C span the material interface. I is a genuine fluid-interior
-        // vertex and Q is a genuine interface-interior vertex. The subdivision
-        // is the smallest conforming patch that exercises both harmonic
-        // extension and nonzero shared-interface motion.
-        let vertices = vec![
-            vec![0.0, 0.0, 0.0],
-            vec![0.0, 1.0, 0.0],
-            vec![0.0, 0.0, 1.0],
-            vec![-1.0, 0.0, 0.0],
-            vec![-0.25, 0.25, 0.25],
-            vec![0.0, 1.0 / 3.0, 1.0 / 3.0],
-            vec![1.0, 0.0, 0.0],
-        ];
-        let mut cells = vec![
-            vec![4, 5, 0, 1],
-            vec![4, 5, 1, 2],
-            vec![4, 5, 2, 0],
-            vec![4, 3, 1, 2],
-            vec![4, 3, 2, 0],
-            vec![4, 3, 0, 1],
-            vec![6, 5, 0, 1],
-            vec![6, 5, 1, 2],
-            vec![6, 5, 2, 0],
-        ];
-        for cell in &mut cells {
-            if signed_tetrahedron_measure(&vertices, cell) < 0.0 {
-                cell.swap(1, 2);
-            }
-        }
-        let fluid = (0..6).map(CellId::new).collect();
-        let solid = (6..9).map(CellId::new).collect();
-        let mesh =
-            SimplicialMesh::new(3, vertices, cells, MeshQualityGate::new(0.005).unwrap()).unwrap();
-        let interface = (0..mesh.entity_count(2).unwrap())
-            .filter(|&facet| {
-                mesh.entity_vertices(MeshEntity::new(2, facet))
-                    .unwrap()
-                    .iter()
-                    .all(|vertex| mesh.vertices()[vertex.index()][0] == 0.0)
-            })
-            .map(FacetId::new)
-            .collect();
-        (mesh, fluid, solid, interface)
-    }
-
-    fn signed_tetrahedron_measure(vertices: &[Vec<f64>], cell: &[usize]) -> f64 {
-        let origin = &vertices[cell[0]];
-        let column = |vertex: usize, axis: usize| vertices[cell[vertex]][axis] - origin[axis];
-        column(1, 0) * (column(2, 1) * column(3, 2) - column(3, 1) * column(2, 2))
-            - column(2, 0) * (column(1, 1) * column(3, 2) - column(3, 1) * column(1, 2))
-            + column(3, 0) * (column(1, 1) * column(2, 2) - column(2, 1) * column(1, 2))
-    }
-
-    fn two_domain_mesh() -> SimplicialMesh {
-        let x_coordinates = [0.0, 0.5, 1.0, 1.5, 2.0];
-        let mut vertices = Vec::new();
-        for y in [0.0, 0.5, 1.0] {
-            for x in x_coordinates {
-                vertices.push(vec![x, y]);
-            }
-        }
-        let width = x_coordinates.len();
-        let mut cells = Vec::new();
-        for row in 0..2 {
-            for column in 0..width - 1 {
-                let lower_left = row * width + column;
-                let lower_right = lower_left + 1;
-                let upper_left = lower_left + width;
-                let upper_right = upper_left + 1;
-                cells.push(vec![lower_left, lower_right, upper_right]);
-                cells.push(vec![lower_left, upper_right, upper_left]);
-            }
-        }
-        SimplicialMesh::new(2, vertices, cells, MeshQualityGate::new(0.3).unwrap()).unwrap()
-    }
-
-    fn inventories(mesh: &SimplicialMesh) -> (Vec<CellId>, Vec<CellId>, Vec<FacetId>) {
-        let mut fluid = Vec::new();
-        let mut solid = Vec::new();
-        for (index, cell) in mesh.cells().iter().enumerate() {
-            let centroid_x = cell
-                .iter()
-                .map(|vertex| mesh.vertices()[*vertex][0])
-                .sum::<f64>()
-                / 3.0;
-            if centroid_x < 1.0 {
-                fluid.push(CellId::new(index));
-            } else {
-                solid.push(CellId::new(index));
-            }
-        }
-        let interface = (0..mesh.entity_count(1).unwrap())
-            .filter(|&facet| {
-                mesh.entity_vertices(MeshEntity::new(1, facet))
-                    .unwrap()
-                    .iter()
-                    .all(|vertex| mesh.vertices()[vertex.index()][0] == 1.0)
-            })
-            .map(FacetId::new)
-            .collect();
-        (fluid, solid, interface)
-    }
-
-    fn step_plan() -> AleFsiStepPlan2d {
-        let nonlinear =
-            NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
-        let linear = SolverPlan::new(
-            LinearSolver::BiConjugateGradientStabilized,
-            1.0e-10,
-            1.0e-12,
-            NonZeroUsize::new(500).unwrap(),
-        )
-        .unwrap()
-        .with_preconditioner(PreconditionerPolicy::Identity)
-        .with_reduction(ReductionPolicy::Fast);
-        AleFsiStepPlan2d::new(
-            0.05,
-            FixedReferenceFsiMaterial2d::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
-            FixedReferenceFsiScale2d::new(2.0, 1.0, 1.0).unwrap(),
-            FixedReferenceFsiLoad2d::Zero,
-            nonlinear,
-            linear,
-            Target::HostCpu {
-                threads: NonZeroUsize::MIN,
-            },
-        )
-        .unwrap()
-    }
-
-    fn step_plan_3d() -> AleFsiStepPlan3d {
-        let nonlinear =
-            NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
-        let linear = SolverPlan::new(
-            LinearSolver::BiConjugateGradientStabilized,
-            1.0e-10,
-            1.0e-12,
-            NonZeroUsize::new(500).unwrap(),
-        )
-        .unwrap()
-        .with_preconditioner(PreconditionerPolicy::Identity)
-        .with_reduction(ReductionPolicy::Fast);
-        AleFsiStepPlan3d::new(
-            0.05,
-            FixedReferenceFsiMaterial3d::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
-            FixedReferenceFsiScale3d::new(2.0, 5.0, 3.0).unwrap(),
-            FixedReferenceFsiLoad3d::Zero,
-            nonlinear,
-            linear,
-            Target::HostCpu {
-                threads: NonZeroUsize::MIN,
-            },
-        )
-        .unwrap()
-    }
-
-    fn harmonic_solver() -> LinearSolveRequest<'static> {
-        let plan = SolverPlan::new(
-            LinearSolver::ConjugateGradient,
-            1.0e-12,
-            1.0e-14,
-            NonZeroUsize::new(500).unwrap(),
-        )
-        .unwrap();
-        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
-    }
-}
+mod tests;

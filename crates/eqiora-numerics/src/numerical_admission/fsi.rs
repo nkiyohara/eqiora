@@ -1,5 +1,44 @@
 use super::*;
 
+pub(super) struct PreparedCommonFsiExecution<'a> {
+    plan: &'a CommonFsiPlan,
+    backend: &'a dyn LinearSolverBackend,
+    prepared: PreparedResolvedFixedReferenceFsiRun2d<'a>,
+}
+
+impl PreparedCommonFsiExecution<'_> {
+    pub(super) fn advance(&self, state: &CommonState) -> Result<CommonState, Diagnostic> {
+        let CommonStateKind::Fsi {
+            state: previous, ..
+        } = &state.kind
+        else {
+            return Err(invalid("FSI Plan received a non-FSI common State"));
+        };
+        let solution = self.prepared.finalize(previous)?.solve(self.backend)?;
+        let next = FixedReferenceFsiState2d::new(
+            self.plan.mesh(),
+            &self.plan.partition,
+            solution.vertex_velocity_coefficients().to_vec(),
+            solution.fluid_velocity_bubble_coefficients().to_vec(),
+            solution.solid_displacement_coefficients().to_vec(),
+        )?;
+        CommonState::new(
+            self.plan.state_space_identity(),
+            state.time_s + self.plan.temporal.step().value(),
+            Arc::new(self.plan.model.clone()),
+            Arc::new(self.plan.resources.clone()),
+            CommonStateKind::Fsi {
+                state: Box::new(next),
+                pressure: solution
+                    .fluid_pressure_coefficients()
+                    .to_vec()
+                    .into_boxed_slice(),
+                accepted: Some(Box::new(solution)),
+            },
+        )
+    }
+}
+
 impl CommonFsiPlan {
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         let relation = self
@@ -400,8 +439,7 @@ impl CommonFsiPlan {
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonState, Diagnostic> {
-        self.authenticate_execution(state, backend)?;
-        self.advance_authenticated(state, backend)
+        self.prepare_execution(state, backend)?.advance(state)
     }
 
     pub(super) fn authenticate_execution(
@@ -425,52 +463,29 @@ impl CommonFsiPlan {
         Ok(())
     }
 
-    pub(super) fn advance_authenticated(
-        &self,
+    pub(super) fn prepare_execution<'a>(
+        &'a self,
         state: &CommonState,
-        backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonState, Diagnostic> {
-        let CommonStateKind::Fsi {
-            state: previous, ..
-        } = &state.kind
-        else {
-            return Err(invalid("FSI Plan received a non-FSI common State"));
-        };
+        backend: &'a dyn LinearSolverBackend,
+    ) -> Result<PreparedCommonFsiExecution<'a>, Diagnostic> {
+        self.authenticate_execution(state, backend)?;
         let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = &self.resources else {
             unreachable!("FSI Plan owns adjacent resources")
         };
         let mesh_reference =
             MeshArtifactReference::from_sha256(mesh.artifact_reference()?.sha256());
-        let solution = finalize_resolved_fixed_reference_fsi_step_2d(
+        let prepared = prepare_resolved_fixed_reference_fsi_run_2d(
             &self.canonical,
             &self.resolved,
             mesh_reference,
             mesh.mesh(),
             &self.partition,
-            previous,
-        )?
-        .solve(backend)?;
-        let next = FixedReferenceFsiState2d::new(
-            mesh.mesh(),
-            &self.partition,
-            solution.vertex_velocity_coefficients().to_vec(),
-            solution.fluid_velocity_bubble_coefficients().to_vec(),
-            solution.solid_displacement_coefficients().to_vec(),
         )?;
-        CommonState::new(
-            self.state_space_identity(),
-            state.time_s + self.temporal.step().value(),
-            Arc::new(self.model.clone()),
-            Arc::new(self.resources.clone()),
-            CommonStateKind::Fsi {
-                state: Box::new(next),
-                pressure: solution
-                    .fluid_pressure_coefficients()
-                    .to_vec()
-                    .into_boxed_slice(),
-                accepted: Some(Box::new(solution)),
-            },
-        )
+        Ok(PreparedCommonFsiExecution {
+            plan: self,
+            backend,
+            prepared,
+        })
     }
 
     #[must_use]

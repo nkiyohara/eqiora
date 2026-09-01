@@ -4,7 +4,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_assembly::{AssemblyBackend, AssemblyPacketSetIdentityV1, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
-use eqiora_meshing::{SimplicialMesh, triangle_duffy_gauss_legendre};
+use eqiora_meshing::{QuadratureRule, SimplicialMesh, triangle_duffy_gauss_legendre};
 use eqiora_realization::{
     AlgebraicBlock, AlgebraicBlockScale, BackwardEulerStateBinding, BackwardEulerStep,
     CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequirements,
@@ -17,6 +17,7 @@ use eqiora_realization::{
 use eqiora_solver::{LinearOperatorProperties, ReductionPolicy, ScalarType, SolverPlan};
 
 use super::FixedReferenceFsiCartesianModel2d;
+use crate::discrete_block::DiscreteBlockSystem;
 use crate::simplicial_fsi::finalize_fixed_reference_fsi_step_2d_with_packet_set;
 use crate::simplicial_fsi::{
     FixedReferenceFsiBoundary2d, FixedReferenceFsiLoad2d, FixedReferenceFsiMaterial2d,
@@ -42,6 +43,53 @@ use validate::{
 
 const DIMENSION: usize = 2;
 const DUFFY_POINTS_PER_AXIS: usize = 4;
+
+/// Run-local fixed-reference FSI structure authenticated independently of action State.
+pub(crate) struct PreparedResolvedFixedReferenceFsiRun2d<'a> {
+    model: &'a FixedReferenceFsiCartesianModel2d,
+    resolved: &'a ResolvedCoupledFieldwiseRealization,
+    mesh_artifact: MeshArtifactReference,
+    mesh: &'a SimplicialMesh,
+    partition: &'a FixedReferenceFsiPartition2d,
+    assembly: &'a dyn AssemblyBackend,
+    boundary: FixedReferenceFsiBoundary2d,
+    config: FixedReferenceFsiStepConfig2d,
+    quadrature: QuadratureRule,
+    realization_graph: eqiora_realization::PortableRealizationGraph,
+    block_system: DiscreteBlockSystem,
+}
+
+impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
+    /// Assemble and finalize one action against the immutable prepared structure.
+    pub(crate) fn finalize(
+        &self,
+        previous: &FixedReferenceFsiState2d,
+    ) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
+        let checked_assembly = self.block_system.checked_backend(self.assembly);
+        let inner = finalize_fixed_reference_fsi_step_2d_with_packet_set(
+            self.mesh,
+            self.partition,
+            &self.boundary,
+            previous,
+            self.config,
+            &self.quadrature,
+            AssemblyPacketSetIdentityV1::from_sha256(self.mesh_artifact.sha256()),
+            &checked_assembly,
+        )?;
+        FinalizedResolvedFixedReferenceFsiStep2d::new(
+            self.resolved.model(),
+            self.resolved.semantic_revision(),
+            self.resolved.realization_revision(),
+            self.mesh_artifact,
+            field_identities(self.model),
+            self.partition.clone(),
+            self.resolved.plan().clone(),
+            self.realization_graph.clone(),
+            self.block_system.clone(),
+            inner,
+        )
+    }
+}
 
 const LENGTH: DimExponents = DimExponents {
     length: 1,
@@ -420,26 +468,32 @@ pub fn finalize_resolved_fixed_reference_fsi_step_2d(
     )
 }
 
-/// Finalize the exact resolved FSI step through an explicit assembly backend.
-///
-/// This workspace-level conformance seam is intentionally absent from the
-/// curated `eqiora` facade. It exists so transport and execution adapters can
-/// prove that they consume the same equation-aware block system and local
-/// packets as reference assembly, without receiving a public physics IR.
-///
-/// # Errors
-/// Preserves every reference admission rule and the selected backend's
-/// assembly diagnostic before constructing a resolved finalized step.
-#[doc(hidden)]
-pub fn finalize_resolved_fixed_reference_fsi_step_2d_with_assembly(
-    model: &FixedReferenceFsiCartesianModel2d,
-    resolved: &ResolvedCoupledFieldwiseRealization,
+/// Authenticate and retain fixed structure for one ephemeral common Run.
+pub(crate) fn prepare_resolved_fixed_reference_fsi_run_2d<'a>(
+    model: &'a FixedReferenceFsiCartesianModel2d,
+    resolved: &'a ResolvedCoupledFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
-    mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
-    previous: &FixedReferenceFsiState2d,
-    assembly: &dyn AssemblyBackend,
-) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
+    mesh: &'a SimplicialMesh,
+    partition: &'a FixedReferenceFsiPartition2d,
+) -> Result<PreparedResolvedFixedReferenceFsiRun2d<'a>, Diagnostic> {
+    prepare_resolved_fixed_reference_fsi_run_2d_with_assembly(
+        model,
+        resolved,
+        mesh_artifact,
+        mesh,
+        partition,
+        &REFERENCE_ASSEMBLY_BACKEND,
+    )
+}
+
+fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
+    model: &'a FixedReferenceFsiCartesianModel2d,
+    resolved: &'a ResolvedCoupledFieldwiseRealization,
+    mesh_artifact: MeshArtifactReference,
+    mesh: &'a SimplicialMesh,
+    partition: &'a FixedReferenceFsiPartition2d,
+    assembly: &'a dyn AssemblyBackend,
+) -> Result<PreparedResolvedFixedReferenceFsiRun2d<'a>, Diagnostic> {
     require_zero_load(model)?;
     require_boundary_meaning(model)?;
     require_mesh_partition(model, mesh, partition)?;
@@ -478,29 +532,50 @@ pub fn finalize_resolved_fixed_reference_fsi_step_2d_with_assembly(
         partition,
         scales,
     )?;
-    let checked_assembly = block_system.checked_backend(assembly);
-    let inner = finalize_fixed_reference_fsi_step_2d_with_packet_set(
+    Ok(PreparedResolvedFixedReferenceFsiRun2d {
+        model,
+        resolved,
+        mesh_artifact,
         mesh,
         partition,
-        &boundary,
-        previous,
+        assembly,
+        boundary,
         config,
-        &quadrature,
-        AssemblyPacketSetIdentityV1::from_sha256(mesh_artifact.sha256()),
-        &checked_assembly,
-    )?;
-    FinalizedResolvedFixedReferenceFsiStep2d::new(
-        resolved.model(),
-        resolved.semantic_revision(),
-        resolved.realization_revision(),
-        mesh_artifact,
-        field_identities(model),
-        partition.clone(),
-        resolved.plan().clone(),
+        quadrature,
         realization_graph,
         block_system,
-        inner,
-    )
+    })
+}
+
+/// Finalize the exact resolved FSI step through an explicit assembly backend.
+///
+/// This workspace-level conformance seam is intentionally absent from the
+/// curated `eqiora` facade. It exists so transport and execution adapters can
+/// prove that they consume the same equation-aware block system and local
+/// packets as reference assembly, without receiving a public physics IR.
+///
+/// # Errors
+/// Preserves every reference admission rule and the selected backend's
+/// assembly diagnostic before constructing a resolved finalized step.
+#[doc(hidden)]
+pub fn finalize_resolved_fixed_reference_fsi_step_2d_with_assembly(
+    model: &FixedReferenceFsiCartesianModel2d,
+    resolved: &ResolvedCoupledFieldwiseRealization,
+    mesh_artifact: MeshArtifactReference,
+    mesh: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition2d,
+    previous: &FixedReferenceFsiState2d,
+    assembly: &dyn AssemblyBackend,
+) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
+    prepare_resolved_fixed_reference_fsi_run_2d_with_assembly(
+        model,
+        resolved,
+        mesh_artifact,
+        mesh,
+        partition,
+        assembly,
+    )?
+    .finalize(previous)
 }
 
 #[cfg(test)]

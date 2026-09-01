@@ -8,7 +8,7 @@ use eqiora_meshing::{MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh, V
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType};
 
 use super::api::AleFsiStepEvidence;
-use super::contract::{AleFsiState, AleFsiStepPlan};
+use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::newton::solve_one_step;
 use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::simplicial_fsi::{
@@ -59,6 +59,18 @@ pub(crate) struct PreparedAleFsiBoundaryStep<const D: usize> {
     current_endpoint: AleFsiBoundaryEndpointIdentity,
     boundary: FixedReferenceFsiBoundary<D>,
     exterior_facets: Vec<(MeshEntity, AleFsiExteriorFacetDisposition)>,
+}
+
+/// Run-scoped invariant physical-boundary preparation.
+///
+/// The homogeneous public path classifies exterior facets and prescribed
+/// components once. Individual actions bind only their endpoint identities;
+/// the already admitted physical and quotient values are reused unchanged.
+pub(super) struct PreparedAleFsiBoundaryRun<const D: usize> {
+    template: PreparedAleFsiBoundaryStep<D>,
+    homogeneous: bool,
+    #[cfg(test)]
+    normalization_count: usize,
 }
 
 // Construction rejects every non-finite word, so derived `PartialEq` is
@@ -168,6 +180,43 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
             velocity_scale,
             false,
         )
+    }
+
+    fn homogeneous_at_times(
+        &self,
+        previous_time: f64,
+        current_time: f64,
+    ) -> Result<Self, Diagnostic> {
+        let previous_endpoint =
+            AleFsiBoundaryEndpointIdentity::new([0, previous_time.to_bits(), 0, 0], previous_time)?;
+        let current_endpoint =
+            AleFsiBoundaryEndpointIdentity::new([0, current_time.to_bits(), 0, 0], current_time)?;
+        let boundary = FixedReferenceFsiBoundary::from_prepared_velocity(
+            previous_endpoint.words,
+            previous_endpoint.time_bits,
+            current_endpoint.words,
+            current_endpoint.time_bits,
+            self.previous_physical().to_vec(),
+            self.current_physical().to_vec(),
+            self.previous_quotient().to_vec(),
+            self.current_quotient().to_vec(),
+            self.exterior_facets
+                .iter()
+                .map(|(facet, disposition)| {
+                    (
+                        *facet,
+                        *disposition == AleFsiExteriorFacetDisposition::EssentialVelocity,
+                    )
+                })
+                .collect(),
+            false,
+        );
+        Ok(Self {
+            previous_endpoint,
+            current_endpoint,
+            boundary,
+            exterior_facets: self.exterior_facets.clone(),
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -334,6 +383,44 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
             )));
         }
         Ok(())
+    }
+
+    pub(super) fn validate_action(
+        &self,
+        previous: &AleFsiState<D>,
+        plan: AleFsiStepPlan<D>,
+    ) -> Result<(), Diagnostic> {
+        if previous.time().to_bits() != self.previous_endpoint.time_bits()
+            || (previous.time() + plan.time_step()).to_bits() != self.current_endpoint.time_bits()
+            || (self.boundary.prepared_uses_canonical_velocity_scale()
+                && plan.scale().velocity().to_bits() != 2.0_f64.to_bits())
+        {
+            return Err(invalid(
+                "ALE FSI prepared boundary endpoint or velocity-scale identity is stale",
+            ));
+        }
+        for (vertex, components) in self.previous_physical().iter().enumerate() {
+            for (component, physical) in components.iter().copied().enumerate() {
+                if physical.is_some_and(|expected| {
+                    previous.vertex_velocity()[vertex][component].to_bits() != expected.to_bits()
+                }) {
+                    return Err(invalid(
+                        "ALE FSI previous state differs from its prepared physical trace",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn has_same_structure(&self, other: &Self) -> bool {
+        self.previous_physical() == other.previous_physical()
+            && self.current_physical() == other.current_physical()
+            && self.previous_quotient() == other.previous_quotient()
+            && self.current_quotient() == other.current_quotient()
+            && self.exterior_facets == other.exterior_facets
+            && self.boundary.prepared_uses_canonical_velocity_scale()
+                == other.boundary.prepared_uses_canonical_velocity_scale()
     }
 
     pub(super) fn reduce_initial_point(
@@ -522,6 +609,73 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
             }
         }
         Ok(())
+    }
+}
+
+impl<const D: usize> PreparedAleFsiBoundaryRun<D> {
+    pub(super) fn new(
+        mesh: &SimplicialMesh,
+        boundary: &AleFsiBoundary<D>,
+        initial: &AleFsiState<D>,
+        plan: AleFsiStepPlan<D>,
+    ) -> Result<Self, Diagnostic> {
+        let (template, homogeneous, _normalization_count) =
+            match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
+                Some(prepared) => (prepared, false, 0),
+                None => (
+                    PreparedAleFsiBoundaryStep::homogeneous(
+                        mesh,
+                        boundary,
+                        initial.time(),
+                        initial.time() + plan.time_step(),
+                        plan.scale().velocity(),
+                    )?,
+                    true,
+                    1,
+                ),
+            };
+        Ok(Self {
+            template,
+            homogeneous,
+            #[cfg(test)]
+            normalization_count: _normalization_count,
+        })
+    }
+
+    pub(super) const fn template(&self) -> &PreparedAleFsiBoundaryStep<D> {
+        &self.template
+    }
+
+    #[cfg(test)]
+    pub(super) const fn normalization_count(&self) -> usize {
+        self.normalization_count
+    }
+
+    pub(super) fn action(
+        &self,
+        previous: &AleFsiState<D>,
+        plan: AleFsiStepPlan<D>,
+    ) -> Result<PreparedAleFsiBoundaryStep<D>, Diagnostic> {
+        let current_time = previous.time() + plan.time_step();
+        let action = if previous.time().to_bits() == self.template.previous_endpoint.time_bits()
+            && current_time.to_bits() == self.template.current_endpoint.time_bits()
+        {
+            self.template.clone()
+        } else if self.homogeneous {
+            self.template
+                .homogeneous_at_times(previous.time(), current_time)?
+        } else {
+            return Err(invalid(
+                "one prepared ALE FSI physical trace cannot be reused at another endpoint pair",
+            ));
+        };
+        if !self.template.has_same_structure(&action) {
+            return Err(invalid(
+                "ALE FSI action boundary changed its prepared structural closure",
+            ));
+        }
+        action.validate_action(previous, plan)?;
+        Ok(action)
     }
 }
 

@@ -136,6 +136,7 @@ where
 mod tests {
     use std::fmt;
     use std::num::NonZeroUsize;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use eqiora_core::diagnostic::codes;
     use eqiora_meshing::MeshQualityGate;
@@ -246,20 +247,30 @@ mod tests {
         .unwrap();
         let cell_quadrature = eqiora_meshing::triangle_duffy_gauss_legendre(5).unwrap();
         let facet_quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(1, 3).unwrap();
+        let prepared_trace_evaluations = AtomicUsize::new(0);
         crate::jacobian_audit::reset_centered_residual_assembly_count();
         let trajectory = super::super::advance_simplicial_mini_navier_stokes_2d(
             &mesh,
             &boundary,
-            &|_| Ok([0.0; 2]),
+            &|_| {
+                prepared_trace_evaluations.fetch_add(1, Ordering::Relaxed);
+                Ok([0.0; 2])
+            },
             &|_| Ok([0.0; 2]),
             state(0.0),
-            NonZeroStepCount::new(NonZeroUsize::MIN),
+            NonZeroStepCount::new(NonZeroUsize::new(10).unwrap()),
             plan,
             &cell_quadrature,
             &facet_quadrature,
             &NoSolveBackend,
         )
         .unwrap();
+        assert_eq!(trajectory.states().len(), 11);
+        assert_eq!(
+            prepared_trace_evaluations.load(Ordering::Relaxed),
+            mesh.vertices().len(),
+            "ten actions must evaluate the invariant essential trace only during preparation",
+        );
         assert_eq!(
             crate::jacobian_audit::centered_residual_assembly_count(),
             0,
@@ -271,7 +282,7 @@ mod tests {
             &|_| Ok([0.0; 2]),
             &|_| Ok([0.0; 2]),
             &trajectory.states()[0],
-            trajectory.states().last().unwrap(),
+            &trajectory.states()[1],
             plan,
             &cell_quadrature,
             &facet_quadrature,

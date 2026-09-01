@@ -52,6 +52,9 @@ pub use realization::{
     fixed_reference_fsi_distributed_cuda_plan_2d, fixed_reference_fsi_plan_2d,
     fixed_reference_fsi_requirements_2d, fixed_reference_fsi_requirements_2d_for_layout,
 };
+pub(crate) use realization::{
+    PreparedResolvedFixedReferenceFsiRun2d, prepare_resolved_fixed_reference_fsi_run_2d,
+};
 
 type CartesianBounds<const D: usize> = [[f64; 2]; D];
 

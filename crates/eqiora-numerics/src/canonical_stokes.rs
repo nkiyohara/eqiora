@@ -58,8 +58,15 @@ pub use navier_stokes_fvm_realization::{
     transient_navier_stokes_cell_centered_plan_2d,
     transient_navier_stokes_cell_centered_requirements_2d,
 };
+pub(crate) use navier_stokes_fvm_realization::{
+    PreparedResolvedTransientCellCenteredRun2d,
+    prepare_resolved_transient_navier_stokes_cell_centered_run_2d,
+};
 pub(crate) use navier_stokes_integral_formulation::integral_conservative_correspondence;
-pub(crate) use navier_stokes_realization::require_complete_zero_trace;
+pub(crate) use navier_stokes_realization::{
+    PreparedResolvedTransientMiniRun2d, prepare_resolved_transient_navier_stokes_mini_run_2d,
+    require_complete_zero_trace,
+};
 pub use navier_stokes_realization::{
     ResolvedTransientNavierStokesState2d, ResolvedTransientNavierStokesTrajectory2d,
     TransientNavierStokesInitialState2d, TransientNavierStokesRun2d,
@@ -77,8 +84,10 @@ pub use realization::{
 };
 pub use recognize::lower_steady_incompressible_stokes_cartesian_2d;
 pub(crate) use recognize::recognize_steady_incompressible_stokes_geometry_mathematics;
-pub(crate) use transient_geometry_realization::TransientNavierStokesGeometryBinding2d;
-pub(crate) use transient_geometry_realization::advance_resolved_transient_navier_stokes_geometry_mini_2d;
+pub(crate) use transient_geometry_realization::{
+    PreparedResolvedTransientGeometryMiniRun2d, TransientNavierStokesGeometryBinding2d,
+    prepare_resolved_transient_navier_stokes_geometry_mini_run_2d,
+};
 
 #[cfg(test)]
 mod tests;

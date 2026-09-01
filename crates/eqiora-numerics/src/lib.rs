@@ -54,6 +54,7 @@ pub use numerical_admission::{
 mod operator;
 mod physical_network;
 mod poisson;
+mod prepared_execution;
 mod simplicial_ale_fsi;
 mod simplicial_ale_remesh;
 mod simplicial_elasticity;

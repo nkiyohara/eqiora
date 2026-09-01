@@ -8,7 +8,10 @@ use super::api::{
     MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d,
     SimplicialMiniNavierStokesTrajectory2d,
 };
-use super::assembly::assemble_step_linearization;
+use super::assembly::{
+    PreparedStepStructure, assemble_step_linearization_prepared, initial_point_prepared,
+    prepare_step_structure,
+};
 use super::element::FixedDomainViscousForm;
 use super::{COMPONENTS, DIMENSION, solve_failed};
 use crate::simplicial_stokes::SimplicialMiniStokesBoundary2d;
@@ -91,7 +94,6 @@ where
         facet_quadrature,
         assembly,
         solver,
-        FixedDomainViscousForm::SymmetricNewtonian,
     )
 }
 
@@ -108,11 +110,42 @@ fn advance_with_viscous_form<F, B>(
     facet_quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
-    viscous_form: FixedDomainViscousForm,
 ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
+{
+    super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
+    let prepared = prepare_step_structure(mesh, boundary, essential_velocity)?;
+    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
+        mesh,
+        &prepared,
+        body_force,
+        initial,
+        step_count,
+        plan,
+        cell_quadrature,
+        facet_quadrature,
+        assembly,
+        solver,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure<F>(
+    mesh: &SimplicialMesh,
+    prepared: &PreparedStepStructure,
+    body_force: &F,
+    initial: SimplicialMiniNavierStokesState2d,
+    step_count: NonZeroStepCount,
+    plan: MiniNavierStokesStepPlan2d,
+    cell_quadrature: &QuadratureRule,
+    facet_quadrature: &QuadratureRule,
+    assembly: &dyn AssemblyBackend,
+    solver: &dyn LinearSolverBackend,
+) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic>
+where
+    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
     super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
     let mut trajectory = SimplicialMiniNavierStokesTrajectory2d::new(initial);
@@ -123,8 +156,7 @@ where
             .expect("trajectory owns its initial state");
         let (next, evidence) = solve_one_step(
             mesh,
-            boundary,
-            essential_velocity,
+            prepared,
             body_force,
             previous,
             plan,
@@ -132,7 +164,7 @@ where
             facet_quadrature,
             assembly,
             solver,
-            viscous_form,
+            FixedDomainViscousForm::SymmetricNewtonian,
         )?;
         trajectory.push(next, evidence)?;
     }
@@ -140,10 +172,9 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-fn solve_one_step<F, B>(
+fn solve_one_step<F>(
     mesh: &SimplicialMesh,
-    boundary: &SimplicialMiniStokesBoundary2d,
-    essential_velocity: &B,
+    prepared: &PreparedStepStructure,
     body_force: &F,
     previous: &SimplicialMiniNavierStokesState2d,
     plan: MiniNavierStokesStepPlan2d,
@@ -161,14 +192,12 @@ fn solve_one_step<F, B>(
 >
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
-    let mut point = super::assembly::initial_point(mesh, boundary, essential_velocity, previous)?;
+    let mut point = initial_point_prepared(mesh, prepared, previous)?;
     require_consistent_initial_state(mesh, cell_quadrature, previous, plan)?;
-    let mut current = assemble_step_linearization(
+    let mut current = assemble_step_linearization_prepared(
         mesh,
-        boundary,
-        essential_velocity,
+        prepared,
         body_force,
         previous,
         &point,
@@ -220,10 +249,9 @@ where
                 .zip(correction)
                 .map(|(point, correction)| point + scale * correction)
                 .collect::<Vec<_>>();
-            let assembled = assemble_step_linearization(
+            let assembled = assemble_step_linearization_prepared(
                 mesh,
-                boundary,
-                essential_velocity,
+                prepared,
                 body_force,
                 previous,
                 &candidate,
