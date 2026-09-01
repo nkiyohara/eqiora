@@ -112,10 +112,10 @@ fn exact_package_compilation_and_model_replay_retain_identity() {
     assert_eq!(expected["model_sha256"], packaged.model().digest().unwrap());
     assert_eq!(
         expected["package_compilation_sha256"],
-        "cb797d1c262e5a657d9d2a03d757894fdce01d2a98f09e6557796cb9c2d460a4"
+        "c857873f400095c669a44dd2a0917ef91a4ca40bddfcc0afe2c5c3f22a63abc2"
     );
     assert_eq!(
         packaged.compilation().digest().unwrap().to_hex(),
-        "7022e5ec74667cef0e08ba72f6fe89a4f243ce698d9b1f52119952150e4a7093"
+        "c454b41911ebe73465d0725fed7d6b49fb9b7549178510bae9b8df86825cb049"
     );
 }

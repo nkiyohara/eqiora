@@ -23,8 +23,8 @@ public component PoissonRectangle {
   field potential on region as space: 1 = 0;
   relation balance continuous on region {
     -div(grad(potential))
-      - source_scale * sin(wave_number * coordinate(0))
-        * sin(wave_number * coordinate(1)) = 0;
+      - source_scale * math.sin(wave_number * coordinate(0))
+        * math.sin(wave_number * coordinate(1)) = 0;
   }
   relation left_value continuous on left { trace(potential) = 0; }
   relation right_value continuous on right { trace(potential) = 0; }

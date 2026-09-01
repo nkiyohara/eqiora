@@ -213,6 +213,8 @@ units: _Units
 
 class _Math:
     pi: Final[Expression]
+    @staticmethod
+    def sin(value: Expression | float | int) -> Expression: ...
 
 #: Exact language constants used by Source expressions.
 #:
@@ -278,14 +280,6 @@ def div(value: Expression) -> Expression:
 
     ...
 
-def sin(value: Expression | float | int) -> Expression:
-    """Return the language sine of one expression.
-
-    Authority: ``bindings/python/python/eqiora/lang/__init__.py::sin``.
-    """
-
-    ...
-
 def trace(value: Expression) -> Expression:
     """Return the language boundary trace of one expression.
 
@@ -335,7 +329,6 @@ __all__ = [
     "isotropic_lift",
     "math",
     "normal",
-    "sin",
     "spatial_vector",
     "symmetric_part",
     "test",

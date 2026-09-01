@@ -177,7 +177,7 @@ fn direct_and_exact_package_variants_share_name_free_meaning() {
     );
 
     let root = root_release(&operators, "ops", "src/main.eqi");
-    let aliased_root = root_release(&relocated, "math", "moved/main.eqi");
+    let aliased_root = root_release(&relocated, "algebra", "moved/main.eqi");
     assert_eq!(
         root.package_identity().unwrap(),
         aliased_root.package_identity().unwrap(),

@@ -743,7 +743,7 @@ model poisson {
   field u on interval as space: 1 = 0;
   parameter wave_number: 1 / m = 3.141592653589793;
   relation balance continuous on interval {
-    -div(grad(u)) - sin(wave_number * coordinate(0)) = 0;
+    -div(grad(u)) - math.sin(wave_number * coordinate(0)) = 0;
   }
 }
 "#;
@@ -754,7 +754,7 @@ model poisson {
             .expect("formatted parse");
 
         assert_eq!(format(&second), formatted);
-        assert!(formatted.contains("sin(wave_number * coordinate(0))"));
+        assert!(formatted.contains("math.sin(wave_number * coordinate(0))"));
     }
 
     #[test]

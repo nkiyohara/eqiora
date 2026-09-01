@@ -98,6 +98,14 @@ pub(crate) fn validate_and_elaborate(
     let mut contracts = BTreeMap::new();
     for unit in units.iter() {
         for (visibility, name, dimension, range) in unit.document.property_contract_syntax() {
+            if name == crate::math::ROOT {
+                diagnostics.push(error(
+                    &unit.file,
+                    range,
+                    "identifier `math` is reserved for compiler-owned scalar mathematics",
+                ));
+                continue;
+            }
             if let Err(diagnostic) = lower_dimension(&unit.file, dimension) {
                 diagnostics.push(diagnostic);
                 continue;
@@ -137,6 +145,14 @@ pub(crate) fn validate_and_elaborate(
             range,
         ) in unit.document.property_release_syntax()
         {
+            if name == crate::math::ROOT {
+                diagnostics.push(error(
+                    &unit.file,
+                    range,
+                    "identifier `math` is reserved for compiler-owned scalar mathematics",
+                ));
+                continue;
+            }
             let Some(contract_key) = resolve_path(
                 &unit.namespace,
                 contract_path,

@@ -208,6 +208,10 @@ class _Math:
     __slots__ = ()
     pi: Final = Expression(_CREATE, "math.pi", None, 1, 1, 100)
 
+    @staticmethod
+    def sin(value: object) -> Expression:
+        return _unary("math.sin", value)
+
 
 math: Final = _Math()
 
@@ -409,10 +413,6 @@ def integrate(domain: Support, integrand: object) -> Expression:
 
 def div(value: object) -> Expression:
     return _unary("div", value)
-
-
-def sin(value: object) -> Expression:
-    return _unary("sin", value)
 
 
 def trace(value: object) -> Expression:
@@ -1198,7 +1198,6 @@ __all__ = [
     "isotropic_lift",
     "math",
     "normal",
-    "sin",
     "spatial_vector",
     "symmetric_part",
     "test",

@@ -304,7 +304,14 @@ pub(super) fn insert_binding(
     range: TextRange,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if is_reserved(name) {
+    if name == crate::math::ROOT {
+        diagnostics.push(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            range,
+            "identifier `math` is reserved for compiler-owned scalar mathematics",
+        ));
+    } else if is_reserved(name) {
         diagnostics.push(source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,

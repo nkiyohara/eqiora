@@ -164,6 +164,12 @@ impl ExpressionChecker<'_, '_, '_> {
             ExprKind::Name(name) => self.scalar_local_symbol(expression, name),
             ExprKind::Path(path) => match crate::math::constant(path) {
                 Some(_) => Ok(ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)),
+                None if crate::math::is_namespaced(path) => Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    path.range(),
+                    format!("unknown compiler-owned scalar mathematics member `{path}`"),
+                )),
                 None => self.scalar_contract(
                     expression,
                     path.as_str(),
@@ -262,6 +268,22 @@ impl ExpressionChecker<'_, '_, '_> {
         arguments: &[Expr],
     ) -> Result<ExpressionType<String>, Diagnostic> {
         let callee_name = callee.as_str();
+        if callee_name == "sin" {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.scope.file,
+                callee.range(),
+                "bare `sin` is not language vocabulary; use compiler-owned `math.sin`",
+            ));
+        }
+        if crate::math::is_namespaced(callee) && !crate::math::is_function(callee) {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.scope.file,
+                callee.range(),
+                format!("unknown compiler-owned scalar mathematics member `{callee}`"),
+            ));
+        }
         if !is_builtin_operator(callee) {
             let definition = self.scope.elaborator.resolve_pure_operator(
                 &self.scope.namespace,
@@ -313,7 +335,7 @@ impl ExpressionChecker<'_, '_, '_> {
             return typing::coordinate(axis, self.relation_support.as_ref())
                 .map_err(|error| type_error(self.scope.file, expression, error));
         }
-        if callee_name == "sin" {
+        if callee_name == "math.sin" {
             return typing::sine(&self.check(argument)?)
                 .map_err(|error| type_error(self.scope.file, expression, error));
         }
@@ -531,7 +553,7 @@ fn type_error(file: &str, expression: &Expr, error: TypeViolation<String>) -> Di
             )
         }
         TypeViolation::SinRequiresDimensionlessScalar => {
-            "sin(...) requires a dimensionless scalar".to_owned()
+            "math.sin(...) requires a dimensionless scalar".to_owned()
         }
         _ => error.to_string(),
     };

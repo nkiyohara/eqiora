@@ -216,8 +216,8 @@ public component {core} {{
   public parameter boundary_offset: 1;
   relation balance continuous on square {{
     -div({coefficient} * grad({field}))
-      - source_scale * sin(wave_number * coordinate(0))
-        * sin(wave_number * coordinate(1)) = 0;
+      - source_scale * math.sin(wave_number * coordinate(0))
+        * math.sin(wave_number * coordinate(1)) = 0;
   }}
   relation x_lower_value continuous on x_lower {{ trace({field}) - boundary_offset = 0; }}
   relation x_upper_value continuous on x_upper {{ trace({field}) - boundary_offset = 0; }}
