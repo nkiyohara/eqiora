@@ -11,7 +11,7 @@ use eqiora_meshing::{
 
 use super::partition::FixedReferenceFsiPartition;
 use super::{invalid, required_quadrature_exactness};
-use crate::linear_elasticity::is_coercive_isotropic_material;
+use crate::linear_elasticity::IsotropicElasticityMaterial;
 
 /// Positive material data for the bounded linear FSI realization.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -19,8 +19,7 @@ pub struct FixedReferenceFsiMaterial<const D: usize> {
     fluid_density: f64,
     fluid_dynamic_viscosity: f64,
     solid_density: f64,
-    solid_shear_modulus: f64,
-    solid_first_lame_parameter: f64,
+    solid: IsotropicElasticityMaterial<D>,
 }
 
 impl<const D: usize> FixedReferenceFsiMaterial<D> {
@@ -37,13 +36,15 @@ impl<const D: usize> FixedReferenceFsiMaterial<D> {
         solid_first_lame_parameter: f64,
     ) -> Result<Self, Diagnostic> {
         require_supported_dimension::<D>()?;
+        let solid =
+            IsotropicElasticityMaterial::<D>::new(solid_shear_modulus, solid_first_lame_parameter);
         if !fluid_density.is_finite()
             || fluid_density <= 0.0
             || !fluid_dynamic_viscosity.is_finite()
             || fluid_dynamic_viscosity <= 0.0
             || !solid_density.is_finite()
             || solid_density <= 0.0
-            || !is_coercive_isotropic_material::<D>(solid_shear_modulus, solid_first_lame_parameter)
+            || solid.is_none()
         {
             return Err(invalid(
                 "fixed-reference FSI material data must be finite and coercive in its admitted dimension",
@@ -53,8 +54,7 @@ impl<const D: usize> FixedReferenceFsiMaterial<D> {
             fluid_density,
             fluid_dynamic_viscosity,
             solid_density,
-            solid_shear_modulus,
-            solid_first_lame_parameter,
+            solid: solid.expect("validated dimension-coercive solid material"),
         })
     }
 
@@ -79,13 +79,17 @@ impl<const D: usize> FixedReferenceFsiMaterial<D> {
     /// Solid shear modulus `mu`.
     #[must_use]
     pub const fn solid_shear_modulus(self) -> f64 {
-        self.solid_shear_modulus
+        self.solid.shear_modulus()
     }
 
     /// Solid first Lamé parameter `lambda`.
     #[must_use]
     pub const fn solid_first_lame_parameter(self) -> f64 {
-        self.solid_first_lame_parameter
+        self.solid.first_lame_parameter()
+    }
+
+    pub(crate) const fn solid_material(self) -> IsotropicElasticityMaterial<D> {
+        self.solid
     }
 }
 

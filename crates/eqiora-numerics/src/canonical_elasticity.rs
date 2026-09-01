@@ -30,7 +30,7 @@ use crate::cartesian_elasticity::{
     CartesianEssentialSides2d, finalize_cartesian_q1_linear_elasticity_2d,
 };
 use crate::finalized_spatial::FinalizedIsotropicElasticityCartesian2dProblem;
-use crate::linear_elasticity::is_coercive_isotropic_material;
+use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
 use eqiora_meshing::{CartesianMesh, MeshTopology};
 
@@ -400,7 +400,7 @@ fn lower_isotropic_elasticity_subdomain_2d_with_boundaries(
             "first-Lame-parameter expression is not finitely evaluable",
         ));
     };
-    if !is_coercive_isotropic_material::<2>(shear_value, lambda_value) {
+    if IsotropicElasticityMaterial::<2>::new(shear_value, lambda_value).is_none() {
         return Err(lowering_error(
             balance_relation,
             "2D isotropic elasticity requires finite `mu > 0` and `lambda + mu > 0`",

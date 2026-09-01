@@ -16,7 +16,6 @@ use super::{fluid_local_size, invalid, mini_count, p1_count};
 use crate::affine_fem::physical_gradient;
 use crate::continuum_kinematics::{symmetric_gradient, twice_symmetric_gradient_squared_norm};
 use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
-use crate::linear_elasticity::isotropic_strain_energy_density;
 
 pub(super) struct EnergyEvaluation<'a, const D: usize = 2> {
     pub(super) mesh: &'a SimplicialMesh,
@@ -206,11 +205,9 @@ fn elastic_energy_density<const D: usize>(
     gradient: &[[f64; D]; D],
     material: FixedReferenceFsiMaterial<D>,
 ) -> f64 {
-    isotropic_strain_energy_density(
-        &symmetric_gradient(gradient),
-        material.solid_shear_modulus(),
-        material.solid_first_lame_parameter(),
-    )
+    material
+        .solid_material()
+        .strain_energy_density(&symmetric_gradient(gradient))
 }
 
 pub(super) fn require_pressure_closed_by_complete_operator<const D: usize>(
