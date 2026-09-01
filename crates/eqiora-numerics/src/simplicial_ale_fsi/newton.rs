@@ -1,15 +1,20 @@
 //! Damped Newton execution for the bounded fixed-topology ALE FSI slice.
 
+use std::ops::ControlFlow;
+
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
 use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolverBackend, ScalarType};
 
-use super::acceptance::{NewtonEvidence, accept_step};
+use super::acceptance::{NewtonEvidence, accept_step_prepared};
 use super::api::{AleFsiStepEvidence, AleFsiTrajectory, AleFsiTrajectory2d, AleFsiTrajectory3d};
-use super::assembly::{assemble_step_linearization_prepared, initial_point_prepared};
-use super::boundary_step::PreparedAleFsiBoundaryStep;
+use super::assembly::{
+    PreparedAleFsiAction, PreparedAleFsiStructure, assemble_step_linearization_with_structure,
+    prepare_ale_fsi_structure,
+};
+use super::boundary_step::{PreparedAleFsiBoundaryRun, PreparedAleFsiBoundaryStep};
 use super::contract::{
     AleFsiBoundary, AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState, AleFsiState2d, AleFsiState3d,
     AleFsiStepPlan, AleFsiStepPlan2d, AleFsiStepPlan3d,
@@ -17,6 +22,7 @@ use super::contract::{
 use super::{
     P1HarmonicMeshMotionAction, P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
 };
+use crate::prepared_execution::advance_prepared_actions;
 use crate::simplicial_fsi::{
     FixedReferenceFsiPartition, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
 };
@@ -139,12 +145,27 @@ pub fn advance_simplicial_ale_fsi_3d_with_assembly(
 struct PreparedAleFsiRun<'a, const D: usize> {
     reference: &'a SimplicialMesh,
     partition: &'a FixedReferenceFsiPartition<D>,
-    boundary: &'a AleFsiBoundary<D>,
+    boundary: PreparedAleFsiBoundaryRun<D>,
+    structure: PreparedAleFsiStructure<D>,
     motion: &'a P1HarmonicMeshMotionAction<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &'a QuadratureRule,
     assembly: &'a dyn AssemblyBackend,
     solver: &'a dyn LinearSolverBackend,
+    #[cfg(test)]
+    phases: AleFsiRunPhaseCounts,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AleFsiRunPhaseCounts {
+    authentication: usize,
+    normalization: usize,
+    boundary: usize,
+    layout: usize,
+    maps: usize,
+    quadrature: usize,
+    sparsity: usize,
 }
 
 impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
@@ -165,16 +186,41 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
             ScalarType::F64,
             LinearOperatorProperties::General,
         )?;
-        initial.validate_against(reference, partition, motion)?;
+        let boundary = PreparedAleFsiBoundaryRun::new(reference, boundary, initial, plan)?;
+        let structure = prepare_ale_fsi_structure(
+            reference,
+            partition,
+            boundary.template(),
+            motion,
+            initial,
+            plan,
+            quadrature,
+        )?;
+        #[cfg(test)]
+        let phases = {
+            let structural = structure.phase_counts();
+            AleFsiRunPhaseCounts {
+                authentication: structural.authentication,
+                normalization: boundary.normalization_count(),
+                boundary: 1,
+                layout: structural.layout,
+                maps: structural.maps,
+                quadrature: structural.quadrature,
+                sparsity: structural.sparsity,
+            }
+        };
         Ok(Self {
             reference,
             partition,
             boundary,
+            structure,
             motion,
             plan,
             quadrature,
             assembly,
             solver,
+            #[cfg(test)]
+            phases,
         })
     }
 
@@ -182,10 +228,19 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
         &self,
         previous: &AleFsiState<D>,
     ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
-        solve_one_step(
+        let boundary = self.boundary.action(previous, self.plan)?;
+        let action = self.structure.prepare_action(
             self.reference,
             self.partition,
-            self.boundary,
+            boundary,
+            previous,
+            self.plan,
+        )?;
+        solve_one_step_prepared(
+            self.reference,
+            self.partition,
+            &self.structure,
+            &action,
             self.motion,
             previous,
             self.plan,
@@ -209,19 +264,39 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
 ) -> Result<AleFsiTrajectory<D>, Diagnostic> {
-    let prepared = PreparedAleFsiRun::new(
-        reference, partition, boundary, motion, &initial, plan, quadrature, assembly, solver,
-    )?;
-    let mut trajectory = AleFsiTrajectory::<D>::new(initial);
-    for _ in 0..step_count.get() {
-        let previous = trajectory
-            .states()
-            .last()
-            .expect("ALE FSI trajectory owns its initial state");
-        let (next, evidence) = prepared.advance(previous)?;
-        trajectory.push(next, evidence)?;
+    match advance_prepared_actions(
+        AleFsiTrajectory::<D>::new(initial),
+        step_count.get(),
+        |trajectory| {
+            PreparedAleFsiRun::new(
+                reference,
+                partition,
+                boundary,
+                motion,
+                trajectory
+                    .states()
+                    .last()
+                    .expect("ALE FSI trajectory owns its initial state"),
+                plan,
+                quadrature,
+                assembly,
+                solver,
+            )
+        },
+        |prepared, trajectory| {
+            prepared.advance(
+                trajectory
+                    .states()
+                    .last()
+                    .expect("ALE FSI trajectory owns its initial state"),
+            )
+        },
+        |trajectory, _, (next, evidence)| trajectory.push(next, evidence),
+        |_, _| None::<()>,
+    )? {
+        ControlFlow::Continue(trajectory) => Ok(trajectory),
+        ControlFlow::Break(()) => unreachable!("ALE FSI run has no early boundary"),
     }
-    Ok(trajectory)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -246,13 +321,43 @@ pub(super) fn solve_one_step<const D: usize>(
             plan.scale().velocity(),
         )?,
     };
-    let mut point = initial_point_prepared(
+    let structure = prepare_ale_fsi_structure(
         reference, partition, &prepared, motion, previous, plan, quadrature,
     )?;
-    let mut current = assemble_step_linearization_prepared(
+    let action = structure.prepare_action(reference, partition, prepared, previous, plan)?;
+    solve_one_step_prepared(
         reference,
         partition,
-        &prepared,
+        &structure,
+        &action,
+        motion,
+        previous,
+        plan,
+        quadrature,
+        assembly_backend,
+        solver,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn solve_one_step_prepared<const D: usize>(
+    reference: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<D>,
+    structure: &PreparedAleFsiStructure<D>,
+    action: &PreparedAleFsiAction<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
+    previous: &AleFsiState<D>,
+    plan: AleFsiStepPlan<D>,
+    quadrature: &QuadratureRule,
+    assembly_backend: &dyn AssemblyBackend,
+    solver: &dyn LinearSolverBackend,
+) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
+    let mut point = structure.initial_point(action, previous, plan)?;
+    let mut current = assemble_step_linearization_with_structure(
+        reference,
+        partition,
+        structure,
+        action,
         motion,
         previous,
         &point,
@@ -263,10 +368,11 @@ pub(super) fn solve_one_step<const D: usize>(
     let initial_residual_norm = current.residual_norm()?;
     let residual_target = nonlinear_target::<D>(plan, initial_residual_norm)?;
     if initial_residual_norm <= residual_target {
-        return accept_step::<D>(
+        return accept_step_prepared::<D>(
             reference,
             partition,
-            boundary,
+            structure,
+            action,
             motion,
             previous,
             plan,
@@ -305,10 +411,11 @@ pub(super) fn solve_one_step<const D: usize>(
                 .zip(&proposed)
                 .map(|(point, proposed)| point + scale * (proposed - point))
                 .collect::<Vec<_>>();
-            match assemble_step_linearization_prepared(
+            match assemble_step_linearization_with_structure(
                 reference,
                 partition,
-                &prepared,
+                structure,
+                action,
                 motion,
                 previous,
                 &candidate,
@@ -340,10 +447,11 @@ pub(super) fn solve_one_step<const D: usize>(
         point = candidate;
         current = assembled;
         if norm <= residual_target {
-            return accept_step::<D>(
+            return accept_step_prepared::<D>(
                 reference,
                 partition,
-                boundary,
+                structure,
+                action,
                 motion,
                 previous,
                 plan,
@@ -390,7 +498,9 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroUsize;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
+    use eqiora_assembly::{AssemblyPlan, AssemblyResult, AssemblyWork};
     use eqiora_meshing::{
         CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, VertexId,
         simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
@@ -410,6 +520,68 @@ mod tests {
     };
 
     const INTERFACE_INTERIOR_3D: VertexId = VertexId::new(5);
+
+    #[derive(Debug, Default)]
+    struct FailFirstAssembly {
+        calls: AtomicUsize,
+    }
+
+    impl AssemblyBackend for FailFirstAssembly {
+        fn assemble(
+            &self,
+            plan: &AssemblyPlan,
+            work: &dyn AssemblyWork,
+        ) -> Result<AssemblyResult, Diagnostic> {
+            if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Err(Diagnostic::error(
+                    codes::ASSEMBLY_FAILED,
+                    "injected first prepared ALE FSI assembly failure",
+                ));
+            }
+            REFERENCE_ASSEMBLY_BACKEND.assemble(plan, work)
+        }
+    }
+
+    #[test]
+    fn real_payload_prepares_each_structural_phase_once_and_reuses_after_failure() {
+        let fixture = fixture();
+        let plan = step_plan();
+        let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+        let assembly = FailFirstAssembly::default();
+        let prepared = PreparedAleFsiRun::new(
+            &fixture.mesh,
+            &fixture.partition,
+            &fixture.boundary,
+            &fixture.motion,
+            &fixture.initial,
+            plan,
+            &quadrature,
+            &assembly,
+            &DenseGeneralSolver,
+        )
+        .unwrap();
+        let expected = AleFsiRunPhaseCounts {
+            authentication: 1,
+            normalization: 1,
+            boundary: 1,
+            layout: 1,
+            maps: 1,
+            quadrature: 1,
+            sparsity: 1,
+        };
+        assert_eq!(prepared.phases, expected);
+
+        let error = prepared.advance(&fixture.initial).unwrap_err();
+        assert_eq!(error.code(), codes::ASSEMBLY_FAILED);
+        assert_eq!(fixture.initial.time(), 0.0);
+        assert_eq!(prepared.phases, expected);
+
+        let (accepted, _) = prepared.advance(&fixture.initial).unwrap();
+        assert_eq!(accepted.time(), plan.time_step());
+        assert_eq!(fixture.initial.time(), 0.0);
+        assert_eq!(prepared.phases, expected);
+        assert!(assembly.calls.load(Ordering::SeqCst) > 1);
+    }
 
     #[test]
     fn two_steps_close_the_complete_accepted_evidence_chain() {

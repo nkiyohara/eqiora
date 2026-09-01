@@ -1,34 +1,47 @@
 use super::*;
+use crate::prepared_execution::advance_prepared_actions;
 use std::ops::ControlFlow;
 
-// Keep the lifecycle private until another method family proves a durable
-// outcome type; the standard ControlFlow shape is intentionally explicit here.
+struct CommonAcceptedActions {
+    state: CommonState,
+    outputs: Vec<(usize, CommonState)>,
+}
+
 #[allow(clippy::type_complexity)]
-fn advance_prepared_actions<S: Clone, P, E>(
-    initial: S,
+fn advance_common_prepared_actions<P>(
+    initial: CommonState,
     maximum_actions: usize,
     output_actions: &[usize],
-    prepare: impl FnOnce(&S) -> Result<P, E>,
-    mut advance: impl FnMut(&P, &S) -> Result<S, E>,
-    mut stop_at_boundary: impl FnMut(usize, &S) -> bool,
-) -> Result<ControlFlow<(usize, S), Vec<(usize, S)>>, E> {
-    let prepared = prepare(&initial)?;
-    let mut accepted = initial;
-    if stop_at_boundary(0, &accepted) {
-        return Ok(ControlFlow::Break((0, accepted)));
+    prepare: impl FnOnce(&CommonState) -> Result<P, Diagnostic>,
+    mut advance: impl FnMut(&P, &CommonState) -> Result<CommonState, Diagnostic>,
+    mut stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
+) -> Result<ControlFlow<(usize, CommonState), Vec<(usize, CommonState)>>, Diagnostic> {
+    let context = CommonAcceptedActions {
+        state: initial,
+        outputs: Vec::with_capacity(output_actions.len()),
+    };
+    match advance_prepared_actions(
+        context,
+        maximum_actions,
+        |context| prepare(&context.state),
+        |prepared, context| advance(prepared, &context.state),
+        |context, accepted_actions, candidate| {
+            context.state = candidate;
+            if output_actions.binary_search(&accepted_actions).is_ok() {
+                context
+                    .outputs
+                    .push((accepted_actions, context.state.clone()));
+            }
+            Ok(())
+        },
+        |accepted_actions, context| {
+            stop_at_boundary(accepted_actions, &context.state)
+                .then(|| (accepted_actions, context.state.clone()))
+        },
+    )? {
+        ControlFlow::Break(stopped) => Ok(ControlFlow::Break(stopped)),
+        ControlFlow::Continue(context) => Ok(ControlFlow::Continue(context.outputs)),
     }
-    let mut outputs = Vec::with_capacity(output_actions.len());
-    for accepted_actions in 1..=maximum_actions {
-        let candidate = advance(&prepared, &accepted)?;
-        accepted = candidate;
-        if output_actions.binary_search(&accepted_actions).is_ok() {
-            outputs.push((accepted_actions, accepted.clone()));
-        }
-        if stop_at_boundary(accepted_actions, &accepted) {
-            return Ok(ControlFlow::Break((accepted_actions, accepted)));
-        }
-    }
-    Ok(ControlFlow::Continue(outputs))
 }
 
 impl CommonFsiRunRequest {
@@ -139,7 +152,7 @@ impl CommonFsiRunRequest {
         backend: &dyn LinearSolverBackend,
         stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
     ) -> Result<ControlFlow<(usize, CommonState), Vec<(usize, CommonState)>>, Diagnostic> {
-        advance_prepared_actions(
+        advance_common_prepared_actions(
             self.state.clone(),
             self.accepted_steps.get(),
             &self.output_steps,
@@ -279,7 +292,7 @@ impl CommonTransientRunRequest {
         backend: &dyn LinearSolverBackend,
         stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
     ) -> Result<ControlFlow<(usize, CommonState), Vec<(usize, CommonState)>>, Diagnostic> {
-        advance_prepared_actions(
+        advance_common_prepared_actions(
             self.state.clone(),
             self.accepted_steps.get(),
             &self.output_steps,
@@ -525,88 +538,5 @@ impl CommonState {
             CommonStateKind::CellCentered(state) => state.previous_face_volume_fluxes(),
             CommonStateKind::Fsi { .. } => &[],
         }
-    }
-}
-
-#[cfg(test)]
-mod prepared_action_tests {
-    use std::cell::Cell;
-    use std::ops::ControlFlow;
-
-    use super::advance_prepared_actions;
-
-    #[test]
-    fn prepares_once_and_observes_exact_accepted_boundaries() {
-        let prepares = Cell::new(0);
-        let advances = Cell::new(0);
-        let boundaries = Cell::new(0);
-        let outcome = advance_prepared_actions(
-            0_u64,
-            10,
-            &[3, 10],
-            |_| {
-                prepares.set(prepares.get() + 1);
-                Ok::<_, ()>("prepared")
-            },
-            |prepared, accepted| {
-                assert_eq!(*prepared, "prepared");
-                advances.set(advances.get() + 1);
-                Ok(accepted + 1)
-            },
-            |_, _| {
-                boundaries.set(boundaries.get() + 1);
-                false
-            },
-        )
-        .unwrap();
-
-        assert_eq!(prepares.get(), 1);
-        assert_eq!(advances.get(), 10);
-        assert_eq!(boundaries.get(), 11);
-        assert_eq!(outcome, ControlFlow::Continue(vec![(3, 3), (10, 10)]));
-    }
-
-    #[test]
-    fn cancellation_and_failure_never_publish_a_candidate_state() {
-        for cancellation_boundary in [0, 4] {
-            let outcome = advance_prepared_actions(
-                0_u64,
-                10,
-                &[10],
-                |_| Ok::<_, ()>("prepared"),
-                |prepared, accepted| {
-                    assert_eq!(*prepared, "prepared");
-                    Ok(accepted + 1)
-                },
-                |boundary, _| boundary == cancellation_boundary,
-            )
-            .unwrap();
-            assert_eq!(
-                outcome,
-                ControlFlow::Break((cancellation_boundary, cancellation_boundary as u64))
-            );
-        }
-
-        let last_observed = Cell::new(0_u64);
-        let failure = advance_prepared_actions(
-            0_u64,
-            10,
-            &[10],
-            |_| Ok::<_, &'static str>("prepared"),
-            |prepared, accepted| {
-                assert_eq!(*prepared, "prepared");
-                if *accepted == 3 {
-                    Err("candidate failed")
-                } else {
-                    Ok(accepted + 1)
-                }
-            },
-            |_, accepted| {
-                last_observed.set(*accepted);
-                false
-            },
-        );
-        assert_eq!(failure, Err("candidate failed"));
-        assert_eq!(last_observed.get(), 3);
     }
 }

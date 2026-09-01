@@ -11,8 +11,11 @@ use eqiora_meshing::FixedTopologyGeometryAction;
 use eqiora_meshing::{AffineGeometryLinearization, QuadratureRule, SimplicialMesh};
 
 use super::api::{AleFsiInterfaceAction, AleFsiStepEvidence, AleFsiStepEvidenceInput};
-use super::assembly::{StepAssembly, assemble_step_linearization};
-use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
+use super::assembly::{
+    PreparedAleFsiAction, PreparedAleFsiStructure, StepAssembly,
+    assemble_step_linearization_with_structure,
+};
+use super::contract::{AleFsiState, AleFsiStepPlan};
 use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
 use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace};
@@ -24,31 +27,16 @@ pub(super) struct NewtonEvidence {
     pub(super) linear_solves: Vec<eqiora_solver::SolveReport>,
 }
 
-/// Reassemble and independently accept one converged nonlinear point.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn accept_step<const D: usize>(
-    reference: &SimplicialMesh,
+fn accept_independent<const D: usize>(
     partition: &FixedReferenceFsiPartition<D>,
-    boundary: &AleFsiBoundary<D>,
-    motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    assembly_backend: &dyn AssemblyBackend,
     converged: StepAssembly<D>,
+    independent: StepAssembly<D>,
     newton: NewtonEvidence,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
-    let independent = assemble_step_linearization(
-        reference,
-        partition,
-        boundary,
-        motion,
-        previous,
-        converged.algebraic_values(),
-        plan,
-        quadrature,
-        assembly_backend,
-    )?;
     require_same_accepted_point(&converged, &independent)?;
 
     let final_residual_norm = independent.residual_norm()?;
@@ -169,6 +157,44 @@ pub(super) fn accept_step<const D: usize>(
         },
     )?;
     Ok((independent.current, evidence))
+}
+
+/// Reassemble acceptance evidence through the run-scoped immutable structure.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn accept_step_prepared<const D: usize>(
+    reference: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<D>,
+    structure: &PreparedAleFsiStructure<D>,
+    action: &PreparedAleFsiAction<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
+    previous: &AleFsiState<D>,
+    plan: AleFsiStepPlan<D>,
+    quadrature: &QuadratureRule,
+    assembly_backend: &dyn AssemblyBackend,
+    converged: StepAssembly<D>,
+    newton: NewtonEvidence,
+) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
+    let independent = assemble_step_linearization_with_structure(
+        reference,
+        partition,
+        structure,
+        action,
+        motion,
+        previous,
+        converged.algebraic_values(),
+        plan,
+        quadrature,
+        assembly_backend,
+    )?;
+    accept_independent(
+        partition,
+        previous,
+        plan,
+        quadrature,
+        converged,
+        independent,
+        newton,
+    )
 }
 
 struct ConstantFreeStreamProbe {
@@ -408,7 +434,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::simplicial_ale_fsi::assembly::initial_point;
+    use crate::simplicial_ale_fsi::assembly::{assemble_step_linearization, initial_point};
     use crate::simplicial_ale_fsi::{
         AleFsiBoundary3d, AleFsiState3d, AleFsiStepPlan3d, P1HarmonicMeshMotionAction3d,
     };

@@ -6,6 +6,8 @@
 //! the sealed harmonic action derives the latter.  Every Jacobian column
 //! follows that same composition analytically.
 
+use std::sync::Arc;
+
 use eqiora_assembly::{
     AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
     DofId, IndexedAssemblyWork, LocalContribution, LocalUnknown, TargetAssemblyMap,
@@ -32,8 +34,44 @@ pub(super) struct StepAssembly<const D: usize> {
     pub(super) residual: Vec<f64>,
     pub(super) full_fluid_residual: Vec<f64>,
     pub(super) full_solid_residual: Vec<f64>,
-    pub(super) layout: FsiLayout<D>,
+    pub(super) layout: Arc<FsiLayout<D>>,
     pub(super) assembly_report: AssemblyReport,
+}
+
+struct PreparedAleFsiCell {
+    vertices: Vec<MeshEntity>,
+    reduced_map: AssemblyMap,
+    full_map: AssemblyMap,
+    dense_map: AssemblyMap,
+    fluid_position: Option<usize>,
+}
+
+/// Immutable layout and assembly structure shared by every action in one Run.
+pub(super) struct PreparedAleFsiStructure<const D: usize> {
+    boundary_template: PreparedAleFsiBoundaryStep<D>,
+    layout: Arc<FsiLayout<D>>,
+    directions: Vec<AlgebraicDirection<D>>,
+    assembly_plan: AssemblyPlan,
+    reduced_target: eqiora_assembly::AssemblyTargetId,
+    cells: Vec<PreparedAleFsiCell>,
+    #[cfg(test)]
+    phases: AleFsiStructuralPhaseCounts,
+}
+
+#[cfg(test)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(super) struct AleFsiStructuralPhaseCounts {
+    pub(super) authentication: usize,
+    pub(super) layout: usize,
+    pub(super) maps: usize,
+    pub(super) quadrature: usize,
+    pub(super) sparsity: usize,
+}
+
+/// Action-local endpoint binding over one immutable prepared structure.
+pub(super) struct PreparedAleFsiAction<const D: usize> {
+    boundary: PreparedAleFsiBoundaryStep<D>,
+    previous_reference: FixedReferenceFsiState<D>,
 }
 
 impl<const D: usize> StepAssembly<D> {
@@ -67,6 +105,150 @@ impl<const D: usize> StepAssembly<D> {
 
     pub(super) const fn assembly_report(&self) -> &AssemblyReport {
         &self.assembly_report
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn prepare_ale_fsi_structure<const D: usize>(
+    reference: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<D>,
+    boundary: &PreparedAleFsiBoundaryStep<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
+    initial: &AleFsiState<D>,
+    plan: AleFsiStepPlan<D>,
+    quadrature: &QuadratureRule,
+) -> Result<PreparedAleFsiStructure<D>, Diagnostic> {
+    #[cfg(test)]
+    let mut phases = AleFsiStructuralPhaseCounts::default();
+    boundary.validate_inputs(reference, partition, motion, initial, plan, quadrature)?;
+    #[cfg(test)]
+    {
+        phases.authentication += 1;
+        phases.quadrature += 1;
+    }
+    let layout = Arc::new(boundary.layout(reference, partition)?);
+    #[cfg(test)]
+    {
+        phases.layout += 1;
+    }
+    let directions = boundary.build_directions(partition, motion, plan, &layout)?;
+    let assembly_plan = AssemblyPlan::new(vec![AssemblyTarget::new(layout.reduced_size())?])?;
+    #[cfg(test)]
+    {
+        phases.sparsity += 1;
+    }
+    let reduced_target = assembly_plan
+        .target_id(0)
+        .expect("one-target ALE FSI plan owns its reduced target");
+    let cell_count = reference.entity_count(D).ok_or_else(|| {
+        invalid(format!(
+            "ALE FSI reference mesh omits its {D}D cell stratum"
+        ))
+    })?;
+    if cell_count != partition.cell_count() {
+        return Err(invalid(
+            "ALE FSI material partition differs from the reference cell inventory",
+        ));
+    }
+    let mut cells = Vec::with_capacity(cell_count);
+    for cell_index in 0..cell_count {
+        let vertices = reference
+            .entity_vertices(MeshEntity::new(D, cell_index))
+            .ok_or_else(|| {
+                invalid(format!(
+                    "ALE FSI cell packet {cell_index} has no reference vertex closure"
+                ))
+            })?;
+        require_simplex_closure::<D>(&vertices, reference.vertices().len())?;
+        let (reduced_map, full_map, fluid_position) = match partition.material(cell_index) {
+            CellMaterial::Fluid => {
+                let position = partition.fluid_position(cell_index).ok_or_else(|| {
+                    invalid(format!(
+                        "ALE FSI fluid cell {cell_index} has no canonical bubble position"
+                    ))
+                })?;
+                (
+                    layout.fluid_map(position, &vertices, true)?,
+                    layout.fluid_map(position, &vertices, false)?,
+                    Some(position),
+                )
+            }
+            CellMaterial::Solid => (
+                layout.solid_map(&vertices, true)?,
+                layout.solid_map(&vertices, false)?,
+                None,
+            ),
+            CellMaterial::Unassigned => {
+                return Err(invalid(format!(
+                    "ALE FSI cell packet {cell_index} has no material assignment"
+                )));
+            }
+        };
+        let dense_map = AssemblyMap::new(
+            reduced_map.equations().to_vec(),
+            (0..layout.reduced_size())
+                .map(|index| LocalUnknown::Free(DofId::new(index)))
+                .collect(),
+        )?;
+        cells.push(PreparedAleFsiCell {
+            vertices,
+            reduced_map,
+            full_map,
+            dense_map,
+            fluid_position,
+        });
+    }
+    #[cfg(test)]
+    {
+        phases.maps += 1;
+    }
+    Ok(PreparedAleFsiStructure {
+        boundary_template: boundary.clone(),
+        layout,
+        directions,
+        assembly_plan,
+        reduced_target,
+        cells,
+        #[cfg(test)]
+        phases,
+    })
+}
+
+impl<const D: usize> PreparedAleFsiStructure<D> {
+    #[cfg(test)]
+    pub(super) const fn phase_counts(&self) -> AleFsiStructuralPhaseCounts {
+        self.phases
+    }
+    pub(super) fn prepare_action(
+        &self,
+        reference: &SimplicialMesh,
+        partition: &FixedReferenceFsiPartition<D>,
+        boundary: PreparedAleFsiBoundaryStep<D>,
+        previous: &AleFsiState<D>,
+        plan: AleFsiStepPlan<D>,
+    ) -> Result<PreparedAleFsiAction<D>, Diagnostic> {
+        if !self.boundary_template.has_same_structure(&boundary) {
+            return Err(invalid(
+                "ALE FSI action boundary differs from its prepared Run structure",
+            ));
+        }
+        boundary.validate_action(previous, plan)?;
+        let previous_reference = previous.to_fixed_reference_state(reference, partition)?;
+        Ok(PreparedAleFsiAction {
+            boundary,
+            previous_reference,
+        })
+    }
+
+    pub(super) fn initial_point(
+        &self,
+        action: &PreparedAleFsiAction<D>,
+        previous: &AleFsiState<D>,
+        plan: AleFsiStepPlan<D>,
+    ) -> Result<Vec<f64>, Diagnostic> {
+        action
+            .boundary
+            .reduce_initial_point(previous, plan, &self.layout)
     }
 }
 
@@ -116,7 +298,7 @@ pub(super) fn initial_point_prepared<const D: usize>(
 /// containing every reduced state column.  The assembly backend therefore
 /// sees the same general sparse action used by the solver, while direct
 /// residual assembly remains independent of `A x - b` reconstruction.
-#[allow(clippy::too_many_arguments)]
+#[allow(dead_code, clippy::too_many_arguments)]
 pub(super) fn assemble_step_linearization<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
@@ -163,15 +345,33 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
 ) -> Result<StepAssembly<D>, Diagnostic> {
-    let prepared = prepare_step(
-        reference, partition, boundary, motion, previous, plan, quadrature, candidate,
+    let structure = prepare_ale_fsi_structure(
+        reference, partition, boundary, motion, previous, plan, quadrature,
     )?;
-    let directions = boundary.build_directions(partition, motion, plan, &prepared.layout)?;
-    let assembly_plan =
-        AssemblyPlan::new(vec![AssemblyTarget::new(prepared.layout.reduced_size())?])?;
-    let reduced_target = assembly_plan
-        .target_id(0)
-        .expect("one-target ALE FSI plan owns its reduced target");
+    let action =
+        structure.prepare_action(reference, partition, boundary.clone(), previous, plan)?;
+    assemble_step_linearization_with_structure(
+        reference, partition, &structure, &action, motion, previous, candidate, plan, quadrature,
+        assembly,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
+    reference: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<D>,
+    structure: &PreparedAleFsiStructure<D>,
+    action: &PreparedAleFsiAction<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
+    previous: &AleFsiState<D>,
+    candidate: &[f64],
+    plan: AleFsiStepPlan<D>,
+    quadrature: &QuadratureRule,
+    assembly: &dyn AssemblyBackend,
+) -> Result<StepAssembly<D>, Diagnostic> {
+    let prepared = prepare_step(
+        reference, partition, structure, action, motion, previous, plan, candidate,
+    )?;
     let evaluate = |cell_index| {
         evaluate_cell(
             cell_index,
@@ -179,21 +379,27 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
             partition,
             quadrature,
             previous,
-            &prepared.previous_reference,
+            &action.previous_reference,
             &prepared.current,
             &prepared.geometry_action,
             plan,
             candidate,
-            &directions,
-            &prepared.layout,
-            reduced_target,
+            &structure.directions,
+            structure
+                .cells
+                .get(cell_index)
+                .ok_or_else(|| invalid("ALE FSI cell is outside prepared Run structure"))?,
+            structure.reduced_target,
         )
     };
-    let work = IndexedAssemblyWork::new(prepared.cell_count, |cell_index| {
+    let work = IndexedAssemblyWork::new(structure.cells.len(), |cell_index| {
         evaluate(cell_index).map(|evaluated| evaluated.packet)
     });
-    let (systems, assembly_report) = assembly.assemble(&assembly_plan, &work)?.into_parts();
-    if assembly_report.packet_count() != prepared.cell_count || assembly_report.target_count() != 1
+    let (systems, assembly_report) = assembly
+        .assemble(&structure.assembly_plan, &work)?
+        .into_parts();
+    if assembly_report.packet_count() != structure.cells.len()
+        || assembly_report.target_count() != 1
     {
         return Err(invalid(
             "ALE FSI assembly evidence differs from its exact cell and target inventory",
@@ -201,7 +407,7 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
     }
 
     let direct = assemble_direct_residuals(
-        reference, partition, previous, candidate, plan, quadrature, &prepared,
+        reference, partition, structure, action, previous, candidate, plan, quadrature, &prepared,
     )?;
 
     let [linear_system]: [eqiora_assembly::LinearSystem; 1] =
@@ -230,7 +436,7 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
         residual: direct.reduced,
         full_fluid_residual: direct.full_fluid,
         full_solid_residual: direct.full_solid,
-        layout: prepared.layout,
+        layout: Arc::clone(&structure.layout),
         assembly_report,
     })
 }
@@ -287,11 +493,16 @@ pub(super) fn assemble_step_residual_prepared<const D: usize>(
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
 ) -> Result<Vec<f64>, Diagnostic> {
+    let structure = prepare_ale_fsi_structure(
+        reference, partition, boundary, motion, previous, plan, quadrature,
+    )?;
+    let action =
+        structure.prepare_action(reference, partition, boundary.clone(), previous, plan)?;
     let prepared = prepare_step(
-        reference, partition, boundary, motion, previous, plan, quadrature, candidate,
+        reference, partition, &structure, &action, motion, previous, plan, candidate,
     )?;
     Ok(assemble_direct_residuals(
-        reference, partition, previous, candidate, plan, quadrature, &prepared,
+        reference, partition, &structure, &action, previous, candidate, plan, quadrature, &prepared,
     )?
     .reduced)
 }
@@ -299,51 +510,39 @@ pub(super) fn assemble_step_residual_prepared<const D: usize>(
 struct PreparedStep<const D: usize> {
     current: AleFsiState<D>,
     geometry_action: FixedTopologyGeometryAction<D>,
-    previous_reference: FixedReferenceFsiState<D>,
-    layout: FsiLayout<D>,
-    cell_count: usize,
 }
 
 #[allow(clippy::too_many_arguments)]
 fn prepare_step<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    boundary: &PreparedAleFsiBoundaryStep<D>,
+    structure: &PreparedAleFsiStructure<D>,
+    action: &PreparedAleFsiAction<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
-    quadrature: &QuadratureRule,
     candidate: &[f64],
 ) -> Result<PreparedStep<D>, Diagnostic> {
-    boundary.validate_inputs(reference, partition, motion, previous, plan, quadrature)?;
-    let layout = boundary.layout(reference, partition)?;
-    if candidate.len() != layout.reduced_size() || candidate.iter().any(|value| !value.is_finite())
+    if candidate.len() != structure.layout.reduced_size()
+        || candidate.iter().any(|value| !value.is_finite())
     {
         return Err(invalid(
             "ALE FSI candidate must be finite and match the exact reduced quotient layout",
         ));
     }
-    let current = boundary.reconstruct_current_state(
-        reference, partition, motion, previous, candidate, plan, &layout,
+    let current = action.boundary.reconstruct_current_state(
+        reference,
+        partition,
+        motion,
+        previous,
+        candidate,
+        plan,
+        &structure.layout,
     )?;
     let geometry_action = plan.geometry_action(reference, partition, motion, previous, &current)?;
-    let previous_reference = previous.to_fixed_reference_state(reference, partition)?;
-    let cell_count = reference.entity_count(D).ok_or_else(|| {
-        invalid(format!(
-            "ALE FSI reference mesh omits its {D}D cell stratum"
-        ))
-    })?;
-    if cell_count != partition.cell_count() {
-        return Err(invalid(
-            "ALE FSI material partition differs from the reference cell inventory",
-        ));
-    }
     Ok(PreparedStep {
         current,
         geometry_action,
-        previous_reference,
-        layout,
-        cell_count,
     })
 }
 
@@ -357,28 +556,30 @@ struct DirectResiduals {
 fn assemble_direct_residuals<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
+    structure: &PreparedAleFsiStructure<D>,
+    action: &PreparedAleFsiAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     prepared: &PreparedStep<D>,
 ) -> Result<DirectResiduals, Diagnostic> {
-    let mut reduced = zeroed(prepared.layout.reduced_size(), "reduced residual")?;
-    let mut full_fluid = zeroed(prepared.layout.full_size(), "full fluid residual")?;
-    let mut full_solid = zeroed(prepared.layout.full_size(), "full solid residual")?;
-    for cell_index in 0..prepared.cell_count {
+    let mut reduced = zeroed(structure.layout.reduced_size(), "reduced residual")?;
+    let mut full_fluid = zeroed(structure.layout.full_size(), "full fluid residual")?;
+    let mut full_solid = zeroed(structure.layout.full_size(), "full solid residual")?;
+    for (cell_index, cell) in structure.cells.iter().enumerate() {
         let evaluated = evaluate_cell_residual(
             cell_index,
             reference,
             partition,
             quadrature,
             previous,
-            &prepared.previous_reference,
+            &action.previous_reference,
             &prepared.current,
             &prepared.geometry_action,
             plan,
             candidate,
-            &prepared.layout,
+            cell,
         )?;
         scatter_residual(
             &mut reduced,
@@ -443,7 +644,7 @@ fn evaluate_cell<const D: usize>(
     plan: AleFsiStepPlan<D>,
     candidate: &[f64],
     directions: &[AlgebraicDirection<D>],
-    layout: &FsiLayout<D>,
+    cell: &PreparedAleFsiCell,
     reduced_target: eqiora_assembly::AssemblyTargetId,
 ) -> Result<EvaluatedCell, Diagnostic> {
     let evaluated = evaluate_cell_residual(
@@ -457,7 +658,7 @@ fn evaluate_cell<const D: usize>(
         geometry_action,
         plan,
         candidate,
-        layout,
+        cell,
     )?;
     let matrix = match &evaluated.source {
         CellResidualSource::Fluid { fluid_position } => evaluate_fluid_jacobian(
@@ -472,22 +673,20 @@ fn evaluate_cell<const D: usize>(
             plan,
             candidate.len(),
             directions,
+            &cell.vertices,
         )?,
         CellResidualSource::Solid(local) => {
             embed_solid_jacobian(local, &evaluated.reduced_map, candidate.len())?
         }
     };
     let rhs = affine_rhs_from_residual(&matrix, candidate, &evaluated.residual)?;
-    let dense_map = AssemblyMap::new(
-        evaluated.reduced_map.equations().to_vec(),
-        (0..candidate.len())
-            .map(|index| LocalUnknown::Free(DofId::new(index)))
-            .collect(),
-    )?;
     Ok(EvaluatedCell {
         packet: AssemblyPacket::new(
             LocalContribution::new(evaluated.residual.len(), candidate.len(), matrix, rhs)?,
-            vec![TargetAssemblyMap::new(reduced_target, dense_map)],
+            vec![TargetAssemblyMap::new(
+                reduced_target,
+                cell.dense_map.clone(),
+            )],
         )?,
     })
 }
@@ -504,39 +703,30 @@ fn evaluate_cell_residual<const D: usize>(
     geometry_action: &FixedTopologyGeometryAction<D>,
     plan: AleFsiStepPlan<D>,
     candidate: &[f64],
-    layout: &FsiLayout<D>,
+    cell: &PreparedAleFsiCell,
 ) -> Result<EvaluatedCellResidual, Diagnostic> {
-    let cell = MeshEntity::new(D, cell_index);
-    let vertices = reference.entity_vertices(cell).ok_or_else(|| {
-        invalid(format!(
-            "ALE FSI cell packet {cell_index} has no reference vertex closure"
-        ))
-    })?;
-    require_simplex_closure::<D>(&vertices, reference.vertices().len())?;
     let material = partition.material(cell_index);
     let (residual, reduced_map, full_map, source) = match material {
         CellMaterial::Fluid => evaluate_fluid_residual(
             cell_index,
-            &vertices,
+            cell,
             partition,
             quadrature,
             previous,
             current,
             geometry_action,
             plan,
-            layout,
         )?,
         CellMaterial::Solid => evaluate_solid_residual(
             cell_index,
+            MeshEntity::new(D, cell_index),
             cell,
-            &vertices,
             reference,
             partition,
             quadrature,
             previous_reference,
             plan,
             candidate,
-            layout,
         )?,
         CellMaterial::Unassigned => {
             return Err(invalid(format!(
@@ -630,23 +820,27 @@ fn prepare_fluid_cell<'a, const D: usize>(
 #[allow(clippy::too_many_arguments)]
 fn evaluate_fluid_residual<const D: usize>(
     cell_index: usize,
-    vertices: &[MeshEntity],
+    cell: &PreparedAleFsiCell,
     partition: &FixedReferenceFsiPartition<D>,
     quadrature: &QuadratureRule,
     previous: &AleFsiState<D>,
     current: &AleFsiState<D>,
     geometry_action: &FixedTopologyGeometryAction<D>,
     plan: AleFsiStepPlan<D>,
-    layout: &FsiLayout<D>,
 ) -> Result<(Vec<f64>, AssemblyMap, AssemblyMap, CellResidualSource), Diagnostic> {
     let (fluid_position, prepared) = prepare_fluid_cell(
         cell_index,
-        vertices,
+        &cell.vertices,
         partition,
         previous,
         current,
         geometry_action,
     )?;
+    if cell.fluid_position != Some(fluid_position) {
+        return Err(invalid(
+            "ALE FSI fluid position changed after structural preparation",
+        ));
+    }
     let primal = prepared.operator(plan).residual(quadrature)?;
     let row_scales = fluid_row_scales(plan);
     if primal.len() != row_scales.len() {
@@ -666,8 +860,8 @@ fn evaluate_fluid_residual<const D: usize>(
     }
     Ok((
         residual,
-        layout.fluid_map(fluid_position, vertices, true)?,
-        layout.fluid_map(fluid_position, vertices, false)?,
+        cell.reduced_map.clone(),
+        cell.full_map.clone(),
         CellResidualSource::Fluid { fluid_position },
     ))
 }
@@ -685,22 +879,16 @@ fn evaluate_fluid_jacobian<const D: usize>(
     plan: AleFsiStepPlan<D>,
     candidate_width: usize,
     directions: &[AlgebraicDirection<D>],
+    vertices: &[MeshEntity],
 ) -> Result<Vec<f64>, Diagnostic> {
     if directions.len() != candidate_width {
         return Err(invalid(
             "ALE FSI analytic direction inventory differs from the candidate width",
         ));
     }
-    let cell = MeshEntity::new(D, cell_index);
-    let vertices = reference.entity_vertices(cell).ok_or_else(|| {
-        invalid(format!(
-            "ALE FSI fluid cell {cell_index} has no reference vertex closure"
-        ))
-    })?;
-    require_simplex_closure::<D>(&vertices, reference.vertices().len())?;
     let (fluid_position, prepared) = prepare_fluid_cell(
         cell_index,
-        &vertices,
+        vertices,
         partition,
         previous,
         current,
@@ -724,9 +912,9 @@ fn evaluate_fluid_jacobian<const D: usize>(
             .copied()
             .ok_or_else(|| invalid("ALE FSI fluid direction bubble inventory is incomplete"))?;
         let velocity_direction =
-            local_velocity_coefficients(&vertices, &direction.vertex_velocity, bubble_direction)?;
+            local_velocity_coefficients(vertices, &direction.vertex_velocity, bubble_direction)?;
         let pressure_direction =
-            local_pressure_coefficients(&vertices, partition, &direction.pressure)?;
+            local_pressure_coefficients(vertices, partition, &direction.pressure)?;
         if direction.coordinate.len() != reference.vertices().len() {
             return Err(invalid(
                 "ALE FSI coordinate direction differs from the mesh vertex inventory",
@@ -771,22 +959,21 @@ fn evaluate_fluid_jacobian<const D: usize>(
 #[allow(clippy::too_many_arguments)]
 fn evaluate_solid_residual<const D: usize>(
     cell_index: usize,
-    cell: MeshEntity,
-    vertices: &[MeshEntity],
+    entity: MeshEntity,
+    cell: &PreparedAleFsiCell,
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     quadrature: &QuadratureRule,
     previous: &FixedReferenceFsiState<D>,
     plan: AleFsiStepPlan<D>,
     candidate: &[f64],
-    layout: &FsiLayout<D>,
 ) -> Result<(Vec<f64>, AssemblyMap, AssemblyMap, CellResidualSource), Diagnostic> {
     if partition.material(cell_index) != CellMaterial::Solid {
         return Err(invalid(
             "ALE FSI solid residual received a non-solid material packet",
         ));
     }
-    let geometry = reference.geometry_map(cell).ok_or_else(|| {
+    let geometry = reference.geometry_map(entity).ok_or_else(|| {
         invalid(format!(
             "ALE FSI solid cell {cell_index} has no reference affine geometry"
         ))
@@ -795,13 +982,13 @@ fn evaluate_solid_residual<const D: usize>(
         &geometry,
         quadrature,
         plan.fixed_reference_config(),
-        vertices,
+        &cell.vertices,
         previous,
     )?;
-    let reduced_map = layout.solid_map(vertices, true)?;
+    let reduced_map = cell.reduced_map.clone();
     let local_point = local_point(&reduced_map, candidate)?;
     let residual = evaluate_affine_residual(&local, &local_point)?;
-    let full_map = layout.solid_map(vertices, false)?;
+    let full_map = cell.full_map.clone();
     Ok((
         residual,
         reduced_map,
