@@ -136,6 +136,9 @@ class BrowserSupplyTests(unittest.TestCase):
                 "EQIORA_API_SCRATCH": str(scratch.resolve()),
                 "EQIORA_SITE_SOURCE_ROOT": str(source.resolve()),
                 "EQIORA_SITE_ASTRO_OUT_DIR": str((scratch / "astro").resolve()),
+                "EQIORA_SITE_CARGO_TARGET": str(
+                    (scratch / "cargo-target").resolve()
+                ),
                 "EQIORA_SITE_RUSTDOC_TARGET": str(
                     (scratch / "rustdoc-target").resolve()
                 ),

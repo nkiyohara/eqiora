@@ -29,6 +29,7 @@ TOOLCHAIN_BLOB = "73cb934de4706a914c15e8db2a3c037ce75699d9"
 TOOLCHAIN_SHA256 = "a6a0bbd29ffaa8182dc22d1d9149709f1091e47df40ed96eb8a78a711c66a4ce"
 MISMATCH_TOOLCHAIN = b'[toolchain]\nchannel = "1.85.0"\n'
 CHECKER_MODULES = (
+    "build_products.py",
     "check_site.py",
     "check_site_artifact.py",
     "check_site_html.py",
@@ -642,12 +643,28 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
                     mcp = release / "eqiora-mcp"
                     mcp.write_text("#!/bin/sh\\nexit 0\\n", encoding="utf-8")
                     mcp.chmod(0o755)
+                    verifier = release / "eqiora-verify"
+                    verifier.write_text(
+                        "#!/bin/sh\\nprintf 'post-python-identity\\\\n' >> \\\"$TRACE_FILE\\\"\\n"
+                        f"exit {POST_IDENTITY_SENTINEL}\\n",
+                        encoding="utf-8",
+                    )
+                    verifier.chmod(0o755)
+                    xtask = release / "xtask"
+                    xtask.write_text("#!/bin/sh\\nexit 0\\n", encoding="utf-8")
+                    xtask.chmod(0o755)
                     with trace.open("a", encoding="utf-8") as stream:
                         stream.write("cargo-build\\n")
                     raise SystemExit(0)
-                with trace.open("a", encoding="utf-8") as stream:
-                    stream.write("post-python-identity\\n")
-                raise SystemExit({POST_IDENTITY_SENTINEL})
+                if "doc" in args:
+                    target = Path(args[args.index("--target-dir") + 1])
+                    rustdoc = target / "doc/eqiora"
+                    rustdoc.mkdir(parents=True)
+                    (rustdoc / "index.html").write_text("rustdoc", encoding="utf-8")
+                    with trace.open("a", encoding="utf-8") as stream:
+                        stream.write("cargo-doc\\n")
+                    raise SystemExit(0)
+                raise SystemExit(f"unexpected cargo invocation: {{args!r}}")
                 """
             ).lstrip(),
         )
@@ -695,6 +712,9 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
                 "EQIORA_SITE_SOURCE_ROOT": str(source.resolve()),
                 "EQIORA_SITE_GIT_OBJECT_REPOSITORY": str(REPOSITORY.resolve()),
                 "EQIORA_SITE_ASTRO_OUT_DIR": str((scratch / "astro").resolve()),
+                "EQIORA_SITE_CARGO_TARGET": str(
+                    (scratch / "cargo-target").resolve()
+                ),
                 "EQIORA_SITE_RUSTDOC_TARGET": str(
                     (scratch / "rustdoc-target").resolve()
                 ),
@@ -799,6 +819,7 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
         expected = [
             "cargo-build",
             "build-ok",
+            "cargo-doc",
             "venv",
             "install",
             "public-import",

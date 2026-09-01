@@ -9,6 +9,7 @@ for variable in \
   EQIORA_SITE_SOURCE_ROOT \
   EQIORA_SITE_GIT_OBJECT_REPOSITORY \
   EQIORA_SITE_ASTRO_OUT_DIR \
+  EQIORA_SITE_CARGO_TARGET \
   EQIORA_SITE_RUSTDOC_TARGET \
   EQIORA_SITE_RUSTDOC_STAGE \
   EQIORA_SITE_ARTIFACT \
@@ -36,6 +37,7 @@ test "$source_real" = "$EQIORA_SITE_SOURCE_ROOT"
 [[ "$EQIORA_SITE_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
 test "$EQIORA_SITE_SOURCE_ROOT" = "$EQIORA_API_SCRATCH/source"
 test "$EQIORA_SITE_ASTRO_OUT_DIR" = "$EQIORA_API_SCRATCH/astro"
+test "$EQIORA_SITE_CARGO_TARGET" = "$EQIORA_API_SCRATCH/cargo-target"
 test "$EQIORA_SITE_RUSTDOC_TARGET" = "$EQIORA_API_SCRATCH/rustdoc-target"
 test "$EQIORA_SITE_RUSTDOC_STAGE" = "$EQIORA_API_SCRATCH/rustdoc-stage"
 test "$EQIORA_SITE_ARTIFACT" = "$EQIORA_API_SCRATCH/build/site"
@@ -54,6 +56,7 @@ test ! -L "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules"
 test -x "$EQIORA_SITE_SOURCE_ROOT/tools/site/run_offline_site_checks.sh"
 for output in \
   "$EQIORA_SITE_ASTRO_OUT_DIR" \
+  "$EQIORA_SITE_CARGO_TARGET" \
   "$EQIORA_SITE_RUSTDOC_TARGET" \
   "$EQIORA_SITE_RUSTDOC_STAGE" \
   "$EQIORA_SITE_ARTIFACT"
@@ -182,31 +185,30 @@ spec.loader.exec_module(module)
 print(cargo, module.python_distribution_version(cargo))
 PY
 )
-cargo_target="$EQIORA_API_SCRATCH/cargo-target"
-python_target="$EQIORA_API_SCRATCH/python-target"
+cargo_target="$EQIORA_SITE_CARGO_TARGET"
 wheels="$EQIORA_API_SCRATCH/wheels"
 venv="$EQIORA_API_SCRATCH/venv"
 identity_cwd="$EQIORA_API_SCRATCH/identity-cwd"
-for path in "$cargo_target" "$python_target" "$wheels" "$venv" "$identity_cwd" \
-  "$EQIORA_SITE_ASTRO_OUT_DIR" "$EQIORA_SITE_RUSTDOC_TARGET" \
-  "$EQIORA_SITE_RUSTDOC_STAGE" "$EQIORA_SITE_ARTIFACT"
+build_receipt="$EQIORA_API_SCRATCH/build-products.json"
+for path in "$cargo_target" "$wheels" "$venv" "$identity_cwd" "$build_receipt" \
+  "$EQIORA_SITE_ASTRO_OUT_DIR" "$EQIORA_SITE_RUSTDOC_STAGE" \
+  "$EQIORA_SITE_ARTIFACT"
 do
   test ! -e "$path"
   test ! -L "$path"
 done
 mkdir "$wheels" "$identity_cwd"
-cargo build --locked --release -p eqiora \
-  --bin eqiora --bin eqiora-mcp \
-  --target-dir "$cargo_target"
+RUSTDOCFLAGS="-D warnings --html-in-header docs/site/src/reference/rustdoc-head.html --extend-css docs/site/src/styles/rustdoc.css" \
+python3 tools/site/build_products.py \
+  --scratch-root "$EQIORA_API_SCRATCH" \
+  --receipt "$build_receipt" \
+  --cargo "$rustup_proxy_bin/cargo" \
+  --rust-toolchain "$selected_rust_toolchain"
 eqiora_binary="$cargo_target/release/eqiora"
 mcp_binary="$cargo_target/release/eqiora-mcp"
 test -x "$eqiora_binary"
 test -x "$mcp_binary"
 test "$($eqiora_binary --version)" = "eqiora $cargo_version"
-CARGO_TARGET_DIR="$python_target" \
-uv build --wheel --clear --python 3.13 --no-python-downloads \
-  --cache-dir "$EQIORA_API_SCRATCH/uv-cache" \
-  --out-dir "$wheels" .
 test -d "$wheels"; test ! -L "$wheels"
 mapfile -d '' wheel_entries < <(find "$wheels" -mindepth 1 -maxdepth 1 -print0)
 mapfile -d '' wheel_files < <(find "$wheels" -mindepth 1 -maxdepth 1 -name '*.whl' -print0)
@@ -265,7 +267,7 @@ else:
 PY
 )
 # The committed evidence projection is checked before API projection or Astro.
-cargo run --locked --quiet --target-dir "$cargo_target" -p eqiora-verify -- \
+"$cargo_target/release/eqiora-verify" \
   index --format json > "$EQIORA_API_SCRATCH/evidence-index.json"
 python3 tools/site/generate_evidence_catalog.py \
   --input "$EQIORA_API_SCRATCH/evidence-index.json" \
@@ -284,10 +286,7 @@ python3 tools/docs/generate_interface_reference.py \
   --mcp-binary "$mcp_binary" \
   --source-sha "$EQIORA_SITE_SOURCE_SHA" \
   --check
-CARGO_TARGET_DIR="$cargo_target" cargo xtask check-facade
-RUSTDOCFLAGS="-D warnings --html-in-header docs/site/src/reference/rustdoc-head.html --extend-css docs/site/src/styles/rustdoc.css" \
-cargo doc --locked -p eqiora --lib --no-deps --all-features \
-  --target-dir "$EQIORA_SITE_RUSTDOC_TARGET"
+"$cargo_target/release/xtask" check-facade
 mkdir "$EQIORA_SITE_RUSTDOC_STAGE"
 python3 tools/site/build_rust_reference.py \
   --rustdoc-root "$EQIORA_SITE_RUSTDOC_TARGET/doc" \
