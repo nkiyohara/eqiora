@@ -57,12 +57,12 @@ async function assertCylinderContent(page: Page): Promise<void> {
   ).toHaveAttribute('href', '#submit-and-result');
   await expect(
     page.getByRole('link', {
-      name: 'Eqiora source form: canonical resolve/run/result cells',
+      name: 'Eqiora source form: canonical Python resolve/run path',
       exact: true,
     }),
   ).toHaveAttribute(
     'href',
-    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/exact_cylinder_stokes_marimo.py#L77-L96`,
+    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/exact_cylinder_stokes.py#L45-L57`,
   );
   await assertNoFakeExecutionControls(page);
 }

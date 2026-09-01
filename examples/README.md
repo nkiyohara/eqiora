@@ -16,14 +16,8 @@ python examples/python/exact_cylinder_stokes.py \
   --pressure-png exact-cylinder-pressure.png
 python examples/python/transient_cylinder_wake.py \
   --vorticity-png transient-cylinder-vorticity.png
-marimo run examples/python/transient_cylinder_wake_marimo.py
-jupyter lab examples/python/transient_cylinder_wake_jupyter.ipynb
-marimo run examples/python/exact_cylinder_stokes_marimo.py
-marimo run examples/python/shared_semantic_viewer_marimo.py
-jupyter lab examples/python/exact_cylinder_stokes_jupyter.ipynb
+# Open examples/python/transient_cylinder_wake_colab.ipynb in Google Colab.
 python examples/python/mixed_boundary_elasticity.py
-marimo run examples/python/mixed_boundary_elasticity_marimo.py
-jupyter lab examples/python/mixed_boundary_elasticity_jupyter.ipynb
 python examples/python/fixed_reference_fsi.py
 ```
 
@@ -35,15 +29,9 @@ python examples/python/fixed_reference_fsi.py
 | `exact-cylinder-mesh` | [`python/exact_cylinder_mesh.py`](python/exact_cylinder_mesh.py) | From an installed `eqiora` package, realize the exact cylinder source with typed Gmsh policy and inspect Rust-derived selection counts. |
 | `steady-cylinder-source` | [`python/steady_cylinder_source.py`](python/steady_cylinder_source.py) | From an installed `eqiora` package, author the complete equations-only steady-cylinder Component as bounded `eqiora.lang.Source` values and emit readable deterministic `.eqi` through the same compiler ingress used by hand-written source. |
 | `exact-cylinder-stokes` | [`python/exact_cylinder_stokes.py`](python/exact_cylinder_stokes.py) | From an installed `eqiora` package, define the sole concrete Geometry in Python, compile it with the shipped equations-only `.eqi` Component, resolve the common MINI/P1 and linear-solve policies, inspect immutable pressure, solver, force, and flux evidence, and optionally save the pressure through `eqiora[gmsh,matplotlib]`. |
-| `exact-cylinder-stokes-marimo` | [`python/exact_cylinder_stokes_marimo.py`](python/exact_cylinder_stokes_marimo.py) | In Marimo, compose the same Python-authored Geometry, installed `.eqi` Component, Mesh, common root Plan, and direct `run` Result, then inspect their live identities and caller-owned pressure Figure. |
-| `shared-semantic-viewer-marimo` | [`python/shared_semantic_viewer_marimo.py`](python/shared_semantic_viewer_marimo.py) | From an installed `eqiora[viewer]` wheel, compose accepted planar Geometry and Cartesian Mesh values in the shared read-only anywidget viewer. This V0--V3 host path adds no scientific or Studio claim. |
-| `exact-cylinder-stokes-jupyter` | [`python/exact_cylinder_stokes_jupyter.ipynb`](python/exact_cylinder_stokes_jupyter.ipynb) | In Jupyter, compose the same public Geometry, installed `.eqi` Component, Mesh, common root Plan, direct `run` Result, identity summary, and caller-owned pressure Figure without a rich-Mesh widget. |
 | `transient-cylinder-wake` | [`python/transient_cylinder_wake.py`](python/transient_cylinder_wake.py) | From an installed package, compose the Python-authored cylinder Geometry, packaged steady and transient equation Components, common Mesh and typed policies, ten accepted nonzero startup States through 0.1 s, typed cell-average vorticity, and an optional caller-owned Figure. This bounded product example is explicitly unverified and does not show a developed wake. |
-| `transient-cylinder-wake-marimo` | [`python/transient_cylinder_wake_marimo.py`](python/transient_cylinder_wake_marimo.py) | In Marimo, follow the same public ten-step startup workflow, inspect exact Geometry/Mesh/Model/Plan/Trajectory lineage, and render the final typed cell-average vorticity through a caller-owned Figure. The experience is explicitly unverified. |
-| `transient-cylinder-wake-jupyter` | [`python/transient_cylinder_wake_jupyter.ipynb`](python/transient_cylinder_wake_jupyter.ipynb) | In Jupyter, mirror the Marimo composition and expose the same final accepted startup State, typed vorticity, lineage summary, and caller-owned Figure without a Mesh display hook. In a clean Colab runtime it installs the pinned `0.1.0a6` package from PyPI without maintainer-owned Drive state; the public badge is release-gated. The experience is explicitly unverified. |
+| `transient-cylinder-wake-colab` | [`python/transient_cylinder_wake_colab.ipynb`](python/transient_cylinder_wake_colab.ipynb) | In a clean Colab runtime, install the pinned `0.1.0a6` package from PyPI, follow the same public ten-step startup workflow, and inspect the final accepted State and caller-owned Figure without maintainer-owned Drive state. The experience is explicitly unverified. |
 | `mixed-boundary-elasticity` | [`python/mixed_boundary_elasticity.py`](python/mixed_boundary_elasticity.py) | Define the sole concrete rectangle in Python, compile the shipped equations-only Component, resolve Q1 and linear-solve policies, run the common Result path, and optionally save a caller-owned deformed-field Figure. |
-| `mixed-boundary-elasticity-marimo` | [`python/mixed_boundary_elasticity_marimo.py`](python/mixed_boundary_elasticity_marimo.py) | In Marimo, call the shared installed-Python elasticity workflow and inspect its Plan/Result identity and displacement Figure. |
-| `mixed-boundary-elasticity-jupyter` | [`python/mixed_boundary_elasticity_jupyter.ipynb`](python/mixed_boundary_elasticity_jupyter.ipynb) | In Jupyter, call the same shared workflow and inspect the same Plan-owned displacement projection and caller-owned Figure. |
 | `fixed-reference-fsi` | [`python/fixed_reference_fsi.py`](python/fixed_reference_fsi.py) | Author the adjacent Geometry in Python, compile the equations-only FSI Component, scope MINI/P1 and P1 to exact Model Domains, initialize four exact Fields, and run the common root Plan/State/Run lifecycle. |
 | `steady-flow-past-cylinder` | [`steady-flow-past-cylinder.eqi`](steady-flow-past-cylinder.eqi), [exact geometry](steady-flow-past-cylinder.geometry.json) | Python supplies the sole concrete Geometry to the equations-only `.eqi`, then uses the common root Plan lifecycle. The retained JSON artifacts serve historical verification only. |
 

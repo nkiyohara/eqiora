@@ -37,9 +37,11 @@ NONCLAIMS = (
     "No pixel validation.",
     "API presence is neither verification nor maturity.",
 )
+ADMITTED_SOURCE_PATH = "examples/python/exact_cylinder_stokes.py"
+ADMITTED_SOURCE_FRAGMENT = "#L45-L57"
+ADMITTED_SOURCE_LABEL = "Eqiora source form: canonical Python resolve/run path"
 CASE_SOURCE_PATHS = (
-    "examples/python/exact_cylinder_stokes_marimo.py",
-    "examples/python/exact_cylinder_stokes.py",
+    ADMITTED_SOURCE_PATH,
     "examples/python/exact_cylinder_geometry.py",
     "examples/python/exact_cylinder_mesh.py",
     "verify/fluid/packaged-steady-stokes-2d/models/direct.eqi",
@@ -51,7 +53,6 @@ CASE_EVIDENCE_PATHS = (
     "verify/fluid/packaged-steady-stokes-2d/README.md",
     "verify/geometry/exact-circular-hole-geometry/README.md",
     "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-exact-cylinder-stokes-marimo/README.md",
 )
 HOME_COPY = (
     "Model meaning once. Realize it many ways.",
@@ -387,9 +388,9 @@ def _check_case(
             "gallery walkthrough",
         )
     )
-    admitted_label = "Eqiora source form: canonical resolve/run/result cells"
+    admitted_label = ADMITTED_SOURCE_LABEL
     source_base = f"https://github.com/nkiyohara/eqiora/blob/{source_sha}/"
-    admitted_href = source_base + CASE_SOURCE_PATHS[0] + "#L77-L96"
+    admitted_href = source_base + ADMITTED_SOURCE_PATH + ADMITTED_SOURCE_FRAGMENT
     sentinels: list[tuple[str, dict[str, str], str, str]] = []
     for tag, attrs, label in page.interactives:
         names = page.id_text
@@ -421,7 +422,7 @@ def _check_case(
                 report("Cylinder route navigation link became an action control")
             elif href != admitted_href:
                 report(
-                    "Cylinder route accepted source-form sentinel must be the exact-head L77-L96 anchor"
+                    "Cylinder route accepted source-form sentinel must be the exact-head L45-L57 anchor"
                 )
             continue
         navigation = stage_navigation or (

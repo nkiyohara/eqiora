@@ -59,8 +59,6 @@ test('required routes, semantic stages, controls, and 404 are real static surfac
 });
 
 test('mixed-boundary elasticity is a static source-traced second gallery surface', async ({ page }) => {
-  const sourceSha = process.env.EQIORA_SITE_SOURCE_SHA;
-  expect(sourceSha).toMatch(/^[0-9a-f]{40}$/u);
   const external = await rejectExternalRequests(page);
   await page.goto('/gallery/');
   const card = page.getByRole('link', { name: /Mixed-boundary linear elasticity/i });
@@ -73,14 +71,6 @@ test('mixed-boundary elasticity is a static source-traced second gallery surface
     }),
   ).toBeVisible();
   await expect(page.getByText('Presentation, not evidence.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Open the Marimo surface', exact: true })).toHaveAttribute(
-    'href',
-    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/mixed_boundary_elasticity_marimo.py`,
-  );
-  await expect(page.getByRole('link', { name: 'Open the Jupyter surface', exact: true })).toHaveAttribute(
-    'href',
-    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/mixed_boundary_elasticity_jupyter.ipynb`,
-  );
   await assertNoFakeExecutionControls(page);
   expect(external).toEqual([]);
 });
@@ -116,7 +106,7 @@ test('transient cylinder Colab launch binds the exact release source', async ({ 
   const sourceSha = process.env.EQIORA_SITE_SOURCE_SHA;
   await expect(launch).toHaveAttribute(
     'href',
-    `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${sourceSha}/examples/python/transient_cylinder_wake_jupyter.ipynb`,
+    `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${sourceSha}/examples/python/transient_cylinder_wake_colab.ipynb`,
   );
 });
 

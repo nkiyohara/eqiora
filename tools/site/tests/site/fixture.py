@@ -35,7 +35,6 @@ CASE_EVIDENCE_PATHS = (
     "verify/fluid/packaged-steady-stokes-2d/README.md",
     "verify/geometry/exact-circular-hole-geometry/README.md",
     "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-exact-cylinder-stokes-marimo/README.md",
 )
 NONCLAIMS = (
     "No arbitrary geometry or provider selection.",
@@ -613,7 +612,7 @@ def _exact_links() -> str:
 def _case_body() -> str:
     nonclaims = " ".join(NONCLAIMS)
     return f"""<h1>Exact-cylinder steady Stokes</h1>
-<p>Static walkthrough · canonical Marimo source available</p>
+<p>Static walkthrough · canonical Python source available</p>
 <p>{"one" + PUBLIC_CLAIM[3:]}</p>
 <section><h2>Problem setup</h2><p>2.2m x 0.41m channel; centre [0.2,0.2]m; radius 0.05m.</p>
 <span class="katex"><span class="katex-mathml"><math><mi>H</mi></math></span><span class="katex-html">H</span></span></section>
@@ -623,7 +622,7 @@ def _case_body() -> str:
 -div(sigma(u,p)) - grad(phi) = 0
 div(u) = 0</pre></section>
 <section><h2>Mesh and boundaries</h2><p>{WITNESS_COPY}</p></section>
-<section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes_marimo.py#L77-L96">Eqiora source form: canonical resolve/run/result cells</a></section>
+<section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes.py#L45-L57">Eqiora source form: canonical Python resolve/run path</a></section>
 <section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION}</figcaption></figure><p>Presentation, not evidence.</p></section>
 <section><h2>Verified and not claimed</h2><p>{nonclaims}</p>{_exact_links()}</section>"""
 

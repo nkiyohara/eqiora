@@ -120,7 +120,7 @@ test('00 official browser and every synthetic ordinary control pass first', asyn
   await page.setContent(
     positive.replace(
       '</main>',
-      '<a href="#submit-and-result">Stage 4 Submit and result</a><a href="https://github.com/nkiyohara/eqiora/blob/4fc67a9fc94aeedd44a4ace31d406ac949c81f12/examples/python/exact_cylinder_stokes_marimo.py#L77-L96">Eqiora source form: canonical resolve/run/result cells</a></main>',
+      '<a href="#submit-and-result">Stage 4 Submit and result</a><a href="https://github.com/nkiyohara/eqiora/blob/4fc67a9fc94aeedd44a4ace31d406ac949c81f12/examples/python/exact_cylinder_stokes.py#L45-L57">Eqiora source form: canonical Python resolve/run path</a></main>',
     ),
   );
   await assertNoFakeExecutionControls(page);

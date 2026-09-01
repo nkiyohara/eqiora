@@ -13,7 +13,7 @@ import pressureImage from '../../../assets/gallery/exact-cylinder-pressure-prese
 import admittedPressureImage from '../../../assets/gallery/exact-cylinder-pressure.png';
 import publication from '../../../data/gallery/exact-cylinder-steady-stokes.publication.json';
 
-**Static walkthrough · canonical Marimo source available**
+**Static walkthrough · canonical Python source available**
 
 [Gallery](/gallery/)
 
@@ -60,7 +60,7 @@ geometry = geometry_graph.build(
 )
 ```
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L29-L51">Canonical Marimo geometry cell</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L10-L24">Canonical Python geometry</ExactSourceLink>
 · <ExactSourceLink path="examples/python/exact_cylinder_geometry.py" kind="blob">exact geometry adapter</ExactSourceLink>
 · <ExactSourceLink path="verify/geometry/exact-circular-hole-geometry/README.md" kind="blob">registered exact-geometry dossier</ExactSourceLink>
 · <ExactSourceLink path="verify/interfaces/python-exact-circular-hole-geometry/README.md" kind="blob">Python exact-geometry composition dossier</ExactSourceLink>
@@ -125,7 +125,7 @@ model = eqiora.compile(
 )
 ```
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L60-L73">Eqiora source form: canonical Marimo compile cell</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L33-L44">Eqiora source form: canonical Python compile path</ExactSourceLink>
 · <ExactSourceLink path="verify/artifacts/current-model-canonical-identity/README.md" kind="blob">current Model identity dossier</ExactSourceLink>
 
 </NotebookStage>
@@ -198,7 +198,7 @@ The current Gmsh output is presentation input, not a fixed mesh or scientific or
 
 </Aside>
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L48-L57">canonical Marimo mesh cell</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L25-L32">Canonical Python mesh path</ExactSourceLink>
 · <ExactSourceLink path="examples/python/exact_cylinder_mesh.py" kind="blob">plain Python mesh adapter</ExactSourceLink>
 
 </NotebookStage>
@@ -226,7 +226,7 @@ plan = eqiora.resolve(
 result = eqiora.run(plan)
 ```
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L77-L96">Eqiora source form: canonical resolve/run/result cells</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L45-L57">Eqiora source form: canonical Python resolve/run path</ExactSourceLink>
 
 The real carriers in that composition are `Geometry`, `MeshPlan`, `Mesh`,
 `Model`, `Plan`, and `Result`. The common lifecycle exposes the following
@@ -310,9 +310,6 @@ stage; neither image is a numerical or mesh-output oracle.
 
 [Browse the evidence catalog](/evidence/)
 · <ExactSourceLink path="verify/geometry/exact-circular-hole-geometry/README.md" kind="blob">exact geometry</ExactSourceLink>
-· <ExactSourceLink path="verify/interfaces/python-exact-cylinder-stokes-marimo/README.md" kind="blob">Marimo composition</ExactSourceLink>
-
-<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob">Open canonical Marimo source</ExactSourceLink>
 · <ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob">View plain Python example</ExactSourceLink>
 
 </NotebookStage>
