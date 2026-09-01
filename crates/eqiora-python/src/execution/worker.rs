@@ -105,6 +105,7 @@ fn execute_job(
                         maximum_steps,
                         model_time_s: state.time_s(),
                         request_identity: request.identity().to_owned(),
+                        state,
                     },
                 )),
                 ControlFlow::Continue(states) => {
@@ -145,6 +146,7 @@ fn execute_job(
                         maximum_steps,
                         model_time_s: state.time_s(),
                         request_identity: request.identity().to_owned(),
+                        state,
                     },
                 )),
                 ControlFlow::Continue(states) => {

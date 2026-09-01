@@ -147,6 +147,28 @@ def solved() -> tuple[eqiora.Model, eqiora.Plan, eqiora.Run, eqiora.Result]:
     return model, plan, run, run.result()
 
 
+def test_cancellation_exposes_the_last_exact_accepted_state() -> None:
+    model, mesh, plan = admitted()
+    run = eqiora.submit(
+        plan,
+        state=initial(model, mesh, plan),
+        steps=100,
+        output_steps=(100,),
+    )
+    assert run.cancel() is True
+    with pytest.raises(eqiora.CancellationError):
+        run.result()
+
+    cancellation = run.cancellation
+    assert cancellation is not None
+    assert cancellation.request_identity == run.plan_key
+    assert cancellation.state.step == cancellation.progress.accepted_steps
+    assert cancellation.state.time_s == cancellation.progress.model_time_s
+    assert cancellation.state.model == model
+    assert cancellation.state.source_kind == "cancellation"
+    assert cancellation.state.source_request_identity == cancellation.request_identity
+
+
 def test_only_common_model_first_fsi_surface_is_public() -> None:
     assert not hasattr(eqiora.fsi, "FixedMeshMonolithic")
     assert not hasattr(eqiora.fsi, "FixedMeshMonolithicPlan")

@@ -4,6 +4,8 @@ use eqiora_numerics::{
 };
 use pyo3::prelude::*;
 
+use crate::trajectory::PyState;
+
 /// Monotone public state of one native execution occurrence.
 #[pyclass(
     name = "RunStatus",
@@ -78,10 +80,11 @@ impl PyCommonTransientRunProgress {
     frozen,
     skip_from_py_object
 )]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct PyCommonTransientRunCancellation {
     pub(crate) progress: PyCommonTransientRunProgress,
     pub(crate) request_identity: String,
+    pub(crate) state: Py<PyState>,
 }
 
 #[pymethods]
@@ -93,6 +96,10 @@ impl PyCommonTransientRunCancellation {
     #[getter]
     fn request_identity(&self) -> &str {
         &self.request_identity
+    }
+    #[getter]
+    fn state(&self, py: Python<'_>) -> Py<PyState> {
+        self.state.clone_ref(py)
     }
     fn __repr__(&self) -> String {
         format!(

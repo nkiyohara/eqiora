@@ -65,17 +65,19 @@ enum NativeRunCancellation {
         maximum_steps: usize,
         model_time_s: f64,
         request_identity: String,
+        state: eqiora_numerics::CommonState,
     },
 }
 
 impl NativeRunCancellation {
-    fn into_python(self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn into_python(self, py: Python<'_>, plan: &PyPlan) -> PyResult<Py<PyAny>> {
         match self {
             Self::CommonTransient {
                 accepted_steps,
                 maximum_steps,
                 model_time_s,
                 request_identity,
+                state,
             } => Py::new(
                 py,
                 PyCommonTransientRunCancellation {
@@ -84,6 +86,16 @@ impl NativeRunCancellation {
                         maximum_steps,
                         model_time_bits: model_time_s.to_bits(),
                     },
+                    state: Py::new(
+                        py,
+                        crate::trajectory::PyState::from_common_cancellation(
+                            py,
+                            plan,
+                            state,
+                            accepted_steps as u64,
+                            &request_identity,
+                        )?,
+                    )?,
                     request_identity,
                 },
             )
@@ -98,6 +110,7 @@ impl NativeRunCancellation {
                 maximum_steps: _,
                 model_time_s,
                 request_identity,
+                state: _,
             } => format!(
                 "common transient execution {request_identity} was cancelled at accepted model time {model_time_s} after {accepted_steps} accepted steps"
             ),
@@ -308,7 +321,7 @@ impl RunShared {
         }
     }
 
-    fn cancellation(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+    fn cancellation(&self, py: Python<'_>, plan: &PyPlan) -> PyResult<Option<Py<PyAny>>> {
         let cancellation = {
             let state = self.state();
             match state.terminal.as_ref() {
@@ -317,7 +330,7 @@ impl RunShared {
             }
         };
         cancellation
-            .map(|cancellation| cancellation.into_python(py))
+            .map(|cancellation| cancellation.into_python(py, plan))
             .transpose()
     }
 }
@@ -623,7 +636,8 @@ impl PyRun {
     /// Exact terminal cancellation evidence, once cancellation is accepted.
     #[getter]
     fn cancellation(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
-        self.shared.cancellation(py)
+        let ResultMaterializationContext::CommonPlan { plan } = &self.materialization;
+        self.shared.cancellation(py, &plan.borrow(py))
     }
 
     #[getter]

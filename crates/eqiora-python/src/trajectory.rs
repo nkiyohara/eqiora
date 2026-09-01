@@ -133,6 +133,35 @@ impl PyState {
         self.native.as_ref()
     }
 
+    pub(crate) fn from_common_cancellation(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        native: CommonState,
+        accepted_steps: u64,
+        request_identity: &str,
+    ) -> PyResult<Self> {
+        let mut state = match plan.native() {
+            eqiora_numerics::ResolvedCommonPlan::TransientFlow(_) => Self::from_common(
+                py,
+                plan,
+                native,
+                accepted_steps,
+                Some(request_identity),
+                None,
+            )?,
+            eqiora_numerics::ResolvedCommonPlan::Fsi(_) => {
+                Self::from_common_fsi(py, plan, native, accepted_steps, Some(request_identity))?
+            }
+            _ => {
+                return Err(PyValueError::new_err(
+                    "cancelled spatial State requires a transient-flow or fixed-reference FSI Plan",
+                ));
+            }
+        };
+        state.source_kind = Some("cancellation");
+        Ok(state)
+    }
+
     pub(crate) fn common_ode_native(&self) -> Option<&eqiora_numerics::CommonOdeState> {
         self.ode_native.as_ref()
     }
