@@ -1,5 +1,7 @@
 //! Exact geometry-revision to mesh-revision entity correspondence.
 
+#[path = "geometry_mesh_correspondence_cartesian_box_v1.rs"]
+mod cartesian_box_v1_correspondence;
 #[path = "geometry_mesh_correspondence_sources.rs"]
 mod correspondence_sources;
 #[path = "geometry_mesh_correspondence_planar_circular_hole_v2.rs"]
@@ -731,6 +733,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     fn validate_local(&self, limits: GeometryDecoderLimits) -> Result<(), Diagnostic> {
         match &self.wire {
             WireCorrespondenceV1::Cartesian(wire) => validate_cartesian_wire(wire, limits),
+            WireCorrespondenceV1::CartesianBoxV1(wire) => wire.validate_local(limits),
             WireCorrespondenceV1::AuthoredRegion(wire) => wire.validate_local(limits),
             WireCorrespondenceV1::PlanarCircularHoleV2(wire) => wire.validate_local(limits),
             WireCorrespondenceV1::PlanarRectangleV2(wire) => wire.validate_local(limits),

@@ -15,8 +15,9 @@ use sha2::{Digest, Sha256};
 
 use crate::circular_hole::CircularHoleGeometry;
 use crate::{
-    CanonicalPlanarAdjacentRectanglePartitionV1, CanonicalPlanarCircularHoleGeometryV2,
-    CanonicalPlanarRectangleGeometryV2, EDGE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion,
+    CanonicalCartesianBoxGeometryV1, CanonicalPlanarAdjacentRectanglePartitionV1,
+    CanonicalPlanarCircularHoleGeometryV2, CanonicalPlanarRectangleGeometryV2, EDGE_DIMENSION,
+    NamedEntitySet, PlanarFace, PlanarRegion,
 };
 
 const GEOMETRY_DEFINITION_SCHEMA: &str = "eqiora.geometry-definition-envelope/v1";
@@ -71,6 +72,7 @@ pub struct CanonicalGeometryV1 {
 
 #[derive(Clone, Debug, PartialEq)]
 enum CanonicalGeometryKind {
+    CartesianBoxV1(CanonicalCartesianBoxGeometryV1),
     StraightEdgedPlanarV1 {
         region: PlanarRegion,
         bytes: Vec<u8>,
@@ -126,6 +128,9 @@ impl CanonicalGeometryV1 {
             crate::planar_rectangle_v2::SCHEMA => {
                 Self::decode_planar_rectangle_v2_canonical(bytes, limits)
             }
+            crate::cartesian_box_v1::SCHEMA => {
+                Self::decode_cartesian_box_v1_canonical(bytes, limits)
+            }
             crate::circular_hole_v2::CIRCULAR_HOLE_SCHEMA_V2 => {
                 Self::decode_planar_circular_hole_v2_canonical(bytes, limits)
             }
@@ -138,14 +143,14 @@ impl CanonicalGeometryV1 {
 
     /// Dimension of the physical coordinate embedding.
     #[must_use]
-    pub const fn ambient_dimension(&self) -> usize {
-        2
+    pub fn ambient_dimension(&self) -> usize {
+        self.cartesian_box_bounds().map_or(2, <[_]>::len)
     }
 
     /// Highest topological dimension represented by the geometry.
     #[must_use]
-    pub const fn topological_dimension(&self) -> usize {
-        2
+    pub fn topological_dimension(&self) -> usize {
+        self.ambient_dimension()
     }
 
     /// Topological dimension of one exact entity-set name.
@@ -175,6 +180,7 @@ impl CanonicalGeometryV1 {
                 .members()
                 .iter()
                 .all(|edge| edge_has_selected_parent(topology, *edge, region.members())),
+            CanonicalGeometryKind::CartesianBoxV1(_) => region.members() == [0],
             CanonicalGeometryKind::CircularHolePlanarV1(_)
             | CanonicalGeometryKind::PlanarCircularHoleV2(_)
             | CanonicalGeometryKind::PlanarRectangleV2(_) => region.members() == [0],
@@ -232,7 +238,8 @@ impl CanonicalGeometryV1 {
                 _ => None,
             },
             CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
-            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_) => None,
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_)
+            | CanonicalGeometryKind::CartesianBoxV1(_) => None,
         }
     }
 
@@ -406,6 +413,7 @@ impl CanonicalGeometryV1 {
     pub const fn region(&self) -> Option<&PlanarRegion> {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => Some(region),
+            CanonicalGeometryKind::CartesianBoxV1(_) => None,
             CanonicalGeometryKind::CircularHolePlanarV1(_)
             | CanonicalGeometryKind::PlanarRectangleV2(_)
             | CanonicalGeometryKind::PlanarCircularHoleV2(_) => None,
@@ -421,9 +429,19 @@ impl CanonicalGeometryV1 {
         match &self.kind {
             CanonicalGeometryKind::PlanarRectangleV2(geometry) => Some(geometry.bounds()),
             CanonicalGeometryKind::StraightEdgedPlanarV1 { .. }
+            | CanonicalGeometryKind::CartesianBoxV1(_)
             | CanonicalGeometryKind::CircularHolePlanarV1(_)
             | CanonicalGeometryKind::PlanarCircularHoleV2(_)
             | CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_) => None,
+        }
+    }
+
+    /// Exact bounds for the classification-free Cartesian box kind.
+    #[must_use]
+    pub fn cartesian_box_bounds(&self) -> Option<&[[f64; 2]]> {
+        match &self.kind {
+            CanonicalGeometryKind::CartesianBoxV1(geometry) => Some(geometry.bounds()),
+            _ => None,
         }
     }
 
@@ -431,7 +449,8 @@ impl CanonicalGeometryV1 {
     #[must_use]
     pub const fn circular_hole_bounds(&self) -> Option<&[[f64; 2]; 2]> {
         match &self.kind {
-            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. }
+            | CanonicalGeometryKind::CartesianBoxV1(_) => None,
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => Some(geometry.bounds()),
             CanonicalGeometryKind::PlanarRectangleV2(_) => None,
             CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_) => None,
@@ -443,7 +462,8 @@ impl CanonicalGeometryV1 {
     #[must_use]
     pub const fn circular_hole_center(&self) -> Option<[f64; 2]> {
         match &self.kind {
-            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. }
+            | CanonicalGeometryKind::CartesianBoxV1(_) => None,
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => Some(geometry.circle_center()),
             CanonicalGeometryKind::PlanarRectangleV2(_) => None,
             CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_) => None,
@@ -455,7 +475,8 @@ impl CanonicalGeometryV1 {
     #[must_use]
     pub const fn circular_hole_radius_m(&self) -> Option<f64> {
         match &self.kind {
-            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. }
+            | CanonicalGeometryKind::CartesianBoxV1(_) => None,
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => {
                 Some(geometry.circle_radius_m())
             }
@@ -479,7 +500,8 @@ impl CanonicalGeometryV1 {
                 Some(region.tolerance_m())
             }
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => Some(geometry.tolerance_m()),
-            CanonicalGeometryKind::PlanarRectangleV2(_)
+            CanonicalGeometryKind::CartesianBoxV1(_)
+            | CanonicalGeometryKind::PlanarRectangleV2(_)
             | CanonicalGeometryKind::PlanarCircularHoleV2(_)
             | CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_) => None,
         }
@@ -490,6 +512,7 @@ impl CanonicalGeometryV1 {
     pub fn entity_sets(&self) -> &[NamedEntitySet] {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => region.entity_sets(),
+            CanonicalGeometryKind::CartesianBoxV1(geometry) => geometry.entity_sets(),
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.entity_sets(),
             CanonicalGeometryKind::PlanarRectangleV2(geometry) => geometry.entity_sets(),
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => geometry.entity_sets(),
@@ -512,6 +535,7 @@ impl CanonicalGeometryV1 {
     pub fn canonical_bytes(&self) -> &[u8] {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { bytes, .. } => bytes,
+            CanonicalGeometryKind::CartesianBoxV1(geometry) => geometry.canonical_bytes(),
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.canonical_bytes(),
             CanonicalGeometryKind::PlanarRectangleV2(geometry) => geometry.canonical_bytes(),
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => geometry.canonical_bytes(),
@@ -526,6 +550,7 @@ impl CanonicalGeometryV1 {
     pub const fn digest_bytes(&self) -> [u8; 32] {
         match &self.kind {
             CanonicalGeometryKind::StraightEdgedPlanarV1 { digest, .. } => *digest,
+            CanonicalGeometryKind::CartesianBoxV1(geometry) => geometry.digest_bytes(),
             CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.digest_bytes(),
             CanonicalGeometryKind::PlanarRectangleV2(geometry) => geometry.digest_bytes(),
             CanonicalGeometryKind::PlanarCircularHoleV2(geometry) => geometry.digest_bytes(),
@@ -541,6 +566,21 @@ impl CanonicalGeometryV1 {
         Self {
             kind: CanonicalGeometryKind::PlanarCircularHoleV2(geometry),
         }
+    }
+
+    pub(crate) const fn from_cartesian_box_v1(geometry: CanonicalCartesianBoxGeometryV1) -> Self {
+        Self {
+            kind: CanonicalGeometryKind::CartesianBoxV1(geometry),
+        }
+    }
+
+    /// Decode the exact Cartesian interval/rectangle/box wire.
+    pub fn decode_cartesian_box_v1_canonical(
+        bytes: &[u8],
+        limits: CanonicalGeometryLimits,
+    ) -> Result<Self, Diagnostic> {
+        CanonicalCartesianBoxGeometryV1::decode_canonical(bytes, limits)
+            .map(Self::from_cartesian_box_v1)
     }
 
     pub(crate) const fn from_planar_rectangle_v2(

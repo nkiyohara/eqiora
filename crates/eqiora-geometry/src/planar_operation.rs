@@ -12,10 +12,10 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
 use crate::{
-    CanonicalGeometryV1, CanonicalPlanarAdjacentRectanglePartitionV1,
-    CanonicalPlanarCircularHoleGeometryV2, CanonicalPlanarRectangleGeometryV2,
-    ConstrainedRectangleV1, EDGE_DIMENSION, FACE_DIMENSION, GeometryBuildReceipt,
-    GeometryFaceHandle, GeometrySolidOperation, NamedEntitySet,
+    CanonicalCartesianBoxGeometryV1, CanonicalGeometryV1,
+    CanonicalPlanarAdjacentRectanglePartitionV1, CanonicalPlanarCircularHoleGeometryV2,
+    CanonicalPlanarRectangleGeometryV2, ConstrainedRectangleV1, EDGE_DIMENSION, FACE_DIMENSION,
+    GeometryBuildReceipt, GeometryFaceHandle, GeometrySolidOperation, NamedEntitySet,
 };
 
 static NEXT_GRAPH_OWNER: AtomicU64 = AtomicU64::new(1);
@@ -126,6 +126,14 @@ impl GeometryGraph {
                 normalize_interval(x_bounds_m),
                 normalize_interval(y_bounds_m),
             ],
+        }))
+    }
+
+    /// Construct one exact Cartesian interval.
+    pub fn interval(&self, bounds_m: [f64; 2]) -> Result<PlanarOperation, Diagnostic> {
+        validate_interval(bounds_m, "interval")?;
+        Ok(self.operation(OperationKind::Interval {
+            bounds: normalize_interval(bounds_m),
         }))
     }
 
@@ -277,6 +285,10 @@ impl GeometryGraph {
             }
         }
         match operation.kind {
+            OperationKind::Interval { bounds } => {
+                CanonicalCartesianBoxGeometryV1::new(vec![bounds], sets)
+                    .map(CanonicalGeometryV1::from_cartesian_box_v1)
+            }
             OperationKind::Rectangle { bounds } => {
                 CanonicalPlanarRectangleGeometryV2::new(bounds, sets)
                     .map(CanonicalGeometryV1::from_planar_rectangle_v2)
@@ -335,6 +347,22 @@ impl GeometryGraph {
             ));
         }
         match (&target.kind, handle) {
+            (OperationKind::Interval { .. }, PlanarTopologyHandle::Region(handle))
+                if handle.operation == target.operation
+                    && handle.source == RegionSource::Interval =>
+            {
+                Ok(0)
+            }
+            (OperationKind::Interval { .. }, PlanarTopologyHandle::Boundary(handle))
+                if handle.operation == target.operation =>
+            {
+                match handle.source {
+                    BoundarySource::Interval(member) => Ok(member),
+                    _ => Err(invalid(
+                        "boundary handle is absent from the interval result",
+                    )),
+                }
+            }
             (OperationKind::Rectangle { .. }, PlanarTopologyHandle::Region(handle))
                 if handle.operation == target.operation
                     && handle.source == RegionSource::Rectangle =>
@@ -437,6 +465,7 @@ impl PlanarOperation {
     #[must_use]
     pub const fn region(&self) -> PlanarRegionHandle {
         let source = match self.kind {
+            OperationKind::Interval { .. } => RegionSource::Interval,
             OperationKind::Rectangle { .. } => RegionSource::Rectangle,
             OperationKind::Circle { .. } => RegionSource::Circle,
             OperationKind::Subtract { .. } => RegionSource::Subtract,
@@ -456,6 +485,9 @@ impl PlanarOperation {
     #[must_use]
     pub fn boundaries(&self) -> Vec<PlanarBoundaryHandle> {
         let sources: &[BoundarySource] = match self.kind {
+            OperationKind::Interval { .. } => {
+                &[BoundarySource::Interval(0), BoundarySource::Interval(1)]
+            }
             OperationKind::Rectangle { .. } => &[
                 BoundarySource::Rectangle(0),
                 BoundarySource::Rectangle(1),
@@ -486,6 +518,9 @@ impl PlanarOperation {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum OperationKind {
+    Interval {
+        bounds: [f64; 2],
+    },
     Rectangle {
         bounds: [[f64; 2]; 2],
     },
@@ -510,6 +545,7 @@ enum OperationKind {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RegionSource {
+    Interval,
     Rectangle,
     Circle,
     Subtract,
@@ -518,6 +554,7 @@ enum RegionSource {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum BoundarySource {
+    Interval(usize),
     Rectangle(usize),
     Circle,
     Subtract(usize),
@@ -531,12 +568,39 @@ pub struct PlanarRegionHandle {
     source: RegionSource,
 }
 
+impl PlanarRegionHandle {
+    /// Topological dimension carried by this construction handle.
+    #[must_use]
+    pub const fn dimension(self) -> usize {
+        match self.source {
+            RegionSource::Interval => 1,
+            RegionSource::Rectangle
+            | RegionSource::Circle
+            | RegionSource::Subtract
+            | RegionSource::Partition => 2,
+        }
+    }
+}
+
 /// Direct construction-owned one-dimensional topology handle.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PlanarBoundaryHandle {
     owner: u64,
     operation: u64,
     source: BoundarySource,
+}
+
+impl PlanarBoundaryHandle {
+    /// Topological dimension carried by this construction handle.
+    #[must_use]
+    pub const fn dimension(self) -> usize {
+        match self.source {
+            BoundarySource::Interval(_) => 0,
+            BoundarySource::Rectangle(_) | BoundarySource::Circle | BoundarySource::Subtract(_) => {
+                1
+            }
+        }
+    }
 }
 
 /// Dimension-carrying input to atomic semantic naming.
@@ -553,8 +617,8 @@ impl PlanarTopologyHandle {
     #[must_use]
     pub const fn dimension(&self) -> usize {
         match self {
-            Self::Region(_) => FACE_DIMENSION,
-            Self::Boundary(_) => EDGE_DIMENSION,
+            Self::Region(handle) => handle.dimension(),
+            Self::Boundary(handle) => handle.dimension(),
         }
     }
 
@@ -581,7 +645,7 @@ impl From<PlanarBoundaryHandle> for PlanarTopologyHandle {
 fn validate_interval(interval: [f64; 2], axis: &str) -> Result<(), Diagnostic> {
     if !interval[0].is_finite() || !interval[1].is_finite() || interval[0] >= interval[1] {
         return Err(invalid(format!(
-            "rectangle {axis} bounds must be a finite strict interval"
+            "{axis} bounds must be a finite strict interval"
         )));
     }
     Ok(())

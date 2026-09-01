@@ -4,7 +4,7 @@ use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora_meshing::EntityIncidence;
 
 use super::*;
-use crate::{CartesianMeshCellsV1, MeshProductionLineageEnvelopeV1};
+use crate::{CartesianMeshCellsV2, MeshProductionLineageEnvelopeV1};
 
 fn rectangle() -> CanonicalGeometryV1 {
     let graph = GeometryGraph::new();
@@ -381,24 +381,25 @@ fn rectangle_correspondence_rejects_wire_and_resource_mutations() {
             .validate_against_planar_rectangle_v2_cartesian(&geometry, &mesh, [2, 3])
             .is_err()
     );
-    let cells = CartesianMeshCellsV1::new([2, 3]).unwrap();
-    let lineage = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
-        cells,
+    let cells = CartesianMeshCellsV2::new([2, 3]).unwrap();
+    let lineage = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
+        &cells,
         &geometry,
         &mesh,
         &correspondence,
     )
     .unwrap();
-    let foreign_lineage = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
-        CartesianMeshCellsV1::new([3, 2]).unwrap(),
+    let foreign_cells = CartesianMeshCellsV2::new([3, 2]).unwrap();
+    let foreign_lineage = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
+        &foreign_cells,
         &geometry,
         &foreign_mesh,
         &foreign_correspondence,
     )
     .unwrap();
     lineage
-        .validate_against_structured_cartesian_v1_resources(
-            cells,
+        .validate_against_structured_cartesian_v2_resources(
+            &cells,
             &geometry,
             &mesh,
             &correspondence,
@@ -406,8 +407,8 @@ fn rectangle_correspondence_rejects_wire_and_resource_mutations() {
         .unwrap();
     assert!(
         foreign_lineage
-            .validate_against_structured_cartesian_v1_resources(
-                cells,
+            .validate_against_structured_cartesian_v2_resources(
+                &cells,
                 &geometry,
                 &mesh,
                 &correspondence,

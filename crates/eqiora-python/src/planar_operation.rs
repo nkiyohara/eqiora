@@ -79,6 +79,18 @@ impl PyGeometryGraph {
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))
     }
 
+    #[pyo3(signature = (*, bounds))]
+    fn interval(
+        &self,
+        py: Python<'_>,
+        #[pyo3(from_py_with = extract_sequence_pair)] bounds: [f64; 2],
+    ) -> PyResult<PyGeometryOperation> {
+        self.graph
+            .interval(bounds)
+            .map(|operation| PyGeometryOperation { operation })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
     #[pyo3(signature = (*, center, radius))]
     fn circle(
         &self,
@@ -247,16 +259,16 @@ impl PyGeometryOperation {
 #[pymethods]
 impl PyGeometryRegionHandle {
     #[getter]
-    const fn dimension(&self) -> usize {
-        2
+    fn dimension(&self) -> usize {
+        self.handle.dimension()
     }
 }
 
 #[pymethods]
 impl PyGeometryBoundaryHandle {
     #[getter]
-    const fn dimension(&self) -> usize {
-        1
+    fn dimension(&self) -> usize {
+        self.handle.dimension()
     }
 }
 

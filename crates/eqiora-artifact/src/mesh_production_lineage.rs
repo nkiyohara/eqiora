@@ -2,7 +2,7 @@
 
 use eqiora_core::Diagnostic;
 use eqiora_geometry::CanonicalGeometryV1;
-use eqiora_meshing::MeshQualityGate;
+use eqiora_meshing::{CartesianMesh, MeshQualityGate};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -15,7 +15,7 @@ const SCHEMA: &str = "eqiora.mesh-production-lineage-envelope/v1";
 const GMSH_IDENTITY: &str = "eqiora.gmsh-cli";
 const GMSH_VERSION: &str = "4.15.2";
 const CARTESIAN_IDENTITY: &str = "eqiora.structured-cartesian";
-const CARTESIAN_VERSION: &str = "1";
+const CARTESIAN_VERSION: &str = "2";
 const AFFINE_TRIANGLE_IDENTITY: &str = "eqiora.affine-triangle-rectangle";
 const AFFINE_TRIANGLE_VERSION: &str = "1";
 const AFFINE_TRIANGLE_DIAGONAL: &str = "lower-left-to-upper-right";
@@ -25,8 +25,8 @@ const AFFINE_TRIANGLE_DIAGONAL: &str = "lower-left-to-upper-right";
 enum MeshProductionProvider {
     /// Exact external Gmsh CLI 4.15.2 adapter.
     Gmsh4152,
-    /// Deterministic structured Cartesian producer v1.
-    StructuredCartesianV1,
+    /// Deterministic dimension-parametric structured Cartesian producer v2.
+    StructuredCartesianV2,
     /// Deterministic rectangle affine-triangle producer v1.
     AffineTriangleRectangleV1,
 }
@@ -37,7 +37,7 @@ impl MeshProductionProvider {
     pub const fn identity(self) -> &'static str {
         match self {
             Self::Gmsh4152 => GMSH_IDENTITY,
-            Self::StructuredCartesianV1 => CARTESIAN_IDENTITY,
+            Self::StructuredCartesianV2 => CARTESIAN_IDENTITY,
             Self::AffineTriangleRectangleV1 => AFFINE_TRIANGLE_IDENTITY,
         }
     }
@@ -47,19 +47,25 @@ impl MeshProductionProvider {
     pub const fn version(self) -> &'static str {
         match self {
             Self::Gmsh4152 => GMSH_VERSION,
-            Self::StructuredCartesianV1 => CARTESIAN_VERSION,
+            Self::StructuredCartesianV2 => CARTESIAN_VERSION,
             Self::AffineTriangleRectangleV1 => AFFINE_TRIANGLE_VERSION,
         }
     }
 }
 
 /// Exact effective policy of the structured Cartesian provider.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CartesianMeshCellsV1([usize; 2]);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CartesianMeshCellsV2(Box<[usize]>);
 
-impl CartesianMeshCellsV1 {
-    /// Construct positive x/y cell counts.
-    pub fn new(cells: [usize; 2]) -> Result<Self, Diagnostic> {
+impl CartesianMeshCellsV2 {
+    /// Construct positive, bounded 1D--3D per-axis cell counts.
+    pub fn new(cells: impl Into<Vec<usize>>) -> Result<Self, Diagnostic> {
+        let cells = cells.into();
+        if cells.is_empty() || cells.len() > 3 {
+            return Err(invalid_artifact(
+                "Cartesian cell counts require between one and three axes",
+            ));
+        }
         if cells.contains(&0) {
             return Err(invalid_artifact("Cartesian cell counts must be positive"));
         }
@@ -68,13 +74,15 @@ impl CartesianMeshCellsV1 {
                 "Cartesian cell count overflows its axis vertex count",
             ));
         }
-        Ok(Self(cells))
+        CartesianMesh::validate_cell_counts(&cells)
+            .map_err(|error| invalid_artifact(error.message().to_owned()))?;
+        Ok(Self(cells.into_boxed_slice()))
     }
 
     /// Exact x/y cell counts.
     #[must_use]
-    pub const fn cells(self) -> [usize; 2] {
-        self.0
+    pub fn cells(&self) -> &[usize] {
+        &self.0
     }
 }
 
@@ -285,9 +293,9 @@ impl MeshProductionLineageEnvelopeV1 {
         Ok(lineage)
     }
 
-    /// Bind one structured Cartesian v1 occurrence to exact rectangle resources.
-    pub fn from_structured_cartesian_v1_resources(
-        policy: CartesianMeshCellsV1,
+    /// Bind one dimension-parametric structured Cartesian v2 occurrence.
+    pub fn from_structured_cartesian_v2_resources(
+        policy: &CartesianMeshCellsV2,
         geometry: &CanonicalGeometryV1,
         mesh: &CartesianMeshEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
@@ -301,7 +309,7 @@ impl MeshProductionLineageEnvelopeV1 {
                     version: CARTESIAN_VERSION.to_owned(),
                 },
                 effective_policy: WireEffectivePolicyV1::CartesianCells(
-                    WireCartesianCellsV1::try_from(policy)?,
+                    WireCartesianCellsV2::try_from(policy)?,
                 ),
                 geometry_sha256: ArtifactDigest::from_sha256(geometry.digest_bytes()).to_string(),
                 mesh_sha256: mesh.digest()?.to_string(),
@@ -399,16 +407,16 @@ impl MeshProductionLineageEnvelopeV1 {
         )
     }
 
-    /// Rebuild and compare one exact structured Cartesian v1 occurrence.
-    pub fn validate_against_structured_cartesian_v1_resources(
+    /// Rebuild and compare one exact structured Cartesian v2 occurrence.
+    pub fn validate_against_structured_cartesian_v2_resources(
         &self,
-        policy: CartesianMeshCellsV1,
+        policy: &CartesianMeshCellsV2,
         geometry: &CanonicalGeometryV1,
         mesh: &CartesianMeshEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
     ) -> Result<(), Diagnostic> {
         let expected =
-            Self::from_structured_cartesian_v1_resources(policy, geometry, mesh, correspondence)?;
+            Self::from_structured_cartesian_v2_resources(policy, geometry, mesh, correspondence)?;
         if self != &expected {
             return Err(invalid_artifact(
                 "mesh production lineage differs from structured Cartesian occurrence or accepted resources",
@@ -463,8 +471,8 @@ impl MeshProductionLineageEnvelopeV1 {
 
     /// Exact Cartesian cell policy, when this is a Cartesian occurrence.
     #[must_use]
-    pub fn cartesian_cells(&self) -> Option<CartesianMeshCellsV1> {
-        match self.wire.effective_policy {
+    pub fn cartesian_cells(&self) -> Option<CartesianMeshCellsV2> {
+        match &self.wire.effective_policy {
             WireEffectivePolicyV1::CartesianCells(policy) => policy.to_policy().ok(),
             WireEffectivePolicyV1::GmshMesh(_) | WireEffectivePolicyV1::AffineTriangleCells(_) => {
                 None
@@ -511,12 +519,12 @@ impl MeshProductionLineageEnvelopeV1 {
         let provider = provider_from_wire(&self.wire.provider)?;
         self.wire.effective_policy.validate()?;
         let compatible = matches!(
-            (provider, self.wire.effective_policy),
+            (provider, &self.wire.effective_policy),
             (
                 MeshProductionProvider::Gmsh4152,
                 WireEffectivePolicyV1::GmshMesh(_)
             ) | (
-                MeshProductionProvider::StructuredCartesianV1,
+                MeshProductionProvider::StructuredCartesianV2,
                 WireEffectivePolicyV1::CartesianCells(_)
             ) | (
                 MeshProductionProvider::AffineTriangleRectangleV1,
@@ -539,7 +547,7 @@ fn provider_from_wire(wire: &WireProviderV1) -> Result<MeshProductionProvider, D
     match (wire.identity.as_str(), wire.version.as_str()) {
         (GMSH_IDENTITY, GMSH_VERSION) => Ok(MeshProductionProvider::Gmsh4152),
         (CARTESIAN_IDENTITY, CARTESIAN_VERSION) => {
-            Ok(MeshProductionProvider::StructuredCartesianV1)
+            Ok(MeshProductionProvider::StructuredCartesianV2)
         }
         (AFFINE_TRIANGLE_IDENTITY, AFFINE_TRIANGLE_VERSION) => {
             Ok(MeshProductionProvider::AffineTriangleRectangleV1)
@@ -579,20 +587,20 @@ struct WireGmshMeshPolicyV1 {
     maximum_target_size_ownership: WireGmshTargetSizeOwnershipV1,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 enum WireEffectivePolicyV1 {
     GmshMesh(WireGmshMeshPolicyV1),
-    CartesianCells(WireCartesianCellsV1),
+    CartesianCells(WireCartesianCellsV2),
     AffineTriangleCells(WireAffineTriangleCellsV1),
 }
 
 impl WireEffectivePolicyV1 {
-    fn validate(self) -> Result<(), Diagnostic> {
+    fn validate(&self) -> Result<(), Diagnostic> {
         match self {
-            Self::GmshMesh(policy) => policy.to_policy().map(|_| ()),
+            Self::GmshMesh(policy) => (*policy).to_policy().map(|_| ()),
             Self::CartesianCells(policy) => policy.to_policy().map(|_| ()),
-            Self::AffineTriangleCells(policy) => policy.to_policy().map(|_| ()),
+            Self::AffineTriangleCells(policy) => (*policy).to_policy().map(|_| ()),
         }
     }
 }
@@ -604,10 +612,10 @@ enum WireGmshTargetSizeOwnershipV1 {
     Explicit,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCartesianCellsV1 {
-    cells: [u64; 2],
+struct WireCartesianCellsV2 {
+    cells: Vec<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -650,29 +658,34 @@ impl WireAffineTriangleCellsV1 {
     }
 }
 
-impl TryFrom<CartesianMeshCellsV1> for WireCartesianCellsV1 {
+impl TryFrom<&CartesianMeshCellsV2> for WireCartesianCellsV2 {
     type Error = Diagnostic;
 
-    fn try_from(policy: CartesianMeshCellsV1) -> Result<Self, Self::Error> {
+    fn try_from(policy: &CartesianMeshCellsV2) -> Result<Self, Self::Error> {
         Ok(Self {
-            cells: [
-                u64::try_from(policy.0[0])
-                    .map_err(|_| invalid_artifact("x cell count exceeds portable u64"))?,
-                u64::try_from(policy.0[1])
-                    .map_err(|_| invalid_artifact("y cell count exceeds portable u64"))?,
-            ],
+            cells: policy
+                .cells()
+                .iter()
+                .map(|&count| {
+                    u64::try_from(count)
+                        .map_err(|_| invalid_artifact("Cartesian cell count exceeds portable u64"))
+                })
+                .collect::<Result<Vec<_>, _>>()?,
         })
     }
 }
 
-impl WireCartesianCellsV1 {
-    fn to_policy(self) -> Result<CartesianMeshCellsV1, Diagnostic> {
-        CartesianMeshCellsV1::new([
-            usize::try_from(self.cells[0])
-                .map_err(|_| invalid_artifact("x cell count exceeds local usize"))?,
-            usize::try_from(self.cells[1])
-                .map_err(|_| invalid_artifact("y cell count exceeds local usize"))?,
-        ])
+impl WireCartesianCellsV2 {
+    fn to_policy(&self) -> Result<CartesianMeshCellsV2, Diagnostic> {
+        CartesianMeshCellsV2::new(
+            self.cells
+                .iter()
+                .map(|&count| {
+                    usize::try_from(count)
+                        .map_err(|_| invalid_artifact("Cartesian cell count exceeds local usize"))
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        )
     }
 }
 

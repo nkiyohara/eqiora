@@ -53,21 +53,27 @@ pub(crate) fn validate_cartesian_resources(
     let policy = production
         .cartesian_cells()
         .ok_or_else(|| invalid("Cartesian resource has a non-Cartesian policy"))?;
-    correspondence.validate_against_planar_rectangle_v2_cartesian(
-        geometry,
-        mesh,
-        policy.cells(),
-    )?;
-    production.validate_against_structured_cartesian_v1_resources(
-        policy,
+    if geometry.cartesian_box_bounds().is_some() {
+        correspondence.validate_against_cartesian_box_v1(geometry, mesh, policy.cells())?;
+    } else {
+        let cells: [usize; 2] = policy
+            .cells()
+            .try_into()
+            .map_err(|_| invalid("planar rectangle Cartesian policy must have two axes"))?;
+        correspondence.validate_against_planar_rectangle_v2_cartesian(geometry, mesh, cells)?;
+    }
+    production.validate_against_structured_cartesian_v2_resources(
+        &policy,
         geometry,
         mesh,
         correspondence,
     )?;
-    let [nx, ny] = policy.cells();
-    if mesh.dimension() != 2
-        || mesh.mesh().axis_cell_count(0) != Some(nx)
-        || mesh.mesh().axis_cell_count(1) != Some(ny)
+    if mesh.dimension() != policy.cells().len()
+        || policy
+            .cells()
+            .iter()
+            .enumerate()
+            .any(|(axis, &count)| mesh.mesh().axis_cell_count(axis) != Some(count))
     {
         return Err(invalid(
             "Cartesian Mesh topology differs from its exact production policy",

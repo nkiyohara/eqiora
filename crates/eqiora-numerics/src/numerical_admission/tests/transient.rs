@@ -40,15 +40,15 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
 
     let mini = resolve(affine_resources(&geometry), CommonSpatialPolicy::MiniP1);
     let cell_resources = {
-        let cells = CartesianMeshCellsV1::new([3, 4]).unwrap();
+        let cells = CartesianMeshCellsV2::new([3, 4]).unwrap();
         let (mesh, correspondence) =
             GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
                 &geometry,
-                cells.cells(),
+                cells.cells().try_into().unwrap(),
             )
             .unwrap();
-        let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
-            cells,
+        let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
+            &cells,
             &geometry,
             &mesh,
             &correspondence,

@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
-    CartesianMeshCellsV1, GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
+    CartesianMeshCellsV2, GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
     ModelEnvelope,
 };
 use eqiora::geometry::{CanonicalGeometryV1, GeometryGraph, PlanarTopologyHandle};
@@ -396,15 +396,15 @@ fn rectangle_geometry() -> CanonicalGeometryV1 {
 }
 
 fn resolve_scalar(document: &ModelDocument, geometry: &CanonicalGeometryV1) -> CommonScalarPlan {
-    let cells = CartesianMeshCellsV1::new([6, 6]).unwrap();
+    let cells = CartesianMeshCellsV2::new([6, 6]).unwrap();
     let (mesh, correspondence) =
         GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
             geometry,
-            cells.cells(),
+            cells.cells().try_into().unwrap(),
         )
         .unwrap();
-    let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
-        cells,
+    let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
+        &cells,
         geometry,
         &mesh,
         &correspondence,

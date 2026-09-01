@@ -388,7 +388,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     );
     let production_json = String::from_utf8(production.canonical_json().unwrap()).unwrap();
     let provider_mutation = production_json.replace(
-        "\"identity\":\"eqiora.structured-cartesian\",\"version\":\"1\"",
+        "\"identity\":\"eqiora.structured-cartesian\",\"version\":\"2\"",
         "\"identity\":\"eqiora.gmsh-cli\",\"version\":\"4.15.2\"",
     );
     assert!(MeshProductionLineageEnvelopeV1::from_json(provider_mutation.as_bytes()).is_err());

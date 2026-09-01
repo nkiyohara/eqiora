@@ -33,6 +33,7 @@ mod cad_authored_result_topology;
 mod cad_authored_selection;
 mod cad_authored_swept_mesh;
 mod canonical;
+mod cartesian_box_v1;
 mod circular_hole;
 mod circular_hole_v2;
 mod correspondence;
@@ -54,6 +55,7 @@ pub use cad_authored_graph::GeometrySolidOperation;
 pub use cad_authored_selection::GeometryFaceHandle;
 pub use cad_authored_swept_mesh::CadAuthoredSweptMesh;
 pub use canonical::{CanonicalGeometryLimits, CanonicalGeometryV1};
+pub(crate) use cartesian_box_v1::CanonicalCartesianBoxGeometryV1;
 pub(crate) use circular_hole_v2::CanonicalPlanarCircularHoleGeometryV2;
 pub use correspondence::{
     CartesianBodyAssignment, CartesianBoundaryAssignment, GeometryMeshCorrespondence,
