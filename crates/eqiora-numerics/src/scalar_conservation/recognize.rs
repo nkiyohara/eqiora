@@ -9,7 +9,7 @@ use super::*;
 pub(crate) fn recognize_scalar_conservation(
     program: &KernelProgram,
 ) -> Result<ScalarConservationDescriptor, Diagnostic> {
-    let mut boxes = Vec::new();
+    let mut supports = Vec::new();
     for node in program.nodes() {
         let KernelNode::Domain(domain) = node else {
             continue;
@@ -30,27 +30,46 @@ pub(crate) fn recognize_scalar_conservation(
                 ),
             ));
         }
-        boxes.push((
+        let bounds = bounds
+            .iter()
+            .map(|axis| [axis.lower().value(), axis.upper().value()])
+            .collect::<Vec<_>>();
+        let boundaries = exact_boundaries(program, domain.id().erase(), bounds.len())?;
+        supports.push(ScalarRegionSupport::new(
             domain.id().erase(),
-            bounds
-                .iter()
-                .map(|axis| [axis.lower().value(), axis.upper().value()])
-                .collect::<Vec<_>>(),
+            bounds,
+            boundaries,
         ));
     }
-    boxes.sort_by_key(|(domain, _)| *domain);
-    if boxes.is_empty() {
+    recognize_scalar_conservation_on_supports(program, supports)
+}
+
+pub(crate) fn recognize_scalar_conservation_on_supports(
+    program: &KernelProgram,
+    mut supports: Vec<ScalarRegionSupport>,
+) -> Result<ScalarConservationDescriptor, Diagnostic> {
+    supports.sort_by_key(|support| support.domain);
+    if supports.is_empty() {
         return Err(model_error(
             program,
             "scalar conservation requires at least one Cartesian volume Domain",
         ));
     }
+    if supports
+        .windows(2)
+        .any(|pair| pair[0].domain == pair[1].domain)
+    {
+        return Err(model_error(
+            program,
+            "scalar conservation has duplicate Cartesian region support",
+        ));
+    }
 
-    let mut regions = Vec::with_capacity(boxes.len());
+    let mut regions = Vec::with_capacity(supports.len());
     let mut pending = BTreeMap::<RawId, Vec<PendingInterfaceSide>>::new();
     let mut parameters = Vec::new();
-    for (domain, bounds) in boxes {
-        let (region, region_interfaces) = recognize_region(program, domain, bounds)?;
+    for support in supports {
+        let (region, region_interfaces) = recognize_region(program, support)?;
         collect_region_parameters(&region, &mut parameters);
         for member in region_interfaces {
             pending
@@ -91,10 +110,49 @@ pub(crate) fn recognize_scalar_conservation(
 
 fn recognize_region(
     program: &KernelProgram,
-    domain: RawId,
-    bounds: Vec<[f64; 2]>,
+    support: ScalarRegionSupport,
 ) -> Result<(ScalarConservationRegion, Vec<PendingInterfaceSide>), Diagnostic> {
+    let ScalarRegionSupport {
+        domain,
+        bounds,
+        boundaries: boundary_domains,
+    } = support;
     let dimensions = bounds.len();
+    if !(1..=3).contains(&dimensions) {
+        return Err(lowering_error(
+            domain,
+            format!("scalar conservation supports 1D--3D Cartesian boxes, found {dimensions}D"),
+        ));
+    }
+    if bounds
+        .iter()
+        .any(|[lower, upper]| !lower.is_finite() || !upper.is_finite() || lower >= upper)
+    {
+        return Err(lowering_error(
+            domain,
+            "scalar-conservation support requires finite strict Cartesian bounds",
+        ));
+    }
+    if boundary_domains.len() != dimensions * 2
+        || boundary_domains.iter().any(|((axis, _), boundary)| {
+            *axis >= dimensions || boundary_parent(program, *boundary) != Some(domain)
+        })
+    {
+        return Err(lowering_error(
+            domain,
+            "scalar-conservation support requires one exact child boundary per Cartesian side",
+        ));
+    }
+    for axis in 0..dimensions {
+        for side in [BoundarySide::Lower, BoundarySide::Upper] {
+            if !boundary_domains.contains_key(&(axis, side)) {
+                return Err(lowering_error(
+                    domain,
+                    format!("scalar-conservation support is missing boundary axis {axis} {side:?}"),
+                ));
+            }
+        }
+    }
     let fields = continuum_fields_on(program, domain);
     let [field] = fields.as_slice() else {
         return Err(lowering_error(
@@ -130,7 +188,6 @@ fn recognize_region(
     let (balance_dimension, storage, flux, source) =
         recognize_balance(program, *balance_relation, *field, dimensions, &bounds)?;
 
-    let boundary_domains = exact_boundaries(program, domain, dimensions)?;
     let mut exterior = BTreeMap::new();
     let mut interfaces = Vec::new();
     for ((axis, side), boundary) in boundary_domains {

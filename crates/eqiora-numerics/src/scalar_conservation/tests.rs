@@ -324,6 +324,34 @@ fn admits_complete_two_and_three_dimensional_closure() {
 }
 
 #[test]
+fn exact_external_region_support_reuses_the_same_descriptor_and_fails_closed() {
+    let program = program(TRANSIENT);
+    let direct = recognize_scalar_conservation(&program).unwrap();
+    let region = &direct.regions[0];
+    let boundaries = exact_boundaries(&program, region.domain, region.dimensions).unwrap();
+    let support =
+        ScalarRegionSupport::new(region.domain, region.bounds.clone(), boundaries.clone());
+    assert_eq!(
+        recognize_scalar_conservation_on_supports(&program, vec![support]).unwrap(),
+        direct
+    );
+
+    let mut incomplete = boundaries;
+    incomplete.remove(&(0, BoundarySide::Lower));
+    assert!(
+        recognize_scalar_conservation_on_supports(
+            &program,
+            vec![ScalarRegionSupport::new(
+                region.domain,
+                region.bounds.clone(),
+                incomplete,
+            )],
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn rejects_unsupported_cartesian_domain_in_mixed_model() {
     let source = cartesian_regions(&[1, 4]);
     assert!(recognize_scalar_conservation(&program(&source)).is_err());
