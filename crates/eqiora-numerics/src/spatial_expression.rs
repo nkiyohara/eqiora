@@ -166,6 +166,23 @@ impl ScalarSpatialExpression {
         )
     }
 
+    /// Evaluate the physical-coordinate gradient while holding Parameters fixed.
+    pub(crate) fn evaluate_gradient<const D: usize>(
+        &self,
+        coordinates: &[f64],
+    ) -> Result<[f64; D], Diagnostic> {
+        let zero_parameters = vec![0.0; self.parameter_fields.len()];
+        let mut gradient = [0.0; D];
+        for axis in 0..D {
+            let mut direction = [0.0; D];
+            direction[axis] = 1.0;
+            gradient[axis] = self
+                .evaluate_jvp(coordinates, &direction, &zero_parameters)?
+                .1;
+        }
+        Ok(gradient)
+    }
+
     /// Evaluate the primal value and a combined coordinate/Parameter JVP.
     ///
     /// Coordinate tangents are physical mesh-motion velocities. Parameter
