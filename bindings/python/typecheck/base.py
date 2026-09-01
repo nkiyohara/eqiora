@@ -18,11 +18,15 @@ def check_language_source() -> None:
     component = source.component("Poisson")
     volume = component.volume("volume", dimensions=2)
     value = component.field("value", on=volume, unit=eqiora.lang.units.m)
-    component.relation(
+    natural = component.relation(
         "balance",
         on=volume,
-        residual=eqiora.lang.math.pi * eqiora.lang.div(value),
+        left=eqiora.lang.div(value),
+        right=-eqiora.lang.math.pi * value,
     )
+    residual = component.relation("reference", on=volume, residual=value)
+    assert_type(natural, eqiora.lang.Relation)
+    assert_type(residual, eqiora.lang.Relation)
     assert_type(eqiora.lang.math.pi, eqiora.lang.Expression)
     assert_type(source.to_eqi(), str)
     assert_type(eqiora.compile(source=source), eqiora.Model)

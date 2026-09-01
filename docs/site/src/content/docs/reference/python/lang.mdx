@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__in
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.pyi" kind="blob">bindings/python/python/eqiora/lang/__init__.pyi</ExactSourceLink>
 
-This module publishes **21** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **22** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-lang-Component"></a>
 
@@ -33,8 +33,11 @@ class Component:
     def parameter(self, name: str, *, unit: _Unit, doc: str | None=None) -> Expression: ...
     def property(self, name: str, *, contract: PropertyContract, doc: str | None=None) -> Expression: ...
     def field(self, name: str, *, on: Support, unit: _Unit, shape: _Shape | None=None, initial: int | float | None=None, doc: str | None=None) -> Expression: ...
-    def relation(self, name: str, *, on: Support, residual: Expression | int | float, doc: str | None=None) -> object: ...
-    def primal_form(self, relation: object, *, left: Expression, right: Expression, doc: str | None=None) -> None: ...
+    @overload
+    def relation(self, name: str, *, on: Support, residual: Expression | int | float, left: None=None, right: None=None, doc: str | None=None) -> Relation: ...
+    @overload
+    def relation(self, name: str, *, on: Support, residual: None=None, left: Expression | int | float, right: Expression | int | float, doc: str | None=None) -> Relation: ...
+    def primal_form(self, relation: Relation, *, left: Expression, right: Expression, doc: str | None=None) -> None: ...
     def instance(self, name: str, *, component: Component, supports: Mapping[Support, Support], parameters: Mapping[Expression, Expression | int | float], properties: Mapping[Expression, PropertyRelease], doc: str | None=None) -> None: ...
 ```
 
@@ -86,6 +89,20 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 ```python
 @final
 class PropertyRelease:
+    ...
+```
+
+<a id="api-eqiora-lang-Relation"></a>
+
+## `Relation`
+
+Identify one relation declaration in its exact Source.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Relation</ExactSourceLink>
+
+```python
+@final
+class Relation:
     ...
 ```
 

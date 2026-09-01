@@ -230,21 +230,23 @@ class _Field(Expression):
         object.__setattr__(self, "_name", name)
 
 
-class _Relation:
+class Relation:
+    """An opaque Source-owned relation declaration handle."""
+
     __slots__ = ("_component", "_name", "_owner")
 
     def __init__(
         self,
-        token: object = _MISSING,
-        owner: object = _MISSING,
-        component: object = _MISSING,
-        name: str = "",
+        _token: object = _MISSING,
+        _owner: object = _MISSING,
+        _component: object = _MISSING,
+        _name: str = "",
     ) -> None:
-        if token is not _CREATE:
+        if _token is not _CREATE:
             raise TypeError("relations are created by Component.relation()")
-        object.__setattr__(self, "_owner", owner)
-        object.__setattr__(self, "_component", component)
-        object.__setattr__(self, "_name", name)
+        object.__setattr__(self, "_owner", _owner)
+        object.__setattr__(self, "_component", _component)
+        object.__setattr__(self, "_name", _name)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Relation handles are immutable")
@@ -466,9 +468,10 @@ def _comment(lines: tuple[str, ...], indent: str) -> list[str]:
     return [f"{indent}// {line}" if line else f"{indent}//" for line in lines]
 
 
-def _relation_lines(residual: Expression) -> list[str]:
+def _relation_lines(left: Expression, right: Expression | None = None) -> list[str]:
+    right_text = "0" if right is None else right._text
     lines = textwrap.wrap(
-        f"{residual._text} = 0;",
+        f"{left._text} = {right_text};",
         width=88,
         initial_indent="    ",
         subsequent_indent="      ",
@@ -532,9 +535,11 @@ class Component:
                 Expression, Support, Unit, _Shape | None, object | None, tuple[str, ...]
             ]
         ] = []
-        self._relations: list[tuple[str, Support, Expression, tuple[str, ...]]] = []
+        self._relations: list[
+            tuple[str, Support, Expression, Expression | None, tuple[str, ...]]
+        ] = []
         self._formulations: list[
-            tuple[_Relation, Expression, Expression, tuple[str, ...]]
+            tuple[Relation, Expression, Expression, tuple[str, ...]]
         ] = []
         self._instances: list[
             tuple[
@@ -665,36 +670,66 @@ class Component:
         name: str,
         *,
         on: Support,
-        residual: Expression | int | float,
+        residual: Expression | int | float | None = None,
+        left: Expression | int | float | None = None,
+        right: Expression | int | float | None = None,
         doc: str | None = None,
-    ) -> _Relation:
+    ) -> Relation:
         on = self._support(on)
-        expression = _expression(residual)
-        if expression._owner is None:
-            expression = Expression(
-                _CREATE,
-                expression._text,
-                self._owner,
-                expression._depth,
-                expression._nodes,
-                expression._precedence,
+        has_residual = residual is not None
+        has_left = left is not None
+        has_right = right is not None
+        if (has_residual and (has_left or has_right)) or (
+            not has_residual and not (has_left and has_right)
+        ):
+            raise SourceError(
+                "relation requires exactly residual= or the complete left= and right= pair"
             )
-        elif expression._owner is not self._owner:
-            raise SourceError("relation expressions must belong to this Source")
+
+        def admit(value: Expression | int | float) -> Expression:
+            expression = _expression(value)
+            if expression._owner is None:
+                return Expression(
+                    _CREATE,
+                    expression._text,
+                    self._owner,
+                    expression._depth,
+                    expression._nodes,
+                    expression._precedence,
+                )
+            if expression._owner is not self._owner:
+                raise SourceError("relation expressions must belong to this Source")
+            return expression
+
+        if has_residual:
+            assert residual is not None
+            left_expression = admit(residual)
+            right_expression = None
+        else:
+            assert left is not None and right is not None
+            left_expression = admit(left)
+            right_expression = admit(right)
         admitted = self._add_name(name)
         total_nodes = (
-            sum(item[2]._nodes for item in self._relations) + expression._nodes
+            sum(
+                item[2]._nodes + (item[3]._nodes if item[3] is not None else 0)
+                for item in self._relations
+            )
+            + left_expression._nodes
+            + (right_expression._nodes if right_expression is not None else 0)
         )
         if total_nodes > _MAX_EXPRESSION_NODES:
             raise SourceError(
                 f"Component relation expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
             )
-        self._relations.append((admitted, on, expression, _doc(doc)))
-        return _Relation(_CREATE, self._owner, self._component_token, admitted)
+        self._relations.append(
+            (admitted, on, left_expression, right_expression, _doc(doc))
+        )
+        return Relation(_CREATE, self._owner, self._component_token, admitted)
 
     def primal_form(
         self,
-        relation: _Relation,
+        relation: Relation,
         *,
         left: Expression,
         right: Expression,
@@ -704,7 +739,7 @@ class Component:
 
         self._source._ensure_open()
         if (
-            not isinstance(relation, _Relation)
+            not isinstance(relation, Relation)
             or relation._component is not self._component_token
         ):
             raise SourceError("form relation must belong to this Component")
@@ -716,7 +751,10 @@ class Component:
         if self._formulations:
             raise SourceError("the scalar-primal Source vocabulary admits one form")
         total_nodes = (
-            sum(item[2]._nodes for item in self._relations)
+            sum(
+                item[2]._nodes + (item[3]._nodes if item[3] is not None else 0)
+                for item in self._relations
+            )
             + left_expression._nodes
             + right_expression._nodes
         )
@@ -850,10 +888,10 @@ class Component:
                 )
         if self._fields and (self._relations or self._instances):
             lines.append("")
-        for index, (name, support, residual, doc) in enumerate(self._relations):
+        for index, (name, support, left, right, doc) in enumerate(self._relations):
             lines.extend(_comment(doc, "  "))
             lines.append(f"  relation {name} continuous on {support._name} {{")
-            lines.extend(_relation_lines(residual))
+            lines.extend(_relation_lines(left, right))
             lines.append("  }")
             if index + 1 != len(self._relations):
                 lines.append("")
@@ -1148,6 +1186,7 @@ __all__ = [
     "Expression",
     "PropertyContract",
     "PropertyRelease",
+    "Relation",
     "Source",
     "SourceError",
     "Support",

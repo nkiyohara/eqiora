@@ -5,7 +5,7 @@ Authority: ``bindings/python/python/eqiora/lang/__init__.py``.
 
 from collections.abc import Mapping
 from os import PathLike
-from typing import Final, final
+from typing import Final, final, overload
 
 @final
 class SourceError(ValueError):
@@ -62,6 +62,15 @@ class PropertyRelease:
     ...
 
 @final
+class Relation:
+    """Identify one relation declaration in its exact Source.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::Relation``.
+    """
+
+    ...
+
+@final
 class Component:
     """Author one bounded public Component and an admitted exact instance binding.
 
@@ -106,17 +115,31 @@ class Component:
         initial: int | float | None = None,
         doc: str | None = None,
     ) -> Expression: ...
+    @overload
     def relation(
         self,
         name: str,
         *,
         on: Support,
         residual: Expression | int | float,
+        left: None = None,
+        right: None = None,
         doc: str | None = None,
-    ) -> object: ...
+    ) -> Relation: ...
+    @overload
+    def relation(
+        self,
+        name: str,
+        *,
+        on: Support,
+        residual: None = None,
+        left: Expression | int | float,
+        right: Expression | int | float,
+        doc: str | None = None,
+    ) -> Relation: ...
     def primal_form(
         self,
-        relation: object,
+        relation: Relation,
         *,
         left: Expression,
         right: Expression,
@@ -300,6 +323,7 @@ __all__ = [
     "Expression",
     "PropertyContract",
     "PropertyRelease",
+    "Relation",
     "Source",
     "SourceError",
     "Support",

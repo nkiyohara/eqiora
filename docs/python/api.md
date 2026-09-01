@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 161 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 616 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 162 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 617 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 191 literal public spellings, 161 canonical grouped declarations, 813 visible method signatures (616 non-dunder and 197 dunder), and 74 visible class assignments.
+Inventory: 18 modules, 192 literal public spellings, 162 canonical grouped declarations, 814 visible method signatures (617 non-dunder and 197 dunder), and 74 visible class assignments.
 
 Regenerate with:
 
@@ -2013,8 +2013,11 @@ class Component:
     def parameter(self, name: str, *, unit: _Unit, doc: str | None=None) -> Expression: ...
     def property(self, name: str, *, contract: PropertyContract, doc: str | None=None) -> Expression: ...
     def field(self, name: str, *, on: Support, unit: _Unit, shape: _Shape | None=None, initial: int | float | None=None, doc: str | None=None) -> Expression: ...
-    def relation(self, name: str, *, on: Support, residual: Expression | int | float, doc: str | None=None) -> object: ...
-    def primal_form(self, relation: object, *, left: Expression, right: Expression, doc: str | None=None) -> None: ...
+    @overload
+    def relation(self, name: str, *, on: Support, residual: Expression | int | float, left: None=None, right: None=None, doc: str | None=None) -> Relation: ...
+    @overload
+    def relation(self, name: str, *, on: Support, residual: None=None, left: Expression | int | float, right: Expression | int | float, doc: str | None=None) -> Relation: ...
+    def primal_form(self, relation: Relation, *, left: Expression, right: Expression, doc: str | None=None) -> None: ...
     def instance(self, name: str, *, component: Component, supports: Mapping[Support, Support], parameters: Mapping[Expression, Expression | int | float], properties: Mapping[Expression, PropertyRelease], doc: str | None=None) -> None: ...
 ```
 
@@ -2066,6 +2069,20 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::PropertyRelease`](.
 ```python
 @final
 class PropertyRelease:
+    ...
+```
+
+<a id="api-eqiora-lang-Relation"></a>
+
+### `eqiora.lang.Relation`
+
+Identify one relation declaration in its exact Source.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::Relation`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class Relation:
     ...
 ```
 
