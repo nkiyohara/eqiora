@@ -100,36 +100,14 @@ impl PyGeometry {
     /// Intrinsic and coordinate dimension of this accepted Geometry.
     #[getter]
     fn dimension(&self) -> usize {
-        2
+        self.geometry.ambient_dimension()
     }
 
     /// Exact Cartesian bounds, one pair per coordinate axis, in metres.
     #[getter]
-    fn bounds(&self) -> ((f64, f64), (f64, f64)) {
-        let bounds = self
-            .geometry
-            .planar_rectangle_bounds()
-            .or_else(|| self.geometry.circular_hole_bounds())
-            .copied()
-            .or_else(|| {
-                self.geometry
-                    .planar_adjacent_rectangle_partition()
-                    .map(|(bounds, _)| *bounds)
-            })
-            .or_else(|| {
-                let vertices = self.geometry.region()?.vertices();
-                let mut bounds = [[f64::INFINITY, f64::NEG_INFINITY]; 2];
-                for vertex in vertices {
-                    for axis in 0..2 {
-                        bounds[axis][0] = bounds[axis][0].min(vertex[axis]);
-                        bounds[axis][1] = bounds[axis][1].max(vertex[axis]);
-                    }
-                }
-                Some(bounds)
-            })
-            .expect("the admitted planar Geometry has exact Cartesian bounds");
-        let [[x_lower, x_upper], [y_lower, y_upper]] = bounds;
-        ((x_lower, x_upper), (y_lower, y_upper))
+    fn bounds(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let bounds = self.exact_bounds();
+        Ok(PyTuple::new(py, bounds.into_iter().map(|[lower, upper]| (lower, upper)))?.unbind())
     }
 
     /// Producer classification tolerance in metres, absent for source-owned topology.
@@ -199,9 +177,9 @@ impl PyGeometry {
 
     fn __repr__(&self) -> String {
         format!(
-            "Geometry(dimension={}, bounds={:?}, selections={}, digest={:?})",
+            "Geometry(dimension={}, bounds={}, selections={}, digest={:?})",
             self.dimension(),
-            self.bounds(),
+            self.bounds_repr(),
             self.geometry.entity_sets().len(),
             self.digest(),
         )
@@ -209,6 +187,48 @@ impl PyGeometry {
 }
 
 impl PyGeometry {
+    fn exact_bounds(&self) -> Vec<[f64; 2]> {
+        self.geometry
+            .cartesian_box_bounds()
+            .map(<[_]>::to_vec)
+            .or_else(|| {
+                self.geometry
+                    .planar_rectangle_bounds()
+                    .or_else(|| self.geometry.circular_hole_bounds())
+                    .map(|bounds| bounds.to_vec())
+            })
+            .or_else(|| {
+                self.geometry
+                    .planar_adjacent_rectangle_partition()
+                    .map(|(bounds, _)| bounds.to_vec())
+            })
+            .or_else(|| {
+                let vertices = self.geometry.region()?.vertices();
+                let mut bounds = [[f64::INFINITY, f64::NEG_INFINITY]; 2];
+                for vertex in vertices {
+                    for axis in 0..2 {
+                        bounds[axis][0] = bounds[axis][0].min(vertex[axis]);
+                        bounds[axis][1] = bounds[axis][1].max(vertex[axis]);
+                    }
+                }
+                Some(bounds.to_vec())
+            })
+            .expect("the admitted Geometry has exact Cartesian bounds")
+    }
+
+    fn bounds_repr(&self) -> String {
+        let axes = self
+            .exact_bounds()
+            .into_iter()
+            .map(|[lower, upper]| format!("({lower:?}, {upper:?})"))
+            .collect::<Vec<_>>();
+        if axes.len() == 1 {
+            format!("({},)", axes[0])
+        } else {
+            format!("({})", axes.join(", "))
+        }
+    }
+
     pub(crate) const fn from_geometry(geometry: CanonicalGeometryV1) -> Self {
         Self { geometry }
     }

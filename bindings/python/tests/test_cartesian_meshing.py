@@ -21,6 +21,19 @@ def rectangle(xmax: float = 2.0) -> eqiora.geometry.Geometry:
     )
 
 
+def interval(upper: float = 2.0) -> eqiora.geometry.Geometry:
+    graph = eqiora.geometry.GeometryGraph()
+    source = graph.interval(bounds=(-1.0, upper))
+    return graph.build(
+        source,
+        named_topology={
+            "body": source.region,
+            "left": source.boundaries[0],
+            "right": source.boundaries[1],
+        },
+    )
+
+
 def test_cartesian_mesher_publishes_exact_source_owned_common_mesh() -> None:
     provider = eqiora.meshing.CartesianMesher(cells=(2, 3))
     request = provider
@@ -55,7 +68,39 @@ def test_cartesian_mesher_publishes_exact_source_owned_common_mesh() -> None:
         eqiora.meshing.generate(object())
 
 
-@pytest.mark.parametrize("cells", [(0, 3), (2, 0), (2,), (True, 3)])
+def test_interval_cartesian_mesh_round_trips_exact_common_resources() -> None:
+    source = interval()
+    provider = eqiora.meshing.CartesianMesher(cells=(3,))
+    mesh = eqiora.meshing.generate(eqiora.meshing.resolve(source, provider))
+
+    assert source.dimension == mesh.dimension == 1
+    assert source.bounds == ((-1.0, 2.0),)
+    assert source.selection("body").dimension == 1
+    assert source.selection("left").dimension == 0
+    assert provider.cells == (3,)
+    assert repr(provider) == "CartesianMesher(cells=(3,))"
+    assert mesh.coordinates.tolist() == [[-1.0], [0.0], [1.0], [2.0]]
+    assert mesh.cells.tolist() == [[0, 1], [1, 2], [2, 3]]
+    assert {
+        name: mesh.selection_entity_count(source.selection(name))
+        for name in ("body", "left", "right")
+    } == {"body": 3, "left": 1, "right": 1}
+    replayed = eqiora.meshing.Mesh.from_bytes(mesh.to_bytes())
+    assert replayed.digest == mesh.digest
+    assert replayed.source_digest == source.digest
+    assert replayed.coordinates.tolist() == mesh.coordinates.tolist()
+    assert json.loads(mesh.production_lineage_bytes)["provider"]["version"] == "2"
+    with pytest.raises(eqiora.ValidationError):
+        mesh.selection_entity_count(interval(3.0).selection("left"))
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.meshing.resolve(source, eqiora.meshing.CartesianMesher(cells=(2, 3)))
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.meshing.resolve(rectangle(), provider)
+
+
+@pytest.mark.parametrize(
+    "cells", [(0, 3), (2, 0), (), (1, 1, 1, 1), (4_000_001,), (True, 3)]
+)
 def test_cartesian_mesher_rejects_invalid_cells(cells: tuple[object, ...]) -> None:
     with pytest.raises((eqiora.ValidationError, TypeError)):
         eqiora.meshing.CartesianMesher(cells=cells)

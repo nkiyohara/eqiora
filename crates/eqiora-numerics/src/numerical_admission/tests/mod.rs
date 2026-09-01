@@ -1,7 +1,7 @@
 use super::*;
 
 use eqiora_artifact::{
-    AffineTriangleMeshCellsV1, CartesianMeshCellsV1, GeometryDecoderLimits,
+    AffineTriangleMeshCellsV1, CartesianMeshCellsV2, GeometryDecoderLimits,
     GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1, ModelDecoderLimits,
 };
 use eqiora_core::{DimExponents, DynQuantity};

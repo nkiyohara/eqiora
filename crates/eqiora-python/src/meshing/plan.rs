@@ -1,6 +1,6 @@
 //! Immutable mesh intent and complete resolved provider choices.
 
-use eqiora::artifact::{AffineTriangleMeshCellsV1, CartesianMeshCellsV1};
+use eqiora::artifact::{AffineTriangleMeshCellsV1, CartesianMeshCellsV2};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyTuple};
 
@@ -90,9 +90,9 @@ impl PyGmshMesher {
     eq,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct PyCartesianMesher {
-    pub(super) policy: CartesianMeshCellsV1,
+    pub(super) policy: CartesianMeshCellsV2,
 }
 
 #[pymethods]
@@ -101,20 +101,30 @@ impl PyCartesianMesher {
     #[pyo3(signature = (*, cells))]
     fn new(py: Python<'_>, cells: &Bound<'_, PyTuple>) -> PyResult<Self> {
         let parsed = parse_cells(py, cells)?;
-        let policy = CartesianMeshCellsV1::new(parsed)
+        let policy = CartesianMeshCellsV2::new(parsed)
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         Ok(Self { policy })
     }
 
     #[getter]
-    const fn cells(&self) -> (usize, usize) {
-        let [nx, ny] = self.policy.cells();
-        (nx, ny)
+    fn cells(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, self.policy.cells().iter().copied())?.unbind())
     }
 
     fn __repr__(&self) -> String {
-        let (nx, ny) = self.cells();
-        format!("CartesianMesher(cells=({nx}, {ny}))")
+        let cells = self
+            .policy
+            .cells()
+            .iter()
+            .map(usize::to_string)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let suffix = if self.policy.cells().len() == 1 {
+            ","
+        } else {
+            ""
+        };
+        format!("CartesianMesher(cells=({cells}{suffix}))")
     }
 }
 
@@ -136,7 +146,10 @@ impl PyAffineTriangleMesher {
     #[new]
     #[pyo3(signature = (*, cells))]
     fn new(py: Python<'_>, cells: &Bound<'_, PyTuple>) -> PyResult<Self> {
-        let policy = AffineTriangleMeshCellsV1::new(parse_cells(py, cells)?)
+        let parsed: [usize; 2] = parse_cells(py, cells)?
+            .try_into()
+            .map_err(|_| request_error(py, "AffineTriangleMesher requires exactly (nx, ny)"))?;
+        let policy = AffineTriangleMeshCellsV1::new(parsed)
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         Ok(Self { policy })
     }
@@ -158,7 +171,7 @@ impl PyAffineTriangleMesher {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) enum MeshProviderPolicy {
     Gmsh(PyGmshMesher),
     Cartesian(PyCartesianMesher),
@@ -166,15 +179,15 @@ pub(super) enum MeshProviderPolicy {
 }
 
 impl MeshProviderPolicy {
-    fn to_python(self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn to_python(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match self {
-            Self::Gmsh(provider) => Py::new(py, provider).map(Py::into_any),
-            Self::Cartesian(provider) => Py::new(py, provider).map(Py::into_any),
-            Self::AffineTriangle(provider) => Py::new(py, provider).map(Py::into_any),
+            Self::Gmsh(provider) => Py::new(py, *provider).map(Py::into_any),
+            Self::Cartesian(provider) => Py::new(py, provider.clone()).map(Py::into_any),
+            Self::AffineTriangle(provider) => Py::new(py, *provider).map(Py::into_any),
         }
     }
 
-    fn representation(self) -> String {
+    fn representation(&self) -> String {
         match self {
             Self::Gmsh(provider) => provider.__repr__(),
             Self::Cartesian(provider) => provider.__repr__(),
@@ -187,7 +200,7 @@ fn extract_provider(py: Python<'_>, provider: &Bound<'_, PyAny>) -> PyResult<Mes
     if let Ok(provider) = provider.extract::<PyRef<'_, PyGmshMesher>>() {
         Ok(MeshProviderPolicy::Gmsh(*provider))
     } else if let Ok(provider) = provider.extract::<PyRef<'_, PyCartesianMesher>>() {
-        Ok(MeshProviderPolicy::Cartesian(*provider))
+        Ok(MeshProviderPolicy::Cartesian(provider.clone()))
     } else if let Ok(provider) = provider.extract::<PyRef<'_, PyAffineTriangleMesher>>() {
         Ok(MeshProviderPolicy::AffineTriangle(*provider))
     } else {
@@ -198,18 +211,23 @@ fn extract_provider(py: Python<'_>, provider: &Bound<'_, PyAny>) -> PyResult<Mes
     }
 }
 
-fn parse_cells(py: Python<'_>, cells: &Bound<'_, PyTuple>) -> PyResult<[usize; 2]> {
-    if cells.len() != 2 {
-        return Err(request_error(py, "cells must contain exactly (nx, ny)"));
+fn parse_cells(py: Python<'_>, cells: &Bound<'_, PyTuple>) -> PyResult<Vec<usize>> {
+    if !(1..=3).contains(&cells.len()) {
+        return Err(request_error(
+            py,
+            "cells must contain between one and three axis counts",
+        ));
     }
-    let mut parsed = [0; 2];
-    for (axis, value) in cells.iter().enumerate() {
+    let mut parsed = Vec::with_capacity(cells.len());
+    for value in cells.iter() {
         if value.is_instance_of::<PyBool>() {
             return Err(request_error(py, "cells must contain positive integers"));
         }
-        parsed[axis] = value
-            .extract::<usize>()
-            .map_err(|_| request_error(py, "cells must contain positive integers"))?;
+        parsed.push(
+            value
+                .extract::<usize>()
+                .map_err(|_| request_error(py, "cells must contain positive integers"))?,
+        );
     }
     Ok(parsed)
 }
@@ -304,7 +322,7 @@ pub(super) fn resolve(
 ) -> PyResult<PyMeshPlan> {
     panic_boundary(py, || {
         let provider = extract_provider(py, provider)?;
-        let planned = match provider {
+        let planned = match &provider {
             MeshProviderPolicy::Gmsh(provider) => {
                 let sizing = gmsh::plan(
                     geometry.geometry(),
@@ -317,13 +335,16 @@ pub(super) fn resolve(
                 PlannedMesh::Gmsh(sizing)
             }
             MeshProviderPolicy::Cartesian(provider) => {
-                if geometry.geometry().planar_rectangle_bounds().is_none() {
+                let dimension = geometry.geometry().ambient_dimension();
+                let admitted = geometry.geometry().planar_rectangle_bounds().is_some()
+                    || geometry.geometry().cartesian_box_bounds().is_some();
+                if !admitted || provider.policy.cells().len() != dimension {
                     return Err(request_error(
                         py,
-                        "CartesianMesher requires planar rectangle Geometry v2",
+                        "CartesianMesher requires dimension-matched exact Cartesian Geometry",
                     ));
                 }
-                validate_rectangle_boundary_extent(py, provider.policy.cells())?;
+                validate_cartesian_boundary_extent(py, provider.policy.cells())?;
                 PlannedMesh::Cartesian
             }
             MeshProviderPolicy::AffineTriangle(provider) => {
@@ -344,7 +365,8 @@ pub(super) fn resolve(
                         "the admitted adjacent-partition AffineTriangleMesher plan requires cells=(2, 2)",
                     ));
                 }
-                validate_rectangle_boundary_extent(py, provider.policy.cells())?;
+                let cells = provider.policy.cells();
+                validate_rectangle_boundary_extent(py, cells)?;
                 PlannedMesh::AffineTriangle
             }
         };
@@ -363,4 +385,13 @@ fn validate_rectangle_boundary_extent(py: Python<'_>, cells: [usize; 2]) -> PyRe
         .and_then(|sum| sum.checked_mul(2))
         .map(|_| ())
         .ok_or_else(|| request_error(py, "planned rectangle boundary extent overflows usize"))
+}
+
+fn validate_cartesian_boundary_extent(py: Python<'_>, cells: &[usize]) -> PyResult<()> {
+    cells
+        .iter()
+        .try_fold(0_usize, |sum, &count| sum.checked_add(count))
+        .and_then(|sum| sum.checked_mul(2))
+        .map(|_| ())
+        .ok_or_else(|| request_error(py, "planned Cartesian boundary extent overflows usize"))
 }

@@ -51,13 +51,49 @@ assert mesh.selection_entity_count("bottom") == 2
 assert mesh.selection_entity_count("top") == 2
 lineage = json.loads(mesh.production_lineage_bytes)
 assert lineage["provider"] == {
-    "identity": "eqiora.structured-cartesian", "version": "1"
+    "identity": "eqiora.structured-cartesian", "version": "2"
 }
 assert lineage["effective_policy"] == {
     "kind": "cartesian-cells", "cells": [2, 3]
 }
 
-for cells in ((0, 3), (2, 0), (2,), (True, 3)):
+interval_graph = eqiora.geometry.GeometryGraph()
+interval_operation = interval_graph.interval(bounds=(-1.0, 2.0))
+interval_geometry = interval_graph.build(interval_operation, named_topology={
+    "body": interval_operation.region,
+    "left": interval_operation.boundaries[0],
+    "right": interval_operation.boundaries[1],
+})
+interval_provider = eqiora.meshing.CartesianMesher(cells=(3,))
+assert interval_provider.cells == (3,)
+assert repr(interval_provider) == "CartesianMesher(cells=(3,))"
+interval_mesh = eqiora.meshing.generate(
+    eqiora.meshing.resolve(interval_geometry, interval_provider)
+)
+assert interval_geometry.dimension == interval_mesh.dimension == 1
+assert interval_geometry.bounds == ((-1.0, 2.0),)
+assert interval_geometry.selection("body").dimension == 1
+assert interval_geometry.selection("left").dimension == 0
+assert interval_mesh.coordinates.tolist() == [[-1.0], [0.0], [1.0], [2.0]]
+assert interval_mesh.cells.tolist() == [[0, 1], [1, 2], [2, 3]]
+assert interval_mesh.selection_entity_count(interval_geometry.selection("body")) == 3
+assert interval_mesh.selection_entity_count(interval_geometry.selection("left")) == 1
+assert interval_mesh.selection_entity_count(interval_geometry.selection("right")) == 1
+replayed_interval_mesh = eqiora.meshing.Mesh.from_bytes(interval_mesh.to_bytes())
+assert replayed_interval_mesh.digest == interval_mesh.digest
+assert replayed_interval_mesh.source_digest == interval_geometry.digest
+for geometry, mismatched in (
+    (interval_geometry, eqiora.meshing.CartesianMesher(cells=(2, 3))),
+    (source, interval_provider),
+):
+    try:
+        eqiora.meshing.resolve(geometry, mismatched)
+    except eqiora.ValidationError:
+        pass
+    else:
+        raise AssertionError("dimension-mismatched Cartesian policy was admitted")
+
+for cells in ((0, 3), (2, 0), (), (1, 1, 1, 1), (4_000_001,), (True, 3)):
     try:
         eqiora.meshing.CartesianMesher(cells=cells)
     except (eqiora.ValidationError, TypeError):

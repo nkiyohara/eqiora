@@ -30,6 +30,50 @@ struct CartesianEntity {
 }
 
 impl CartesianMesh {
+    /// Validate the complete analytic allocation shape of Cartesian cell counts.
+    ///
+    /// This performs the same entity and closure-reference bounds used by
+    /// construction without allocating coordinates or topology.
+    pub fn validate_cell_counts(cells_per_axis: &[usize]) -> Result<(), Diagnostic> {
+        if cells_per_axis.is_empty() || cells_per_axis.contains(&0) {
+            return Err(invalid_mesh(
+                "Cartesian cell counts require one positive count per axis",
+            ));
+        }
+        let (entities, vertex_references) = cells_per_axis.iter().try_fold(
+            (1_usize, 1_usize),
+            |(entities, vertex_references), &cells| {
+                let entity_factor = cells
+                    .checked_mul(2)
+                    .and_then(|value| value.checked_add(1))
+                    .ok_or_else(|| invalid_mesh("Cartesian entity shape overflows usize"))?;
+                let reference_factor = cells
+                    .checked_mul(3)
+                    .and_then(|value| value.checked_add(1))
+                    .ok_or_else(|| {
+                        invalid_mesh("Cartesian vertex-reference shape overflows usize")
+                    })?;
+                Ok::<_, Diagnostic>((
+                    entities
+                        .checked_mul(entity_factor)
+                        .ok_or_else(|| invalid_mesh("Cartesian entity count overflows usize"))?,
+                    vertex_references
+                        .checked_mul(reference_factor)
+                        .ok_or_else(|| {
+                            invalid_mesh("Cartesian vertex-reference count overflows usize")
+                        })?,
+                ))
+            },
+        )?;
+        if entities > MAX_CARTESIAN_ENTITIES || vertex_references > MAX_CARTESIAN_VERTEX_REFERENCES
+        {
+            return Err(invalid_mesh(format!(
+                "Cartesian mesh requires {entities} entities and {vertex_references} vertex references, exceeding inspectable artifact limits"
+            )));
+        }
+        Ok(())
+    }
+
     /// Construct a conforming mesh from the vertex coordinates of each axis.
     ///
     /// Axis coordinates must be finite and strictly increasing. At least one
@@ -127,6 +171,7 @@ impl CartesianMesh {
                 "uniform Cartesian bounds and cell counts require one common positive dimension",
             ));
         }
+        Self::validate_cell_counts(cells_per_axis)?;
         let axes = bounds
             .iter()
             .zip(cells_per_axis)

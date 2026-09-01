@@ -281,15 +281,15 @@ pub(super) fn elasticity_model(geometry: &CanonicalGeometryV1, mu: f64) -> Model
 }
 
 pub(super) fn resources(geometry: &CanonicalGeometryV1) -> AuthenticatedCommonMesh {
-    let cells = CartesianMeshCellsV1::new([2, 3]).unwrap();
+    let cells = CartesianMeshCellsV2::new([2, 3]).unwrap();
     let (mesh, correspondence) =
         GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
             geometry,
-            cells.cells(),
+            cells.cells().try_into().unwrap(),
         )
         .unwrap();
-    let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
-        cells,
+    let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
+        &cells,
         geometry,
         &mesh,
         &correspondence,

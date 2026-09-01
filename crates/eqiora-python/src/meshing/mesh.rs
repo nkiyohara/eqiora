@@ -330,10 +330,13 @@ impl PyMesh {
                 geometry,
                 correspondence,
                 ..
-            } => correspondence
-                .planar_rectangle_v2_entity_set_entities(geometry, name)
-                .and_then(|entities| validated_entity_count(entities, expected_dimension))
-                .map_err(|diagnostic| validation_error(py, &[diagnostic])),
+            } => (if geometry.cartesian_box_bounds().is_some() {
+                correspondence.cartesian_box_v1_entity_set_entities(geometry, name)
+            } else {
+                correspondence.planar_rectangle_v2_entity_set_entities(geometry, name)
+            })
+            .and_then(|entities| validated_entity_count(entities, expected_dimension))
+            .map_err(|diagnostic| validation_error(py, &[diagnostic])),
         }
     }
 
@@ -462,17 +465,27 @@ impl PyMesh {
                 "Cartesian MeshPlan has a non-Cartesian production policy",
             )
         })?;
-        correspondence
-            .validate_against_planar_rectangle_v2_cartesian(source, accepted_mesh, policy.cells())
-            .and_then(|()| {
-                production.validate_against_structured_cartesian_v1_resources(
-                    policy,
-                    source,
-                    accepted_mesh,
-                    correspondence,
-                )
-            })
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        (if source.cartesian_box_bounds().is_some() {
+            correspondence.validate_against_cartesian_box_v1(source, accepted_mesh, policy.cells())
+        } else {
+            let cells: [usize; 2] = policy.cells().try_into().map_err(|_| {
+                request_error(py, "planar rectangle Cartesian policy must have two axes")
+            })?;
+            correspondence.validate_against_planar_rectangle_v2_cartesian(
+                source,
+                accepted_mesh,
+                cells,
+            )
+        })
+        .and_then(|()| {
+            production.validate_against_structured_cartesian_v2_resources(
+                &policy,
+                source,
+                accepted_mesh,
+                correspondence,
+            )
+        })
+        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         let dimension = accepted_mesh.dimension();
         let native = accepted_mesh.mesh();
         let vertex_count = native
@@ -574,13 +587,19 @@ impl PyMesh {
                 "Cartesian Mesh has a non-Cartesian production policy",
             )
         })?;
-        correspondence.validate_against_planar_rectangle_v2_cartesian(
-            geometry,
-            mesh,
-            policy.cells(),
-        )?;
-        production.validate_against_structured_cartesian_v1_resources(
-            policy,
+        if geometry.cartesian_box_bounds().is_some() {
+            correspondence.validate_against_cartesian_box_v1(geometry, mesh, policy.cells())?;
+        } else {
+            let cells: [usize; 2] = policy.cells().try_into().map_err(|_| {
+                Diagnostic::error(
+                    codes::INVALID_ARTIFACT,
+                    "planar rectangle Cartesian policy must have two axes",
+                )
+            })?;
+            correspondence.validate_against_planar_rectangle_v2_cartesian(geometry, mesh, cells)?;
+        }
+        production.validate_against_structured_cartesian_v2_resources(
+            &policy,
             geometry,
             mesh,
             correspondence,
@@ -806,7 +825,7 @@ fn capability_error(py: Python<'_>, message: &str) -> PyErr {
 #[pyfunction]
 #[pyo3(signature = (plan, /))]
 pub(super) fn generate(py: Python<'_>, plan: &PyMeshPlan) -> PyResult<PyMesh> {
-    panic_boundary(py, || match (&plan.planned, plan.provider) {
+    panic_boundary(py, || match (&plan.planned, &plan.provider) {
         (PlannedMesh::Gmsh(sizing), MeshProviderPolicy::Gmsh(provider)) => {
             let quality_gate = eqiora::meshing::MeshQualityGate::new(provider.minimum_mean_ratio)
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
@@ -845,15 +864,25 @@ pub(super) fn generate(py: Python<'_>, plan: &PyMeshPlan) -> PyResult<PyMesh> {
             Ok(published)
         }
         (PlannedMesh::Cartesian, MeshProviderPolicy::Cartesian(provider)) => {
-            let (mesh, correspondence) =
-                GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
+            let generated = if plan.source.cartesian_box_bounds().is_some() {
+                GeometryMeshCorrespondenceEnvelopeV1::from_cartesian_box_v1(
                     &plan.source,
                     provider.policy.cells(),
                 )
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            } else {
+                let cells: [usize; 2] = provider.policy.cells().try_into().map_err(|_| {
+                    request_error(py, "planar rectangle Cartesian policy must have two axes")
+                })?;
+                GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
+                    &plan.source,
+                    cells,
+                )
+            };
+            let (mesh, correspondence) =
+                generated.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
             let production =
-                MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
-                    provider.policy,
+                MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
+                    &provider.policy,
                     &plan.source,
                     &mesh,
                     &correspondence,

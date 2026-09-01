@@ -1,0 +1,40 @@
+id = "geometry.interval-cartesian-common-mesh"
+status = "verified"
+scope = "exact-interval-to-structured-cartesian-common-mesh"
+reference_kind = "analytic-exact-topology-and-structural-correspondence-falsifiers"
+
+capabilities = [
+  "interval-cartesian-common-mesh",
+  "direct-endpoint-facet-correspondence",
+]
+
+[problem]
+geometry = "exact tolerance-free interval [-1, 2] with one body and two oriented endpoints"
+provider_policy = "three positive explicit Cartesian cells"
+
+[oracle]
+coordinates = "independently enumerated coordinates [-1, 0, 1, 2]"
+connectivity = "independently enumerated ordered segments [0,1], [1,2], [2,3]"
+boundary_membership = "left endpoint facet 0 and right endpoint facet 3"
+boundary_incidence = "left parent/local side (0,0), right parent/local side (2,1), identity orientation"
+partition = "the two endpoint facets are the complete exterior of the interval"
+replay = "canonical correspondence and complete authenticated Mesh occurrence reproduce exact resources"
+output_value_or_tolerance = false
+
+[falsifiers]
+geometry = "different exact interval rejects replay"
+policy = "empty, zero, over-dimensional, or substituted cell counts reject"
+topology = "endpoint facet mutation rejects exact replay"
+resources = "foreign Geometry, Mesh, correspondence, or production lineage rejects"
+
+[claim_boundary]
+cartesian_common_mesh = true
+direct_interval_correspondence = true
+model_or_physics = false
+q1_or_tpfa_finalization = false
+scientific_output_accuracy_or_performance = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-artifact"
+test = "geometry_mesh_correspondence::cartesian_box_v1_correspondence::tests::registered_interval_cartesian_common_mesh_evidence"

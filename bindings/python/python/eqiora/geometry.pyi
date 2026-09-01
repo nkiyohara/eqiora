@@ -8,7 +8,7 @@ from typing import final, overload
 
 @final
 class GeometryRegionHandle:
-    """Direct construction-owned handle to one exact planar region.
+    """Direct construction-owned handle to one exact region.
 
     Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryRegionHandle``.
     """
@@ -19,7 +19,7 @@ class GeometryRegionHandle:
 
 @final
 class GeometryBoundaryHandle:
-    """Direct construction-owned handle to one exact planar boundary.
+    """Direct construction-owned handle to one exact boundary.
 
     Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryBoundaryHandle``.
     """
@@ -32,7 +32,8 @@ class GeometryBoundaryHandle:
 class GeometryOperation:
     """Immutable result of one exact primitive or Boolean operation.
 
-    ``boundaries`` uses canonical construction order: a rectangle returns
+    ``boundaries`` uses canonical construction order: an interval returns
+    ``(lower, upper)``, a rectangle returns
     ``(x_lower, x_upper, y_lower, y_upper)``, a circle returns its sole curve,
     and subtract returns the four outer boundaries followed by the created cut.
 
@@ -47,12 +48,17 @@ class GeometryOperation:
 
 @final
 class GeometryGraph:
-    """Common owner of exact planar and solid authoring operations.
+    """Common owner of exact Cartesian, planar, and solid authoring operations.
 
     Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryGraph``.
     """
 
     def __init__(self) -> None: ...
+    def interval(
+        self,
+        *,
+        bounds: tuple[float, float],
+    ) -> GeometryOperation: ...
     def rectangle(
         self,
         *,
@@ -278,7 +284,15 @@ class Geometry:
     @property
     def dimension(self) -> int: ...
     @property
-    def bounds(self) -> tuple[tuple[float, float], tuple[float, float]]: ...
+    def bounds(
+        self,
+    ) -> (
+        tuple[tuple[float, float]]
+        | tuple[tuple[float, float], tuple[float, float]]
+        | tuple[
+            tuple[float, float], tuple[float, float], tuple[float, float]
+        ]
+    ): ...
     @property
     def classification_tolerance(self) -> float | None: ...
     @property
