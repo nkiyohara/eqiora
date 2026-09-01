@@ -163,7 +163,8 @@ impl PreparedCartesianIncompressibleOperator2d {
             }
         }
         let momentum_diagonal = momentum_diagonal(&cells, &facets, density, viscosity, duration)?;
-        let pressure_coupling = MomentumWeightedPressureCoupling2d::new(&mesh)?;
+        let pressure_coupling =
+            MomentumWeightedPressureCoupling2d::from_geometry(&mesh, &cells, &facets)?;
         Ok(Self {
             mesh,
             cells,

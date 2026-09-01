@@ -4,7 +4,11 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
 use eqiora_meshing::MeshEntity;
 
-use crate::cartesian_fvm_geometry::{CartesianFacetAdjacency2d, cartesian_fvm_geometry_2d};
+#[cfg(test)]
+use crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d;
+use crate::cartesian_fvm_geometry::{
+    CartesianCellMetrics2d, CartesianFacetAdjacency2d, CartesianFacetMetrics2d,
+};
 use eqiora_meshing::CartesianMesh;
 
 const DIMENSION: usize = 2;
@@ -55,10 +59,19 @@ impl MomentumWeightedPressureCoupling2d {
     ///
     /// # Errors
     /// Rejects a non-2D mesh or fewer than two cells on either axis.
+    #[cfg(test)]
     pub(crate) fn new(mesh: &CartesianMesh) -> Result<Self, Diagnostic> {
-        let axis_counts = require_supported_mesh(mesh)?;
+        require_supported_mesh(mesh)?;
         let (cells, geometry_facets) = cartesian_fvm_geometry_2d(mesh)?;
+        Self::from_geometry(mesh, &cells, &geometry_facets)
+    }
 
+    pub(crate) fn from_geometry(
+        mesh: &CartesianMesh,
+        cells: &[CartesianCellMetrics2d],
+        geometry_facets: &[CartesianFacetMetrics2d],
+    ) -> Result<Self, Diagnostic> {
+        let axis_counts = require_supported_mesh(mesh)?;
         let mut gradient_stencils = Vec::with_capacity(cells.len());
         for cell in 0..cells.len() {
             let entity = MeshEntity::new(DIMENSION, cell);
@@ -111,7 +124,7 @@ impl MomentumWeightedPressureCoupling2d {
         }
 
         let mut facets = Vec::with_capacity(geometry_facets.len());
-        for facet in geometry_facets {
+        for facet in geometry_facets.iter().copied() {
             let pressure_facet = match facet.adjacency {
                 CartesianFacetAdjacency2d::Interior {
                     lower,
