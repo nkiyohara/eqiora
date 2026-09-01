@@ -33,7 +33,7 @@ FAMILY_TOTAL_BYTES_LIMIT = 67_108_864
 MANIFEST_BYTES_LIMIT = 1_048_576
 ARCHIVE_MEMBER_COUNT_LIMIT = 4_096
 ARCHIVE_MEMBER_BYTES_LIMIT = 16_777_216
-ARCHIVE_TOTAL_BYTES_LIMIT = 134_217_728
+ARCHIVE_TOTAL_BYTES_LIMIT = 67_108_864
 
 
 def _base_checks() -> frozenset[str]:
@@ -227,8 +227,6 @@ def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
     wheel_members: list[dict[str, bytes]] = []
     wheel_metadata: list[bytes] = []
     total_bytes = 0
-    archive_member_count = 0
-    archive_total_bytes = 0
     filenames: set[str] = set()
     for index, raw in enumerate(records):
         record = _object(raw, f"artifacts[{index}]")
@@ -252,9 +250,11 @@ def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
             raise ManifestError("candidate family exceeds the raw byte ceiling")
         kind = record.get("kind")
         if kind == "sdist":
+            archive_member_count = 0
+            archive_total_bytes = 0
             try:
                 with tarfile.open(path, mode="r:*") as archive:
-                    for member in archive.getmembers():
+                    for member in archive:
                         name = _safe_archive_name(member.name, "sdist member")
                         if member.isdir():
                             continue
@@ -284,6 +284,8 @@ def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
             except (OSError, tarfile.TarError) as error:
                 raise ManifestError(f"cannot safely scan sdist: {error}") from error
         elif kind == "wheel":
+            archive_member_count = 0
+            archive_total_bytes = 0
             members: dict[str, bytes] = {}
             try:
                 with zipfile.ZipFile(path) as archive:

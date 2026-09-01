@@ -290,7 +290,7 @@ class CandidateManifestTests(unittest.TestCase):
             with mock.patch.object(sys, "argv", argv):
                 self.assertEqual(candidate_manifest_module.main(), 2)
 
-    def test_manifest_and_expanded_archive_bounds_fail_closed(self) -> None:
+    def test_manifest_and_expanded_archive_bounds_are_per_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             manifest, artifacts, _ = candidate_fixture(Path(temporary))
             with (
@@ -300,6 +300,27 @@ class CandidateManifestTests(unittest.TestCase):
                     manifest.stat().st_size - 1,
                 ),
                 self.assertRaisesRegex(ManifestError, "manifest exceeds"),
+            ):
+                load_candidate_family(manifest, artifacts)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest, artifacts, _ = candidate_fixture(Path(temporary))
+            with mock.patch.object(
+                candidate_manifest_module,
+                "ARCHIVE_MEMBER_COUNT_LIMIT",
+                3,
+            ):
+                load_candidate_family(manifest, artifacts)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest, artifacts, _ = candidate_fixture(Path(temporary))
+            with (
+                mock.patch.object(
+                    candidate_manifest_module,
+                    "ARCHIVE_TOTAL_BYTES_LIMIT",
+                    1,
+                ),
+                self.assertRaisesRegex(ManifestError, "expanded bounds"),
             ):
                 load_candidate_family(manifest, artifacts)
 
