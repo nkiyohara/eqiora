@@ -24,6 +24,7 @@ mod cartesian_transport;
 mod common_ode;
 mod common_result;
 mod common_trajectory;
+mod continuum_kinematics;
 mod diffusion;
 mod discrete_block;
 mod discrete_space;

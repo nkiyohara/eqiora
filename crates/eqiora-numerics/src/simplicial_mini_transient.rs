@@ -14,6 +14,7 @@ use eqiora_meshing::{
 };
 
 use crate::affine_fem::physical_gradient;
+use crate::continuum_kinematics::symmetric_gradient_bilinear_entry;
 use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
 
 /// Transport identity carried by the transient fluid relation.
@@ -235,15 +236,15 @@ impl<const D: usize> MiniScaledAffineCell<'_, D> {
                             } else {
                                 0.0
                             };
-                            let diagonal = if row_component == column_component {
-                                dot(&gradients[row_basis], &gradients[column_basis])
-                            } else {
-                                0.0
-                            };
-                            let crossed = gradients[row_basis][column_component]
-                                * gradients[column_basis][row_component];
                             matrix[row * local_size + column] += measure
-                                * (mass + self.viscosity * (diagonal + crossed))
+                                * (mass
+                                    + self.viscosity
+                                        * symmetric_gradient_bilinear_entry(
+                                            &gradients[row_basis],
+                                            row_component,
+                                            &gradients[column_basis],
+                                            column_component,
+                                        ))
                                 * self.scales.velocity
                                 * self.scales.velocity
                                 / self.scales.power;
@@ -542,7 +543,7 @@ impl<const D: usize> MiniTransientCell<'_, D> {
                                     0.0
                                 };
                                 let viscous = self.viscosity
-                                    * projected_symmetric_gradient_pair(
+                                    * symmetric_gradient_bilinear_entry(
                                         &gradients[row_basis],
                                         row_component,
                                         &gradients[column_basis],
@@ -1288,20 +1289,6 @@ fn projected_symmetric_gradient_test<const D: usize>(
                 + gradient[axis][test_component] * test_gradient[axis]
         })
         .sum()
-}
-
-fn projected_symmetric_gradient_pair(
-    row_gradient: &[f64],
-    row_component: usize,
-    column_gradient: &[f64],
-    column_component: usize,
-) -> f64 {
-    let diagonal = if row_component == column_component {
-        dot(row_gradient, column_gradient)
-    } else {
-        0.0
-    };
-    diagonal + row_gradient[column_component] * column_gradient[row_component]
 }
 
 struct ProjectedConvectiveLinearization<'a, const D: usize> {

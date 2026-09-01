@@ -14,7 +14,9 @@ use super::layout::FsiLayout;
 use super::partition::{CellMaterial, FixedReferenceFsiPartition};
 use super::{fluid_local_size, invalid, mini_count, p1_count};
 use crate::affine_fem::physical_gradient;
+use crate::continuum_kinematics::{symmetric_gradient, twice_symmetric_gradient_squared_norm};
 use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
+use crate::linear_elasticity::isotropic_strain_energy_density;
 
 pub(super) struct EnergyEvaluation<'a, const D: usize = 2> {
     pub(super) mesh: &'a SimplicialMesh,
@@ -106,7 +108,7 @@ pub(super) fn energy_balance<const D: usize>(
                 0.5 * weight * material.fluid_density() * dot(&difference, &difference);
             viscous_dissipation += weight
                 * material.fluid_dynamic_viscosity()
-                * symmetric_gradient_twice_norm(&new_gradient);
+                * twice_symmetric_gradient_squared_norm(&new_gradient);
         }
     }
 
@@ -163,9 +165,9 @@ pub(super) fn energy_balance<const D: usize>(
             kinetic_increment +=
                 0.5 * weight * material.solid_density() * dot(&difference, &difference);
             previous_elastic +=
-                0.5 * weight * elastic_density(&old_displacement_gradient, material);
-            next_elastic += 0.5 * weight * elastic_density(&new_displacement_gradient, material);
-            elastic_increment += 0.5 * weight * elastic_density(&increment_gradient, material);
+                weight * elastic_energy_density(&old_displacement_gradient, material);
+            next_elastic += weight * elastic_energy_density(&new_displacement_gradient, material);
+            elastic_increment += weight * elastic_energy_density(&increment_gradient, material);
         }
     }
     let viscous_dissipation = config.time_step() * viscous_dissipation;
@@ -200,30 +202,15 @@ pub(super) fn energy_balance<const D: usize>(
     })
 }
 
-fn elastic_density<const D: usize>(
+fn elastic_energy_density<const D: usize>(
     gradient: &[[f64; D]; D],
     material: FixedReferenceFsiMaterial<D>,
 ) -> f64 {
-    material.solid_shear_modulus() * symmetric_gradient_twice_norm(gradient)
-        + material.solid_first_lame_parameter() * trace(gradient).powi(2)
-}
-
-fn symmetric_gradient_twice_norm<const D: usize>(gradient: &[[f64; D]; D]) -> f64 {
-    let mut squared_norm = gradient
-        .iter()
-        .enumerate()
-        .map(|(axis, row)| 2.0 * row[axis].powi(2))
-        .sum::<f64>();
-    for (row, row_values) in gradient.iter().enumerate() {
-        for (column, column_values) in gradient.iter().enumerate().skip(row + 1) {
-            squared_norm += (row_values[column] + column_values[row]).powi(2);
-        }
-    }
-    squared_norm
-}
-
-fn trace<const D: usize>(gradient: &[[f64; D]; D]) -> f64 {
-    (0..D).map(|axis| gradient[axis][axis]).sum()
+    isotropic_strain_energy_density(
+        &symmetric_gradient(gradient),
+        material.solid_shear_modulus(),
+        material.solid_first_lame_parameter(),
+    )
 }
 
 pub(super) fn require_pressure_closed_by_complete_operator<const D: usize>(
@@ -398,23 +385,4 @@ pub(super) fn kinematic_residual_norm<const D: usize>(
 
 pub(super) fn norm(values: &[f64]) -> f64 {
     values.iter().map(|value| value * value).sum::<f64>().sqrt()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{symmetric_gradient_twice_norm, trace};
-
-    #[test]
-    fn three_dimensional_strain_invariants_include_every_axis_and_shear_pair() {
-        let gradient = [[1.0, 2.0, 3.0], [5.0, 7.0, 11.0], [13.0, 17.0, 19.0]];
-
-        assert_eq!(trace(&gradient), 1.0 + 7.0 + 19.0);
-        assert_eq!(
-            symmetric_gradient_twice_norm(&gradient),
-            2.0 * (1.0_f64.powi(2) + 7.0_f64.powi(2) + 19.0_f64.powi(2))
-                + (2.0_f64 + 5.0).powi(2)
-                + (3.0_f64 + 13.0).powi(2)
-                + (11.0_f64 + 17.0).powi(2)
-        );
-    }
 }

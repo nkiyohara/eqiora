@@ -7,7 +7,8 @@ use super::{
     CELL_LOCAL_DOF_COUNT, COMPONENTS, DIMENSION, LOCAL_PRESSURE_OFFSET, P1_BASIS_COUNT,
     SimplicialMiniVelocityField2d, VELOCITY_BASIS_COUNT, invalid,
 };
-use crate::affine_fem::{dot, physical_gradient};
+use crate::affine_fem::physical_gradient;
+use crate::continuum_kinematics::symmetric_gradient_bilinear_entry;
 use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
 use crate::operator::LocalOperator;
 use crate::simplicial_elliptic::SimplicialP1Field;
@@ -48,15 +49,14 @@ where
                     for column_basis in 0..VELOCITY_BASIS_COUNT {
                         for column_component in 0..COMPONENTS {
                             let column = local_velocity(column_basis, column_component);
-                            let component_diagonal = if row_component == column_component {
-                                dot(&gradients[row_basis], &gradients[column_basis])
-                            } else {
-                                0.0
-                            };
-                            let crossed = gradients[row_basis][column_component]
-                                * gradients[column_basis][row_component];
-                            matrix[row * CELL_LOCAL_DOF_COUNT + column] +=
-                                scale * self.viscosity * (component_diagonal + crossed);
+                            matrix[row * CELL_LOCAL_DOF_COUNT + column] += scale
+                                * self.viscosity
+                                * symmetric_gradient_bilinear_entry(
+                                    &gradients[row_basis],
+                                    row_component,
+                                    &gradients[column_basis],
+                                    column_component,
+                                );
                         }
                     }
                     for pressure_basis in 0..P1_BASIS_COUNT {
