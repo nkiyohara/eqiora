@@ -15,6 +15,7 @@ use super::{
 };
 use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::canonical_boundary::CartesianBoundaryInventory;
+use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
 
 const LENGTH: DimExponents = DimExponents {
@@ -61,6 +62,7 @@ pub struct IsotropicElastodynamicsCartesianModel<const D: usize> {
     momentum_relation: RawId,
     bounds: [[f64; 2]; D],
     mass_density: ScalarSpatialExpression,
+    material: IsotropicElasticityMaterial<D>,
     shear_modulus: ScalarSpatialExpression,
     first_lame_parameter: ScalarSpatialExpression,
     load_potential_expression: ScalarSpatialExpression,
@@ -137,9 +139,7 @@ impl<const D: usize> IsotropicElastodynamicsCartesianModel<D> {
     /// Positive shear modulus in coherent SI units.
     #[must_use]
     pub fn shear_modulus(&self) -> f64 {
-        self.shear_modulus
-            .constant_value()
-            .expect("elastodynamic lowerer retains a constant shear-modulus tape")
+        self.material.shear_modulus()
     }
 
     /// Immutable shear-modulus expression used by volume and boundary checks.
@@ -151,9 +151,11 @@ impl<const D: usize> IsotropicElastodynamicsCartesianModel<D> {
     /// First Lame parameter in coherent SI units.
     #[must_use]
     pub fn first_lame_parameter(&self) -> f64 {
-        self.first_lame_parameter
-            .constant_value()
-            .expect("elastodynamic lowerer retains a constant first-Lame-parameter tape")
+        self.material.first_lame_parameter()
+    }
+
+    pub(crate) const fn material(&self) -> IsotropicElasticityMaterial<D> {
+        self.material
     }
 
     /// Immutable first-Lame-parameter expression used by volume and boundary checks.
@@ -387,18 +389,14 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
             "first Lame parameter must be spatially constant",
         ));
     };
-    if !mu.is_finite()
-        || !lambda_value.is_finite()
-        || mu <= 0.0
-        || !matches!(lambda_value + 2.0 * mu / D as f64, value if value.is_finite() && value > 0.0)
-    {
+    let Some(material) = IsotropicElasticityMaterial::<D>::new(mu, lambda_value) else {
         return Err(lowering_error(
             momentum_relation,
             format!(
                 "{D}D isotropic elastodynamics requires finite `mu > 0` and `lambda + 2 mu / D > 0`"
             ),
         ));
-    }
+    };
 
     let lowered_boundary = match boundaries {
         Some(boundaries) => boundary::lower_dimension_with_boundaries::<D>(
@@ -429,6 +427,7 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
         momentum_relation,
         bounds,
         mass_density,
+        material,
         shear_modulus,
         first_lame_parameter: lambda,
         load_potential_expression,

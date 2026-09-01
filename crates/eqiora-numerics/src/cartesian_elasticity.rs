@@ -328,7 +328,7 @@ pub fn lower_cartesian_q1_linear_elasticity_local_action_2d(
     first_lame_parameter: f64,
     quadrature: &QuadratureRule,
 ) -> Result<LocalLinearActionIr, Diagnostic> {
-    validate_problem(mesh, shear_modulus, first_lame_parameter, quadrature)?;
+    let material = admit_problem(mesh, shear_modulus, first_lame_parameter, quadrature)?;
     let cell_count = mesh
         .entity_count(DIMENSION)
         .expect("a two-dimensional mesh owns its cell stratum");
@@ -355,8 +355,8 @@ pub fn lower_cartesian_q1_linear_elasticity_local_action_2d(
         let local = operator.evaluate(
             &geometry,
             quadrature,
-            shear_modulus,
-            first_lame_parameter,
+            material.shear_modulus(),
+            material.first_lame_parameter(),
             None,
         )?;
         debug_assert_eq!(local.rows(), local_width);
@@ -410,10 +410,10 @@ pub fn solve_cartesian_q1_linear_elasticity_2d_with_assembly(
     assembly: &dyn AssemblyBackend,
     solver: LinearSolveRequest<'_>,
 ) -> Result<CartesianLinearElasticity2dSolution, Diagnostic> {
+    let material = admit_problem(mesh, shear_modulus, first_lame_parameter, quadrature)?;
     let assembled = finalize_cartesian_q1_linear_elasticity_2d(
         mesh,
-        shear_modulus,
-        first_lame_parameter,
+        material,
         body_force_potential,
         quadrature,
         CartesianEssentialSides2d::complete_boundary(),
@@ -534,14 +534,14 @@ impl FinalizedCartesianElasticity2dState {
 
 pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
     mesh: &CartesianMesh,
-    shear_modulus: f64,
-    first_lame_parameter: f64,
+    material: IsotropicElasticityMaterial<DIMENSION>,
     body_force_potential: &ScalarSpatialExpression,
     quadrature: &QuadratureRule,
     essential_sides: CartesianEssentialSides2d,
     assembly: &dyn AssemblyBackend,
 ) -> Result<FinalizedCartesianElasticity2dAssembly, Diagnostic> {
-    validate_problem(mesh, shear_modulus, first_lame_parameter, quadrature)?;
+    require_two_dimensional_mesh(mesh)?;
+    require_cell_rule(mesh, quadrature)?;
     if !essential_sides.has_essential_side() {
         return Err(invalid(
             "Cartesian Q1 elasticity requires at least one complete homogeneous essential side to remove rigid modes",
@@ -601,8 +601,8 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
         let local = operator.evaluate(
             &geometry,
             quadrature,
-            shear_modulus,
-            first_lame_parameter,
+            material.shear_modulus(),
+            material.first_lame_parameter(),
             Some(body_force_potential),
         )?;
         let vertices = mesh
@@ -707,20 +707,22 @@ fn global_dof(vertex: usize, component: usize) -> Result<usize, Diagnostic> {
         .ok_or_else(|| invalid("elasticity global DOF index overflows usize"))
 }
 
-fn validate_problem(
+fn admit_problem(
     mesh: &CartesianMesh,
     shear_modulus: f64,
     first_lame_parameter: f64,
     quadrature: &QuadratureRule,
-) -> Result<(), Diagnostic> {
+) -> Result<IsotropicElasticityMaterial<DIMENSION>, Diagnostic> {
     require_two_dimensional_mesh(mesh)?;
-    if IsotropicElasticityMaterial::<DIMENSION>::new(shear_modulus, first_lame_parameter).is_none()
-    {
-        return Err(invalid(
-            "two-dimensional isotropic elasticity requires finite mu > 0 and lambda + mu > 0",
-        ));
-    }
-    require_cell_rule(mesh, quadrature)
+    let material = IsotropicElasticityMaterial::<DIMENSION>::new(
+        shear_modulus,
+        first_lame_parameter,
+    )
+    .ok_or_else(|| {
+        invalid("two-dimensional isotropic elasticity requires finite mu > 0 and lambda + mu > 0")
+    })?;
+    require_cell_rule(mesh, quadrature)?;
+    Ok(material)
 }
 
 fn require_two_dimensional_mesh(mesh: &CartesianMesh) -> Result<(), Diagnostic> {

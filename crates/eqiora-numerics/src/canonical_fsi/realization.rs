@@ -499,12 +499,11 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
     require_mesh_partition(model, mesh, partition)?;
     let realization_graph = resolved.portable_graph(solid_kinematic_relation(model))?;
     let scales = require_exact_plan(model, resolved, &realization_graph, mesh_artifact)?;
-    let material = FixedReferenceFsiMaterial2d::new(
+    let material = FixedReferenceFsiMaterial2d::from_admitted_solid(
         model.fluid().mass_density(),
         model.fluid().dynamic_viscosity(),
         model.solid().mass_density(),
-        model.solid().shear_modulus(),
-        model.solid().first_lame_parameter(),
+        model.solid().material(),
     )
     .map_err(realization_error)?;
     let scale = FixedReferenceFsiScale2d::new(

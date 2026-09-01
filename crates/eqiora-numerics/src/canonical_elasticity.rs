@@ -84,6 +84,7 @@ pub struct IsotropicElasticityCartesianModel2d {
     load_definition_relation: RawId,
     balance_relation: RawId,
     bounds: [[f64; 2]; 2],
+    material: IsotropicElasticityMaterial<2>,
     shear_modulus: ScalarSpatialExpression,
     first_lame_parameter: ScalarSpatialExpression,
     load_potential_expression: ScalarSpatialExpression,
@@ -131,17 +132,17 @@ impl IsotropicElasticityCartesianModel2d {
     /// Shear modulus `mu` in coherent SI units.
     #[must_use]
     pub fn shear_modulus(&self) -> f64 {
-        self.shear_modulus
-            .constant_value()
-            .expect("elastic lowerer retains a constant shear-modulus tape")
+        self.material.shear_modulus()
     }
 
     /// First Lamé parameter `lambda` in coherent SI units.
     #[must_use]
     pub fn first_lame_parameter(&self) -> f64 {
-        self.first_lame_parameter
-            .constant_value()
-            .expect("elastic lowerer retains a constant first-Lame-parameter tape")
+        self.material.first_lame_parameter()
+    }
+
+    pub(crate) const fn material(&self) -> IsotropicElasticityMaterial<2> {
+        self.material
     }
 
     /// Canonical constant expression retaining `mu` Parameter identity.
@@ -175,7 +176,6 @@ impl IsotropicElasticityCartesianModel2d {
     }
 
     /// Evaluate `grad(q)` from the same canonical tape as the model Relation.
-    ///
     /// # Errors
     /// Preserves the tape's exact shape and finite-evaluation diagnostics.
     pub fn conservative_body_force(&self, coordinates: &[f64]) -> Result<[f64; 2], Diagnostic> {
@@ -400,12 +400,12 @@ fn lower_isotropic_elasticity_subdomain_2d_with_boundaries(
             "first-Lame-parameter expression is not finitely evaluable",
         ));
     };
-    if IsotropicElasticityMaterial::<2>::new(shear_value, lambda_value).is_none() {
+    let Some(material) = IsotropicElasticityMaterial::<2>::new(shear_value, lambda_value) else {
         return Err(lowering_error(
             balance_relation,
             "2D isotropic elasticity requires finite `mu > 0` and `lambda + mu > 0`",
         ));
-    }
+    };
     Ok(LoweredIsotropicElasticitySubdomain2d {
         model: IsotropicElasticityCartesianModel2d {
             domain,
@@ -414,6 +414,7 @@ fn lower_isotropic_elasticity_subdomain_2d_with_boundaries(
             load_definition_relation: load_relation,
             balance_relation,
             bounds,
+            material,
             shear_modulus,
             first_lame_parameter: lambda,
             load_potential_expression,
@@ -550,8 +551,7 @@ pub(crate) fn finalize_isotropic_elasticity_cartesian_q1_on_mesh(
         },
         finalize_cartesian_q1_linear_elasticity_2d(
             mesh,
-            model.shear_modulus(),
-            model.first_lame_parameter(),
+            model.material(),
             model.load_potential_expression(),
             &quadrature,
             essential_sides,
