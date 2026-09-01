@@ -255,8 +255,11 @@ impl RecognizedNativeAdmission {
         let transient_geometry =
             recognize_transient_incompressible_navier_stokes_geometry_mathematics(&program);
         let fsi = lower_fixed_reference_fsi_geometry_2d(&program, resources.geometry());
-        let capability = recognize_capability(&program, &transient, &transient_geometry, &fsi)?;
-        let recognized = recognize_exact_model(capability, &program, &resources, transient, fsi)?;
+        let scalar = lower_scalar_candidate(&program, &resources);
+        let capability =
+            recognize_capability(&program, &scalar, &transient, &transient_geometry, &fsi)?;
+        let recognized =
+            recognize_exact_model(capability, &program, &resources, scalar, transient, fsi)?;
         let model_digest = model.digest()?.to_string();
         Ok(Self {
             model: model.clone(),
@@ -472,7 +475,8 @@ impl NativeNumericalAdmission {
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         match self.spatial {
             NativeSpatialPolicy::ScalarQ1 => {
-                let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2)?;
+                let quadrature =
+                    QuadratureRule::tensor_product_gauss_legendre(mesh.dimension(), 2)?;
                 let finalized = finalize_scalar_elliptic_cartesian_fem(
                     mesh.mesh(),
                     &coefficient,
@@ -489,8 +493,12 @@ impl NativeNumericalAdmission {
                     .map(ResolvedScalarEllipticCartesianSolution::FiniteElement)
             }
             NativeSpatialPolicy::ScalarTpfa => {
-                let cell = QuadratureRule::tensor_product_gauss_legendre(2, 1)?;
-                let facet = QuadratureRule::gauss_legendre(1)?;
+                let cell = QuadratureRule::tensor_product_gauss_legendre(mesh.dimension(), 1)?;
+                let facet = if mesh.dimension() == 1 {
+                    QuadratureRule::point()
+                } else {
+                    QuadratureRule::tensor_product_gauss_legendre(mesh.dimension() - 1, 1)?
+                };
                 let finalized = finalize_scalar_elliptic_cartesian_fvm(
                     mesh.mesh(),
                     &coefficient,
@@ -559,8 +567,8 @@ pub(super) use identity::{
     space_identity,
 };
 pub(super) use recognition::{
-    recognize_capability, recognize_exact_model, require_policy_compatibility,
-    resource_artifact_digests, resource_digests,
+    lower_scalar_candidate, recognize_capability, recognize_exact_model,
+    require_policy_compatibility, resource_artifact_digests, resource_digests,
 };
 pub(super) use resources::{
     derive_gmsh_resources, validate_cartesian_resources, validate_resources,

@@ -1,5 +1,4 @@
 use super::*;
-use crate::form_compiler::derive_candidate;
 
 fn describe_primal(
     kind: FormulationKind,
@@ -31,10 +30,29 @@ pub(super) fn resolve_common_scalar_portable(
     admission: &NativeNumericalAdmission,
     lowered: &ScalarEllipticCartesianModel,
     mesh: &CartesianMeshEnvelopeV1,
-    cells: [usize; 2],
+    cells: &[usize],
 ) -> Result<PortableRealizationGraph, Diagnostic> {
-    let cells = cells
-        .map(|count| NonZeroUsize::new(count).expect("validated Cartesian cells are non-zero"));
+    let artifact = mesh.artifact_reference()?;
+    let nonzero = |count| NonZeroUsize::new(count).expect("validated Cartesian cells are non-zero");
+    let mesh = match cells {
+        [x] => MeshPolicy::SuppliedCartesian1d {
+            artifact,
+            cells: [nonzero(*x)],
+        },
+        [x, y] => MeshPolicy::SuppliedCartesian {
+            artifact,
+            cells: [nonzero(*x), nonzero(*y)],
+        },
+        [x, y, z] => MeshPolicy::SuppliedCartesian3d {
+            artifact,
+            cells: [nonzero(*x), nonzero(*y), nonzero(*z)],
+        },
+        _ => {
+            return Err(invalid(
+                "common scalar Plan requires one to three Cartesian axes",
+            ));
+        }
+    };
     let (method, space, quadrature) = match admission.spatial {
         NativeSpatialPolicy::ScalarQ1 => (
             DiscretizationMethod::ContinuousGalerkin,
@@ -72,14 +90,7 @@ pub(super) fn resolve_common_scalar_portable(
         lowered.domain_id(),
         lowered.field_id(),
         space,
-        Discretization::new(
-            method,
-            MeshPolicy::SuppliedCartesian {
-                artifact: mesh.artifact_reference()?,
-                cells,
-            },
-            quadrature,
-        ),
+        Discretization::new(method, mesh, quadrature),
         LinearOperatorProperties::SymmetricPositiveDefinite,
         ScalarType::F64,
         VectorLayoutKind::Replicated,
@@ -115,7 +126,7 @@ impl CommonScalarPlan {
         }
         require_portable_realization(
             &self.portable,
-            resolve_common_scalar_portable(&self.admission, lowered, mesh, self.cells)?,
+            resolve_common_scalar_portable(&self.admission, lowered, mesh, &self.cells)?,
         )
     }
 
@@ -141,14 +152,12 @@ impl CommonScalarPlan {
         let mesh_digest = mesh.digest()?.to_string();
         let correspondence_digest = correspondence.digest()?.to_string();
         let production_digest = production.digest()?.to_string();
-        let cells = [
-            mesh.mesh()
-                .axis_cell_count(0)
-                .ok_or_else(|| invalid("common Plan Mesh omitted x-axis cells"))?,
-            mesh.mesh()
-                .axis_cell_count(1)
-                .ok_or_else(|| invalid("common Plan Mesh omitted y-axis cells"))?,
-        ];
+        let cells = production
+            .cartesian_cells()
+            .ok_or_else(|| invalid("common scalar Plan lost its Cartesian production policy"))?
+            .cells()
+            .to_vec()
+            .into_boxed_slice();
         let RecognizedNativeModel::Scalar(lowered) = &admission.recognized else {
             return Err(invalid(
                 "common scalar Plan admitted non-scalar mathematics",
@@ -157,49 +166,46 @@ impl CommonScalarPlan {
         let mut accepted_authored_formulation = None;
         let formulation = match formulation_selection {
             None => None,
-            Some(selection) => {
-                match derive_candidate(&admission.program, lowered.domain_id().erase())? {
-                    Some(derived) => {
-                        if let Some(projection) = authored_formulation {
-                            crate::form_compiler::admit_authored_scalar_primal_form(
-                                projection,
-                                &admission.program,
-                                &derived,
-                            )?;
-                            accepted_authored_formulation = Some(projection.clone());
-                        }
-                        let (kind, boundary_treatment, rule_ids) =
-                            derived.formulation_description();
-                        let mut description = describe_primal(
-                            kind,
-                            boundary_treatment,
-                            rule_ids,
-                            if authored_formulation.is_some() {
-                                FormulationSelectionMode::Authored
-                            } else {
-                                selection
-                            },
-                        );
-                        description.requested_source_identity = accepted_authored_formulation
-                            .as_ref()
-                            .map(|form| form.source_identity().to_owned());
-                        Some(description)
+            Some(selection) => match lowered.compiled_form.as_ref() {
+                Some(derived) => {
+                    if let Some(projection) = authored_formulation {
+                        crate::form_compiler::admit_authored_scalar_primal_form(
+                            projection,
+                            &admission.program,
+                            derived,
+                        )?;
+                        accepted_authored_formulation = Some(projection.clone());
                     }
-                    None if authored_formulation.is_some() => {
-                        return Err(invalid(
-                            "authored scalar Q1 primal Formulation requires the admitted complete homogeneous-essential boundary class",
-                        ));
-                    }
-                    None if selection == FormulationSelectionMode::Automatic => None,
-                    None => {
-                        return Err(invalid(
-                            "exact scalar Q1 primal Formulation requires the admitted complete homogeneous-essential boundary class",
-                        ));
-                    }
+                    let (kind, boundary_treatment, rule_ids) = derived.formulation_description();
+                    let mut description = describe_primal(
+                        kind,
+                        boundary_treatment,
+                        rule_ids,
+                        if authored_formulation.is_some() {
+                            FormulationSelectionMode::Authored
+                        } else {
+                            selection
+                        },
+                    );
+                    description.requested_source_identity = accepted_authored_formulation
+                        .as_ref()
+                        .map(|form| form.source_identity().to_owned());
+                    Some(description)
                 }
-            }
+                None if authored_formulation.is_some() => {
+                    return Err(invalid(
+                        "authored scalar Q1 primal Formulation requires the admitted complete homogeneous-essential boundary class",
+                    ));
+                }
+                None if selection == FormulationSelectionMode::Automatic => None,
+                None => {
+                    return Err(invalid(
+                        "exact scalar Q1 primal Formulation requires the admitted complete homogeneous-essential boundary class",
+                    ));
+                }
+            },
         };
-        let portable = resolve_common_scalar_portable(&admission, lowered, mesh, cells)?;
+        let portable = resolve_common_scalar_portable(&admission, lowered, mesh, &cells)?;
         let realization_digest = hex_bytes(&portable.digest()?);
         let field = lowered.field_id();
         let field_id = field.ulid().to_string();
@@ -321,6 +327,7 @@ impl CommonScalarPlan {
                 "common scalar differentiation requires exact Cartesian resources",
             ));
         };
+        let dimension = self.cells.len();
         let mesh = mesh.mesh();
         let source = |coordinates: &[f64]| bound.source().evaluate(coordinates).unwrap_or(f64::NAN);
         let coefficient = |coordinates: &[f64]| {
@@ -349,7 +356,7 @@ impl CommonScalarPlan {
         };
         let finalized = match self.admission.spatial {
             NativeSpatialPolicy::ScalarQ1 => {
-                let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2)?;
+                let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
                 let assembly = finalize_scalar_elliptic_cartesian_fem(
                     mesh,
                     &coefficient,
@@ -368,8 +375,12 @@ impl CommonScalarPlan {
                 )?
             }
             NativeSpatialPolicy::ScalarTpfa => {
-                let cell = QuadratureRule::tensor_product_gauss_legendre(2, 1)?;
-                let facet = QuadratureRule::gauss_legendre(1)?;
+                let cell = QuadratureRule::tensor_product_gauss_legendre(dimension, 1)?;
+                let facet = if dimension == 1 {
+                    QuadratureRule::point()
+                } else {
+                    QuadratureRule::tensor_product_gauss_legendre(dimension - 1, 1)?
+                };
                 let assembly = finalize_scalar_elliptic_cartesian_fvm(
                     mesh,
                     &coefficient,
@@ -419,7 +430,7 @@ impl CommonScalarPlan {
             .collect::<Vec<_>>();
         let (relation, output) = match &solution {
             ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) => {
-                let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2)?;
+                let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
                 (
                     linearize_scalar_elliptic_cartesian_fem(
                         &bound,
@@ -437,8 +448,12 @@ impl CommonScalarPlan {
                 )
             }
             ResolvedScalarEllipticCartesianSolution::FiniteVolume(solution) => {
-                let cell = QuadratureRule::tensor_product_gauss_legendre(2, 1)?;
-                let facet = QuadratureRule::gauss_legendre(1)?;
+                let cell = QuadratureRule::tensor_product_gauss_legendre(dimension, 1)?;
+                let facet = if dimension == 1 {
+                    QuadratureRule::point()
+                } else {
+                    QuadratureRule::tensor_product_gauss_legendre(dimension - 1, 1)?
+                };
                 (
                     linearize_scalar_elliptic_cartesian_fvm(
                         &bound,
@@ -543,8 +558,8 @@ impl CommonScalarPlan {
     }
 
     #[must_use]
-    pub const fn cells(&self) -> [usize; 2] {
-        self.cells
+    pub fn cells(&self) -> &[usize] {
+        &self.cells
     }
 
     #[must_use]
