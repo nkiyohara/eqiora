@@ -36,17 +36,13 @@ A candidate is accepted only from a clean source commit. The release gate:
 3. checks the declared wheel tags and metadata;
 4. installs each wheel into an isolated environment outside the source tree;
 5. runs exact Gmsh 4.15.2 meshing plus the base, NumPy ownership,
-   async/cancellation, typing, PyTorch, JAX, Matplotlib, and exact CPython 3.13
-   Notebook profiles, including the shared viewer host, within their declared
-   boundaries;
+   async/cancellation, typing, PyTorch, JAX, and Matplotlib profiles within
+   their declared boundaries;
 6. replays the public base quick start on every wheel and the public framework
    quick starts on the exact framework interpreter before upload;
 7. verifies NumPy 2.1.0 separately on CPython 3.12 while retaining the ordinary
    latest-resolution profiles;
-8. rebuilds the private Notebook frontend twice with exact Node 24.18.1 and
-   npm 11.16.0 in distinct home-backed scratch directories and records the
-   canonical detached H2 receipt; and
-9. records source identity, artifact hashes, build-tool versions, the observed
+8. records source identity, artifact hashes, build-tool versions, the observed
    NumPy floor, and passing profiles in the candidate manifest.
 
 Artifact construction, wheel inspection, interpreter resolution, and shared
@@ -83,20 +79,11 @@ so the verification runner may execute the target once while retaining a
 report for each case. The focused adapter scripts remain developer diagnostics;
 they are not a second candidate identity and may rebuild during standalone use.
 
-N1 candidates use `eqiora.python-distribution-candidate/v3`. Selection is
-fail-closed across the complete sdist, four-wheel family, requested profiles,
-checks, and manifest: the retained Marimo host harness, notebook profile,
-frontend schema, or v3 format requires v3. The v2 reader remains only for
-complete candidate families with none of those signals.
-
-The canonical H2 receipt is retained beside the candidate manifest, outside
-the publishable artifact directory. Its detached SHA-256 binds the exact
-source commit, complete sdist/wheel inventory, host lock graph,
-Node/npm/browser identity, and resolved Python host environment. It proves that
-the retained host harness passes type and lint validation twice from identical
-locked inputs without post-install network access. The manifest
-remains provenance for one artifact set; neither v3 nor H2 claims reproducible
-distribution bytes, signatures, or equality on another machine.
+Current candidates use `eqiora.python-distribution-candidate/v4`. The manifest
+binds the complete sdist/four-wheel family and every required installed-wheel
+profile without carrying a UI-host runtime, browser identity, or detached host
+receipt. Historical v2 and v3 readers remain compatibility boundaries; new
+publication writes only v4.
 
 Build into an empty directory outside the source tree:
 
@@ -124,8 +111,8 @@ meshing path; separating it preserves the base package's `manylinux_2_17`
 floor. The Linux Gmsh wheel also requires `libGLU.so.1`. PyTorch, JAX,
 Matplotlib, and exact `anywidget==0.11.0` remain optional extras, and importing
 the base package must neither require nor import any of them. The wheel carries
-the viewer JavaScript and CSS. Marimo, Playwright, and Chromium are
-verified candidate-host inputs and do not become Eqiora runtime dependencies.
+the viewer JavaScript and CSS; the candidate does not install a separate
+notebook host or browser runtime.
 The first Matplotlib adapter uses exact release 3.11.1 with the headless Agg
 backend. Its registered adapter profile runs on ordinary-GIL CPython 3.13;
 the other wheel interpreters are not Matplotlib adapter compatibility

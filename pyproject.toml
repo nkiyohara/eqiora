@@ -58,7 +58,6 @@ include = [
     { path = "bindings/python/frontend/package-lock.json", format = "sdist" },
     { path = "bindings/python/frontend/biome.json", format = "sdist" },
     { path = "bindings/python/frontend/tsconfig.json", format = "sdist" },
-    { path = "bindings/python/frontend/playwright.config.ts", format = "sdist" },
     { path = "bindings/python/frontend/playwright.viewer.config.ts", format = "sdist" },
     { path = "bindings/python/frontend/vite.config.ts", format = "sdist" },
     { path = "bindings/python/frontend/src/**", format = "sdist" },

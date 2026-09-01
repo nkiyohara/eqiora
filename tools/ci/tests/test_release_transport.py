@@ -683,7 +683,33 @@ def load_candidate_family(
     )
 
 
+def complete_v4_candidate_document(
+    root: Path,
+) -> tuple[Path, Path, dict[str, object]]:
+    manifest, artifacts, document, receipt, _ = complete_v3_candidate_document(root)
+    document["format"] = "eqiora.python-distribution-candidate/v4"
+    document["build"].pop("frontend")
+    document["checks"] = [
+        check for check in document["checks"] if check not in NOTEBOOK_CHECKS
+    ]
+    manifest.write_text(json.dumps(document, sort_keys=True), encoding="utf-8")
+    receipt.unlink()
+    return manifest, artifacts, document
+
+
 class CandidateManifestTests(unittest.TestCase):
+    def test_complete_v4_candidate_has_one_host_agnostic_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest, artifacts, _ = complete_v4_candidate_document(Path(temporary))
+            candidate = load_candidate_family(
+                manifest,
+                artifacts,
+                requested_profiles=("base", "jax", "matplotlib", "torch", "typing"),
+            )
+            verify_artifacts(candidate, artifacts)
+
+        self.assertEqual(candidate.version, "0.1.0a1")
+
     def test_exact_artifact_set_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             manifest, artifacts, document = candidate_document(Path(temporary))

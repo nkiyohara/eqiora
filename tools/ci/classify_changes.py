@@ -136,7 +136,6 @@ SITE_INPUT_FILES = {
     "examples/python/exact_cylinder_geometry.py",
     "examples/python/exact_cylinder_mesh.py",
     "examples/python/exact_cylinder_stokes.py",
-    "examples/python/exact_cylinder_stokes_marimo.py",
     "examples/steady-flow-past-cylinder.eqi",
     "examples/steady-flow-past-cylinder.geometry.json",
     "examples/steady-flow-past-cylinder.model.json",

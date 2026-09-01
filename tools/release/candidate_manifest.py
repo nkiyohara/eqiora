@@ -26,11 +26,12 @@ from python_candidate_common import CandidateError, python_distribution_version
 
 MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v2"
 V3_MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v3"
+V4_MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v4"
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 SHA512_SRI = re.compile(r"sha512-[A-Za-z0-9+/]{86}==")
 V2_REQUIRED_PROFILES = ("base", "jax", "matplotlib", "torch", "typing")
-REQUIRED_PROFILES = ("base", "jax", "matplotlib", "notebook", "torch", "typing")
+REQUIRED_PROFILES = ("base", "jax", "matplotlib", "torch", "typing")
 
 CONTRACT_SHA256 = "3f3a9f1a5b54bf5b874d996c8807bbb7e88439737fd245d69e7a8aeb7a1a87c1"
 PROTECTED_BASE_SHA = "3dfb1086168afc6f9fb61f9ca43d21ca9953048b"
@@ -568,9 +569,9 @@ def _retained_distribution_identity(scan: _FamilyScan) -> tuple[str, str]:
         raise ManifestError(str(error)) from error
 
 
-def _candidate_v3(document: dict[str, Any], scan: _FamilyScan) -> Candidate:
+def _candidate_closed(document: dict[str, Any], scan: _FamilyScan) -> Candidate:
     if document.get("project") != "eqiora" or document.get("acceptance") != "complete":
-        raise ManifestError("only a complete eqiora v3 candidate is supported")
+        raise ManifestError("only a complete Eqiora candidate is supported")
     _raw_version, retained_version = _retained_distribution_identity(scan)
     version = _text(document.get("version"), "version")
     if version != retained_version:
@@ -1008,12 +1009,24 @@ def load_candidate_family(
     requested_profiles: tuple[str, ...] = (),
     h2_receipt: Path | None = None,
 ) -> Candidate:
-    """Select v2/v3 only after scanning the complete retained artifact family."""
+    """Select a candidate only after scanning its complete retained family."""
     try:
         document = _object(json.loads(manifest.read_text(encoding="utf-8")), "manifest")
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ManifestError(f"cannot read candidate manifest: {error}") from error
     scan = _scan_family(document, artifacts)
+    if document.get("format") == V4_MANIFEST_FORMAT:
+        candidate = _candidate_closed(document, scan)
+        if "frontend" in _object(document.get("build"), "build"):
+            raise ManifestError("v4 candidate must not contain retired host metadata")
+        expected_family = {artifact.filename for artifact in candidate.artifacts}
+        actual_family = {path.name for path in artifacts.iterdir()}
+        if actual_family != expected_family:
+            raise ManifestError("v4 candidate artifact directory is not the exact family")
+        verify_artifacts(candidate, artifacts)
+        for profile in requested_profiles:
+            require_candidate_profile(candidate, profile)
+        return candidate
     checks = document.get("checks", [])
     manifest_signal = (
         document.get("format") == V3_MANIFEST_FORMAT
@@ -1032,7 +1045,7 @@ def load_candidate_family(
         return candidate
     if document.get("format") != V3_MANIFEST_FORMAT:
         raise ManifestError("an N1 signal requires the fail-closed v3 candidate schema")
-    candidate = _candidate_v3(document, scan)
+    candidate = _candidate_closed(document, scan)
     expected_family = {artifact.filename for artifact in candidate.artifacts}
     actual_family = {path.name for path in artifacts.iterdir()}
     if actual_family != expected_family:

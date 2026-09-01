@@ -313,17 +313,6 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.target_sha }}
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        if: needs.changes.outputs.python_host_evidence == 'true'
-        with:
-          node-version: 24.18.1
-          cache: npm
-          cache-dependency-path: bindings/python/frontend/package-lock.json
-      - name: Require the exact Notebook package manager
-        if: needs.changes.outputs.python_host_evidence == 'true'
-        run: |
-          npm install --global npm@11.16.0
-          test "$(npm --version)" = "11.16.0"
       - name: Install gallery media runtime dependencies
         if: needs.changes.outputs.python_host_evidence == 'true'
         run: |

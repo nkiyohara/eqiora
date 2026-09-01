@@ -54,22 +54,12 @@ COMPLETE_PROFILE_NAMES = (
     "base-3.14",
     "numpy-floor-3.12",
     "generated-public-api",
-    "notebook-3.13",
     "torch-3.13",
     "jax-3.13",
     "matplotlib-3.13",
     "typing-3.13",
 )
 
-NOTEBOOK_CHECK_NAMES = (
-    "frontend:lock-integrity",
-    "frontend:dependency-inventory",
-    "cp313:marimo-0.23.16-exact-cylinder-stokes",
-    "cp313:marimo-0.23.16-shared-semantic-viewer",
-    "cp313:notebook-managed-chromium-r1234",
-    "cp313:notebook-no-external-network",
-    "cp313:notebook-cleanup-and-mutation",
-)
 DEVELOPMENT_PROFILE_NAMES = COMPLETE_PROFILE_NAMES[:6]
 
 _HEAVY = ResourceRequest(1, 3 * 1024, locks=("python-heavy-profile",))
@@ -149,8 +139,6 @@ def _request(name: str) -> ResourceRequest:
         return _HEAVY
     if name == "matplotlib-3.13":
         return _MATPLOTLIB
-    if name == "notebook-3.13":
-        return ResourceRequest(2, 4 * 1024, locks=("python-notebook-profile",))
     if name == "generated-public-api":
         return _DOCS
     return _BASE
@@ -224,7 +212,6 @@ def scheduled_profile_tasks(
         "base-3.12",
         "torch-3.13",
         "base-3.13",
-        "notebook-3.13",
         "jax-3.13",
         "base-3.14",
         "typing-3.13",
