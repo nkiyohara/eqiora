@@ -17,7 +17,7 @@ use pyo3::types::{PyAny, PyBytes, PyTuple};
 use super::plan::{MeshProviderPolicy, PlannedMesh, PyMeshPlan};
 use super::request_error;
 use crate::error::{diagnostic_error, validation_error};
-use crate::geometry::{PyGeometry, PyGeometrySelection, digest_to_hex};
+use crate::geometry::{PyGeometrySelection, digest_to_hex};
 use crate::matrix::ReadOnlyMatrix;
 use crate::panic_boundary;
 
@@ -802,115 +802,102 @@ fn capability_error(py: Python<'_>, message: &str) -> PyErr {
     diagnostic_error(py, &[Diagnostic::error(codes::NOT_IMPLEMENTED, message)])
 }
 
-/// Execute one resolved provider plan and publish only its accepted Mesh.
+/// Execute one resolved provider plan over its owned Geometry and publish only its accepted Mesh.
 #[pyfunction]
-#[pyo3(signature = (geometry, /, *, plan))]
-pub(super) fn generate(
-    py: Python<'_>,
-    geometry: &PyGeometry,
-    plan: &PyMeshPlan,
-) -> PyResult<PyMesh> {
-    panic_boundary(py, || {
-        if geometry.geometry() != &plan.source {
-            return Err(request_error(
+#[pyo3(signature = (plan, /))]
+pub(super) fn generate(py: Python<'_>, plan: &PyMeshPlan) -> PyResult<PyMesh> {
+    panic_boundary(py, || match (&plan.planned, plan.provider) {
+        (PlannedMesh::Gmsh(sizing), MeshProviderPolicy::Gmsh(provider)) => {
+            let quality_gate = eqiora::meshing::MeshQualityGate::new(provider.minimum_mean_ratio)
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            let generated = super::gmsh::generate(
+                &plan.source,
+                provider.maximum_boundary_error,
+                provider.minimum_mean_ratio,
+                provider.maximum_boundary_facets,
+                provider.maximum_target_size,
+                *sizing,
+                quality_gate,
+            )
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            let production = MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
+                sizing.policy(),
+                &plan.source,
+                &generated.mesh,
+                &generated.correspondence,
+            )
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            let published = PyMesh::from_source_parts(
                 py,
-                "MeshPlan belongs to a different exact Geometry",
-            ));
+                &plan.source,
+                &generated.mesh,
+                &generated.correspondence,
+                &production,
+                SourceOwnedProviderObservation::Gmsh4152 {
+                    output: generated.provider_output.clone().into_boxed_slice(),
+                },
+            )?;
+            if published.gmsh_provider_output() != Some(generated.provider_output.as_slice()) {
+                return Err(PyRuntimeError::new_err(
+                    "published Gmsh Mesh lost its exact provider observation",
+                ));
+            }
+            Ok(published)
         }
-        match (&plan.planned, plan.provider) {
-            (PlannedMesh::Gmsh(sizing), MeshProviderPolicy::Gmsh(provider)) => {
-                let quality_gate =
-                    eqiora::meshing::MeshQualityGate::new(provider.minimum_mean_ratio)
-                        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-                let generated = super::gmsh::generate(
-                    &plan.source,
-                    provider.maximum_boundary_error,
-                    provider.minimum_mean_ratio,
-                    provider.maximum_boundary_facets,
-                    provider.maximum_target_size,
-                    *sizing,
-                    quality_gate,
-                )
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-                let production = MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
-                    sizing.policy(),
-                    &plan.source,
-                    &generated.mesh,
-                    &generated.correspondence,
-                )
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-                let published = PyMesh::from_source_parts(
-                    py,
-                    &plan.source,
-                    &generated.mesh,
-                    &generated.correspondence,
-                    &production,
-                    SourceOwnedProviderObservation::Gmsh4152 {
-                        output: generated.provider_output.clone().into_boxed_slice(),
-                    },
-                )?;
-                if published.gmsh_provider_output() != Some(generated.provider_output.as_slice()) {
-                    return Err(PyRuntimeError::new_err(
-                        "published Gmsh Mesh lost its exact provider observation",
-                    ));
-                }
-                Ok(published)
-            }
-            (PlannedMesh::Cartesian { .. }, MeshProviderPolicy::Cartesian(provider)) => {
-                let (mesh, correspondence) =
-                    GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
-                        &plan.source,
-                        provider.policy.cells(),
-                    )
-                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-                let production =
-                    MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
-                        provider.policy,
-                        &plan.source,
-                        &mesh,
-                        &correspondence,
-                    )
-                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-                PyMesh::from_source_owned_cartesian(
-                    py,
-                    &plan.source,
-                    &mesh,
-                    &correspondence,
-                    &production,
-                )
-            }
-            (PlannedMesh::AffineTriangle { .. }, MeshProviderPolicy::AffineTriangle(provider)) => {
-                let generated = if plan.source.planar_rectangle_bounds().is_some() {
-                    GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
-                        &plan.source,
-                        provider.policy.cells(),
-                    )
-                } else {
-                    GeometryMeshCorrespondenceEnvelopeV1::from_adjacent_rectangle_partition_affine_triangles(
+        (PlannedMesh::Cartesian, MeshProviderPolicy::Cartesian(provider)) => {
+            let (mesh, correspondence) =
+                GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
                     &plan.source,
                     provider.policy.cells(),
                 )
-                };
-                let (mesh, correspondence) =
-                    generated.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-                let production =
-                    MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-                        provider.policy,
-                        &plan.source,
-                        &mesh,
-                        &correspondence,
-                    )
-                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-                PyMesh::from_source_owned_affine_triangle(
-                    py,
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            let production =
+                MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
+                    provider.policy,
                     &plan.source,
                     &mesh,
                     &correspondence,
-                    &production,
                 )
-            }
-            _ => unreachable!("planned mesh and provider remain paired"),
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            PyMesh::from_source_owned_cartesian(
+                py,
+                &plan.source,
+                &mesh,
+                &correspondence,
+                &production,
+            )
         }
+        (PlannedMesh::AffineTriangle, MeshProviderPolicy::AffineTriangle(provider)) => {
+            let generated = if plan.source.planar_rectangle_bounds().is_some() {
+                GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
+                    &plan.source,
+                    provider.policy.cells(),
+                )
+            } else {
+                GeometryMeshCorrespondenceEnvelopeV1::from_adjacent_rectangle_partition_affine_triangles(
+                    &plan.source,
+                    provider.policy.cells(),
+                )
+            };
+            let (mesh, correspondence) =
+                generated.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            let production =
+                MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
+                    provider.policy,
+                    &plan.source,
+                    &mesh,
+                    &correspondence,
+                )
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            PyMesh::from_source_owned_affine_triangle(
+                py,
+                &plan.source,
+                &mesh,
+                &correspondence,
+                &production,
+            )
+        }
+        _ => unreachable!("planned mesh and provider remain paired"),
     })
 }
 

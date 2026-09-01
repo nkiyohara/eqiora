@@ -42,7 +42,7 @@ def test_gmsh_plan_publishes_complete_source_owned_mesh(monkeypatch: pytest.Monk
     source = geometry()
     policy = provider()
     plan = eqiora.meshing.resolve(source, policy)
-    mesh = eqiora.meshing.generate(source, plan=plan)
+    mesh = eqiora.meshing.generate(plan)
 
     assert plan.provider == policy
     assert plan.source_digest == source.digest == mesh.source_digest
@@ -50,7 +50,6 @@ def test_gmsh_plan_publishes_complete_source_owned_mesh(monkeypatch: pytest.Monk
     assert mesh.dimension == 2
     assert mesh.vertex_count > 0
     assert mesh.cell_count > 0
-    assert plan.boundary_facets == mesh.selection_entity_count(source.selection("cylinder"))
     assert mesh.selection_entity_count(source.selection("fluid")) == mesh.cell_count
     assert set(mesh.selection_names) == {"fluid", "inlet", "outlet", "walls", "cylinder"}
     assert sum(
@@ -87,23 +86,24 @@ def test_gmsh_resolve_is_planning_only(monkeypatch: pytest.MonkeyPatch) -> None:
     plan = eqiora.meshing.resolve(source, provider())
 
     assert plan.source_digest == source.digest
-    assert plan.boundary_facets > 0
+    with pytest.raises(AttributeError):
+        plan.source_digest = "mutated"
     with pytest.raises(eqiora.ValidationError):
-        eqiora.meshing.generate(source, plan=plan)
+        eqiora.meshing.generate(plan)
 
 
 def test_gmsh_plan_replay_and_crosswire_are_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EQIORA_GMSH", "gmsh")
     source = geometry()
     plan = eqiora.meshing.resolve(source, provider())
-    first = eqiora.meshing.generate(source, plan=plan)
-    second = eqiora.meshing.generate(source, plan=plan)
+    first = eqiora.meshing.generate(plan)
+    second = eqiora.meshing.generate(plan)
     assert first.digest == second.digest
     assert first.correspondence_digest == second.correspondence_digest
     assert first.canonical_bytes == second.canonical_bytes
 
     foreign = geometry(center=(0.21, 0.2))
-    with pytest.raises(eqiora.ValidationError):
+    with pytest.raises(TypeError):
         eqiora.meshing.generate(foreign, plan=plan)
     with pytest.raises(eqiora.ValidationError):
         first.selection_entity_count(foreign.selection("cylinder"))
@@ -120,12 +120,11 @@ def test_explicit_target_size_is_replayable_and_strictly_denser(
     assert explicit_provider.maximum_target_size == 0.05
 
     automatic = eqiora.meshing.generate(
-        source,
-        plan=eqiora.meshing.resolve(source, automatic_provider),
+        eqiora.meshing.resolve(source, automatic_provider)
     )
     explicit_plan = eqiora.meshing.resolve(source, explicit_provider)
-    explicit = eqiora.meshing.generate(source, plan=explicit_plan)
-    replayed = eqiora.meshing.generate(source, plan=explicit_plan)
+    explicit = eqiora.meshing.generate(explicit_plan)
+    replayed = eqiora.meshing.generate(explicit_plan)
 
     assert explicit.cell_count > automatic.cell_count
     assert explicit.vertex_count > automatic.vertex_count

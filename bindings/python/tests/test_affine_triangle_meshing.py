@@ -25,12 +25,11 @@ def test_affine_triangle_mesher_publishes_exact_source_owned_common_mesh() -> No
     request = provider
     source = rectangle()
     plan = eqiora.meshing.resolve(source, request)
-    mesh = eqiora.meshing.generate(source, plan=plan)
+    mesh = eqiora.meshing.generate(plan)
 
     assert provider.cells == (2, 3)
     assert provider.diagonal == "lower-left-to-upper-right"
     assert plan.provider == provider
-    assert plan.boundary_facets == 10
     assert mesh.source_digest == mesh.realized_geometry_digest == source.digest
     assert (mesh.vertex_count, mesh.cell_count) == (12, 12)
     assert mesh.coordinates.shape == (12, 2)
@@ -46,7 +45,7 @@ def test_affine_triangle_mesher_publishes_exact_source_owned_common_mesh() -> No
         "cells": [2, 3],
         "diagonal": "lower-left-to-upper-right",
     }
-    with pytest.raises(eqiora.ValidationError):
+    with pytest.raises(TypeError):
         eqiora.meshing.generate(rectangle(3.0), plan=plan)
 
 

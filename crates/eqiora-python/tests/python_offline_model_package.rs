@@ -256,7 +256,7 @@ else:
 
 mesher = package.CartesianMesher(cells=(4, 4))
 mesh_plan = package.resolve(geometry, mesher)
-mesh = package.generate(geometry, plan=mesh_plan)
+mesh = package.generate(mesh_plan)
 linear = package.Linear(
     relative_tolerance=1e-10,
     absolute_tolerance=1e-12,
@@ -287,7 +287,7 @@ wide_geometry = graph.build(wide_rectangle, named_topology={
     "top": wide_rectangle.boundaries[3],
 })
 wide_mesh_plan = package.resolve(wide_geometry, mesher)
-wide_mesh = package.generate(wide_geometry, plan=wide_mesh_plan)
+wide_mesh = package.generate(wide_mesh_plan)
 try:
     package._resolve_plan(replayed, mesh=wide_mesh, spatial=package.Q1(), solve=linear)
 except package.ValidationError:

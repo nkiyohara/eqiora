@@ -30,7 +30,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
     )
     request = eqiora.meshing.AffineTriangleMesher(cells=(2, 2))
     mesh_plan = eqiora.meshing.resolve(geometry, request)
-    return geometry, eqiora.meshing.generate(geometry, plan=mesh_plan)
+    return geometry, eqiora.meshing.generate(mesh_plan)
 
 
 def solve() -> eqiora.Result:

@@ -77,7 +77,7 @@ def differentiable_program(eqiora):
     mesh_plan = eqiora.meshing.resolve(
         geometry, eqiora.meshing.CartesianMesher(cells=(4, 4))
     )
-    mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+    mesh = eqiora.meshing.generate(mesh_plan)
     model = eqiora.compile(
         source=POISSON,
         geometry=geometry,

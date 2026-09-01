@@ -64,7 +64,7 @@ geometry = graph.build(rectangle, named_topology={
 })
 mesh_request = eqiora.meshing.CartesianMesher(cells=(6, 6))
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
-mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+mesh = eqiora.meshing.generate(mesh_plan)
 
 direction = np.array([0.7, -0.2, 0.3], dtype=np.float64)
 step = 1.0e-5

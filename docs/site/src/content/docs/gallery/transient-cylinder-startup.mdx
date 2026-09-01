@@ -81,7 +81,7 @@ request = eqiora.meshing.GmshMesher(
     maximum_boundary_facets=50,
 )
 mesh_plan = eqiora.meshing.resolve(geometry, request)
-mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+mesh = eqiora.meshing.generate(mesh_plan)
 ```
 
 <Aside type="caution" title="A meshing choice, not convergence">

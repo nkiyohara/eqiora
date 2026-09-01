@@ -34,10 +34,10 @@ request = provider
 source = rectangle()
 plan = eqiora.meshing.resolve(source, request)
 assert plan.provider == provider
-assert plan.boundary_facets == 10
 assert not hasattr(plan, "achieved_minimum_mean_ratio")
+assert not hasattr(plan, "boundary_facets")
 
-mesh = eqiora.meshing.generate(source, plan=plan)
+mesh = eqiora.meshing.generate(plan)
 assert mesh.dimension == 2
 assert mesh.vertex_count == 12
 assert mesh.cell_count == 6
@@ -67,10 +67,17 @@ for cells in ((0, 3), (2, 0), (2,), (True, 3)):
 
 try:
     eqiora.meshing.generate(rectangle(3.0), plan=plan)
-except eqiora.ValidationError:
+except TypeError:
     pass
 else:
-    raise AssertionError("foreign Geometry replay was admitted")
+    raise AssertionError("displaced Geometry argument was admitted")
+for args, kwargs in (((), {"plan": plan}), ((object(),), {})):
+    try:
+        eqiora.meshing.generate(*args, **kwargs)
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("generate admitted a non-positional or non-Plan request")
 
 graph = eqiora.geometry.GeometryGraph()
 outer = graph.rectangle(x_bounds=(0.0, 2.0), y_bounds=(-1.0, 2.0))

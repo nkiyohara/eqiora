@@ -88,10 +88,7 @@ def rectangle_and_mesh(
         },
     )
     request = eqiora.meshing.CartesianMesher(cells=(2, 2))
-    mesh = eqiora.meshing.generate(
-        geometry,
-        plan=eqiora.meshing.resolve(geometry, request),
-    )
+    mesh = eqiora.meshing.generate(eqiora.meshing.resolve(geometry, request))
     return geometry, mesh
 
 

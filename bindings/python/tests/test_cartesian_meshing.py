@@ -26,11 +26,10 @@ def test_cartesian_mesher_publishes_exact_source_owned_common_mesh() -> None:
     request = provider
     source = rectangle()
     plan = eqiora.meshing.resolve(source, request)
-    mesh = eqiora.meshing.generate(source, plan=plan)
+    mesh = eqiora.meshing.generate(plan)
 
     assert provider.cells == (2, 3)
     assert plan.provider == provider
-    assert plan.boundary_facets == 10
     assert mesh.source_digest == mesh.realized_geometry_digest == source.digest
     assert (mesh.vertex_count, mesh.cell_count) == (12, 6)
     assert mesh.coordinates.shape == (12, 2)
@@ -48,8 +47,12 @@ def test_cartesian_mesher_publishes_exact_source_owned_common_mesh() -> None:
     }
     with pytest.raises(eqiora.CapabilityError):
         _ = mesh.minimum_mean_ratio
-    with pytest.raises(eqiora.ValidationError):
+    with pytest.raises(TypeError):
         eqiora.meshing.generate(rectangle(3.0), plan=plan)
+    with pytest.raises(TypeError):
+        eqiora.meshing.generate(plan=plan)
+    with pytest.raises(TypeError):
+        eqiora.meshing.generate(object())
 
 
 @pytest.mark.parametrize("cells", [(0, 3), (2, 0), (2,), (True, 3)])

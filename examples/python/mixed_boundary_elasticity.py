@@ -22,7 +22,7 @@ def solve() -> tuple[eqiora.Plan, eqiora.Result]:
     )
     mesh_request = eqiora.meshing.CartesianMesher(cells=(16, 16))
     mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
-    mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+    mesh = eqiora.meshing.generate(mesh_plan)
     model = eqiora.compile(
         path=files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi"),
         geometry=geometry,

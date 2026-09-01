@@ -41,7 +41,7 @@ request = eqiora.meshing.GmshMesher(
     maximum_boundary_facets=50,
 )
 mesh_plan = eqiora.meshing.resolve(geometry, request)
-mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+mesh = eqiora.meshing.generate(mesh_plan)
 linear = eqiora.solve.Linear(relative_tolerance=1e-6, absolute_tolerance=1e-13, maximum_iterations=10000)
 fresh_plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.MiniP1(), solve=linear)
 replayed_plan = eqiora.resolve(replayed, mesh=mesh, spatial=eqiora.fem.MiniP1(), solve=linear)

@@ -397,7 +397,7 @@ source = graph.build(rectangle, named_topology={
 })
 mesher = package.meshing.CartesianMesher(cells=(2, 3))
 mesh_plan = package.meshing.resolve(source, mesher)
-mesh = package.meshing.generate(source, plan=mesh_plan)
+mesh = package.meshing.generate(mesh_plan)
 "#),
                 None,
                 Some(&locals),
@@ -703,7 +703,7 @@ foreign_source = graph.build(foreign_rectangle, named_topology={
     "top": foreign_rectangle.boundaries[3],
 })
 foreign_plan = package.meshing.resolve(foreign_source, mesher)
-foreign_mesh = package.meshing.generate(foreign_source, plan=foreign_plan)
+foreign_mesh = package.meshing.generate(foreign_plan)
 try:
     package.resolve(model, mesh=foreign_mesh, spatial=package.fem.Q1(), solve=linear)
 except package.ValidationError:
@@ -757,7 +757,7 @@ source = graph.build(fluid, named_topology={
 })
 mesher = package.meshing.GmshMesher(maximum_boundary_error=1e-4, minimum_mean_ratio=1e-5, maximum_boundary_facets=50)
 mesh_plan = package.meshing.resolve(source, mesher)
-mesh = package.meshing.generate(source, plan=mesh_plan)
+mesh = package.meshing.generate(mesh_plan)
 "#),
                 None,
                 Some(&locals),
@@ -1054,7 +1054,7 @@ source = graph.build(fluid, named_topology={
         py.run(
             c_str!(r#"
 mesher = package.meshing.GmshMesher(maximum_boundary_error=1e-4, minimum_mean_ratio=1e-5, maximum_boundary_facets=50)
-mesh = package.meshing.generate(source, plan=package.meshing.resolve(source, mesher))
+mesh = package.meshing.generate(package.meshing.resolve(source, mesher))
 import numpy as np
 linear = package.solve.Linear(relative_tolerance=1e-6, absolute_tolerance=1e-9, maximum_iterations=20000)
 steady_plan = package.resolve(
@@ -1222,9 +1222,9 @@ source = graph.build(rectangle, named_topology={
     "top": rectangle.boundaries[3],
 })
 affine_plan = package.meshing.resolve(source, package.meshing.AffineTriangleMesher(cells=(2, 3)))
-affine = package.meshing.generate(source, plan=affine_plan)
+affine = package.meshing.generate(affine_plan)
 cartesian_plan = package.meshing.resolve(source, package.meshing.CartesianMesher(cells=(4, 4)))
-cartesian = package.meshing.generate(source, plan=cartesian_plan)
+cartesian = package.meshing.generate(cartesian_plan)
 linear = package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=2000)
 newton = package.solve.Newton(linear=linear)
 custom_newton = package.solve.Newton(
@@ -1693,7 +1693,7 @@ geometry = graph.build(rectangle, named_topology={
 })
 mesher = package.meshing.CartesianMesher(cells=(2, 3))
 mesh_plan = package.meshing.resolve(geometry, mesher)
-mesh = package.meshing.generate(geometry, plan=mesh_plan)
+mesh = package.meshing.generate(mesh_plan)
 model = package.compile(
     source=elasticity_source,
     filename="elasticity.eqi",
@@ -1784,12 +1784,12 @@ foreign_geometry = graph.build(foreign_rectangle, named_topology={
     "top": foreign_rectangle.boundaries[3],
 })
 foreign_mesh_plan = package.meshing.resolve(foreign_geometry, mesher)
-foreign_mesh = package.meshing.generate(foreign_geometry, plan=foreign_mesh_plan)
+foreign_mesh = package.meshing.generate(foreign_mesh_plan)
 triangle_plan = package.meshing.resolve(
     geometry,
     package.meshing.AffineTriangleMesher(cells=(2, 3)),
 )
-triangle_mesh = package.meshing.generate(geometry, plan=triangle_plan)
+triangle_mesh = package.meshing.generate(triangle_plan)
 for kwargs in (
     dict(mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=linear),
     dict(mesh=triangle_mesh, spatial=package.fem.Q1(), solve=linear),

@@ -60,9 +60,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
         },
     )
     request = eqiora.meshing.AffineTriangleMesher(cells=(2, 2))
-    return geometry, eqiora.meshing.generate(
-        geometry, plan=eqiora.meshing.resolve(geometry, request)
-    )
+    return geometry, eqiora.meshing.generate(eqiora.meshing.resolve(geometry, request))
 
 
 def admitted() -> tuple[eqiora.Model, eqiora.meshing.Mesh, eqiora.Plan]:
@@ -606,7 +604,7 @@ geometry = graph.build(partition, named_topology={
     "solid_y_lower": solid.boundaries[2], "solid_y_upper": solid.boundaries[3],
 })
 request = eqiora.meshing.AffineTriangleMesher(cells=(2, 2))
-mesh = eqiora.meshing.generate(geometry, plan=eqiora.meshing.resolve(geometry, request))
+mesh = eqiora.meshing.generate(eqiora.meshing.resolve(geometry, request))
 model = eqiora.compile(
     path=files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi"),
     geometry=geometry, component="FixedReferenceFsi2d",

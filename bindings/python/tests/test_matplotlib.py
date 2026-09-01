@@ -50,7 +50,7 @@ def cylinder():
             maximum_boundary_facets=50,
         )
     mesh_plan = eqiora.meshing.resolve(geometry, request)
-    mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+    mesh = eqiora.meshing.generate(mesh_plan)
     model = eqiora.compile(
         path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
         geometry=geometry,
@@ -90,7 +90,7 @@ def elasticity() -> tuple[eqiora.Plan, eqiora.Result]:
     )
     request = eqiora.meshing.CartesianMesher(cells=(16, 16))
     mesh_plan = eqiora.meshing.resolve(geometry, request)
-    mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+    mesh = eqiora.meshing.generate(mesh_plan)
     model = eqiora.compile(
         path=files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi"),
         geometry=geometry,
