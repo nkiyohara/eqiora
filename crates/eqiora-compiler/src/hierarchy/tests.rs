@@ -44,6 +44,61 @@ model Derived {
 }
 
 #[test]
+fn model_let_alias_infers_known_dimensions_without_changing_model_meaning() {
+    let annotated = r#"
+model Derived {
+  let length: m = 2;
+  let wave_number: 1 / m = math.pi / length;
+  let unitless: 1 = 1;
+  field state: 1 / m = 0;
+  relation balance continuous { state - wave_number * unitless = 0; }
+}
+"#;
+    let inferred = annotated.replace("let wave_number: 1 / m", "let wave_number");
+
+    let annotated_document = eqiora_lang::parse("annotated.eqi", annotated)
+        .into_document()
+        .expect("annotated source parses");
+    let inferred_document = eqiora_lang::parse("inferred.eqi", &inferred)
+        .into_document()
+        .expect("inferred source parses");
+    let mut annotated_values = std::collections::BTreeMap::new();
+    let mut inferred_values = std::collections::BTreeMap::new();
+    super::parameters::resolve_model_lets(
+        "annotated.eqi",
+        &annotated_document.models()[0],
+        &mut annotated_values,
+    )
+    .expect("annotated aliases resolve");
+    super::parameters::resolve_model_lets(
+        "inferred.eqi",
+        &inferred_document.models()[0],
+        &mut inferred_values,
+    )
+    .expect("known dimensions infer");
+    assert_eq!(
+        annotated_values["wave_number"].dimension,
+        inferred_values["wave_number"].dimension
+    );
+    assert_eq!(
+        annotated_values["wave_number"].value,
+        inferred_values["wave_number"].value
+    );
+
+    let annotated = crate::compile("annotated.eqi", annotated)
+        .expect("annotated aliases compile")
+        .pop()
+        .expect("one annotated Model");
+    let inferred = crate::compile("inferred.eqi", &inferred)
+        .expect("known dimensions infer")
+        .pop()
+        .expect("one inferred Model");
+
+    assert!(annotated.symbols().get("wave_number").is_none());
+    assert!(inferred.symbols().get("wave_number").is_none());
+}
+
+#[test]
 fn model_let_alias_rejects_forward_references_and_dimension_mismatches() {
     let invalid = [
         (

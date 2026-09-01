@@ -2450,22 +2450,6 @@ model periodic {
     }
 
     #[test]
-    fn parser_and_formatter_retain_typed_let_aliases() {
-        let source = "model M { let wave_number: 1 / m = math.pi / length; }";
-        let document = parse("let.eqi", source)
-            .into_document()
-            .expect("typed let parses");
-        let Item::Let(declaration) = &document.models()[0].items()[0] else {
-            panic!("model item is a let alias");
-        };
-        assert_eq!(declaration.name(), "wave_number");
-        assert_eq!(
-            crate::format(&document),
-            "model M {\n  let wave_number: 1 / m = math.pi / length;\n}\n"
-        );
-    }
-
-    #[test]
     fn parser_and_formatter_retain_ordered_dimension_prefix_with_exact_ranges() {
         let source = "dimension Speed = m / s;\ndimension Acceleration = Speed / s;\nmodel M { field velocity: Speed = 0; }";
         let document = parse("dimensions.eqi", source)

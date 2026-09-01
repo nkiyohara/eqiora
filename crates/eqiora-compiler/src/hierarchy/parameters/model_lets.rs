@@ -9,6 +9,7 @@ use crate::dimensions::lower_dimension;
 
 use super::expression_eval::{
     ExpressionContext, coerce_parameter_with_label, evaluate_parameter_expression,
+    infer_parameter_with_label,
 };
 use super::{ParameterLineage, SymbolicParameterMap};
 
@@ -30,7 +31,11 @@ pub(in crate::hierarchy) fn resolve_model_lets(
         let Item::Let(declaration) = item else {
             continue;
         };
-        let target = match lower_dimension(file, declaration.dimension()) {
+        let target = match declaration
+            .dimension()
+            .map(|dimension| lower_dimension(file, dimension))
+            .transpose()
+        {
             Ok(target) => target,
             Err(error) => {
                 diagnostics.push(error);
@@ -58,8 +63,11 @@ pub(in crate::hierarchy) fn resolve_model_lets(
                 })
             },
         );
-        match evaluated.and_then(|value| {
-            coerce_parameter_with_label(file, declaration.range(), value, target, "let alias")
+        match evaluated.and_then(|value| match target {
+            Some(target) => {
+                coerce_parameter_with_label(file, declaration.range(), value, target, "let alias")
+            }
+            None => infer_parameter_with_label(file, declaration.range(), value, "let alias"),
         }) {
             Ok(mut value) => {
                 value.lineage = Some(ParameterLineage::Derived);

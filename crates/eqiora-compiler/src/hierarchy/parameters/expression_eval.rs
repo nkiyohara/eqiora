@@ -169,3 +169,52 @@ pub(super) fn coerce_parameter_with_label(
         lineage: evaluated.lineage,
     })
 }
+
+pub(super) fn infer_parameter_with_label(
+    file: &str,
+    range: TextRange,
+    evaluated: EvaluatedParameter,
+    label: &str,
+) -> Result<SymbolicParameterValue, Diagnostic> {
+    let EvaluatedDimension::Known(dimension) = evaluated.dimension else {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            range,
+            format!(
+                "{label} dimension cannot be inferred from this expression; add an explicit dimension annotation"
+            ),
+        ));
+    };
+    Ok(SymbolicParameterValue {
+        value: evaluated.value,
+        dimension,
+        expression: evaluated.expression,
+        lineage: evaluated.lineage,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inferred_dimension_rejects_deferred_evaluation() {
+        let error = infer_parameter_with_label(
+            "deferred.eqi",
+            TextRange::new(0, 1),
+            EvaluatedParameter {
+                value: None,
+                dimension: EvaluatedDimension::Deferred,
+                bare_literal: false,
+                expression: None,
+                lineage: None,
+            },
+            "let alias",
+        )
+        .expect_err("Deferred dimension requires an annotation");
+
+        assert!(error.message().contains("dimension cannot be inferred"));
+        assert!(error.message().contains("explicit dimension annotation"));
+    }
+}
