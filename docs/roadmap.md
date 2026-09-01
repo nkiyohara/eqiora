@@ -249,10 +249,8 @@ candidate:
   CPU DLPack producer/consumer contracts;
 - Parameter-point primal/JVP/VJP evaluation;
 - optional bounded PyTorch and JAX CPU differentiation adapters; and
-- one private, wheel-bundled, read-only Notebook projection for the exact
-  accepted 50-chord circular-hole Mesh in the exact CPython 3.13,
-  JupyterLab 4.6.2, marimo 0.23.16, and managed-Chromium profile, with no
-  Studio or public viewer abstraction; and
+- one private, wheel-bundled, read-only viewer projection for accepted Python
+  Geometry, Mesh, selections, and scalar Field values, with no Studio surface;
 - a self-contained source distribution that rebuilds the declared CPython
   wheel family and verifies installed artifacts outside the checkout.
 

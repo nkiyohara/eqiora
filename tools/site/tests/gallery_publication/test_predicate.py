@@ -186,7 +186,7 @@ class GalleryPublicationPredicateTests(unittest.TestCase):
         case = next(
             item
             for item in self.fixture.payload["evidence_cases"]
-            if item["id"] == "interfaces.python-exact-cylinder-stokes-marimo"
+            if item["id"] == "fluid.packaged-steady-stokes-2d"
         )
         case["role"] = "media-admission"
         self.fixture.refresh_and_write_external()
@@ -196,7 +196,7 @@ class GalleryPublicationPredicateTests(unittest.TestCase):
         case = next(
             item
             for item in self.fixture.payload["evidence_cases"]
-            if item["id"] == "interfaces.python-exact-cylinder-stokes-marimo"
+            if item["id"] == "fluid.packaged-steady-stokes-2d"
         )
         case["id"] = "fluid.unregistered-retired-cylinder-case"
         case["manifest_path"] = case_path(case["id"])

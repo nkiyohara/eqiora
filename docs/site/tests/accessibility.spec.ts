@@ -369,13 +369,13 @@ test('02 exact table inventory is complete before parent or product matrix resul
     componentTotal += expected.component;
   }
   expect({ tableTotal, directTotal, componentTotal }).toEqual({
-    tableTotal: 978,
-    directTotal: 977,
+    tableTotal: 971,
+    directTotal: 970,
     componentTotal: 1,
   });
   expect({ invariantRoutes, invariantTableVisits: tableTotal }).toEqual({
     invariantRoutes: 6,
-    invariantTableVisits: 978,
+    invariantTableVisits: 971,
   });
   await navigateSitePage(page, '/reference/python/eqiora/');
   await expect(page.locator('main table')).toHaveCount(0);
@@ -487,7 +487,7 @@ test('02B exact product table matrix is complete or parent sentinel is exact', a
     expect(work).toEqual({
       cells: 6,
       routes: 36,
-      tableVisits: 5_868,
+      tableVisits: 5_826,
       dynamicProjections: 36,
       conditionAxeCalls: 36,
       conditionAxeRuleApplications: 60,

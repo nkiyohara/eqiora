@@ -3,8 +3,8 @@
 The shared viewer starts with one narrow, read-only presentation path for current
 accepted Python values. The implemented slice stops at V3: a private typed
 scene (V0), shared Geometry/Mesh/Selection interaction (V1), scalar
-`FieldOutput` inspection (V2), and an optional installed-wheel Notebook host
-(V3). Studio integration and every V4-or-later concern remain separate work.
+`FieldOutput` inspection (V2), and optional installed-wheel rich display (V3).
+Studio integration and every V4-or-later concern remain separate work.
 
 ## Ownership boundary
 
@@ -49,7 +49,7 @@ only when an accepted later slice requires those operations.
 
 One plain TypeScript mount function owns rendering, picking, controls, and
 cleanup. The anywidget adapter is only a host shim over that same function;
-there is no second Jupyter or Marimo renderer. Picking reports an accepted Mesh
+there is no second renderer. Picking reports an accepted Mesh
 cell or nearest accepted vertex coefficient, never an interpolated value.
 Quadrilateral triangulation is renderer-only and exact cell edges remain
 separate.

@@ -97,15 +97,12 @@ jobs:
         run: |
           mapfile -t metadata < <(find candidate-manifest -maxdepth 1 -type f)
           mapfile -t manifests < <(find candidate-manifest -maxdepth 1 -type f -name '*-python-candidate.json')
-          mapfile -t receipts < <(find candidate-manifest -maxdepth 1 -type f -name '*-python-candidate-h2.json')
-          test "${#metadata[@]}" -eq 2
+          test "${#metadata[@]}" -eq 1
           test "${#manifests[@]}" -eq 1
-          test "${#receipts[@]}" -eq 1
           python3 tools/release/candidate_manifest.py \
             --manifest "${manifests[0]}" \
             --artifacts candidate-dist \
             --manifest-sha256 "$MANIFEST_SHA256" \
-            --h2-receipt "${receipts[0]}" \
             --expected-commit "$RELEASE_COMMIT" \
             --expected-tag "$RELEASE_TAG"
 

@@ -28,8 +28,8 @@ round-trip them without defining a parallel wire format.
 
 Static scalar, elasticity, and Stokes execution now publishes the common Result
 directly. The release also adds the optional shared semantic `eqiora.View` V0-V3
-for 2D Geometry, Mesh, selections, and scalar Fields in installed Python and
-Marimo. Viewer milestones V4 and later, portable project archives, cloud
+for 2D Geometry, Mesh, selections, and scalar Fields in installed Python.
+Viewer milestones V4 and later, portable project archives, cloud
 transport, and broader scientific capability are not claimed by this release.
 
 ## 0.1.0a4

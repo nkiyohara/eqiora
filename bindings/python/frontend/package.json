@@ -10,10 +10,9 @@
   "scripts": {
     "build": "vite build --configLoader runner",
     "dev:viewer": "vite --host 127.0.0.1 --port 18925",
-    "format": "biome format --write src tests playwright.config.ts playwright.viewer.config.ts vite.config.ts",
-    "lint": "biome lint src tests playwright.config.ts playwright.viewer.config.ts vite.config.ts",
+    "format": "biome format --write src tests playwright.viewer.config.ts vite.config.ts",
+    "lint": "biome lint src tests playwright.viewer.config.ts vite.config.ts",
     "test": "vitest run src",
-    "test:hosts": "playwright test",
     "test:viewer": "playwright test --config playwright.viewer.config.ts",
     "typecheck": "tsc --noEmit"
   },

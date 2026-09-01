@@ -30,7 +30,7 @@ class GalleryPublicationPositiveFirst(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = PublicationFixture(Path(temporary) / "repository")
             cases = {item["id"] for item in fixture.payload["evidence_cases"]}
-            self.assertIn("interfaces.python-exact-cylinder-stokes-marimo", cases)
+            self.assertNotIn("interfaces.python-exact-cylinder-stokes-marimo", cases)
             self.assertIn("interfaces.python-exact-circular-hole-geometry", cases)
             self.assertIn("Presentation image only", fixture.payload["text"]["alt"])
             self.assertIn("output counts", fixture.payload["claim"]["public_claim"])

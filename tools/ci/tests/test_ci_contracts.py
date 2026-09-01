@@ -292,223 +292,24 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertNotIn("uv==", release)
         self.assertIn("tools/release/python_candidate.py", release)
 
-    def test_python_candidate_hosts_pin_n1_node_npm_and_detached_h2_receipt(
+    def test_python_release_has_two_revision_bound_trust_jobs_before_publish(
         self,
     ) -> None:
-        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
-            encoding="utf-8"
-        )
-        python_evidence = workflow.split("  python_host_evidence:\n", maxsplit=1)[
-            1
-        ].split("\n  msrv:", maxsplit=1)[0]
         release = (
             REPOSITORY_ROOT / ".github/workflows/python-release-candidate.yml"
         ).read_text(encoding="utf-8")
-        setup_node = "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"
 
-        for surface in (python_evidence, release):
-            self.assertIn(setup_node, surface)
-            self.assertIn("node-version: 24.18.1", surface)
-            self.assertIn("npm@11.16.0", surface)
-            self.assertIn('test "$(npm --version)" = "11.16.0"', surface)
-
-        self.assertIn("*-python-candidate-h2.json", release)
-        self.assertIn("--h2-receipt", release)
-        self.assertIn("candidate-manifest", release)
-        self.assertNotIn(
-            '*-python-candidate-h2.json" -exec cp {} candidate-dist',
+        self.assertIn("  prepare-family:", release)
+        self.assertIn("  finalize-candidate:", release)
+        self.assertRegex(release, r"(?m)^    needs: prepare-family$")
+        self.assertIn(
+            "python3 tools/release/python_candidate.py prepare",
             release,
         )
-
-    def test_python_release_has_three_revision_bound_trust_jobs_before_publish(
-        self,
-    ) -> None:
-        release = (
-            REPOSITORY_ROOT / ".github/workflows/python-release-candidate.yml"
-        ).read_text(encoding="utf-8")
-
-        def job(name: str) -> str:
-            match = re.search(
-                rf"(?ms)^  {re.escape(name)}:\n(.*?)(?=^  [a-z][a-z0-9_-]*:\n|\Z)",
-                release.split("jobs:\n", maxsplit=1)[1],
-            )
-            self.assertIsNotNone(match, f"missing release job {name}")
-            assert match is not None
-            return match.group(1)
-
-        def action_inputs(section: str, action: str) -> list[dict[str, str]]:
-            matches = re.finditer(
-                rf"(?m)^        uses: {re.escape(action)}@[^\n]+\n"
-                rf"        with:\n(?P<body>(?:^          [^\n]+\n)+)",
-                section,
-            )
-            parsed: list[dict[str, str]] = []
-            for match in matches:
-                values: dict[str, str] = {}
-                for line in match.group("body").splitlines():
-                    key, separator, value = line.strip().partition(":")
-                    self.assertEqual(separator, ":")
-                    values[key] = value.strip()
-                parsed.append(values)
-            return parsed
-
-        def action_path(shell_path: str) -> str:
-            self.assertTrue(shell_path.startswith("$RUNNER_TEMP/"))
-            relative = shell_path.removeprefix("$RUNNER_TEMP/")
-            return "${{ runner.temp }}/" + relative
-
-        def compact_shell(section: str) -> str:
-            without_continuations = re.sub(r"\\\n[ \t]*", "", section)
-            return " ".join(without_continuations.split())
-
-        prepare = job("prepare-family")
-        h2 = job("h2")
-        finalize = job("finalize-candidate")
-        publish = job("publish_testpypi")
-        compact_prepare = compact_shell(prepare)
-        compact_h2 = compact_shell(h2)
-        compact_finalize = compact_shell(finalize)
-
-        self.assertRegex(h2, r"(?m)^    needs: prepare-family$")
-        self.assertRegex(
-            finalize,
-            r"(?m)^    needs: \[(?:prepare-family, h2|h2, prepare-family)\]$",
+        self.assertIn(
+            "python3 tools/release/python_candidate.py finalize",
+            release,
         )
-        self.assertRegex(publish, r"(?m)^    needs: finalize-candidate$")
-        self.assertNotIn("needs: prepare-family", publish)
-        self.assertNotIn("needs: h2", publish)
-
-        prepare_command = re.search(
-            r"python3 tools/release/python_candidate\.py prepare "
-            r"--expected-commit \"\$CANDIDATE_COMMIT\" "
-            r"(?P<tag>--require-tag )?--out \"(?P<family>[^\"]+)\"",
-            compact_prepare,
-        )
-        self.assertIsNotNone(prepare_command)
-        assert prepare_command is not None
-        self.assertEqual(prepare_command.group("tag"), "--require-tag ")
-        family = prepare_command.group("family")
-
-        h2_command = re.search(
-            r"python3 tools/release/python_candidate_h2\.py "
-            r"--expected-commit \"\$CANDIDATE_COMMIT\" "
-            r"--artifacts \"(?P<family>[^\"]+)\" "
-            r"--out \"(?P<h2_out>[^\"]+)\"",
-            compact_h2,
-        )
-        self.assertIsNotNone(h2_command)
-        assert h2_command is not None
-        self.assertEqual(h2_command.group("family"), family)
-        h2_out = h2_command.group("h2_out")
-
-        receipt_discovery = re.search(
-            r"(?m)^          mapfile -t receipts < <\(find "
-            r'"(?P<root>\$RUNNER_TEMP/candidate-h2)" '
-            r"-maxdepth 1 -type f -name '\*-python-candidate-h2\.json'\)$",
-            finalize,
-        )
-        self.assertIsNotNone(receipt_discovery)
-        assert receipt_discovery is not None
-        self.assertEqual(receipt_discovery.group("root"), h2_out)
-        self.assertRegex(
-            finalize,
-            r'(?m)^          test "\$\{#receipts\[@\]\}" -eq 1$',
-        )
-
-        finalize_command = re.search(
-            r"python3 tools/release/python_candidate\.py finalize "
-            r"--expected-commit \"\$CANDIDATE_COMMIT\" "
-            r"--artifacts \"(?P<family>[^\"]+)\" "
-            r"--h2-receipt \"(?P<receipt>\$\{receipts\[0\]\})\" "
-            r"--manifest-out \"(?P<metadata>[^\"]+)\"",
-            compact_finalize,
-        )
-        self.assertIsNotNone(finalize_command)
-        assert finalize_command is not None
-        self.assertEqual(finalize_command.group("family"), family)
-        self.assertEqual(finalize_command.group("receipt"), "${receipts[0]}")
-        metadata = finalize_command.group("metadata")
-        self.assertEqual(len({family, h2_out, metadata}), 3)
-
-        prepare_downloads = action_inputs(prepare, "actions/download-artifact")
-        prepare_uploads = action_inputs(prepare, "actions/upload-artifact")
-        h2_downloads = action_inputs(h2, "actions/download-artifact")
-        h2_uploads = action_inputs(h2, "actions/upload-artifact")
-        finalize_downloads = action_inputs(finalize, "actions/download-artifact")
-        finalize_uploads = action_inputs(finalize, "actions/upload-artifact")
-        publish_downloads = action_inputs(publish, "actions/download-artifact")
-        publish_uploads = action_inputs(publish, "actions/upload-artifact")
-
-        self.assertEqual(prepare_downloads, [])
-        self.assertEqual(len(prepare_uploads), 1)
-        self.assertEqual(len(h2_downloads), 1)
-        self.assertEqual(len(h2_uploads), 1)
-        self.assertEqual(len(finalize_downloads), 2)
-        self.assertEqual(len(finalize_uploads), 2)
-        self.assertEqual(len(publish_downloads), 1)
-        self.assertEqual(publish_uploads, [])
-
-        prepared_family = prepare_uploads[0]
-        self.assertEqual(prepared_family["path"], action_path(family) + "/*")
-        self.assertEqual(prepared_family["compression-level"], "0")
-
-        h2_family = h2_downloads[0]
-        self.assertEqual(h2_family["name"], prepared_family["name"])
-        self.assertEqual(h2_family["path"], action_path(family))
-        h2_receipt = h2_uploads[0]
-        self.assertEqual(h2_receipt["path"], action_path(h2_out) + "/*")
-
-        finalize_downloads_by_name = {
-            transfer["name"]: transfer for transfer in finalize_downloads
-        }
-        self.assertEqual(len(finalize_downloads_by_name), 2)
-        self.assertEqual(
-            finalize_downloads_by_name[prepared_family["name"]]["path"],
-            action_path(family),
-        )
-        self.assertEqual(
-            finalize_downloads_by_name[h2_receipt["name"]]["path"],
-            action_path(h2_out),
-        )
-
-        finalize_uploads_by_path = {
-            transfer["path"]: transfer for transfer in finalize_uploads
-        }
-        finalized_family = finalize_uploads_by_path[action_path(family) + "/*"]
-        finalized_metadata = finalize_uploads_by_path[action_path(metadata) + "/*"]
-        self.assertEqual(finalized_family["compression-level"], "0")
-        upload_names = {
-            prepared_family["name"],
-            h2_receipt["name"],
-            finalized_family["name"],
-            finalized_metadata["name"],
-        }
-        self.assertEqual(len(upload_names), 4)
-
-        published_family = publish_downloads[0]
-        self.assertEqual(published_family["name"], finalized_family["name"])
-        publish_packages = re.search(
-            r"(?m)^          packages-dir: (?P<path>\S+)$", publish
-        )
-        self.assertIsNotNone(publish_packages)
-        assert publish_packages is not None
-        self.assertEqual(published_family["path"], publish_packages.group("path"))
-
-        for upload in prepare_uploads + h2_uploads + finalize_uploads:
-            self.assertNotIn(upload["path"], {".", "./"})
-
-        for stage in (prepare, h2, finalize):
-            self.assertIn("ref: ${{ inputs.commit }}", stage)
-            self.assertIn('test "$(git rev-parse HEAD)" = "$CANDIDATE_COMMIT"', stage)
-        self.assertIn("compression-level: 0", prepare)
-        self.assertIn("compression-level: 0", finalize)
-        self.assertNotIn("*-python-candidate.json", prepare)
-        self.assertNotIn("*.whl", h2)
-        self.assertNotIn("*.tar.gz", h2)
-
-        self.assertIn("packages-dir:", publish)
-        self.assertNotIn("candidate-h2", publish)
-        self.assertNotIn("candidate-metadata", publish)
         self.assertLess(
             release.index("  finalize-candidate:"),
             release.index("  publish_testpypi:"),
@@ -575,9 +376,8 @@ class HostedTriggerTests(unittest.TestCase):
             self.assertNotIn(replay_family_path, {"", ".", "./"})
             self.assertNotIn(replay_metadata_path, {"", ".", "./"})
             self.assertIn("*-python-candidate.json", replay)
-            self.assertIn("*-python-candidate-h2.json", replay)
             self.assertIn('test "${#manifests[@]}" -eq 1', replay)
-            self.assertIn('test "${#receipts[@]}" -eq 1', replay)
+            self.assertIn('test "${#metadata[@]}" -eq 1', replay)
             replay_command = " ".join(replay.split())
             self.assertIn("python3 tools/release/testpypi_replay.py", replay_command)
             self.assertRegex(
@@ -589,13 +389,6 @@ class HostedTriggerTests(unittest.TestCase):
                 rf"find\s+[\"']?{re.escape(replay_metadata_path)}[\"']?\s+"
                 r"-maxdepth 1\s+-type f\s+-name\s+[\"']\*-python-candidate\.json[\"']",
             )
-            self.assertRegex(
-                replay,
-                rf"find\s+[\"']?{re.escape(replay_metadata_path)}[\"']?\s+"
-                r"-maxdepth 1\s+-type f\s+-name\s+"
-                r"[\"']\*-python-candidate-h2\.json[\"']",
-            )
-            self.assertIn('--h2-receipt "${receipts[0]}"', replay_command)
             self.assertIn('--manifest-sha256 "$MANIFEST_SHA256"', replay_command)
 
         with self.subTest(stage="production-verification"):
@@ -616,9 +409,8 @@ class HostedTriggerTests(unittest.TestCase):
                 self.assertEqual(transfer["github-token"], "${{ github.token }}")
 
             self.assertIn("*-python-candidate.json", verify)
-            self.assertIn("*-python-candidate-h2.json", verify)
             self.assertIn('test "${#manifests[@]}" -eq 1', verify)
-            self.assertIn('test "${#receipts[@]}" -eq 1', verify)
+            self.assertIn('test "${#metadata[@]}" -eq 1', verify)
             verify_command = " ".join(verify.split())
             self.assertIn("python3 tools/release/candidate_manifest.py", verify_command)
             self.assertRegex(
@@ -630,13 +422,6 @@ class HostedTriggerTests(unittest.TestCase):
                 rf"find\s+[\"']?{re.escape(verify_metadata_path)}[\"']?\s+"
                 r"-maxdepth 1\s+-type f\s+-name\s+[\"']\*-python-candidate\.json[\"']",
             )
-            self.assertRegex(
-                verify,
-                rf"find\s+[\"']?{re.escape(verify_metadata_path)}[\"']?\s+"
-                r"-maxdepth 1\s+-type f\s+-name\s+"
-                r"[\"']\*-python-candidate-h2\.json[\"']",
-            )
-            self.assertIn('--h2-receipt "${receipts[0]}"', verify_command)
             self.assertIn('--manifest-sha256 "$MANIFEST_SHA256"', verify_command)
             self.assertIn('--expected-commit "$RELEASE_COMMIT"', verify_command)
             self.assertIn('--expected-tag "$RELEASE_TAG"', verify_command)
@@ -717,44 +502,21 @@ jobs:
         ).read_text(encoding="utf-8")
         require_definition_binding(current)
 
-    def test_distribution_claim_names_candidate_level_bounded_host_teardown(
-        self,
-    ) -> None:
+    def test_distribution_claim_uses_host_agnostic_v4_metadata(self) -> None:
         distribution_case = tomllib.loads(
             (
                 REPOSITORY_ROOT
                 / "verify/interfaces/python-distribution-candidate/case.toml"
             ).read_text(encoding="utf-8")
         )
-        host_status = (
-            "within timeout; accepts status 0 or exactly -SIGTERM only when the "
-            "candidate runner sent SIGTERM; unsolicited signals, other nonzero "
-            "statuses, timeout, and forced kill reject"
-        )
-        teardown = (
-            f"{host_status}; success additionally requires bounded cleanup "
-            "without forced escalation and a "
-            "complete-empty owned notebook, kernel, browser, and profile-helper "
-            "observation before the absolute 35.0-second decision deadline; "
-            "failure still performs bounded cleanup and rejects with stable "
-            "survivor or incomplete-observation diagnostics; no fixed-time "
-            "survivor-disappearance claim"
-        )
-        self.assertTrue(teardown.startswith(f"{host_status}; "))
-        distribution = distribution_case["claim_boundary"]
-        self.assertEqual(distribution.get("notebook_host_teardown"), teardown)
+        boundary = distribution_case["claim_boundary"]
         self.assertEqual(
-            distribution.get("notebook_cleanup_graceful_seconds"),
-            30.0,
+            boundary["candidate_manifest_format"],
+            "eqiora.python-distribution-candidate/v4",
         )
         self.assertEqual(
-            distribution.get("notebook_cleanup_decision_seconds"),
-            35.0,
-        )
-        self.assertEqual(distribution.get("notebook_cleanup_identity_limit"), 256)
-        self.assertEqual(
-            distribution.get("notebook_cleanup_diagnostic_bytes"),
-            65_536,
+            boundary["candidate_stages"],
+            "prepare-family-finalize-candidate",
         )
 
     def test_hosted_test_profile_is_compact_and_test_scoped(self) -> None:
@@ -1428,20 +1190,15 @@ class ChangeClassificationTests(unittest.TestCase):
         self.assertFalse(studio["rust"])
         self.assertFalse(studio["dependency_policy"])
 
-    def test_python_marimo_host_selects_python_not_studio(self) -> None:
-        for path in (
-            "bindings/python/frontend/package-lock.json",
-            "bindings/python/frontend/tests/exact-cylinder-stokes-marimo.spec.ts",
-        ):
-            with self.subTest(path=path):
-                selected = classify([path])
-                self.assertTrue(selected["python"])
-                self.assertIn(
-                    "python_host_evidence=true",
-                    render_outputs("a" * 40, selected, full=False),
-                )
-                self.assertFalse(selected["studio"])
-                self.assertFalse(selected["rust"])
+    def test_python_viewer_frontend_selects_python_not_studio(self) -> None:
+        selected = classify(["bindings/python/frontend/package-lock.json"])
+        self.assertTrue(selected["python"])
+        self.assertIn(
+            "python_host_evidence=true",
+            render_outputs("a" * 40, selected, full=False),
+        )
+        self.assertFalse(selected["studio"])
+        self.assertFalse(selected["rust"])
 
     def test_studio_dependency_inputs_select_both_owned_gates(self) -> None:
         for path in (

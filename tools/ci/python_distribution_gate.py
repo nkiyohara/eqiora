@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build one Python candidate and verify every registered host profile."""
+"""Build one Python candidate and verify every registered wheel profile."""
 
 from __future__ import annotations
 
@@ -16,12 +16,10 @@ sys.path.insert(0, str(ROOT / "tools/release"))
 from candidate_manifest import (  # noqa: E402
     Candidate,
     REQUIRED_PROFILES,
-    load_candidate,
     load_candidate_family,
     require_candidate_profile,
     verify_artifacts,
 )
-from python_candidate import build_candidate  # noqa: E402
 from python_candidate import source_identity  # noqa: E402
 from python_candidate_common import checked_run, home_scratch_parent  # noqa: E402
 
@@ -41,11 +39,10 @@ def _family_inventory(directory: Path) -> tuple[tuple[str, int, str], ...]:
 
 
 def build_and_verify_candidate(root: Path) -> Candidate:
-    """Replay prepare, independent H2, and finalization in disjoint roots."""
+    """Replay preparation and profile finalization in disjoint roots."""
 
     revision = source_identity().commit
     artifacts = root / "family"
-    h2_output = root / "h2"
     metadata = root / "metadata"
     checked_run(
         [
@@ -63,53 +60,27 @@ def build_and_verify_candidate(root: Path) -> Candidate:
     checked_run(
         [
             "python3",
-            "tools/release/python_candidate_h2.py",
-            "--expected-commit",
-            revision,
-            "--artifacts",
-            str(artifacts),
-            "--out",
-            str(h2_output),
-        ],
-        cwd=ROOT,
-    )
-    receipts = sorted(h2_output.glob("*-python-candidate-h2.json"))
-    if len(receipts) != 1:
-        raise RuntimeError("independent H2 did not publish exactly one receipt")
-    h2_receipt = receipts[0]
-    checked_run(
-        [
-            "python3",
             "tools/release/python_candidate.py",
             "finalize",
             "--expected-commit",
             revision,
             "--artifacts",
             str(artifacts),
-            "--h2-receipt",
-            str(h2_receipt),
             "--manifest-out",
             str(metadata),
         ],
         cwd=ROOT,
     )
     manifests = sorted(metadata.glob("*-python-candidate.json"))
-    retained_receipts = sorted(metadata.glob("*-python-candidate-h2.json"))
     if len(manifests) != 1:
         raise RuntimeError("finalization did not retain exactly one candidate manifest")
-    if len(retained_receipts) != 1:
-        raise RuntimeError("finalization omitted the retained H2 receipt")
     manifest_path = manifests[0]
-    retained_receipt = retained_receipts[0]
-    if retained_receipt.read_bytes() != h2_receipt.read_bytes():
-        raise RuntimeError("retained H2 receipt bytes changed during finalization")
     if _family_inventory(artifacts) != entry_inventory:
-        raise RuntimeError("candidate family inventory changed after H2")
+        raise RuntimeError("candidate family inventory changed during finalization")
     candidate = load_candidate_family(
         manifest_path,
         artifacts,
         requested_profiles=REQUIRED_PROFILES,
-        h2_receipt=retained_receipt,
     )
     verify_artifacts(candidate, artifacts)
     for profile in REQUIRED_PROFILES:

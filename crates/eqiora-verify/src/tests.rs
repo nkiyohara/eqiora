@@ -817,7 +817,7 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
             })
             .sum::<usize>()
     };
-    assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 6);
+    assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 4);
     assert_eq!(count_for_script("tools/ci/python_package_gate.py"), 3);
 
     let mut distribution_cases = selecting_cases
@@ -837,11 +837,9 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
         distribution_cases,
         [
             "interfaces.python-distribution-candidate",
-            "interfaces.python-exact-cylinder-stokes-marimo",
             "interfaces.python-jax-differentiation",
             "interfaces.python-mixed-boundary-elasticity-demo",
             "interfaces.python-pytorch-differentiation",
-            "interfaces.python-shared-semantic-viewer-notebook",
         ]
     );
 
