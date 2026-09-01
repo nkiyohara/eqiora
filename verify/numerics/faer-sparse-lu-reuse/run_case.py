@@ -194,28 +194,27 @@ def check_scientific_agreement(
 
 def check_state_contract(state: dict[str, object]) -> None:
     require(
-        state["schema"] == "eqiora.faer-sparse-lu-reuse.state-machine-oracle.v1",
+        state["schema"] == "eqiora.faer-sparse-lu-reuse.state-machine-oracle.v2",
         "unexpected state-machine schema",
     )
     public_surface = state["public_surface"]
+    migration = state["migration"]
+    require(isinstance(migration, dict), "migration must be an object")
+    require(migration["issue"] == 724, "prepared lifecycle migration issue")
+    require(migration["scientific_oracles_changed"] is False, "scientific oracle drift")
+    require(
+        migration["implementation_output_used_as_expectation"] is False,
+        "implementation output cannot author the migrated contract",
+    )
     require(isinstance(public_surface, dict), "public surface must be an object")
-    require(public_surface["minimum_attempts"] == 2, "minimum attempts")
-    require(public_surface["maximum_attempts"] == 64, "maximum attempts")
-    require(public_surface["sync"] is False, "owner must remain !Sync")
+    require(public_surface["type"] == "FaerLinearSolver", "public adapter type")
+    require(public_surface["sync"] is True, "stateless adapter remains Sync")
+    require(public_surface["provider_state_public"] is False, "provider state stays private")
+    require(public_surface["reuse_counters_public"] is False, "reuse counters stay private")
+    require(public_surface["factor_identity_public"] is False, "factor identity stays private")
     require(
         public_surface["methods"]
-        == [
-            "new",
-            "execute",
-            "plan",
-            "maximum_attempts",
-            "attempted_solve_count",
-            "accepted_solve_count",
-            "symbolic_factorization_count",
-            "numeric_factorization_count",
-            "symbolic_reuse_identity",
-            "numeric_reuse_identity",
-        ],
+        == ["with_prepared_linear"],
         "public method inventory drifted",
     )
     accepted = state["accepted_sequence"]

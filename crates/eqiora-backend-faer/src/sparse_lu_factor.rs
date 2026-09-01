@@ -365,8 +365,8 @@ pub(crate) mod test_support {
 
     use super::*;
     use crate::sparse_lu_reuse::{
-        FaerSparseLuReuseOwner, InjectedFactorState, OwnerSnapshot, PreflightInput, ReuseBinding,
-        ReuseExecution, StoredNumericFactor, StoredSymbolicFactor, SyntheticBinding,
+        FaerSparseLuPreparedSession, InjectedFactorState, OwnerSnapshot, PreflightInput,
+        ReuseBinding, ReuseExecution, StoredNumericFactor, StoredSymbolicFactor, SyntheticBinding,
         ValidationComponent,
     };
     use eqiora_solver::{LinearSolver, ReductionPolicy};
@@ -892,8 +892,8 @@ pub(crate) mod test_support {
         }
     }
 
-    fn owner() -> FaerSparseLuReuseOwner {
-        FaerSparseLuReuseOwner::new(test_plan(), NonZeroUsize::new(64).unwrap())
+    fn owner() -> FaerSparseLuPreparedSession {
+        FaerSparseLuPreparedSession::new_bounded(test_plan(), NonZeroUsize::new(64).unwrap())
             .expect("synthetic owner policy is valid")
     }
 
@@ -927,6 +927,7 @@ pub(crate) mod test_support {
                 symbolic,
                 numeric,
             },
+            coefficients_reusable: None,
         }
     }
 

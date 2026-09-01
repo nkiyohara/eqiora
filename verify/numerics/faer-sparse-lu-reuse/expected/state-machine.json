@@ -1,5 +1,5 @@
 {
-  "schema": "eqiora.faer-sparse-lu-reuse.state-machine-oracle.v1",
+  "schema": "eqiora.faer-sparse-lu-reuse.state-machine-oracle.v2",
   "precommitment": {
     "issue": 256,
     "base_revision": "46f77e3cc5eb19c6d4d023db890b118a62834c8f",
@@ -17,32 +17,34 @@
     "implementation_read": false,
     "writer_scratch_read": false
   },
+  "migration": {
+    "issue": 724,
+    "basis": "accepted candidate-to-Eqiora-acceptance-to-commit lifecycle",
+    "scientific_oracles_changed": false,
+    "implementation_output_used_as_expectation": false,
+    "displaced_public_type": "FaerSparseLuReuseOwner"
+  },
   "public_surface": {
-    "type": "FaerSparseLuReuseOwner",
+    "type": "FaerLinearSolver",
     "derive": [
-      "Debug"
+      "Debug",
+      "Clone",
+      "Copy",
+      "Default"
     ],
-    "clone": false,
-    "copy": false,
+    "clone": true,
+    "copy": true,
     "send": true,
-    "sync": false,
+    "sync": true,
     "methods": [
-      "new",
-      "execute",
-      "plan",
-      "maximum_attempts",
-      "attempted_solve_count",
-      "accepted_solve_count",
-      "symbolic_factorization_count",
-      "numeric_factorization_count",
-      "symbolic_reuse_identity",
-      "numeric_reuse_identity"
+      "with_prepared_linear"
     ],
-    "execution_input": "AdmittedExecution<'_>",
-    "execution_output": "Result<AcceptedLinearExecution, Diagnostic>",
-    "minimum_attempts": 2,
-    "maximum_attempts": 64,
-    "attempt_bound_error_code": "EQ0807"
+    "execution_input": "scoped adaptive operation over AdmittedExecution<'_>",
+    "execution_output": "operation result after zero or more accepted linear candidates",
+    "provider_state_public": false,
+    "reuse_counters_public": false,
+    "factor_identity_public": false,
+    "prepared_authority": "PreparedLinearExecution::execute -> provider-private candidate -> Eqiora acceptance -> internal accepted commit"
   },
   "fixture": {
     "model_name": "faer_sparse_lu_reuse",
