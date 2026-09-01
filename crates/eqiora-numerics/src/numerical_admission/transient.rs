@@ -15,6 +15,7 @@ enum PreparedCommonTransientMethod<'a> {
 impl PreparedCommonTransientExecution<'_> {
     pub(super) fn advance(&self, state: &CommonState) -> Result<CommonState, Diagnostic> {
         let run = TransientNavierStokesRun2d::new(NonZeroStepCount::new(NonZeroUsize::MIN));
+        let next_time = state.time_s() + self.plan.temporal().step().value();
         match &self.method {
             PreparedCommonTransientMethod::MiniP1(prepared) => {
                 let CommonStateKind::MiniP1(initial) = &state.kind else {
@@ -32,7 +33,7 @@ impl PreparedCommonTransientExecution<'_> {
                 else {
                     unreachable!("prepared MINI Run owns affine-triangle resources")
                 };
-                self.accept_mini(mesh, accepted)
+                self.accept_mini(mesh, state, next_time, accepted)
             }
             PreparedCommonTransientMethod::GeometryMiniP1(prepared) => {
                 let CommonStateKind::MiniP1(initial) = &state.kind else {
@@ -49,7 +50,7 @@ impl PreparedCommonTransientExecution<'_> {
                 else {
                     unreachable!("prepared Geometry MINI Run owns Gmsh resources")
                 };
-                self.accept_mini(mesh, accepted)
+                self.accept_mini(mesh, state, next_time, accepted)
             }
             PreparedCommonTransientMethod::CellCentered(prepared) => {
                 let CommonStateKind::CellCentered(initial) = &state.kind else {
@@ -61,11 +62,9 @@ impl PreparedCommonTransientExecution<'_> {
                 let accepted = trajectory.states().last().ok_or_else(|| {
                     invalid("cell-centered transient step returned no accepted State")
                 })?;
-                CommonState::new_with_boundary_forces(
-                    self.plan.state_space_identity(),
-                    accepted.time().value(),
-                    Arc::new(self.plan.admission.model.clone()),
-                    Arc::new(self.plan.admission.resources.clone()),
+                self.accept(
+                    state,
+                    next_time,
                     CommonStateKind::CellCentered(Box::new(
                         prepared.initial_from_accepted(accepted)?,
                     )),
@@ -78,17 +77,34 @@ impl PreparedCommonTransientExecution<'_> {
     fn accept_mini(
         &self,
         mesh: &SimplicialMeshEnvelopeV1,
+        previous: &CommonState,
+        next_time: f64,
         accepted: &ResolvedTransientNavierStokesState2d,
     ) -> Result<CommonState, Diagnostic> {
-        CommonState::new_with_boundary_forces(
-            self.plan.state_space_identity(),
-            accepted.time().value(),
-            Arc::new(self.plan.admission.model.clone()),
-            Arc::new(self.plan.admission.resources.clone()),
+        self.accept(
+            previous,
+            next_time,
             CommonStateKind::MiniP1(Box::new(mini_initial_from_resolved(
                 self.plan, mesh, accepted,
             )?)),
             accepted.named_boundary_forces_on_domain().to_vec(),
+        )
+    }
+
+    fn accept(
+        &self,
+        previous: &CommonState,
+        next_time: f64,
+        kind: CommonStateKind,
+        named_boundary_forces_on_domain: Vec<(String, [f64; 2])>,
+    ) -> Result<CommonState, Diagnostic> {
+        CommonState::new_with_boundary_forces(
+            self.plan.state_space_identity(),
+            next_time,
+            Arc::clone(&previous.model),
+            Arc::clone(&previous.resources),
+            kind,
+            named_boundary_forces_on_domain,
         )
     }
 }

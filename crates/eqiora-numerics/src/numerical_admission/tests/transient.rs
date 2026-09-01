@@ -5,6 +5,77 @@ fn newton_policy(linear: CommonLinearRequest, nonlinear: NonlinearSolvePlan) -> 
 }
 
 #[test]
+fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
+    let geometry = rectangle();
+    let model = transient_model();
+    let step_s = 0.0001_f64;
+    let temporal = CommonBackwardEuler::from_seconds(step_s).unwrap();
+    let scaling =
+        IncompressibleScalingRequest2d::from_si(Some(0.41), Some(0.3), Some(0.09)).unwrap();
+    let linear =
+        CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(2_000).unwrap()).unwrap();
+    let nonlinear =
+        NonlinearSolvePlan::new(1.0e-9, 1.0e-11, NonZeroUsize::new(16).unwrap(), 12).unwrap();
+    let resolve = |owner, spatial| {
+        resolve_common_plan(
+            &model,
+            owner,
+            spatial,
+            newton_policy(linear, nonlinear),
+            Some(scaling),
+            Some(temporal),
+            &ResolveOnlyBackend,
+            None,
+        )
+        .unwrap()
+        .project(
+            |_| unreachable!(),
+            |_| unreachable!(),
+            |_| unreachable!(),
+            |_| unreachable!(),
+            |plan| plan,
+            |_| unreachable!(),
+        )
+    };
+
+    let mini = resolve(affine_resources(&geometry), CommonSpatialPolicy::MiniP1);
+    let cell_resources = {
+        let cells = CartesianMeshCellsV1::new([3, 4]).unwrap();
+        let (mesh, correspondence) =
+            GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
+                &geometry,
+                cells.cells(),
+            )
+            .unwrap();
+        let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v1_resources(
+            cells,
+            &geometry,
+            &mesh,
+            &correspondence,
+        )
+        .unwrap();
+        AuthenticatedCommonMesh::structured_cartesian(
+            geometry.clone(),
+            mesh,
+            correspondence,
+            production,
+        )
+        .unwrap()
+    };
+    let cell_centered = resolve(cell_resources, CommonSpatialPolicy::CellCentered);
+    for (plan, backend) in [
+        (&mini, &ResolveOnlyBackend as &dyn LinearSolverBackend),
+        (&cell_centered, &REFERENCE_LINEAR_SOLVER),
+    ] {
+        let previous = plan.zero_state(0.0).unwrap();
+        let accepted = plan.advance_one(&previous, backend).unwrap();
+        assert_eq!(accepted.time_s().to_bits(), step_s.to_bits());
+        assert!(Arc::ptr_eq(&accepted.model, &previous.model));
+        assert!(Arc::ptr_eq(&accepted.resources, &previous.resources));
+    }
+}
+
+#[test]
 pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_resources() {
     let geometry = rectangle();
     let model = transient_model();
