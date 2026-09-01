@@ -1,5 +1,16 @@
 use super::*;
 
+pub(super) struct PreparedCommonFsiExecution<'a> {
+    plan: &'a CommonFsiPlan,
+    backend: &'a dyn LinearSolverBackend,
+}
+
+impl PreparedCommonFsiExecution<'_> {
+    pub(super) fn advance(&self, state: &CommonState) -> Result<CommonState, Diagnostic> {
+        self.plan.advance_authenticated(state, self.backend)
+    }
+}
+
 impl CommonFsiPlan {
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         let relation = self
@@ -423,6 +434,18 @@ impl CommonFsiPlan {
             ));
         }
         Ok(())
+    }
+
+    pub(super) fn prepare_execution<'a>(
+        &'a self,
+        state: &CommonState,
+        backend: &'a dyn LinearSolverBackend,
+    ) -> Result<PreparedCommonFsiExecution<'a>, Diagnostic> {
+        self.authenticate_execution(state, backend)?;
+        Ok(PreparedCommonFsiExecution {
+            plan: self,
+            backend,
+        })
     }
 
     pub(super) fn advance_authenticated(

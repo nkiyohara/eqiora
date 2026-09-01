@@ -1,5 +1,16 @@
 use super::*;
 
+pub(super) struct PreparedCommonTransientExecution<'a> {
+    plan: &'a CommonTransientFlowPlan,
+    backend: &'a dyn LinearSolverBackend,
+}
+
+impl PreparedCommonTransientExecution<'_> {
+    pub(super) fn advance(&self, state: &CommonState) -> Result<CommonState, Diagnostic> {
+        self.plan.advance_one_authenticated(state, self.backend)
+    }
+}
+
 impl CommonTransientFlowPlan {
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         let materialized = match &self.resolved {
@@ -748,6 +759,18 @@ impl CommonTransientFlowPlan {
             ));
         }
         Ok(())
+    }
+
+    pub(super) fn prepare_execution<'a>(
+        &'a self,
+        state: &CommonState,
+        backend: &'a dyn LinearSolverBackend,
+    ) -> Result<PreparedCommonTransientExecution<'a>, Diagnostic> {
+        self.authenticate_execution(state, backend)?;
+        Ok(PreparedCommonTransientExecution {
+            plan: self,
+            backend,
+        })
     }
 
     pub(super) fn advance_one_authenticated(

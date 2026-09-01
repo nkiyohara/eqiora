@@ -4,22 +4,22 @@ use std::ops::ControlFlow;
 // Keep the lifecycle private until another method family proves a durable
 // outcome type; the standard ControlFlow shape is intentionally explicit here.
 #[allow(clippy::type_complexity)]
-fn advance_prepared_actions<S: Clone, E>(
+fn advance_prepared_actions<S: Clone, P, E>(
     initial: S,
     maximum_actions: usize,
     output_actions: &[usize],
-    prepare: impl FnOnce(&S) -> Result<(), E>,
-    mut advance: impl FnMut(&S) -> Result<S, E>,
+    prepare: impl FnOnce(&S) -> Result<P, E>,
+    mut advance: impl FnMut(&P, &S) -> Result<S, E>,
     mut stop_at_boundary: impl FnMut(usize, &S) -> bool,
 ) -> Result<ControlFlow<(usize, S), Vec<(usize, S)>>, E> {
-    prepare(&initial)?;
+    let prepared = prepare(&initial)?;
     let mut accepted = initial;
     if stop_at_boundary(0, &accepted) {
         return Ok(ControlFlow::Break((0, accepted)));
     }
     let mut outputs = Vec::with_capacity(output_actions.len());
     for accepted_actions in 1..=maximum_actions {
-        let candidate = advance(&accepted)?;
+        let candidate = advance(&prepared, &accepted)?;
         accepted = candidate;
         if output_actions.binary_search(&accepted_actions).is_ok() {
             outputs.push((accepted_actions, accepted.clone()));
@@ -143,8 +143,8 @@ impl CommonFsiRunRequest {
             self.state.clone(),
             self.accepted_steps.get(),
             &self.output_steps,
-            |state| self.plan.authenticate_execution(state, backend),
-            |state| self.plan.advance_authenticated(state, backend),
+            |state| self.plan.prepare_execution(state, backend),
+            |prepared, state| prepared.advance(state),
             stop_at_boundary,
         )
     }
@@ -283,8 +283,8 @@ impl CommonTransientRunRequest {
             self.state.clone(),
             self.accepted_steps.get(),
             &self.output_steps,
-            |state| self.plan.authenticate_execution(state, backend),
-            |state| self.plan.advance_one_authenticated(state, backend),
+            |state| self.plan.prepare_execution(state, backend),
+            |prepared, state| prepared.advance(state),
             stop_at_boundary,
         )
     }
@@ -546,9 +546,10 @@ mod prepared_action_tests {
             &[3, 10],
             |_| {
                 prepares.set(prepares.get() + 1);
-                Ok::<_, ()>(())
+                Ok::<_, ()>("prepared")
             },
-            |accepted| {
+            |prepared, accepted| {
+                assert_eq!(*prepared, "prepared");
                 advances.set(advances.get() + 1);
                 Ok(accepted + 1)
             },
@@ -572,8 +573,11 @@ mod prepared_action_tests {
                 0_u64,
                 10,
                 &[10],
-                |_| Ok::<_, ()>(()),
-                |accepted| Ok(accepted + 1),
+                |_| Ok::<_, ()>("prepared"),
+                |prepared, accepted| {
+                    assert_eq!(*prepared, "prepared");
+                    Ok(accepted + 1)
+                },
                 |boundary, _| boundary == cancellation_boundary,
             )
             .unwrap();
@@ -588,8 +592,9 @@ mod prepared_action_tests {
             0_u64,
             10,
             &[10],
-            |_| Ok::<_, &'static str>(()),
-            |accepted| {
+            |_| Ok::<_, &'static str>("prepared"),
+            |prepared, accepted| {
+                assert_eq!(*prepared, "prepared");
                 if *accepted == 3 {
                     Err("candidate failed")
                 } else {
