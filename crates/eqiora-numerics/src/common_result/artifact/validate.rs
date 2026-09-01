@@ -22,7 +22,7 @@ pub(super) fn validate_fields(
                 crate::CommonSpatialPolicy::Q1 => (
                     "continuous-lagrange-p1",
                     CommonFieldAssociation::Vertex,
-                    vec![cells[0] + 1, cells[1] + 1],
+                    cells.iter().map(|count| count + 1).collect(),
                 ),
                 crate::CommonSpatialPolicy::CellCenteredTpfa => (
                     "cell-constant",

@@ -304,7 +304,7 @@ impl CommonResult {
                 ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) => (
                     solution.field().vertex_values().to_vec(),
                     CommonFieldAssociation::Vertex,
-                    vec![cells[0] + 1, cells[1] + 1],
+                    cells.iter().map(|count| count + 1).collect(),
                     "continuous-lagrange-p1",
                     CommonSolveEvidence::from_report(solution.solve_report()),
                     CommonAssemblyEvidence::from_report(solution.assembly_report()),

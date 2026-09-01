@@ -286,13 +286,31 @@ impl AdmittedScalarGalerkinForm<'_> {
     }
 }
 
-pub(crate) fn derive_candidate(
+#[cfg(test)]
+pub(super) fn derive_candidate(
     program: &KernelProgram,
     domain: RawId,
 ) -> Result<Option<DerivedScalarGalerkinForm>, Diagnostic> {
     let Some(dimension) = cartesian_q1_dimension(program, domain) else {
         return Ok(None);
     };
+    derive_candidate_with_dimension(program, domain, dimension)
+}
+
+pub(crate) fn derive_candidate_with_dimension(
+    program: &KernelProgram,
+    domain: RawId,
+    dimension: usize,
+) -> Result<Option<DerivedScalarGalerkinForm>, Diagnostic> {
+    let Some(KernelNode::Domain(definition)) = program.node(domain) else {
+        return Ok(None);
+    };
+    if !(1..=3).contains(&dimension)
+        || (!matches!(definition.kind(), DomainKind::GeometryRegion { .. })
+            && cartesian_q1_dimension(program, domain) != Some(dimension))
+    {
+        return Ok(None);
+    }
     let fields = continuum_fields_on(program, domain);
     if fields.len() != 1 {
         return Err(role_error(

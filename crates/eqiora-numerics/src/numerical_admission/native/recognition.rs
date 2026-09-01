@@ -106,11 +106,11 @@ pub(crate) fn resource_artifact_digests(
 
 pub(crate) fn recognize_capability(
     program: &KernelProgram,
+    scalar: &Result<ScalarEllipticCartesianModel, Diagnostic>,
     transient: &Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
     transient_geometry: &Result<(), Diagnostic>,
     fsi: &Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
 ) -> Result<NativeCapability, Diagnostic> {
-    let scalar = recognize_scalar_elliptic_geometry_mathematics(program);
     let elasticity = recognize_isotropic_elasticity_geometry_mathematics(program);
     let stokes = recognize_steady_incompressible_stokes_geometry_mathematics(program);
     let recognized = [
@@ -140,7 +140,7 @@ pub(crate) fn recognize_capability(
     if fsi.is_ok() {
         return Ok(NativeCapability::FixedReferenceFsi);
     }
-    let scalar = scalar.unwrap_err();
+    let scalar = scalar.as_ref().unwrap_err();
     let elasticity = elasticity.unwrap_err();
     let stokes = stokes.unwrap_err();
     let transient_message = match (transient.as_ref(), transient_geometry.as_ref()) {
@@ -171,22 +171,13 @@ pub(crate) fn recognize_exact_model(
     capability: NativeCapability,
     program: &KernelProgram,
     resources: &NativeMeshResources,
+    scalar: Result<ScalarEllipticCartesianModel, Diagnostic>,
     transient: Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
     fsi: Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
     match (capability, resources) {
-        (
-            NativeCapability::ScalarElliptic,
-            NativeMeshResources::Cartesian {
-                geometry,
-                mesh,
-                correspondence,
-                ..
-            },
-        ) => {
-            lower_scalar_elliptic_cartesian_with_resources(program, geometry, mesh, correspondence)
-                .map(Box::new)
-                .map(RecognizedNativeModel::Scalar)
+        (NativeCapability::ScalarElliptic, NativeMeshResources::Cartesian { .. }) => {
+            scalar.map(Box::new).map(RecognizedNativeModel::Scalar)
         }
         (
             NativeCapability::IsotropicElasticity,
@@ -261,6 +252,24 @@ pub(crate) fn recognize_exact_model(
             "recognized Model capability and authenticated common Mesh kind are cross-wired",
         )),
     }
+}
+
+pub(crate) fn lower_scalar_candidate(
+    program: &KernelProgram,
+    resources: &NativeMeshResources,
+) -> Result<ScalarEllipticCartesianModel, Diagnostic> {
+    let NativeMeshResources::Cartesian {
+        geometry,
+        mesh,
+        correspondence,
+        ..
+    } = resources
+    else {
+        return Err(invalid(
+            "scalar elliptic lowering requires authenticated Cartesian resources",
+        ));
+    };
+    lower_scalar_elliptic_cartesian_with_resources(program, geometry, mesh, correspondence)
 }
 
 pub(crate) fn require_policy_compatibility(

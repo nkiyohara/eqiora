@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use crate::canonical::{
     ScalarEllipticCartesianBoundary, lower_scalar_elliptic_cartesian_with_resources,
-    recognize_scalar_elliptic_geometry_mathematics,
 };
 use crate::canonical_elasticity::{
     IsotropicElasticityCartesianModel2d, finalize_isotropic_elasticity_cartesian_q1_on_mesh,
@@ -687,7 +686,7 @@ pub struct CommonScalarPlan {
     field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
     field_id: String,
     field_dimension: DimExponents,
-    cells: [usize; 2],
+    cells: Box<[usize]>,
 }
 
 /// One accepted scalar Parameter point produced through an exact common Plan.

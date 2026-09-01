@@ -1,5 +1,223 @@
 use super::*;
 
+const POISSON_INTERVAL: &str = r#"
+public component PoissonInterval {
+  public support body: volume(ambient_dimension = 1);
+  public support left: boundary(parent = body);
+  public support right: boundary(parent = body);
+  public parameter source_scale: 1 / m ^ 2;
+  representation space = continuum;
+  field potential on body as space: 1 = 0;
+  relation balance continuous on body {
+    -div(grad(potential)) - source_scale = 0;
+  }
+  relation left_value continuous on left { trace(potential) = 0; }
+  relation right_value continuous on right { trace(potential) = 0; }
+}
+"#;
+
+const POISSON_BOX: &str = r#"
+public component PoissonBox {
+  public support body: volume(ambient_dimension = 3);
+  public support x_lower: boundary(parent = body);
+  public support x_upper: boundary(parent = body);
+  public support y_lower: boundary(parent = body);
+  public support y_upper: boundary(parent = body);
+  public support z_lower: boundary(parent = body);
+  public support z_upper: boundary(parent = body);
+  public parameter source_scale: 1 / m ^ 2;
+  representation space = continuum;
+  field potential on body as space: 1 = 0;
+  relation balance continuous on body {
+    -div(grad(potential)) - source_scale = 0;
+  }
+  relation x_lower_value continuous on x_lower { trace(potential) = 0; }
+  relation x_upper_value continuous on x_upper { trace(potential) = 0; }
+  relation y_lower_value continuous on y_lower { trace(potential) = 0; }
+  relation y_upper_value continuous on y_upper { trace(potential) = 0; }
+  relation z_lower_value continuous on z_lower { trace(potential) = 0; }
+  relation z_upper_value continuous on z_upper { trace(potential) = 0; }
+}
+"#;
+
+fn cartesian_box_3d() -> CanonicalGeometryV1 {
+    CanonicalGeometryV1::decode_cartesian_box_v1_canonical(
+        br#"{"schema":"eqiora.cartesian-box-envelope/v1","encoding":"eqiora.canonical-json/v1","length_unit":"metre","bounds":[[0.0,1.0],[0.0,1.0],[0.0,1.0]],"entity_sets":[{"name":"x_lower","dimension":2,"members":[0]},{"name":"x_upper","dimension":2,"members":[1]},{"name":"y_lower","dimension":2,"members":[2]},{"name":"y_upper","dimension":2,"members":[3]},{"name":"z_lower","dimension":2,"members":[4]},{"name":"z_upper","dimension":2,"members":[5]},{"name":"body","dimension":3,"members":[0]}]}"#,
+        eqiora_geometry::CanonicalGeometryLimits::default(),
+    )
+    .unwrap()
+}
+
+fn cartesian_interval() -> CanonicalGeometryV1 {
+    let graph = GeometryGraph::new();
+    let interval = graph.interval([0.0, 1.0]).unwrap();
+    let [left, right]: [_; 2] = interval.boundaries().try_into().unwrap();
+    graph
+        .build(
+            &interval,
+            &BTreeMap::from([
+                ("body".to_owned(), vec![interval.region().into()]),
+                ("left".to_owned(), vec![left.into()]),
+                ("right".to_owned(), vec![right.into()]),
+            ]),
+        )
+        .unwrap()
+}
+
+fn scalar_box_model(
+    geometry: &CanonicalGeometryV1,
+    source: &str,
+    model: &str,
+    component: &str,
+    boundaries: &[&str],
+) -> ModelEnvelope {
+    let body = geometry.entity_set("body").unwrap();
+    let mut supports = vec![("body", body, None)];
+    supports.extend(boundaries.iter().map(|&name| {
+        (
+            name,
+            geometry.entity_set(name).unwrap(),
+            Some(("body", body)),
+        )
+    }));
+    compile_model(
+        "poisson-box.eqi",
+        source,
+        geometry,
+        model,
+        component,
+        &supports,
+        &[(
+            "source_scale",
+            DynQuantity::new(
+                1.0,
+                DimExponents {
+                    length: -2,
+                    ..DimExponents::DIMENSIONLESS
+                },
+            ),
+        )],
+    )
+}
+
+fn cartesian_box_resources(
+    geometry: &CanonicalGeometryV1,
+    cells: &[usize],
+) -> AuthenticatedCommonMesh {
+    let policy = CartesianMeshCellsV2::new(cells.to_vec()).unwrap();
+    let (mesh, correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_cartesian_box_v1(geometry, policy.cells())
+            .unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
+        &policy,
+        geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+    AuthenticatedCommonMesh::structured_cartesian(
+        geometry.clone(),
+        mesh,
+        correspondence,
+        production,
+    )
+    .unwrap()
+}
+
+fn resolve_scalar_box(
+    model: &ModelEnvelope,
+    resources: AuthenticatedCommonMesh,
+    spatial: CommonSpatialPolicy,
+) -> CommonScalarPlan {
+    let linear =
+        CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
+    resolve_common_plan(
+        model,
+        resources,
+        spatial,
+        CommonSolvePolicy::Linear(linear),
+        None,
+        None,
+        &ResolveOnlyBackend,
+        None,
+    )
+    .unwrap()
+    .project(
+        |_| panic!("spatial Model resolved as no-Mesh ODE"),
+        |plan| plan,
+        |_| panic!("scalar Model resolved as elasticity"),
+        |_| panic!("scalar Model resolved as Stokes"),
+        |_| panic!("scalar Model resolved as transient flow"),
+        |_| panic!("scalar Model resolved as FSI"),
+    )
+}
+
+#[test]
+fn common_scalar_plan_executes_exact_one_and_three_dimensional_meshes() {
+    let interval = cartesian_interval();
+    let interval_model = scalar_box_model(
+        &interval,
+        POISSON_INTERVAL,
+        "PoissonIntervalModel",
+        "PoissonInterval",
+        &["left", "right"],
+    );
+    exercise_scalar_box(&interval_model, &interval, &[3]);
+
+    let box_3d = cartesian_box_3d();
+    let box_model = scalar_box_model(
+        &box_3d,
+        POISSON_BOX,
+        "PoissonBoxModel",
+        "PoissonBox",
+        &[
+            "x_lower", "x_upper", "y_lower", "y_upper", "z_lower", "z_upper",
+        ],
+    );
+    exercise_scalar_box(&box_model, &box_3d, &[2, 2, 2]);
+}
+
+fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, cells: &[usize]) {
+    for spatial in [
+        CommonSpatialPolicy::Q1,
+        CommonSpatialPolicy::CellCenteredTpfa,
+    ] {
+        let plan = resolve_scalar_box(model, cartesian_box_resources(geometry, cells), spatial);
+        assert_eq!(plan.cells(), cells);
+        match (
+            cells.len(),
+            plan.portable_realization().domains()[0]
+                .discretization()
+                .mesh(),
+        ) {
+            (1, MeshPolicy::SuppliedCartesian1d { .. })
+            | (2, MeshPolicy::SuppliedCartesian { .. })
+            | (3, MeshPolicy::SuppliedCartesian3d { .. }) => {}
+            _ => panic!("common scalar Plan lost its exact Cartesian dimension"),
+        }
+        let replayed = replay_plan(
+            ResolvedCommonPlan::Scalar(Box::new(plan.clone())),
+            &ResolveOnlyBackend,
+        )
+        .project(
+            |_| panic!("scalar Plan replayed as ODE"),
+            |plan| plan,
+            |_| panic!("scalar Plan replayed as elasticity"),
+            |_| panic!("scalar Plan replayed as Stokes"),
+            |_| panic!("scalar Plan replayed as transient flow"),
+            |_| panic!("scalar Plan replayed as FSI"),
+        );
+        assert_eq!(replayed.cells(), cells);
+        let result = replayed.run_result().unwrap();
+        let expected_shape = match spatial {
+            CommonSpatialPolicy::Q1 => cells.iter().map(|count| count + 1).collect::<Vec<_>>(),
+            CommonSpatialPolicy::CellCenteredTpfa => cells.to_vec(),
+            _ => unreachable!("exercise admits scalar policies only"),
+        };
+        assert_eq!(result.field_block(0, 0).unwrap().2, expected_shape);
+    }
+}
+
 #[test]
 pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
     let geometry = rectangle();
@@ -414,11 +632,14 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
         );
     let reaction = scalar_model_from_source(&geometry, &reaction_source);
     let reaction_program = replay_program(&reaction, &geometry).unwrap();
+    let reaction_owner = resources(&geometry);
+    let reaction_scalar = lower_scalar_candidate(&reaction_program, &reaction_owner.resources);
     let reaction_transient =
         lower_transient_incompressible_navier_stokes_cartesian_2d(&reaction_program);
     assert!(
         recognize_capability(
             &reaction_program,
+            &reaction_scalar,
             &reaction_transient,
             &Err(invalid("not Geometry transient")),
             &Err(invalid("not FSI"))
@@ -436,6 +657,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     assert!(
         recognize_capability(
             &non_stokes_program,
+            &Err(invalid("not scalar")),
             &non_stokes_transient,
             &Err(invalid("not Geometry transient")),
             &Err(invalid("not FSI"))
