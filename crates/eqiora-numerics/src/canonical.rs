@@ -831,7 +831,7 @@ fn lower_scalar_elliptic_cartesian_support(
 }
 
 mod scalar_coefficient;
-use scalar_coefficient::validate_positive_affine_coefficient;
+pub(crate) use scalar_coefficient::validate_positive_affine_coefficient;
 
 pub(crate) type ScalarCartesianSupport =
     (RawId, Vec<[f64; 2]>, BTreeMap<(usize, BoundarySide), RawId>);

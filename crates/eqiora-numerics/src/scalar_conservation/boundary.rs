@@ -1,0 +1,211 @@
+use super::*;
+
+pub(super) fn recognize_exterior_law(
+    program: &KernelProgram,
+    relation: RawId,
+    field: RawId,
+    volume_coefficient: &ScalarSpatialExpression,
+    dimensions: usize,
+) -> Result<ScalarExteriorLaw, Diagnostic> {
+    require_continuous_relation(program, relation)?;
+    let typed = typed_relation(program, relation)?;
+    let expression = typed.expression();
+    let root = unique_root(expression, relation)?;
+    let view = AdditiveResidualView::derive(expression, root, relation)?;
+    let trace = view
+        .leaves()
+        .iter()
+        .find(|leaf| is_trace(expression, leaf.value(), field));
+    let normal = view.leaves().iter().find(|leaf| {
+        matches!(
+            expression.node(leaf.value()),
+            Some(ExprNode::NormalComponent(_))
+        )
+    });
+    let robin = view.leaves().iter().find_map(|leaf| {
+        robin_coefficient(expression, leaf.value(), field)
+            .map(|(coefficient, trace)| (leaf, coefficient, trace))
+    });
+    if trace.is_some() && (normal.is_some() || robin.is_some()) {
+        return Err(view.mismatch("boundary law cannot prescribe trace and flux simultaneously"));
+    }
+    let operator_sign = trace
+        .map(|leaf| leaf.sign())
+        .or_else(|| normal.map(|leaf| leaf.sign()))
+        .or_else(|| robin.map(|(leaf, _, _)| leaf.sign()))
+        .ok_or_else(|| view.mismatch("boundary law requires trace, normal flux, or Robin terms"))?;
+    if let Some(normal) = normal {
+        validate_normal_flux(
+            program,
+            expression,
+            normal.value(),
+            field,
+            volume_coefficient,
+            relation,
+            dimensions,
+        )?;
+    }
+    let operator_ids = [
+        trace.map(|leaf| leaf.value()),
+        normal.map(|leaf| leaf.value()),
+        robin.map(|(leaf, _, _)| leaf.value()),
+    ];
+    let values = view
+        .leaves()
+        .iter()
+        .filter(|leaf| !operator_ids.contains(&Some(leaf.value())))
+        .collect::<Vec<_>>();
+    let (value, datum_expression) = match values.as_slice() {
+        [] => (ScalarSpatialExpression::constant(dimensions, 0.0), None),
+        [value] if value.sign() != operator_sign => {
+            if contains_state_symbol(expression, value.value()) {
+                return Err(lowering_error(
+                    relation,
+                    "boundary data must be independent of state",
+                ));
+            }
+            (
+                spatial_expression::lower(
+                    program,
+                    expression,
+                    value.value(),
+                    relation,
+                    dimensions,
+                )?,
+                Some(value.value()),
+            )
+        }
+        _ => return Err(view.mismatch("boundary data must be the sole term opposite its operator")),
+    };
+    match (trace, normal, robin) {
+        (Some(trace), None, None) => Ok(ScalarExteriorLaw::PrescribedTrace {
+            value,
+            lineage: ScalarExteriorLineage {
+                relation,
+                operator_expression: trace.value(),
+                datum_expression,
+                robin_coefficient_expression: None,
+                robin_trace_expression: None,
+            },
+        }),
+        (None, Some(normal), None) if datum_expression.is_none() => {
+            Ok(ScalarExteriorLaw::ZeroOutwardFlux {
+                lineage: ScalarExteriorLineage {
+                    relation,
+                    operator_expression: normal.value(),
+                    datum_expression: None,
+                    robin_coefficient_expression: None,
+                    robin_trace_expression: None,
+                },
+            })
+        }
+        (None, Some(normal), None) => Ok(ScalarExteriorLaw::PrescribedOutwardFlux {
+            value,
+            lineage: ScalarExteriorLineage {
+                relation,
+                operator_expression: normal.value(),
+                datum_expression,
+                robin_coefficient_expression: None,
+                robin_trace_expression: None,
+            },
+        }),
+        (None, Some(normal), Some((robin, coefficient_expression, trace_expression)))
+            if normal.sign() == robin.sign() =>
+        {
+            let coefficient = spatial_expression::lower(
+                program,
+                expression,
+                coefficient_expression,
+                relation,
+                dimensions,
+            )?;
+            let Some(coefficient_value) = coefficient.constant_value() else {
+                return Err(lowering_error(
+                    relation,
+                    "first scalar-conservation Robin trace coefficient must be constant",
+                ));
+            };
+            if !coefficient_value.is_finite() || coefficient_value <= 0.0 {
+                return Err(lowering_error(
+                    relation,
+                    "Robin trace coefficient must be finite and strictly positive",
+                ));
+            }
+            Ok(ScalarExteriorLaw::Robin {
+                trace_coefficient: coefficient,
+                value,
+                lineage: ScalarExteriorLineage {
+                    relation,
+                    operator_expression: normal.value(),
+                    datum_expression,
+                    robin_coefficient_expression: Some(coefficient_expression),
+                    robin_trace_expression: Some(trace_expression),
+                },
+            })
+        }
+        _ => Err(view.mismatch("boundary law has an unsupported operator combination")),
+    }
+}
+
+pub(super) fn validate_normal_flux(
+    program: &KernelProgram,
+    expression: &ExprDag,
+    normal: ExprId,
+    field: RawId,
+    volume_coefficient: &ScalarSpatialExpression,
+    relation: RawId,
+    dimensions: usize,
+) -> Result<(), Diagnostic> {
+    let Some(ExprNode::NormalComponent(flux)) = expression.node(normal) else {
+        return Err(lowering_error(
+            relation,
+            "expected an outward normal-flux expression",
+        ));
+    };
+    let coefficient =
+        lower_flux_coefficient(program, expression, *flux, field, relation, dimensions)?;
+    if !coefficient.is_same_coefficient_as(volume_coefficient) {
+        return Err(lowering_error(
+            relation,
+            "boundary/interface flux differs from the exact volume constitutive coefficient",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn exact_boundaries(
+    program: &KernelProgram,
+    parent: RawId,
+    dimensions: usize,
+) -> Result<BTreeMap<(usize, BoundarySide), RawId>, Diagnostic> {
+    let mut result = BTreeMap::new();
+    for node in program.nodes() {
+        let KernelNode::Domain(domain) = node else {
+            continue;
+        };
+        let eqiora_schema::kernel::DomainKind::CartesianBoundary { axis, side } = domain.kind()
+        else {
+            continue;
+        };
+        if boundary_parent(program, domain.id().erase()) != Some(parent) {
+            continue;
+        }
+        if *axis >= dimensions || result.insert((*axis, *side), domain.id().erase()).is_some() {
+            return Err(lowering_error(
+                domain.id().erase(),
+                "scalar conservation has an out-of-range or duplicate boundary side",
+            ));
+        }
+    }
+    for axis in 0..dimensions {
+        for side in [BoundarySide::Lower, BoundarySide::Upper] {
+            if !result.contains_key(&(axis, side)) {
+                return Err(lowering_error(
+                    parent,
+                    format!("scalar conservation is missing boundary axis {axis} {side:?}"),
+                ));
+            }
+        }
+    }
+    Ok(result)
+}
