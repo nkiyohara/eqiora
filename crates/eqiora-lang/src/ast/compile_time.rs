@@ -63,11 +63,11 @@ impl ParameterDecl {
     }
 }
 
-/// Model-local typed compile-time expression alias.
+/// Model-local compile-time expression alias with an optional dimension assertion.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LetDecl {
     pub(crate) name: String,
-    pub(crate) dimension: Expr,
+    pub(crate) dimension: Option<Expr>,
     pub(crate) value: Expr,
     pub(crate) range: TextRange,
 }
@@ -79,10 +79,10 @@ impl LetDecl {
         &self.name
     }
 
-    /// Returns the declared dimension expression.
+    /// Returns the optional dimension assertion.
     #[must_use]
-    pub const fn dimension(&self) -> &Expr {
-        &self.dimension
+    pub const fn dimension(&self) -> Option<&Expr> {
+        self.dimension.as_ref()
     }
 
     /// Returns the compile-time value expression.

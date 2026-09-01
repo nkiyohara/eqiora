@@ -42,17 +42,19 @@ impl SourceAstFactory {
         })
     }
 
-    /// Construct a model-local typed compile-time expression alias.
+    /// Construct a model-local compile-time expression alias.
     ///
     /// # Errors
     /// Returns an error for malformed source expressions, names, or ranges.
     pub fn let_alias(
         name: impl Into<String>,
-        dimension: Expr,
+        dimension: Option<Expr>,
         value: Expr,
         range: TextRange,
     ) -> Result<Item, AstConstructionError> {
-        validate_expression(&dimension)?;
+        if let Some(dimension) = &dimension {
+            validate_expression(dimension)?;
+        }
         validate_expression(&value)?;
         Ok(Item::Let(LetDecl {
             name: checked_identifier(name, "let alias")?,
@@ -65,7 +67,7 @@ impl SourceAstFactory {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ExprKind, SourceAstFactory, TextRange, format, parse};
+    use crate::{ExprKind, Item, SourceAstFactory, TextRange, format, parse};
 
     #[test]
     fn checked_factory_constructs_a_formattable_dimension_prefix() {
@@ -90,5 +92,29 @@ mod tests {
             format(&document),
             "dimension Length = m;\n\nmodel M {\n  field x: Length = 0;\n}\n"
         );
+    }
+
+    #[test]
+    fn checked_factory_retains_optional_let_dimension_assertions() {
+        let range = TextRange::new(0, 1);
+        let value = SourceAstFactory::expression(ExprKind::Number(1.0), range).expect("value");
+        let dimension =
+            SourceAstFactory::expression(ExprKind::Name("m".to_owned()), range).expect("dimension");
+
+        let Item::Let(inferred) =
+            SourceAstFactory::let_alias("inferred", None, value.clone(), range)
+                .expect("inferred alias")
+        else {
+            panic!("factory returns a let alias");
+        };
+        let Item::Let(annotated) =
+            SourceAstFactory::let_alias("annotated", Some(dimension), value, range)
+                .expect("annotated alias")
+        else {
+            panic!("factory returns a let alias");
+        };
+
+        assert!(inferred.dimension().is_none());
+        assert!(annotated.dimension().is_some());
     }
 }

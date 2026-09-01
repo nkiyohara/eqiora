@@ -27,9 +27,11 @@ pub(super) fn encode_let(
     encoder.field(1, |encoder| {
         encode_name(encoder, declaration.name(), budget)
     })?;
-    encoder.field(2, |encoder| {
-        encode_expression(encoder, declaration.dimension(), budget, 1)
-    })?;
+    if let Some(dimension) = declaration.dimension() {
+        encoder.field(2, |encoder| {
+            encode_expression(encoder, dimension, budget, 1)
+        })?;
+    }
     encoder.field(3, |encoder| {
         encode_expression(encoder, declaration.value(), budget, 1)
     })

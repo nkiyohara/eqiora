@@ -91,7 +91,11 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
         }
         Item::Field(declaration) => declaration.dimension = rewrite(&declaration.dimension),
         Item::Parameter(declaration) => declaration.dimension = rewrite(&declaration.dimension),
-        Item::Let(declaration) => declaration.dimension = rewrite(&declaration.dimension),
+        Item::Let(declaration) => {
+            if let Some(dimension) = &mut declaration.dimension {
+                *dimension = rewrite(dimension);
+            }
+        }
         Item::Port(declaration) => rewrite_port(&mut declaration.syntax, rewrite),
         Item::Representation(_)
         | Item::Clock(_)
