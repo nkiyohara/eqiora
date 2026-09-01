@@ -82,8 +82,8 @@ they are not a second candidate identity and may rebuild during standalone use.
 Current candidates use `eqiora.python-distribution-candidate/v4`. The manifest
 binds the complete sdist/four-wheel family and every required installed-wheel
 profile without carrying a UI-host runtime, browser identity, or detached host
-receipt. Historical v2 and v3 readers remain compatibility boundaries; new
-publication writes only v4.
+receipt. It is the only accepted manifest format; superseded pre-1.0 readers,
+receipts, and transport paths are not retained.
 
 Build into an empty directory outside the source tree:
 

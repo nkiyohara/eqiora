@@ -43,7 +43,9 @@ PYTHON_TEST_FIXTURES = (
     Path("verify/packages/offline-model-package"),
     Path("verify/packages/typed-execution-lineage"),
     Path("verify/interfaces/python-package-conformance"),
-    Path("verify/interfaces/python-offline-model-package/models/typed-execution-lineage"),
+    Path(
+        "verify/interfaces/python-offline-model-package/models/typed-execution-lineage"
+    ),
 )
 PYTHON_TEST_RESOURCES: tuple[Path, ...] = ()
 
@@ -654,24 +656,6 @@ def run_optional_profile(
         f"cp{compact}:packaged-exact-cylinder-pressure-demo",
         f"cp{compact}:packaged-mixed-boundary-displacement-demo",
     ]
-
-
-def run_notebook_profile(
-    observations: tuple[tuple[str, Callable[[], None]], ...],
-    *,
-    emit: Callable[[str], None],
-) -> tuple[str, ...]:
-    """Emit each frozen Notebook check only after its observation succeeds."""
-
-    names = tuple(name for name, _ in observations)
-    if names != NOTEBOOK_CHECK_NAMES:
-        raise ValueError("Notebook observations must use the exact frozen order")
-    emitted: list[str] = []
-    for name, observe in observations:
-        observe()
-        emit(name)
-        emitted.append(name)
-    return tuple(emitted)
 
 
 def run_numpy_floor_profile(

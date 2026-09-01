@@ -59,9 +59,10 @@ def release_files(payload: Any, candidate: Candidate) -> dict[str, str]:
         hostname = urllib.parse.urlsplit(url).hostname
         if hostname not in ALLOWED_FILE_HOSTS:
             raise ManifestError(f"TestPyPI file {filename} has an unexpected host")
-        if not isinstance(digests, dict) or digests.get("sha256") != expected[
-            filename
-        ].sha256:
+        if (
+            not isinstance(digests, dict)
+            or digests.get("sha256") != expected[filename].sha256
+        ):
             raise ManifestError(f"TestPyPI metadata hash differs for {filename}")
         if size != expected[filename].size:
             raise ManifestError(f"TestPyPI metadata size differs for {filename}")
@@ -139,7 +140,6 @@ def main() -> int:
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--manifest-sha256", required=True)
     parser.add_argument("--artifacts", required=True, type=Path)
-    parser.add_argument("--h2-receipt", type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--attempts", type=int, default=12)
     parser.add_argument("--wait-seconds", type=float, default=10.0)
@@ -152,7 +152,6 @@ def main() -> int:
         candidate = load_candidate_family(
             arguments.manifest,
             arguments.artifacts,
-            h2_receipt=arguments.h2_receipt,
         )
         payload = fetch_json(
             TEST_PYPI_JSON.format(version=candidate.version),

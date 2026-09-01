@@ -292,26 +292,6 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertNotIn("uv==", release)
         self.assertIn("tools/release/python_candidate.py", release)
 
-    def test_python_candidate_has_no_notebook_host_toolchain(
-        self,
-    ) -> None:
-        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
-            encoding="utf-8"
-        )
-        python_evidence = workflow.split("  python_host_evidence:\n", maxsplit=1)[
-            1
-        ].split("\n  msrv:", maxsplit=1)[0]
-        release = (
-            REPOSITORY_ROOT / ".github/workflows/python-release-candidate.yml"
-        ).read_text(encoding="utf-8")
-        for surface in (python_evidence, release):
-            self.assertNotIn("actions/setup-node@", surface)
-            self.assertNotIn("npm@11.16.0", surface)
-
-        self.assertNotIn("*-python-candidate-h2.json", release)
-        self.assertNotIn("--h2-receipt", release)
-        self.assertIn("candidate-manifest", release)
-
     def test_python_release_has_two_revision_bound_trust_jobs_before_publish(
         self,
     ) -> None:
@@ -321,7 +301,6 @@ class HostedTriggerTests(unittest.TestCase):
 
         self.assertIn("  prepare-family:", release)
         self.assertIn("  finalize-candidate:", release)
-        self.assertNotIn("  h2:", release)
         self.assertRegex(release, r"(?m)^    needs: prepare-family$")
         self.assertIn(
             "python3 tools/release/python_candidate.py prepare",
@@ -331,8 +310,6 @@ class HostedTriggerTests(unittest.TestCase):
             "python3 tools/release/python_candidate.py finalize",
             release,
         )
-        self.assertNotIn("--h2-receipt", release)
-        self.assertNotIn("candidate-h2", release)
         self.assertLess(
             release.index("  finalize-candidate:"),
             release.index("  publish_testpypi:"),
@@ -399,7 +376,6 @@ class HostedTriggerTests(unittest.TestCase):
             self.assertNotIn(replay_family_path, {"", ".", "./"})
             self.assertNotIn(replay_metadata_path, {"", ".", "./"})
             self.assertIn("*-python-candidate.json", replay)
-            self.assertNotIn("*-python-candidate-h2.json", replay)
             self.assertIn('test "${#manifests[@]}" -eq 1', replay)
             self.assertIn('test "${#metadata[@]}" -eq 1', replay)
             replay_command = " ".join(replay.split())
@@ -413,7 +389,6 @@ class HostedTriggerTests(unittest.TestCase):
                 rf"find\s+[\"']?{re.escape(replay_metadata_path)}[\"']?\s+"
                 r"-maxdepth 1\s+-type f\s+-name\s+[\"']\*-python-candidate\.json[\"']",
             )
-            self.assertNotIn("--h2-receipt", replay_command)
             self.assertIn('--manifest-sha256 "$MANIFEST_SHA256"', replay_command)
 
         with self.subTest(stage="production-verification"):
@@ -434,7 +409,6 @@ class HostedTriggerTests(unittest.TestCase):
                 self.assertEqual(transfer["github-token"], "${{ github.token }}")
 
             self.assertIn("*-python-candidate.json", verify)
-            self.assertNotIn("*-python-candidate-h2.json", verify)
             self.assertIn('test "${#manifests[@]}" -eq 1', verify)
             self.assertIn('test "${#metadata[@]}" -eq 1', verify)
             verify_command = " ".join(verify.split())
@@ -448,7 +422,6 @@ class HostedTriggerTests(unittest.TestCase):
                 rf"find\s+[\"']?{re.escape(verify_metadata_path)}[\"']?\s+"
                 r"-maxdepth 1\s+-type f\s+-name\s+[\"']\*-python-candidate\.json[\"']",
             )
-            self.assertNotIn("--h2-receipt", verify_command)
             self.assertIn('--manifest-sha256 "$MANIFEST_SHA256"', verify_command)
             self.assertIn('--expected-commit "$RELEASE_COMMIT"', verify_command)
             self.assertIn('--expected-tag "$RELEASE_TAG"', verify_command)
@@ -545,8 +518,6 @@ jobs:
             boundary["candidate_stages"],
             "prepare-family-finalize-candidate",
         )
-        self.assertTrue(boundary["retired_notebook_host_metadata_absent"])
-        self.assertFalse(any(key.startswith("notebook_") for key in boundary))
 
     def test_hosted_test_profile_is_compact_and_test_scoped(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(

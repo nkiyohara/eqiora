@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build one Python candidate and verify every registered host profile."""
+"""Build one Python candidate and verify every registered wheel profile."""
 
 from __future__ import annotations
 
@@ -16,12 +16,10 @@ sys.path.insert(0, str(ROOT / "tools/release"))
 from candidate_manifest import (  # noqa: E402
     Candidate,
     REQUIRED_PROFILES,
-    load_candidate,
     load_candidate_family,
     require_candidate_profile,
     verify_artifacts,
 )
-from python_candidate import build_candidate  # noqa: E402
 from python_candidate import source_identity  # noqa: E402
 from python_candidate_common import checked_run, home_scratch_parent  # noqa: E402
 
