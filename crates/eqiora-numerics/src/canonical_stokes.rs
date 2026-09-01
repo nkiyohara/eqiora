@@ -59,7 +59,10 @@ pub use navier_stokes_fvm_realization::{
     transient_navier_stokes_cell_centered_requirements_2d,
 };
 pub(crate) use navier_stokes_integral_formulation::integral_conservative_correspondence;
-pub(crate) use navier_stokes_realization::require_complete_zero_trace;
+pub(crate) use navier_stokes_realization::{
+    PreparedResolvedTransientMiniRun2d, prepare_resolved_transient_navier_stokes_mini_run_2d,
+    require_complete_zero_trace,
+};
 pub use navier_stokes_realization::{
     ResolvedTransientNavierStokesState2d, ResolvedTransientNavierStokesTrajectory2d,
     TransientNavierStokesInitialState2d, TransientNavierStokesRun2d,
