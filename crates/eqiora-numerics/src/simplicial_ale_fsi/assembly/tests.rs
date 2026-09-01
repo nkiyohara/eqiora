@@ -1,4 +1,3 @@
-
 use std::num::NonZeroUsize;
 
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
