@@ -1,12 +1,16 @@
+use std::ops::Deref;
+use std::sync::Arc;
+
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
 use eqiora_meshing::MeshEntity;
 
 use super::pressure_coupling::MomentumWeightedPressureCoupling2d;
 use super::replay::{CollocatedResidualReplay2d, replay_residual};
+#[cfg(test)]
+use crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d;
 use crate::cartesian_fvm_geometry::{
     CartesianCellMetrics2d, CartesianFacetAdjacency2d, CartesianFacetMetrics2d,
-    cartesian_fvm_geometry_2d,
 };
 use eqiora_meshing::CartesianMesh;
 
@@ -95,7 +99,7 @@ pub(super) enum CollocatedFaceAction2d {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct CartesianIncompressibleOperator2d {
+pub(crate) struct PreparedCartesianIncompressibleOperator2d {
     mesh: CartesianMesh,
     cells: Vec<CartesianCellMetrics2d>,
     facets: Vec<CartesianFacetMetrics2d>,
@@ -103,20 +107,33 @@ pub(crate) struct CartesianIncompressibleOperator2d {
     density: f64,
     viscosity: f64,
     duration: f64,
-    previous_velocity: Vec<[f64; DIMENSION]>,
-    previous_face_volume_fluxes: Vec<f64>,
     body_force: Vec<[f64; DIMENSION]>,
     momentum_diagonal: Vec<[f64; DIMENSION]>,
 }
 
-impl CartesianIncompressibleOperator2d {
+impl PreparedCartesianIncompressibleOperator2d {
+    #[cfg(test)]
     pub(crate) fn new(
         mesh: CartesianMesh,
         density: f64,
         viscosity: f64,
         duration: f64,
-        previous_velocity: Vec<[f64; DIMENSION]>,
-        previous_face_volume_fluxes: Vec<f64>,
+        body_force: Vec<[f64; DIMENSION]>,
+    ) -> Result<Self, Diagnostic> {
+        let (cells, facets) = cartesian_fvm_geometry_2d(&mesh)?;
+        Self::from_geometry(
+            mesh, cells, facets, density, viscosity, duration, body_force,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn from_geometry(
+        mesh: CartesianMesh,
+        cells: Vec<CartesianCellMetrics2d>,
+        facets: Vec<CartesianFacetMetrics2d>,
+        density: f64,
+        viscosity: f64,
+        duration: f64,
         body_force: Vec<[f64; DIMENSION]>,
     ) -> Result<Self, Diagnostic> {
         if !density.is_finite()
@@ -130,30 +147,13 @@ impl CartesianIncompressibleOperator2d {
                 "collocated flow density, viscosity, and duration must be finite and positive",
             ));
         }
-        let (cells, facets) = cartesian_fvm_geometry_2d(&mesh)?;
-        if cells.len() != previous_velocity.len() || cells.len() != body_force.len() {
+        if cells.len() != body_force.len() {
             return Err(invalid(
-                "collocated previous velocity and body force must cover every cell exactly once",
+                "collocated body force must cover every cell exactly once",
             ));
         }
-        if facets.len() != previous_face_volume_fluxes.len()
-            || previous_face_volume_fluxes
-                .iter()
-                .any(|value| !value.is_finite())
-        {
-            return Err(invalid(
-                "collocated previous face-flux history must contain one finite value per finalized facet",
-            ));
-        }
-        if previous_velocity
-            .iter()
-            .chain(&body_force)
-            .flatten()
-            .any(|value| !value.is_finite())
-        {
-            return Err(invalid(
-                "collocated previous velocity and body force must be finite",
-            ));
+        if body_force.iter().flatten().any(|value| !value.is_finite()) {
+            return Err(invalid("collocated body force must be finite"));
         }
         for axis in 0..DIMENSION {
             if mesh.axis_cell_count(axis).is_none_or(|count| count < 2) {
@@ -172,13 +172,85 @@ impl CartesianIncompressibleOperator2d {
             density,
             viscosity,
             duration,
-            previous_velocity,
-            previous_face_volume_fluxes,
             body_force,
             momentum_diagonal,
         })
     }
 
+    pub(crate) fn bind_action(
+        self: &Arc<Self>,
+        previous_velocity: Vec<[f64; DIMENSION]>,
+        previous_face_volume_fluxes: Vec<f64>,
+    ) -> Result<CartesianIncompressibleOperator2d, Diagnostic> {
+        if self.cells.len() != previous_velocity.len()
+            || previous_velocity
+                .iter()
+                .flatten()
+                .any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "collocated previous velocity must contain one finite vector per cell",
+            ));
+        }
+        if self.facets.len() != previous_face_volume_fluxes.len()
+            || previous_face_volume_fluxes
+                .iter()
+                .any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "collocated previous face-flux history must contain one finite value per finalized facet",
+            ));
+        }
+        Ok(CartesianIncompressibleOperator2d {
+            prepared: Arc::clone(self),
+            previous_velocity,
+            previous_face_volume_fluxes,
+        })
+    }
+
+    pub(crate) fn mesh(&self) -> &CartesianMesh {
+        &self.mesh
+    }
+
+    pub(crate) fn cells(&self) -> &[CartesianCellMetrics2d] {
+        &self.cells
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct CartesianIncompressibleOperator2d {
+    prepared: Arc<PreparedCartesianIncompressibleOperator2d>,
+    previous_velocity: Vec<[f64; DIMENSION]>,
+    previous_face_volume_fluxes: Vec<f64>,
+}
+
+impl Deref for CartesianIncompressibleOperator2d {
+    type Target = PreparedCartesianIncompressibleOperator2d;
+
+    fn deref(&self) -> &Self::Target {
+        &self.prepared
+    }
+}
+
+#[cfg(test)]
+impl CartesianIncompressibleOperator2d {
+    pub(crate) fn new(
+        mesh: CartesianMesh,
+        density: f64,
+        viscosity: f64,
+        duration: f64,
+        previous_velocity: Vec<[f64; DIMENSION]>,
+        previous_face_volume_fluxes: Vec<f64>,
+        body_force: Vec<[f64; DIMENSION]>,
+    ) -> Result<Self, Diagnostic> {
+        Arc::new(PreparedCartesianIncompressibleOperator2d::new(
+            mesh, density, viscosity, duration, body_force,
+        )?)
+        .bind_action(previous_velocity, previous_face_volume_fluxes)
+    }
+}
+
+impl CartesianIncompressibleOperator2d {
     pub(crate) fn cell_count(&self) -> usize {
         self.cells.len()
     }
@@ -684,15 +756,17 @@ mod tests {
             pressure,
             gauge_multiplier: 0.0,
         };
-        let operator = CartesianIncompressibleOperator2d::new(
-            mesh,
-            1.0,
-            0.05,
-            0.01,
-            point.velocity.clone(),
-            vec![0.0; facets.len()],
-            vec![[1.25, -0.625]; 12],
+        let operator = Arc::new(
+            PreparedCartesianIncompressibleOperator2d::new(
+                mesh,
+                1.0,
+                0.05,
+                0.01,
+                vec![[1.25, -0.625]; 12],
+            )
+            .unwrap(),
         )
+        .bind_action(point.velocity.clone(), vec![0.0; facets.len()])
         .unwrap();
         let residual = operator.evaluate(&point).unwrap();
         assert!(residual.momentum_norm < 8.0e-15);

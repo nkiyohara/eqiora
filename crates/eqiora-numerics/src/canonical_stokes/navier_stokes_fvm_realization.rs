@@ -1,4 +1,5 @@
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 use eqiora_artifact::CartesianMeshEnvelopeV1;
 use eqiora_core::entity::kinds;
@@ -26,10 +27,10 @@ use super::{
     IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
     TransientNavierStokesRun2d,
 };
-use crate::cartesian_fvm_geometry::{CartesianCellMetrics2d, cartesian_fvm_geometry_2d};
+use crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d;
 use crate::cartesian_incompressible::{
-    CartesianIncompressibleOperator2d, CellCenteredPressureField2d, CellCenteredVelocityField2d,
-    CollocatedPoint2d, solve_collocated_step_2d,
+    CellCenteredPressureField2d, CellCenteredVelocityField2d, CollocatedPoint2d,
+    PreparedCartesianIncompressibleOperator2d, solve_collocated_step_2d,
 };
 use crate::form_compiler::vocabulary::IntegralConservativeCorrespondence;
 use eqiora_meshing::CartesianMesh;
@@ -514,13 +515,8 @@ pub(crate) struct PreparedResolvedTransientCellCenteredRun2d<'a> {
     realization_graph: PortableRealizationGraph,
     scales: IncompressibleFlowScaleProfile2d,
     physical_mesh: CartesianMesh,
-    normalized_mesh: CartesianMesh,
-    normalized_cells: Vec<CartesianCellMetrics2d>,
-    body_force: Vec<[f64; DIMENSION]>,
+    operator: Arc<PreparedCartesianIncompressibleOperator2d>,
     duration: DynQuantity,
-    dimensionless_duration: f64,
-    density: f64,
-    viscosity: f64,
     face_volume_flux_scale: f64,
 }
 
@@ -572,14 +568,9 @@ impl PreparedResolvedTransientCellCenteredRun2d<'_> {
         }];
         let mut steps = Vec::with_capacity(run.step_count().get());
         for _ in 0..run.step_count().get() {
-            let operator = CartesianIncompressibleOperator2d::new(
-                self.normalized_mesh.clone(),
-                self.density,
-                self.viscosity,
-                self.dimensionless_duration,
+            let operator = self.operator.bind_action(
                 numerical.velocity.clone(),
                 previous_face_volume_fluxes.clone(),
-                self.body_force.clone(),
             )?;
             let (accepted, residual, newton) = solve_collocated_step_2d(
                 &operator,
@@ -589,8 +580,8 @@ impl PreparedResolvedTransientCellCenteredRun2d<'_> {
                 solver,
             )?;
             let evidence = accept_collocated_step(
-                &self.normalized_mesh,
-                &self.normalized_cells,
+                self.operator.mesh(),
+                self.operator.cells(),
                 &operator,
                 &accepted,
                 &residual,
@@ -743,6 +734,15 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_cell_centered_run_2d<'a>(
     let density = model.mass_density() * scales.velocity_value().powi(2) / scales.pressure_value();
     let viscosity =
         model.dynamic_viscosity() * scales.velocity_value() / (scales.pressure_value() * length);
+    let operator = Arc::new(PreparedCartesianIncompressibleOperator2d::from_geometry(
+        normalized_mesh,
+        normalized_cells,
+        normalized_facets,
+        density,
+        viscosity,
+        dimensionless_duration,
+        body_force,
+    )?);
     Ok(PreparedResolvedTransientCellCenteredRun2d {
         model,
         formulation,
@@ -750,13 +750,8 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_cell_centered_run_2d<'a>(
         realization_graph,
         scales,
         physical_mesh,
-        normalized_mesh,
-        normalized_cells,
-        body_force,
+        operator,
         duration,
-        dimensionless_duration,
-        density,
-        viscosity,
         face_volume_flux_scale: scales.velocity_value() * length,
     })
 }
