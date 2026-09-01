@@ -30,6 +30,10 @@ SHA256 = re.compile(r"[0-9a-f]{64}")
 REQUIRED_PROFILES = ("base", "jax", "matplotlib", "torch", "typing")
 FAMILY_MEMBER_BYTES_LIMIT = 16_777_216
 FAMILY_TOTAL_BYTES_LIMIT = 67_108_864
+MANIFEST_BYTES_LIMIT = 1_048_576
+ARCHIVE_MEMBER_COUNT_LIMIT = 4_096
+ARCHIVE_MEMBER_BYTES_LIMIT = 16_777_216
+ARCHIVE_TOTAL_BYTES_LIMIT = 134_217_728
 
 
 def _base_checks() -> frozenset[str]:
@@ -215,15 +219,23 @@ class _FamilyScan:
 
 def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
     records = document.get("artifacts")
-    if not isinstance(records, list):
-        raise ManifestError("artifacts must be an array before schema selection")
+    if not isinstance(records, list) or len(records) != 5:
+        raise ManifestError("candidate family must declare exactly five artifacts")
+    if artifacts.is_symlink() or not artifacts.is_dir():
+        raise ManifestError("candidate artifact family must be one directory")
     sdist_members: dict[str, bytes] = {}
     wheel_members: list[dict[str, bytes]] = []
     wheel_metadata: list[bytes] = []
     total_bytes = 0
+    archive_member_count = 0
+    archive_total_bytes = 0
+    filenames: set[str] = set()
     for index, raw in enumerate(records):
         record = _object(raw, f"artifacts[{index}]")
         filename = _basename(record.get("filename"), f"artifacts[{index}].filename")
+        if filename in filenames:
+            raise ManifestError("candidate manifest has duplicate artifact filenames")
+        filenames.add(filename)
         path = artifacts / filename
         if (
             path.is_symlink()
@@ -250,10 +262,22 @@ def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
                             raise ManifestError(
                                 "sdist has an unsafe non-regular member"
                             )
+                        archive_member_count += 1
+                        archive_total_bytes += member.size
+                        if (
+                            archive_member_count > ARCHIVE_MEMBER_COUNT_LIMIT
+                            or member.size > ARCHIVE_MEMBER_BYTES_LIMIT
+                            or archive_total_bytes > ARCHIVE_TOTAL_BYTES_LIMIT
+                        ):
+                            raise ManifestError(
+                                "candidate archive exceeds its expanded bounds"
+                            )
                         source = archive.extractfile(member)
                         if source is None:
                             raise ManifestError("sdist regular member cannot be read")
-                        payload = source.read()
+                        payload = source.read(member.size + 1)
+                        if len(payload) != member.size:
+                            raise ManifestError("sdist member size differs from its header")
                         if name in sdist_members:
                             raise ManifestError("sdist has duplicate member names")
                         sdist_members[name] = payload
@@ -272,9 +296,24 @@ def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
                             raise ManifestError(
                                 "wheel has an unsafe non-regular member"
                             )
+                        archive_member_count += 1
+                        archive_total_bytes += member.file_size
+                        if (
+                            archive_member_count > ARCHIVE_MEMBER_COUNT_LIMIT
+                            or member.file_size > ARCHIVE_MEMBER_BYTES_LIMIT
+                            or archive_total_bytes > ARCHIVE_TOTAL_BYTES_LIMIT
+                        ):
+                            raise ManifestError(
+                                "candidate archive exceeds its expanded bounds"
+                            )
                         if name in members:
                             raise ManifestError("wheel has duplicate member names")
-                        members[name] = archive.read(member)
+                        payload = archive.read(member)
+                        if len(payload) != member.file_size:
+                            raise ManifestError(
+                                "wheel member size differs from its header"
+                            )
+                        members[name] = payload
             except (OSError, zipfile.BadZipFile) as error:
                 raise ManifestError(f"cannot safely scan wheel: {error}") from error
             metadata = [
@@ -507,6 +546,11 @@ def load_candidate_family(
 ) -> Candidate:
     """Admit the current manifest only after scanning its retained family."""
     try:
+        info = manifest.lstat()
+        if manifest.is_symlink() or not manifest.is_file() or info.st_nlink != 1:
+            raise ManifestError("candidate manifest must be one regular file")
+        if info.st_size > MANIFEST_BYTES_LIMIT:
+            raise ManifestError("candidate manifest exceeds its byte ceiling")
         document = _object(json.loads(manifest.read_text(encoding="utf-8")), "manifest")
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ManifestError(f"cannot read candidate manifest: {error}") from error

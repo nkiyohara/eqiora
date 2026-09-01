@@ -1,20 +1,14 @@
 from __future__ import annotations
 
-import ast
 import base64
 import builtins
 import contextlib
 import hashlib
 import importlib
-import inspect
 import io
 import json
 import os
 import re
-import shutil
-import signal
-import stat
-import subprocess
 import sys
 import tarfile
 import tempfile
@@ -23,12 +17,11 @@ import time
 import tomllib
 import types
 import unittest
-import urllib.request
 import warnings
 import zipfile
 from collections import Counter
 from collections.abc import Callable, Iterator
-from dataclasses import FrozenInstanceError, replace
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 from unittest import mock
 
@@ -38,7 +31,6 @@ from packaging.utils import parse_wheel_filename
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPOSITORY_ROOT / "tools/release"))
 
-import candidate_manifest as candidate_manifest_module  # noqa: E402
 import python_candidate as python_candidate_module  # noqa: E402
 
 from python_candidate import (  # noqa: E402

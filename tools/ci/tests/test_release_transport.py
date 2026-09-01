@@ -290,6 +290,43 @@ class CandidateManifestTests(unittest.TestCase):
             with mock.patch.object(sys, "argv", argv):
                 self.assertEqual(candidate_manifest_module.main(), 2)
 
+    def test_manifest_and_expanded_archive_bounds_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest, artifacts, _ = candidate_fixture(Path(temporary))
+            with (
+                mock.patch.object(
+                    candidate_manifest_module,
+                    "MANIFEST_BYTES_LIMIT",
+                    manifest.stat().st_size - 1,
+                ),
+                self.assertRaisesRegex(ManifestError, "manifest exceeds"),
+            ):
+                load_candidate_family(manifest, artifacts)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest, artifacts, _ = candidate_fixture(Path(temporary))
+            with (
+                mock.patch.object(
+                    candidate_manifest_module,
+                    "ARCHIVE_MEMBER_BYTES_LIMIT",
+                    1,
+                ),
+                self.assertRaisesRegex(ManifestError, "expanded bounds"),
+            ):
+                load_candidate_family(manifest, artifacts)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest, artifacts, _ = candidate_fixture(Path(temporary))
+            with (
+                mock.patch.object(
+                    candidate_manifest_module,
+                    "ARCHIVE_MEMBER_COUNT_LIMIT",
+                    1,
+                ),
+                self.assertRaisesRegex(ManifestError, "expanded bounds"),
+            ):
+                load_candidate_family(manifest, artifacts)
+
     def test_testpypi_metadata_is_bound_to_the_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             manifest, artifacts, document = candidate_fixture(Path(temporary))
