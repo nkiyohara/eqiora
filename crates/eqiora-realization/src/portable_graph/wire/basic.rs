@@ -153,7 +153,7 @@ enum WireMesh {
     },
     SuppliedCartesian {
         artifact_sha256: String,
-        cells: [u64; 2],
+        cells: Vec<u64>,
     },
     ImportedSimplicial {
         artifact_sha256: String,
@@ -166,13 +166,15 @@ impl WireMesh {
             MeshPolicy::GeneratedUniform { cells_per_axis } => Ok(Self::GeneratedUniform {
                 cells_per_axis: encode_usize(cells_per_axis.get(), "cells per axis")?,
             }),
-            MeshPolicy::SuppliedCartesian { artifact, cells } => Ok(Self::SuppliedCartesian {
-                artifact_sha256: hex_bytes(&artifact.sha256()),
-                cells: [
-                    encode_usize(cells[0].get(), "Cartesian x cells")?,
-                    encode_usize(cells[1].get(), "Cartesian y cells")?,
-                ],
-            }),
+            MeshPolicy::SuppliedCartesian { artifact, cells } => {
+                Self::encode_supplied(artifact, &cells)
+            }
+            MeshPolicy::SuppliedCartesian1d { artifact, cells } => {
+                Self::encode_supplied(artifact, &cells)
+            }
+            MeshPolicy::SuppliedCartesian3d { artifact, cells } => {
+                Self::encode_supplied(artifact, &cells)
+            }
             MeshPolicy::ImportedSimplicial { artifact } => Ok(Self::ImportedSimplicial {
                 artifact_sha256: hex_bytes(&artifact.sha256()),
             }),
@@ -187,17 +189,53 @@ impl WireMesh {
             Self::SuppliedCartesian {
                 artifact_sha256,
                 cells,
-            } => Ok(MeshPolicy::SuppliedCartesian {
-                artifact: MeshArtifactReference::from_sha256(parse_sha256(&artifact_sha256)?),
-                cells: [
-                    decode_nonzero_usize(cells[0], "Cartesian x cells")?,
-                    decode_nonzero_usize(cells[1], "Cartesian y cells")?,
-                ],
-            }),
+            } => {
+                let artifact = MeshArtifactReference::from_sha256(parse_sha256(&artifact_sha256)?);
+                let cells = cells
+                    .into_iter()
+                    .enumerate()
+                    .map(|(axis, count)| {
+                        decode_nonzero_usize(count, &format!("Cartesian axis {axis} cells"))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                match cells.as_slice() {
+                    [x] => Ok(MeshPolicy::SuppliedCartesian1d {
+                        artifact,
+                        cells: [*x],
+                    }),
+                    [x, y] => Ok(MeshPolicy::SuppliedCartesian {
+                        artifact,
+                        cells: [*x, *y],
+                    }),
+                    [x, y, z] => Ok(MeshPolicy::SuppliedCartesian3d {
+                        artifact,
+                        cells: [*x, *y, *z],
+                    }),
+                    _ => Err(invalid_realization(
+                        "supplied Cartesian mesh requires one to three cell counts",
+                    )),
+                }
+            }
             Self::ImportedSimplicial { artifact_sha256 } => Ok(MeshPolicy::ImportedSimplicial {
                 artifact: MeshArtifactReference::from_sha256(parse_sha256(&artifact_sha256)?),
             }),
         }
+    }
+
+    fn encode_supplied(
+        artifact: MeshArtifactReference,
+        cells: &[NonZeroUsize],
+    ) -> Result<Self, Diagnostic> {
+        Ok(Self::SuppliedCartesian {
+            artifact_sha256: hex_bytes(&artifact.sha256()),
+            cells: cells
+                .iter()
+                .enumerate()
+                .map(|(axis, count)| {
+                    encode_usize(count.get(), &format!("Cartesian axis {axis} cells"))
+                })
+                .collect::<Result<_, _>>()?,
+        })
     }
 }
 
@@ -760,4 +798,77 @@ fn parse_sha256(value: &str) -> Result<[u8; 32], Diagnostic> {
 
 pub(super) const fn normalize_zero(value: f64) -> f64 {
     if value == 0.0 { 0.0 } else { value }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn artifact() -> MeshArtifactReference {
+        MeshArtifactReference::from_sha256([0xab; 32])
+    }
+
+    #[test]
+    fn supplied_cartesian_wire_round_trips_one_to_three_dimensions() {
+        let policies = [
+            MeshPolicy::SuppliedCartesian1d {
+                artifact: artifact(),
+                cells: [NonZeroUsize::new(7).unwrap()],
+            },
+            MeshPolicy::SuppliedCartesian {
+                artifact: artifact(),
+                cells: [
+                    NonZeroUsize::new(7).unwrap(),
+                    NonZeroUsize::new(11).unwrap(),
+                ],
+            },
+            MeshPolicy::SuppliedCartesian3d {
+                artifact: artifact(),
+                cells: [
+                    NonZeroUsize::new(7).unwrap(),
+                    NonZeroUsize::new(11).unwrap(),
+                    NonZeroUsize::new(13).unwrap(),
+                ],
+            },
+        ];
+
+        for policy in policies {
+            assert_eq!(WireMesh::encode(policy).unwrap().decode().unwrap(), policy);
+        }
+    }
+
+    #[test]
+    fn supplied_cartesian_two_dimensional_wire_remains_byte_identical() {
+        let wire = WireMesh::encode(MeshPolicy::SuppliedCartesian {
+            artifact: artifact(),
+            cells: [
+                NonZeroUsize::new(7).unwrap(),
+                NonZeroUsize::new(11).unwrap(),
+            ],
+        })
+        .unwrap();
+
+        assert_eq!(
+            serde_json::to_vec(&wire).unwrap(),
+            format!(
+                "{{\"kind\":\"supplied-cartesian\",\"artifact_sha256\":\"{}\",\"cells\":[7,11]}}",
+                "ab".repeat(32)
+            )
+            .into_bytes()
+        );
+    }
+
+    #[test]
+    fn supplied_cartesian_wire_rejects_invalid_dimensions_and_zero_cells() {
+        for cells in [vec![], vec![1, 2, 3, 4], vec![1, 0]] {
+            let wire = WireMesh::SuppliedCartesian {
+                artifact_sha256: "ab".repeat(32),
+                cells,
+            };
+            assert_eq!(
+                wire.decode().unwrap_err().code(),
+                eqiora_core::diagnostic::codes::INVALID_REALIZATION
+            );
+        }
+    }
 }

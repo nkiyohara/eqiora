@@ -214,7 +214,9 @@ impl RealizationEnvelopeV1 {
     pub fn mesh_artifact(&self) -> Result<Option<ArtifactDigest>, Diagnostic> {
         Ok(match self.plan()?.discretization().mesh() {
             MeshPolicy::GeneratedUniform { .. } => None,
-            MeshPolicy::SuppliedCartesian { artifact, .. } => {
+            MeshPolicy::SuppliedCartesian { artifact, .. }
+            | MeshPolicy::SuppliedCartesian1d { artifact, .. }
+            | MeshPolicy::SuppliedCartesian3d { artifact, .. } => {
                 Some(ArtifactDigest::from_sha256(artifact.sha256()))
             }
             MeshPolicy::ImportedSimplicial { artifact } => {
@@ -550,7 +552,9 @@ impl WireMesh {
             MeshPolicy::ImportedSimplicial { artifact } => Ok(Self::ImportedSimplicial {
                 artifact_sha256: ArtifactDigest::from_sha256(artifact.sha256()).to_string(),
             }),
-            MeshPolicy::SuppliedCartesian { .. } => Err(invalid_artifact(
+            MeshPolicy::SuppliedCartesian { .. }
+            | MeshPolicy::SuppliedCartesian1d { .. }
+            | MeshPolicy::SuppliedCartesian3d { .. } => Err(invalid_artifact(
                 "realization-envelope/v1 cannot encode supplied Cartesian mesh policy",
             )),
         }
