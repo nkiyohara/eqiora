@@ -10,7 +10,6 @@ enum PreparedCommonTransientMethod<'a> {
     MiniP1(Box<PreparedResolvedTransientMiniRun2d<'a>>),
     GeometryMiniP1(Box<PreparedResolvedTransientGeometryMiniRun2d<'a>>),
     CellCentered(Box<PreparedResolvedTransientCellCenteredRun2d<'a>>),
-    ExistingOneStep,
 }
 
 impl PreparedCommonTransientExecution<'_> {
@@ -67,14 +66,11 @@ impl PreparedCommonTransientExecution<'_> {
                     accepted.time().value(),
                     Arc::new(self.plan.admission.model.clone()),
                     Arc::new(self.plan.admission.resources.clone()),
-                    CommonStateKind::CellCentered(Box::new(cell_centered_initial_from_resolved(
-                        self.plan, accepted,
-                    )?)),
+                    CommonStateKind::CellCentered(Box::new(
+                        prepared.initial_from_accepted(accepted)?,
+                    )),
                     Vec::new(),
                 )
-            }
-            PreparedCommonTransientMethod::ExistingOneStep => {
-                self.plan.advance_one_authenticated(state, self.backend)
             }
         }
     }
@@ -821,8 +817,7 @@ impl CommonTransientFlowPlan {
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonState, Diagnostic> {
-        self.authenticate_execution(state, backend)?;
-        self.advance_one_authenticated(state, backend)
+        self.prepare_execution(state, backend)?.advance(state)
     }
 
     pub(super) fn authenticate_execution(
@@ -892,115 +887,17 @@ impl CommonTransientFlowPlan {
                     mesh,
                 )?,
             )),
-            _ => PreparedCommonTransientMethod::ExistingOneStep,
+            _ => {
+                return Err(invalid(
+                    "transient Plan and admitted mesh resources have no prepared method binding",
+                ));
+            }
         };
         Ok(PreparedCommonTransientExecution {
             plan: self,
             backend,
             method,
         })
-    }
-
-    pub(super) fn advance_one_authenticated(
-        &self,
-        state: &CommonState,
-        backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonState, Diagnostic> {
-        let run = TransientNavierStokesRun2d::new(NonZeroStepCount::new(NonZeroUsize::MIN));
-        let (next_kind, named_boundary_forces_on_domain) =
-            match (&self.resolved, &self.admission.resources, &state.kind) {
-                (
-                    CommonTransientResolvedSpatial::MiniP1(resolved),
-                    NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
-                    CommonStateKind::MiniP1(initial),
-                ) => {
-                    let trajectory = advance_resolved_transient_navier_stokes_mini_2d(
-                        &self.admission.program,
-                        resolved,
-                        mesh,
-                        initial.as_ref().clone(),
-                        run,
-                        backend,
-                    )?;
-                    let accepted = trajectory
-                        .states()
-                        .last()
-                        .ok_or_else(|| invalid("MINI transient step returned no accepted State"))?;
-                    (
-                        CommonStateKind::MiniP1(Box::new(mini_initial_from_resolved(
-                            self, mesh, accepted,
-                        )?)),
-                        accepted.named_boundary_forces_on_domain().to_vec(),
-                    )
-                }
-                (
-                    CommonTransientResolvedSpatial::MiniP1(resolved),
-                    NativeMeshResources::GmshSimplicial { mesh, .. },
-                    CommonStateKind::MiniP1(initial),
-                ) => {
-                    let RecognizedNativeModel::TransientGeometry(binding) =
-                        &self.admission.recognized
-                    else {
-                        return Err(invalid(
-                            "Gmsh transient Plan lost Geometry-backed Model meaning",
-                        ));
-                    };
-                    let states = advance_resolved_transient_navier_stokes_geometry_mini_2d(
-                        &self.admission.program,
-                        resolved,
-                        binding,
-                        initial.as_ref().clone(),
-                        run,
-                        backend,
-                    )?;
-                    let accepted = states.last().ok_or_else(|| {
-                        invalid("Geometry MINI transient step returned no accepted State")
-                    })?;
-                    (
-                        CommonStateKind::MiniP1(Box::new(mini_initial_from_resolved(
-                            self, mesh, accepted,
-                        )?)),
-                        accepted.named_boundary_forces_on_domain().to_vec(),
-                    )
-                }
-                (
-                    CommonTransientResolvedSpatial::CellCentered(resolved),
-                    NativeMeshResources::Cartesian { mesh, .. },
-                    CommonStateKind::CellCentered(initial),
-                ) => {
-                    let trajectory = advance_resolved_transient_navier_stokes_cell_centered_2d(
-                        &self.admission.program,
-                        resolved,
-                        mesh,
-                        initial.as_ref().clone(),
-                        run,
-                        backend,
-                    )?;
-                    let accepted = trajectory.states().last().ok_or_else(|| {
-                        invalid("cell-centered transient step returned no accepted State")
-                    })?;
-                    (
-                        CommonStateKind::CellCentered(Box::new(
-                            cell_centered_initial_from_resolved(self, accepted)?,
-                        )),
-                        Vec::new(),
-                    )
-                }
-                _ => {
-                    return Err(invalid(
-                        "State method history is incompatible with this Plan",
-                    ));
-                }
-            };
-        let next_time = state.time_s + self.temporal.step().value();
-        CommonState::new_with_boundary_forces(
-            self.state_space_identity(),
-            next_time,
-            Arc::clone(&state.model),
-            Arc::clone(&state.resources),
-            next_kind,
-            named_boundary_forces_on_domain,
-        )
     }
 }
 
@@ -1021,23 +918,6 @@ pub(super) fn mini_initial_from_resolved(
         state.velocity().clone(),
         state.pressure().clone(),
         state.pressure_reference(),
-    )
-}
-
-pub(super) fn cell_centered_initial_from_resolved(
-    plan: &CommonTransientFlowPlan,
-    state: &ResolvedCellCenteredNavierStokesState2d,
-) -> Result<CellCenteredNavierStokesInitialState2d, Diagnostic> {
-    let RecognizedNativeModel::Transient(model) = &plan.admission.recognized else {
-        return Err(invalid("transient Plan lost recognized Model meaning"));
-    };
-    CellCenteredNavierStokesInitialState2d::new(
-        model,
-        state.time(),
-        state.velocity().clone(),
-        state.pressure().clone(),
-        state.gauge_multiplier(),
-        state.previous_face_volume_fluxes().to_vec(),
     )
 }
 

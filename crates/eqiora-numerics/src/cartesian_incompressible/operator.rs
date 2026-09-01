@@ -215,6 +215,10 @@ impl PreparedCartesianIncompressibleOperator2d {
     pub(crate) fn cells(&self) -> &[CartesianCellMetrics2d] {
         &self.cells
     }
+
+    pub(crate) fn facet_count(&self) -> usize {
+        self.facets.len()
+    }
 }
 
 #[derive(Debug, Clone)]

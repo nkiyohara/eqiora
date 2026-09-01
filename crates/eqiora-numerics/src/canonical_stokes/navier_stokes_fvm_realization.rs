@@ -73,18 +73,31 @@ impl CellCenteredNavierStokesInitialState2d {
         gauge_multiplier: f64,
         previous_face_volume_fluxes: Vec<f64>,
     ) -> Result<Self, Diagnostic> {
-        if time.dim() != TIME || !time.value().is_finite() || time.value() < 0.0 {
-            return Err(invalid_realization(
-                "cell-centered transient initial time must be finite, non-negative, and physical time",
-            ));
-        }
-        if velocity.mesh() != pressure.mesh() || !gauge_multiplier.is_finite() {
-            return Err(invalid_realization(
-                "cell-centered initial velocity and pressure must share one mesh and finite gauge evidence",
-            ));
-        }
+        Self::require_state_header(time, &velocity, &pressure, gauge_multiplier)?;
         let (_, facets) = cartesian_fvm_geometry_2d(velocity.mesh())?;
-        if previous_face_volume_fluxes.len() != facets.len()
+        Self::new_with_facet_count(
+            model,
+            time,
+            velocity,
+            pressure,
+            gauge_multiplier,
+            previous_face_volume_fluxes,
+            facets.len(),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_with_facet_count(
+        model: &TransientIncompressibleNavierStokesCartesianModel2d,
+        time: DynQuantity,
+        velocity: CellCenteredVelocityField2d,
+        pressure: CellCenteredPressureField2d,
+        gauge_multiplier: f64,
+        previous_face_volume_fluxes: Vec<f64>,
+        facet_count: usize,
+    ) -> Result<Self, Diagnostic> {
+        Self::require_state_header(time, &velocity, &pressure, gauge_multiplier)?;
+        if previous_face_volume_fluxes.len() != facet_count
             || previous_face_volume_fluxes
                 .iter()
                 .any(|value| !value.is_finite())
@@ -121,6 +134,25 @@ impl CellCenteredNavierStokesInitialState2d {
             gauge_multiplier,
             previous_face_volume_fluxes,
         })
+    }
+
+    fn require_state_header(
+        time: DynQuantity,
+        velocity: &CellCenteredVelocityField2d,
+        pressure: &CellCenteredPressureField2d,
+        gauge_multiplier: f64,
+    ) -> Result<(), Diagnostic> {
+        if time.dim() != TIME || !time.value().is_finite() || time.value() < 0.0 {
+            return Err(invalid_realization(
+                "cell-centered transient initial time must be finite, non-negative, and physical time",
+            ));
+        }
+        if velocity.mesh() != pressure.mesh() || !gauge_multiplier.is_finite() {
+            return Err(invalid_realization(
+                "cell-centered initial velocity and pressure must share one mesh and finite gauge evidence",
+            ));
+        }
+        Ok(())
     }
 
     #[must_use]
@@ -521,6 +553,21 @@ pub(crate) struct PreparedResolvedTransientCellCenteredRun2d<'a> {
 }
 
 impl PreparedResolvedTransientCellCenteredRun2d<'_> {
+    pub(crate) fn initial_from_accepted(
+        &self,
+        state: &ResolvedCellCenteredNavierStokesState2d,
+    ) -> Result<CellCenteredNavierStokesInitialState2d, Diagnostic> {
+        CellCenteredNavierStokesInitialState2d::new_with_facet_count(
+            &self.model,
+            state.time(),
+            state.velocity().clone(),
+            state.pressure().clone(),
+            state.gauge_multiplier(),
+            state.previous_face_volume_fluxes().to_vec(),
+            self.operator.facet_count(),
+        )
+    }
+
     pub(crate) fn advance(
         &self,
         initial: CellCenteredNavierStokesInitialState2d,

@@ -465,19 +465,6 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
     })
 }
 
-/// Advance the common exact-Geometry/Gmsh transient MINI path by one bounded run.
-pub(crate) fn advance_resolved_transient_navier_stokes_geometry_mini_2d(
-    program: &KernelProgram,
-    resolved: &ResolvedTransientFieldwiseRealization,
-    binding: &TransientNavierStokesGeometryBinding2d,
-    initial: TransientNavierStokesInitialState2d,
-    run: TransientNavierStokesRun2d,
-    solver: &dyn LinearSolverBackend,
-) -> Result<Vec<ResolvedTransientNavierStokesState2d>, Diagnostic> {
-    prepare_resolved_transient_navier_stokes_geometry_mini_run_2d(program, resolved, binding)?
-        .advance(initial, run, solver)
-}
-
 fn unique_geometry_source_digest(program: &KernelProgram) -> Option<[u8; 32]> {
     let mut digests = program.nodes().filter_map(|node| match node {
         KernelNode::Domain(domain) => match domain.kind() {
