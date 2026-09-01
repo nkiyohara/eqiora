@@ -5,7 +5,8 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use crate::canonical::{
-    ScalarEllipticCartesianBoundary, geometry_cartesian_support, lower_steady_scalar_conservation,
+    ScalarEllipticCartesianBoundary, geometry_cartesian_support,
+    project_scalar_conservation_for_differentiation,
 };
 use crate::canonical_elasticity::{
     IsotropicElasticityCartesianModel2d, finalize_isotropic_elasticity_cartesian_q1_on_mesh,
@@ -53,11 +54,11 @@ use crate::fluid::{
 use crate::fsi::{
     FixedReferenceFsiPartition2d, FixedReferenceFsiState2d, ResolvedFixedReferenceFsiSolution2d,
 };
-use crate::scalar::{
-    CartesianScalarFieldLinearization, ResolvedScalarEllipticCartesianSolution,
-    ScalarEllipticCartesianModel,
+use crate::scalar::{CartesianScalarFieldLinearization, ResolvedScalarEllipticCartesianSolution};
+use crate::scalar_conservation::{
+    ScalarConservationDescriptor, ScalarConservationRegion, ScalarExteriorLaw, ScalarRegionSupport,
+    recognize_scalar_conservation_on_supports,
 };
-use crate::scalar_conservation::{ScalarRegionSupport, recognize_scalar_conservation_on_supports};
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::step_count::NonZeroStepCount;
 use eqiora_artifact::{
@@ -98,6 +99,7 @@ use eqiora_solver::{
     SolverCapability, SolverPlan, SolverPlanningObjective, SolverProvider,
 };
 use eqiora_time::TimeBackendIdentity;
+
 use sha2::{Digest, Sha256};
 
 pub use crate::form_compiler::vocabulary::FormulationKind;
@@ -904,6 +906,7 @@ mod plan_artifact;
 mod resolve;
 mod resolved;
 mod scalar;
+pub(super) use scalar::ExecutableSteadyScalarConservation;
 mod solver_planning;
 mod spatial_planning;
 mod state;

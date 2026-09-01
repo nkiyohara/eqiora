@@ -1,5 +1,103 @@
 use super::*;
 
+/// Exact steady conservation meaning admitted for Cartesian execution.
+///
+/// Q1 and TPFA retain this shared descriptor and add only their realization.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ExecutableSteadyScalarConservation {
+    descriptor: ScalarConservationDescriptor,
+    compiled_form: Option<crate::form_compiler::DerivedScalarGalerkinForm>,
+}
+
+impl ExecutableSteadyScalarConservation {
+    pub(super) fn new(
+        program: &KernelProgram,
+        descriptor: ScalarConservationDescriptor,
+    ) -> Result<Self, Diagnostic> {
+        if descriptor.model() != program.model()
+            || descriptor.semantic_revision() != program.revision().0
+        {
+            return Err(crate::canonical::model_lowering_error(
+                program,
+                "scalar-conservation descriptor differs from the exact Kernel Program",
+            ));
+        }
+        let regions = descriptor.regions().collect::<Vec<_>>();
+        let [region] = regions.as_slice() else {
+            return Err(crate::canonical::model_lowering_error(
+                program,
+                "steady Cartesian execution requires exactly one scalar-conservation region",
+            ));
+        };
+        if region.storage().is_some() || descriptor.interfaces().len() != 0 {
+            return Err(crate::canonical::lowering_error(
+                region.domain(),
+                "steady Cartesian execution does not admit storage or material interfaces",
+            ));
+        }
+        for boundary in region.exterior() {
+            if matches!(boundary.law(), ScalarExteriorLaw::Robin { .. }) {
+                return Err(crate::canonical::lowering_error(
+                    boundary.boundary(),
+                    "steady Cartesian Q1/TPFA execution does not yet admit Robin boundaries",
+                ));
+            }
+        }
+        for axis in 0..region.dimensions() {
+            for side in [BoundarySide::Lower, BoundarySide::Upper] {
+                if region.exterior_at(axis, side).is_none() {
+                    return Err(crate::canonical::lowering_error(
+                        region.domain(),
+                        format!(
+                            "steady Cartesian execution is missing boundary axis {axis} {side:?}"
+                        ),
+                    ));
+                }
+            }
+        }
+        let compiled_form = crate::form_compiler::derive_candidate_with_dimension(
+            program,
+            region.domain(),
+            region.dimensions(),
+        )?;
+        Ok(Self {
+            descriptor,
+            compiled_form,
+        })
+    }
+
+    pub(super) const fn descriptor(&self) -> &ScalarConservationDescriptor {
+        &self.descriptor
+    }
+
+    pub(super) fn region(&self) -> &ScalarConservationRegion {
+        self.descriptor
+            .regions()
+            .next()
+            .expect("steady scalar admission owns exactly one region")
+    }
+
+    pub(super) fn domain_id(&self) -> eqiora_core::Id<eqiora_core::entity::kinds::Domain> {
+        self.region()
+            .domain()
+            .downcast()
+            .expect("scalar-conservation recognition stores a Domain identifier")
+    }
+
+    pub(super) fn field_id(&self) -> eqiora_core::Id<eqiora_core::entity::kinds::Field> {
+        self.region()
+            .field()
+            .downcast()
+            .expect("scalar-conservation recognition stores a Field identifier")
+    }
+
+    pub(super) const fn compiled_form(
+        &self,
+    ) -> Option<&crate::form_compiler::DerivedScalarGalerkinForm> {
+        self.compiled_form.as_ref()
+    }
+}
+
 fn describe_primal(
     kind: FormulationKind,
     boundary_treatment: &'static str,
@@ -28,7 +126,7 @@ fn describe_primal(
 
 pub(super) fn resolve_common_scalar_portable(
     admission: &NativeNumericalAdmission,
-    lowered: &ScalarEllipticCartesianModel,
+    lowered: &ExecutableSteadyScalarConservation,
     mesh: &CartesianMeshEnvelopeV1,
     cells: &[usize],
 ) -> Result<PortableRealizationGraph, Diagnostic> {
@@ -115,7 +213,7 @@ impl CommonScalarPlan {
             ));
         };
         if let Some(authored) = &self.authored_formulation {
-            let derived = lowered.compiled_form.as_ref().ok_or_else(|| {
+            let derived = lowered.compiled_form().ok_or_else(|| {
                 invalid("authored scalar-primal Plan lost its effective derived Formulation")
             })?;
             crate::form_compiler::admit_authored_scalar_primal_form(
@@ -166,7 +264,7 @@ impl CommonScalarPlan {
         let mut accepted_authored_formulation = None;
         let formulation = match formulation_selection {
             None => None,
-            Some(selection) => match lowered.compiled_form.as_ref() {
+            Some(selection) => match lowered.compiled_form() {
                 Some(derived) => {
                     if let Some(projection) = authored_formulation {
                         crate::form_compiler::admit_authored_scalar_primal_form(
@@ -305,6 +403,10 @@ impl CommonScalarPlan {
                 "common scalar Plan lost its recognized mathematics",
             ));
         };
+        let template = project_scalar_conservation_for_differentiation(
+            template.descriptor(),
+            template.compiled_form(),
+        );
         let selected_values = selected
             .iter()
             .map(|field| {
