@@ -7,7 +7,8 @@ use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_meshing::{
-    MeshEntity, MeshTopology, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
+    MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh, simplex_duffy_gauss_legendre,
+    triangle_duffy_gauss_legendre,
 };
 use eqiora_realization::{
     MeshArtifactReference, NonlinearSolvePlan, ResolvedTransientFieldwiseRealization,
@@ -31,7 +32,10 @@ use super::navier_stokes_realization::{
     transient_navier_stokes_mini_plan_for_2d, velocity_id,
 };
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
-use crate::simplicial_navier_stokes::advance_simplicial_mini_navier_stokes_2d_with_assembly;
+use crate::discrete_block::DiscreteBlockSystem;
+use crate::simplicial_navier_stokes::{
+    MiniNavierStokesStepPlan2d, advance_simplicial_mini_navier_stokes_2d_with_assembly,
+};
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
     SimplicialMiniStokesBoundaryFacet2d,
@@ -296,18 +300,114 @@ pub(super) fn geometry_boundary(
     })
 }
 
-/// Advance the common exact-Geometry/Gmsh transient MINI path by one bounded run.
-pub(crate) fn advance_resolved_transient_navier_stokes_geometry_mini_2d(
+/// Ephemeral invariant structure for one exact-Geometry MINI Run.
+pub(crate) struct PreparedResolvedTransientGeometryMiniRun2d<'a> {
+    binding: &'a TransientNavierStokesGeometryBinding2d,
+    mesh_artifact: MeshArtifactReference,
+    physical_mesh: &'a SimplicialMesh,
+    normalized: SimplicialMesh,
+    geometry_boundary: TransientGeometryBoundary2d,
+    fixed_velocity: BTreeMap<(u64, u64), [f64; DIMENSION]>,
+    scales: IncompressibleFlowScaleProfile2d,
+    numerical_plan: MiniNavierStokesStepPlan2d,
+    block_system: DiscreteBlockSystem,
+    cell_quadrature: QuadratureRule,
+    facet_quadrature: QuadratureRule,
+    with_gauge: bool,
+}
+
+impl PreparedResolvedTransientGeometryMiniRun2d<'_> {
+    pub(crate) fn advance(
+        &self,
+        initial: TransientNavierStokesInitialState2d,
+        run: TransientNavierStokesRun2d,
+        solver: &dyn LinearSolverBackend,
+    ) -> Result<Vec<ResolvedTransientNavierStokesState2d>, Diagnostic> {
+        let common = self.binding.model();
+        if initial.mesh_artifact != self.mesh_artifact
+            || initial.velocity_field != velocity_id(common)
+            || initial.pressure_field != pressure_id(common)
+        {
+            return Err(invalid_realization(
+                "transient initial state identity differs from the resolved Model or mesh revision",
+            ));
+        }
+        if initial.velocity.mesh() != self.physical_mesh
+            || initial.pressure.mesh() != self.physical_mesh
+        {
+            return Err(invalid_realization(
+                "transient Navier--Stokes initial fields are stale for the selected mesh artifact",
+            ));
+        }
+        let fixed_velocity = &self.fixed_velocity;
+        let essential_velocity = |coordinate: [f64; DIMENSION]| {
+            fixed_velocity
+                .get(&(coordinate[0].to_bits(), coordinate[1].to_bits()))
+                .copied()
+                .ok_or_else(|| {
+                    invalid_realization(
+                        "an essential geometry vertex is absent from correspondence-derived trace data",
+                    )
+                })
+        };
+        let numerical_initial =
+            normalize_state(&initial, &self.normalized, self.scales, self.with_gauge)?;
+        let checked_assembly = self
+            .block_system
+            .checked_backend(&REFERENCE_ASSEMBLY_BACKEND);
+        let lower = [common.bounds[0][0], common.bounds[1][0]];
+        let length = self.scales.length_value();
+        let pressure = self.scales.pressure_value();
+        let body_force = |coordinate_hat: [f64; DIMENSION]| {
+            let coordinate = [
+                lower[0] + length * coordinate_hat[0],
+                lower[1] + length * coordinate_hat[1],
+            ];
+            let force = common.conservative_body_force(&coordinate)?;
+            Ok([length * force[0] / pressure, length * force[1] / pressure])
+        };
+        let numerical = advance_simplicial_mini_navier_stokes_2d_with_assembly(
+            &self.normalized,
+            &self.geometry_boundary.boundary,
+            &essential_velocity,
+            &body_force,
+            numerical_initial,
+            run.step_count(),
+            self.numerical_plan,
+            &self.cell_quadrature,
+            &self.facet_quadrature,
+            &checked_assembly,
+            solver,
+        )?;
+        if checked_assembly.validated_materialization_count() == 0 {
+            return Err(invalid_realization(
+                "transient execution returned without a validated block materialization",
+            ));
+        }
+        numerical
+            .states()
+            .iter()
+            .enumerate()
+            .map(|(index, state)| {
+                reconstruct_state(
+                    state,
+                    self.physical_mesh,
+                    common,
+                    self.scales,
+                    index.checked_sub(1).map(|step| &numerical.steps()[step]),
+                )
+            })
+            .collect()
+    }
+}
+
+pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
     program: &KernelProgram,
-    resolved: &ResolvedTransientFieldwiseRealization,
-    binding: &TransientNavierStokesGeometryBinding2d,
-    initial: TransientNavierStokesInitialState2d,
-    run: TransientNavierStokesRun2d,
-    solver: &dyn LinearSolverBackend,
-) -> Result<Vec<ResolvedTransientNavierStokesState2d>, Diagnostic> {
+    resolved: &'a ResolvedTransientFieldwiseRealization,
+    binding: &'a TransientNavierStokesGeometryBinding2d,
+) -> Result<PreparedResolvedTransientGeometryMiniRun2d<'a>, Diagnostic> {
     let mesh = binding.mesh();
     let mesh_artifact = mesh.artifact_reference()?;
-    let mesh_data = mesh.mesh();
     if program.model() != resolved.model()
         || program.revision().0 != resolved.semantic_revision().get()
     {
@@ -327,22 +427,9 @@ pub(crate) fn advance_resolved_transient_navier_stokes_geometry_mini_2d(
     let realization_graph = resolved.portable_graph()?;
     let (scales, numerical_plan) =
         require_exact_transient_plan(common, resolved, &realization_graph, mesh_artifact)?;
-    if initial.mesh_artifact != mesh_artifact
-        || initial.velocity_field != velocity_id(common)
-        || initial.pressure_field != pressure_id(common)
-    {
-        return Err(invalid_realization(
-            "transient initial state identity differs from the resolved Model or mesh revision",
-        ));
-    }
-    if initial.velocity.mesh() != mesh_data || initial.pressure.mesh() != mesh_data {
-        return Err(invalid_realization(
-            "transient Navier--Stokes initial fields are stale for the selected mesh artifact",
-        ));
-    }
-    let normalized = normalize_geometry_mesh(&common.bounds, mesh_data, scales.length_value())?;
+    let normalized = normalize_geometry_mesh(&common.bounds, mesh.mesh(), scales.length_value())?;
     let geometry_boundary = geometry_boundary(binding, &normalized, scales)?;
-    let lookup = normalized
+    let fixed_velocity = normalized
         .vertices()
         .iter()
         .enumerate()
@@ -350,18 +437,7 @@ pub(crate) fn advance_resolved_transient_navier_stokes_geometry_mini_2d(
             geometry_boundary.fixed_velocity[index]
                 .map(|value| ((coordinate[0].to_bits(), coordinate[1].to_bits()), value))
         })
-        .collect::<BTreeMap<_, _>>();
-    let essential_velocity = |coordinate: [f64; DIMENSION]| {
-        lookup
-            .get(&(coordinate[0].to_bits(), coordinate[1].to_bits()))
-            .copied()
-            .ok_or_else(|| {
-                invalid_realization(
-                    "an essential geometry vertex is absent from correspondence-derived trace data",
-                )
-            })
-    };
-    let numerical_initial = normalize_state(&initial, &normalized, scales, with_gauge)?;
+        .collect();
     let block_system = super::block::transient_navier_stokes_block_system(
         program,
         common,
@@ -371,50 +447,33 @@ pub(crate) fn advance_resolved_transient_navier_stokes_geometry_mini_2d(
         resolved,
         scales,
     )?;
-    let checked_assembly = block_system.checked_backend(&REFERENCE_ASSEMBLY_BACKEND);
-    let lower = [common.bounds[0][0], common.bounds[1][0]];
-    let length = scales.length_value();
-    let pressure = scales.pressure_value();
-    let body_force = |coordinate_hat: [f64; DIMENSION]| {
-        let coordinate = [
-            lower[0] + length * coordinate_hat[0],
-            lower[1] + length * coordinate_hat[1],
-        ];
-        let force = common.conservative_body_force(&coordinate)?;
-        Ok([length * force[0] / pressure, length * force[1] / pressure])
-    };
-    let numerical = advance_simplicial_mini_navier_stokes_2d_with_assembly(
-        &normalized,
-        &geometry_boundary.boundary,
-        &essential_velocity,
-        &body_force,
-        numerical_initial,
-        run.step_count(),
+    Ok(PreparedResolvedTransientGeometryMiniRun2d {
+        binding,
+        mesh_artifact,
+        physical_mesh: mesh.mesh(),
+        normalized,
+        geometry_boundary,
+        fixed_velocity,
+        scales,
         numerical_plan,
-        &triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?,
-        &simplex_duffy_gauss_legendre(DIMENSION - 1, 2)?,
-        &checked_assembly,
-        solver,
-    )?;
-    if checked_assembly.validated_materialization_count() == 0 {
-        return Err(invalid_realization(
-            "transient execution returned without a validated block materialization",
-        ));
-    }
-    numerical
-        .states()
-        .iter()
-        .enumerate()
-        .map(|(index, state)| {
-            reconstruct_state(
-                state,
-                mesh_data,
-                common,
-                scales,
-                index.checked_sub(1).map(|step| &numerical.steps()[step]),
-            )
-        })
-        .collect()
+        block_system,
+        cell_quadrature: triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?,
+        facet_quadrature: simplex_duffy_gauss_legendre(DIMENSION - 1, 2)?,
+        with_gauge,
+    })
+}
+
+/// Advance the common exact-Geometry/Gmsh transient MINI path by one bounded run.
+pub(crate) fn advance_resolved_transient_navier_stokes_geometry_mini_2d(
+    program: &KernelProgram,
+    resolved: &ResolvedTransientFieldwiseRealization,
+    binding: &TransientNavierStokesGeometryBinding2d,
+    initial: TransientNavierStokesInitialState2d,
+    run: TransientNavierStokesRun2d,
+    solver: &dyn LinearSolverBackend,
+) -> Result<Vec<ResolvedTransientNavierStokesState2d>, Diagnostic> {
+    prepare_resolved_transient_navier_stokes_geometry_mini_run_2d(program, resolved, binding)?
+        .advance(initial, run, solver)
 }
 
 fn unique_geometry_source_digest(program: &KernelProgram) -> Option<[u8; 32]> {

@@ -8,33 +8,58 @@ pub(super) struct PreparedCommonTransientExecution<'a> {
 
 enum PreparedCommonTransientMethod<'a> {
     MiniP1(PreparedResolvedTransientMiniRun2d<'a>),
+    GeometryMiniP1(PreparedResolvedTransientGeometryMiniRun2d<'a>),
     ExistingOneStep,
 }
 
 impl PreparedCommonTransientExecution<'_> {
     pub(super) fn advance(&self, state: &CommonState) -> Result<CommonState, Diagnostic> {
-        let PreparedCommonTransientMethod::MiniP1(prepared) = &self.method else {
-            return self.plan.advance_one_authenticated(state, self.backend);
-        };
         let CommonStateKind::MiniP1(initial) = &state.kind else {
+            if matches!(self.method, PreparedCommonTransientMethod::ExistingOneStep) {
+                return self.plan.advance_one_authenticated(state, self.backend);
+            }
             return Err(invalid(
                 "prepared MINI Run received a non-MINI common State",
             ));
         };
-        let trajectory = prepared.advance(
-            initial.as_ref().clone(),
-            TransientNavierStokesRun2d::new(NonZeroStepCount::new(NonZeroUsize::MIN)),
-            self.backend,
-        )?;
-        let accepted = trajectory
-            .states()
-            .last()
-            .ok_or_else(|| invalid("MINI transient step returned no accepted State"))?;
-        let NativeMeshResources::AffineTriangleSimplicial { mesh, .. } =
-            &self.plan.admission.resources
-        else {
-            unreachable!("prepared MINI Run owns affine-triangle resources")
-        };
+        let run = TransientNavierStokesRun2d::new(NonZeroStepCount::new(NonZeroUsize::MIN));
+        match &self.method {
+            PreparedCommonTransientMethod::MiniP1(prepared) => {
+                let trajectory = prepared.advance(initial.as_ref().clone(), run, self.backend)?;
+                let accepted = trajectory
+                    .states()
+                    .last()
+                    .ok_or_else(|| invalid("MINI transient step returned no accepted State"))?;
+                let NativeMeshResources::AffineTriangleSimplicial { mesh, .. } =
+                    &self.plan.admission.resources
+                else {
+                    unreachable!("prepared MINI Run owns affine-triangle resources")
+                };
+                self.accept_mini(mesh, accepted)
+            }
+            PreparedCommonTransientMethod::GeometryMiniP1(prepared) => {
+                let states = prepared.advance(initial.as_ref().clone(), run, self.backend)?;
+                let accepted = states.last().ok_or_else(|| {
+                    invalid("Geometry MINI transient step returned no accepted State")
+                })?;
+                let NativeMeshResources::GmshSimplicial { mesh, .. } =
+                    &self.plan.admission.resources
+                else {
+                    unreachable!("prepared Geometry MINI Run owns Gmsh resources")
+                };
+                self.accept_mini(mesh, accepted)
+            }
+            PreparedCommonTransientMethod::ExistingOneStep => {
+                self.plan.advance_one_authenticated(state, self.backend)
+            }
+        }
+    }
+
+    fn accept_mini(
+        &self,
+        mesh: &SimplicialMeshEnvelopeV1,
+        accepted: &ResolvedTransientNavierStokesState2d,
+    ) -> Result<CommonState, Diagnostic> {
         CommonState::new_with_boundary_forces(
             self.plan.state_space_identity(),
             accepted.time().value(),
@@ -815,6 +840,24 @@ impl CommonTransientFlowPlan {
                     mesh,
                 )?,
             ),
+            (
+                CommonTransientResolvedSpatial::MiniP1(resolved),
+                NativeMeshResources::GmshSimplicial { .. },
+            ) => {
+                let RecognizedNativeModel::TransientGeometry(binding) = &self.admission.recognized
+                else {
+                    return Err(invalid(
+                        "Gmsh transient Plan lost Geometry-backed Model meaning",
+                    ));
+                };
+                PreparedCommonTransientMethod::GeometryMiniP1(
+                    prepare_resolved_transient_navier_stokes_geometry_mini_run_2d(
+                        &self.admission.program,
+                        resolved,
+                        binding,
+                    )?,
+                )
+            }
             _ => PreparedCommonTransientMethod::ExistingOneStep,
         };
         Ok(PreparedCommonTransientExecution {
