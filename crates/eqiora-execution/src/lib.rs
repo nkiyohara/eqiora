@@ -26,6 +26,7 @@
 mod binding;
 mod device;
 mod distributed;
+mod prepared;
 mod receipt;
 
 pub use binding::{
@@ -36,8 +37,8 @@ pub use binding::{
 pub use device::{CsrDeviceTransferEvidence, CudaLinearExecutionTrace, DeviceValueGeneration};
 pub use distributed::{
     DistributedCollectiveStepV1, DistributedExecutionPhaseV1, DistributedLinearExecutionTrace,
-    distributed_collective_trace_capacity,
 };
+pub use prepared::PreparedLinearExecution;
 pub use receipt::{
     AcceptedLinearExecution, AcceptedOutputFingerprintV1, AdmittedExecution, ExecutionDagView,
     ExecutionReceipt, ExecutionStepKind,

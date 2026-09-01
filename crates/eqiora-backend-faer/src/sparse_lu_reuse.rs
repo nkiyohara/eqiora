@@ -1,9 +1,12 @@
 use std::cell::Cell;
+#[cfg(test)]
 use std::num::NonZeroUsize;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_execution::{AcceptedLinearExecution, AdmittedExecution, DeploymentBinding};
+use eqiora_execution::{
+    AcceptedLinearExecution, AdmittedExecution, DeploymentBinding, PreparedLinearExecution,
+};
 use eqiora_solver::{
     ConvergenceReason, ExecutionReport, LinearOperator, LinearOperatorOrientation, LinearSolution,
     LinearSolver, PreconditionerPolicy, ReductionPolicy, SERIAL_EXECUTION_PROVIDER, SolverPlan,
@@ -17,29 +20,30 @@ use crate::sparse_lu_factor::{
     factor_numeric, factor_symbolic, identities, solve_factored,
 };
 
-/// Bounded host-serial owner of one accepted faer sparse-LU reuse state.
-#[derive(Debug)]
-pub struct FaerSparseLuReuseOwner {
+pub(super) fn with_prepared_linear<R>(
     plan: SolverPlan,
+    operation: impl FnOnce(
+        &mut dyn FnMut(AdmittedExecution<'_>) -> Result<AcceptedLinearExecution, Diagnostic>,
+    ) -> Result<R, Diagnostic>,
+) -> Result<R, Diagnostic> {
+    let mut session = FaerSparseLuPreparedSession::new(plan)?;
+    operation(&mut |admitted| session.execute(admitted))
+}
+
+#[derive(Debug)]
+pub(crate) struct FaerSparseLuPreparedSession {
+    plan: SolverPlan,
+    #[cfg(test)]
     maximum_attempts: NonZeroUsize,
     counters: Counters,
     state: ReuseState,
+    lifecycle: PreparedLinearExecution,
     last_phases: PhaseLedger,
     _not_sync: Cell<()>,
 }
 
-impl FaerSparseLuReuseOwner {
-    /// Construct the exact sparse-LU/identity/fast owner.
-    ///
-    /// # Errors
-    /// Returns `EQ0807` for another solver policy or an attempt bound outside
-    /// the closed interval `2..=64`.
-    pub fn new(plan: SolverPlan, maximum_attempts: NonZeroUsize) -> Result<Self, Diagnostic> {
-        if !(2..=64).contains(&maximum_attempts.get()) {
-            return Err(invalid_realization(
-                "faer sparse LU reuse requires maximum_attempts in 2..=64",
-            ));
-        }
+impl FaerSparseLuPreparedSession {
+    fn new(plan: SolverPlan) -> Result<Self, Diagnostic> {
         if plan.algorithm() != LinearSolver::SparseLu
             || plan.preconditioner() != PreconditionerPolicy::Identity
             || plan.reduction() != ReductionPolicy::Fast
@@ -50,75 +54,61 @@ impl FaerSparseLuReuseOwner {
         }
         Ok(Self {
             plan,
-            maximum_attempts,
+            #[cfg(test)]
+            maximum_attempts: NonZeroUsize::new(64).expect("private test capacity is nonzero"),
             counters: Counters::default(),
             state: ReuseState::Empty,
+            lifecycle: PreparedLinearExecution::new(),
             last_phases: PhaseLedger::default(),
             _not_sync: Cell::new(()),
         })
     }
 
-    /// Execute one separately admitted host-linear solve and commit reusable
-    /// factors only after solver and execution acceptance both succeed.
-    ///
-    /// # Errors
-    /// Returns a structured diagnostic for an incompatible binding, exhausted
-    /// capacity, factorization/solve failure, or either acceptance failure.
-    pub fn execute(
+    #[cfg(test)]
+    pub(crate) fn new_bounded(
+        plan: SolverPlan,
+        maximum_attempts: NonZeroUsize,
+    ) -> Result<Self, Diagnostic> {
+        if !(2..=64).contains(&maximum_attempts.get()) {
+            return Err(invalid_realization(
+                "faer sparse LU reuse requires maximum_attempts in 2..=64",
+            ));
+        }
+        let mut session = Self::new(plan)?;
+        session.maximum_attempts = maximum_attempts;
+        Ok(session)
+    }
+
+    fn execute(
         &mut self,
         admitted: AdmittedExecution<'_>,
     ) -> Result<AcceptedLinearExecution, Diagnostic> {
-        self.execute_core(LiveExecution::new(admitted))
+        let mut lifecycle = std::mem::take(&mut self.lifecycle);
+        let result = lifecycle.execute(
+            admitted,
+            |system, binding, coefficients_reusable, accept| {
+                self.execute_core(LiveExecution::new(
+                    system,
+                    binding,
+                    coefficients_reusable,
+                    accept,
+                ))
+            },
+        );
+        self.lifecycle = lifecycle;
+        result
     }
 
-    /// Immutable numerical policy bound by this owner.
-    #[must_use]
-    pub const fn plan(&self) -> SolverPlan {
-        self.plan
-    }
-
-    /// Maximum post-preflight numerical attempts.
-    #[must_use]
-    pub const fn maximum_attempts(&self) -> NonZeroUsize {
-        self.maximum_attempts
-    }
-
-    /// Numerical attempts begun after successful preflight.
-    #[must_use]
-    pub const fn attempted_solve_count(&self) -> usize {
-        self.counters.attempted
-    }
-
-    /// Executions committed after both acceptance boundaries.
-    #[must_use]
-    pub const fn accepted_solve_count(&self) -> usize {
-        self.counters.accepted
-    }
-
-    /// Successfully committed symbolic constructions.
-    #[must_use]
-    pub const fn symbolic_factorization_count(&self) -> usize {
-        self.counters.symbolic
-    }
-
-    /// Successfully committed numeric constructions.
-    #[must_use]
-    pub const fn numeric_factorization_count(&self) -> usize {
-        self.counters.numeric
-    }
-
-    /// Symbolic identity of the last committed accepted state.
-    #[must_use]
-    pub const fn symbolic_reuse_identity(&self) -> Option<[u8; 32]> {
+    #[cfg(test)]
+    fn symbolic_reuse_identity(&self) -> Option<[u8; 32]> {
         match &self.state {
             ReuseState::Empty => None,
             ReuseState::Ready(ready) => Some(ready.symbolic_identity),
         }
     }
 
-    /// Numeric identity of the last committed accepted state.
-    #[must_use]
-    pub const fn numeric_reuse_identity(&self) -> Option<[u8; 32]> {
+    #[cfg(test)]
+    fn numeric_reuse_identity(&self) -> Option<[u8; 32]> {
         match &self.state {
             ReuseState::Empty => None,
             ReuseState::Ready(ready) => Some(ready.numeric_identity),
@@ -201,10 +191,13 @@ impl FaerSparseLuReuseOwner {
         input: PreflightInput,
         omission: Option<ValidationComponent>,
     ) -> Result<Preflight, Diagnostic> {
-        if self.counters.attempted >= self.maximum_attempts.get() {
-            return Err(invalid_realization(
-                "faer sparse LU reuse owner exhausted its numerical attempt capacity",
-            ));
+        #[cfg(test)]
+        {
+            if self.counters.attempted >= self.maximum_attempts.get() {
+                return Err(invalid_realization(
+                    "faer sparse LU reuse session exhausted its numerical attempt capacity",
+                ));
+            }
         }
         let action = match &self.state {
             ReuseState::Empty => ReuseAction::BuildBoth,
@@ -214,8 +207,14 @@ impl FaerSparseLuReuseOwner {
                     ready.symbolic_identity,
                     ready.numeric_identity,
                 )?;
-                let validation = ValidationComponents::between(ready, &input);
-                validation.classify(omission)?
+                match input.coefficients_reusable {
+                    Some(false) => ReuseAction::Rebuild,
+                    Some(true) => ReuseAction::Reuse,
+                    None => {
+                        let validation = ValidationComponents::between(ready, &input);
+                        validation.classify(omission)?
+                    }
+                }
             }
         };
         Ok(Preflight {
@@ -332,32 +331,36 @@ impl FaerSparseLuReuseOwner {
     }
 }
 
-struct LiveExecution<'system> {
-    admitted: Option<AdmittedExecution<'system>>,
+struct LiveExecution<'run> {
+    system: &'run eqiora_solver::CanonicalCsrSystemView,
+    binding: &'run DeploymentBinding,
+    coefficients_reusable: bool,
+    accept: &'run mut dyn FnMut(LinearSolution) -> Result<(), Diagnostic>,
 }
 
-impl<'system> LiveExecution<'system> {
-    fn new(admitted: AdmittedExecution<'system>) -> Self {
+impl<'run> LiveExecution<'run> {
+    fn new(
+        system: &'run eqiora_solver::CanonicalCsrSystemView,
+        binding: &'run DeploymentBinding,
+        coefficients_reusable: bool,
+        accept: &'run mut dyn FnMut(LinearSolution) -> Result<(), Diagnostic>,
+    ) -> Self {
         Self {
-            admitted: Some(admitted),
+            system,
+            binding,
+            coefficients_reusable,
+            accept,
         }
-    }
-
-    fn admitted(&self) -> &AdmittedExecution<'system> {
-        self.admitted
-            .as_ref()
-            .expect("live execution remains available until execution acceptance")
     }
 }
 
 impl ReuseExecution for LiveExecution<'_> {
     type CandidateSolution = Vec<f64>;
     type SolverAccepted = LinearSolution;
-    type Accepted = AcceptedLinearExecution;
+    type Accepted = ();
 
     fn preflight_input(&self, owner_plan: SolverPlan) -> Result<PreflightInput, Diagnostic> {
-        let admitted = self.admitted();
-        let binding = admitted.binding();
+        let binding = self.binding;
         let Some(host) = binding.host_executor() else {
             return Err(invalid_realization(
                 "faer sparse LU reuse requires a host deployment binding",
@@ -378,12 +381,12 @@ impl ReuseExecution for LiveExecution<'_> {
                 "faer sparse LU reuse requires the pinned faer provider descriptor",
             ));
         }
-        if binding.solver_plan() != owner_plan || admitted.solver_plan() != owner_plan {
+        if binding.solver_plan() != owner_plan {
             return Err(invalid_realization(
                 "faer sparse LU reuse execution plan differs from the immutable owner plan",
             ));
         }
-        let system = admitted.system();
+        let system = self.system;
         if system.orientation() != LinearOperatorOrientation::Normal {
             return Err(invalid_realization(
                 "faer sparse LU reuse requires normal-orientation canonical CSR",
@@ -392,13 +395,12 @@ impl ReuseExecution for LiveExecution<'_> {
         Ok(PreflightInput {
             binding: ReuseBinding::Live(Box::new(binding.clone())),
             identities: identities(system, owner_plan, binding.solver_provider())?,
+            coefficients_reusable: Some(self.coefficients_reusable),
         })
     }
 
     fn factor_symbolic(&mut self) -> Result<StoredSymbolicFactor, Diagnostic> {
-        Ok(StoredSymbolicFactor::Live(factor_symbolic(
-            self.admitted().system(),
-        )?))
+        Ok(StoredSymbolicFactor::Live(factor_symbolic(self.system)?))
     }
 
     fn factor_numeric(
@@ -419,7 +421,7 @@ impl ReuseExecution for LiveExecution<'_> {
         };
         Ok(StoredNumericFactor::Live(Box::new(factor_numeric(
             symbolic,
-            self.admitted().system(),
+            self.system,
         )?)))
     }
 
@@ -452,23 +454,19 @@ impl ReuseExecution for LiveExecution<'_> {
                 ));
             }
         };
-        solve_factored(
-            symbolic,
-            numeric,
-            self.admitted().system().right_hand_side(),
-        )
+        solve_factored(symbolic, numeric, self.system.right_hand_side())
     }
 
     fn accept_solver(
         &mut self,
         values: Self::CandidateSolution,
     ) -> Result<Self::SolverAccepted, Diagnostic> {
-        let system = self.admitted().system();
+        let system = self.system;
         let problem = system.linear_problem()?;
         let reported_residual_norm = fixed_residual_norm(&problem, &values)?;
         accept_linear_solution(
             &problem,
-            self.admitted().solver_plan(),
+            self.binding.solver_plan(),
             FAER_SOLVER_PROVIDER,
             ConvergenceReason::ResidualToleranceSatisfied,
             1,
@@ -481,10 +479,7 @@ impl ReuseExecution for LiveExecution<'_> {
         &mut self,
         solution: Self::SolverAccepted,
     ) -> Result<Self::Accepted, Diagnostic> {
-        self.admitted
-            .take()
-            .expect("live execution accepts exactly once")
-            .accept(solution)
+        (self.accept)(solution)
     }
 }
 
@@ -603,6 +598,7 @@ struct Preflight {
 pub(crate) struct PreflightInput {
     pub(crate) binding: ReuseBinding,
     pub(crate) identities: IdentitySet,
+    pub(crate) coefficients_reusable: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -699,21 +695,33 @@ pub(crate) enum ValidationComponent {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct Counters {
+    #[cfg(test)]
     attempted: usize,
+    #[cfg(test)]
     accepted: usize,
+    #[cfg(test)]
     symbolic: usize,
+    #[cfg(test)]
     numeric: usize,
 }
 
 impl Counters {
     fn begin_attempt(&mut self) {
-        self.attempted += 1;
+        #[cfg(test)]
+        {
+            self.attempted += 1;
+        }
     }
 
     fn commit(&mut self, symbolic: bool, numeric: bool) {
-        self.accepted += 1;
-        self.symbolic += usize::from(symbolic);
-        self.numeric += usize::from(numeric);
+        #[cfg(test)]
+        {
+            self.accepted += 1;
+            self.symbolic += usize::from(symbolic);
+            self.numeric += usize::from(numeric);
+        }
+        #[cfg(not(test))]
+        let _ = (symbolic, numeric);
     }
 
     #[cfg(test)]
@@ -742,16 +750,21 @@ enum Phase {
 
 #[derive(Debug, Default)]
 struct PhaseLedger {
+    #[cfg(test)]
     phases: Vec<Phase>,
 }
 
 impl PhaseLedger {
     fn restart(&mut self) {
+        #[cfg(test)]
         self.phases.clear();
     }
 
     fn record(&mut self, phase: Phase) {
+        #[cfg(test)]
         self.phases.push(phase);
+        #[cfg(not(test))]
+        let _ = phase;
     }
 
     #[cfg(test)]

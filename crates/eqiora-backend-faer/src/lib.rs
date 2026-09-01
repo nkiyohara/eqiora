@@ -10,12 +10,11 @@ mod sparse_lu;
 mod sparse_lu_factor;
 mod sparse_lu_reuse;
 
-pub use sparse_lu_reuse::FaerSparseLuReuseOwner;
-
 use std::sync::{Arc, Mutex};
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_execution::{AcceptedLinearExecution, AdmittedExecution};
 use eqiora_solver::{
     BackendId, ConvergenceReason, DiagonalAvailability, ExecutionReport, LinearOperator,
     LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolver, LinearSolverBackend,
@@ -47,6 +46,29 @@ pub const FAER_SOLVER_PROVIDER: SolverProvider = SolverProvider::new(
 /// Stateless faer adapter for host-local `f64` CG, BiCGSTAB, and sparse LU.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FaerLinearSolver;
+
+impl FaerLinearSolver {
+    /// Scope repeated run-local solves inside one private prepared sparse-LU
+    /// session.
+    ///
+    /// Eqiora owns compatibility and commit authorization through each
+    /// admitted execution. Faer factors never escape this call, and a failed
+    /// candidate cannot replace the last accepted reusable state.
+    ///
+    /// # Errors
+    /// Returns a structured diagnostic for an unsupported plan, incompatible
+    /// candidate, factorization/solve failure, numerical acceptance failure,
+    /// or an operation-level failure.
+    pub fn with_prepared_linear<R>(
+        &self,
+        plan: SolverPlan,
+        operation: impl FnOnce(
+            &mut dyn FnMut(AdmittedExecution<'_>) -> Result<AcceptedLinearExecution, Diagnostic>,
+        ) -> Result<R, Diagnostic>,
+    ) -> Result<R, Diagnostic> {
+        sparse_lu_reuse::with_prepared_linear(plan, operation)
+    }
+}
 
 // Materialize every initial residual through Eqiora's operator instead of
 // relying on a library-specific implicit-zero workspace path.

@@ -11,7 +11,6 @@ use eqiora_distributed::{
 use eqiora_execution::{
     AcceptedLinearExecution, AdmittedExecution, DistributedCollectiveStepV1,
     DistributedExecutionPhaseV1, DistributedLinearExecutionTrace,
-    distributed_collective_trace_capacity,
 };
 use eqiora_solver::{
     BackendId, CanonicalCsrSystemView, ConvergenceReason, DiagonalAvailability, ExecutionId,
@@ -1985,7 +1984,7 @@ impl RunBuffers {
         )?;
         let mut admission_records = reserved(ranks, "decoded admission records")?;
         let phase_records = reserved(ranks, "decoded phase statuses")?;
-        let collective_step_limit = distributed_collective_trace_capacity(plan)?;
+        let collective_step_limit = DistributedLinearExecutionTrace::collective_capacity(plan)?;
         let mut collective_steps = reserved(collective_step_limit, "MPI collective trace")?;
         collective_steps.push(CollectiveStepV1::new(CollectivePhaseV1::Admission, 0, 0));
         admission_records.clear();

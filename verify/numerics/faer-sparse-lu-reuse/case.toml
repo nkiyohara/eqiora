@@ -1,17 +1,17 @@
 id = "numerics.faer-sparse-lu-reuse"
 status = "verified"
-scope = "one-host-serial-accepted-faer-sparse-lu-factorization-reuse"
+scope = "one-host-serial-prepared-faer-sparse-lu-factorization-reuse"
 reference_kind = "dual-independent-exact-scientific-oracle-plus-independent-state-machine-oracle"
 
 capabilities = [
-  "admitted-faer-sparse-lu-reuse-owner",
+  "eqiora-owned-prepared-linear-candidate-accept-commit",
+  "provider-private-faer-sparse-lu-session",
   "accepted-binding-structure-coefficient-policy-provider-and-graph-validation",
   "right-hand-side-only-numeric-factor-reuse",
   "same-structure-coefficient-change-symbolic-factor-reuse",
   "acceptance-time-state-commit",
   "failed-candidate-state-retention",
-  "bounded-two-to-sixty-four-numerical-attempts",
-  "host-serial-move-only-owner",
+  "failed-candidate-cannot-mint-commit-authority",
   "cold-warm-accepted-output-receipt-and-lineage-equality",
 ]
 
@@ -71,11 +71,6 @@ foreign_model = "EQ0807 before numerical work despite byte-identical CSR"
 foreign_provider = "EQ0807 before numerical work"
 singular_candidate = "numerical failure after one attempt; last committed factors and identities retained"
 p0_singular_p1 = "p1 accepts using the retained p0 numeric factor"
-exhausted_owner = "EQ0807 before a 65th numerical attempt"
-
-[attempt_contract]
-minimum = 2
-maximum = 64
 preflight_rejection_consumes_attempt = false
 failed_numerical_candidate_consumes_attempt = true
 accepted_execution_consumes_attempt = true
@@ -102,6 +97,7 @@ batching_doe_optimization_or_uq = false
 alternate_ordering_or_pivot_policy = false
 preconditioner = false
 cuda = false
+cuda_commit_semantics_only = true
 mpi = false
 distributed_or_out_of_core = false
 performance_or_scale = false
@@ -114,8 +110,14 @@ base_revision = "46f77e3cc5eb19c6d4d023db890b118a62834c8f"
 scientific_oracles_agreed_before_state_oracle = true
 implementation_read = false
 writer_scratch_read = false
-expected_predecessor_result = "the public owner, implementation modules, export, dependencies, and private test wiring are absent; this integration-test oracle intentionally does not compile until implementation and integrator registration are composed"
+expected_predecessor_result = "the historical public owner is displaced atomically by the general ephemeral prepared-execution authority while the scientific oracle remains unchanged"
 
 [evidence]
 package = "eqiora"
 test = "faer_sparse_lu_reuse"
+
+[migration]
+issue = 724
+basis = "accepted candidate-to-Eqiora-acceptance-to-commit lifecycle"
+scientific_oracles_changed = false
+implementation_output_used_as_expectation = false

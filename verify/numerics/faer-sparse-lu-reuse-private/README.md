@@ -23,8 +23,8 @@ change.
 
 Injected stale, foreign, partially constructed, failed, and singular factor
 states all reject with `EQ0807` during preflight. They reach no factor solve,
-consume no numerical attempt, change no public counter, and cannot replace a
-committed identity.
+consume no numerical attempt, change no private phase counter, and cannot
+replace a committed identity.
 
 Run the paired evidence with:
 
