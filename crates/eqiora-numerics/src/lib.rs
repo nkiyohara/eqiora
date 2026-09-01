@@ -51,6 +51,7 @@ pub use numerical_admission::{
     CommonSteadyStokesPlan, CommonTransientFlowPlan, CommonTransientRunRequest, FormulationKind,
     FormulationSelectionMode, ResolvedCommonPlan, resolve_common_ode_plan, resolve_common_plan,
 };
+mod linear_elasticity;
 mod operator;
 mod physical_network;
 mod poisson;
@@ -61,6 +62,7 @@ mod prepared_execution;
 pub(crate) mod scalar_conservation;
 mod simplicial_ale_fsi;
 mod simplicial_ale_remesh;
+mod simplicial_boundary;
 mod simplicial_elasticity;
 mod simplicial_elliptic;
 mod simplicial_fsi;

@@ -1,9 +1,10 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, SimplicialMesh};
 
 use super::{COMPONENTS, DIMENSION, invalid};
+use crate::simplicial_boundary::{surface_vertices, validate_named_reaction_surfaces};
 
 /// Numerical boundary meaning admitted by the bounded MINI realization.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -215,9 +216,6 @@ impl SimplicialMiniStokesBoundary2d {
     }
 
     fn validate_named_reaction_surfaces(&self, mesh: &SimplicialMesh) -> Result<(), Diagnostic> {
-        let facet_count = mesh
-            .entity_count(DIMENSION - 1)
-            .expect("validated 2D mesh owns edge entities");
         let essential_vertices = self
             .facets
             .iter()
@@ -230,61 +228,15 @@ impl SimplicialMiniStokesBoundary2d {
             })
             .map(MeshEntity::index)
             .collect::<BTreeSet<_>>();
-        let mut names = BTreeSet::new();
-        let mut owners = BTreeMap::new();
-        for surface in &self.named_reaction_surfaces {
-            if surface.name.is_empty() {
-                return Err(invalid(
-                    "MINI Stokes named reaction surface name must not be empty",
-                ));
-            }
-            if !names.insert(surface.name.as_str()) {
-                return Err(invalid(format!(
-                    "MINI Stokes named reaction surface {:?} occurs more than once",
-                    surface.name
-                )));
-            }
-            if surface.facets.is_empty() {
-                return Err(invalid(format!(
-                    "MINI Stokes named reaction surface {:?} is empty",
-                    surface.name
-                )));
-            }
-            if surface.facets.windows(2).any(|pair| pair[0] == pair[1]) {
-                return Err(invalid(format!(
-                    "MINI Stokes named reaction surface {:?} contains a duplicate facet",
-                    surface.name
-                )));
-            }
-            for facet in &surface.facets {
-                if facet.dimension() != DIMENSION - 1
-                    || facet.index() >= facet_count
-                    || !mesh
-                        .is_boundary_entity(*facet)
-                        .expect("validated facet index belongs to the mesh")
-                {
-                    return Err(invalid(format!(
-                        "MINI Stokes named reaction surface {:?} contains a non-boundary facet",
-                        surface.name
-                    )));
-                }
-            }
-            for vertex in surface_vertices(mesh, &surface.facets) {
-                if !essential_vertices.contains(&vertex) {
-                    return Err(invalid(format!(
-                        "MINI Stokes named reaction surface {:?} names unconstrained vertex {vertex}",
-                        surface.name
-                    )));
-                }
-                if let Some(previous) = owners.insert(vertex, surface.name.as_str()) {
-                    return Err(invalid(format!(
-                        "MINI Stokes constrained vertex {vertex} belongs to both named reaction surfaces {previous:?} and {:?}",
-                        surface.name
-                    )));
-                }
-            }
-        }
-        Ok(())
+        validate_named_reaction_surfaces(
+            mesh,
+            self.named_reaction_surfaces
+                .iter()
+                .map(|surface| (surface.name.as_str(), surface.facets.as_slice())),
+            &essential_vertices,
+            "MINI Stokes",
+        )
+        .map(|_| ())
     }
 
     pub(crate) fn prepare<B>(
@@ -343,17 +295,6 @@ impl SimplicialMiniStokesBoundary2d {
             pressure_reference,
         })
     }
-}
-
-fn surface_vertices(mesh: &SimplicialMesh, facets: &[MeshEntity]) -> BTreeSet<usize> {
-    facets
-        .iter()
-        .flat_map(|facet| {
-            mesh.entity_vertices(*facet)
-                .expect("validated named reaction facet owns vertices")
-        })
-        .map(MeshEntity::index)
-        .collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -11,6 +11,7 @@ use eqiora_meshing::{
 
 use super::partition::FixedReferenceFsiPartition;
 use super::{invalid, required_quadrature_exactness};
+use crate::linear_elasticity::is_coercive_isotropic_material;
 
 /// Positive material data for the bounded linear FSI realization.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -42,10 +43,7 @@ impl<const D: usize> FixedReferenceFsiMaterial<D> {
             || fluid_dynamic_viscosity <= 0.0
             || !solid_density.is_finite()
             || solid_density <= 0.0
-            || !solid_shear_modulus.is_finite()
-            || solid_shear_modulus <= 0.0
-            || !solid_first_lame_parameter.is_finite()
-            || solid_first_lame_parameter + 2.0 * solid_shear_modulus / D as f64 <= 0.0
+            || !is_coercive_isotropic_material::<D>(solid_shear_modulus, solid_first_lame_parameter)
         {
             return Err(invalid(
                 "fixed-reference FSI material data must be finite and coercive in its admitted dimension",

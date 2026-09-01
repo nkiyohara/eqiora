@@ -17,9 +17,10 @@ use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolveRequest,
 
 use crate::affine_fem::physical_gradient;
 use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::linear_elasticity::{is_coercive_isotropic_material, isotropic_stiffness_entry};
 use crate::operator::LocalOperator;
+use crate::simplicial_boundary::validate_named_reaction_surfaces;
 use crate::simplicial_elliptic::SimplicialP1Field;
-use crate::simplicial_stokes::boundary::SimplicialMiniStokesBoundary2d;
 
 const DIMENSION: usize = 2;
 const COMPONENTS: usize = 2;
@@ -33,9 +34,8 @@ impl SimplicialP1Field {
     /// Every boundary vertex receives `essential_displacement`; only interior
     /// P1 coefficients are solved. The result tuple contains, in order:
     /// `[u_x, u_y]`, named constrained-boundary reactions, integrated constant
-    /// body force, assembly report, and solve report. Named surface facets are
-    /// validated by the same vertex-disjoint reaction partition used by the
-    /// established simplicial flow path.
+    /// body force, assembly report, and solve report. Named surface facets use
+    /// the physics-neutral vertex-disjoint simplicial boundary partition.
     ///
     /// # Errors
     /// Returns a structured discretization, boundary-data, assembly, or solve
@@ -340,12 +340,15 @@ fn named_reaction_vertices(
     mesh: &SimplicialMesh,
     surfaces: &BTreeMap<String, Vec<MeshEntity>>,
 ) -> Result<Vec<(String, Vec<usize>)>, Diagnostic> {
-    let mut partition = SimplicialMiniStokesBoundary2d::all_essential(mesh)?;
-    for (name, facets) in surfaces {
-        partition =
-            partition.with_named_reaction_surface(mesh, name.clone(), facets.iter().copied())?;
-    }
-    Ok(partition.named_reaction_vertices(mesh))
+    let constrained_vertices = (0..mesh.vertices().len()).collect();
+    validate_named_reaction_surfaces(
+        mesh,
+        surfaces
+            .iter()
+            .map(|(name, facets)| (name.as_str(), facets.as_slice())),
+        &constrained_vertices,
+        "simplicial elasticity",
+    )
 }
 
 struct SimplicialElasticityCell {
@@ -377,7 +380,7 @@ impl LocalOperator<AffineGeometryMap> for SimplicialElasticityCell {
                         for column_component in 0..COMPONENTS {
                             let column = local_dof(local_column, column_component)?;
                             matrix[row * LOCAL_DOFS + column] += scale
-                                * isotropic_entry(
+                                * isotropic_stiffness_entry(
                                     row_gradient,
                                     row_component,
                                     column_gradient,
@@ -490,28 +493,6 @@ fn triangle_gradients(geometry: &AffineGeometryMap) -> Result<Vec<Vec<f64>>, Dia
         .collect())
 }
 
-fn isotropic_entry(
-    row_gradient: &[f64],
-    row_component: usize,
-    column_gradient: &[f64],
-    column_component: usize,
-    shear_modulus: f64,
-    first_lame_parameter: f64,
-) -> f64 {
-    let gradient_dot = row_gradient
-        .iter()
-        .zip(column_gradient)
-        .map(|(left, right)| left * right)
-        .sum::<f64>();
-    let delta_term = if row_component == column_component {
-        gradient_dot
-    } else {
-        0.0
-    };
-    shear_modulus * (delta_term + row_gradient[column_component] * column_gradient[row_component])
-        + first_lame_parameter * row_gradient[row_component] * column_gradient[column_component]
-}
-
 fn local_global_dofs(vertices: &[MeshEntity]) -> Result<Vec<usize>, Diagnostic> {
     vertices
         .iter()
@@ -536,10 +517,7 @@ fn local_dof(vertex: usize, component: usize) -> Result<usize, Diagnostic> {
 }
 
 fn valid_material(shear_modulus: f64, first_lame_parameter: f64) -> bool {
-    shear_modulus.is_finite()
-        && shear_modulus > 0.0
-        && first_lame_parameter.is_finite()
-        && first_lame_parameter + shear_modulus > 0.0
+    is_coercive_isotropic_material::<DIMENSION>(shear_modulus, first_lame_parameter)
 }
 
 fn validate_problem(

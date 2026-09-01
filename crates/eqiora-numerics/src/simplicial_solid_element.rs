@@ -7,6 +7,7 @@ use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
 use crate::affine_fem::physical_gradient;
 use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::linear_elasticity::{is_coercive_isotropic_material, isotropic_stiffness_entry};
 
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::needless_range_loop)]
@@ -89,7 +90,7 @@ pub(crate) fn p1_solid_backward_euler_velocity<const D: usize>(
                         } else {
                             0.0
                         };
-                        let stiffness = elasticity_entry(
+                        let stiffness = isotropic_stiffness_entry(
                             &gradients[row_basis],
                             row_component,
                             &gradients[column_basis],
@@ -119,31 +120,6 @@ pub(crate) const fn local_dimension<const D: usize>(basis: usize, component: usi
     basis * D + component
 }
 
-fn elasticity_entry(
-    row_gradient: &[f64],
-    row_component: usize,
-    column_gradient: &[f64],
-    column_component: usize,
-    shear_modulus: f64,
-    first_lame_parameter: f64,
-) -> f64 {
-    let diagonal = if row_component == column_component {
-        dot(row_gradient, column_gradient)
-    } else {
-        0.0
-    };
-    let crossed = row_gradient[column_component] * column_gradient[row_component];
-    shear_modulus * (diagonal + crossed)
-        + first_lame_parameter * row_gradient[row_component] * column_gradient[column_component]
-}
-
-fn dot(left: &[f64], right: &[f64]) -> f64 {
-    left.iter()
-        .zip(right)
-        .map(|(left, right)| left * right)
-        .sum()
-}
-
 fn require_contract<const D: usize>(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
@@ -163,12 +139,10 @@ fn require_contract<const D: usize>(
     }
     if !density.is_finite()
         || density <= 0.0
-        || !shear_modulus.is_finite()
-        || shear_modulus <= 0.0
-        || !first_lame_parameter.is_finite()
+        || !is_coercive_isotropic_material::<D>(shear_modulus, first_lame_parameter)
     {
         return Err(invalid(
-            "P1 solid element material coefficients must be finite with positive density and shear modulus",
+            "P1 solid element requires finite positive density and dimension-coercive Lamé data",
         ));
     }
     Ok(())
