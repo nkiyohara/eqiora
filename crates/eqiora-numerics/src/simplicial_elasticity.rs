@@ -16,8 +16,12 @@ use eqiora_meshing::{
 use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolveRequest, SolveReport};
 
 use crate::affine_fem::physical_gradient;
+use crate::continuum_kinematics::symmetric_gradient;
 use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
-use crate::linear_elasticity::{is_coercive_isotropic_material, isotropic_stiffness_entry};
+use crate::linear_elasticity::{
+    is_coercive_isotropic_material, isotropic_stiffness_entry, isotropic_strain_energy_density,
+    isotropic_stress,
+};
 use crate::operator::LocalOperator;
 use crate::simplicial_boundary::validate_named_reaction_surfaces;
 use crate::simplicial_elliptic::SimplicialP1Field;
@@ -435,33 +439,9 @@ fn recover_cell_states(
                 }
             }
         }
-        let strain = [
-            [
-                displacement_gradient[0][0],
-                0.5 * (displacement_gradient[0][1] + displacement_gradient[1][0]),
-            ],
-            [
-                0.5 * (displacement_gradient[1][0] + displacement_gradient[0][1]),
-                displacement_gradient[1][1],
-            ],
-        ];
-        let trace = strain[0][0] + strain[1][1];
-        let stress = [
-            [
-                2.0 * shear_modulus * strain[0][0] + first_lame_parameter * trace,
-                2.0 * shear_modulus * strain[0][1],
-            ],
-            [
-                2.0 * shear_modulus * strain[1][0],
-                2.0 * shear_modulus * strain[1][1] + first_lame_parameter * trace,
-            ],
-        ];
-        let strain_square = strain
-            .iter()
-            .flatten()
-            .map(|value| value * value)
-            .sum::<f64>();
-        let density = shear_modulus * strain_square + 0.5 * first_lame_parameter * trace * trace;
+        let strain = symmetric_gradient(&displacement_gradient);
+        let stress = isotropic_stress(&strain, shear_modulus, first_lame_parameter);
+        let density = isotropic_strain_energy_density(&strain, shear_modulus, first_lame_parameter);
         energy += 0.5 * geometry.measure_scale() * density;
         strains.push(strain);
         stresses.push(stress);
