@@ -94,10 +94,6 @@ impl<const D: usize> IsotropicElastodynamicsCartesianModel<D> {
     }
 }
 
-/// Three-dimensional canonical first-order isotropic elastodynamic meaning.
-#[cfg(test)]
-pub type IsotropicElastodynamicsCartesianModel3d = IsotropicElastodynamicsCartesianModel<3>;
-
 /// Lower the exact canonical first-order 2D isotropic-elastodynamic subset.
 ///
 /// Recognition is identity-parametric and package-neutral. Direct boundary
@@ -123,7 +119,7 @@ pub fn lower_isotropic_elastodynamics_cartesian_2d(
 #[cfg(test)]
 pub fn lower_isotropic_elastodynamics_cartesian_3d(
     program: &KernelProgram,
-) -> Result<IsotropicElastodynamicsCartesianModel3d, Diagnostic> {
+) -> Result<IsotropicElastodynamicsCartesianModel<3>, Diagnostic> {
     lower_isotropic_elastodynamics_cartesian::<3>(program)
 }
 

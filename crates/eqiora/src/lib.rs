@@ -154,7 +154,7 @@ pub mod device {
 /// Numerical realizations kept separate from canonical model meaning.
 pub mod numerics {
     pub use eqiora_numerics::ale::{
-        AleFsiCartesianModel2d, FinalizedResolvedFixedTopologyAleFsi2d,
+        AleFsiCartesianModel, FinalizedResolvedFixedTopologyAleFsi,
         finalize_resolved_fixed_topology_ale_fsi_2d, lower_ale_fsi_cartesian_2d,
     };
     pub use eqiora_numerics::fluid::{

@@ -34,7 +34,7 @@ use eqiora::solver::{
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
-    ale::AleFsiBoundary2d, ale::AleFsiCartesianModel2d, ale::AleFsiInitialPhysicalState2d,
+    ale::AleFsiBoundary2d, ale::AleFsiCartesianModel, ale::AleFsiInitialPhysicalState,
     ale::AleFsiState2d, ale::AleFsiTrajectory2d, ale::P1HarmonicMeshMotionAction2d,
     ale::finalize_resolved_fixed_topology_ale_fsi_2d, ale::fixed_topology_ale_fsi_requirements_2d,
     ale::lower_ale_fsi_cartesian_2d, common::NonZeroStepCount, fsi::FixedReferenceFsiPartition2d,
@@ -175,7 +175,7 @@ fn faer_closes_moving_fsi_evidence_and_first_order_refinement() {
 
 struct Fixture {
     document: ModelDocument,
-    canonical: AleFsiCartesianModel2d,
+    canonical: AleFsiCartesianModel<2>,
     mesh_artifact: SimplicialMeshEnvelopeV1,
     mesh_reference: MeshArtifactReference,
     mesh: SimplicialMesh,
@@ -184,7 +184,7 @@ struct Fixture {
 }
 
 impl Fixture {
-    fn new(document: ModelDocument, canonical: AleFsiCartesianModel2d) -> Self {
+    fn new(document: ModelDocument, canonical: AleFsiCartesianModel<2>) -> Self {
         let mesh = two_domain_mesh();
         let mesh_artifact = SimplicialMeshEnvelopeV1::from_mesh(&mesh).unwrap();
         let mesh_reference = mesh_artifact.artifact_reference().unwrap();
@@ -204,7 +204,7 @@ impl Fixture {
         }
     }
 
-    fn initial_physical(&self) -> AleFsiInitialPhysicalState2d {
+    fn initial_physical(&self) -> AleFsiInitialPhysicalState<2> {
         let mut solid_displacement = vec![[0.0; COMPONENTS]; self.mesh.vertices().len()];
         let interface_vertex = find_vertex(&self.mesh, [1.0, 0.5]);
         assert!(
@@ -213,7 +213,7 @@ impl Fixture {
                 .contains(&VertexId::new(interface_vertex))
         );
         solid_displacement[interface_vertex] = [0.0015, 0.0005];
-        AleFsiInitialPhysicalState2d::new(
+        AleFsiInitialPhysicalState::<2>::new(
             0.0,
             vec![[0.0; COMPONENTS]; self.mesh.vertices().len()],
             vec![[0.0; COMPONENTS]; self.partition.fluid_cells().len()],
@@ -790,7 +790,7 @@ fn nonlinear_solver_plan() -> SolverPlan {
 }
 
 fn realization_plan(
-    model: &AleFsiCartesianModel2d,
+    model: &AleFsiCartesianModel<2>,
     mesh_artifact: MeshArtifactReference,
     time_step: f64,
 ) -> FixedTopologyAleCoupledRealizationPlan {
@@ -907,43 +907,43 @@ fn physical_scale(value: f64, dimension: DimExponents) -> PositivePhysicalScale 
     PositivePhysicalScale::new(DynQuantity::new(value, dimension)).unwrap()
 }
 
-fn fluid_domain(model: &AleFsiCartesianModel2d) -> Id<kinds::Domain> {
+fn fluid_domain(model: &AleFsiCartesianModel<2>) -> Id<kinds::Domain> {
     model.fluid().domain().downcast().unwrap()
 }
 
-fn solid_domain(model: &AleFsiCartesianModel2d) -> Id<kinds::Domain> {
+fn solid_domain(model: &AleFsiCartesianModel<2>) -> Id<kinds::Domain> {
     model.solid().continuum().domain().downcast().unwrap()
 }
 
-fn fluid_velocity(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
+fn fluid_velocity(model: &AleFsiCartesianModel<2>) -> Id<kinds::Field> {
     model.fluid().velocity().downcast().unwrap()
 }
 
-fn fluid_pressure(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
+fn fluid_pressure(model: &AleFsiCartesianModel<2>) -> Id<kinds::Field> {
     model.fluid().pressure().downcast().unwrap()
 }
 
-fn solid_velocity(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
+fn solid_velocity(model: &AleFsiCartesianModel<2>) -> Id<kinds::Field> {
     model.solid().velocity().downcast().unwrap()
 }
 
-fn solid_displacement(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
+fn solid_displacement(model: &AleFsiCartesianModel<2>) -> Id<kinds::Field> {
     model.solid().continuum().displacement().downcast().unwrap()
 }
 
-fn fluid_relation(model: &AleFsiCartesianModel2d) -> Id<kinds::Relation> {
+fn fluid_relation(model: &AleFsiCartesianModel<2>) -> Id<kinds::Relation> {
     model.fluid().momentum_relation().downcast().unwrap()
 }
 
-fn solid_kinematic_relation(model: &AleFsiCartesianModel2d) -> Id<kinds::Relation> {
+fn solid_kinematic_relation(model: &AleFsiCartesianModel<2>) -> Id<kinds::Relation> {
     fixed_topology_ale_fsi_requirements_2d(model).solid_kinematic_relation()
 }
 
-fn connection(model: &AleFsiCartesianModel2d) -> Id<kinds::Connection> {
+fn connection(model: &AleFsiCartesianModel<2>) -> Id<kinds::Connection> {
     model.interface().connection().downcast().unwrap()
 }
 
-fn trace_quotient(model: &AleFsiCartesianModel2d) -> ConformingTraceQuotient {
+fn trace_quotient(model: &AleFsiCartesianModel<2>) -> ConformingTraceQuotient {
     ConformingTraceQuotient::new(
         connection(model),
         TraceFieldEndpoint::new(fluid_domain(model), fluid_velocity(model)),
@@ -952,7 +952,7 @@ fn trace_quotient(model: &AleFsiCartesianModel2d) -> ConformingTraceQuotient {
     .unwrap()
 }
 
-fn state_pair(model: &AleFsiCartesianModel2d) -> BackwardEulerStatePair {
+fn state_pair(model: &AleFsiCartesianModel<2>) -> BackwardEulerStatePair {
     BackwardEulerStatePair::new(solid_displacement(model), solid_velocity(model)).unwrap()
 }
 

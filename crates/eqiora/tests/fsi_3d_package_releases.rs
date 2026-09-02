@@ -5,7 +5,7 @@ use eqiora::package::{
     PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
-use eqiora_numerics::{ale::AleFsiCartesianModel3d, ale::lower_ale_fsi_cartesian_3d};
+use eqiora_numerics::{ale::AleFsiCartesianModel, ale::lower_ale_fsi_cartesian_3d};
 
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
@@ -193,7 +193,10 @@ fn exact_package_graph_lowers_to_three_dimensional_ale_fsi_roles() {
     );
 }
 
-fn assert_same_canonical_roles(direct: &AleFsiCartesianModel3d, packaged: &AleFsiCartesianModel3d) {
+fn assert_same_canonical_roles(
+    direct: &AleFsiCartesianModel<3>,
+    packaged: &AleFsiCartesianModel<3>,
+) {
     assert_eq!(direct.fluid().bounds(), packaged.fluid().bounds());
     assert_eq!(
         direct.solid().continuum().bounds(),

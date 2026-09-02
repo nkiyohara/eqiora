@@ -65,12 +65,6 @@ impl<const D: usize> AleFsiCartesianModel<D> {
     }
 }
 
-/// Two-dimensional compatibility name for canonical ALE FSI meaning.
-pub type AleFsiCartesianModel2d = AleFsiCartesianModel<2>;
-
-/// Three-dimensional canonical ALE FSI meaning.
-pub type AleFsiCartesianModel3d = AleFsiCartesianModel<3>;
-
 /// Lower one complete 2D conservative transient-flow FSI network.
 ///
 /// The function reuses the same transient Navier--Stokes and dynamic-solid
@@ -82,7 +76,7 @@ pub type AleFsiCartesianModel3d = AleFsiCartesianModel<3>;
 /// whole-model closure is not unique and exact.
 pub fn lower_ale_fsi_cartesian_2d(
     program: &KernelProgram,
-) -> Result<AleFsiCartesianModel2d, Diagnostic> {
+) -> Result<AleFsiCartesianModel<2>, Diagnostic> {
     lower_ale_fsi_cartesian::<2>(program)
 }
 
@@ -93,7 +87,7 @@ pub fn lower_ale_fsi_cartesian_2d(
 /// six-side boundary closure, interface, or whole-model closure is not exact.
 pub fn lower_ale_fsi_cartesian_3d(
     program: &KernelProgram,
-) -> Result<AleFsiCartesianModel3d, Diagnostic> {
+) -> Result<AleFsiCartesianModel<3>, Diagnostic> {
     lower_ale_fsi_cartesian::<3>(program)
 }
 

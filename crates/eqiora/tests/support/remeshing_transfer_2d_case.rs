@@ -27,8 +27,8 @@ use eqiora::solver::{
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
-    ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiBoundary2d, ale::AleFsiCartesianModel2d,
-    ale::AleFsiState2d, ale::FinalizedResolvedFixedTopologyAleFsi2d,
+    ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiBoundary2d, ale::AleFsiCartesianModel,
+    ale::AleFsiState2d, ale::FinalizedResolvedFixedTopologyAleFsi,
     ale::fixed_topology_ale_fsi_requirements_2d, ale::lower_ale_fsi_cartesian_2d,
     ale::project_simplicial_ale_fsi_remesh_2d, ale::remesh_resolved_fixed_topology_ale_fsi_2d,
     common::NonZeroStepCount, fsi::FixedReferenceFsiPartition2d, fsi::FixedReferenceFsiScale2d,
@@ -67,7 +67,7 @@ const CASE_CONTRACT: &str = include_str!("../../../../verify/fsi/remeshing-trans
 
 pub(super) struct Case {
     pub(super) document: ModelDocument,
-    pub(super) canonical: AleFsiCartesianModel2d,
+    pub(super) canonical: AleFsiCartesianModel<2>,
     pub(super) source_mesh_artifact: SimplicialMeshEnvelopeV1,
     pub(super) source_reference: MeshArtifactReference,
     pub(super) source_mesh: SimplicialMesh,
@@ -118,7 +118,7 @@ impl Case {
         }
     }
 
-    pub(super) fn initial_physical(&self) -> eqiora_numerics::ale::AleFsiInitialPhysicalState2d {
+    pub(super) fn initial_physical(&self) -> eqiora_numerics::ale::AleFsiInitialPhysicalState<2> {
         let mut displacement = vec![[0.0; COMPONENTS]; self.source_mesh.vertices().len()];
         for vertex in self.source_partition.solid_vertices() {
             let y = self.source_mesh.vertices()[vertex.index()][1];
@@ -126,7 +126,7 @@ impl Case {
                 displacement[vertex.index()] = [0.0, 1.0 / 1024.0];
             }
         }
-        eqiora_numerics::ale::AleFsiInitialPhysicalState2d::new(
+        eqiora_numerics::ale::AleFsiInitialPhysicalState::<2>::new(
             0.0,
             vec![[0.0; COMPONENTS]; self.source_mesh.vertices().len()],
             vec![[0.0; COMPONENTS]; self.source_partition.fluid_cells().len()],
@@ -189,7 +189,7 @@ impl Case {
 
 pub(super) fn assert_numerical_falsifiers(
     case: &Case,
-    source: &FinalizedResolvedFixedTopologyAleFsi2d,
+    source: &FinalizedResolvedFixedTopologyAleFsi<2>,
     source_state: &AleFsiState2d,
     target: &ResolvedFixedTopologyAleCoupledRealization,
 ) {
@@ -446,7 +446,7 @@ fn dyadic(value: f64) -> (i128, i32) {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assert_scale_invariant_projection(
     case: &Case,
-    source: &FinalizedResolvedFixedTopologyAleFsi2d,
+    source: &FinalizedResolvedFixedTopologyAleFsi<2>,
     source_state: &AleFsiState2d,
     accepted: &eqiora_numerics::ale::AcceptedResolvedAleFsiRemesh2d,
     base: &AcceptedAleFsiRemeshProjection2d,
@@ -748,7 +748,7 @@ fn nonlinear_solver_plan() -> SolverPlan {
 }
 
 fn realization_plan(
-    model: &AleFsiCartesianModel2d,
+    model: &AleFsiCartesianModel<2>,
     mesh_artifact: MeshArtifactReference,
     time_step: f64,
 ) -> FixedTopologyAleCoupledRealizationPlan {
@@ -757,7 +757,7 @@ fn realization_plan(
 
 #[allow(clippy::too_many_arguments)]
 fn realization_plan_with_scales(
-    model: &AleFsiCartesianModel2d,
+    model: &AleFsiCartesianModel<2>,
     mesh_artifact: MeshArtifactReference,
     time_step: f64,
     length_value: f64,
@@ -877,43 +877,43 @@ fn physical_scale(value: f64, dimension: DimExponents) -> PositivePhysicalScale 
     PositivePhysicalScale::new(DynQuantity::new(value, dimension)).unwrap()
 }
 
-pub(super) fn fluid_domain(model: &AleFsiCartesianModel2d) -> Id<kinds::Domain> {
+pub(super) fn fluid_domain(model: &AleFsiCartesianModel<2>) -> Id<kinds::Domain> {
     model.fluid().domain().downcast().unwrap()
 }
 
-pub(super) fn solid_domain(model: &AleFsiCartesianModel2d) -> Id<kinds::Domain> {
+pub(super) fn solid_domain(model: &AleFsiCartesianModel<2>) -> Id<kinds::Domain> {
     model.solid().continuum().domain().downcast().unwrap()
 }
 
-pub(super) fn fluid_velocity(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
+pub(super) fn fluid_velocity(model: &AleFsiCartesianModel<2>) -> Id<kinds::Field> {
     model.fluid().velocity().downcast().unwrap()
 }
 
-pub(super) fn fluid_pressure(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
+pub(super) fn fluid_pressure(model: &AleFsiCartesianModel<2>) -> Id<kinds::Field> {
     model.fluid().pressure().downcast().unwrap()
 }
 
-pub(super) fn solid_velocity(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
+pub(super) fn solid_velocity(model: &AleFsiCartesianModel<2>) -> Id<kinds::Field> {
     model.solid().velocity().downcast().unwrap()
 }
 
-pub(super) fn solid_displacement(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
+pub(super) fn solid_displacement(model: &AleFsiCartesianModel<2>) -> Id<kinds::Field> {
     model.solid().continuum().displacement().downcast().unwrap()
 }
 
-fn fluid_relation(model: &AleFsiCartesianModel2d) -> Id<kinds::Relation> {
+fn fluid_relation(model: &AleFsiCartesianModel<2>) -> Id<kinds::Relation> {
     model.fluid().momentum_relation().downcast().unwrap()
 }
 
-fn solid_kinematic_relation(model: &AleFsiCartesianModel2d) -> Id<kinds::Relation> {
+fn solid_kinematic_relation(model: &AleFsiCartesianModel<2>) -> Id<kinds::Relation> {
     fixed_topology_ale_fsi_requirements_2d(model).solid_kinematic_relation()
 }
 
-fn connection(model: &AleFsiCartesianModel2d) -> Id<kinds::Connection> {
+fn connection(model: &AleFsiCartesianModel<2>) -> Id<kinds::Connection> {
     model.interface().connection().downcast().unwrap()
 }
 
-fn trace_quotient(model: &AleFsiCartesianModel2d) -> ConformingTraceQuotient {
+fn trace_quotient(model: &AleFsiCartesianModel<2>) -> ConformingTraceQuotient {
     ConformingTraceQuotient::new(
         connection(model),
         TraceFieldEndpoint::new(fluid_domain(model), fluid_velocity(model)),
@@ -922,7 +922,7 @@ fn trace_quotient(model: &AleFsiCartesianModel2d) -> ConformingTraceQuotient {
     .unwrap()
 }
 
-fn state_pair(model: &AleFsiCartesianModel2d) -> BackwardEulerStatePair {
+fn state_pair(model: &AleFsiCartesianModel<2>) -> BackwardEulerStatePair {
     BackwardEulerStatePair::new(solid_displacement(model), solid_velocity(model)).unwrap()
 }
 
