@@ -1358,15 +1358,6 @@ impl ConnectionDecl {
         self.syntax
     }
 
-    /// Port spellings. Signal order is output followed by inputs.
-    ///
-    /// This compatibility view preserves flat-source consumers. New code that
-    /// resolves component members should use [`Self::port_paths`].
-    #[must_use]
-    pub fn ports(&self) -> impl ExactSizeIterator<Item = &str> {
-        self.ports.iter().map(NamePath::as_str)
-    }
-
     /// Structurally segmented Port selections in source order.
     #[must_use]
     pub fn port_paths(&self) -> &[NamePath] {

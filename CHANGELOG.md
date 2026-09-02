@@ -6,6 +6,11 @@ are recorded here.
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the flat `ConnectionDecl::ports()` compatibility view; consumers now
+  use structurally segmented Port paths.
+
 ## [0.1.0a7] - 2026-09-02
 
 ### Added

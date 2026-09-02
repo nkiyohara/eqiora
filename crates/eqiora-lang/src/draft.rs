@@ -1501,10 +1501,9 @@ mod tests {
             panic!("sixth item must be a Connection");
         };
         assert_eq!(connection.syntax(), ConnectionSyntax::Conserving);
-        assert_eq!(
-            connection.ports().collect::<Vec<_>>(),
-            ["positive", "negative"]
-        );
+        assert_eq!(connection.port_paths().len(), 2);
+        assert_eq!(connection.port_paths()[0].as_str(), "positive");
+        assert_eq!(connection.port_paths()[1].as_str(), "negative");
         assert!(native.graph_path(connection.range()).is_some());
     }
 
