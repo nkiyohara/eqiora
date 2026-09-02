@@ -32,6 +32,7 @@ mod discrete_space;
 mod elliptic;
 mod finalized_spatial;
 mod form_compiler;
+mod interleaved_dofs;
 mod jacobian_audit;
 mod linearized_output;
 mod numerical_admission;

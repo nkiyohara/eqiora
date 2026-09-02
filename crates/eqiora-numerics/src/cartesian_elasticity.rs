@@ -28,6 +28,7 @@ use crate::affine_fem::physical_gradient;
 use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::compile_cartesian_q1_elasticity_form_2d;
+use crate::interleaved_dofs::InterleavedDofValues;
 use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::spatial_expression::ScalarSpatialExpression;
 use eqiora_meshing::CartesianMesh;
@@ -617,12 +618,7 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
         .expect("two-target elasticity assembly returns a full system");
     debug_assert!(systems.next().is_none());
 
-    let mut integrated_body_force = [0.0; COMPONENTS];
-    for values in full_system.rhs().as_chunks::<COMPONENTS>().0 {
-        for component in 0..COMPONENTS {
-            integrated_body_force[component] += values[component];
-        }
-    }
+    let integrated_body_force = InterleavedDofValues::<COMPONENTS>::new(full_system.rhs())?.sum();
     if integrated_body_force.iter().any(|value| !value.is_finite()) {
         return Err(invalid("integrated elasticity body force is non-finite"));
     }

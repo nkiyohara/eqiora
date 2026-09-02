@@ -4,6 +4,8 @@ use eqiora_assembly::{AssemblyMap, DofId, LinearSystem, LocalUnknown};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
+use crate::interleaved_dofs::InterleavedDofValues;
+
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_DISCRETIZATION, message)
 }
@@ -164,18 +166,13 @@ impl ConstrainedDofLayout {
         &self,
         residual: &[f64],
     ) -> Result<[f64; D], Diagnostic> {
-        if D == 0 || residual.len() != self.fixed_values.len() {
+        if residual.len() != self.fixed_values.len() {
             return Err(invalid(
                 "reaction residual shape differs from its constrained layout",
             ));
         }
-        let mut reaction = [0.0; D];
-        for (global, value) in residual.iter().enumerate() {
-            if self.fixed_values[global].is_some() {
-                reaction[global % D] += value;
-            }
-        }
-        Ok(reaction)
+        Ok(InterleavedDofValues::<D>::new(residual)?
+            .sum_where(|global| self.fixed_values[global].is_some()))
     }
 }
 
