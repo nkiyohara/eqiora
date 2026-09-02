@@ -675,10 +675,10 @@ fn family(plan: &ResolvedCommonPlan) -> WirePlanFamily {
 fn plan_model_artifact(plan: &ResolvedCommonPlan) -> &ModelEnvelope {
     match plan {
         ResolvedCommonPlan::Ode(plan) => plan.model_artifact(),
-        ResolvedCommonPlan::Scalar(plan) => &plan.admission.model,
-        ResolvedCommonPlan::Elasticity(plan) => &plan.admission.model,
-        ResolvedCommonPlan::SteadyStokes(plan) => &plan.admission.model,
-        ResolvedCommonPlan::TransientFlow(plan) => &plan.admission.model,
+        ResolvedCommonPlan::Scalar(plan) => plan.admission.model(),
+        ResolvedCommonPlan::Elasticity(plan) => plan.admission.model(),
+        ResolvedCommonPlan::SteadyStokes(plan) => plan.admission.model(),
+        ResolvedCommonPlan::TransientFlow(plan) => plan.admission.model(),
         ResolvedCommonPlan::Fsi(plan) => plan.model(),
     }
 }
@@ -687,16 +687,16 @@ fn plan_authenticated_mesh(plan: &ResolvedCommonPlan) -> Option<AuthenticatedCom
     match plan {
         ResolvedCommonPlan::Ode(_) => None,
         ResolvedCommonPlan::Scalar(plan) => Some(AuthenticatedCommonMesh {
-            resources: plan.admission.resources.clone(),
+            resources: plan.admission.resources().clone(),
         }),
         ResolvedCommonPlan::Elasticity(plan) => Some(AuthenticatedCommonMesh {
-            resources: plan.admission.resources.clone(),
+            resources: plan.admission.resources().clone(),
         }),
         ResolvedCommonPlan::SteadyStokes(plan) => Some(AuthenticatedCommonMesh {
-            resources: plan.admission.resources.clone(),
+            resources: plan.admission.resources().clone(),
         }),
         ResolvedCommonPlan::TransientFlow(plan) => Some(AuthenticatedCommonMesh {
-            resources: plan.admission.resources.clone(),
+            resources: plan.admission.resources().clone(),
         }),
         ResolvedCommonPlan::Fsi(plan) => Some(AuthenticatedCommonMesh {
             resources: plan.resources().clone(),

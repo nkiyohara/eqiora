@@ -100,7 +100,7 @@ impl CommonSteadyStokesPlan {
             ));
         }
         let solution = solve_resolved_steady_stokes_geometry_mini_2d(
-            &self.admission.program,
+            self.admission.program(),
             &self.resolved,
             &self.binding,
             backend,
@@ -136,7 +136,7 @@ impl CommonSteadyStokesPlan {
         }
         let bounds = self
             .admission
-            .resources
+            .resources()
             .geometry()
             .circular_hole_bounds()
             .copied()

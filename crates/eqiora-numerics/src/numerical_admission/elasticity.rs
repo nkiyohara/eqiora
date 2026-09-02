@@ -27,8 +27,8 @@ fn resolve_common_elasticity_portable(
     )?;
     PortableRealizationGraph::linear_single_field(
         RealizationLineage::explicit(
-            admission.program.model(),
-            SemanticRevision::new(admission.program.revision().0),
+            admission.program().model(),
+            SemanticRevision::new(admission.program().revision().0),
             RealizationRevision::new(COMMON_ELASTICITY_REALIZATION_REVISION),
         ),
         domain,
@@ -59,12 +59,12 @@ fn resolve_common_elasticity_portable(
 
 impl CommonElasticityPlan {
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
-        let NativeMeshResources::Cartesian { mesh, .. } = &self.admission.resources else {
+        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
             return Err(invalid(
                 "common elasticity Plan lost its exact Cartesian Mesh materialization",
             ));
         };
-        let RecognizedNativeModel::Elasticity(lowered) = &self.admission.recognized else {
+        let RecognizedNativeModel::Elasticity(lowered) = self.admission.recognized_model() else {
             return Err(invalid(
                 "common elasticity Plan lost its recognized mathematical materialization",
             ));
@@ -80,7 +80,7 @@ impl CommonElasticityPlan {
         admission: NativeNumericalAdmission,
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
-        let NativeMeshResources::Cartesian { mesh, .. } = &admission.resources else {
+        let NativeMeshResources::Cartesian { mesh, .. } = admission.resources() else {
             return Err(invalid(
                 "linear-elasticity common Plan requires an authenticated Cartesian Mesh",
             ));
@@ -93,7 +93,7 @@ impl CommonElasticityPlan {
                 .axis_cell_count(1)
                 .ok_or_else(|| invalid("elasticity Plan Mesh omitted y-axis cells"))?,
         ];
-        let RecognizedNativeModel::Elasticity(lowered) = &admission.recognized else {
+        let RecognizedNativeModel::Elasticity(lowered) = admission.recognized_model() else {
             return Err(invalid(
                 "common elasticity Plan omitted recognized elasticity meaning",
             ));
@@ -136,7 +136,7 @@ impl CommonElasticityPlan {
         self.admission.revalidate()?;
         let bounds = self
             .admission
-            .resources
+            .resources()
             .geometry()
             .planar_rectangle_bounds()
             .copied()

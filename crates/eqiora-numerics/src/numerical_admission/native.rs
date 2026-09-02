@@ -212,12 +212,7 @@ impl NativeMeshResources {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct NativeNumericalAdmission {
-    pub(super) model: ModelEnvelope,
-    pub(super) model_digest: String,
-    pub(super) program: KernelProgram,
-    pub(super) capability: NativeCapability,
-    pub(super) recognized: RecognizedNativeModel,
-    pub(super) resources: NativeMeshResources,
+    recognition: RecognizedNativeAdmission,
     pub(super) spatial: NativeSpatialPolicy,
     pub(super) linear: NativeLinearPolicy,
     pub(super) policy_identity: String,
@@ -283,12 +278,7 @@ impl RecognizedNativeAdmission {
         validate_resources(self.capability, spatial, &self.resources)?;
         let policy_identity = policy_identity(spatial, &linear, temporal, nonlinear);
         Ok(NativeNumericalAdmission {
-            model: self.model,
-            model_digest: self.model_digest,
-            program: self.program,
-            capability: self.capability,
-            recognized: self.recognized,
-            resources: self.resources,
+            recognition: self,
             spatial,
             linear,
             policy_identity,
@@ -311,9 +301,9 @@ impl NativeNumericalAdmission {
 
     pub(super) fn revalidate(&self) -> Result<(), Diagnostic> {
         let replayed = RecognizedNativeAdmission::recognize(
-            &self.model,
+            self.model(),
             AuthenticatedCommonMesh {
-                resources: self.resources.clone(),
+                resources: self.resources().clone(),
             },
         )?
         .complete(
@@ -330,13 +320,20 @@ impl NativeNumericalAdmission {
         Ok(())
     }
 
-    #[cfg(test)]
     pub(super) const fn model(&self) -> &ModelEnvelope {
-        &self.model
+        &self.recognition.model
     }
 
     pub(super) fn model_digest(&self) -> &str {
-        &self.model_digest
+        &self.recognition.model_digest
+    }
+
+    pub(super) const fn program(&self) -> &KernelProgram {
+        &self.recognition.program
+    }
+
+    pub(super) const fn recognized_model(&self) -> &RecognizedNativeModel {
+        &self.recognition.recognized
     }
 
     pub(super) fn policy_identity(&self) -> &str {
@@ -344,11 +341,11 @@ impl NativeNumericalAdmission {
     }
 
     pub(super) const fn resources(&self) -> &NativeMeshResources {
-        &self.resources
+        &self.recognition.resources
     }
 
     pub(super) fn stokes_binding(&self) -> Result<SteadyStokesGeometryBinding2d, Diagnostic> {
-        let RecognizedNativeModel::Stokes(binding) = &self.recognized else {
+        let RecognizedNativeModel::Stokes(binding) = self.recognized_model() else {
             return Err(invalid(
                 "native numerical admission does not own recognized steady-Stokes meaning",
             ));
@@ -373,7 +370,7 @@ impl NativeNumericalAdmission {
                 "steady-Stokes admission has a non-Stokes spatial policy",
             ));
         };
-        let NativeMeshResources::GmshSimplicial { mesh, .. } = &self.resources else {
+        let NativeMeshResources::GmshSimplicial { mesh, .. } = self.resources() else {
             return Err(invalid(
                 "steady Stokes requires exact supplied simplicial resources",
             ));
@@ -399,8 +396,8 @@ impl NativeNumericalAdmission {
         )?;
         let resolved = resolve_fieldwise(
             &FieldwiseRealizationRequest::explicit(
-                self.program.model(),
-                SemanticRevision::new(self.program.revision().0),
+                self.program().model(),
+                SemanticRevision::new(self.program().revision().0),
                 RealizationRevision::new(APPLICATION_REALIZATION_REVISION),
                 fieldwise,
             ),
@@ -441,12 +438,12 @@ impl NativeNumericalAdmission {
                 "scalar execution backend differs from admitted provider or capabilities",
             ));
         }
-        let NativeMeshResources::Cartesian { mesh, .. } = &self.resources else {
+        let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
             return Err(invalid(
                 "scalar elliptic execution requires Cartesian resources",
             ));
         };
-        let RecognizedNativeModel::Scalar(lowered) = &self.recognized else {
+        let RecognizedNativeModel::Scalar(lowered) = self.recognized_model() else {
             return Err(invalid(
                 "native numerical admission does not own recognized scalar-elliptic meaning",
             ));
@@ -554,10 +551,10 @@ impl NativeNumericalAdmission {
                 "elasticity execution backend differs from admitted provider or capabilities",
             ));
         }
-        let NativeMeshResources::Cartesian { mesh, .. } = &self.resources else {
+        let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
             return Err(invalid("elasticity execution requires Cartesian resources"));
         };
-        let RecognizedNativeModel::Elasticity(lowered) = &self.recognized else {
+        let RecognizedNativeModel::Elasticity(lowered) = self.recognized_model() else {
             return Err(invalid(
                 "native numerical admission does not own recognized elasticity meaning",
             ));

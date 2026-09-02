@@ -182,7 +182,10 @@ impl WireCommonSpatialStateV1 {
         else {
             unreachable!()
         };
-        let (mesh, model) = match (&plan.admission.resources, &plan.admission.recognized) {
+        let (mesh, model) = match (
+            plan.admission.resources(),
+            plan.admission.recognized_model(),
+        ) {
             (
                 NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
                 RecognizedNativeModel::Transient(model),
@@ -219,8 +222,8 @@ impl WireCommonSpatialStateV1 {
         CommonState::new_with_boundary_forces(
             plan.state_space_identity(),
             self.time_s,
-            Arc::new(plan.admission.model.clone()),
-            Arc::new(plan.admission.resources.clone()),
+            Arc::new(plan.admission.model().clone()),
+            Arc::new(plan.admission.resources().clone()),
             CommonStateKind::MiniP1(Box::new(native)),
             self.named_boundary_forces_on_domain.clone(),
         )
@@ -239,7 +242,10 @@ impl WireCommonSpatialStateV1 {
         else {
             unreachable!()
         };
-        let (mesh, model) = match (&plan.admission.resources, &plan.admission.recognized) {
+        let (mesh, model) = match (
+            plan.admission.resources(),
+            plan.admission.recognized_model(),
+        ) {
             (
                 NativeMeshResources::Cartesian { mesh, .. },
                 RecognizedNativeModel::Transient(model),
@@ -262,8 +268,8 @@ impl WireCommonSpatialStateV1 {
         CommonState::new_with_boundary_forces(
             plan.state_space_identity(),
             self.time_s,
-            Arc::new(plan.admission.model.clone()),
-            Arc::new(plan.admission.resources.clone()),
+            Arc::new(plan.admission.model().clone()),
+            Arc::new(plan.admission.resources().clone()),
             CommonStateKind::CellCentered(Box::new(native)),
             self.named_boundary_forces_on_domain.clone(),
         )
