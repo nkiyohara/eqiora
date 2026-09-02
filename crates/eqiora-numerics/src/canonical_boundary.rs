@@ -148,12 +148,6 @@ impl<const D: usize> CartesianBoundaryInventory<D> {
     }
 }
 
-/// Complete exact side inventory for a two-dimensional Cartesian body.
-pub type CartesianBoundaryInventory2d = CartesianBoundaryInventory<2>;
-
-/// Complete exact side inventory for a three-dimensional Cartesian body.
-pub type CartesianBoundaryInventory3d = CartesianBoundaryInventory<3>;
-
 /// Identities admitted while one field-physical junction is normalized.
 #[derive(Debug)]
 pub(crate) struct NormalizedFieldPhysicalInterface {

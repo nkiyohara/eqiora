@@ -182,7 +182,7 @@ pub(super) fn require_boundary_meaning(
 }
 
 fn require_physics_boundary(
-    inventory: &crate::canonical_boundary::CartesianBoundaryInventory2d,
+    inventory: &crate::canonical_boundary::CartesianBoundaryInventory<2>,
     interface_axis: usize,
     interface_side: FsiInterfaceSide,
     connection: eqiora_core::RawId,

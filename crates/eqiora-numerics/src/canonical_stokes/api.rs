@@ -5,7 +5,7 @@ use eqiora_schema::kernel::BoundarySide;
 
 use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::canonical_boundary::CartesianBoundaryEntry;
-use crate::canonical_boundary::CartesianBoundaryInventory2d;
+use crate::canonical_boundary::CartesianBoundaryInventory;
 use crate::form_compiler::vocabulary::{MixedGalerkinCorrespondence, MixedGalerkinSource};
 use crate::spatial_expression::ScalarSpatialExpression;
 
@@ -293,7 +293,7 @@ impl SteadyIncompressibleStokesModel2d {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SteadyIncompressibleStokesCartesianModel2d {
     pub(super) common: SteadyIncompressibleStokesModel2d,
-    pub(super) boundary_inventory: CartesianBoundaryInventory2d,
+    pub(super) boundary_inventory: CartesianBoundaryInventory<2>,
 }
 
 impl SteadyIncompressibleStokesCartesianModel2d {
@@ -365,7 +365,7 @@ impl SteadyIncompressibleStokesCartesianModel2d {
 
     /// Complete package-neutral meaning of the four exact Cartesian sides.
     #[must_use]
-    pub const fn boundary_inventory(&self) -> &CartesianBoundaryInventory2d {
+    pub const fn boundary_inventory(&self) -> &CartesianBoundaryInventory<2> {
         &self.boundary_inventory
     }
 
@@ -386,7 +386,7 @@ impl SteadyIncompressibleStokesCartesianModel2d {
     ) -> Self {
         Self {
             common,
-            boundary_inventory: CartesianBoundaryInventory2d::new(entries),
+            boundary_inventory: CartesianBoundaryInventory::new(entries),
         }
     }
 

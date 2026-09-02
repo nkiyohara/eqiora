@@ -27,7 +27,7 @@ use sha2::{Digest, Sha256};
 
 use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::canonical_boundary::{
-    CartesianBoundaryInventory2d, PhysicalBoundaryDisposition, PhysicalBoundaryQuantity,
+    CartesianBoundaryInventory, PhysicalBoundaryDisposition, PhysicalBoundaryQuantity,
 };
 
 const BLOCK_SYSTEM_IDENTITY_DOMAIN: &[u8] = b"eqiora.discrete-block-system/v1\0";
@@ -206,7 +206,7 @@ pub(crate) enum BoundaryTreatment {
 }
 
 pub(crate) fn boundary_treatment(
-    inventory: &CartesianBoundaryInventory2d,
+    inventory: &CartesianBoundaryInventory<2>,
     binding: BoundaryRelationBinding,
 ) -> Result<BoundaryTreatment, Diagnostic> {
     let disposition = inventory
@@ -244,7 +244,7 @@ pub(crate) fn boundary_treatment_for(
 pub(crate) fn conforming_interface_relations<'a>(
     inventories: impl IntoIterator<
         Item = (
-            &'a CartesianBoundaryInventory2d,
+            &'a CartesianBoundaryInventory<2>,
             &'a [BoundaryRelationBinding],
         ),
     >,

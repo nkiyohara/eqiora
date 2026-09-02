@@ -16,7 +16,7 @@ use super::validate::{
     trace_quotient,
 };
 use crate::canonical_boundary::BoundaryRelationBinding;
-use crate::canonical_boundary::{CartesianBoundaryInventory2d, PhysicalBoundaryDisposition};
+use crate::canonical_boundary::{CartesianBoundaryInventory, PhysicalBoundaryDisposition};
 use crate::discrete_block::{
     AlgebraicClosure, BlockRealizationIdentity, BlockSupport, BlockTransformation,
     ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
@@ -381,7 +381,7 @@ fn parameter_inventory<'a>(
 }
 
 fn boundary_relation_blocks(
-    inventory: &CartesianBoundaryInventory2d,
+    inventory: &CartesianBoundaryInventory<2>,
     bindings: &[BoundaryRelationBinding],
     field: Id<kinds::Field>,
 ) -> Result<Vec<RelationBlock>, Diagnostic> {
@@ -401,7 +401,7 @@ fn boundary_relation_blocks(
 }
 
 fn essential_relations(
-    inventory: &crate::canonical_boundary::CartesianBoundaryInventory2d,
+    inventory: &crate::canonical_boundary::CartesianBoundaryInventory<2>,
     bindings: &[BoundaryRelationBinding],
 ) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
     bindings

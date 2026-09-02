@@ -8,9 +8,8 @@
 
 pub use crate::assembled_linearization::AssembledLinearizedRelation;
 pub use crate::canonical_boundary::{
-    CartesianBoundaryEntry, CartesianBoundaryInventory, CartesianBoundaryInventory2d,
-    CartesianBoundaryInventory3d, PhysicalBoundaryDisposition, PhysicalBoundaryQuantity,
-    PrescribedBoundaryLaw,
+    CartesianBoundaryEntry, CartesianBoundaryInventory, PhysicalBoundaryDisposition,
+    PhysicalBoundaryQuantity, PrescribedBoundaryLaw,
 };
 pub use crate::discrete_space::{
     BasisTabulation, CellConstantSpace, DiscreteSpace, HypercubeQ1Space, LocalDof,
