@@ -1,10 +1,43 @@
+use crate::ast::document::ImportDecl;
 use crate::ast::{
-    ComponentDecl, ConnectorDecl, Document, Expr, ModelDecl, PureOperatorDecl, TextRange,
+    ComponentDecl, ConnectorDecl, Document, Expr, ModelDecl, NamePath, PureOperatorDecl, TextRange,
 };
 
-use super::{AstConstructionError, SourceAstFactory};
+use super::{
+    AstConstructionError, SourceAstFactory, checked_identifier, checked_range, validate_name_path,
+};
 
 impl SourceAstFactory {
+    /// Add one explicit semantic module import to a source document.
+    ///
+    /// # Errors
+    /// Returns an error for an invalid qualified module, alias, or source range.
+    pub fn with_import(
+        mut document: Document,
+        module: NamePath,
+        alias: impl Into<String>,
+        range: TextRange,
+    ) -> Result<Document, AstConstructionError> {
+        validate_name_path(&module)?;
+        let import = ImportDecl {
+            module,
+            alias: checked_identifier(alias, "module import alias")?,
+            range: checked_range(range)?,
+        };
+        if document
+            .imports
+            .iter()
+            .any(|existing| existing.alias == import.alias)
+        {
+            return Err(AstConstructionError::new(format!(
+                "duplicate module import alias `{}`",
+                import.alias
+            )));
+        }
+        document.imports.push(import);
+        Ok(document)
+    }
+
     /// Close one compilation unit with an ordered structural-dimension prefix.
     ///
     /// # Errors
@@ -31,6 +64,7 @@ impl SourceAstFactory {
             .map(|(name, expression, range)| Self::dimension_alias(name, expression, range))
             .collect::<Result<_, _>>()?;
         Ok(Document {
+            imports: Vec::new(),
             dimensions,
             property_contracts: Vec::new(),
             property_releases: Vec::new(),
@@ -59,6 +93,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            imports: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
             property_releases: Vec::new(),
@@ -89,6 +124,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            imports: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
             property_releases: Vec::new(),
@@ -110,6 +146,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            imports: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
             property_releases: Vec::new(),
@@ -118,5 +155,39 @@ impl SourceAstFactory {
             pure_operators: Vec::new(),
             models,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{NamePath, SourceAstFactory, TextRange, format, parse};
+
+    #[test]
+    fn checked_factory_adds_one_canonical_module_import_prefix() {
+        let range = TextRange::new(0, 0);
+        let document = parse("main.eqi", "model Main {}")
+            .into_document()
+            .expect("base document");
+        let document = SourceAstFactory::with_import(
+            document,
+            NamePath::from_segments(["library", "parts"], range).unwrap(),
+            "lib",
+            range,
+        )
+        .expect("checked import");
+        assert_eq!(
+            format(&document),
+            "import library.parts as lib;\n\nmodel Main {\n}\n"
+        );
+
+        assert!(
+            SourceAstFactory::with_import(
+                document,
+                NamePath::from_segments(["other"], range).unwrap(),
+                "lib",
+                range,
+            )
+            .is_err()
+        );
     }
 }

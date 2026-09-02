@@ -9,9 +9,9 @@ use eqiora_lang::{
 
 use crate::diagnostics::source_error;
 use crate::dimensions::lower_dimension;
-use crate::resolved::{AnalyzedSourceUnit, CompilationNamespaceId, ResolvedAlias};
+use crate::resolved::{AnalyzedSourceUnit, CompilationModuleId, ResolvedAlias};
 
-type Key = (CompilationNamespaceId, String);
+type Key = (CompilationModuleId, String);
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ResolvedPropertyBinding {
@@ -110,7 +110,7 @@ pub(crate) fn validate_and_elaborate(
                 diagnostics.push(diagnostic);
                 continue;
             }
-            let key = (unit.namespace.clone(), name.to_owned());
+            let key = (unit.module.clone(), name.to_owned());
             if contracts
                 .insert(
                     key,
@@ -154,7 +154,7 @@ pub(crate) fn validate_and_elaborate(
                 continue;
             }
             let Some(contract_key) = resolve_path(
-                &unit.namespace,
+                &unit.module,
                 contract_path,
                 aliases,
                 &contracts,
@@ -218,7 +218,7 @@ pub(crate) fn validate_and_elaborate(
                 ));
                 continue;
             }
-            let key = (unit.namespace.clone(), name.to_owned());
+            let key = (unit.module.clone(), name.to_owned());
             if releases
                 .insert(
                     key,
@@ -250,7 +250,7 @@ pub(crate) fn validate_and_elaborate(
         .flat_map(|unit| {
             unit.document.components().iter().map(move |value| {
                 (
-                    (unit.namespace.clone(), value.name().to_owned()),
+                    (unit.module.clone(), value.name().to_owned()),
                     (value.clone(), unit.file.clone()),
                 )
             })
@@ -262,7 +262,7 @@ pub(crate) fn validate_and_elaborate(
         for component in unit.document.components() {
             for (_, contract_path, _) in component.property_requirement_syntax() {
                 if let Some(key) = resolve_path(
-                    &unit.namespace,
+                    &unit.module,
                     contract_path,
                     aliases,
                     &contracts,
@@ -280,7 +280,7 @@ pub(crate) fn validate_and_elaborate(
                 if let ComponentItem::Instance(instance) = item {
                     validate_instance(
                         instance,
-                        &unit.namespace,
+                        &unit.module,
                         &unit.file,
                         aliases,
                         &components,
@@ -298,7 +298,7 @@ pub(crate) fn validate_and_elaborate(
                 if let Item::Instance(instance) = item {
                     validate_instance(
                         instance,
-                        &unit.namespace,
+                        &unit.module,
                         &unit.file,
                         aliases,
                         &components,
@@ -335,7 +335,7 @@ pub(crate) fn validate_and_elaborate(
 #[allow(clippy::too_many_arguments)]
 fn validate_instance(
     instance: &InstanceDecl,
-    namespace: &CompilationNamespaceId,
+    namespace: &CompilationModuleId,
     file: &str,
     aliases: &[ResolvedAlias],
     components: &BTreeMap<Key, (eqiora_lang::ComponentDecl, String)>,
@@ -443,7 +443,7 @@ fn validate_instance(
 }
 
 fn resolve_path<T>(
-    namespace: &CompilationNamespaceId,
+    namespace: &CompilationModuleId,
     path: &NamePath,
     aliases: &[ResolvedAlias],
     values: &BTreeMap<Key, T>,
@@ -457,21 +457,21 @@ fn resolve_path<T>(
     } else if segments.len() == 2 {
         let Some(alias) = aliases
             .iter()
-            .find(|value| value.declaring() == namespace && value.alias() == segments[0])
+            .find(|value| value.declaring_module() == namespace && value.alias() == segments[0])
         else {
             diagnostics.push(error(
                 file,
                 path.range(),
-                format!("unknown package alias `{}`", segments[0]),
+                format!("unknown import alias `{}`", segments[0]),
             ));
             return None;
         };
-        (alias.target().clone(), segments[1].to_owned())
+        (alias.target_module().clone(), segments[1].to_owned())
     } else {
         diagnostics.push(error(
             file,
             path.range(),
-            "property paths support one optional package alias",
+            "property paths support one optional import alias",
         ));
         return None;
     };

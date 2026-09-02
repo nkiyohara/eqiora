@@ -1,7 +1,7 @@
 //! Source-oriented syntax tree. Semantic types are assigned during lowering.
 
 mod compile_time;
-mod document;
+pub(crate) mod document;
 pub(crate) mod formulation;
 
 pub(crate) use compile_time::DimensionDecl;
