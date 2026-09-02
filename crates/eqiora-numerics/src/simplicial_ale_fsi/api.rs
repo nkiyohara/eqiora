@@ -21,12 +21,6 @@ pub struct AleFsiInterfaceAction<const D: usize> {
     solid: [f64; D],
 }
 
-/// Established two-dimensional interface-action API.
-pub type AleFsiInterfaceAction2d = AleFsiInterfaceAction<2>;
-
-/// Three-dimensional interface action on a shared tetrahedral trace vertex.
-pub type AleFsiInterfaceAction3d = AleFsiInterfaceAction<3>;
-
 impl<const D: usize> AleFsiInterfaceAction<D> {
     /// Admit one finite pair of physical nodal actions.
     pub(super) fn new(
@@ -169,12 +163,6 @@ pub struct AleFsiStepEvidence<const D: usize> {
     assembly_report: AssemblyReport,
     nonlinear_linear_solves: Vec<SolveReport>,
 }
-
-/// Established two-dimensional step-evidence API.
-pub type AleFsiStepEvidence2d = AleFsiStepEvidence<2>;
-
-/// Three-dimensional accepted step evidence.
-pub type AleFsiStepEvidence3d = AleFsiStepEvidence<3>;
 
 impl<const D: usize> AleFsiStepEvidence<D> {
     /// Bind independently measured residuals to one exact accepted geometry.
@@ -494,12 +482,6 @@ pub struct AleFsiTrajectory<const D: usize> {
     steps: Vec<AleFsiStepEvidence<D>>,
 }
 
-/// Established two-dimensional trajectory API.
-pub type AleFsiTrajectory2d = AleFsiTrajectory<2>;
-
-/// Three-dimensional accepted ALE FSI trajectory.
-pub type AleFsiTrajectory3d = AleFsiTrajectory<3>;
-
 impl<const D: usize> AleFsiTrajectory<D> {
     pub(crate) fn new(initial: AleFsiState<D>) -> Self {
         Self {
@@ -627,15 +609,11 @@ mod tests {
         ReductionPolicy, SERIAL_EXECUTION_PROVIDER, SolverPlan, SolverProvider,
     };
 
-    use super::super::{
-        AleFsiState2d, AleFsiState3d, AleFsiStepPlan2d, AleFsiStepPlan3d,
-        P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
-    };
+    use super::super::{AleFsiState, AleFsiStepPlan, P1HarmonicMeshMotionAction};
     use super::*;
     use crate::simplicial_fsi::{
-        FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial2d,
-        FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
-        FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
+        FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
+        FixedReferenceFsiScale,
     };
 
     const COMPONENTS: usize = 2;
@@ -649,7 +627,7 @@ mod tests {
     #[test]
     fn interface_action_exposes_finite_balance_and_power_helpers() {
         let action =
-            AleFsiInterfaceAction2d::new(VertexId::new(3), [2.0, -1.0], [-2.0, 1.0]).unwrap();
+            AleFsiInterfaceAction::<2>::new(VertexId::new(3), [2.0, -1.0], [-2.0, 1.0]).unwrap();
         assert_eq!(action.vertex(), VertexId::new(3));
         assert_eq!(action.fluid(), [2.0, -1.0]);
         assert_eq!(action.solid(), [-2.0, 1.0]);
@@ -660,14 +638,15 @@ mod tests {
         assert_eq!(action.power_imbalance([3.0, 4.0]).unwrap(), 0.0);
         assert!(action.power_imbalance([f64::NAN, 0.0]).is_err());
         assert!(
-            AleFsiInterfaceAction2d::new(VertexId::new(3), [f64::INFINITY, 0.0], [0.0; 2]).is_err()
+            AleFsiInterfaceAction::<2>::new(VertexId::new(3), [f64::INFINITY, 0.0], [0.0; 2])
+                .is_err()
         );
     }
 
     #[test]
     fn three_dimensional_interface_action_is_typed_and_fails_closed() {
         let action =
-            AleFsiInterfaceAction3d::new(VertexId::new(7), [2.0, -1.0, 0.5], [-2.0, 1.0, -0.5])
+            AleFsiInterfaceAction::<3>::new(VertexId::new(7), [2.0, -1.0, 0.5], [-2.0, 1.0, -0.5])
                 .unwrap();
         assert_eq!(action.vertex(), VertexId::new(7));
         assert_eq!(action.imbalance(), [0.0; 3]);
@@ -676,14 +655,14 @@ mod tests {
         assert_eq!(action.power_imbalance([3.0, 4.0, 2.0]).unwrap(), 0.0);
         assert!(action.fluid_power([0.0, f64::NAN, 0.0]).is_err());
         assert!(
-            AleFsiInterfaceAction3d::new(VertexId::new(7), [f64::INFINITY, 0.0, 0.0], [0.0; 3],)
+            AleFsiInterfaceAction::<3>::new(VertexId::new(7), [f64::INFINITY, 0.0, 0.0], [0.0; 3],)
                 .is_err()
         );
         assert!(AleFsiInterfaceAction::<1>::new(VertexId::new(0), [0.0], [0.0]).is_err());
 
         let ordered = [
-            AleFsiInterfaceAction3d::new(VertexId::new(2), [0.0; 3], [0.0; 3]).unwrap(),
-            AleFsiInterfaceAction3d::new(VertexId::new(4), [0.0; 3], [0.0; 3]).unwrap(),
+            AleFsiInterfaceAction::<3>::new(VertexId::new(2), [0.0; 3], [0.0; 3]).unwrap(),
+            AleFsiInterfaceAction::<3>::new(VertexId::new(4), [0.0; 3], [0.0; 3]).unwrap(),
         ];
         assert!(validate_interface_order(&ordered).is_ok());
         assert!(validate_interface_order(&ordered.into_iter().rev().collect::<Vec<_>>()).is_err());
@@ -705,7 +684,7 @@ mod tests {
                 &current,
             )
             .unwrap();
-        let evidence = AleFsiStepEvidence3d::new(
+        let evidence = AleFsiStepEvidence::<3>::new(
             plan,
             &geometry,
             &current,
@@ -717,14 +696,14 @@ mod tests {
 
         let mut power_overflow = accepted_input_3d(plan, interface_vertex);
         power_overflow.interface_actions = vec![
-            AleFsiInterfaceAction3d::new(
+            AleFsiInterfaceAction::<3>::new(
                 interface_vertex,
                 [1.0, -2.0, f64::MAX],
                 [-1.0, 2.0, -3.0],
             )
             .unwrap(),
         ];
-        let error = AleFsiStepEvidence3d::new(plan, &geometry, &current, power_overflow)
+        let error = AleFsiStepEvidence::<3>::new(plan, &geometry, &current, power_overflow)
             .expect_err("third-component interface-power overflow must fail closed");
         assert!(
             error
@@ -732,7 +711,7 @@ mod tests {
                 .contains("interface-power evaluation overflowed")
         );
 
-        let mut trajectory = AleFsiTrajectory3d::new(initial);
+        let mut trajectory = AleFsiTrajectory::<3>::new(initial);
         trajectory.push(current, evidence.clone()).unwrap();
         assert_eq!(trajectory.states().len(), 2);
         assert_eq!(trajectory.steps(), std::slice::from_ref(&evidence));
@@ -764,7 +743,7 @@ mod tests {
             )
             .unwrap();
         let interface_vertex = fixture.partition.interface_vertices()[0];
-        let evidence = AleFsiStepEvidence2d::new(
+        let evidence = AleFsiStepEvidence::<2>::new(
             plan,
             &geometry,
             &current,
@@ -817,24 +796,26 @@ mod tests {
 
         let mut mismatched = accepted_input(plan, interface_vertex);
         mismatched.nonlinear_linear_solves.clear();
-        assert!(AleFsiStepEvidence2d::new(plan, &geometry, &current, mismatched).is_err());
+        assert!(AleFsiStepEvidence::<2>::new(plan, &geometry, &current, mismatched).is_err());
 
         let mut missing_gcl_witness = accepted_input(plan, interface_vertex);
         missing_gcl_witness.probed_moving_fluid_cell_count = 1;
         missing_gcl_witness.gcl_active_moving_fluid_cell_count = 1;
-        assert!(AleFsiStepEvidence2d::new(plan, &geometry, &current, missing_gcl_witness).is_err());
+        assert!(
+            AleFsiStepEvidence::<2>::new(plan, &geometry, &current, missing_gcl_witness).is_err()
+        );
 
         let mut nonzero_static_probe = accepted_input(plan, interface_vertex);
         nonzero_static_probe.compatible_constant_free_stream_residual_norm = 1.0e-6;
         assert!(
-            AleFsiStepEvidence2d::new(plan, &geometry, &current, nonzero_static_probe).is_err()
+            AleFsiStepEvidence::<2>::new(plan, &geometry, &current, nonzero_static_probe).is_err()
         );
 
         let mut displacement = vec![[0.0; COMPONENTS]; fixture.mesh.vertices().len()];
         for vertex in fixture.partition.solid_vertices() {
             displacement[vertex.index()] = [0.002, 0.0];
         }
-        let moved = AleFsiState2d::new(
+        let moved = AleFsiState::<2>::new(
             current.time(),
             &fixture.mesh,
             &fixture.partition,
@@ -846,7 +827,7 @@ mod tests {
         )
         .unwrap();
         assert!(
-            AleFsiStepEvidence2d::new(
+            AleFsiStepEvidence::<2>::new(
                 plan,
                 &geometry,
                 &moved,
@@ -871,14 +852,14 @@ mod tests {
                 &current,
             )
             .unwrap();
-        let evidence = AleFsiStepEvidence2d::new(
+        let evidence = AleFsiStepEvidence::<2>::new(
             plan,
             &geometry,
             &current,
             accepted_input(plan, fixture.partition.interface_vertices()[0]),
         )
         .unwrap();
-        let mut trajectory = AleFsiTrajectory2d::new(initial);
+        let mut trajectory = AleFsiTrajectory::<2>::new(initial);
         trajectory.push(current.clone(), evidence.clone()).unwrap();
         assert_eq!(trajectory.states().len(), 2);
         assert_eq!(trajectory.steps().len(), 1);
@@ -894,22 +875,23 @@ mod tests {
 
     struct Fixture {
         mesh: SimplicialMesh,
-        partition: FixedReferenceFsiPartition2d,
-        motion: P1HarmonicMeshMotionAction2d,
+        partition: FixedReferenceFsiPartition<2>,
+        motion: P1HarmonicMeshMotionAction<2>,
     }
 
     struct Fixture3d {
         mesh: SimplicialMesh,
-        partition: FixedReferenceFsiPartition3d,
-        motion: P1HarmonicMeshMotionAction3d,
+        partition: FixedReferenceFsiPartition<3>,
+        motion: P1HarmonicMeshMotionAction<3>,
     }
 
     fn fixture() -> Fixture {
         let mesh = two_domain_mesh();
         let (fluid, solid, interface) = inventories(&mesh);
-        let partition = FixedReferenceFsiPartition2d::new(&mesh, fluid, solid, interface).unwrap();
+        let partition =
+            FixedReferenceFsiPartition::<2>::new(&mesh, fluid, solid, interface).unwrap();
         let motion =
-            P1HarmonicMeshMotionAction2d::new(&mesh, &partition, harmonic_solver()).unwrap();
+            P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, harmonic_solver()).unwrap();
         Fixture {
             mesh,
             partition,
@@ -921,7 +903,7 @@ mod tests {
         let (mesh, partition) =
             partitioned_block_3d(&[0.0, 0.5, 1.0, 2.0], &[0.0, 0.5, 1.0], &[0.0, 0.5, 1.0]);
         let motion =
-            P1HarmonicMeshMotionAction3d::new(&mesh, &partition, harmonic_solver()).unwrap();
+            P1HarmonicMeshMotionAction::<3>::new(&mesh, &partition, harmonic_solver()).unwrap();
         Fixture3d {
             mesh,
             partition,
@@ -929,8 +911,8 @@ mod tests {
         }
     }
 
-    fn state(time: f64, fixture: &Fixture) -> AleFsiState2d {
-        AleFsiState2d::new(
+    fn state(time: f64, fixture: &Fixture) -> AleFsiState<2> {
+        AleFsiState::<2>::new(
             time,
             &fixture.mesh,
             &fixture.partition,
@@ -943,10 +925,10 @@ mod tests {
         .unwrap()
     }
 
-    fn state_3d(time: f64, fixture: &Fixture3d, interface_vertex: VertexId) -> AleFsiState3d {
+    fn state_3d(time: f64, fixture: &Fixture3d, interface_vertex: VertexId) -> AleFsiState<3> {
         let mut vertex_velocity = vec![[0.0; COMPONENTS_3D]; fixture.mesh.vertices().len()];
         vertex_velocity[interface_vertex.index()] = [0.0, 0.0, 2.0];
-        AleFsiState3d::new(
+        AleFsiState::<3>::new(
             time,
             &fixture.mesh,
             &fixture.partition,
@@ -960,7 +942,7 @@ mod tests {
     }
 
     fn accepted_input(
-        plan: AleFsiStepPlan2d,
+        plan: AleFsiStepPlan<2>,
         interface_vertex: VertexId,
     ) -> AleFsiStepEvidenceInput2d {
         AleFsiStepEvidenceInput2d {
@@ -971,7 +953,8 @@ mod tests {
             kinematic_residual_norm: 1.0e-12,
             interface_velocity_jump_norm: 0.0,
             interface_actions: vec![
-                AleFsiInterfaceAction2d::new(interface_vertex, [1.0, -2.0], [-1.0, 2.0]).unwrap(),
+                AleFsiInterfaceAction::<2>::new(interface_vertex, [1.0, -2.0], [-1.0, 2.0])
+                    .unwrap(),
             ],
             probed_moving_fluid_cell_count: 0,
             gcl_active_moving_fluid_cell_count: 0,
@@ -983,7 +966,7 @@ mod tests {
     }
 
     fn accepted_input_3d(
-        plan: AleFsiStepPlan3d,
+        plan: AleFsiStepPlan<3>,
         interface_vertex: VertexId,
     ) -> AleFsiStepEvidenceInput<3> {
         AleFsiStepEvidenceInput {
@@ -994,8 +977,12 @@ mod tests {
             kinematic_residual_norm: 1.0e-12,
             interface_velocity_jump_norm: 0.0,
             interface_actions: vec![
-                AleFsiInterfaceAction3d::new(interface_vertex, [1.0, -2.0, 3.0], [-1.0, 2.0, -3.0])
-                    .unwrap(),
+                AleFsiInterfaceAction::<3>::new(
+                    interface_vertex,
+                    [1.0, -2.0, 3.0],
+                    [-1.0, 2.0, -3.0],
+                )
+                .unwrap(),
             ],
             probed_moving_fluid_cell_count: 0,
             gcl_active_moving_fluid_cell_count: 0,
@@ -1037,7 +1024,7 @@ mod tests {
         .report()
     }
 
-    fn step_plan() -> AleFsiStepPlan2d {
+    fn step_plan() -> AleFsiStepPlan<2> {
         let nonlinear =
             NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
         let linear = SolverPlan::new(
@@ -1049,11 +1036,11 @@ mod tests {
         .unwrap()
         .with_preconditioner(PreconditionerPolicy::Identity)
         .with_reduction(ReductionPolicy::Fast);
-        AleFsiStepPlan2d::new(
+        AleFsiStepPlan::<2>::new(
             0.05,
-            FixedReferenceFsiMaterial2d::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
-            FixedReferenceFsiScale2d::new(2.0, 1.0, 1.0).unwrap(),
-            FixedReferenceFsiLoad2d::Zero,
+            FixedReferenceFsiMaterial::<2>::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
+            FixedReferenceFsiScale::<2>::new(2.0, 1.0, 1.0).unwrap(),
+            FixedReferenceFsiLoad::Zero,
             nonlinear,
             linear,
             Target::HostCpu {
@@ -1063,7 +1050,7 @@ mod tests {
         .unwrap()
     }
 
-    fn step_plan_3d() -> AleFsiStepPlan3d {
+    fn step_plan_3d() -> AleFsiStepPlan<3> {
         let nonlinear =
             NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
         let linear = SolverPlan::new(
@@ -1075,11 +1062,11 @@ mod tests {
         .unwrap()
         .with_preconditioner(PreconditionerPolicy::Identity)
         .with_reduction(ReductionPolicy::Fast);
-        AleFsiStepPlan3d::new(
+        AleFsiStepPlan::<3>::new(
             0.05,
-            FixedReferenceFsiMaterial3d::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
-            FixedReferenceFsiScale3d::new(2.0, 1.0, 1.0).unwrap(),
-            FixedReferenceFsiLoad3d::Zero,
+            FixedReferenceFsiMaterial::<3>::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
+            FixedReferenceFsiScale::<3>::new(2.0, 1.0, 1.0).unwrap(),
+            FixedReferenceFsiLoad::Zero,
             nonlinear,
             linear,
             Target::HostCpu {
@@ -1154,7 +1141,7 @@ mod tests {
         x_coordinates: &[f64],
         y_coordinates: &[f64],
         z_coordinates: &[f64],
-    ) -> (SimplicialMesh, FixedReferenceFsiPartition3d) {
+    ) -> (SimplicialMesh, FixedReferenceFsiPartition<3>) {
         let nx = x_coordinates.len();
         let ny = y_coordinates.len();
         let vertex = |x: usize, y: usize, z: usize| z * ny * nx + y * nx + x;
@@ -1213,7 +1200,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let partition =
-            FixedReferenceFsiPartition3d::new(&mesh, fluid_cells, solid_cells, interface_facets)
+            FixedReferenceFsiPartition::<3>::new(&mesh, fluid_cells, solid_cells, interface_facets)
                 .unwrap();
         (mesh, partition)
     }

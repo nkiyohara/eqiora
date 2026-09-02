@@ -284,7 +284,7 @@ impl WireCommonSpatialStateV1 {
                 "FSI State pressure cardinality differs from its exact fluid support",
             ));
         }
-        let native = FixedReferenceFsiState2d::new(
+        let native = FixedReferenceFsiState::<2>::new(
             plan.mesh(),
             &plan.partition,
             vertex_velocity.clone(),

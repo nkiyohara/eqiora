@@ -282,7 +282,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-numerics/src/simplicial_ale_fsi/api.rs"
-ceiling = 1228
+ceiling = 1215
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -294,13 +294,13 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-numerics/src/simplicial_ale_fsi/contract.rs"
-ceiling = 1109
+ceiling = 1092
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-numerics/src/simplicial_ale_fsi/motion.rs"
-ceiling = 1037
+ceiling = 1035
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -524,7 +524,7 @@ ceiling = 52
 
 [[public_surface]]
 crate = "eqiora-numerics"
-ceiling = 293
+ceiling = 268
 reason = "predates the predicate; the largest crate, carrying one public entry point per hand-written physics slice"
 removal = "the FEM form-compiler lane replaces per-physics entry points with instance witness data; lower this with each entry point it deletes"
 

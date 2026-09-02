@@ -436,22 +436,22 @@ mod tests {
     use super::*;
     use crate::simplicial_ale_fsi::assembly::{assemble_step_linearization, initial_point};
     use crate::simplicial_ale_fsi::{
-        AleFsiBoundary3d, AleFsiState3d, AleFsiStepPlan3d, P1HarmonicMeshMotionAction3d,
+        AleFsiBoundary, AleFsiState, AleFsiStepPlan, P1HarmonicMeshMotionAction,
     };
     use crate::simplicial_fsi::{
-        FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition3d,
-        FixedReferenceFsiScale3d,
+        FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
+        FixedReferenceFsiScale,
     };
 
     const INTERFACE_INTERIOR: VertexId = VertexId::new(5);
 
     struct Fixture3d {
         mesh: SimplicialMesh,
-        partition: FixedReferenceFsiPartition3d,
-        boundary: AleFsiBoundary3d,
-        motion: P1HarmonicMeshMotionAction3d,
-        previous: AleFsiState3d,
-        plan: AleFsiStepPlan3d,
+        partition: FixedReferenceFsiPartition<3>,
+        boundary: AleFsiBoundary<3>,
+        motion: P1HarmonicMeshMotionAction<3>,
+        previous: AleFsiState<3>,
+        plan: AleFsiStepPlan<3>,
     }
 
     #[test]
@@ -502,7 +502,7 @@ mod tests {
 
         let mut defective_displacement = current.solid_displacement().to_vec();
         defective_displacement[INTERFACE_INTERIOR.index()][2] += 1.0e-4;
-        let defective = AleFsiState3d::new(
+        let defective = AleFsiState::<3>::new(
             current.time(),
             &fixture.mesh,
             &fixture.partition,
@@ -637,9 +637,9 @@ mod tests {
     }
 
     fn expected_omitted_gcl_witness(
-        partition: &FixedReferenceFsiPartition3d,
+        partition: &FixedReferenceFsiPartition<3>,
         geometry: &FixedTopologyGeometryAction<3>,
-        plan: AleFsiStepPlan3d,
+        plan: AleFsiStepPlan<3>,
         quadrature: &QuadratureRule,
     ) -> f64 {
         let bubble_space = SimplexP1BubbleSpace::new(3).unwrap();
@@ -677,11 +677,12 @@ mod tests {
 
     fn fixture_3d() -> Fixture3d {
         let (mesh, fluid, solid, interface) = tetrahedral_problem();
-        let partition = FixedReferenceFsiPartition3d::new(&mesh, fluid, solid, interface).unwrap();
-        let boundary = AleFsiBoundary3d::homogeneous_exterior(&mesh).unwrap();
+        let partition =
+            FixedReferenceFsiPartition::<3>::new(&mesh, fluid, solid, interface).unwrap();
+        let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
         let motion =
-            P1HarmonicMeshMotionAction3d::new(&mesh, &partition, harmonic_solver()).unwrap();
-        let previous = AleFsiState3d::new(
+            P1HarmonicMeshMotionAction::<3>::new(&mesh, &partition, harmonic_solver()).unwrap();
+        let previous = AleFsiState::<3>::new(
             0.0,
             &mesh,
             &partition,
@@ -752,7 +753,7 @@ mod tests {
             + column(3, 0) * (column(1, 1) * column(2, 2) - column(2, 1) * column(1, 2))
     }
 
-    fn step_plan_3d() -> AleFsiStepPlan3d {
+    fn step_plan_3d() -> AleFsiStepPlan<3> {
         let nonlinear =
             NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
         let linear = SolverPlan::new(
@@ -764,11 +765,11 @@ mod tests {
         .unwrap()
         .with_preconditioner(PreconditionerPolicy::Identity)
         .with_reduction(ReductionPolicy::Fast);
-        AleFsiStepPlan3d::new(
+        AleFsiStepPlan::<3>::new(
             0.05,
-            FixedReferenceFsiMaterial3d::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
-            FixedReferenceFsiScale3d::new(2.0, 5.0, 3.0).unwrap(),
-            FixedReferenceFsiLoad3d::Zero,
+            FixedReferenceFsiMaterial::<3>::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
+            FixedReferenceFsiScale::<3>::new(2.0, 5.0, 3.0).unwrap(),
+            FixedReferenceFsiLoad::Zero,
             nonlinear,
             linear,
             Target::HostCpu {

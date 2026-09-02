@@ -8,10 +8,10 @@ use eqiora_meshing::{
 };
 use eqiora_solver::{LinearOperatorProperties, LinearSolveRequest, SolveReport};
 
-use crate::simplicial_ale_fsi::{AleFsiState2d, P1HarmonicMeshMotionAction2d};
+use crate::simplicial_ale_fsi::{AleFsiState, P1HarmonicMeshMotionAction};
 use crate::simplicial_fsi::{
-    FixedReferenceFsiBoundary2d, FixedReferenceFsiMaterial2d, FixedReferenceFsiPartition2d,
-    FixedReferenceFsiScale2d,
+    FixedReferenceFsiBoundary, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
+    FixedReferenceFsiScale,
 };
 
 use super::contract::{AcceptedAleFsiRemeshProjection2d, AleFsiRemeshProjectionEvidence2d};
@@ -27,15 +27,15 @@ const COMPONENTS: usize = 2;
 
 #[derive(Debug, Clone, Copy)]
 struct RemeshNormalization2d {
-    physical: FixedReferenceFsiScale2d,
+    physical: FixedReferenceFsiScale<2>,
     area: f64,
     velocity_mass: f64,
 }
 
 impl RemeshNormalization2d {
     fn new(
-        physical: FixedReferenceFsiScale2d,
-        material: FixedReferenceFsiMaterial2d,
+        physical: FixedReferenceFsiScale<2>,
+        material: FixedReferenceFsiMaterial<2>,
     ) -> Result<Self, Diagnostic> {
         let area = finite_positive_product(
             physical.length(),
@@ -130,14 +130,14 @@ struct PressureProjection {
 #[allow(clippy::too_many_arguments)]
 pub fn project_simplicial_ale_fsi_remesh_2d(
     source_reference: &SimplicialMesh,
-    source_partition: &FixedReferenceFsiPartition2d,
-    source_motion: &P1HarmonicMeshMotionAction2d,
-    source_state: &AleFsiState2d,
+    source_partition: &FixedReferenceFsiPartition<2>,
+    source_motion: &P1HarmonicMeshMotionAction<2>,
+    source_state: &AleFsiState<2>,
     target_reference: &SimplicialMesh,
-    target_partition: &FixedReferenceFsiPartition2d,
-    target_motion: &P1HarmonicMeshMotionAction2d,
-    material: FixedReferenceFsiMaterial2d,
-    scale: FixedReferenceFsiScale2d,
+    target_partition: &FixedReferenceFsiPartition<2>,
+    target_motion: &P1HarmonicMeshMotionAction<2>,
+    material: FixedReferenceFsiMaterial<2>,
+    scale: FixedReferenceFsiScale<2>,
     quadrature: &QuadratureRule,
     solver: LinearSolveRequest<'_>,
 ) -> Result<AcceptedAleFsiRemeshProjection2d, Diagnostic> {
@@ -363,8 +363,8 @@ fn material_boundary_sides(
 
 fn derive_target_geometry(
     reference: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
-    motion: &P1HarmonicMeshMotionAction2d,
+    partition: &FixedReferenceFsiPartition<2>,
+    motion: &P1HarmonicMeshMotionAction<2>,
     solid_displacement: &[[f64; COMPONENTS]],
 ) -> Result<FixedTopologyGeometryState2d, Diagnostic> {
     motion.validate_reference(reference, partition)?;
@@ -416,8 +416,8 @@ fn assemble_p1_mixed(
     overlap: &SimplicialRevisionOverlap2d,
     source_mesh: &SimplicialMesh,
     target_mesh: &SimplicialMesh,
-    _source_partition: &FixedReferenceFsiPartition2d,
-    _target_partition: &FixedReferenceFsiPartition2d,
+    _source_partition: &FixedReferenceFsiPartition<2>,
+    _target_partition: &FixedReferenceFsiPartition<2>,
     source_values: &[[f64; COMPONENTS]],
     quadrature: &QuadratureRule,
 ) -> Result<Vec<[f64; COMPONENTS]>, Diagnostic> {
@@ -578,7 +578,7 @@ pub(super) fn homogeneous_exterior_velocity_trace_defect(
             "ALE FSI remesh exterior velocity does not match the mesh vertex inventory",
         ));
     }
-    FixedReferenceFsiBoundary2d::homogeneous_exterior(mesh)?
+    FixedReferenceFsiBoundary::<2>::homogeneous_exterior(mesh)?
         .fixed_zero_velocity_vertices()
         .iter()
         .map(|vertex| vector_distance(velocity[vertex.index()], [0.0; COMPONENTS]))
@@ -597,7 +597,7 @@ fn replay_solid_boundary_trace(
     source_mesh: &SimplicialMesh,
     source_values: &[[f64; COMPONENTS]],
     target_mesh: &SimplicialMesh,
-    target_partition: &FixedReferenceFsiPartition2d,
+    target_partition: &FixedReferenceFsiPartition<2>,
 ) -> Result<Vec<Option<[f64; COMPONENTS]>>, Diagnostic> {
     let solid = target_partition
         .solid_vertices()
@@ -628,13 +628,13 @@ fn replay_solid_boundary_trace(
 fn replay_interface_velocity_trace(
     overlap: &SimplicialRevisionOverlap2d,
     source_mesh: &SimplicialMesh,
-    source_partition: &FixedReferenceFsiPartition2d,
+    source_partition: &FixedReferenceFsiPartition<2>,
     source_values: &[[f64; COMPONENTS]],
     target_mesh: &SimplicialMesh,
-    target_partition: &FixedReferenceFsiPartition2d,
+    target_partition: &FixedReferenceFsiPartition<2>,
 ) -> Result<Vec<Option<[f64; COMPONENTS]>>, Diagnostic> {
     let mut prescribed = vec![None; target_mesh.vertices().len()];
-    for vertex in FixedReferenceFsiBoundary2d::homogeneous_exterior(target_mesh)?
+    for vertex in FixedReferenceFsiBoundary::<2>::homogeneous_exterior(target_mesh)?
         .fixed_zero_velocity_vertices()
     {
         prescribed[vertex.index()] = Some([0.0; COMPONENTS]);
@@ -662,7 +662,7 @@ fn replay_interface_velocity_trace(
     Ok(prescribed)
 }
 
-fn interface_facet_indices(partition: &FixedReferenceFsiPartition2d) -> BTreeSet<usize> {
+fn interface_facet_indices(partition: &FixedReferenceFsiPartition<2>) -> BTreeSet<usize> {
     partition
         .interface_facets()
         .iter()
@@ -790,10 +790,10 @@ pub(super) fn retained_p1_trace_defect(
 pub(super) fn retained_interface_p1_trace_defect(
     overlap: &SimplicialRevisionOverlap2d,
     source_mesh: &SimplicialMesh,
-    source_partition: &FixedReferenceFsiPartition2d,
+    source_partition: &FixedReferenceFsiPartition<2>,
     source_values: &[[f64; COMPONENTS]],
     target_mesh: &SimplicialMesh,
-    target_partition: &FixedReferenceFsiPartition2d,
+    target_partition: &FixedReferenceFsiPartition<2>,
     target_values: &[[f64; COMPONENTS]],
 ) -> Result<f64, Diagnostic> {
     let source_interface = interface_facet_indices(source_partition);
@@ -989,14 +989,14 @@ fn divided_row_unchecked(row: &[f64], scale: f64) -> Vec<f64> {
 fn project_velocity(
     source_reference: &SimplicialMesh,
     source_current: &SimplicialMesh,
-    source_partition: &FixedReferenceFsiPartition2d,
-    source_state: &AleFsiState2d,
+    source_partition: &FixedReferenceFsiPartition<2>,
+    source_state: &AleFsiState<2>,
     target_reference: &SimplicialMesh,
     target_current: &SimplicialMesh,
-    target_partition: &FixedReferenceFsiPartition2d,
+    target_partition: &FixedReferenceFsiPartition<2>,
     solid_overlap: &SimplicialRevisionOverlap2d,
     fluid_overlap: &SimplicialRevisionOverlap2d,
-    material: FixedReferenceFsiMaterial2d,
+    material: FixedReferenceFsiMaterial<2>,
     normalization: RemeshNormalization2d,
     quadrature: &QuadratureRule,
     solver: LinearSolveRequest<'_>,
@@ -1281,7 +1281,7 @@ fn project_velocity(
 #[allow(clippy::too_many_arguments)]
 fn assemble_velocity_mass_region(
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     cells: &[CellId],
     bubble: bool,
     density: f64,
@@ -1309,11 +1309,11 @@ fn assemble_velocity_mass_region(
 fn assemble_velocity_mixed_region(
     overlap: &SimplicialRevisionOverlap2d,
     source_mesh: &SimplicialMesh,
-    source_partition: &FixedReferenceFsiPartition2d,
+    source_partition: &FixedReferenceFsiPartition<2>,
     source_vertex: &[[f64; COMPONENTS]],
     source_bubble: Option<&[[f64; COMPONENTS]]>,
     target_mesh: &SimplicialMesh,
-    target_partition: &FixedReferenceFsiPartition2d,
+    target_partition: &FixedReferenceFsiPartition<2>,
     bubbles: bool,
     density: f64,
     quadrature: &QuadratureRule,
@@ -1348,7 +1348,7 @@ fn assemble_velocity_mixed_region(
 
 fn velocity_scalar_dofs(
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     cell: CellId,
     bubble: bool,
 ) -> Result<Vec<usize>, Diagnostic> {
@@ -1364,7 +1364,7 @@ fn velocity_scalar_dofs(
 
 fn evaluate_velocity_cell(
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     cell: CellId,
     point: [f64; DIMENSION],
     vertex: &[[f64; COMPONENTS]],
@@ -1392,7 +1392,7 @@ fn evaluate_velocity_cell(
 
 fn weak_divergence_rows(
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     scalar_dimension: usize,
     quadrature: &QuadratureRule,
 ) -> Result<Vec<Vec<f64>>, Diagnostic> {
@@ -1429,9 +1429,9 @@ fn weak_divergence_rows(
 fn momentum_rows(
     reference: &SimplicialMesh,
     current: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     scalar_dimension: usize,
-    material: FixedReferenceFsiMaterial2d,
+    material: FixedReferenceFsiMaterial<2>,
     quadrature: &QuadratureRule,
 ) -> Result<[Vec<f64>; COMPONENTS], Diagnostic> {
     let mut scalar = vec![0.0; scalar_dimension];
@@ -1469,7 +1469,7 @@ fn momentum_rows(
 #[allow(clippy::too_many_arguments)]
 fn assemble_basis_moment(
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     cells: &[CellId],
     bubble: bool,
     density: f64,
@@ -1524,10 +1524,10 @@ fn flatten_vector_coefficients(values: &[[f64; COMPONENTS]]) -> Vec<f64> {
 fn total_velocity_momentum(
     reference: &SimplicialMesh,
     current: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     vertex: &[[f64; COMPONENTS]],
     bubbles: &[[f64; COMPONENTS]],
-    material: FixedReferenceFsiMaterial2d,
+    material: FixedReferenceFsiMaterial<2>,
     quadrature: &QuadratureRule,
 ) -> Result<[f64; COMPONENTS], Diagnostic> {
     let mut momentum = [0.0; COMPONENTS];
@@ -1557,7 +1557,7 @@ fn total_velocity_momentum(
 #[allow(clippy::too_many_arguments)]
 fn integrate_velocity_momentum_region(
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     cells: &[CellId],
     vertex: &[[f64; COMPONENTS]],
     bubbles: Option<&[[f64; COMPONENTS]]>,
@@ -1583,15 +1583,15 @@ fn velocity_l2_error(
     fluid_overlap: &SimplicialRevisionOverlap2d,
     source_reference: &SimplicialMesh,
     source_current: &SimplicialMesh,
-    source_partition: &FixedReferenceFsiPartition2d,
+    source_partition: &FixedReferenceFsiPartition<2>,
     source_vertex: &[[f64; COMPONENTS]],
     source_bubble: &[[f64; COMPONENTS]],
     target_reference: &SimplicialMesh,
     target_current: &SimplicialMesh,
-    target_partition: &FixedReferenceFsiPartition2d,
+    target_partition: &FixedReferenceFsiPartition<2>,
     target_vertex: &[[f64; COMPONENTS]],
     target_bubble: &[[f64; COMPONENTS]],
-    material: FixedReferenceFsiMaterial2d,
+    material: FixedReferenceFsiMaterial<2>,
     quadrature: &QuadratureRule,
 ) -> Result<(f64, f64), Diagnostic> {
     let mut fluid_squared = 0.0;
@@ -1640,11 +1640,11 @@ fn velocity_l2_error(
 fn accumulate_velocity_l2_error(
     overlap: &SimplicialRevisionOverlap2d,
     source_mesh: &SimplicialMesh,
-    source_partition: &FixedReferenceFsiPartition2d,
+    source_partition: &FixedReferenceFsiPartition<2>,
     source_vertex: &[[f64; COMPONENTS]],
     source_bubble: Option<&[[f64; COMPONENTS]]>,
     target_mesh: &SimplicialMesh,
-    target_partition: &FixedReferenceFsiPartition2d,
+    target_partition: &FixedReferenceFsiPartition<2>,
     target_vertex: &[[f64; COMPONENTS]],
     target_bubble: Option<&[[f64; COMPONENTS]]>,
     density: f64,
@@ -1683,10 +1683,10 @@ fn accumulate_velocity_l2_error(
 #[allow(clippy::too_many_arguments)]
 fn project_pressure(
     source_mesh: &SimplicialMesh,
-    source_partition: &FixedReferenceFsiPartition2d,
+    source_partition: &FixedReferenceFsiPartition<2>,
     source_pressure: &[f64],
     target_mesh: &SimplicialMesh,
-    target_partition: &FixedReferenceFsiPartition2d,
+    target_partition: &FixedReferenceFsiPartition<2>,
     overlap: &SimplicialRevisionOverlap2d,
     normalization: RemeshNormalization2d,
     quadrature: &QuadratureRule,
@@ -1770,7 +1770,7 @@ fn project_pressure(
 }
 
 fn pressure_position(
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     vertex: usize,
 ) -> Result<usize, Diagnostic> {
     partition
@@ -1781,7 +1781,7 @@ fn pressure_position(
 
 fn pressure_moment(
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     pressure: &[f64],
     quadrature: &QuadratureRule,
 ) -> Result<f64, Diagnostic> {
@@ -1805,7 +1805,7 @@ fn pressure_moment(
 
 fn evaluate_pressure_cell(
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     cell: CellId,
     point: [f64; DIMENSION],
     pressure: &[f64],
@@ -1826,10 +1826,10 @@ fn evaluate_pressure_cell(
 fn pressure_l2_error(
     overlap: &SimplicialRevisionOverlap2d,
     source_mesh: &SimplicialMesh,
-    source_partition: &FixedReferenceFsiPartition2d,
+    source_partition: &FixedReferenceFsiPartition<2>,
     source: &[f64],
     target_mesh: &SimplicialMesh,
-    target_partition: &FixedReferenceFsiPartition2d,
+    target_partition: &FixedReferenceFsiPartition<2>,
     target: &[f64],
     quadrature: &QuadratureRule,
 ) -> Result<f64, Diagnostic> {

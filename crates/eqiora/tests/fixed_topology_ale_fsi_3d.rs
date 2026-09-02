@@ -39,10 +39,10 @@ use eqiora::solver::{
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
-    ale::AleFsiBoundary3d, ale::AleFsiCartesianModel, ale::AleFsiInitialPhysicalState,
-    ale::AleFsiState3d, ale::AleFsiTrajectory3d, ale::finalize_resolved_fixed_topology_ale_fsi_3d,
+    ale::AleFsiBoundary, ale::AleFsiCartesianModel, ale::AleFsiInitialPhysicalState,
+    ale::AleFsiState, ale::AleFsiTrajectory, ale::finalize_resolved_fixed_topology_ale_fsi_3d,
     ale::fixed_topology_ale_fsi_requirements_3d, ale::lower_ale_fsi_cartesian_3d,
-    common::NonZeroStepCount, fsi::FixedReferenceFsiPartition3d,
+    common::NonZeroStepCount, fsi::FixedReferenceFsiPartition,
 };
 
 const D: usize = 3;
@@ -174,8 +174,8 @@ struct Fixture {
     mesh_artifact: SimplicialMeshEnvelopeV1,
     mesh_reference: MeshArtifactReference,
     mesh: SimplicialMesh,
-    partition: FixedReferenceFsiPartition3d,
-    boundary: AleFsiBoundary3d,
+    partition: FixedReferenceFsiPartition<3>,
+    boundary: AleFsiBoundary<3>,
 }
 
 impl Fixture {
@@ -184,8 +184,9 @@ impl Fixture {
         let mesh_artifact = eqiora::artifact::SimplicialMeshEnvelopeV1::from_mesh(&mesh).unwrap();
         let mesh_reference = mesh_artifact.artifact_reference().unwrap();
         let (fluid, solid, interface) = inventories(&mesh);
-        let partition = FixedReferenceFsiPartition3d::new(&mesh, fluid, solid, interface).unwrap();
-        let boundary = AleFsiBoundary3d::homogeneous_exterior(&mesh).unwrap();
+        let partition =
+            FixedReferenceFsiPartition::<3>::new(&mesh, fluid, solid, interface).unwrap();
+        let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
         Self {
             document,
             canonical,
@@ -225,7 +226,7 @@ impl Fixture {
         .unwrap()
     }
 
-    fn advance(&self, time_step: f64, steps: usize) -> AleFsiTrajectory3d {
+    fn advance(&self, time_step: f64, steps: usize) -> AleFsiTrajectory<3> {
         finalize_resolved_fixed_topology_ale_fsi_3d(
             &self.canonical,
             &self.resolve(time_step),
@@ -266,7 +267,11 @@ impl MovingSnapshotSet {
     }
 }
 
-fn publish_moving_artifact_dag(fixture: &Fixture, trajectory: &AleFsiTrajectory3d, time_step: f64) {
+fn publish_moving_artifact_dag(
+    fixture: &Fixture,
+    trajectory: &AleFsiTrajectory<3>,
+    time_step: f64,
+) {
     let model = ModelEnvelope::from_program(fixture.document.program()).unwrap();
     let geometry = GeometryIdentityEnvelopeV1::new(
         &model,
@@ -615,7 +620,7 @@ fn assert_geometry_state_v3_replay_falsifiers(
 #[allow(clippy::too_many_arguments)]
 fn public_result_asset(
     fixture: &Fixture,
-    trajectory: &AleFsiTrajectory3d,
+    trajectory: &AleFsiTrajectory<3>,
     model: &ModelEnvelope,
     geometry: &GeometryIdentityEnvelopeV1,
     correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
@@ -698,7 +703,7 @@ fn public_result_asset(
 fn moving_snapshots(
     fixture: &Fixture,
     context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope, RealizationEnvelopeV5>,
-    state: &AleFsiState3d,
+    state: &AleFsiState<3>,
 ) -> MovingSnapshotSet {
     let vector = DiscreteFieldShape::Vector {
         components: NonZeroU32::new(D as u32).unwrap(),
@@ -1078,9 +1083,9 @@ fn signed_tetrahedron_measure(vertices: &[Vec<f64>], cell: &[usize]) -> f64 {
 
 fn solid_displacement_mass_distance(
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition3d,
-    left: &AleFsiState3d,
-    right: &AleFsiState3d,
+    partition: &FixedReferenceFsiPartition<3>,
+    left: &AleFsiState<3>,
+    right: &AleFsiState<3>,
 ) -> f64 {
     let mut squared = 0.0;
     for cell in partition.solid_cells() {

@@ -40,12 +40,6 @@ impl<const D: usize> FixedReferenceFsiInterfaceAction<D> {
     }
 }
 
-/// Two-dimensional fixed-reference interface action.
-pub type FixedReferenceFsiInterfaceAction2d = FixedReferenceFsiInterfaceAction<2>;
-
-/// Three-dimensional fixed-reference interface action.
-pub type FixedReferenceFsiInterfaceAction3d = FixedReferenceFsiInterfaceAction<3>;
-
 /// Discrete backward-Euler energy identity terms.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FixedReferenceFsiEnergyBalance {
@@ -108,12 +102,6 @@ impl FixedReferenceFsiEnergyBalance {
         self.defect
     }
 }
-
-/// Two-dimensional fixed-reference energy balance.
-pub type FixedReferenceFsiEnergyBalance2d = FixedReferenceFsiEnergyBalance;
-
-/// Three-dimensional fixed-reference energy balance.
-pub type FixedReferenceFsiEnergyBalance3d = FixedReferenceFsiEnergyBalance;
 
 /// Accepted fields and falsifying numerical evidence for one FSI step.
 #[derive(Debug, Clone, PartialEq)]
@@ -240,9 +228,3 @@ impl<const D: usize> FixedReferenceFsiSolution<D> {
         &self.solve_report
     }
 }
-
-/// Two-dimensional fixed-reference FSI solution.
-pub type FixedReferenceFsiSolution2d = FixedReferenceFsiSolution<2>;
-
-/// Three-dimensional fixed-reference FSI solution.
-pub type FixedReferenceFsiSolution3d = FixedReferenceFsiSolution<3>;

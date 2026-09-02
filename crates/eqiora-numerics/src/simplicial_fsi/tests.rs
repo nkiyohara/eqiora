@@ -24,22 +24,30 @@ fn exact_partition_rejects_missing_and_extra_interface_facets() {
     let mesh = two_domain_mesh();
     let (fluid, solid, interface) = inventories(&mesh);
     assert!(
-        FixedReferenceFsiPartition2d::new(&mesh, fluid.clone(), solid.clone(), interface.clone())
-            .is_ok()
+        FixedReferenceFsiPartition::<2>::new(
+            &mesh,
+            fluid.clone(),
+            solid.clone(),
+            interface.clone()
+        )
+        .is_ok()
     );
     assert!(
-        FixedReferenceFsiPartition2d::new(&mesh, fluid.clone(), solid.clone(), Vec::new()).is_err()
+        FixedReferenceFsiPartition::<2>::new(&mesh, fluid.clone(), solid.clone(), Vec::new())
+            .is_err()
     );
     let mut incomplete_cells = fluid;
     incomplete_cells.pop();
-    assert!(FixedReferenceFsiPartition2d::new(&mesh, incomplete_cells, solid, interface).is_err());
+    assert!(
+        FixedReferenceFsiPartition::<2>::new(&mesh, incomplete_cells, solid, interface).is_err()
+    );
 }
 
 #[test]
 fn tetrahedral_contract_replays_one_exact_interface_and_dimensioned_state() {
     let mesh = two_tetrahedron_mesh();
     let interface = shared_tetrahedron_interface(&mesh);
-    let partition = FixedReferenceFsiPartition3d::new(
+    let partition = FixedReferenceFsiPartition::<3>::new(
         &mesh,
         vec![CellId::new(0)],
         vec![CellId::new(1)],
@@ -50,8 +58,8 @@ fn tetrahedral_contract_replays_one_exact_interface_and_dimensioned_state() {
     assert_eq!(witness.facet(), interface);
     assert_eq!(witness.fluid_cell(), CellId::new(0));
     assert_eq!(witness.solid_cell(), CellId::new(1));
-    let boundary = FixedReferenceFsiBoundary3d::homogeneous_exterior(&mesh).unwrap();
-    let previous = FixedReferenceFsiState3d::new(
+    let boundary = FixedReferenceFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
+    let previous = FixedReferenceFsiState::<3>::new(
         &mesh,
         &partition,
         vec![[0.0; 3]; mesh.vertices().len()],
@@ -59,13 +67,13 @@ fn tetrahedral_contract_replays_one_exact_interface_and_dimensioned_state() {
         vec![[0.0; 3]; mesh.vertices().len()],
     )
     .unwrap();
-    let material = FixedReferenceFsiMaterial3d::new(1.0, 0.1, 2.0, 3.0, 1.0).unwrap();
-    let scale = FixedReferenceFsiScale3d::new(2.0, 5.0, 3.0).unwrap();
+    let material = FixedReferenceFsiMaterial::<3>::new(1.0, 0.1, 2.0, 3.0, 1.0).unwrap();
+    let scale = FixedReferenceFsiScale::<3>::new(2.0, 5.0, 3.0).unwrap();
     assert_eq!(scale.action(), 12.0);
     assert_eq!(scale.energy(), 24.0);
     assert_eq!(scale.power(), 60.0);
     let config =
-        FixedReferenceFsiStepConfig3d::new(0.25, material, scale, FixedReferenceFsiLoad3d::Zero)
+        FixedReferenceFsiStepConfig::<3>::new(0.25, material, scale, FixedReferenceFsiLoad::Zero)
             .unwrap();
     let under_integrated = validate_problem(
         &mesh,
@@ -99,7 +107,7 @@ fn tetrahedral_contract_replays_one_exact_interface_and_dimensioned_state() {
     .unwrap();
 
     assert!(
-        FixedReferenceFsiPartition3d::new(
+        FixedReferenceFsiPartition::<3>::new(
             &mesh,
             vec![CellId::new(0)],
             vec![CellId::new(1)],
@@ -108,7 +116,7 @@ fn tetrahedral_contract_replays_one_exact_interface_and_dimensioned_state() {
         .is_err()
     );
     assert!(
-        FixedReferenceFsiPartition3d::new(
+        FixedReferenceFsiPartition::<3>::new(
             &two_domain_mesh(),
             vec![CellId::new(0)],
             vec![CellId::new(1)],
@@ -120,8 +128,8 @@ fn tetrahedral_contract_replays_one_exact_interface_and_dimensioned_state() {
 
 #[test]
 fn material_coercivity_depends_on_the_admitted_spatial_dimension() {
-    assert!(FixedReferenceFsiMaterial2d::new(1.0, 0.1, 1.0, 1.0, -0.8).is_ok());
-    let error = FixedReferenceFsiMaterial3d::new(1.0, 0.1, 1.0, 1.0, -0.8).unwrap_err();
+    assert!(FixedReferenceFsiMaterial::<2>::new(1.0, 0.1, 1.0, 1.0, -0.8).is_ok());
+    let error = FixedReferenceFsiMaterial::<3>::new(1.0, 0.1, 1.0, 1.0, -0.8).unwrap_err();
     assert!(error.message().contains("coercive"));
 }
 
@@ -242,11 +250,11 @@ fn tetrahedral_physical_step_is_invariant_under_dimensioned_scale_profiles() {
         reference_solver(),
     )
     .unwrap();
-    let rescaled_config = FixedReferenceFsiStepConfig3d::new(
+    let rescaled_config = FixedReferenceFsiStepConfig::<3>::new(
         problem.config.time_step(),
         problem.config.material(),
-        FixedReferenceFsiScale3d::new(4.0, 0.25, 3.0).unwrap(),
-        FixedReferenceFsiLoad3d::Zero,
+        FixedReferenceFsiScale::<3>::new(4.0, 0.25, 3.0).unwrap(),
+        FixedReferenceFsiLoad::Zero,
     )
     .unwrap();
     let rescaled = solve_fixed_reference_fsi_step_3d(
@@ -309,11 +317,11 @@ fn physical_step_is_invariant_under_admitted_scale_profiles() {
         reference_solver(),
     )
     .unwrap();
-    let rescaled_config = FixedReferenceFsiStepConfig2d::new(
+    let rescaled_config = FixedReferenceFsiStepConfig::<2>::new(
         problem.config.time_step(),
         problem.config.material(),
-        FixedReferenceFsiScale2d::new(2.0, 0.25, 3.0).unwrap(),
-        FixedReferenceFsiLoad2d::Zero,
+        FixedReferenceFsiScale::<2>::new(2.0, 0.25, 3.0).unwrap(),
+        FixedReferenceFsiLoad::Zero,
     )
     .unwrap();
     let rescaled = solve_fixed_reference_fsi_step_2d(
@@ -354,7 +362,7 @@ fn physical_step_is_invariant_under_admitted_scale_profiles() {
 #[test]
 fn zero_interface_action_rejects_an_unclosed_pressure_mode() {
     let problem = fixture_problem();
-    let all_fixed = FixedReferenceFsiBoundary2d::from_fixed_zero_velocity_vertices(
+    let all_fixed = FixedReferenceFsiBoundary::<2>::from_fixed_zero_velocity_vertices(
         (0..problem.mesh.vertices().len())
             .map(VertexId::new)
             .collect(),
@@ -423,31 +431,31 @@ impl AssemblyBackend for WrongShapeAssemblyBackend {
 
 struct Fixture {
     mesh: SimplicialMesh,
-    partition: FixedReferenceFsiPartition2d,
-    boundary: FixedReferenceFsiBoundary2d,
-    previous: FixedReferenceFsiState2d,
-    config: FixedReferenceFsiStepConfig2d,
+    partition: FixedReferenceFsiPartition<2>,
+    boundary: FixedReferenceFsiBoundary<2>,
+    previous: FixedReferenceFsiState<2>,
+    config: FixedReferenceFsiStepConfig<2>,
     quadrature: QuadratureRule,
 }
 
 struct Fixture3d {
     mesh: SimplicialMesh,
-    partition: FixedReferenceFsiPartition3d,
-    boundary: FixedReferenceFsiBoundary3d,
-    previous: FixedReferenceFsiState3d,
-    config: FixedReferenceFsiStepConfig3d,
+    partition: FixedReferenceFsiPartition<3>,
+    boundary: FixedReferenceFsiBoundary<3>,
+    previous: FixedReferenceFsiState<3>,
+    config: FixedReferenceFsiStepConfig<3>,
     quadrature: QuadratureRule,
 }
 
 fn fixture_problem() -> Fixture {
     let mesh = two_domain_mesh();
     let (fluid, solid, interface) = inventories(&mesh);
-    let partition = FixedReferenceFsiPartition2d::new(&mesh, fluid, solid, interface).unwrap();
-    let boundary = FixedReferenceFsiBoundary2d::homogeneous_exterior(&mesh).unwrap();
+    let partition = FixedReferenceFsiPartition::<2>::new(&mesh, fluid, solid, interface).unwrap();
+    let boundary = FixedReferenceFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
     let mut displacement = vec![[0.0; 2]; mesh.vertices().len()];
     let interface_midpoint = find_vertex(&mesh, [1.0, 0.5]);
     displacement[interface_midpoint][0] = 0.02;
-    let previous = FixedReferenceFsiState2d::new(
+    let previous = FixedReferenceFsiState::<2>::new(
         &mesh,
         &partition,
         vec![[0.0; 2]; mesh.vertices().len()],
@@ -455,10 +463,10 @@ fn fixture_problem() -> Fixture {
         displacement,
     )
     .unwrap();
-    let material = FixedReferenceFsiMaterial2d::new(1.0, 0.05, 1.5, 2.0, 3.0).unwrap();
-    let scale = FixedReferenceFsiScale2d::new(2.0, 1.0, 1.0).unwrap();
+    let material = FixedReferenceFsiMaterial::<2>::new(1.0, 0.05, 1.5, 2.0, 3.0).unwrap();
+    let scale = FixedReferenceFsiScale::<2>::new(2.0, 1.0, 1.0).unwrap();
     let config =
-        FixedReferenceFsiStepConfig2d::new(0.05, material, scale, FixedReferenceFsiLoad2d::Zero)
+        FixedReferenceFsiStepConfig::<2>::new(0.05, material, scale, FixedReferenceFsiLoad::Zero)
             .unwrap();
     Fixture {
         mesh,
@@ -483,11 +491,11 @@ fn fixture_problem_3d() -> Fixture3d {
         })
         .map(FacetId::new)
         .collect::<Vec<_>>();
-    let partition = FixedReferenceFsiPartition3d::new(&mesh, fluid, solid, interface).unwrap();
-    let boundary = FixedReferenceFsiBoundary3d::homogeneous_exterior(&mesh).unwrap();
+    let partition = FixedReferenceFsiPartition::<3>::new(&mesh, fluid, solid, interface).unwrap();
+    let boundary = FixedReferenceFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
     let mut displacement = vec![[0.0; 3]; mesh.vertices().len()];
     displacement[2] = [0.015, -0.01, 0.005];
-    let previous = FixedReferenceFsiState3d::new(
+    let previous = FixedReferenceFsiState::<3>::new(
         &mesh,
         &partition,
         vec![[0.0; 3]; mesh.vertices().len()],
@@ -495,10 +503,10 @@ fn fixture_problem_3d() -> Fixture3d {
         displacement,
     )
     .unwrap();
-    let material = FixedReferenceFsiMaterial3d::new(1.0, 0.05, 1.5, 2.0, 3.0).unwrap();
-    let scale = FixedReferenceFsiScale3d::new(2.0, 1.0, 1.0).unwrap();
+    let material = FixedReferenceFsiMaterial::<3>::new(1.0, 0.05, 1.5, 2.0, 3.0).unwrap();
+    let scale = FixedReferenceFsiScale::<3>::new(2.0, 1.0, 1.0).unwrap();
     let config =
-        FixedReferenceFsiStepConfig3d::new(0.05, material, scale, FixedReferenceFsiLoad3d::Zero)
+        FixedReferenceFsiStepConfig::<3>::new(0.05, material, scale, FixedReferenceFsiLoad::Zero)
             .unwrap();
     Fixture3d {
         mesh,

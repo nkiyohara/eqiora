@@ -28,12 +28,6 @@ use crate::simplicial_fsi::{
 /// closure and therefore reuses the fixed-reference FSI contract exactly.
 pub type AleFsiBoundary<const D: usize> = FixedReferenceFsiBoundary<D>;
 
-/// Established two-dimensional physical-velocity boundary.
-pub type AleFsiBoundary2d = AleFsiBoundary<2>;
-
-/// Three-dimensional physical-velocity boundary.
-pub type AleFsiBoundary3d = AleFsiBoundary<3>;
-
 /// One accepted or restartable state on immutable reference topology.
 ///
 /// Velocity and displacement coefficients use reference-vertex order. MINI
@@ -49,12 +43,6 @@ pub struct AleFsiState<const D: usize> {
     solid_displacement: Vec<[f64; D]>,
     geometry: FixedTopologyGeometryState<D>,
 }
-
-/// Established two-dimensional ALE state API.
-pub type AleFsiState2d = AleFsiState<2>;
-
-/// Three-dimensional ALE state over immutable tetrahedral topology.
-pub type AleFsiState3d = AleFsiState<3>;
 
 impl<const D: usize> AleFsiState<D> {
     /// Derive and admit one complete moving-domain state.
@@ -220,12 +208,6 @@ pub struct AleFsiStepPlan<const D: usize> {
     linear_solver: SolverPlan,
     target: Target,
 }
-
-/// Established two-dimensional ALE step policy.
-pub type AleFsiStepPlan2d = AleFsiStepPlan<2>;
-
-/// Three-dimensional ALE step policy.
-pub type AleFsiStepPlan3d = AleFsiStepPlan<3>;
 
 impl<const D: usize> AleFsiStepPlan<D> {
     /// Admit the bounded serial-host nonlinear ALE FSI policy.
@@ -444,10 +426,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::simplicial_ale_fsi::{P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d};
+    use crate::simplicial_ale_fsi::P1HarmonicMeshMotionAction;
     use crate::simplicial_fsi::{
-        FixedReferenceFsiBoundary2d, FixedReferenceFsiLoad2d, FixedReferenceFsiMaterial2d,
-        FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d, FixedReferenceFsiScale2d,
+        FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
+        FixedReferenceFsiPartition, FixedReferenceFsiScale,
     };
 
     const COMPONENTS: usize = 2;
@@ -456,7 +438,7 @@ mod tests {
     fn state_derives_geometry_from_the_only_admitted_driver() {
         let fixture = fixture();
         let solid_displacement = moving_solid_displacement(&fixture);
-        let state = AleFsiState2d::new(
+        let state = AleFsiState::<2>::new(
             0.25,
             &fixture.mesh,
             &fixture.partition,
@@ -497,7 +479,7 @@ mod tests {
     fn state_rejects_wrong_pressure_support_and_nonfinite_fields() {
         let fixture = fixture();
         let valid_pressure = vec![0.0; fixture.partition.fluid_vertices().len()];
-        let error = AleFsiState2d::new(
+        let error = AleFsiState::<2>::new(
             0.0,
             &fixture.mesh,
             &fixture.partition,
@@ -525,7 +507,7 @@ mod tests {
         let mut unsupported = zero_vertex_vectors(&fixture.mesh);
         unsupported[fluid_only.index()] = [0.01, 0.0];
         assert!(
-            AleFsiState2d::new(
+            AleFsiState::<2>::new(
                 0.0,
                 &fixture.mesh,
                 &fixture.partition,
@@ -541,7 +523,7 @@ mod tests {
         let mut velocity = zero_vertex_vectors(&fixture.mesh);
         velocity[0][0] = f64::NAN;
         assert!(
-            AleFsiState2d::new(
+            AleFsiState::<2>::new(
                 0.0,
                 &fixture.mesh,
                 &fixture.partition,
@@ -587,9 +569,9 @@ mod tests {
         assert_eq!(plan.material(), material());
         assert_eq!(
             plan.scale(),
-            FixedReferenceFsiScale2d::new(2.0, 1.0, 1.0).unwrap()
+            FixedReferenceFsiScale::<2>::new(2.0, 1.0, 1.0).unwrap()
         );
-        assert_eq!(plan.load(), FixedReferenceFsiLoad2d::Zero);
+        assert_eq!(plan.load(), FixedReferenceFsiLoad::Zero);
         assert_eq!(plan.nonlinear(), nonlinear());
         assert_eq!(
             plan.target(),
@@ -598,8 +580,8 @@ mod tests {
             }
         );
         assert_eq!(plan.fixed_reference_config().time_step(), plan.time_step());
-        let _boundary: AleFsiBoundary2d =
-            FixedReferenceFsiBoundary2d::homogeneous_exterior(&fixture.mesh).unwrap();
+        let _boundary: AleFsiBoundary<2> =
+            FixedReferenceFsiBoundary::<2>::homogeneous_exterior(&fixture.mesh).unwrap();
         let previous = zero_state(0.0, &fixture);
         let current = zero_state(plan.time_step(), &fixture);
         let action = plan
@@ -642,7 +624,7 @@ mod tests {
     #[test]
     fn step_plan_rejects_symmetric_solver_and_parallel_target() {
         let material = material();
-        let scale = FixedReferenceFsiScale2d::new(2.0, 1.0, 1.0).unwrap();
+        let scale = FixedReferenceFsiScale::<2>::new(2.0, 1.0, 1.0).unwrap();
         let nonlinear = nonlinear();
         let minres = SolverPlan::new(
             LinearSolver::MinimumResidual,
@@ -655,11 +637,11 @@ mod tests {
             threads: NonZeroUsize::MIN,
         };
         assert!(
-            AleFsiStepPlan2d::new(
+            AleFsiStepPlan::<2>::new(
                 0.05,
                 material,
                 scale,
-                FixedReferenceFsiLoad2d::Zero,
+                FixedReferenceFsiLoad::Zero,
                 nonlinear,
                 minres,
                 serial,
@@ -669,11 +651,11 @@ mod tests {
 
         let general = general_solver();
         assert!(
-            AleFsiStepPlan2d::new(
+            AleFsiStepPlan::<2>::new(
                 0.05,
                 material,
                 scale,
-                FixedReferenceFsiLoad2d::Zero,
+                FixedReferenceFsiLoad::Zero,
                 nonlinear,
                 general,
                 Target::HostCpu {
@@ -688,7 +670,7 @@ mod tests {
     fn tetrahedral_state_replays_the_only_geometry_driver_and_rejects_wrong_shape() {
         let fixture = fixture_3d();
         let solid_displacement = moving_solid_displacement_3d(&fixture);
-        let state = AleFsiState3d::new(
+        let state = AleFsiState::<3>::new(
             0.25,
             &fixture.mesh,
             &fixture.partition,
@@ -717,7 +699,7 @@ mod tests {
         assert_eq!(fixed.solid_displacement(), state.solid_displacement());
 
         assert!(
-            AleFsiState3d::new(
+            AleFsiState::<3>::new(
                 0.0,
                 &fixture.mesh,
                 &fixture.partition,
@@ -730,7 +712,7 @@ mod tests {
             .is_err()
         );
         assert!(
-            AleFsiState3d::new(
+            AleFsiState::<3>::new(
                 0.0,
                 &fixture.mesh,
                 &fixture.partition,
@@ -749,7 +731,7 @@ mod tests {
         let fixture = fixture_3d();
         let plan = valid_plan_3d();
         let previous = zero_state_3d(0.0, &fixture);
-        let current = AleFsiState3d::new(
+        let current = AleFsiState::<3>::new(
             plan.time_step(),
             &fixture.mesh,
             &fixture.partition,
@@ -774,7 +756,7 @@ mod tests {
             action.vertex_velocities().len(),
             fixture.mesh.vertices().len()
         );
-        let _boundary: AleFsiBoundary3d =
+        let _boundary: AleFsiBoundary<3> =
             FixedReferenceFsiBoundary::<3>::homogeneous_exterior(&fixture.mesh)
                 .expect("tetrahedral exterior boundary closes");
 
@@ -814,22 +796,23 @@ mod tests {
 
     struct Fixture {
         mesh: SimplicialMesh,
-        partition: FixedReferenceFsiPartition2d,
-        motion: P1HarmonicMeshMotionAction2d,
+        partition: FixedReferenceFsiPartition<2>,
+        motion: P1HarmonicMeshMotionAction<2>,
     }
 
     struct Fixture3d {
         mesh: SimplicialMesh,
-        partition: FixedReferenceFsiPartition3d,
-        motion: P1HarmonicMeshMotionAction3d,
+        partition: FixedReferenceFsiPartition<3>,
+        motion: P1HarmonicMeshMotionAction<3>,
     }
 
     fn fixture() -> Fixture {
         let mesh = two_domain_mesh_with_fluid_interior();
         let (fluid, solid, interface) = inventories(&mesh);
-        let partition = FixedReferenceFsiPartition2d::new(&mesh, fluid, solid, interface).unwrap();
+        let partition =
+            FixedReferenceFsiPartition::<2>::new(&mesh, fluid, solid, interface).unwrap();
         let motion =
-            P1HarmonicMeshMotionAction2d::new(&mesh, &partition, harmonic_solver()).unwrap();
+            P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, harmonic_solver()).unwrap();
         Fixture {
             mesh,
             partition,
@@ -840,9 +823,9 @@ mod tests {
     fn fixture_3d() -> Fixture3d {
         let mesh = two_domain_tetrahedral_mesh_with_fluid_interior();
         let (fluid, solid, interface) = inventories_3d(&mesh);
-        let partition = FixedReferenceFsiPartition3d::new(&mesh, fluid, solid, interface)
+        let partition = FixedReferenceFsiPartition::<3>::new(&mesh, fluid, solid, interface)
             .expect("exact tetrahedral material partition");
-        let motion = P1HarmonicMeshMotionAction3d::new(&mesh, &partition, harmonic_solver())
+        let motion = P1HarmonicMeshMotionAction::<3>::new(&mesh, &partition, harmonic_solver())
             .expect("tetrahedral harmonic motion seals");
         Fixture3d {
             mesh,
@@ -1009,8 +992,8 @@ mod tests {
         displacement
     }
 
-    fn zero_state(time: f64, fixture: &Fixture) -> AleFsiState2d {
-        AleFsiState2d::new(
+    fn zero_state(time: f64, fixture: &Fixture) -> AleFsiState<2> {
+        AleFsiState::<2>::new(
             time,
             &fixture.mesh,
             &fixture.partition,
@@ -1023,8 +1006,8 @@ mod tests {
         .unwrap()
     }
 
-    fn zero_state_3d(time: f64, fixture: &Fixture3d) -> AleFsiState3d {
-        AleFsiState3d::new(
+    fn zero_state_3d(time: f64, fixture: &Fixture3d) -> AleFsiState<3> {
+        AleFsiState::<3>::new(
             time,
             &fixture.mesh,
             &fixture.partition,
@@ -1045,12 +1028,12 @@ mod tests {
         vec![[0.0; 3]; mesh.vertices().len()]
     }
 
-    fn valid_plan() -> AleFsiStepPlan2d {
-        AleFsiStepPlan2d::new(
+    fn valid_plan() -> AleFsiStepPlan<2> {
+        AleFsiStepPlan::<2>::new(
             0.05,
             material(),
-            FixedReferenceFsiScale2d::new(2.0, 1.0, 1.0).unwrap(),
-            FixedReferenceFsiLoad2d::Zero,
+            FixedReferenceFsiScale::<2>::new(2.0, 1.0, 1.0).unwrap(),
+            FixedReferenceFsiLoad::Zero,
             nonlinear(),
             general_solver(),
             Target::HostCpu {
@@ -1060,8 +1043,8 @@ mod tests {
         .unwrap()
     }
 
-    fn valid_plan_3d() -> AleFsiStepPlan3d {
-        AleFsiStepPlan3d::new(
+    fn valid_plan_3d() -> AleFsiStepPlan<3> {
+        AleFsiStepPlan::<3>::new(
             0.05,
             FixedReferenceFsiMaterial::<3>::new(1.0, 0.1, 1.0, 2.0, 1.0)
                 .expect("coercive tetrahedral material"),
@@ -1076,8 +1059,8 @@ mod tests {
         .expect("valid tetrahedral ALE plan")
     }
 
-    fn material() -> FixedReferenceFsiMaterial2d {
-        FixedReferenceFsiMaterial2d::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap()
+    fn material() -> FixedReferenceFsiMaterial<2> {
+        FixedReferenceFsiMaterial::<2>::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap()
     }
 
     fn nonlinear() -> NonlinearSolvePlan {

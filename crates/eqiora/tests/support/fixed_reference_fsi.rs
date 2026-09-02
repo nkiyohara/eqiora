@@ -24,8 +24,8 @@ use eqiora::solver::{
 };
 use eqiora::{DimExponents, DynQuantity};
 use eqiora_numerics::{
-    fsi::FixedReferenceFsiCartesianModel2d, fsi::FixedReferenceFsiPartition2d,
-    fsi::FixedReferenceFsiScaleProfile2d, fsi::FixedReferenceFsiState2d,
+    fsi::FixedReferenceFsiCartesianModel2d, fsi::FixedReferenceFsiPartition,
+    fsi::FixedReferenceFsiScaleProfile2d, fsi::FixedReferenceFsiState,
     fsi::ResolvedFixedReferenceFsiSolution2d, fsi::finalize_resolved_fixed_reference_fsi_step_2d,
     fsi::fixed_reference_fsi_plan_2d, fsi::fixed_reference_fsi_requirements_2d,
 };
@@ -65,7 +65,7 @@ pub(crate) struct SpatialContext {
     pub(crate) mesh_artifact: SimplicialMeshEnvelopeV1,
     pub(crate) geometry: GeometryIdentityEnvelopeV1,
     pub(crate) correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    pub(crate) partition: FixedReferenceFsiPartition2d,
+    pub(crate) partition: FixedReferenceFsiPartition<2>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -195,7 +195,7 @@ pub(crate) fn spatial_context(
         .map(FacetId::new)
         .collect::<Vec<_>>();
     assert!(
-        FixedReferenceFsiPartition2d::new(
+        FixedReferenceFsiPartition::<2>::new(
             &mesh,
             fluid_cells.clone(),
             solid_cells.clone(),
@@ -205,7 +205,7 @@ pub(crate) fn spatial_context(
         "a partial semantic interface must not reach assembly"
     );
     let partition =
-        FixedReferenceFsiPartition2d::new(&mesh, fluid_cells, solid_cells, interface_facets)
+        FixedReferenceFsiPartition::<2>::new(&mesh, fluid_cells, solid_cells, interface_facets)
             .expect("exact correspondence defines one complete FSI partition");
     SpatialContext {
         model,
@@ -300,7 +300,7 @@ pub(crate) fn execution_context(
     }
 }
 
-pub(crate) fn prestrained_state(spatial: &SpatialContext) -> FixedReferenceFsiState2d {
+pub(crate) fn prestrained_state(spatial: &SpatialContext) -> FixedReferenceFsiState<2> {
     let mut displacement = vec![[0.0; 2]; spatial.mesh.vertices().len()];
     let interface_midpoint = spatial
         .mesh
@@ -309,7 +309,7 @@ pub(crate) fn prestrained_state(spatial: &SpatialContext) -> FixedReferenceFsiSt
         .position(|point| point.as_slice() == [1.0, 0.5])
         .expect("fixture owns one free interface midpoint");
     displacement[interface_midpoint] = [0.02, 0.0];
-    FixedReferenceFsiState2d::new(
+    FixedReferenceFsiState::<2>::new(
         &spatial.mesh,
         &spatial.partition,
         vec![[0.0; 2]; spatial.mesh.vertices().len()],
@@ -322,8 +322,8 @@ pub(crate) fn prestrained_state(spatial: &SpatialContext) -> FixedReferenceFsiSt
 pub(crate) fn state_from_solution(
     spatial: &SpatialContext,
     solution: &ResolvedFixedReferenceFsiSolution2d,
-) -> FixedReferenceFsiState2d {
-    FixedReferenceFsiState2d::new(
+) -> FixedReferenceFsiState<2> {
+    FixedReferenceFsiState::<2>::new(
         &spatial.mesh,
         &spatial.partition,
         solution.vertex_velocity_coefficients().to_vec(),
@@ -337,7 +337,7 @@ pub(crate) fn solve_step(
     canonical: &FixedReferenceFsiCartesianModel2d,
     spatial: &SpatialContext,
     execution: &ExecutionContext,
-    previous: &FixedReferenceFsiState2d,
+    previous: &FixedReferenceFsiState<2>,
 ) -> ExecutionWitness {
     let finalized = finalize_resolved_fixed_reference_fsi_step_2d(
         canonical,

@@ -21,7 +21,7 @@ use super::{
     fixed_reference_fsi_plan_2d_for_profile, fixed_reference_fsi_requirements_2d_for_layout,
 };
 use crate::canonical_boundary::PhysicalBoundaryDisposition;
-use crate::simplicial_fsi::FixedReferenceFsiPartition2d;
+use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
 pub(super) fn require_exact_plan(
     model: &FixedReferenceFsiCartesianModel2d,
@@ -220,7 +220,7 @@ fn require_physics_boundary(
 pub(super) fn require_mesh_partition(
     model: &FixedReferenceFsiCartesianModel2d,
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
 ) -> Result<(), Diagnostic> {
     if mesh.topological_dimension() != DIMENSION
         || mesh.vertices().iter().any(|point| point.len() != DIMENSION)

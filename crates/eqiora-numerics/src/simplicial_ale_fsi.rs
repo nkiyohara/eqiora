@@ -16,18 +16,9 @@ pub(crate) use boundary_step::{
     advance_simplicial_ale_fsi_prepared_step,
 };
 
-pub use api::{
-    AleFsiInterfaceAction, AleFsiInterfaceAction2d, AleFsiInterfaceAction3d, AleFsiStepEvidence,
-    AleFsiStepEvidence2d, AleFsiStepEvidence3d, AleFsiTrajectory, AleFsiTrajectory2d,
-    AleFsiTrajectory3d,
-};
-pub use contract::{
-    AleFsiBoundary, AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState, AleFsiState2d, AleFsiState3d,
-    AleFsiStepPlan, AleFsiStepPlan2d, AleFsiStepPlan3d,
-};
-pub use motion::{
-    P1HarmonicMeshMotionAction, P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
-};
+pub use api::{AleFsiInterfaceAction, AleFsiStepEvidence, AleFsiTrajectory};
+pub use contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
+pub use motion::P1HarmonicMeshMotionAction;
 pub use newton::{
     advance_simplicial_ale_fsi_2d, advance_simplicial_ale_fsi_2d_with_assembly,
     advance_simplicial_ale_fsi_3d, advance_simplicial_ale_fsi_3d_with_assembly,

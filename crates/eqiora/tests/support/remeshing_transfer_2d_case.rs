@@ -27,11 +27,11 @@ use eqiora::solver::{
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
-    ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiBoundary2d, ale::AleFsiCartesianModel,
-    ale::AleFsiState2d, ale::FinalizedResolvedFixedTopologyAleFsi,
+    ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiBoundary, ale::AleFsiCartesianModel,
+    ale::AleFsiState, ale::FinalizedResolvedFixedTopologyAleFsi,
     ale::fixed_topology_ale_fsi_requirements_2d, ale::lower_ale_fsi_cartesian_2d,
     ale::project_simplicial_ale_fsi_remesh_2d, ale::remesh_resolved_fixed_topology_ale_fsi_2d,
-    common::NonZeroStepCount, fsi::FixedReferenceFsiPartition2d, fsi::FixedReferenceFsiScale2d,
+    common::NonZeroStepCount, fsi::FixedReferenceFsiPartition, fsi::FixedReferenceFsiScale,
 };
 
 pub(super) const COMPONENTS: usize = 2;
@@ -71,13 +71,13 @@ pub(super) struct Case {
     pub(super) source_mesh_artifact: SimplicialMeshEnvelopeV1,
     pub(super) source_reference: MeshArtifactReference,
     pub(super) source_mesh: SimplicialMesh,
-    pub(super) source_partition: FixedReferenceFsiPartition2d,
-    pub(super) source_boundary: AleFsiBoundary2d,
+    pub(super) source_partition: FixedReferenceFsiPartition<2>,
+    pub(super) source_boundary: AleFsiBoundary<2>,
     pub(super) target_mesh_artifact: SimplicialMeshEnvelopeV1,
     pub(super) target_reference: MeshArtifactReference,
     pub(super) target_mesh: SimplicialMesh,
-    pub(super) target_partition: FixedReferenceFsiPartition2d,
-    pub(super) target_boundary: AleFsiBoundary2d,
+    pub(super) target_partition: FixedReferenceFsiPartition<2>,
+    pub(super) target_boundary: AleFsiBoundary<2>,
 }
 
 impl Case {
@@ -100,8 +100,8 @@ impl Case {
         let target_partition = partition(&target_mesh);
         assert_eq!(source_partition.interface_facets().len(), 2);
         assert_eq!(target_partition.interface_facets().len(), 4);
-        let source_boundary = AleFsiBoundary2d::homogeneous_exterior(&source_mesh).unwrap();
-        let target_boundary = AleFsiBoundary2d::homogeneous_exterior(&target_mesh).unwrap();
+        let source_boundary = AleFsiBoundary::<2>::homogeneous_exterior(&source_mesh).unwrap();
+        let target_boundary = AleFsiBoundary::<2>::homogeneous_exterior(&target_mesh).unwrap();
         Self {
             document,
             canonical,
@@ -190,7 +190,7 @@ impl Case {
 pub(super) fn assert_numerical_falsifiers(
     case: &Case,
     source: &FinalizedResolvedFixedTopologyAleFsi<2>,
-    source_state: &AleFsiState2d,
+    source_state: &AleFsiState<2>,
     target: &ResolvedFixedTopologyAleCoupledRealization,
 ) {
     let stale_mesh = remesh_resolved_fixed_topology_ale_fsi_2d(
@@ -312,7 +312,7 @@ pub(super) fn assert_numerical_falsifiers(
     );
 }
 
-pub(super) fn assert_strong_source_witness(case: &Case, state: &AleFsiState2d) {
+pub(super) fn assert_strong_source_witness(case: &Case, state: &AleFsiState<2>) {
     assert!(
         state
             .fluid_cell_bubble_velocity()
@@ -447,12 +447,12 @@ fn dyadic(value: f64) -> (i128, i32) {
 pub(super) fn assert_scale_invariant_projection(
     case: &Case,
     source: &FinalizedResolvedFixedTopologyAleFsi<2>,
-    source_state: &AleFsiState2d,
+    source_state: &AleFsiState<2>,
     accepted: &eqiora_numerics::ale::AcceptedResolvedAleFsiRemesh2d,
     base: &AcceptedAleFsiRemeshProjection2d,
     transfer_plan: AleFsiRemeshTransferPlan2d,
 ) {
-    let alternative_scale = FixedReferenceFsiScale2d::new(4.0, 2.0, 4.0).unwrap();
+    let alternative_scale = FixedReferenceFsiScale::<2>::new(4.0, 2.0, 4.0).unwrap();
     let alternative = project_simplicial_ale_fsi_remesh_2d(
         &case.source_mesh,
         &case.source_partition,
@@ -994,7 +994,7 @@ fn unstructured_target_mesh() -> SimplicialMesh {
     SimplicialMesh::new(2, vertices, cells, MeshQualityGate::new(0.3).unwrap()).unwrap()
 }
 
-fn partition(mesh: &SimplicialMesh) -> FixedReferenceFsiPartition2d {
+fn partition(mesh: &SimplicialMesh) -> FixedReferenceFsiPartition<2> {
     let mut fluid = Vec::new();
     let mut solid = Vec::new();
     for (index, cell) in mesh.cells().iter().enumerate() {
@@ -1018,7 +1018,7 @@ fn partition(mesh: &SimplicialMesh) -> FixedReferenceFsiPartition2d {
         })
         .map(FacetId::new)
         .collect();
-    FixedReferenceFsiPartition2d::new(mesh, fluid, solid, interface).unwrap()
+    FixedReferenceFsiPartition::<2>::new(mesh, fluid, solid, interface).unwrap()
 }
 
 fn find_vertex(mesh: &SimplicialMesh, target: [f64; COMPONENTS]) -> usize {

@@ -1496,8 +1496,8 @@ mod tests {
 
     use super::*;
     use crate::canonical_fsi::AleFsiCartesianModel;
-    use crate::simplicial_ale_fsi::AleFsiBoundary2d;
-    use crate::simplicial_fsi::FixedReferenceFsiPartition2d;
+    use crate::simplicial_ale_fsi::AleFsiBoundary;
+    use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
     const BASE_SOURCE: &str =
         include_str!("../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");
@@ -1728,9 +1728,9 @@ mod tests {
         let lower_quality_mesh = mesh(MeshQualityGate::new(0.2).unwrap());
         let (fluid, solid, interface) = inventories(&lower_quality_mesh);
         let partition =
-            FixedReferenceFsiPartition2d::new(&lower_quality_mesh, fluid, solid, interface)
+            FixedReferenceFsiPartition::<2>::new(&lower_quality_mesh, fluid, solid, interface)
                 .unwrap();
-        let boundary = AleFsiBoundary2d::homogeneous_exterior(&lower_quality_mesh).unwrap();
+        let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&lower_quality_mesh).unwrap();
         assert!(
             finalize_resolved_fixed_topology_ale_fsi_2d(
                 &fixture.model,
@@ -1770,8 +1770,8 @@ mod tests {
         program: KernelProgram,
         model: AleFsiCartesianModel<2>,
         mesh: SimplicialMesh,
-        partition: FixedReferenceFsiPartition2d,
-        boundary: AleFsiBoundary2d,
+        partition: FixedReferenceFsiPartition<2>,
+        boundary: AleFsiBoundary<2>,
         resolved: ResolvedFixedTopologyAleCoupledRealization,
     }
 
@@ -1786,8 +1786,8 @@ mod tests {
             let mesh = mesh(MeshQualityGate::new(0.3).unwrap());
             let (fluid, solid, interface) = inventories(&mesh);
             let partition =
-                FixedReferenceFsiPartition2d::new(&mesh, fluid, solid, interface).unwrap();
-            let boundary = AleFsiBoundary2d::homogeneous_exterior(&mesh).unwrap();
+                FixedReferenceFsiPartition::<2>::new(&mesh, fluid, solid, interface).unwrap();
+            let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
             let plan = Self::build_plan(&model, fluid_pressure(&model), 0.3);
             let resolved = resolve(
                 &program,
@@ -2040,7 +2040,7 @@ mod tests {
 
     fn initial_for(
         mesh: &SimplicialMesh,
-        partition: &FixedReferenceFsiPartition2d,
+        partition: &FixedReferenceFsiPartition<2>,
     ) -> AleFsiInitialPhysicalState<2> {
         AleFsiInitialPhysicalState::<2>::new(
             0.0,

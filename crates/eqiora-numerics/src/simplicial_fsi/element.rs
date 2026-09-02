@@ -109,10 +109,10 @@ mod tests {
 
     use super::{fluid_local, solid_local};
     use crate::simplicial_fsi::contract::{
-        FixedReferenceFsiBoundary3d, FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial3d,
-        FixedReferenceFsiScale3d, FixedReferenceFsiState3d, FixedReferenceFsiStepConfig3d,
+        FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
+        FixedReferenceFsiScale, FixedReferenceFsiState, FixedReferenceFsiStepConfig,
     };
-    use crate::simplicial_fsi::partition::FixedReferenceFsiPartition3d;
+    use crate::simplicial_fsi::partition::FixedReferenceFsiPartition;
 
     #[test]
     fn tetrahedral_mini_and_p1_actions_share_one_finite_symmetric_kernel() {
@@ -183,12 +183,12 @@ mod tests {
         let fixture = fixture();
         let fluid = local_geometry(&fixture.mesh, 0);
         let solid = local_geometry(&fixture.mesh, 1);
-        let wider_scale = FixedReferenceFsiScale3d::new(4.0, 5.0, 3.0).unwrap();
-        let wider = FixedReferenceFsiStepConfig3d::new(
+        let wider_scale = FixedReferenceFsiScale::<3>::new(4.0, 5.0, 3.0).unwrap();
+        let wider = FixedReferenceFsiStepConfig::<3>::new(
             fixture.config.time_step(),
             fixture.config.material(),
             wider_scale,
-            FixedReferenceFsiLoad3d::Zero,
+            FixedReferenceFsiLoad::Zero,
         )
         .unwrap();
 
@@ -241,10 +241,10 @@ mod tests {
 
     struct Fixture {
         mesh: SimplicialMesh,
-        partition: FixedReferenceFsiPartition3d,
-        boundary: FixedReferenceFsiBoundary3d,
-        previous: FixedReferenceFsiState3d,
-        config: FixedReferenceFsiStepConfig3d,
+        partition: FixedReferenceFsiPartition<3>,
+        boundary: FixedReferenceFsiBoundary<3>,
+        previous: FixedReferenceFsiState<3>,
+        config: FixedReferenceFsiStepConfig<3>,
         quadrature: eqiora_meshing::QuadratureRule,
     }
 
@@ -273,14 +273,14 @@ mod tests {
             })
             .map(FacetId::new)
             .unwrap();
-        let partition = FixedReferenceFsiPartition3d::new(
+        let partition = FixedReferenceFsiPartition::<3>::new(
             &mesh,
             vec![CellId::new(0)],
             vec![CellId::new(1)],
             vec![interface],
         )
         .unwrap();
-        let previous = FixedReferenceFsiState3d::new(
+        let previous = FixedReferenceFsiState::<3>::new(
             &mesh,
             &partition,
             vec![[0.0; 3]; mesh.vertices().len()],
@@ -288,14 +288,14 @@ mod tests {
             vec![[0.0; 3]; mesh.vertices().len()],
         )
         .unwrap();
-        let boundary = FixedReferenceFsiBoundary3d::homogeneous_exterior(&mesh).unwrap();
-        let material = FixedReferenceFsiMaterial3d::new(1.0, 0.1, 2.0, 3.0, 1.0).unwrap();
-        let scale = FixedReferenceFsiScale3d::new(2.0, 5.0, 3.0).unwrap();
-        let config = FixedReferenceFsiStepConfig3d::new(
+        let boundary = FixedReferenceFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
+        let material = FixedReferenceFsiMaterial::<3>::new(1.0, 0.1, 2.0, 3.0, 1.0).unwrap();
+        let scale = FixedReferenceFsiScale::<3>::new(2.0, 5.0, 3.0).unwrap();
+        let config = FixedReferenceFsiStepConfig::<3>::new(
             0.25,
             material,
             scale,
-            FixedReferenceFsiLoad3d::Zero,
+            FixedReferenceFsiLoad::Zero,
         )
         .unwrap();
         Fixture {
