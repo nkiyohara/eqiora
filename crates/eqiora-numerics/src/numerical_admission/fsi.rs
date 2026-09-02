@@ -189,8 +189,12 @@ impl CommonFsiPlan {
         let model_id = reference.model().ulid().to_string();
         let model_revision = reference.semantic_revision().get();
         let model_digest = model.digest()?.to_string();
-        let (geometry_digest, mesh_digest, correspondence_digest, production_digest) =
-            resource_digests(&recognized.resources)?;
+        let ResourceDigests {
+            geometry: geometry_digest,
+            mesh: mesh_digest,
+            correspondence: correspondence_digest,
+            production: production_digest,
+        } = resource_digests(&recognized.resources)?;
         let field_ids = [
             canonical.fluid().velocity().ulid().to_string(),
             canonical.fluid().pressure().ulid().to_string(),

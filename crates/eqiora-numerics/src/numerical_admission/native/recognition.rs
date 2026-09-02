@@ -1,8 +1,32 @@
 use super::*;
 
+pub(crate) struct ResourceDigests {
+    pub(crate) geometry: String,
+    pub(crate) mesh: String,
+    pub(crate) correspondence: String,
+    pub(crate) production: String,
+}
+
+struct DigestedResources<'a> {
+    geometry: &'a CanonicalGeometryV1,
+    mesh: eqiora_artifact::ArtifactDigest,
+    correspondence: eqiora_artifact::ArtifactDigest,
+    production: eqiora_artifact::ArtifactDigest,
+}
+
 pub(crate) fn resource_digests(
     resources: &NativeMeshResources,
-) -> Result<(String, String, String, String), Diagnostic> {
+) -> Result<ResourceDigests, Diagnostic> {
+    let digests = digest_resources(resources)?;
+    Ok(ResourceDigests {
+        geometry: hex_bytes(&digests.geometry.digest_bytes()),
+        mesh: digests.mesh.to_string(),
+        correspondence: digests.correspondence.to_string(),
+        production: digests.production.to_string(),
+    })
+}
+
+fn digest_resources(resources: &NativeMeshResources) -> Result<DigestedResources<'_>, Diagnostic> {
     let (geometry, mesh, correspondence, production) = match resources {
         NativeMeshResources::Cartesian {
             geometry,
@@ -40,12 +64,12 @@ pub(crate) fn resource_digests(
             production.digest()?,
         ),
     };
-    Ok((
-        hex_bytes(&geometry.digest_bytes()),
-        mesh.to_string(),
-        correspondence.to_string(),
-        production.to_string(),
-    ))
+    Ok(DigestedResources {
+        geometry,
+        mesh,
+        correspondence,
+        production,
+    })
 }
 
 pub(crate) fn resource_artifact_digests(
@@ -59,48 +83,12 @@ pub(crate) fn resource_artifact_digests(
     ),
     Diagnostic,
 > {
-    let (geometry, mesh, correspondence, production) = match resources {
-        NativeMeshResources::Cartesian {
-            geometry,
-            mesh,
-            correspondence,
-            production,
-        } => (
-            geometry,
-            mesh.digest()?,
-            correspondence.digest()?,
-            production.digest()?,
-        ),
-        NativeMeshResources::AffineTriangleSimplicial {
-            geometry,
-            mesh,
-            correspondence,
-            production,
-        }
-        | NativeMeshResources::AdjacentPartitionSimplicial {
-            geometry,
-            mesh,
-            correspondence,
-            production,
-        }
-        | NativeMeshResources::GmshSimplicial {
-            geometry,
-            mesh,
-            correspondence,
-            production,
-            ..
-        } => (
-            geometry,
-            mesh.digest()?,
-            correspondence.digest()?,
-            production.digest()?,
-        ),
-    };
+    let digests = digest_resources(resources)?;
     Ok((
-        eqiora_artifact::ArtifactDigest::from_sha256(geometry.digest_bytes()),
-        mesh,
-        correspondence,
-        production,
+        eqiora_artifact::ArtifactDigest::from_sha256(digests.geometry.digest_bytes()),
+        digests.mesh,
+        digests.correspondence,
+        digests.production,
     ))
 }
 

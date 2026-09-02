@@ -36,8 +36,6 @@ impl CommonSteadyStokesPlan {
         let binding = admission.stokes_binding()?;
         let (resolved, portable, velocity_space, pressure_space) =
             admission.resolve_stokes(&binding)?;
-        let (geometry_digest, mesh_digest, correspondence_digest, production_digest) =
-            resource_digests(admission.resources())?;
         let mut velocity_field_id = None;
         let mut pressure_field_id = None;
         for field in resolved.plan().spatial().field_spaces() {
@@ -56,27 +54,15 @@ impl CommonSteadyStokesPlan {
             .ok_or_else(|| invalid("steady-Stokes Plan omitted its MINI/P1 Field identities"))?;
         let realization_digest = hex_bytes(&portable.digest()?);
         let scaling_provenance_digest = scaling.receipt().provenance_digest();
-        let mut identity_bytes = Vec::new();
-        for value in [
-            admission.model_digest(),
-            geometry_digest.as_str(),
-            mesh_digest.as_str(),
-            correspondence_digest.as_str(),
-            production_digest.as_str(),
-            realization_digest.as_str(),
-            admission.policy_identity(),
-            scaling_provenance_digest.as_str(),
-        ] {
-            push_framed(&mut identity_bytes, value.as_bytes());
-        }
+        let (digests, mut identity_bytes) =
+            static_plan_identity_lineage(&admission, &realization_digest)?;
+        push_framed(
+            &mut identity_bytes,
+            scaling_provenance_digest.as_str().as_bytes(),
+        );
         push_framed(&mut identity_bytes, formulation_selection.identity());
-        let identity = hex_bytes(&Sha256::digest(
-            [
-                b"eqiora.common-steady-stokes-plan/v1\0".as_slice(),
-                identity_bytes.as_slice(),
-            ]
-            .concat(),
-        ));
+        let identity =
+            domain_separated_identity(b"eqiora.common-steady-stokes-plan/v1\0", &identity_bytes);
         Ok(Self {
             admission,
             binding,
@@ -88,10 +74,10 @@ impl CommonSteadyStokesPlan {
             identity,
             model_id,
             model_revision: model_reference.semantic_revision().get(),
-            geometry_digest,
-            mesh_digest,
-            correspondence_digest,
-            production_digest,
+            geometry_digest: digests.geometry,
+            mesh_digest: digests.mesh,
+            correspondence_digest: digests.correspondence,
+            production_digest: digests.production,
             velocity_field_id,
             pressure_field_id,
             velocity_space,

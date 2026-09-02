@@ -351,8 +351,12 @@ impl CommonTransientFlowPlan {
             CommonTransientResolvedSpatial::CellCentered(resolved) => resolved.portable_graph()?,
         };
         let realization_digest = hex_bytes(&portable.digest()?);
-        let (geometry_digest, mesh_digest, correspondence_digest, production_digest) =
-            resource_digests(&admission.resources)?;
+        let ResourceDigests {
+            geometry: geometry_digest,
+            mesh: mesh_digest,
+            correspondence: correspondence_digest,
+            production: production_digest,
+        } = resource_digests(&admission.resources)?;
         let receipt_digest = scaling.receipt().provenance_digest();
         let mut identity_bytes = Vec::new();
         for value in [
@@ -428,13 +432,8 @@ impl CommonTransientFlowPlan {
         ] {
             push_framed(&mut identity_bytes, discriminant);
         }
-        let identity = hex_bytes(&Sha256::digest(
-            [
-                b"eqiora.common-transient-flow-plan/v1\0".as_slice(),
-                identity_bytes.as_slice(),
-            ]
-            .concat(),
-        ));
+        let identity =
+            domain_separated_identity(b"eqiora.common-transient-flow-plan/v1\0", &identity_bytes);
         Ok(Self {
             admission,
             resolved,

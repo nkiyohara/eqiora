@@ -577,11 +577,11 @@ mod recognition;
 mod resources;
 
 pub(super) use identity::{
-    hex_bytes, invalid, policy_identity, push_framed, replay_program, require_portable_realization,
-    space_identity,
+    domain_separated_identity, hex_bytes, invalid, policy_identity, push_framed, replay_program,
+    require_portable_realization, space_identity, static_plan_identity_lineage,
 };
 pub(super) use recognition::{
-    lower_scalar_candidate, recognize_capability, recognize_exact_model,
+    ResourceDigests, lower_scalar_candidate, recognize_capability, recognize_exact_model,
     require_policy_compatibility, resource_artifact_digests, resource_digests,
 };
 pub(super) use resources::{
