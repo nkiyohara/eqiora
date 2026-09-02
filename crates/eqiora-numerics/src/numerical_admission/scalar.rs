@@ -236,20 +236,13 @@ impl CommonScalarPlan {
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
         let NativeMeshResources::Cartesian {
-            geometry,
-            mesh,
-            correspondence,
-            production,
+            mesh, production, ..
         } = &admission.resources
         else {
             return Err(invalid(
                 "scalar Q1/TPFA common Plan requires an authenticated Cartesian Mesh",
             ));
         };
-        let geometry_digest = hex_bytes(&geometry.digest_bytes());
-        let mesh_digest = mesh.digest()?.to_string();
-        let correspondence_digest = correspondence.digest()?.to_string();
-        let production_digest = production.digest()?.to_string();
         let cells = production
             .cartesian_cells()
             .ok_or_else(|| invalid("common scalar Plan lost its Cartesian production policy"))?
@@ -315,18 +308,8 @@ impl CommonScalarPlan {
                 ));
             }
         };
-        let mut identity_bytes = Vec::new();
-        for value in [
-            admission.model_digest(),
-            geometry_digest.as_str(),
-            mesh_digest.as_str(),
-            correspondence_digest.as_str(),
-            production_digest.as_str(),
-            realization_digest.as_str(),
-            admission.policy_identity(),
-        ] {
-            push_framed(&mut identity_bytes, value.as_bytes());
-        }
+        let (digests, mut identity_bytes) =
+            static_plan_identity_lineage(&admission, &realization_digest)?;
         push_framed(
             &mut identity_bytes,
             formulation
@@ -338,13 +321,8 @@ impl CommonScalarPlan {
             push_framed(&mut identity_bytes, authored.source_identity().as_bytes());
             push_framed(&mut identity_bytes, authored.canonical_bytes());
         }
-        let identity = hex_bytes(&Sha256::digest(
-            [
-                b"eqiora.common-scalar-plan/v2\0".as_slice(),
-                identity_bytes.as_slice(),
-            ]
-            .concat(),
-        ));
+        let identity =
+            domain_separated_identity(b"eqiora.common-scalar-plan/v2\0", &identity_bytes);
         Ok(Self {
             admission,
             portable,
@@ -353,10 +331,10 @@ impl CommonScalarPlan {
             identity,
             model_id: model_reference.model().ulid().to_string(),
             model_revision: model_reference.semantic_revision().get(),
-            geometry_digest,
-            mesh_digest,
-            correspondence_digest,
-            production_digest,
+            geometry_digest: digests.geometry,
+            mesh_digest: digests.mesh,
+            correspondence_digest: digests.correspondence,
+            production_digest: digests.production,
             realization_digest,
             field,
             field_id,

@@ -101,37 +101,22 @@ impl CommonElasticityPlan {
         let portable = resolve_common_elasticity_portable(&admission, lowered, mesh, cells)?;
         let realization_digest = hex_bytes(&portable.digest()?);
         let displacement_field_id = lowered.displacement().ulid().to_string();
-        let (geometry_digest, mesh_digest, correspondence_digest, production_digest) =
-            resource_digests(admission.resources())?;
-        let mut identity_bytes = Vec::new();
-        for value in [
-            admission.model_digest(),
-            geometry_digest.as_str(),
-            mesh_digest.as_str(),
-            correspondence_digest.as_str(),
-            production_digest.as_str(),
-            realization_digest.as_str(),
-            admission.policy_identity(),
-        ] {
-            push_framed(&mut identity_bytes, value.as_bytes());
-        }
-        let identity = hex_bytes(&Sha256::digest(
-            [
-                b"eqiora.common-linear-elasticity-plan/v1\0".as_slice(),
-                identity_bytes.as_slice(),
-            ]
-            .concat(),
-        ));
+        let (digests, identity_bytes) =
+            static_plan_identity_lineage(&admission, &realization_digest)?;
+        let identity = domain_separated_identity(
+            b"eqiora.common-linear-elasticity-plan/v1\0",
+            &identity_bytes,
+        );
         Ok(Self {
             admission,
             portable,
             identity,
             model_id: model_reference.model().ulid().to_string(),
             model_revision: model_reference.semantic_revision().get(),
-            geometry_digest,
-            mesh_digest,
-            correspondence_digest,
-            production_digest,
+            geometry_digest: digests.geometry,
+            mesh_digest: digests.mesh,
+            correspondence_digest: digests.correspondence,
+            production_digest: digests.production,
             realization_digest,
             displacement_field_id,
             cells,

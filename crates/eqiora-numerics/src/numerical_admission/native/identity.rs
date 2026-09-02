@@ -118,8 +118,7 @@ pub(crate) fn policy_identity(
         linear.execution.implementation_version().as_bytes(),
     );
     bytes.extend_from_slice(&linear.workers.get().to_be_bytes());
-    let digest = Sha256::digest([POLICY_DOMAIN, bytes.as_slice()].concat());
-    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+    domain_separated_identity(POLICY_DOMAIN, &bytes)
 }
 
 pub(crate) const fn linear_solver_identity(value: LinearSolver) -> &'static [u8] {
@@ -148,6 +147,30 @@ pub(crate) const fn reduction_identity(value: ReductionPolicy) -> &'static [u8] 
 pub(crate) fn push_framed(target: &mut Vec<u8>, value: &[u8]) {
     target.extend_from_slice(&value.len().to_be_bytes());
     target.extend_from_slice(value);
+}
+
+pub(crate) fn domain_separated_identity(domain: &[u8], payload: &[u8]) -> String {
+    hex_bytes(&Sha256::digest([domain, payload].concat()))
+}
+
+pub(crate) fn static_plan_identity_lineage(
+    admission: &NativeNumericalAdmission,
+    realization_digest: &str,
+) -> Result<(ResourceDigests, Vec<u8>), Diagnostic> {
+    let digests = resource_digests(admission.resources())?;
+    let mut bytes = Vec::new();
+    for value in [
+        admission.model_digest(),
+        digests.geometry.as_str(),
+        digests.mesh.as_str(),
+        digests.correspondence.as_str(),
+        digests.production.as_str(),
+        realization_digest,
+        admission.policy_identity(),
+    ] {
+        push_framed(&mut bytes, value.as_bytes());
+    }
+    Ok((digests, bytes))
 }
 
 pub(crate) fn space_identity(space: Space) -> &'static [u8] {
