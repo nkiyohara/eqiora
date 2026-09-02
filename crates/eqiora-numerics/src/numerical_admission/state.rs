@@ -7,6 +7,42 @@ struct CommonAcceptedActions {
     outputs: Vec<(usize, CommonState)>,
 }
 
+impl CommonRunSchedule {
+    fn new(
+        identity_domain: &[u8],
+        identity_trailer: &[u8],
+        plan_identity: &str,
+        state: CommonState,
+        accepted_steps: NonZeroUsize,
+        output_steps: Vec<usize>,
+        invalid_outputs: &'static str,
+    ) -> Result<Self, Diagnostic> {
+        if output_steps.is_empty()
+            || output_steps.windows(2).any(|pair| pair[0] >= pair[1])
+            || output_steps
+                .iter()
+                .any(|step| *step == 0 || *step > accepted_steps.get())
+        {
+            return Err(invalid(invalid_outputs));
+        }
+        let mut bytes = Vec::new();
+        push_framed(&mut bytes, plan_identity.as_bytes());
+        push_framed(&mut bytes, state.identity().as_bytes());
+        bytes.extend_from_slice(&(accepted_steps.get() as u64).to_be_bytes());
+        for output in &output_steps {
+            bytes.extend_from_slice(&(*output as u64).to_be_bytes());
+        }
+        bytes.extend_from_slice(identity_trailer);
+        let identity = domain_separated_identity(identity_domain, &bytes);
+        Ok(Self {
+            state,
+            accepted_steps,
+            output_steps,
+            identity,
+        })
+    }
+}
+
 #[allow(clippy::type_complexity)]
 fn advance_common_prepared_actions<P>(
     initial: CommonState,
@@ -88,37 +124,16 @@ impl CommonFsiRunRequest {
                 "FSI Run State belongs to an incompatible common state space",
             ));
         }
-        if output_steps.is_empty()
-            || output_steps.windows(2).any(|pair| pair[0] >= pair[1])
-            || output_steps
-                .iter()
-                .any(|step| *step == 0 || *step > accepted_steps.get())
-        {
-            return Err(invalid(
-                "FSI output_steps must be nonempty, strictly increasing, and within the horizon",
-            ));
-        }
-        let mut bytes = Vec::new();
-        push_framed(&mut bytes, plan.identity().as_bytes());
-        push_framed(&mut bytes, state.identity().as_bytes());
-        bytes.extend_from_slice(&(accepted_steps.get() as u64).to_be_bytes());
-        for output in &output_steps {
-            bytes.extend_from_slice(&(*output as u64).to_be_bytes());
-        }
-        let identity = hex_bytes(&Sha256::digest(
-            [
-                b"eqiora.common-fsi-run-request/v1\0".as_slice(),
-                bytes.as_slice(),
-            ]
-            .concat(),
-        ));
-        Ok(Self {
-            plan,
+        let schedule = CommonRunSchedule::new(
+            b"eqiora.common-fsi-run-request/v1\0",
+            &[],
+            plan.identity(),
             state,
             accepted_steps,
             output_steps,
-            identity,
-        })
+            "FSI output_steps must be nonempty, strictly increasing, and within the horizon",
+        )?;
+        Ok(Self { plan, schedule })
     }
 
     #[must_use]
@@ -127,19 +142,19 @@ impl CommonFsiRunRequest {
     }
     #[must_use]
     pub const fn state(&self) -> &CommonState {
-        &self.state
+        &self.schedule.state
     }
     #[must_use]
     pub const fn accepted_steps(&self) -> NonZeroUsize {
-        self.accepted_steps
+        self.schedule.accepted_steps
     }
     #[must_use]
     pub fn output_steps(&self) -> &[usize] {
-        &self.output_steps
+        &self.schedule.output_steps
     }
     #[must_use]
     pub fn identity(&self) -> &str {
-        &self.identity
+        &self.schedule.identity
     }
 
     /// Authenticate this exact Run once, then advance its accepted actions.
@@ -153,9 +168,9 @@ impl CommonFsiRunRequest {
         stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
     ) -> Result<ControlFlow<(usize, CommonState), Vec<(usize, CommonState)>>, Diagnostic> {
         advance_common_prepared_actions(
-            self.state.clone(),
-            self.accepted_steps.get(),
-            &self.output_steps,
+            self.schedule.state.clone(),
+            self.schedule.accepted_steps.get(),
+            &self.schedule.output_steps,
             |state| self.plan.prepare_execution(state, backend),
             |prepared, state| prepared.advance(state),
             stop_at_boundary,
@@ -222,43 +237,16 @@ impl CommonTransientRunRequest {
                 "transient Run State belongs to a different exact common state space",
             ));
         }
-        if output_steps.is_empty()
-            || output_steps.windows(2).any(|pair| pair[0] >= pair[1])
-            || output_steps
-                .iter()
-                .any(|step| *step == 0 || *step > accepted_steps.get())
-        {
-            return Err(invalid(
-                "output_steps must be nonempty, strictly increasing accepted-step indices within the inclusive horizon",
-            ));
-        }
-        let mut bytes = Vec::new();
-        push_framed(&mut bytes, plan.identity().as_bytes());
-        push_framed(&mut bytes, state.identity().as_bytes());
-        let accepted_steps_u64 = u64::try_from(accepted_steps.get())
-            .map_err(|_| invalid("transient Run horizon exceeds canonical u64 identity range"))?;
-        bytes.extend_from_slice(&accepted_steps_u64.to_be_bytes());
-        for step in &output_steps {
-            let step = u64::try_from(*step).map_err(|_| {
-                invalid("transient Run output index exceeds canonical u64 identity range")
-            })?;
-            bytes.extend_from_slice(&step.to_be_bytes());
-        }
-        bytes.extend_from_slice(&1_u64.to_be_bytes());
-        let identity = hex_bytes(&Sha256::digest(
-            [
-                b"eqiora.common-transient-run-request/v1\0".as_slice(),
-                bytes.as_slice(),
-            ]
-            .concat(),
-        ));
-        Ok(Self {
-            plan,
+        let schedule = CommonRunSchedule::new(
+            b"eqiora.common-transient-run-request/v1\0",
+            &1_u64.to_be_bytes(),
+            plan.identity(),
             state,
             accepted_steps,
             output_steps,
-            identity,
-        })
+            "output_steps must be nonempty, strictly increasing accepted-step indices within the inclusive horizon",
+        )?;
+        Ok(Self { plan, schedule })
     }
 
     #[must_use]
@@ -267,19 +255,19 @@ impl CommonTransientRunRequest {
     }
     #[must_use]
     pub const fn state(&self) -> &CommonState {
-        &self.state
+        &self.schedule.state
     }
     #[must_use]
     pub const fn accepted_steps(&self) -> NonZeroUsize {
-        self.accepted_steps
+        self.schedule.accepted_steps
     }
     #[must_use]
     pub fn output_steps(&self) -> &[usize] {
-        &self.output_steps
+        &self.schedule.output_steps
     }
     #[must_use]
     pub fn identity(&self) -> &str {
-        &self.identity
+        &self.schedule.identity
     }
 
     /// Authenticate this exact Run once, then advance its accepted actions.
@@ -293,9 +281,9 @@ impl CommonTransientRunRequest {
         stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
     ) -> Result<ControlFlow<(usize, CommonState), Vec<(usize, CommonState)>>, Diagnostic> {
         advance_common_prepared_actions(
-            self.state.clone(),
-            self.accepted_steps.get(),
-            &self.output_steps,
+            self.schedule.state.clone(),
+            self.schedule.accepted_steps.get(),
+            &self.schedule.output_steps,
             |state| self.plan.prepare_execution(state, backend),
             |prepared, state| prepared.advance(state),
             stop_at_boundary,
