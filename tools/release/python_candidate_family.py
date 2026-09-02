@@ -80,7 +80,7 @@ def _require_exact_maturin_wheel(path: Path, *, version: str, compact_python: st
     expected_wheel_member = f"eqiora-{version}.dist-info/WHEEL"
     expected_wheel_payload = (
         "Wheel-Version: 1.0\n"
-        "Generator: maturin (1.14.1)\n"
+        "Generator: maturin (1.15.0)\n"
         "Root-Is-Purelib: false\n"
         f"Tag: {expected_tags[0]}\n"
         f"Tag: {expected_tags[1]}\n"

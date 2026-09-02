@@ -54,10 +54,10 @@ from python_candidate import (  # noqa: E402
 EXACT_WHEEL_INTERPRETERS = ("311", "312", "313", "314")
 EXACT_PHYSICAL_PLATFORM = "manylinux_2_17_x86_64.manylinux2014_x86_64"
 EXACT_WHEEL_PAYLOAD_SHA256 = {
-    "311": "ed43ac65d3c530f6bcbeaefeecb1ffb2c71ea095526acac884cae5aa95ede8b0",
-    "312": "c5e3da21766d0e72af45ff0d32b3b67a77ca97b6891d3f9fe3274b05a38b67c1",
-    "313": "ec165fa06dd8f506937c232afdfb13d3be2bdaab9cee2698ac4526fefb922094",
-    "314": "1b85bc509658486a6c068cc33ad9306c802d469a25096a557faeb0a55595fc6b",
+    "311": "7daeaaf4e349a625cde746db0e2f152bf534d15f243d819c95f7534e0bc6e62c",
+    "312": "71d661618d9b707f61ac372a0d51047692f4339b639a602bfa5c14ab5e4211d6",
+    "313": "d4bd81bf36f65d2f43263a7ce2c7f6ac2263dfd371c8bd0941fe7b57c69e535b",
+    "314": "a74b13b0da0238bae641c0f82943f6e33f56f519f79077cbdd8c56e1140b8c69",
 }
 EXACT_WHEEL_MEMBER = "eqiora-0.1.0a1.dist-info/WHEEL"
 EXACT_RECORD_MEMBER = "eqiora-0.1.0a1.dist-info/RECORD"
@@ -85,7 +85,7 @@ def maturin_wheel_payload(
     tag_lines = "".join(f"Tag: {tag}\n" for tag in observed_tags)
     return (
         "Wheel-Version: 1.0\n"
-        "Generator: maturin (1.14.1)\n"
+        "Generator: maturin (1.15.0)\n"
         "Root-Is-Purelib: false\n"
         f"{tag_lines}"
     ).encode("utf-8")
@@ -298,7 +298,7 @@ class PythonCandidateTests(unittest.TestCase):
             numpy_floor_interpreter="3.12",
             numpy_floor="numpy==2.1.0",
             uv="uv==0.12.1",
-            maturin="maturin==1.14.1",
+            maturin="maturin==1.15.0",
             pytest="pytest==9.1.1",
             mypy="mypy==2.3.0",
             twine="twine==6.2.0",
@@ -779,7 +779,7 @@ invalid candidate
                         "tool",
                         "run",
                         "--from",
-                        "maturin[zig]==1.14.1",
+                        "maturin[zig]==1.15.0",
                         "maturin",
                     ],
                 )

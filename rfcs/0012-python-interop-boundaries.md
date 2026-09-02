@@ -385,8 +385,8 @@ NumPy ranges. Release CI builds wheels in platform-appropriate manylinux,
 macOS, and Windows environments and tests the installed wheels rather than
 only importing an in-tree extension.
 
-At the 2026-07-22 review, the selected implementation baselines are PyO3
-0.29.0, rust-numpy 0.29.0, maturin 1.14.1, and NumPy 2.1 or later. NumPy 2.1 is
+At the 2026-09-03 packaging refresh, the selected implementation baselines are
+PyO3 0.29.0, rust-numpy 0.29.0, maturin 1.15.0, and NumPy 2.1 or later. NumPy 2.1 is
 the minimum admitted versioned DLPack negotiation surface. PyO3 and rust-numpy
 both declare Rust 1.83, within Eqiora's Rust 1.89 MSRV. Versions are
 implementation pins, not permanent wire promises.

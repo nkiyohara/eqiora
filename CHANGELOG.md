@@ -6,6 +6,14 @@ are recorded here.
 
 ## [Unreleased]
 
+### Changed
+
+- Refreshed the exact Diffsol runtime to 0.16.2 and re-bound its backend
+  identity and registered scientific evidence to that release.
+
+- Refreshed the shared Base64 dependency to 0.23 and the Python distribution
+  build baseline to maturin 1.15.0.
+
 ### Removed
 
 - Removed the flat `ConnectionDecl::ports()` compatibility view; consumers now

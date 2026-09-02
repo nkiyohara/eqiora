@@ -128,7 +128,7 @@ def candidate_fixture(root: Path) -> tuple[Path, Path, dict[str, object]]:
             "sdist_rebuilt": True,
             "tools": {
                 "cargo": "cargo 1.97.1",
-                "maturin": "maturin 1.14.1",
+                "maturin": "maturin 1.15.0",
                 "mypy": "mypy==2.3.0",
                 "pytest": "pytest==9.1.1",
                 "rustc": "rustc 1.97.1",

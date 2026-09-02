@@ -15,7 +15,7 @@ capabilities = [
 [claim_boundary]
 equation_class = "explicit-ode"
 method = "tsitouras45"
-backend = "eqiora.time.diffsol@0.16.1"
+backend = "eqiora.time.diffsol@0.16.2"
 state_shape = "scalar-f64"
 requested_relative_tolerance = 1e-9
 requested_absolute_tolerance = 1e-11

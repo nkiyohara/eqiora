@@ -15,7 +15,7 @@ use eqiora_time::{
 
 /// Stable adapter identity and exact Diffsol release represented by this build.
 pub const DIFFSOL_TIME_BACKEND: TimeBackendIdentity =
-    TimeBackendIdentity::new("eqiora.time.diffsol", "0.16.1");
+    TimeBackendIdentity::new("eqiora.time.diffsol", "0.16.2");
 
 /// Stateless Diffsol adapter for admitted first-order time problems.
 #[derive(Debug, Default, Clone, Copy)]

@@ -281,14 +281,17 @@ events still require the full scheduler contract.
 
 ## Dependency and compatibility policy
 
-Diffsol is exact-pinned at 0.16.1 behind `diffsol-runtime`. That release has
+Diffsol is exact-pinned at 0.16.2 behind `diffsol-runtime`. That release has
 unconditional public re-exports for both nalgebra and faer host families, so
 both upstream features are enabled even though the current adapter executes
 with `NalgebraLU`. Its nalgebra 0.35 graph requires Rust 1.89, which is now the
 single production-workspace MSRV. Cargo cannot encode a feature-specific MSRV,
 so the MSRV gate executes all production features instead of publishing a
 lower default-only support claim. [RFC 0059](0059-production-msrv-contract.md)
-records that correction and the 0.16.1 BDF safety update.
+records the MSRV correction and the preceding 0.16.1 BDF safety update. The
+0.16.2 upgrade retains that fix while changing BDF solver selection and
+parameter-scaled forward-sensitivity tolerances; the registered BDF, mass,
+sensitivity, and restart evidence is rerun at the new exact pin.
 
 This is an explicit compatibility boundary, not an unrecorded toolchain bump.
 Upstream feature or MSRV changes are reviewed when the exact pin changes.

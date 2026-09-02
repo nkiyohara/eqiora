@@ -24,7 +24,7 @@ capabilities = [
 equations = "x' = -2x; z' = x"
 analytic = "x(t) = exp(-2t); z(t) = (1-exp(-2t))/2"
 source = "validated Semantic Kernel Relation"
-backend = "Diffsol 0.16.1 Tsitouras 5(4) and BDF"
+backend = "Diffsol 0.16.2 Tsitouras 5(4) and BDF"
 dae = "diag(1,0) mass matrix with x+z=1 constraint under BDF"
 dense_full = "M=[[1,1],[1,-1]] with x=exp(-t), y=exp(-2t)"
 dense_singular = "M=[[1,1],[1,1]] with x=y=exp(-t) and no zero row"
