@@ -9,7 +9,7 @@ use eqiora::api::{ModelDocument, ModelParameterRef, StructuralSemanticFingerprin
 use eqiora::artifact::{CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelope};
 use eqiora::diagnostic::codes;
 use eqiora::graph::Op;
-use eqiora::package::PackageCompilationRecordV1;
+use eqiora::package::PackageCompilationRecordV2;
 use eqiora::{Diagnostic, EntityKind, RawId};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -399,7 +399,7 @@ pub(crate) struct PyModel {
     document: Option<ModelDocument>,
     artifact: ModelEnvelope,
     revision: PyRevision,
-    package_compilation: Option<PackageCompilationRecordV1>,
+    package_compilation: Option<PackageCompilationRecordV2>,
     property_bindings: Box<[PyPropertyBinding]>,
     /// Retains the exact caller-owned Python Geometry handle for a fresh
     /// geometry-closed compilation; artifact identity remains Rust-owned.

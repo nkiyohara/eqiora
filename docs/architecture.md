@@ -109,6 +109,8 @@ dependency. `eqiora-compiler` owns neutral namespace/source/alias inputs but
 has no package dependency. `eqiora-api` is the only composition point. Local
 dependency aliases are alpha-normalized to exact target namespaces for
 semantic identity, while the resolution record retains their source spelling.
+The current compilation sidecar is v2 with semantic-canonicalization epoch 2;
+the reader rejects pre-1.0 v1 records instead of migrating or retrying them.
 The public preparation operation accepts no author semantic payload and does
 no discovery: callers provide the complete exact release closure in memory.
 One optional Rust input adapter, specified by

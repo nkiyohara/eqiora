@@ -7,7 +7,7 @@ use eqiora::api::ModelDocument;
 use eqiora::api::package::{PackageCompilationError, PackagedModelDocument};
 use eqiora::artifact::ModelArtifactReference;
 use eqiora::diagnostic::codes;
-use eqiora::package::{DirectoryPackageStore, PackageCompilationRecordV1, ResolutionRecordV1};
+use eqiora::package::{DirectoryPackageStore, PackageCompilationRecordV2, ResolutionRecordV1};
 use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyDict, PyModule, PyString, PyTuple};
@@ -241,13 +241,13 @@ fn check_package_conformance_native(
 }
 
 fn replay_compilation(
-    record: &PackageCompilationRecordV1,
+    record: &PackageCompilationRecordV2,
     resolution: &ResolutionRecordV1,
-) -> Result<(Vec<u8>, PackageCompilationRecordV1, String), CompilePackageFailure> {
+) -> Result<(Vec<u8>, PackageCompilationRecordV2, String), CompilePackageFailure> {
     let bytes = record
         .canonical_json()
         .map_err(|error| compatibility_failure(format!("compilation replay rejected: {error}")))?;
-    let replayed = PackageCompilationRecordV1::from_json(&bytes)
+    let replayed = PackageCompilationRecordV2::from_json(&bytes)
         .map_err(|error| compatibility_failure(format!("compilation replay rejected: {error}")))?;
     replayed
         .validate_against(resolution)

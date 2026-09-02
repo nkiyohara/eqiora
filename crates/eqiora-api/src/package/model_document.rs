@@ -11,7 +11,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_package::{
     BoundRunManifestSchemaV1, CanonicalModelDigest, CanonicalRealizationDigest, CanonicalRunDigest,
-    CompilationToolchainV1, ExactResolver, ExactVersion, PackageCompilationRecordV1,
+    CompilationToolchainV2, ExactResolver, ExactVersion, PackageCompilationRecordV2,
     PackageExecutionBindingV1, PackageRunBindingV1, PackageStore, QualifiedName,
     ResolutionRecordV1,
 };
@@ -23,7 +23,6 @@ use super::{
 use crate::ModelDocument;
 
 const COMPILER_IDENTITY: &str = "Eqiora.Compiler";
-const CONTRACT_VERSION_V1: u32 = 1;
 
 fn collect_property_bindings(
     analyzed: &AnalyzedResolvedHierarchy,
@@ -61,7 +60,7 @@ fn collect_property_bindings(
 #[derive(Debug, Clone, PartialEq)]
 pub struct PackagedModelDocument {
     model: ModelDocument,
-    compilation: PackageCompilationRecordV1,
+    compilation: PackageCompilationRecordV2,
     provenance: ProvenanceMap,
     physical_exposures: PhysicalExposureProjectionMap,
     physical_exposure_catalog: Option<PhysicalExposureCatalogEnvelopeV1>,
@@ -115,14 +114,11 @@ impl PackagedModelDocument {
         let physical_exposures = compiled.physical_exposures().clone();
         let model = ModelDocument::accept_external_compiled(compiled, geometry)?;
         let model_digest = CanonicalModelDigest::parse(&model.digest()?)?;
-        let toolchain = CompilationToolchainV1::new(
+        let toolchain = CompilationToolchainV2::new(
             QualifiedName::parse(COMPILER_IDENTITY)?,
             ExactVersion::parse(env!("CARGO_PKG_VERSION"))?,
-            CONTRACT_VERSION_V1,
-            CONTRACT_VERSION_V1,
-            CONTRACT_VERSION_V1,
         );
-        let compilation = PackageCompilationRecordV1::new(model_digest, &resolved, toolchain)?;
+        let compilation = PackageCompilationRecordV2::new(model_digest, &resolved, toolchain)?;
         let physical_exposure_catalog = (!physical_exposures.is_empty())
             .then(|| {
                 seal_physical_exposure_catalog(
@@ -178,14 +174,11 @@ impl PackagedModelDocument {
         let physical_exposures = compiled.physical_exposures().clone();
         let model = ModelDocument::accept_compiled(compiled)?;
         let model_digest = CanonicalModelDigest::parse(&model.digest()?)?;
-        let toolchain = CompilationToolchainV1::new(
+        let toolchain = CompilationToolchainV2::new(
             QualifiedName::parse(COMPILER_IDENTITY)?,
             ExactVersion::parse(env!("CARGO_PKG_VERSION"))?,
-            CONTRACT_VERSION_V1,
-            CONTRACT_VERSION_V1,
-            CONTRACT_VERSION_V1,
         );
-        let compilation = PackageCompilationRecordV1::new(model_digest, &resolved, toolchain)?;
+        let compilation = PackageCompilationRecordV2::new(model_digest, &resolved, toolchain)?;
         let physical_exposure_catalog = (!physical_exposures.is_empty())
             .then(|| {
                 seal_physical_exposure_catalog(
@@ -215,7 +208,7 @@ impl PackagedModelDocument {
 
     /// Exact resolution, package inventory, toolchain, and model digest.
     #[must_use]
-    pub const fn compilation(&self) -> &PackageCompilationRecordV1 {
+    pub const fn compilation(&self) -> &PackageCompilationRecordV2 {
         &self.compilation
     }
 
@@ -530,7 +523,7 @@ impl PackagedModelDocument {
 
 fn seal_physical_exposure_catalog(
     model: &ModelDocument,
-    compilation: &PackageCompilationRecordV1,
+    compilation: &PackageCompilationRecordV2,
     provenance: &ProvenanceMap,
     projections: &PhysicalExposureProjectionMap,
 ) -> Result<PhysicalExposureCatalogEnvelopeV1, PackageCompilationError> {

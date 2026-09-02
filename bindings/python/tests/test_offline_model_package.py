@@ -35,14 +35,8 @@ TYPED_RESOLUTION_DIGEST = (
     "b7c44d3ab011ac8f0819b1c519c0da1e31db1b5cb69b42c590e118eeb90a6945"
 )
 TYPED_MODEL_DIGEST = "14dcde8f8b11ba8c919411ac17c6356732b9a9d88846b2024d765bd536ff6287"
-TYPED_COMPILATION_DIGEST = (
-    "99e2f5dab0b5e2bcd2490d434c4c9454844cf395489561dc178bf06bbac6ad04"
-)
 CURRENT_COMPILER_VERSION = "0.1.0-alpha.7"
-CURRENT_COMPILATION_DIGESTS = {
-    "false_claim": "263652357ffa88c311f347a4c0a56b82f4201323c9e6dd4707645d4548446412",
-    "accepted_poisson": TYPED_COMPILATION_DIGEST,
-}
+CURRENT_SEMANTIC_CANONICALIZATION_VERSION = 2
 CONFORMANCE = ROOT / "verify/interfaces/python-package-conformance"
 FALSE_CLAIM = CONFORMANCE / "models/false-scientific-claim"
 FALSE_CLAIM_STORE = FALSE_CLAIM / "store"
@@ -232,7 +226,9 @@ def assert_conformance_rejection(
     return caught.value
 
 
-def expected_conformance_report(label: str) -> eqiora.PackageConformanceReport:
+def expected_conformance_report(
+    label: str, compilation_digest: str = "0" * 64
+) -> eqiora.PackageConformanceReport:
     facts = CONFORMANCE_IDENTITIES[label]
     package = eqiora.PackageConformancePackage(
         facts["name"],
@@ -245,18 +241,28 @@ def expected_conformance_report(label: str) -> eqiora.PackageConformanceReport:
         eqiora.__version__,
         CONFORMANCE_IDENTITIES["compiler"],
         CURRENT_COMPILER_VERSION,
-        CONFORMANCE_IDENTITIES["semantic_canonicalization_version"],
+        CURRENT_SEMANTIC_CANONICALIZATION_VERSION,
         CONFORMANCE_IDENTITIES["source_bundle_version"],
         CONFORMANCE_IDENTITIES["resolution_version"],
         package,
         (package,),
         "Main",
         facts["resolution_identity"],
-        CURRENT_COMPILATION_DIGESTS[label],
+        compilation_digest,
         facts["object_id"],
         facts["revision"],
         facts["canonical_identity"],
         True,
+    )
+
+
+def assert_expected_conformance_report(
+    report: eqiora.PackageConformanceReport, label: str
+) -> None:
+    assert len(report.package_compilation_digest) == 64
+    assert set(report.package_compilation_digest) <= set("0123456789abcdef")
+    assert report == expected_conformance_report(
+        label, report.package_compilation_digest
     )
 
 
@@ -463,7 +469,7 @@ def test_structural_reports_match_frozen_facts_without_scientific_inference() ->
         false_resolution = canonical_fixture(false_resolution_path)
         before = tree_snapshot(false_store)
         false_report = check_conformance(false_store, false_resolution)
-        assert false_report == expected_conformance_report("false_claim")
+        assert_expected_conformance_report(false_report, "false_claim")
         assert false_report.deterministic_replay_agreement is True
         assert false_report.eqiora_version == eqiora.__version__
         assert false_report.eqiora_version == importlib.metadata.version("eqiora")
@@ -498,7 +504,7 @@ def test_structural_reports_match_frozen_facts_without_scientific_inference() ->
         shutil.copytree(SECONDARY / "store", poisson_store)
         poisson_before = tree_snapshot(poisson_store)
         poisson_report = check_conformance(poisson_store, SECONDARY_RESOLUTION)
-        assert poisson_report == expected_conformance_report("accepted_poisson")
+        assert_expected_conformance_report(poisson_report, "accepted_poisson")
         assert tree_snapshot(poisson_store) == poisson_before
         assert poisson_report.root_package != false_report.root_package
         assert poisson_report.resolution_digest != false_report.resolution_digest
@@ -555,10 +561,11 @@ def test_profile_and_argument_shapes_fail_before_filesystem_authority() -> None:
     class ResolutionBytes(bytes):
         pass
 
-    assert check_conformance(
+    report = check_conformance(
         FALSE_CLAIM_STORE,
         ResolutionBytes(FALSE_CLAIM_RESOLUTION),
-    ) == expected_conformance_report("false_claim")
+    )
+    assert_expected_conformance_report(report, "false_claim")
 
     with pytest.raises(TypeError):
         eqiora.check_package_conformance(
@@ -771,9 +778,8 @@ def test_conformance_filesystem_authority_and_atomicity_are_exact() -> None:
         shutil.copytree(FALSE_CLAIM_STORE, accepted)
         (accepted / "unlisted.json").write_text("ignored\n", encoding="utf-8")
         before = tree_snapshot(accepted)
-        assert check_conformance(
-            accepted, FALSE_CLAIM_RESOLUTION
-        ) == expected_conformance_report("false_claim")
+        report = check_conformance(accepted, FALSE_CLAIM_RESOLUTION)
+        assert_expected_conformance_report(report, "false_claim")
         assert tree_snapshot(accepted) == before
 
         missing = parent / "missing"

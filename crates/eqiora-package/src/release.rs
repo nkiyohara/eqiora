@@ -8,10 +8,11 @@ use crate::{
 };
 
 const RELEASE_SCHEMA: &str = "eqiora.package-release.v1";
-const COMPILATION_SCHEMA: &str = "eqiora.package-compilation.v1";
+const COMPILATION_SCHEMA: &str = "eqiora.package-compilation.v2";
 const CANONICAL_JSON_ENCODING: &str = "eqiora.canonical-json.v1";
 const MAX_COMPILATION_PACKAGES: usize = 65_536;
 const V1: u32 = 1;
+const V2: u32 = 2;
 
 /// A complete typed package release as stored by exact source-bundle digest.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -119,7 +120,7 @@ impl CompilationPackageV1 {
 /// The exact compiler and canonicalization contracts used for a compilation.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CompilationToolchainV1 {
+pub struct CompilationToolchainV2 {
     compiler: QualifiedName,
     compiler_version: ExactVersion,
     semantic_canonicalization_version: u32,
@@ -127,21 +128,15 @@ pub struct CompilationToolchainV1 {
     resolution_version: u32,
 }
 
-impl CompilationToolchainV1 {
+impl CompilationToolchainV2 {
     #[must_use]
-    pub fn new(
-        compiler: QualifiedName,
-        compiler_version: ExactVersion,
-        semantic_canonicalization_version: u32,
-        source_bundle_version: u32,
-        resolution_version: u32,
-    ) -> Self {
+    pub fn new(compiler: QualifiedName, compiler_version: ExactVersion) -> Self {
         Self {
             compiler,
             compiler_version,
-            semantic_canonicalization_version,
-            source_bundle_version,
-            resolution_version,
+            semantic_canonicalization_version: V2,
+            source_bundle_version: V1,
+            resolution_version: V1,
         }
     }
 
@@ -170,13 +165,13 @@ impl CompilationToolchainV1 {
         self.resolution_version
     }
 
-    fn validate_v1(&self) -> Result<(), ContractError> {
-        if self.semantic_canonicalization_version != V1
+    fn validate_v2(&self) -> Result<(), ContractError> {
+        if self.semantic_canonicalization_version != V2
             || self.source_bundle_version != V1
             || self.resolution_version != V1
         {
             return Err(ContractError::new(
-                "package compilation v1 requires semantic, source-bundle, and resolution version 1",
+                "package compilation v2 requires semantic canonicalization version 2 and source-bundle and resolution version 1",
             ));
         }
         Ok(())
@@ -186,21 +181,21 @@ impl CompilationToolchainV1 {
 /// Exact provenance identity for one canonical model compilation.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct PackageCompilationRecordV1 {
+pub struct PackageCompilationRecordV2 {
     schema: String,
     encoding: String,
     model_sha256: CanonicalModelDigest,
     root: ModelPackageIdentityV1,
     resolution_digest: ResolutionDigest,
     packages: Vec<CompilationPackageV1>,
-    toolchain: CompilationToolchainV1,
+    toolchain: CompilationToolchainV2,
 }
 
-impl PackageCompilationRecordV1 {
+impl PackageCompilationRecordV2 {
     pub fn new(
         model_sha256: CanonicalModelDigest,
         resolved: &ResolvedPackageGraph,
-        toolchain: CompilationToolchainV1,
+        toolchain: CompilationToolchainV2,
     ) -> Result<Self, ContractError> {
         Self {
             schema: COMPILATION_SCHEMA.to_owned(),
@@ -225,7 +220,7 @@ impl PackageCompilationRecordV1 {
                 "package compilation must contain a bounded, non-empty package inventory",
             ));
         }
-        self.toolchain.validate_v1()?;
+        self.toolchain.validate_v2()?;
         self.packages.sort();
         for pair in self.packages.windows(2) {
             if pair[0].package == pair[1].package {
@@ -307,7 +302,7 @@ impl PackageCompilationRecordV1 {
     }
 
     #[must_use]
-    pub fn toolchain(&self) -> &CompilationToolchainV1 {
+    pub fn toolchain(&self) -> &CompilationToolchainV2 {
         &self.toolchain
     }
 }
@@ -530,15 +525,12 @@ mod tests {
             .resolve(&resolution, &store)
             .expect("resolved graph");
         let make = |model: &str| {
-            PackageCompilationRecordV1::new(
+            PackageCompilationRecordV2::new(
                 CanonicalModelDigest::parse(model).expect("model digest"),
                 &resolved,
-                CompilationToolchainV1::new(
+                CompilationToolchainV2::new(
                     QualifiedName::parse("Eqiora.Compiler").expect("compiler"),
                     ExactVersion::parse("0.1.0").expect("compiler version"),
-                    1,
-                    1,
-                    1,
                 ),
             )
             .expect("record")
@@ -547,8 +539,15 @@ mod tests {
         let changed = make(&"9a".repeat(32));
         assert_ne!(first.digest(), changed.digest());
         assert_eq!(
-            PackageCompilationRecordV1::from_json(&first.canonical_json().expect("JSON")),
+            PackageCompilationRecordV2::from_json(&first.canonical_json().expect("JSON")),
             Ok(first.clone())
+        );
+        let current_wire: serde_json::Value =
+            serde_json::from_slice(&first.canonical_json().expect("JSON")).expect("value");
+        assert_eq!(current_wire["schema"], COMPILATION_SCHEMA);
+        assert_eq!(
+            current_wire["toolchain"]["semantic_canonicalization_version"],
+            V2
         );
         assert_eq!(first.packages()[0].package(), &package);
         first
@@ -559,17 +558,18 @@ mod tests {
             ResolutionDigest::parse(&"56".repeat(32)).expect("resolution");
         assert!(mismatched.validate_against(&resolution).is_err());
 
-        let unknown = br#"{"schema":"eqiora.package-compilation.v1","encoding":"eqiora.canonical-json.v1","model_sha256":"7878787878787878787878787878787878787878787878787878787878787878","root":{"name":"org.example.Main","version":"1.0.0+cpu","semantic_digest":"1212121212121212121212121212121212121212121212121212121212121212"},"resolution_digest":"5656565656565656565656565656565656565656565656565656565656565656","packages":[],"toolchain":{"compiler":"Eqiora.Compiler","compiler_version":"0.1.0","semantic_canonicalization_version":1,"source_bundle_version":1,"resolution_version":1},"payload":null}"#;
-        assert!(PackageCompilationRecordV1::from_json(unknown).is_err());
+        let historical_v1 = br#"{"schema":"eqiora.package-compilation.v1","encoding":"eqiora.canonical-json.v1","model_sha256":"7878787878787878787878787878787878787878787878787878787878787878","root":{"name":"org.example.Main","version":"1.0.0+cpu","semantic_digest":"1212121212121212121212121212121212121212121212121212121212121212"},"resolution_digest":"5656565656565656565656565656565656565656565656565656565656565656","packages":[],"toolchain":{"compiler":"Eqiora.Compiler","compiler_version":"0.1.0","semantic_canonicalization_version":1,"source_bundle_version":1,"resolution_version":1}}"#;
+        assert!(PackageCompilationRecordV2::from_json(historical_v1).is_err());
 
-        let unsupported_toolchain = CompilationToolchainV1::new(
+        let unknown = br#"{"schema":"eqiora.package-compilation.v2","encoding":"eqiora.canonical-json.v1","model_sha256":"7878787878787878787878787878787878787878787878787878787878787878","root":{"name":"org.example.Main","version":"1.0.0+cpu","semantic_digest":"1212121212121212121212121212121212121212121212121212121212121212"},"resolution_digest":"5656565656565656565656565656565656565656565656565656565656565656","packages":[],"toolchain":{"compiler":"Eqiora.Compiler","compiler_version":"0.1.0","semantic_canonicalization_version":2,"source_bundle_version":1,"resolution_version":1},"payload":null}"#;
+        assert!(PackageCompilationRecordV2::from_json(unknown).is_err());
+
+        let mut unsupported_toolchain = CompilationToolchainV2::new(
             QualifiedName::parse("Eqiora.Compiler").expect("compiler"),
             ExactVersion::parse("0.1.0").expect("compiler version"),
-            2,
-            1,
-            1,
         );
-        let unsupported = PackageCompilationRecordV1 {
+        unsupported_toolchain.semantic_canonicalization_version = 1;
+        let unsupported = PackageCompilationRecordV2 {
             toolchain: unsupported_toolchain,
             ..first.clone()
         };
@@ -580,7 +580,7 @@ mod tests {
             package.version.clone(),
             crate::PackageSemanticDigest::parse(&"ab".repeat(32)).expect("semantic digest"),
         );
-        let ambiguous = PackageCompilationRecordV1 {
+        let ambiguous = PackageCompilationRecordV2 {
             packages: vec![
                 CompilationPackageV1::new(package, source_digest),
                 CompilationPackageV1::new(ambiguous, source_digest),

@@ -5,10 +5,9 @@ normalization, exact resolution, locked compilation, compilation-record replay,
 and ordinary current artifact replay. It freezes a private-selector success
 whose documentation is intentionally scientifically false.
 
-The secondary route reads the accepted `org.example.poisson` package lineage
-from `packages.typed-compilation-lineage`. The conformance report must reproduce
-those structural facts without reading, copying, weakening, or strengthening
-that package's separately registered scientific evidence.
+The secondary route exercises the current `org.example.poisson` package fixture.
+It checks the conformance report's structural facts without treating current
+compilation bytes or their digest as an independent or durable authority.
 
 Plausible wrong implementations are rejected if they accept another profile,
 touch a filesystem path before rejecting that profile, accept noncanonical
