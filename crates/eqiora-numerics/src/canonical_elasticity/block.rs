@@ -12,7 +12,7 @@ use eqiora_solver::LinearOperatorProperties;
 
 use super::ConformingIsotropicElasticityCartesianPair2d;
 use crate::canonical_boundary::BoundaryRelationBinding;
-use crate::canonical_boundary::{CartesianBoundaryInventory2d, PhysicalBoundaryDisposition};
+use crate::canonical_boundary::{CartesianBoundaryInventory, PhysicalBoundaryDisposition};
 use crate::discrete_block::{
     AlgebraicClosure, BlockRealizationIdentity, BlockSupport, BlockTransformation,
     ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
@@ -215,7 +215,7 @@ fn parameter_inventory<'a>(
 }
 
 fn boundary_relation_blocks(
-    inventory: &CartesianBoundaryInventory2d,
+    inventory: &CartesianBoundaryInventory<2>,
     bindings: &[BoundaryRelationBinding],
     field: Id<kinds::Field>,
 ) -> Result<Vec<RelationBlock>, Diagnostic> {

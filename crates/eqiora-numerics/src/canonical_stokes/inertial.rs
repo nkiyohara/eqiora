@@ -9,7 +9,7 @@ use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::BoundaryRelationBinding;
-use crate::canonical_boundary::CartesianBoundaryInventory2d;
+use crate::canonical_boundary::CartesianBoundaryInventory;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
 
 use super::boundary::{self, LoweredStokesBoundary2d};
@@ -50,7 +50,7 @@ pub struct InertialIncompressibleNewtonianCartesianModel2d {
     force_potential_definition: RawId,
     momentum_relation: RawId,
     incompressibility_relation: RawId,
-    boundary_inventory: CartesianBoundaryInventory2d,
+    boundary_inventory: CartesianBoundaryInventory<2>,
     boundary_relations: Vec<BoundaryRelationBinding>,
 }
 
@@ -139,7 +139,7 @@ impl InertialIncompressibleNewtonianCartesianModel2d {
 
     /// Complete package-neutral meaning of all four exact Cartesian sides.
     #[must_use]
-    pub const fn boundary_inventory(&self) -> &CartesianBoundaryInventory2d {
+    pub const fn boundary_inventory(&self) -> &CartesianBoundaryInventory<2> {
         &self.boundary_inventory
     }
 
