@@ -25,8 +25,8 @@ impl PreparedCommonFsiExecution<'_> {
         CommonState::new(
             self.plan.state_space_identity(),
             state.time_s + self.plan.temporal.step().value(),
-            Arc::new(self.plan.model.clone()),
-            Arc::new(self.plan.resources.clone()),
+            Arc::new(self.plan.model().clone()),
+            Arc::new(self.plan.resources().clone()),
             CommonStateKind::Fsi {
                 state: Box::new(next),
                 pressure: solution
@@ -40,9 +40,24 @@ impl PreparedCommonFsiExecution<'_> {
 }
 
 impl CommonFsiPlan {
+    pub(super) fn model(&self) -> &ModelEnvelope {
+        &self.recognized.model
+    }
+
+    fn canonical(&self) -> &FixedReferenceFsiCartesianModel2d {
+        match &self.recognized.recognized {
+            RecognizedNativeModel::Fsi(canonical) => canonical,
+            _ => unreachable!("CommonFsiPlan retains recognized FSI meaning"),
+        }
+    }
+
+    pub(super) fn resources(&self) -> &NativeMeshResources {
+        &self.recognized.resources
+    }
+
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         let relation = self
-            .canonical
+            .canonical()
             .solid()
             .kinematic_relation()
             .downcast::<eqiora_core::entity::kinds::Relation>()
@@ -188,7 +203,7 @@ impl CommonFsiPlan {
         let workers = NonZeroUsize::MIN;
         let model_id = reference.model().ulid().to_string();
         let model_revision = reference.semantic_revision().get();
-        let model_digest = model.digest()?.to_string();
+        let model_digest = recognized.model_digest.as_str();
         let digests = resource_digests(&recognized.resources)?;
         let field_ids = [
             canonical.fluid().velocity().ulid().to_string(),
@@ -209,7 +224,7 @@ impl CommonFsiPlan {
         let realization_digest = hex_bytes(&portable.digest()?);
         let scaling_provenance_digest = scaling_receipt.provenance_digest().to_string();
         for value in [
-            &model_digest,
+            model_digest,
             &digests.geometry,
             &digests.mesh,
             &digests.correspondence,
@@ -234,9 +249,7 @@ impl CommonFsiPlan {
             realization_digest,
         );
         Ok(Self {
-            model: model.clone(),
-            canonical: (**canonical).clone(),
-            resources: recognized.resources,
+            recognized,
             partition,
             resolved,
             portable,
@@ -249,14 +262,13 @@ impl CommonFsiPlan {
             execution_provider,
             workers,
             lineage,
-            model_digest,
             field_ids,
             domain_ids,
         })
     }
 
     pub(super) fn mesh(&self) -> &SimplicialMesh {
-        let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = &self.resources else {
+        let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = self.resources() else {
             unreachable!("CommonFsiPlan owns adjacent simplicial resources")
         };
         mesh.mesh()
@@ -266,7 +278,7 @@ impl CommonFsiPlan {
         let mut bytes = Vec::new();
         for value in [
             "fixed-reference-fsi/f64/replicated/mini-p1-fluid+p1-solid/shared-trace-quotient/gauge-free-pressure/backward-euler-velocity-displacement-history/v1",
-            self.model_digest.as_str(),
+            self.model_digest(),
             self.lineage.geometry_digest(),
             self.lineage.mesh_digest(),
             self.lineage.correspondence_digest(),
@@ -292,7 +304,7 @@ impl CommonFsiPlan {
                 "FSI State.initial requires exactly four complete InitialField assignments",
             ));
         }
-        let expected_model = self.model.digest()?;
+        let expected_model = self.model().digest()?;
         let mut by_field = BTreeMap::new();
         for field in fields {
             if field.model() != &expected_model {
@@ -427,8 +439,8 @@ impl CommonFsiPlan {
         CommonState::new(
             self.state_space_identity(),
             time_s,
-            Arc::new(self.model.clone()),
-            Arc::new(self.resources.clone()),
+            Arc::new(self.model().clone()),
+            Arc::new(self.resources().clone()),
             CommonStateKind::Fsi {
                 state: Box::new(native),
                 pressure: fluid_pressure_vertices.into_boxed_slice(),
@@ -473,13 +485,13 @@ impl CommonFsiPlan {
         backend: &'a dyn LinearSolverBackend,
     ) -> Result<PreparedCommonFsiExecution<'a>, Diagnostic> {
         self.authenticate_execution(state, backend)?;
-        let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = &self.resources else {
+        let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = self.resources() else {
             unreachable!("FSI Plan owns adjacent resources")
         };
         let mesh_reference =
             MeshArtifactReference::from_sha256(mesh.artifact_reference()?.sha256());
         let prepared = prepare_resolved_fixed_reference_fsi_run_2d(
-            &self.canonical,
+            self.canonical(),
             &self.resolved,
             mesh_reference,
             mesh.mesh(),
@@ -506,7 +518,7 @@ impl CommonFsiPlan {
     }
     #[must_use]
     pub fn model_digest(&self) -> &str {
-        &self.model_digest
+        &self.recognized.model_digest
     }
     #[must_use]
     pub fn geometry_digest(&self) -> &str {

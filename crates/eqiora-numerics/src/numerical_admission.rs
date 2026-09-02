@@ -505,9 +505,7 @@ impl ResolvedCommonPlan {
 /// Opaque native fixed-reference FSI Plan owning exact common resources.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonFsiPlan {
-    model: ModelEnvelope,
-    canonical: FixedReferenceFsiCartesianModel2d,
-    resources: NativeMeshResources,
+    recognized: RecognizedNativeAdmission,
     partition: FixedReferenceFsiPartition<2>,
     resolved: ResolvedCoupledFieldwiseRealization,
     portable: PortableRealizationGraph,
@@ -520,7 +518,6 @@ pub struct CommonFsiPlan {
     execution_provider: ExecutionProvider,
     workers: NonZeroUsize,
     lineage: CommonSpatialPlanLineage,
-    model_digest: String,
     field_ids: [String; 4],
     domain_ids: [String; 2],
 }
