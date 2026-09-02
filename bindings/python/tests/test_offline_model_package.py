@@ -693,7 +693,8 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
             json.dumps(represented, indent=2) + "\n", encoding="utf-8"
         )
         represented_before = tree_snapshot(normalized)
-        assert check_conformance(normalized, FALSE_CLAIM_RESOLUTION) == expected
+        normalized_report = check_conformance(normalized, FALSE_CLAIM_RESOLUTION)
+        assert_expected_conformance_report(normalized_report, "false_claim")
         assert tree_snapshot(normalized) == represented_before
 
         source_changed = parent / "source-changed"
