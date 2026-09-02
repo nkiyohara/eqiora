@@ -52,7 +52,7 @@ use crate::fluid::{
     SimplicialMiniVelocityField2d, SteadyStokesGeometryBinding2d, SteadyStokesPressureReference2d,
 };
 use crate::fsi::{
-    FixedReferenceFsiPartition2d, FixedReferenceFsiState2d, ResolvedFixedReferenceFsiSolution2d,
+    FixedReferenceFsiPartition, FixedReferenceFsiState, ResolvedFixedReferenceFsiSolution2d,
 };
 use crate::scalar::{CartesianScalarFieldLinearization, ResolvedScalarEllipticCartesianSolution};
 use crate::scalar_conservation::{
@@ -508,7 +508,7 @@ pub struct CommonFsiPlan {
     model: ModelEnvelope,
     canonical: FixedReferenceFsiCartesianModel2d,
     resources: NativeMeshResources,
-    partition: FixedReferenceFsiPartition2d,
+    partition: FixedReferenceFsiPartition<2>,
     resolved: ResolvedCoupledFieldwiseRealization,
     portable: PortableRealizationGraph,
     scaling: FixedReferenceFsiScaleProfile2d,
@@ -633,7 +633,7 @@ enum CommonStateKind {
     MiniP1(Box<TransientNavierStokesInitialState2d>),
     CellCentered(Box<CellCenteredNavierStokesInitialState2d>),
     Fsi {
-        state: Box<FixedReferenceFsiState2d>,
+        state: Box<FixedReferenceFsiState<2>>,
         pressure: Box<[f64]>,
         accepted: Option<Box<ResolvedFixedReferenceFsiSolution2d>>,
     },

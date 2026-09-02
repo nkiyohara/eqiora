@@ -13,33 +13,31 @@ use eqiora_solver::{
 
 use super::*;
 use crate::simplicial_ale_fsi::{
-    AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState2d, AleFsiState3d, AleFsiStepPlan2d,
-    AleFsiStepPlan3d, P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
+    AleFsiBoundary, AleFsiState, AleFsiStepPlan, P1HarmonicMeshMotionAction,
 };
 use crate::simplicial_fsi::{
-    FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial2d,
-    FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
-    FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
+    FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
+    FixedReferenceFsiScale,
 };
 
 const COMPONENTS: usize = 2;
 
 struct Fixture {
     mesh: SimplicialMesh,
-    partition: FixedReferenceFsiPartition2d,
-    boundary: AleFsiBoundary2d,
-    motion: P1HarmonicMeshMotionAction2d,
-    previous: AleFsiState2d,
-    plan: AleFsiStepPlan2d,
+    partition: FixedReferenceFsiPartition<2>,
+    boundary: AleFsiBoundary<2>,
+    motion: P1HarmonicMeshMotionAction<2>,
+    previous: AleFsiState<2>,
+    plan: AleFsiStepPlan<2>,
 }
 
 struct Fixture3d {
     mesh: SimplicialMesh,
-    partition: FixedReferenceFsiPartition3d,
-    boundary: AleFsiBoundary3d,
-    motion: P1HarmonicMeshMotionAction3d,
-    previous: AleFsiState3d,
-    plan: AleFsiStepPlan3d,
+    partition: FixedReferenceFsiPartition<3>,
+    boundary: AleFsiBoundary<3>,
+    motion: P1HarmonicMeshMotionAction<3>,
+    previous: AleFsiState<3>,
+    plan: AleFsiStepPlan<3>,
 }
 
 #[test]
@@ -470,10 +468,11 @@ fn assert_harmonic_driver_singletons<const D: usize>(
 fn fixture() -> Fixture {
     let mesh = two_domain_mesh();
     let (fluid, solid, interface) = inventories(&mesh);
-    let partition = FixedReferenceFsiPartition2d::new(&mesh, fluid, solid, interface).unwrap();
-    let boundary = AleFsiBoundary2d::homogeneous_exterior(&mesh).unwrap();
-    let motion = P1HarmonicMeshMotionAction2d::new(&mesh, &partition, harmonic_solver()).unwrap();
-    let previous = AleFsiState2d::new(
+    let partition = FixedReferenceFsiPartition::<2>::new(&mesh, fluid, solid, interface).unwrap();
+    let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
+    let motion =
+        P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, harmonic_solver()).unwrap();
+    let previous = AleFsiState::<2>::new(
         0.0,
         &mesh,
         &partition,
@@ -496,10 +495,11 @@ fn fixture() -> Fixture {
 
 fn fixture_3d() -> Fixture3d {
     let (mesh, fluid, solid, interface) = tetrahedral_problem();
-    let partition = FixedReferenceFsiPartition3d::new(&mesh, fluid, solid, interface).unwrap();
-    let boundary = AleFsiBoundary3d::homogeneous_exterior(&mesh).unwrap();
-    let motion = P1HarmonicMeshMotionAction3d::new(&mesh, &partition, harmonic_solver()).unwrap();
-    let previous = AleFsiState3d::new(
+    let partition = FixedReferenceFsiPartition::<3>::new(&mesh, fluid, solid, interface).unwrap();
+    let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
+    let motion =
+        P1HarmonicMeshMotionAction::<3>::new(&mesh, &partition, harmonic_solver()).unwrap();
+    let previous = AleFsiState::<3>::new(
         0.0,
         &mesh,
         &partition,
@@ -624,7 +624,7 @@ fn inventories(mesh: &SimplicialMesh) -> (Vec<CellId>, Vec<CellId>, Vec<FacetId>
     (fluid, solid, interface)
 }
 
-fn step_plan() -> AleFsiStepPlan2d {
+fn step_plan() -> AleFsiStepPlan<2> {
     let nonlinear =
         NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
     let linear = SolverPlan::new(
@@ -636,11 +636,11 @@ fn step_plan() -> AleFsiStepPlan2d {
     .unwrap()
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Fast);
-    AleFsiStepPlan2d::new(
+    AleFsiStepPlan::<2>::new(
         0.05,
-        FixedReferenceFsiMaterial2d::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
-        FixedReferenceFsiScale2d::new(2.0, 1.0, 1.0).unwrap(),
-        FixedReferenceFsiLoad2d::Zero,
+        FixedReferenceFsiMaterial::<2>::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
+        FixedReferenceFsiScale::<2>::new(2.0, 1.0, 1.0).unwrap(),
+        FixedReferenceFsiLoad::Zero,
         nonlinear,
         linear,
         Target::HostCpu {
@@ -650,7 +650,7 @@ fn step_plan() -> AleFsiStepPlan2d {
     .unwrap()
 }
 
-fn step_plan_3d() -> AleFsiStepPlan3d {
+fn step_plan_3d() -> AleFsiStepPlan<3> {
     let nonlinear =
         NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
     let linear = SolverPlan::new(
@@ -662,11 +662,11 @@ fn step_plan_3d() -> AleFsiStepPlan3d {
     .unwrap()
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Fast);
-    AleFsiStepPlan3d::new(
+    AleFsiStepPlan::<3>::new(
         0.05,
-        FixedReferenceFsiMaterial3d::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
-        FixedReferenceFsiScale3d::new(2.0, 5.0, 3.0).unwrap(),
-        FixedReferenceFsiLoad3d::Zero,
+        FixedReferenceFsiMaterial::<3>::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
+        FixedReferenceFsiScale::<3>::new(2.0, 5.0, 3.0).unwrap(),
+        FixedReferenceFsiLoad::Zero,
         nonlinear,
         linear,
         Target::HostCpu {

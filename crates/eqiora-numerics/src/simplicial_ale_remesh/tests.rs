@@ -7,9 +7,9 @@ use eqiora_meshing::{
 };
 use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 
-use crate::simplicial_ale_fsi::{AleFsiState2d, P1HarmonicMeshMotionAction2d};
+use crate::simplicial_ale_fsi::{AleFsiState, P1HarmonicMeshMotionAction};
 use crate::simplicial_fsi::{
-    FixedReferenceFsiMaterial2d, FixedReferenceFsiPartition2d, FixedReferenceFsiScale2d,
+    FixedReferenceFsiMaterial, FixedReferenceFsiPartition, FixedReferenceFsiScale,
 };
 
 use super::integration::{cell_basis, dense_zeroed, integrate_physical_triangle};
@@ -110,10 +110,10 @@ fn topology_distinct_remesh_reproduces_affine_absolute_fields() {
     let source_partition = partition(&source_mesh);
     let target_partition = partition(&target_mesh);
     let source_motion =
-        P1HarmonicMeshMotionAction2d::new(&source_mesh, &source_partition, harmonic_solver())
+        P1HarmonicMeshMotionAction::<2>::new(&source_mesh, &source_partition, harmonic_solver())
             .unwrap();
     let target_motion =
-        P1HarmonicMeshMotionAction2d::new(&target_mesh, &target_partition, harmonic_solver())
+        P1HarmonicMeshMotionAction::<2>::new(&target_mesh, &target_partition, harmonic_solver())
             .unwrap();
 
     let mut displacement = vec![[0.0; COMPONENTS]; source_mesh.vertices().len()];
@@ -121,7 +121,7 @@ fn topology_distinct_remesh_reproduces_affine_absolute_fields() {
         let point = &source_mesh.vertices()[vertex.index()];
         displacement[vertex.index()] = [0.01 * point[1], 0.005 * (point[0] - 1.0)];
     }
-    let provisional = AleFsiState2d::new(
+    let provisional = AleFsiState::<2>::new(
         0.75,
         &source_mesh,
         &source_partition,
@@ -144,7 +144,7 @@ fn topology_distinct_remesh_reproduces_affine_absolute_fields() {
             2.0 + point[0] - 3.0 * point[1]
         })
         .collect();
-    let source_state = AleFsiState2d::new(
+    let source_state = AleFsiState::<2>::new(
         0.75,
         &source_mesh,
         &source_partition,
@@ -165,8 +165,8 @@ fn topology_distinct_remesh_reproduces_affine_absolute_fields() {
         &target_mesh,
         &target_partition,
         &target_motion,
-        FixedReferenceFsiMaterial2d::new(1.0, 0.1, 2.0, 2.0, 1.0).unwrap(),
-        FixedReferenceFsiScale2d::new(2.0, 1.0, 2.0).unwrap(),
+        FixedReferenceFsiMaterial::<2>::new(1.0, 0.1, 2.0, 2.0, 1.0).unwrap(),
+        FixedReferenceFsiScale::<2>::new(2.0, 1.0, 2.0).unwrap(),
         &quadrature,
         projection_solver(),
     )
@@ -411,9 +411,9 @@ fn scaled_projection_case(
     let source_partition = partition(&source_mesh);
     let target_partition = partition(&target_mesh);
     let source_motion =
-        P1HarmonicMeshMotionAction2d::new(&source_mesh, &source_partition, harmonic_solver())?;
+        P1HarmonicMeshMotionAction::<2>::new(&source_mesh, &source_partition, harmonic_solver())?;
     let target_motion =
-        P1HarmonicMeshMotionAction2d::new(&target_mesh, &target_partition, harmonic_solver())?;
+        P1HarmonicMeshMotionAction::<2>::new(&target_mesh, &target_partition, harmonic_solver())?;
     let length_scale = 2.0 * coordinate_factor;
 
     let mut displacement = vec![[0.0; COMPONENTS]; source_mesh.vertices().len()];
@@ -430,7 +430,7 @@ fn scaled_projection_case(
         velocity[0][0] = velocity_scale * 1.0e-4;
     }
     let bubbles = vec![[0.0; COMPONENTS]; source_partition.fluid_cells().len()];
-    let provisional = AleFsiState2d::new(
+    let provisional = AleFsiState::<2>::new(
         0.75,
         &source_mesh,
         &source_partition,
@@ -449,7 +449,7 @@ fn scaled_projection_case(
             pressure_scale * (2.0 + point[0] / length_scale - 3.0 * point[1] / length_scale)
         })
         .collect();
-    let source_state = AleFsiState2d::new(
+    let source_state = AleFsiState::<2>::new(
         0.75,
         &source_mesh,
         &source_partition,
@@ -467,8 +467,8 @@ fn scaled_projection_case(
         &target_mesh,
         &target_partition,
         &target_motion,
-        FixedReferenceFsiMaterial2d::new(1.0, 0.1, 2.0, 2.0, 1.0)?,
-        FixedReferenceFsiScale2d::new(length_scale, velocity_scale, pressure_scale)?,
+        FixedReferenceFsiMaterial::<2>::new(1.0, 0.1, 2.0, 2.0, 1.0)?,
+        FixedReferenceFsiScale::<2>::new(length_scale, velocity_scale, pressure_scale)?,
         &triangle_duffy_gauss_legendre(5)?,
         projection_solver(),
     )
@@ -541,7 +541,7 @@ fn scaled_two_domain_mesh(flip_diagonal: bool, coordinate_factor: f64) -> Simpli
     SimplicialMesh::new(2, vertices, cells, MeshQualityGate::new(0.3).unwrap()).unwrap()
 }
 
-fn partition(mesh: &SimplicialMesh) -> FixedReferenceFsiPartition2d {
+fn partition(mesh: &SimplicialMesh) -> FixedReferenceFsiPartition<2> {
     let interface_x = mesh
         .vertices()
         .iter()
@@ -571,5 +571,5 @@ fn partition(mesh: &SimplicialMesh) -> FixedReferenceFsiPartition2d {
         })
         .map(FacetId::new)
         .collect();
-    FixedReferenceFsiPartition2d::new(mesh, fluid, solid, interface).unwrap()
+    FixedReferenceFsiPartition::<2>::new(mesh, fluid, solid, interface).unwrap()
 }

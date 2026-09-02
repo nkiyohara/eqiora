@@ -23,7 +23,7 @@ use crate::discrete_block::DiscreteBlockSystem;
 use crate::finalized_spatial::FinalizedLinearCore;
 use crate::simplicial_fsi::FixedReferenceFsiAssemblyTargetRoles2d;
 use crate::simplicial_fsi::{
-    FinalizedFixedReferenceFsiStep2d, FixedReferenceFsiPartition2d, FixedReferenceFsiSolution2d,
+    FinalizedFixedReferenceFsiStep, FixedReferenceFsiPartition, FixedReferenceFsiSolution,
 };
 
 /// Exact semantic Field roles retained across numerical execution.
@@ -87,11 +87,11 @@ pub struct FinalizedResolvedFixedReferenceFsiStep2d {
     realization_revision: RealizationRevision,
     mesh_artifact: MeshArtifactReference,
     fields: FixedReferenceFsiFieldIdentities2d,
-    partition: FixedReferenceFsiPartition2d,
+    partition: FixedReferenceFsiPartition<2>,
     realization_plan: CoupledFieldwiseRealizationPlan,
     realization_graph: PortableRealizationGraph,
     core: FinalizedLinearCore,
-    inner: FinalizedFixedReferenceFsiStep2d,
+    inner: FinalizedFixedReferenceFsiStep<2>,
 }
 
 impl FinalizedResolvedFixedReferenceFsiStep2d {
@@ -102,11 +102,11 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
         realization_revision: RealizationRevision,
         mesh_artifact: MeshArtifactReference,
         fields: FixedReferenceFsiFieldIdentities2d,
-        partition: FixedReferenceFsiPartition2d,
+        partition: FixedReferenceFsiPartition<2>,
         realization_plan: CoupledFieldwiseRealizationPlan,
         realization_graph: PortableRealizationGraph,
         block_system: DiscreteBlockSystem,
-        inner: FinalizedFixedReferenceFsiStep2d,
+        inner: FinalizedFixedReferenceFsiStep<2>,
     ) -> Result<Self, Diagnostic> {
         let SolveRoot::Linear(root) = realization_graph.root() else {
             return Err(eqiora_core::Diagnostic::error(
@@ -603,8 +603,8 @@ pub struct ResolvedFixedReferenceFsiSolution2d {
     realization_plan: CoupledFieldwiseRealizationPlan,
     realization_graph: PortableRealizationGraph,
     fields: FixedReferenceFsiFieldIdentities2d,
-    partition: FixedReferenceFsiPartition2d,
-    inner: FixedReferenceFsiSolution2d,
+    partition: FixedReferenceFsiPartition<2>,
+    inner: FixedReferenceFsiSolution<2>,
 }
 
 impl ResolvedFixedReferenceFsiSolution2d {
@@ -762,13 +762,13 @@ impl ResolvedFixedReferenceFsiSolution2d {
 
     /// Pure numerical Fields and all falsifying balance evidence.
     #[must_use]
-    pub const fn numerical_evidence(&self) -> &FixedReferenceFsiSolution2d {
+    pub const fn numerical_evidence(&self) -> &FixedReferenceFsiSolution<2> {
         &self.inner
     }
 
     /// Consume the identity wrapper after evidence has been recorded.
     #[must_use]
-    pub fn into_numerical_evidence(self) -> FixedReferenceFsiSolution2d {
+    pub fn into_numerical_evidence(self) -> FixedReferenceFsiSolution<2> {
         self.inner
     }
 }

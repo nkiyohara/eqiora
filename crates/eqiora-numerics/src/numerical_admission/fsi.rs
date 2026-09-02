@@ -15,7 +15,7 @@ impl PreparedCommonFsiExecution<'_> {
             return Err(invalid("FSI Plan received a non-FSI common State"));
         };
         let solution = self.prepared.finalize(previous)?.solve(self.backend)?;
-        let next = FixedReferenceFsiState2d::new(
+        let next = FixedReferenceFsiState::<2>::new(
             self.plan.mesh(),
             &self.plan.partition,
             solution.vertex_velocity_coefficients().to_vec(),
@@ -126,7 +126,7 @@ impl CommonFsiPlan {
             .filter(|entity| entity.dimension() == 1)
             .map(|entity| FacetId::new(entity.index()))
             .collect();
-        let partition = FixedReferenceFsiPartition2d::new(
+        let partition = FixedReferenceFsiPartition::<2>::new(
             &native_mesh,
             fluid_cells,
             solid_cells,
@@ -418,7 +418,7 @@ impl CommonFsiPlan {
         {
             displacement[vertex.index()] = value;
         }
-        let native = FixedReferenceFsiState2d::new(
+        let native = FixedReferenceFsiState::<2>::new(
             self.mesh(),
             &self.partition,
             velocity,

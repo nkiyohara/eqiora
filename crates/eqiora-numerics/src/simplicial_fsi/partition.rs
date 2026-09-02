@@ -287,18 +287,6 @@ impl<const D: usize> FixedReferenceFsiPartition<D> {
     }
 }
 
-/// Established two-dimensional fixed-reference partition API.
-pub type FixedReferenceFsiPartition2d = FixedReferenceFsiPartition<2>;
-
-/// Three-dimensional fixed-reference partition over affine tetrahedra.
-pub type FixedReferenceFsiPartition3d = FixedReferenceFsiPartition<3>;
-
-/// Established two-dimensional oriented interface-facet witness.
-pub type FixedReferenceFsiInterfaceFacet2d = FixedReferenceFsiInterfaceFacet<2>;
-
-/// Three-dimensional oriented triangular interface-facet witness.
-pub type FixedReferenceFsiInterfaceFacet3d = FixedReferenceFsiInterfaceFacet<3>;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CellMaterial {
     Unassigned,

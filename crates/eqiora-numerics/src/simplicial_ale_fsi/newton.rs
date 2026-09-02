@@ -8,24 +8,17 @@ use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
 use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolverBackend, ScalarType};
 
+use super::P1HarmonicMeshMotionAction;
 use super::acceptance::{NewtonEvidence, accept_step_prepared};
-use super::api::{AleFsiStepEvidence, AleFsiTrajectory, AleFsiTrajectory2d, AleFsiTrajectory3d};
+use super::api::{AleFsiStepEvidence, AleFsiTrajectory};
 use super::assembly::{
     PreparedAleFsiAction, PreparedAleFsiStructure, assemble_step_linearization_with_structure,
     prepare_ale_fsi_structure,
 };
 use super::boundary_step::{PreparedAleFsiBoundaryRun, PreparedAleFsiBoundaryStep};
-use super::contract::{
-    AleFsiBoundary, AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState, AleFsiState2d, AleFsiState3d,
-    AleFsiStepPlan, AleFsiStepPlan2d, AleFsiStepPlan3d,
-};
-use super::{
-    P1HarmonicMeshMotionAction, P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
-};
+use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use crate::prepared_execution::advance_prepared_actions;
-use crate::simplicial_fsi::{
-    FixedReferenceFsiPartition, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
-};
+use crate::simplicial_fsi::FixedReferenceFsiPartition;
 use crate::step_count::NonZeroStepCount;
 
 /// Advance one fixed-topology reference through accepted monolithic ALE steps.
@@ -38,15 +31,15 @@ use crate::step_count::NonZeroStepCount;
 #[allow(clippy::too_many_arguments)]
 pub fn advance_simplicial_ale_fsi_2d(
     reference: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
-    boundary: &AleFsiBoundary2d,
-    motion: &P1HarmonicMeshMotionAction2d,
-    initial: AleFsiState2d,
+    partition: &FixedReferenceFsiPartition<2>,
+    boundary: &AleFsiBoundary<2>,
+    motion: &P1HarmonicMeshMotionAction<2>,
+    initial: AleFsiState<2>,
     step_count: NonZeroStepCount,
-    plan: AleFsiStepPlan2d,
+    plan: AleFsiStepPlan<2>,
     quadrature: &QuadratureRule,
     solver: &dyn LinearSolverBackend,
-) -> Result<AleFsiTrajectory2d, Diagnostic> {
+) -> Result<AleFsiTrajectory<2>, Diagnostic> {
     advance_simplicial_ale_fsi_2d_with_assembly(
         reference,
         partition,
@@ -69,16 +62,16 @@ pub fn advance_simplicial_ale_fsi_2d(
 #[allow(clippy::too_many_arguments)]
 pub fn advance_simplicial_ale_fsi_2d_with_assembly(
     reference: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
-    boundary: &AleFsiBoundary2d,
-    motion: &P1HarmonicMeshMotionAction2d,
-    initial: AleFsiState2d,
+    partition: &FixedReferenceFsiPartition<2>,
+    boundary: &AleFsiBoundary<2>,
+    motion: &P1HarmonicMeshMotionAction<2>,
+    initial: AleFsiState<2>,
     step_count: NonZeroStepCount,
-    plan: AleFsiStepPlan2d,
+    plan: AleFsiStepPlan<2>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
-) -> Result<AleFsiTrajectory2d, Diagnostic> {
+) -> Result<AleFsiTrajectory<2>, Diagnostic> {
     advance_simplicial_ale_fsi_with_assembly::<2>(
         reference, partition, boundary, motion, initial, step_count, plan, quadrature, assembly,
         solver,
@@ -94,15 +87,15 @@ pub fn advance_simplicial_ale_fsi_2d_with_assembly(
 #[allow(clippy::too_many_arguments)]
 pub fn advance_simplicial_ale_fsi_3d(
     reference: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition3d,
-    boundary: &AleFsiBoundary3d,
-    motion: &P1HarmonicMeshMotionAction3d,
-    initial: AleFsiState3d,
+    partition: &FixedReferenceFsiPartition<3>,
+    boundary: &AleFsiBoundary<3>,
+    motion: &P1HarmonicMeshMotionAction<3>,
+    initial: AleFsiState<3>,
     step_count: NonZeroStepCount,
-    plan: AleFsiStepPlan3d,
+    plan: AleFsiStepPlan<3>,
     quadrature: &QuadratureRule,
     solver: &dyn LinearSolverBackend,
-) -> Result<AleFsiTrajectory3d, Diagnostic> {
+) -> Result<AleFsiTrajectory<3>, Diagnostic> {
     advance_simplicial_ale_fsi_3d_with_assembly(
         reference,
         partition,
@@ -126,16 +119,16 @@ pub fn advance_simplicial_ale_fsi_3d(
 #[allow(clippy::too_many_arguments)]
 pub fn advance_simplicial_ale_fsi_3d_with_assembly(
     reference: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition3d,
-    boundary: &AleFsiBoundary3d,
-    motion: &P1HarmonicMeshMotionAction3d,
-    initial: AleFsiState3d,
+    partition: &FixedReferenceFsiPartition<3>,
+    boundary: &AleFsiBoundary<3>,
+    motion: &P1HarmonicMeshMotionAction<3>,
+    initial: AleFsiState<3>,
     step_count: NonZeroStepCount,
-    plan: AleFsiStepPlan3d,
+    plan: AleFsiStepPlan<3>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
-) -> Result<AleFsiTrajectory3d, Diagnostic> {
+) -> Result<AleFsiTrajectory<3>, Diagnostic> {
     advance_simplicial_ale_fsi_with_assembly::<3>(
         reference, partition, boundary, motion, initial, step_count, plan, quadrature, assembly,
         solver,

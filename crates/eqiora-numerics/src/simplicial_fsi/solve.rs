@@ -34,12 +34,6 @@ pub struct FinalizedFixedReferenceFsiStep<const D: usize> {
     state: FinalizedState<D>,
 }
 
-/// Established two-dimensional finalized fixed-reference FSI step.
-pub type FinalizedFixedReferenceFsiStep2d = FinalizedFixedReferenceFsiStep<2>;
-
-/// Three-dimensional finalized fixed-reference FSI step.
-pub type FinalizedFixedReferenceFsiStep3d = FinalizedFixedReferenceFsiStep<3>;
-
 impl<const D: usize> FinalizedFixedReferenceFsiStep<D> {
     pub(crate) fn canonical_system_arc(&self) -> Arc<CanonicalCsrSystemView> {
         Arc::clone(&self.canonical_system)
@@ -108,7 +102,7 @@ pub fn finalize_fixed_reference_fsi_step_2d(
     previous: &FixedReferenceFsiState<2>,
     config: FixedReferenceFsiStepConfig<2>,
     quadrature: &QuadratureRule,
-) -> Result<FinalizedFixedReferenceFsiStep2d, Diagnostic> {
+) -> Result<FinalizedFixedReferenceFsiStep<2>, Diagnostic> {
     finalize_fixed_reference_fsi_step_with_assembly(
         mesh,
         partition,
@@ -132,7 +126,7 @@ pub fn finalize_fixed_reference_fsi_step_3d(
     previous: &FixedReferenceFsiState<3>,
     config: FixedReferenceFsiStepConfig<3>,
     quadrature: &QuadratureRule,
-) -> Result<FinalizedFixedReferenceFsiStep3d, Diagnostic> {
+) -> Result<FinalizedFixedReferenceFsiStep<3>, Diagnostic> {
     finalize_fixed_reference_fsi_step_with_assembly(
         mesh,
         partition,
@@ -157,7 +151,7 @@ pub fn finalize_fixed_reference_fsi_step_2d_with_assembly(
     config: FixedReferenceFsiStepConfig<2>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
-) -> Result<FinalizedFixedReferenceFsiStep2d, Diagnostic> {
+) -> Result<FinalizedFixedReferenceFsiStep<2>, Diagnostic> {
     finalize_fixed_reference_fsi_step_with_packet_set(
         mesh,
         partition,
@@ -209,7 +203,7 @@ pub(crate) fn finalize_fixed_reference_fsi_step_2d_with_packet_set(
     quadrature: &QuadratureRule,
     packet_set: AssemblyPacketSetIdentityV1,
     assembly: &dyn AssemblyBackend,
-) -> Result<FinalizedFixedReferenceFsiStep2d, Diagnostic> {
+) -> Result<FinalizedFixedReferenceFsiStep<2>, Diagnostic> {
     finalize_fixed_reference_fsi_step_with_packet_set(
         mesh, partition, boundary, previous, config, quadrature, packet_set, assembly,
     )

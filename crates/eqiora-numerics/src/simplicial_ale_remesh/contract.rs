@@ -3,7 +3,7 @@ use eqiora_meshing::{FixedTopologyGeometryState2d, SimplicialRevisionOverlap2d};
 use eqiora_solver::SolveReport;
 
 use crate::canonical_fsi::AleFsiInitialPhysicalState;
-use crate::simplicial_fsi::{FixedReferenceFsiMaterial2d, FixedReferenceFsiScale2d};
+use crate::simplicial_fsi::{FixedReferenceFsiMaterial, FixedReferenceFsiScale};
 
 const COMPONENTS: usize = 2;
 
@@ -23,7 +23,7 @@ pub struct AleFsiRemeshProjectionEvidence2d {
     velocity_right_hand_side_norm: f64,
     pressure_solve_report: SolveReport,
     pressure_right_hand_side_norm: f64,
-    scale: FixedReferenceFsiScale2d,
+    scale: FixedReferenceFsiScale<2>,
     reference_density: f64,
     characteristic_mass: f64,
     independent_velocity_constraint_count: usize,
@@ -66,8 +66,8 @@ impl AleFsiRemeshProjectionEvidence2d {
         velocity_right_hand_side_norm: f64,
         pressure_solve_report: SolveReport,
         pressure_right_hand_side_norm: f64,
-        scale: FixedReferenceFsiScale2d,
-        material: FixedReferenceFsiMaterial2d,
+        scale: FixedReferenceFsiScale<2>,
+        material: FixedReferenceFsiMaterial<2>,
         independent_velocity_constraint_count: usize,
         displacement_l2_error: f64,
         fluid_current_density_weighted_velocity_l2_error: f64,
@@ -307,7 +307,7 @@ impl AleFsiRemeshProjectionEvidence2d {
 
     /// Characteristic `L`, `U`, and `P` used by the dimensionless algebra.
     #[must_use]
-    pub const fn scale(&self) -> FixedReferenceFsiScale2d {
+    pub const fn scale(&self) -> FixedReferenceFsiScale<2> {
         self.scale
     }
 

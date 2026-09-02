@@ -34,10 +34,10 @@ use eqiora::solver::{
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
-    ale::AleFsiBoundary2d, ale::AleFsiCartesianModel, ale::AleFsiInitialPhysicalState,
-    ale::AleFsiState2d, ale::AleFsiTrajectory2d, ale::P1HarmonicMeshMotionAction2d,
+    ale::AleFsiBoundary, ale::AleFsiCartesianModel, ale::AleFsiInitialPhysicalState,
+    ale::AleFsiState, ale::AleFsiTrajectory, ale::P1HarmonicMeshMotionAction,
     ale::finalize_resolved_fixed_topology_ale_fsi_2d, ale::fixed_topology_ale_fsi_requirements_2d,
-    ale::lower_ale_fsi_cartesian_2d, common::NonZeroStepCount, fsi::FixedReferenceFsiPartition2d,
+    ale::lower_ale_fsi_cartesian_2d, common::NonZeroStepCount, fsi::FixedReferenceFsiPartition,
 };
 
 const COMPONENTS: usize = 2;
@@ -179,8 +179,8 @@ struct Fixture {
     mesh_artifact: SimplicialMeshEnvelopeV1,
     mesh_reference: MeshArtifactReference,
     mesh: SimplicialMesh,
-    partition: FixedReferenceFsiPartition2d,
-    boundary: AleFsiBoundary2d,
+    partition: FixedReferenceFsiPartition<2>,
+    boundary: AleFsiBoundary<2>,
 }
 
 impl Fixture {
@@ -191,8 +191,9 @@ impl Fixture {
         assert_eq!(mesh_artifact.mesh(), &mesh);
         assert_eq!(document.program().model(), canonical.model());
         let (fluid, solid, interface) = inventories(&mesh);
-        let partition = FixedReferenceFsiPartition2d::new(&mesh, fluid, solid, interface).unwrap();
-        let boundary = AleFsiBoundary2d::homogeneous_exterior(&mesh).unwrap();
+        let partition =
+            FixedReferenceFsiPartition::<2>::new(&mesh, fluid, solid, interface).unwrap();
+        let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
         Self {
             document,
             canonical,
@@ -285,8 +286,8 @@ impl Fixture {
 }
 
 struct ExecutedTrajectory {
-    motion: P1HarmonicMeshMotionAction2d,
-    trajectory: AleFsiTrajectory2d,
+    motion: P1HarmonicMeshMotionAction<2>,
+    trajectory: AleFsiTrajectory<2>,
 }
 
 struct MovingSnapshotSet {
@@ -312,7 +313,7 @@ impl MovingSnapshotSet {
 
 fn assert_moving_artifact_dag_replays(
     fixture: &Fixture,
-    trajectory: &AleFsiTrajectory2d,
+    trajectory: &AleFsiTrajectory<2>,
     time_step: f64,
 ) {
     let model = ModelEnvelope::from_program(fixture.document.program()).unwrap();
@@ -461,7 +462,7 @@ fn assert_moving_artifact_dag_replays(
 fn moving_snapshots(
     fixture: &Fixture,
     context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
-    state: &AleFsiState2d,
+    state: &AleFsiState<2>,
 ) -> MovingSnapshotSet {
     let vector = DiscreteFieldShape::Vector {
         components: NonZeroU32::new(COMPONENTS as u32).unwrap(),
@@ -571,8 +572,8 @@ fn flatten_vectors(values: &[[f64; COMPONENTS]]) -> Vec<f64> {
 
 fn assert_harmonic_geometry_replays(
     fixture: &Fixture,
-    motion: &P1HarmonicMeshMotionAction2d,
-    trajectory: &AleFsiTrajectory2d,
+    motion: &P1HarmonicMeshMotionAction<2>,
+    trajectory: &AleFsiTrajectory<2>,
 ) {
     for state in trajectory.states() {
         state
@@ -598,7 +599,7 @@ fn assert_harmonic_geometry_replays(
 
 fn assert_consecutive_geometry_and_evidence(
     fixture: &Fixture,
-    trajectory: &AleFsiTrajectory2d,
+    trajectory: &AleFsiTrajectory<2>,
     time_step: f64,
 ) {
     let finalized = finalize_resolved_fixed_topology_ale_fsi_2d(
@@ -694,10 +695,10 @@ fn assert_consecutive_geometry_and_evidence(
     }
 }
 
-fn assert_static_geometry_falsifier(fixture: &Fixture, motion: &P1HarmonicMeshMotionAction2d) {
+fn assert_static_geometry_falsifier(fixture: &Fixture, motion: &P1HarmonicMeshMotionAction<2>) {
     let zero = vec![[0.0; COMPONENTS]; fixture.mesh.vertices().len()];
     assert_eq!(motion.apply(&zero).unwrap(), zero);
-    let state = AleFsiState2d::new(
+    let state = AleFsiState::<2>::new(
         0.0,
         &fixture.mesh,
         &fixture.partition,
@@ -729,9 +730,9 @@ fn assert_static_geometry_falsifier(fixture: &Fixture, motion: &P1HarmonicMeshMo
 
 fn solid_displacement_mass_distance(
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
-    left: &AleFsiState2d,
-    right: &AleFsiState2d,
+    partition: &FixedReferenceFsiPartition<2>,
+    left: &AleFsiState<2>,
+    right: &AleFsiState<2>,
 ) -> f64 {
     let mut squared = 0.0;
     for cell in partition.solid_cells() {

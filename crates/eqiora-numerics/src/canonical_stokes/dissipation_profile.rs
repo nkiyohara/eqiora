@@ -20,8 +20,8 @@ mod e1_sealed_input;
 use super::api::SteadyIncompressibleStokesModel2d;
 use super::geometry_realization::require_stokes_dissipation_mesh_predicates;
 use super::recognize::lower_stokes_dissipation_profile_model_2d;
-use crate::simplicial_ale_fsi::P1HarmonicMeshMotionAction2d;
-use crate::simplicial_fsi::FixedReferenceFsiPartition2d;
+use crate::simplicial_ale_fsi::P1HarmonicMeshMotionAction;
+use crate::simplicial_fsi::FixedReferenceFsiPartition;
 use eqiora_artifact::{
     CanonicalModelArtifact, GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1,
     ModelArtifactReference, ModelEnvelope, SimplicialMeshEnvelopeV1,
@@ -344,7 +344,7 @@ impl StokesDissipationTopology2d {
         solver: LinearSolveRequest<'_>,
     ) -> Result<RealizedStokesDissipationGeometry2d, Diagnostic> {
         let (augmented, partition, original_vertices) = self.harmonic_auxiliary()?;
-        let action = P1HarmonicMeshMotionAction2d::new(&augmented, &partition, solver)?;
+        let action = P1HarmonicMeshMotionAction::<2>::new(&augmented, &partition, solver)?;
         debug_assert_eq!(original_vertices, self.reference_mesh.vertices().len());
         let state = self.harmonic_state(profile, &action)?;
         let mesh = state.reconstruct_mesh(&self.reference_mesh)?;
@@ -385,7 +385,7 @@ impl StokesDissipationTopology2d {
     fn harmonic_state(
         &self,
         profile: &StokesDissipationProfileGeometry2d,
-        action: &P1HarmonicMeshMotionAction2d,
+        action: &P1HarmonicMeshMotionAction<2>,
     ) -> Result<FixedTopologyGeometryState2d, Diagnostic> {
         let (augmented, partition, original_vertices) = self.harmonic_auxiliary()?;
         action.validate_reference(&augmented, &partition)?;
@@ -419,7 +419,7 @@ impl StokesDissipationTopology2d {
     }
     fn harmonic_auxiliary(
         &self,
-    ) -> Result<(SimplicialMesh, FixedReferenceFsiPartition2d, usize), Diagnostic> {
+    ) -> Result<(SimplicialMesh, FixedReferenceFsiPartition<2>, usize), Diagnostic> {
         let original_vertices = self.reference_mesh.vertices().len();
         let mut vertices = self.reference_mesh.vertices().to_vec();
         let center = vertices.len();
@@ -443,7 +443,7 @@ impl StokesDissipationTopology2d {
             .collect::<Result<Vec<_>, _>>()?;
         interface.sort_unstable();
         let partition =
-            FixedReferenceFsiPartition2d::new(&augmented, fluid_cells, solid_cells, interface)?;
+            FixedReferenceFsiPartition::<2>::new(&augmented, fluid_cells, solid_cells, interface)?;
         Ok((augmented, partition, original_vertices))
     }
 }
@@ -460,7 +460,7 @@ fn classified_vertex_ids(
 }
 #[derive(Debug, Clone, PartialEq)]
 struct RealizedStokesDissipationGeometry2d {
-    motion_action: P1HarmonicMeshMotionAction2d,
+    motion_action: P1HarmonicMeshMotionAction<2>,
     state: FixedTopologyGeometryState2d,
     geometry: GeometryDefinitionV1,
     mesh: SimplicialMeshEnvelopeV1,
@@ -471,7 +471,7 @@ struct RealizedStokesDissipationGeometry2d {
 pub(super) struct StokesDissipationGeometryModelBinding2d {
     profile: StokesDissipationProfileGeometry2d,
     topology: StokesDissipationTopology2d,
-    motion_action: P1HarmonicMeshMotionAction2d,
+    motion_action: P1HarmonicMeshMotionAction<2>,
     state: FixedTopologyGeometryState2d,
     geometry: GeometryDefinitionV1,
     mesh: SimplicialMeshEnvelopeV1,

@@ -23,7 +23,7 @@ use crate::discrete_block::{
     FieldBlockRole, RelationBlock, RelationDisposition, ResidualBlock, ResidualOrigin,
     boundary_treatment, conforming_interface_relations,
 };
-use crate::simplicial_fsi::FixedReferenceFsiPartition2d;
+use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
 const LENGTH: DimExponents = DimExponents {
     length: 1,
@@ -46,7 +46,7 @@ pub(super) fn fixed_reference_fsi_block_system(
     resolved: &ResolvedCoupledFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     scales: FixedReferenceFsiScaleProfile2d,
 ) -> Result<DiscreteBlockSystem, Diagnostic> {
     let fluid_domain = fluid_domain(model);

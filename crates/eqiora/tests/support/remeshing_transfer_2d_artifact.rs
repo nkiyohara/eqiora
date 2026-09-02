@@ -19,8 +19,8 @@ use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFi
 use eqiora::realization::{AleFsiRemeshTransferPlan2d, ResolvedFixedTopologyAleCoupledRealization};
 use eqiora::{Id, kinds};
 use eqiora_numerics::{
-    ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiCartesianModel, ale::AleFsiState2d,
-    fsi::FixedReferenceFsiPartition2d,
+    ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiCartesianModel, ale::AleFsiState,
+    fsi::FixedReferenceFsiPartition,
 };
 
 use super::case::{
@@ -32,8 +32,8 @@ pub(super) fn assert_artifact_vertical_slice(
     case: &Case,
     source_resolved: &ResolvedFixedTopologyAleCoupledRealization,
     target_resolved: &ResolvedFixedTopologyAleCoupledRealization,
-    source_trajectory: &eqiora_numerics::ale::AleFsiTrajectory2d,
-    target_trajectory: &eqiora_numerics::ale::AleFsiTrajectory2d,
+    source_trajectory: &eqiora_numerics::ale::AleFsiTrajectory<2>,
+    target_trajectory: &eqiora_numerics::ale::AleFsiTrajectory<2>,
     projection: &AcceptedAleFsiRemeshProjection2d,
     transfer_plan: AleFsiRemeshTransferPlan2d,
 ) {
@@ -746,8 +746,8 @@ fn assert_ml_dataset_vertical_slice(
     replay: &eqiora::api::RemeshingTrajectoryReplayInputV1<'_, ModelEnvelope>,
     source_snapshots: &[MovingSnapshotSet],
     target_snapshots: &[MovingSnapshotSet],
-    source_partition: &FixedReferenceFsiPartition2d,
-    target_partition: &FixedReferenceFsiPartition2d,
+    source_partition: &FixedReferenceFsiPartition<2>,
+    target_partition: &FixedReferenceFsiPartition<2>,
 ) {
     use eqiora::api::{
         MlDatasetDerivationPlanV1, MlDatasetFieldSelectionV1, MlDatasetMaterializationLimitsV1,
@@ -1343,9 +1343,9 @@ impl MovingSnapshotSet {
 fn moving_snapshots(
     model: &AleFsiCartesianModel<2>,
     mesh: &SimplicialMeshEnvelopeV1,
-    partition: &FixedReferenceFsiPartition2d,
+    partition: &FixedReferenceFsiPartition<2>,
     context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
-    state: &AleFsiState2d,
+    state: &AleFsiState<2>,
 ) -> MovingSnapshotSet {
     let vector = DiscreteFieldShape::Vector {
         components: NonZeroU32::new(COMPONENTS as u32).unwrap(),

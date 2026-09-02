@@ -517,7 +517,7 @@ fn distributed_assembly_binding_rejects_foreign_operator_evidence() {
     let fixture = Fixture::new(SOURCE);
     let (finalized, _) =
         finalize_with_loopback(&fixture, VectorLayoutKind::Distributed, &fixture.previous);
-    let zero_previous = FixedReferenceFsiState2d::new(
+    let zero_previous = FixedReferenceFsiState::<2>::new(
         &fixture.mesh,
         &fixture.partition,
         vec![[0.0; 2]; fixture.mesh.vertices().len()],
@@ -617,8 +617,8 @@ struct Fixture {
     program: KernelProgram,
     model: FixedReferenceFsiCartesianModel2d,
     mesh: SimplicialMesh,
-    partition: FixedReferenceFsiPartition2d,
-    previous: FixedReferenceFsiState2d,
+    partition: FixedReferenceFsiPartition<2>,
+    previous: FixedReferenceFsiState<2>,
 }
 
 impl Fixture {
@@ -628,7 +628,8 @@ impl Fixture {
             .expect("canonical FSI meaning");
         let mesh = physical_mesh();
         let (fluid, solid, interface) = inventories(&mesh);
-        let partition = FixedReferenceFsiPartition2d::new(&mesh, fluid, solid, interface).unwrap();
+        let partition =
+            FixedReferenceFsiPartition::<2>::new(&mesh, fluid, solid, interface).unwrap();
         let mut displacement = vec![[0.0; 2]; mesh.vertices().len()];
         let free_interface = mesh
             .vertices()
@@ -636,7 +637,7 @@ impl Fixture {
             .position(|point| point.as_slice() == [1.0, 0.5])
             .unwrap();
         displacement[free_interface] = [0.02, 0.0];
-        let previous = FixedReferenceFsiState2d::new(
+        let previous = FixedReferenceFsiState::<2>::new(
             &mesh,
             &partition,
             vec![[0.0; 2]; mesh.vertices().len()],
@@ -718,7 +719,7 @@ fn fsi_solver_capabilities(reduction: ReductionPolicy) -> SolverCapabilities {
 fn finalize_with_loopback(
     fixture: &Fixture,
     vector_layout: VectorLayoutKind,
-    previous: &FixedReferenceFsiState2d,
+    previous: &FixedReferenceFsiState<2>,
 ) -> (
     FinalizedResolvedFixedReferenceFsiStep2d,
     DistributedAssemblyEvidence,
@@ -729,7 +730,7 @@ fn finalize_with_loopback(
 fn finalize_with_loopback_for_mesh(
     fixture: &Fixture,
     vector_layout: VectorLayoutKind,
-    previous: &FixedReferenceFsiState2d,
+    previous: &FixedReferenceFsiState<2>,
     mesh_reference: MeshArtifactReference,
 ) -> (
     FinalizedResolvedFixedReferenceFsiStep2d,

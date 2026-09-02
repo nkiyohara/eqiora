@@ -106,12 +106,6 @@ impl<const D: usize> FixedReferenceFsiMaterial<D> {
     }
 }
 
-/// Established two-dimensional material API.
-pub type FixedReferenceFsiMaterial2d = FixedReferenceFsiMaterial<2>;
-
-/// Three-dimensional material data with the dimension-correct coercivity gate.
-pub type FixedReferenceFsiMaterial3d = FixedReferenceFsiMaterial<3>;
-
 /// Characteristic profile defining the dimensionless monolithic algebra.
 ///
 /// For velocity scale `U`, pressure scale `P`, and length scale `L`, physical
@@ -188,12 +182,6 @@ impl<const D: usize> FixedReferenceFsiScale<D> {
     }
 }
 
-/// Established two-dimensional scale API.
-pub type FixedReferenceFsiScale2d = FixedReferenceFsiScale<2>;
-
-/// Three-dimensional scale profile with area-valued interface action.
-pub type FixedReferenceFsiScale3d = FixedReferenceFsiScale<3>;
-
 /// Complete time/material/scale selection for one backward-Euler step.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FixedReferenceFsiStepConfig<const D: usize> {
@@ -252,12 +240,6 @@ impl<const D: usize> FixedReferenceFsiStepConfig<D> {
     }
 }
 
-/// Established two-dimensional backward-Euler step contract.
-pub type FixedReferenceFsiStepConfig2d = FixedReferenceFsiStepConfig<2>;
-
-/// Three-dimensional backward-Euler step contract.
-pub type FixedReferenceFsiStepConfig3d = FixedReferenceFsiStepConfig<3>;
-
 /// Bounded load vocabulary for the first CPU reference realization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FixedReferenceFsiLoad {
@@ -265,12 +247,6 @@ pub enum FixedReferenceFsiLoad {
     #[default]
     Zero,
 }
-
-/// Established two-dimensional load name.
-pub type FixedReferenceFsiLoad2d = FixedReferenceFsiLoad;
-
-/// Three-dimensional load name over the same semantic policy.
-pub type FixedReferenceFsiLoad3d = FixedReferenceFsiLoad;
 
 /// Private complete exterior-facet role stored by an admitted prepared step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -456,12 +432,6 @@ impl<const D: usize> FixedReferenceFsiBoundary<D> {
     }
 }
 
-/// Established two-dimensional boundary API.
-pub type FixedReferenceFsiBoundary2d = FixedReferenceFsiBoundary<2>;
-
-/// Three-dimensional homogeneous exterior-velocity boundary.
-pub type FixedReferenceFsiBoundary3d = FixedReferenceFsiBoundary<3>;
-
 /// Complete previous-step state for the fixed-reference spaces.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FixedReferenceFsiState<const D: usize> {
@@ -542,12 +512,6 @@ impl<const D: usize> FixedReferenceFsiState<D> {
         &self.solid_displacement
     }
 }
-
-/// Established two-dimensional fixed-reference state API.
-pub type FixedReferenceFsiState2d = FixedReferenceFsiState<2>;
-
-/// Three-dimensional fixed-reference state over tetrahedral spaces.
-pub type FixedReferenceFsiState3d = FixedReferenceFsiState<3>;
 
 pub(crate) fn validate_problem<const D: usize>(
     mesh: &SimplicialMesh,

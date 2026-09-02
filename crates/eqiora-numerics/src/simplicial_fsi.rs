@@ -27,28 +27,16 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
 pub use api::{
-    FixedReferenceFsiEnergyBalance, FixedReferenceFsiEnergyBalance2d,
-    FixedReferenceFsiEnergyBalance3d, FixedReferenceFsiInterfaceAction,
-    FixedReferenceFsiInterfaceAction2d, FixedReferenceFsiInterfaceAction3d,
-    FixedReferenceFsiSolution, FixedReferenceFsiSolution2d, FixedReferenceFsiSolution3d,
+    FixedReferenceFsiEnergyBalance, FixedReferenceFsiInterfaceAction, FixedReferenceFsiSolution,
 };
 pub(crate) use contract::validate_problem;
 pub use contract::{
-    FixedReferenceFsiBoundary, FixedReferenceFsiBoundary2d, FixedReferenceFsiBoundary3d,
-    FixedReferenceFsiLoad, FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d,
-    FixedReferenceFsiMaterial, FixedReferenceFsiMaterial2d, FixedReferenceFsiMaterial3d,
-    FixedReferenceFsiScale, FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
-    FixedReferenceFsiState, FixedReferenceFsiState2d, FixedReferenceFsiState3d,
-    FixedReferenceFsiStepConfig, FixedReferenceFsiStepConfig2d, FixedReferenceFsiStepConfig3d,
+    FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
+    FixedReferenceFsiScale, FixedReferenceFsiState, FixedReferenceFsiStepConfig,
 };
-pub use partition::{
-    FixedReferenceFsiInterfaceFacet, FixedReferenceFsiInterfaceFacet2d,
-    FixedReferenceFsiInterfaceFacet3d, FixedReferenceFsiPartition, FixedReferenceFsiPartition2d,
-    FixedReferenceFsiPartition3d,
-};
+pub use partition::{FixedReferenceFsiInterfaceFacet, FixedReferenceFsiPartition};
 pub use solve::{
-    FinalizedFixedReferenceFsiStep, FinalizedFixedReferenceFsiStep2d,
-    FinalizedFixedReferenceFsiStep3d, finalize_fixed_reference_fsi_step_2d,
+    FinalizedFixedReferenceFsiStep, finalize_fixed_reference_fsi_step_2d,
     finalize_fixed_reference_fsi_step_2d_with_assembly, finalize_fixed_reference_fsi_step_3d,
     solve_fixed_reference_fsi_step_2d, solve_fixed_reference_fsi_step_3d,
 };

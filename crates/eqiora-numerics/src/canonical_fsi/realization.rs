@@ -20,9 +20,9 @@ use super::FixedReferenceFsiCartesianModel2d;
 use crate::discrete_block::DiscreteBlockSystem;
 use crate::simplicial_fsi::finalize_fixed_reference_fsi_step_2d_with_packet_set;
 use crate::simplicial_fsi::{
-    FixedReferenceFsiBoundary2d, FixedReferenceFsiLoad2d, FixedReferenceFsiMaterial2d,
-    FixedReferenceFsiPartition2d, FixedReferenceFsiScale2d, FixedReferenceFsiState2d,
-    FixedReferenceFsiStepConfig2d,
+    FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
+    FixedReferenceFsiPartition, FixedReferenceFsiScale, FixedReferenceFsiState,
+    FixedReferenceFsiStepConfig,
 };
 
 mod block;
@@ -50,10 +50,10 @@ pub(crate) struct PreparedResolvedFixedReferenceFsiRun2d<'a> {
     resolved: &'a ResolvedCoupledFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
     mesh: &'a SimplicialMesh,
-    partition: &'a FixedReferenceFsiPartition2d,
+    partition: &'a FixedReferenceFsiPartition<2>,
     assembly: &'a dyn AssemblyBackend,
-    boundary: FixedReferenceFsiBoundary2d,
-    config: FixedReferenceFsiStepConfig2d,
+    boundary: FixedReferenceFsiBoundary<2>,
+    config: FixedReferenceFsiStepConfig<2>,
     quadrature: QuadratureRule,
     realization_graph: eqiora_realization::PortableRealizationGraph,
     block_system: DiscreteBlockSystem,
@@ -63,7 +63,7 @@ impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
     /// Assemble and finalize one action against the immutable prepared structure.
     pub(crate) fn finalize(
         &self,
-        previous: &FixedReferenceFsiState2d,
+        previous: &FixedReferenceFsiState<2>,
     ) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
         let checked_assembly = self.block_system.checked_backend(self.assembly);
         let inner = finalize_fixed_reference_fsi_step_2d_with_packet_set(
@@ -454,8 +454,8 @@ pub fn finalize_resolved_fixed_reference_fsi_step_2d(
     resolved: &ResolvedCoupledFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
-    previous: &FixedReferenceFsiState2d,
+    partition: &FixedReferenceFsiPartition<2>,
+    previous: &FixedReferenceFsiState<2>,
 ) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
     finalize_resolved_fixed_reference_fsi_step_2d_with_assembly(
         model,
@@ -474,7 +474,7 @@ pub(crate) fn prepare_resolved_fixed_reference_fsi_run_2d<'a>(
     resolved: &'a ResolvedCoupledFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
     mesh: &'a SimplicialMesh,
-    partition: &'a FixedReferenceFsiPartition2d,
+    partition: &'a FixedReferenceFsiPartition<2>,
 ) -> Result<PreparedResolvedFixedReferenceFsiRun2d<'a>, Diagnostic> {
     prepare_resolved_fixed_reference_fsi_run_2d_with_assembly(
         model,
@@ -491,7 +491,7 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
     resolved: &'a ResolvedCoupledFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
     mesh: &'a SimplicialMesh,
-    partition: &'a FixedReferenceFsiPartition2d,
+    partition: &'a FixedReferenceFsiPartition<2>,
     assembly: &'a dyn AssemblyBackend,
 ) -> Result<PreparedResolvedFixedReferenceFsiRun2d<'a>, Diagnostic> {
     require_zero_load(model)?;
@@ -499,28 +499,28 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
     require_mesh_partition(model, mesh, partition)?;
     let realization_graph = resolved.portable_graph(solid_kinematic_relation(model))?;
     let scales = require_exact_plan(model, resolved, &realization_graph, mesh_artifact)?;
-    let material = FixedReferenceFsiMaterial2d::from_admitted_solid(
+    let material = FixedReferenceFsiMaterial::<2>::from_admitted_solid(
         model.fluid().mass_density(),
         model.fluid().dynamic_viscosity(),
         model.solid().mass_density(),
         model.solid().continuum().material(),
     )
     .map_err(realization_error)?;
-    let scale = FixedReferenceFsiScale2d::new(
+    let scale = FixedReferenceFsiScale::<2>::new(
         scales.length().value(),
         scales.velocity().value(),
         scales.pressure().value(),
     )
     .map_err(realization_error)?;
-    let config = FixedReferenceFsiStepConfig2d::new(
+    let config = FixedReferenceFsiStepConfig::<2>::new(
         resolved.plan().time_step().duration().value(),
         material,
         scale,
-        FixedReferenceFsiLoad2d::Zero,
+        FixedReferenceFsiLoad::Zero,
     )
     .map_err(realization_error)?;
     let boundary =
-        FixedReferenceFsiBoundary2d::homogeneous_exterior(mesh).map_err(realization_error)?;
+        FixedReferenceFsiBoundary::<2>::homogeneous_exterior(mesh).map_err(realization_error)?;
     let quadrature =
         triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS).map_err(realization_error)?;
     let block_system = block::fixed_reference_fsi_block_system(
@@ -562,8 +562,8 @@ pub fn finalize_resolved_fixed_reference_fsi_step_2d_with_assembly(
     resolved: &ResolvedCoupledFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition2d,
-    previous: &FixedReferenceFsiState2d,
+    partition: &FixedReferenceFsiPartition<2>,
+    previous: &FixedReferenceFsiState<2>,
     assembly: &dyn AssemblyBackend,
 ) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
     prepare_resolved_fixed_reference_fsi_run_2d_with_assembly(
