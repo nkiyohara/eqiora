@@ -1,5 +1,9 @@
 //! Closed scalar instruction tape for the private Cartesian Q1 elasticity form.
 
+mod evaluate;
+
+use evaluate::{closed_inputs, instruction_tangent, instruction_value, reverse};
+
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, RawId};
 use eqiora_ir::{
@@ -9,7 +13,10 @@ use eqiora_ir::{
 use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{ExprId, ExprNode, SymbolRef};
 
-use super::{DIVERGENCE_BY_PARTS, DerivationCertificate, SOURCE_PAIRING, TEST_PAIRING, tape_error};
+use super::{
+    DIVERGENCE_BY_PARTS, ElasticityDerivationSource, SOURCE_PAIRING, TEST_PAIRING, tape_error,
+};
+use crate::form_compiler::vocabulary::PrimalGalerkinCorrespondence;
 
 const INPUT_COUNT: usize = 12;
 const ROOT_COUNT: usize = 2;
@@ -213,8 +220,7 @@ impl LocalFormProgram2d {
             }
             values.push(value);
             if let (Some(input_tangent), Some(tangents)) = (input_tangent, tangents.as_mut()) {
-                let tangent =
-                    instruction_tangent(*instruction, inputs, input_tangent, &values, tangents);
+                let tangent = instruction_tangent(*instruction, input_tangent, &values, tangents);
                 if !tangent.is_finite() {
                     return Err(tape_error("local-form tangent intermediate is non-finite"));
                 }
@@ -339,19 +345,12 @@ fn contains_displacement(
 }
 
 pub(super) fn compile_derived_local_form_program_2d(
-    typed_balance: &TypedResidual<RawId>,
-    stress: ExprId,
-    displacement: RawId,
-    material_parameters: [Id<kinds::Parameter>; 2],
-    certificate: &super::DerivationCertificate,
+    source: ElasticityDerivationSource<'_>,
+    certificate: &PrimalGalerkinCorrespondence,
 ) -> Result<LocalFormProgram2d, Diagnostic> {
-    certificate.validate_tape_source(typed_balance, stress, displacement, material_parameters)?;
-    let mut compiler = ProgramCompiler::derived(
-        typed_balance,
-        displacement,
-        material_parameters,
-        certificate,
-    );
+    source.validate(certificate)?;
+    let stress = source.volume.stress;
+    let mut compiler = ProgramCompiler::derived(source, certificate);
     let program = compiler.compile_derived(stress)?;
     program.validate()?;
     let witness = ProgramCompiler::witness().compile_witness()?;
@@ -374,7 +373,7 @@ struct ProgramCompiler<'a> {
     displacement: Option<RawId>,
     materials: Option<[Id<kinds::Parameter>; 2]>,
     relation: Option<RawId>,
-    volume: Option<super::VolumeNodes>,
+    certificate: Option<&'a PrimalGalerkinCorrespondence>,
     instructions: Vec<LocalFormInstruction>,
     provenance: Vec<LocalFormInstructionProvenance>,
 }
@@ -394,17 +393,15 @@ enum StressSource {
 
 impl<'a> ProgramCompiler<'a> {
     fn derived(
-        typed: &'a TypedResidual<RawId>,
-        displacement: RawId,
-        materials: [Id<kinds::Parameter>; 2],
-        certificate: &DerivationCertificate,
+        source: ElasticityDerivationSource<'a>,
+        certificate: &'a PrimalGalerkinCorrespondence,
     ) -> Self {
         Self {
-            typed: Some(typed),
-            displacement: Some(displacement),
-            materials: Some(materials),
-            relation: Some(certificate.balance_relation),
-            volume: Some(certificate.volume),
+            typed: Some(source.typed_balance),
+            displacement: Some(source.displacement),
+            materials: Some(source.material_parameters),
+            relation: Some(source.balance_relation),
+            certificate: Some(certificate),
             instructions: Vec::new(),
             provenance: Vec::new(),
         }
@@ -416,7 +413,7 @@ impl<'a> ProgramCompiler<'a> {
             displacement: None,
             materials: None,
             relation: None,
-            volume: None,
+            certificate: None,
             instructions: Vec::new(),
             provenance: Vec::new(),
         }
@@ -814,7 +811,17 @@ impl<'a> ProgramCompiler<'a> {
         source_node: Option<ExprId>,
         operator_definition: Option<OperatorDefinitionDigest>,
     ) -> LocalFormInstructionProvenance {
-        let source_node = source_node.or(self.volume.map(|volume| volume.load_gradient));
+        let source_node = source_node.or_else(|| {
+            self.certificate.and_then(|certificate| {
+                certificate
+                    .entries
+                    .iter()
+                    .find(|entry| {
+                        entry.rule_id == SOURCE_PAIRING && Some(entry.relation) == self.relation
+                    })
+                    .map(|entry| entry.source_node)
+            })
+        });
         LocalFormInstructionProvenance {
             rule_id: None,
             relation: self.relation,
@@ -826,16 +833,31 @@ impl<'a> ProgramCompiler<'a> {
         &self,
         rule_id: &'static str,
     ) -> Result<LocalFormInstructionProvenance, Diagnostic> {
-        let source_node = match rule_id {
-            TEST_PAIRING => self.volume.map(|volume| volume.root),
-            DIVERGENCE_BY_PARTS => self.volume.map(|volume| volume.divergence),
-            SOURCE_PAIRING => self.volume.map(|volume| volume.load_gradient),
-            _ => return Err(tape_error("compiler requested an unknown weak rule")),
+        let Some(certificate) = self.certificate else {
+            return Ok(LocalFormInstructionProvenance {
+                rule_id: Some(rule_id),
+                relation: None,
+                source_node: None,
+                operator_definition: None,
+            });
         };
+        let relation = self
+            .relation
+            .ok_or_else(|| tape_error("derived compiler has no Relation identity"))?;
+        let mut matching = certificate
+            .entries
+            .iter()
+            .filter(|entry| entry.rule_id == rule_id && entry.relation == relation);
+        let entry = matching
+            .next()
+            .ok_or_else(|| tape_error("certificate has no matching weak-rule provenance"))?;
+        if matching.next().is_some() {
+            return Err(tape_error("certificate has duplicate weak-rule provenance"));
+        }
         Ok(LocalFormInstructionProvenance {
-            rule_id: Some(rule_id),
-            relation: self.relation,
-            source_node: self.relation.and(source_node),
+            rule_id: Some(entry.rule_id),
+            relation: Some(entry.relation),
+            source_node: Some(entry.source_node),
             operator_definition: None,
         })
     }
@@ -847,102 +869,6 @@ impl<'a> ProgramCompiler<'a> {
             provenance: std::mem::take(&mut self.provenance),
         })
     }
-}
-
-fn closed_inputs() -> &'static [LocalFormInput2d; INPUT_COUNT] {
-    &[
-        LocalFormInput2d::Material(0),
-        LocalFormInput2d::Material(1),
-        LocalFormInput2d::StateJet {
-            component: 0,
-            axis: 0,
-        },
-        LocalFormInput2d::StateJet {
-            component: 0,
-            axis: 1,
-        },
-        LocalFormInput2d::StateJet {
-            component: 1,
-            axis: 0,
-        },
-        LocalFormInput2d::StateJet {
-            component: 1,
-            axis: 1,
-        },
-        LocalFormInput2d::ShapeGradient(0),
-        LocalFormInput2d::ShapeGradient(1),
-        LocalFormInput2d::ShapeValue,
-        LocalFormInput2d::BodyForce(0),
-        LocalFormInput2d::BodyForce(1),
-        LocalFormInput2d::QuadratureScale,
-    ]
-}
-
-fn instruction_value(instruction: LocalFormInstruction, inputs: &[f64], values: &[f64]) -> f64 {
-    match instruction {
-        LocalFormInstruction::Read(input) => inputs[usize::from(input)],
-        LocalFormInstruction::ConstantBits(bits) => f64::from_bits(bits),
-        LocalFormInstruction::Neg(value) => -values[usize::from(value)],
-        LocalFormInstruction::Add(left, right) => {
-            values[usize::from(left)] + values[usize::from(right)]
-        }
-        LocalFormInstruction::Mul(left, right) => {
-            values[usize::from(left)] * values[usize::from(right)]
-        }
-    }
-}
-
-fn instruction_tangent(
-    instruction: LocalFormInstruction,
-    _inputs: &[f64],
-    input_tangent: &[f64],
-    values: &[f64],
-    tangents: &[f64],
-) -> f64 {
-    match instruction {
-        LocalFormInstruction::Read(input) => input_tangent[usize::from(input)],
-        LocalFormInstruction::ConstantBits(_) => 0.0,
-        LocalFormInstruction::Neg(value) => -tangents[usize::from(value)],
-        LocalFormInstruction::Add(left, right) => {
-            tangents[usize::from(left)] + tangents[usize::from(right)]
-        }
-        LocalFormInstruction::Mul(left, right) => {
-            tangents[usize::from(left)] * values[usize::from(right)]
-                + values[usize::from(left)] * tangents[usize::from(right)]
-        }
-    }
-}
-
-fn reverse(
-    program: &LocalFormProgram2d,
-    values: &[f64],
-    root_cotangent: &[f64],
-) -> Result<Vec<f64>, Diagnostic> {
-    let mut adjoints = vec![0.0; program.instructions.len()];
-    for (root, cotangent) in program.roots.iter().zip(root_cotangent) {
-        adjoints[usize::from(*root)] += cotangent;
-    }
-    let mut inputs = vec![0.0; INPUT_COUNT];
-    for index in (0..program.instructions.len()).rev() {
-        let adjoint = adjoints[index];
-        match program.instructions[index] {
-            LocalFormInstruction::Read(input) => inputs[usize::from(input)] += adjoint,
-            LocalFormInstruction::ConstantBits(_) => {}
-            LocalFormInstruction::Neg(value) => adjoints[usize::from(value)] -= adjoint,
-            LocalFormInstruction::Add(left, right) => {
-                adjoints[usize::from(left)] += adjoint;
-                adjoints[usize::from(right)] += adjoint;
-            }
-            LocalFormInstruction::Mul(left, right) => {
-                adjoints[usize::from(left)] += adjoint * values[usize::from(right)];
-                adjoints[usize::from(right)] += adjoint * values[usize::from(left)];
-            }
-        }
-        if !adjoints[index].is_finite() || inputs.iter().any(|value| !value.is_finite()) {
-            return Err(tape_error("local-form reverse intermediate is non-finite"));
-        }
-    }
-    Ok(inputs)
 }
 
 fn standard_definition(

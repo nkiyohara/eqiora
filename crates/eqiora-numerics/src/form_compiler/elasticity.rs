@@ -8,11 +8,10 @@ use std::borrow::Cow;
 use eqiora_assembly::LocalContribution;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, Id, OntologyId, RawId};
+use eqiora_core::{Diagnostic, Id, RawId};
 use eqiora_meshing::{
     AffineGeometryMap, GeometryMap, QuadratureRule, ReferenceCell, ReferenceCellFamily,
 };
-use eqiora_schema::Model;
 use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{BoundarySide, ExprId, ExprNode, SymbolRef};
 use eqiora_sem::KernelProgram;
@@ -25,7 +24,7 @@ use crate::affine_fem::physical_gradient;
 use crate::canonical_boundary::PhysicalBoundaryDisposition;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::vocabulary::{
-    BoundarySource, CertificateEntry, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
+    BoundarySource, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
 };
 pub(super) use crate::form_compiler::vocabulary::{
     DIVERGENCE_BY_PARTS, SOURCE_PAIRING, TEST_PAIRING,
@@ -53,37 +52,30 @@ struct BoundaryRole {
     trace_node: ExprId,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct DerivationCertificate {
-    model: OntologyId<Model>,
-    domain: RawId,
-    displacement: RawId,
-    load_potential: RawId,
-    balance_relation: RawId,
-    material_parameters: [Id<kinds::Parameter>; 2],
-    load_parameter: Id<kinds::Parameter>,
-    volume: VolumeNodes,
-    boundaries: Vec<BoundaryRole>,
-    entries: Vec<CertificateEntry>,
-    correspondence: PrimalGalerkinCorrespondence,
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DerivedCartesianQ1ElasticityForm2d {
-    model: OntologyId<Model>,
     domain: RawId,
     displacement: RawId,
-    load_potential: RawId,
     balance_relation: RawId,
     material_parameters: [Id<kinds::Parameter>; 2],
     parameters: [Id<kinds::Parameter>; 3],
     load: ScalarSpatialExpression,
     volume: VolumeNodes,
     boundaries: Vec<BoundaryRole>,
-    certificate: DerivationCertificate,
+    certificate: PrimalGalerkinCorrespondence,
     typed_balance: TypedResidual<RawId>,
-    stress: ExprId,
     program: LocalFormProgram2d,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ElasticityDerivationSource<'a> {
+    typed_balance: &'a TypedResidual<RawId>,
+    domain: RawId,
+    displacement: RawId,
+    material_parameters: [Id<kinds::Parameter>; 2],
+    balance_relation: RawId,
+    volume: VolumeNodes,
+    boundaries: &'a [BoundaryRole],
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -106,7 +98,7 @@ pub(crate) struct CartesianElasticityDifferentialActions2d {
 impl DerivedCartesianQ1ElasticityForm2d {
     #[cfg(test)]
     pub(super) const fn correspondence(&self) -> &PrimalGalerkinCorrespondence {
-        &self.certificate.correspondence
+        &self.certificate
     }
 
     pub(crate) fn admit_quadrature(
@@ -120,13 +112,8 @@ impl DerivedCartesianQ1ElasticityForm2d {
                 "derived elasticity requires the certified two-point tensor quadrature",
             ));
         }
-        let regenerated = compile_derived_local_form_program_2d(
-            &self.typed_balance,
-            self.stress,
-            self.displacement,
-            self.material_parameters,
-            &self.certificate,
-        )?;
+        let regenerated =
+            compile_derived_local_form_program_2d(self.derivation_source(), &self.certificate)?;
         if regenerated != self.program {
             return Err(tape_error(
                 "derived elasticity instruction tape is stale or foreign",
@@ -140,22 +127,7 @@ impl DerivedCartesianQ1ElasticityForm2d {
     }
 
     fn validate_certificate(&self) -> Result<(), Diagnostic> {
-        if self.model != self.certificate.model
-            || self.domain != self.certificate.domain
-            || self.displacement != self.certificate.displacement
-            || self.load_potential != self.certificate.load_potential
-            || self.balance_relation != self.certificate.balance_relation
-            || self.material_parameters != self.certificate.material_parameters
-            || self.parameters
-                != [
-                    self.material_parameters[0],
-                    self.material_parameters[1],
-                    self.certificate.load_parameter,
-                ]
-            || self.volume != self.certificate.volume
-            || self.boundaries != self.certificate.boundaries
-            || self.stress != self.volume.stress
-        {
+        if self.parameters[..2] != self.material_parameters {
             return Err(tape_error(
                 "derived elasticity identity replay differs from its certificate",
             ));
@@ -165,12 +137,19 @@ impl DerivedCartesianQ1ElasticityForm2d {
                 "derived elasticity load Parameter identity is stale",
             ));
         }
-        self.certificate.validate_tape_source(
-            &self.typed_balance,
-            self.stress,
-            self.displacement,
-            self.material_parameters,
-        )
+        self.derivation_source().validate(&self.certificate)
+    }
+
+    fn derivation_source(&self) -> ElasticityDerivationSource<'_> {
+        ElasticityDerivationSource {
+            typed_balance: &self.typed_balance,
+            domain: self.domain,
+            displacement: self.displacement,
+            material_parameters: self.material_parameters,
+            balance_relation: self.balance_relation,
+            volume: self.volume,
+            boundaries: &self.boundaries,
+        }
     }
 
     fn validate_geometry(&self, geometry: &AffineGeometryMap) -> Result<(), Diagnostic> {
@@ -224,25 +203,17 @@ impl DerivedCartesianQ1ElasticityForm2d {
     }
 }
 
-impl DerivationCertificate {
-    fn validate_tape_source(
-        &self,
-        typed_balance: &TypedResidual<RawId>,
-        stress: ExprId,
-        displacement: RawId,
-        material_parameters: [Id<kinds::Parameter>; 2],
-    ) -> Result<(), Diagnostic> {
-        let boundary_sources = boundary_sources(&self.boundaries);
-        if typed_balance.expression().nodes().len() > MAX_DAG_NODES
-            || displacement != self.displacement
-            || material_parameters != self.material_parameters
-            || execution::recognize_volume(typed_balance, self.balance_relation, displacement)?
-                != self.volume
-            || stress != self.volume.stress
+impl ElasticityDerivationSource<'_> {
+    fn validate(&self, certificate: &PrimalGalerkinCorrespondence) -> Result<(), Diagnostic> {
+        let boundary_sources = boundary_sources(self.boundaries);
+        if self.typed_balance.expression().nodes().len() > MAX_DAG_NODES
+            || execution::recognize_volume(
+                self.typed_balance,
+                self.balance_relation,
+                self.displacement,
+            )? != self.volume
             || self.boundaries.len() != 2 * DIMENSION
-            || self.entries != self.correspondence.entries
-            || self
-                .correspondence
+            || certificate
                 .replay(correspondence_source(
                     self.domain,
                     self.displacement,
@@ -387,28 +358,25 @@ pub(crate) fn derive_cartesian_q1_elasticity_form_2d(
     ];
     let boundaries = exact_boundaries(program, &model)?;
     let certificate = build_certificate(
-        program.model(),
         model.domain(),
         model.displacement(),
-        model.load_potential(),
         balance_relation,
-        material_parameters,
-        load_parameter,
         volume,
         &boundaries,
     );
-    let tape = compile_derived_local_form_program_2d(
-        &typed_balance,
-        volume.stress,
-        model.displacement(),
-        material_parameters,
-        &certificate,
-    )?;
-    let form = DerivedCartesianQ1ElasticityForm2d {
-        model: program.model(),
+    let derivation_source = ElasticityDerivationSource {
+        typed_balance: &typed_balance,
         domain: model.domain(),
         displacement: model.displacement(),
-        load_potential: model.load_potential(),
+        material_parameters,
+        balance_relation,
+        volume,
+        boundaries: &boundaries,
+    };
+    let tape = compile_derived_local_form_program_2d(derivation_source, &certificate)?;
+    let form = DerivedCartesianQ1ElasticityForm2d {
+        domain: model.domain(),
+        displacement: model.displacement(),
         balance_relation,
         material_parameters,
         parameters,
@@ -417,7 +385,6 @@ pub(crate) fn derive_cartesian_q1_elasticity_form_2d(
         boundaries,
         certificate,
         typed_balance,
-        stress: volume.stress,
         program: tape,
     };
     form.validate_certificate()?;
@@ -863,18 +830,14 @@ fn exact_boundaries(
 
 #[allow(clippy::too_many_arguments)]
 fn build_certificate(
-    model: OntologyId<Model>,
     domain: RawId,
     displacement: RawId,
-    load_potential: RawId,
     balance_relation: RawId,
-    material_parameters: [Id<kinds::Parameter>; 2],
-    load_parameter: Id<kinds::Parameter>,
     volume: VolumeNodes,
     boundaries: &[BoundaryRole],
-) -> DerivationCertificate {
+) -> PrimalGalerkinCorrespondence {
     let boundary_sources = boundary_sources(boundaries);
-    let correspondence = PrimalGalerkinCorrespondence::derive(PrimalGalerkinSource {
+    PrimalGalerkinCorrespondence::derive(PrimalGalerkinSource {
         domain,
         unknown: displacement,
         volume_relation: balance_relation,
@@ -882,21 +845,7 @@ fn build_certificate(
         divergence: volume.divergence,
         source: volume.load_gradient,
         boundaries: &boundary_sources,
-    });
-    let entries = correspondence.entries.clone();
-    DerivationCertificate {
-        model,
-        domain,
-        displacement,
-        load_potential,
-        balance_relation,
-        material_parameters,
-        load_parameter,
-        volume,
-        boundaries: boundaries.to_vec(),
-        entries,
-        correspondence,
-    }
+    })
 }
 
 fn boundary_sources(boundaries: &[BoundaryRole]) -> Vec<BoundarySource> {
