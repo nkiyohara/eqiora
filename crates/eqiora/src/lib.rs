@@ -170,7 +170,7 @@ pub mod numerics {
     };
     pub use eqiora_numerics::solid::{
         CartesianLinearElasticity2dSolution, FinalizedIsotropicElasticityCartesian2dProblem,
-        IsotropicElasticityCartesianModel2d, finalize_resolved_isotropic_elasticity_cartesian_2d,
+        IsotropicElasticityContinuum, finalize_resolved_isotropic_elasticity_cartesian_2d,
         lower_isotropic_elasticity_cartesian_2d, solve_resolved_isotropic_elasticity_cartesian_2d,
     };
 }

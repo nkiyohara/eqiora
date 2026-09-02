@@ -2,7 +2,7 @@ use super::*;
 
 fn resolve_common_elasticity_portable(
     admission: &NativeNumericalAdmission,
-    lowered: &IsotropicElasticityCartesianModel2d,
+    lowered: &IsotropicElasticityContinuum<2>,
     mesh: &CartesianMeshEnvelopeV1,
     cells: [usize; 2],
 ) -> Result<PortableRealizationGraph, Diagnostic> {

@@ -882,7 +882,7 @@ pub(super) fn fluid_domain(model: &AleFsiCartesianModel2d) -> Id<kinds::Domain> 
 }
 
 pub(super) fn solid_domain(model: &AleFsiCartesianModel2d) -> Id<kinds::Domain> {
-    model.solid().domain().downcast().unwrap()
+    model.solid().continuum().domain().downcast().unwrap()
 }
 
 pub(super) fn fluid_velocity(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
@@ -898,7 +898,7 @@ pub(super) fn solid_velocity(model: &AleFsiCartesianModel2d) -> Id<kinds::Field>
 }
 
 pub(super) fn solid_displacement(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
-    model.solid().displacement().downcast().unwrap()
+    model.solid().continuum().displacement().downcast().unwrap()
 }
 
 fn fluid_relation(model: &AleFsiCartesianModel2d) -> Id<kinds::Relation> {

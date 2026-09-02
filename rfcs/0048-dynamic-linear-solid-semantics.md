@@ -92,7 +92,7 @@ fluid and solid libraries.
 
 ## Method-neutral lowering
 
-`IsotropicElastodynamicsCartesianModel2d` records only:
+`IsotropicElastodynamicsCartesianModel<2>` records only:
 
 - exact Domain and displacement, velocity, and load-potential Field IDs;
 - coherent-SI Cartesian bounds;

@@ -144,11 +144,11 @@ fn lower_ale_fsi_cartesian<const D: usize>(
 
     reject_uninterpreted_live_relation_sets(&fluid.boundary, &solid)?;
     let fluid_side = unique_live_side(fluid.model.boundary_inventory(), "fluid")?;
-    let solid_side = unique_live_side(solid.model.boundary_inventory(), "solid")?;
+    let solid_side = unique_live_side(solid.model.continuum().boundary_inventory(), "solid")?;
     require_exact_interface(program, fluid_side, solid_side)?;
     require_coincident_bounds(
         fluid.model.bounds(),
-        solid.model.bounds(),
+        solid.model.continuum().bounds(),
         fluid_side,
         solid_side,
     )?;

@@ -15,12 +15,12 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         panic!("component FSI source was not recognized as FSI")
     };
     let fluid_domain = Id::<Domain>::from_ulid(canonical.fluid().domain().ulid());
-    let solid_domain = Id::<Domain>::from_ulid(canonical.solid().domain().ulid());
+    let solid_domain = Id::<Domain>::from_ulid(canonical.solid().continuum().domain().ulid());
     let field_ids = [
         Id::<Field>::from_ulid(canonical.fluid().velocity().ulid()),
         Id::<Field>::from_ulid(canonical.fluid().pressure().ulid()),
         Id::<Field>::from_ulid(canonical.solid().velocity().ulid()),
-        Id::<Field>::from_ulid(canonical.solid().displacement().ulid()),
+        Id::<Field>::from_ulid(canonical.solid().continuum().displacement().ulid()),
     ];
     let digest = model.digest().unwrap();
     let scoped = CommonMethodRequest::Scoped(vec![

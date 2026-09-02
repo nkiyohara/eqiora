@@ -14,7 +14,7 @@ use eqiora_realization::{
 use eqiora_schema::kernel::BoundarySide;
 use eqiora_solver::{LinearSolver, PreconditionerPolicy, SolverPlan};
 
-use super::super::{FixedReferenceFsiCartesianModel2d, FixedReferenceFsiInterfaceSide2d};
+use super::super::{FixedReferenceFsiCartesianModel2d, FsiInterfaceSide};
 use super::result::FixedReferenceFsiFieldIdentities2d;
 use super::{
     DIMENSION, FixedReferenceFsiExecutionProfile, FixedReferenceFsiScaleProfile2d,
@@ -147,7 +147,12 @@ pub(super) fn require_zero_load(
     model: &FixedReferenceFsiCartesianModel2d,
 ) -> Result<(), Diagnostic> {
     if model.fluid().force_potential_expression().constant_value() != Some(0.0)
-        || model.solid().load_potential_expression().constant_value() != Some(0.0)
+        || model
+            .solid()
+            .continuum()
+            .load_potential_expression()
+            .constant_value()
+            != Some(0.0)
     {
         return Err(invalid_realization(
             "fixed-reference FSI v1 requires exact zero canonical fluid and solid load potentials",
@@ -168,7 +173,7 @@ pub(super) fn require_boundary_meaning(
         "fluid",
     )?;
     require_physics_boundary(
-        model.solid().boundary_inventory(),
+        model.solid().continuum().boundary_inventory(),
         interface.axis(),
         interface.solid(),
         interface.connection(),
@@ -179,7 +184,7 @@ pub(super) fn require_boundary_meaning(
 fn require_physics_boundary(
     inventory: &crate::canonical_boundary::CartesianBoundaryInventory2d,
     interface_axis: usize,
-    interface_side: FixedReferenceFsiInterfaceSide2d,
+    interface_side: FsiInterfaceSide,
     connection: eqiora_core::RawId,
     physics: &str,
 ) -> Result<(), Diagnostic> {
@@ -233,7 +238,7 @@ pub(super) fn require_mesh_partition(
     require_cells_in_bounds(
         mesh,
         partition.solid_cells(),
-        model.solid().bounds(),
+        model.solid().continuum().bounds(),
         "solid",
     )?;
 
@@ -293,7 +298,7 @@ pub(super) fn require_mesh_partition(
             )
         } else {
             (
-                model.solid().bounds(),
+                model.solid().continuum().bounds(),
                 &mut solid_coverage,
                 interface.solid().side(),
             )
@@ -501,6 +506,7 @@ pub(super) fn fluid_domain(model: &FixedReferenceFsiCartesianModel2d) -> Id<kind
 pub(super) fn solid_domain(model: &FixedReferenceFsiCartesianModel2d) -> Id<kinds::Domain> {
     model
         .solid()
+        .continuum()
         .domain()
         .downcast()
         .expect("lowered solid Domain retains its entity kind")
@@ -525,6 +531,7 @@ pub(super) fn fluid_pressure(model: &FixedReferenceFsiCartesianModel2d) -> Id<ki
 pub(super) fn solid_displacement(model: &FixedReferenceFsiCartesianModel2d) -> Id<kinds::Field> {
     model
         .solid()
+        .continuum()
         .displacement()
         .downcast()
         .expect("lowered solid displacement retains its Field kind")

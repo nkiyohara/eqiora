@@ -369,7 +369,7 @@ pub(crate) fn derive_cartesian_q1_elasticity_form_2d(
             "derived elasticity requires the exact frozen unit-square Model",
         ));
     }
-    let balance_relation = model.balance_relation();
+    let balance_relation = model.equilibrium_relation();
     let typed_balance = typed_relation(program, balance_relation)?;
     let volume =
         execution::recognize_volume(&typed_balance, balance_relation, model.displacement())?;
@@ -749,7 +749,7 @@ fn scatter_parameter_action(
 }
 
 fn exact_material_parameters(
-    model: &crate::canonical_elasticity::IsotropicElasticityCartesianModel2d,
+    model: &crate::canonical_elasticity::IsotropicElasticityContinuum<2>,
 ) -> Result<[Id<kinds::Parameter>; 2], Diagnostic> {
     let [mu] = model.shear_modulus_expression().parameter_fields() else {
         return Err(tape_error(
@@ -769,7 +769,7 @@ fn exact_material_parameters(
 
 fn exact_load_parameter(
     program: &KernelProgram,
-    model: &crate::canonical_elasticity::IsotropicElasticityCartesianModel2d,
+    model: &crate::canonical_elasticity::IsotropicElasticityContinuum<2>,
 ) -> Result<(Id<kinds::Parameter>, f64), Diagnostic> {
     let typed = typed_relation(program, model.load_definition_relation())?;
     let expression = typed.expression();
@@ -815,7 +815,7 @@ fn exact_load_parameter(
 
 fn exact_boundaries(
     program: &KernelProgram,
-    model: &crate::canonical_elasticity::IsotropicElasticityCartesianModel2d,
+    model: &crate::canonical_elasticity::IsotropicElasticityContinuum<2>,
 ) -> Result<Vec<BoundaryRole>, Diagnostic> {
     let mut roles = Vec::with_capacity(2 * DIMENSION);
     for axis in 0..DIMENSION {

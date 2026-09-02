@@ -61,6 +61,7 @@ fn direct_and_exact_packages_share_one_fixed_reference_fsi_meaning() {
         assert_eq!(
             model
                 .solid()
+                .continuum()
                 .load_potential_expression()
                 .evaluate(&[1.5, 0.5])
                 .unwrap(),
@@ -539,12 +540,16 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
 fn observe(model: &FixedReferenceFsiCartesianModel2d) -> SemanticObservation {
     SemanticObservation {
         fluid_bounds: model.fluid().bounds().map(|axis| axis.map(f64::to_bits)),
-        solid_bounds: model.solid().bounds().map(|axis| axis.map(f64::to_bits)),
+        solid_bounds: model
+            .solid()
+            .continuum()
+            .bounds()
+            .map(|axis| axis.map(f64::to_bits)),
         fluid_density: model.fluid().mass_density().to_bits(),
         fluid_viscosity: model.fluid().dynamic_viscosity().to_bits(),
         solid_density: model.solid().mass_density().to_bits(),
-        solid_mu: model.solid().shear_modulus().to_bits(),
-        solid_lambda: model.solid().first_lame_parameter().to_bits(),
+        solid_mu: model.solid().continuum().shear_modulus().to_bits(),
+        solid_lambda: model.solid().continuum().first_lame_parameter().to_bits(),
         interface_axis: model.interface().axis(),
         fluid_side: model.interface().fluid().side(),
         solid_side: model.interface().solid().side(),
@@ -554,7 +559,7 @@ fn observe(model: &FixedReferenceFsiCartesianModel2d) -> SemanticObservation {
 fn live_boundary_count(model: &FixedReferenceFsiCartesianModel2d) -> usize {
     [
         model.fluid().boundary_inventory(),
-        model.solid().boundary_inventory(),
+        model.solid().continuum().boundary_inventory(),
     ]
     .into_iter()
     .flat_map(|inventory| {

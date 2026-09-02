@@ -36,8 +36,6 @@ impl BoundaryRelationBinding {
     }
 }
 
-pub(crate) type BoundaryRelationBinding2d = BoundaryRelationBinding;
-
 /// Method-neutral disposition of one exact field-physical boundary.
 ///
 /// Trace and flux are canonical quantities. Whether a Realization treats
@@ -125,12 +123,6 @@ impl CartesianBoundaryEntry {
         self.disposition
     }
 }
-
-/// Two-dimensional compatibility name for one Cartesian boundary entry.
-pub type CartesianBoundaryEntry2d = CartesianBoundaryEntry;
-
-/// Three-dimensional compatibility name for one Cartesian boundary entry.
-pub type CartesianBoundaryEntry3d = CartesianBoundaryEntry;
 
 /// Complete exact side inventory for one dimension-typed Cartesian body.
 #[derive(Debug, Clone, PartialEq, Eq)]

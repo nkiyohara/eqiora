@@ -503,7 +503,7 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
         model.fluid().mass_density(),
         model.fluid().dynamic_viscosity(),
         model.solid().mass_density(),
-        model.solid().material(),
+        model.solid().continuum().material(),
     )
     .map_err(realization_error)?;
     let scale = FixedReferenceFsiScale2d::new(

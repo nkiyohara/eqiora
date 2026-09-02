@@ -8,7 +8,7 @@ use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
-use crate::canonical_boundary::BoundaryRelationBinding2d;
+use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::canonical_boundary::CartesianBoundaryInventory2d;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
 
@@ -51,7 +51,7 @@ pub struct InertialIncompressibleNewtonianCartesianModel2d {
     momentum_relation: RawId,
     incompressibility_relation: RawId,
     boundary_inventory: CartesianBoundaryInventory2d,
-    boundary_relations: Vec<BoundaryRelationBinding2d>,
+    boundary_relations: Vec<BoundaryRelationBinding>,
 }
 
 impl InertialIncompressibleNewtonianCartesianModel2d {
@@ -145,7 +145,7 @@ impl InertialIncompressibleNewtonianCartesianModel2d {
 
     /// Canonically ordered exact Relations admitted by boundary normalization.
     #[must_use]
-    pub(crate) fn boundary_relations(&self) -> &[BoundaryRelationBinding2d] {
+    pub(crate) fn boundary_relations(&self) -> &[BoundaryRelationBinding] {
         &self.boundary_relations
     }
 

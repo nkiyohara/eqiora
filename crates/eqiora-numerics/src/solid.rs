@@ -2,8 +2,8 @@
 
 pub use crate::canonical_elasticity::{
     ConformingElasticityInterface2d, ConformingElasticityInterfaceSide2d,
-    IsotropicElasticityCartesianModel2d, IsotropicElastodynamicsCartesianModel,
-    IsotropicElastodynamicsCartesianModel2d,
+    ElasticityIntegrationMeasure, IsotropicElasticityContinuum, IsotropicElasticityReduction,
+    IsotropicElastodynamicsCartesianModel,
     finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d,
     finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly,
     finalize_resolved_isotropic_elasticity_cartesian_2d,

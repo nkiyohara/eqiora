@@ -8,13 +8,11 @@ use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, KernelNode, SymbolRef, Va
 use eqiora_sem::KernelProgram;
 
 use super::{
-    ElasticityClosure, boundary, continuum_representation, has_edge, load_definition_root,
-    lower_isotropic_stress_coefficients, lowering_error, relation_expression, relations_on,
-    require_closed_elasticity_parts, require_continuous_relation, typed_relation, unique_box,
-    unique_root,
+    ElasticityClosure, IsotropicElasticityContinuum, boundary, continuum_representation, has_edge,
+    load_definition_root, lower_isotropic_stress_coefficients, lowering_error, relation_expression,
+    relations_on, require_closed_elasticity_parts, require_continuous_relation, typed_relation,
+    unique_box, unique_root,
 };
-use crate::canonical_boundary::BoundaryRelationBinding;
-use crate::canonical_boundary::CartesianBoundaryInventory;
 use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
 
@@ -53,34 +51,17 @@ const PRESSURE: DimExponents = DimExponents {
 /// contract.
 #[derive(Debug, Clone, PartialEq)]
 pub struct IsotropicElastodynamicsCartesianModel<const D: usize> {
-    domain: RawId,
-    displacement: RawId,
+    continuum: IsotropicElasticityContinuum<D>,
     velocity: RawId,
-    load_potential: RawId,
-    load_definition_relation: RawId,
     kinematic_relation: RawId,
-    momentum_relation: RawId,
-    bounds: [[f64; 2]; D],
     mass_density: ScalarSpatialExpression,
-    material: IsotropicElasticityMaterial<D>,
-    shear_modulus: ScalarSpatialExpression,
-    first_lame_parameter: ScalarSpatialExpression,
-    load_potential_expression: ScalarSpatialExpression,
-    boundary_inventory: CartesianBoundaryInventory<D>,
-    boundary_relations: Vec<BoundaryRelationBinding>,
 }
 
 impl<const D: usize> IsotropicElastodynamicsCartesianModel<D> {
-    /// Canonical volume Domain.
+    /// Method-neutral continuum meaning shared with static elasticity.
     #[must_use]
-    pub const fn domain(&self) -> RawId {
-        self.domain
-    }
-
-    /// Length-valued spatial-vector displacement Field.
-    #[must_use]
-    pub const fn displacement(&self) -> RawId {
-        self.displacement
+    pub const fn continuum(&self) -> &IsotropicElasticityContinuum<D> {
+        &self.continuum
     }
 
     /// Velocity-valued spatial-vector Field.
@@ -89,34 +70,10 @@ impl<const D: usize> IsotropicElastodynamicsCartesianModel<D> {
         self.velocity
     }
 
-    /// Pressure-valued scalar conservative-load potential Field.
-    #[must_use]
-    pub const fn load_potential(&self) -> RawId {
-        self.load_potential
-    }
-
-    /// Exact Relation defining the conservative-load potential.
-    #[must_use]
-    pub(crate) const fn load_definition_relation(&self) -> RawId {
-        self.load_definition_relation
-    }
-
     /// Exact Relation binding displacement rate to velocity.
     #[must_use]
     pub(crate) const fn kinematic_relation(&self) -> RawId {
         self.kinematic_relation
-    }
-
-    /// Exact Relation witnessing first-order momentum balance.
-    #[must_use]
-    pub(crate) const fn momentum_relation(&self) -> RawId {
-        self.momentum_relation
-    }
-
-    /// Physical Cartesian bounds in coherent SI coordinates.
-    #[must_use]
-    pub const fn bounds(&self) -> &[[f64; 2]; D] {
-        &self.bounds
     }
 
     /// Positive, spatially constant mass density in coherent SI units.
@@ -135,65 +92,7 @@ impl<const D: usize> IsotropicElastodynamicsCartesianModel<D> {
     pub const fn mass_density_expression(&self) -> &ScalarSpatialExpression {
         &self.mass_density
     }
-
-    /// Positive shear modulus in coherent SI units.
-    #[must_use]
-    pub fn shear_modulus(&self) -> f64 {
-        self.material.shear_modulus()
-    }
-
-    /// Immutable shear-modulus expression used by volume and boundary checks.
-    #[must_use]
-    pub const fn shear_modulus_expression(&self) -> &ScalarSpatialExpression {
-        &self.shear_modulus
-    }
-
-    /// First Lame parameter in coherent SI units.
-    #[must_use]
-    pub fn first_lame_parameter(&self) -> f64 {
-        self.material.first_lame_parameter()
-    }
-
-    pub(crate) const fn material(&self) -> IsotropicElasticityMaterial<D> {
-        self.material
-    }
-
-    /// Immutable first-Lame-parameter expression used by volume and boundary checks.
-    #[must_use]
-    pub const fn first_lame_parameter_expression(&self) -> &ScalarSpatialExpression {
-        &self.first_lame_parameter
-    }
-
-    /// Immutable scalar tape defining the canonical load potential.
-    #[must_use]
-    pub const fn load_potential_expression(&self) -> &ScalarSpatialExpression {
-        &self.load_potential_expression
-    }
-
-    /// Complete package-neutral velocity/traction meaning of all Cartesian sides.
-    #[must_use]
-    pub const fn boundary_inventory(&self) -> &CartesianBoundaryInventory<D> {
-        &self.boundary_inventory
-    }
-
-    /// Canonically ordered exact Relations admitted by boundary normalization.
-    #[must_use]
-    pub(crate) fn boundary_relations(&self) -> &[BoundaryRelationBinding] {
-        &self.boundary_relations
-    }
-
-    /// Evaluate `grad(load_potential)` from the exact canonical scalar tape.
-    ///
-    /// # Errors
-    /// Preserves the tape's shape and finite-evaluation diagnostics.
-    pub fn conservative_body_force(&self, coordinates: &[f64]) -> Result<[f64; D], Diagnostic> {
-        self.load_potential_expression
-            .evaluate_gradient(coordinates)
-    }
 }
-
-/// Two-dimensional compatibility name for canonical elastodynamics.
-pub type IsotropicElastodynamicsCartesianModel2d = IsotropicElastodynamicsCartesianModel<2>;
 
 /// Three-dimensional canonical first-order isotropic elastodynamic meaning.
 #[cfg(test)]
@@ -212,7 +111,7 @@ pub type IsotropicElastodynamicsCartesianModel3d = IsotropicElastodynamicsCartes
 /// momentum Relations, and one complete boundary law per side.
 pub fn lower_isotropic_elastodynamics_cartesian_2d(
     program: &KernelProgram,
-) -> Result<IsotropicElastodynamicsCartesianModel2d, Diagnostic> {
+) -> Result<IsotropicElastodynamicsCartesianModel<2>, Diagnostic> {
     lower_isotropic_elastodynamics_cartesian::<2>(program)
 }
 
@@ -238,16 +137,16 @@ fn lower_isotropic_elastodynamics_cartesian<const D: usize>(
         &[ElasticityClosure {
             domain,
             fields: vec![
-                lowered.model.displacement,
+                lowered.model.continuum().displacement(),
                 lowered.model.velocity,
-                lowered.model.load_potential,
+                lowered.model.continuum().load_potential(),
             ],
             volume_relations: vec![
-                lowered.model.load_definition_relation(),
+                lowered.model.continuum().load_definition_relation(),
                 lowered.model.kinematic_relation(),
-                lowered.model.momentum_relation(),
+                lowered.model.continuum().equilibrium_relation(),
             ],
-            boundary_relations: lowered.model.boundary_relations(),
+            boundary_relations: lowered.model.continuum().boundary_relations(),
             boundary: &lowered.boundary,
         }],
     )?;
@@ -408,22 +307,31 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
             &lambda,
         )?,
     };
-    let model = IsotropicElastodynamicsCartesianModel {
+    let continuum = IsotropicElasticityContinuum::new(
         domain,
         displacement,
-        velocity,
         load_potential,
-        load_definition_relation: load_relation,
-        kinematic_relation,
+        load_relation,
         momentum_relation,
         bounds,
-        mass_density,
         material,
         shear_modulus,
-        first_lame_parameter: lambda,
+        lambda,
         load_potential_expression,
-        boundary_inventory: lowered_boundary.inventory.clone(),
-        boundary_relations: lowered_boundary.boundary_relations.clone(),
+        lowered_boundary.inventory.clone(),
+        lowered_boundary.boundary_relations.clone(),
+    )
+    .ok_or_else(|| {
+        lowering_error(
+            domain,
+            format!("{D}D elastodynamics has no admitted linear-continuum profile"),
+        )
+    })?;
+    let model = IsotropicElastodynamicsCartesianModel {
+        continuum,
+        velocity,
+        kinematic_relation,
+        mass_density,
     };
     Ok(LoweredIsotropicElastodynamicsSubdomain {
         model,
@@ -653,6 +561,7 @@ mod tests {
 
     use super::lower_isotropic_elastodynamics_cartesian_3d;
     use crate::canonical_boundary::PhysicalBoundaryDisposition;
+    use crate::canonical_elasticity::{ElasticityIntegrationMeasure, IsotropicElasticityReduction};
 
     const SOURCE_3D: &str = r#"
 model dynamic_solid_3d {
@@ -705,15 +614,24 @@ model dynamic_solid_3d {
     fn lowers_three_dimensional_elastodynamics_through_the_shared_contract() {
         let model = lower_isotropic_elastodynamics_cartesian_3d(&compile_program(SOURCE_3D))
             .expect("exact 3D elastodynamics lowers");
-        assert_eq!(model.bounds(), &[[0.0, 1.0], [-1.0, 1.0], [-2.0, 2.0]]);
+        let continuum = model.continuum();
         assert_eq!(
-            model.conservative_body_force(&[0.2, 0.3, 0.4]).unwrap(),
+            continuum.reduction(),
+            IsotropicElasticityReduction::FullThreeDimensional
+        );
+        assert_eq!(
+            continuum.integration_measure(),
+            ElasticityIntegrationMeasure::Volume
+        );
+        assert_eq!(continuum.bounds(), &[[0.0, 1.0], [-1.0, 1.0], [-2.0, 2.0]]);
+        assert_eq!(
+            continuum.conservative_body_force(&[0.2, 0.3, 0.4]).unwrap(),
             [0.0; 3]
         );
         for axis in 0..3 {
             for side in [BoundarySide::Lower, BoundarySide::Upper] {
                 assert!(matches!(
-                    model
+                    continuum
                         .boundary_inventory()
                         .boundary(axis, side)
                         .expect("complete 3D solid boundary inventory")
@@ -722,7 +640,7 @@ model dynamic_solid_3d {
                 ));
             }
         }
-        assert_eq!(model.boundary_relations().len(), 6);
+        assert_eq!(continuum.boundary_relations().len(), 6);
     }
 
     #[test]

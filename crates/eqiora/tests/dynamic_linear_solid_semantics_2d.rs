@@ -125,6 +125,7 @@ fn direct_and_exact_package_models_have_equal_dynamic_solid_meaning() {
     );
     assert_eq!(
         direct_model
+            .continuum()
             .shear_modulus_expression()
             .parameter_fields()
             .len(),
@@ -132,6 +133,7 @@ fn direct_and_exact_package_models_have_equal_dynamic_solid_meaning() {
     );
     assert_eq!(
         direct_model
+            .continuum()
             .first_lame_parameter_expression()
             .parameter_fields()
             .len(),
@@ -146,6 +148,7 @@ fn direct_and_exact_package_models_have_equal_dynamic_solid_meaning() {
     );
     assert_eq!(
         packaged_model
+            .continuum()
             .shear_modulus_expression()
             .parameter_fields()
             .len(),
@@ -153,6 +156,7 @@ fn direct_and_exact_package_models_have_equal_dynamic_solid_meaning() {
     );
     assert_eq!(
         packaged_model
+            .continuum()
             .first_lame_parameter_expression()
             .parameter_fields()
             .len(),
@@ -221,6 +225,7 @@ fn zero_traction_and_live_velocity_ports_remain_explicit_canonical_meaning() {
         .expect("zero traction is valid dynamic-solid boundary meaning");
     assert_eq!(
         flux_model
+            .continuum()
             .boundary_inventory()
             .boundary(0, BoundarySide::Lower)
             .expect("x-lower boundary")
@@ -233,6 +238,7 @@ fn zero_traction_and_live_velocity_ports_remain_explicit_canonical_meaning() {
     let live_model = lower_isotropic_elastodynamics_cartesian_2d(live.model().program())
         .expect("compatible unresolved velocity Port remains canonical meaning");
     let PhysicalBoundaryDisposition::PortBinding { connection, port } = live_model
+        .continuum()
         .boundary_inventory()
         .boundary(0, BoundarySide::Lower)
         .expect("x-lower boundary")
@@ -263,6 +269,7 @@ fn zero_traction_and_live_velocity_ports_remain_explicit_canonical_meaning() {
     ] {
         assert_eq!(
             live_model
+                .continuum()
                 .boundary_inventory()
                 .boundary(axis, side)
                 .expect("remaining boundary")
@@ -445,18 +452,29 @@ public connector OtherVelocityTractionBoundary = field_physical(
 fn observe(program: &KernelProgram) -> Observation {
     let model = lower_isotropic_elastodynamics_cartesian_2d(program)
         .expect("canonical first-order elastodynamic meaning lowers");
-    let bounds = model.bounds().map(|axis| axis.map(f64::to_bits));
+    let bounds = model
+        .continuum()
+        .bounds()
+        .map(|axis| axis.map(f64::to_bits));
     let load_samples = [0.0, 1.0, 2.0].map(|x| {
         model
+            .continuum()
             .load_potential_expression()
             .evaluate(&[x, 0.25])
             .expect("load tape evaluates")
             .to_bits()
     });
-    let zero_parameter_tangent =
-        vec![0.0; model.load_potential_expression().parameter_fields().len()];
+    let zero_parameter_tangent = vec![
+        0.0;
+        model
+            .continuum()
+            .load_potential_expression()
+            .parameter_fields()
+            .len()
+    ];
     let load_coordinate_jvp = [[1.0, 0.0], [0.0, 1.0]].map(|direction| {
         model
+            .continuum()
             .load_potential_expression()
             .evaluate_jvp(&[0.5, 0.25], &direction, &zero_parameter_tangent)
             .expect("load tape coordinate JVP evaluates")
@@ -466,6 +484,7 @@ fn observe(program: &KernelProgram) -> Observation {
     let boundaries = [0, 1].map(|axis| {
         [BoundarySide::Lower, BoundarySide::Upper].map(|side| {
             model
+                .continuum()
                 .boundary_inventory()
                 .boundary(axis, side)
                 .expect("complete Cartesian boundary")
@@ -478,7 +497,7 @@ fn observe(program: &KernelProgram) -> Observation {
             .flatten()
             .all(|disposition| { *disposition == PhysicalBoundaryDisposition::TraceZero })
     );
-    assert_ne!(model.displacement(), model.velocity());
+    assert_ne!(model.continuum().displacement(), model.velocity());
     assert_eq!(
         model
             .mass_density_expression()
@@ -488,6 +507,7 @@ fn observe(program: &KernelProgram) -> Observation {
     );
     assert_eq!(
         model
+            .continuum()
             .shear_modulus_expression()
             .evaluate(&[0.5, 0.25])
             .unwrap(),
@@ -495,6 +515,7 @@ fn observe(program: &KernelProgram) -> Observation {
     );
     assert_eq!(
         model
+            .continuum()
             .first_lame_parameter_expression()
             .evaluate(&[0.5, 0.25])
             .unwrap(),
@@ -503,8 +524,8 @@ fn observe(program: &KernelProgram) -> Observation {
     Observation {
         bounds,
         density: model.mass_density().to_bits(),
-        shear_modulus: model.shear_modulus().to_bits(),
-        first_lame_parameter: model.first_lame_parameter().to_bits(),
+        shear_modulus: model.continuum().shear_modulus().to_bits(),
+        first_lame_parameter: model.continuum().first_lame_parameter().to_bits(),
         load_samples,
         load_coordinate_jvp,
         boundaries,

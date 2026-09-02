@@ -165,14 +165,14 @@ fn exact_package_graph_lowers_to_three_dimensional_ale_fsi_roles() {
 
     assert_eq!(model.fluid().bounds(), &[[0.0, 1.0]; 3]);
     assert_eq!(
-        model.solid().bounds(),
+        model.solid().continuum().bounds(),
         &[[1.0, 2.0], [0.0, 1.0], [0.0, 1.0]]
     );
     assert_eq!(model.fluid().mass_density(), 1.0);
     assert_eq!(model.fluid().dynamic_viscosity(), 0.2);
     assert_eq!(model.solid().mass_density(), 1.0);
-    assert_eq!(model.solid().shear_modulus(), 2.0);
-    assert_eq!(model.solid().first_lame_parameter(), 1.0);
+    assert_eq!(model.solid().continuum().shear_modulus(), 2.0);
+    assert_eq!(model.solid().continuum().first_lame_parameter(), 1.0);
     assert_eq!(model.interface().axis(), 0);
     assert_eq!(model.interface().fluid().side(), BoundarySide::Upper);
     assert_eq!(model.interface().solid().side(), BoundarySide::Lower);
@@ -186,6 +186,7 @@ fn exact_package_graph_lowers_to_three_dimensional_ale_fsi_roles() {
     assert_eq!(
         model
             .solid()
+            .continuum()
             .conservative_body_force(&[1.25, 0.5, 0.75])
             .expect("solid force"),
         [0.0; 3]
@@ -194,7 +195,10 @@ fn exact_package_graph_lowers_to_three_dimensional_ale_fsi_roles() {
 
 fn assert_same_canonical_roles(direct: &AleFsiCartesianModel3d, packaged: &AleFsiCartesianModel3d) {
     assert_eq!(direct.fluid().bounds(), packaged.fluid().bounds());
-    assert_eq!(direct.solid().bounds(), packaged.solid().bounds());
+    assert_eq!(
+        direct.solid().continuum().bounds(),
+        packaged.solid().continuum().bounds()
+    );
     assert_eq!(
         direct.fluid().mass_density().to_bits(),
         packaged.fluid().mass_density().to_bits()
@@ -208,12 +212,16 @@ fn assert_same_canonical_roles(direct: &AleFsiCartesianModel3d, packaged: &AleFs
         packaged.solid().mass_density().to_bits()
     );
     assert_eq!(
-        direct.solid().shear_modulus().to_bits(),
-        packaged.solid().shear_modulus().to_bits()
+        direct.solid().continuum().shear_modulus().to_bits(),
+        packaged.solid().continuum().shear_modulus().to_bits()
     );
     assert_eq!(
-        direct.solid().first_lame_parameter().to_bits(),
-        packaged.solid().first_lame_parameter().to_bits()
+        direct.solid().continuum().first_lame_parameter().to_bits(),
+        packaged
+            .solid()
+            .continuum()
+            .first_lame_parameter()
+            .to_bits()
     );
     assert_eq!(direct.interface().axis(), packaged.interface().axis());
     assert_eq!(
@@ -237,10 +245,12 @@ fn assert_same_canonical_roles(direct: &AleFsiCartesianModel3d, packaged: &AleFs
     assert_eq!(
         direct
             .solid()
+            .continuum()
             .conservative_body_force(&[1.25, 0.5, 0.75])
             .expect("direct solid force"),
         packaged
             .solid()
+            .continuum()
             .conservative_body_force(&[1.25, 0.5, 0.75])
             .expect("packaged solid force")
     );

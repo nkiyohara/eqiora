@@ -23,8 +23,7 @@ use eqiora_schema::kernel::{
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType};
 
-use crate::canonical_boundary::BoundaryRelationBinding;
-use crate::canonical_boundary::{CartesianBoundaryInventory2d, PhysicalBoundaryDisposition};
+use crate::canonical_boundary::PhysicalBoundaryDisposition;
 use crate::cartesian_elasticity::CartesianLinearElasticity2dSolution;
 use crate::cartesian_elasticity::{
     CartesianEssentialSides2d, finalize_cartesian_q1_linear_elasticity_2d,
@@ -36,12 +35,15 @@ use eqiora_meshing::{CartesianMesh, MeshTopology};
 
 mod block;
 mod boundary;
+mod continuum;
 mod dynamics;
 mod pair;
 
+pub use continuum::{
+    ElasticityIntegrationMeasure, IsotropicElasticityContinuum, IsotropicElasticityReduction,
+};
 pub use dynamics::{
-    IsotropicElastodynamicsCartesianModel, IsotropicElastodynamicsCartesianModel2d,
-    lower_isotropic_elastodynamics_cartesian_2d,
+    IsotropicElastodynamicsCartesianModel, lower_isotropic_elastodynamics_cartesian_2d,
 };
 pub(crate) use dynamics::{
     LoweredIsotropicElastodynamicsSubdomain, LoweredIsotropicElastodynamicsSubdomain2d,
@@ -69,121 +71,6 @@ const PRESSURE: DimExponents = DimExponents {
     ..DimExponents::DIMENSIONLESS
 };
 
-/// Exact, method-neutral 2D isotropic small-strain elasticity model.
-///
-/// The admitted strong relation is
-/// `-div(2 mu sym(grad(u)) + lambda I div(u)) - grad(q) = 0`,
-/// where `q` is defined by one scalar spatial Relation and every Cartesian
-/// side has one explicit normalized boundary disposition. Mesh, element,
-/// quadrature, algebra, solver, and target choices are intentionally absent.
-#[derive(Debug, Clone, PartialEq)]
-pub struct IsotropicElasticityCartesianModel2d {
-    domain: RawId,
-    displacement: RawId,
-    load_potential: RawId,
-    load_definition_relation: RawId,
-    balance_relation: RawId,
-    bounds: [[f64; 2]; 2],
-    material: IsotropicElasticityMaterial<2>,
-    shear_modulus: ScalarSpatialExpression,
-    first_lame_parameter: ScalarSpatialExpression,
-    load_potential_expression: ScalarSpatialExpression,
-    boundary_inventory: CartesianBoundaryInventory2d,
-    boundary_relations: Vec<BoundaryRelationBinding>,
-}
-
-impl IsotropicElasticityCartesianModel2d {
-    /// Canonical volume Domain.
-    #[must_use]
-    pub const fn domain(&self) -> RawId {
-        self.domain
-    }
-
-    /// Canonical spatial-vector displacement Field.
-    #[must_use]
-    pub const fn displacement(&self) -> RawId {
-        self.displacement
-    }
-
-    /// Canonical scalar conservative-load potential Field.
-    #[must_use]
-    pub const fn load_potential(&self) -> RawId {
-        self.load_potential
-    }
-
-    /// Exact Relation defining the conservative-load potential.
-    #[must_use]
-    pub(crate) const fn load_definition_relation(&self) -> RawId {
-        self.load_definition_relation
-    }
-
-    /// Exact Relation witnessing isotropic momentum balance.
-    #[must_use]
-    pub(crate) const fn balance_relation(&self) -> RawId {
-        self.balance_relation
-    }
-
-    /// Physical Cartesian bounds in coherent SI coordinates.
-    #[must_use]
-    pub const fn bounds(&self) -> &[[f64; 2]; 2] {
-        &self.bounds
-    }
-
-    /// Shear modulus `mu` in coherent SI units.
-    #[must_use]
-    pub fn shear_modulus(&self) -> f64 {
-        self.material.shear_modulus()
-    }
-
-    /// First Lamé parameter `lambda` in coherent SI units.
-    #[must_use]
-    pub fn first_lame_parameter(&self) -> f64 {
-        self.material.first_lame_parameter()
-    }
-
-    pub(crate) const fn material(&self) -> IsotropicElasticityMaterial<2> {
-        self.material
-    }
-
-    /// Canonical constant expression retaining `mu` Parameter identity.
-    #[must_use]
-    pub const fn shear_modulus_expression(&self) -> &ScalarSpatialExpression {
-        &self.shear_modulus
-    }
-
-    /// Canonical constant expression retaining `lambda` Parameter identity.
-    #[must_use]
-    pub const fn first_lame_parameter_expression(&self) -> &ScalarSpatialExpression {
-        &self.first_lame_parameter
-    }
-
-    /// Immutable scalar tape defining the canonical load potential `q`.
-    #[must_use]
-    pub const fn load_potential_expression(&self) -> &ScalarSpatialExpression {
-        &self.load_potential_expression
-    }
-
-    /// Complete package-neutral meaning of the four exact Cartesian sides.
-    #[must_use]
-    pub const fn boundary_inventory(&self) -> &CartesianBoundaryInventory2d {
-        &self.boundary_inventory
-    }
-
-    /// Canonically ordered exact Relations admitted by boundary normalization.
-    #[must_use]
-    pub(crate) fn boundary_relations(&self) -> &[BoundaryRelationBinding] {
-        &self.boundary_relations
-    }
-
-    /// Evaluate `grad(q)` from the same canonical tape as the model Relation.
-    /// # Errors
-    /// Preserves the tape's exact shape and finite-evaluation diagnostics.
-    pub fn conservative_body_force(&self, coordinates: &[f64]) -> Result<[f64; 2], Diagnostic> {
-        self.load_potential_expression
-            .evaluate_gradient(coordinates)
-    }
-}
-
 /// Lower the exact canonical 2D isotropic-elasticity subset.
 ///
 /// This lowerer is identity-parametric: it recognizes typed structure rather
@@ -198,7 +85,7 @@ impl IsotropicElasticityCartesianModel2d {
 /// deliberately narrow semantic subset.
 pub fn lower_isotropic_elasticity_cartesian_2d(
     program: &KernelProgram,
-) -> Result<IsotropicElasticityCartesianModel2d, Diagnostic> {
+) -> Result<IsotropicElasticityContinuum<2>, Diagnostic> {
     let (domain, bounds) = unique_box_2d(program)?;
     let lowered =
         lower_isotropic_elasticity_subdomain_2d_with_boundaries(program, domain, bounds, None)?;
@@ -211,7 +98,7 @@ pub(crate) fn lower_isotropic_elasticity_geometry_2d(
     geometry: &CanonicalGeometryV1,
     mesh: &CartesianMeshEnvelopeV1,
     correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
-) -> Result<IsotropicElasticityCartesianModel2d, Diagnostic> {
+) -> Result<IsotropicElasticityContinuum<2>, Diagnostic> {
     let (domain, bounds, boundaries) = crate::canonical::geometry_rectangle_cartesian_support(
         program,
         geometry,
@@ -289,7 +176,7 @@ pub(crate) fn recognize_isotropic_elasticity_geometry_mathematics(
 
 #[derive(Debug)]
 struct LoweredIsotropicElasticitySubdomain2d {
-    model: IsotropicElasticityCartesianModel2d,
+    model: IsotropicElasticityContinuum<2>,
     boundary: boundary::LoweredElasticityBoundary2d,
 }
 
@@ -398,20 +285,21 @@ fn lower_isotropic_elasticity_subdomain_2d_with_boundaries(
         ));
     };
     Ok(LoweredIsotropicElasticitySubdomain2d {
-        model: IsotropicElasticityCartesianModel2d {
+        model: IsotropicElasticityContinuum::new(
             domain,
             displacement,
             load_potential,
-            load_definition_relation: load_relation,
+            load_relation,
             balance_relation,
             bounds,
             material,
             shear_modulus,
-            first_lame_parameter: lambda,
+            lambda,
             load_potential_expression,
-            boundary_inventory: boundary_inventory.inventory.clone(),
-            boundary_relations: boundary_inventory.boundary_relations.clone(),
-        },
+            boundary_inventory.inventory.clone(),
+            boundary_inventory.boundary_relations.clone(),
+        )
+        .expect("the static lowerer admits only intrinsic two-dimensional elasticity"),
         boundary: boundary_inventory,
     })
 }
@@ -431,7 +319,7 @@ pub fn solve_resolved_isotropic_elasticity_cartesian_2d(
     backend: &dyn LinearSolverBackend,
 ) -> Result<
     (
-        IsotropicElasticityCartesianModel2d,
+        IsotropicElasticityContinuum<2>,
         CartesianLinearElasticity2dSolution,
     ),
     Diagnostic,
@@ -457,7 +345,7 @@ pub fn solve_resolved_isotropic_elasticity_cartesian_2d_with_assembly(
     backend: &dyn LinearSolverBackend,
 ) -> Result<
     (
-        IsotropicElasticityCartesianModel2d,
+        IsotropicElasticityContinuum<2>,
         CartesianLinearElasticity2dSolution,
     ),
     Diagnostic,
@@ -480,7 +368,7 @@ pub fn finalize_resolved_isotropic_elasticity_cartesian_2d(
     resolved: &ResolvedRealization,
 ) -> Result<
     (
-        IsotropicElasticityCartesianModel2d,
+        IsotropicElasticityContinuum<2>,
         FinalizedIsotropicElasticityCartesian2dProblem,
     ),
     Diagnostic,
@@ -508,7 +396,7 @@ pub fn finalize_resolved_isotropic_elasticity_cartesian_2d_with_assembly(
     assembly: &dyn AssemblyBackend,
 ) -> Result<
     (
-        IsotropicElasticityCartesianModel2d,
+        IsotropicElasticityContinuum<2>,
         FinalizedIsotropicElasticityCartesian2dProblem,
     ),
     Diagnostic,
@@ -526,7 +414,7 @@ pub fn finalize_resolved_isotropic_elasticity_cartesian_2d_with_assembly(
 }
 
 pub(crate) fn finalize_isotropic_elasticity_cartesian_q1_on_mesh(
-    model: &IsotropicElasticityCartesianModel2d,
+    model: &IsotropicElasticityContinuum<2>,
     mesh: &CartesianMesh,
     solver: eqiora_solver::SolverPlan,
     assembly: &dyn AssemblyBackend,
@@ -666,7 +554,7 @@ fn require_resolved_cartesian_elasticity_q1_plan_2d(
 }
 
 fn cartesian_essential_sides(
-    model: &IsotropicElasticityCartesianModel2d,
+    model: &IsotropicElasticityContinuum<2>,
 ) -> Result<CartesianEssentialSides2d, Diagnostic> {
     let mut essential = [[false; 2]; 2];
     for (axis, axis_sides) in essential.iter_mut().enumerate() {

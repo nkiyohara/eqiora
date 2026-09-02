@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 FACADE = ROOT / "api/eqiora-facade-v1.json"
 LANDING = ROOT / "docs/site/src/content/docs/reference/rust/index.mdx"
 FACADE_SCHEMA = "eqiora.facade-inventory/v1"
-FACADE_SHA256 = "91fb84058a0493c944112829e2c1cf2e8e9f1515f862d82145f9682961e45988"
+FACADE_SHA256 = "d997b44a1506333fc2599a92d89748a39e7352d940ccb51d325ad148fb5ef845"
 EXPECTED_COUNTS = {
     "modules": 24,
     "stable_modules": 3,

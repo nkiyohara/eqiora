@@ -139,6 +139,7 @@ pub(crate) fn spatial_context(
         .expect("fluid Domain identity");
     let solid = canonical
         .solid()
+        .continuum()
         .domain()
         .downcast::<eqiora::kinds::Domain>()
         .expect("solid Domain identity");
@@ -381,7 +382,12 @@ pub(crate) fn solve_step(
     );
     assert_eq!(
         solution.fields().solid_displacement(),
-        canonical.solid().displacement().downcast().unwrap()
+        canonical
+            .solid()
+            .continuum()
+            .displacement()
+            .downcast()
+            .unwrap()
     );
     ExecutionWitness {
         operator,

@@ -11,7 +11,7 @@ use eqiora_schema::kernel::ValueFrame;
 use eqiora_solver::LinearOperatorProperties;
 
 use super::ConformingIsotropicElasticityCartesianPair2d;
-use crate::canonical_boundary::BoundaryRelationBinding2d;
+use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::canonical_boundary::{CartesianBoundaryInventory2d, PhysicalBoundaryDisposition};
 use crate::discrete_block::{
     AlgebraicClosure, BlockRealizationIdentity, BlockSupport, BlockTransformation,
@@ -86,7 +86,7 @@ pub(super) fn conforming_elasticity_pair_block_system(
     let balances = model
         .subdomains()
         .each_ref()
-        .map(|body| relation(body.balance_relation()))
+        .map(|body| relation(body.equilibrium_relation()))
         .into_iter()
         .collect::<Result<Vec<_>, _>>()?;
     let mut relations = Vec::new();
@@ -216,7 +216,7 @@ fn parameter_inventory<'a>(
 
 fn boundary_relation_blocks(
     inventory: &CartesianBoundaryInventory2d,
-    bindings: &[BoundaryRelationBinding2d],
+    bindings: &[BoundaryRelationBinding],
     field: Id<kinds::Field>,
 ) -> Result<Vec<RelationBlock>, Diagnostic> {
     bindings
@@ -235,7 +235,7 @@ fn boundary_relation_blocks(
 }
 
 fn essential_relations(
-    model: &super::IsotropicElasticityCartesianModel2d,
+    model: &super::IsotropicElasticityContinuum<2>,
 ) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
     model
         .boundary_relations()

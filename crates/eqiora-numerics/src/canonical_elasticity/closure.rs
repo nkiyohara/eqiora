@@ -1,4 +1,5 @@
 use super::*;
+use crate::canonical_boundary::BoundaryRelationBinding;
 
 pub(super) fn require_continuous_relation(
     program: &KernelProgram,
@@ -34,7 +35,7 @@ pub(super) fn require_closed_elasticity_models(
             fields: vec![lowered.model.displacement(), lowered.model.load_potential()],
             volume_relations: vec![
                 lowered.model.load_definition_relation(),
-                lowered.model.balance_relation(),
+                lowered.model.equilibrium_relation(),
             ],
             boundary_relations: lowered.model.boundary_relations(),
             boundary: &lowered.boundary,
