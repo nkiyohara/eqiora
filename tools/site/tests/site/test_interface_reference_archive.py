@@ -18,13 +18,13 @@ REPOSITORY = Path(__file__).resolve().parents[4]
 GENERATOR = REPOSITORY / "tools/docs/generate_interface_reference.py"
 OUTPUTS = {
     Path("docs/site/src/content/docs/reference/cli/index.mdx"): (
-        "97912be85990f629364c8ca1e4d2a43f69263ff311bfaf09204e39b2f6555c10"
+        "53e212b04a839bb92d9ce02245fde9140e4154e84d16ebaac33b7d4baf51e871"
     ),
     Path("docs/site/src/content/docs/reference/control-v2/index.mdx"): (
         "71265ea8c47bcbf73c5d3d606311bec905b3c4da3b39948eb744d3e3fa57e0f9"
     ),
     Path("docs/site/src/content/docs/reference/mcp/index.mdx"): (
-        "6985f6e55a054d0645dc48b3423f35bf2ec618d3ca62ae891a507315afa05aed"
+        "3414a23100c12fe20de01bfae9c00834030eec6eee92de8ef40c368474d7d5c1"
     ),
 }
 FORBIDDEN_GIT_ENVIRONMENT = {
@@ -121,7 +121,7 @@ class InterfaceReferenceFixture:
         self.observed.mkdir(parents=True)
         _write(
             target / "Cargo.toml",
-            '[workspace]\nmembers = []\n[workspace.package]\nversion = "0.1.0-alpha.6"\n',
+            '[workspace]\nmembers = []\n[workspace.package]\nversion = "0.1.0-alpha.7"\n',
         )
         copied = [
             Path("schemas/control/compile-v2.schema.json"),

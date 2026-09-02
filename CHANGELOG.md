@@ -6,6 +6,42 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.1.0a7] - 2026-09-02
+
+### Added
+
+- Added natural equation authoring to the Python `Source` projection and
+  dimension inference for model-local aliases.
+
+- Added bounded recognition for ideal-gas Euler conservation meaning and
+  reusable scalar conservation semantics across one-, two-, and
+  three-dimensional Cartesian domains.
+
+- Added exact accepted-State recovery after cancellation and retained admitted
+  formulation, material, mesh, and recognition lineage through common Plans.
+
+### Changed
+
+- Converged mesh generation on `MeshPlan`, common scalar execution on
+  conservation meaning, and elasticity on shared continuum kinematics,
+  isotropic material, element-input, constraint, and observation primitives.
+
+- Prepared immutable execution structure, accepted actions, and reusable Faer
+  factorization ownership once per Run rather than rebuilding them per solve or
+  accepted step.
+
+- Unified common spatial Plan identity and transient Run schedules while
+  preserving exact recognition and realization ownership.
+
+- Reduced documentation and CI duplication by compiling documentation products
+  once per source, reusing equivalent lane conclusions, and making Colab the
+  sole maintained hosted-notebook path.
+
+### Removed
+
+- Removed public physics-specific dimension aliases and the displaced Marimo
+  and Jupyter example paths instead of retaining pre-1.0 compatibility shims.
+
 ## [0.1.0a6] - 2026-08-31
 
 ### Added
@@ -297,7 +333,8 @@ Detailed claims and nonclaims are the responsibility of the
 [capability matrix](docs/capability-matrix.md) and registered
 [`verify/`](verify/) cases rather than this summary.
 
-[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a6...HEAD
+[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a7...HEAD
+[0.1.0a7]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a7
 [0.1.0a6]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a6
 [0.1.0a5]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a5
 [0.1.0a4]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a4

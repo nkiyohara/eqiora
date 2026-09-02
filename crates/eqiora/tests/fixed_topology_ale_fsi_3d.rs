@@ -488,7 +488,7 @@ fn publish_moving_artifact_dag(
     .unwrap();
     assert_eq!(
         public_asset["provenance"]["run_sha256"],
-        "197cb3d51eb2b676c7340519c75f012584603d9b0e7c0ebd832a60302d79dbb8"
+        "8170c97f8f2605e6329439c84926000801ef98e444a7370529ff1f5f105dcb12"
     );
     assert_eq!(
         expected["provenance"]["run_sha256"],
