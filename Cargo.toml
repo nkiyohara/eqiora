@@ -68,7 +68,7 @@ truck-topology = "=0.6.0"
 # 0.16.1 also replaces the BDF order-change scratch Vec after upstream found
 # stack-buffer corruption of its metadata; do not relax this pin without
 # rerunning every registered BDF, mass-matrix, and sensitivity case.
-diffsol = { version = "=0.16.1", default-features = false, features = ["nalgebra", "faer"] }
+diffsol = { version = "=0.16.2", default-features = false, features = ["nalgebra", "faer"] }
 # cudarc 0.18.2 is the exact binding/runtime baseline covered by current device
 # evidence. A 0.19 upgrade is a separate adapter-and-hardware-evidence slice,
 # not an incidental consequence of the workspace MSRV decision.
