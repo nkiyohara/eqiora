@@ -14,7 +14,7 @@ use eqiora_meshing::{
 };
 use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolveRequest, SolveReport};
 
-use crate::affine_fem::physical_gradient;
+use crate::affine_fem::simplex_p1_physical_gradients;
 use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::continuum_kinematics::symmetric_gradient;
 use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
@@ -316,7 +316,7 @@ impl LocalOperator<AffineGeometryMap> for SimplicialElasticityCell {
         quadrature: &QuadratureRule,
     ) -> Result<LocalContribution, Diagnostic> {
         require_geometry_rule(geometry, quadrature)?;
-        let gradients = triangle_gradients(geometry)?;
+        let gradients = simplex_p1_physical_gradients::<DIMENSION>(geometry)?;
         let space = SimplexP1Space::new(DIMENSION)?;
         let mut matrix = vec![0.0; LOCAL_DOFS * LOCAL_DOFS];
         let mut rhs = vec![0.0; LOCAL_DOFS];
@@ -371,7 +371,7 @@ fn recover_cell_states(
         let geometry = mesh
             .geometry_map(cell)
             .expect("accepted triangle owns affine geometry");
-        let gradients = triangle_gradients(&geometry)?;
+        let gradients = simplex_p1_physical_gradients::<DIMENSION>(&geometry)?;
         let vertices = mesh
             .entity_vertices(cell)
             .expect("accepted triangle owns three vertices");
@@ -404,18 +404,6 @@ fn recover_cell_states(
         ));
     }
     Ok((strains, stresses, energy))
-}
-
-fn triangle_gradients(geometry: &AffineGeometryMap) -> Result<Vec<Vec<f64>>, Diagnostic> {
-    let inverse = geometry.inverse_jacobian()?;
-    let basis = SimplexP1Space::new(DIMENSION)?.tabulate(&[1.0 / 3.0, 1.0 / 3.0])?;
-    Ok(basis
-        .reference_gradients()
-        .as_chunks::<DIMENSION>()
-        .0
-        .iter()
-        .map(|gradient| physical_gradient(gradient, &inverse, DIMENSION))
-        .collect())
 }
 
 fn local_global_dofs(vertices: &[MeshEntity]) -> Result<Vec<usize>, Diagnostic> {

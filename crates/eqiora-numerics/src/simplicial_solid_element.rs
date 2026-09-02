@@ -5,7 +5,7 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
-use crate::affine_fem::physical_gradient;
+use crate::affine_fem::simplex_p1_physical_gradients;
 use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
 use crate::linear_elasticity::IsotropicElasticityMaterial;
 
@@ -15,22 +15,16 @@ pub(crate) fn p1_solid_backward_euler_velocity<const D: usize>(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
     density: f64,
-    shear_modulus: f64,
-    first_lame_parameter: f64,
+    material: IsotropicElasticityMaterial<D>,
     time_step: f64,
     previous_vertex_velocity: &[[f64; D]],
     previous_vertex_displacement: &[[f64; D]],
     velocity_scale: f64,
     power_scale: f64,
 ) -> Result<LocalContribution, Diagnostic> {
-    let material = require_contract::<D>(
-        geometry,
-        quadrature,
-        density,
-        shear_modulus,
-        first_lame_parameter,
-    )?;
-    let basis_count = D + 1;
+    require_contract::<D>(geometry, quadrature, density)?;
+    let space = SimplexP1Space::new(D)?;
+    let basis_count = space.local_dofs().len();
     if previous_vertex_velocity.len() != basis_count
         || previous_vertex_displacement.len() != basis_count
         || !time_step.is_finite()
@@ -50,21 +44,11 @@ pub(crate) fn p1_solid_backward_euler_velocity<const D: usize>(
         ));
     }
     let local_size = basis_count * D;
-    let inverse = geometry.inverse_jacobian()?;
-    let space = SimplexP1Space::new(D)?;
+    let gradients = simplex_p1_physical_gradients::<D>(geometry)?;
     let mut matrix = vec![0.0; local_size * local_size];
     let mut rhs = vec![0.0; local_size];
     for point in quadrature.points() {
         let basis = space.tabulate(&point.coordinates)?;
-        let gradients = (0..basis_count)
-            .map(|index| {
-                physical_gradient(
-                    basis.gradient(index).expect("accepted P1 basis index"),
-                    &inverse,
-                    D,
-                )
-            })
-            .collect::<Vec<_>>();
         let scale = point.weight * geometry.measure_scale();
         let mut previous_velocity = [0.0; D];
         for (local, vertex_velocity) in previous_vertex_velocity.iter().enumerate() {
@@ -122,9 +106,7 @@ fn require_contract<const D: usize>(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
     density: f64,
-    shear_modulus: f64,
-    first_lame_parameter: f64,
-) -> Result<IsotropicElasticityMaterial<D>, Diagnostic> {
+) -> Result<(), Diagnostic> {
     if !matches!(D, 2 | 3)
         || geometry.reference_cell() != quadrature.reference_cell()
         || geometry.reference_cell().dimension() != D
@@ -135,13 +117,10 @@ fn require_contract<const D: usize>(
             "P1 solid element requires matching intrinsic 2D/3D affine-simplex geometry and degree-two quadrature",
         ));
     }
-    let material = IsotropicElasticityMaterial::<D>::new(shear_modulus, first_lame_parameter);
-    if !density.is_finite() || density <= 0.0 || material.is_none() {
-        return Err(invalid(
-            "P1 solid element requires finite positive density and dimension-coercive Lamé data",
-        ));
+    if !density.is_finite() || density <= 0.0 {
+        return Err(invalid("P1 solid element requires finite positive density"));
     }
-    Ok(material.expect("validated dimension-coercive Lamé data"))
+    Ok(())
 }
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
