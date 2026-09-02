@@ -441,7 +441,11 @@ impl LoweringModel {
                 },
                 Item::Connection(declaration) => LoweringItem::Connection {
                     syntax: declaration.syntax(),
-                    ports: declaration.ports().map(str::to_owned).collect(),
+                    ports: declaration
+                        .port_paths()
+                        .iter()
+                        .map(|path| path.as_str().to_owned())
+                        .collect(),
                     range: declaration.range(),
                 },
                 Item::Boundary(declaration) => LoweringItem::Boundary {

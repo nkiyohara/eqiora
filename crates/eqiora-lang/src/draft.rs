@@ -1502,7 +1502,11 @@ mod tests {
         };
         assert_eq!(connection.syntax(), ConnectionSyntax::Conserving);
         assert_eq!(
-            connection.ports().collect::<Vec<_>>(),
+            connection
+                .port_paths()
+                .iter()
+                .map(NamePath::as_str)
+                .collect::<Vec<_>>(),
             ["positive", "negative"]
         );
         assert!(native.graph_path(connection.range()).is_some());
