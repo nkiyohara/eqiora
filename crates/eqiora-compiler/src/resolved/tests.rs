@@ -223,6 +223,34 @@ public component Resistor {
 }
 
 #[test]
+fn one_logical_module_composes_multiple_source_units() {
+    let owner = namespace("org.example.project");
+    let input = ResolvedHierarchyInput::with_root_module(
+        owner.clone(),
+        ["models"],
+        vec![
+            module_unit(&owner, "models", "src/models/components.eqi", LIBRARY),
+            module_unit(
+                &owner,
+                "models",
+                "src/models/main.eqi",
+                "model Main { instance load: Resistor(resistance = 2); }",
+            ),
+        ],
+        vec![],
+    )
+    .expect("root module identity");
+
+    let compiled = analyze_resolved_hierarchy(input)
+        .expect("multi-source module analyzes")
+        .validate_definitions()
+        .expect("multi-source definitions validate")
+        .compile_root("Main")
+        .expect("declarations compose within one module");
+    assert!(compiled.symbols().get("load.law").is_some());
+}
+
+#[test]
 fn explicit_local_import_graph_rejects_missing_duplicate_reserved_and_cycle() {
     let owner = namespace("org.example.project");
     let analyze = |root_name: &str, sources: &[(&str, &str)]| {

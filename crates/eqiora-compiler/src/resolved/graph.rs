@@ -25,15 +25,10 @@ pub(super) fn validate_graph_shape(
     aliases: &[ResolvedAlias],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut modules = BTreeSet::new();
-    for unit in units {
-        if !modules.insert(unit.module.clone()) {
-            diagnostics.push(resolved_error(format!(
-                "logical module `{}` has more than one source unit",
-                unit.module
-            )));
-        }
-    }
+    let modules = units
+        .iter()
+        .map(|unit| unit.module.clone())
+        .collect::<BTreeSet<_>>();
     if !modules.contains(root) {
         diagnostics.push(resolved_error(format!(
             "root logical module `{root}` has no source unit"
@@ -108,11 +103,10 @@ pub(super) fn validate_graph_shape(
             ));
         }
 
-        if units
-            .iter()
-            .find(|unit| &unit.module == alias.declaring_module())
-            .is_some_and(|unit| top_level_names(&unit.document).contains(alias.alias()))
-        {
+        if units.iter().any(|unit| {
+            &unit.module == alias.declaring_module()
+                && top_level_names(&unit.document).contains(alias.alias())
+        }) {
             diagnostics.push(alias_error(
                 alias,
                 format!(
