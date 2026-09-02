@@ -1,4 +1,4 @@
-use crate::ast::document::ImportDecl;
+use crate::ast::document::{ImportDecl, ModuleDecl};
 use crate::ast::{DimensionDecl, Document, TextRange, VisibilitySyntax};
 use crate::lexer::TokenKind;
 
@@ -6,6 +6,7 @@ use super::Parser;
 
 impl Parser<'_> {
     pub(super) fn parse_document(&mut self) -> Option<Document> {
+        let mut module = None;
         let mut imports = Vec::new();
         let mut dimensions = Vec::new();
         let mut property_contracts = Vec::new();
@@ -16,6 +17,7 @@ impl Parser<'_> {
         let mut models = Vec::new();
         let mut models_started = false;
         let mut declarations_started = false;
+        let mut module_prefix_closed = false;
         let mut import_prefix_closed = false;
         while !self.at(TokenKind::Eof) {
             let modifier = if self.at_keyword("public") {
@@ -33,7 +35,23 @@ impl Parser<'_> {
                 |(_, token)| token.range().start(),
             );
 
-            if self.at_keyword("import") {
+            if self.at_keyword("module") {
+                if let Some((_, token)) = &modifier {
+                    self.error_token(token, "module declarations have no visibility modifier");
+                }
+                if module_prefix_closed {
+                    self.error_here("the module declaration must precede imports and declarations");
+                }
+                if module.is_some() {
+                    self.error_here("a source file has exactly one module declaration");
+                }
+                if let Some(declaration) = self.parse_module(declaration_start) {
+                    module.get_or_insert(declaration);
+                } else {
+                    self.recover_top_level();
+                }
+            } else if self.at_keyword("import") {
+                module_prefix_closed = true;
                 if let Some((_, token)) = &modifier {
                     self.error_token(token, "module imports have no visibility modifier");
                 }
@@ -46,6 +64,7 @@ impl Parser<'_> {
                     self.recover_top_level();
                 }
             } else if self.at_keyword("dimension") {
+                module_prefix_closed = true;
                 import_prefix_closed = true;
                 if modifier.is_some() {
                     self.error_here(
@@ -61,6 +80,7 @@ impl Parser<'_> {
                     self.recover_top_level();
                 }
             } else if self.at_keyword("property") {
+                module_prefix_closed = true;
                 import_prefix_closed = true;
                 declarations_started = true;
                 self.parse_top_property(
@@ -71,6 +91,7 @@ impl Parser<'_> {
                     &mut property_releases,
                 );
             } else if self.at_keyword("connector") {
+                module_prefix_closed = true;
                 import_prefix_closed = true;
                 declarations_started = true;
                 if models_started {
@@ -84,6 +105,7 @@ impl Parser<'_> {
                     self.recover_top_level();
                 }
             } else if self.at_keyword("component") {
+                module_prefix_closed = true;
                 import_prefix_closed = true;
                 declarations_started = true;
                 if models_started {
@@ -97,6 +119,7 @@ impl Parser<'_> {
                     self.recover_top_level();
                 }
             } else if self.at_keyword("pure") {
+                module_prefix_closed = true;
                 import_prefix_closed = true;
                 declarations_started = true;
                 if models_started {
@@ -110,6 +133,7 @@ impl Parser<'_> {
                     self.recover_top_level();
                 }
             } else if self.at_keyword("model") {
+                module_prefix_closed = true;
                 import_prefix_closed = true;
                 declarations_started = true;
                 if let Some((VisibilitySyntax::Public, token)) = &modifier {
@@ -127,22 +151,26 @@ impl Parser<'_> {
             } else {
                 let expected = if import_prefix_closed {
                     "expected `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
-                } else {
+                } else if module.is_some() {
                     "expected `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
+                } else {
+                    "expected `module`, `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
                 };
                 self.error_here(expected);
                 self.recover_top_level();
             }
         }
-        (!(imports.is_empty()
-            && dimensions.is_empty()
-            && property_contracts.is_empty()
-            && property_releases.is_empty()
-            && connectors.is_empty()
-            && components.is_empty()
-            && pure_operators.is_empty()
-            && models.is_empty()))
+        (module.is_some()
+            || !(imports.is_empty()
+                && dimensions.is_empty()
+                && property_contracts.is_empty()
+                && property_releases.is_empty()
+                && connectors.is_empty()
+                && components.is_empty()
+                && pure_operators.is_empty()
+                && models.is_empty()))
         .then_some(Document {
+            module,
             imports,
             dimensions,
             property_contracts,
@@ -151,6 +179,19 @@ impl Parser<'_> {
             components,
             pure_operators,
             models,
+        })
+    }
+
+    fn parse_module(&mut self, start: u32) -> Option<ModuleDecl> {
+        self.expect_keyword("module")?;
+        let name = self.parse_name_path("logical module name")?;
+        let end = self
+            .expect(TokenKind::Semicolon, "`;` after module declaration")?
+            .range()
+            .end();
+        Some(ModuleDecl {
+            name,
+            range: TextRange::new(start, end),
         })
     }
 
@@ -236,12 +277,53 @@ mod tests {
     }
 
     #[test]
-    fn declaration_diagnostic_offers_import_only_while_the_prefix_is_open() {
-        let before = parse("before.eqi", "unexpected");
-        assert!(
-            before.diagnostics()[0]
+    fn parser_and_formatter_retain_source_owned_module_identity() {
+        let source = "module library.primitives;\nimport materials.water as water;\npublic component Resistor {}";
+        let document = parse("primitives.eqi", source)
+            .into_document()
+            .expect("module declaration parses");
+        let (module, range) = document.module().expect("declared module");
+        assert_eq!(module.as_str(), "library.primitives");
+        assert_eq!(
+            &source[range.start() as usize..range.end() as usize],
+            "module library.primitives;"
+        );
+
+        let formatted = format(&document);
+        assert!(formatted.starts_with(
+            "module library.primitives;\nimport materials.water as water;\n\npublic component Resistor"
+        ));
+        assert_eq!(
+            format(
+                &parse("primitives.eqi", &formatted)
+                    .into_document()
+                    .expect("formatted module reparses")
+            ),
+            formatted
+        );
+
+        let empty_module = parse("empty.eqi", "module library.empty;")
+            .into_document()
+            .expect("an explicitly named empty module is a document");
+        assert_eq!(format(&empty_module), "module library.empty;\n");
+
+        let misplaced = parse(
+            "misplaced.eqi",
+            "import a.b as b; module c.d; model Main {}",
+        );
+        assert!(misplaced.diagnostics().iter().any(|diagnostic| {
+            diagnostic
                 .message()
-                .starts_with("expected `import`")
+                .contains("module declaration must precede")
+        }));
+    }
+
+    #[test]
+    fn declaration_diagnostic_offers_header_forms_only_while_their_prefix_is_open() {
+        let before = parse("before.eqi", "unexpected");
+        assert_eq!(
+            before.diagnostics()[0].message(),
+            "expected `module`, `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
         );
 
         let after = parse("after.eqi", "model Main {} unexpected");

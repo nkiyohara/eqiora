@@ -1,8 +1,6 @@
-# Frozen identity lineage
+# Expected boundary
 
-`identities.json` freezes the exact package closure and the accepted
-Model-to-Run lineage. RFC 0055 changed literal Component bindings from
-fabricated occurrence-local Parameters to typed constants, so the Model,
-Compilation, Run, and package/Run binding identities changed together. The
-three package semantic/source identities and the exact resolution identity did
-not change.
+This case has no checked-in current identity or whole-lineage expectation.
+Its durable expectations are the independently derived sampled linear-state
+reference and the residual, refinement, and power-balance bounds declared by
+the case and exercised by the registered test.

@@ -11,15 +11,16 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{Document, SourceAstFactory, TextRange, VisibilitySyntax, parse};
+use eqiora_lang::{Document, SourceAstFactory, TextRange, VisibilitySyntax};
 
 use crate::CompiledModel;
 use crate::diagnostics::{source_error, stable_sort};
 use crate::hierarchy::HierarchyLimits;
-use crate::source_identity::LocalSourceIdentity;
+use crate::source_identity::{LocalSourceIdentity, ResolvedAliasTarget};
 
 mod declaration;
 mod graph;
+mod source;
 pub use declaration::{
     CanonicalDeclarationIdentity, CanonicalDeclarationKind, CanonicalDeclarationVisibility,
 };
@@ -222,6 +223,7 @@ impl fmt::Display for CompilationModuleId {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedSourceUnit {
     module: CompilationModuleId,
+    module_from_host: bool,
     file: String,
     source: String,
 }
@@ -239,6 +241,7 @@ impl ResolvedSourceUnit {
     ) -> Self {
         Self {
             module: CompilationModuleId::main(namespace),
+            module_from_host: false,
             file: file.into(),
             source: source.into(),
         }
@@ -257,6 +260,7 @@ impl ResolvedSourceUnit {
     {
         Ok(Self {
             module: CompilationModuleId::new(owner, ModuleName::new(module)?),
+            module_from_host: true,
             file: file.into(),
             source: source.into(),
         })
@@ -624,28 +628,8 @@ pub fn analyze_resolved_hierarchy(
     let mut diagnostics = Vec::new();
     let mut units = Vec::new();
     for unit in input.units {
-        if unit.file.is_empty() || unit.file.contains('\0') {
-            diagnostics.push(resolved_error(
-                "resolved source paths must be nonempty and NUL-free",
-            ));
-            continue;
-        }
-        let provenance_file = resolved_source_label(unit.module(), &unit.file);
-        if provenance_file.len() > limits.provenance.max_source_path_bytes {
-            diagnostics.push(resolved_error(format!(
-                "package-qualified source path requires {} bytes, exceeding the {} byte provenance-path limit",
-                provenance_file.len(),
-                limits.provenance.max_source_path_bytes
-            )));
-            continue;
-        }
-        match parse(&provenance_file, &unit.source).into_document() {
-            Ok(document) => units.push(AnalyzedSourceUnit {
-                module: unit.module,
-                file: provenance_file,
-                source_bytes: unit.source.len(),
-                document,
-            }),
+        match source::analyze_source_unit(unit, limits.provenance.max_source_path_bytes) {
+            Ok(unit) => units.push(unit),
             Err(mut errors) => diagnostics.append(&mut errors),
         }
     }
@@ -739,12 +723,7 @@ fn collect_canonical_declarations(
         let resolved_aliases = aliases
             .iter()
             .filter(|alias| alias.declaring_module() == &unit.module)
-            .map(|alias| {
-                (
-                    alias.alias().to_owned(),
-                    canonical_module_segments(alias.target_module()).into_boxed_slice(),
-                )
-            })
+            .map(|alias| (alias.alias().to_owned(), canonical_alias_target(alias)))
             .collect::<BTreeMap<_, _>>();
         for (name, visibility, is_contract, document) in
             unit.document.isolated_property_declarations()
@@ -853,13 +832,13 @@ fn collect_canonical_declarations(
     result
 }
 
-fn canonical_module_segments(module: &CompilationModuleId) -> Vec<String> {
-    let mut segments = module.owner().segments().to_vec();
-    if !module.name().is_main() {
-        segments.push("module".to_owned());
-        segments.extend(module.name().segments().iter().cloned());
+fn canonical_alias_target(alias: &ResolvedAlias) -> ResolvedAliasTarget {
+    let target = alias.target_module();
+    if alias.is_source_import() {
+        ResolvedAliasTarget::local_module(target.name().segments())
+    } else {
+        ResolvedAliasTarget::external_module(target.owner().segments(), target.name().segments())
     }
-    segments
 }
 
 fn canonical_declaration_path(module: &CompilationModuleId, declaration: &str) -> String {
@@ -879,7 +858,7 @@ fn push_canonical(
     kind: CanonicalDeclarationKind,
     visibility: VisibilitySyntax,
     document: &Document,
-    resolved_aliases: &BTreeMap<String, Box<[String]>>,
+    resolved_aliases: &BTreeMap<String, ResolvedAliasTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !paths.insert((namespace.clone(), path.to_owned())) {

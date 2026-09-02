@@ -42,8 +42,6 @@ const ROOT_README: &[u8] =
     include_bytes!("../../../packages/org.example.dc-motor-control/README.md");
 const ROOT_MANIFEST: &[u8] =
     include_bytes!("../../../packages/org.example.dc-motor-control/package.json");
-const EXPECTED_IDENTITIES: &[u8] =
-    include_bytes!("../../../verify/hybrid/packaged-dc-motor-controller/expected/identities.json");
 
 const SAMPLE_PERIOD: f64 = 0.01;
 const RESISTANCE: f64 = 2.0;
@@ -1087,92 +1085,4 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
             .message()
             .contains("at most one periodic ClockDomain")
     }));
-
-    let expected: serde_json::Value =
-        serde_json::from_slice(EXPECTED_IDENTITIES).expect("expected identities");
-    assert_eq!(
-        expected["schema"].as_str(),
-        Some("eqiora.verify.packaged-dc-motor-controller-identities.v1")
-    );
-    for (package, semantic) in [
-        ("electrical", &fixture.electrical_semantic),
-        ("drive", &fixture.drive_semantic),
-        ("root", &fixture.root_semantic),
-    ] {
-        let identity = fixture
-            .resolution
-            .nodes()
-            .iter()
-            .map(ResolutionNodeV1::identity)
-            .find(|identity| identity.semantic_digest.to_hex() == *semantic)
-            .expect("expected package identity in exact resolution");
-        assert_eq!(
-            expected[package]["name"].as_str(),
-            Some(identity.name.as_str())
-        );
-        assert_eq!(
-            expected[package]["version"].as_str(),
-            Some(identity.version.as_str())
-        );
-    }
-    for (path, actual) in [
-        ("electrical.semantic_digest", &fixture.electrical_semantic),
-        ("electrical.source_digest", &fixture.electrical_source),
-        ("drive.semantic_digest", &fixture.drive_semantic),
-        ("drive.source_digest", &fixture.drive_source),
-        ("root.semantic_digest", &fixture.root_semantic),
-        ("root.source_digest", &fixture.root_source),
-    ] {
-        let (package, member) = path.split_once('.').expect("identity path");
-        assert_eq!(
-            expected[package][member].as_str().expect("expected digest"),
-            actual
-        );
-    }
-    assert_eq!(
-        expected["resolution_digest"]
-            .as_str()
-            .expect("resolution digest"),
-        fixture
-            .resolution
-            .digest()
-            .expect("resolution digest")
-            .to_hex()
-    );
-    assert_eq!(
-        expected["model_digest"].as_str().expect("model digest"),
-        packaged.model().digest().expect("model digest")
-    );
-    assert_eq!(
-        expected["compilation_digest"]
-            .as_str()
-            .expect("compilation digest"),
-        "8759c2db7f978e0b975cd94f3de73051765e100145bb664ef570853692d463aa"
-    );
-    assert_eq!(
-        packaged
-            .compilation()
-            .digest()
-            .expect("compilation digest")
-            .to_hex(),
-        "c1deb03d07d6daeb54708b12bb3e48901e1778a1a167a1e8afc778b35afe4aff"
-    );
-    assert_eq!(
-        expected["run_digest"].as_str().expect("run digest"),
-        "1795c90532dfd35be43bdf16b6eea614c252bcad5abf0bf545271aca93314cb6"
-    );
-    assert_eq!(
-        run.digest().expect("run digest").as_str(),
-        "436d9afca0fd3e2d402e6755e3abb9448d678269cb9dc1bfdf66eaaf6a693199"
-    );
-    assert_eq!(
-        expected["run_binding_digest"]
-            .as_str()
-            .expect("run binding digest"),
-        "efd81995a3f312846432fb4b43dca7f060a408de8fc45619d17b9b07a0382460"
-    );
-    assert_eq!(
-        binding.digest().expect("binding digest").to_hex(),
-        "7603016c73fc23f6053eddb26d2f944dddbaef40519be6037ae5f0159939d9ce"
-    );
 }

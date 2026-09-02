@@ -1,4 +1,4 @@
-use crate::ast::document::ImportDecl;
+use crate::ast::document::{ImportDecl, ModuleDecl};
 use crate::ast::{
     ComponentDecl, ConnectorDecl, Document, Expr, ModelDecl, NamePath, PureOperatorDecl, TextRange,
 };
@@ -8,6 +8,29 @@ use super::{
 };
 
 impl SourceAstFactory {
+    /// Give one source document an explicit logical module identity.
+    ///
+    /// # Errors
+    /// Returns an error for an invalid qualified name, source range, or a
+    /// document that already has a module declaration.
+    pub fn with_module(
+        mut document: Document,
+        name: NamePath,
+        range: TextRange,
+    ) -> Result<Document, AstConstructionError> {
+        validate_name_path(&name)?;
+        if document.module.is_some() {
+            return Err(AstConstructionError::new(
+                "a source document has exactly one logical module identity",
+            ));
+        }
+        document.module = Some(ModuleDecl {
+            name,
+            range: checked_range(range)?,
+        });
+        Ok(document)
+    }
+
     /// Add one explicit semantic module import to a source document.
     ///
     /// # Errors
@@ -64,6 +87,7 @@ impl SourceAstFactory {
             .map(|(name, expression, range)| Self::dimension_alias(name, expression, range))
             .collect::<Result<_, _>>()?;
         Ok(Document {
+            module: None,
             imports: Vec::new(),
             dimensions,
             property_contracts: Vec::new(),
@@ -93,6 +117,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            module: None,
             imports: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
@@ -124,6 +149,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            module: None,
             imports: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
@@ -146,6 +172,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            module: None,
             imports: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
@@ -168,6 +195,12 @@ mod tests {
         let document = parse("main.eqi", "model Main {}")
             .into_document()
             .expect("base document");
+        let document = SourceAstFactory::with_module(
+            document,
+            NamePath::from_segments(["models", "main"], range).unwrap(),
+            range,
+        )
+        .expect("checked module identity");
         let document = SourceAstFactory::with_import(
             document,
             NamePath::from_segments(["library", "parts"], range).unwrap(),
@@ -177,7 +210,16 @@ mod tests {
         .expect("checked import");
         assert_eq!(
             format(&document),
-            "import library.parts as lib;\n\nmodel Main {\n}\n"
+            "module models.main;\nimport library.parts as lib;\n\nmodel Main {\n}\n"
+        );
+
+        assert!(
+            SourceAstFactory::with_module(
+                document.clone(),
+                NamePath::from_segments(["other"], range).unwrap(),
+                range,
+            )
+            .is_err()
         );
 
         assert!(

@@ -71,6 +71,69 @@ fn caller_geometry(volume: &str) -> CanonicalGeometryV1 {
 }
 
 #[test]
+fn locked_source_bundle_reconstructs_declared_module_graph() {
+    let main_path = NormalizedRelativePath::parse("src/main.eqi").expect("main path");
+    let library_path = NormalizedRelativePath::parse("sources/anywhere.eqi").expect("library path");
+    let main_source = r#"
+import library.parts as lib;
+model Main { instance load: lib.Resistor(resistance = 2); }
+"#;
+    let library_source = r#"
+module library.parts;
+public component Resistor {
+  public parameter resistance: 1;
+  relation law continuous { resistance - 2 = 0; }
+}
+"#;
+    let manifest = AuthorManifestV1::new(
+        QualifiedName::parse("org.example.DeclaredModules").expect("package name"),
+        ExactVersion::parse(VERSION).expect("version"),
+        vec![],
+        vec![
+            BundleEntryV1::new(main_path.clone(), BundleRoleV1::ModelSource),
+            BundleEntryV1::new(library_path.clone(), BundleRoleV1::ModelSource),
+        ],
+    )
+    .expect("manifest");
+    let sources = AuthorPackageSourcesV1::new(
+        manifest,
+        vec![
+            SourceFileV1::new(
+                main_path,
+                BundleRoleV1::ModelSource,
+                main_source.as_bytes().to_vec(),
+            ),
+            SourceFileV1::new(
+                library_path,
+                BundleRoleV1::ModelSource,
+                library_source.as_bytes().to_vec(),
+            ),
+        ],
+    )
+    .expect("closed source bundle");
+    let release = prepare_package_release_v1(sources, &[]).expect("prepared module package");
+    let replayed =
+        PackageReleaseV1::from_json(&release.canonical_json().expect("canonical package release"))
+            .expect("replayed package release");
+    assert_eq!(
+        replayed.source_digest().unwrap(),
+        release.source_digest().unwrap()
+    );
+
+    let mut store = InMemoryPackageStore::default();
+    store.insert(&replayed).expect("store replayed package");
+    let resolution =
+        ResolutionRecordV1::from_exact_releases(&replayed, &[]).expect("exact resolution");
+    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("reconstructed module graph compiles");
+    packaged
+        .compilation()
+        .validate_against(&resolution)
+        .expect("compilation binds exact source inventory");
+    assert!(packaged.model().aliases().contains_key("load.law"));
+}
+
+#[test]
 fn locked_scalar_property_replays_offline_with_inspectable_provenance() {
     const SOURCE: &str = r#"
 public property contract Diffusivity {

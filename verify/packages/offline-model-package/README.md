@@ -4,28 +4,20 @@ This case opens explicit directory capabilities for
 `Eqiora.Electrical.Basic` and the third-party-shaped
 `org.example.parallel`. The public Rust adapter reads only `package.json` and
 the normalized closed inventory it names, producing the same admitted sources
-and frozen release bytes as direct in-memory construction. The public package
+and release bytes as direct in-memory construction. The public package
 facade then derives each release's semantic content through the ordinary
 compiler; this preparation operation accepts no author-supplied semantic
 payload. It derives the exact lock from the two releases and inserts them
 into the same in-memory content-addressed store, and compiles the locked root.
 No package is privileged as standard or discovered by a search path.
 
-The case also freezes that exact lock and both release wires under `models/`,
-drops the preparation values, and restarts through the public read-only
-`DirectoryPackageStore`. Both an explicitly ambient-opened root and a
-caller-opened retained `cap_std::fs::Dir` must reproduce the same package,
-Model, compilation, Run, and package-to-Run binding identities. The local
-store reads only the exact source-digest filenames; an unrelated entry is
-ignored because neither the adapter nor resolver enumerates the directory.
-
-The same target separately decodes both frozen releases and publishes them
-into an empty root through `DirectoryPackageInstaller`. Complete canonical
+The store-focused product checks publish freshly prepared releases into an
+empty root through `DirectoryPackageInstaller`. Complete canonical
 bytes are written to create-new staging entries (mode `0600` on Unix),
 synchronized, closed, and atomically hard-linked to their exact source-digest
 names. The read-only
-store then replays the unchanged lock and must reproduce the same identity and
-numerical oracle. Repeating an equal release is idempotent. Replacing an
+store then replays the derived exact lock. Repeating an equal release is
+idempotent. Replacing an
 accepted entry afterward must fail the next ordinary replay with the exact
 expected and actual source digests. This registered case is a single-principal
 local-store proof; the lower-level contract separately forces a two-writer race
@@ -78,7 +70,8 @@ identity, exact resolution digest, both source-bundle digests, and explicit
 compiler/canonicalization versions. Definition spans for imported component
 members identify `Eqiora.Electrical.Basic`; instance and binding spans identify
 `org.example.parallel`, even though both packages may use the same relative
-source path.
+source path. The relation is checked; its incidental digest values are not an
+expected lineage.
 
 The resulting closed network is the same 14-by-14 static affine scalar
 electrical problem used by the local hierarchy evidence. Independent faer

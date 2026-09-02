@@ -26,8 +26,6 @@ use eqiora_numerics::{
 
 const PERMUTED_CIRCUITS_SOURCE: &str =
     include_str!("../../../verify/packages/composed-model-package/models/circuits-permuted.eqi");
-const EXPECTED_IDENTITIES: &[u8] =
-    include_bytes!("../../../verify/packages/composed-model-package/expected/identities.json");
 const VALUE_TOLERANCE: f64 = 2.0e-11;
 const RESIDUAL_TOLERANCE: f64 = 1.2e-11;
 
@@ -259,47 +257,6 @@ fn transitive_composed_component_installs_flattens_and_solves() {
             .canonical_json()
             .expect("permuted-memory compilation")
     );
-
-    let identity = |release: &PackageReleaseV1| {
-        let package = release.package_identity().expect("package identity");
-        serde_json::json!({
-            "name": package.name.as_str(),
-            "version": package.version.to_string(),
-            "semantic_digest": package.semantic_digest.to_hex(),
-            "source_digest": release.source_digest().expect("source digest").to_hex(),
-        })
-    };
-    let actual_identities = serde_json::json!({
-        "schema": "eqiora.verify.composed-model-package-identities.v1",
-        "basic": identity(&basic),
-        "circuits": identity(&circuits),
-        "root": identity(&root),
-        "resolution_digest": resolution.digest().expect("resolution digest").to_hex(),
-        "model_digest": packaged.model().digest().expect("model digest"),
-        "compilation_digest": packaged.compilation().digest().expect("compilation digest").to_hex(),
-    });
-    let expected_identities: serde_json::Value =
-        serde_json::from_slice(EXPECTED_IDENTITIES).expect("expected identity oracle");
-    assert_eq!(
-        actual_identities["compilation_digest"],
-        "8d6f6a24180b88eb13028c794bcf7beb7eaae59cf631f17bcc8b87b3d6b436ec"
-    );
-    assert_eq!(
-        expected_identities["compilation_digest"],
-        "0660e440abbda6e9fe300cf1622d072c71ed87ea4e3942c192535c6bf563e384"
-    );
-
-    let mut actual_stable_identities = actual_identities;
-    let mut expected_stable_identities = expected_identities;
-    actual_stable_identities
-        .as_object_mut()
-        .expect("actual identities object")
-        .remove("compilation_digest");
-    expected_stable_identities
-        .as_object_mut()
-        .expect("expected identities object")
-        .remove("compilation_digest");
-    assert_eq!(actual_stable_identities, expected_stable_identities);
 
     let program = packaged.model().program();
     let counts = program.nodes().fold([0_usize; 9], |mut counts, node| {

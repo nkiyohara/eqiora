@@ -94,6 +94,7 @@ impl Document {
                     declaration.visibility,
                     true,
                     Self {
+                        module: None,
                         imports: Vec::new(),
                         dimensions: self.dimensions.clone(),
                         property_contracts: vec![declaration.clone()],
@@ -112,6 +113,7 @@ impl Document {
                 declaration.visibility,
                 false,
                 Self {
+                    module: None,
                     imports: Vec::new(),
                     dimensions: self.dimensions.clone(),
                     property_contracts: Vec::new(),

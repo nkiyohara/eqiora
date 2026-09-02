@@ -251,6 +251,143 @@ fn one_logical_module_composes_multiple_source_units() {
 }
 
 #[test]
+fn source_declaration_owns_logical_module_identity() {
+    let owner = namespace("org.example.project");
+    let analyze = |library_file: &str| {
+        analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
+            owner.clone(),
+            vec![
+                unit(
+                    &owner,
+                    "src/main.eqi",
+                    "import library.parts as lib; model Main { instance load: lib.Resistor(resistance = 2); }",
+                ),
+                unit(
+                    &owner,
+                    library_file,
+                    "module library.parts; public component Resistor { public parameter resistance: 1; relation law continuous { resistance - 2 = 0; } }",
+                ),
+            ],
+            vec![],
+        ))
+        .expect("declared module graph analyzes")
+    };
+    let declared = analyze("elsewhere/resistor.eqi");
+    let relocated = analyze("unrelated/path/value.eqi");
+    assert_eq!(
+        declared.canonical_declarations(),
+        relocated.canonical_declarations(),
+        "filesystem relocation cannot rename a source-owned module"
+    );
+
+    let compiled = declared
+        .validate_definitions()
+        .expect("declared module definitions validate")
+        .compile_root("Main")
+        .expect("source-owned module compiles");
+    assert!(compiled.symbols().get("load.law").is_some());
+}
+
+#[test]
+fn source_declaration_must_match_host_assigned_module() {
+    let owner = namespace("org.example.project");
+    let source = "module declared.name; public component Value {}";
+    let input = ResolvedHierarchyInput::with_root_module(
+        owner.clone(),
+        ["assigned", "name"],
+        vec![module_unit(&owner, "assigned.name", "value.eqi", source)],
+        vec![],
+    )
+    .expect("host module identity");
+
+    let diagnostics = analyze_resolved_hierarchy(input).expect_err("identity mismatch");
+    let diagnostic = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.message().contains("source declares module"))
+        .expect("module mismatch diagnostic");
+    let span = diagnostic.source_span().expect("module source span");
+    assert_eq!(
+        &source[span.start as usize..span.end as usize],
+        "module declared.name;"
+    );
+}
+
+#[test]
+fn oversized_provenance_path_fails_before_malformed_source_is_parsed() {
+    let owner = namespace("org.example.project");
+    let input = ResolvedHierarchyInput::new(
+        owner.clone(),
+        vec![unit(&owner, &"x".repeat(5_000), "not valid Eqiora")],
+        vec![],
+    );
+
+    let diagnostics = analyze_resolved_hierarchy(input).expect_err("oversized provenance path");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message().contains("provenance-path limit")),
+        "the bounded path failure must precede parser diagnostics"
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.source_span().is_none()),
+        "the malformed source must not reach the parser"
+    );
+}
+
+#[test]
+fn source_local_alias_identity_cannot_collide_with_an_external_namespace() {
+    let root = namespace("root");
+    let local = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
+        root.clone(),
+        vec![
+            unit(
+                &root,
+                "root.eqi",
+                "import parts as value; model Main { instance x: value.Resistor; }",
+            ),
+            unit(
+                &root,
+                "parts.eqi",
+                "module parts; public component Resistor {}",
+            ),
+        ],
+        vec![],
+    ))
+    .expect("local module graph");
+    let external_target = CompilationNamespaceId::new(["local-module-v1", "parts"])
+        .expect("adversarial external namespace");
+    let external = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
+        root.clone(),
+        vec![
+            unit(
+                &root,
+                "root.eqi",
+                "model Main { instance x: value.Resistor; }",
+            ),
+            unit(
+                &external_target,
+                "parts.eqi",
+                "public component Resistor {}",
+            ),
+        ],
+        vec![alias(&root, "value", &external_target)],
+    ))
+    .expect("external package graph");
+    let root_form = |analysis: &AnalyzedResolvedHierarchy| {
+        analysis
+            .canonical_declarations()
+            .iter()
+            .find(|declaration| declaration.namespace() == &root && declaration.path() == "Main")
+            .expect("root model declaration")
+            .canonical_form()
+            .to_owned()
+    };
+    assert_ne!(root_form(&local), root_form(&external));
+}
+
+#[test]
 fn explicit_local_import_graph_rejects_missing_duplicate_reserved_and_cycle() {
     let owner = namespace("org.example.project");
     let analyze = |root_name: &str, sources: &[(&str, &str)]| {

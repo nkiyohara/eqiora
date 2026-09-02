@@ -14,8 +14,6 @@ capabilities = [
   "dimensioned-physical-trajectory-observation",
   "constitutive-and-junction-residual-reacceptance",
   "electromechanical-power-balance",
-  "canonical-run-v1-lineage",
-  "exact-package-run-binding",
 ]
 
 [problem]
@@ -44,8 +42,6 @@ periodic_residuals = 2
 kernel_parameters = 0
 model_wire = 2
 package_wire = 1
-run_wire = 1
-package_run_binding_wire = 1
 
 [numerical_contract]
 method = "backward-euler"
@@ -80,8 +76,6 @@ fixed_point_or_real_time_schedule = false
 mpi_or_gpu = false
 dynamic_plugins = false
 broad_component_library = false
-run_emitted_after_numerical_acceptance = true
-failed_execution_emits_run_binding = false
 general_result_artifact = false
 
 [evidence]

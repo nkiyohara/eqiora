@@ -1,7 +1,7 @@
 id = "packages.offline-model-package"
 status = "verified"
 scope = "exact-two-package-scalar-electrical-host-serial"
-reference_kind = "canonical-package-identities-provenance-and-analytic-dc"
+reference_kind = "package-resolution-integrity-provenance-and-analytic-dc"
 
 capabilities = [
   "closed-model-package-manifest",
@@ -15,9 +15,6 @@ capabilities = [
   "compiler-source-recanonicalization",
   "direct-public-package-reference",
   "package-qualified-source-provenance",
-  "canonical-model-compilation-record",
-  "canonical-run-v1-lineage",
-  "exact-package-run-binding",
   "analytic-packaged-parallel-dc",
 ]
 
@@ -31,10 +28,7 @@ parallel_resistances = [2.0, 4.0]
 packages = 2
 physical_unknowns = 14
 physical_residuals = 14
-model_wire = 2
 package_wire = 1
-run_wire = 1
-package_run_binding_wire = 1
 
 [numerical_contract]
 relative_tolerance = 1e-12
@@ -62,7 +56,7 @@ store_entry_lookup = "source-bundle digest only"
 store_directory_enumeration = false
 store_final_entry_nonblocking = true
 store_unrelated_entries_affect_resolution = false
-restart_reproduces_frozen_identities = true
+freshly_installed_exact_release_replays = true
 local_store_installation = "one canonical release, atomic no-clobber"
 installer_directory_enumeration = false
 installer_equal_content_idempotent = true

@@ -10,7 +10,7 @@ use eqiora::package::{
     SourceFileV1, StoreError,
 };
 
-use super::{LIBRARY_RELEASE, LOCK_RECORD, ROOT_RELEASE, assert_exact_package_evidence};
+use super::{assert_package_semantics, library_release, root_release};
 
 struct TestDirectory(PathBuf);
 
@@ -32,8 +32,28 @@ impl Drop for TestDirectory {
     }
 }
 
-fn exact_lock() -> ResolutionRecordV1 {
-    ResolutionRecordV1::from_json(LOCK_RECORD).expect("exact lock fixture")
+struct ExactFixture {
+    library: PackageReleaseV1,
+    root: PackageReleaseV1,
+    resolution: ResolutionRecordV1,
+    library_bytes: Vec<u8>,
+    root_bytes: Vec<u8>,
+}
+
+fn exact_fixture() -> ExactFixture {
+    let library = library_release();
+    let root = root_release(&library);
+    let resolution = ResolutionRecordV1::from_exact_releases(&root, std::slice::from_ref(&library))
+        .expect("derive exact lock");
+    let library_bytes = library.canonical_json().expect("canonical library release");
+    let root_bytes = root.canonical_json().expect("canonical root release");
+    ExactFixture {
+        library,
+        root,
+        resolution,
+        library_bytes,
+        root_bytes,
+    }
 }
 
 fn release_digests(resolution: &ResolutionRecordV1) -> (SourceBundleDigest, SourceBundleDigest) {
@@ -69,14 +89,14 @@ fn assert_install(
 
 #[test]
 fn explicit_store_rejects_missing_substituted_malformed_and_oversize_entries() {
-    let resolution = exact_lock();
-    let (library_digest, root_digest) = release_digests(&resolution);
+    let fixture = exact_fixture();
+    let (library_digest, root_digest) = release_digests(&fixture.resolution);
     let directory = TestDirectory::create();
     let store = DirectoryPackageStore::open_ambient(&directory.0).expect("open empty store");
     assert!(matches!(
         PackagedModelDocument::compile_locked(
             &store,
-            &resolution,
+            &fixture.resolution,
             "Main",
         ),
         Err(PackageCompilationError::Resolution(
@@ -84,30 +104,37 @@ fn explicit_store_rejects_missing_substituted_malformed_and_oversize_entries() {
         )) if digest == library_digest
     ));
 
-    fs::write(entry_path(&directory.0, library_digest), ROOT_RELEASE)
-        .expect("write digest-substituted library");
-    fs::write(entry_path(&directory.0, root_digest), ROOT_RELEASE).expect("write root release");
-    assert!(PackagedModelDocument::compile_locked(&store, &resolution, "Main").is_err());
+    fs::write(
+        entry_path(&directory.0, library_digest),
+        &fixture.root_bytes,
+    )
+    .expect("write digest-substituted library");
+    fs::write(entry_path(&directory.0, root_digest), &fixture.root_bytes)
+        .expect("write root release");
+    assert!(PackagedModelDocument::compile_locked(&store, &fixture.resolution, "Main").is_err());
 
     fs::write(entry_path(&directory.0, library_digest), b"{not-json")
         .expect("write malformed library");
-    assert!(PackagedModelDocument::compile_locked(&store, &resolution, "Main").is_err());
+    assert!(PackagedModelDocument::compile_locked(&store, &fixture.resolution, "Main").is_err());
 
-    fs::write(entry_path(&directory.0, library_digest), LIBRARY_RELEASE)
-        .expect("write exact library");
+    fs::write(
+        entry_path(&directory.0, library_digest),
+        &fixture.library_bytes,
+    )
+    .expect("write exact library");
     fs::write(directory.0.join("unrelated.json"), b"untrusted decoy")
         .expect("write unrelated entry");
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+    PackagedModelDocument::compile_locked(&store, &fixture.resolution, "Main")
         .expect("unrelated entry cannot affect exact replay");
     assert!(matches!(
-        store.load_exact(library_digest, LIBRARY_RELEASE.len() - 1),
+        store.load_exact(library_digest, fixture.library_bytes.len() - 1),
         Err(StoreError::ReleaseTooLarge {
             digest,
             observed,
             limit,
         }) if digest == library_digest
-            && observed == u64::try_from(LIBRARY_RELEASE.len()).expect("fixture length")
-            && limit == u64::try_from(LIBRARY_RELEASE.len() - 1).expect("fixture limit")
+            && observed == u64::try_from(fixture.library_bytes.len()).expect("fixture length")
+            && limit == u64::try_from(fixture.library_bytes.len() - 1).expect("fixture limit")
     ));
 }
 
@@ -116,12 +143,15 @@ fn explicit_store_rejects_missing_substituted_malformed_and_oversize_entries() {
 fn exact_replay_does_not_require_directory_enumeration() {
     use std::os::unix::fs::PermissionsExt;
 
-    let resolution = exact_lock();
-    let (library_digest, root_digest) = release_digests(&resolution);
+    let fixture = exact_fixture();
+    let (library_digest, root_digest) = release_digests(&fixture.resolution);
     let directory = TestDirectory::create();
-    fs::write(entry_path(&directory.0, library_digest), LIBRARY_RELEASE)
-        .expect("write exact library release");
-    fs::write(entry_path(&directory.0, root_digest), ROOT_RELEASE)
+    fs::write(
+        entry_path(&directory.0, library_digest),
+        &fixture.library_bytes,
+    )
+    .expect("write exact library release");
+    fs::write(entry_path(&directory.0, root_digest), &fixture.root_bytes)
         .expect("write exact root release");
     let store = DirectoryPackageStore::open_ambient(&directory.0).expect("retain store root");
 
@@ -133,7 +163,7 @@ fn exact_replay_does_not_require_directory_enumeration() {
     fs::set_permissions(&directory.0, execute_only).expect("remove directory-listing permission");
 
     let enumeration = fs::read_dir(&directory.0);
-    let compiled = PackagedModelDocument::compile_locked(&store, &resolution, "Main");
+    let compiled = PackagedModelDocument::compile_locked(&store, &fixture.resolution, "Main");
 
     fs::set_permissions(&directory.0, original_permissions)
         .expect("restore test-directory permissions");
@@ -146,29 +176,29 @@ fn exact_replay_does_not_require_directory_enumeration() {
 
 #[test]
 fn atomic_installer_publishes_the_exact_locked_restart() {
-    let resolution = exact_lock();
-    let (library_digest, root_digest) = release_digests(&resolution);
-    let library = PackageReleaseV1::from_json(LIBRARY_RELEASE).expect("library release fixture");
-    let root = PackageReleaseV1::from_json(ROOT_RELEASE).expect("root release fixture");
+    let fixture = exact_fixture();
+    let (library_digest, root_digest) = release_digests(&fixture.resolution);
     let directory = TestDirectory::create();
     let installer =
         DirectoryPackageInstaller::open_ambient(&directory.0).expect("open package installer");
 
     assert_install(
-        installer.install(&library).expect("install library"),
+        installer
+            .install(&fixture.library)
+            .expect("install library"),
         library_digest,
         PackageInstallDisposition::Installed,
         PackageStageCleanup::Removed,
     );
     assert_install(
-        installer.install(&root).expect("install root"),
+        installer.install(&fixture.root).expect("install root"),
         root_digest,
         PackageInstallDisposition::Installed,
         PackageStageCleanup::Removed,
     );
     assert_install(
         installer
-            .install(&library)
+            .install(&fixture.library)
             .expect("repeat library installation"),
         library_digest,
         PackageInstallDisposition::AlreadyPresent,
@@ -177,9 +207,10 @@ fn atomic_installer_publishes_the_exact_locked_restart() {
 
     drop(installer);
     let store = DirectoryPackageStore::open_ambient(&directory.0).expect("open installed store");
-    assert_exact_package_evidence(&store, &resolution);
+    assert_package_semantics(&store, &fixture.resolution);
 
-    let substituted_files = library
+    let substituted_files = fixture
+        .library
         .source()
         .files()
         .iter()
@@ -190,8 +221,8 @@ fn atomic_installer_publishes_the_exact_locked_restart() {
         })
         .collect();
     let substituted = PackageReleaseV1::new(
-        library.manifest().clone(),
-        library.semantic().clone(),
+        fixture.library.manifest().clone(),
+        fixture.library.semantic().clone(),
         substituted_files,
     )
     .expect("same-identity source substitution");
@@ -205,7 +236,7 @@ fn atomic_installer_publishes_the_exact_locked_restart() {
     assert!(matches!(
         PackagedModelDocument::compile_locked(
             &store,
-            &resolution,
+            &fixture.resolution,
             "Main",
         ),
         Err(PackageCompilationError::Resolution(
@@ -219,9 +250,9 @@ fn concurrent_equal_installers_converge_on_one_exact_release() {
     use std::sync::{Arc, Barrier};
     use std::thread;
 
-    let resolution = exact_lock();
-    let (library_digest, _) = release_digests(&resolution);
-    let library = PackageReleaseV1::from_json(LIBRARY_RELEASE).expect("library release fixture");
+    let fixture = exact_fixture();
+    let (library_digest, _) = release_digests(&fixture.resolution);
+    let library = fixture.library;
     let directory = TestDirectory::create();
     let installer =
         DirectoryPackageInstaller::open_ambient(&directory.0).expect("open package installer");
@@ -270,9 +301,7 @@ fn concurrent_equal_installers_converge_on_one_exact_release() {
 fn atomic_installer_does_not_require_directory_enumeration() {
     use std::os::unix::fs::PermissionsExt;
 
-    let resolution = exact_lock();
-    let library = PackageReleaseV1::from_json(LIBRARY_RELEASE).expect("library release fixture");
-    let root = PackageReleaseV1::from_json(ROOT_RELEASE).expect("root release fixture");
+    let fixture = exact_fixture();
     let directory = TestDirectory::create();
     let installer =
         DirectoryPackageInstaller::open_ambient(&directory.0).expect("retain installer root");
@@ -286,8 +315,8 @@ fn atomic_installer_does_not_require_directory_enumeration() {
         .expect("remove directory-listing permission");
 
     let enumeration = fs::read_dir(&directory.0);
-    let library_result = installer.install(&library);
-    let root_result = installer.install(&root);
+    let library_result = installer.install(&fixture.library);
+    let root_result = installer.install(&fixture.root);
 
     fs::set_permissions(&directory.0, original_permissions)
         .expect("restore test-directory permissions");
@@ -299,7 +328,7 @@ fn atomic_installer_does_not_require_directory_enumeration() {
     assert!(root_result.is_ok());
 
     let store = DirectoryPackageStore::open_ambient(&directory.0).expect("open installed store");
-    assert_exact_package_evidence(&store, &resolution);
+    assert_package_semantics(&store, &fixture.resolution);
 }
 
 #[cfg(unix)]
@@ -312,9 +341,9 @@ fn atomic_installer_rejects_non_regular_occupied_digest_entries() {
 
     use rustix::fs::{CWD, Mode, mkfifoat};
 
-    let resolution = exact_lock();
-    let (library_digest, _) = release_digests(&resolution);
-    let library = PackageReleaseV1::from_json(LIBRARY_RELEASE).expect("library release fixture");
+    let fixture = exact_fixture();
+    let (library_digest, _) = release_digests(&fixture.resolution);
+    let library = fixture.library;
 
     let directory_occupant = TestDirectory::create();
     fs::create_dir(entry_path(&directory_occupant.0, library_digest))
@@ -330,8 +359,11 @@ fn atomic_installer_rejects_non_regular_occupied_digest_entries() {
     ));
 
     let symlink_occupant = TestDirectory::create();
-    fs::write(symlink_occupant.0.join("target.json"), LIBRARY_RELEASE)
-        .expect("write symlink target");
+    fs::write(
+        symlink_occupant.0.join("target.json"),
+        &fixture.library_bytes,
+    )
+    .expect("write symlink target");
     symlink(
         "target.json",
         entry_path(&symlink_occupant.0, library_digest),
@@ -380,12 +412,15 @@ fn explicit_store_rejects_redirection_and_special_entries_and_retains_its_root()
 
     use rustix::fs::{CWD, Mode, mkfifoat};
 
-    let resolution = exact_lock();
-    let (library_digest, _) = release_digests(&resolution);
+    let fixture = exact_fixture();
+    let (library_digest, _) = release_digests(&fixture.resolution);
 
     let symlink_directory = TestDirectory::create();
-    fs::write(symlink_directory.0.join("target.json"), LIBRARY_RELEASE)
-        .expect("write symlink target");
+    fs::write(
+        symlink_directory.0.join("target.json"),
+        &fixture.library_bytes,
+    )
+    .expect("write symlink target");
     symlink(
         "target.json",
         entry_path(&symlink_directory.0, library_digest),
@@ -428,7 +463,7 @@ fn explicit_store_rejects_redirection_and_special_entries_and_retains_its_root()
     let retained_directory = TestDirectory::create();
     fs::write(
         entry_path(&retained_directory.0, library_digest),
-        LIBRARY_RELEASE,
+        &fixture.library_bytes,
     )
     .expect("write original release");
     let retained =
@@ -438,14 +473,14 @@ fn explicit_store_rejects_redirection_and_special_entries_and_retains_its_root()
     fs::create_dir(&retained_directory.0).expect("create replacement root");
     fs::write(
         entry_path(&retained_directory.0, library_digest),
-        ROOT_RELEASE,
+        &fixture.root_bytes,
     )
     .expect("write replacement release");
     assert_eq!(
         retained
             .load_exact(library_digest, usize::MAX)
             .expect("load retained release"),
-        Some(LIBRARY_RELEASE.to_vec())
+        Some(fixture.library_bytes)
     );
 
     fs::remove_dir_all(&retained_directory.0).expect("remove replacement root");

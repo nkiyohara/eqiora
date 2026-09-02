@@ -26,6 +26,13 @@
     "declarations": {
       "patterns": [
         {
+          "match": "\\b(module|import)\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.eqiora" },
+            "2": { "name": "entity.name.namespace.eqiora" }
+          }
+        },
+        {
           "match": "\\b(component|connector|model|operator)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "keyword.declaration.eqiora" },

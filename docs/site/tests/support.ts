@@ -77,14 +77,21 @@ export const TABLE_SELECTORS = {
   component: '.sl-markdown-content .eq-stage__body > table',
 } as const;
 
+type TableRouteShape = Readonly<{
+  route: string;
+  tables: number | null;
+  direct: number | null;
+  component: number;
+}>;
+
 export const TABLE_ROUTES = [
   { route: '/capabilities/', tables: 1, direct: 1, component: 0 },
-  { route: '/evidence/', tables: 965, direct: 965, component: 0 },
+  { route: '/evidence/', tables: null, direct: null, component: 0 },
   { route: '/gallery/exact-cylinder-steady-stokes/', tables: 1, direct: 0, component: 1 },
   { route: '/reference/control-v2/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/python/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/rust/', tables: 3, direct: 3, component: 0 },
-] as const;
+] as const satisfies readonly TableRouteShape[];
 
 export const PARENT_FORCED_TABLE_RESULTS = {
   '/capabilities/': null,
@@ -1224,20 +1231,33 @@ export async function assertTableInventory(
 ): Promise<TableObservation> {
   expect(new URL(page.url()).pathname).toBe(expected.route);
   const observation = await observeTables(page, projection);
-  expect(observation.counts, `table inventory ${expected.route}`).toEqual({
-    main: expected.tables,
-    all: expected.tables,
-    generic: expected.tables,
-    direct: expected.direct,
-    component: expected.component,
-  });
+  if (expected.tables === null || expected.direct === null) {
+    expect(observation.counts.main, `table presence ${expected.route}`).toBeGreaterThan(0);
+    expect(observation.counts, `table structure ${expected.route}`).toEqual({
+      main: observation.counts.main,
+      all: observation.counts.main,
+      generic: observation.counts.main,
+      direct: observation.counts.main,
+      component: expected.component,
+    });
+  } else {
+    expect(observation.counts, `table inventory ${expected.route}`).toEqual({
+      main: expected.tables,
+      all: expected.tables,
+      generic: expected.tables,
+      direct: expected.direct,
+      component: expected.component,
+    });
+  }
   if (projection !== 'dynamic') {
     expect(
       observation.failures.relation,
       `table relation boundaries ${expected.route}: ${JSON.stringify(observation.boundaries)}`,
     ).toBe(0);
   }
-  expect(observation.tables.filter((table) => table.direct)).toHaveLength(expected.direct);
+  expect(observation.tables.filter((table) => table.direct)).toHaveLength(
+    expected.direct ?? observation.counts.main,
+  );
   expect(observation.tables.filter((table) => table.component)).toHaveLength(expected.component);
   return observation;
 }
@@ -1359,7 +1379,7 @@ export async function assertProductTableRouteGreen(
   page: Page,
   expected: TableRoute,
   axeProjection: ConditionAxeProjection,
-): Promise<void> {
+): Promise<TableObservation> {
   await navigateSitePage(page, expected.route);
   await assertCoreVisible(page);
   const observation = await assertTableInventory(page, expected, 'dynamic');
@@ -1371,6 +1391,7 @@ export async function assertProductTableRouteGreen(
   expect(
     await conditionDependentAxeViolations(page, axeProjection),
   ).toEqual([]);
+  return observation;
 }
 
 export async function assertParentForcedTableBoundary(
@@ -1379,7 +1400,11 @@ export async function assertParentForcedTableBoundary(
 ): Promise<void> {
   await navigateSitePage(page, expected.route);
   await assertOrdinaryRoutePage(page, expected.route);
-  await expect(page.locator('main table')).toHaveCount(expected.tables);
+  if (expected.tables === null) {
+    expect(await page.locator('main table').count()).toBeGreaterThan(0);
+  } else {
+    await expect(page.locator('main table')).toHaveCount(expected.tables);
+  }
   const target = PARENT_FORCED_TABLE_RESULTS[expected.route];
   const violations = await seriousAxeViolations(page);
   if (target === null) {

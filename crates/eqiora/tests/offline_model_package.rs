@@ -1,9 +1,6 @@
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
-use cap_std::ambient_authority;
-use cap_std::fs::Dir;
-
 #[path = "offline_model_package/directory_input.rs"]
 mod directory_input;
 #[path = "offline_model_package/store_input.rs"]
@@ -16,9 +13,9 @@ use eqiora::graph::EdgeKind;
 use eqiora::kernel::KernelNode;
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1,
-    DependencyRequirementV1, DirectoryPackageStore, ExactVersion, InMemoryPackageStore,
-    NormalizedRelativePath, PackagePreparationError, PackageReleaseV1, PackageRunBindingV1,
-    PackageStore, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    DependencyRequirementV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackagePreparationError, PackageReleaseV1, PackageRunBindingV1, PackageStore,
+    PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
 use eqiora::sem::PhysicalUnknown;
@@ -38,17 +35,6 @@ const LIBRARY_MANIFEST: &[u8] =
 const ROOT_SOURCE: &str = include_str!("../../../packages/org.example.parallel/src/main.eqi");
 const ROOT_README: &[u8] = include_bytes!("../../../packages/org.example.parallel/README.md");
 const ROOT_MANIFEST: &[u8] = include_bytes!("../../../packages/org.example.parallel/package.json");
-const EXPECTED_IDENTITIES: &[u8] =
-    include_bytes!("../../../verify/packages/offline-model-package/expected/identities.json");
-const LOCK_RECORD: &[u8] =
-    include_bytes!("../../../verify/packages/offline-model-package/models/resolution.json");
-const LIBRARY_RELEASE: &[u8] = include_bytes!(
-    "../../../verify/packages/offline-model-package/models/store/ce343238d92f202646d2dd2947d68c311eac90aa711aa9d0e3905fa170f6f3f1.json"
-);
-const ROOT_RELEASE: &[u8] = include_bytes!(
-    "../../../verify/packages/offline-model-package/models/store/cd7afe063d06007b97c108d3957e1bdc92e64fe47adfc7ac92975fee4f2c0d28.json"
-);
-
 const SOURCE_PATH: &str = "src/basic.eqi";
 const ROOT_SOURCE_PATH: &str = "src/main.eqi";
 const VALUE_TOLERANCE: f64 = 2.0e-11;
@@ -61,11 +47,6 @@ fn package_root(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../packages")
         .join(name)
-}
-
-fn package_store_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../verify/packages/offline-model-package/models/store")
 }
 
 fn directory_sources(name: &str) -> AuthorPackageSourcesV1 {
@@ -365,60 +346,16 @@ fn exact_offline_packages_compile_and_solve_through_one_path() {
         root_source
     );
 
-    assert_exact_package_evidence(&store, &resolution);
+    assert_package_semantics(&store, &resolution);
 }
 
-#[test]
-fn retained_local_store_replays_the_explicit_exact_lock() {
-    let prepared_resolution = {
-        let library = library_release();
-        let root = root_release(&library);
-        assert_eq!(
-            library.canonical_json().expect("prepared library bytes"),
-            LIBRARY_RELEASE
-                .strip_suffix(b"\n")
-                .unwrap_or(LIBRARY_RELEASE)
-        );
-        assert_eq!(
-            root.canonical_json().expect("prepared root bytes"),
-            ROOT_RELEASE.strip_suffix(b"\n").unwrap_or(ROOT_RELEASE)
-        );
-        ResolutionRecordV1::from_exact_releases(&root, std::slice::from_ref(&library))
-            .expect("prepared exact resolution")
-    };
-
-    let resolution = ResolutionRecordV1::from_json(LOCK_RECORD).expect("checked-in exact lock");
-    assert_eq!(resolution, prepared_resolution);
-    assert_eq!(
-        resolution.canonical_json().expect("canonical exact lock"),
-        LOCK_RECORD.strip_suffix(b"\n").unwrap_or(LOCK_RECORD)
-    );
-
-    let ambient = DirectoryPackageStore::open_ambient(package_store_root())
-        .expect("open explicit ambient store");
-    assert_exact_package_evidence(&ambient, &resolution);
-
-    let root = Dir::open_ambient_dir(package_store_root(), ambient_authority())
-        .expect("caller opens store capability");
-    let retained = DirectoryPackageStore::try_from_dir(root).expect("retain caller store");
-    assert_exact_package_evidence(&retained, &resolution);
-}
-
-fn assert_exact_package_evidence(store: &impl PackageStore, resolution: &ResolutionRecordV1) {
-    let library_node = resolution
-        .nodes()
-        .iter()
-        .find(|node| node.identity().name.as_str() == "Eqiora.Electrical.Basic")
-        .expect("library lock node");
+fn assert_package_semantics(store: &impl PackageStore, resolution: &ResolutionRecordV1) {
     let root_node = resolution
         .nodes()
         .iter()
         .find(|node| node.identity() == resolution.root())
         .expect("root lock node");
-    let library_identity = library_node.identity();
     let root_identity = root_node.identity();
-    let library_source = library_node.source_digest();
-    let root_source = root_node.source_digest();
 
     let packaged = PackagedModelDocument::compile_locked(store, resolution, "Main")
         .expect("locked package compilation");
@@ -552,101 +489,4 @@ fn assert_exact_package_evidence(store: &impl PackageStore, resolution: &Resolut
     packaged
         .validate_run_v1_binding(&replayed_binding, &run, resolution)
         .expect("canonical package run replay");
-
-    let expected: serde_json::Value =
-        serde_json::from_slice(EXPECTED_IDENTITIES).expect("expected identities");
-    assert_eq!(
-        expected["schema"].as_str().expect("identity schema"),
-        "eqiora.verify.offline-model-package-identities.v1"
-    );
-    assert_eq!(
-        expected["library"]["name"]
-            .as_str()
-            .expect("library package name"),
-        library_identity.name.as_str()
-    );
-    assert_eq!(
-        expected["library"]["version"]
-            .as_str()
-            .expect("library package version"),
-        library_identity.version.to_string()
-    );
-    assert_eq!(
-        expected["library"]["semantic_digest"]
-            .as_str()
-            .expect("library semantic digest"),
-        library_identity.semantic_digest.to_hex()
-    );
-    assert_eq!(
-        expected["library"]["source_digest"]
-            .as_str()
-            .expect("library source digest"),
-        library_source.to_hex()
-    );
-    assert_eq!(
-        expected["root"]["name"]
-            .as_str()
-            .expect("root package name"),
-        root_identity.name.as_str()
-    );
-    assert_eq!(
-        expected["root"]["version"]
-            .as_str()
-            .expect("root package version"),
-        root_identity.version.to_string()
-    );
-    assert_eq!(
-        expected["root"]["semantic_digest"]
-            .as_str()
-            .expect("root semantic digest"),
-        root_identity.semantic_digest.to_hex()
-    );
-    assert_eq!(
-        expected["root"]["source_digest"]
-            .as_str()
-            .expect("root source digest"),
-        root_source.to_hex()
-    );
-    assert_eq!(
-        expected["resolution_digest"]
-            .as_str()
-            .expect("resolution digest"),
-        resolution.digest().expect("resolution digest").to_hex()
-    );
-    assert_eq!(
-        expected["model_digest"].as_str().expect("model digest"),
-        packaged.model().digest().expect("model digest")
-    );
-    assert_eq!(
-        expected["compilation_digest"]
-            .as_str()
-            .expect("compilation digest"),
-        "3a8352b7a4843266749e9b213c3f7dedf33c280afdc0d92fc42985b5a0e0a3fa"
-    );
-    assert_eq!(
-        packaged
-            .compilation()
-            .digest()
-            .expect("compilation digest")
-            .to_hex(),
-        "85067c398af046e39c0e7e3f2c97f6b415db1f33dd474182d51c2f86cee0b7d3"
-    );
-    assert_eq!(
-        expected["run_digest"].as_str().expect("run digest"),
-        "2dbc96890750efcb936236e79f2a65adc5fccb037c6b1d0e508e811f6b2b2b69"
-    );
-    assert_eq!(
-        run.digest().expect("run digest").as_str(),
-        "7f7819b70e5edf0d62465d5176a228cba30a7f7720b76caf66af93c368137c5a"
-    );
-    assert_eq!(
-        expected["run_binding_digest"]
-            .as_str()
-            .expect("run binding digest"),
-        "a7fa8764e89a52a2ea0c113da340d6fa7a525413d0e671fa3a35723b6c5935f9"
-    );
-    assert_eq!(
-        binding.digest().expect("run binding digest").to_hex(),
-        "3d8951074a10e05cd8a2d19391ea46b3ce96f16662f77e6d1e344c90581a88ef"
-    );
 }

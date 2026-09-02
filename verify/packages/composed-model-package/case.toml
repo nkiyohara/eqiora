@@ -1,7 +1,7 @@
 id = "packages.composed-model-package"
 status = "verified"
 scope = "exact-three-package-closed-scalar-electrical-host-serial"
-reference_kind = "frozen-package-artifact-identities-and-analytic-dc"
+reference_kind = "exact-resolution-relations-and-analytic-dc"
 
 capabilities = [
   "transitive-composed-model-package",

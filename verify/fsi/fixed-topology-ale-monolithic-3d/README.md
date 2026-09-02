@@ -14,8 +14,7 @@ quadrature exactness, physical scaling, and artifact geometry generation.
 The integration target establishes all of the following:
 
 - direct canonical V5 and exact-package authoring lower to matching complete
-  three-dimensional physical roles and coefficients, while accepted 2D
-  package-release identities remain unchanged;
+  three-dimensional physical roles and coefficients;
 - one 15-vertex, 28-tetrahedron conforming fluid/solid partition resolves
   tetrahedral MINI/P1 fluid and vector-P1 solid spaces with positive
   degree-eleven Duffy quadrature;

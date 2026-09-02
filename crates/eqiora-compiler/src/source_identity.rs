@@ -7,6 +7,7 @@
 use core::fmt;
 use std::collections::BTreeMap;
 
+mod alias;
 mod compile_time;
 mod dimension;
 mod domain;
@@ -35,6 +36,8 @@ use crate::connection_sets::{
 };
 use crate::identity::IdentityNamespace;
 use crate::pure_operator::compile_definition;
+pub(crate) use alias::ResolvedAliasTarget;
+use alias::encode_type_path;
 use compile_time::{encode_let, encode_parameter};
 use dimension::encode_dimensions;
 use domain::encode_domain;
@@ -53,7 +56,6 @@ const MODEL_BOUNDARY_CONNECTION_ITEM_TAG: u16 = 11;
 const COMPONENT_SPATIAL_PERIODIC_CONNECTION_ITEM_TAG: u16 = 14;
 const MODEL_SPATIAL_PERIODIC_CONNECTION_ITEM_TAG: u16 = 12;
 const MODEL_LET_ITEM_TAG: u16 = 13;
-
 /// Bounded resource policy for local source-unit identity construction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalSourceIdentityLimits {
@@ -136,7 +138,7 @@ impl LocalSourceIdentity {
     /// namespace segments.
     pub(crate) fn from_document_with_resolved_aliases(
         document: &Document,
-        aliases: &BTreeMap<String, Box<[String]>>,
+        aliases: &BTreeMap<String, ResolvedAliasTarget>,
     ) -> Result<Self, Diagnostic> {
         let canonical = canonical_source_bytes_with_aliases(
             document,
@@ -193,7 +195,7 @@ fn canonical_source_bytes(
 fn canonical_source_bytes_with_aliases(
     document: &Document,
     limits: LocalSourceIdentityLimits,
-    resolved_aliases: BTreeMap<String, Box<[String]>>,
+    resolved_aliases: BTreeMap<String, ResolvedAliasTarget>,
 ) -> Result<Vec<u8>, Diagnostic> {
     let top_level_count = document
         .dimension_syntax()
@@ -1161,41 +1163,6 @@ fn encode_path(
     Ok(())
 }
 
-fn encode_type_path(
-    encoder: &mut Encoder,
-    path: &NamePath,
-    budget: &mut Budget,
-) -> Result<(), Diagnostic> {
-    let segments = path.segments().collect::<Vec<_>>();
-    let resolved = match segments.as_slice() {
-        [alias, name] => budget
-            .resolved_aliases
-            .get(*alias)
-            .cloned()
-            .map(|target| (target, *name)),
-        _ => None,
-    };
-    let Some((target, name)) = resolved else {
-        return encode_path(encoder, path, budget);
-    };
-    let segment_count = target
-        .len()
-        .checked_add(2)
-        .ok_or_else(|| source_identity_error("resolved type path segment count overflows usize"))?;
-    if segment_count > budget.limits.max_path_segments {
-        return Err(source_identity_error(format!(
-            "resolved type path has {segment_count} segments, exceeding the {} segment limit",
-            budget.limits.max_path_segments
-        )));
-    }
-    encoder.u32(as_u32(segment_count, "resolved type path segment count")?)?;
-    encode_name(encoder, "resolved-package-v1", budget)?;
-    for segment in &target {
-        encode_name(encoder, segment, budget)?;
-    }
-    encode_name(encoder, name, budget)
-}
-
 fn encode_expression(
     encoder: &mut Encoder,
     expression: &Expr,
@@ -1330,7 +1297,7 @@ struct Budget {
     total_name_bytes: usize,
     materialized_bytes: usize,
     boundary_set_memberships: usize,
-    resolved_aliases: BTreeMap<String, Box<[String]>>,
+    resolved_aliases: BTreeMap<String, ResolvedAliasTarget>,
 }
 
 impl Budget {
@@ -1348,7 +1315,7 @@ impl Budget {
 
     fn with_resolved_aliases(
         limits: LocalSourceIdentityLimits,
-        resolved_aliases: BTreeMap<String, Box<[String]>>,
+        resolved_aliases: BTreeMap<String, ResolvedAliasTarget>,
     ) -> Self {
         Self {
             resolved_aliases,
@@ -1958,38 +1925,6 @@ model M {
         assert_eq!(
             LocalSourceIdentity::from_document(&implicit).unwrap(),
             LocalSourceIdentity::from_document(&explicit).unwrap()
-        );
-    }
-
-    #[test]
-    fn field_connector_alias_spelling_resolves_to_exact_package_identity() {
-        let source = |alias: &str| {
-            eqiora_lang::parse(
-                "alias.eqi",
-                &format!(
-                    "public component Side {{ public support body: volume(ambient_dimension = 2); public support wall: boundary(parent = body); public port p: conserving {alias}.Boundary over wall; }}"
-                ),
-            )
-            .into_document()
-            .unwrap()
-        };
-        let aliases = |alias: &str| {
-            BTreeMap::from([(
-                alias.to_owned(),
-                vec!["org.example".to_owned(), "mechanics".to_owned()].into_boxed_slice(),
-            )])
-        };
-        assert_eq!(
-            LocalSourceIdentity::from_document_with_resolved_aliases(
-                &source("short"),
-                &aliases("short"),
-            )
-            .unwrap(),
-            LocalSourceIdentity::from_document_with_resolved_aliases(
-                &source("renamed"),
-                &aliases("renamed"),
-            )
-            .unwrap(),
         );
     }
 
