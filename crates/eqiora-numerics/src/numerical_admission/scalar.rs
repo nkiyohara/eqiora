@@ -181,8 +181,8 @@ pub(super) fn resolve_common_scalar_portable(
     )?;
     PortableRealizationGraph::linear_single_field(
         RealizationLineage::explicit(
-            admission.program.model(),
-            SemanticRevision::new(admission.program.revision().0),
+            admission.program().model(),
+            SemanticRevision::new(admission.program().revision().0),
             RealizationRevision::new(COMMON_SCALAR_REALIZATION_REVISION),
         ),
         lowered.domain_id(),
@@ -202,12 +202,12 @@ pub(super) fn resolve_common_scalar_portable(
 
 impl CommonScalarPlan {
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
-        let NativeMeshResources::Cartesian { mesh, .. } = &self.admission.resources else {
+        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
             return Err(invalid(
                 "common scalar Plan lost its exact Cartesian Mesh materialization",
             ));
         };
-        let RecognizedNativeModel::Scalar(lowered) = &self.admission.recognized else {
+        let RecognizedNativeModel::Scalar(lowered) = self.admission.recognized_model() else {
             return Err(invalid(
                 "common scalar Plan lost its recognized mathematical materialization",
             ));
@@ -218,7 +218,7 @@ impl CommonScalarPlan {
             })?;
             crate::form_compiler::admit_authored_scalar_primal_form(
                 authored,
-                &self.admission.program,
+                self.admission.program(),
                 derived,
             )?;
         }
@@ -237,7 +237,7 @@ impl CommonScalarPlan {
         let model_reference = model.artifact_reference()?;
         let NativeMeshResources::Cartesian {
             mesh, production, ..
-        } = &admission.resources
+        } = admission.resources()
         else {
             return Err(invalid(
                 "scalar Q1/TPFA common Plan requires an authenticated Cartesian Mesh",
@@ -249,7 +249,7 @@ impl CommonScalarPlan {
             .cells()
             .to_vec()
             .into_boxed_slice();
-        let RecognizedNativeModel::Scalar(lowered) = &admission.recognized else {
+        let RecognizedNativeModel::Scalar(lowered) = admission.recognized_model() else {
             return Err(invalid(
                 "common scalar Plan admitted non-scalar mathematics",
             ));
@@ -262,7 +262,7 @@ impl CommonScalarPlan {
                     if let Some(projection) = authored_formulation {
                         crate::form_compiler::admit_authored_scalar_primal_form(
                             projection,
-                            &admission.program,
+                            admission.program(),
                             derived,
                         )?;
                         accepted_authored_formulation = Some(projection.clone());
@@ -300,7 +300,7 @@ impl CommonScalarPlan {
         let realization_digest = hex_bytes(&portable.digest()?);
         let field = lowered.field_id();
         let field_id = field.ulid().to_string();
-        let field_dimension = match admission.program.node(field.erase()) {
+        let field_dimension = match admission.program().node(field.erase()) {
             Some(KernelNode::Field(definition)) => definition.dimension(),
             _ => {
                 return Err(invalid(
@@ -376,7 +376,7 @@ impl CommonScalarPlan {
     ) -> Result<CommonScalarDifferentiationPoint, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Scalar(template) = &self.admission.recognized else {
+        let RecognizedNativeModel::Scalar(template) = self.admission.recognized_model() else {
             return Err(invalid(
                 "common scalar Plan lost its recognized mathematics",
             ));
@@ -402,7 +402,7 @@ impl CommonScalarPlan {
             .collect::<Result<Vec<_>, _>>()?;
         let bound = template
             .bind_selected_parameters(selected, values.unwrap_or(selected_values.as_slice()))?;
-        let NativeMeshResources::Cartesian { mesh, .. } = &self.admission.resources else {
+        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
             return Err(invalid(
                 "common scalar differentiation requires exact Cartesian resources",
             ));
@@ -586,7 +586,7 @@ impl CommonScalarPlan {
 
     /// Exact canonical Model artifact selected by this Plan.
     pub fn model_reference(&self) -> Result<eqiora_artifact::ModelArtifactReference, Diagnostic> {
-        self.admission.model.artifact_reference()
+        self.admission.model().artifact_reference()
     }
 
     #[must_use]

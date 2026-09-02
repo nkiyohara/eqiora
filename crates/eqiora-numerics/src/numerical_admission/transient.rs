@@ -29,7 +29,7 @@ impl PreparedCommonTransientExecution<'_> {
                     .last()
                     .ok_or_else(|| invalid("MINI transient step returned no accepted State"))?;
                 let NativeMeshResources::AffineTriangleSimplicial { mesh, .. } =
-                    &self.plan.admission.resources
+                    self.plan.admission.resources()
                 else {
                     unreachable!("prepared MINI Run owns affine-triangle resources")
                 };
@@ -46,7 +46,7 @@ impl PreparedCommonTransientExecution<'_> {
                     invalid("Geometry MINI transient step returned no accepted State")
                 })?;
                 let NativeMeshResources::GmshSimplicial { mesh, .. } =
-                    &self.plan.admission.resources
+                    self.plan.admission.resources()
                 else {
                     unreachable!("prepared Geometry MINI Run owns Gmsh resources")
                 };
@@ -155,7 +155,7 @@ impl CommonTransientFlowPlan {
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
         let model_id = model_reference.model().ulid().to_string();
-        let (velocity, pressure) = match &admission.recognized {
+        let (velocity, pressure) = match admission.recognized_model() {
             RecognizedNativeModel::Transient(model) => (model.velocity(), model.pressure()),
             RecognizedNativeModel::TransientGeometry(binding) => {
                 (binding.velocity(), binding.pressure())
@@ -170,12 +170,13 @@ impl CommonTransientFlowPlan {
         let pressure_field_id = pressure.ulid().to_string();
         let solver = admission.linear.solver;
         let (resolved, formulation, velocity_space, pressure_space, gauge) =
-            match (admission.spatial, &admission.resources) {
+            match (admission.spatial, admission.resources()) {
                 (
                     NativeSpatialPolicy::TransientMiniP1(scales),
                     NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
                 ) => {
-                    let RecognizedNativeModel::Transient(transient) = &admission.recognized else {
+                    let RecognizedNativeModel::Transient(transient) = admission.recognized_model()
+                    else {
                         return Err(invalid(
                             "affine transient Mesh requires Cartesian Model meaning",
                         ));
@@ -196,8 +197,8 @@ impl CommonTransientFlowPlan {
                     )?;
                     let resolved = resolve_transient_fieldwise(
                         &TransientFieldwiseRealizationRequest::explicit(
-                            admission.program.model(),
-                            SemanticRevision::new(admission.program.revision().0),
+                            admission.program().model(),
+                            SemanticRevision::new(admission.program().revision().0),
                             RealizationRevision::new(TRANSIENT_REALIZATION_REVISION),
                             plan,
                         ),
@@ -232,7 +233,8 @@ impl CommonTransientFlowPlan {
                     NativeSpatialPolicy::TransientMiniP1(scales),
                     NativeMeshResources::GmshSimplicial { mesh, .. },
                 ) => {
-                    let RecognizedNativeModel::TransientGeometry(binding) = &admission.recognized
+                    let RecognizedNativeModel::TransientGeometry(binding) =
+                        admission.recognized_model()
                     else {
                         return Err(invalid(
                             "Gmsh transient Mesh requires Geometry-backed Model meaning",
@@ -253,8 +255,8 @@ impl CommonTransientFlowPlan {
                     )?;
                     let resolved = resolve_transient_fieldwise(
                         &TransientFieldwiseRealizationRequest::explicit(
-                            admission.program.model(),
-                            SemanticRevision::new(admission.program.revision().0),
+                            admission.program().model(),
+                            SemanticRevision::new(admission.program().revision().0),
                             RealizationRevision::new(TRANSIENT_REALIZATION_REVISION),
                             plan,
                         ),
@@ -289,7 +291,8 @@ impl CommonTransientFlowPlan {
                     NativeSpatialPolicy::TransientCellCentered(scales),
                     NativeMeshResources::Cartesian { mesh, .. },
                 ) => {
-                    let RecognizedNativeModel::Transient(transient) = &admission.recognized else {
+                    let RecognizedNativeModel::Transient(transient) = admission.recognized_model()
+                    else {
                         return Err(invalid(
                             "Cartesian transient Mesh requires Cartesian Model meaning",
                         ));
@@ -322,8 +325,8 @@ impl CommonTransientFlowPlan {
                     )?;
                     let resolved = resolve_transient_cell_centered_incompressible_flow(
                         &TransientCellCenteredIncompressibleFlowRealizationRequest::explicit(
-                            admission.program.model(),
-                            SemanticRevision::new(admission.program.revision().0),
+                            admission.program().model(),
+                            SemanticRevision::new(admission.program().revision().0),
                             RealizationRevision::new(TRANSIENT_REALIZATION_REVISION),
                             plan,
                         ),
@@ -351,7 +354,7 @@ impl CommonTransientFlowPlan {
             CommonTransientResolvedSpatial::CellCentered(resolved) => resolved.portable_graph()?,
         };
         let realization_digest = hex_bytes(&portable.digest()?);
-        let digests = resource_digests(&admission.resources)?;
+        let digests = resource_digests(admission.resources())?;
         let receipt_digest = scaling.receipt().provenance_digest();
         let mut identity_bytes = Vec::new();
         for value in [
@@ -372,7 +375,7 @@ impl CommonTransientFlowPlan {
         identity_bytes.extend_from_slice(&model_reference.semantic_revision().get().to_be_bytes());
         identity_bytes.extend_from_slice(&TRANSIENT_REALIZATION_REVISION.to_be_bytes());
         identity_bytes.extend_from_slice(&COMMON_TRANSIENT_RESOLVER_EPOCH.to_be_bytes());
-        match &admission.resources {
+        match admission.resources() {
             NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 push_framed(&mut identity_bytes, b"imported-affine-simplicial");
                 push_framed(
@@ -549,7 +552,7 @@ impl CommonTransientFlowPlan {
     }
     #[must_use]
     pub fn domain_id(&self) -> String {
-        match &self.admission.recognized {
+        match self.admission.recognized_model() {
             RecognizedNativeModel::Transient(model) => model.domain().ulid().to_string(),
             RecognizedNativeModel::TransientGeometry(binding) => {
                 binding.domain().ulid().to_string()
@@ -627,12 +630,12 @@ impl CommonTransientFlowPlan {
     pub fn zero_state(&self, time_s: f64) -> Result<CommonState, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Transient(model) = &self.admission.recognized else {
+        let RecognizedNativeModel::Transient(model) = self.admission.recognized_model() else {
             return Err(invalid("State.zero requires a transient Plan"));
         };
         crate::canonical_stokes::require_complete_zero_trace(model)?;
         let time = DynQuantity::new(time_s, TIME);
-        let kind = match (&self.resolved, &self.admission.resources) {
+        let kind = match (&self.resolved, self.admission.resources()) {
             (
                 CommonTransientResolvedSpatial::MiniP1(_),
                 NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
@@ -698,8 +701,8 @@ impl CommonTransientFlowPlan {
         CommonState::new(
             self.state_space_identity(),
             time_s,
-            Arc::new(self.admission.model.clone()),
-            Arc::new(self.admission.resources.clone()),
+            Arc::new(self.admission.model().clone()),
+            Arc::new(self.admission.resources().clone()),
             kind,
         )
     }
@@ -722,7 +725,7 @@ impl CommonTransientFlowPlan {
                 "transient State.initial requires exactly velocity and pressure InitialField assignments",
             ));
         }
-        let expected_model = self.admission.model.digest()?;
+        let expected_model = self.admission.model().digest()?;
         let mut by_field = BTreeMap::new();
         for field in fields {
             if field.model() != &expected_model {
@@ -764,7 +767,10 @@ impl CommonTransientFlowPlan {
         if pressure.cell().is_some() {
             return Err(invalid("P1 pressure rejects cell_values"));
         }
-        let (mesh, model) = match (&self.admission.resources, &self.admission.recognized) {
+        let (mesh, model) = match (
+            self.admission.resources(),
+            self.admission.recognized_model(),
+        ) {
             (
                 NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
                 RecognizedNativeModel::Transient(model),
@@ -815,8 +821,8 @@ impl CommonTransientFlowPlan {
         CommonState::new(
             self.state_space_identity(),
             time_s,
-            Arc::new(self.admission.model.clone()),
-            Arc::new(self.admission.resources.clone()),
+            Arc::new(self.admission.model().clone()),
+            Arc::new(self.admission.resources().clone()),
             CommonStateKind::MiniP1(Box::new(initial)),
         )
     }
@@ -858,13 +864,13 @@ impl CommonTransientFlowPlan {
         backend: &'a dyn LinearSolverBackend,
     ) -> Result<PreparedCommonTransientExecution<'a>, Diagnostic> {
         self.authenticate_execution(state, backend)?;
-        let method = match (&self.resolved, &self.admission.resources) {
+        let method = match (&self.resolved, self.admission.resources()) {
             (
                 CommonTransientResolvedSpatial::MiniP1(resolved),
                 NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
             ) => PreparedCommonTransientMethod::MiniP1(Box::new(
                 prepare_resolved_transient_navier_stokes_mini_run_2d(
-                    &self.admission.program,
+                    self.admission.program(),
                     resolved,
                     mesh,
                 )?,
@@ -873,7 +879,8 @@ impl CommonTransientFlowPlan {
                 CommonTransientResolvedSpatial::MiniP1(resolved),
                 NativeMeshResources::GmshSimplicial { .. },
             ) => {
-                let RecognizedNativeModel::TransientGeometry(binding) = &self.admission.recognized
+                let RecognizedNativeModel::TransientGeometry(binding) =
+                    self.admission.recognized_model()
                 else {
                     return Err(invalid(
                         "Gmsh transient Plan lost Geometry-backed Model meaning",
@@ -881,7 +888,7 @@ impl CommonTransientFlowPlan {
                 };
                 PreparedCommonTransientMethod::GeometryMiniP1(Box::new(
                     prepare_resolved_transient_navier_stokes_geometry_mini_run_2d(
-                        &self.admission.program,
+                        self.admission.program(),
                         resolved,
                         binding,
                     )?,
@@ -892,7 +899,7 @@ impl CommonTransientFlowPlan {
                 NativeMeshResources::Cartesian { mesh, .. },
             ) => PreparedCommonTransientMethod::CellCentered(Box::new(
                 prepare_resolved_transient_navier_stokes_cell_centered_run_2d(
-                    &self.admission.program,
+                    self.admission.program(),
                     resolved,
                     mesh,
                 )?,
@@ -916,7 +923,7 @@ pub(super) fn mini_initial_from_resolved(
     mesh: &SimplicialMeshEnvelopeV1,
     state: &ResolvedTransientNavierStokesState2d,
 ) -> Result<TransientNavierStokesInitialState2d, Diagnostic> {
-    let model = match &plan.admission.recognized {
+    let model = match plan.admission.recognized_model() {
         RecognizedNativeModel::Transient(model) => model.common_projection(),
         RecognizedNativeModel::TransientGeometry(binding) => binding.model().clone(),
         _ => return Err(invalid("transient Plan lost recognized Model meaning")),
