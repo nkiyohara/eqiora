@@ -1,9 +1,9 @@
 //! One canonical source style derived from the recovered syntax tree.
-
 use core::fmt::Write;
 
 mod cartesian;
 mod compile_time;
+mod document;
 mod formulation;
 mod helpers;
 mod property;
@@ -29,7 +29,7 @@ use relation::{format_relation, format_relation_family};
 #[must_use]
 pub fn format(document: &Document) -> String {
     let mut output = String::new();
-    let mut declaration_count = 0;
+    let mut declaration_count = document::format_imports(document, &mut output);
     format_properties(document, &mut output, &mut declaration_count);
     for connector in &document.connectors {
         separate_declaration(&mut output, &mut declaration_count);

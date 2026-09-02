@@ -52,6 +52,7 @@ use eqiora_artifact::{
 };
 use eqiora_compiler::{
     AuthoredFormulationProjection, CompiledAuthoredFormulation, CompiledModel, ModelSymbols,
+    ResolvedHierarchyInput,
 };
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
@@ -99,6 +100,25 @@ impl ModelDocument {
             )]);
         }
         Self::accept_compiled(compiled.remove(0))
+    }
+
+    /// Compile one selected Model from an already closed semantic module graph.
+    ///
+    /// Every source import resolves inside `input`; this operation performs no
+    /// filesystem discovery, package resolution, network access, or implicit
+    /// source inclusion.
+    ///
+    /// # Errors
+    /// Returns graph, parser, visibility, type, lowering, or artifact
+    /// diagnostics before exposing a partial Model.
+    pub fn compile_modules(
+        input: ResolvedHierarchyInput,
+        entry_model: &str,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let compiled = eqiora_compiler::analyze_resolved_hierarchy(input)?
+            .validate_definitions()?
+            .compile_root(entry_model)?;
+        Self::accept_compiled(compiled)
     }
 
     /// Define exactly one model from immutable client-neutral declarations
@@ -339,6 +359,7 @@ fn first_diagnostic(diagnostics: Vec<Diagnostic>) -> Diagnostic {
 mod tests {
     use super::ModelDocument;
     use eqiora_artifact::ReplayableCanonicalModelArtifact;
+    use eqiora_compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
     use eqiora_core::DimExponents;
     use eqiora_lang::{DraftExpression, DraftField, DraftParameter, DraftRelation, ModelDraft};
 
@@ -366,6 +387,53 @@ model decay {
         let diagnostics =
             ModelDocument::replay(&serde_json::to_vec(&zero_revision).unwrap()).unwrap_err();
         assert_eq!(diagnostics[0].code().0, "EQ0901");
+    }
+
+    #[test]
+    fn closed_local_module_graph_compiles_through_the_model_boundary() {
+        let owner =
+            CompilationNamespaceId::new(["org.example.project", "1.0.0", "local-semantic-closure"])
+                .unwrap();
+        let input = |reverse: bool| {
+            let mut units = vec![
+                ResolvedSourceUnit::in_module(
+                    owner.clone(),
+                    "models.main".split('.'),
+                    "src/models/main.eqi",
+                    "import library.parts as lib; model Main { instance part: lib.Part(p = 1); }",
+                )
+                .unwrap(),
+                ResolvedSourceUnit::in_module(
+                    owner.clone(),
+                    "library.parts".split('.'),
+                    "src/library/parts.eqi",
+                    "public component Part { public parameter p: 1; relation law continuous { p - 1 = 0; } }",
+                )
+                .unwrap(),
+            ];
+            if reverse {
+                units.reverse();
+            }
+            ResolvedHierarchyInput::with_root_module(
+                owner.clone(),
+                "models.main".split('.'),
+                units,
+                vec![],
+            )
+            .unwrap()
+        };
+
+        let document = ModelDocument::compile_modules(input(false), "Main").unwrap();
+        let reversed = ModelDocument::compile_modules(input(true), "Main").unwrap();
+        let bytes = document.canonical_json().unwrap();
+        assert_eq!(reversed.canonical_json().unwrap(), bytes);
+        assert_eq!(
+            ModelDocument::replay(&bytes)
+                .unwrap()
+                .canonical_json()
+                .unwrap(),
+            bytes
+        );
     }
 
     #[test]

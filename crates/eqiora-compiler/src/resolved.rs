@@ -11,10 +11,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{Document, SourceAstFactory, VisibilitySyntax, parse};
+use eqiora_lang::{Document, SourceAstFactory, TextRange, VisibilitySyntax, parse};
 
 use crate::CompiledModel;
-use crate::diagnostics::stable_sort;
+use crate::diagnostics::{source_error, stable_sort};
 use crate::hierarchy::HierarchyLimits;
 use crate::source_identity::LocalSourceIdentity;
 
@@ -26,6 +26,8 @@ pub use declaration::{
 
 const MAX_NAMESPACE_SEGMENTS: usize = 31;
 const MAX_NAMESPACE_SEGMENT_BYTES: usize = 4_096;
+const MAX_MODULE_SEGMENTS: usize = 31;
+const MAX_MODULE_SEGMENT_BYTES: usize = 512;
 const MAX_SOURCE_UNITS: usize = 1_000_000;
 const MAX_ALIASES: usize = 1_000_000;
 const MAX_TOTAL_SOURCE_BYTES: usize = 256 * 1_024 * 1_024;
@@ -113,10 +115,109 @@ impl fmt::Display for CompilationNamespaceId {
     }
 }
 
+/// Logical source module name below one compilation/package owner.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub(crate) struct ModuleName(Box<[String]>);
+
+impl ModuleName {
+    /// Construct one nonempty dotted logical module name.
+    ///
+    /// # Errors
+    /// Rejects invalid Eqiora identifiers and bounded-name violations.
+    pub fn new<I, S>(segments: I) -> Result<Self, Diagnostic>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let mut result = Vec::new();
+        for segment in segments {
+            if result.len() >= MAX_MODULE_SEGMENTS {
+                return Err(resolved_error(format!(
+                    "logical module name exceeds the {MAX_MODULE_SEGMENTS} segment limit"
+                )));
+            }
+            let segment = segment.into();
+            if segment.len() > MAX_MODULE_SEGMENT_BYTES || !is_identifier(&segment) {
+                return Err(resolved_error(format!(
+                    "logical module segment `{segment}` must be an Eqiora identifier within {MAX_MODULE_SEGMENT_BYTES} bytes"
+                )));
+            }
+            result.push(segment);
+        }
+        if result.is_empty() {
+            return Err(resolved_error("logical module name must be nonempty"));
+        }
+        Ok(Self(result.into_boxed_slice()))
+    }
+
+    fn main() -> Self {
+        Self(vec!["main".to_owned()].into_boxed_slice())
+    }
+
+    pub(crate) fn is_main(&self) -> bool {
+        self == &Self::main()
+    }
+
+    /// Identifier segments in canonical order.
+    #[must_use]
+    pub fn segments(&self) -> &[String] {
+        &self.0
+    }
+}
+
+impl fmt::Display for ModuleName {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (index, segment) in self.0.iter().enumerate() {
+            if index != 0 {
+                formatter.write_str(".")?;
+            }
+            formatter.write_str(segment)?;
+        }
+        Ok(())
+    }
+}
+
+/// Exact logical module inside one resolved compilation/package owner.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub(crate) struct CompilationModuleId {
+    owner: CompilationNamespaceId,
+    name: ModuleName,
+}
+
+impl CompilationModuleId {
+    /// Bind one logical module to its exact compilation owner.
+    #[must_use]
+    pub const fn new(owner: CompilationNamespaceId, name: ModuleName) -> Self {
+        Self { owner, name }
+    }
+
+    fn main(owner: CompilationNamespaceId) -> Self {
+        Self::new(owner, ModuleName::main())
+    }
+
+    /// Exact package/source compilation owner.
+    #[must_use]
+    pub const fn owner(&self) -> &CompilationNamespaceId {
+        &self.owner
+    }
+
+    /// Logical module name.
+    #[must_use]
+    pub const fn name(&self) -> &ModuleName {
+        &self.name
+    }
+}
+
+impl fmt::Display for CompilationModuleId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}::{}", self.owner, self.name)
+    }
+}
+
 /// One exact UTF-8 source unit owned by a resolved package namespace.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedSourceUnit {
-    namespace: CompilationNamespaceId,
+    module: CompilationModuleId,
     file: String,
     source: String,
 }
@@ -133,16 +234,40 @@ impl ResolvedSourceUnit {
         source: impl Into<String>,
     ) -> Self {
         Self {
-            namespace,
+            module: CompilationModuleId::main(namespace),
             file: file.into(),
             source: source.into(),
         }
     }
 
+    /// Construct one source unit with an explicit logical module identity.
+    pub fn in_module<I, S>(
+        owner: CompilationNamespaceId,
+        module: I,
+        file: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Result<Self, Diagnostic>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        Ok(Self {
+            module: CompilationModuleId::new(owner, ModuleName::new(module)?),
+            file: file.into(),
+            source: source.into(),
+        })
+    }
+
     /// Owning package namespace.
     #[must_use]
     pub const fn namespace(&self) -> &CompilationNamespaceId {
-        &self.namespace
+        self.module.owner()
+    }
+
+    /// Exact logical module owning this source unit.
+    #[must_use]
+    pub(crate) const fn module(&self) -> &CompilationModuleId {
+        &self.module
     }
 
     /// Provenance path supplied by the exact source bundle.
@@ -161,9 +286,11 @@ impl ResolvedSourceUnit {
 /// One direct source alias from a declaring package to an exact target.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedAlias {
-    declaring: CompilationNamespaceId,
+    declaring: CompilationModuleId,
     alias: String,
-    target: CompilationNamespaceId,
+    target: CompilationModuleId,
+    source_import: bool,
+    source_span: Option<(String, TextRange)>,
 }
 
 impl ResolvedAlias {
@@ -176,15 +303,49 @@ impl ResolvedAlias {
         target: CompilationNamespaceId,
     ) -> Self {
         Self {
+            declaring: CompilationModuleId::main(declaring),
+            alias: alias.into(),
+            target: CompilationModuleId::main(target),
+            source_import: false,
+            source_span: None,
+        }
+    }
+
+    fn authored_import(
+        declaring: CompilationModuleId,
+        alias: impl Into<String>,
+        target: CompilationModuleId,
+        file: impl Into<String>,
+        range: TextRange,
+    ) -> Self {
+        Self {
             declaring,
             alias: alias.into(),
             target,
+            source_import: true,
+            source_span: Some((file.into(), range)),
         }
+    }
+
+    pub(crate) const fn is_source_import(&self) -> bool {
+        self.source_import
+    }
+
+    pub(crate) fn source_span(&self) -> Option<(&str, TextRange)> {
+        self.source_span
+            .as_ref()
+            .map(|(file, range)| (file.as_str(), *range))
     }
 
     /// Package in whose source the alias may be used.
     #[must_use]
     pub const fn declaring(&self) -> &CompilationNamespaceId {
+        self.declaring.owner()
+    }
+
+    /// Logical module containing the import.
+    #[must_use]
+    pub(crate) const fn declaring_module(&self) -> &CompilationModuleId {
         &self.declaring
     }
 
@@ -197,6 +358,12 @@ impl ResolvedAlias {
     /// Exact target package namespace.
     #[must_use]
     pub const fn target(&self) -> &CompilationNamespaceId {
+        self.target.owner()
+    }
+
+    /// Exact logical module selected by the import.
+    #[must_use]
+    pub(crate) const fn target_module(&self) -> &CompilationModuleId {
         &self.target
     }
 }
@@ -204,7 +371,7 @@ impl ResolvedAlias {
 /// Closed input for one exact multi-package hierarchy analysis.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedHierarchyInput {
-    root: CompilationNamespaceId,
+    root: CompilationModuleId,
     units: Vec<ResolvedSourceUnit>,
     aliases: Vec<ResolvedAlias>,
 }
@@ -219,16 +386,34 @@ impl ResolvedHierarchyInput {
         aliases: Vec<ResolvedAlias>,
     ) -> Self {
         Self {
-            root,
+            root: CompilationModuleId::main(root),
             units,
             aliases,
         }
     }
 
+    /// Construct an input graph with an explicit root logical module.
+    pub fn with_root_module<I, S>(
+        owner: CompilationNamespaceId,
+        module: I,
+        units: Vec<ResolvedSourceUnit>,
+        aliases: Vec<ResolvedAlias>,
+    ) -> Result<Self, Diagnostic>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        Ok(Self {
+            root: CompilationModuleId::new(owner, ModuleName::new(module)?),
+            units,
+            aliases,
+        })
+    }
+
     /// Exact namespace containing the selected executable model.
     #[must_use]
     pub const fn root(&self) -> &CompilationNamespaceId {
-        &self.root
+        self.root.owner()
     }
 
     /// Source units in resolver-provided order. Meaning does not depend on
@@ -318,7 +503,7 @@ where
 
 #[derive(Clone, Debug)]
 pub(crate) struct AnalyzedSourceUnit {
-    pub(crate) namespace: CompilationNamespaceId,
+    pub(crate) module: CompilationModuleId,
     pub(crate) file: String,
     pub(crate) source_bytes: usize,
     pub(crate) document: Document,
@@ -332,7 +517,7 @@ pub(crate) struct AnalyzedSourceUnit {
 /// [`ValidatedResolvedHierarchy::compile_root`] becomes available.
 #[derive(Clone, Debug)]
 pub struct AnalyzedResolvedHierarchy {
-    pub(crate) root: CompilationNamespaceId,
+    pub(crate) root: CompilationModuleId,
     pub(crate) units: Vec<AnalyzedSourceUnit>,
     pub(crate) aliases: Vec<ResolvedAlias>,
     canonical_declarations: Box<[CanonicalDeclarationIdentity]>,
@@ -343,7 +528,7 @@ impl AnalyzedResolvedHierarchy {
     /// Exact namespace containing the selected executable Model.
     #[must_use]
     pub const fn root(&self) -> &CompilationNamespaceId {
-        &self.root
+        self.root.owner()
     }
 
     /// Read-only nominal property bindings retained through elaboration.
@@ -441,7 +626,7 @@ pub fn analyze_resolved_hierarchy(
             ));
             continue;
         }
-        let provenance_file = resolved_source_label(&unit.namespace, &unit.file);
+        let provenance_file = resolved_source_label(unit.module(), &unit.file);
         if provenance_file.len() > limits.provenance.max_source_path_bytes {
             diagnostics.push(resolved_error(format!(
                 "package-qualified source path requires {} bytes, exceeding the {} byte provenance-path limit",
@@ -452,7 +637,7 @@ pub fn analyze_resolved_hierarchy(
         }
         match parse(&provenance_file, &unit.source).into_document() {
             Ok(document) => units.push(AnalyzedSourceUnit {
-                namespace: unit.namespace,
+                module: unit.module,
                 file: provenance_file,
                 source_bytes: unit.source.len(),
                 document,
@@ -461,7 +646,47 @@ pub fn analyze_resolved_hierarchy(
         }
     }
 
-    graph::validate_graph_shape(&input.root, &units, &input.aliases, &mut diagnostics);
+    let authored_imports = units.iter().try_fold(0_usize, |count, unit| {
+        count.checked_add(unit.document.imports().len())
+    });
+    let alias_count = authored_imports.and_then(|count| input.aliases.len().checked_add(count));
+    if alias_count.is_none_or(|count| count > MAX_ALIASES) {
+        diagnostics.push(resolved_error(format!(
+            "resolved hierarchy exceeds the {MAX_ALIASES} direct-alias limit"
+        )));
+        stable_sort(&mut diagnostics);
+        return Err(diagnostics);
+    }
+
+    let mut aliases = input.aliases;
+    aliases
+        .try_reserve(authored_imports.expect("checked authored import count"))
+        .map_err(|_| vec![resolved_error("cannot reserve authored module imports")])?;
+    for unit in &units {
+        for (import_module, import_alias, import_range) in unit.document.imports() {
+            let module = match ModuleName::new(import_module.segments()) {
+                Ok(module) => module,
+                Err(error) => {
+                    diagnostics.push(source_error(
+                        error.code(),
+                        &unit.file,
+                        import_range,
+                        error.message(),
+                    ));
+                    continue;
+                }
+            };
+            aliases.push(ResolvedAlias::authored_import(
+                unit.module.clone(),
+                import_alias,
+                CompilationModuleId::new(unit.module.owner().clone(), module),
+                &unit.file,
+                import_range,
+            ));
+        }
+    }
+
+    graph::validate_graph_shape(&input.root, &units, &aliases, &mut diagnostics);
     if !diagnostics.is_empty() {
         stable_sort(&mut diagnostics);
         return Err(diagnostics);
@@ -469,7 +694,7 @@ pub fn analyze_resolved_hierarchy(
     let mut analysis = AnalyzedResolvedHierarchy {
         root: input.root,
         units,
-        aliases: input.aliases,
+        aliases,
         canonical_declarations: Box::new([]),
         property_bindings: Box::new([]),
     };
@@ -509,11 +734,11 @@ fn collect_canonical_declarations(
     for unit in units {
         let resolved_aliases = aliases
             .iter()
-            .filter(|alias| alias.declaring() == &unit.namespace)
+            .filter(|alias| alias.declaring_module() == &unit.module)
             .map(|alias| {
                 (
                     alias.alias().to_owned(),
-                    alias.target().segments().to_vec().into_boxed_slice(),
+                    canonical_module_segments(alias.target_module()).into_boxed_slice(),
                 )
             })
             .collect::<BTreeMap<_, _>>();
@@ -523,8 +748,8 @@ fn collect_canonical_declarations(
             push_canonical(
                 &mut result,
                 &mut paths,
-                &unit.namespace,
-                &name,
+                unit.module.owner(),
+                &canonical_declaration_path(&unit.module, &name),
                 if is_contract {
                     CanonicalDeclarationKind::PropertyContract
                 } else {
@@ -543,8 +768,8 @@ fn collect_canonical_declarations(
             push_canonical(
                 &mut result,
                 &mut paths,
-                &unit.namespace,
-                connector.name(),
+                unit.module.owner(),
+                &canonical_declaration_path(&unit.module, connector.name()),
                 CanonicalDeclarationKind::Connector,
                 connector.visibility(),
                 &document,
@@ -553,18 +778,19 @@ fn collect_canonical_declarations(
             );
         }
         for operator in unit.document.pure_operators() {
-            if !paths.insert((unit.namespace.clone(), operator.name().to_owned())) {
+            let path = canonical_declaration_path(&unit.module, operator.name());
+            if !paths.insert((unit.module.owner().clone(), path.clone())) {
                 diagnostics.push(resolved_error(format!(
-                    "duplicate top-level declaration `{}` in namespace `{}`",
+                    "duplicate top-level declaration `{}` in module `{}`",
                     operator.name(),
-                    unit.namespace
+                    unit.module
                 )));
                 continue;
             }
             match crate::pure_operator::compile_definition(&unit.file, operator) {
                 Ok(definition) => result.push(CanonicalDeclarationIdentity {
-                    namespace: unit.namespace.clone(),
-                    path: operator.name().to_owned(),
+                    namespace: unit.module.owner().clone(),
+                    path,
                     kind: CanonicalDeclarationKind::PureOperator,
                     visibility: operator.visibility().into(),
                     canonical_form: pure_operator_identity_form(definition.digest().bytes()),
@@ -579,8 +805,8 @@ fn collect_canonical_declarations(
             push_canonical(
                 &mut result,
                 &mut paths,
-                &unit.namespace,
-                component.name(),
+                unit.module.owner(),
+                &canonical_declaration_path(&unit.module, component.name()),
                 CanonicalDeclarationKind::Component,
                 component.visibility(),
                 &document,
@@ -594,8 +820,8 @@ fn collect_canonical_declarations(
             push_canonical(
                 &mut result,
                 &mut paths,
-                &unit.namespace,
-                model.name(),
+                unit.module.owner(),
+                &canonical_declaration_path(&unit.module, model.name()),
                 CanonicalDeclarationKind::Model,
                 VisibilitySyntax::Private,
                 &document,
@@ -621,6 +847,23 @@ fn collect_canonical_declarations(
             ))
     });
     result
+}
+
+fn canonical_module_segments(module: &CompilationModuleId) -> Vec<String> {
+    let mut segments = module.owner().segments().to_vec();
+    if !module.name().is_main() {
+        segments.push("module".to_owned());
+        segments.extend(module.name().segments().iter().cloned());
+    }
+    segments
+}
+
+fn canonical_declaration_path(module: &CompilationModuleId, declaration: &str) -> String {
+    if module.name() == &ModuleName::main() {
+        declaration.to_owned()
+    } else {
+        format!("{}.{}", module.name(), declaration)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -697,14 +940,25 @@ fn pure_operator_identity_form(digest: [u8; 32]) -> String {
     result
 }
 
-fn resolved_source_label(namespace: &CompilationNamespaceId, file: &str) -> String {
+fn resolved_source_label(module: &CompilationModuleId, file: &str) -> String {
     use core::fmt::Write;
 
     let mut label = String::new();
-    write!(label, "eqiora-package-v1:{}:", namespace.segments().len())
-        .expect("String writes cannot fail");
-    for segment in namespace.segments() {
+    write!(
+        label,
+        "eqiora-package-v1:{}:",
+        module.owner().segments().len()
+    )
+    .expect("String writes cannot fail");
+    for segment in module.owner().segments() {
         write!(label, "{}:{segment}:", segment.len()).expect("String writes cannot fail");
+    }
+    if !module.name().is_main() {
+        write!(label, "module:{}:", module.name().segments().len())
+            .expect("String writes cannot fail");
+        for segment in module.name().segments() {
+            write!(label, "{}:{segment}:", segment.len()).expect("String writes cannot fail");
+        }
     }
     label.push_str(file);
     label
@@ -715,524 +969,4 @@ fn resolved_error(message: impl Into<String>) -> Diagnostic {
 }
 
 #[cfg(test)]
-mod tests {
-    #[path = "additional_tests.rs"]
-    mod additional_tests;
-    use eqiora_graph::{GraphStore, InMemoryGraphStore};
-
-    use super::*;
-
-    fn namespace(name: &str) -> CompilationNamespaceId {
-        CompilationNamespaceId::new([name, "1.0.0", "semantic-digest"]).expect("namespace")
-    }
-
-    fn unit(namespace: &CompilationNamespaceId, file: &str, source: &str) -> ResolvedSourceUnit {
-        ResolvedSourceUnit::new(namespace.clone(), file, source)
-    }
-
-    fn alias(
-        declaring: &CompilationNamespaceId,
-        name: &str,
-        target: &CompilationNamespaceId,
-    ) -> ResolvedAlias {
-        ResolvedAlias::new(declaring.clone(), name, target.clone())
-    }
-
-    const LIBRARY: &str = r#"
-public component Resistor {
-  public parameter resistance: 1;
-  relation law continuous { resistance - 2 = 0; }
-}
-"#;
-
-    #[test]
-    fn hierarchy_footprint_fails_before_source_input_allocation() {
-        let limits = ResolvedHierarchyResourceLimits {
-            source_units: 2,
-            aliases: 1,
-            source_unit_bytes: 8,
-            total_source_bytes: 10,
-        };
-        assert!(
-            preflight_resolved_hierarchy_with_limits([1], 2, limits)
-                .expect_err("alias overflow")
-                .message()
-                .contains("direct-alias limit")
-        );
-        assert!(
-            preflight_resolved_hierarchy_with_limits([1, 1, 1], 0, limits)
-                .expect_err("source-unit overflow")
-                .message()
-                .contains("source-unit limit")
-        );
-        assert!(
-            preflight_resolved_hierarchy_with_limits([9], 0, limits)
-                .expect_err("per-source overflow")
-                .message()
-                .contains("byte hierarchy limit")
-        );
-        assert!(
-            preflight_resolved_hierarchy_with_limits([6, 5], 0, limits)
-                .expect_err("aggregate overflow")
-                .message()
-                .contains("total source-byte limit")
-        );
-        preflight_resolved_hierarchy_with_limits([4, 6], 1, limits).expect("exact footprint limit");
-    }
-
-    #[test]
-    fn parser_diagnostics_are_independent_of_source_unit_input_order() {
-        let root = namespace("root");
-        let units = vec![
-            unit(&root, "z.eqi", "model Z { relation broken"),
-            unit(&root, "a.eqi", "model A { parameter p:"),
-        ];
-        let forward = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
-            root.clone(),
-            units.clone(),
-            vec![],
-        ))
-        .expect_err("both source units are invalid");
-        let reverse = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
-            root,
-            units.into_iter().rev().collect(),
-            vec![],
-        ))
-        .expect_err("input permutation remains invalid");
-
-        assert_eq!(forward, reverse);
-    }
-
-    #[test]
-    fn exact_direct_alias_elaborates_with_cross_file_provenance() {
-        let root = namespace("org.example.root");
-        let electrical = namespace("org.eqiora.electrical");
-        let input = ResolvedHierarchyInput::new(
-            root.clone(),
-            vec![
-                unit(
-                    &root,
-                    "root/main.eqi",
-                    "model Main { instance load: electrical.Resistor(resistance = 2); }",
-                ),
-                unit(&electrical, "electrical/resistor.eqi", LIBRARY),
-            ],
-            vec![alias(&root, "electrical", &electrical)],
-        );
-
-        let analysis = analyze_resolved_hierarchy(input).expect("resolved graph analyzes");
-        assert_eq!(analysis.canonical_declarations().len(), 2);
-        let compiled = analysis
-            .validate_definitions()
-            .expect("definitions validate")
-            .compile_root("Main")
-            .expect("root elaborates");
-        assert!(
-            compiled.symbols().get("load.resistance").is_none(),
-            "literal component arguments do not fabricate Kernel Parameters"
-        );
-        let law = compiled
-            .symbols()
-            .get("load.law")
-            .expect("imported relation symbol");
-        let provenance = compiled.provenance().expect("hierarchy provenance");
-        let source = provenance
-            .get_by_graph_id(law)
-            .expect("relation provenance");
-        assert!(
-            source
-                .definition_span()
-                .file
-                .ends_with("electrical/resistor.eqi")
-        );
-        assert!(source.instance_span().file.ends_with("root/main.eqi"));
-        assert!(source.binding_spans()[0].file.ends_with("root/main.eqi"));
-        assert_ne!(
-            source.definition_span().file,
-            source.instance_span().file,
-            "package-qualified source labels remain unambiguous"
-        );
-
-        let (transaction, _, _) = compiled.into_parts();
-        InMemoryGraphStore::new()
-            .commit(transaction)
-            .expect("complete transaction commits");
-    }
-
-    #[test]
-    fn canonical_declarations_normalize_aliases_to_exact_targets() {
-        let root = namespace("root");
-        let target = namespace("target");
-        let renamed = |alias_name: &str| {
-            ResolvedHierarchyInput::new(
-                root.clone(),
-                vec![
-                    unit(
-                        &root,
-                        "root.eqi",
-                        &format!("model Main {{ instance c: {alias_name}.Resistor; }}"),
-                    ),
-                    unit(&target, "target.eqi", LIBRARY),
-                ],
-                vec![alias(&root, alias_name, &target)],
-            )
-        };
-        let first = analyze_resolved_hierarchy(renamed("electrical")).expect("first alias");
-        let second = analyze_resolved_hierarchy(renamed("components")).expect("renamed alias");
-        assert_eq!(
-            first.canonical_declarations(),
-            second.canonical_declarations(),
-            "resolution aliases are not package semantics"
-        );
-
-        let other_target = namespace("other-target");
-        let changed = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
-            root.clone(),
-            vec![
-                unit(
-                    &root,
-                    "root.eqi",
-                    "model Main { instance c: electrical.Resistor; }",
-                ),
-                unit(&other_target, "target.eqi", LIBRARY),
-            ],
-            vec![alias(&root, "electrical", &other_target)],
-        ))
-        .expect("changed exact target");
-        let root_form = |analysis: &AnalyzedResolvedHierarchy| {
-            analysis
-                .canonical_declarations()
-                .iter()
-                .find(|declaration| {
-                    declaration.namespace() == &root && declaration.path() == "Main"
-                })
-                .expect("root declaration")
-                .canonical_form()
-                .to_owned()
-        };
-        assert_ne!(root_form(&first), root_form(&changed));
-    }
-
-    #[test]
-    fn pure_operator_declarations_and_calls_are_file_and_alias_invariant() {
-        let root = namespace("root");
-        let operators = namespace("operators");
-        let dependency = r#"
-public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
-  = component(left, 0) * component(right, 1);
-"#;
-        let analyzed = |alias_name: &str, operator_file: &str| {
-            analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
-                root.clone(),
-                vec![
-                    unit(
-                        &root,
-                        "root.eqi",
-                        &format!(
-                            "model Main {{ domain d = box(0,1,0,1); representation s = continuum; field a on d as s: 1 shape spatial_vector; field b on d as s: 1 shape spatial_vector; relation r continuous on d {{ div(div({alias_name}.outer(a,b))) = 0; }} }}"
-                        ),
-                    ),
-                    unit(&operators, operator_file, dependency),
-                ],
-                vec![alias(&root, alias_name, &operators)],
-            ))
-            .expect("resolved pure operator")
-        };
-
-        let first = analyzed("ops", "a/operator.eqi");
-        let renamed = analyzed("tensor_ops", "relocated/definition.eqi");
-        assert_eq!(
-            first.canonical_declarations(),
-            renamed.canonical_declarations()
-        );
-        let operator = first
-            .canonical_declarations()
-            .iter()
-            .find(|declaration| declaration.kind() == CanonicalDeclarationKind::PureOperator)
-            .expect("pure declaration");
-        assert!(
-            operator
-                .canonical_form()
-                .starts_with("eqiora.pure-operator-definition.v1:sha256:")
-        );
-    }
-
-    #[test]
-    fn private_pure_operator_cannot_cross_an_exact_package_boundary() {
-        let root = namespace("root");
-        let dependency = namespace("operators");
-        let input = ResolvedHierarchyInput::new(
-            root.clone(),
-            vec![
-                unit(
-                    &root,
-                    "root.eqi",
-                    "model Main { domain d = box(0,1); representation s = continuum; field a on d as s: 1 shape spatial_vector; field b on d as s: 1 shape spatial_vector; relation r continuous on d { div(ops.outer(a,b)) = 0; } }",
-                ),
-                unit(
-                    &dependency,
-                    "operator.eqi",
-                    "private pure operator outer(a: spatial[1], b: spatial[1]) -> spatial[2] = component(a,0) * component(b,1);",
-                ),
-            ],
-            vec![alias(&root, "ops", &dependency)],
-        );
-        let diagnostics = analyze_resolved_hierarchy(input)
-            .expect("global package shape")
-            .validate_definitions()
-            .expect_err("private exact definitions are not importable");
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message()
-                .contains("private pure operator `ops.outer` cannot be imported")
-        }));
-    }
-
-    #[test]
-    fn private_unknown_and_transitive_imports_fail_during_analysis() {
-        let root = namespace("root");
-        let dependency = namespace("dependency");
-        let cases = [
-            (
-                "model Main { instance c: dep.Private; }",
-                "component Private {}",
-                "private component `dep.Private` cannot be imported",
-            ),
-            (
-                "model Main { instance c: missing.C; }",
-                "public component C {}",
-                "unknown direct package alias `missing`",
-            ),
-            (
-                "model Main { instance c: dep.nested.C; }",
-                "public component C {}",
-                "uses transitive or member qualification",
-            ),
-        ];
-        for (root_source, dependency_source, expected) in cases {
-            let input = ResolvedHierarchyInput::new(
-                root.clone(),
-                vec![
-                    unit(&root, "root.eqi", root_source),
-                    unit(&dependency, "dependency.eqi", dependency_source),
-                ],
-                vec![alias(&root, "dep", &dependency)],
-            );
-            let diagnostics = analyze_resolved_hierarchy(input).unwrap_err();
-            assert!(
-                diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.message().contains(expected)),
-                "expected `{expected}`, got {diagnostics:#?}"
-            );
-        }
-    }
-
-    #[test]
-    fn package_local_names_do_not_collide_but_duplicates_and_aliases_do() {
-        let root = namespace("root");
-        let first = namespace("first");
-        let second = namespace("second");
-        let valid = ResolvedHierarchyInput::new(
-            root.clone(),
-            vec![
-                unit(
-                    &root,
-                    "root.eqi",
-                    "model Main { instance a: one.C; instance b: two.C; }",
-                ),
-                unit(
-                    &first,
-                    "first.eqi",
-                    "public component C { parameter p: 1 = 1; relation law continuous { p - 1 = 0; } }",
-                ),
-                unit(
-                    &second,
-                    "second.eqi",
-                    "public component C { parameter p: 1 = 2; relation law continuous { p - 2 = 0; } }",
-                ),
-            ],
-            vec![alias(&root, "one", &first), alias(&root, "two", &second)],
-        );
-        let analysis = analyze_resolved_hierarchy(valid).expect("names are package-local");
-        let compiled = analysis
-            .validate_definitions()
-            .expect("definitions validate")
-            .compile_root("Main")
-            .expect("both definitions resolve");
-        let (transaction, _, _) = compiled.into_parts();
-        InMemoryGraphStore::new()
-            .commit(transaction)
-            .expect("both package-local definitions elaborate atomically");
-
-        let duplicate = ResolvedHierarchyInput::new(
-            first.clone(),
-            vec![
-                unit(&first, "a.eqi", "public component C {}"),
-                unit(&first, "b.eqi", "public component C {}"),
-            ],
-            vec![],
-        );
-        let diagnostics = analyze_resolved_hierarchy(duplicate).unwrap_err();
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message()
-                .contains("duplicate component declaration `C`")
-        }));
-
-        let duplicate_alias = ResolvedHierarchyInput::new(
-            root.clone(),
-            vec![
-                unit(&root, "root.eqi", "model Main {}"),
-                unit(&first, "first.eqi", "public component C {}"),
-                unit(&second, "second.eqi", "public component D {}"),
-            ],
-            vec![alias(&root, "lib", &first), alias(&root, "lib", &second)],
-        );
-        let diagnostics = analyze_resolved_hierarchy(duplicate_alias).unwrap_err();
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message()
-                .contains("duplicate direct alias `lib`")
-        }));
-    }
-
-    #[test]
-    fn cross_package_recursion_fails_before_a_transaction_exists() {
-        let root = namespace("root");
-        let dependency = namespace("dependency");
-        let input = ResolvedHierarchyInput::new(
-            root.clone(),
-            vec![
-                unit(
-                    &root,
-                    "root.eqi",
-                    "public component A { instance b: dep.B; } model Main {}",
-                ),
-                unit(
-                    &dependency,
-                    "dependency.eqi",
-                    "public component B { instance a: app.A; }",
-                ),
-            ],
-            vec![
-                alias(&root, "dep", &dependency),
-                alias(&dependency, "app", &root),
-            ],
-        );
-        let analysis = analyze_resolved_hierarchy(input).expect("all names resolve");
-        let diagnostics = analysis.validate_definitions().unwrap_err();
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message()
-                .contains("recursive component definition graph")
-        }));
-        assert!(
-            diagnostics
-                .iter()
-                .all(|diagnostic| diagnostic.graph_path().is_none())
-        );
-    }
-
-    #[test]
-    fn unused_connector_contract_fails_definition_validation() {
-        let root = namespace("root");
-        let input = ResolvedHierarchyInput::new(
-            root.clone(),
-            vec![unit(
-                &root,
-                "root.eqi",
-                "public connector Broken = scalar_physical(across = mystery, through = A); model Main {}",
-            )],
-            vec![],
-        );
-        let analysis = analyze_resolved_hierarchy(input).expect("declarations index");
-        let diagnostics = analysis.validate_definitions().unwrap_err();
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message()
-                .contains("unknown SI base-dimension symbol `mystery`")
-        }));
-        assert!(
-            diagnostics
-                .iter()
-                .all(|diagnostic| diagnostic.graph_path().is_none())
-        );
-    }
-
-    #[test]
-    fn symbolic_component_interfaces_validate_without_occurrence_values() {
-        let root = namespace("root");
-        let input = ResolvedHierarchyInput::new(
-            root.clone(),
-            vec![unit(
-                &root,
-                "root.eqi",
-                r#"
-public component Leaf {
-  public parameter period: s;
-  public parameter offset: s = period;
-  relation invariant continuous { offset - period = 0; }
-}
-public component Wrapper {
-  public parameter period: s;
-  instance leaf: Leaf(period = period);
-}
-model Empty {}
-"#,
-            )],
-            vec![],
-        );
-        analyze_resolved_hierarchy(input)
-            .expect("declarations analyze")
-            .validate_definitions()
-            .expect("required public Parameters remain typed free variables");
-    }
-
-    #[test]
-    fn unused_nested_parameter_contracts_fail_before_root_selection() {
-        let root = namespace("root");
-        let input = ResolvedHierarchyInput::new(
-            root.clone(),
-            vec![unit(
-                &root,
-                "root.eqi",
-                r#"
-public component Leaf { public parameter period: s; }
-public component Missing { instance leaf: Leaf; }
-public component WrongDimension {
-  public parameter length: m;
-  instance leaf: Leaf(period = length);
-}
-public component InvalidPrivate { parameter hidden: s; }
-model Empty {}
-"#,
-            )],
-            vec![],
-        );
-        let diagnostics = analyze_resolved_hierarchy(input)
-            .expect("declarations analyze")
-            .validate_definitions()
-            .unwrap_err();
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message()
-                .contains("required Parameter `period` has no instance binding")
-        }));
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message()
-                .contains("Parameter binding has dimension")
-        }));
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message()
-                .contains("required private Parameter `hidden` has no default")
-        }));
-        assert!(
-            diagnostics
-                .iter()
-                .all(|diagnostic| diagnostic.graph_path().is_none())
-        );
-    }
-}
+mod tests;

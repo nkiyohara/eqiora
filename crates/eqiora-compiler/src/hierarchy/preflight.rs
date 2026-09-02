@@ -11,7 +11,7 @@ use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use crate::diagnostics::source_error;
 use crate::identity::IdentityNamespace;
 use crate::pure_operator::compile_definition;
-use crate::resolved::{AnalyzedResolvedHierarchy, CompilationNamespaceId};
+use crate::resolved::{AnalyzedResolvedHierarchy, CompilationModuleId};
 use crate::source_identity::LocalSourceIdentity;
 
 use super::HierarchyLimits;
@@ -25,16 +25,23 @@ pub(super) struct ExpansionSize {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) enum DefinitionNamespace {
     Local,
-    Resolved(CompilationNamespaceId),
+    Resolved(CompilationModuleId),
 }
 
 impl DefinitionNamespace {
     pub(super) fn declaration_prefix(&self) -> Vec<String> {
         match self {
             Self::Local => Vec::new(),
-            Self::Resolved(namespace) => core::iter::once("package".to_owned())
-                .chain(namespace.segments().iter().cloned())
-                .collect(),
+            Self::Resolved(module) => {
+                let mut prefix = core::iter::once("package".to_owned())
+                    .chain(module.owner().segments().iter().cloned())
+                    .collect::<Vec<_>>();
+                if !module.name().is_main() {
+                    prefix.push("module".to_owned());
+                    prefix.extend(module.name().segments().iter().cloned());
+                }
+                prefix
+            }
         }
     }
 }
@@ -194,12 +201,15 @@ impl<'a> Elaborator<'a> {
         limits: HierarchyLimits,
     ) -> Result<Self, Vec<Diagnostic>> {
         let root_namespace = DefinitionNamespace::Resolved(analysis.root.clone());
-        let identity_namespace = IdentityNamespace::with_limits(
-            core::iter::once("resolved-package-v1".to_owned())
-                .chain(analysis.root.segments().iter().cloned()),
-            limits.identity,
-        )
-        .map_err(|error| vec![error])?;
+        let mut identity_segments = core::iter::once("resolved-package-v1".to_owned())
+            .chain(analysis.root.owner().segments().iter().cloned())
+            .collect::<Vec<_>>();
+        if !analysis.root.name().is_main() {
+            identity_segments.push("module".to_owned());
+            identity_segments.extend(analysis.root.name().segments().iter().cloned());
+        }
+        let identity_namespace = IdentityNamespace::with_limits(identity_segments, limits.identity)
+            .map_err(|error| vec![error])?;
         let mut connectors = BTreeMap::new();
         let mut pure_operators = BTreeMap::new();
         let mut components = BTreeMap::new();
@@ -218,7 +228,7 @@ impl<'a> Elaborator<'a> {
                 ));
             }
             index_unit(
-                DefinitionNamespace::Resolved(unit.namespace.clone()),
+                DefinitionNamespace::Resolved(unit.module.clone()),
                 &unit.file,
                 &unit.document,
                 limits,
@@ -235,10 +245,10 @@ impl<'a> Elaborator<'a> {
             .map(|alias| {
                 (
                     (
-                        DefinitionNamespace::Resolved(alias.declaring().clone()),
+                        DefinitionNamespace::Resolved(alias.declaring_module().clone()),
                         alias.alias().to_owned(),
                     ),
-                    DefinitionNamespace::Resolved(alias.target().clone()),
+                    DefinitionNamespace::Resolved(alias.target_module().clone()),
                 )
             })
             .collect();

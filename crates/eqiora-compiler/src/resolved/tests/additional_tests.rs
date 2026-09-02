@@ -3,38 +3,46 @@ use super::*;
 #[test]
 fn canonical_declarations_ignore_files_formatting_and_input_order() {
     let package = namespace("org.example.library");
-    let split = ResolvedHierarchyInput::new(
+    let split = ResolvedHierarchyInput::with_root_module(
         package.clone(),
+        "parts.component".split('.'),
         vec![
-            unit(
+            module_unit(
                 &package,
+                "parts.component",
                 "z/component.eqi",
                 "public component C { public parameter p: 1 = 2; public parameter q: 1 = 3; }",
             ),
-            unit(
+            module_unit(
                 &package,
+                "parts.connector",
                 "a/connector.eqi",
                 "public connector Pin = scalar_physical(across = 1, through = 1);",
             ),
         ],
         vec![],
-    );
-    let moved = ResolvedHierarchyInput::new(
-        package,
+    )
+    .expect("split root module");
+    let moved = ResolvedHierarchyInput::with_root_module(
+        package.clone(),
+        "parts.component".split('.'),
         vec![
-            unit(
-                &namespace("org.example.library"),
+            module_unit(
+                &package,
+                "parts.connector",
                 "elsewhere/pin.eqi",
                 "// relocated\npublic connector Pin=scalar_physical(across=1,through=1);",
             ),
-            unit(
-                &namespace("org.example.library"),
+            module_unit(
+                &package,
+                "parts.component",
                 "elsewhere/c.eqi",
                 "public component C {\n public parameter q: 1=3;\n public parameter p: 1=2;\n}",
             ),
         ],
         vec![],
-    );
+    )
+    .expect("moved root module");
 
     let first = analyze_resolved_hierarchy(split).expect("first analysis");
     let second = analyze_resolved_hierarchy(moved).expect("second analysis");
@@ -44,7 +52,7 @@ fn canonical_declarations_ignore_files_formatting_and_input_order() {
     );
     assert_eq!(
         first.canonical_declarations()[0].path(),
-        "C",
+        "parts.component.C",
         "canonical declarations sort by path"
     );
     assert!(

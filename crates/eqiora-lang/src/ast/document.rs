@@ -1,10 +1,21 @@
 use crate::ast_property::{PropertyContractDecl, PropertyReleaseDecl};
 
-use super::{ComponentDecl, ConnectorDecl, DimensionDecl, ModelDecl, PureOperatorDecl};
+use super::{
+    ComponentDecl, ConnectorDecl, DimensionDecl, ModelDecl, NamePath, PureOperatorDecl, TextRange,
+};
+
+/// One explicit, side-effect-free semantic module import.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ImportDecl {
+    pub(crate) module: NamePath,
+    pub(crate) alias: String,
+    pub(crate) range: TextRange,
+}
 
 /// One parsed source file.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Document {
+    pub(crate) imports: Vec<ImportDecl>,
     pub(crate) dimensions: Vec<DimensionDecl>,
     pub(crate) property_contracts: Vec<PropertyContractDecl>,
     pub(crate) property_releases: Vec<PropertyReleaseDecl>,
@@ -15,6 +26,14 @@ pub struct Document {
 }
 
 impl Document {
+    /// Explicit semantic imports in authored order.
+    #[must_use]
+    pub fn imports(&self) -> impl ExactSizeIterator<Item = (&NamePath, &str, TextRange)> {
+        self.imports
+            .iter()
+            .map(|import| (&import.module, import.alias.as_str(), import.range))
+    }
+
     /// Ordered compilation-unit structural dimension aliases.
     #[must_use]
     pub fn dimension_syntax(

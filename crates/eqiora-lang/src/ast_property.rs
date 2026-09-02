@@ -94,6 +94,7 @@ impl Document {
                     declaration.visibility,
                     true,
                     Self {
+                        imports: Vec::new(),
                         dimensions: self.dimensions.clone(),
                         property_contracts: vec![declaration.clone()],
                         property_releases: Vec::new(),
@@ -111,6 +112,7 @@ impl Document {
                 declaration.visibility,
                 false,
                 Self {
+                    imports: Vec::new(),
                     dimensions: self.dimensions.clone(),
                     property_contracts: Vec::new(),
                     property_releases: vec![declaration.clone()],

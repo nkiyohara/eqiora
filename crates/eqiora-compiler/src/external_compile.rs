@@ -131,7 +131,7 @@ impl CompiledModel {
             .analysis
             .units
             .iter()
-            .filter(|unit| unit.namespace == hierarchy.analysis.root)
+            .filter(|unit| unit.module == hierarchy.analysis.root)
             .find(|unit| !unit.document.models().is_empty())
         {
             return Err(vec![source_error(
@@ -145,7 +145,7 @@ impl CompiledModel {
             .analysis
             .units
             .iter()
-            .filter(|unit| unit.namespace == hierarchy.analysis.root)
+            .filter(|unit| unit.module == hierarchy.analysis.root)
             .flat_map(|unit| {
                 unit.document
                     .components()

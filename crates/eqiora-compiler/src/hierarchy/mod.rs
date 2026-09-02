@@ -235,7 +235,7 @@ pub(crate) fn compile_resolved_external_component(
     let file = analysis
         .units
         .iter()
-        .find(|unit| unit.namespace == analysis.root)
+        .find(|unit| unit.module == analysis.root)
         .map_or("<resolved-package>", |unit| unit.file.as_str());
     validate_external_support_inventory(file, binding.supports())?;
     let elaborator = Elaborator::new_resolved(analysis, limits)?;

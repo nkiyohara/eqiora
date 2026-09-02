@@ -1,5 +1,4 @@
 //! Recovering recursive-descent parser for the deliberately small v0 grammar.
-
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Span};
 
