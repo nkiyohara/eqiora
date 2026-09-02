@@ -6,10 +6,7 @@
 
 use std::borrow::Cow;
 
-use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, Id, RawId};
-use eqiora_schema::kernel::ExprId;
-use eqiora_schema::kernel::typing::TypedResidual;
+use eqiora_core::Diagnostic;
 
 use super::super::execution::{
     LocalFormExecution, LocalFormInput2d, LocalFormInstruction, LocalFormInstructionProvenance,
@@ -17,9 +14,10 @@ use super::super::execution::{
     compile_derived_local_form_program_2d, compile_witness_local_form_program_2d,
 };
 use super::super::{
-    AdmittedCartesianQ1ElasticityForm2d, DIVERGENCE_BY_PARTS, DerivationCertificate,
-    DerivedCartesianQ1ElasticityForm2d, SOURCE_PAIRING, TEST_PAIRING,
+    AdmittedCartesianQ1ElasticityForm2d, DIVERGENCE_BY_PARTS, DerivedCartesianQ1ElasticityForm2d,
+    ElasticityDerivationSource, SOURCE_PAIRING, TEST_PAIRING,
 };
+use crate::form_compiler::vocabulary::PrimalGalerkinCorrespondence;
 use crate::form_compiler::{MatrixSlot, WeakSign, WeakTermSlot};
 
 const ELASTICITY_SOURCE: &str = include_str!("../../elasticity.rs");
@@ -46,9 +44,9 @@ pub(super) fn structural_tape_falsifiers() {
 fn derived_weak_rules_retain_their_exact_certificate_source_nodes() {
     let derived = super::derived_form();
     let expected = [
-        (TEST_PAIRING, derived.certificate.volume.root),
-        (DIVERGENCE_BY_PARTS, derived.certificate.volume.divergence),
-        (SOURCE_PAIRING, derived.certificate.volume.load_gradient),
+        (TEST_PAIRING, derived.volume.root),
+        (DIVERGENCE_BY_PARTS, derived.volume.divergence),
+        (SOURCE_PAIRING, derived.volume.load_gradient),
     ];
     let mut observed = [0_usize; 3];
 
@@ -62,9 +60,15 @@ fn derived_weak_rules_retain_their_exact_certificate_source_nodes() {
             .unwrap_or_else(|| panic!("generated instruction retained unknown rule `{rule_id}`"));
         observed[rule] += 1;
         assert_eq!(
-            provenance.source_node,
-            Some(expected[rule].1),
-            "generated `{rule_id}` instruction lost its exact certificate source-node provenance",
+            (provenance.relation, provenance.source_node),
+            derived
+                .certificate
+                .entries
+                .iter()
+                .find(|entry| { entry.rule_id == rule_id && entry.source_node == expected[rule].1 })
+                .map(|entry| (Some(entry.relation), Some(entry.source_node)))
+                .expect("the common certificate owns the generated weak provenance"),
+            "generated `{rule_id}` instruction did not consume its exact common certificate entry",
         );
     }
 
@@ -82,11 +86,8 @@ fn private_tape_seam_matches_the_frozen_contract() {
     let _: fn(NormalizedLocalFormProgram2d) = exact_normalized_program_fields;
 
     let _: fn(
-        &TypedResidual<RawId>,
-        ExprId,
-        RawId,
-        [Id<kinds::Parameter>; 2],
-        &DerivationCertificate,
+        ElasticityDerivationSource<'_>,
+        &PrimalGalerkinCorrespondence,
     ) -> Result<LocalFormProgram2d, Diagnostic> = compile_derived_local_form_program_2d;
 
     let _: fn() -> Result<LocalFormProgram2d, Diagnostic> = compile_witness_local_form_program_2d;
@@ -250,7 +251,7 @@ fn mutated_structure_and_provenance_fail_closed() {
     assert_admission_rejects(source_node, "foreign source-node provenance");
 
     let mut shared_load_gradient = super::derived_form();
-    let load_gradient = shared_load_gradient.certificate.volume.load_gradient;
+    let load_gradient = shared_load_gradient.volume.load_gradient;
     let mut mutated = [0_usize; 2];
     for provenance in &mut shared_load_gradient.program.provenance {
         match provenance.rule_id {
