@@ -697,16 +697,18 @@ pub struct CommonState {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonTransientRunRequest {
     plan: CommonTransientFlowPlan,
-    state: CommonState,
-    accepted_steps: NonZeroUsize,
-    output_steps: Vec<usize>,
-    identity: String,
+    schedule: CommonRunSchedule,
 }
 
 /// Canonical common-worker request for one exact FSI Plan and State.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonFsiRunRequest {
     plan: CommonFsiPlan,
+    schedule: CommonRunSchedule,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct CommonRunSchedule {
     state: CommonState,
     accepted_steps: NonZeroUsize,
     output_steps: Vec<usize>,
