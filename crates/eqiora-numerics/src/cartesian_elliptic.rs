@@ -22,6 +22,7 @@ use eqiora_solver::{
 use crate::affine_fem::{dot, physical_gradient, weighted_gradient, weighted_gradient_tangent};
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::canonical::ScalarEllipticCartesianModel;
+use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::{
     AdmittedScalarGalerkinForm, DerivedScalarGalerkinForm, compile_cartesian_q1_form,
@@ -289,9 +290,7 @@ impl ScalarEllipticCartesianFvmSolution {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedCartesianFemAssembly {
     mesh: CartesianMesh,
-    fixed_values: Vec<Option<f64>>,
-    free_indices: Vec<Option<DofId>>,
-    free_vertices: Vec<usize>,
+    constrained_dofs: ConstrainedDofLayout,
     linear_system: LinearSystem,
     full_system: LinearSystem,
     integrated_source: f64,
@@ -304,9 +303,7 @@ impl FinalizedCartesianFemAssembly {
     ) -> Result<(Arc<CanonicalCsrSystemView>, FinalizedCartesianFemState), Diagnostic> {
         let Self {
             mesh,
-            fixed_values,
-            free_indices,
-            free_vertices,
+            constrained_dofs,
             linear_system,
             full_system,
             integrated_source,
@@ -320,9 +317,7 @@ impl FinalizedCartesianFemAssembly {
             canonical_system,
             FinalizedCartesianFemState {
                 mesh,
-                fixed_values,
-                free_indices,
-                free_vertices,
+                constrained_dofs,
                 full_system,
                 integrated_source,
                 assembly_report,
@@ -334,9 +329,7 @@ impl FinalizedCartesianFemAssembly {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedCartesianFemState {
     mesh: CartesianMesh,
-    fixed_values: Vec<Option<f64>>,
-    free_indices: Vec<Option<DofId>>,
-    free_vertices: Vec<usize>,
+    constrained_dofs: ConstrainedDofLayout,
     full_system: LinearSystem,
     integrated_source: f64,
     assembly_report: AssemblyReport,
@@ -358,49 +351,19 @@ impl FinalizedCartesianFemState {
             ));
         }
         let (algebraic_values, solve_report) = solved.into_parts();
-        let mut values = fallible_zeroed(
-            self.fixed_values.len(),
-            "Cartesian FEM field allocation exceeds platform capacity",
-        )?;
-        for (vertex, value) in values.iter_mut().enumerate() {
-            *value = if let Some(fixed) = self.fixed_values[vertex] {
-                fixed
-            } else {
-                let equation = self
-                    .free_indices
-                    .get(vertex)
-                    .copied()
-                    .flatten()
-                    .ok_or_else(|| {
-                        invalid("Cartesian FEM free vertex has no finalized equation")
-                    })?;
-                *algebraic_values.get(equation.index()).ok_or_else(|| {
-                    invalid("Cartesian FEM equation exceeds its finalized solution")
-                })?
-            };
-        }
-        let mut equilibrium = fallible_zeroed(
-            self.full_system.matrix().rows(),
-            "Cartesian FEM equilibrium allocation exceeds platform capacity",
-        )?;
-        self.full_system
-            .matrix()
-            .multiply_into(&values, &mut equilibrium)?;
-        for (residual, rhs) in equilibrium.iter_mut().zip(self.full_system.rhs()) {
-            *residual -= rhs;
-        }
-        let boundary_reaction_sum = equilibrium
-            .iter()
-            .zip(&self.fixed_values)
-            .filter_map(|(reaction, fixed)| fixed.map(|_| reaction))
-            .sum::<f64>();
+        let free_vertices = self.constrained_dofs.free_globals();
+        let values = self.constrained_dofs.lift(&algebraic_values)?;
+        let equilibrium = self
+            .constrained_dofs
+            .full_residual(&self.full_system, &values)?;
+        let boundary_reaction_sum = self.constrained_dofs.reaction_sum::<1>(&equilibrium)?[0];
         if !boundary_reaction_sum.is_finite() {
             return Err(invalid("Cartesian FEM reaction sum is non-finite"));
         }
 
         Ok(ScalarEllipticCartesianFemSolution {
             field: CartesianQ1Field::new(self.mesh, values)?,
-            free_vertices: self.free_vertices,
+            free_vertices,
             algebraic_values,
             canonical_system,
             boundary_reaction_sum,
@@ -682,9 +645,7 @@ where
     };
     let vertex_count = mesh.entity_count(0).expect("mesh owns vertices");
     let mut fixed_values = Vec::with_capacity(vertex_count);
-    let mut free_indices = vec![None; vertex_count];
-    let mut free_count = 0_usize;
-    for (vertex_index, free_index) in free_indices.iter_mut().enumerate() {
+    for vertex_index in 0..vertex_count {
         let vertex = MeshEntity::new(0, vertex_index);
         if mesh
             .is_boundary_entity(vertex)
@@ -703,24 +664,19 @@ where
                     require_compatible_boundary_value(accepted, candidate)
                 })?;
             fixed_values.push(essential);
-            if essential.is_none() {
-                *free_index = Some(DofId::new(free_count));
-                free_count += 1;
-            }
         } else {
             fixed_values.push(None);
-            *free_index = Some(DofId::new(free_count));
-            free_count += 1;
         }
-    }
-    if free_count == 0 {
-        return Err(invalid(
-            "Cartesian Q1 system requires at least one unconstrained interior vertex",
-        ));
     }
     if fixed_values.iter().all(Option::is_none) {
         return Err(invalid(
             "Cartesian Q1 system requires at least one essential boundary vertex",
+        ));
+    }
+    let constrained_dofs = ConstrainedDofLayout::new(fixed_values)?;
+    if constrained_dofs.free_count() == 0 {
+        return Err(invalid(
+            "Cartesian Q1 system requires at least one unconstrained interior vertex",
         ));
     }
     let cell_count = mesh.entity_count(dimension).expect("mesh owns cells");
@@ -766,7 +722,7 @@ where
         .flat_map(|(local, _)| local.rhs())
         .sum::<f64>();
     let assembly_plan = AssemblyPlan::new(vec![
-        AssemblyTarget::new(free_count)?,
+        AssemblyTarget::new(constrained_dofs.free_count())?,
         AssemblyTarget::new(vertex_count)?,
     ])?;
     let reduced_target = assembly_plan
@@ -792,35 +748,12 @@ where
         } else {
             natural_facets[packet_index - cell_count].clone()
         };
-        let equations = vertices
+        let global_dofs = vertices
             .iter()
-            .map(|vertex| free_indices[vertex.index()])
+            .map(|vertex| vertex.index())
             .collect::<Vec<_>>();
-        let unknowns = vertices
-            .iter()
-            .map(|vertex| {
-                fixed_values[vertex.index()].map_or_else(
-                    || {
-                        LocalUnknown::Free(
-                            free_indices[vertex.index()]
-                                .expect("unfixed vertex owns a free equation"),
-                        )
-                    },
-                    LocalUnknown::Fixed,
-                )
-            })
-            .collect::<Vec<_>>();
-        let reduced = AssemblyMap::new(equations, unknowns)?;
-        let full = AssemblyMap::new(
-            vertices
-                .iter()
-                .map(|vertex| Some(DofId::new(vertex.index())))
-                .collect(),
-            vertices
-                .iter()
-                .map(|vertex| LocalUnknown::Free(DofId::new(vertex.index())))
-                .collect(),
-        )?;
+        let reduced = constrained_dofs.reduced_map(&global_dofs)?;
+        let full = constrained_dofs.full_map(&global_dofs)?;
         AssemblyPacket::new(
             local,
             vec![
@@ -843,17 +776,9 @@ where
     if !integrated_source.is_finite() {
         return Err(invalid("Cartesian FEM source integral is non-finite"));
     }
-    let mut free_vertices = vec![0; free_count];
-    for (vertex, dof) in free_indices.iter().enumerate() {
-        if let Some(dof) = dof {
-            free_vertices[dof.index()] = vertex;
-        }
-    }
     Ok(FinalizedCartesianFemAssembly {
         mesh: mesh.clone(),
-        fixed_values,
-        free_indices,
-        free_vertices,
+        constrained_dofs,
         linear_system: reduced_system,
         full_system,
         integrated_source,
@@ -1624,21 +1549,6 @@ mod tests {
     use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 
     use super::*;
-
-    #[test]
-    fn method_native_capacity_failure_is_a_stable_diagnostic() {
-        let diagnostic = fallible_zeroed(
-            usize::MAX,
-            "Cartesian finish allocation exceeds platform capacity",
-        )
-        .unwrap_err();
-
-        assert_eq!(diagnostic.code(), codes::NUMERICAL_SOLVE_FAILED);
-        assert_eq!(
-            diagnostic.message(),
-            "Cartesian finish allocation exceeds platform capacity"
-        );
-    }
 
     #[test]
     fn q1_diffusion_lowers_to_anonymous_uniform_local_action() {

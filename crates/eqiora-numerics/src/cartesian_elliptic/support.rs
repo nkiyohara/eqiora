@@ -528,18 +528,6 @@ pub(super) fn reconstruct_cell_field_from_boundary_values(
     CartesianQ1Field::new(reconstruction_mesh, values)
 }
 
-pub(super) fn fallible_zeroed(
-    length: usize,
-    allocation_error: &'static str,
-) -> Result<Vec<f64>, Diagnostic> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(length)
-        .map_err(|_| finish_allocation(allocation_error))?;
-    values.resize(length, 0.0);
-    Ok(values)
-}
-
 pub(super) fn finish_allocation(message: &'static str) -> Diagnostic {
     Diagnostic::error(codes::NUMERICAL_SOLVE_FAILED, message)
 }

@@ -9,8 +9,8 @@ use std::num::NonZeroU32;
 use std::sync::Arc;
 
 use eqiora_assembly::{
-    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
-    DofId, IndexedAssemblyWork, LocalUnknown, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+    AssemblyBackend, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
+    IndexedAssemblyWork, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -25,6 +25,7 @@ use eqiora_solver::{
 };
 
 use crate::affine_fem::physical_gradient;
+use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::compile_cartesian_q1_elasticity_form_2d;
 use crate::linear_elasticity::IsotropicElasticityMaterial;
@@ -427,7 +428,7 @@ pub fn solve_cartesian_q1_linear_elasticity_2d_with_assembly(
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedCartesianElasticity2dAssembly {
     mesh: CartesianMesh,
-    free_indices: Vec<Option<DofId>>,
+    constrained_dofs: ConstrainedDofLayout,
     linear_system: eqiora_assembly::LinearSystem,
     full_system: eqiora_assembly::LinearSystem,
     integrated_body_force: [f64; COMPONENTS],
@@ -446,7 +447,7 @@ impl FinalizedCartesianElasticity2dAssembly {
     > {
         let Self {
             mesh,
-            free_indices,
+            constrained_dofs,
             linear_system,
             full_system,
             integrated_body_force,
@@ -460,7 +461,7 @@ impl FinalizedCartesianElasticity2dAssembly {
             canonical_system,
             FinalizedCartesianElasticity2dState {
                 mesh,
-                free_indices,
+                constrained_dofs,
                 full_system,
                 integrated_body_force,
                 assembly_report,
@@ -472,7 +473,7 @@ impl FinalizedCartesianElasticity2dAssembly {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedCartesianElasticity2dState {
     mesh: CartesianMesh,
-    free_indices: Vec<Option<DofId>>,
+    constrained_dofs: ConstrainedDofLayout,
     full_system: eqiora_assembly::LinearSystem,
     integrated_body_force: [f64; COMPONENTS],
     assembly_report: AssemblyReport,
@@ -494,23 +495,13 @@ impl FinalizedCartesianElasticity2dState {
             ));
         }
         let (algebraic_values, solve_report) = solved.into_parts();
-        let mut displacement = vec![0.0; self.free_indices.len()];
-        for (global, value) in displacement.iter_mut().enumerate() {
-            if let Some(equation) = self.free_indices[global] {
-                *value = algebraic_values[equation.index()];
-            }
-        }
-
-        let mut residual = self.full_system.matrix().multiply(&displacement)?;
-        for (value, right_hand_side) in residual.iter_mut().zip(self.full_system.rhs()) {
-            *value -= right_hand_side;
-        }
-        let mut boundary_reaction = [0.0; COMPONENTS];
-        for (global, reaction) in residual.iter().enumerate() {
-            if self.free_indices[global].is_none() {
-                boundary_reaction[global % COMPONENTS] += reaction;
-            }
-        }
+        let displacement = self.constrained_dofs.lift(&algebraic_values)?;
+        let residual = self
+            .constrained_dofs
+            .full_residual(&self.full_system, &displacement)?;
+        let boundary_reaction = self
+            .constrained_dofs
+            .reaction_sum::<COMPONENTS>(&residual)?;
         if boundary_reaction
             .iter()
             .chain(&self.integrated_body_force)
@@ -560,20 +551,17 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
     let global_width = vertex_count
         .checked_mul(COMPONENTS)
         .ok_or_else(|| invalid("elasticity global DOF count overflows usize"))?;
-    let mut free_indices = vec![None; global_width];
-    let mut free_count = 0_usize;
+    let mut fixed_values = vec![Some(0.0); global_width];
     for vertex_index in 0..vertex_count {
         let vertex = MeshEntity::new(0, vertex_index);
         if !essential_sides.constrains_vertex(mesh, vertex) {
             for component in 0..COMPONENTS {
-                free_indices[global_dof(vertex_index, component)?] = Some(DofId::new(free_count));
-                free_count = free_count
-                    .checked_add(1)
-                    .ok_or_else(|| invalid("elasticity free DOF count overflows usize"))?;
+                fixed_values[global_dof(vertex_index, component)?] = None;
             }
         }
     }
-    if free_count == 0 {
+    let constrained_dofs = ConstrainedDofLayout::new(fixed_values)?;
+    if constrained_dofs.free_count() == 0 {
         return Err(invalid(
             "Cartesian Q1 elasticity requires at least one unconstrained interior vertex",
         ));
@@ -581,7 +569,7 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
 
     let operator = compile_cartesian_q1_elasticity_form_2d(quadrature)?;
     let plan = AssemblyPlan::new(vec![
-        AssemblyTarget::new(free_count)?,
+        AssemblyTarget::new(constrained_dofs.free_count())?,
         AssemblyTarget::new(global_width)?,
     ])?;
     let reduced_target = plan
@@ -609,30 +597,8 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
             .entity_vertices(cell)
             .expect("a Cartesian cell owns its vertex closure");
         let global_dofs = local_global_dofs(&vertices)?;
-        let reduced = AssemblyMap::new(
-            global_dofs
-                .iter()
-                .map(|global| free_indices[*global])
-                .collect(),
-            global_dofs
-                .iter()
-                .map(|global| {
-                    free_indices[*global]
-                        .map(LocalUnknown::Free)
-                        .unwrap_or(LocalUnknown::Fixed(0.0))
-                })
-                .collect(),
-        )?;
-        let full = AssemblyMap::new(
-            global_dofs
-                .iter()
-                .map(|global| Some(DofId::new(*global)))
-                .collect(),
-            global_dofs
-                .iter()
-                .map(|global| LocalUnknown::Free(DofId::new(*global)))
-                .collect(),
-        )?;
+        let reduced = constrained_dofs.reduced_map(&global_dofs)?;
+        let full = constrained_dofs.full_map(&global_dofs)?;
         AssemblyPacket::new(
             local,
             vec![
@@ -663,7 +629,7 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
 
     Ok(FinalizedCartesianElasticity2dAssembly {
         mesh: mesh.clone(),
-        free_indices,
+        constrained_dofs,
         linear_system: reduced_system,
         full_system,
         integrated_body_force,
