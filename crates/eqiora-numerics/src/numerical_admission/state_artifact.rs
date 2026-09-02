@@ -294,8 +294,8 @@ impl WireCommonSpatialStateV1 {
         CommonState::new_with_boundary_forces(
             plan.state_space_identity(),
             self.time_s,
-            Arc::new(plan.model.clone()),
-            Arc::new(plan.resources.clone()),
+            Arc::new(plan.model().clone()),
+            Arc::new(plan.resources().clone()),
             CommonStateKind::Fsi {
                 state: Box::new(native),
                 pressure: pressure_vertex.clone().into_boxed_slice(),

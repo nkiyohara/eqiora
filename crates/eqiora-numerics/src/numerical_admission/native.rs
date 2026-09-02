@@ -235,6 +235,7 @@ pub(super) enum RecognizedNativeModel {
     Fsi(Box<FixedReferenceFsiCartesianModel2d>),
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub(super) struct RecognizedNativeAdmission {
     pub(super) model: ModelEnvelope,
     pub(super) model_digest: String,

@@ -204,7 +204,7 @@ impl ResolvedCommonPlan {
                 })
             }
             Self::Fsi(plan) => {
-                let model = ModelEnvelope::digest(&plan.model)
+                let model = ModelEnvelope::digest(plan.model())
                     .expect("resolved FSI Plan retains a canonical Model");
                 CommonMethodRequest::Scoped(vec![
                     CommonScopedSpatialPolicy::new(
@@ -679,7 +679,7 @@ fn plan_model_artifact(plan: &ResolvedCommonPlan) -> &ModelEnvelope {
         ResolvedCommonPlan::Elasticity(plan) => &plan.admission.model,
         ResolvedCommonPlan::SteadyStokes(plan) => &plan.admission.model,
         ResolvedCommonPlan::TransientFlow(plan) => &plan.admission.model,
-        ResolvedCommonPlan::Fsi(plan) => &plan.model,
+        ResolvedCommonPlan::Fsi(plan) => plan.model(),
     }
 }
 
@@ -699,7 +699,7 @@ fn plan_authenticated_mesh(plan: &ResolvedCommonPlan) -> Option<AuthenticatedCom
             resources: plan.admission.resources.clone(),
         }),
         ResolvedCommonPlan::Fsi(plan) => Some(AuthenticatedCommonMesh {
-            resources: plan.resources.clone(),
+            resources: plan.resources().clone(),
         }),
     }
 }
