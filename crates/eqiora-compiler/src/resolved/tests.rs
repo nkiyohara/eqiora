@@ -37,6 +37,23 @@ public component Resistor {
 "#;
 
 #[test]
+fn module_labels_preserve_implicit_main_and_name_explicit_modules() {
+    let owner = namespace("org.example.project");
+    assert_eq!(
+        CompilationModuleId::main(owner.clone()).to_string(),
+        owner.to_string()
+    );
+    assert_eq!(
+        CompilationModuleId::new(
+            owner.clone(),
+            ModuleName::new(["library", "primitives"]).expect("module name"),
+        )
+        .to_string(),
+        format!("{owner}::library.primitives")
+    );
+}
+
+#[test]
 fn hierarchy_footprint_fails_before_source_input_allocation() {
     let limits = ResolvedHierarchyResourceLimits {
         source_units: 2,

@@ -210,7 +210,11 @@ impl CompilationModuleId {
 
 impl fmt::Display for CompilationModuleId {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}::{}", self.owner, self.name)
+        self.owner.fmt(formatter)?;
+        if !self.name.is_main() {
+            write!(formatter, "::{}", self.name)?;
+        }
+        Ok(())
     }
 }
 
