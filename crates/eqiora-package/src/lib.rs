@@ -49,7 +49,7 @@ pub use identity::{ExactVersion, ModelPackageIdentityV1, QualifiedName};
 pub use manifest::{AuthorManifestV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1};
 pub use path::NormalizedRelativePath;
 pub use release::{
-    CompilationPackageV1, CompilationToolchainV1, PackageCompilationRecordV1, PackageReleaseV1,
+    CompilationPackageV1, CompilationToolchainV2, PackageCompilationRecordV2, PackageReleaseV1,
 };
 pub use resolution::{
     ExactResolver, ResolutionEdgeV1, ResolutionError, ResolutionNodeV1, ResolutionRecordV1,

@@ -23,7 +23,7 @@ wire would create a second source of truth.
 The missing object is therefore a lineage edge, not another manifest:
 
 ```text
-PackageCompilationRecordV1
+PackageCompilationRecordV2
   + RealizationEnvelopeV1
   + RunManifestV2
   -> PackageExecutionBindingV1

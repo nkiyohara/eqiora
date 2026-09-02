@@ -11,7 +11,7 @@ use eqiora::language::{ComponentItem, DomainSyntax, Item};
 use eqiora::meshing::QuadratureRule;
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationRecordV1,
+    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationRecordV2,
     PackageExecutionBindingV1, PackageReleaseV1, PackagedModelDocument, QualifiedName,
     ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
 };
@@ -916,7 +916,7 @@ fn package_compilation_realization_and_run_v2_form_one_exact_lineage() {
         .compilation()
         .canonical_json()
         .expect("package compilation JSON");
-    let compilation = PackageCompilationRecordV1::from_json(&compilation_bytes)
+    let compilation = PackageCompilationRecordV2::from_json(&compilation_bytes)
         .expect("replayed package compilation");
     compilation
         .validate_against(&resolution)

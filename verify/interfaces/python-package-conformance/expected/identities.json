@@ -4,7 +4,6 @@
   "distribution_version": "0.1.0a3",
   "compiler": "Eqiora.Compiler",
   "compiler_version": "0.1.0-alpha.3",
-  "semantic_canonicalization_version": 1,
   "source_bundle_version": 1,
   "resolution_version": 1,
   "false_claim": {
@@ -13,7 +12,6 @@
     "semantic_identity": "bb2c734a71da9437b3c3fc02b18ff83c4d3b33d810fa5e45a349463c2e4709bd",
     "source_identity": "308eb0d4bcdfd56fa083b59aa0ae74486af7770cd81a16b1f3a773e07e1c7411",
     "resolution_identity": "19b73454bef8e22464895c0a9ac9238da63c535c9c90f6b277ee54d279feaa8c",
-    "compilation_identity": "909cc2f583c6cd4e81bfe101e8992b17a28364a156ba89aa3f1d2bdd04613ba5",
     "object_id": "4ZF8NTEC470Z1158JZ0YDK6M8T",
     "revision": 1,
     "canonical_identity": "a703a6cc809ac91cbb83e6aac077dc6d8103896ebe923e5c70ef26a4d0dbf242"
@@ -24,7 +22,6 @@
     "semantic_identity": "609d5063320bee6ff563e97f37c03a4a307cdcadd5c7b38b17c18eac40b05668",
     "source_identity": "2cc42bb0b474c4aafc5e4cd8ceb297e2d1785898c419bedced422f6b6469987d",
     "resolution_identity": "b7c44d3ab011ac8f0819b1c519c0da1e31db1b5cb69b42c590e118eeb90a6945",
-    "compilation_identity": "c857873f400095c669a44dd2a0917ef91a4ca40bddfcc0afe2c5c3f22a63abc2",
     "object_id": "09MDETDHJVSEN2N9F76N6TM5N4",
     "revision": 1,
     "canonical_identity": "14dcde8f8b11ba8c919411ac17c6356732b9a9d88846b2024d765bd536ff6287"

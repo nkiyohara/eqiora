@@ -100,6 +100,10 @@ are recorded here.
 
 ### Changed
 
+- Advanced the package-compilation sidecar to the sole current v2 wire and
+  semantic-canonicalization epoch 2. Pre-1.0 v1 compilation records are no
+  longer decoded; retained historical bytes are archival only.
+
 - Changed installed-Python locked package compilation from a self-contained
   root Model projection to a root public Component bound to caller-owned
   Geometry and Parameters. The resulting ordinary Model now enters the common

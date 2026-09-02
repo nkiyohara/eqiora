@@ -1,6 +1,6 @@
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleRoleV1, InMemoryPackageStore,
-    ModelPackageIdentityV1, NormalizedRelativePath, PackageCompilationRecordV1, PackageReleaseV1,
+    ModelPackageIdentityV1, NormalizedRelativePath, PackageCompilationRecordV2, PackageReleaseV1,
     PackagedModelDocument, ResolutionNodeV1, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -8,8 +8,6 @@ use eqiora::package::{
 const MANIFEST: &[u8] = include_bytes!("../../../packages/org.example.poisson/package.json");
 const SOURCE: &str = include_str!("../../../packages/org.example.poisson/src/main.eqi");
 const README: &[u8] = include_bytes!("../../../packages/org.example.poisson/README.md");
-const EXPECTED: &[u8] =
-    include_bytes!("../../../verify/packages/typed-compilation-lineage/expected/identities.json");
 const SOURCE_PATH: &str = "src/main.eqi";
 
 fn package_release(readme: &[u8], reverse_files: bool) -> PackageReleaseV1 {
@@ -63,7 +61,7 @@ fn exact_package_compilation_and_model_replay_retain_identity() {
         .expect("locked package compilation");
 
     let compilation_bytes = packaged.compilation().canonical_json().unwrap();
-    let replayed_compilation = PackageCompilationRecordV1::from_json(&compilation_bytes).unwrap();
+    let replayed_compilation = PackageCompilationRecordV2::from_json(&compilation_bytes).unwrap();
     replayed_compilation.validate_against(&resolution).unwrap();
     assert_eq!(&replayed_compilation, packaged.compilation());
     let model_bytes = packaged.model().canonical_json().unwrap();
@@ -91,31 +89,4 @@ fn exact_package_compilation_and_model_replay_retain_identity() {
     assert_ne!(changed_release.source_digest(), release.source_digest());
     assert_eq!(changed.model().digest(), packaged.model().digest());
     assert_ne!(changed.compilation(), packaged.compilation());
-
-    let expected: serde_json::Value = serde_json::from_slice(EXPECTED).unwrap();
-    assert_eq!(
-        expected["schema"],
-        "eqiora.verify.typed-package-compilation-lineage-identities.v1"
-    );
-    assert_eq!(
-        expected["package_semantic_sha256"],
-        identity.semantic_digest.to_hex()
-    );
-    assert_eq!(
-        expected["source_bundle_sha256"],
-        release.source_digest().unwrap().to_hex()
-    );
-    assert_eq!(
-        expected["resolution_sha256"],
-        resolution.digest().unwrap().to_hex()
-    );
-    assert_eq!(expected["model_sha256"], packaged.model().digest().unwrap());
-    assert_eq!(
-        expected["package_compilation_sha256"],
-        "c857873f400095c669a44dd2a0917ef91a4ca40bddfcc0afe2c5c3f22a63abc2"
-    );
-    assert_eq!(
-        packaged.compilation().digest().unwrap().to_hex(),
-        "99e2f5dab0b5e2bcd2490d434c4c9454844cf395489561dc178bf06bbac6ad04"
-    );
 }

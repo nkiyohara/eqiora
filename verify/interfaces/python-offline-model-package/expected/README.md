@@ -1,7 +1,7 @@
-# Expected evidence
+# Expected evidence boundary
 
-The primary expected Model and historical compilation artifact are owned by
-`verify/packages/offline-model-package/expected/` alongside the package case's
-frozen digest values.
+The current Model fixture is owned by the package case. Historical compilation
+bytes under that case are immutable archival records only: this Python case
+does not read them or derive current expectations from them.
 
 No expected artifact is regenerated through the Python API under test.

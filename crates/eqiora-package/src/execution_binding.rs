@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::canonical;
 use crate::{
     CanonicalModelDigest, CanonicalRealizationDigest, CanonicalRunDigest, ContractError,
-    PackageCompilationDigest, PackageCompilationRecordV1, PackageExecutionBindingDigest,
+    PackageCompilationDigest, PackageCompilationRecordV2, PackageExecutionBindingDigest,
 };
 
 const SCHEMA: &str = "eqiora.package-execution-binding.v1";
@@ -50,7 +50,7 @@ impl PackageExecutionBindingV1 {
     /// Bind externally validated typed execution identities to one exact
     /// package compilation.
     pub fn new(
-        compilation: &PackageCompilationRecordV1,
+        compilation: &PackageCompilationRecordV2,
         semantic_revision: u64,
         realization_sha256: CanonicalRealizationDigest,
         run_sha256: CanonicalRunDigest,
@@ -99,7 +99,7 @@ impl PackageExecutionBindingV1 {
     /// validating the concrete typed artifacts before invoking this check.
     pub fn validate_against(
         &self,
-        compilation: &PackageCompilationRecordV1,
+        compilation: &PackageCompilationRecordV2,
         semantic_revision: u64,
         realization_sha256: CanonicalRealizationDigest,
         run_sha256: CanonicalRunDigest,
@@ -181,18 +181,18 @@ mod tests {
         resolution_byte: &str,
         source_byte: &str,
         compiler_version: &str,
-    ) -> PackageCompilationRecordV1 {
+    ) -> PackageCompilationRecordV2 {
         let model = model_byte.repeat(32);
         let resolution = resolution_byte.repeat(32);
         let semantic = "12".repeat(32);
         let source = source_byte.repeat(32);
         let json = format!(
-            r#"{{"schema":"eqiora.package-compilation.v1","encoding":"eqiora.canonical-json.v1","model_sha256":"{model}","root":{{"name":"org.example.Main","version":"1.0.0","semantic_digest":"{semantic}"}},"resolution_digest":"{resolution}","packages":[{{"package":{{"name":"org.example.Main","version":"1.0.0","semantic_digest":"{semantic}"}},"source_digest":"{source}"}}],"toolchain":{{"compiler":"Eqiora.Compiler","compiler_version":"{compiler_version}","semantic_canonicalization_version":1,"source_bundle_version":1,"resolution_version":1}}}}"#,
+            r#"{{"schema":"eqiora.package-compilation.v2","encoding":"eqiora.canonical-json.v1","model_sha256":"{model}","root":{{"name":"org.example.Main","version":"1.0.0","semantic_digest":"{semantic}"}},"resolution_digest":"{resolution}","packages":[{{"package":{{"name":"org.example.Main","version":"1.0.0","semantic_digest":"{semantic}"}},"source_digest":"{source}"}}],"toolchain":{{"compiler":"Eqiora.Compiler","compiler_version":"{compiler_version}","semantic_canonicalization_version":2,"source_bundle_version":1,"resolution_version":1}}}}"#,
         );
-        PackageCompilationRecordV1::from_json(json.as_bytes()).expect("compilation")
+        PackageCompilationRecordV2::from_json(json.as_bytes()).expect("compilation")
     }
 
-    fn compilation() -> PackageCompilationRecordV1 {
+    fn compilation() -> PackageCompilationRecordV2 {
         compilation_with("56", "78", "34", "0.1.0")
     }
 

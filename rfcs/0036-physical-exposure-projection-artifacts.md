@@ -85,7 +85,7 @@ a durable semantic lookup key.
 The enclosing `PhysicalExposureCatalogEnvelopeV1` owns the contextual
 identity. It binds the complete canonically ordered projection set to the exact
 Model digest, Model ULID, semantic revision, and
-`PackageCompilationRecordV1` digest. Complete provenance remains in each
+`PackageCompilationRecordV2` digest. Complete provenance remains in each
 projection and therefore contributes to catalog bytes and catalog identity.
 Two package compilations may produce the same Model and projection meanings
 while correctly producing different catalogs when their source lineage

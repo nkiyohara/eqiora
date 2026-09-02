@@ -7,7 +7,7 @@ use eqiora::kernel::BoundarySide;
 use eqiora::language::{ComponentItem, DomainSyntax, Item};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationRecordV1,
+    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationRecordV2,
     PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -778,7 +778,7 @@ fn exact_offline_release_resolution_compilation_and_model_replay() {
         .canonical_json()
         .expect("compilation bytes");
     let compilation_replay =
-        PackageCompilationRecordV1::from_json(&compilation_bytes).expect("compilation replay");
+        PackageCompilationRecordV2::from_json(&compilation_bytes).expect("compilation replay");
     compilation_replay
         .validate_against(&resolution_replay)
         .expect("replayed compilation matches replayed resolution");
