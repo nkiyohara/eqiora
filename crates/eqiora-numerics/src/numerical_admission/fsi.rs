@@ -189,12 +189,7 @@ impl CommonFsiPlan {
         let model_id = reference.model().ulid().to_string();
         let model_revision = reference.semantic_revision().get();
         let model_digest = model.digest()?.to_string();
-        let ResourceDigests {
-            geometry: geometry_digest,
-            mesh: mesh_digest,
-            correspondence: correspondence_digest,
-            production: production_digest,
-        } = resource_digests(&recognized.resources)?;
+        let digests = resource_digests(&recognized.resources)?;
         let field_ids = [
             canonical.fluid().velocity().ulid().to_string(),
             canonical.fluid().pressure().ulid().to_string(),
@@ -215,10 +210,10 @@ impl CommonFsiPlan {
         let scaling_provenance_digest = scaling_receipt.provenance_digest().to_string();
         for value in [
             &model_digest,
-            &geometry_digest,
-            &mesh_digest,
-            &correspondence_digest,
-            &production_digest,
+            &digests.geometry,
+            &digests.mesh,
+            &digests.correspondence,
+            &digests.production,
             &realization_digest,
             &scaling_provenance_digest,
             solver_provider.id().as_str(),
@@ -231,6 +226,13 @@ impl CommonFsiPlan {
         identity_bytes.extend_from_slice(&temporal.step().value().to_bits().to_be_bytes());
         let digest: [u8; 32] = Sha256::digest(identity_bytes).into();
         let identity = format!("common-fsi:{}", hex_bytes(&digest));
+        let lineage = CommonSpatialPlanLineage::new(
+            identity,
+            model_id,
+            model_revision,
+            digests,
+            realization_digest,
+        );
         Ok(Self {
             model: model.clone(),
             canonical: (**canonical).clone(),
@@ -246,15 +248,8 @@ impl CommonFsiPlan {
             solver_capabilities,
             execution_provider,
             workers,
-            identity,
-            model_id,
-            model_revision,
+            lineage,
             model_digest,
-            geometry_digest,
-            mesh_digest,
-            correspondence_digest,
-            production_digest,
-            realization_digest,
             field_ids,
             domain_ids,
         })
@@ -272,10 +267,10 @@ impl CommonFsiPlan {
         for value in [
             "fixed-reference-fsi/f64/replicated/mini-p1-fluid+p1-solid/shared-trace-quotient/gauge-free-pressure/backward-euler-velocity-displacement-history/v1",
             self.model_digest.as_str(),
-            self.geometry_digest.as_str(),
-            self.mesh_digest.as_str(),
-            self.correspondence_digest.as_str(),
-            self.production_digest.as_str(),
+            self.lineage.geometry_digest(),
+            self.lineage.mesh_digest(),
+            self.lineage.correspondence_digest(),
+            self.lineage.production_digest(),
         ] {
             push_framed(&mut bytes, value.as_bytes());
         }
@@ -499,15 +494,15 @@ impl CommonFsiPlan {
 
     #[must_use]
     pub fn identity(&self) -> &str {
-        &self.identity
+        self.lineage.identity()
     }
     #[must_use]
     pub fn model_id(&self) -> &str {
-        &self.model_id
+        self.lineage.model_id()
     }
     #[must_use]
     pub const fn model_revision(&self) -> u64 {
-        self.model_revision
+        self.lineage.model_revision()
     }
     #[must_use]
     pub fn model_digest(&self) -> &str {
@@ -515,23 +510,23 @@ impl CommonFsiPlan {
     }
     #[must_use]
     pub fn geometry_digest(&self) -> &str {
-        &self.geometry_digest
+        self.lineage.geometry_digest()
     }
     #[must_use]
     pub fn mesh_digest(&self) -> &str {
-        &self.mesh_digest
+        self.lineage.mesh_digest()
     }
     #[must_use]
     pub fn correspondence_digest(&self) -> &str {
-        &self.correspondence_digest
+        self.lineage.correspondence_digest()
     }
     #[must_use]
     pub fn production_digest(&self) -> &str {
-        &self.production_digest
+        self.lineage.production_digest()
     }
     #[must_use]
     pub fn realization_digest(&self) -> &str {
-        &self.realization_digest
+        self.lineage.realization_digest()
     }
     #[must_use]
     pub const fn linear(&self) -> SolverPlan {

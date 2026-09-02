@@ -1,5 +1,6 @@
 use super::*;
 
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ResourceDigests {
     pub(crate) geometry: String,
     pub(crate) mesh: String,

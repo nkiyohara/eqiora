@@ -519,17 +519,69 @@ pub struct CommonFsiPlan {
     solver_capabilities: SolverCapabilities,
     execution_provider: ExecutionProvider,
     workers: NonZeroUsize,
+    lineage: CommonSpatialPlanLineage,
+    model_digest: String,
+    field_ids: [String; 4],
+    domain_ids: [String; 2],
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct CommonSpatialPlanLineage {
     identity: String,
     model_id: String,
     model_revision: u64,
-    model_digest: String,
-    geometry_digest: String,
-    mesh_digest: String,
-    correspondence_digest: String,
-    production_digest: String,
+    resource_digests: ResourceDigests,
     realization_digest: String,
-    field_ids: [String; 4],
-    domain_ids: [String; 2],
+}
+
+impl CommonSpatialPlanLineage {
+    fn new(
+        identity: String,
+        model_id: String,
+        model_revision: u64,
+        resource_digests: ResourceDigests,
+        realization_digest: String,
+    ) -> Self {
+        Self {
+            identity,
+            model_id,
+            model_revision,
+            resource_digests,
+            realization_digest,
+        }
+    }
+
+    fn identity(&self) -> &str {
+        &self.identity
+    }
+
+    fn model_id(&self) -> &str {
+        &self.model_id
+    }
+
+    const fn model_revision(&self) -> u64 {
+        self.model_revision
+    }
+
+    fn geometry_digest(&self) -> &str {
+        &self.resource_digests.geometry
+    }
+
+    fn mesh_digest(&self) -> &str {
+        &self.resource_digests.mesh
+    }
+
+    fn correspondence_digest(&self) -> &str {
+        &self.resource_digests.correspondence
+    }
+
+    fn production_digest(&self) -> &str {
+        &self.resource_digests.production
+    }
+
+    fn realization_digest(&self) -> &str {
+        &self.realization_digest
+    }
 }
 
 /// Resolve one canonical no-Mesh explicit ODE through the common native Plan sum.
@@ -613,14 +665,7 @@ pub struct CommonTransientFlowPlan {
     scaling: ResolvedIncompressibleScaling2d,
     temporal: CommonBackwardEuler,
     nonlinear: NonlinearSolvePlan,
-    identity: String,
-    model_id: String,
-    model_revision: u64,
-    geometry_digest: String,
-    mesh_digest: String,
-    correspondence_digest: String,
-    production_digest: String,
-    realization_digest: String,
+    lineage: CommonSpatialPlanLineage,
     velocity_field_id: String,
     pressure_field_id: String,
     velocity_space: Space,
@@ -678,14 +723,7 @@ pub struct CommonScalarPlan {
     portable: PortableRealizationGraph,
     formulation: Option<CommonFormulationDescription>,
     authored_formulation: Option<AuthoredFormulationProjection>,
-    identity: String,
-    model_id: String,
-    model_revision: u64,
-    geometry_digest: String,
-    mesh_digest: String,
-    correspondence_digest: String,
-    production_digest: String,
-    realization_digest: String,
+    lineage: CommonSpatialPlanLineage,
     field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
     field_id: String,
     field_dimension: DimExponents,
@@ -719,14 +757,7 @@ impl CommonScalarDifferentiationPoint {
 pub struct CommonElasticityPlan {
     admission: NativeNumericalAdmission,
     portable: PortableRealizationGraph,
-    identity: String,
-    model_id: String,
-    model_revision: u64,
-    geometry_digest: String,
-    mesh_digest: String,
-    correspondence_digest: String,
-    production_digest: String,
-    realization_digest: String,
+    lineage: CommonSpatialPlanLineage,
     displacement_field_id: String,
     cells: [usize; 2],
 }
@@ -740,14 +771,7 @@ pub struct CommonSteadyStokesPlan {
     portable: PortableRealizationGraph,
     formulation_selection: FormulationSelectionMode,
     scaling: ResolvedIncompressibleScaling2d,
-    realization_digest: String,
-    identity: String,
-    model_id: String,
-    model_revision: u64,
-    geometry_digest: String,
-    mesh_digest: String,
-    correspondence_digest: String,
-    production_digest: String,
+    lineage: CommonSpatialPlanLineage,
     velocity_field_id: String,
     pressure_field_id: String,
     velocity_space: Space,
