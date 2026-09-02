@@ -23,6 +23,7 @@ use super::{
     COMPONENTS, CartesianEssentialSides2d, CartesianQ1VectorField2d, DIMENSION, global_dof,
     invalid, require_cell_rule, require_two_dimensional_mesh,
 };
+use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::form_compiler::compile_cartesian_q1_elasticity_form_2d;
 use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::spatial_expression::ScalarSpatialExpression;
@@ -216,7 +217,7 @@ impl ConformingCartesianLinearElasticityPair2dSolution {
 pub(crate) struct FinalizedConformingCartesianElasticityPair2dAssembly {
     meshes: [CartesianMesh; 2],
     interface_map: ConformingCartesianInterfaceMap2d,
-    free_indices: Vec<Option<DofId>>,
+    constrained_dofs: ConstrainedDofLayout,
     linear_system: eqiora_assembly::LinearSystem,
     full_system: eqiora_assembly::LinearSystem,
     subdomain_systems: [eqiora_assembly::LinearSystem; 2],
@@ -237,7 +238,7 @@ impl FinalizedConformingCartesianElasticityPair2dAssembly {
         let Self {
             meshes,
             interface_map,
-            free_indices,
+            constrained_dofs,
             linear_system,
             full_system,
             subdomain_systems,
@@ -253,7 +254,7 @@ impl FinalizedConformingCartesianElasticityPair2dAssembly {
             FinalizedConformingCartesianElasticityPair2dState {
                 meshes,
                 interface_map,
-                free_indices,
+                constrained_dofs,
                 full_system,
                 subdomain_systems,
                 integrated_body_force,
@@ -267,7 +268,7 @@ impl FinalizedConformingCartesianElasticityPair2dAssembly {
 pub(crate) struct FinalizedConformingCartesianElasticityPair2dState {
     meshes: [CartesianMesh; 2],
     interface_map: ConformingCartesianInterfaceMap2d,
-    free_indices: Vec<Option<DofId>>,
+    constrained_dofs: ConstrainedDofLayout,
     full_system: eqiora_assembly::LinearSystem,
     subdomain_systems: [eqiora_assembly::LinearSystem; 2],
     integrated_body_force: [[f64; COMPONENTS]; 2],
@@ -290,23 +291,13 @@ impl FinalizedConformingCartesianElasticityPair2dState {
             ));
         }
         let (algebraic_values, solve_report) = solved.into_parts();
-        let mut global_values = vec![0.0; self.free_indices.len()];
-        for (global, value) in global_values.iter_mut().enumerate() {
-            if let Some(equation) = self.free_indices[global] {
-                *value = algebraic_values[equation.index()];
-            }
-        }
-
-        let mut quotient_residual = self.full_system.matrix().multiply(&global_values)?;
-        for (value, rhs) in quotient_residual.iter_mut().zip(self.full_system.rhs()) {
-            *value -= rhs;
-        }
-        let mut boundary_reaction = [0.0; COMPONENTS];
-        for (global, reaction) in quotient_residual.iter().enumerate() {
-            if self.free_indices[global].is_none() {
-                boundary_reaction[global % COMPONENTS] += reaction;
-            }
-        }
+        let global_values = self.constrained_dofs.lift(&algebraic_values)?;
+        let quotient_residual = self
+            .constrained_dofs
+            .full_residual(&self.full_system, &global_values)?;
+        let boundary_reaction = self
+            .constrained_dofs
+            .reaction_sum::<COMPONENTS>(&quotient_residual)?;
 
         let local_values: [Vec<f64>; 2] = std::array::from_fn(|subdomain| {
             self.interface_map.local_to_global[subdomain]
@@ -336,9 +327,13 @@ impl FinalizedConformingCartesianElasticityPair2dState {
                 local_residuals[1][positive_vertex * COMPONENTS + component]
             }));
             let quotient_vertex = self.interface_map.local_to_global[0][*negative_vertex];
-            free.push((0..COMPONENTS).all(|component| {
-                self.free_indices[quotient_vertex * COMPONENTS + component].is_some()
-            }));
+            let mut vertex_is_free = true;
+            for component in 0..COMPONENTS {
+                vertex_is_free &= self
+                    .constrained_dofs
+                    .is_free(quotient_vertex * COMPONENTS + component)?;
+            }
+            free.push(vertex_is_free);
         }
         if boundary_reaction
             .iter()
@@ -413,19 +408,16 @@ pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
             "conforming Cartesian elasticity pair requires at least one external homogeneous essential side to remove global rigid modes",
         ));
     }
-    let mut free_indices = vec![None; global_width];
-    let mut free_count = 0_usize;
+    let mut fixed_values = vec![Some(0.0); global_width];
     for (global_vertex, constrained) in constrained.into_iter().enumerate() {
         if !constrained {
             for component in 0..COMPONENTS {
-                free_indices[global_dof(global_vertex, component)?] = Some(DofId::new(free_count));
-                free_count = free_count.checked_add(1).ok_or_else(|| {
-                    invalid("conforming elasticity free DOF count overflows usize")
-                })?;
+                fixed_values[global_dof(global_vertex, component)?] = None;
             }
         }
     }
-    if free_count == 0 {
+    let constrained_dofs = ConstrainedDofLayout::new(fixed_values)?;
+    if constrained_dofs.free_count() == 0 {
         return Err(invalid(
             "conforming Cartesian elasticity pair requires at least one unconstrained vertex",
         ));
@@ -444,7 +436,7 @@ pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
             .ok_or_else(|| invalid("positive elasticity local DOF count overflows usize"))?,
     ];
     let plan = AssemblyPlan::new(vec![
-        AssemblyTarget::new(free_count)?,
+        AssemblyTarget::new(constrained_dofs.free_count())?,
         AssemblyTarget::new(global_width)?,
         AssemblyTarget::new(local_widths[0])?,
         AssemblyTarget::new(local_widths[1])?,
@@ -500,20 +492,7 @@ pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
                 local_dofs.push(global_dof(vertex.index(), component)?);
             }
         }
-        let reduced = AssemblyMap::new(
-            quotient_dofs
-                .iter()
-                .map(|global| free_indices[*global])
-                .collect(),
-            quotient_dofs
-                .iter()
-                .map(|global| {
-                    free_indices[*global]
-                        .map(LocalUnknown::Free)
-                        .unwrap_or(LocalUnknown::Fixed(0.0))
-                })
-                .collect(),
-        )?;
+        let reduced = constrained_dofs.reduced_map(&quotient_dofs)?;
         let quotient_full = identity_map(&quotient_dofs)?;
         let local_full = identity_map(&local_dofs)?;
         AssemblyPacket::new(
@@ -560,7 +539,7 @@ pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
     Ok(FinalizedConformingCartesianElasticityPair2dAssembly {
         meshes,
         interface_map,
-        free_indices,
+        constrained_dofs,
         linear_system,
         full_system,
         subdomain_systems,

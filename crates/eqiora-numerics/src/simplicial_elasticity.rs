@@ -3,9 +3,8 @@
 use std::collections::BTreeMap;
 
 use eqiora_assembly::{
-    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
-    DofId, IndexedAssemblyWork, LocalContribution, LocalUnknown, REFERENCE_ASSEMBLY_BACKEND,
-    TargetAssemblyMap,
+    AssemblyBackend, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
+    IndexedAssemblyWork, LocalContribution, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -16,6 +15,7 @@ use eqiora_meshing::{
 use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolveRequest, SolveReport};
 
 use crate::affine_fem::physical_gradient;
+use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::continuum_kinematics::symmetric_gradient;
 use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
 use crate::linear_elasticity::IsotropicElasticityMaterial;
@@ -167,8 +167,6 @@ where
         .checked_mul(COMPONENTS)
         .ok_or_else(|| invalid("simplicial elasticity global width overflows usize"))?;
     let mut fixed_values = vec![None; global_width];
-    let mut free_indices = vec![None; global_width];
-    let mut free_count = 0_usize;
     for vertex in 0..vertex_count {
         let entity = MeshEntity::new(0, vertex);
         if mesh
@@ -188,14 +186,12 @@ where
         } else {
             for component in 0..COMPONENTS {
                 let global = global_dof(vertex, component)?;
-                free_indices[global] = Some(DofId::new(free_count));
-                free_count = free_count
-                    .checked_add(1)
-                    .ok_or_else(|| invalid("simplicial elasticity free width overflows usize"))?;
+                fixed_values[global] = None;
             }
         }
     }
-    if free_count == 0 {
+    let constrained_dofs = ConstrainedDofLayout::new(fixed_values)?;
+    if constrained_dofs.free_count() == 0 {
         return Err(invalid(
             "simplicial P1 elasticity requires at least one unconstrained interior vertex",
         ));
@@ -209,7 +205,7 @@ where
         .entity_count(DIMENSION)
         .expect("2D mesh owns its cell stratum");
     let plan = AssemblyPlan::new(vec![
-        AssemblyTarget::new(free_count)?,
+        AssemblyTarget::new(constrained_dofs.free_count())?,
         AssemblyTarget::new(global_width)?,
     ])?;
     let reduced_target = plan
@@ -228,36 +224,8 @@ where
             .entity_vertices(cell)
             .expect("accepted triangle owns three vertices");
         let global_dofs = local_global_dofs(&vertices)?;
-        let reduced = AssemblyMap::new(
-            global_dofs
-                .iter()
-                .map(|global| free_indices[*global])
-                .collect(),
-            global_dofs
-                .iter()
-                .map(|global| {
-                    fixed_values[*global].map_or_else(
-                        || {
-                            LocalUnknown::Free(
-                                free_indices[*global]
-                                    .expect("unfixed component owns a free equation"),
-                            )
-                        },
-                        LocalUnknown::Fixed,
-                    )
-                })
-                .collect(),
-        )?;
-        let full = AssemblyMap::new(
-            global_dofs
-                .iter()
-                .map(|global| Some(DofId::new(*global)))
-                .collect(),
-            global_dofs
-                .iter()
-                .map(|global| LocalUnknown::Free(DofId::new(*global)))
-                .collect(),
-        )?;
+        let reduced = constrained_dofs.reduced_map(&global_dofs)?;
+        let full = constrained_dofs.full_map(&global_dofs)?;
         AssemblyPacket::new(
             local,
             vec![
@@ -283,14 +251,7 @@ where
         reduced_system.rhs(),
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?)?;
-    let mut full_values = vec![0.0; global_width];
-    for global in 0..global_width {
-        full_values[global] = fixed_values[global].unwrap_or_else(|| {
-            solved.values()[free_indices[global]
-                .expect("unfixed component owns a free equation")
-                .index()]
-        });
-    }
+    let full_values = constrained_dofs.lift(solved.values())?;
     let component_values = [0, 1].map(|component| {
         full_values
             .as_chunks::<COMPONENTS>()
@@ -304,10 +265,7 @@ where
         SimplicialP1Field::new(mesh.clone(), component_values[1].clone())?,
     ];
 
-    let mut residual = full_system.matrix().multiply(&full_values)?;
-    for (value, rhs) in residual.iter_mut().zip(full_system.rhs()) {
-        *value -= rhs;
-    }
+    let residual = constrained_dofs.full_residual(&full_system, &full_values)?;
     let named_boundary_reactions = named_reaction_vertices
         .into_iter()
         .map(|(name, vertices)| {

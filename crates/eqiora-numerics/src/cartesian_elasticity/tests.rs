@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use eqiora_assembly::{CooAssembler, LocalContribution};
+use eqiora_assembly::{AssemblyMap, CooAssembler, DofId, LocalContribution, LocalUnknown};
 use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_sem::KernelProgram;

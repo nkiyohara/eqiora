@@ -1,9 +1,9 @@
 //! P1 scalar elliptic realization on fixed-connectivity affine simplex meshes.
 
 use eqiora_assembly::{
-    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
-    DofId, IndexedAssemblyWork, LinearSystem, LocalContribution, LocalUnknown,
-    REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+    AssemblyBackend, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget, DofId,
+    IndexedAssemblyWork, LinearSystem, LocalContribution, REFERENCE_ASSEMBLY_BACKEND,
+    TargetAssemblyMap,
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -17,6 +17,7 @@ use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolveRequest,
 use crate::affine_fem::{dot, physical_gradient, weighted_gradient, weighted_gradient_tangent};
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::canonical::ScalarEllipticCartesianModel;
+use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
 use crate::operator::LocalOperator;
 use crate::simplicial_motion::SimplicialMeshVelocity;
@@ -159,9 +160,7 @@ pub fn solve_scalar_elliptic_simplicial_fem_with_assembly(
     let zero_parameter_tangent = vec![0.0; model.parameter_fields().len()];
     let zero_coordinate_tangent = vec![0.0; dimension];
     let mut fixed_values = Vec::with_capacity(vertex_count);
-    let mut free_indices = vec![None; vertex_count];
-    let mut free_count = 0_usize;
-    for (vertex, free_index) in free_indices.iter_mut().enumerate() {
+    for vertex in 0..vertex_count {
         let entity = MeshEntity::new(0, vertex);
         if mesh
             .is_boundary_entity(entity)
@@ -176,11 +175,10 @@ pub fn solve_scalar_elliptic_simplicial_fem_with_assembly(
             fixed_values.push(Some(value));
         } else {
             fixed_values.push(None);
-            *free_index = Some(DofId::new(free_count));
-            free_count += 1;
         }
     }
-    if free_count == 0 {
+    let constrained_dofs = ConstrainedDofLayout::new(fixed_values)?;
+    if constrained_dofs.free_count() == 0 {
         return Err(invalid(
             "simplicial P1 system requires at least one unconstrained interior vertex",
         ));
@@ -191,7 +189,7 @@ pub fn solve_scalar_elliptic_simplicial_fem_with_assembly(
         .entity_count(dimension)
         .expect("mesh owns its top stratum");
     let assembly_plan = AssemblyPlan::new(vec![
-        AssemblyTarget::new(free_count)?,
+        AssemblyTarget::new(constrained_dofs.free_count())?,
         AssemblyTarget::new(vertex_count)?,
     ])?;
     let reduced_target = assembly_plan
@@ -209,35 +207,12 @@ pub fn solve_scalar_elliptic_simplicial_fem_with_assembly(
         let vertices = mesh
             .entity_vertices(cell)
             .expect("accepted simplex cell owns a vertex closure");
-        let equations = vertices
+        let global_dofs = vertices
             .iter()
-            .map(|vertex| free_indices[vertex.index()])
-            .collect();
-        let unknowns = vertices
-            .iter()
-            .map(|vertex| {
-                fixed_values[vertex.index()].map_or_else(
-                    || {
-                        LocalUnknown::Free(
-                            free_indices[vertex.index()]
-                                .expect("unfixed vertex owns a free equation"),
-                        )
-                    },
-                    LocalUnknown::Fixed,
-                )
-            })
-            .collect();
-        let reduced = AssemblyMap::new(equations, unknowns)?;
-        let full = AssemblyMap::new(
-            vertices
-                .iter()
-                .map(|vertex| Some(DofId::new(vertex.index())))
-                .collect(),
-            vertices
-                .iter()
-                .map(|vertex| LocalUnknown::Free(DofId::new(vertex.index())))
-                .collect(),
-        )?;
+            .map(|vertex| vertex.index())
+            .collect::<Vec<_>>();
+        let reduced = constrained_dofs.reduced_map(&global_dofs)?;
+        let full = constrained_dofs.full_map(&global_dofs)?;
         AssemblyPacket::new(
             local,
             vec![
@@ -262,34 +237,15 @@ pub fn solve_scalar_elliptic_simplicial_fem_with_assembly(
         reduced_system.rhs(),
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?)?;
-    let mut values = vec![0.0; vertex_count];
-    for vertex in 0..vertex_count {
-        values[vertex] = fixed_values[vertex].unwrap_or_else(|| {
-            solved.values()[free_indices[vertex]
-                .expect("unfixed vertex owns a free equation")
-                .index()]
-        });
-    }
-    let mut equilibrium = full_system.matrix().multiply(&values)?;
-    for (residual, rhs) in equilibrium.iter_mut().zip(full_system.rhs()) {
-        *residual -= rhs;
-    }
-    let boundary_reaction_sum = equilibrium
-        .iter()
-        .zip(&fixed_values)
-        .filter_map(|(reaction, fixed)| fixed.map(|_| reaction))
-        .sum::<f64>();
+    let values = constrained_dofs.lift(solved.values())?;
+    let equilibrium = constrained_dofs.full_residual(&full_system, &values)?;
+    let boundary_reaction_sum = constrained_dofs.reaction_sum::<1>(&equilibrium)?[0];
     if !integrated_source.is_finite() || !boundary_reaction_sum.is_finite() {
         return Err(invalid(
             "simplicial FEM source or boundary-reaction evidence is non-finite",
         ));
     }
-    let mut free_vertices = vec![0; free_count];
-    for (vertex, dof) in free_indices.iter().enumerate() {
-        if let Some(dof) = dof {
-            free_vertices[dof.index()] = vertex;
-        }
-    }
+    let free_vertices = constrained_dofs.free_globals();
     Ok(ScalarEllipticSimplicialFemSolution {
         field: SimplicialP1Field::new(mesh.clone(), values)?,
         free_vertices,
