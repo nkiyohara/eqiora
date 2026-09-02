@@ -1155,7 +1155,7 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
             .digest()
             .expect("compilation digest")
             .to_hex(),
-        "8bcf2d4979c53d7c8a9268e2d0c4086b3dea065351adf4962415d3a807a251c4"
+        "c1deb03d07d6daeb54708b12bb3e48901e1778a1a167a1e8afc778b35afe4aff"
     );
     assert_eq!(
         expected["run_digest"].as_str().expect("run digest"),
@@ -1163,7 +1163,7 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
     );
     assert_eq!(
         run.digest().expect("run digest").as_str(),
-        "6340bf62c908f9beb7b879fbf7852ae804b67dd5745dc17d902aa4e34ed65d43"
+        "436d9afca0fd3e2d402e6755e3abb9448d678269cb9dc1bfdf66eaaf6a693199"
     );
     assert_eq!(
         expected["run_binding_digest"]
@@ -1173,6 +1173,6 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
     );
     assert_eq!(
         binding.digest().expect("binding digest").to_hex(),
-        "c1a4dcf0d96776955ee49dafd6564c013476799a5dc4fba1ef9283dfffd53838"
+        "7603016c73fc23f6053eddb26d2f944dddbaef40519be6037ae5f0159939d9ce"
     );
 }

@@ -1,7 +1,22 @@
 # Release notes
 
-Eqiora `0.1.0a6` is the current public alpha. It establishes a coherent public
+Eqiora `0.1.0a7` is the current public alpha. It establishes a coherent public
 identity and a bounded compatibility policy; it is not a stable-1.0 promise.
+
+## 0.1.0a7
+
+Common numerical execution now retains one admitted chain from recognized
+conservation or continuum meaning through formulation, material, mesh,
+realization, Plan, and Run. Scalar conservation spans Cartesian 1D–3D;
+elasticity shares continuum kinematics and solid primitives; transient and FSI
+Plans preserve recognition rather than reconstructing physics-specific facts.
+
+Execution prepares immutable structure, accepted actions, and reusable Faer
+factorization ownership once per Run. Python `Source` gains natural equation
+authoring, model-local aliases infer dimensions, cancellation exposes the last
+accepted State, and mesh generation converges on `MeshPlan`. Public legacy
+dimension aliases and duplicate Marimo/Jupyter paths are removed under the
+pre-1.0 convergence policy; Colab remains the maintained hosted-notebook path.
 
 ## 0.1.0a6
 
