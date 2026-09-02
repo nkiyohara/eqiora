@@ -26,9 +26,9 @@ bytes.
 A source-only declaration and instance permutation of the intermediate
 package must preserve its semantic identity, the root release, and the final
 Model. Its source digest, resolution digest, and compilation identity must
-change because those artifacts intentionally retain exact source lineage. The
-frozen identities in `expected/identities.json` make those digest domains
-reviewable rather than incidental.
+change because those artifacts intentionally retain exact source lineage.
+These are relational invariants within the authored variants; the case no
+longer treats their incidental digest values as an oracle.
 
 The flattened kernel is checked as a closed shape, including all nine current
 node families, distinct identities for the two resistor instances, two

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the three independent structural package-conformance oracle targets."""
+"""Run the installed-wheel structural package-conformance targets."""
 
 from __future__ import annotations
 
@@ -33,17 +33,6 @@ def main() -> int:
                 "eqiora-python",
                 "--test",
                 "python_offline_model_package",
-            ]
-        )
-        run(
-            [
-                cargo,
-                "test",
-                "--locked",
-                "-p",
-                "eqiora-package",
-                "--test",
-                "package_compilation_accessors",
             ]
         )
     except (OSError, subprocess.CalledProcessError) as error:

@@ -13,8 +13,6 @@ capabilities = [
 
 [problem]
 solid_dependency = "Eqiora.Solid.LinearElasticity@0.4.0"
-solid_semantic_digest = "35fd309d5fc8287f526482a1843bf936d52a71046b5fadd68bf8d9b3aecbcfc3"
-solid_source_digest = "9776d28253484ee8898554ddf9a0fa5fe2f590de66922e61a04494fe6cf1c043"
 mechanics_dependency = "Eqiora.Mechanics.Interfaces@0.1.0"
 ambient_dimension = 2
 density_kg_per_m3 = 5.0

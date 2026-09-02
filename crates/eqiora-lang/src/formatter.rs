@@ -29,7 +29,7 @@ use relation::{format_relation, format_relation_family};
 #[must_use]
 pub fn format(document: &Document) -> String {
     let mut output = String::new();
-    let mut declaration_count = document::format_imports(document, &mut output);
+    let mut declaration_count = document::format_header(document, &mut output);
     format_properties(document, &mut output, &mut declaration_count);
     for connector in &document.connectors {
         separate_declaration(&mut output, &mut declaration_count);

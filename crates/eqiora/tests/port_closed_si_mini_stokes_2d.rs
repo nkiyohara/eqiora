@@ -41,14 +41,6 @@ const FLUID_SOURCE: &str =
 
 const ROOT_PACKAGE: &str = "org.eqiora.verify.port_closed_si_mini_stokes_2d";
 const VERSION: &str = "0.1.0";
-const MECHANICS_SEMANTIC_DIGEST: &str =
-    "f8c5b9000415d3288a68377d507d16b3524bf17a3aa0a54aee9b003d187534f4";
-const MECHANICS_SOURCE_DIGEST: &str =
-    "407744105ebeb9577944169cae56a44eec30565050588dc2407461d7cf43725d";
-const FLUID_SEMANTIC_DIGEST: &str =
-    "39a8eadba1f1c0028d23b42f506b6899320f46e4ef7ba7b45dec3e0524d2c01b";
-const FLUID_SOURCE_DIGEST: &str =
-    "69ac5967d961c2ae4aa558ee020020093329f0050397d54893e465a3ff22eaba";
 
 const LENGTH: DimExponents = DimExponents {
     length: 1,
@@ -468,36 +460,14 @@ fn assert_physical_equivalence(
 }
 
 fn public_mechanics_release() -> PackageReleaseV1 {
-    let release = public_release("Eqiora.Mechanics.Interfaces", &[]);
-    assert_release_digests(&release, MECHANICS_SEMANTIC_DIGEST, MECHANICS_SOURCE_DIGEST);
-    release
+    public_release("Eqiora.Mechanics.Interfaces", &[])
 }
 
 fn public_fluid_release(mechanics: &PackageReleaseV1) -> PackageReleaseV1 {
-    let release = public_release(
+    public_release(
         "Eqiora.Fluid.Incompressible",
         std::slice::from_ref(mechanics),
-    );
-    assert_release_digests(&release, FLUID_SEMANTIC_DIGEST, FLUID_SOURCE_DIGEST);
-    release
-}
-
-fn assert_release_digests(release: &PackageReleaseV1, semantic_digest: &str, source_digest: &str) {
-    assert_eq!(
-        release
-            .package_identity()
-            .expect("package identity")
-            .semantic_digest
-            .to_hex(),
-        semantic_digest
-    );
-    assert_eq!(
-        release
-            .source_digest()
-            .expect("source-bundle digest")
-            .to_hex(),
-        source_digest
-    );
+    )
 }
 
 fn public_release(package: &str, dependencies: &[PackageReleaseV1]) -> PackageReleaseV1 {

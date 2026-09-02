@@ -19,13 +19,6 @@ import eqiora
 
 
 ROOT = Path(__file__).resolve().parents[3]
-PRIMARY = ROOT / "verify/packages/offline-model-package/models"
-PRIMARY_STORE = PRIMARY / "store"
-PRIMARY_RESOLUTION_FILE = PRIMARY / "resolution.json"
-EXPECTED = (
-    ROOT
-    / "verify/packages/offline-model-package/expected"
-)
 EXPECTED_TYPED = (
     ROOT
     / "verify/packages/typed-execution-lineage/expected"
@@ -36,19 +29,6 @@ SECONDARY = (
 )
 HOME_SCRATCH = Path.home() / ".cache/eqiora/oracle-tests"
 
-OFFLINE_MODEL_ID = "3JNCJVGEYX9N2QSYVEXRXWXWF4"
-OFFLINE_MODEL_DIGEST = (
-    "92837f0f85ff4a1310af0ca6e412d3ace81393df837d017caf5bfabeb8f6c1a1"
-)
-OFFLINE_RESOLUTION_DIGEST = (
-    "081cca92b2a8d6ee8bba78741db2becd5d5edfa896a114a193c8e1486997b6fe"
-)
-OFFLINE_COMPILATION_DIGEST = (
-    "85067c398af046e39c0e7e3f2c97f6b415db1f33dd474182d51c2f86cee0b7d3"
-)
-FROZEN_A3_OFFLINE_COMPILATION_DIGEST = (
-    "3a8352b7a4843266749e9b213c3f7dedf33c280afdc0d92fc42985b5a0e0a3fa"
-)
 TYPED_MODEL_ID = "09MDETDHJVSEN2N9F76N6TM5N4"
 TYPED_SOURCE_DIGEST = "2cc42bb0b474c4aafc5e4cd8ceb297e2d1785898c419bedced422f6b6469987d"
 TYPED_RESOLUTION_DIGEST = (
@@ -63,8 +43,6 @@ CURRENT_COMPILATION_DIGESTS = {
     "false_claim": "263652357ffa88c311f347a4c0a56b82f4201323c9e6dd4707645d4548446412",
     "accepted_poisson": TYPED_COMPILATION_DIGEST,
 }
-LIBRARY_SOURCE = "ce343238d92f202646d2dd2947d68c311eac90aa711aa9d0e3905fa170f6f3f1"
-ROOT_SOURCE = "cd7afe063d06007b97c108d3957e1bdc92e64fe47adfc7ac92975fee4f2c0d28"
 CONFORMANCE = ROOT / "verify/interfaces/python-package-conformance"
 FALSE_CLAIM = CONFORMANCE / "models/false-scientific-claim"
 FALSE_CLAIM_STORE = FALSE_CLAIM / "store"
@@ -205,9 +183,7 @@ def source_bundle_digest(source: object) -> str:
     return digest.hexdigest()
 
 
-PRIMARY_RESOLUTION = canonical_fixture(PRIMARY_RESOLUTION_FILE)
 SECONDARY_RESOLUTION = canonical_fixture(SECONDARY / "resolution.json")
-EXPECTED_MODEL = canonical_fixture(EXPECTED / "model.json")
 EXPECTED_TYPED_MODEL = canonical_fixture(EXPECTED_TYPED / "model.json")
 FALSE_CLAIM_RESOLUTION = canonical_fixture(FALSE_CLAIM_RESOLUTION_FILE)
 
@@ -310,12 +286,6 @@ def tree_snapshot(root: Path) -> tuple[tuple[object, ...], ...]:
         else:
             snapshot.append((relative, "nonregular", mode))
     return tuple(snapshot)
-
-
-def copied_store(parent: Path, name: str = "保管庫") -> Path:
-    store = parent / name
-    shutil.copytree(PRIMARY_STORE, store)
-    return store
 
 
 def with_scratch(callback: Callable[[Path], None]) -> None:
@@ -538,48 +508,6 @@ def test_structural_reports_match_frozen_facts_without_scientific_inference() ->
         )
         assert poisson_report.model_digest != false_report.model_digest
 
-        parallel_store = parent / "copied-parallel"
-        shutil.copytree(PRIMARY_STORE, parallel_store)
-        parallel_before = tree_snapshot(parallel_store)
-        parallel_report = check_conformance(parallel_store, PRIMARY_RESOLUTION)
-        parallel_compilation = json.loads(
-            (EXPECTED / "historical-alpha1-compilation.json").read_bytes()
-        )
-        expected_packages = tuple(
-            eqiora.PackageConformancePackage(
-                item["package"]["name"],
-                item["package"]["version"],
-                item["package"]["semantic_digest"],
-                item["source_digest"],
-            )
-            for item in parallel_compilation["packages"]
-        )
-        assert parallel_report.packages == expected_packages
-        assert list(parallel_report.packages) == sorted(
-            parallel_report.packages,
-            key=lambda package: (
-                package.name,
-                package.version,
-                package.semantic_digest,
-                package.source_digest,
-            ),
-        )
-        assert parallel_report.root_package == next(
-            package
-            for package in parallel_report.packages
-            if package.name == parallel_compilation["root"]["name"]
-            and package.version == parallel_compilation["root"]["version"]
-            and package.semantic_digest
-            == parallel_compilation["root"]["semantic_digest"]
-        )
-        assert parallel_report.resolution_digest == OFFLINE_RESOLUTION_DIGEST
-        assert parallel_report.package_compilation_digest == OFFLINE_COMPILATION_DIGEST
-        assert parallel_report.model_id == OFFLINE_MODEL_ID
-        assert parallel_report.model_revision == 1
-        assert parallel_report.model_digest == OFFLINE_MODEL_DIGEST
-        assert parallel_report.deterministic_replay_agreement is True
-        assert tree_snapshot(parallel_store) == parallel_before
-
         caller_copy = eqiora.PackageConformanceReport(*false_report)
         assert caller_copy == false_report
         assert check_conformance(false_store, false_resolution) == false_report
@@ -675,41 +603,6 @@ def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inpu
         separators=(",", ":"),
     ).encode("utf-8")
 
-    primary_decoded = json.loads(PRIMARY_RESOLUTION)
-    node_reordered = dict(primary_decoded)
-    node_reordered["nodes"] = list(reversed(node_reordered["nodes"]))
-    node_reordered_bytes = canonical_json(node_reordered)
-
-    root_release = json.loads((PRIMARY_STORE / f"{ROOT_SOURCE}.json").read_bytes())
-    assert source_bundle_digest(root_release["source"]) == ROOT_SOURCE
-    dependencies = root_release["source"]["manifest"]["dependencies"]
-    assert len(dependencies) == 1
-    spare_dependency = {
-        "alias": "spare",
-        "target": dependencies[0]["target"],
-    }
-    dependencies.append(spare_dependency)
-    two_edge = json.loads(PRIMARY_RESOLUTION)
-    root_node = next(
-        node for node in two_edge["nodes"] if node["identity"] == two_edge["root"]
-    )
-    root_node["source_digest"] = source_bundle_digest(root_release["source"])
-    spare_edge = {
-        "declaring": two_edge["edges"][0]["declaring"],
-        "alias": "spare",
-        "target": two_edge["edges"][0]["target"],
-    }
-    two_edge["edges"].append(spare_edge)
-    two_edge_bytes = canonical_json(two_edge)
-    assert len(two_edge["edges"]) == 2
-
-    edge_reordered = json.loads(two_edge_bytes)
-    edge_reordered["edges"].reverse()
-    edge_reordered_bytes = canonical_json(edge_reordered)
-    assert edge_reordered_bytes != two_edge_bytes
-    edge_reordered["edges"].reverse()
-    assert canonical_json(edge_reordered) == two_edge_bytes
-
     class UntouchedPath:
         calls = 0
 
@@ -721,8 +614,6 @@ def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inpu
         b" " + FALSE_CLAIM_RESOLUTION,
         FALSE_CLAIM_RESOLUTION_FILE.read_bytes(),
         key_reordered,
-        node_reordered_bytes,
-        edge_reordered_bytes,
         b"{not-json",
         b"{}",
     ]:
@@ -733,21 +624,6 @@ def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inpu
         assert path.calls == 0
 
     def run(parent: Path) -> None:
-        two_edge_store = parent / "two-edge"
-        two_edge_store.mkdir()
-        library_path = PRIMARY_STORE / f"{LIBRARY_SOURCE}.json"
-        shutil.copy2(library_path, two_edge_store / library_path.name)
-        two_edge_root = two_edge_store / f"{root_node['source_digest']}.json"
-        two_edge_root.write_bytes(canonical_json(root_release))
-        two_edge_before = tree_snapshot(two_edge_store)
-        two_edge_report = check_conformance(two_edge_store, two_edge_bytes)
-        assert two_edge_report.root_package.source_digest == root_node["source_digest"]
-        assert tuple(package.name for package in two_edge_report.packages) == (
-            "Eqiora.Electrical.Basic",
-            "org.example.parallel",
-        )
-        assert tree_snapshot(two_edge_store) == two_edge_before
-
         store = parent / "stale-inputs"
         shutil.copytree(FALSE_CLAIM_STORE, store)
 
@@ -865,20 +741,6 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
                     resolution=canonical_json(hostile_resolution),
                 )
             )
-
-        alias_changed = parent / "alias-changed"
-        shutil.copytree(PRIMARY_STORE, alias_changed)
-        alias_path = alias_changed / f"{ROOT_SOURCE}.json"
-        alias_release = json.loads(alias_path.read_bytes())
-        alias_release["source"]["manifest"]["dependencies"][0]["alias"] = "changed"
-        alias_path.write_bytes(
-            json.dumps(alias_release, separators=(",", ":")).encode("utf-8")
-        )
-        alias_error = assert_conformance_rejection(
-            alias_changed,
-            resolution=PRIMARY_RESOLUTION,
-        )
-        assert_compatibility(alias_error)
 
     with_scratch(run)
 

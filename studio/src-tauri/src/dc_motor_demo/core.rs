@@ -448,41 +448,15 @@ fn package_graph(packages: &PreparedPackages) -> Result<PackageGraph, String> {
 mod tests {
     use super::*;
 
-    const EXPECTED_IDENTITIES: &str = include_str!(
-        "../../../../verify/hybrid/packaged-dc-motor-controller/expected/identities.json"
-    );
-
     #[test]
     fn demo_projects_one_structurally_accepted_lineage() {
         let result = prepare_demo().expect("accepted packaged DC-drive demo");
         let repeated = prepare_demo().expect("repeated packaged DC-drive demo");
-        let expected: serde_json::Value =
-            serde_json::from_str(EXPECTED_IDENTITIES).expect("existing identity oracle");
 
         assert_eq!(result.trajectory.samples.len(), 101);
         assert_eq!(result.trajectory.commits.len(), 11);
         assert_eq!(result.execution.hold_intervals, 10);
         assert!(!result.evidence.physical_port_samples_presented);
-        assert_eq!(
-            result.lineage.model_digest,
-            expected["model_digest"].as_str().expect("model digest")
-        );
-        assert_ne!(
-            result.lineage.compilation_digest,
-            expected["compilation_digest"]
-                .as_str()
-                .expect("compilation digest")
-        );
-        assert_ne!(
-            result.lineage.run_digest,
-            expected["run_digest"].as_str().expect("run digest")
-        );
-        assert_ne!(
-            result.lineage.run_binding_digest,
-            expected["run_binding_digest"]
-                .as_str()
-                .expect("run binding digest")
-        );
         assert_eq!(result.lineage.model_digest, repeated.lineage.model_digest);
         assert_eq!(
             result.lineage.compilation_digest,

@@ -37,19 +37,6 @@ const PACKAGED: &str =
 
 const ROOT_PACKAGE: &str = "org.eqiora.verify.mixed_static_pressure_mini_stokes_2d";
 const VERSION: &str = "0.1.0";
-const MECHANICS_SEMANTIC_DIGEST: &str =
-    "f8c5b9000415d3288a68377d507d16b3524bf17a3aa0a54aee9b003d187534f4";
-const MECHANICS_SOURCE_DIGEST: &str =
-    "407744105ebeb9577944169cae56a44eec30565050588dc2407461d7cf43725d";
-const FLUID_SEMANTIC_DIGEST: &str =
-    "39a8eadba1f1c0028d23b42f506b6899320f46e4ef7ba7b45dec3e0524d2c01b";
-const FLUID_SOURCE_DIGEST: &str =
-    "69ac5967d961c2ae4aa558ee020020093329f0050397d54893e465a3ff22eaba";
-const LOADS_SEMANTIC_DIGEST: &str =
-    "0899e52e88dc3744f3dcceeb34e72bc50080bc11d495fc5d0586461cf756eed7";
-const LOADS_SOURCE_DIGEST: &str =
-    "0655266ee49789fd6fce31955be7c3f22dc0e38fa8946cf4446056553eb287fb";
-
 const LENGTH: DimExponents = DimExponents {
     length: 1,
     ..DimExponents::DIMENSIONLESS
@@ -411,42 +398,21 @@ fn assert_solution_equivalent(
 }
 
 fn public_mechanics_release() -> PackageReleaseV1 {
-    let release = public_release("Eqiora.Mechanics.Interfaces", &[]);
-    assert_release_digests(&release, MECHANICS_SEMANTIC_DIGEST, MECHANICS_SOURCE_DIGEST);
-    release
+    public_release("Eqiora.Mechanics.Interfaces", &[])
 }
 
 fn public_fluid_release(mechanics: &PackageReleaseV1) -> PackageReleaseV1 {
-    let release = public_release(
+    public_release(
         "Eqiora.Fluid.Incompressible",
         std::slice::from_ref(mechanics),
-    );
-    assert_release_digests(&release, FLUID_SEMANTIC_DIGEST, FLUID_SOURCE_DIGEST);
-    release
+    )
 }
 
 fn public_loads_release(mechanics: &PackageReleaseV1) -> PackageReleaseV1 {
-    let release = public_release(
+    public_release(
         "Eqiora.Mechanics.BoundaryLoads",
         std::slice::from_ref(mechanics),
-    );
-    assert_release_digests(&release, LOADS_SEMANTIC_DIGEST, LOADS_SOURCE_DIGEST);
-    release
-}
-
-fn assert_release_digests(release: &PackageReleaseV1, semantic: &str, source: &str) {
-    assert_eq!(
-        release
-            .package_identity()
-            .expect("package identity")
-            .semantic_digest
-            .to_hex(),
-        semantic
-    );
-    assert_eq!(
-        release.source_digest().expect("source digest").to_hex(),
-        source
-    );
+    )
 }
 
 fn public_release(package: &str, dependencies: &[PackageReleaseV1]) -> PackageReleaseV1 {

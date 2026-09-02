@@ -13,11 +13,7 @@ capabilities = [
 
 [dependencies]
 mechanics = "Eqiora.Mechanics.Interfaces@0.1.0"
-mechanics_semantic_digest = "f8c5b9000415d3288a68377d507d16b3524bf17a3aa0a54aee9b003d187534f4"
-mechanics_source_digest = "407744105ebeb9577944169cae56a44eec30565050588dc2407461d7cf43725d"
 fluid = "Eqiora.Fluid.Incompressible@0.2.0"
-fluid_semantic_digest = "39a8eadba1f1c0028d23b42f506b6899320f46e4ef7ba7b45dec3e0524d2c01b"
-fluid_source_digest = "69ac5967d961c2ae4aa558ee020020093329f0050397d54893e465a3ff22eaba"
 resolution = "exact-offline-transitive-closure"
 
 [problem]

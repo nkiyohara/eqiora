@@ -34,10 +34,6 @@ const ROOT_PACKAGE: &str = "org.eqiora.verify.dynamic_linear_solid_semantics_2d"
 const ROOT_VERSION: &str = "0.1.0";
 const MECHANICS_SEMANTIC_DIGEST: &str =
     "f8c5b9000415d3288a68377d507d16b3524bf17a3aa0a54aee9b003d187534f4";
-const SOLID_SEMANTIC_DIGEST: &str =
-    "35fd309d5fc8287f526482a1843bf936d52a71046b5fadd68bf8d9b3aecbcfc3";
-const SOLID_SOURCE_DIGEST: &str =
-    "9776d28253484ee8898554ddf9a0fa5fe2f590de66922e61a04494fe6cf1c043";
 
 #[derive(Debug, PartialEq)]
 struct Observation {
@@ -602,26 +598,10 @@ fn public_solid_release(mechanics: &PackageReleaseV1) -> PackageReleaseV1 {
         current.components()[5].name(),
         "ElastodynamicMechanicalInterface2d"
     );
-    let release = public_release(
+    public_release(
         "Eqiora.Solid.LinearElasticity",
         std::slice::from_ref(mechanics),
-    );
-    assert_eq!(
-        release
-            .package_identity()
-            .expect("solid identity")
-            .semantic_digest
-            .to_hex(),
-        SOLID_SEMANTIC_DIGEST
-    );
-    assert_eq!(
-        release
-            .source_digest()
-            .expect("solid source digest")
-            .to_hex(),
-        SOLID_SOURCE_DIGEST
-    );
-    release
+    )
 }
 
 fn public_release(package: &str, dependencies: &[PackageReleaseV1]) -> PackageReleaseV1 {

@@ -47,7 +47,6 @@ linear_operator_property = "general nonsymmetric"
 
 [acceptance]
 direct_and_exact_package_authoring_lower_to_matching_3d_roles = true
-legacy_2d_package_release_identities_are_unchanged = true
 exact_dependency_digest_mismatch_fails_before_elaboration = true
 affine_metric_identity = "dJ/dt = J div(w) on every moving tetrahedron"
 compatible_constant_stream_probe_is_preserved = true

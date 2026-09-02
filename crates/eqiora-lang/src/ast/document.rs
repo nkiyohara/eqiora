@@ -12,9 +12,17 @@ pub(crate) struct ImportDecl {
     pub(crate) range: TextRange,
 }
 
+/// One source-owned logical module identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ModuleDecl {
+    pub(crate) name: NamePath,
+    pub(crate) range: TextRange,
+}
+
 /// One parsed source file.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Document {
+    pub(crate) module: Option<ModuleDecl>,
     pub(crate) imports: Vec<ImportDecl>,
     pub(crate) dimensions: Vec<DimensionDecl>,
     pub(crate) property_contracts: Vec<PropertyContractDecl>,
@@ -26,6 +34,15 @@ pub struct Document {
 }
 
 impl Document {
+    /// Explicit logical module identity, when this source does not belong to
+    /// the caller-selected implicit `main` module.
+    #[must_use]
+    pub fn module(&self) -> Option<(&NamePath, TextRange)> {
+        self.module
+            .as_ref()
+            .map(|module| (&module.name, module.range))
+    }
+
     /// Explicit semantic imports in authored order.
     #[must_use]
     pub fn imports(&self) -> impl ExactSizeIterator<Item = (&NamePath, &str, TextRange)> {
