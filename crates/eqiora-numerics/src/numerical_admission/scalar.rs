@@ -323,19 +323,19 @@ impl CommonScalarPlan {
         }
         let identity =
             domain_separated_identity(b"eqiora.common-scalar-plan/v2\0", &identity_bytes);
+        let lineage = CommonSpatialPlanLineage::new(
+            identity,
+            model_reference.model().ulid().to_string(),
+            model_reference.semantic_revision().get(),
+            digests,
+            realization_digest,
+        );
         Ok(Self {
             admission,
             portable,
             formulation,
             authored_formulation: accepted_authored_formulation,
-            identity,
-            model_id: model_reference.model().ulid().to_string(),
-            model_revision: model_reference.semantic_revision().get(),
-            geometry_digest: digests.geometry,
-            mesh_digest: digests.mesh,
-            correspondence_digest: digests.correspondence,
-            production_digest: digests.production,
-            realization_digest,
+            lineage,
             field,
             field_id,
             field_dimension,
@@ -566,17 +566,17 @@ impl CommonScalarPlan {
 
     #[must_use]
     pub fn identity(&self) -> &str {
-        &self.identity
+        self.lineage.identity()
     }
 
     #[must_use]
     pub fn model_id(&self) -> &str {
-        &self.model_id
+        self.lineage.model_id()
     }
 
     #[must_use]
     pub const fn model_revision(&self) -> u64 {
-        self.model_revision
+        self.lineage.model_revision()
     }
 
     #[must_use]
@@ -591,27 +591,27 @@ impl CommonScalarPlan {
 
     #[must_use]
     pub fn geometry_digest(&self) -> &str {
-        &self.geometry_digest
+        self.lineage.geometry_digest()
     }
 
     #[must_use]
     pub fn mesh_digest(&self) -> &str {
-        &self.mesh_digest
+        self.lineage.mesh_digest()
     }
 
     #[must_use]
     pub fn correspondence_digest(&self) -> &str {
-        &self.correspondence_digest
+        self.lineage.correspondence_digest()
     }
 
     #[must_use]
     pub fn production_digest(&self) -> &str {
-        &self.production_digest
+        self.lineage.production_digest()
     }
 
     #[must_use]
     pub fn realization_digest(&self) -> &str {
-        &self.realization_digest
+        self.lineage.realization_digest()
     }
 
     /// Canonical portable numerical realization owned by this Plan.
