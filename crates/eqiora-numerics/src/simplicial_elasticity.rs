@@ -18,6 +18,7 @@ use crate::affine_fem::physical_gradient;
 use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::continuum_kinematics::symmetric_gradient;
 use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::interleaved_dofs::InterleavedDofValues;
 use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::operator::LocalOperator;
 use crate::simplicial_boundary::validate_named_reaction_surfaces;
@@ -266,24 +267,12 @@ where
     ];
 
     let residual = constrained_dofs.full_residual(&full_system, &full_values)?;
+    let residual_components = InterleavedDofValues::<COMPONENTS>::new(&residual)?;
     let named_boundary_reactions = named_reaction_vertices
         .into_iter()
-        .map(|(name, vertices)| {
-            let mut reaction = [0.0; COMPONENTS];
-            for vertex in vertices {
-                for (component, result) in reaction.iter_mut().enumerate() {
-                    *result += residual[global_dof(vertex, component)?];
-                }
-            }
-            Ok((name, reaction))
-        })
+        .map(|(name, vertices)| Ok((name, residual_components.sum_entities(vertices)?)))
         .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
-    let mut integrated_body_force = [0.0; COMPONENTS];
-    for values in full_system.rhs().as_chunks::<COMPONENTS>().0 {
-        for component in 0..COMPONENTS {
-            integrated_body_force[component] += values[component];
-        }
-    }
+    let integrated_body_force = InterleavedDofValues::<COMPONENTS>::new(full_system.rhs())?.sum();
     if integrated_body_force
         .iter()
         .chain(named_boundary_reactions.values().flatten())
