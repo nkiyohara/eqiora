@@ -12,7 +12,7 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::LinearSolverBackend;
 
 use super::{
-    IsotropicElasticityCartesianModel2d, lower_isotropic_elasticity_subdomain_2d, lowering_error,
+    IsotropicElasticityContinuum, lower_isotropic_elasticity_subdomain_2d, lowering_error,
     model_lowering_error, require_closed_elasticity_models,
     require_resolved_cartesian_elasticity_q1_plan_2d,
 };
@@ -101,14 +101,14 @@ impl ConformingElasticityInterface2d {
 /// Meshes, trace nodes, quotient DOFs, assembly, and solve policy are absent.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConformingIsotropicElasticityCartesianPair2d {
-    subdomains: [IsotropicElasticityCartesianModel2d; 2],
+    subdomains: [IsotropicElasticityContinuum<2>; 2],
     interface: ConformingElasticityInterface2d,
 }
 
 impl ConformingIsotropicElasticityCartesianPair2d {
     /// Geometrically ordered canonical subdomain contracts.
     #[must_use]
-    pub const fn subdomains(&self) -> &[IsotropicElasticityCartesianModel2d; 2] {
+    pub const fn subdomains(&self) -> &[IsotropicElasticityContinuum<2>; 2] {
         &self.subdomains
     }
 
@@ -486,8 +486,8 @@ fn cartesian_boxes_2d(
 }
 
 fn require_adjacent_bounds(
-    negative: &IsotropicElasticityCartesianModel2d,
-    positive: &IsotropicElasticityCartesianModel2d,
+    negative: &IsotropicElasticityContinuum<2>,
+    positive: &IsotropicElasticityContinuum<2>,
     axis: usize,
     connection: RawId,
 ) -> Result<(), Diagnostic> {

@@ -32,7 +32,7 @@ pub(super) fn assemble_body_free_action(
 
 pub(super) fn assemble_loaded_derived_form(
     program: &KernelProgram,
-    model: &crate::canonical_elasticity::IsotropicElasticityCartesianModel2d,
+    model: &crate::canonical_elasticity::IsotropicElasticityContinuum<2>,
     mesh: &CartesianMesh,
     quadrature: &QuadratureRule,
 ) -> LinearSystem {

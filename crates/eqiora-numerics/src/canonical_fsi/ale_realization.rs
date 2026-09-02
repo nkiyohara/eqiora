@@ -682,7 +682,7 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
         model.fluid().mass_density(),
         model.fluid().dynamic_viscosity(),
         model.solid().mass_density(),
-        model.solid().material(),
+        model.solid().continuum().material(),
     )?;
     let step_plan = AleFsiStepPlan::<D>::new(
         plan.fluid_time_step().duration().value(),
@@ -1113,9 +1113,10 @@ fn scale_for(
 }
 
 fn require_zero_load<const D: usize>(model: &AleFsiCartesianModel<D>) -> Result<(), Diagnostic> {
-    if model.fluid().force_potential_expression().constant_value() != Some(0.0)
-        || model.solid().load_potential_expression().constant_value() != Some(0.0)
-    {
+    let fluid_load = model.fluid().force_potential_expression().constant_value();
+    let solid = model.solid().continuum();
+    let solid_load = solid.load_potential_expression().constant_value();
+    if fluid_load != Some(0.0) || solid_load != Some(0.0) {
         return Err(invalid_realization(
             "fixed-topology ALE FSI v1 requires exact zero canonical fluid and solid load potentials",
         ));
@@ -1135,7 +1136,7 @@ fn require_boundary_meaning<const D: usize>(
         "fluid",
     )?;
     require_physics_boundary(
-        model.solid().boundary_inventory(),
+        model.solid().continuum().boundary_inventory(),
         interface.axis(),
         interface.solid(),
         interface.connection(),
@@ -1210,7 +1211,7 @@ fn require_mesh_partition<const D: usize>(
     require_cells_in_bounds(
         mesh,
         partition.solid_cells(),
-        model.solid().bounds(),
+        model.solid().continuum().bounds(),
         "solid",
     )?;
 
@@ -1267,7 +1268,7 @@ fn require_mesh_partition<const D: usize>(
             )
         } else {
             (
-                model.solid().bounds(),
+                model.solid().continuum().bounds(),
                 &mut solid_coverage,
                 interface.solid().side(),
             )
@@ -1418,9 +1419,8 @@ fn fluid_domain<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<kinds::Do
 }
 
 fn solid_domain<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<kinds::Domain> {
-    model
-        .solid()
-        .domain()
+    let domain = model.solid().continuum().domain();
+    domain
         .downcast()
         .expect("lowered ALE solid Domain retains its kind")
 }
@@ -1450,9 +1450,8 @@ fn solid_velocity<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<kinds::
 }
 
 fn solid_displacement<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<kinds::Field> {
-    model
-        .solid()
-        .displacement()
+    let displacement = model.solid().continuum().displacement();
+    displacement
         .downcast()
         .expect("lowered ALE solid displacement retains its kind")
 }

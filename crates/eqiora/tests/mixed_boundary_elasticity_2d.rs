@@ -25,12 +25,17 @@ use eqiora::solver::{
     LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
 };
 use eqiora_numerics::{
-    common::DiscreteSpace, common::HypercubeQ1Space, common::PhysicalBoundaryDisposition,
-    common::ScalarSpatialExpression, solid::CartesianLinearElasticity2dSolution,
-    solid::IsotropicElasticityCartesianModel2d,
+    common::DiscreteSpace,
+    common::HypercubeQ1Space,
+    common::PhysicalBoundaryDisposition,
+    common::ScalarSpatialExpression,
+    solid::CartesianLinearElasticity2dSolution,
     solid::finalize_resolved_isotropic_elasticity_cartesian_2d,
     solid::finalize_resolved_isotropic_elasticity_cartesian_2d_with_assembly,
     solid::lower_isotropic_elasticity_cartesian_2d,
+    solid::{
+        ElasticityIntegrationMeasure, IsotropicElasticityContinuum, IsotropicElasticityReduction,
+    },
 };
 
 #[path = "support/embedded_package.rs"]
@@ -218,7 +223,15 @@ fn resolved(program: &KernelProgram, cells: usize, revision: u64) -> ResolvedRea
     .expect("exact elasticity capability admits Q1")
 }
 
-fn assert_inventory(program: &KernelProgram, model: &IsotropicElasticityCartesianModel2d) {
+fn assert_inventory(program: &KernelProgram, model: &IsotropicElasticityContinuum<2>) {
+    assert_eq!(
+        model.reduction(),
+        IsotropicElasticityReduction::IntrinsicTwoDimensional
+    );
+    assert_eq!(
+        model.integration_measure(),
+        ElasticityIntegrationMeasure::PerUnitOutOfPlaneThickness
+    );
     for axis in 0..2 {
         for side in [BoundarySide::Lower, BoundarySide::Upper] {
             let entry = model

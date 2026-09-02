@@ -9,7 +9,7 @@ use crate::canonical::{
     project_scalar_conservation_for_differentiation,
 };
 use crate::canonical_elasticity::{
-    IsotropicElasticityCartesianModel2d, finalize_isotropic_elasticity_cartesian_q1_on_mesh,
+    IsotropicElasticityContinuum, finalize_isotropic_elasticity_cartesian_q1_on_mesh,
     lower_isotropic_elasticity_geometry_2d, recognize_isotropic_elasticity_geometry_mathematics,
 };
 use crate::canonical_fsi::{

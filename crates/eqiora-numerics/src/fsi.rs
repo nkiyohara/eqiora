@@ -3,7 +3,7 @@
 pub use crate::canonical_fsi::{
     AcceptedDistributedFixedReferenceFsiStep2d, FinalizedResolvedFixedReferenceFsiStep2d,
     FixedReferenceFsiCartesianModel2d, FixedReferenceFsiFieldIdentities2d,
-    FixedReferenceFsiScaleProfile2d, FsiInterface3d, FsiInterfaceSide3d,
+    FixedReferenceFsiScaleProfile2d, FsiInterface, FsiInterfaceSide,
     PreparedDistributedFixedReferenceFsiStep2d, ResolvedFixedReferenceFsiSolution2d,
     finalize_resolved_fixed_reference_fsi_step_2d,
     finalize_resolved_fixed_reference_fsi_step_2d_with_assembly, fixed_reference_fsi_cuda_plan_2d,

@@ -58,7 +58,7 @@ struct LoweredBoundaryProjection2d {
     >,
     prescribed_velocity_fields: BTreeSet<RawId>,
     prescribed_velocity_definitions: BTreeSet<RawId>,
-    boundary_relations: Vec<crate::canonical_boundary::BoundaryRelationBinding2d>,
+    boundary_relations: Vec<crate::canonical_boundary::BoundaryRelationBinding>,
     ports: BTreeSet<RawId>,
     connections: BTreeSet<RawId>,
     connector_domains: BTreeSet<RawId>,

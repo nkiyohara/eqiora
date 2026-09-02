@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use eqiora_core::RawId;
 use eqiora_schema::kernel::BoundarySide;
 
-use crate::canonical_boundary::BoundaryRelationBinding2d;
+use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::canonical_boundary::CartesianBoundaryEntry;
 use crate::canonical_boundary::CartesianBoundaryInventory2d;
 use crate::form_compiler::vocabulary::{MixedGalerkinCorrespondence, MixedGalerkinSource};
@@ -94,7 +94,7 @@ pub(super) struct SteadyIncompressibleStokesModel2d {
     pub(super) dynamic_viscosity: ScalarSpatialExpression,
     pub(super) force_potential_expression: ScalarSpatialExpression,
     pub(super) boundary_entries: BTreeMap<StokesBoundaryKey2d, SteadyStokesBoundaryEntry2d>,
-    pub(super) boundary_relations: Vec<BoundaryRelationBinding2d>,
+    pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
     pub(super) normal_pressures: BTreeMap<StokesBoundaryKey2d, SteadyStokesNormalPressure2d>,
     pub(super) prescribed_velocity_traces:
         BTreeMap<StokesBoundaryKey2d, SteadyStokesPrescribedVelocityTrace2d>,
@@ -197,7 +197,7 @@ impl SteadyIncompressibleStokesModel2d {
 
     /// Canonically ordered exact Relation-to-Boundary support bindings.
     #[must_use]
-    pub(crate) fn boundary_relations(&self) -> &[BoundaryRelationBinding2d] {
+    pub(crate) fn boundary_relations(&self) -> &[BoundaryRelationBinding] {
         &self.boundary_relations
     }
 

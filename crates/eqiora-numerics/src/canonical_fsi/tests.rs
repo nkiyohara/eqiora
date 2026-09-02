@@ -196,12 +196,15 @@ fn recognizes_exact_package_neutral_fixed_reference_meaning() {
         .expect("exact fixed-reference FSI semantics lower");
 
     assert_eq!(model.fluid().bounds(), &[[0.0, 1.0], [0.0, 1.0]]);
-    assert_eq!(model.solid().bounds(), &[[1.0, 2.0], [0.0, 1.0]]);
+    assert_eq!(
+        model.solid().continuum().bounds(),
+        &[[1.0, 2.0], [0.0, 1.0]]
+    );
     assert_eq!(model.fluid().mass_density(), 2.0);
     assert_eq!(model.fluid().dynamic_viscosity(), 0.5);
     assert_eq!(model.solid().mass_density(), 3.0);
-    assert_eq!(model.solid().shear_modulus(), 4.0);
-    assert_eq!(model.solid().first_lame_parameter(), 5.0);
+    assert_eq!(model.solid().continuum().shear_modulus(), 4.0);
+    assert_eq!(model.solid().continuum().first_lame_parameter(), 5.0);
     assert_eq!(model.interface().axis(), 0);
     assert_eq!(model.interface().fluid().side(), BoundarySide::Upper);
     assert_eq!(model.interface().solid().side(), BoundarySide::Lower);
@@ -214,7 +217,11 @@ fn recognizes_exact_package_neutral_fixed_reference_meaning() {
         [0.0; 2]
     );
     assert_eq!(
-        model.solid().conservative_body_force(&[1.5, 0.5]).unwrap(),
+        model
+            .solid()
+            .continuum()
+            .conservative_body_force(&[1.5, 0.5])
+            .unwrap(),
         [0.0; 2]
     );
     assert!(matches!(
@@ -229,6 +236,7 @@ fn recognizes_exact_package_neutral_fixed_reference_meaning() {
     assert!(matches!(
         model
             .solid()
+            .continuum()
             .boundary_inventory()
             .boundary(0, BoundarySide::Lower)
             .expect("solid interface entry")
@@ -244,16 +252,16 @@ fn recognizes_exact_package_neutral_fixed_reference_meaning() {
         model.fluid().incompressibility_relation()
     );
     assert_ne!(
-        model.solid().load_definition_relation(),
+        model.solid().continuum().load_definition_relation(),
         model.solid().kinematic_relation()
     );
     assert_ne!(
         model.solid().kinematic_relation(),
-        model.solid().momentum_relation()
+        model.solid().continuum().equilibrium_relation()
     );
     for bindings in [
         model.fluid().boundary_relations(),
-        model.solid().boundary_relations(),
+        model.solid().continuum().boundary_relations(),
     ] {
         assert!(!bindings.is_empty());
         assert!(bindings.windows(2).all(|pair| pair[0] < pair[1]));
@@ -275,7 +283,10 @@ fn recognizes_conservative_transient_fsi_without_adding_ale_meaning() {
         .expect("conservative transient-fluid FSI semantics lower");
 
     assert_eq!(model.fluid().bounds(), &[[0.0, 1.0], [0.0, 1.0]]);
-    assert_eq!(model.solid().bounds(), &[[1.0, 2.0], [0.0, 1.0]]);
+    assert_eq!(
+        model.solid().continuum().bounds(),
+        &[[1.0, 2.0], [0.0, 1.0]]
+    );
     assert_eq!(model.fluid().mass_density(), 2.0);
     assert_eq!(model.fluid().dynamic_viscosity(), 0.5);
     assert_eq!(model.interface().axis(), 0);
@@ -293,7 +304,7 @@ fn recognizes_the_same_conservative_ale_fsi_meaning_in_three_dimensions() {
 
     assert_eq!(model.fluid().bounds(), &[[0.0, 1.0]; 3]);
     assert_eq!(
-        model.solid().bounds(),
+        model.solid().continuum().bounds(),
         &[[1.0, 2.0], [0.0, 1.0], [0.0, 1.0]]
     );
     assert_eq!(model.interface().axis(), 0);
@@ -306,6 +317,7 @@ fn recognizes_the_same_conservative_ale_fsi_meaning_in_three_dimensions() {
     assert_eq!(
         model
             .solid()
+            .continuum()
             .conservative_body_force(&[1.2, 0.2, 0.2])
             .unwrap(),
         [0.0; 3]

@@ -13,7 +13,7 @@ use eqiora_solver::LinearOperatorProperties;
 
 use super::navier_stokes::TransientIncompressibleNavierStokesModel2d;
 use super::{IncompressibleFlowScaleProfile2d, SteadyStokesScaleProfile2d};
-use crate::canonical_boundary::BoundaryRelationBinding2d;
+use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 use crate::canonical_stokes::api::SteadyIncompressibleStokesModel2d;
 use crate::discrete_block::{
@@ -648,7 +648,7 @@ fn boundary_parameter_inventory(
 
 fn steady_boundary_relation_blocks(
     model: &SteadyIncompressibleStokesModel2d,
-    bindings: &[BoundaryRelationBinding2d],
+    bindings: &[BoundaryRelationBinding],
     field: Id<kinds::Field>,
 ) -> Result<Vec<RelationBlock>, Diagnostic> {
     bindings
@@ -678,7 +678,7 @@ fn steady_boundary_relation_blocks(
 
 fn boundary_relation_blocks(
     dispositions: &std::collections::BTreeMap<RawId, PhysicalBoundaryDisposition>,
-    bindings: &[BoundaryRelationBinding2d],
+    bindings: &[BoundaryRelationBinding],
     field: Id<kinds::Field>,
 ) -> Result<Vec<RelationBlock>, Diagnostic> {
     bindings

@@ -123,7 +123,10 @@ pub(super) fn require_fixed_reference_fsi(
     };
     let expected = BTreeMap::from([
         (canonical.fluid().domain(), CommonSpatialPolicy::MiniP1),
-        (canonical.solid().domain(), CommonSpatialPolicy::P1),
+        (
+            canonical.solid().continuum().domain(),
+            CommonSpatialPolicy::P1,
+        ),
     ]);
     let model_digest = model.digest()?;
     let mut actual = BTreeMap::new();

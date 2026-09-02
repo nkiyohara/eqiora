@@ -16,7 +16,7 @@ use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::{CartesianBoundaryInventory, PhysicalBoundaryDisposition};
 use crate::canonical_elasticity::{
-    IsotropicElastodynamicsCartesianModel2d, LoweredIsotropicElastodynamicsSubdomain,
+    IsotropicElastodynamicsCartesianModel, LoweredIsotropicElastodynamicsSubdomain,
     LoweredIsotropicElastodynamicsSubdomain2d, lower_isotropic_elastodynamics_subdomain_2d,
     lower_isotropic_elastodynamics_subdomain_2d_with_boundaries,
 };
@@ -86,15 +86,6 @@ impl FsiInterfaceSide {
     }
 }
 
-/// Two-dimensional compatibility name for one physics-local interface end.
-pub type FsiInterfaceSide2d = FsiInterfaceSide;
-
-/// Three-dimensional compatibility name for one physics-local interface end.
-pub type FsiInterfaceSide3d = FsiInterfaceSide;
-
-/// Compatibility name retained by the fixed-reference projection.
-pub type FixedReferenceFsiInterfaceSide2d = FsiInterfaceSide2d;
-
 /// Exact semantic witness for one compatible fluid-solid interface.
 ///
 /// The roles are physical rather than geometric: `fluid` always belongs to
@@ -133,15 +124,6 @@ impl FsiInterface {
     }
 }
 
-/// Two-dimensional compatibility name for one exact FSI interface.
-pub type FsiInterface2d = FsiInterface;
-
-/// Three-dimensional compatibility name for one exact FSI interface.
-pub type FsiInterface3d = FsiInterface;
-
-/// Compatibility name retained by the fixed-reference projection.
-pub type FixedReferenceFsiInterface2d = FsiInterface2d;
-
 /// One exact fixed-reference inertial-fluid/dynamic-solid semantic network.
 ///
 /// The interface contract proves matching velocity traces and the sum of the
@@ -153,8 +135,8 @@ pub struct FixedReferenceFsiCartesianModel2d {
     model: OntologyId<Model>,
     semantic_revision: u64,
     fluid: InertialIncompressibleNewtonianCartesianModel2d,
-    solid: IsotropicElastodynamicsCartesianModel2d,
-    interface: FsiInterface2d,
+    solid: IsotropicElastodynamicsCartesianModel<2>,
+    interface: FsiInterface,
 }
 
 impl FixedReferenceFsiCartesianModel2d {
@@ -178,13 +160,13 @@ impl FixedReferenceFsiCartesianModel2d {
 
     /// Exact canonical dynamic-solid submodel.
     #[must_use]
-    pub const fn solid(&self) -> &IsotropicElastodynamicsCartesianModel2d {
+    pub const fn solid(&self) -> &IsotropicElastodynamicsCartesianModel<2> {
         &self.solid
     }
 
     /// Exact compatible live interface joining the two submodels.
     #[must_use]
-    pub const fn interface(&self) -> FixedReferenceFsiInterface2d {
+    pub const fn interface(&self) -> FsiInterface {
         self.interface
     }
 }
@@ -404,11 +386,11 @@ fn finish_fixed_reference_fsi(
 
     reject_uninterpreted_live_relations(&fluid, &solid)?;
     let fluid_side = unique_live_side(fluid.model.boundary_inventory(), "fluid")?;
-    let solid_side = unique_live_side(solid.model.boundary_inventory(), "solid")?;
+    let solid_side = unique_live_side(solid.model.continuum().boundary_inventory(), "solid")?;
     require_exact_interface(program, fluid_side, solid_side)?;
     require_coincident_bounds(
         fluid.model.bounds(),
-        solid.model.bounds(),
+        solid.model.continuum().bounds(),
         fluid_side,
         solid_side,
     )?;
@@ -604,12 +586,12 @@ fn require_closed_fsi_model_parts<const D: usize>(
     solid: &LoweredIsotropicElastodynamicsSubdomain<D>,
     projection: &str,
 ) -> Result<(), Diagnostic> {
-    let mut domains = BTreeSet::from([fluid_domain, solid.model.domain()]);
+    let mut domains = BTreeSet::from([fluid_domain, solid.model.continuum().domain()]);
     domains.extend(
         fluid_boundary
             .inventory
             .entries()
-            .chain(solid.model.boundary_inventory().entries())
+            .chain(solid.model.continuum().boundary_inventory().entries())
             .map(|(_, entry)| entry.boundary()),
     );
     domains.extend(fluid_boundary.connector_domains.iter().copied());
@@ -619,9 +601,9 @@ fn require_closed_fsi_model_parts<const D: usize>(
         fluid_fields[0],
         fluid_fields[1],
         fluid_fields[2],
-        solid.model.displacement(),
+        solid.model.continuum().displacement(),
         solid.model.velocity(),
-        solid.model.load_potential(),
+        solid.model.continuum().load_potential(),
     ]);
     let representations = BTreeSet::from([fluid_representation, solid.representation]);
     let mut relations = fluid_volume_relations

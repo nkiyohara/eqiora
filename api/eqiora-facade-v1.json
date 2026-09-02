@@ -170,7 +170,7 @@
         { "name": "FinalizedScalarEllipticCartesianProblem", "from": "eqiora_numerics::scalar::FinalizedScalarEllipticCartesianProblem" },
         { "name": "FinalizedSteadyStokesMini2dProblem", "from": "eqiora_numerics::fluid::FinalizedSteadyStokesMini2dProblem" },
         { "name": "IncompressibleFlowScaleProfile2d", "from": "eqiora_numerics::fluid::IncompressibleFlowScaleProfile2d" },
-        { "name": "IsotropicElasticityCartesianModel2d", "from": "eqiora_numerics::solid::IsotropicElasticityCartesianModel2d" },
+        { "name": "IsotropicElasticityContinuum", "from": "eqiora_numerics::solid::IsotropicElasticityContinuum" },
         { "name": "ResolvedScalarEllipticCartesianSolution", "from": "eqiora_numerics::scalar::ResolvedScalarEllipticCartesianSolution" },
         { "name": "ScalarEllipticCartesianModel", "from": "eqiora_numerics::scalar::ScalarEllipticCartesianModel" },
         { "name": "SteadyIncompressibleStokesCartesianModel2d", "from": "eqiora_numerics::fluid::SteadyIncompressibleStokesCartesianModel2d" },

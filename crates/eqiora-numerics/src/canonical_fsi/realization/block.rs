@@ -15,7 +15,7 @@ use super::validate::{
     fluid_domain, fluid_pressure, fluid_velocity, solid_displacement, solid_domain, solid_velocity,
     trace_quotient,
 };
-use crate::canonical_boundary::BoundaryRelationBinding2d;
+use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::canonical_boundary::{CartesianBoundaryInventory2d, PhysicalBoundaryDisposition};
 use crate::discrete_block::{
     AlgebraicClosure, BlockRealizationIdentity, BlockSupport, BlockTransformation,
@@ -56,7 +56,7 @@ pub(super) fn fixed_reference_fsi_block_system(
     let solid_velocity = solid_velocity(model);
     let solid_displacement = solid_displacement(model);
     let fluid_force = field(model.fluid().force_potential())?;
-    let solid_load = field(model.solid().load_potential())?;
+    let solid_load = field(model.solid().continuum().load_potential())?;
     let vector = ValueShape::new([2]).expect("two-component spatial vectors are representable");
     let scalar = ValueShape::scalar();
     let plan = resolved.plan();
@@ -130,9 +130,9 @@ pub(super) fn fixed_reference_fsi_block_system(
     let fluid_definition = relation(model.fluid().force_potential_definition())?;
     let fluid_momentum = relation(model.fluid().momentum_relation())?;
     let incompressibility = relation(model.fluid().incompressibility_relation())?;
-    let solid_definition = relation(model.solid().load_definition_relation())?;
+    let solid_definition = relation(model.solid().continuum().load_definition_relation())?;
     let solid_kinematic = relation(model.solid().kinematic_relation())?;
-    let solid_momentum = relation(model.solid().momentum_relation())?;
+    let solid_momentum = relation(model.solid().continuum().equilibrium_relation())?;
     let mut relations = vec![
         RelationBlock::new(
             fluid_definition,
@@ -180,8 +180,8 @@ pub(super) fn fixed_reference_fsi_block_system(
         fluid_velocity,
     )?);
     relations.extend(boundary_relation_blocks(
-        model.solid().boundary_inventory(),
-        model.solid().boundary_relations(),
+        model.solid().continuum().boundary_inventory(),
+        model.solid().continuum().boundary_relations(),
         solid_velocity,
     )?);
 
@@ -211,8 +211,8 @@ pub(super) fn fixed_reference_fsi_block_system(
                 model.fluid().boundary_relations(),
             ),
             (
-                model.solid().boundary_inventory(),
-                model.solid().boundary_relations(),
+                model.solid().continuum().boundary_inventory(),
+                model.solid().continuum().boundary_relations(),
             ),
         ],
         quotient.connection(),
@@ -234,8 +234,8 @@ pub(super) fn fixed_reference_fsi_block_system(
         model.fluid().boundary_relations(),
     )?;
     let solid_essential = essential_relations(
-        model.solid().boundary_inventory(),
-        model.solid().boundary_relations(),
+        model.solid().continuum().boundary_inventory(),
+        model.solid().continuum().boundary_relations(),
     )?;
     if !fluid_essential.is_empty() {
         transformations.push(BlockTransformation::EssentialElimination {
@@ -307,12 +307,21 @@ pub(super) fn fixed_reference_fsi_block_system(
             ],
             parameter_inventory([
                 model.solid().mass_density_expression().parameter_fields(),
-                model.solid().shear_modulus_expression().parameter_fields(),
                 model
                     .solid()
+                    .continuum()
+                    .shear_modulus_expression()
+                    .parameter_fields(),
+                model
+                    .solid()
+                    .continuum()
                     .first_lame_parameter_expression()
                     .parameter_fields(),
-                model.solid().load_potential_expression().parameter_fields(),
+                model
+                    .solid()
+                    .continuum()
+                    .load_potential_expression()
+                    .parameter_fields(),
             ]),
             [AlgebraicBlock::Field(solid_velocity)],
             [AlgebraicBlock::Field(solid_velocity)],
@@ -373,7 +382,7 @@ fn parameter_inventory<'a>(
 
 fn boundary_relation_blocks(
     inventory: &CartesianBoundaryInventory2d,
-    bindings: &[BoundaryRelationBinding2d],
+    bindings: &[BoundaryRelationBinding],
     field: Id<kinds::Field>,
 ) -> Result<Vec<RelationBlock>, Diagnostic> {
     bindings
@@ -393,7 +402,7 @@ fn boundary_relation_blocks(
 
 fn essential_relations(
     inventory: &crate::canonical_boundary::CartesianBoundaryInventory2d,
-    bindings: &[BoundaryRelationBinding2d],
+    bindings: &[BoundaryRelationBinding],
 ) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
     bindings
         .iter()

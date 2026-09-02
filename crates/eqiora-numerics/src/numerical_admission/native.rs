@@ -228,7 +228,7 @@ pub(super) struct NativeNumericalAdmission {
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum RecognizedNativeModel {
     Scalar(Box<ExecutableSteadyScalarConservation>),
-    Elasticity(Box<IsotropicElasticityCartesianModel2d>),
+    Elasticity(Box<IsotropicElasticityContinuum<2>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
     TransientGeometry(Box<TransientNavierStokesGeometryBinding2d>),

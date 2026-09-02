@@ -92,7 +92,7 @@ impl CommonFsiPlan {
             }
         };
         let fluid_set = region_set(canonical.fluid().domain())?;
-        let solid_set = region_set(canonical.solid().domain())?;
+        let solid_set = region_set(canonical.solid().continuum().domain())?;
         let interface_set = match recognized
             .program
             .node(canonical.interface().fluid().boundary())
@@ -145,7 +145,7 @@ impl CommonFsiPlan {
             mesh_artifact,
             production_artifact,
             bounds[0],
-            canonical.solid().shear_modulus(),
+            canonical.solid().continuum().shear_modulus(),
             canonical.solid().mass_density(),
             canonical.fluid().mass_density(),
         )?;
@@ -195,11 +195,16 @@ impl CommonFsiPlan {
             canonical.fluid().velocity().ulid().to_string(),
             canonical.fluid().pressure().ulid().to_string(),
             canonical.solid().velocity().ulid().to_string(),
-            canonical.solid().displacement().ulid().to_string(),
+            canonical
+                .solid()
+                .continuum()
+                .displacement()
+                .ulid()
+                .to_string(),
         ];
         let domain_ids = [
             canonical.fluid().domain().ulid().to_string(),
-            canonical.solid().domain().ulid().to_string(),
+            canonical.solid().continuum().domain().ulid().to_string(),
         ];
         let mut identity_bytes = Vec::new();
         let realization_digest = hex_bytes(&portable.digest()?);

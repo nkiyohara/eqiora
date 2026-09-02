@@ -7,7 +7,7 @@ use eqiora_schema::kernel::{ExprId, ExprNode};
 use eqiora_sem::KernelProgram;
 
 use crate::additive_residual::{AdditiveResidualView, AdditiveSign};
-use crate::canonical_boundary::BoundaryRelationBinding2d;
+use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::form_compiler::vocabulary::{
     DirectionalProof, MixedBoundaryDisposition, MixedCertificateEntry, MixedFormulationRule,
     MixedNormalOrientation, MixedTermRole, MixedTermSign,
@@ -35,7 +35,7 @@ pub(super) struct SteadyStokesCertificateSource<'a> {
     pub(super) source_node: ExprId,
     pub(super) momentum_relation: RawId,
     pub(super) incompressibility_relation: RawId,
-    pub(super) boundaries: &'a [BoundaryRelationBinding2d],
+    pub(super) boundaries: &'a [BoundaryRelationBinding],
     pub(super) boundary_dispositions: &'a std::collections::BTreeMap<
         RawId,
         crate::canonical_boundary::PhysicalBoundaryDisposition,

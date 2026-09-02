@@ -77,12 +77,15 @@ fn faer_closes_moving_fsi_evidence_and_first_order_refinement() {
             .unwrap();
     let canonical = lower_ale_fsi_cartesian_2d(semantic.program()).unwrap();
     assert_eq!(canonical.fluid().bounds(), &[[0.0, 1.0], [0.0, 1.0]]);
-    assert_eq!(canonical.solid().bounds(), &[[1.0, 2.0], [0.0, 1.0]]);
+    assert_eq!(
+        canonical.solid().continuum().bounds(),
+        &[[1.0, 2.0], [0.0, 1.0]]
+    );
     assert_eq!(canonical.fluid().mass_density(), 1.0);
     assert_eq!(canonical.fluid().dynamic_viscosity(), 0.2);
     assert_eq!(canonical.solid().mass_density(), 1.0);
-    assert_eq!(canonical.solid().shear_modulus(), 2.0);
-    assert_eq!(canonical.solid().first_lame_parameter(), 1.0);
+    assert_eq!(canonical.solid().continuum().shear_modulus(), 2.0);
+    assert_eq!(canonical.solid().continuum().first_lame_parameter(), 1.0);
 
     let fixture = Fixture::new(semantic, canonical);
     let model_reference = fixture.document.artifact_reference().unwrap();
@@ -909,7 +912,7 @@ fn fluid_domain(model: &AleFsiCartesianModel2d) -> Id<kinds::Domain> {
 }
 
 fn solid_domain(model: &AleFsiCartesianModel2d) -> Id<kinds::Domain> {
-    model.solid().domain().downcast().unwrap()
+    model.solid().continuum().domain().downcast().unwrap()
 }
 
 fn fluid_velocity(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
@@ -925,7 +928,7 @@ fn solid_velocity(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
 }
 
 fn solid_displacement(model: &AleFsiCartesianModel2d) -> Id<kinds::Field> {
-    model.solid().displacement().downcast().unwrap()
+    model.solid().continuum().displacement().downcast().unwrap()
 }
 
 fn fluid_relation(model: &AleFsiCartesianModel2d) -> Id<kinds::Relation> {
