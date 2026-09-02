@@ -39,7 +39,7 @@ use eqiora::solver::{
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
-    ale::AleFsiBoundary3d, ale::AleFsiCartesianModel3d, ale::AleFsiInitialPhysicalState3d,
+    ale::AleFsiBoundary3d, ale::AleFsiCartesianModel, ale::AleFsiInitialPhysicalState,
     ale::AleFsiState3d, ale::AleFsiTrajectory3d, ale::finalize_resolved_fixed_topology_ale_fsi_3d,
     ale::fixed_topology_ale_fsi_requirements_3d, ale::lower_ale_fsi_cartesian_3d,
     common::NonZeroStepCount, fsi::FixedReferenceFsiPartition3d,
@@ -170,7 +170,7 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
 
 struct Fixture {
     document: ModelDocument,
-    canonical: AleFsiCartesianModel3d,
+    canonical: AleFsiCartesianModel<3>,
     mesh_artifact: SimplicialMeshEnvelopeV1,
     mesh_reference: MeshArtifactReference,
     mesh: SimplicialMesh,
@@ -179,7 +179,7 @@ struct Fixture {
 }
 
 impl Fixture {
-    fn new(document: ModelDocument, canonical: AleFsiCartesianModel3d) -> Self {
+    fn new(document: ModelDocument, canonical: AleFsiCartesianModel<3>) -> Self {
         let mesh = two_domain_tetrahedral_mesh();
         let mesh_artifact = eqiora::artifact::SimplicialMeshEnvelopeV1::from_mesh(&mesh).unwrap();
         let mesh_reference = mesh_artifact.artifact_reference().unwrap();
@@ -197,11 +197,11 @@ impl Fixture {
         }
     }
 
-    fn initial(&self) -> AleFsiInitialPhysicalState3d {
+    fn initial(&self) -> AleFsiInitialPhysicalState<3> {
         let mut displacement = vec![[0.0; D]; self.mesh.vertices().len()];
         let interface_center = find_vertex(&self.mesh, [1.0, 0.5, 0.5]);
         displacement[interface_center] = [0.0015, 0.0005, 0.00025];
-        AleFsiInitialPhysicalState3d::new(
+        AleFsiInitialPhysicalState::<3>::new(
             0.0,
             vec![[0.0; D]; self.mesh.vertices().len()],
             vec![[0.0; D]; self.partition.fluid_cells().len()],
@@ -804,7 +804,7 @@ fn flatten_vectors(values: &[[f64; D]]) -> Vec<f64> {
 }
 
 fn realization_plan(
-    model: &AleFsiCartesianModel3d,
+    model: &AleFsiCartesianModel<3>,
     mesh_artifact: MeshArtifactReference,
     time_step: f64,
 ) -> FixedTopologyAleCoupledRealizationPlan {
@@ -946,39 +946,39 @@ fn physical_scale(value: f64, dimension: DimExponents) -> PositivePhysicalScale 
     PositivePhysicalScale::new(DynQuantity::new(value, dimension)).unwrap()
 }
 
-fn fluid_domain(model: &AleFsiCartesianModel3d) -> Id<kinds::Domain> {
+fn fluid_domain(model: &AleFsiCartesianModel<3>) -> Id<kinds::Domain> {
     model.fluid().domain().downcast().unwrap()
 }
 
-fn solid_domain(model: &AleFsiCartesianModel3d) -> Id<kinds::Domain> {
+fn solid_domain(model: &AleFsiCartesianModel<3>) -> Id<kinds::Domain> {
     model.solid().continuum().domain().downcast().unwrap()
 }
 
-fn fluid_velocity(model: &AleFsiCartesianModel3d) -> Id<kinds::Field> {
+fn fluid_velocity(model: &AleFsiCartesianModel<3>) -> Id<kinds::Field> {
     model.fluid().velocity().downcast().unwrap()
 }
 
-fn fluid_pressure(model: &AleFsiCartesianModel3d) -> Id<kinds::Field> {
+fn fluid_pressure(model: &AleFsiCartesianModel<3>) -> Id<kinds::Field> {
     model.fluid().pressure().downcast().unwrap()
 }
 
-fn solid_velocity(model: &AleFsiCartesianModel3d) -> Id<kinds::Field> {
+fn solid_velocity(model: &AleFsiCartesianModel<3>) -> Id<kinds::Field> {
     model.solid().velocity().downcast().unwrap()
 }
 
-fn solid_displacement(model: &AleFsiCartesianModel3d) -> Id<kinds::Field> {
+fn solid_displacement(model: &AleFsiCartesianModel<3>) -> Id<kinds::Field> {
     model.solid().continuum().displacement().downcast().unwrap()
 }
 
-fn fluid_relation(model: &AleFsiCartesianModel3d) -> Id<kinds::Relation> {
+fn fluid_relation(model: &AleFsiCartesianModel<3>) -> Id<kinds::Relation> {
     model.fluid().momentum_relation().downcast().unwrap()
 }
 
-fn connection(model: &AleFsiCartesianModel3d) -> Id<kinds::Connection> {
+fn connection(model: &AleFsiCartesianModel<3>) -> Id<kinds::Connection> {
     model.interface().connection().downcast().unwrap()
 }
 
-fn trace_quotient(model: &AleFsiCartesianModel3d) -> ConformingTraceQuotient {
+fn trace_quotient(model: &AleFsiCartesianModel<3>) -> ConformingTraceQuotient {
     ConformingTraceQuotient::new(
         connection(model),
         TraceFieldEndpoint::new(fluid_domain(model), fluid_velocity(model)),
@@ -987,7 +987,7 @@ fn trace_quotient(model: &AleFsiCartesianModel3d) -> ConformingTraceQuotient {
     .unwrap()
 }
 
-fn state_pair(model: &AleFsiCartesianModel3d) -> BackwardEulerStatePair {
+fn state_pair(model: &AleFsiCartesianModel<3>) -> BackwardEulerStatePair {
     BackwardEulerStatePair::new(solid_displacement(model), solid_velocity(model)).unwrap()
 }
 

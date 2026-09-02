@@ -1,11 +1,8 @@
 //! Moving-domain ALE and remeshing realizations.
 
 pub use crate::canonical_fsi::{
-    AcceptedResolvedAleFsiRemesh2d, AleFsiCartesianModel, AleFsiCartesianModel2d,
-    AleFsiCartesianModel3d, AleFsiFieldIdentities, AleFsiFieldIdentities2d,
-    AleFsiFieldIdentities3d, AleFsiInitialPhysicalState, AleFsiInitialPhysicalState2d,
-    AleFsiInitialPhysicalState3d, FinalizedResolvedFixedTopologyAleFsi,
-    FinalizedResolvedFixedTopologyAleFsi2d, FinalizedResolvedFixedTopologyAleFsi3d,
+    AcceptedResolvedAleFsiRemesh2d, AleFsiCartesianModel, AleFsiFieldIdentities,
+    AleFsiInitialPhysicalState, FinalizedResolvedFixedTopologyAleFsi,
     finalize_resolved_fixed_topology_ale_fsi_2d, finalize_resolved_fixed_topology_ale_fsi_3d,
     fixed_topology_ale_fsi_requirements_2d, fixed_topology_ale_fsi_requirements_3d,
     lower_ale_fsi_cartesian_2d, lower_ale_fsi_cartesian_3d,

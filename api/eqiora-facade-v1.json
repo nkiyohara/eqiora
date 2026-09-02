@@ -163,10 +163,10 @@
       "source_module": "numerics",
       "stable_exports": [],
       "transitional_exports": [
-        { "name": "AleFsiCartesianModel2d", "from": "eqiora_numerics::ale::AleFsiCartesianModel2d" },
+        { "name": "AleFsiCartesianModel", "from": "eqiora_numerics::ale::AleFsiCartesianModel" },
         { "name": "CartesianLinearElasticity2dSolution", "from": "eqiora_numerics::solid::CartesianLinearElasticity2dSolution" },
         { "name": "FinalizedIsotropicElasticityCartesian2dProblem", "from": "eqiora_numerics::solid::FinalizedIsotropicElasticityCartesian2dProblem" },
-        { "name": "FinalizedResolvedFixedTopologyAleFsi2d", "from": "eqiora_numerics::ale::FinalizedResolvedFixedTopologyAleFsi2d" },
+        { "name": "FinalizedResolvedFixedTopologyAleFsi", "from": "eqiora_numerics::ale::FinalizedResolvedFixedTopologyAleFsi" },
         { "name": "FinalizedScalarEllipticCartesianProblem", "from": "eqiora_numerics::scalar::FinalizedScalarEllipticCartesianProblem" },
         { "name": "FinalizedSteadyStokesMini2dProblem", "from": "eqiora_numerics::fluid::FinalizedSteadyStokesMini2dProblem" },
         { "name": "IncompressibleFlowScaleProfile2d", "from": "eqiora_numerics::fluid::IncompressibleFlowScaleProfile2d" },

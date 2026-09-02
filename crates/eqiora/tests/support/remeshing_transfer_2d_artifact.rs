@@ -19,7 +19,7 @@ use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFi
 use eqiora::realization::{AleFsiRemeshTransferPlan2d, ResolvedFixedTopologyAleCoupledRealization};
 use eqiora::{Id, kinds};
 use eqiora_numerics::{
-    ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiCartesianModel2d, ale::AleFsiState2d,
+    ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiCartesianModel, ale::AleFsiState2d,
     fsi::FixedReferenceFsiPartition2d,
 };
 
@@ -742,7 +742,7 @@ pub(super) fn assert_artifact_vertical_slice(
 }
 
 fn assert_ml_dataset_vertical_slice(
-    canonical: &AleFsiCartesianModel2d,
+    canonical: &AleFsiCartesianModel<2>,
     replay: &eqiora::api::RemeshingTrajectoryReplayInputV1<'_, ModelEnvelope>,
     source_snapshots: &[MovingSnapshotSet],
     target_snapshots: &[MovingSnapshotSet],
@@ -1257,7 +1257,7 @@ fn assert_projection_acceptance_limits(
 }
 
 fn field_receipts(
-    model: &AleFsiCartesianModel2d,
+    model: &AleFsiCartesianModel<2>,
     source: &MovingSnapshotSet,
     target: &MovingSnapshotSet,
     numerical: &AcceptedAleFsiRemeshProjection2d,
@@ -1341,7 +1341,7 @@ impl MovingSnapshotSet {
 }
 
 fn moving_snapshots(
-    model: &AleFsiCartesianModel2d,
+    model: &AleFsiCartesianModel<2>,
     mesh: &SimplicialMeshEnvelopeV1,
     partition: &FixedReferenceFsiPartition2d,
     context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,

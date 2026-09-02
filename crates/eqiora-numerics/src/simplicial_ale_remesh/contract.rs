@@ -2,7 +2,7 @@ use eqiora_core::Diagnostic;
 use eqiora_meshing::{FixedTopologyGeometryState2d, SimplicialRevisionOverlap2d};
 use eqiora_solver::SolveReport;
 
-use crate::canonical_fsi::AleFsiInitialPhysicalState2d;
+use crate::canonical_fsi::AleFsiInitialPhysicalState;
 use crate::simplicial_fsi::{FixedReferenceFsiMaterial2d, FixedReferenceFsiScale2d};
 
 const COMPONENTS: usize = 2;
@@ -502,7 +502,7 @@ impl AleFsiRemeshProjectionEvidence2d {
 
 /// Complete accepted physical coefficients after one zero-time remesh.
 ///
-/// No caller can obtain an [`AleFsiInitialPhysicalState2d`] from this path
+/// No caller can obtain an [`AleFsiInitialPhysicalState<2>`] from this path
 /// until overlap, projection, constraint, geometry, and independent replay
 /// evidence have all been admitted.
 #[derive(Debug, Clone, PartialEq)]
@@ -575,8 +575,8 @@ impl AcceptedAleFsiRemeshProjection2d {
     ///
     /// # Errors
     /// Preserves the finalizer input's finite-value validation.
-    pub fn initial_physical_state(&self) -> Result<AleFsiInitialPhysicalState2d, Diagnostic> {
-        AleFsiInitialPhysicalState2d::new(
+    pub fn initial_physical_state(&self) -> Result<AleFsiInitialPhysicalState<2>, Diagnostic> {
+        AleFsiInitialPhysicalState::<2>::new(
             self.time,
             self.vertex_velocity.clone(),
             self.fluid_cell_bubble_velocity.clone(),

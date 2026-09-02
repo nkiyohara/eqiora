@@ -27,18 +27,13 @@ use crate::canonical_stokes::{
     lower_inertial_incompressible_newtonian_subdomain_2d_with_boundaries,
 };
 
-pub use ale::{
-    AleFsiCartesianModel, AleFsiCartesianModel2d, AleFsiCartesianModel3d,
-    lower_ale_fsi_cartesian_2d, lower_ale_fsi_cartesian_3d,
-};
+pub use ale::{AleFsiCartesianModel, lower_ale_fsi_cartesian_2d, lower_ale_fsi_cartesian_3d};
 pub use ale_realization::{
-    AcceptedResolvedAleFsiRemesh2d, AleFsiFieldIdentities, AleFsiFieldIdentities2d,
-    AleFsiFieldIdentities3d, AleFsiInitialPhysicalState, AleFsiInitialPhysicalState2d,
-    AleFsiInitialPhysicalState3d, FinalizedResolvedFixedTopologyAleFsi,
-    FinalizedResolvedFixedTopologyAleFsi2d, FinalizedResolvedFixedTopologyAleFsi3d,
-    finalize_resolved_fixed_topology_ale_fsi_2d, finalize_resolved_fixed_topology_ale_fsi_3d,
-    fixed_topology_ale_fsi_requirements_2d, fixed_topology_ale_fsi_requirements_3d,
-    remesh_resolved_fixed_topology_ale_fsi_2d, solve_resolved_fixed_topology_ale_fsi_2d,
+    AcceptedResolvedAleFsiRemesh2d, AleFsiFieldIdentities, AleFsiInitialPhysicalState,
+    FinalizedResolvedFixedTopologyAleFsi, finalize_resolved_fixed_topology_ale_fsi_2d,
+    finalize_resolved_fixed_topology_ale_fsi_3d, fixed_topology_ale_fsi_requirements_2d,
+    fixed_topology_ale_fsi_requirements_3d, remesh_resolved_fixed_topology_ale_fsi_2d,
+    solve_resolved_fixed_topology_ale_fsi_2d,
     solve_resolved_fixed_topology_ale_fsi_2d_with_assembly,
     solve_resolved_fixed_topology_ale_fsi_3d,
     solve_resolved_fixed_topology_ale_fsi_3d_with_assembly,

@@ -80,12 +80,6 @@ pub struct AleFsiInitialPhysicalState<const D: usize> {
     solid_displacement: Vec<[f64; D]>,
 }
 
-/// Established two-dimensional initial-state API.
-pub type AleFsiInitialPhysicalState2d = AleFsiInitialPhysicalState<2>;
-
-/// Three-dimensional initial physical coefficients before harmonic motion.
-pub type AleFsiInitialPhysicalState3d = AleFsiInitialPhysicalState<3>;
-
 impl<const D: usize> AleFsiInitialPhysicalState<D> {
     /// Admit finite physical coefficients without inventing geometry.
     ///
@@ -153,12 +147,6 @@ pub struct AleFsiFieldIdentities<const D: usize> {
     solid_displacement: Id<kinds::Field>,
 }
 
-/// Established two-dimensional Field-identity API.
-pub type AleFsiFieldIdentities2d = AleFsiFieldIdentities<2>;
-
-/// Three-dimensional canonical Field identities.
-pub type AleFsiFieldIdentities3d = AleFsiFieldIdentities<3>;
-
 impl<const D: usize> AleFsiFieldIdentities<D> {
     /// Conservative fluid velocity represented by MINI coefficients.
     #[must_use]
@@ -208,12 +196,6 @@ pub struct FinalizedResolvedFixedTopologyAleFsi<const D: usize> {
     step_plan: AleFsiStepPlan<D>,
     quadrature: QuadratureRule,
 }
-
-/// Established two-dimensional finalized-operator API.
-pub type FinalizedResolvedFixedTopologyAleFsi2d = FinalizedResolvedFixedTopologyAleFsi<2>;
-
-/// Three-dimensional finalized fixed-topology ALE FSI operator.
-pub type FinalizedResolvedFixedTopologyAleFsi3d = FinalizedResolvedFixedTopologyAleFsi<3>;
 
 /// Replayed canonical and Realization facts awaiting one physical state.
 ///
@@ -419,7 +401,7 @@ impl_finalized_solve!(3, advance_simplicial_ale_fsi_3d_with_assembly);
 #[derive(Debug, Clone, PartialEq)]
 pub struct AcceptedResolvedAleFsiRemesh2d {
     projection: AcceptedAleFsiRemeshProjection2d,
-    target: FinalizedResolvedFixedTopologyAleFsi2d,
+    target: FinalizedResolvedFixedTopologyAleFsi<2>,
 }
 
 impl AcceptedResolvedAleFsiRemesh2d {
@@ -431,7 +413,7 @@ impl AcceptedResolvedAleFsiRemesh2d {
 
     /// Ordinary target-mesh ALE finalizer at the unchanged remesh time.
     #[must_use]
-    pub const fn target(&self) -> &FinalizedResolvedFixedTopologyAleFsi2d {
+    pub const fn target(&self) -> &FinalizedResolvedFixedTopologyAleFsi<2> {
         &self.target
     }
 
@@ -441,7 +423,7 @@ impl AcceptedResolvedAleFsiRemesh2d {
         self,
     ) -> (
         AcceptedAleFsiRemeshProjection2d,
-        FinalizedResolvedFixedTopologyAleFsi2d,
+        FinalizedResolvedFixedTopologyAleFsi<2>,
     ) {
         (self.projection, self.target)
     }
@@ -602,7 +584,7 @@ pub fn finalize_resolved_fixed_topology_ale_fsi_3d(
 #[allow(clippy::too_many_arguments)]
 pub fn remesh_resolved_fixed_topology_ale_fsi_2d(
     model: &AleFsiCartesianModel<2>,
-    source: &FinalizedResolvedFixedTopologyAleFsi2d,
+    source: &FinalizedResolvedFixedTopologyAleFsi<2>,
     source_state: &AleFsiState<2>,
     target_resolved: &ResolvedFixedTopologyAleCoupledRealization,
     target_mesh_artifact: MeshArtifactReference,
@@ -717,7 +699,7 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
 }
 
 fn require_remesh_compatible(
-    source: &FinalizedResolvedFixedTopologyAleFsi2d,
+    source: &FinalizedResolvedFixedTopologyAleFsi<2>,
     target: &ReplayedResolvedFixedTopologyAleFsi<2>,
     transfer: AleFsiRemeshTransferPlan2d,
 ) -> Result<(), Diagnostic> {
@@ -1513,7 +1495,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::canonical_fsi::AleFsiCartesianModel2d;
+    use crate::canonical_fsi::AleFsiCartesianModel;
     use crate::simplicial_ale_fsi::AleFsiBoundary2d;
     use crate::simplicial_fsi::FixedReferenceFsiPartition2d;
 
@@ -1597,7 +1579,7 @@ mod tests {
         let mut fixed_velocity = vec![[0.0; 3]; mesh.vertices().len()];
         let fixed = boundary.fixed_zero_velocity_vertices()[0];
         fixed_velocity[fixed.index()][2] = 1.0;
-        let invalid = AleFsiInitialPhysicalState3d::new(
+        let invalid = AleFsiInitialPhysicalState::<3>::new(
             0.0,
             fixed_velocity,
             vec![[0.0; 3]; partition.fluid_cells().len()],
@@ -1642,7 +1624,7 @@ mod tests {
             .contains("mesh exterior does not lie on an exact semantic side")
         );
 
-        let finalized: FinalizedResolvedFixedTopologyAleFsi3d =
+        let finalized: FinalizedResolvedFixedTopologyAleFsi<3> =
             finalize_resolved_fixed_topology_ale_fsi_3d(
                 &model,
                 &resolved,
@@ -1654,7 +1636,7 @@ mod tests {
                 &REFERENCE_LINEAR_SOLVER,
             )
             .unwrap();
-        let expected_fields: AleFsiFieldIdentities3d = field_identities(&model);
+        let expected_fields: AleFsiFieldIdentities<3> = field_identities(&model);
         assert_eq!(finalized.fields(), expected_fields);
         assert_eq!(finalized.step_plan().scale().power(), 4.0);
         assert_eq!(
@@ -1767,7 +1749,7 @@ mod tests {
 
         let mut velocity = vec![[0.0; 2]; fixture.mesh.vertices().len()];
         velocity[0] = [1.0, 0.0];
-        let initial = AleFsiInitialPhysicalState2d::new(
+        let initial = AleFsiInitialPhysicalState::<2>::new(
             0.0,
             velocity,
             vec![[0.0; 2]; fixture.partition.fluid_cells().len()],
@@ -1786,7 +1768,7 @@ mod tests {
 
     struct Fixture {
         program: KernelProgram,
-        model: AleFsiCartesianModel2d,
+        model: AleFsiCartesianModel<2>,
         mesh: SimplicialMesh,
         partition: FixedReferenceFsiPartition2d,
         boundary: AleFsiBoundary2d,
@@ -1824,7 +1806,7 @@ mod tests {
             }
         }
 
-        fn initial(&self) -> AleFsiInitialPhysicalState2d {
+        fn initial(&self) -> AleFsiInitialPhysicalState<2> {
             initial_for(&self.mesh, &self.partition)
         }
 
@@ -1833,7 +1815,7 @@ mod tests {
         }
 
         fn build_plan(
-            model: &AleFsiCartesianModel2d,
+            model: &AleFsiCartesianModel<2>,
             pressure: Id<kinds::Field>,
             minimum_mean_ratio: f64,
         ) -> FixedTopologyAleCoupledRealizationPlan {
@@ -1851,8 +1833,8 @@ mod tests {
 
         fn finalize(
             &self,
-            initial: AleFsiInitialPhysicalState2d,
-        ) -> Result<FinalizedResolvedFixedTopologyAleFsi2d, Diagnostic> {
+            initial: AleFsiInitialPhysicalState<2>,
+        ) -> Result<FinalizedResolvedFixedTopologyAleFsi<2>, Diagnostic> {
             self.finalize_resolved(&self.resolved, mesh_reference(), initial)
         }
 
@@ -1860,8 +1842,8 @@ mod tests {
             &self,
             resolved: &ResolvedFixedTopologyAleCoupledRealization,
             mesh_artifact: MeshArtifactReference,
-            initial: AleFsiInitialPhysicalState2d,
-        ) -> Result<FinalizedResolvedFixedTopologyAleFsi2d, Diagnostic> {
+            initial: AleFsiInitialPhysicalState<2>,
+        ) -> Result<FinalizedResolvedFixedTopologyAleFsi<2>, Diagnostic> {
             finalize_resolved_fixed_topology_ale_fsi_2d(
                 &self.model,
                 resolved,
@@ -1995,7 +1977,7 @@ mod tests {
     }
 
     fn requirements_with_pressure(
-        model: &AleFsiCartesianModel2d,
+        model: &AleFsiCartesianModel<2>,
         pressure: Id<kinds::Field>,
     ) -> FixedTopologyAleCoupledRealizationRequirements {
         let requirements = fixed_topology_ale_fsi_requirements_2d(model);
@@ -2059,8 +2041,8 @@ mod tests {
     fn initial_for(
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition2d,
-    ) -> AleFsiInitialPhysicalState2d {
-        AleFsiInitialPhysicalState2d::new(
+    ) -> AleFsiInitialPhysicalState<2> {
+        AleFsiInitialPhysicalState::<2>::new(
             0.0,
             vec![[0.0; 2]; mesh.vertices().len()],
             vec![[0.0; 2]; partition.fluid_cells().len()],
@@ -2073,8 +2055,8 @@ mod tests {
     fn initial_for_3d(
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<3>,
-    ) -> AleFsiInitialPhysicalState3d {
-        AleFsiInitialPhysicalState3d::new(
+    ) -> AleFsiInitialPhysicalState<3> {
+        AleFsiInitialPhysicalState::<3>::new(
             0.0,
             vec![[0.0; 3]; mesh.vertices().len()],
             vec![[0.0; 3]; partition.fluid_cells().len()],

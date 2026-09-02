@@ -267,7 +267,7 @@ The remesh plan binds:
 - accepted projection, coverage, trace, momentum, incompressibility, quality,
   and error evidence.
 
-The target output is exposed as `AleFsiInitialPhysicalState2d` only after all
+The target output is exposed as `AleFsiInitialPhysicalState<2>` only after all
 obligations pass. The existing target
 `finalize_resolved_fixed_topology_ale_fsi_2d` then independently derives the
 partition, harmonic action, geometry, boundary closure, and finalized
