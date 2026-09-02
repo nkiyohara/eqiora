@@ -125,9 +125,12 @@ impl Parser<'_> {
                     self.recover_top_level();
                 }
             } else {
-                self.error_here(
-                    "expected `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration",
-                );
+                let expected = if import_prefix_closed {
+                    "expected `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
+                } else {
+                    "expected `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
+                };
+                self.error_here(expected);
                 self.recover_top_level();
             }
         }
@@ -229,6 +232,22 @@ mod tests {
                 .diagnostics()
                 .iter()
                 .any(|diagnostic| diagnostic.message().contains("imports must form a prefix"))
+        );
+    }
+
+    #[test]
+    fn declaration_diagnostic_offers_import_only_while_the_prefix_is_open() {
+        let before = parse("before.eqi", "unexpected");
+        assert!(
+            before.diagnostics()[0]
+                .message()
+                .starts_with("expected `import`")
+        );
+
+        let after = parse("after.eqi", "model Main {} unexpected");
+        assert_eq!(
+            after.diagnostics()[0].message(),
+            "expected `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
         );
     }
 }
