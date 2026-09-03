@@ -1,0 +1,149 @@
+---
+title: 2. Quantities, dimensions, and units
+description: Use dimensions to reject relations that cannot be physically meaningful before choosing a numerical method.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+<Aside type="note" title="Chapter status">
+  **Illustrative · source compiles · deliberate dimensional failure included.**
+  The examples target the current <ReleaseIdentity /> surface. Dimensional
+  consistency is necessary for physical meaning, but it is not sufficient for
+  correctness or validation.
+</Aside>
+
+## Three ideas that are easy to conflate
+
+A **quantity** is what the model talks about, such as duration or velocity. A
+**dimension** describes its physical kind, such as time or length per time. A
+**unit** supplies a scale for expressing a value, such as seconds or metres per
+second.
+
+The number `1` alone cannot tell us whether a duration is one second, one hour,
+or dimensionless. Eqiora source therefore makes dimension-bearing declarations
+part of the model rather than leaving them as comments.
+
+## Learning outcomes
+
+After this chapter, you should be able to:
+
+- distinguish a quantity, its dimension, and a chosen unit;
+- derive the dimension required for a coefficient in a relation;
+- inspect an Eqiora declaration using `1`, `s`, multiplication, and division;
+- use `eqiora check` as a compile-time check; and
+- explain why a dimensionally consistent relation may still be a poor model.
+
+## Derive the required dimension first
+
+Return to the residual
+
+$$
+\frac{\mathrm{d}x}{\mathrm{d}t} + kx = 0.
+$$
+
+Let $[q]$ denote the dimension of quantity $q$. Because $x$ is dimensionless,
+$[x]=1$. Differentiation with respect to time gives
+
+$$
+\left[\frac{\mathrm{d}x}{\mathrm{d}t}\right] = \frac{1}{T}.
+$$
+
+Terms joined by addition must have the same dimension. Therefore
+
+$$
+[kx]=[k][x]=[k]=\frac{1}{T}.
+$$
+
+The coefficient `rate` must have inverse-time dimension. Its numeric default
+and its dimension are separate facts.
+
+## Encode the dimension in `.eqi`
+
+```eqiora
+model decay {
+  field x: 1 = 1;
+  parameter rate: 1 / s = 1;
+
+  relation flow continuous {
+    derivative(x) + rate * x = 0;
+  }
+}
+```
+
+Here `1` in the type position means dimensionless, while `1 / s` means inverse
+seconds. The same spelling `= 1` on the right supplies the default numeric
+value; it does not erase the declared dimension.
+
+With the [current installed release](/get-started/), check the saved source:
+
+```console
+$ eqiora check decay.eqi
+```
+
+A zero exit status means the current compiler accepted the source. The command
+does not resolve a numerical method, execute a trajectory, or validate a
+physical interpretation.
+
+## Observation boundary
+
+This chapter observes compiler acceptance and rejection only. It produces no
+time series or physical measurement. A later numerical observation would still
+need an explicit Realization, Run, and comparison appropriate to its claim.
+
+## Deliberate failure: a dimensionless rate
+
+Change only the parameter declaration:
+
+```eqiora
+model invalid_decay {
+  field x: 1 = 1;
+  parameter rate: 1 = 1;
+
+  relation flow continuous {
+    derivative(x) + rate * x = 0;
+  }
+}
+```
+
+Now `derivative(x)` has inverse-time dimension, but `rate * x` is
+dimensionless. They cannot be added in one residual, so `eqiora check` exits
+nonzero and reports compilation diagnostics. The intended repair is not a
+conversion factor chosen at random: derive the coefficient dimension from the
+relation, then declare `rate: 1 / s`.
+
+## Consistent does not mean correct
+
+Dimensional checking can reject impossible additions such as time plus a
+dimensionless value. It cannot decide whether proportional decay is the right
+law, whether `rate` is constant, whether important fields are missing, or
+whether an initial value matches an experiment. Those are modeling and
+validation questions.
+
+Nondimensionalization is also more than deleting units. It introduces chosen
+characteristic scales and new dimensionless variables while preserving the
+relationship to the original quantities. Chapter 9 will develop that process;
+this chapter only establishes the dimensional bookkeeping it needs.
+
+## Exercises
+
+1. If $x$ has length dimension instead of being dimensionless, derive the
+   dimensions of `derivative(x)`, `rate`, and `rate * x`.
+2. Predict whether changing `field x: 1 = 1` to `field x: m = 1` while keeping
+   `rate: 1 / s` preserves consistency. Explain before checking the source.
+3. Create the deliberate failure above, run `eqiora check`, and identify the
+   two terms whose dimensions disagree. Restore the inverse-time declaration
+   and check again.
+4. Give an example of two dimensionally consistent equations that express
+   different physical assumptions. What observation could distinguish them?
+
+## Non-claims
+
+This chapter does not define a general unit-conversion system, prove that a
+dimensionally consistent model is physically true, run a numerical method, or
+publish expected numerical output. It covers only the declarations and
+compile-time dimensional relationship shown above.
+
+[Previous: Models are not simulations](/textbooks/mathematical-modeling/models-not-simulations/) ·
+[Back to the series map](/textbooks/mathematical-modeling/) ·
+[Look up the exact CLI interface](/reference/cli/)

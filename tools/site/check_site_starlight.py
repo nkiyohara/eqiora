@@ -111,6 +111,8 @@ STARLIGHT_ROUTES = {
     "/textbooks/fluid-mechanics-cfd/": "textbooks/fluid-mechanics-cfd/index.html",
     "/textbooks/heat-mass-transfer/": "textbooks/heat-mass-transfer/index.html",
     "/textbooks/mathematical-modeling/": "textbooks/mathematical-modeling/index.html",
+    "/textbooks/mathematical-modeling/models-not-simulations/": "textbooks/mathematical-modeling/models-not-simulations/index.html",
+    "/textbooks/mathematical-modeling/quantities-dimensions-units/": "textbooks/mathematical-modeling/quantities-dimensions-units/index.html",
     "/textbooks/numerical-simulation/": "textbooks/numerical-simulation/index.html",
     "/textbooks/structural-mechanics-fem/": "textbooks/structural-mechanics-fem/index.html",
     "/404.html": "404.html",

@@ -1,0 +1,160 @@
+---
+title: 1. Models are not simulations
+description: Separate physical assumptions and mathematical relations from numerical realization, execution, and observation.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+<Aside type="note" title="Chapter status">
+  **Illustrative · source compiles · no simulation result.** The examples target
+  the current <ReleaseIdentity /> surface. This chapter checks the
+  model/realization boundary; it does not establish numerical accuracy,
+  stability, convergence, or physical validity.
+</Aside>
+
+## Why this distinction matters
+
+A simulation is one way to investigate a model. It is not the model itself.
+Keeping the two separate lets us ask two different questions:
+
+1. **What mathematical statement follows from our assumptions?**
+2. **How will a computer approximate and execute that statement?**
+
+If those questions are mixed, changing a time step can appear to change the
+physical meaning. In Eqiora, the boundary is explicit:
+
+- a **Model** names quantities and states typed relations;
+- a **Realization** selects numerical methods and execution policy;
+- a **Run** applies a realization to state and inputs; and
+- an **Observation** projects a result into values intended for interpretation.
+
+## Learning outcomes
+
+After this chapter, you should be able to:
+
+- classify a statement as model meaning, realization policy, run input, or observation;
+- explain why an initial value can belong to a model while an output time does not;
+- compile a readable `.eqi` model without choosing a solver; and
+- diagnose a solver choice that has leaked into model source.
+
+## From phenomenon to relation
+
+Suppose a dimensionless quantity $x$ decreases at a rate proportional to its
+current value. We choose these assumptions:
+
+- $x$ is the only changing quantity;
+- the proportionality factor $k$ is constant and has inverse-time dimension;
+- time is continuous; and
+- the initial value of $x$ is one.
+
+Those assumptions produce the residual relation
+
+$$
+\frac{\mathrm{d}x}{\mathrm{d}t} + kx = 0.
+$$
+
+Writing the relation as a residual equal to zero states mathematical meaning
+without naming an integration method, tolerance, output schedule, processor,
+or file format.
+
+## Readable Eqiora source
+
+Save this as `decay.eqi`:
+
+```eqiora
+model decay {
+  field x: 1 = 1;
+  parameter rate: 1 / s = 1;
+
+  relation flow continuous {
+    derivative(x) + rate * x = 0;
+  }
+}
+```
+
+The declaration says that `x` is dimensionless and initially one, `rate` has
+inverse-seconds dimension, and `flow` is a continuous relation. It does not say
+which integrator to use or when to record output.
+
+With the [current installed release](/get-started/), compile the source from
+Python without resolving or running it:
+
+```python
+from pathlib import Path
+
+import eqiora
+
+source = Path("decay.eqi").read_text(encoding="utf-8")
+model = eqiora.compile(source=source, filename="decay.eqi")
+print(model.field_ids)
+```
+
+Successful compilation establishes that the source is accepted by the current
+language and semantic checker. It does not establish that the assumptions fit
+a particular physical system.
+
+## What belongs on each side
+
+| Decision | Boundary | Reason |
+| --- | --- | --- |
+| $x(0)=1$ | Model | It is part of the mathematical initial-value problem. |
+| $k$ has dimension $1/\mathrm{s}$ | Model | It makes the relation dimensionally meaningful. |
+| Adaptive versus fixed stepping | Realization | It selects an approximation policy. |
+| Stop at $t=2\,\mathrm{s}$ | Run | It is a request for one execution. |
+| Record $x$ at selected times | Run / Observation | It chooses what one execution returns and exposes. |
+| Plot color and line width | Presentation | They do not change the mathematical problem. |
+
+The boundary is useful precisely because several realizations may implement
+the same model. Agreement between them would require a separate, explicit
+comparison; this chapter makes no such comparison.
+
+## Observation boundary
+
+An observation answers a question about a completed Result; it does not add a
+new relation to the Model. Because this chapter stops at compilation, there is
+no Result to observe. The only reported outcome is whether the compiler accepts
+or rejects the source.
+
+## Deliberate failure: a method inside the model
+
+This mutation tries to name a numerical stepping policy as though it were a
+model quantity:
+
+```eqiora
+model decay {
+  field x: 1 = 1;
+  parameter rate: 1 / s = 1;
+  relation flow continuous {
+    derivative(x) + euler_step * rate * x = 0;
+  }
+}
+```
+
+`euler_step` is undeclared, so compilation must fail. Declaring it merely to
+silence the error would still encode a numerical choice in the wrong layer.
+The repair is to restore the method-neutral residual and choose stepping only
+when constructing a Realization.
+
+## Exercises
+
+1. Classify each item as Model, Realization, Run, Observation, or Presentation:
+   a material density, a linear-solver tolerance, an end time, a field sample,
+   and a plot title.
+2. Rewrite “simulate decay with 100 Euler steps” as one model statement and one
+   realization/run request.
+3. Add a comment to `decay.eqi` explaining why `rate` belongs in the Model but
+   an output interval does not. Confirm that comments do not prevent compilation.
+4. Name one modeling assumption that the source does not encode. Explain what
+   information would be needed before treating decay as a physical prediction.
+
+## Non-claims
+
+This chapter does not run the model, select or compare solvers, publish a
+numerical value, validate exponential decay against data, or claim that the
+model represents any particular experiment. Compilation is a language and
+semantic check, not scientific validation.
+
+[Back to the series map](/textbooks/mathematical-modeling/) ·
+[Next: Quantities, dimensions, and units](/textbooks/mathematical-modeling/quantities-dimensions-units/) ·
+[Read the modeling Docs](/python/modeling/)

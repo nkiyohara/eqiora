@@ -25,6 +25,10 @@ TEXTBOOK_SERIES = (
     ("numerical-simulation", "Numerical Simulation with Eqiora"),
     ("structural-mechanics-fem", "Structural Mechanics and the Finite Element Method"),
 )
+MODELING_FOUNDATION_CHAPTERS = (
+    ("models-not-simulations", "Models are not simulations"),
+    ("quantities-dimensions-units", "Quantities, dimensions, and units"),
+)
 STAGES = (
     ("problem-setup", "1", "Problem setup"),
     ("model-definition", "2", "Eqiora model definition"),
@@ -567,7 +571,12 @@ def check_starlight_content(
                 errors.append(f"capabilities landing omits {phrase!r}")
     if textbooks_value:
         textbooks = textbooks_value[1]
-        for phrase in ("Foundations", "Physics", "Advanced study", "0 executable chapters"):
+        for phrase in (
+            "Foundations",
+            "Physics",
+            "Advanced study",
+            "0 executable simulation chapters",
+        ):
             if phrase not in textbooks.visible_text:
                 errors.append(f"textbooks landing omits {phrase!r}")
         for slug, title in TEXTBOOK_SERIES:
@@ -579,9 +588,47 @@ def check_starlight_content(
         if not value:
             continue
         page = value[1]
-        for phrase in (title, "0 executable chapters", "Chapter map", "Publication boundary"):
+        chapter_count = (
+            "0 executable simulation chapters"
+            if slug == "mathematical-modeling"
+            else "0 executable chapters"
+        )
+        for phrase in (title, chapter_count, "Chapter map", "Publication boundary"):
             if phrase not in page.visible_text:
                 errors.append(f"textbook {title!r} omits {phrase!r}")
+        if slug == "mathematical-modeling":
+            for chapter_slug, chapter_title in MODELING_FOUNDATION_CHAPTERS:
+                destination = (
+                    f"/textbooks/mathematical-modeling/{chapter_slug}/",
+                    chapter_title,
+                )
+                if destination not in page.anchors:
+                    errors.append(
+                        f"textbook {title!r} omits published chapter {chapter_title!r}"
+                    )
+    for slug, title in MODELING_FOUNDATION_CHAPTERS:
+        value = inspections.get(
+            artifact / f"textbooks/mathematical-modeling/{slug}/index.html"
+        )
+        if not value:
+            continue
+        page = value[1]
+        for phrase in (
+            title,
+            "Illustrative",
+            "Learning outcomes",
+            "Observation boundary",
+            "Deliberate failure",
+            "Exercises",
+            "Non-claims",
+        ):
+            if phrase not in page.visible_text:
+                errors.append(f"textbook chapter {title!r} omits {phrase!r}")
+        if (
+            "/textbooks/mathematical-modeling/",
+            "Back to the series map",
+        ) not in page.anchors:
+            errors.append(f"textbook chapter {title!r} omits its series return route")
     if evidence_value:
         evidence = evidence_value[1]
         for phrase in (
