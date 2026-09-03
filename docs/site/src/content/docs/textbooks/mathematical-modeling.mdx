@@ -1,0 +1,66 @@
+---
+title: Mathematical Modeling with Eqiora
+description: Planned foundations series for translating phenomena and assumptions into typed mathematical models.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+This foundations series is for science and engineering students who know
+introductory calculus and linear algebra but may not yet distinguish a physical
+model from its numerical realization. It teaches how phenomena become typed
+relations before a discretization or solver is chosen.
+
+<Aside type="note" title="Publication status">
+  **Planned · 0 executable chapters · current <ReleaseIdentity />.** This page
+  commits the editorial map, not completed lessons or new capability claims.
+</Aside>
+
+## Prerequisites
+
+- algebra, introductory calculus, and linear algebra;
+- basic programming literacy; and
+- willingness to state assumptions, units, and missing relations explicitly.
+
+## Learning outcomes
+
+A reader should be able to identify systems, fields, unknowns, parameters,
+supports, ports, domains, and observables; state conservation, constitutive,
+compatibility, initial, boundary, interface, and event relations; check
+dimensions; distinguish mathematical meaning from realization policy; and
+diagnose underdetermined, overconstrained, inconsistent, or physically
+meaningless models before simulation.
+
+## Chapter map
+
+1. **Models are not simulations** — phenomenon, assumptions, mathematical meaning, realization, execution, and observation.
+2. **Quantities, dimensions, and units** — SI dimensions, derived dimensions, consistency, and nondimensional variables.
+3. **Algebraic relations and networks** — unknown counts, constraints, conservation, and acausal composition.
+4. **Ordinary differential equations** — state, initial conditions, decay, oscillation, and forcing.
+5. **Fields and spatial domains** — scalar and vector fields, support, gradients, divergence, flux, and integral balance.
+6. **Conservation laws** — storage, flux, source, and local versus integral statements.
+7. **Constitutive laws** — empirical and fundamental relations across transport, mechanics, and networks.
+8. **Boundary and interface conditions** — essential and natural meaning, continuity, and action/reaction.
+9. **Scaling and nondimensionalization** — characteristic scales and dimensionless groups without embedding solver choices.
+10. **Hierarchy and reusable components** — Components, parameters, bindings, occurrences, and model closure.
+11. **Events and hybrid meaning** — guards, resets, sampled behavior, and continuous behavior.
+12. **From Model to Result** — compile, inspect, resolve, run, observe, and state honest non-claims.
+
+## Intended lesson spine
+
+Small, hand-checkable problems will include a resistor network, RC decay,
+mass–spring oscillation, one-dimensional diffusion balance, hydrostatic
+pressure, Couette flow, axial-bar equilibrium, and a sampled controller. Each
+lesson will include a deliberate dimensional, relation, boundary, or sign error
+so diagnosis is taught alongside the successful path.
+
+## Publication boundary
+
+Most lessons are intended to be **Illustrative** or **Checked** through
+dimensional identities and closed-form relations. None is executable until its
+derivation, installed-release source, comparison, failure mode, exercises,
+accessibility, and explicit limitations ship together. This series is not an
+API manual, symbolic theorem prover, or promise of general equation coverage.
+
+[Return to all Textbooks](/textbooks/) · [Read product modeling Docs](/python/modeling/) ·
+[Look up exact interfaces](/reference/)

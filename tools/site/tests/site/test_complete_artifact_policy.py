@@ -117,6 +117,12 @@ ST_STARLIGHT_ROUTES = (
     "/reference/rust/",
     "/release-notes/",
     "/textbooks/",
+    "/textbooks/circuits-dynamics-hybrid/",
+    "/textbooks/fluid-mechanics-cfd/",
+    "/textbooks/heat-mass-transfer/",
+    "/textbooks/mathematical-modeling/",
+    "/textbooks/numerical-simulation/",
+    "/textbooks/structural-mechanics-fem/",
 )
 ABSENT_REFERENCES = (
     (

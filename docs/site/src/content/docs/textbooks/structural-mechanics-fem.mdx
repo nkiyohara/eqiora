@@ -1,0 +1,61 @@
+---
+title: Structural Mechanics and the Finite Element Method
+description: Planned structural-mechanics series from equilibrium and kinematics to bounded finite-element studies.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+This intermediate series is for readers with statics, calculus, linear algebra,
+and introductory continuum mechanics. It connects free-body reasoning,
+kinematics, constitutive laws, and weak forms to interpretable finite-element
+results.
+
+<Aside type="note" title="Publication status">
+  **Planned · 0 executable chapters · current <ReleaseIdentity />.** The chapter
+  sequence names intended consumers of shared mechanics; it adds no solver or
+  material capability.
+</Aside>
+
+## Learning outcomes
+
+A reader should be able to state equilibrium, compatibility, kinematics,
+constitutive assumptions, supports, and loads; derive weak and energy forms;
+choose a bounded element and integration policy; interpret displacement,
+strain, stress, reactions, and energy; and recognise locking, singularities,
+instability, and mesh-dependent conclusions.
+
+## Chapter map
+
+1. **Forces, equilibrium, and energy** — sign conventions, reactions, virtual work, and units.
+2. **Axial springs and bars** — exact displacement, reaction, and strain energy.
+3. **Beam kinematics and boundaries** — cantilever, simply supported, and fixed–fixed behaviour.
+4. **Continuum stress and strain** — small-strain tensors, traction, and constitutive assumptions.
+5. **Weak forms and finite elements** — trial/test spaces, interpolation, quadrature, assembly, and constraints.
+6. **Element completeness** — constant-strain patches, rigid motion, and orientation failures.
+7. **Two-dimensional elasticity** — plane assumptions, mixed boundaries, reactions, and field observations.
+8. **Stress concentration and singularity** — Kirsch and re-entrant-domain lessons and honest pointwise limits.
+9. **Mesh distortion and locking** — bending-dominated and nearly incompressible response.
+10. **Mass, damping, and vibration** — modes, transient response, resonance, and energy.
+11. **Buckling and nonlinear paths** — stability, imperfections, large rotation, and path dependence.
+12. **Contact and inequality constraints** — pressure, active sets, and mesh sensitivity.
+13. **Verification of structural results** — patch, balance, energy, and refinement studies.
+14. **Advanced structures** — bounded outlooks on shells, fracture, and collapse.
+
+## Intended lesson spine
+
+The initial sequence will use exact axial bars and beams, a constant-strain
+patch, bounded two-dimensional continuum elasticity, a singular domain, and a
+dynamic example. Every lesson separates deformation magnification and stress
+recovery as presentation or derived choices.
+
+## Publication boundary
+
+The current [mixed-boundary elasticity Gallery page](/gallery/mixed-boundary-elasticity/)
+presents one bounded verified path. It does not establish general materials,
+nonlinear or finite-strain mechanics, arbitrary meshes, contact, dynamics, or
+production solver behaviour. Lessons will consume reusable product paths rather
+than introduce case-named assemblers or runners.
+
+[Return to all Textbooks](/textbooks/) · [Open the elasticity walkthrough](/gallery/mixed-boundary-elasticity/) ·
+[Read exact API Reference](/reference/)
