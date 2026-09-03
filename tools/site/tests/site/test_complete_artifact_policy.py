@@ -67,19 +67,12 @@ STAGES = (
     ("mesh-and-boundaries", "3", "Mesh and boundaries"),
     ("submit-and-result", "4", "Submit and result"),
     ("pressure-visualization", "5", "Pressure visualization"),
-    ("verified-boundary", "6", "Verified and not claimed"),
+    ("verified-boundary", "6", "Verification boundary"),
 )
 NONCLAIMS = (
-    "No arbitrary geometry or provider selection.",
-    "No 3D, curved, boundary-layer, or adaptive meshing.",
-    "No mesh/PDE convergence.",
-    "No drag/lift coefficient, scaled or mesh-independent force, or DFG value.",
-    "No transient or Navier–Stokes behavior.",
-    "No vortex shedding.",
-    "No performance claim.",
-    "No cross-platform mesh-byte identity or byte-reproducible Result.",
-    "No pixel validation.",
-    "API presence is neither verification nor maturity.",
+    "This is a bounded 2D steady Stokes demonstration, not a transient-flow, convergence, force-coefficient, or performance benchmark.",
+    "The current geometry and meshing path do not generalize to arbitrary providers, 3D, curved, boundary-layer, or adaptive meshes.",
+    "Rendered values and pixels are illustrative output rather than validation data.",
 )
 ST_STARLIGHT_ROUTES = (
     "/",
