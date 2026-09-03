@@ -128,7 +128,7 @@ fn locked_store(source: &str) -> (Scratch, Vec<u8>, String) {
 }
 
 #[test]
-fn local_package_directory_resolves_and_compiles_a_model_through_python() -> PyResult<()> {
+fn local_package_project_locks_and_compiles_a_model_through_python() -> PyResult<()> {
     let scratch = Scratch::create();
     let package_root = scratch.0.join("root");
     let store_root = scratch.0.join("store");
@@ -152,19 +152,25 @@ fn local_package_directory_resolves_and_compiles_a_model_through_python() -> PyR
         "public model Main { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
     )
     .expect("write package source");
+    fs::write(
+        scratch.0.join("eqiora.toml"),
+        "schema = \"eqiora.project.v1\"\nroot = \"root\"\n\n[dependencies]\n\n[sources.root]\npath = \"root\"\n",
+    )
+    .expect("write project manifest");
 
     Python::initialize();
     Python::attach(|py| {
         let public = public_module(py)?;
         let locals = PyDict::new(py);
         locals.set_item("eqiora", public)?;
-        locals.set_item("root", package_root.to_string_lossy())?;
+        locals.set_item("project", scratch.0.to_string_lossy())?;
         locals.set_item("store", store_root.to_string_lossy())?;
         py.run(
             c_str!(
                 r#"
-resolution = eqiora.resolve_local_packages(root, [], store)
+resolution = eqiora.resolve_local_project(project, store)
 assert type(resolution) is bytes
+assert open(project + "/eqiora.lock", "rb").read() == resolution
 model = eqiora.compile_package(store, resolution, entry_model="Main")
 assert model.package_compilation_digest is not None
 assert len(model.parameter_ids) == 1

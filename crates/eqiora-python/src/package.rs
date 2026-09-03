@@ -46,41 +46,19 @@ enum CompilePackageFailure {
     Diagnostics(Vec<Diagnostic>),
 }
 
-/// Resolve exact package sources from explicit local directories into one store.
+/// Resolve and lock one local package project into one store.
 #[pyfunction]
-fn resolve_local_packages(
+fn resolve_local_project(
     py: Python<'_>,
-    root: &Bound<'_, PyAny>,
-    dependencies: &Bound<'_, PyAny>,
+    project_root: &Bound<'_, PyAny>,
     store_root: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyBytes>> {
     panic_boundary(py, || {
-        let root = unicode_store_root(py, root)?;
+        let project_root = unicode_store_root(py, project_root)?;
         let store_root = unicode_store_root(py, store_root)?;
-        let mut dependency_roots = Vec::new();
-        for value in dependencies.try_iter()? {
-            if dependency_roots.len() == PackagedModelDocument::MAX_LOCAL_PACKAGE_DIRECTORIES_V1 - 1
-            {
-                return Err(compatibility_error(
-                    py,
-                    &[Diagnostic::error(
-                        codes::INVALID_ARTIFACT,
-                        format!(
-                            "local package closure exceeds the {} directory limit",
-                            PackagedModelDocument::MAX_LOCAL_PACKAGE_DIRECTORIES_V1
-                        ),
-                    )],
-                ));
-            }
-            dependency_roots.push(unicode_store_root(py, &value?)?);
-        }
         let resolution = py
             .detach(move || {
-                PackagedModelDocument::resolve_local_package_directories_v1(
-                    root,
-                    dependency_roots,
-                    store_root,
-                )
+                PackagedModelDocument::resolve_local_package_project_v1(project_root, store_root)
             })
             .map_err(|error| {
                 compatibility_error(
@@ -458,7 +436,7 @@ fn compatibility_failure(message: impl Into<String>) -> CompilePackageFailure {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(resolve_local_packages, module)?)?;
+    module.add_function(wrap_pyfunction!(resolve_local_project, module)?)?;
     module.add_function(wrap_pyfunction!(compile_package, module)?)?;
     module.add_function(wrap_pyfunction!(check_package_conformance, module)?)?;
     Ok(())

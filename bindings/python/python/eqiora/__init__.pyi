@@ -1296,14 +1296,13 @@ def compile_package(
 
     ...
 
-def resolve_local_packages(
-    root: str | PathLike[str],
-    dependencies: Sequence[str | PathLike[str]],
+def resolve_local_project(
+    project_root: str | PathLike[str],
     store_root: str | PathLike[str],
 ) -> bytes:
-    """Resolve explicit local package directories into an exact offline store.
+    """Resolve a local package project, write ``eqiora.lock``, and populate a store.
 
-    Authority: ``crates/eqiora-python/src/package.rs::resolve_local_packages``.
+    Authority: ``crates/eqiora-python/src/package.rs::resolve_local_project``.
     """
 
     ...
@@ -1496,7 +1495,7 @@ __all__ = [
     "grad",
     "lang",
     "resolve",
-    "resolve_local_packages",
+    "resolve_local_project",
     "run",
     "submit",
     "through",

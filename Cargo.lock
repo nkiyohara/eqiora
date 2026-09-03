@@ -682,6 +682,8 @@ name = "eqiora-api"
 version = "0.1.0-alpha.7"
 dependencies = [
  "base64",
+ "cap-fs-ext",
+ "cap-std",
  "eqiora-artifact",
  "eqiora-assembly",
  "eqiora-backend-rayon",
@@ -707,6 +709,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "toml",
 ]
 
 [[package]]
