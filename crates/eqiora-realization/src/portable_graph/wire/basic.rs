@@ -714,9 +714,8 @@ impl WireConvectionScheme {
 }
 
 pub(super) fn encode_momentum_diagonal(value: PositiveMomentumDiagonal) -> &'static str {
-    #[allow(deprecated)]
     match value {
-        PositiveMomentumDiagonal::BackwardEulerMassAndLocalNewtonianV1 => {
+        PositiveMomentumDiagonal::BackwardEulerMassAndLocalNewtonian => {
             "backward-euler-mass-and-local-newtonian"
         }
     }
@@ -736,9 +735,8 @@ pub(super) fn decode_momentum_diagonal(
 }
 
 pub(super) fn encode_face_history(value: TransientFaceFluxHistory) -> &'static str {
-    #[allow(deprecated)]
     match value {
-        TransientFaceFluxHistory::Bdf1PreviousAcceptedV1 => "bdf1-previous-accepted",
+        TransientFaceFluxHistory::Bdf1PreviousAccepted => "bdf1-previous-accepted",
     }
 }
 

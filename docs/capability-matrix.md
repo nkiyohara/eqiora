@@ -1113,7 +1113,7 @@ every result remains immutable evidence tied to an exact model and realization.
 | Governance and RFC process | ✅ | ✅ | 🟨 | 🟨 | Present; community operation has not yet been exercised at scale |
 | Security policy | ✅ | ✅ | — | 🟨 | Present; release response history does not yet exist |
 | Contributor guide | ✅ | ✅ | 🟨 | 🟨 | Present; onboarding examples and public feedback remain |
-| API semantic-version policy | 🟨 | 🟨 | 🟨 | ⬜ | Alpha; deliberate pre-1.0 compatibility changes remain possible and are documented, with no stable-1.0 promise |
+| API semantic-version policy | 🟨 | 🟨 | 🟨 | ⬜ | Alpha; deliberate pre-1.0 compatibility changes remain possible and are documented, with no stable-1.0 promise. The current collocated-flow momentum-diagonal and face-history policies expose only their unsuffixed semantic variant names; the displaced `V1` variants and deprecated aliases are absent. |
 | Changelog discipline | ✅ | ✅ | 🟨 | 🟨 | Present; automated release linkage remains |
 | Release automation | ✅ | ✅ | 🟨 | ⬜ | The first Python alpha used an exact-commit candidate workflow, protected TestPyPI trusted publishing, uploaded-byte reacquisition and hash comparison, clean installed-artifact replay, authenticated candidate-run promotion, exact annotated-tag binding, protected PyPI trusted publishing, and a GitHub prerelease manifest. Repeated releases, signed attestations, automated GitHub release assembly, multiple platforms, and non-Python artifacts remain |
 | Reproducible builds | 🟨 | 🟨 | 🟨 | ⬜ | Locked dependencies exist; byte-reproducible cross-platform artifacts remain |
