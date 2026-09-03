@@ -529,6 +529,7 @@ pub struct AnalyzedResolvedHierarchy {
     pub(crate) units: Vec<AnalyzedSourceUnit>,
     pub(crate) aliases: Vec<ResolvedAlias>,
     canonical_declarations: Box<[CanonicalDeclarationIdentity]>,
+    declaration_locations: Box<[(String, TextRange)]>,
     property_bindings: Box<[crate::property::ResolvedPropertyBinding]>,
 }
 
@@ -537,6 +538,23 @@ impl AnalyzedResolvedHierarchy {
     #[must_use]
     pub const fn root(&self) -> &CompilationNamespaceId {
         self.root.owner()
+    }
+
+    /// Package-qualified source labels in resolved-graph order.
+    #[must_use]
+    pub fn resolved_source_files(&self) -> impl ExactSizeIterator<Item = &str> {
+        self.units.iter().map(|unit| unit.file.as_str())
+    }
+
+    /// Compiler-resolved top-level declarations and their definition locations.
+    #[must_use]
+    pub fn resolved_declarations(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (&CanonicalDeclarationIdentity, &str, TextRange)> {
+        self.canonical_declarations
+            .iter()
+            .zip(self.declaration_locations.iter())
+            .map(|(identity, (file, range))| (identity, file.as_str(), *range))
     }
 
     /// Read-only nominal property bindings retained through elaboration.
@@ -690,6 +708,7 @@ pub fn analyze_resolved_hierarchy(
         units,
         aliases,
         canonical_declarations: Box::new([]),
+        declaration_locations: Box::new([]),
         property_bindings: Box::new([]),
     };
     let canonical_units = analysis.units.clone();
@@ -710,6 +729,11 @@ pub fn analyze_resolved_hierarchy(
     analysis.canonical_declarations =
         collect_canonical_declarations(&canonical_units, &analysis.aliases, &mut diagnostics)
             .into_boxed_slice();
+    analysis.declaration_locations = declaration::collect_declaration_locations(
+        &canonical_units,
+        &analysis.canonical_declarations,
+    )
+    .into_boxed_slice();
     if diagnostics.is_empty() {
         Ok(analysis)
     } else {

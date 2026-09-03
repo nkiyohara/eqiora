@@ -1,6 +1,11 @@
-use eqiora_lang::VisibilitySyntax;
+use std::collections::BTreeMap;
 
-use super::{AnalyzedResolvedHierarchy, CompilationNamespaceId};
+use eqiora_lang::{TextRange, VisibilitySyntax};
+
+use super::{
+    AnalyzedResolvedHierarchy, AnalyzedSourceUnit, CompilationNamespaceId,
+    canonical_declaration_path,
+};
 
 impl AnalyzedResolvedHierarchy {
     /// Compiler-canonical declarations in `(namespace, path, kind)` order.
@@ -69,4 +74,73 @@ impl CanonicalDeclarationIdentity {
     pub fn canonical_form(&self) -> &str {
         &self.canonical_form
     }
+}
+
+pub(super) fn collect_declaration_locations(
+    units: &[AnalyzedSourceUnit],
+    declarations: &[CanonicalDeclarationIdentity],
+) -> Vec<(String, TextRange)> {
+    let mut locations = BTreeMap::new();
+    for unit in units {
+        let namespace = unit.module.owner();
+        let mut insert = |name: &str, kind, range| {
+            locations.insert(
+                (
+                    namespace.clone(),
+                    canonical_declaration_path(&unit.module, name),
+                    kind,
+                ),
+                (unit.file.clone(), range),
+            );
+        };
+        for (_, name, _, range) in unit.document.property_contract_syntax() {
+            insert(name, CanonicalDeclarationKind::PropertyContract, range);
+        }
+        for (_, name, _, _, _, _, _, _, range) in unit.document.property_release_syntax() {
+            insert(name, CanonicalDeclarationKind::PropertyRelease, range);
+        }
+        for (_, name, _, range) in unit.document.material_composition_syntax() {
+            insert(name, CanonicalDeclarationKind::MaterialComposition, range);
+        }
+        for declaration in unit.document.connectors() {
+            insert(
+                declaration.name(),
+                CanonicalDeclarationKind::Connector,
+                declaration.range(),
+            );
+        }
+        for declaration in unit.document.pure_operators() {
+            insert(
+                declaration.name(),
+                CanonicalDeclarationKind::PureOperator,
+                declaration.range(),
+            );
+        }
+        for declaration in unit.document.components() {
+            insert(
+                declaration.name(),
+                CanonicalDeclarationKind::Component,
+                declaration.range(),
+            );
+        }
+        for declaration in unit.document.models() {
+            insert(
+                declaration.name(),
+                CanonicalDeclarationKind::Model,
+                declaration.range(),
+            );
+        }
+    }
+    declarations
+        .iter()
+        .map(|declaration| {
+            locations
+                .remove(&(
+                    declaration.namespace().clone(),
+                    declaration.path().to_owned(),
+                    declaration.kind(),
+                ))
+                .expect("every canonical declaration retains its source location")
+        })
+        .collect()
 }
