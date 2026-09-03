@@ -141,12 +141,14 @@ impl PackagedModelDocument {
     }
 
     /// Resolve a locked package graph offline, verify source semantics, and
-    /// compile one package-local Model from the exact root.
+    /// compile one root-local or directly imported public Model.
     ///
     /// Resolution has no discovery, version selection, network, environment,
     /// or fallback path. Every source unit is analyzed and compared with its
     /// release's canonical semantic content before the selected root is
     /// elaborated or any graph transaction is committed.
+    /// `entry_model` is either a root-local name or exactly `alias.Model` for
+    /// one direct dependency declared by the root package.
     ///
     /// # Errors
     /// Returns the original resolver error, package contract error, complete

@@ -15,12 +15,11 @@ use crate::ast::{
     BoundarySetMemberSyntax, ClockDecl, ComponentItem, ComponentParameterDecl, ComponentPortDecl,
     ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorQuantitySyntax, ConnectorSyntax, DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr,
-    ExprKind, FieldBindingDecl, FieldDecl, FieldSlotDecl, InstanceDecl, Item, LetDecl, ModelDecl,
-    NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
-    PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax,
-    RationalSyntax, RelationDecl, RelationFamilyDecl, RepresentationDecl, RepresentationSyntax,
-    SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange, ValueShapeSyntax,
-    VisibilitySyntax,
+    ExprKind, FieldBindingDecl, FieldDecl, FieldSlotDecl, InstanceDecl, Item, LetDecl, NamePath,
+    ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, PureOperatorExpr,
+    PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RationalSyntax, RelationDecl,
+    RelationFamilyDecl, RepresentationDecl, RepresentationSyntax, SupportBindingDecl,
+    SupportSlotDecl, SupportSlotSyntax, TextRange, ValueShapeSyntax, VisibilitySyntax,
 };
 use domain_validation::validate_domain_syntax;
 
@@ -325,22 +324,6 @@ impl SourceAstFactory {
             support: checked_identifier(support, "Field-slot support")?,
             dimension,
             shape,
-            range: checked_range(range)?,
-        })
-    }
-
-    /// Construct one named flat model from already checked Item values.
-    ///
-    /// # Errors
-    /// Returns an error for an invalid source identifier or byte range.
-    pub fn model(
-        name: impl Into<String>,
-        items: Vec<Item>,
-        range: TextRange,
-    ) -> Result<ModelDecl, AstConstructionError> {
-        Ok(ModelDecl {
-            name: checked_identifier(name, "model")?,
-            items,
             range: checked_range(range)?,
         })
     }
@@ -1290,6 +1273,10 @@ mod tests {
         NamePath::from_segments(segments.iter().copied(), range(0, 0)).expect("path")
     }
 
+    fn private_model(name: &str, items: Vec<Item>) -> crate::ModelDecl {
+        SourceAstFactory::model(VisibilitySyntax::Private, name, items, range(0, 0)).expect("model")
+    }
+
     #[test]
     fn owned_flat_model_formats_and_parses_identically() {
         let domain = SourceAstFactory::domain(
@@ -1370,6 +1357,7 @@ mod tests {
             SourceAstFactory::instance("nested", path(&["Reusable"]), vec![binding], range(0, 0))
                 .expect("instance");
         let model = SourceAstFactory::model(
+            VisibilitySyntax::Private,
             "constructed",
             vec![
                 Item::Domain(domain),
@@ -1543,8 +1531,7 @@ mod tests {
             range(0, 0),
         )
         .expect("support-aware instance");
-        let model = SourceAstFactory::model("coupled", vec![Item::Instance(instance)], range(0, 0))
-            .expect("model");
+        let model = private_model("coupled", vec![Item::Instance(instance)]);
         let document =
             SourceAstFactory::document(vec![], vec![component], vec![model]).expect("document");
 
@@ -1603,8 +1590,7 @@ mod tests {
             range(0, 0),
         )
         .expect("slot-aware instance");
-        let model = SourceAstFactory::model("coupled", vec![Item::Instance(instance)], range(0, 0))
-            .expect("model");
+        let model = private_model("coupled", vec![Item::Instance(instance)]);
         let document =
             SourceAstFactory::document(vec![], vec![component], vec![model]).expect("document");
 
@@ -1737,6 +1723,7 @@ mod tests {
         )
         .expect("field-physical Port");
         let model = SourceAstFactory::model(
+            VisibilitySyntax::Private,
             "coupled",
             vec![Item::Field(field), Item::Port(port)],
             range(0, 0),
@@ -1879,8 +1866,7 @@ mod tests {
             range(0, 0),
         )
         .expect("family-aware instance");
-        let model = SourceAstFactory::model("coupled", vec![Item::Instance(instance)], range(0, 0))
-            .expect("model");
+        let model = private_model("coupled", vec![Item::Instance(instance)]);
         let document =
             SourceAstFactory::document(Vec::new(), vec![component], vec![model]).expect("document");
 

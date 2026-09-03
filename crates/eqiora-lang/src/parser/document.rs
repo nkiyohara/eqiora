@@ -1,5 +1,5 @@
 use crate::ast::document::{ImportDecl, ModuleDecl};
-use crate::ast::{DimensionDecl, Document, TextRange, VisibilitySyntax};
+use crate::ast::{DimensionDecl, Document, ModelDecl, TextRange, VisibilitySyntax};
 use crate::lexer::TokenKind;
 
 use super::Parser;
@@ -136,14 +136,8 @@ impl Parser<'_> {
                 module_prefix_closed = true;
                 import_prefix_closed = true;
                 declarations_started = true;
-                if let Some((VisibilitySyntax::Public, token)) = &modifier {
-                    self.error_token(
-                        token,
-                        "`model` declarations are package-local and cannot be public in v1",
-                    );
-                }
                 models_started = true;
-                if let Some(model) = self.parse_model() {
+                if let Some(model) = self.parse_model(declaration_start, visibility) {
                     models.push(model);
                 } else {
                     self.recover_top_level();
@@ -179,6 +173,33 @@ impl Parser<'_> {
             components,
             pure_operators,
             models,
+        })
+    }
+
+    pub(super) fn parse_model(
+        &mut self,
+        declaration_start: u32,
+        visibility: VisibilitySyntax,
+    ) -> Option<ModelDecl> {
+        self.expect_keyword("model")?;
+        let name = self.expect_identifier("model name")?.text().to_owned();
+        self.expect(TokenKind::LeftBrace, "`{` after model name")?;
+        let mut items = Vec::new();
+        while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
+            match self.parse_item() {
+                Some(item) => items.push(item),
+                None => self.recover_item(),
+            }
+        }
+        let end = self
+            .expect(TokenKind::RightBrace, "`}` to close model")?
+            .range()
+            .end();
+        Some(ModelDecl {
+            visibility,
+            name,
+            items,
+            range: TextRange::new(declaration_start, end),
         })
     }
 

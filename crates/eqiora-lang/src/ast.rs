@@ -6,7 +6,7 @@ pub(crate) mod formulation;
 
 pub(crate) use compile_time::DimensionDecl;
 pub use compile_time::{LetDecl, ParameterDecl};
-pub use document::Document;
+pub use document::{Document, ModelDecl};
 
 use crate::ast_property::{ComponentPropertyDecl, PropertyBindingDecl};
 use formulation::FormulationDecl;
@@ -734,34 +734,6 @@ pub enum ComponentItem {
     BoundaryConnection(BoundaryConnectionDecl),
     /// Private nested component instance.
     Instance(InstanceDecl),
-}
-
-/// A named model and its declarations.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ModelDecl {
-    pub(crate) name: String,
-    pub(crate) items: Vec<Item>,
-    pub(crate) range: TextRange,
-}
-
-impl ModelDecl {
-    /// Source name.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Declarations in source order.
-    #[must_use]
-    pub fn items(&self) -> &[Item] {
-        &self.items
-    }
-
-    /// Full model declaration range.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
 }
 
 /// Model-level declaration.

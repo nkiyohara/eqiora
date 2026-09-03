@@ -13,6 +13,7 @@ mod dimension;
 mod domain;
 pub(crate) mod formulation;
 mod instance;
+mod model;
 mod property;
 mod visibility;
 
@@ -24,8 +25,8 @@ use eqiora_lang::{
     BoundarySideSyntax, CartesianCoordinateSyntax, ClockDecl, ComponentDecl, ComponentItem,
     ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
     ConnectionSyntax, ConnectorDecl, ConnectorSyntax, Document, DomainDecl, DomainSyntax, Expr,
-    ExprKind, FieldDecl, FieldSlotDecl, FrameSyntax, Item, ModelDecl, NamePath, ParameterDecl,
-    PortDecl, PortSyntax, PureOperatorDecl, RelationDecl, RelationFamilyDecl, RepresentationDecl,
+    ExprKind, FieldDecl, FieldSlotDecl, FrameSyntax, Item, NamePath, ParameterDecl, PortDecl,
+    PortSyntax, PureOperatorDecl, RelationDecl, RelationFamilyDecl, RepresentationDecl,
     RepresentationSyntax, SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, TextRange,
     UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
@@ -42,6 +43,7 @@ use compile_time::{encode_let, encode_parameter};
 use dimension::encode_dimensions;
 use domain::encode_domain;
 use instance::encode_instance;
+use model::encode_model;
 use property::{encode_property_contract, encode_property_release};
 use visibility::encode_visibility;
 
@@ -379,33 +381,9 @@ fn encode_component_property(
     encoder.finish()
 }
 
-fn encode_model(declaration: &ModelDecl, budget: &mut Budget) -> Result<Vec<u8>, Diagnostic> {
-    budget.account_members(declaration.items().len(), "model")?;
-    let members = encode_container_records(
-        declaration.items(),
-        budget,
-        model_connection,
-        encode_model_item,
-        MODEL_CONNECTION_ITEM_TAG,
-    )?;
-    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
-    encoder.field(1, |encoder| {
-        encode_name(encoder, declaration.name(), budget)
-    })?;
-    encoder.field(2, |encoder| encoder.records(&members))?;
-    encoder.finish()
-}
-
 fn component_connection(item: &ComponentItem) -> Option<&ConnectionDecl> {
     match item {
         ComponentItem::Connection(declaration) => Some(declaration),
-        _ => None,
-    }
-}
-
-fn model_connection(item: &Item) -> Option<&ConnectionDecl> {
-    match item {
-        Item::Connection(declaration) => Some(declaration),
         _ => None,
     }
 }
@@ -1999,7 +1977,7 @@ model M {
         let model_normalized = encode_container_records(
             document.models()[0].items(),
             &mut model_normalized_budget,
-            model_connection,
+            model::model_connection,
             encode_model_item,
             MODEL_CONNECTION_ITEM_TAG,
         )
@@ -2091,6 +2069,12 @@ model M {
         assert_ne!(identity(private), identity(public_connector));
         assert_ne!(identity(private), identity(public_component));
         assert_ne!(identity(public_connector), identity(public_component));
+
+        let private_model = "model Main {}";
+        let explicit_private_model = "private model Main {}";
+        let public_model = "public model Main {}";
+        assert_eq!(identity(private_model), identity(explicit_private_model));
+        assert_ne!(identity(private_model), identity(public_model));
 
         let formatted = format(&document(public_connector));
         assert_eq!(

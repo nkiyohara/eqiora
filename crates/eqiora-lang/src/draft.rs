@@ -10,15 +10,14 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::sync::Arc;
 
-use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DimExponents, GraphPath};
-
 use crate::ast::{
     ActivationSyntax, BinaryOp, ConnectionDecl, ConnectionSyntax, DomainDecl, DomainSyntax, Expr,
     ExprKind, FieldDecl, Item, ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax,
-    RelationDecl, RepresentationDecl, RepresentationSyntax, TextRange, UnaryOp,
+    RelationDecl, RepresentationDecl, RepresentationSyntax, TextRange, UnaryOp, VisibilitySyntax,
 };
 use crate::draft_spatial::{DraftRepresentation, DraftSpatialDomain, DraftSpatialDomainKind};
+use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, DimExponents, GraphPath};
 
 /// One immutable native model definition request.
 #[derive(Debug, Clone)]
@@ -476,6 +475,7 @@ impl ModelDraft {
         let range = ranges.allocate(&model_path, &mut paths);
         NativeModelAst {
             model: ModelDecl {
+                visibility: VisibilitySyntax::Private,
                 name: self.name.clone(),
                 items,
                 range,

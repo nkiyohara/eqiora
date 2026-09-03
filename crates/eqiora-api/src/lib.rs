@@ -106,7 +106,8 @@ impl ModelDocument {
     ///
     /// Every source import resolves inside `input`; this operation performs no
     /// filesystem discovery, package resolution, network access, or implicit
-    /// source inclusion.
+    /// source inclusion. `entry_model` is either root-local or exactly
+    /// `alias.Model` for one directly imported public Model.
     ///
     /// # Errors
     /// Returns graph, parser, visibility, type, lowering, or artifact
@@ -129,6 +130,8 @@ impl ModelDocument {
     /// change Model meaning. ASCII-case path collisions are rejected so one
     /// accepted inventory names the same files on case-sensitive and
     /// case-insensitive hosts.
+    /// `entry_model` is either root-local or exactly `alias.Model` for one
+    /// directly imported public Model.
     ///
     /// This operation performs no filesystem discovery, package resolution,
     /// network access, or implicit source inclusion. Callers must supply the
@@ -572,6 +575,44 @@ public component Resistor {
         assert_eq!(
             original.canonical_json().unwrap(),
             reordered_and_relocated.canonical_json().unwrap()
+        );
+    }
+
+    #[test]
+    fn project_sources_compile_a_directly_imported_public_model() {
+        let imported = ModelDocument::compile_project_sources(
+            "models.main",
+            [
+                (
+                    "src/main.eqi",
+                    "module models.main; import library.entries as lib; model Local {}",
+                ),
+                (
+                    "src/library.eqi",
+                    "module library.entries; public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+                ),
+            ],
+            "lib.Shared",
+        )
+        .expect("directly imported public Model compiles");
+        assert!(imported.aliases().contains_key("law"));
+
+        let diagnostics = ModelDocument::compile_project_sources(
+            "models.main",
+            [
+                (
+                    "src/main.eqi",
+                    "module models.main; import library.entries as lib; model Local {}",
+                ),
+                ("src/library.eqi", "module library.entries; model Hidden {}"),
+            ],
+            "lib.Hidden",
+        )
+        .expect_err("private imported Model fails closed");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message().contains("private Model"))
         );
     }
 

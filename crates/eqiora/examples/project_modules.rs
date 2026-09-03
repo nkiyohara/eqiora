@@ -14,7 +14,7 @@ fn compile() -> ModelDocument {
             ("src/main.eqi", MAIN),
             ("src/library/resistor.eqi", RESISTOR),
         ],
-        "Main",
+        "circuit.ResistorCheck",
     )
     .expect("the checked-in project source closure compiles")
 }
@@ -23,7 +23,7 @@ fn compile() -> ModelDocument {
 fn compile() -> ModelDocument {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/modules/resistor-project");
-    ModelDocument::compile_project_directory(root, "models.main", "Main")
+    ModelDocument::compile_project_directory(root, "models.main", "circuit.ResistorCheck")
         .expect("the discovered project source closure compiles")
 }
 

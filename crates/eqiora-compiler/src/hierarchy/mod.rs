@@ -354,8 +354,13 @@ fn compile_external_component_from_definition<'a>(
     )
     .map_err(|error| vec![hierarchy_error(error.message())])?;
     root_items.push(Item::Instance(instance));
-    let root = SourceAstFactory::model(binding.model(), root_items, range)
-        .map_err(|error| vec![hierarchy_error(error.message())])?;
+    let root = SourceAstFactory::model(
+        eqiora_lang::VisibilitySyntax::Private,
+        binding.model(),
+        root_items,
+        range,
+    )
+    .map_err(|error| vec![hierarchy_error(error.message())])?;
     let model = preflight::ModelDefinition {
         namespace: component.namespace.clone(),
         file,
@@ -579,12 +584,9 @@ pub(crate) fn compile_resolved_hierarchy(
     limits: HierarchyLimits,
 ) -> Result<CompiledModel, Vec<Diagnostic>> {
     let elaborator = Elaborator::new_resolved(analysis, limits)?;
-    let root = elaborator.root_model(model).ok_or_else(|| {
-        vec![hierarchy_error(format!(
-            "root namespace `{}` has no package-local Model `{model}`",
-            analysis.root
-        ))]
-    })?;
+    let root = elaborator
+        .entry_model(model)
+        .map_err(|message| vec![hierarchy_error(message)])?;
     let size = checked_model_expansion_size(checked, &root)?;
     RootExpansion::new(&elaborator, root, size)
         .map_err(|error| vec![error])?

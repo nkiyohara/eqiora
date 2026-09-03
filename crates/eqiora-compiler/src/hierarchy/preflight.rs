@@ -270,13 +270,37 @@ impl<'a> Elaborator<'a> {
         }
     }
 
-    pub(super) fn root_model(&self, name: &str) -> Option<ModelDefinition<'a>> {
-        self.models
+    pub(super) fn entry_model(&self, path: &str) -> Result<ModelDefinition<'a>, String> {
+        let (namespace, name, imported) = match path.split_once('.') {
+            None if !path.is_empty() => (self.root_namespace.clone(), path, false),
+            Some((alias, name)) if !alias.is_empty() && !name.is_empty() && !name.contains('.') => {
+                let target = self
+                    .aliases
+                    .get(&(self.root_namespace.clone(), alias.to_owned()))
+                    .ok_or_else(|| {
+                        format!("unknown direct module alias `{alias}` in entry Model `{path}`")
+                    })?;
+                (target.clone(), name, true)
+            }
+            _ => {
+                return Err(format!(
+                    "entry Model `{path}` must be a root-local name or one direct alias-qualified name"
+                ));
+            }
+        };
+        let definition = self
+            .models
             .get(&DefinitionKey {
-                namespace: self.root_namespace.clone(),
+                namespace,
                 name: name.to_owned(),
             })
             .cloned()
+            .ok_or_else(|| format!("unresolved entry Model `{path}`"))?;
+        if imported && definition.declaration.visibility() != eqiora_lang::VisibilitySyntax::Public
+        {
+            return Err(format!("private Model `{path}` cannot be imported"));
+        }
+        Ok(definition)
     }
 
     pub(super) fn local_model(&self, model: &'a ModelDecl) -> ModelDefinition<'a> {

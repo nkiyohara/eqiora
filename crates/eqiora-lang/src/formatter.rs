@@ -81,6 +81,9 @@ pub fn format(document: &Document) -> String {
     }
     for model in &document.models {
         separate_declaration(&mut output, &mut declaration_count);
+        if model.visibility == VisibilitySyntax::Public {
+            output.push_str("public ");
+        }
         writeln!(output, "model {} {{", model.name).expect("String writes cannot fail");
         for item in &model.items {
             format_item(item, 2, &mut output);
@@ -196,9 +199,7 @@ fn pure_operator_expression_precedence(expression: &PureOperatorExpr) -> u8 {
 }
 
 fn separate_declaration(output: &mut String, declaration_count: &mut usize) {
-    if *declaration_count != 0 {
-        output.push('\n');
-    }
+    output.push_str(if *declaration_count == 0 { "" } else { "\n" });
     *declaration_count += 1;
 }
 
@@ -814,7 +815,6 @@ connect conserving r2.positive,r4.positive;
         let second = parse("component.eqi", &formatted)
             .into_document()
             .expect("formatted component source parses");
-
         assert_eq!(format(&second), formatted);
         assert!(formatted.contains("connector Pin = scalar_physical"));
         assert!(formatted.contains("instance inner: Library.Resistor(resistance = resistance);"));
