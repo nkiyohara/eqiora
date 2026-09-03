@@ -41,6 +41,18 @@ NONCLAIMS = (
     "The current geometry and meshing path do not generalize to arbitrary providers, 3D, curved, boundary-layer, or adaptive meshes.",
     "Rendered values and pixels are illustrative output rather than validation data.",
 )
+LEGACY_NONCLAIMS = (
+    "No arbitrary geometry or provider selection.",
+    "No 3D, curved, boundary-layer, or adaptive meshing.",
+    "No mesh/PDE convergence.",
+    "No drag/lift coefficient, scaled or mesh-independent force, or DFG value.",
+    "No transient or Navier–Stokes behavior.",
+    "No vortex shedding.",
+    "No performance claim.",
+    "No cross-platform mesh-byte identity or byte-reproducible Result.",
+    "No pixel validation.",
+    "API presence is neither verification nor maturity.",
+)
 SITE_ROUTES = (
     "/",
     "/api/",
@@ -619,7 +631,8 @@ def _exact_links() -> str:
 
 
 def _case_body() -> str:
-    nonclaims = " ".join(NONCLAIMS)
+    # The synthetic artifact exercises both the current and legacy HTML-shape readers.
+    nonclaims = " ".join((*NONCLAIMS, *LEGACY_NONCLAIMS))
     return f"""<h1>Exact-cylinder steady Stokes</h1>
 <p>Static walkthrough · canonical Python source available</p>
 <p>{"one" + PUBLIC_CLAIM[3:]}</p>
@@ -710,10 +723,10 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/textbooks/fluid-mechanics-cfd/": "<h1>Fluid Mechanics and Computational Fluid Dynamics</h1><p>Planned 0 executable chapters</p><h2>Chapter map</h2><h2>Publication boundary</h2>",
         "/textbooks/heat-mass-transfer/": "<h1>Heat and Mass Transfer</h1><p>Planned 0 executable chapters</p><h2>Chapter map</h2><h2>Publication boundary</h2>",
         "/textbooks/mathematical-modeling/": "<h1>Mathematical Modeling with Eqiora</h1><p>In progress 1 executable simulation chapter</p><h2>Chapter map</h2><a href=\"/textbooks/mathematical-modeling/models-not-simulations/\">Models are not simulations</a><a href=\"/textbooks/mathematical-modeling/quantities-dimensions-units/\">Quantities, dimensions, and units</a><a href=\"/textbooks/mathematical-modeling/algebraic-relations-networks/\">Algebraic relations and networks</a><a href=\"/textbooks/mathematical-modeling/ordinary-differential-equations/\">Ordinary differential equations</a><h2>Publication boundary</h2>",
-        "/textbooks/mathematical-modeling/algebraic-relations-networks/": "<h1>Algebraic relations and networks</h1><p>Illustrative</p><h2>Learning outcomes</h2><h2>Observation boundary</h2><h2>Deliberate failure</h2><h2>Exercises</h2><h2>Non-claims</h2><a href=\"/textbooks/mathematical-modeling/\">Back to the series map</a>",
-        "/textbooks/mathematical-modeling/models-not-simulations/": "<h1>Models are not simulations</h1><p>Illustrative</p><h2>Learning outcomes</h2><h2>Observation boundary</h2><h2>Deliberate failure</h2><h2>Exercises</h2><h2>Non-claims</h2><a href=\"/textbooks/mathematical-modeling/\">Back to the series map</a>",
-        "/textbooks/mathematical-modeling/ordinary-differential-equations/": "<h1>Ordinary differential equations</h1><p>Checked executable from the installed release</p><h2>Learning outcomes</h2><h2>Observation boundary</h2><h2>Deliberate failure</h2><h2>Exercises</h2><h2>Non-claims</h2><a href=\"/textbooks/mathematical-modeling/\">Back to the series map</a>",
-        "/textbooks/mathematical-modeling/quantities-dimensions-units/": "<h1>Quantities, dimensions, and units</h1><p>Illustrative</p><h2>Learning outcomes</h2><h2>Observation boundary</h2><h2>Deliberate failure</h2><h2>Exercises</h2><h2>Non-claims</h2><a href=\"/textbooks/mathematical-modeling/\">Back to the series map</a>",
+        "/textbooks/mathematical-modeling/algebraic-relations-networks/": "<h1>Algebraic relations and networks</h1><p>Illustrative</p><h2>Learning outcomes</h2><h2>Observation boundary</h2><h2>Deliberate failure</h2><h2>Exercises</h2><a href=\"/textbooks/mathematical-modeling/\">Back to the series map</a>",
+        "/textbooks/mathematical-modeling/models-not-simulations/": "<h1>Models are not simulations</h1><p>Illustrative</p><h2>Learning outcomes</h2><h2>Observation boundary</h2><h2>Deliberate failure</h2><h2>Exercises</h2><a href=\"/textbooks/mathematical-modeling/\">Back to the series map</a>",
+        "/textbooks/mathematical-modeling/ordinary-differential-equations/": "<h1>Ordinary differential equations</h1><p>Checked executable from the installed release</p><h2>Learning outcomes</h2><h2>Observation boundary</h2><h2>Deliberate failure</h2><h2>Exercises</h2><a href=\"/textbooks/mathematical-modeling/\">Back to the series map</a>",
+        "/textbooks/mathematical-modeling/quantities-dimensions-units/": "<h1>Quantities, dimensions, and units</h1><p>Illustrative</p><h2>Learning outcomes</h2><h2>Observation boundary</h2><h2>Deliberate failure</h2><h2>Exercises</h2><a href=\"/textbooks/mathematical-modeling/\">Back to the series map</a>",
         "/textbooks/numerical-simulation/": "<h1>Numerical Simulation with Eqiora</h1><p>Planned 0 executable chapters</p><h2>Chapter map</h2><h2>Publication boundary</h2>",
         "/textbooks/structural-mechanics-fem/": "<h1>Structural Mechanics and the Finite Element Method</h1><p>Planned 0 executable chapters</p><h2>Chapter map</h2><h2>Publication boundary</h2>",
         "/404.html": "<h1>Page not found</h1>",
