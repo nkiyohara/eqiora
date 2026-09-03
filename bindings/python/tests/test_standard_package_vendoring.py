@@ -137,14 +137,14 @@ def test_standard_vendoring_rejects_changed_or_escaping_destinations(
     with pytest.raises(eqiora.CompatibilityError, match="destination is invalid"):
         eqiora.vendor_standard_package(
             tmp_path,
-            "Eqiora.Solid@0.1.0",
+            "Eqiora.Solid@0.2.0",
             destination="../outside",
         )
     assert not (tmp_path.parent / "outside").exists()
 
 
 def test_standard_solid_is_available_from_the_same_distribution(tmp_path: Path) -> None:
-    (solid,) = eqiora.vendor_standard_package(tmp_path, "Eqiora.Solid@0.1.0")
+    (solid,) = eqiora.vendor_standard_package(tmp_path, "Eqiora.Solid@0.2.0")
     assert solid.name == "Eqiora.Solid"
-    assert solid.version == "0.1.0"
+    assert solid.version == "0.2.0"
     assert (tmp_path / solid.path / "src/solid.eqi").is_file()

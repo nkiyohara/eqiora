@@ -21,7 +21,7 @@ pre-1.0 convergence policy; Colab remains the maintained hosted-notebook path.
 Typed material compositions now bind multiple exact property releases to an
 ordinary Component Law through the same `.eqi`, Python, package, and execution
 path. Standard Solid product tests use the composition for Young's modulus and
-Poisson's ratio.
+Poisson's ratio, and `Eqiora.Solid@0.2.0` exposes that composition directly.
 
 ## 0.1.0a6
 

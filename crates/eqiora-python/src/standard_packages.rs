@@ -110,14 +110,14 @@ fn standard_closure(
                     .map_err(|error| format!("bundled fluid package is invalid: {error}"))?;
             Ok(vec![(mechanics_sources, mechanics), (fluid_sources, fluid)])
         }
-        "Eqiora.Solid@0.1.0" => {
+        "Eqiora.Solid@0.2.0" => {
             let solid_sources = solid_sources()?;
             let solid = prepare_package_release_v1(solid_sources.clone(), &[])
                 .map_err(|error| format!("bundled solid package is invalid: {error}"))?;
             Ok(vec![(solid_sources, solid)])
         }
         _ => Err(format!(
-            "unsupported exact package {package:?}; expected Eqiora.Fluid@0.1.0 or Eqiora.Solid@0.1.0"
+            "unsupported exact package {package:?}; expected Eqiora.Fluid@0.1.0 or Eqiora.Solid@0.2.0"
         )),
     }
 }
@@ -182,17 +182,17 @@ fn fluid_sources() -> Result<AuthorPackageSourcesV1, String> {
 
 fn solid_sources() -> Result<AuthorPackageSourcesV1, String> {
     embedded_sources(
-        include_bytes!("../../../packages/releases/Eqiora.Solid/0.1.0/package.json"),
+        include_bytes!("../../../packages/releases/Eqiora.Solid/0.2.0/package.json"),
         &[
             (
                 "README.md",
                 BundleRoleV1::Documentation,
-                include_bytes!("../../../packages/releases/Eqiora.Solid/0.1.0/README.md"),
+                include_bytes!("../../../packages/releases/Eqiora.Solid/0.2.0/README.md"),
             ),
             (
                 "src/solid.eqi",
                 BundleRoleV1::ModelSource,
-                include_bytes!("../../../packages/releases/Eqiora.Solid/0.1.0/src/solid.eqi"),
+                include_bytes!("../../../packages/releases/Eqiora.Solid/0.2.0/src/solid.eqi"),
             ),
         ],
     )
