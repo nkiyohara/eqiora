@@ -131,7 +131,48 @@ complete instance binding. It is not arbitrary Python-to-Eqiora translation, a
 Python weak-form runtime, Geometry/mesh/Plan authoring, a package manifest or
 installer, evaluated/table/tensor properties, or a stable Python AST schema.
 
-## Compile one exact locked package Component
+## Resolve exact local package directories
+
+Python can prepare an exact offline closure from explicitly named local package
+directories. Each directory contains the existing bounded `package.json`
+author manifest and its inventoried sources:
+
+```python
+from pathlib import Path
+
+import eqiora
+
+store_root = Path("package-store")
+store_root.mkdir()
+resolution = eqiora.resolve_local_packages(
+    "packages/application",
+    ["../materials", "../components"],
+    store_root,
+)
+Path("resolution.canonical.json").write_bytes(resolution)
+
+model = eqiora.compile_package(
+    store_root,
+    resolution,
+    entry_model="materials.Calibration",
+)
+```
+
+The shared Rust owner reads every inventory through capability-rooted bounded
+I/O, prepares dependencies leaf-first through compiler-owned semantics, checks
+their derived semantic identities against the exact identities requested by
+their parents, rejects unrelated supplied directories, and atomically adds
+canonical releases to the explicit content-addressed store. Dependency input
+order does not change the returned canonical `ResolutionRecordV1` bytes.
+
+The store is a replaceable offline cache; the returned resolution bytes remain
+the authority. This boundary does not read or write `eqiora.toml` or
+`eqiora.lock`, select versions, traverse an ambient workspace, access Git or a
+network, or execute package code. Callers must explicitly supply the complete
+exact local closure. Project manifest/lockfile transactions and Git fetching
+remain later #774 boundaries.
+
+## Compile one exact locked package Model or Component
 
 Python can bind an existing content-addressed package's public Component to
 caller-owned Geometry and produce the same ordinary immutable `Model` used by
@@ -159,13 +200,14 @@ for binding in model.property_bindings:
     print(binding.validity, binding.citation, binding.license)
 ```
 
-The caller selects one explicit store directory, supplies the exact bytes from
-`ResolutionRecordV1.canonical_json()`, names one public Component in the root
-package, and owns its Geometry and parameter values. Rust verifies the complete
-locked closure, binds abstract support slots by exact Geometry selection name,
-and expands the same compiler-owned root occurrence used by definitions-only
-local source. Human-formatted, reordered, newline-terminated, duplicate-key,
-or store-mismatched resolution bytes fail closed. Missing or ambiguous support
+The caller selects one explicit store directory and supplies the exact bytes
+from `ResolutionRecordV1.canonical_json()`. Exactly one compile mode is selected:
+`entry_model=` names a root-local or directly imported public Model, while
+`geometry=` plus `component=` binds one root-package public Component to
+caller-owned Geometry and optional parameter values. Rust verifies the complete
+locked closure and uses the same compiler-owned graph in both modes.
+Human-formatted, reordered, newline-terminated, duplicate-key, or
+store-mismatched resolution bytes fail closed. Missing or ambiguous support
 bindings fail instead of matching Geometry by bounds, coordinates, or digest.
 
 `package_compilation_digest` is read-only lineage for the accepted compilation.
@@ -179,8 +221,8 @@ still carries Model/Geometry meaning but not the package sidecar, so replayed
 Models use the same resolver with `package_compilation_digest is None` and an
 empty `property_bindings` tuple. Package lineage persistence belongs to the
 symmetric Model artifact I/O work. This
-surface does not discover stores or lock files, author or install packages,
-access registries or networks, or add a Studio package workflow.
+surface does not discover stores or lock files, access registries or networks,
+or add a Studio package workflow.
 
 ## Check one exact package structurally
 

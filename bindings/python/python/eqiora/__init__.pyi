@@ -1284,13 +1284,26 @@ def compile_package(
     store_root: str | PathLike[str],
     resolution: bytes,
     *,
-    geometry: geometry.Geometry,
-    component: str,
+    entry_model: str | None = None,
+    geometry: geometry.Geometry | None = None,
+    component: str | None = None,
     parameters: dict[str, float | int] | None = None,
 ) -> Model:
-    """Compile one root-package Component against caller-owned Geometry.
+    """Compile one locked Model or one Component against caller-owned Geometry.
 
     Authority: ``crates/eqiora-python/src/package.rs::compile_package``.
+    """
+
+    ...
+
+def resolve_local_packages(
+    root: str | PathLike[str],
+    dependencies: Sequence[str | PathLike[str]],
+    store_root: str | PathLike[str],
+) -> bytes:
+    """Resolve explicit local package directories into an exact offline store.
+
+    Authority: ``crates/eqiora-python/src/package.rs::resolve_local_packages``.
     """
 
     ...
@@ -1483,6 +1496,7 @@ __all__ = [
     "grad",
     "lang",
     "resolve",
+    "resolve_local_packages",
     "run",
     "submit",
     "through",

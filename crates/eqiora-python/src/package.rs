@@ -9,6 +9,7 @@ use eqiora::artifact::ModelArtifactReference;
 use eqiora::diagnostic::codes;
 use eqiora::package::{DirectoryPackageStore, PackageCompilationRecordV2, ResolutionRecordV1};
 use pyo3::IntoPyObjectExt;
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyDict, PyModule, PyString, PyTuple};
 
@@ -45,34 +46,109 @@ enum CompilePackageFailure {
     Diagnostics(Vec<Diagnostic>),
 }
 
-/// Compile one root-package public Component against caller-owned Geometry.
+/// Resolve exact package sources from explicit local directories into one store.
 #[pyfunction]
-#[pyo3(signature = (store_root, resolution, *, geometry, component, parameters=None))]
+fn resolve_local_packages(
+    py: Python<'_>,
+    root: &Bound<'_, PyAny>,
+    dependencies: &Bound<'_, PyAny>,
+    store_root: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyBytes>> {
+    panic_boundary(py, || {
+        let root = unicode_store_root(py, root)?;
+        let store_root = unicode_store_root(py, store_root)?;
+        let mut dependency_roots = Vec::new();
+        for value in dependencies.try_iter()? {
+            if dependency_roots.len() == PackagedModelDocument::MAX_LOCAL_PACKAGE_DIRECTORIES_V1 - 1
+            {
+                return Err(compatibility_error(
+                    py,
+                    &[Diagnostic::error(
+                        codes::INVALID_ARTIFACT,
+                        format!(
+                            "local package closure exceeds the {} directory limit",
+                            PackagedModelDocument::MAX_LOCAL_PACKAGE_DIRECTORIES_V1
+                        ),
+                    )],
+                ));
+            }
+            dependency_roots.push(unicode_store_root(py, &value?)?);
+        }
+        let resolution = py
+            .detach(move || {
+                PackagedModelDocument::resolve_local_package_directories_v1(
+                    root,
+                    dependency_roots,
+                    store_root,
+                )
+            })
+            .map_err(|error| {
+                compatibility_error(
+                    py,
+                    &[Diagnostic::error(
+                        codes::INVALID_ARTIFACT,
+                        format!("local package resolution rejected: {error}"),
+                    )],
+                )
+            })?;
+        let bytes = resolution.canonical_json().map_err(|error| {
+            compatibility_error(
+                py,
+                &[Diagnostic::error(
+                    codes::INVALID_ARTIFACT,
+                    format!("local package resolution rejected: {error}"),
+                )],
+            )
+        })?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    })
+}
+
+/// Compile one root-local or imported Model, or one Geometry-bound Component.
+#[pyfunction]
+#[pyo3(signature = (store_root, resolution, *, entry_model=None, geometry=None, component=None, parameters=None))]
 fn compile_package(
     py: Python<'_>,
     store_root: &Bound<'_, PyAny>,
     resolution: &Bound<'_, PyAny>,
-    geometry: Py<PyGeometry>,
-    component: &str,
+    entry_model: Option<&str>,
+    geometry: Option<Py<PyGeometry>>,
+    component: Option<&str>,
     parameters: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<PyModel> {
     panic_boundary(py, || {
         let store_root = unicode_store_root(py, store_root)?;
         let resolution = resolution.cast::<PyBytes>()?.as_bytes().to_vec();
-        let native_geometry = geometry.borrow(py).geometry().clone();
-        let component = component.to_owned();
-        let parameter_values = extract_parameter_values(parameters)?;
-        let compiled = py.detach(move || {
-            compile_package_native(
-                store_root,
-                resolution,
-                component,
-                native_geometry,
-                parameter_values,
-            )
-        });
+        let compiled = match (entry_model, geometry.as_ref(), component) {
+            (Some(entry_model), None, None) if parameters.is_none() => {
+                let entry_model = entry_model.to_owned();
+                py.detach(move || compile_package_model_native(store_root, resolution, entry_model))
+            }
+            (None, Some(geometry), Some(component)) => {
+                let native_geometry = geometry.borrow(py).geometry().clone();
+                let component = component.to_owned();
+                let parameter_values = extract_parameter_values(parameters)?;
+                py.detach(move || {
+                    compile_package_component_native(
+                        store_root,
+                        resolution,
+                        component,
+                        native_geometry,
+                        parameter_values,
+                    )
+                })
+            }
+            _ => {
+                return Err(PyTypeError::new_err(
+                    "compile_package requires exactly entry_model=, or both geometry= and component=; parameters= is valid only with Geometry-bound Component compilation",
+                ));
+            }
+        };
         match compiled {
-            Ok(packaged) => PyModel::from_packaged_with_geometry(py, packaged, geometry),
+            Ok(packaged) => match geometry {
+                Some(geometry) => PyModel::from_packaged_with_geometry(py, packaged, geometry),
+                None => PyModel::from_packaged(py, packaged),
+            },
             Err(CompilePackageFailure::Compatibility(diagnostic)) => {
                 Err(compatibility_error(py, &[diagnostic]))
             }
@@ -89,25 +165,24 @@ fn unicode_store_root(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Path
     Ok(PathBuf::from(path))
 }
 
-fn compile_package_native(
+fn compile_package_model_native(
+    store_root: PathBuf,
+    resolution_bytes: Vec<u8>,
+    entry_model: String,
+) -> Result<PackagedModelDocument, CompilePackageFailure> {
+    let (store, resolution) = open_locked_package(store_root, resolution_bytes)?;
+    PackagedModelDocument::compile_locked(&store, &resolution, &entry_model)
+        .map_err(map_package_compilation_error)
+}
+
+fn compile_package_component_native(
     store_root: PathBuf,
     resolution_bytes: Vec<u8>,
     component: String,
     geometry: eqiora::geometry::CanonicalGeometryV1,
     parameters: Vec<(String, f64)>,
 ) -> Result<PackagedModelDocument, CompilePackageFailure> {
-    let store = DirectoryPackageStore::open_ambient(store_root)
-        .map_err(|error| compatibility_failure(format!("package store rejected: {error}")))?;
-    let resolution = ResolutionRecordV1::from_json(&resolution_bytes)
-        .map_err(|error| compatibility_failure(format!("resolution record rejected: {error}")))?;
-    let canonical = resolution
-        .canonical_json()
-        .map_err(|error| compatibility_failure(format!("resolution record rejected: {error}")))?;
-    if canonical != resolution_bytes {
-        return Err(compatibility_failure(
-            "resolution bytes are not the exact canonical ResolutionRecordV1 wire",
-        ));
-    }
+    let (store, resolution) = open_locked_package(store_root, resolution_bytes)?;
     let parameters = parameters
         .iter()
         .map(|(name, value)| (name.as_str(), *value))
@@ -120,6 +195,25 @@ fn compile_package_native(
         &parameters,
     )
     .map_err(map_package_compilation_error)
+}
+
+fn open_locked_package(
+    store_root: PathBuf,
+    resolution_bytes: Vec<u8>,
+) -> Result<(DirectoryPackageStore, ResolutionRecordV1), CompilePackageFailure> {
+    let store = DirectoryPackageStore::open_ambient(store_root)
+        .map_err(|error| compatibility_failure(format!("package store rejected: {error}")))?;
+    let resolution = ResolutionRecordV1::from_json(&resolution_bytes)
+        .map_err(|error| compatibility_failure(format!("resolution record rejected: {error}")))?;
+    let canonical = resolution
+        .canonical_json()
+        .map_err(|error| compatibility_failure(format!("resolution record rejected: {error}")))?;
+    if canonical != resolution_bytes {
+        return Err(compatibility_failure(
+            "resolution bytes are not the exact canonical ResolutionRecordV1 wire",
+        ));
+    }
+    Ok((store, resolution))
 }
 
 /// Check one exact locked package closure through deterministic replay.
@@ -364,6 +458,7 @@ fn compatibility_failure(message: impl Into<String>) -> CompilePackageFailure {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(resolve_local_packages, module)?)?;
     module.add_function(wrap_pyfunction!(compile_package, module)?)?;
     module.add_function(wrap_pyfunction!(check_package_conformance, module)?)?;
     Ok(())

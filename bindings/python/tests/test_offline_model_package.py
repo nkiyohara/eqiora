@@ -139,6 +139,7 @@ EXPECTED_EQIORA_ALL = [
     "grad",
     "lang",
     "resolve",
+    "resolve_local_packages",
     "run",
     "submit",
     "through",
