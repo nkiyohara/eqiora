@@ -33,6 +33,9 @@ pub use release_identity::VERSION;
 /// client adapters may apply their own admission and projection without
 /// redefining it.
 pub mod api {
+    pub use eqiora_api::editor::{
+        EditorPosition, EditorService, EditorSnapshot, EditorSymbol, EditorSymbolKind,
+    };
     pub use eqiora_api::package;
     pub use eqiora_api::{
         CadBoxIntentV1, CadBoxPlanV1, CadRegenerationPlanV1, CadRenderProjectionV1,
