@@ -1,0 +1,44 @@
+---
+import StarlightPageTitle from '@astrojs/starlight/components/PageTitle.astro';
+
+const isEvidenceCatalog = Astro.url.pathname === '/evidence/';
+---
+
+<StarlightPageTitle />
+
+{isEvidenceCatalog && (
+  <aside class="eq-catalog-guide" aria-labelledby="eq-catalog-guide-title">
+    <h2 id="eq-catalog-guide-title">How to read the technical catalog</h2>
+    <dl>
+      <div><dt>Case</dt><dd>The stable manifest identity that owns the registered case.</dd></div>
+      <div><dt>Status</dt><dd>The manifest lifecycle state, not general product maturity.</dd></div>
+      <div><dt>Reference</dt><dd>The named independent comparison or reference basis recorded by that case.</dd></div>
+      <div><dt>Conformance kit</dt><dd>A shared contract suite when the case participates in one; an em dash means none.</dd></div>
+      <div><dt>Target</dt><dd>The repository-owned command and, when required, environment that executes the case.</dd></div>
+    </dl>
+    <p>Start with <a href="/capabilities/">human-readable Capabilities</a>; use this catalog for claim IDs and case-level detail.</p>
+  </aside>
+)}
+
+<style>
+  .eq-catalog-guide {
+    margin-top: 1rem;
+    padding: var(--eq-space-4) var(--eq-space-6);
+    border: 1px solid var(--eq-color-border);
+    border-radius: var(--eq-radius-card);
+    background: var(--eq-color-surface-muted);
+  }
+  .eq-catalog-guide h2 { margin-top: 0; font-size: var(--eq-text-h4); }
+  .eq-catalog-guide dl { display: grid; gap: var(--eq-space-2); }
+  .eq-catalog-guide dl > div {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.25fr) minmax(0, 1fr);
+    gap: var(--eq-space-3);
+  }
+  .eq-catalog-guide dt { font-weight: 650; }
+  .eq-catalog-guide dd { margin: 0; }
+  @media (max-width: 32rem) {
+    .eq-catalog-guide { padding: var(--eq-space-4); }
+    .eq-catalog-guide dl > div { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>

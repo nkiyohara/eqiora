@@ -9,4 +9,38 @@ import StarlightSearch from '@astrojs/starlight/components/Search.astro';
     const label = control.getAttribute('aria-label')?.trim();
     if (label) control.setAttribute('title', label);
   }
+
+  const contentTypeFor = (value) => {
+    const path = new URL(value, window.location.origin).pathname;
+    if (path.startsWith('/textbooks/')) return 'Textbook index or lesson';
+    if (path.startsWith('/gallery/')) return 'Gallery';
+    if (path.startsWith('/reference/') || path.startsWith('/api/')) return 'API reference';
+    if (path.startsWith('/capabilities/')) return 'Capability summary';
+    if (path.startsWith('/evidence/')) return 'Technical case';
+    return 'Docs';
+  };
+
+  const labelSearchResults = () => {
+    for (const result of document.querySelectorAll('.pagefind-ui__result')) {
+      if (result.querySelector('[data-eq-content-type]')) continue;
+      const link = result.querySelector('.pagefind-ui__result-link[href]');
+      if (!link) continue;
+      let tags = result.querySelector('.pagefind-ui__result-tags');
+      if (!tags) {
+        tags = document.createElement('ul');
+        tags.className = 'pagefind-ui__result-tags';
+        result.querySelector('.pagefind-ui__result-inner')?.append(tags);
+      }
+      const tag = document.createElement('li');
+      tag.className = 'pagefind-ui__result-tag';
+      tag.dataset.eqContentType = '';
+      tag.textContent = `Content type: ${contentTypeFor(link.href)}`;
+      tags.append(tag);
+    }
+  };
+
+  new MutationObserver(labelSearchResults).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 </script>

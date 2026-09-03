@@ -1,0 +1,91 @@
+---
+import config from 'virtual:starlight/user-config';
+import LanguageSelect from 'virtual:starlight/components/LanguageSelect';
+import Search from 'virtual:starlight/components/Search';
+import SiteTitle from 'virtual:starlight/components/SiteTitle';
+import ThemeSelect from 'virtual:starlight/components/ThemeSelect';
+
+const shouldRenderSearch =
+  config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro';
+---
+
+<div class="eq-header">
+  <div class="eq-header__title"><SiteTitle /></div>
+  <nav class="eq-primary-nav" aria-label="Primary">
+    <a href="/get-started/">Docs</a>
+    <a href="/textbooks/">Textbooks</a>
+    <a href="/gallery/">Gallery</a>
+    <a href="/reference/">Reference</a>
+  </nav>
+  <div class="eq-header__tools print:hidden">
+    {shouldRenderSearch && <Search />}
+    <span class="sl-hidden md:sl-flex"><ThemeSelect /></span>
+    <LanguageSelect />
+  </div>
+</div>
+
+<style>
+  @layer starlight.core {
+    .eq-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: 'title tools' 'nav nav';
+      gap: 0.25rem 0.75rem;
+      align-items: center;
+      height: 100%;
+    }
+    .eq-header__title {
+      grid-area: title;
+      min-width: 0;
+      overflow: clip;
+      padding: 0.25rem;
+      margin: -0.25rem;
+    }
+    .eq-primary-nav {
+      grid-area: nav;
+      display: flex;
+      gap: 0.25rem;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+    .eq-primary-nav a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 2rem;
+      padding-inline: 0.625rem;
+      border-radius: var(--eq-radius-control);
+      color: var(--eq-color-text-muted);
+      font-size: var(--eq-text-small);
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .eq-primary-nav a:hover {
+      background: var(--eq-color-brand-tint);
+      color: var(--eq-color-text);
+    }
+    .eq-header__tools {
+      grid-area: tools;
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    @media (max-width: 49.999rem) {
+      :global(:root) { --sl-nav-height: 7rem; }
+    }
+    @media (min-width: 50rem) {
+      .eq-header {
+        grid-template-columns: auto minmax(19rem, 1fr) auto;
+        grid-template-areas: 'title nav tools';
+        gap: var(--sl-nav-gap);
+      }
+      .eq-primary-nav { justify-content: center; }
+      .eq-primary-nav a { min-height: var(--eq-target-min); }
+      :global([data-has-sidebar]) .eq-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: 'title tools';
+      }
+      :global([data-has-sidebar]) .eq-primary-nav { display: none; }
+    }
+  }
+</style>

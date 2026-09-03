@@ -1,0 +1,88 @@
+---
+title: Textbooks
+description: Planned executable engineering books connecting derivation, Eqiora models, numerical realization, and interpretation.
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+Textbooks will teach mathematics, physics, and numerical methods with Eqiora.
+They complement [Docs](/get-started/), which explains product use;
+[Gallery](/gallery/), which presents complete simulations; and
+[Reference](/reference/), which records exact interfaces.
+
+<Aside type="note" title="Editorial status">
+  This index publishes the intended learning map, not finished books. Every
+  series below is **Planned**, has **0 executable chapters**, and targets the
+  current <ReleaseIdentity /> surface. A chapter becomes available only when
+  its derivation, runnable source, comparison boundary, accessibility, and
+  explicit non-claims ship together.
+</Aside>
+
+## Foundations
+
+<CardGrid>
+  <Card title="Mathematical Modeling with Eqiora">
+    **Level:** introductory university · **Prerequisites:** algebra, calculus,
+    and basic programming · **Learning outcome:** translate assumptions and
+    typed relations into one method-neutral model · **Completion:** planned ·
+    **Estimated scope:** book-length; chapter map not yet committed ·
+    **Executable chapters:** 0 · **Release:** current alpha
+  </Card>
+  <Card title="Numerical Simulation with Eqiora">
+    **Level:** intermediate · **Prerequisites:** calculus, linear algebra, and
+    the modeling foundations series · **Learning outcome:** choose, refine, and
+    interpret bounded numerical realizations · **Completion:** planned ·
+    **Estimated scope:** book-length; chapter map not yet committed ·
+    **Executable chapters:** 0 · **Release:** current alpha
+  </Card>
+</CardGrid>
+
+## Physics
+
+<CardGrid>
+  <Card title="Fluid Mechanics and Computational Fluid Dynamics">
+    **Level:** intermediate to advanced · **Prerequisites:** vector calculus,
+    conservation laws, and introductory numerical methods · **Learning
+    outcome:** connect fluid assumptions and governing equations to bounded
+    realizations and refinement · **Completion:** planned · **Estimated
+    scope:** book-length; chapter map not yet committed · **Executable
+    chapters:** 0 · **Release:** current alpha
+
+    [Preview a related bounded Gallery walkthrough](/gallery/exact-cylinder-steady-stokes/)
+  </Card>
+  <Card title="Structural Mechanics and the Finite Element Method">
+    **Level:** intermediate · **Prerequisites:** statics, continuum mechanics,
+    linear algebra, and calculus · **Learning outcome:** derive weak forms and
+    interpret displacement, stress, reactions, and refinement · **Completion:**
+    planned · **Estimated scope:** book-length; chapter map not yet committed ·
+    **Executable chapters:** 0 · **Release:** current alpha
+  </Card>
+  <Card title="Heat and Mass Transfer">
+    **Level:** intermediate · **Prerequisites:** thermodynamics, calculus, and
+    conservation laws · **Learning outcome:** relate transport balances,
+    boundary conditions, and numerical error · **Completion:** planned ·
+    **Estimated scope:** book-length; chapter map not yet committed ·
+    **Executable chapters:** 0 · **Release:** current alpha
+  </Card>
+</CardGrid>
+
+## Advanced study
+
+<CardGrid>
+  <Card title="Circuits, Dynamics, and Hybrid Systems">
+    **Level:** intermediate to advanced · **Prerequisites:** ordinary
+    differential equations, circuits, and feedback basics · **Learning
+    outcome:** connect acausal networks, continuous dynamics, clocks, events,
+    and controls · **Completion:** planned · **Estimated scope:** book-length;
+    chapter map not yet committed · **Executable chapters:** 0 · **Release:**
+    current alpha
+  </Card>
+</CardGrid>
+
+## Chapter navigation contract
+
+When chapters ship, derivation and learning progression stay here. A completed
+simulation links to Gallery, usage explanation to Docs, exact signatures to
+Reference, supported boundaries to Capabilities, and manifest or oracle detail
+to the technical evidence catalog. This keeps each authority in one place.

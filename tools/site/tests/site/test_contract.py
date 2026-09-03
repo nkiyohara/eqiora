@@ -215,6 +215,52 @@ class CompleteContractTests(unittest.TestCase):
                 checker.check_site(root, artifact, SOURCE_SHA, identities), []
             )
 
+    def test_public_information_architecture_mutants_fail(self) -> None:
+        mutations = (
+            (
+                "missing primary textbook navigation",
+                Path("index.html"),
+                '<a href="/textbooks/">Textbooks</a>',
+                '<a href="/textbooks/">Learning</a>',
+                "public navigation omits",
+            ),
+            (
+                "missing capability status meaning",
+                Path("capabilities/index.html"),
+                "Available",
+                "Present",
+                "capabilities landing omits",
+            ),
+            (
+                "missing textbook family",
+                Path("textbooks/index.html"),
+                "Physics",
+                "Subjects",
+                "textbooks landing omits",
+            ),
+            (
+                "missing technical catalog guide",
+                Path("evidence/index.html"),
+                "How to read the technical catalog",
+                "Raw catalog",
+                "technical evidence catalog omits",
+            ),
+            (
+                "broken learning route",
+                Path("gallery/exact-cylinder-steady-stokes/index.html"),
+                "/capabilities/#exact-cylinder-steady-stokes",
+                "/capabilities/#missing",
+                "omits the static learning-to-evidence route",
+            ),
+        )
+        for label, relative, accepted, mutant, expected in mutations:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                artifact, identities = make_fixture(root)
+                self._replace(artifact / relative, accepted, mutant)
+                errors = checker.check_site(root, artifact, SOURCE_SHA, identities)
+                self.assertTrue(any(expected in error for error in errors), errors)
+
     def test_01_exact_gmsh_publication_boundary_mutants_fail(self) -> None:
         mutations = {
             "fixed-mesh figure alt": (

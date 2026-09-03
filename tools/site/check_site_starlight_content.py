@@ -71,10 +71,13 @@ HOME_COPY = (
     "View the static walkthrough",
     "Docs",
     "Learn the Model–Realization boundary and start from bounded examples.",
+    "Textbooks",
+    "Follow the planned path from mathematics and physics to Eqiora models, numerical realization, and interpretation.",
+    "Capabilities",
+    "See what is available, executable, checked, or verified, with exact boundaries and non-claims.",
     "Reference",
     "Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces. API presence is not verification or maturity.",
-    "Evidence",
-    "Inspect the generated capability-to-case index and the manifests that own each bounded claim.",
+    "Docs explains how to use Eqiora. Textbooks teach the mathematics, physics, and numerics. Gallery presents complete simulations. Reference records exact APIs and protocols. Capabilities states what runs and the boundary of each claim.",
     "{release_identity}",
     "Eqiora is alpha research software under active development. The capability matrix and generated evidence catalog bound what is currently supported; this site does not widen those claims.",
     "One source of truth",
@@ -512,4 +515,87 @@ def check_starlight_content(
         for phrase in required:
             if phrase not in reference[1].visible_text:
                 errors.append(f"reference landing omits {phrase!r}")
+    home = home_value[1] if home_value else None
+    if home:
+        anchors = home.anchors
+        destinations = (
+            ("/get-started/", "Docs"),
+            ("/textbooks/", "Textbooks"),
+            ("/gallery/", "Gallery"),
+            ("/reference/", "Reference"),
+            ("/capabilities/", "Capabilities"),
+            ("/release-notes/", "Releases"),
+            ("https://github.com/nkiyohara/eqiora", "GitHub"),
+        )
+        positions = []
+        for destination in destinations:
+            try:
+                positions.append(anchors.index(destination))
+            except ValueError:
+                errors.append(f"public navigation omits {destination!r}")
+        if len(positions) == len(destinations) and positions != sorted(positions):
+            errors.append("public navigation does not preserve primary then secondary order")
+        if ("/evidence/", "Evidence") in anchors:
+            errors.append("technical Evidence catalog remains in primary navigation")
+
+    capabilities_value = inspections.get(artifact / "capabilities/index.html")
+    textbooks_value = inspections.get(artifact / "textbooks/index.html")
+    evidence_value = inspections.get(artifact / "evidence/index.html")
+    if capabilities_value:
+        capabilities = capabilities_value[1]
+        required = (
+            "Available",
+            "Executable",
+            "Checked",
+            "Verified",
+            "Exact boundary",
+            "What this establishes",
+            "Important non-claims",
+            "Thermal",
+            "Technical catalog",
+        )
+        for phrase in required:
+            if phrase not in capabilities.visible_text:
+                errors.append(f"capabilities landing omits {phrase!r}")
+    if textbooks_value:
+        textbooks = textbooks_value[1]
+        for phrase in ("Foundations", "Physics", "Advanced study", "0 executable chapters"):
+            if phrase not in textbooks.visible_text:
+                errors.append(f"textbooks landing omits {phrase!r}")
+    if evidence_value:
+        evidence = evidence_value[1]
+        for phrase in (
+            "How to read the technical catalog",
+            "Case",
+            "Status",
+            "Reference",
+            "Conformance kit",
+            "Target",
+            "human-readable Capabilities",
+        ):
+            if phrase not in evidence.visible_text:
+                errors.append(f"technical evidence catalog omits {phrase!r}")
+    if capabilities_value and textbooks_value and case_value and evidence_value:
+        route_chain = (
+            (
+                textbooks_value[1],
+                "/gallery/exact-cylinder-steady-stokes/",
+                "textbooks landing",
+            ),
+            (
+                case_value[1],
+                "/capabilities/#exact-cylinder-steady-stokes",
+                "Gallery walkthrough",
+            ),
+            (
+                capabilities_value[1],
+                "/evidence/#exact-packaged-steady-incompressible-stokes-component",
+                "capability summary",
+            ),
+        )
+        for page, href, label in route_chain:
+            if href not in {anchor for anchor, _ in page.anchors}:
+                errors.append(f"{label} omits the static learning-to-evidence route {href}")
+        if "exact-packaged-steady-incompressible-stokes-component" not in evidence_value[1].id_text:
+            errors.append("technical evidence route omits the linked exact claim anchor")
     return errors

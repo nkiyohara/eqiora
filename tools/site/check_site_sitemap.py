@@ -46,6 +46,7 @@ SITEMAP_ROUTES = (
     "/reference/python/trajectory/",
     "/reference/rust/",
     "/release-notes/",
+    "/textbooks/",
 )
 
 

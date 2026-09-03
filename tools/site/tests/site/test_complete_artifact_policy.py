@@ -116,6 +116,7 @@ ST_STARLIGHT_ROUTES = (
     "/reference/python/trajectory/",
     "/reference/rust/",
     "/release-notes/",
+    "/textbooks/",
 )
 ABSENT_REFERENCES = (
     (
@@ -144,13 +145,24 @@ ABSENT_REFERENCES = (
     ),
 )
 
-OLD_SHELL = '<header><a class="site-title" href="/"><img src="/assets/brand.svg" alt=""><span>Eqiora</span></a></header>'
+NAVIGATION = (
+    '<nav class="sidebar"><a href="/get-started/">Docs</a>'
+    '<a href="/textbooks/">Textbooks</a><a href="/gallery/">Gallery</a>'
+    '<a href="/reference/">Reference</a><a href="/capabilities/">Capabilities</a>'
+    '<a href="/release-notes/">Releases</a>'
+    '<a href="https://github.com/nkiyohara/eqiora">GitHub</a></nav>'
+)
+OLD_SHELL = (
+    '<header><a class="site-title" href="/"><img src="/assets/brand.svg" alt="">'
+    f'<span>Eqiora</span></a>{NAVIGATION}</header>'
+)
 SITE_TITLE = (
     f'<a class="site-title" href="/"><img src="{BRAND_PATH}" '
     'alt=""><span>Eqiora</span></a>'
 )
 SHELL = f"""<header>
 {SITE_TITLE}
+{NAVIGATION}
 </header>"""
 BACK_CONTROL = (
     '<a id="back" href="javascript:void(0)" onclick="history.back();">Back</a>'
@@ -261,7 +273,9 @@ relation incompressibility continuous on body {
         + sentinel,
         f'<figure><img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}"><figcaption>'
         f"{PRESSURE_CAPTION}</figcaption></figure>",
-        f"<p>{PUBLIC_CLAIM}</p><p>{' '.join(NONCLAIMS)}</p>" + " ".join(links),
+        f"<p>{PUBLIC_CLAIM}</p><p>{' '.join(NONCLAIMS)}</p>"
+        '<a href="/capabilities/#exact-cylinder-steady-stokes">Read the human capability boundary</a>'
+        + " ".join(links),
     )
     sections = "".join(
         _stage(identifier, step, title, body)
