@@ -25,22 +25,6 @@ const TIME: DimExponents = DimExponents {
 };
 
 #[test]
-#[allow(deprecated)]
-fn former_policy_spellings_alias_the_current_semantic_names() {
-    use PositiveMomentumDiagonal::BackwardEulerMassAndLocalNewtonianV1;
-    use TransientFaceFluxHistory::Bdf1PreviousAcceptedV1;
-
-    assert_eq!(
-        BackwardEulerMassAndLocalNewtonianV1,
-        PositiveMomentumDiagonal::BackwardEulerMassAndLocalNewtonian
-    );
-    assert_eq!(
-        Bdf1PreviousAcceptedV1,
-        TransientFaceFluxHistory::Bdf1PreviousAccepted
-    );
-}
-
-#[test]
 fn exact_collocated_request_resolves_to_one_nonlinear_portable_graph() {
     let fixture = Fixture::new();
     let request = fixture.request(fixture.plan());

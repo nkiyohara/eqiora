@@ -95,30 +95,14 @@ pub enum PositiveMomentumDiagonal {
     /// This positive scale deliberately excludes convection and nonlocal
     /// reconstructed-gradient terms. It weights interpolation; it is not a
     /// claim to be the diagonal of the complete Newton Jacobian.
-    #[deprecated(note = "use BackwardEulerMassAndLocalNewtonian")]
-    BackwardEulerMassAndLocalNewtonianV1,
+    BackwardEulerMassAndLocalNewtonian,
 }
 
 /// Previous-time face state used by transient-consistent interpolation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TransientFaceFluxHistory {
     /// BDF1 uses the previous accepted face flux minus centered cell velocity.
-    #[deprecated(note = "use Bdf1PreviousAccepted")]
-    Bdf1PreviousAcceptedV1,
-}
-
-impl PositiveMomentumDiagonal {
-    /// Backward-Euler mass plus Cartesian local Newtonian normal traction.
-    #[allow(deprecated)]
-    #[allow(non_upper_case_globals)]
-    pub const BackwardEulerMassAndLocalNewtonian: Self = Self::BackwardEulerMassAndLocalNewtonianV1;
-}
-
-impl TransientFaceFluxHistory {
-    /// BDF1 uses the previous accepted face flux minus centered cell velocity.
-    #[allow(deprecated)]
-    #[allow(non_upper_case_globals)]
-    pub const Bdf1PreviousAccepted: Self = Self::Bdf1PreviousAcceptedV1;
+    Bdf1PreviousAccepted,
 }
 
 /// Linearly exact momentum-weighted collocated face-flux coupling.
