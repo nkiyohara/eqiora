@@ -192,6 +192,44 @@ impl ModelDocument {
         Self::compile_modules(input, entry_model)
     }
 
+    /// Discover and compile one bounded local `.eqi` source directory.
+    ///
+    /// The directory adapter performs deterministic capability-rooted
+    /// traversal without following symbolic links, then this operation admits
+    /// the result through [`Self::compile_project_sources`]. The caller's root
+    /// path is the operation's sole ambient filesystem lookup.
+    ///
+    /// # Errors
+    /// Returns one filesystem discovery diagnostic or the complete set of
+    /// project-source compilation diagnostics.
+    #[cfg(feature = "project-filesystem")]
+    pub fn compile_project_directory(
+        root: impl Into<std::path::PathBuf>,
+        root_module: &str,
+        entry_model: &str,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let directory =
+            eqiora_package::AuthorPackageDirectory::open_ambient(root).map_err(|error| {
+                single_diagnostic(Diagnostic::error(
+                    codes::LANGUAGE_LOWERING_ERROR,
+                    format!("project source discovery failed: {error}"),
+                ))
+            })?;
+        let sources = directory.discover_project_sources().map_err(|error| {
+            single_diagnostic(Diagnostic::error(
+                codes::LANGUAGE_LOWERING_ERROR,
+                format!("project source discovery failed: {error}"),
+            ))
+        })?;
+        Self::compile_project_sources(
+            root_module,
+            sources
+                .into_iter()
+                .map(|(path, source)| (path.as_str().to_owned(), source)),
+            entry_model,
+        )
+    }
+
     /// Define exactly one model from immutable client-neutral declarations
     /// using the current semantic vocabulary.
     ///

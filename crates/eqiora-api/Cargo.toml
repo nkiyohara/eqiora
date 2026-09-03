@@ -10,6 +10,7 @@ rust-version.workspace = true
 [features]
 default = []
 rayon = ["dep:eqiora-backend-rayon"]
+project-filesystem = ["eqiora-package/filesystem"]
 xdmf = ["dep:eqiora-io-xdmf"]
 hdf5 = ["xdmf", "dep:eqiora-io-hdf5"]
 vtu = ["dep:eqiora-io-vtu"]
