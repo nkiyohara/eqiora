@@ -30,6 +30,138 @@ const PARAMETERS: &[(&str, f64)] = &[
 ];
 
 #[test]
+fn typed_material_composition_runs_as_the_same_effective_multi_property_law() {
+    let geometry = rectangle_geometry();
+    let composed_source = material_source(true, 2, 4, false);
+    let composed_release = release("org.example.ComposedDiffusion", &composed_source, &[]);
+    let composed = compile_root_component(&composed_release, "ExecutableDiffusion", &geometry)
+        .expect("material-composed Component compiles");
+    let direct = ModelDocument::compile_with_geometry(
+        "direct-material-law.eqi",
+        &material_source(false, 2, 4, false),
+        &geometry,
+        Some("ExecutableDiffusion"),
+        PARAMETERS,
+    )
+    .expect("direct multi-parameter Law compiles");
+
+    let bindings = composed.property_bindings().collect::<Vec<_>>();
+    assert_eq!(bindings.len(), 2);
+    assert!(bindings.iter().all(|binding| binding.0.is_some()));
+    let direct_property_source = composed_source.replace(
+        "material = ReferenceMaterial",
+        "property conductivity = ConductivityValue, property capacity = CapacityValue",
+    );
+    let direct_property_release = release(
+        "org.example.ComposedDiffusion",
+        &direct_property_source,
+        &[],
+    );
+    let direct_property =
+        compile_root_component(&direct_property_release, "ExecutableDiffusion", &geometry)
+            .expect("direct property bindings compile");
+    assert!(
+        direct_property
+            .property_bindings()
+            .all(|binding| binding.0.is_none())
+    );
+    assert!(
+        composed
+            .model()
+            .structurally_equivalent(direct_property.model())
+            .unwrap()
+    );
+    assert!(composed.model().structurally_equivalent(&direct).unwrap());
+    assert_same_scalar_result(
+        &resolve_scalar(composed.model(), &geometry)
+            .run_result()
+            .expect("composed material runs"),
+        &resolve_scalar(&direct, &geometry)
+            .run_result()
+            .expect("direct material Law runs"),
+    );
+
+    let reordered_source = material_source(true, 2, 4, true);
+    let reordered_release = release("org.example.ComposedDiffusion", &reordered_source, &[]);
+    assert_eq!(
+        composed_release.package_identity().unwrap().semantic_digest,
+        reordered_release
+            .package_identity()
+            .unwrap()
+            .semantic_digest,
+        "material property ordering must not alter canonical composition identity"
+    );
+
+    let compatible_source = material_source(true, 4, 8, false);
+    let compatible_release = release("org.example.ComposedDiffusion", &compatible_source, &[]);
+    let compatible = compile_root_component(&compatible_release, "ExecutableDiffusion", &geometry)
+        .expect("second compatible exact material compiles");
+    assert_same_scalar_result(
+        &resolve_scalar(composed.model(), &geometry)
+            .run_result()
+            .expect("first compatible material runs"),
+        &resolve_scalar(compatible.model(), &geometry)
+            .run_result()
+            .expect("second compatible material runs"),
+    );
+    assert_ne!(
+        composed.model().digest().unwrap(),
+        compatible.model().digest().unwrap(),
+        "changing exact releases must change Model identity"
+    );
+}
+
+#[test]
+fn public_material_composition_crosses_an_exact_package_boundary() {
+    let properties = release(
+        "org.example.Materials",
+        r#"
+public property contract Conductivity { scalar value: 1; }
+public property contract Capacity { scalar value: 1; }
+property release ConductivityA implements Conductivity {
+  value = 2; source_unit: 1 = 1; validity = unconditional;
+  citation = org.example.a; license = spdx.CC0_1_0;
+}
+property release CapacityA implements Capacity {
+  value = 4; source_unit: 1 = 1; validity = unconditional;
+  citation = org.example.a; license = spdx.CC0_1_0;
+}
+public material composition MaterialA {
+  property conductivity = ConductivityA;
+  property capacity = CapacityA;
+}
+"#,
+        &[],
+    );
+    let consumer = release(
+        "org.example.MaterialConsumer",
+        r#"
+public component Law {
+  public property conductivity: props.Conductivity;
+  public property capacity: props.Capacity;
+  relation law continuous { conductivity / capacity = 0; }
+}
+public model Main { instance law: Law(material = props.MaterialA); }
+"#,
+        &[("props", &properties)],
+    );
+    let resolution =
+        ResolutionRecordV1::from_exact_releases(&consumer, std::slice::from_ref(&properties))
+            .expect("material dependency lock");
+    let mut store = InMemoryPackageStore::default();
+    store.insert(&properties).expect("store materials");
+    store.insert(&consumer).expect("store consumer");
+    let compiled = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("public composition compiles with private exact releases");
+    assert_eq!(compiled.property_bindings().len(), 2);
+    assert!(compiled.property_bindings().all(|binding| {
+        binding
+            .0
+            .is_some_and(|composition| composition.ends_with("::MaterialA"))
+    }));
+}
+
+#[test]
 fn one_exact_release_runs_through_two_independent_common_scalar_consumers() {
     let geometry = rectangle_geometry();
     let properties = property_release(25, "org.example.measurement", "Diffusivity");
@@ -48,11 +180,11 @@ fn one_exact_release_runs_through_two_independent_common_scalar_consumers() {
 
         assert_eq!(property.property_bindings().len(), 1);
         let binding = property.property_bindings().next().unwrap();
-        assert_eq!(binding.3, consumer.requirement());
-        assert_eq!(binding.4, NORMALIZED_DIFFUSIVITY);
-        assert_eq!(binding.5, "unconditional");
-        assert_eq!(binding.6, "org.example.measurement");
-        assert_eq!(binding.7, "spdx.CC0_1_0");
+        assert_eq!(binding.4, consumer.requirement());
+        assert_eq!(binding.5, NORMALIZED_DIFFUSIVITY);
+        assert_eq!(binding.6, "unconditional");
+        assert_eq!(binding.7, "org.example.measurement");
+        assert_eq!(binding.8, "spdx.CC0_1_0");
         assert!(property.model().structurally_equivalent(&direct).unwrap());
 
         let property_plan = resolve_scalar(property.model(), &geometry);
@@ -71,7 +203,7 @@ fn one_exact_release_runs_through_two_independent_common_scalar_consumers() {
             "the Result must retain the package compilation's Model lineage"
         );
         assert_eq!(
-            property.property_bindings().next().unwrap().6,
+            property.property_bindings().next().unwrap().7,
             "org.example.measurement",
             "execution must not replace exact provenance with the normalized scalar"
         );
@@ -316,6 +448,111 @@ fn compile_property_consumer(
         PARAMETERS,
     )
     .map_err(|error| error.to_string())
+}
+
+fn compile_root_component(
+    root: &PackageReleaseV1,
+    component: &str,
+    geometry: &CanonicalGeometryV1,
+) -> Result<PackagedModelDocument, String> {
+    let resolution =
+        ResolutionRecordV1::from_exact_releases(root, &[]).map_err(|error| error.to_string())?;
+    let mut store = InMemoryPackageStore::default();
+    store.insert(root).map_err(|error| error.to_string())?;
+    PackagedModelDocument::compile_locked_with_geometry(
+        &store,
+        &resolution,
+        component,
+        geometry,
+        PARAMETERS,
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn material_source(composed: bool, conductivity: u32, capacity: u32, reverse: bool) -> String {
+    let coefficient_declarations = if composed {
+        "  public property conductivity: Conductivity;\n  public property capacity: Capacity;"
+    } else {
+        "  public parameter conductivity: 1;\n  public parameter capacity: 1;"
+    };
+    let coefficient_bindings = if composed {
+        "material = ReferenceMaterial".to_owned()
+    } else {
+        format!("conductivity = {conductivity}, capacity = {capacity}")
+    };
+    let material = if composed {
+        let properties = if reverse {
+            "  property conductivity = ConductivityValue;\n  property capacity = CapacityValue;"
+        } else {
+            "  property capacity = CapacityValue;\n  property conductivity = ConductivityValue;"
+        };
+        format!(
+            r#"public property contract Conductivity {{ scalar value: 1; }}
+public property contract Capacity {{ scalar value: 1; }}
+public property release ConductivityValue implements Conductivity {{
+  value = {conductivity}; source_unit: 1 = 1; validity = unconditional;
+  citation = org.example.measurement; license = spdx.CC0_1_0;
+}}
+public property release CapacityValue implements Capacity {{
+  value = {capacity}; source_unit: 1 = 1; validity = unconditional;
+  citation = org.example.measurement; license = spdx.CC0_1_0;
+}}
+public material composition ReferenceMaterial {{
+{properties}
+}}
+"#
+        )
+    } else {
+        String::new()
+    };
+    format!(
+        r#"{material}
+public component DiffusionLaw {{
+  public support square: volume(ambient_dimension = 2);
+  public support x_lower: boundary(parent = square);
+  public support x_upper: boundary(parent = square);
+  public support y_lower: boundary(parent = square);
+  public support y_upper: boundary(parent = square);
+  representation scalar_space = continuum;
+  field potential on square as scalar_space: 1 = 0;
+{coefficient_declarations}
+  public parameter wave_number: 1 / m;
+  public parameter source_scale: 1 / m ^ 2;
+  public parameter boundary_offset: 1;
+  relation balance continuous on square {{
+    -div((conductivity / capacity) * grad(potential))
+      - source_scale * math.sin(wave_number * coordinate(0))
+        * math.sin(wave_number * coordinate(1)) = 0;
+  }}
+  relation x_lower_value continuous on x_lower {{ trace(potential) - boundary_offset = 0; }}
+  relation x_upper_value continuous on x_upper {{ trace(potential) - boundary_offset = 0; }}
+  relation y_lower_value continuous on y_lower {{ trace(potential) - boundary_offset = 0; }}
+  relation y_upper_value continuous on y_upper {{ trace(potential) - boundary_offset = 0; }}
+}}
+
+public component ExecutableDiffusion {{
+  public support square: volume(ambient_dimension = 2);
+  public support x_lower: boundary(parent = square);
+  public support x_upper: boundary(parent = square);
+  public support y_lower: boundary(parent = square);
+  public support y_upper: boundary(parent = square);
+  public parameter wave_number: 1 / m;
+  public parameter source_scale: 1 / m ^ 2;
+  public parameter boundary_offset: 1;
+  instance equation: DiffusionLaw(
+    support square = square,
+    support x_lower = x_lower,
+    support x_upper = x_upper,
+    support y_lower = y_lower,
+    support y_upper = y_upper,
+    {coefficient_bindings},
+    wave_number = wave_number,
+    source_scale = source_scale,
+    boundary_offset = boundary_offset
+  );
+}}
+"#
+    )
 }
 
 fn release(

@@ -13,6 +13,7 @@ impl SourceAstFactory {
         document: &mut Document,
         contract_dimensions: &BTreeMap<String, Expr>,
         release_values: &BTreeMap<String, f64>,
+        material_values: &BTreeMap<String, Vec<(String, f64)>>,
     ) -> Result<(), AstConstructionError> {
         for component in &mut document.components {
             for requirement in &component.property_requirements {
@@ -34,12 +35,12 @@ impl SourceAstFactory {
                         range: requirement.range,
                     }));
             }
-            elaborate_component_instances(&mut component.items, release_values)?;
+            elaborate_component_instances(&mut component.items, release_values, material_values)?;
         }
         for model in &mut document.models {
             for item in &mut model.items {
                 if let Item::Instance(instance) = item {
-                    elaborate_instance_properties(instance, release_values)?;
+                    elaborate_instance_properties(instance, release_values, material_values)?;
                 }
             }
         }
@@ -68,10 +69,11 @@ impl NamePath {
 fn elaborate_component_instances(
     items: &mut [ComponentItem],
     release_values: &BTreeMap<String, f64>,
+    material_values: &BTreeMap<String, Vec<(String, f64)>>,
 ) -> Result<(), AstConstructionError> {
     for item in items {
         if let ComponentItem::Instance(instance) = item {
-            elaborate_instance_properties(instance, release_values)?;
+            elaborate_instance_properties(instance, release_values, material_values)?;
         }
     }
     Ok(())
@@ -80,6 +82,7 @@ fn elaborate_component_instances(
 fn elaborate_instance_properties(
     instance: &mut InstanceDecl,
     release_values: &BTreeMap<String, f64>,
+    material_values: &BTreeMap<String, Vec<(String, f64)>>,
 ) -> Result<(), AstConstructionError> {
     for binding in &instance.property_bindings {
         let value = *release_values
@@ -103,6 +106,21 @@ fn elaborate_instance_properties(
             },
             range: binding.range,
         });
+    }
+    if let Some(material) = &instance.material_binding {
+        let values = material_values.get(material.as_str()).ok_or_else(|| {
+            AstConstructionError::new(format!("unresolved material composition `{material}`"))
+        })?;
+        for (property, value) in values {
+            instance.bindings.push(ParameterBindingDecl {
+                parameter: property.clone(),
+                value: Expr {
+                    kind: ExprKind::Number(*value),
+                    range: instance.range,
+                },
+                range: instance.range,
+            });
+        }
     }
     Ok(())
 }

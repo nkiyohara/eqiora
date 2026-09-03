@@ -1,4 +1,5 @@
 //! One canonical source style derived from the recovered syntax tree.
+//! Declaration-specific modules keep the top-level traversal readable.
 use core::fmt::Write;
 
 mod cartesian;
@@ -11,9 +12,9 @@ mod relation;
 
 use crate::ast::{
     BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax, BoundaryPairingSyntax,
-    BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, BoundarySideSyntax, ClockDecl,
-    ComponentItem, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax,
-    Document, DomainSyntax, Expr, ExprKind, FieldDecl, FrameSyntax, InstanceDecl, Item, PortSyntax,
+    BoundaryPortReferenceSyntax, BoundarySideSyntax, ClockDecl, ComponentItem,
+    ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax, Document,
+    DomainSyntax, Expr, ExprKind, FieldDecl, FrameSyntax, InstanceDecl, Item, PortSyntax,
     PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
     PureValueClassSyntax, RepresentationSyntax, SignalDirectionSyntax, SupportSlotSyntax, UnaryOp,
     ValueShapeSyntax, VisibilitySyntax,
@@ -21,7 +22,9 @@ use crate::ast::{
 use cartesian::format_cartesian_coordinate;
 use compile_time::{format_let, format_parameter};
 use formulation::format_component;
-use helpers::{format_name_paths, format_scalar_physical, write_indent};
+use helpers::{
+    format_boundary_port_selector, format_name_paths, format_scalar_physical, write_indent,
+};
 use property::{format_component_requirements, format_properties};
 use relation::{format_relation, format_relation_family};
 
@@ -515,10 +518,6 @@ fn format_boundary_port_reference(reference: &BoundaryPortReferenceSyntax, outpu
     }
 }
 
-fn format_boundary_port_selector(selector: &BoundaryPortSelectorSyntax, output: &mut String) {
-    write!(output, "[{} = {}]", selector.member, selector.target).expect("String write");
-}
-
 fn format_instance(declaration: &InstanceDecl, indent: usize, output: &mut String) {
     write_indent(output, indent);
     write!(
@@ -527,12 +526,7 @@ fn format_instance(declaration: &InstanceDecl, indent: usize, output: &mut Strin
         declaration.name, declaration.definition
     )
     .expect("String write");
-    if !(declaration.bindings.is_empty()
-        && declaration.support_bindings.is_empty()
-        && declaration.boundary_set_bindings.is_empty()
-        && declaration.field_bindings.is_empty()
-        && declaration.property_bindings.is_empty())
-    {
+    if declaration.has_bindings() {
         output.push('(');
         let mut separated = false;
         for (index, binding) in declaration.bindings.iter().enumerate() {
@@ -582,6 +576,12 @@ fn format_instance(declaration: &InstanceDecl, indent: usize, output: &mut Strin
             )
             .expect("String write");
             separated = true;
+        }
+        if let Some(material) = declaration.material_binding_syntax() {
+            if separated {
+                output.push_str(", ");
+            }
+            write!(output, "material = {material}").expect("String write");
         }
         output.push(')');
     }

@@ -15,6 +15,7 @@ type Key = (CompilationModuleId, String);
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ResolvedPropertyBinding {
+    composition: Option<String>,
     contract: String,
     release: String,
     component: String,
@@ -26,6 +27,10 @@ pub(crate) struct ResolvedPropertyBinding {
 }
 
 impl ResolvedPropertyBinding {
+    #[must_use]
+    pub fn composition(&self) -> Option<&str> {
+        self.composition.as_deref()
+    }
     #[must_use]
     pub fn contract(&self) -> &str {
         &self.contract
@@ -74,6 +79,11 @@ struct Release {
     license: String,
 }
 
+struct Composition {
+    visibility: VisibilitySyntax,
+    properties: Vec<(String, Key, TextRange)>,
+}
+
 pub(crate) fn validate_and_elaborate(
     units: &mut [AnalyzedSourceUnit],
     aliases: &[ResolvedAlias],
@@ -81,14 +91,17 @@ pub(crate) fn validate_and_elaborate(
     let has_property_syntax = units.iter().any(|unit| {
         unit.document.property_contract_syntax().len() != 0
             || unit.document.property_release_syntax().len() != 0
+            || unit.document.material_composition_syntax().len() != 0
             || unit.document.components().iter().any(|component| {
                 component.property_requirement_syntax().len() != 0
                     || component.items().iter().any(|item| matches!(
                         item, ComponentItem::Instance(value) if value.property_binding_syntax().len() != 0
+                            || value.material_binding_syntax().is_some()
                     ))
             })
             || unit.document.models().iter().any(|model| model.items().iter().any(|item| matches!(
                 item, Item::Instance(value) if value.property_binding_syntax().len() != 0
+                    || value.material_binding_syntax().is_some()
             )))
     });
     if !has_property_syntax {
@@ -245,6 +258,64 @@ pub(crate) fn validate_and_elaborate(
         return Err(diagnostics);
     }
 
+    let mut compositions = BTreeMap::new();
+    for unit in units.iter() {
+        for (visibility, name, properties, range) in unit.document.material_composition_syntax() {
+            if properties.is_empty() {
+                diagnostics.push(error(
+                    &unit.file,
+                    range,
+                    "material composition requires at least one property",
+                ));
+                continue;
+            }
+            let mut seen = BTreeSet::new();
+            let mut resolved = Vec::new();
+            for (property, release_path, binding_range) in properties {
+                if !seen.insert(property) {
+                    diagnostics.push(error(
+                        &unit.file,
+                        binding_range,
+                        format!("duplicate material property `{property}`"),
+                    ));
+                    continue;
+                }
+                if let Some(release) = resolve_path(
+                    &unit.module,
+                    release_path,
+                    aliases,
+                    &releases,
+                    |value| value.visibility,
+                    &unit.file,
+                    &mut diagnostics,
+                ) {
+                    resolved.push((property.to_owned(), release, binding_range));
+                }
+            }
+            let key = (unit.module.clone(), name.to_owned());
+            if compositions
+                .insert(
+                    key,
+                    Composition {
+                        visibility,
+                        properties: resolved,
+                    },
+                )
+                .is_some()
+            {
+                diagnostics.push(error(
+                    &unit.file,
+                    range,
+                    format!("duplicate material composition `{name}`"),
+                ));
+            }
+        }
+    }
+
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
     let components = units
         .iter()
         .flat_map(|unit| {
@@ -275,6 +346,7 @@ pub(crate) fn validate_and_elaborate(
             }
         }
         let mut values = BTreeMap::new();
+        let mut material_values = BTreeMap::new();
         for component in unit.document.components() {
             for item in component.items() {
                 if let ComponentItem::Instance(instance) = item {
@@ -286,7 +358,9 @@ pub(crate) fn validate_and_elaborate(
                         &components,
                         &contracts,
                         &releases,
+                        &compositions,
                         &mut values,
+                        &mut material_values,
                         &mut projections,
                         &mut diagnostics,
                     );
@@ -304,7 +378,9 @@ pub(crate) fn validate_and_elaborate(
                         &components,
                         &contracts,
                         &releases,
+                        &compositions,
                         &mut values,
+                        &mut material_values,
                         &mut projections,
                         &mut diagnostics,
                     );
@@ -312,8 +388,12 @@ pub(crate) fn validate_and_elaborate(
             }
         }
         if diagnostics.is_empty()
-            && let Err(failure) =
-                SourceAstFactory::elaborate_property_terms(&mut unit.document, &dimensions, &values)
+            && let Err(failure) = SourceAstFactory::elaborate_property_terms(
+                &mut unit.document,
+                &dimensions,
+                &values,
+                &material_values,
+            )
         {
             diagnostics.push(error(&unit.file, TextRange::default(), failure.to_string()));
         }
@@ -341,7 +421,9 @@ fn validate_instance(
     components: &BTreeMap<Key, (eqiora_lang::ComponentDecl, String)>,
     contracts: &BTreeMap<Key, Contract>,
     releases: &BTreeMap<Key, Release>,
+    compositions: &BTreeMap<Key, Composition>,
     values: &mut BTreeMap<String, f64>,
+    material_values: &mut BTreeMap<String, Vec<(String, f64)>>,
     projections: &mut Vec<ResolvedPropertyBinding>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -358,10 +440,14 @@ fn validate_instance(
     };
     let (component, _) = &components[&component_key];
     let binding_syntax = instance.property_binding_syntax().collect::<Vec<_>>();
-    let supplied = binding_syntax
-        .iter()
-        .map(|(property, release, range)| (*property, (*release, *range)))
-        .collect::<BTreeMap<_, _>>();
+    if instance.material_binding_syntax().is_some() && !binding_syntax.is_empty() {
+        diagnostics.push(error(
+            file,
+            instance.range(),
+            "an instance cannot combine a material composition with direct property bindings",
+        ));
+        return;
+    }
     let mut seen = BTreeSet::new();
     for (property, _, range) in &binding_syntax {
         if !seen.insert(*property) {
@@ -372,8 +458,43 @@ fn validate_instance(
             ));
         }
     }
+    let mut supplied = BTreeMap::<String, (Key, TextRange, Option<Key>)>::new();
+    if let Some(material_path) = instance.material_binding_syntax() {
+        let Some(composition_key) = resolve_path(
+            namespace,
+            material_path,
+            aliases,
+            compositions,
+            |value| value.visibility,
+            file,
+            diagnostics,
+        ) else {
+            return;
+        };
+        for (property, release, range) in &compositions[&composition_key].properties {
+            supplied.insert(
+                property.clone(),
+                (release.clone(), *range, Some(composition_key.clone())),
+            );
+        }
+    } else {
+        for (property, release_path, range) in &binding_syntax {
+            if let Some(release) = resolve_path(
+                namespace,
+                release_path,
+                aliases,
+                releases,
+                |value| value.visibility,
+                file,
+                diagnostics,
+            ) {
+                supplied.insert((*property).to_owned(), (release, *range, None));
+            }
+        }
+    }
+    let mut bound_material_values = Vec::new();
     for (requirement, contract_path, _) in component.property_requirement_syntax() {
-        let Some((release_path, binding_range)) = supplied.get(requirement).copied() else {
+        let Some((release_key, binding_range, composition_key)) = supplied.get(requirement) else {
             diagnostics.push(error(
                 file,
                 instance.range(),
@@ -396,30 +517,27 @@ fn validate_instance(
         ) else {
             continue;
         };
-        let Some(release_key) = resolve_path(
-            namespace,
-            release_path,
-            aliases,
-            releases,
-            |value| value.visibility,
-            file,
-            diagnostics,
-        ) else {
-            continue;
-        };
-        let release = &releases[&release_key];
+        let release = &releases[release_key];
         if release.contract != required_contract {
             diagnostics.push(error(
                 file,
-                binding_range,
+                *binding_range,
                 "property release implements a different nominal contract",
             ));
             continue;
         }
-        values.insert(release_path.to_string(), release.value);
+        if composition_key.is_some() {
+            bound_material_values.push((requirement.to_owned(), release.value));
+        } else if let Some((_, release_path, _)) = binding_syntax
+            .iter()
+            .find(|(property, _, _)| *property == requirement)
+        {
+            values.insert(release_path.to_string(), release.value);
+        }
         projections.push(ResolvedPropertyBinding {
+            composition: composition_key.as_ref().map(qualified),
             contract: qualified(&required_contract),
-            release: qualified(&release_key),
+            release: qualified(release_key),
             component: qualified(&component_key),
             requirement: requirement.to_owned(),
             normalized_value: release.value,
@@ -428,14 +546,17 @@ fn validate_instance(
             license: release.license.clone(),
         });
     }
-    for (property, _, range) in binding_syntax {
+    if let Some(material) = instance.material_binding_syntax() {
+        material_values.insert(material.to_string(), bound_material_values);
+    }
+    for (property, (_, range, _)) in &supplied {
         if !component
             .property_requirement_syntax()
-            .any(|(name, _, _)| name == property)
+            .any(|(name, _, _)| name == property.as_str())
         {
             diagnostics.push(error(
                 file,
-                range,
+                *range,
                 format!("component has no property requirement `{property}`"),
             ));
         }
@@ -578,7 +699,7 @@ model Main { instance domain: Diffusion(property diffusivity = ReferenceDiffusiv
         );
         let analyzed = analyze_resolved_hierarchy(input).expect("property graph analyzes");
         assert_eq!(analyzed.property_bindings().len(), 1);
-        assert_eq!(analyzed.property_bindings().next().unwrap().4, 0.025);
+        assert_eq!(analyzed.property_bindings().next().unwrap().5, 0.025);
         let property_model = analyzed
             .validate_definitions()
             .expect("property definitions validate")
@@ -606,6 +727,48 @@ model Main { instance domain: Diffusion(diffusivity = 0.025); }
             direct_model.symbols().get("domain.law"),
             "property binding reuses the same effective scalar Law"
         );
+    }
+
+    #[test]
+    fn material_composition_binds_multiple_properties_to_one_component_law() {
+        let root = CompilationNamespaceId::new(["root", "1.0.0", "semantic-digest"]).unwrap();
+        let source = r#"
+public property contract Conductivity { scalar value: 1; }
+public property contract Capacity { scalar value: 1; }
+public property release ConductivityA implements Conductivity {
+  value = 2; source_unit: 1 = 1; validity = unconditional;
+  citation = org.example.a; license = spdx.CC0_1_0;
+}
+public property release CapacityA implements Capacity {
+  value = 4; source_unit: 1 = 1; validity = unconditional;
+  citation = org.example.a; license = spdx.CC0_1_0;
+}
+public material composition MaterialA {
+  property capacity = CapacityA;
+  property conductivity = ConductivityA;
+}
+public component DiffusionLaw {
+  public property conductivity: Conductivity;
+  public property capacity: Capacity;
+  relation law continuous { conductivity / capacity = 0; }
+}
+model Main { instance domain: DiffusionLaw(material = MaterialA); }
+"#;
+        let analyzed = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
+            root.clone(),
+            vec![ResolvedSourceUnit::new(root, "material.eqi", source)],
+            vec![],
+        ))
+        .expect("material composition analyzes");
+        let bindings = analyzed.property_bindings().collect::<Vec<_>>();
+        assert_eq!(bindings.len(), 2);
+        assert!(bindings.iter().all(|binding| binding.0.is_some()));
+        assert_eq!(bindings[0].0, bindings[1].0);
+        analyzed
+            .validate_definitions()
+            .expect("composed definitions validate")
+            .compile_root("Main")
+            .expect("composed Law compiles");
     }
 
     #[test]
@@ -654,5 +817,84 @@ model Main { instance domain: Diffusion; }
                 .iter()
                 .any(|value| value.message().contains("requires property"))
         );
+
+        for (source, expected) in [
+            (
+                r#"
+property contract A { scalar value: 1; }
+property release A1 implements A {
+  value = 1; source_unit: 1 = 1; validity = unconditional;
+  citation = org.example; license = spdx.CC0_1_0;
+}
+material composition Duplicate {
+  property value = A1;
+  property value = A1;
+}
+component Law { public property value: A; relation law continuous { value = 0; } }
+model Main { instance law: Law(material = Duplicate); }
+"#,
+                "duplicate material property",
+            ),
+            (
+                r#"
+property contract A { scalar value: 1; }
+property contract B { scalar value: 1; }
+property release B1 implements B {
+  value = 1; source_unit: 1 = 1; validity = unconditional;
+  citation = org.example; license = spdx.CC0_1_0;
+}
+material composition Foreign { property value = B1; }
+component Law { public property value: A; relation law continuous { value = 0; } }
+model Main { instance law: Law(material = Foreign); }
+"#,
+                "different nominal contract",
+            ),
+            (
+                r#"
+property contract A { scalar value: 1; }
+property release A1 implements A {
+  value = 1; source_unit: 1 = 1; validity = unconditional;
+  citation = org.example; license = spdx.CC0_1_0;
+}
+material composition EmptyForLaw { property other = A1; }
+component Law { public property value: A; relation law continuous { value = 0; } }
+model Main { instance law: Law(material = EmptyForLaw); }
+"#,
+                "requires property `value`",
+            ),
+            (
+                r#"
+property contract A { scalar value: 1; }
+property release A1 implements A {
+  value = 1; source_unit: 1 = 1; validity = unconditional;
+  citation = org.example; license = spdx.CC0_1_0;
+}
+material composition MaterialA { property value = A1; }
+component Law { public property value: A; relation law continuous { value = 0; } }
+model Main {
+  instance law: Law(material = MaterialA, property value = A1);
+}
+"#,
+                "cannot combine",
+            ),
+        ] {
+            let root = CompilationNamespaceId::new(["root", "1.0.0", "material-invalid"]).unwrap();
+            let diagnostics = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
+                root.clone(),
+                vec![ResolvedSourceUnit::new(
+                    root,
+                    "invalid-material.eqi",
+                    source,
+                )],
+                vec![],
+            ))
+            .unwrap_err();
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|value| value.message().contains(expected)),
+                "expected {expected:?} in {diagnostics:?}"
+            );
+        }
     }
 }

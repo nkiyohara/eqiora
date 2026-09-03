@@ -23,6 +23,7 @@ pub enum DeclarationKindV1 {
     // fallback to a parallel schema.
     PropertyContract,
     PropertyRelease,
+    MaterialComposition,
     PureOperator,
     Connector,
     Component,

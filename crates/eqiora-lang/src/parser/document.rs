@@ -11,6 +11,7 @@ impl Parser<'_> {
         let mut dimensions = Vec::new();
         let mut property_contracts = Vec::new();
         let mut property_releases = Vec::new();
+        let mut material_compositions = Vec::new();
         let mut connectors = Vec::new();
         let mut components = Vec::new();
         let mut pure_operators = Vec::new();
@@ -90,6 +91,20 @@ impl Parser<'_> {
                     &mut property_contracts,
                     &mut property_releases,
                 );
+            } else if self.at_keyword("material") {
+                module_prefix_closed = true;
+                import_prefix_closed = true;
+                declarations_started = true;
+                if models_started {
+                    self.error_here("material compositions must precede model declarations");
+                }
+                if let Some(composition) =
+                    self.parse_material_composition(declaration_start, visibility)
+                {
+                    material_compositions.push(composition);
+                } else {
+                    self.recover_top_level();
+                }
             } else if self.at_keyword("connector") {
                 module_prefix_closed = true;
                 import_prefix_closed = true;
@@ -159,6 +174,7 @@ impl Parser<'_> {
                 && dimensions.is_empty()
                 && property_contracts.is_empty()
                 && property_releases.is_empty()
+                && material_compositions.is_empty()
                 && connectors.is_empty()
                 && components.is_empty()
                 && pure_operators.is_empty()
@@ -169,6 +185,7 @@ impl Parser<'_> {
             dimensions,
             property_contracts,
             property_releases,
+            material_compositions,
             connectors,
             components,
             pure_operators,

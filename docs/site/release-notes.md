@@ -18,6 +18,11 @@ accepted State, and mesh generation converges on `MeshPlan`. Public legacy
 dimension aliases and duplicate Marimo/Jupyter paths are removed under the
 pre-1.0 convergence policy; Colab remains the maintained hosted-notebook path.
 
+Typed material compositions now bind multiple exact property releases to an
+ordinary Component Law through the same `.eqi`, Python, package, and execution
+path. Standard Solid product tests use the composition for Young's modulus and
+Poisson's ratio.
+
 ## 0.1.0a6
 
 The language and compiler now carry exact scalar property bindings, affine

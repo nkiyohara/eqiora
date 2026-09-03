@@ -18,6 +18,9 @@ pub(super) fn encode_instance(
         .and_then(|count| count.checked_add(declaration.boundary_set_bindings().len()))
         .and_then(|count| count.checked_add(declaration.field_bindings().len()))
         .and_then(|count| count.checked_add(declaration.property_binding_syntax().len()))
+        .and_then(|count| {
+            count.checked_add(usize::from(declaration.material_binding_syntax().is_some()))
+        })
         .ok_or_else(|| source_identity_error("instance binding count overflows usize"))?;
     if binding_count > budget.limits.max_bindings_per_instance {
         return Err(source_identity_error(format!(
@@ -87,6 +90,9 @@ pub(super) fn encode_instance(
                 value.finish()
             })?;
         encoder.field(7, |encoder| encoder.records(&property_bindings))?;
+    }
+    if let Some(material) = declaration.material_binding_syntax() {
+        encoder.field(8, |encoder| encode_type_path(encoder, material, budget))?;
     }
     Ok(())
 }

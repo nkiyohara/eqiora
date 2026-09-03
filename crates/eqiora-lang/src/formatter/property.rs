@@ -38,6 +38,17 @@ pub(super) fn format_properties(document: &Document, output: &mut String, count:
         )
         .expect("String write");
     }
+    for (visibility, name, properties, _) in document.material_composition_syntax() {
+        separate_declaration(output, count);
+        if visibility == VisibilitySyntax::Public {
+            output.push_str("public ");
+        }
+        writeln!(output, "material composition {name} {{").expect("String write");
+        for (property, release, _) in properties {
+            writeln!(output, "  property {property} = {release};").expect("String write");
+        }
+        output.push_str("}\n");
+    }
 }
 
 pub(super) fn format_component_requirements(component: &ComponentDecl, output: &mut String) {

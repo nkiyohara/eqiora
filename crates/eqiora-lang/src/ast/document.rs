@@ -1,4 +1,4 @@
-use crate::ast_property::{PropertyContractDecl, PropertyReleaseDecl};
+use crate::ast_property::{MaterialCompositionDecl, PropertyContractDecl, PropertyReleaseDecl};
 
 use super::{
     ComponentDecl, ConnectorDecl, DimensionDecl, Item, NamePath, PureOperatorDecl, TextRange,
@@ -63,6 +63,7 @@ pub struct Document {
     pub(crate) dimensions: Vec<DimensionDecl>,
     pub(crate) property_contracts: Vec<PropertyContractDecl>,
     pub(crate) property_releases: Vec<PropertyReleaseDecl>,
+    pub(crate) material_compositions: Vec<MaterialCompositionDecl>,
     pub(crate) connectors: Vec<ConnectorDecl>,
     pub(crate) components: Vec<ComponentDecl>,
     pub(crate) pure_operators: Vec<PureOperatorDecl>,

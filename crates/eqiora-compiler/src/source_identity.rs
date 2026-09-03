@@ -13,6 +13,7 @@ mod dimension;
 mod domain;
 pub(crate) mod formulation;
 mod instance;
+mod limits;
 mod model;
 mod property;
 mod visibility;
@@ -43,8 +44,9 @@ use compile_time::{encode_let, encode_parameter};
 use dimension::encode_dimensions;
 use domain::encode_domain;
 use instance::encode_instance;
+pub use limits::LocalSourceIdentityLimits;
 use model::encode_model;
-use property::{encode_property_contract, encode_property_release};
+use property::{encode_material_composition, encode_property_contract, encode_property_release};
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
@@ -58,64 +60,6 @@ const MODEL_BOUNDARY_CONNECTION_ITEM_TAG: u16 = 11;
 const COMPONENT_SPATIAL_PERIODIC_CONNECTION_ITEM_TAG: u16 = 14;
 const MODEL_SPATIAL_PERIODIC_CONNECTION_ITEM_TAG: u16 = 12;
 const MODEL_LET_ITEM_TAG: u16 = 13;
-/// Bounded resource policy for local source-unit identity construction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LocalSourceIdentityLimits {
-    /// Maximum Connector, pure-operator, Component, and Model declarations combined.
-    pub max_top_level_declarations: usize,
-    /// Maximum declarations in one component or model body.
-    pub max_members_per_container: usize,
-    /// Maximum declarations summed across all component and model bodies.
-    pub max_total_members: usize,
-    /// Maximum expression nodes in the complete source unit.
-    pub max_expression_nodes: usize,
-    /// Maximum recursive expression depth.
-    pub max_expression_depth: usize,
-    /// Maximum residual roots in one Relation, with root order preserved.
-    pub max_residuals_per_relation: usize,
-    /// Maximum member paths in one Connection or Boundary declaration.
-    pub max_connection_members: usize,
-    /// Maximum named Parameter, spatial-support, and Field bindings in one instance.
-    pub max_bindings_per_instance: usize,
-    /// Maximum exact Boundary members in one complete-exterior set binding.
-    pub max_boundary_set_members: usize,
-    /// Maximum Boundary-set memberships summed across the source unit.
-    pub max_total_boundary_set_memberships: usize,
-    /// Maximum segments in one structured source path.
-    pub max_path_segments: usize,
-    /// Maximum UTF-8 bytes in one name or path segment.
-    pub max_name_bytes: usize,
-    /// Maximum UTF-8 name bytes summed across the source identity.
-    pub max_total_name_bytes: usize,
-    /// Maximum bytes in the complete canonical encoding.
-    pub max_canonical_bytes: usize,
-    /// Maximum bytes cumulatively materialized while canonical records are
-    /// encoded for deterministic sorting.
-    pub max_intermediate_bytes: usize,
-}
-
-impl Default for LocalSourceIdentityLimits {
-    fn default() -> Self {
-        Self {
-            max_top_level_declarations: 65_536,
-            max_members_per_container: 65_536,
-            max_total_members: 1_000_000,
-            max_expression_nodes: 1_000_000,
-            max_expression_depth: 256,
-            max_residuals_per_relation: 65_536,
-            max_connection_members: 65_536,
-            max_bindings_per_instance: 65_536,
-            max_boundary_set_members: 65_536,
-            max_total_boundary_set_memberships: 1_000_000,
-            max_path_segments: 256,
-            max_name_bytes: 4_096,
-            max_total_name_bytes: 64 * 1_024 * 1_024,
-            max_canonical_bytes: 128 * 1_024 * 1_024,
-            max_intermediate_bytes: 512 * 1_024 * 1_024,
-        }
-    }
-}
-
 /// Domain-separated SHA-256 identity of one typed local source unit.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalSourceIdentity([u8; 32]);
@@ -204,6 +148,7 @@ fn canonical_source_bytes_with_aliases(
         .len()
         .checked_add(document.property_contract_syntax().len())
         .and_then(|count| count.checked_add(document.property_release_syntax().len()))
+        .and_then(|count| count.checked_add(document.material_composition_syntax().len()))
         .and_then(|count| count.checked_add(document.connectors().len()))
         .and_then(|count| count.checked_add(document.pure_operators().len()))
         .and_then(|count| count.checked_add(document.components().len()))
@@ -221,6 +166,7 @@ fn canonical_source_bytes_with_aliases(
     let connectors = encode_sorted_records(document.connectors(), &mut budget, encode_connector)?;
     let property_contract_syntax = document.property_contract_syntax().collect::<Vec<_>>();
     let property_release_syntax = document.property_release_syntax().collect::<Vec<_>>();
+    let material_composition_syntax = document.material_composition_syntax().collect::<Vec<_>>();
     let property_contracts = encode_sorted_records(
         &property_contract_syntax,
         &mut budget,
@@ -230,6 +176,11 @@ fn canonical_source_bytes_with_aliases(
         &property_release_syntax,
         &mut budget,
         encode_property_release,
+    )?;
+    let material_compositions = encode_sorted_records(
+        &material_composition_syntax,
+        &mut budget,
+        encode_material_composition,
     )?;
     let pure_operators =
         encode_sorted_records(document.pure_operators(), &mut budget, encode_pure_operator)?;
@@ -253,6 +204,9 @@ fn canonical_source_bytes_with_aliases(
     }
     if !dimensions.is_empty() {
         encoder.field(7, |encoder| encoder.records(&dimensions))?;
+    }
+    if !material_compositions.is_empty() {
+        encoder.field(8, |encoder| encoder.records(&material_compositions))?;
     }
     encoder.finish()
 }

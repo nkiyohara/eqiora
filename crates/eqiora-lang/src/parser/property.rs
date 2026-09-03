@@ -1,7 +1,8 @@
 use super::Parser;
 use crate::ast::{TextRange, VisibilitySyntax};
 use crate::ast_property::{
-    ComponentPropertyDecl, PropertyBindingDecl, PropertyContractDecl, PropertyReleaseDecl,
+    ComponentPropertyDecl, MaterialCompositionDecl, PropertyBindingDecl, PropertyContractDecl,
+    PropertyReleaseDecl,
 };
 use crate::lexer::{Token, TokenKind};
 
@@ -186,6 +187,42 @@ impl Parser<'_> {
             range: TextRange::new(start, end),
         })
     }
+
+    pub(super) fn parse_material_composition(
+        &mut self,
+        start: u32,
+        visibility: VisibilitySyntax,
+    ) -> Option<MaterialCompositionDecl> {
+        self.expect_keyword("material")?;
+        self.expect_keyword("composition")?;
+        let name = self
+            .expect_identifier("material composition name")?
+            .text()
+            .to_owned();
+        self.expect(TokenKind::LeftBrace, "`{` after material composition name")?;
+        let mut properties = Vec::new();
+        while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
+            let binding_start = self.current().range().start();
+            let mut binding = self.parse_property_binding(binding_start)?;
+            binding.range = TextRange::new(
+                binding.range.start(),
+                self.expect(TokenKind::Semicolon, "`;` after material property binding")?
+                    .range()
+                    .end(),
+            );
+            properties.push(binding);
+        }
+        let end = self
+            .expect(TokenKind::RightBrace, "`}` after material composition")?
+            .range()
+            .end();
+        Some(MaterialCompositionDecl {
+            visibility,
+            name,
+            properties,
+            range: TextRange::new(start, end),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -204,19 +241,24 @@ property release ReferenceDiffusivity implements Diffusivity {
   license = spdx.CC0_1_0;
 }
 
+public material composition ReferenceMaterial {
+  property diffusivity = ReferenceDiffusivity;
+}
+
 public component Diffusion {
   public property diffusivity: Diffusivity;
   relation law continuous { diffusivity = 0; }
 }
 
 model Main {
-  instance domain: Diffusion(property diffusivity = ReferenceDiffusivity);
+  instance domain: Diffusion(material = ReferenceMaterial);
 }"#;
         let document = crate::parse("property.eqi", source)
             .into_document()
             .expect("valid property source");
         assert_eq!(document.property_contract_syntax().len(), 1);
         assert_eq!(document.property_release_syntax().len(), 1);
+        assert_eq!(document.material_composition_syntax().len(), 1);
         assert_eq!(
             document.components()[0].property_requirement_syntax().len(),
             1

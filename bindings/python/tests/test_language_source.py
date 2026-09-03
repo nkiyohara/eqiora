@@ -212,6 +212,52 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
     return source
 
 
+def material_composition_source() -> q.Source:
+    source = q.Source()
+    conductivity_contract = source.scalar_property_contract("Conductivity", unit=u.one)
+    capacity_contract = source.scalar_property_contract("Capacity", unit=u.one)
+    conductivity_release = source.scalar_property_release(
+        "ConductivityA",
+        implements=conductivity_contract,
+        value=2,
+        source_unit=u.one,
+        source_scale=1,
+        citation="org.example.a",
+        license="spdx.CC0_1_0",
+    )
+    capacity_release = source.scalar_property_release(
+        "CapacityA",
+        implements=capacity_contract,
+        value=4,
+        source_unit=u.one,
+        source_scale=1,
+        citation="org.example.a",
+        license="spdx.CC0_1_0",
+    )
+    law = source.component("DiffusionLaw")
+    region = law.volume("region", dimensions=2)
+    conductivity = law.property("conductivity", contract=conductivity_contract)
+    capacity = law.property("capacity", contract=capacity_contract)
+    law.relation("law", on=region, residual=conductivity / capacity)
+    material = source.material_composition(
+        "MaterialA",
+        properties={
+            "conductivity": conductivity_release,
+            "capacity": capacity_release,
+        },
+    )
+    root = source.component("UseMaterial")
+    root_region = root.volume("region", dimensions=2)
+    root.instance(
+        "law",
+        component=law,
+        supports={region: root_region},
+        parameters={},
+        material=material,
+    )
+    return source
+
+
 def test_removed_source_choice_keywords_are_unexpected() -> None:
     source = q.Source()
     with pytest.raises(TypeError, match="unexpected keyword argument 'public'"):
@@ -404,6 +450,17 @@ def test_scalar_property_source_emits_for_the_exact_package_path(
     assert scalar_property_source(doc="Different release documentation.").to_eqi().replace(
         "// Different release documentation.\n", ""
     ) == first.to_eqi().replace("// Reference scalar diffusivity release.\n", "")
+
+
+def test_material_composition_emits_one_ordered_typed_binding_set() -> None:
+    text = material_composition_source().to_eqi()
+    assert "public material composition MaterialA" in text
+    assert text.index("property capacity = CapacityA") < text.index(
+        "property conductivity = ConductivityA"
+    )
+    assert "material = MaterialA" in text
+    with pytest.raises(TypeError):
+        q.MaterialComposition()
 
 
 def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> None:
