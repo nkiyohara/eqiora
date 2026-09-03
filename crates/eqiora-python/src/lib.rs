@@ -22,6 +22,7 @@ mod package;
 mod planar_operation;
 mod realization;
 mod result;
+mod standard_packages;
 mod steady_stokes;
 mod trajectory;
 mod viewer;
@@ -261,6 +262,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     error::register(module)?;
     model::register(module)?;
     package::register(module)?;
+    standard_packages::register(module)?;
     array::register(module)?;
     cad_authored::register(module)?;
     common_plan::register(module)?;

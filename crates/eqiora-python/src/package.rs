@@ -54,8 +54,8 @@ fn resolve_local_project(
     store_root: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyBytes>> {
     panic_boundary(py, || {
-        let project_root = unicode_store_root(py, project_root)?;
-        let store_root = unicode_store_root(py, store_root)?;
+        let project_root = unicode_path(py, project_root)?;
+        let store_root = unicode_path(py, store_root)?;
         let resolution = py
             .detach(move || {
                 PackagedModelDocument::resolve_local_package_project_v1(project_root, store_root)
@@ -95,7 +95,7 @@ fn compile_package(
     parameters: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<PyModel> {
     panic_boundary(py, || {
-        let store_root = unicode_store_root(py, store_root)?;
+        let store_root = unicode_path(py, store_root)?;
         let resolution = resolution.cast::<PyBytes>()?.as_bytes().to_vec();
         let compiled = match (entry_model, geometry.as_ref(), component) {
             (Some(entry_model), None, None) if parameters.is_none() => {
@@ -137,7 +137,7 @@ fn compile_package(
     })
 }
 
-fn unicode_store_root(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<PathBuf> {
+pub(crate) fn unicode_path(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<PathBuf> {
     let path = py.import("os")?.getattr("fspath")?.call1((value,))?;
     let path = path.cast::<PyString>()?.to_str()?;
     Ok(PathBuf::from(path))
@@ -218,7 +218,7 @@ fn check_package_conformance(
         let resolution_bytes = resolution.cast::<PyBytes>()?.as_bytes().to_vec();
         let resolution = py.detach(move || decode_conformance_resolution(resolution_bytes));
         let resolution = resolution.map_err(|failure| python_failure(py, failure))?;
-        let store_root = unicode_store_root(py, store_root)?;
+        let store_root = unicode_path(py, store_root)?;
         let entry_model = entry_model.to_owned();
         let profile = profile.to_owned();
         let checked = py.detach(move || {

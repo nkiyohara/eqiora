@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 162 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 617 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 164 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 617 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 192 literal public spellings, 162 canonical grouped declarations, 814 visible method signatures (617 non-dunder and 197 dunder), and 74 visible class assignments.
+Inventory: 18 modules, 194 literal public spellings, 164 canonical grouped declarations, 814 visible method signatures (617 non-dunder and 197 dunder), and 79 visible class assignments.
 
 Regenerate with:
 
@@ -1414,6 +1414,23 @@ class ValueEdit:
     def __hash__(self) -> int: ...
 ```
 
+<a id="api-eqiora-VendoredStandardPackage"></a>
+
+### `eqiora.VendoredStandardPackage`
+
+One exact source package written by `vendor_standard_package`.
+
+Authority: [`bindings/python/python/eqiora/__init__.py::VendoredStandardPackage`](../../bindings/python/python/eqiora/__init__.py)
+
+```python
+class VendoredStandardPackage(NamedTuple):
+    name: str
+    version: str
+    semantic_digest: str
+    source_digest: str
+    path: str
+```
+
 <a id="api-eqiora-View"></a>
 
 ### `eqiora.View`
@@ -1726,6 +1743,18 @@ Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler`](.
 Read-only projections of accepted Eqiora spatial trajectories.
 
 Authority: [`bindings/python/python/eqiora/trajectory.py`](../../bindings/python/python/eqiora/trajectory.py)
+
+<a id="api-eqiora-vendor_standard_package"></a>
+
+### `eqiora.vendor_standard_package`
+
+Vendor one exact bundled standard package and its dependency closure.
+
+Authority: [`bindings/python/python/eqiora/__init__.py::vendor_standard_package`](../../bindings/python/python/eqiora/__init__.py)
+
+```python
+def vendor_standard_package(project_root: str | PathLike[str], package: str, *, destination: str='packages') -> tuple[VendoredStandardPackage, ...]: ...
+```
 
 <a id="module-eqiora-geometry"></a>
 
