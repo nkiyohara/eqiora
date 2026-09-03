@@ -15,7 +15,10 @@ WORKFLOW = REPOSITORY / ".github/workflows/pages.yml"
 SCRATCH_ROOT = Path.home() / ".cache/eqiora/site-trust-tests"
 
 MISE_ACTION = (
-    "jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3"
+    "jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0"
+)
+CACHE_ACTION = (
+    "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0"
 )
 
 
@@ -29,6 +32,12 @@ def _named_step(workflow: str, name: str) -> str:
 
 
 class PagesMiseTrustBoundaryTests(unittest.TestCase):
+    def test_playwright_cache_uses_the_reviewed_action_release(self) -> None:
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        step = _named_step(workflow, "Restore the exact Playwright browser cache")
+
+        self.assertIn(f"        uses: {CACHE_ACTION}\n", step)
+
     def test_locked_toolchain_is_installed_without_a_split_mise_cache(self) -> None:
         workflow = WORKFLOW.read_text(encoding="utf-8")
         step = _named_step(workflow, "Install the locked mise toolchain")
