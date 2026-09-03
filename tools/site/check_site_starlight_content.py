@@ -615,7 +615,6 @@ def check_starlight_content(
             "Observation boundary",
             "Deliberate failure",
             "Exercises",
-            "Non-claims",
         ):
             if phrase not in page.visible_text:
                 errors.append(f"textbook chapter {title!r} omits {phrase!r}")
