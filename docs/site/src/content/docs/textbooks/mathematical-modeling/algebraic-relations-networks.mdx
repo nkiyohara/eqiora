@@ -1,0 +1,142 @@
+---
+title: 3. Algebraic relations and networks
+description: Count unknowns and independent relations, then use conservation and closure to diagnose algebraic models before solving.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+<Aside type="note" title="Chapter status">
+  **Illustrative · source compiles · no algebraic solve.** The examples target
+  the current <ReleaseIdentity /> surface. This chapter checks relation
+  structure by hand and with the compiler; it does not claim a general
+  structural-rank analyzer or executable acausal-network solver.
+</Aside>
+
+## Why relations come before algorithms
+
+Many models are networks of simultaneous statements rather than recipes that
+calculate one variable after another. Conservation at a junction, compatibility
+between connected parts, and a constitutive law can all constrain the same
+unknowns. Calling one variable an “input” too early can hide that structure.
+
+Eqiora writes each statement as a residual equal to zero. An equation such as
+$a+b=s$ therefore has the residual $a+b-s$. The ordering of the symbols does
+not assign a computational direction.
+
+## Learning outcomes
+
+After this chapter, you should be able to:
+
+- distinguish unknown quantities, prescribed parameters, and relations;
+- count unknowns and independent scalar relations in a small model;
+- separate conservation from the law that closes a network;
+- compile a bounded algebraic `.eqi` model without selecting a solver; and
+- identify underdetermined, overconstrained, and inconsistent structures.
+
+## A two-branch split
+
+Let a prescribed amount $s$ split into two unknown branch amounts $a$ and $b$.
+Conservation provides one relation,
+
+$$
+a+b-s=0.
+$$
+
+That relation alone cannot determine both branches. For a symmetric splitter,
+the constitutive or design assumption $a-b=0$ supplies the second relation.
+Solving the two statements by substitution gives $a=b=s/2$, but the model owns
+the relations—not the elimination order used to obtain that expression.
+
+## Readable Eqiora source
+
+Save this as `split.eqi`:
+
+```eqiora
+model split {
+  parameter supplied: 1 = 1;
+  field branch_a: 1 = 0;
+  field branch_b: 1 = 0;
+
+  relation conservation continuous {
+    branch_a + branch_b - supplied = 0;
+  }
+  relation equal_split continuous {
+    branch_a - branch_b = 0;
+  }
+}
+```
+
+From a source checkout, run the installed compiler against the checked-in copy:
+
+```console
+$ eqiora check examples/algebraic-split.eqi
+```
+
+<ExactSourceLink path="examples/algebraic-split.eqi" kind="blob">View the complete checked-in model source</ExactSourceLink>.
+
+Compilation checks the source and typed expressions. It does not execute this
+algebraic model or prove that the two residuals are globally independent.
+
+## Count before solving
+
+For this bounded example:
+
+| Item | Count | Role |
+| --- | ---: | --- |
+| Prescribed parameters | 1 | `supplied` is known for one model instance. |
+| Scalar unknowns | 2 | `branch_a` and `branch_b` must be determined. |
+| Scalar relations | 2 | conservation and equal split close this particular structure. |
+
+Matching counts are necessary, not sufficient. Two copies of the conservation
+relation would still leave the split undetermined. A third relation demanding
+`branch_a = supplied` would contradict equal split when `supplied` is nonzero.
+Independence and consistency depend on relation content, not names or counts.
+
+## From equations to networks
+
+In a physical network, a component typically owns its constitutive relation,
+while a connection owns compatibility or conservation across ports. This makes
+the model acausal: the assembled relations determine which quantities must be
+solved together. It does not mean every possible network is currently
+executable, and it does not turn connection order into execution order.
+
+## Observation boundary
+
+This chapter observes compiler acceptance and performs a hand derivation. It
+does not produce a `Result`. The values $a=b=s/2$ follow from the two written
+relations; they are not reported as Eqiora numerical output.
+
+## Deliberate failure: remove the closing relation
+
+Delete `equal_split` while retaining conservation. The source remains readable
+and dimensionally consistent, so the current compile check need not diagnose
+the missing physical assumption. By hand, one equation constrains two unknowns:
+every pair satisfying $a+b=s$ is possible. The repair is to state a justified
+second relation, not to choose an arbitrary solver default.
+
+This is an important diagnostic lesson: successful compilation does not prove
+that a model is closed or physically meaningful.
+
+## Exercises
+
+1. For $s=1$, list three distinct pairs $(a,b)$ that satisfy conservation when
+   `equal_split` is absent.
+2. Replace equal split with $a=2b$. Derive both branch amounts without changing
+   the conservation relation.
+3. Add the relation $a=s$ to the original symmetric model. For which value of
+   $s$ are all three relations consistent?
+4. Give one circuit or flow-network example in which a connection owns
+   conservation and a component owns a constitutive law. Identify every
+   unknown and prescribed parameter.
+
+## Non-claims
+
+This chapter does not execute algebraic networks, infer equation independence,
+perform structural-rank or index analysis, establish general connection
+semantics, or claim that matching equation and unknown counts prove closure.
+
+[Previous: Quantities, dimensions, and units](/textbooks/mathematical-modeling/quantities-dimensions-units/) ·
+[Back to the series map](/textbooks/mathematical-modeling/) ·
+[Next: Ordinary differential equations](/textbooks/mathematical-modeling/ordinary-differential-equations/)

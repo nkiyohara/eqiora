@@ -253,6 +253,13 @@ class CompleteContractTests(unittest.TestCase):
                 "textbook chapter 'Models are not simulations' omits",
             ),
             (
+                "missing checked textbook chapter status",
+                Path("textbooks/mathematical-modeling/ordinary-differential-equations/index.html"),
+                "Checked",
+                "Illustrative",
+                "textbook chapter 'Ordinary differential equations' omits",
+            ),
+            (
                 "missing technical catalog guide",
                 Path("evidence/index.html"),
                 "How to read the technical catalog",

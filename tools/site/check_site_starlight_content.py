@@ -26,8 +26,10 @@ TEXTBOOK_SERIES = (
     ("structural-mechanics-fem", "Structural Mechanics and the Finite Element Method"),
 )
 MODELING_FOUNDATION_CHAPTERS = (
-    ("models-not-simulations", "Models are not simulations"),
-    ("quantities-dimensions-units", "Quantities, dimensions, and units"),
+    ("algebraic-relations-networks", "Algebraic relations and networks", "Illustrative"),
+    ("models-not-simulations", "Models are not simulations", "Illustrative"),
+    ("ordinary-differential-equations", "Ordinary differential equations", "Checked"),
+    ("quantities-dimensions-units", "Quantities, dimensions, and units", "Illustrative"),
 )
 STAGES = (
     ("problem-setup", "1", "Problem setup"),
@@ -575,7 +577,7 @@ def check_starlight_content(
             "Foundations",
             "Physics",
             "Advanced study",
-            "0 executable simulation chapters",
+            "1 executable simulation chapter",
         ):
             if phrase not in textbooks.visible_text:
                 errors.append(f"textbooks landing omits {phrase!r}")
@@ -589,7 +591,7 @@ def check_starlight_content(
             continue
         page = value[1]
         chapter_count = (
-            "0 executable simulation chapters"
+            "1 executable simulation chapter"
             if slug == "mathematical-modeling"
             else "0 executable chapters"
         )
@@ -597,7 +599,7 @@ def check_starlight_content(
             if phrase not in page.visible_text:
                 errors.append(f"textbook {title!r} omits {phrase!r}")
         if slug == "mathematical-modeling":
-            for chapter_slug, chapter_title in MODELING_FOUNDATION_CHAPTERS:
+            for chapter_slug, chapter_title, _ in MODELING_FOUNDATION_CHAPTERS:
                 destination = (
                     f"/textbooks/mathematical-modeling/{chapter_slug}/",
                     chapter_title,
@@ -606,7 +608,7 @@ def check_starlight_content(
                     errors.append(
                         f"textbook {title!r} omits published chapter {chapter_title!r}"
                     )
-    for slug, title in MODELING_FOUNDATION_CHAPTERS:
+    for slug, title, status in MODELING_FOUNDATION_CHAPTERS:
         value = inspections.get(
             artifact / f"textbooks/mathematical-modeling/{slug}/index.html"
         )
@@ -615,7 +617,7 @@ def check_starlight_content(
         page = value[1]
         for phrase in (
             title,
-            "Illustrative",
+            status,
             "Learning outcomes",
             "Observation boundary",
             "Deliberate failure",

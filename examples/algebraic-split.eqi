@@ -1,0 +1,13 @@
+// Two unknown branch amounts closed by conservation and an equal-split law.
+model split {
+  parameter supplied: 1 = 1;
+  field branch_a: 1 = 0;
+  field branch_b: 1 = 0;
+
+  relation conservation continuous {
+    branch_a + branch_b - supplied = 0;
+  }
+  relation equal_split continuous {
+    branch_a - branch_b = 0;
+  }
+}
