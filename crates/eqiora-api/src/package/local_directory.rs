@@ -1,16 +1,30 @@
 //! Exact local-directory package resolution and store preparation.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
+use cap_fs_ext::{
+    DirExt, FollowSymlinks, OpenOptionsFollowExt, OpenOptionsMaybeDirExt, OpenOptionsSyncExt,
+};
+use cap_std::ambient_authority;
+use cap_std::fs::{Dir, File, OpenOptions};
 use eqiora_package::{
     AuthorPackageDirectory, AuthorPackageSourcesV1, DirectoryPackageInstaller, ExactVersion,
-    ModelPackageIdentityV1, PackageReleaseV1, QualifiedName, ResolutionRecordV1,
+    ModelPackageIdentityV1, NormalizedRelativePath, PackageReleaseV1, QualifiedName,
+    ResolutionRecordV1,
 };
+use serde::Deserialize;
 
 use super::{PackagePreparationError, PackagedModelDocument, prepare_package_release_v1};
 
 const MAX_LOCAL_PACKAGE_DIRECTORIES_V1: usize = 65_536;
+const MAX_PROJECT_MANIFEST_BYTES: usize = 1024 * 1024;
+const PROJECT_MANIFEST: &str = "eqiora.toml";
+const PROJECT_LOCK: &str = "eqiora.lock";
+const PROJECT_SCHEMA: &str = "eqiora.project.v1";
+static NEXT_LOCK_STAGE: AtomicU64 = AtomicU64::new(0);
 
 type PackageKey = (QualifiedName, ExactVersion);
 
@@ -26,87 +40,74 @@ struct PreparedLocalPackage {
     dependencies: BTreeMap<ModelPackageIdentityV1, PackageReleaseV1>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LocalProjectManifest {
+    schema: String,
+    root: String,
+    sources: BTreeMap<String, LocalProjectSource>,
+    dependencies: BTreeMap<String, String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LocalProjectSource {
+    path: String,
+}
+
 impl PackagedModelDocument {
     /// Maximum root-plus-dependency count admitted by local exact resolution.
-    pub const MAX_LOCAL_PACKAGE_DIRECTORIES_V1: usize = MAX_LOCAL_PACKAGE_DIRECTORIES_V1;
+    pub const MAX_LOCAL_PROJECT_SOURCES_V1: usize = MAX_LOCAL_PACKAGE_DIRECTORIES_V1;
 
-    /// Resolve explicit local package directories and populate one offline store.
+    /// Resolve one local package project, write its exact lock, and populate an offline store.
     ///
-    /// Every directory crosses its bounded `package.json` inventory. Dependencies are
-    /// prepared leaf-first through compiler-owned semantics, matched against their parents'
-    /// exact identities, and normalized independently of caller order. The returned ordinary
-    /// [`ResolutionRecordV1`] is the authority; the populated store remains a replaceable cache.
-    ///
-    /// This operation performs no project-manifest or lockfile I/O, Git/network access, version
-    /// selection, environment lookup, or executable package hook. The complete closure must be
-    /// supplied explicitly and may not contain unrelated directories.
+    /// `eqiora.toml` names one root source, its complete local source closure, and the root
+    /// package's dependency aliases. Every path is project-relative and opened without following
+    /// symbolic links. Resolution validates the compiler-derived exact graph before atomically
+    /// replacing `eqiora.lock` with canonical [`ResolutionRecordV1`] bytes.
     ///
     /// # Errors
     ///
-    /// Returns a typed directory, graph, compiler-preparation, exact-identity, lock-derivation,
-    /// or store-installation failure. No lock is returned until the closure is installed.
-    pub fn resolve_local_package_directories_v1<R, D, I, P>(
-        root: R,
-        dependency_roots: I,
+    /// Returns a project, directory, graph, compiler-preparation, exact-identity, installation,
+    /// or lock-publication failure. The previous lock remains usable on failure.
+    pub fn resolve_local_package_project_v1<R, P>(
+        project_root: R,
         store_root: P,
     ) -> Result<ResolutionRecordV1, PackagePreparationError>
     where
         R: Into<PathBuf>,
-        D: Into<PathBuf>,
-        I: IntoIterator<Item = D>,
         P: Into<PathBuf>,
     {
-        resolve_local_package_directories_v1(root, dependency_roots, store_root)
+        resolve_local_package_project_v1(project_root, store_root)
     }
 }
 
-/// Resolve exact packages from explicit local directories and populate one local store.
-///
-/// Every directory is admitted through its bounded `package.json` inventory. Dependencies
-/// are prepared leaf-first through compiler-owned semantics, matched against the exact
-/// identities declared by their parents, and normalized independently of caller order.
-/// The store is a replaceable cache populated with atomic no-clobber entries; the returned
-/// canonical [`ResolutionRecordV1`] remains the authority for later offline compilation.
-///
-/// This operation performs no project-manifest or lockfile I/O, Git/network access, version
-/// selection, environment lookup, or executable package hook. All dependency directories must
-/// be supplied explicitly, and none may be unrelated to the root closure.
-///
-/// # Errors
-///
-/// Returns a typed directory, graph, compiler-preparation, exact-identity, lock-derivation, or
-/// store-installation failure. No resolution record is returned until the complete closure is
-/// prepared and installed.
-fn resolve_local_package_directories_v1<R, D, I, P>(
-    root: R,
-    dependency_roots: I,
+fn resolve_local_package_project_v1<R, P>(
+    project_root: R,
     store_root: P,
 ) -> Result<ResolutionRecordV1, PackagePreparationError>
 where
     R: Into<PathBuf>,
-    D: Into<PathBuf>,
-    I: IntoIterator<Item = D>,
     P: Into<PathBuf>,
 {
-    let root = root.into();
-    let mut paths = Vec::new();
-    paths.push(root.clone());
-    for dependency in dependency_roots {
-        if paths.len() == MAX_LOCAL_PACKAGE_DIRECTORIES_V1 {
-            return Err(PackagePreparationError::LocalDirectoryGraph(format!(
-                "local package closure has {} directories, exceeding the limit {MAX_LOCAL_PACKAGE_DIRECTORIES_V1}",
-                paths.len() + 1
-            )));
-        }
-        paths.push(dependency.into());
-    }
+    let project_path = project_root.into();
+    let project = open_project_root(&project_path)?;
+    let manifest = read_project_manifest(&project)?;
+    let (root_source, paths) = normalize_project_manifest(&manifest)?;
 
     let mut packages = BTreeMap::<PackageKey, LocalPackageSource>::new();
-    let mut root_key = None;
-    for (index, path) in paths.into_iter().enumerate() {
-        let directory = AuthorPackageDirectory::open_ambient(&path).map_err(|source| {
+    let mut source_keys = BTreeMap::new();
+    for (source_name, relative_path) in paths {
+        let directory = project
+            .open_dir_nofollow(relative_path.as_str())
+            .map_err(|source| {
+                PackagePreparationError::LocalDirectoryGraph(format!(
+                    "cannot open local project source `{source_name}` at {relative_path}: {source}"
+                ))
+            })?;
+        let directory = AuthorPackageDirectory::try_from_dir(directory).map_err(|source| {
             PackagePreparationError::Directory {
-                path: path.clone(),
+                path: project_path.join(relative_path.as_str()),
                 source,
             }
         })?;
@@ -114,29 +115,37 @@ where
             directory
                 .read_sources()
                 .map_err(|source| PackagePreparationError::Directory {
-                    path: path.clone(),
+                    path: project_path.join(relative_path.as_str()),
                     source,
                 })?;
         let key = (
             sources.manifest().name().clone(),
             sources.manifest().version().clone(),
         );
-        if index == 0 {
-            root_key = Some(key.clone());
-        }
+        source_keys.insert(source_name, key.clone());
         if let Some(previous) = packages.get(&key) {
             return Err(PackagePreparationError::LocalDirectoryGraph(format!(
                 "local package `{}@{}` is supplied by both {} and {}",
                 key.0,
                 key.1,
                 previous.path.display(),
-                path.display()
+                project_path.join(relative_path.as_str()).display()
             )));
         }
-        packages.insert(key, LocalPackageSource { path, sources });
+        packages.insert(
+            key,
+            LocalPackageSource {
+                path: project_path.join(relative_path.as_str()),
+                sources,
+            },
+        );
     }
 
-    let root_key = root_key.expect("root path is always present");
+    let root_key = source_keys
+        .get(&root_source)
+        .cloned()
+        .expect("normalized root source exists");
+    validate_project_dependencies(&manifest, &root_key, &source_keys, &packages)?;
     let mut visiting = BTreeSet::new();
     let mut prepared = BTreeMap::new();
     let root_package = prepare_local_package(&root_key, &packages, &mut visiting, &mut prepared)?;
@@ -177,7 +186,251 @@ where
                     source,
                 })?;
     }
+    publish_project_lock(&project, &resolution)?;
     Ok(resolution)
+}
+
+fn open_project_root(path: &Path) -> Result<Dir, PackagePreparationError> {
+    let mut options = OpenOptions::new();
+    options
+        .read(true)
+        .maybe_dir(true)
+        .follow(FollowSymlinks::No)
+        .nonblock(true);
+    let root = File::open_ambient_with(path, &options, ambient_authority()).map_err(|error| {
+        PackagePreparationError::LocalDirectoryGraph(format!(
+            "cannot open local package project {}: {error}",
+            path.display()
+        ))
+    })?;
+    if !root
+        .metadata()
+        .map_err(|error| {
+            PackagePreparationError::LocalDirectoryGraph(format!(
+                "cannot inspect local package project {}: {error}",
+                path.display()
+            ))
+        })?
+        .is_dir()
+    {
+        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+            "local package project {} is not a directory",
+            path.display()
+        )));
+    }
+    Ok(Dir::from_std_file(root.into_std()))
+}
+
+fn read_project_manifest(project: &Dir) -> Result<LocalProjectManifest, PackagePreparationError> {
+    let mut options = OpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No).nonblock(true);
+    let file = project
+        .open_with(PROJECT_MANIFEST, &options)
+        .map_err(|error| {
+            PackagePreparationError::LocalDirectoryGraph(format!(
+                "cannot open {PROJECT_MANIFEST}: {error}"
+            ))
+        })?;
+    let metadata = file.metadata().map_err(|error| {
+        PackagePreparationError::LocalDirectoryGraph(format!(
+            "cannot inspect {PROJECT_MANIFEST}: {error}"
+        ))
+    })?;
+    if !metadata.is_file() {
+        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+            "{PROJECT_MANIFEST} is not a regular file"
+        )));
+    }
+    if metadata.len() > MAX_PROJECT_MANIFEST_BYTES as u64 {
+        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+            "{PROJECT_MANIFEST} exceeds the {MAX_PROJECT_MANIFEST_BYTES} byte limit"
+        )));
+    }
+    let mut bytes = Vec::new();
+    file.take((MAX_PROJECT_MANIFEST_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            PackagePreparationError::LocalDirectoryGraph(format!(
+                "cannot read {PROJECT_MANIFEST}: {error}"
+            ))
+        })?;
+    if bytes.len() > MAX_PROJECT_MANIFEST_BYTES {
+        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+            "{PROJECT_MANIFEST} exceeds the {MAX_PROJECT_MANIFEST_BYTES} byte limit"
+        )));
+    }
+    let text = std::str::from_utf8(&bytes).map_err(|error| {
+        PackagePreparationError::LocalDirectoryGraph(format!(
+            "{PROJECT_MANIFEST} is not UTF-8: {error}"
+        ))
+    })?;
+    toml::from_str(text).map_err(|error| {
+        PackagePreparationError::LocalDirectoryGraph(format!(
+            "cannot decode {PROJECT_MANIFEST}: {error}"
+        ))
+    })
+}
+
+fn normalize_project_manifest(
+    manifest: &LocalProjectManifest,
+) -> Result<(String, Vec<(String, NormalizedRelativePath)>), PackagePreparationError> {
+    if manifest.schema != PROJECT_SCHEMA {
+        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+            "unsupported local project schema `{}`",
+            manifest.schema
+        )));
+    }
+    if manifest.sources.is_empty() || manifest.sources.len() > MAX_LOCAL_PACKAGE_DIRECTORIES_V1 {
+        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+            "local project must contain between 1 and {MAX_LOCAL_PACKAGE_DIRECTORIES_V1} sources"
+        )));
+    }
+    validate_local_name("root source", &manifest.root)?;
+    if !manifest.sources.contains_key(&manifest.root) {
+        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+            "local project root source `{}` is not declared in `sources`",
+            manifest.root
+        )));
+    }
+    let mut paths = Vec::with_capacity(manifest.sources.len());
+    let mut portable_paths = BTreeMap::new();
+    for (name, source) in &manifest.sources {
+        validate_local_name("source", name)?;
+        let path = NormalizedRelativePath::parse(&source.path).map_err(|error| {
+            PackagePreparationError::LocalDirectoryGraph(format!(
+                "local project source `{name}` has invalid path `{}`: {error}",
+                source.path
+            ))
+        })?;
+        if let Some(previous) = portable_paths.insert(path.as_str().to_ascii_lowercase(), name) {
+            return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+                "local project sources `{previous}` and `{name}` use portability-colliding paths"
+            )));
+        }
+        paths.push((name.clone(), path));
+    }
+    for (alias, source) in &manifest.dependencies {
+        validate_local_name("dependency alias", alias)?;
+        validate_local_name("dependency source", source)?;
+        if source == &manifest.root || !manifest.sources.contains_key(source) {
+            return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+                "dependency alias `{alias}` names unknown non-root source `{source}`"
+            )));
+        }
+    }
+    Ok((manifest.root.clone(), paths))
+}
+
+fn validate_local_name(kind: &str, value: &str) -> Result<(), PackagePreparationError> {
+    let name = QualifiedName::parse(value).map_err(|error| {
+        PackagePreparationError::LocalDirectoryGraph(format!(
+            "invalid local project {kind} `{value}`: {error}"
+        ))
+    })?;
+    if name.as_str().contains('.') {
+        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+            "local project {kind} `{value}` must be one identifier"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_project_dependencies(
+    manifest: &LocalProjectManifest,
+    root_key: &PackageKey,
+    source_keys: &BTreeMap<String, PackageKey>,
+    packages: &BTreeMap<PackageKey, LocalPackageSource>,
+) -> Result<(), PackagePreparationError> {
+    let root = packages
+        .get(root_key)
+        .expect("root source was indexed as a package");
+    if root.sources.manifest().dependencies().len() != manifest.dependencies.len() {
+        return Err(PackagePreparationError::LocalDirectoryGraph(
+            "eqiora.toml dependencies must map every direct root-package dependency exactly once"
+                .to_owned(),
+        ));
+    }
+    for requirement in root.sources.manifest().dependencies() {
+        let alias = requirement.alias().as_str();
+        let source = manifest.dependencies.get(alias).ok_or_else(|| {
+            PackagePreparationError::LocalDirectoryGraph(format!(
+                "eqiora.toml is missing root-package dependency alias `{alias}`"
+            ))
+        })?;
+        let actual = source_keys
+            .get(source)
+            .expect("normalized dependency source exists");
+        let expected = requirement.target();
+        if actual.0 != expected.name || actual.1 != expected.version {
+            return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+                "dependency alias `{alias}` maps to `{}@{}`, expected `{}@{}`",
+                actual.0, actual.1, expected.name, expected.version
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn publish_project_lock(
+    project: &Dir,
+    resolution: &ResolutionRecordV1,
+) -> Result<(), PackagePreparationError> {
+    let bytes = resolution.canonical_json()?;
+    match project.symlink_metadata(PROJECT_LOCK) {
+        Ok(metadata) if !metadata.file_type().is_file() => {
+            return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+                "{PROJECT_LOCK} is not a regular file"
+            )));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+                "cannot inspect {PROJECT_LOCK}: {error}"
+            )));
+        }
+    }
+
+    for _ in 0..128 {
+        let sequence = NEXT_LOCK_STAGE.fetch_add(1, Ordering::Relaxed);
+        let stage = format!(
+            ".eqiora.lock.stage-{:x}-{sequence:016x}",
+            std::process::id()
+        );
+        let mut options = OpenOptions::new();
+        options
+            .write(true)
+            .create_new(true)
+            .follow(FollowSymlinks::No)
+            .nonblock(true);
+        match project.open_with(&stage, &options) {
+            Ok(mut file) => {
+                let result = file
+                    .write_all(&bytes)
+                    .and_then(|()| file.sync_all())
+                    .and_then(|()| {
+                        drop(file);
+                        project.rename(&stage, project, PROJECT_LOCK)
+                    });
+                if let Err(error) = result {
+                    let _ = project.remove_file(&stage);
+                    return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+                        "cannot publish {PROJECT_LOCK} atomically: {error}"
+                    )));
+                }
+                return Ok(());
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+                    "cannot create {PROJECT_LOCK} staging file: {error}"
+                )));
+            }
+        }
+    }
+    Err(PackagePreparationError::LocalDirectoryGraph(format!(
+        "cannot reserve a {PROJECT_LOCK} staging name"
+    )))
 }
 
 fn prepare_local_package(
@@ -327,8 +580,20 @@ mod tests {
         .expect("dependency")
     }
 
+    fn write_project(fixture: &TestDirectory, sources: &[&str], dependencies: &[(&str, &str)]) {
+        let mut manifest =
+            String::from("schema = \"eqiora.project.v1\"\nroot = \"root\"\n\n[dependencies]\n");
+        for (alias, source) in dependencies {
+            manifest.push_str(&format!("{alias} = \"{source}\"\n"));
+        }
+        for source in sources {
+            manifest.push_str(&format!("\n[sources.{source}]\npath = \"{source}\"\n"));
+        }
+        fs::write(fixture.0.join(PROJECT_MANIFEST), manifest).expect("write project manifest");
+    }
+
     #[test]
-    fn local_directories_resolve_order_independently_and_compile_offline() {
+    fn local_project_locks_deterministically_and_reopens_offline() {
         let fixture = TestDirectory::create("complete");
         let library_path = fixture.child("library");
         let auxiliary_path = fixture.child("auxiliary");
@@ -366,26 +631,26 @@ mod tests {
             ],
         );
         write_package(&root_path, &root_sources);
+        write_project(
+            &fixture,
+            &["root", "library", "auxiliary"],
+            &[("auxiliary", "auxiliary"), ("library", "library")],
+        );
 
-        let first = resolve_local_package_directories_v1(
-            &root_path,
-            [&library_path, &auxiliary_path],
-            &first_store,
-        )
-        .expect("first resolution");
-        let second = resolve_local_package_directories_v1(
-            &root_path,
-            [&auxiliary_path, &library_path],
-            &second_store,
-        )
-        .expect("permuted resolution");
+        let first =
+            resolve_local_package_project_v1(&fixture.0, &first_store).expect("first resolution");
+        let lock_bytes = fs::read(fixture.0.join(PROJECT_LOCK)).expect("read exact lock");
+        assert_eq!(lock_bytes, first.canonical_json().expect("canonical lock"));
+        let reopened = ResolutionRecordV1::from_json(&lock_bytes).expect("reopen exact lock");
+        let second = resolve_local_package_project_v1(&fixture.0, &second_store)
+            .expect("repeated resolution");
         assert_eq!(
             first.canonical_json().expect("first lock"),
             second.canonical_json().expect("second lock")
         );
 
         let store = DirectoryPackageStore::open_ambient(&first_store).expect("offline store");
-        let model = PackagedModelDocument::compile_locked(&store, &first, "library.Shared")
+        let model = PackagedModelDocument::compile_locked(&store, &reopened, "library.Shared")
             .expect("compile imported public Model");
         model
             .compilation()
@@ -408,30 +673,69 @@ mod tests {
         );
         let admitted_release =
             prepare_package_release_v1(admitted_sources, &[]).expect("expected dependency release");
-        let changed_sources = author_sources(
-            "org.example.Dependency",
-            "public model Shared { parameter gain: 1 = 2; }",
-            vec![],
-        );
-        write_package(&dependency_path, &changed_sources);
         let root_sources = author_sources(
             "org.example.Root",
             "model Local {}",
             vec![exact_dependency("dependency", &admitted_release)],
         );
         write_package(&root_path, &root_sources);
+        let admitted_sources = author_sources(
+            "org.example.Dependency",
+            "public model Shared { parameter gain: 1 = 1; }",
+            vec![],
+        );
+        write_package(&dependency_path, &admitted_sources);
+        write_project(
+            &fixture,
+            &["root", "dependency"],
+            &[("dependency", "dependency")],
+        );
+        let accepted =
+            resolve_local_package_project_v1(&fixture.0, &store).expect("initial exact lock");
+        let previous_lock = accepted.canonical_json().expect("previous lock");
 
-        let error = resolve_local_package_directories_v1(&root_path, [&dependency_path], &store)
+        let changed_sources = author_sources(
+            "org.example.Dependency",
+            "public model Shared { parameter gain: 1 = 2; }",
+            vec![],
+        );
+        fs::write(
+            dependency_path.join(SOURCE_PATH),
+            changed_sources.files()[0].bytes(),
+        )
+        .expect("change dependency source");
+
+        let error = resolve_local_package_project_v1(&fixture.0, &store)
             .expect_err("changed content must fail exact identity matching");
         assert!(matches!(
             error,
             PackagePreparationError::IdentityMismatch { .. }
         ));
-        assert!(
-            fs::read_dir(&store)
-                .expect("read empty store")
-                .next()
-                .is_none()
+        assert_eq!(
+            fs::read(fixture.0.join(PROJECT_LOCK)).expect("previous lock remains"),
+            previous_lock
         );
+    }
+
+    #[test]
+    fn project_manifest_rejects_path_escape_and_unknown_fields_before_lock() {
+        let fixture = TestDirectory::create("invalid-project");
+        let store = fixture.child("store");
+        fs::write(
+            fixture.0.join(PROJECT_MANIFEST),
+            "schema = \"eqiora.project.v1\"\nroot = \"root\"\nextra = true\n\n[dependencies]\n\n[sources.root]\npath = \"../root\"\n",
+        )
+        .expect("write invalid manifest");
+
+        assert!(resolve_local_package_project_v1(&fixture.0, &store).is_err());
+        assert!(!fixture.0.join(PROJECT_LOCK).exists());
+
+        fs::write(
+            fixture.0.join(PROJECT_MANIFEST),
+            "schema = \"eqiora.project.v1\"\nroot = \"root\"\n\n[dependencies]\n\n[sources.root]\npath = \"../root\"\n",
+        )
+        .expect("write escaping manifest");
+        assert!(resolve_local_package_project_v1(&fixture.0, &store).is_err());
+        assert!(!fixture.0.join(PROJECT_LOCK).exists());
     }
 }

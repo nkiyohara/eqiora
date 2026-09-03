@@ -10,13 +10,15 @@ rust-version.workspace = true
 [features]
 default = []
 rayon = ["dep:eqiora-backend-rayon"]
-project-filesystem = ["eqiora-package/filesystem"]
+project-filesystem = ["dep:cap-fs-ext", "dep:cap-std", "eqiora-package/filesystem", "dep:toml"]
 xdmf = ["dep:eqiora-io-xdmf"]
 hdf5 = ["xdmf", "dep:eqiora-io-hdf5"]
 vtu = ["dep:eqiora-io-vtu"]
 
 [dependencies]
 base64 = { workspace = true }
+cap-fs-ext = { workspace = true, optional = true }
+cap-std = { workspace = true, optional = true }
 eqiora-assembly = { workspace = true }
 eqiora-artifact = { workspace = true }
 eqiora-compiler = { workspace = true }
@@ -42,6 +44,7 @@ eqiora-time = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+toml = { workspace = true, optional = true }
 
 [lints]
 workspace = true

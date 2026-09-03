@@ -131,11 +131,31 @@ complete instance binding. It is not arbitrary Python-to-Eqiora translation, a
 Python weak-form runtime, Geometry/mesh/Plan authoring, a package manifest or
 installer, evaluated/table/tensor properties, or a stable Python AST schema.
 
-## Resolve exact local package directories
+## Resolve and lock a local package project
 
-Python can prepare an exact offline closure from explicitly named local package
-directories. Each directory contains the existing bounded `package.json`
-author manifest and its inventoried sources:
+`eqiora.toml` maps short project names and root dependency aliases to contained
+package directories:
+
+```toml
+schema = "eqiora.project.v1"
+root = "application"
+
+[dependencies]
+materials = "materials"
+components = "components"
+
+[sources.application]
+path = "packages/application"
+
+[sources.materials]
+path = "packages/materials"
+
+[sources.components]
+path = "packages/components"
+```
+
+Python resolves that project into the store and atomically writes the canonical
+resolution to `eqiora.lock`:
 
 ```python
 from pathlib import Path
@@ -144,12 +164,8 @@ import eqiora
 
 store_root = Path("package-store")
 store_root.mkdir()
-resolution = eqiora.resolve_local_packages(
-    "packages/application",
-    ["../materials", "../components"],
-    store_root,
-)
-Path("resolution.canonical.json").write_bytes(resolution)
+resolution = eqiora.resolve_local_project(".", store_root)
+assert Path("eqiora.lock").read_bytes() == resolution
 
 model = eqiora.compile_package(
     store_root,
@@ -158,19 +174,11 @@ model = eqiora.compile_package(
 )
 ```
 
-The shared Rust owner reads every inventory through capability-rooted bounded
-I/O, prepares dependencies leaf-first through compiler-owned semantics, checks
-their derived semantic identities against the exact identities requested by
-their parents, rejects unrelated supplied directories, and atomically adds
-canonical releases to the explicit content-addressed store. Dependency input
-order does not change the returned canonical `ResolutionRecordV1` bytes.
-
-The store is a replaceable offline cache; the returned resolution bytes remain
-the authority. This boundary does not read or write `eqiora.toml` or
-`eqiora.lock`, select versions, traverse an ambient workspace, access Git or a
-network, or execute package code. Callers must explicitly supply the complete
-exact local closure. Project manifest/lockfile transactions and Git fetching
-remain later #774 boundaries.
+The shared Rust owner opens project-relative paths without following symbolic
+links, validates every bounded `package.json` inventory and dependency alias,
+prepares the exact graph leaf-first, and publishes the lock only after the
+complete closure is installed. A failed resolution leaves the previous lock
+usable.
 
 ## Compile one exact locked package Model or Component
 
