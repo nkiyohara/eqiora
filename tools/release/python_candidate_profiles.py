@@ -47,7 +47,7 @@ PYTHON_TEST_FIXTURES = (
         "verify/interfaces/python-offline-model-package/models/typed-execution-lineage"
     ),
 )
-PYTHON_TEST_RESOURCES: tuple[Path, ...] = ()
+PYTHON_TEST_RESOURCES = (Path("examples/python/textbook_decay.py"),)
 
 COMPLETE_PROFILE_NAMES = (
     "base-3.11",

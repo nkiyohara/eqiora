@@ -1,0 +1,167 @@
+---
+title: 4. Ordinary differential equations
+description: Derive, run, and interpret one bounded first-order initial-value problem through the installed Eqiora release.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+<Aside type="note" title="Chapter status">
+  **Checked · executable from the installed release.** The bounded scalar decay
+  example targets the current <ReleaseIdentity /> surface and is compared with
+  its independently stated closed form in a focused product test. It is not
+  registered evidence and makes no general accuracy, convergence, stiffness,
+  or performance claim.
+</Aside>
+
+## State makes history matter
+
+An ordinary differential equation relates quantities to derivatives with
+respect to one independent variable, here time. A first-order initial-value
+problem needs both an evolution relation and an initial state. Without the
+initial value, the relation describes a family of trajectories rather than one
+trajectory.
+
+## Learning outcomes
+
+After this chapter, you should be able to:
+
+- identify state, parameter, derivative relation, and initial value;
+- derive the closed form for constant-rate scalar decay;
+- keep the time method and output schedule outside the Model;
+- execute the example with the installed Python package and select a series by
+  its exact `FieldRef`; and
+- diagnose a physically wrong sign that remains dimensionally consistent.
+
+## Derive the bounded problem
+
+Let dimensionless state $x(t)$ decay with constant rate $k>0$:
+
+$$
+\frac{\mathrm{d}x}{\mathrm{d}t} + kx = 0,
+\qquad x(0)=1.
+$$
+
+Separating variables and integrating from $0$ to $t$ gives
+
+$$
+\int_1^{x(t)}\frac{1}{x}\,\mathrm{d}x
+=-\int_0^t k\,\mathrm{d}t,
+\qquad
+\log x(t)=-kt,
+$$
+
+so the independently stated comparison is
+
+$$
+x(t)=\exp(-kt).
+$$
+
+The executable lesson uses $k=1\,\mathrm{s}^{-1}$ and observes $t=0.25$,
+$0.5$, and $1\,\mathrm{s}$. Those choices bound this lesson; they do not define
+general ODE support.
+
+## Model source
+
+```eqiora
+model decay {
+  field x: 1 = 1;
+  parameter rate: 1 / s = 1;
+  relation flow continuous {
+    derivative(x) + rate * x = 0;
+  }
+}
+```
+
+The initial value and rate belong to the Model. The adaptive method, its
+tolerances, the final time, and requested observations belong to the
+Realization or Run.
+
+## Execute from the installed release
+
+After following [Get started](/get-started/), run the checked-in program:
+
+```console
+$ python examples/python/textbook_decay.py
+```
+
+Its essential public path is:
+
+```python
+model = eqiora.compile(source=SOURCE, filename="decay.eqi")
+field = model.field(model.field_ids[0])
+plan = eqiora.resolve(
+    model,
+    temporal=eqiora.time.Tsitouras45(
+        initial_step_s=0.01,
+        relative_tolerance=1.0e-9,
+        absolute_tolerances={field: 1.0e-11},
+    ),
+)
+result = eqiora.run(
+    plan,
+    state=eqiora.State.initial(plan),
+    until_s=1.0,
+    output_times_s=(0.25, 0.5, 1.0),
+)
+series = result.series(field)
+```
+
+<ExactSourceLink path="examples/python/textbook_decay.py" kind="blob">View the complete runnable source and closed-form comparison</ExactSourceLink>.
+
+The program prints the computed value, $exp(-t)$, and their absolute
+difference at each requested time. The focused installed-package test requires
+the absolute difference to remain at most $2\times10^{-8}$ for exactly these
+three samples. That is adequate for this lesson; it is not a tolerance for a
+different model, interval, backend, or method.
+
+## Observation boundary
+
+The `Result` owns an immutable series selected by the exact field handle. This
+chapter observes only three scalar values. It does not inspect internal adaptive
+steps, infer values between requested times, or treat plotting choices as model
+meaning.
+
+The closed form supplies the comparison independently of the program's output.
+If the comparison fails, the expected expression is not replaced with the
+computed values; the model, realization, execution, and test are investigated.
+
+## Deliberate failure: the wrong sign still compiles
+
+Change the residual to:
+
+```eqiora
+relation flow continuous {
+  derivative(x) - rate * x = 0;
+}
+```
+
+Both terms still have inverse-time dimension, so compilation can succeed. But
+the relation now implies $x(t)=\exp(+kt)$: growth instead of decay. Comparing it
+with the pre-stated decay solution must fail. The repair is to revisit the
+physical assumption and residual sign, not to loosen the comparison tolerance.
+
+## Exercises
+
+1. Derive the solution for an arbitrary positive initial value $x(0)=x_0$.
+2. Predict the three observed values when `rate` is $2\,\mathrm{s}^{-1}$, then
+   state which part of the source and which comparison expression must change.
+3. Run the wrong-sign mutant. Explain why dimensional checking accepts it and
+   the closed-form comparison rejects it.
+4. Add one requested output time without changing the Model. Explain why this
+   changes a Run request rather than mathematical meaning.
+5. List two reasons the three passing samples do not establish a convergence
+   rate or suitability for stiff systems.
+
+## Non-claims
+
+This chapter does not establish convergence order, error away from the three
+requested samples, stiff integration, vector-valued state, events, sensitivity,
+alternative solvers, performance, or agreement with experimental data. It
+checks one scalar constant-rate initial-value problem through one installed
+adaptive path.
+
+[Previous: Algebraic relations and networks](/textbooks/mathematical-modeling/algebraic-relations-networks/) ·
+[Back to the series map](/textbooks/mathematical-modeling/) ·
+[Read execution and array Docs](/python/execution-and-arrays/)
