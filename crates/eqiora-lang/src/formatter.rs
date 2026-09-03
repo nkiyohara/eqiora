@@ -28,9 +28,12 @@ use helpers::{
 use property::{format_component_requirements, format_properties};
 use relation::{format_relation, format_relation_family};
 
-/// Format a syntax tree into canonical Eqiora Language source.
+/// Format a syntax tree, canonicalizing comment-free documents and preserving commented source.
 #[must_use]
 pub fn format(document: &Document) -> String {
+    if let Some(source) = document.retained_source() {
+        return source.to_owned();
+    }
     let mut output = String::new();
     let mut declaration_count = document::format_header(document, &mut output);
     format_properties(document, &mut output, &mut declaration_count);
@@ -95,7 +98,6 @@ pub fn format(document: &Document) -> String {
     }
     output
 }
-
 fn format_pure_operator(declaration: &PureOperatorDecl, output: &mut String) {
     if declaration.visibility == VisibilitySyntax::Public {
         output.push_str("public ");
@@ -114,7 +116,6 @@ fn format_pure_operator(declaration: &PureOperatorDecl, output: &mut String) {
     format_pure_operator_expression(&declaration.body, 0, output);
     output.push_str(";\n");
 }
-
 fn format_pure_value_class(value_class: &PureValueClassSyntax, output: &mut String) {
     match value_class {
         PureValueClassSyntax::Scalar => output.push_str("scalar"),
@@ -123,7 +124,6 @@ fn format_pure_value_class(value_class: &PureValueClassSyntax, output: &mut Stri
         }
     }
 }
-
 fn format_pure_operator_expression(
     expression: &PureOperatorExpr,
     parent_precedence: u8,

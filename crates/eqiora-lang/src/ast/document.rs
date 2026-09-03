@@ -58,6 +58,7 @@ pub(crate) struct ModuleDecl {
 /// One parsed source file.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Document {
+    pub(crate) retained_source: Option<String>,
     pub(crate) module: Option<ModuleDecl>,
     pub(crate) imports: Vec<ImportDecl>,
     pub(crate) dimensions: Vec<DimensionDecl>,
@@ -71,6 +72,14 @@ pub struct Document {
 }
 
 impl Document {
+    pub(crate) fn retained_source(&self) -> Option<&str> {
+        self.retained_source.as_deref()
+    }
+
+    pub(crate) fn discard_retained_source(&mut self) {
+        self.retained_source = None;
+    }
+
     /// Explicit logical module identity, when this source does not belong to
     /// the caller-selected implicit `main` module.
     #[must_use]

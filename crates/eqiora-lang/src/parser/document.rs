@@ -180,6 +180,11 @@ impl Parser<'_> {
                 && pure_operators.is_empty()
                 && models.is_empty()))
         .then_some(Document {
+            retained_source: self
+                .tokens
+                .iter()
+                .any(|token| token.kind() == TokenKind::LineComment)
+                .then(|| self.tokens.iter().map(|token| token.text()).collect()),
             module,
             imports,
             dimensions,
