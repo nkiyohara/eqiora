@@ -75,7 +75,7 @@ def test_sync_and_submitted_runs_share_one_result_contract() -> None:
     assert submitted.package_compilation_digest is None
     assert submitted.plan_key == first.plan_key
     assert submitted.adapter == first.adapter == "eqiora.time.diffsol"
-    assert submitted.adapter_version == first.adapter_version == "0.16.1"
+    assert submitted.adapter_version == first.adapter_version == "0.16.2"
     assert first.elapsed_seconds >= 0.0
     np.testing.assert_array_equal(
         first.series(field).time.numpy(), synchronous.series(field).time.numpy()

@@ -11,7 +11,7 @@ rust-version = "1.89"
 
 [workspace.dependencies]
 # External dependencies are pinned here; member crates use `workspace = true`.
-base64 = "0.22"
+base64 = "0.23"
 # Safe, handle-relative filesystem access for the untrusted package store. The
 # last v3 release keeps one io-lifetimes/Windows support line and passes the
 # workspace-MSRV plus Linux/macOS/Windows build gates; re-audit before moving
@@ -60,15 +60,15 @@ robust = "=1.2.0"
 truck-modeling = "=0.6.0"
 truck-stepio = "=0.3.0"
 truck-topology = "=0.6.0"
-# Diffsol 0.16.1 has unconditional public re-exports for both host matrix
+# Diffsol 0.16.2 has unconditional public re-exports for both host matrix
 # families, so both upstream features are required even though this adapter
 # currently executes with NalgebraLU. Keep the dependency optional at the L3
 # adapter boundary. Its nalgebra 0.35 graph establishes Rust 1.89 as the single
 # production-workspace MSRV; Cargo cannot express a feature-specific MSRV.
-# 0.16.1 also replaces the BDF order-change scratch Vec after upstream found
-# stack-buffer corruption of its metadata; do not relax this pin without
-# rerunning every registered BDF, mass-matrix, and sensitivity case.
-diffsol = { version = "=0.16.1", default-features = false, features = ["nalgebra", "faer"] }
+# 0.16.2 retains the BDF safety correction and changes BDF solver selection
+# plus sensitivity tolerance scaling; do not relax this pin without rerunning
+# every registered BDF, mass-matrix, sensitivity, and restart case.
+diffsol = { version = "=0.16.2", default-features = false, features = ["nalgebra", "faer"] }
 # cudarc 0.18.2 is the exact binding/runtime baseline covered by current device
 # evidence. A 0.19 upgrade is a separate adapter-and-hardware-evidence slice,
 # not an incidental consequence of the workspace MSRV decision.

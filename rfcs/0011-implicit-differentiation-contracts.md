@@ -656,7 +656,7 @@ proposal-to-restart path for the same event class.
   treats `A^T x = b` as a first-class linear solve over the same solver object;
   Eqiora retains the symmetry while making transpose availability explicit on
   matrix-free actions.
-- [Diffsol 0.16 sensitivity documentation](https://docs.rs/diffsol/0.16.1/diffsol/#forward-sensitivity-analysis)
+- [Diffsol 0.16 sensitivity documentation](https://docs.rs/diffsol/0.16.2/diffsol/#forward-sensitivity-analysis)
   separates forward sensitivity, adjoint checkpointing/backward passes, root
   events, and reset handling. It informs the future adapter boundary but does
   not define Eqiora semantics.

@@ -217,7 +217,7 @@ jobs:
 
           cargo +stable fetch --locked
           uv pip install --target "$RUNNER_TEMP/eqiora-site-build-supply" \
-            --python 3.13 --no-python-downloads "maturin==1.14.1"
+            --python 3.13 --no-python-downloads "maturin==1.15.0"
 
           browser_path="$({ cd docs/site; node --input-type=module -e \
             "import { chromium } from '@playwright/test'; console.log(chromium.executablePath())"; })"

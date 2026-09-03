@@ -22,7 +22,7 @@ stiff = "analytic scalar tracking mode with rate 1000"
 dae = "index-one two-state constraint with singular diagonal mass matrix"
 mass_sensitivity = "analytic full and rank-deficient systems with proven M_p=0"
 scalar = "f64"
-backend = "Diffsol 0.16.1 with NalgebraLU"
+backend = "Diffsol 0.16.2 with NalgebraLU"
 
 [claim_boundary]
 general_implicit_dae = false

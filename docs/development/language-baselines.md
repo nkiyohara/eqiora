@@ -99,8 +99,8 @@ References:
   installed outside the checkout. Free-threaded builds and every other wheel
   platform remain independent installed-artifact claims; PyO3's ability to
   compile a target is not an Eqiora support claim.
-- Binding baselines checked 2026-07-17: PyO3 0.29.0, rust-numpy 0.29.0, and
-  maturin 1.14.1. The facade and binding crate inherit the workspace Rust 1.89
+- Binding baselines checked 2026-09-03: PyO3 0.29.0, rust-numpy 0.29.0, and
+  maturin 1.15.0. The facade and binding crate inherit the workspace Rust 1.89
   MSRV.
 - The workspace-root PEP 517/518/621 `pyproject.toml` owns the mixed
   Rust/Python maturin layout and derives its version from Cargo. Keeping the
