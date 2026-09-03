@@ -17,6 +17,14 @@ PUBLIC_CLAIM = "One presentation-only 2D steady incompressible Stokes exact-cyli
 WITNESS_COPY = "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
 RENDERED_SOURCE_SENTENCE = "This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository’s architecture, RFCs, capability matrix, and validated verify manifests."
 REFERENCE_BOUNDARY = "API presence is neither capability evidence nor maturity."
+TEXTBOOK_SERIES = (
+    ("circuits-dynamics-hybrid", "Circuits, Dynamics, and Hybrid Systems"),
+    ("fluid-mechanics-cfd", "Fluid Mechanics and Computational Fluid Dynamics"),
+    ("heat-mass-transfer", "Heat and Mass Transfer"),
+    ("mathematical-modeling", "Mathematical Modeling with Eqiora"),
+    ("numerical-simulation", "Numerical Simulation with Eqiora"),
+    ("structural-mechanics-fem", "Structural Mechanics and the Finite Element Method"),
+)
 STAGES = (
     ("problem-setup", "1", "Problem setup"),
     ("model-definition", "2", "Eqiora model definition"),
@@ -562,6 +570,18 @@ def check_starlight_content(
         for phrase in ("Foundations", "Physics", "Advanced study", "0 executable chapters"):
             if phrase not in textbooks.visible_text:
                 errors.append(f"textbooks landing omits {phrase!r}")
+        for slug, title in TEXTBOOK_SERIES:
+            destination = (f"/textbooks/{slug}/", "Open the series map")
+            if destination not in textbooks.anchors:
+                errors.append(f"textbooks landing omits {title!r} series route")
+    for slug, title in TEXTBOOK_SERIES:
+        value = inspections.get(artifact / f"textbooks/{slug}/index.html")
+        if not value:
+            continue
+        page = value[1]
+        for phrase in (title, "0 executable chapters", "Chapter map", "Publication boundary"):
+            if phrase not in page.visible_text:
+                errors.append(f"textbook {title!r} omits {phrase!r}")
     if evidence_value:
         evidence = evidence_value[1]
         for phrase in (

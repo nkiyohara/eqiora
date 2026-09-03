@@ -1,0 +1,58 @@
+---
+title: Heat and Mass Transfer
+description: Planned transport series from hand-checkable balances to transient, multidimensional, and coupled problems.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+This intermediate series is for readers with thermodynamics, calculus, and
+conservation laws. It develops energy and species balances, constitutive flux,
+boundaries, time scales, and dimensionless interpretation before numerical
+realization.
+
+<Aside type="caution" title="Publication status and current boundary">
+  **Planned · 0 executable chapters · current <ReleaseIdentity />.** Eqiora does
+  not currently claim a supported general heat-transfer problem class. This
+  roadmap must not be read as an implemented thermal library.
+</Aside>
+
+## Learning outcomes
+
+A reader should be able to derive control-volume and local balances; distinguish
+storage, diffusion, advection, source, reaction, and interface terms; choose and
+audit Dirichlet, Neumann, Robin, and continuity conditions; reason with Fourier,
+Biot, Peclet, and related scales; and separate field error from global balance
+error.
+
+## Chapter map
+
+1. **Energy and mass balances** — systems, control volumes, storage, flux, and source.
+2. **Conduction and diffusion** — Fourier/Fick constitutive laws, dimensions, and signs.
+3. **Steady one-dimensional slabs** — Dirichlet, Neumann, Robin, resistance, and flux.
+4. **Composite media and interfaces** — temperature/concentration continuity and equal normal flux.
+5. **Internal generation and reaction** — source balance and curved profiles.
+6. **Transient diffusion** — characteristic time, initial conditions, and smooth decay.
+7. **Multidimensional realization and refinement** — meshes, norms, and separated errors.
+8. **Advection–diffusion** — Peclet number, numerical diffusion, conservation, and boundedness.
+9. **Extended surfaces and distributed loss** — fin equations and analytic comparison when supported.
+10. **Anisotropic transport** — tensor constitutive laws and directional response.
+11. **Nonlinear and phase-change outlooks** — radiation and Stefan problems after shared capabilities exist.
+12. **Coupled transport outlooks** — thermoelasticity, Joule heating, and conjugate heat transfer through shared multiphysics paths.
+
+## Intended lesson spine
+
+The planned progression starts with a steady slab, composite wall, internal
+generation, and a smooth transient. Later lessons add multidimensional
+refinement and conservative advection–diffusion. Field and integrated-flux
+observations must be compared separately.
+
+## Publication boundary
+
+No textbook page may create a fin-, slab-, or phase-change-specific runner.
+Anisotropy, radiation, phase change, and multiphysics remain outlooks until a
+general product owner lands. Existing passive-scalar numerical claims do not
+become a thermal component or material-library claim through documentation.
+
+[Return to all Textbooks](/textbooks/) · [Read current capability boundaries](/capabilities/) ·
+[Study numerical foundations](/textbooks/numerical-simulation/)

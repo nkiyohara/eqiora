@@ -107,6 +107,12 @@ STARLIGHT_ROUTES = {
     "/reference/rust/": "reference/rust/index.html",
     "/release-notes/": "release-notes/index.html",
     "/textbooks/": "textbooks/index.html",
+    "/textbooks/circuits-dynamics-hybrid/": "textbooks/circuits-dynamics-hybrid/index.html",
+    "/textbooks/fluid-mechanics-cfd/": "textbooks/fluid-mechanics-cfd/index.html",
+    "/textbooks/heat-mass-transfer/": "textbooks/heat-mass-transfer/index.html",
+    "/textbooks/mathematical-modeling/": "textbooks/mathematical-modeling/index.html",
+    "/textbooks/numerical-simulation/": "textbooks/numerical-simulation/index.html",
+    "/textbooks/structural-mechanics-fem/": "textbooks/structural-mechanics-fem/index.html",
     "/404.html": "404.html",
 }
 

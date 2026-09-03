@@ -1,0 +1,59 @@
+---
+title: Numerical Simulation with Eqiora
+description: Planned numerical-methods series separating mathematical meaning, approximation, solvers, and observations.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+This intermediate series is for readers who know calculus, linear algebra, and
+the modeling foundations. It makes the path from continuous mathematics to a
+trustworthy bounded computation visible without turning a smooth picture into
+a numerical claim.
+
+<Aside type="note" title="Publication status">
+  **Planned · 0 executable chapters · current <ReleaseIdentity />.** The map
+  names intended studies; it publishes no convergence or performance result.
+</Aside>
+
+## Learning outcomes
+
+A reader should be able to explain consistency, stability, convergence,
+conditioning, conservation, nonlinear iteration, time-integration error, and
+reproducibility; choose a bounded realization for a stated problem; isolate an
+error source in a refinement study; and distinguish visual plausibility from a
+credible numerical result.
+
+## Chapter map
+
+1. **From exact mathematics to finite computation** — approximation, floating point, truncation error, and iteration error.
+2. **Linear algebra for simulation** — sparse systems, norms, conditioning, residual, and solution error.
+3. **Root finding and nonlinear systems** — Newton linearization, damping, stopping criteria, and failure.
+4. **Time integration** — explicit and implicit Euler, stability, stiffness, adaptive steps, and accepted states.
+5. **Spatial grids and meshes** — Cartesian and simplex topology, geometry, correspondence, resolution, and quality.
+6. **Finite differences as a conceptual bridge** — stencils and consistency without a textbook-only solver path.
+7. **Finite element method** — trial and test spaces, weak forms, Q1/P1, assembly, and boundaries.
+8. **Finite volume method** — control volumes, face fluxes, conservation, and cell-centred transport.
+9. **Error norms and convergence** — L2, energy, and maximum norms; observed order and asymptotic range.
+10. **Coupled space/time refinement** — holding one error small while measuring another.
+11. **Verification and falsification** — closed forms, manufactured solutions, identities, and benchmark boundaries.
+12. **Performance without self-deception** — work, memory, backends, reproducibility, and environment-local timing.
+
+## Intended experiment spine
+
+The sequence will use scalar and stiff decay, known-solution Poisson problems,
+the same mathematical model through bounded FEM and FVM realizations, spatial
+refinement, advection–diffusion, a nonlinear residual, and a conservation
+mutant. Every study must say what remained fixed: Model, Geometry, mesh family,
+time interval and step, tolerances, precision, backend, and observation norm.
+
+## Publication boundary
+
+Planned teaching failures include tolerance plateaus, unstable time stepping,
+refinement outside the asymptotic range, singularity-driven order loss, poor
+mesh quality, and nonconservative flux. Timings remain environment-specific.
+The series is not an encyclopaedic numerical-analysis text, universal method
+selector, benchmark suite, or source of new accepted values.
+
+[Return to all Textbooks](/textbooks/) · [Read execution Docs](/python/execution-and-arrays/) ·
+[See bounded capabilities](/capabilities/)

@@ -1,0 +1,60 @@
+---
+title: Fluid Mechanics and Computational Fluid Dynamics
+description: Planned fluid-mechanics series connecting physical derivation to bounded CFD realization and interpretation.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+This intermediate-to-advanced series is for engineering readers with calculus,
+vector calculus, conservation laws, and introductory numerical methods. It
+derives fluid mechanics before choosing a numerical realization.
+
+<Aside type="note" title="Publication status">
+  **Planned · 0 executable chapters · current <ReleaseIdentity />.** Existing
+  Gallery walkthroughs are previews, not completed textbook chapters.
+</Aside>
+
+## Learning outcomes
+
+A reader should be able to derive mass and momentum conservation; interpret
+pressure, viscous stress, convection, diffusion, and storage; reason with
+Reynolds and related dimensionless numbers; state meaningful boundaries;
+distinguish Stokes from Navier–Stokes assumptions; and judge results through
+balances, refinement, and observables rather than appearance.
+
+## Chapter map
+
+1. **Fluids, continuum assumptions, and scales** — density, viscosity, stress, and applicability.
+2. **Fluid statics** — hydrostatic pressure and force with a closed-form comparison.
+3. **Kinematics and conservation of mass** — material derivative, divergence, and incompressibility.
+4. **Momentum and constitutive stress** — Cauchy momentum and Newtonian viscosity.
+5. **Exact parallel flows** — Couette and Poiseuille velocity, shear, flux, and pressure drop.
+6. **Dimensionless equations** — Reynolds, Strouhal, and Peclet numbers and dominant balance.
+7. **Stokes flow** — low-inertia assumptions, boundaries, pressure gauge, and a bounded cylinder illustration.
+8. **Convection and Navier–Stokes** — nonlinear transport and alternative mathematical forms.
+9. **Numerical incompressibility** — mixed FEM, cell-centred FVM, pressure modes, and coupling.
+10. **Transient startup flows** — initial conditions, accepted states, time-step effects, and transport scales.
+11. **Flow around a cylinder** — geometry, boundaries, force conventions, startup, and developed flow.
+12. **Kármán vortex shedding** — instability, Reynolds regime, duration, perturbation, phase, and Strouhal number.
+13. **Verification of CFD results** — mass and force balance, analytic precursors, and space/time refinement.
+14. **Beyond the introductory model** — bounded outlooks on turbulence, compressibility, multiphase flow, and moving boundaries.
+
+## Intended executable spine
+
+The progression will move from hydrostatics and exact Couette/Poiseuille
+profiles through smooth velocity diffusion, scalar advection–diffusion, Stokes
+flow, transient incompressible startup, and eventually a sufficiently resolved
+cylinder wake. Physical simulation time must remain distinct from frame or
+output cadence.
+
+## Publication boundary
+
+Gallery currently shows a [bounded steady-Stokes product path](/gallery/exact-cylinder-steady-stokes/)
+and an [illustrative transient startup](/gallery/transient-cylinder-startup/).
+Neither is a completed lesson or a vortex-shedding, force, convergence,
+validation, turbulence, or production-performance claim. Benchmark pages and
+registered cases remain the owners of accepted scientific values.
+
+[Return to all Textbooks](/textbooks/) · [Browse the Gallery](/gallery/) ·
+[Read the human capability boundaries](/capabilities/)

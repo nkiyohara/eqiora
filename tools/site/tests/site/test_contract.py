@@ -239,6 +239,13 @@ class CompleteContractTests(unittest.TestCase):
                 "textbooks landing omits",
             ),
             (
+                "missing committed textbook chapter map",
+                Path("textbooks/mathematical-modeling/index.html"),
+                "Chapter map",
+                "Contents pending",
+                "textbook 'Mathematical Modeling with Eqiora' omits",
+            ),
+            (
                 "missing technical catalog guide",
                 Path("evidence/index.html"),
                 "How to read the technical catalog",

@@ -84,6 +84,12 @@ SITE_ROUTES = (
     "/reference/rust/",
     "/release-notes/",
     "/textbooks/",
+    "/textbooks/circuits-dynamics-hybrid/",
+    "/textbooks/fluid-mechanics-cfd/",
+    "/textbooks/heat-mass-transfer/",
+    "/textbooks/mathematical-modeling/",
+    "/textbooks/numerical-simulation/",
+    "/textbooks/structural-mechanics-fem/",
     "/404.html",
 )
 GIT_OBJECT_REPOSITORY_VARIABLE = "EQIORA_SITE_GIT_OBJECT_REPOSITORY"
@@ -702,7 +708,13 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/reference/python/trajectory/": "<h1>Trajectory reference</h1><p>Trajectory API.</p>",
         "/reference/rust/": '<h1>Rust reference</h1><p>eqiora::Diagnostic stable eqiora::api::CadBoxIntentV1 transitional eqiora::api module</p><a href="/reference/rust/api/eqiora/struct.Diagnostic.html">Diagnostic</a>',
         "/release-notes/": "<h1>Release notes</h1><p>Eqiora release notes.</p>",
-        "/textbooks/": "<h1>Textbooks</h1><h2>Foundations</h2><h2>Physics</h2><h2>Advanced study</h2><p>Planned 0 executable chapters current alpha</p><a href=\"/gallery/exact-cylinder-steady-stokes/\">Preview a related bounded Gallery walkthrough</a>",
+        "/textbooks/": "<h1>Textbooks</h1><h2>Foundations</h2><h2>Physics</h2><h2>Advanced study</h2><p>Planned 0 executable chapters current alpha</p><a href=\"/textbooks/mathematical-modeling/\">Open the series map</a><a href=\"/textbooks/numerical-simulation/\">Open the series map</a><a href=\"/textbooks/fluid-mechanics-cfd/\">Open the series map</a><a href=\"/textbooks/structural-mechanics-fem/\">Open the series map</a><a href=\"/textbooks/heat-mass-transfer/\">Open the series map</a><a href=\"/textbooks/circuits-dynamics-hybrid/\">Open the series map</a><a href=\"/gallery/exact-cylinder-steady-stokes/\">Preview a related bounded Gallery walkthrough</a>",
+        "/textbooks/circuits-dynamics-hybrid/": "<h1>Circuits, Dynamics, and Hybrid Systems</h1><p>Planned 0 executable chapters</p><h2>Chapter map</h2><h2>Publication boundary</h2>",
+        "/textbooks/fluid-mechanics-cfd/": "<h1>Fluid Mechanics and Computational Fluid Dynamics</h1><p>Planned 0 executable chapters</p><h2>Chapter map</h2><h2>Publication boundary</h2>",
+        "/textbooks/heat-mass-transfer/": "<h1>Heat and Mass Transfer</h1><p>Planned 0 executable chapters</p><h2>Chapter map</h2><h2>Publication boundary</h2>",
+        "/textbooks/mathematical-modeling/": "<h1>Mathematical Modeling with Eqiora</h1><p>Planned 0 executable chapters</p><h2>Chapter map</h2><h2>Publication boundary</h2>",
+        "/textbooks/numerical-simulation/": "<h1>Numerical Simulation with Eqiora</h1><p>Planned 0 executable chapters</p><h2>Chapter map</h2><h2>Publication boundary</h2>",
+        "/textbooks/structural-mechanics-fem/": "<h1>Structural Mechanics and the Finite Element Method</h1><p>Planned 0 executable chapters</p><h2>Chapter map</h2><h2>Publication boundary</h2>",
         "/404.html": "<h1>Page not found</h1>",
     }
     assert tuple(pages) == SITE_ROUTES

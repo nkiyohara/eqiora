@@ -1,0 +1,61 @@
+---
+title: Circuits, Dynamics, and Hybrid Systems
+description: Planned series connecting acausal physical networks, continuous dynamics, events, clocks, and control.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+This intermediate-to-advanced series is for readers with ordinary differential
+equations, introductory circuits, and feedback basics. It derives conservation
+and component laws before causal state selection, integration, event handling,
+or control realization.
+
+<Aside type="note" title="Publication status">
+  **Planned · 0 executable chapters · current <ReleaseIdentity />.** One bounded
+  packaged motor/controller result exists, but it is not yet a textbook lesson
+  or a general circuit and control library.
+</Aside>
+
+## Learning outcomes
+
+A reader should be able to derive acausal network equations; audit sign,
+reference, power, and energy conventions; identify algebraic, ODE, DAE, and
+hybrid structure; reason about initial consistency, event localisation,
+hysteresis, reset, sample/hold, and multirate interaction; and distinguish a
+physical network from derived causal or state-space views.
+
+## Chapter map
+
+1. **Algebraic circuits and closure** — resistor dividers and bridges, reference potential, and power balance.
+2. **RC dynamics** — state, time constant, initial condition, and exact exponential response.
+3. **RL dynamics** — current continuity, flux linkage, startup, and magnetic energy.
+4. **RLC response** — damping, resonance, forcing, energy exchange, and tolerance.
+5. **Mechanical network analogues** — mass, spring, and damper relations with different physical dimensions.
+6. **Nonlinear devices and residuals** — operating points, Newton iteration, and failed initial guesses.
+7. **Differential-algebraic structure** — constraints, state selection, and consistent initialization.
+8. **Events and resets** — guards, localisation, bouncing-ball reset, and restart state.
+9. **Hysteresis and thermostats** — switching bands and chattering avoidance.
+10. **Sampled control** — continuous plants, exact clocks, sample/hold, and observation schedules.
+11. **Multirate systems** — algebraic loops, rate interaction, and closure.
+12. **State-space and control views** — derived causal views and an inverted-pendulum progression.
+13. **Electromechanical systems** — motor back-emf, torque, control, and power audit.
+14. **Advanced switching and multiphysics** — bounded outlooks on converters, Joule heating, piezoelectricity, and cooled machines.
+
+## Intended lesson spine
+
+The sequence will progress from a resistor network through RC, RL, and RLC
+transients, then a mechanical analogue, nonlinear residual, event, thermostat,
+sampled controller, multirate loop, and motor. Each lesson starts from a circuit
+or free-body diagram and names who owns every physical relation.
+
+## Publication boundary
+
+The existing packaged DC motor and sampled-controller capability is bounded to
+the exact components, clock, serial environment, and numerical policy stated on
+[Capabilities](/capabilities/). It does not imply SPICE compatibility, a broad
+device/control library, switching power electronics, real-time execution, or a
+control-performance claim. A schematic is a view, not equation authority.
+
+[Return to all Textbooks](/textbooks/) · [Read execution Docs](/python/execution-and-arrays/) ·
+[Look up exact interfaces](/reference/)
