@@ -246,6 +246,13 @@ class CompleteContractTests(unittest.TestCase):
                 "textbook 'Mathematical Modeling with Eqiora' omits",
             ),
             (
+                "missing published textbook chapter anatomy",
+                Path("textbooks/mathematical-modeling/models-not-simulations/index.html"),
+                "Deliberate failure",
+                "Example",
+                "textbook chapter 'Models are not simulations' omits",
+            ),
+            (
                 "missing technical catalog guide",
                 Path("evidence/index.html"),
                 "How to read the technical catalog",

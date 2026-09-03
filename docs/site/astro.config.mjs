@@ -70,6 +70,8 @@ if (process.env.EQIORA_SITE_BUILD_PROFILE === 'complete') {
     'src/content/docs/reference/mcp/index.mdx',
     'src/content/docs/textbooks/index.mdx',
     'src/content/docs/textbooks/mathematical-modeling.mdx',
+    'src/content/docs/textbooks/mathematical-modeling/models-not-simulations.mdx',
+    'src/content/docs/textbooks/mathematical-modeling/quantities-dimensions-units.mdx',
     'src/content/docs/textbooks/numerical-simulation.mdx',
     'src/content/docs/textbooks/fluid-mechanics-cfd.mdx',
     'src/content/docs/textbooks/structural-mechanics-fem.mdx',
