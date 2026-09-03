@@ -8,6 +8,7 @@
 mod cad;
 pub mod control;
 mod differentiation;
+pub mod editor;
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 mod external_data;
 mod external_spatial;
