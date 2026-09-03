@@ -83,6 +83,7 @@ SITE_ROUTES = (
     "/reference/python/trajectory/",
     "/reference/rust/",
     "/release-notes/",
+    "/textbooks/",
     "/404.html",
 )
 GIT_OBJECT_REPOSITORY_VARIABLE = "EQIORA_SITE_GIT_OBJECT_REPOSITORY"
@@ -594,7 +595,11 @@ def _head(route: str) -> str:
 
 
 def _nav() -> str:
-    return '<a class="site-title" href="/"><img src="/assets/brand.svg" alt=""><span>Eqiora</span></a>'
+    return ('<a class="site-title" href="/"><img src="/assets/brand.svg" alt=""><span>Eqiora</span></a>'
+            '<nav class="sidebar"><a href="/get-started/">Docs</a><a href="/textbooks/">Textbooks</a>'
+            '<a href="/gallery/">Gallery</a><a href="/reference/">Reference</a>'
+            '<a href="/capabilities/">Capabilities</a><a href="/release-notes/">Releases</a>'
+            '<a href="https://github.com/nkiyohara/eqiora">GitHub</a></nav>')
 
 
 def _page(route: str, body: str) -> str:
@@ -625,7 +630,7 @@ div(u) = 0</pre></section>
 <section><h2>Mesh and boundaries</h2><p>{WITNESS_COPY}</p></section>
 <section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes.py#L45-L57">Eqiora source form: canonical Python resolve/run path</a></section>
 <section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION}</figcaption></figure><p>Presentation, not evidence.</p></section>
-<section><h2>Verified and not claimed</h2><p>{nonclaims}</p>{_exact_links()}</section>"""
+<section><h2>Verified and not claimed</h2><p>{nonclaims}</p>{_exact_links()}<a href="/capabilities/#exact-cylinder-steady-stokes">Read the human capability boundary</a></section>"""
 
 
 def _home_body() -> str:
@@ -637,8 +642,10 @@ def _home_body() -> str:
 <a href="/get-started/">Get started</a><a href="/gallery/">Explore gallery</a>
 <article><p>Featured walkthrough</p><h2>Exact-cylinder steady Stokes</h2><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><p>Follow one frozen 2D steady-Stokes problem from model definition and named boundaries through one submit/Result path to an independently admitted static pressure image.</p><p>Python</p><p>2D</p><p>steady Stokes</p><a href="/gallery/exact-cylinder-steady-stokes/">View the static walkthrough</a></article>
 <article><h2>Docs</h2><p>Learn the Model–Realization boundary and start from bounded examples.</p></article>
+<article><h2>Textbooks</h2><p>Follow the planned path from mathematics and physics to Eqiora models, numerical realization, and interpretation.</p></article>
+<article><h2>Capabilities</h2><p>See what is available, executable, checked, or verified, with exact boundaries and non-claims.</p></article>
 <article><h2>Reference</h2><p>Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces. API presence is not verification or maturity.</p></article>
-<article><h2>Evidence</h2><p>Inspect the generated capability-to-case index and the manifests that own each bounded claim.</p></article>
+<p>Docs explains how to use Eqiora. Textbooks teach the mathematics, physics, and numerics. Gallery presents complete simulations. Reference records exact APIs and protocols. Capabilities states what runs and the boundary of each claim.</p>
 <p>Alpha {{python_version}}</p><p>Eqiora is alpha research software under active development. The capability matrix and generated evidence catalog bound what is currently supported; this site does not widen those claims.</p>
 <h2>One source of truth</h2><p>This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository's architecture, RFCs, capability matrix, and validated verify manifests.</p>"""
 
@@ -664,10 +671,10 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/": _home_body().format(python_version=python_version),
         "/api/": "<h1>API</h1><p>Eqiora API overview.</p>",
         "/architecture/": "<h1>Architecture</h1><p>Eqiora architecture.</p>",
-        "/capabilities/": "<h1>Capabilities</h1>",
+        "/capabilities/": '<h1>Capabilities</h1><p>Available Executable Checked Verified</p><h2>Thermal</h2><p>Exact boundary What this establishes Important non-claims</p><article id="exact-cylinder-steady-stokes"><h3>Exact-cylinder steady Stokes product path</h3></article><h2>Technical catalog</h2><a href="/evidence/#exact-packaged-steady-incompressible-stokes-component">Technical evidence entry</a>',
         "/concepts/": "<h1>Concepts</h1><p>Eqiora concepts.</p>",
         "/contributing/": "<h1>Contributing</h1><p>Contribute to Eqiora.</p>",
-        "/evidence/": "<h1>Evidence</h1>",
+        "/evidence/": '<h1>Evidence catalog</h1><aside><h2>How to read the technical catalog</h2><p>Case Status Reference Conformance kit Target</p><a href="/capabilities/">human-readable Capabilities</a></aside><h2 id="exact-packaged-steady-incompressible-stokes-component">exact packaged steady incompressible Stokes component</h2>',
         "/examples/": '<h1>Examples</h1><a href="/gallery/">Gallery</a>',
         "/gallery/": '<h1>Gallery</h1><a href="/gallery/exact-cylinder-steady-stokes/">Exact-cylinder steady Stokes</a><a href="/gallery/mixed-boundary-elasticity/">Mixed-boundary linear elasticity</a>',
         "/gallery/exact-cylinder-steady-stokes/": _case_body(),
@@ -695,6 +702,7 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/reference/python/trajectory/": "<h1>Trajectory reference</h1><p>Trajectory API.</p>",
         "/reference/rust/": '<h1>Rust reference</h1><p>eqiora::Diagnostic stable eqiora::api::CadBoxIntentV1 transitional eqiora::api module</p><a href="/reference/rust/api/eqiora/struct.Diagnostic.html">Diagnostic</a>',
         "/release-notes/": "<h1>Release notes</h1><p>Eqiora release notes.</p>",
+        "/textbooks/": "<h1>Textbooks</h1><h2>Foundations</h2><h2>Physics</h2><h2>Advanced study</h2><p>Planned 0 executable chapters current alpha</p><a href=\"/gallery/exact-cylinder-steady-stokes/\">Preview a related bounded Gallery walkthrough</a>",
         "/404.html": "<h1>Page not found</h1>",
     }
     assert tuple(pages) == SITE_ROUTES

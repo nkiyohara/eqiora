@@ -1,0 +1,42 @@
+---
+import ExactSourceLink from './ExactSourceLink.astro';
+
+interface Props {
+  id: string;
+  title: string;
+  status: 'Available' | 'Executable' | 'Checked' | 'Verified';
+  outcome: string;
+  boundary: string;
+  establishes: string;
+  nonclaims: string;
+  routeHref?: string;
+  routeLabel?: string;
+  casePath?: string;
+  technicalHref?: string;
+}
+
+const {
+  id, title, status, outcome, boundary, establishes, nonclaims,
+  routeHref, routeLabel, casePath, technicalHref,
+} = Astro.props;
+---
+
+<article class="eq-capability" id={id} data-status={status.toLowerCase()}>
+  <header class="eq-capability__header">
+    <h3>{title}</h3>
+    <span class="eq-chip eq-capability__status">Status: {status}</span>
+  </header>
+  <p class="eq-capability__outcome">{outcome}</p>
+  <dl>
+    <div><dt>Exact boundary</dt><dd>{boundary}</dd></div>
+    <div><dt>What this establishes</dt><dd>{establishes}</dd></div>
+    <div><dt>Important non-claims</dt><dd>{nonclaims}</dd></div>
+  </dl>
+  {(routeHref || casePath || technicalHref) && (
+    <p class="eq-capability__links">
+      {routeHref && <a href={routeHref}>{routeLabel ?? 'Open the related guide'}</a>}
+      {casePath && <ExactSourceLink path={casePath} kind="blob">Case manifest</ExactSourceLink>}
+      {technicalHref && <a href={technicalHref}>Technical evidence entry</a>}
+    </p>
+  )}
+</article>

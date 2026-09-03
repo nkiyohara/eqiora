@@ -106,6 +106,7 @@ STARLIGHT_ROUTES = {
     "/reference/python/trajectory/": "reference/python/trajectory/index.html",
     "/reference/rust/": "reference/rust/index.html",
     "/release-notes/": "release-notes/index.html",
+    "/textbooks/": "textbooks/index.html",
     "/404.html": "404.html",
 }
 

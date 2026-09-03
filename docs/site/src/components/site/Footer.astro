@@ -1,0 +1,52 @@
+---
+import EditLink from 'virtual:starlight/components/EditLink';
+import LastUpdated from 'virtual:starlight/components/LastUpdated';
+import Pagination from 'virtual:starlight/components/Pagination';
+---
+
+<footer class="eq-footer">
+  <div class="eq-footer__meta">
+    <EditLink />
+    <LastUpdated />
+  </div>
+  <Pagination />
+  <nav class="eq-secondary-nav" aria-label="More about Eqiora">
+    <a href="/capabilities/">Capabilities</a>
+    <a href="/release-notes/">Releases</a>
+    <a href="https://github.com/nkiyohara/eqiora">GitHub</a>
+  </nav>
+</footer>
+
+<style>
+  @layer starlight.core {
+    .eq-footer {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .eq-footer__meta {
+      display: flex;
+      gap: 0.75rem 3rem;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-top: 3rem;
+      font-size: var(--sl-text-sm);
+      color: var(--sl-color-gray-3);
+    }
+    .eq-secondary-nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem 1.5rem;
+      padding-block: 1rem;
+      border-top: 1px solid var(--eq-color-border);
+      font-size: var(--eq-text-small);
+    }
+    .eq-secondary-nav a {
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--eq-target-min);
+      color: var(--eq-color-text-muted);
+    }
+  }
+</style>

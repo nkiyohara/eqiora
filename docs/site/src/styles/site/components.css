@@ -9,6 +9,71 @@
  */
 
 /* ---------------------------------------------------------------------------
+ * CapabilitySummary: readable claim boundary before technical evidence
+ * ------------------------------------------------------------------------- */
+
+.eq-capability-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--eq-space-6);
+}
+
+.eq-capability {
+  min-width: 0;
+  padding: var(--eq-space-6);
+  border: 1px solid var(--eq-color-border);
+  border-radius: var(--eq-radius-card);
+  background: var(--eq-color-surface);
+}
+
+.eq-capability__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--eq-space-3);
+}
+
+.eq-capability__header h3 { margin: 0; }
+
+.eq-capability__status {
+  flex: 0 0 auto;
+  border-color: var(--eq-color-border-strong);
+  color: var(--eq-color-text);
+}
+
+.eq-capability__outcome { font-weight: 600; }
+
+.eq-capability dl,
+.eq-capability dl > div {
+  display: grid;
+  gap: var(--eq-space-2);
+}
+
+.eq-capability dl { margin-block: var(--eq-space-4); }
+
+.eq-capability dl > div {
+  grid-template-columns: minmax(8rem, 0.3fr) minmax(0, 1fr);
+  padding-block: var(--eq-space-3);
+  border-top: 1px solid var(--eq-color-border);
+}
+
+.eq-capability dt { font-weight: 650; }
+.eq-capability dd { margin: 0; }
+
+.eq-capability__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eq-space-3) var(--eq-space-6);
+  margin-bottom: 0;
+}
+
+@media (max-width: 32rem) {
+  .eq-capability { padding: var(--eq-space-4); }
+  .eq-capability dl > div { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------------------------------------------------------------------------
  * Shared chips (tags, units, presentation boundary, reference family)
  * ------------------------------------------------------------------------- */
 
