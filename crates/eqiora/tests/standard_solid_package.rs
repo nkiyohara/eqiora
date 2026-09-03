@@ -17,7 +17,7 @@ use eqiora_numerics::{
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
 
-const VERSION: &str = "0.1.0";
+const VERSION: &str = "0.2.0";
 static NEXT_SCRATCH: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy)]
@@ -255,18 +255,16 @@ impl Drop for Scratch {
 fn root_source(curated: bool, assumption: Assumption, poisson_ratio: f64) -> String {
     let (preamble, material_parameters, governing) = if curated {
         let component = match assumption {
-            Assumption::PlaneStrain => "PlaneStrainLinearElasticity2d",
-            Assumption::PlaneStress => "PlaneStressLinearElasticity2d",
+            Assumption::PlaneStrain => "PlaneStrainMaterial2d",
+            Assumption::PlaneStress => "PlaneStressMaterial2d",
         };
         (
             format!(
-                r#"public property contract YoungModulus {{ scalar value: kg / (m * s ^ 2); }}
-public property contract PoissonRatio {{ scalar value: 1; }}
-public property release ReferenceYoungModulus implements YoungModulus {{
+                r#"public property release ReferenceYoungModulus implements solid.YoungModulus {{
   value = 120; source_unit: kg / (m * s ^ 2) = 1;
   validity = unconditional; citation = org.example.reference; license = spdx.CC0_1_0;
 }}
-public property release ReferencePoissonRatio implements PoissonRatio {{
+public property release ReferencePoissonRatio implements solid.PoissonRatio {{
   value = {poisson_ratio}; source_unit: 1 = 1;
   validity = unconditional; citation = org.example.reference; license = spdx.CC0_1_0;
 }}
@@ -274,38 +272,18 @@ public material composition ReferenceMaterial {{
   property poisson_ratio = ReferencePoissonRatio;
   property young_modulus = ReferenceYoungModulus;
 }}
-
-public component MaterialElasticity2d {{
-  public property young_modulus: YoungModulus;
-  public property poisson_ratio: PoissonRatio;
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
-  public field slot displacement on body as continuum: m shape spatial_vector;
-  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
-  public port mechanical[boundary in exterior]:
-    conserving solid.DisplacementTractionBoundary over boundary;
-  instance law: solid.{component}(
-    support body = body,
-    support exterior = exterior,
-    field displacement = displacement,
-    field load_potential = load_potential,
-    young_modulus = young_modulus,
-    poisson_ratio = poisson_ratio
-  );
-  connect conserving [boundary in exterior]
-    mechanical[boundary = boundary], law.mechanical[boundary = boundary];
-}}
 "#
             ),
             String::new(),
-            r#"  instance governing: MaterialElasticity2d(
+            format!(
+                r#"  instance governing: solid.{component}(
     support body = body,
     support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
     field displacement = displacement,
     field load_potential = load_potential,
     material = ReferenceMaterial
   );"#
-            .to_owned(),
+            ),
         )
     } else {
         let lambda = match assumption {
