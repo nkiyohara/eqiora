@@ -19,6 +19,8 @@ mod filesystem;
 mod identity;
 mod manifest;
 mod path;
+#[cfg(feature = "filesystem")]
+mod project_directory;
 mod release;
 mod resolution;
 mod run_binding;

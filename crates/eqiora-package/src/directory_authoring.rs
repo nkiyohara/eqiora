@@ -1,5 +1,6 @@
 //! Explicit, capability-rooted author source admission.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -37,7 +38,7 @@ const V1_LIMITS: AuthorPackageDirectoryLimits = AuthorPackageDirectoryLimits {
     source_bytes: MAX_TOTAL_BYTES,
 };
 
-/// Resource category enforced while reading one author package directory.
+/// Resource category enforced while reading one retained author source directory.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum AuthorPackageDirectoryResource {
@@ -47,10 +48,16 @@ pub enum AuthorPackageDirectoryResource {
     SourceFileBytes,
     /// Aggregate bytes read from all inventoried source files.
     SourceTotalBytes,
+    /// Directory entries visited during local-project discovery.
+    ProjectEntries,
+    /// Directory components below a local-project source root.
+    ProjectDirectoryDepth,
+    /// `.eqi` files admitted during local-project discovery.
+    ProjectSourceFiles,
 }
 
-/// Failure while reading one exact author inventory from a directory
-/// capability.
+/// Failure while reading one exact package inventory or discovering local
+/// project sources from a directory capability.
 #[derive(Debug)]
 pub enum AuthorPackageDirectoryError {
     /// Opening or inspecting the supplied root capability failed.
@@ -62,7 +69,7 @@ pub enum AuthorPackageDirectoryError {
     },
     /// A handle-relative filesystem operation below the retained root failed.
     EntryIo {
-        /// Package-relative component or file being opened or read.
+        /// Author-root-relative component or file being opened or read.
         path: NormalizedRelativePath,
         /// Underlying filesystem error.
         source: std::io::Error,
@@ -76,12 +83,12 @@ pub enum AuthorPackageDirectoryError {
     },
     /// An inventoried entry is not a regular file.
     NonRegularFile {
-        /// Package-relative path rejected after no-follow open.
+        /// Author-root-relative path rejected after no-follow open.
         path: NormalizedRelativePath,
     },
     /// A directory-read resource bound was exceeded.
     LimitExceeded {
-        /// Package-relative entry whose byte bound was exceeded.
+        /// Author-root-relative entry whose bound was exceeded.
         path: NormalizedRelativePath,
         /// Resource whose bound was exceeded.
         resource: AuthorPackageDirectoryResource,
@@ -105,30 +112,27 @@ impl std::fmt::Display for AuthorPackageDirectoryError {
             Self::RootIo { path, source } => match path {
                 Some(path) => write!(
                     formatter,
-                    "cannot open package author root {}: {source}",
+                    "cannot open author source root {}: {source}",
                     path.display()
                 ),
-                None => write!(formatter, "cannot inspect package author root: {source}"),
+                None => write!(formatter, "cannot inspect author source root: {source}"),
             },
             Self::EntryIo { path, source } => {
-                write!(
-                    formatter,
-                    "cannot read package author path {path}: {source}"
-                )
+                write!(formatter, "cannot read author source path {path}: {source}")
             }
-            Self::Contract(error) => write!(formatter, "package author contract failed: {error}"),
+            Self::Contract(error) => write!(formatter, "author source contract failed: {error}"),
             Self::RootNotDirectory { path } => match path {
                 Some(path) => write!(
                     formatter,
-                    "package author root {} must be a directory",
+                    "author source root {} must be a directory",
                     path.display()
                 ),
-                None => formatter.write_str("package author root must be a directory"),
+                None => formatter.write_str("author source root must be a directory"),
             },
             Self::NonRegularFile { path } => {
                 write!(
                     formatter,
-                    "package author path {path} must be a regular file"
+                    "author source path {path} must be a regular file"
                 )
             }
             Self::LimitExceeded {
@@ -141,22 +145,27 @@ impl std::fmt::Display for AuthorPackageDirectoryError {
                     AuthorPackageDirectoryResource::ManifestBytes => "manifest bytes",
                     AuthorPackageDirectoryResource::SourceFileBytes => "source-file bytes",
                     AuthorPackageDirectoryResource::SourceTotalBytes => "total source bytes",
+                    AuthorPackageDirectoryResource::ProjectEntries => "project entries",
+                    AuthorPackageDirectoryResource::ProjectDirectoryDepth => {
+                        "project directory depth"
+                    }
+                    AuthorPackageDirectoryResource::ProjectSourceFiles => "project source files",
                 };
                 write!(
                     formatter,
-                    "package author path {path} has {observed} {name}, exceeding the limit {limit}"
+                    "author source path {path} has {observed} {name}, exceeding the limit {limit}"
                 )
             }
             Self::Allocation { path, source } => {
                 if let Some(path) = path {
                     write!(
                         formatter,
-                        "cannot allocate package author path {path}: {source}"
+                        "cannot allocate author source path {path}: {source}"
                     )
                 } else {
                     write!(
                         formatter,
-                        "cannot allocate package author inventory: {source}"
+                        "cannot allocate author source inventory: {source}"
                     )
                 }
             }
@@ -183,11 +192,11 @@ impl From<ContractError> for AuthorPackageDirectoryError {
     }
 }
 
-/// One explicit package root retained as a directory capability.
+/// One explicit author source root retained as a directory capability.
 ///
-/// Once retained, source admission reads only `package.json` and the
-/// normalized entries named by that manifest. It never walks the directory,
-/// performs an ambient lookup, or follows a symbolic link below the root.
+/// Package admission reads only `package.json` and its normalized inventory.
+/// Local-project discovery is a separate explicit method. Neither operation
+/// performs another ambient lookup or follows a symbolic link below the root.
 #[derive(Clone, Debug)]
 pub struct AuthorPackageDirectory {
     root: Arc<Dir>,
@@ -217,7 +226,7 @@ impl AuthorPackageDirectory {
         })
     }
 
-    /// Open and retain one explicit package root with ambient authority.
+    /// Open and retain one explicit author source root with ambient authority.
     ///
     /// The caller-selected path, including any ancestor resolution, is the one
     /// ambient lookup. Its final component is opened without following a
@@ -259,6 +268,24 @@ impl AuthorPackageDirectory {
     /// UTF-8 contract error. No partial author input is returned.
     pub fn read_sources(&self) -> Result<AuthorPackageSourcesV1, AuthorPackageDirectoryError> {
         self.read_sources_with_limits(V1_LIMITS)
+    }
+
+    /// Discover a bounded, deterministic inventory of local `.eqi` sources.
+    ///
+    /// Symbolic links and non-portable names fail closed, regular non-`.eqi`
+    /// files are ignored, and every nested directory is opened relative to the
+    /// retained capability without following links. Discovery admits at most
+    /// 100,000 entries, 64 nested components, 10,000 sources, 16 MiB per
+    /// source, and 256 MiB in aggregate.
+    ///
+    /// # Errors
+    ///
+    /// Returns a path-aware I/O, file-kind, portability, UTF-8, allocation, or
+    /// resource-limit error. No partial inventory is returned.
+    pub fn discover_project_sources(
+        &self,
+    ) -> Result<BTreeMap<NormalizedRelativePath, String>, AuthorPackageDirectoryError> {
+        crate::project_directory::discover_project_sources(&self.root)
     }
 
     fn read_sources_with_limits(

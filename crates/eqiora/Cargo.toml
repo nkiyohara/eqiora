@@ -20,7 +20,7 @@ xdmf = ["dep:eqiora-io-xdmf", "eqiora-api/xdmf"]
 hdf5 = ["xdmf", "dep:eqiora-io-hdf5", "eqiora-api/hdf5"]
 vtu = ["dep:eqiora-io-vtu", "eqiora-api/vtu"]
 cad-truck = ["dep:eqiora-cad-truck"]
-package-filesystem = ["dep:cap-std", "eqiora-package/filesystem"]
+package-filesystem = ["dep:cap-std", "eqiora-api/project-filesystem", "eqiora-package/filesystem"]
 
 [dependencies]
 cap-std = { workspace = true, optional = true }
