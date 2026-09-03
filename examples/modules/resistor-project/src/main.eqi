@@ -1,0 +1,7 @@
+module models.main;
+
+import library.resistor as circuit;
+
+model Main {
+  instance load: circuit.Resistor(resistance = 2);
+}

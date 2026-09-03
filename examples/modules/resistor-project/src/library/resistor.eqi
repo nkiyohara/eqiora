@@ -1,0 +1,9 @@
+module library.resistor;
+
+public component Resistor {
+  public parameter resistance: 1;
+
+  relation law continuous {
+    resistance - 2 = 0;
+  }
+}

@@ -51,8 +51,8 @@ use eqiora_artifact::{
     ModelTransactionEnvelope, ReplayableCanonicalModelArtifact,
 };
 use eqiora_compiler::{
-    AuthoredFormulationProjection, CompiledAuthoredFormulation, CompiledModel, ModelSymbols,
-    ResolvedHierarchyInput,
+    AuthoredFormulationProjection, CompilationNamespaceId, CompiledAuthoredFormulation,
+    CompiledModel, ModelSymbols, ResolvedHierarchyInput, ResolvedSourceUnit,
 };
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
@@ -119,6 +119,77 @@ impl ModelDocument {
             .validate_definitions()?
             .compile_root(entry_model)?;
         Self::accept_compiled(compiled)
+    }
+
+    /// Compile one selected Model from a closed inventory of local project sources.
+    ///
+    /// Each `path` is validated as a portable normalized relative path. The
+    /// logical identity of every source comes from its `module` declaration,
+    /// not from that path; input order and source relocation therefore do not
+    /// change Model meaning. ASCII-case path collisions are rejected so one
+    /// accepted inventory names the same files on case-sensitive and
+    /// case-insensitive hosts.
+    ///
+    /// This operation performs no filesystem discovery, package resolution,
+    /// network access, or implicit source inclusion. Callers must supply the
+    /// complete UTF-8 source closure, and every import must resolve inside it.
+    ///
+    /// # Errors
+    /// Returns path, graph, parser, visibility, type, lowering, or artifact
+    /// diagnostics before exposing a partial Model.
+    pub fn compile_project_sources<I, P, S>(
+        root_module: &str,
+        sources: I,
+        entry_model: &str,
+    ) -> Result<Self, Vec<Diagnostic>>
+    where
+        I: IntoIterator<Item = (P, S)>,
+        P: Into<String>,
+        S: Into<String>,
+    {
+        let owner =
+            CompilationNamespaceId::new(["eqiora-local-project-v1"]).map_err(single_diagnostic)?;
+        let mut paths = BTreeMap::<String, String>::new();
+        let mut units = Vec::new();
+        let mut diagnostics = Vec::new();
+
+        for (path, source) in sources {
+            let path = match eqiora_package::NormalizedRelativePath::parse(path) {
+                Ok(path) => path,
+                Err(error) => {
+                    diagnostics.push(Diagnostic::error(
+                        codes::LANGUAGE_LOWERING_ERROR,
+                        format!("invalid project source path: {error}"),
+                    ));
+                    continue;
+                }
+            };
+            let collision_key = path.as_str().to_ascii_lowercase();
+            if let Some(previous) = paths.get(&collision_key) {
+                diagnostics.push(Diagnostic::error(
+                    codes::LANGUAGE_LOWERING_ERROR,
+                    format!(
+                        "project source path `{}` collides with `{previous}` under portable ASCII-case comparison",
+                        path.as_str()
+                    ),
+                ));
+                continue;
+            }
+            paths.insert(collision_key, path.as_str().to_owned());
+            units.push(ResolvedSourceUnit::new(
+                owner.clone(),
+                path.as_str(),
+                source,
+            ));
+        }
+
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
+        let input =
+            ResolvedHierarchyInput::with_root_module(owner, root_module.split('.'), units, vec![])
+                .map_err(single_diagnostic)?;
+        Self::compile_modules(input, entry_model)
     }
 
     /// Define exactly one model from immutable client-neutral declarations
@@ -434,6 +505,64 @@ model decay {
                 .unwrap(),
             bytes
         );
+    }
+
+    #[test]
+    fn project_sources_map_paths_to_authored_modules_deterministically() {
+        let main = r#"
+module models.main;
+import library.parts as lib;
+model Main { instance load: lib.Resistor(resistance = 2); }
+"#;
+        let library = r#"
+module library.parts;
+public component Resistor {
+  public parameter resistance: 1;
+  relation law continuous { resistance - 2 = 0; }
+}
+"#;
+        let compile = |main_path, library_path, reverse| {
+            let mut sources = vec![(main_path, main), (library_path, library)];
+            if reverse {
+                sources.reverse();
+            }
+            ModelDocument::compile_project_sources("models.main", sources, "Main").unwrap()
+        };
+
+        let original = compile("src/main.eqi", "src/library.eqi", false);
+        let reordered_and_relocated = compile("elsewhere/root.eqi", "parts/value.eqi", true);
+        assert_eq!(
+            original.canonical_json().unwrap(),
+            reordered_and_relocated.canonical_json().unwrap()
+        );
+    }
+
+    #[test]
+    fn project_sources_reject_nonportable_or_colliding_paths_together() {
+        let diagnostics = ModelDocument::compile_project_sources(
+            "models.main",
+            [
+                ("../main.eqi", "module models.main; model Main {}"),
+                (
+                    "src/Part.eqi",
+                    "module library.one; public component One {}",
+                ),
+                (
+                    "src/part.eqi",
+                    "module library.two; public component Two {}",
+                ),
+            ],
+            "Main",
+        )
+        .unwrap_err();
+
+        assert_eq!(diagnostics.len(), 2);
+        assert!(
+            diagnostics[0]
+                .message()
+                .contains("non-portable path segment")
+        );
+        assert!(diagnostics[1].message().contains("ASCII-case comparison"));
     }
 
     #[test]
