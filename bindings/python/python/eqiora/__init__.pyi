@@ -165,6 +165,18 @@ class PackageConformanceReport(NamedTuple):
     model_digest: str
     deterministic_replay_agreement: bool
 
+class VendoredStandardPackage(NamedTuple):
+    """One exact source package written by ``vendor_standard_package``.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::VendoredStandardPackage``.
+    """
+
+    name: str
+    version: str
+    semantic_digest: str
+    source_digest: str
+    path: str
+
 @final
 class PropertyBinding:
     """Exact package-owned scalar property binding inspection.
@@ -1307,6 +1319,19 @@ def resolve_local_project(
 
     ...
 
+def vendor_standard_package(
+    project_root: str | PathLike[str],
+    package: str,
+    *,
+    destination: str = "packages",
+) -> tuple[VendoredStandardPackage, ...]:
+    """Vendor one exact bundled standard package and its dependency closure.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::vendor_standard_package``.
+    """
+
+    ...
+
 def check_package_conformance(
     store_root: str | os.PathLike[str],
     resolution_bytes: bytes,
@@ -1484,6 +1509,7 @@ __all__ = [
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",
+    "VendoredStandardPackage",
     "View",
     "across",
     "check_package_conformance",
@@ -1512,4 +1538,5 @@ __all__ = [
     "solve",
     "time",
     "trajectory",
+    "vendor_standard_package",
 ]

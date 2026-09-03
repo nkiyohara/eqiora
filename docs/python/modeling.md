@@ -133,6 +133,23 @@ installer, evaluated/table/tensor properties, or a stable Python AST schema.
 
 ## Resolve and lock a local package project
 
+An installed Eqiora distribution can vendor the standard fluid or solid
+package, including its exact dependency closure, into a project:
+
+```python
+import eqiora
+
+packages = eqiora.vendor_standard_package(".", "Eqiora.Fluid@0.1.0")
+fluid = next(package for package in packages if package.name == "Eqiora.Fluid")
+print(fluid.path, fluid.semantic_digest)
+```
+
+Each returned `VendoredStandardPackage` provides the exact identity needed by
+an application package manifest and the project-relative path for a
+`[sources.*].path` entry.
+Calling the function again is idempotent when every file is unchanged and
+rejects a changed destination without overwriting it.
+
 `eqiora.toml` maps short project names and root dependency aliases to contained
 package directories:
 

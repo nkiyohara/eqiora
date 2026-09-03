@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **86** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **88** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -1406,6 +1406,23 @@ class ValueEdit:
     def __hash__(self) -> int: ...
 ```
 
+<a id="api-eqiora-VendoredStandardPackage"></a>
+
+## `VendoredStandardPackage`
+
+One exact source package written by `vendor_standard_package`.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::VendoredStandardPackage</ExactSourceLink>
+
+```python
+class VendoredStandardPackage(NamedTuple):
+    name: str
+    version: str
+    semantic_digest: str
+    source_digest: str
+    path: str
+```
+
 <a id="api-eqiora-View"></a>
 
 ## `View`
@@ -1718,3 +1735,15 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs
 Read-only projections of accepted Eqiora spatial trajectories.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/trajectory.py" kind="blob">bindings/python/python/eqiora/trajectory.py</ExactSourceLink>
+
+<a id="api-eqiora-vendor_standard_package"></a>
+
+## `vendor_standard_package`
+
+Vendor one exact bundled standard package and its dependency closure.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::vendor_standard_package</ExactSourceLink>
+
+```python
+def vendor_standard_package(project_root: str | PathLike[str], package: str, *, destination: str='packages') -> tuple[VendoredStandardPackage, ...]: ...
+```

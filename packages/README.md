@@ -93,6 +93,12 @@ operation.
 
 The initial library is intentionally small:
 
+The Python distribution exposes `eqiora.vendor_standard_package(...)` for
+copying `Eqiora.Fluid@0.1.0` or `Eqiora.Solid@0.1.0` and its exact dependency
+closure into an ordinary local package project. It returns each vendored
+release's semantic identity, source identity, and project-relative path for
+the application manifest and `eqiora.toml`.
+
 Top-level package directories retain the exact releases already consumed by
 registered evidence. Later immutable releases live under
 [`releases/<package>/<version>`](releases/) instead of rewriting those source
