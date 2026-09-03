@@ -141,6 +141,10 @@ later release identity; directory location never participates in selection.
   [`0.3.0`](releases/Eqiora.Fluid.Incompressible/0.3.0/) adds a conservative
   transient 3D law and matching complete-exterior interface while retaining
   that separation.
+- [`Eqiora.Fluid 0.1.0`](releases/Eqiora.Fluid/0.1.0/) is the standard starting
+  point for 2D steady Stokes models. One import provides a curated model,
+  separate balance and interface components, and no-slip, traction-free, and
+  normal-pressure boundary conditions.
 - [`Eqiora.Fluid.InertialStokes`](Eqiora.Fluid.InertialStokes/) provides the
   distinct inertial incompressible Newtonian volume law used by the first
   fixed-reference FSI slice. It owns no boundary, time method, initial state,
