@@ -123,6 +123,11 @@ later release identity; directory location never participates in selection.
   mass matrix, time method, or FSI policy. Immutable
   [`0.5.0`](releases/Eqiora.Solid.LinearElasticity/0.5.0/) adds only the
   corresponding three-dimensional dynamic law and interface.
+- [`Eqiora.Solid 0.1.0`](releases/Eqiora.Solid/0.1.0/) is the standard starting
+  point for 2D isotropic linear elasticity. It provides plane-strain and
+  plane-stress models parameterized by Young's modulus and Poisson's ratio,
+  composable Lamé-form parts, and fixed-displacement and traction-free
+  boundary conditions.
 - [`Eqiora.Mechanics.Interfaces`](Eqiora.Mechanics.Interfaces/) provides one
   nominal power-conjugate velocity/traction boundary plus exact zero-velocity
   and zero-traction terminals. It is intentionally distinct from the solid

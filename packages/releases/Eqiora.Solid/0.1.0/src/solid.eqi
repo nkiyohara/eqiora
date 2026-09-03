@@ -1,0 +1,130 @@
+public connector DisplacementTractionBoundary = field_physical(
+  trace = displacement: m,
+  flux = traction: kg / (m * s ^ 2),
+  shape = spatial_vector,
+  frame = spatial,
+  pairing = euclidean_boundary_duality
+);
+
+public component IsotropicBalance2d {
+  public support body: volume(ambient_dimension = 2);
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
+  public parameter shear_modulus: kg / (m * s ^ 2);
+  public parameter first_lame_parameter: kg / (m * s ^ 2);
+
+  relation balance continuous on body {
+    -div(
+      2 * shear_modulus * symmetric_part(grad(displacement))
+      + first_lame_parameter * isotropic_lift(div(displacement))
+    ) - grad(load_potential) = 0;
+  }
+}
+
+public component DisplacementTractionInterface2d {
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  public parameter shear_modulus: kg / (m * s ^ 2);
+  public parameter first_lame_parameter: kg / (m * s ^ 2);
+
+  public port mechanical[boundary in exterior]:
+    conserving DisplacementTractionBoundary over boundary;
+
+  relation boundary_interface[boundary in exterior] continuous on boundary {
+    trace(displacement)
+      - trace(mechanical[boundary = boundary]) = 0;
+    normal(
+      2 * shear_modulus * symmetric_part(grad(displacement))
+      + first_lame_parameter * isotropic_lift(div(displacement))
+    ) - flux(mechanical[boundary = boundary]) = 0;
+  }
+}
+
+public component PlaneStrainLinearElasticity2d {
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
+  public parameter young_modulus: kg / (m * s ^ 2);
+  public parameter poisson_ratio: 1;
+
+  public port mechanical[boundary in exterior]:
+    conserving DisplacementTractionBoundary over boundary;
+
+  instance balance: IsotropicBalance2d(
+    support body = body,
+    field displacement = displacement,
+    field load_potential = load_potential,
+    shear_modulus = young_modulus / (2 * (1 + poisson_ratio)),
+    first_lame_parameter = young_modulus * poisson_ratio
+      / ((1 + poisson_ratio) * (1 - 2 * poisson_ratio))
+  );
+  instance interface: DisplacementTractionInterface2d(
+    support body = body,
+    support exterior = exterior,
+    field displacement = displacement,
+    shear_modulus = young_modulus / (2 * (1 + poisson_ratio)),
+    first_lame_parameter = young_modulus * poisson_ratio
+      / ((1 + poisson_ratio) * (1 - 2 * poisson_ratio))
+  );
+
+  connect conserving [boundary in exterior]
+    mechanical[boundary = boundary],
+    interface.mechanical[boundary = boundary];
+}
+
+public component PlaneStressLinearElasticity2d {
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
+  public parameter young_modulus: kg / (m * s ^ 2);
+  public parameter poisson_ratio: 1;
+
+  public port mechanical[boundary in exterior]:
+    conserving DisplacementTractionBoundary over boundary;
+
+  instance balance: IsotropicBalance2d(
+    support body = body,
+    field displacement = displacement,
+    field load_potential = load_potential,
+    shear_modulus = young_modulus / (2 * (1 + poisson_ratio)),
+    first_lame_parameter = young_modulus * poisson_ratio
+      / (1 - poisson_ratio ^ 2)
+  );
+  instance interface: DisplacementTractionInterface2d(
+    support body = body,
+    support exterior = exterior,
+    field displacement = displacement,
+    shear_modulus = young_modulus / (2 * (1 + poisson_ratio)),
+    first_lame_parameter = young_modulus * poisson_ratio
+      / (1 - poisson_ratio ^ 2)
+  );
+
+  connect conserving [boundary in exterior]
+    mechanical[boundary = boundary],
+    interface.mechanical[boundary = boundary];
+}
+
+public component FixedDisplacement2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public port mechanical:
+    conserving DisplacementTractionBoundary over face;
+
+  relation prescribed_displacement continuous on face {
+    trace(mechanical) = 0;
+  }
+}
+
+public component TractionFree2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public port mechanical:
+    conserving DisplacementTractionBoundary over face;
+
+  relation prescribed_traction continuous on face {
+    flux(mechanical) = 0;
+  }
+}
