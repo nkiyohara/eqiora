@@ -101,3 +101,7 @@ required-features = ["package-filesystem"]
 [[test]]
 name = "offline_model_package"
 required-features = ["package-filesystem"]
+
+[[test]]
+name = "standard_fluid_package"
+required-features = ["package-filesystem"]

@@ -119,6 +119,23 @@ pub(crate) fn public_sources(package: &str) -> AuthorPackageSourcesV1 {
 /// Return one exact immutable package release from compile-time embedded bytes.
 pub(crate) fn release_sources(package: &str, version: &str) -> AuthorPackageSourcesV1 {
     match (package, version) {
+        ("Eqiora.Fluid", "0.1.0") => sources(
+            include_bytes!("../../../../packages/releases/Eqiora.Fluid/0.1.0/package.json"),
+            &[
+                (
+                    "README.md",
+                    BundleRoleV1::Documentation,
+                    include_bytes!("../../../../packages/releases/Eqiora.Fluid/0.1.0/README.md"),
+                ),
+                (
+                    "src/fluid.eqi",
+                    BundleRoleV1::ModelSource,
+                    include_bytes!(
+                        "../../../../packages/releases/Eqiora.Fluid/0.1.0/src/fluid.eqi"
+                    ),
+                ),
+            ],
+        ),
         ("Eqiora.Mechanics.Interfaces", "0.2.0") => sources(
             include_bytes!(
                 "../../../../packages/releases/Eqiora.Mechanics.Interfaces/0.2.0/package.json"
