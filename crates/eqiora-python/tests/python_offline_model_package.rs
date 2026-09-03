@@ -128,6 +128,55 @@ fn locked_store(source: &str) -> (Scratch, Vec<u8>, String) {
 }
 
 #[test]
+fn local_package_directory_resolves_and_compiles_a_model_through_python() -> PyResult<()> {
+    let scratch = Scratch::create();
+    let package_root = scratch.0.join("root");
+    let store_root = scratch.0.join("store");
+    fs::create_dir_all(package_root.join("src")).expect("create package source directory");
+    fs::create_dir(&store_root).expect("create package store");
+    let path = NormalizedRelativePath::parse("src/main.eqi").expect("source path");
+    let manifest = AuthorManifestV1::new(
+        QualifiedName::parse("org.example.LocalRoot").expect("package name"),
+        ExactVersion::parse("1.0.0").expect("version"),
+        vec![],
+        vec![BundleEntryV1::new(path.clone(), BundleRoleV1::ModelSource)],
+    )
+    .expect("manifest");
+    fs::write(
+        package_root.join("package.json"),
+        manifest.canonical_json().expect("canonical manifest"),
+    )
+    .expect("write package manifest");
+    fs::write(
+        package_root.join(path.as_str()),
+        "public model Main { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+    )
+    .expect("write package source");
+
+    Python::initialize();
+    Python::attach(|py| {
+        let public = public_module(py)?;
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public)?;
+        locals.set_item("root", package_root.to_string_lossy())?;
+        locals.set_item("store", store_root.to_string_lossy())?;
+        py.run(
+            c_str!(
+                r#"
+resolution = eqiora.resolve_local_packages(root, [], store)
+assert type(resolution) is bytes
+model = eqiora.compile_package(store, resolution, entry_model="Main")
+assert model.package_compilation_digest is not None
+assert len(model.parameter_ids) == 1
+"#
+            ),
+            None,
+            Some(&locals),
+        )
+    })
+}
+
+#[test]
 fn package_component_uses_caller_geometry_common_plan_and_run() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
@@ -349,6 +398,8 @@ for args, kwargs in (
     ((store, bytearray(resolution)), dict(geometry=geometry, component="PoissonRectangle")),
     ((store, resolution), dict(component="PoissonRectangle")),
     ((store, resolution), dict(geometry=geometry)),
+    ((store, resolution), dict(entry_model="Main", geometry=geometry, component="PoissonRectangle")),
+    ((store, resolution), dict(entry_model="Main", parameters={})),
 ):
     try:
         package.compile_package(*args, **kwargs)

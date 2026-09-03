@@ -124,6 +124,15 @@ covers the owned bytes actually read. Release preparation derives the lock
 from exact release identities and closed manifests, then uses the ordinary
 resolver and compiler path to reject missing, duplicate, unreachable, cyclic,
 or semantically dishonest inputs before returning the root release.
+The optional application-level local-directory resolver composes these existing
+owners for package development: callers explicitly supply one root, its complete
+dependency-directory closure, and one store. It admits all inventories before
+opening the store, prepares the graph leaf-first, requires every compiler-derived
+dependency identity to equal its parent's exact request, rejects unused inputs,
+and returns the ordinary canonical `ResolutionRecordV1`. Python projects use this
+same Rust operation; no client owns a second graph resolver. Project manifest and
+lockfile transactions, version selection, Git/network fetch, and vendoring remain
+outside this local-source adapter.
 The in-memory identity and resolution contract is the default build;
 directory authoring, replay, and installation are available only through the
 explicit `package-filesystem` facade feature.

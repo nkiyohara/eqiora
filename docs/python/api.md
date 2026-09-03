@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 161 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 617 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 162 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 617 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 191 literal public spellings, 161 canonical grouped declarations, 814 visible method signatures (617 non-dunder and 197 dunder), and 74 visible class assignments.
+Inventory: 18 modules, 192 literal public spellings, 162 canonical grouped declarations, 814 visible method signatures (617 non-dunder and 197 dunder), and 74 visible class assignments.
 
 Regenerate with:
 
@@ -1464,12 +1464,12 @@ def compile(*, path: str | PathLike[str] | None=None, source: str | lang.Source 
 
 ### `eqiora.compile_package`
 
-Compile one root-package Component against caller-owned Geometry.
+Compile one locked Model or one Component against caller-owned Geometry.
 
 Authority: [`crates/eqiora-python/src/package.rs::compile_package`](../../crates/eqiora-python/src/package.rs)
 
 ```python
-def compile_package(store_root: str | PathLike[str], resolution: bytes, *, geometry: geometry.Geometry, component: str, parameters: dict[str, float | int] | None=None) -> Model: ...
+def compile_package(store_root: str | PathLike[str], resolution: bytes, *, entry_model: str | None=None, geometry: geometry.Geometry | None=None, component: str | None=None, parameters: dict[str, float | int] | None=None) -> Model: ...
 ```
 
 <a id="api-eqiora-connect"></a>
@@ -1545,6 +1545,18 @@ Authority: [`bindings/python/python/eqiora/__init__.py::resolve`](../../bindings
 
 ```python
 def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
+```
+
+<a id="api-eqiora-resolve_local_packages"></a>
+
+### `eqiora.resolve_local_packages`
+
+Resolve explicit local package directories into an exact offline store.
+
+Authority: [`crates/eqiora-python/src/package.rs::resolve_local_packages`](../../crates/eqiora-python/src/package.rs)
+
+```python
+def resolve_local_packages(root: str | PathLike[str], dependencies: Sequence[str | PathLike[str]], store_root: str | PathLike[str]) -> bytes: ...
 ```
 
 <a id="api-eqiora-run"></a>

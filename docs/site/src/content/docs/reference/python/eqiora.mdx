@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **85** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **86** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -1456,12 +1456,12 @@ def compile(*, path: str | PathLike[str] | None=None, source: str | lang.Source 
 
 ## `compile_package`
 
-Compile one root-package Component against caller-owned Geometry.
+Compile one locked Model or one Component against caller-owned Geometry.
 
 Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::compile_package</ExactSourceLink>
 
 ```python
-def compile_package(store_root: str | PathLike[str], resolution: bytes, *, geometry: geometry.Geometry, component: str, parameters: dict[str, float | int] | None=None) -> Model: ...
+def compile_package(store_root: str | PathLike[str], resolution: bytes, *, entry_model: str | None=None, geometry: geometry.Geometry | None=None, component: str | None=None, parameters: dict[str, float | int] | None=None) -> Model: ...
 ```
 
 <a id="api-eqiora-connect"></a>
@@ -1537,6 +1537,18 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kin
 
 ```python
 def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
+```
+
+<a id="api-eqiora-resolve_local_packages"></a>
+
+## `resolve_local_packages`
+
+Resolve explicit local package directories into an exact offline store.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::resolve_local_packages</ExactSourceLink>
+
+```python
+def resolve_local_packages(root: str | PathLike[str], dependencies: Sequence[str | PathLike[str]], store_root: str | PathLike[str]) -> bytes: ...
 ```
 
 <a id="api-eqiora-run"></a>

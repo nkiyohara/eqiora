@@ -6,6 +6,8 @@
 //! release before elaboration, and admits the resulting transaction through
 //! the ordinary [`ModelDocument`](crate::ModelDocument) artifact boundary.
 
+#[cfg(feature = "project-filesystem")]
+mod local_directory;
 mod model_document;
 #[cfg(test)]
 mod tests;
@@ -30,7 +32,7 @@ pub use model_document::PackagedModelDocument;
 
 const AUTHORING_NAMESPACE_DOMAIN_V1: &str = "eqiora.package-authoring.v1";
 
-/// Failure while deriving one package release from admitted author sources.
+/// Failure while preparing exact package releases from admitted author sources.
 #[derive(Debug)]
 pub enum PackagePreparationError {
     /// Exact dependency resolution or in-memory replay failed.
@@ -47,6 +49,45 @@ pub enum PackagePreparationError {
         declaring: QualifiedName,
         /// Exact dependency identity which must be supplied.
         target: Box<ModelPackageIdentityV1>,
+    },
+    /// The explicit local directory set cannot form one bounded rooted graph.
+    #[cfg(feature = "project-filesystem")]
+    LocalDirectoryGraph(String),
+    /// One explicit package directory could not be admitted.
+    #[cfg(feature = "project-filesystem")]
+    Directory {
+        /// Caller-supplied directory path.
+        path: std::path::PathBuf,
+        /// Bounded directory-admission failure.
+        source: eqiora_package::AuthorPackageDirectoryError,
+    },
+    /// Compiler-owned preparation failed for one admitted local directory.
+    #[cfg(feature = "project-filesystem")]
+    DirectoryPreparation {
+        /// Directory whose admitted sources failed preparation.
+        path: std::path::PathBuf,
+        /// Typed in-memory preparation failure.
+        source: Box<PackagePreparationError>,
+    },
+    /// Prepared content does not have the exact identity required by its parent.
+    #[cfg(feature = "project-filesystem")]
+    IdentityMismatch {
+        /// Package declaring the exact dependency.
+        declaring: QualifiedName,
+        /// Identity required by that manifest.
+        expected: Box<ModelPackageIdentityV1>,
+        /// Identity derived from the supplied directory.
+        actual: Box<ModelPackageIdentityV1>,
+        /// Supplied dependency directory.
+        path: std::path::PathBuf,
+    },
+    /// Opening or publishing into the explicit local store failed.
+    #[cfg(feature = "project-filesystem")]
+    Installation {
+        /// Caller-supplied store root.
+        store_root: std::path::PathBuf,
+        /// Typed no-clobber installation failure.
+        source: eqiora_package::PackageInstallError,
     },
     /// Compiler-derived declarations differ from one candidate release claim.
     SemanticContentMismatch {
@@ -84,6 +125,41 @@ impl std::fmt::Display for PackagePreparationError {
                 "package `{declaring}` requires missing exact dependency `{}@{}`",
                 target.name, target.version
             ),
+            #[cfg(feature = "project-filesystem")]
+            Self::LocalDirectoryGraph(message) => formatter.write_str(message),
+            #[cfg(feature = "project-filesystem")]
+            Self::Directory { path, source } => write!(
+                formatter,
+                "local package directory {} failed: {source}",
+                path.display()
+            ),
+            #[cfg(feature = "project-filesystem")]
+            Self::DirectoryPreparation { path, source } => write!(
+                formatter,
+                "local package directory {} could not be prepared: {source}",
+                path.display()
+            ),
+            #[cfg(feature = "project-filesystem")]
+            Self::IdentityMismatch {
+                declaring,
+                expected,
+                actual,
+                path,
+            } => write!(
+                formatter,
+                "local package `{declaring}` requires `{}@{}` with semantic digest {}, but {} derives digest {}",
+                expected.name,
+                expected.version,
+                expected.semantic_digest,
+                path.display(),
+                actual.semantic_digest
+            ),
+            #[cfg(feature = "project-filesystem")]
+            Self::Installation { store_root, source } => write!(
+                formatter,
+                "local package store {} failed: {source}",
+                store_root.display()
+            ),
             Self::SemanticContentMismatch { package, .. } => write!(
                 formatter,
                 "compiler semantic content does not match candidate package `{}@{}`",
@@ -98,10 +174,18 @@ impl std::error::Error for PackagePreparationError {
         match self {
             Self::Resolution(error) => Some(error),
             Self::Contract(error) => Some(error),
+            #[cfg(feature = "project-filesystem")]
+            Self::Directory { source, .. } => Some(source),
+            #[cfg(feature = "project-filesystem")]
+            Self::DirectoryPreparation { source, .. } => Some(source),
+            #[cfg(feature = "project-filesystem")]
+            Self::Installation { source, .. } => Some(source),
             Self::Diagnostics(_)
             | Self::DuplicateDependency(_)
             | Self::MissingDependency { .. }
             | Self::SemanticContentMismatch { .. } => None,
+            #[cfg(feature = "project-filesystem")]
+            Self::LocalDirectoryGraph(_) | Self::IdentityMismatch { .. } => None,
         }
     }
 }
