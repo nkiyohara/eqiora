@@ -24,6 +24,14 @@ pub(crate) struct PropertyReleaseDecl {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MaterialCompositionDecl {
+    pub(crate) visibility: VisibilitySyntax,
+    pub(crate) name: String,
+    pub(crate) properties: Vec<PropertyBindingDecl>,
+    pub(crate) range: TextRange,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ComponentPropertyDecl {
     pub(crate) name: String,
     pub(crate) contract: NamePath,
@@ -84,7 +92,32 @@ impl Document {
     }
 
     #[must_use]
-    pub fn isolated_property_declarations(&self) -> Vec<(String, VisibilitySyntax, bool, Self)> {
+    pub fn material_composition_syntax(
+        &self,
+    ) -> impl ExactSizeIterator<
+        Item = (
+            VisibilitySyntax,
+            &str,
+            Vec<(&str, &NamePath, TextRange)>,
+            TextRange,
+        ),
+    > {
+        self.material_compositions.iter().map(|value| {
+            (
+                value.visibility,
+                value.name.as_str(),
+                value
+                    .properties
+                    .iter()
+                    .map(|binding| (binding.property.as_str(), &binding.release, binding.range))
+                    .collect(),
+                value.range,
+            )
+        })
+    }
+
+    #[must_use]
+    pub fn isolated_property_declarations(&self) -> Vec<(String, VisibilitySyntax, Self)> {
         let mut values = self
             .property_contracts
             .iter()
@@ -92,13 +125,13 @@ impl Document {
                 (
                     declaration.name.clone(),
                     declaration.visibility,
-                    true,
                     Self {
                         module: None,
                         imports: Vec::new(),
                         dimensions: self.dimensions.clone(),
                         property_contracts: vec![declaration.clone()],
                         property_releases: Vec::new(),
+                        material_compositions: Vec::new(),
                         connectors: Vec::new(),
                         components: Vec::new(),
                         pure_operators: Vec::new(),
@@ -111,13 +144,31 @@ impl Document {
             (
                 declaration.name.clone(),
                 declaration.visibility,
-                false,
                 Self {
                     module: None,
                     imports: Vec::new(),
                     dimensions: self.dimensions.clone(),
                     property_contracts: Vec::new(),
                     property_releases: vec![declaration.clone()],
+                    material_compositions: Vec::new(),
+                    connectors: Vec::new(),
+                    components: Vec::new(),
+                    pure_operators: Vec::new(),
+                    models: Vec::new(),
+                },
+            )
+        }));
+        values.extend(self.material_compositions.iter().map(|declaration| {
+            (
+                declaration.name.clone(),
+                declaration.visibility,
+                Self {
+                    module: None,
+                    imports: Vec::new(),
+                    dimensions: self.dimensions.clone(),
+                    property_contracts: Vec::new(),
+                    property_releases: Vec::new(),
+                    material_compositions: vec![declaration.clone()],
                     connectors: Vec::new(),
                     components: Vec::new(),
                     pure_operators: Vec::new(),
@@ -141,6 +192,15 @@ impl ComponentDecl {
 }
 
 impl InstanceDecl {
+    pub(crate) fn has_bindings(&self) -> bool {
+        !(self.bindings.is_empty()
+            && self.support_bindings.is_empty()
+            && self.boundary_set_bindings.is_empty()
+            && self.field_bindings.is_empty()
+            && self.property_bindings.is_empty()
+            && self.material_binding.is_none())
+    }
+
     #[must_use]
     pub fn property_binding_syntax(
         &self,
@@ -148,6 +208,11 @@ impl InstanceDecl {
         self.property_bindings
             .iter()
             .map(|value| (value.property.as_str(), &value.release, value.range))
+    }
+
+    #[must_use]
+    pub const fn material_binding_syntax(&self) -> Option<&NamePath> {
+        self.material_binding.as_ref()
     }
 }
 

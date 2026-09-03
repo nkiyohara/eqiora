@@ -43,8 +43,7 @@ impl TextRange {
 
 /// One nonempty source name, optionally qualified by lexical member selection.
 ///
-/// The spelling is retained once while segment ranges make qualification
-/// structural. Consumers never need to split or concatenate dotted strings.
+/// Segment ranges make qualification structural without splitting or joining dotted strings.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NamePath {
     pub(crate) text: String,
@@ -776,6 +775,7 @@ pub struct InstanceDecl {
     pub(crate) boundary_set_bindings: Vec<BoundarySetBindingDecl>,
     pub(crate) field_bindings: Vec<FieldBindingDecl>,
     pub(crate) property_bindings: Vec<PropertyBindingDecl>,
+    pub(crate) material_binding: Option<NamePath>,
     pub(crate) range: TextRange,
 }
 

@@ -553,7 +553,7 @@ model Main { instance domain: Diffusion(property diffusivity = Reference); }
         );
         let analyzed = crate::analyze_resolved_hierarchy(input).expect("property alias analyzes");
         assert_eq!(
-            analyzed.property_bindings().next().expect("binding").4,
+            analyzed.property_bindings().next().expect("binding").5,
             0.025
         );
         analyzed

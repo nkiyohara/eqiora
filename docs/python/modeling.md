@@ -99,6 +99,10 @@ law.relation(
     on=law_body,
     residual=-q.div(diffusivity * q.grad(value)),
 )
+material = source.material_composition(
+    "ReferenceMaterial",
+    properties={"diffusivity": release},
+)
 root = source.component("DiffusionProblem")
 root_body = root.volume("body", dimensions=2)
 root.instance(
@@ -106,10 +110,15 @@ root.instance(
     component=law,
     supports={law_body: root_body},
     parameters={},
-    properties={diffusivity: release},
+    material=material,
 )
 source.write_eqi("src/property-diffusion.eqi")
 ```
+
+The composition mapping may contain several releases. The emitted instance uses
+`material = ReferenceMaterial`; compilation checks
+that the composition supplies every Component property exactly once and that
+each release implements the required nominal contract.
 
 Property contracts and releases are package-nominal. Passing this Source to
 ordinary `eqiora.compile(source=...)` therefore fails with a focused
@@ -125,11 +134,9 @@ The baseline slice has one public Component, public volume/parent-boundary
 supports and parameters, scalar or spatial-vector continuum fields, continuous
 residual Relations, structural SI units, constants, coordinates, arithmetic,
 powers, gradient, divergence, trace, normal contraction, symmetric part, and
-isotropic lift. The property extension admits exactly one scalar contract, one
-constant unconditional release, one consumer plus one root Component, and one
-complete instance binding. It is not arbitrary Python-to-Eqiora translation, a
-Python weak-form runtime, Geometry/mesh/Plan authoring, a package manifest or
-installer, evaluated/table/tensor properties, or a stable Python AST schema.
+isotropic lift. The package-oriented extension admits multiple scalar contracts
+and constant releases, one material composition, one consumer plus one root
+Component, and complete direct or composed bindings.
 
 ## Resolve and lock a local package project
 
@@ -237,7 +244,7 @@ bindings fail instead of matching Geometry by bounds, coordinates, or digest.
 
 `package_compilation_digest` is read-only lineage for the accepted compilation.
 When the package binds an exact scalar property release, `property_bindings` is
-an immutable projection of the compiler-owned contract, release, consuming
+an immutable projection of the compiler-owned optional composition, contract, release, consuming
 Component, requirement, coherent-SI value, validity, citation, and license. It
 is inspection metadata beside the compilation, not a second property evaluator.
 The resulting `Model` enters ordinary `eqiora.resolve(model, mesh=..., ...)` and

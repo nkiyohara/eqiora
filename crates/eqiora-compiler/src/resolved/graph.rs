@@ -137,6 +137,11 @@ fn top_level_names(document: &eqiora_lang::Document) -> BTreeSet<&str> {
         )
         .chain(
             document
+                .material_composition_syntax()
+                .map(|(_, name, _, _)| name),
+        )
+        .chain(
+            document
                 .connectors()
                 .iter()
                 .map(eqiora_lang::ConnectorDecl::name),

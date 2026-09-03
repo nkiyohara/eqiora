@@ -16,6 +16,7 @@ impl AnalyzedResolvedHierarchy {
 pub enum CanonicalDeclarationKind {
     PropertyContract,
     PropertyRelease,
+    MaterialComposition,
     PureOperator,
     Connector,
     Component,

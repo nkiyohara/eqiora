@@ -60,6 +60,7 @@ pub(crate) struct PyStructuralSemanticFingerprint {
 )]
 #[derive(Debug, Clone)]
 pub(crate) struct PyPropertyBinding {
+    composition: Option<String>,
     contract: String,
     release: String,
     component: String,
@@ -72,6 +73,11 @@ pub(crate) struct PyPropertyBinding {
 
 #[pymethods]
 impl PyPropertyBinding {
+    #[getter]
+    fn composition(&self) -> Option<&str> {
+        self.composition.as_deref()
+    }
+
     #[getter]
     fn contract(&self) -> &str {
         &self.contract
@@ -114,7 +120,8 @@ impl PyPropertyBinding {
 
     fn __repr__(&self) -> String {
         format!(
-            "PropertyBinding(contract={:?}, release={:?}, component={:?}, requirement={:?}, normalized_value={:?}, validity={:?}, citation={:?}, license={:?})",
+            "PropertyBinding(composition={:?}, contract={:?}, release={:?}, component={:?}, requirement={:?}, normalized_value={:?}, validity={:?}, citation={:?}, license={:?})",
+            self.composition,
             self.contract,
             self.release,
             self.component,
@@ -476,6 +483,7 @@ impl PyModel {
             .property_bindings()
             .map(
                 |(
+                    composition,
                     contract,
                     release,
                     component,
@@ -485,6 +493,7 @@ impl PyModel {
                     citation,
                     license,
                 )| PyPropertyBinding {
+                    composition: composition.map(str::to_owned),
                     contract: contract.to_owned(),
                     release: release.to_owned(),
                     component: component.to_owned(),

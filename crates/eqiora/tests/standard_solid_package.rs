@@ -32,6 +32,12 @@ fn curated_and_explicit_standard_elasticity_share_the_package_neutral_path() {
     for assumption in [Assumption::PlaneStrain, Assumption::PlaneStress] {
         let curated = compile_root(&solid, &root_source(true, assumption, 0.25));
         let explicit = compile_root(&solid, &root_source(false, assumption, 0.25));
+        assert_eq!(curated.property_bindings().len(), 2);
+        assert!(
+            curated
+                .property_bindings()
+                .all(|binding| binding.0.is_some())
+        );
         let curated = lower(curated.model().program());
         let explicit = lower(explicit.model().program());
 
@@ -142,6 +148,7 @@ path = "solid"
     let store = DirectoryPackageStore::open_ambient(store_path).expect("open offline store");
     let document = PackagedModelDocument::compile_locked(&store, &reopened, "Main")
         .expect("compile from exact offline store");
+    assert_eq!(document.property_bindings().len(), 2);
     assert_eq!(lower(document.model().program()).shear_modulus(), 48.0);
 }
 
@@ -246,25 +253,59 @@ impl Drop for Scratch {
 }
 
 fn root_source(curated: bool, assumption: Assumption, poisson_ratio: f64) -> String {
-    let (material_parameters, governing) = if curated {
+    let (preamble, material_parameters, governing) = if curated {
         let component = match assumption {
             Assumption::PlaneStrain => "PlaneStrainLinearElasticity2d",
             Assumption::PlaneStress => "PlaneStressLinearElasticity2d",
         };
         (
             format!(
-                "  parameter young_modulus: kg / (m * s ^ 2) = 120;\n  parameter poisson_ratio: 1 = {poisson_ratio};"
-            ),
-            format!(
-                r#"  instance governing: solid.{component}(
+                r#"public property contract YoungModulus {{ scalar value: kg / (m * s ^ 2); }}
+public property contract PoissonRatio {{ scalar value: 1; }}
+public property release ReferenceYoungModulus implements YoungModulus {{
+  value = 120; source_unit: kg / (m * s ^ 2) = 1;
+  validity = unconditional; citation = org.example.reference; license = spdx.CC0_1_0;
+}}
+public property release ReferencePoissonRatio implements PoissonRatio {{
+  value = {poisson_ratio}; source_unit: 1 = 1;
+  validity = unconditional; citation = org.example.reference; license = spdx.CC0_1_0;
+}}
+public material composition ReferenceMaterial {{
+  property poisson_ratio = ReferencePoissonRatio;
+  property young_modulus = ReferenceYoungModulus;
+}}
+
+public component MaterialElasticity2d {{
+  public property young_modulus: YoungModulus;
+  public property poisson_ratio: PoissonRatio;
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
+  public port mechanical[boundary in exterior]:
+    conserving solid.DisplacementTractionBoundary over boundary;
+  instance law: solid.{component}(
     support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
+    support exterior = exterior,
     field displacement = displacement,
     field load_potential = load_potential,
     young_modulus = young_modulus,
     poisson_ratio = poisson_ratio
-  );"#
+  );
+  connect conserving [boundary in exterior]
+    mechanical[boundary = boundary], law.mechanical[boundary = boundary];
+}}
+"#
             ),
+            String::new(),
+            r#"  instance governing: MaterialElasticity2d(
+    support body = body,
+    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
+    field displacement = displacement,
+    field load_potential = load_potential,
+    material = ReferenceMaterial
+  );"#
+            .to_owned(),
         )
     } else {
         let lambda = match assumption {
@@ -272,6 +313,7 @@ fn root_source(curated: bool, assumption: Assumption, poisson_ratio: f64) -> Str
             Assumption::PlaneStress => 32,
         };
         (
+            String::new(),
             format!(
                 "  parameter shear_modulus: kg / (m * s ^ 2) = 48;\n  parameter first_lame_parameter: kg / (m * s ^ 2) = {lambda};"
             ),
@@ -294,7 +336,7 @@ fn root_source(curated: bool, assumption: Assumption, poisson_ratio: f64) -> Str
     };
     let interface = if curated { "governing" } else { "interface" };
     format!(
-        r#"model Main {{
+        r#"{preamble}model Main {{
   domain body = box(0, 4, 0, 2);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);

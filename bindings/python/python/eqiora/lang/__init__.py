@@ -118,6 +118,31 @@ class PropertyRelease:
         raise AttributeError("PropertyRelease handles are immutable")
 
 
+class MaterialComposition:
+    """An immutable binding set from property requirements to exact releases."""
+
+    __slots__ = ("_bindings", "_doc", "_name", "_owner")
+
+    def __init__(
+        self,
+        _token: object = _MISSING,
+        *,
+        _owner: object = _MISSING,
+        _name_value: str = "",
+        _bindings: tuple[tuple[str, PropertyRelease], ...] = (),
+        _doc: tuple[str, ...] = (),
+    ) -> None:
+        if _token is not _CREATE:
+            raise TypeError("material compositions are created by Source")
+        object.__setattr__(self, "_owner", _owner)
+        object.__setattr__(self, "_name", _name_value)
+        object.__setattr__(self, "_bindings", _bindings)
+        object.__setattr__(self, "_doc", _doc)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("MaterialComposition handles are immutable")
+
+
 class Expression:
     """A closed Eqiora Language expression; equality is not an equation builder."""
 
@@ -548,6 +573,7 @@ class Component:
                 tuple[tuple[Support, Support], ...],
                 tuple[tuple[_Parameter, Expression], ...],
                 tuple[tuple[_PropertyRequirement, PropertyRelease], ...],
+                MaterialComposition | None,
                 tuple[str, ...],
             ]
         ] = []
@@ -778,7 +804,8 @@ class Component:
         component: Component,
         supports: Mapping[Support, Support],
         parameters: Mapping[Expression, Expression | int | float],
-        properties: Mapping[Expression, PropertyRelease],
+        properties: Mapping[Expression, PropertyRelease] | None = None,
+        material: MaterialComposition | None = None,
         doc: str | None = None,
     ) -> None:
         if not isinstance(component, Component) or component._owner is not self._owner:
@@ -789,6 +816,8 @@ class Component:
             raise TypeError("supports must be a mapping of target to enclosing Support handles")
         if not isinstance(parameters, Mapping):
             raise TypeError("parameters must be a mapping of target Parameter expressions")
+        if properties is None:
+            properties = {}
         if not isinstance(properties, Mapping):
             raise TypeError("properties must be a mapping of target property requirements")
 
@@ -799,7 +828,22 @@ class Component:
             raise SourceError("instance support bindings must be complete and exact")
         if set(parameters) != set(target_parameters):
             raise SourceError("instance Parameter bindings must be complete and exact")
-        if set(properties) != set(target_properties):
+        if material is not None:
+            if not isinstance(material, MaterialComposition) or material._owner is not self._owner:
+                raise SourceError("material composition must belong to this Source")
+            if properties:
+                raise SourceError(
+                    "an instance cannot combine a material composition with direct property bindings"
+                )
+            material_properties = dict(material._bindings)
+            if set(material_properties) != {target._name for target in target_properties}:
+                raise SourceError("material composition must satisfy the exact Component properties")
+            for target in target_properties:
+                if material_properties[target._name]._contract is not target._contract:
+                    raise SourceError(
+                        "material property release must implement the exact required contract"
+                    )
+        elif set(properties) != set(target_properties):
             raise SourceError("instance property bindings must be complete and exact")
 
         support_bindings: list[tuple[Support, Support]] = []
@@ -822,7 +866,7 @@ class Component:
             parameter_bindings.append((target, value))
 
         property_bindings: list[tuple[_PropertyRequirement, PropertyRelease]] = []
-        for target in target_properties:
+        for target in target_properties if material is None else ():
             release = properties[target]
             if not isinstance(release, PropertyRelease) or release._owner is not self._owner:
                 raise SourceError("instance property releases must belong to this Source")
@@ -840,6 +884,7 @@ class Component:
                 tuple(support_bindings),
                 tuple(parameter_bindings),
                 tuple(property_bindings),
+                material,
                 _doc(doc),
             )
         )
@@ -903,6 +948,7 @@ class Component:
             support_bindings,
             parameter_bindings,
             property_bindings,
+            material,
             doc,
         ) in enumerate(self._instances):
             lines.extend(_comment(doc, "  "))
@@ -914,6 +960,8 @@ class Component:
                 f"{target._name} = {value._text}"
                 for target, value in parameter_bindings
             )
+            if material is not None:
+                bindings.append(f"material = {material._name}")
             bindings.extend(
                 f"property {target._name} = {release._name}"
                 for target, release in property_bindings
@@ -945,18 +993,20 @@ class Source:
 
     __slots__ = (
         "_components",
-        "_contract",
+        "_contracts",
         "_frozen_text",
         "_owner",
-        "_release",
+        "_releases",
+        "_materials",
         "_top_names",
     )
 
     def __init__(self) -> None:
         self._owner = object()
         self._components: list[Component] = []
-        self._contract: PropertyContract | None = None
-        self._release: PropertyRelease | None = None
+        self._contracts: list[PropertyContract] = []
+        self._releases: list[PropertyRelease] = []
+        self._materials: list[MaterialComposition] = []
         self._top_names: set[str] = set()
         self._frozen_text: str | None = None
 
@@ -965,7 +1015,18 @@ class Source:
             raise SourceError("Source is frozen after emission or compilation")
 
     def _requires_package_compilation(self) -> bool:
-        return self._contract is not None
+        return bool(self._contracts)
+
+    def _add_top_name(self, name: object) -> str:
+        admitted = _name(name)
+        if admitted in self._top_names:
+            raise SourceError(f"duplicate top-level declaration name {admitted!r}")
+        if len(self._top_names) >= _MAX_DECLARATIONS:
+            raise SourceError(
+                f"Source exceeds the {_MAX_DECLARATIONS}-declaration limit"
+            )
+        self._top_names.add(admitted)
+        return admitted
 
     def component(
         self,
@@ -974,7 +1035,7 @@ class Source:
         doc: str | None = None,
     ) -> Component:
         self._ensure_open()
-        maximum = 2 if self._contract is not None else 1
+        maximum = 2 if self._contracts else 1
         if len(self._components) >= maximum:
             if maximum == 1:
                 raise SourceError(
@@ -983,11 +1044,8 @@ class Source:
             raise SourceError(
                 "the scalar property Source vocabulary admits exactly two Components"
             )
-        admitted = _name(name)
-        if admitted in self._top_names:
-            raise SourceError(f"duplicate top-level declaration name {admitted!r}")
         doc_lines = _doc(doc)
-        self._top_names.add(admitted)
+        admitted = self._add_top_name(name)
         component = Component(_CREATE, self, admitted, doc_lines)
         self._components.append(component)
         return component
@@ -1002,15 +1060,10 @@ class Source:
         self._ensure_open()
         if self._components:
             raise SourceError("property declarations must precede Components")
-        if self._contract is not None:
-            raise SourceError("Source admits exactly one scalar property contract")
         if not isinstance(unit, Unit):
             raise TypeError("unit must be an eqiora.lang.units.Unit")
-        admitted = _name(name)
-        if admitted in self._top_names:
-            raise SourceError(f"duplicate top-level declaration name {admitted!r}")
         doc_lines = _doc(doc)
-        self._top_names.add(admitted)
+        admitted = self._add_top_name(name)
         contract = PropertyContract(
             _CREATE,
             self._owner,
@@ -1018,7 +1071,7 @@ class Source:
             unit,
             doc_lines,
         )
-        self._contract = contract
+        self._contracts.append(contract)
         return contract
 
     def scalar_property_release(
@@ -1036,12 +1089,10 @@ class Source:
         self._ensure_open()
         if self._components:
             raise SourceError("property declarations must precede Components")
-        if self._release is not None:
-            raise SourceError("Source admits exactly one scalar property release")
         if (
             not isinstance(implements, PropertyContract)
             or implements._owner is not self._owner
-            or implements is not self._contract
+            or implements not in self._contracts
         ):
             raise SourceError("release contract must be the exact contract from this Source")
         if not isinstance(source_unit, Unit):
@@ -1050,13 +1101,10 @@ class Source:
         _number(source_scale)
         if source_scale <= 0:
             raise SourceError("source_scale must be finite and strictly positive")
-        admitted = _name(name)
-        if admitted in self._top_names:
-            raise SourceError(f"duplicate top-level declaration name {admitted!r}")
         citation_identity = _name_path(citation, "citation identity")
         license_identity = _name_path(license, "license identity")
         doc_lines = _doc(doc)
-        self._top_names.add(admitted)
+        admitted = self._add_top_name(name)
         release = PropertyRelease(
             _CREATE,
             _owner=self._owner,
@@ -1069,8 +1117,39 @@ class Source:
             _license=license_identity,
             _doc=doc_lines,
         )
-        self._release = release
+        self._releases.append(release)
         return release
+
+    def material_composition(
+        self,
+        name: str,
+        *,
+        properties: Mapping[str, PropertyRelease],
+        doc: str | None = None,
+    ) -> MaterialComposition:
+        self._ensure_open()
+        if not isinstance(properties, Mapping):
+            raise TypeError("properties must be a mapping of property requirements to releases")
+        if not properties:
+            raise SourceError("material composition requires at least one property")
+        bindings: list[tuple[str, PropertyRelease]] = []
+        for requirement, release in properties.items():
+            admitted_requirement = _name(requirement)
+            if not isinstance(release, PropertyRelease) or release._owner is not self._owner:
+                raise SourceError("material property releases must belong to this Source")
+            bindings.append((admitted_requirement, release))
+        bindings.sort(key=lambda binding: binding[0])
+        doc_lines = _doc(doc)
+        admitted = self._add_top_name(name)
+        material = MaterialComposition(
+            _CREATE,
+            _owner=self._owner,
+            _name_value=admitted,
+            _bindings=tuple(bindings),
+            _doc=doc_lines,
+        )
+        self._materials.append(material)
+        return material
 
     def to_eqi(self) -> str:
         """Return deterministic UTF-8 Eqiora Language text and freeze this Source."""
@@ -1081,56 +1160,45 @@ class Source:
                     "Source requires one public Component before emission"
                 )
             declarations: list[str] = []
-            if self._contract is not None:
-                if self._release is None or len(self._components) != 2:
+            if self._contracts:
+                if not self._releases or len(self._components) != 2:
                     raise SourceError(
-                        "scalar property Source requires one release, one consumer, and one root Component"
+                        "property Source requires releases, one consumer, and one root Component"
                     )
-                consumer, root = self._components
-                if (
-                    len(consumer._properties) != 1
-                    or consumer._instances
-                    or root._properties
-                    or len(root._instances) != 1
-                ):
-                    raise SourceError(
-                        "scalar property Source requires one consumer requirement and one root instance"
+                for contract in self._contracts:
+                    declarations.extend(_comment(contract._doc, ""))
+                    declarations.append(
+                        f"public property contract {contract._name} {{"
                     )
-                instance = root._instances[0]
-                if (
-                    instance[1] is not consumer
-                    or len(instance[4]) != 1
-                    or instance[4][0][0] is not consumer._properties[0][0]
-                    or instance[4][0][1] is not self._release
-                ):
-                    raise SourceError(
-                        "root instance must bind the exact release to the consumer requirement"
+                    declarations.append(f"  scalar value: {contract._unit._text};")
+                    declarations.append("}")
+                    declarations.append("")
+                for release in self._releases:
+                    declarations.extend(_comment(release._doc, ""))
+                    declarations.append(
+                        "public property release "
+                        f"{release._name} implements {release._contract._name} {{"
                     )
-                declarations.extend(_comment(self._contract._doc, ""))
-                declarations.append(
-                    f"public property contract {self._contract._name} {{"
-                )
-                declarations.append(
-                    f"  scalar value: {self._contract._unit._text};"
-                )
-                declarations.append("}")
-                declarations.append("")
-                declarations.extend(_comment(self._release._doc, ""))
-                declarations.append(
-                    "public property release "
-                    f"{self._release._name} implements {self._contract._name} {{"
-                )
-                declarations.append(f"  value = {_number(self._release._value)};")
-                declarations.append(
-                    "  source_unit: "
-                    f"{self._release._source_unit._text} = "
-                    f"{_number(self._release._source_scale)};"
-                )
-                declarations.append("  validity = unconditional;")
-                declarations.append(f"  citation = {self._release._citation};")
-                declarations.append(f"  license = {self._release._license};")
-                declarations.append("}")
-                declarations.append("")
+                    declarations.append(f"  value = {_number(release._value)};")
+                    declarations.append(
+                        "  source_unit: "
+                        f"{release._source_unit._text} = "
+                        f"{_number(release._source_scale)};"
+                    )
+                    declarations.append("  validity = unconditional;")
+                    declarations.append(f"  citation = {release._citation};")
+                    declarations.append(f"  license = {release._license};")
+                    declarations.append("}")
+                    declarations.append("")
+                for material in self._materials:
+                    declarations.extend(_comment(material._doc, ""))
+                    declarations.append(f"public material composition {material._name} {{")
+                    for requirement, release in material._bindings:
+                        declarations.append(
+                            f"  property {requirement} = {release._name};"
+                        )
+                    declarations.append("}")
+                    declarations.append("")
             declarations.append(
                 "\n\n".join(
                     component._render().rstrip("\n")
@@ -1184,6 +1252,7 @@ class Source:
 __all__ = [
     "Component",
     "Expression",
+    "MaterialComposition",
     "PropertyContract",
     "PropertyRelease",
     "Relation",

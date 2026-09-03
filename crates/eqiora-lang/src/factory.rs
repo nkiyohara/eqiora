@@ -67,8 +67,7 @@ impl SourceAstFactory {
     /// Construct one exact integer token used by pure-operator syntax.
     ///
     /// # Errors
-    /// Returns an error when `spelling` is not an unsigned decimal integer,
-    /// does not fit in `u64`, or the source range is reversed.
+    /// Rejects non-decimal or `u64`-overflowing spelling and reversed ranges.
     pub fn exact_integer(
         spelling: impl Into<String>,
         range: TextRange,
@@ -773,6 +772,7 @@ impl SourceAstFactory {
             boundary_set_bindings,
             field_bindings,
             property_bindings: Vec::new(),
+            material_binding: None,
             range: checked_range(range)?,
         })
     }

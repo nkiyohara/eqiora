@@ -543,9 +543,11 @@ impl AnalyzedResolvedHierarchy {
     #[must_use]
     pub fn property_bindings(
         &self,
-    ) -> impl ExactSizeIterator<Item = (&str, &str, &str, &str, f64, &str, &str, &str)> {
+    ) -> impl ExactSizeIterator<Item = (Option<&str>, &str, &str, &str, &str, f64, &str, &str, &str)>
+    {
         self.property_bindings.iter().map(|value| {
             (
+                value.composition(),
                 value.contract(),
                 value.release(),
                 value.component(),
@@ -729,19 +731,20 @@ fn collect_canonical_declarations(
             .filter(|alias| alias.declaring_module() == &unit.module)
             .map(|alias| (alias.alias().to_owned(), canonical_alias_target(alias)))
             .collect::<BTreeMap<_, _>>();
-        for (name, visibility, is_contract, document) in
-            unit.document.isolated_property_declarations()
-        {
+        for (name, visibility, document) in unit.document.isolated_property_declarations() {
+            let kind = if document.property_contract_syntax().next().is_some() {
+                CanonicalDeclarationKind::PropertyContract
+            } else if document.property_release_syntax().next().is_some() {
+                CanonicalDeclarationKind::PropertyRelease
+            } else {
+                CanonicalDeclarationKind::MaterialComposition
+            };
             push_canonical(
                 &mut result,
                 &mut paths,
                 unit.module.owner(),
                 &canonical_declaration_path(&unit.module, &name),
-                if is_contract {
-                    CanonicalDeclarationKind::PropertyContract
-                } else {
-                    CanonicalDeclarationKind::PropertyRelease
-                },
+                kind,
                 visibility,
                 &document,
                 &resolved_aliases,

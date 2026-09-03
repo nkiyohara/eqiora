@@ -31,6 +31,7 @@ fn collect_property_bindings(
         .property_bindings()
         .map(
             |(
+                composition,
                 contract,
                 release,
                 component,
@@ -41,6 +42,7 @@ fn collect_property_bindings(
                 license,
             )| {
                 PropertyBindingProjection {
+                    composition: composition.map(str::to_owned),
                     contract: contract.to_owned(),
                     release: release.to_owned(),
                     component: component.to_owned(),
@@ -69,6 +71,7 @@ pub struct PackagedModelDocument {
 
 #[derive(Debug, Clone, PartialEq)]
 struct PropertyBindingProjection {
+    composition: Option<String>,
     contract: String,
     release: String,
     component: String,
@@ -222,14 +225,16 @@ impl PackagedModelDocument {
 
     /// Exact nominal property bindings used by this compilation.
     ///
-    /// Each item is `(contract, release, component, requirement,
+    /// Each item is `(composition, contract, release, component, requirement,
     /// normalized_value, validity, citation, license)`.
     #[must_use]
     pub fn property_bindings(
         &self,
-    ) -> impl ExactSizeIterator<Item = (&str, &str, &str, &str, f64, &str, &str, &str)> {
+    ) -> impl ExactSizeIterator<Item = (Option<&str>, &str, &str, &str, &str, f64, &str, &str, &str)>
+    {
         self.property_bindings.iter().map(|value| {
             (
+                value.composition.as_deref(),
                 value.contract.as_str(),
                 value.release.as_str(),
                 value.component.as_str(),

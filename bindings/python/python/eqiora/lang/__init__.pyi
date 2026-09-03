@@ -62,6 +62,15 @@ class PropertyRelease:
     ...
 
 @final
+class MaterialComposition:
+    """Identify one immutable typed material composition in its exact Source.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::MaterialComposition``.
+    """
+
+    ...
+
+@final
 class Relation:
     """Identify one relation declaration in its exact Source.
 
@@ -152,7 +161,8 @@ class Component:
         component: Component,
         supports: Mapping[Support, Support],
         parameters: Mapping[Expression, Expression | int | float],
-        properties: Mapping[Expression, PropertyRelease],
+        properties: Mapping[Expression, PropertyRelease] | None = None,
+        material: MaterialComposition | None = None,
         doc: str | None = None,
     ) -> None: ...
 
@@ -189,6 +199,13 @@ class Source:
         license: str,
         doc: str | None = None,
     ) -> PropertyRelease: ...
+    def material_composition(
+        self,
+        name: str,
+        *,
+        properties: Mapping[str, PropertyRelease],
+        doc: str | None = None,
+    ) -> MaterialComposition: ...
     def to_eqi(self) -> str: ...
     def write_eqi(self, path: str | PathLike[str]) -> None: ...
 
@@ -315,6 +332,7 @@ def isotropic_lift(value: Expression) -> Expression:
 __all__ = [
     "Component",
     "Expression",
+    "MaterialComposition",
     "PropertyContract",
     "PropertyRelease",
     "Relation",
