@@ -595,7 +595,11 @@ impl ValidatedResolvedHierarchy {
         self.analysis.canonical_declarations()
     }
 
-    /// Elaborate one package-local Model from the exact root namespace.
+    /// Elaborate one root-local or directly imported public Model.
+    ///
+    /// An imported entry uses exactly `alias.Model`, where `alias` is declared
+    /// by the root module or exact root package. Transitive qualification and
+    /// private Models fail closed.
     ///
     /// # Errors
     /// Returns accumulated occurrence diagnostics. No partial transaction is
@@ -806,7 +810,7 @@ fn collect_canonical_declarations(
                 unit.module.owner(),
                 &canonical_declaration_path(&unit.module, model.name()),
                 CanonicalDeclarationKind::Model,
-                VisibilitySyntax::Private,
+                model.visibility(),
                 &document,
                 &resolved_aliases,
                 diagnostics,

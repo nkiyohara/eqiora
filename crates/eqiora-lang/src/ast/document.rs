@@ -1,8 +1,44 @@
 use crate::ast_property::{PropertyContractDecl, PropertyReleaseDecl};
 
 use super::{
-    ComponentDecl, ConnectorDecl, DimensionDecl, ModelDecl, NamePath, PureOperatorDecl, TextRange,
+    ComponentDecl, ConnectorDecl, DimensionDecl, Item, NamePath, PureOperatorDecl, TextRange,
+    VisibilitySyntax,
 };
+
+/// A named model and its declarations.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModelDecl {
+    pub(crate) visibility: VisibilitySyntax,
+    pub(crate) name: String,
+    pub(crate) items: Vec<Item>,
+    pub(crate) range: TextRange,
+}
+
+impl ModelDecl {
+    /// Module visibility.
+    #[must_use]
+    pub const fn visibility(&self) -> VisibilitySyntax {
+        self.visibility
+    }
+
+    /// Source name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Declarations in source order.
+    #[must_use]
+    pub fn items(&self) -> &[Item] {
+        &self.items
+    }
+
+    /// Full model declaration range.
+    #[must_use]
+    pub const fn range(&self) -> TextRange {
+        self.range
+    }
+}
 
 /// One explicit, side-effect-free semantic module import.
 #[derive(Debug, Clone, PartialEq, Eq)]

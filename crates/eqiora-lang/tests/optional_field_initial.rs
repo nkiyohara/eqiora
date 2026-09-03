@@ -22,7 +22,13 @@ fn factory_constructs_an_uninitialized_scalar_field() {
     let field =
         SourceAstFactory::field_with_shape("pressure", None, None, None, dimension, None, range)
             .expect("uninitialized scalar Field");
-    let model = SourceAstFactory::model("flow", vec![Item::Field(field)], range).expect("model");
+    let model = SourceAstFactory::model(
+        eqiora_lang::VisibilitySyntax::Private,
+        "flow",
+        vec![Item::Field(field)],
+        range,
+    )
+    .expect("model");
     let document =
         SourceAstFactory::document(Vec::new(), Vec::new(), vec![model]).expect("document");
 

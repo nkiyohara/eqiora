@@ -223,6 +223,95 @@ public component Resistor {
 }
 
 #[test]
+fn directly_imported_public_model_is_an_executable_entry() {
+    let owner = namespace("org.example.project");
+    let input = ResolvedHierarchyInput::with_root_module(
+        owner.clone(),
+        ["models", "main"],
+        vec![
+            module_unit(
+                &owner,
+                "library.entries",
+                "src/library/entries.eqi",
+                "public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+            ),
+            module_unit(
+                &owner,
+                "models.main",
+                "src/models/main.eqi",
+                "import library.entries as lib; model Local {}",
+            ),
+        ],
+        vec![],
+    )
+    .expect("root module identity");
+
+    let analysis = analyze_resolved_hierarchy(input).expect("public entry graph analyzes");
+    let exported = analysis
+        .canonical_declarations()
+        .iter()
+        .find(|declaration| declaration.path() == "library.entries.Shared")
+        .expect("public Model is canonicalized");
+    assert_eq!(exported.kind(), CanonicalDeclarationKind::Model);
+    assert_eq!(
+        exported.visibility(),
+        CanonicalDeclarationVisibility::Public
+    );
+    let compiled = analysis
+        .validate_definitions()
+        .expect("public entry graph validates")
+        .compile_root("lib.Shared")
+        .expect("direct imported public Model compiles");
+    assert!(compiled.symbols().get("law").is_some());
+}
+
+#[test]
+fn imported_entry_model_rejects_private_and_non_direct_targets() {
+    let owner = namespace("org.example.project");
+    let input = ResolvedHierarchyInput::with_root_module(
+        owner.clone(),
+        ["models", "main"],
+        vec![
+            module_unit(
+                &owner,
+                "library.entries",
+                "src/library/entries.eqi",
+                "model Hidden {}",
+            ),
+            module_unit(
+                &owner,
+                "models.main",
+                "src/models/main.eqi",
+                "import library.entries as lib; model Local {}",
+            ),
+        ],
+        vec![],
+    )
+    .expect("root module identity");
+    let validated = analyze_resolved_hierarchy(input)
+        .expect("private entry graph analyzes")
+        .validate_definitions()
+        .expect("private entry graph validates");
+
+    let private = validated
+        .compile_root("lib.Hidden")
+        .expect_err("private imported Model");
+    assert!(
+        private
+            .iter()
+            .any(|diagnostic| diagnostic.message().contains("private Model"))
+    );
+    let transitive = validated
+        .compile_root("lib.nested.Hidden")
+        .expect_err("transitive entry path");
+    assert!(transitive.iter().any(|diagnostic| {
+        diagnostic
+            .message()
+            .contains("one direct alias-qualified name")
+    }));
+}
+
+#[test]
 fn one_logical_module_composes_multiple_source_units() {
     let owner = namespace("org.example.project");
     let input = ResolvedHierarchyInput::with_root_module(

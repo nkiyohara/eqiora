@@ -134,6 +134,34 @@ public component Resistor {
 }
 
 #[test]
+fn locked_root_can_select_one_direct_dependency_public_model() {
+    let dependency = release(
+        "org.example.Library",
+        "public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+        &[],
+    );
+    let root = release(
+        "org.example.Root",
+        "model Local {}",
+        &[("library", &dependency)],
+    );
+    let resolution =
+        ResolutionRecordV1::from_exact_releases(&root, std::slice::from_ref(&dependency))
+            .expect("exact dependency lock");
+    let mut store = InMemoryPackageStore::default();
+    store.insert(&root).expect("store root");
+    store.insert(&dependency).expect("store dependency");
+
+    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "library.Shared")
+        .expect("direct dependency public Model compiles");
+    assert!(packaged.model().aliases().contains_key("law"));
+    packaged
+        .compilation()
+        .validate_against(&resolution)
+        .expect("imported entry retains exact package resolution");
+}
+
+#[test]
 fn locked_scalar_property_replays_offline_with_inspectable_provenance() {
     const SOURCE: &str = r#"
 public property contract Diffusivity {

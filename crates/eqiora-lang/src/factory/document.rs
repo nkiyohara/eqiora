@@ -1,6 +1,7 @@
 use crate::ast::document::{ImportDecl, ModuleDecl};
 use crate::ast::{
-    ComponentDecl, ConnectorDecl, Document, Expr, ModelDecl, NamePath, PureOperatorDecl, TextRange,
+    ComponentDecl, ConnectorDecl, Document, Expr, Item, ModelDecl, NamePath, PureOperatorDecl,
+    TextRange, VisibilitySyntax,
 };
 
 use super::{
@@ -8,6 +9,24 @@ use super::{
 };
 
 impl SourceAstFactory {
+    /// Construct one named flat model from already checked Item values.
+    ///
+    /// # Errors
+    /// Returns an error for an invalid source identifier or byte range.
+    pub fn model(
+        visibility: VisibilitySyntax,
+        name: impl Into<String>,
+        items: Vec<Item>,
+        range: TextRange,
+    ) -> Result<ModelDecl, AstConstructionError> {
+        Ok(ModelDecl {
+            visibility,
+            name: checked_identifier(name, "model")?,
+            items,
+            range: checked_range(range)?,
+        })
+    }
+
     /// Give one source document an explicit logical module identity.
     ///
     /// # Errors

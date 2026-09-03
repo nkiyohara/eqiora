@@ -7,3 +7,7 @@ public component Resistor {
     resistance - 2 = 0;
   }
 }
+
+public model ResistorCheck {
+  instance load: Resistor(resistance = 2);
+}

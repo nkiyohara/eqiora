@@ -16,11 +16,11 @@ use crate::ast::{
     ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
     ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax, Document,
     DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl,
-    FieldSlotDecl, FrameSyntax, InstanceDecl, Item, ModelDecl, NamePath, ParameterBindingDecl,
-    PortDecl, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr,
-    PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RationalSyntax,
-    RepresentationDecl, RepresentationSyntax, SignalDirectionSyntax, SupportBindingDecl,
-    SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    FieldSlotDecl, FrameSyntax, InstanceDecl, Item, NamePath, ParameterBindingDecl, PortDecl,
+    PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
+    PureOperatorFormal, PureValueClassSyntax, RationalSyntax, RepresentationDecl,
+    RepresentationSyntax, SignalDirectionSyntax, SupportBindingDecl, SupportSlotDecl,
+    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use crate::lexer::{Token, TokenKind, lex};
 use relation::ParsedRelation;
@@ -492,28 +492,6 @@ impl Parser<'_> {
             None
         }?;
         Some(ParsedComponentItem::Retained(Box::new(item)))
-    }
-
-    fn parse_model(&mut self) -> Option<ModelDecl> {
-        let start = self.expect_keyword("model")?.range().start();
-        let name = self.expect_identifier("model name")?.text().to_owned();
-        self.expect(TokenKind::LeftBrace, "`{` after model name")?;
-        let mut items = Vec::new();
-        while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
-            match self.parse_item() {
-                Some(item) => items.push(item),
-                None => self.recover_item(),
-            }
-        }
-        let end = self
-            .expect(TokenKind::RightBrace, "`}` to close model")?
-            .range()
-            .end();
-        Some(ModelDecl {
-            name,
-            items,
-            range: TextRange::new(start, end),
-        })
     }
 
     fn parse_item(&mut self) -> Option<Item> {
@@ -2143,22 +2121,19 @@ public component Resistor {}"#;
     }
 
     #[test]
-    fn parser_rejects_public_models_but_retains_the_recovered_entry() {
-        let result = parse("entry.eqi", "public model Main {}");
-        let document = result.document().expect("invalid Model is recovered");
-
-        assert_eq!(document.models().len(), 1);
-        assert_eq!(result.diagnostics().len(), 1);
-        assert!(
-            result.diagnostics()[0]
-                .message()
-                .contains("cannot be public in v1")
-        );
-        assert!(result.into_document().is_err());
+    fn parser_retains_public_and_private_model_visibility() {
+        let public = parse("entry.eqi", "public model Main {}")
+            .into_document()
+            .expect("public Model is accepted");
+        assert_eq!(public.models().len(), 1);
+        assert_eq!(public.models()[0].visibility(), VisibilitySyntax::Public);
+        assert_eq!(public.models()[0].range(), TextRange::new(0, 20));
+        assert_eq!(crate::format(&public), "public model Main {\n}\n");
 
         let private = parse("entry.eqi", "private model Main {}")
             .into_document()
             .expect("an explicitly package-local Model is accepted");
+        assert_eq!(private.models()[0].visibility(), VisibilitySyntax::Private);
         assert_eq!(private.models()[0].name(), "Main");
     }
 
