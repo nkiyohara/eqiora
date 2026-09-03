@@ -37,19 +37,12 @@ STAGES = (
     ("mesh-and-boundaries", "3", "Mesh and boundaries"),
     ("submit-and-result", "4", "Submit and result"),
     ("pressure-visualization", "5", "Pressure visualization"),
-    ("verified-boundary", "6", "Verified and not claimed"),
+    ("verified-boundary", "6", "Verification boundary"),
 )
 NONCLAIMS = (
-    "No arbitrary geometry or provider selection.",
-    "No 3D, curved, boundary-layer, or adaptive meshing.",
-    "No mesh/PDE convergence.",
-    "No drag/lift coefficient, scaled or mesh-independent force, or DFG value.",
-    "No transient or Navier–Stokes behavior.",
-    "No vortex shedding.",
-    "No performance claim.",
-    "No cross-platform mesh-byte identity or byte-reproducible Result.",
-    "No pixel validation.",
-    "API presence is neither verification nor maturity.",
+    "This is a bounded 2D steady Stokes demonstration, not a transient-flow, convergence, force-coefficient, or performance benchmark.",
+    "The current geometry and meshing path do not generalize to arbitrary providers, 3D, curved, boundary-layer, or adaptive meshes.",
+    "Rendered values and pixels are illustrative output rather than validation data.",
 )
 ADMITTED_SOURCE_PATH = "examples/python/exact_cylinder_stokes.py"
 ADMITTED_SOURCE_FRAGMENT = "#L45-L57"
@@ -88,9 +81,9 @@ HOME_COPY = (
     "Textbooks",
     "Follow the planned path from mathematics and physics to Eqiora models, numerical realization, and interpretation.",
     "Capabilities",
-    "See what is available, executable, checked, or verified, with exact boundaries and non-claims.",
+    "See what is available, executable, checked, or verified.",
     "Reference",
-    "Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces. API presence is not verification or maturity.",
+    "Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces.",
     "Docs explains how to use Eqiora. Textbooks teach the mathematics, physics, and numerics. Gallery presents complete simulations. Reference records exact APIs and protocols. Capabilities states what runs and the boundary of each claim.",
     "{release_identity}",
     "Eqiora is alpha research software under active development. The capability matrix and generated evidence catalog bound what is currently supported; this site does not widen those claims.",

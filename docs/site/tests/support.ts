@@ -76,7 +76,7 @@ export const STAGES = [
   { id: 'mesh-and-boundaries', step: 3, title: 'Mesh and boundaries' },
   { id: 'submit-and-result', step: 4, title: 'Submit and result' },
   { id: 'pressure-visualization', step: 5, title: 'Pressure visualization' },
-  { id: 'verified-boundary', step: 6, title: 'Verified and not claimed' },
+  { id: 'verified-boundary', step: 6, title: 'Verification boundary' },
 ] as const;
 
 export const SUPPORTED_STATEMENT =
