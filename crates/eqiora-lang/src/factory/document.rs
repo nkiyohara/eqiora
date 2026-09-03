@@ -106,6 +106,7 @@ impl SourceAstFactory {
             .map(|(name, expression, range)| Self::dimension_alias(name, expression, range))
             .collect::<Result<_, _>>()?;
         Ok(Document {
+            retained_source: None,
             module: None,
             imports: Vec::new(),
             dimensions,
@@ -137,6 +138,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            retained_source: None,
             module: None,
             imports: Vec::new(),
             dimensions: Vec::new(),
@@ -170,6 +172,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            retained_source: None,
             module: None,
             imports: Vec::new(),
             dimensions: Vec::new(),
@@ -194,6 +197,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            retained_source: None,
             module: None,
             imports: Vec::new(),
             dimensions: Vec::new(),

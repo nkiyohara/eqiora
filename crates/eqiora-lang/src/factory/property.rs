@@ -15,6 +15,7 @@ impl SourceAstFactory {
         release_values: &BTreeMap<String, f64>,
         material_values: &BTreeMap<String, Vec<(String, f64)>>,
     ) -> Result<(), AstConstructionError> {
+        document.discard_retained_source();
         for component in &mut document.components {
             for requirement in &component.property_requirements {
                 let dimension = contract_dimensions

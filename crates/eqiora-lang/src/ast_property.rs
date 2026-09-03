@@ -126,6 +126,7 @@ impl Document {
                     declaration.name.clone(),
                     declaration.visibility,
                     Self {
+                        retained_source: None,
                         module: None,
                         imports: Vec::new(),
                         dimensions: self.dimensions.clone(),
@@ -145,6 +146,7 @@ impl Document {
                 declaration.name.clone(),
                 declaration.visibility,
                 Self {
+                    retained_source: None,
                     module: None,
                     imports: Vec::new(),
                     dimensions: self.dimensions.clone(),
@@ -163,6 +165,7 @@ impl Document {
                 declaration.name.clone(),
                 declaration.visibility,
                 Self {
+                    retained_source: None,
                     module: None,
                     imports: Vec::new(),
                     dimensions: self.dimensions.clone(),
