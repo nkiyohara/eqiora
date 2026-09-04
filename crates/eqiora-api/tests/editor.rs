@@ -151,8 +151,7 @@ fn workspace_cancellation_publishes_no_partial_snapshot() {
             polls.set(next);
             next == 6
         },
-    )
-    .expect("cancellation is not a diagnostic");
+    );
     assert!(cancelled.is_none());
     assert_eq!(polls.get(), 6);
 }
@@ -175,8 +174,8 @@ public component Resistor {}
         vec![],
     );
 
-    let workspace =
-        EditorWorkspaceSnapshot::analyze_modules(11, input).expect("valid resolved workspace");
+    let workspace = EditorWorkspaceSnapshot::analyze_modules(11, input);
+    assert!(workspace.diagnostics().is_empty());
     assert_eq!(workspace.version(), 11);
     assert_eq!(workspace.files().len(), 2);
     assert_eq!(workspace.definitions().len(), 4);
@@ -254,4 +253,59 @@ public component Resistor {}
         pin_reference.definition().kind(),
         EditorSymbolKind::Connector
     );
+}
+
+#[test]
+fn invalid_workspace_retains_recovered_documents_and_diagnostics() {
+    let owner = CompilationNamespaceId::new(["editor-recovery"]).expect("namespace");
+    let main = "import library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
+    let broken = "module library.parts;\npublic component Resistor { nonsense; }\n";
+    let input = ResolvedHierarchyInput::new(
+        owner.clone(),
+        vec![
+            ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", main),
+            ResolvedSourceUnit::new(owner, "src/library.eqi", broken),
+        ],
+        vec![],
+    );
+    let workspace = EditorWorkspaceSnapshot::analyze_modules(12, input.clone());
+    assert_eq!(
+        workspace,
+        EditorWorkspaceSnapshot::analyze_modules(12, input)
+    );
+
+    assert_eq!(workspace.version(), 12);
+    assert_eq!(workspace.files().len(), 2);
+    assert!(!workspace.diagnostics().is_empty());
+    assert!(workspace.definitions().is_empty());
+    assert!(workspace.references().is_empty());
+
+    let main_file = workspace
+        .files()
+        .find(|file| file.ends_with(":src/main.eqi"))
+        .expect("root file")
+        .to_owned();
+    let broken_file = workspace
+        .files()
+        .find(|file| file.ends_with(":src/library.eqi"))
+        .expect("broken module file")
+        .to_owned();
+    let main_document = workspace.document(&main_file).expect("root document");
+    assert!(main_document.formatted().is_some());
+    assert_eq!(main_document.symbols()[1].name(), "Main");
+
+    let broken_document = workspace.document(&broken_file).expect("broken document");
+    assert!(!broken_document.diagnostics().is_empty());
+    assert!(broken_document.formatted().is_none());
+    assert!(
+        broken_document
+            .symbols()
+            .iter()
+            .any(|symbol| symbol.name() == "Resistor")
+    );
+    assert!(workspace.diagnostics().iter().all(|diagnostic| {
+        diagnostic
+            .source_span()
+            .is_none_or(|span| workspace.document(&span.file).is_some())
+    }));
 }

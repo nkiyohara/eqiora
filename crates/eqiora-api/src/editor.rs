@@ -2,6 +2,7 @@
 
 use eqiora_compiler::{
     AnalyzedResolvedHierarchy, CanonicalDeclarationKind, ResolvedHierarchyInput,
+    preflight_resolved_hierarchy,
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -216,6 +217,39 @@ impl EditorSnapshot {
         }
     }
 
+    fn from_recovered_source(
+        version: u64,
+        file: &str,
+        source: String,
+        diagnostics: Vec<Diagnostic>,
+    ) -> Self {
+        if source.len() > MAX_EDITOR_SOURCE_BYTES {
+            return Self {
+                version,
+                source,
+                line_starts: Vec::new(),
+                diagnostics,
+                formatted: None,
+                symbols: Vec::new(),
+            };
+        }
+        let parsed = parse(file, &source);
+        let formatted = parsed
+            .diagnostics()
+            .is_empty()
+            .then(|| parsed.document().map(format))
+            .flatten();
+        let symbols = parsed.document().map_or_else(Vec::new, document_symbols);
+        Self {
+            version,
+            line_starts: line_starts(&source),
+            source,
+            diagnostics,
+            formatted,
+            symbols,
+        }
+    }
+
     /// Exact monotonically increasing document version supplied by the client.
     #[must_use]
     pub const fn version(&self) -> u64 {
@@ -370,11 +404,12 @@ impl EditorDefinition {
     }
 }
 
-/// Immutable editor analysis of one valid resolved source graph.
+/// Immutable editor analysis of one resolved source graph.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EditorWorkspaceSnapshot {
     version: u64,
     documents: Vec<(String, EditorSnapshot)>,
+    diagnostics: Vec<Diagnostic>,
     definitions: Vec<EditorDefinition>,
     references: Vec<EditorReference>,
 }
@@ -383,47 +418,61 @@ impl EditorWorkspaceSnapshot {
     /// Analyze a closed local or package-shaped source graph with the compiler's
     /// existing module and name resolver.
     ///
-    /// # Errors
-    /// Returns the compiler's ordered diagnostics when the graph is not valid.
-    pub fn analyze_modules(
-        version: u64,
-        input: ResolvedHierarchyInput,
-    ) -> Result<Self, Vec<Diagnostic>> {
+    #[must_use]
+    pub fn analyze_modules(version: u64, input: ResolvedHierarchyInput) -> Self {
         Self::analyze_modules_with_cancellation(version, input, || false)
-            .map(|snapshot| snapshot.expect("non-cancellable analysis produces a snapshot"))
+            .expect("non-cancellable analysis produces a snapshot")
     }
 
     /// Analyze a resolved source graph with cooperative cancellation.
     ///
-    /// `Ok(None)` publishes no partial workspace when `is_cancelled` returns
-    /// true at a compiler or snapshot-construction boundary.
-    ///
-    /// # Errors
-    /// Returns the compiler's ordered diagnostics when analysis fails before
-    /// cancellation is observed.
+    /// `None` publishes no partial workspace when `is_cancelled` returns true
+    /// at a compiler or snapshot-construction boundary. Invalid source returns
+    /// a snapshot with recovered documents and ordered diagnostics.
     pub fn analyze_modules_with_cancellation(
         version: u64,
         input: ResolvedHierarchyInput,
         mut is_cancelled: impl FnMut() -> bool,
-    ) -> Result<Option<Self>, Vec<Diagnostic>> {
+    ) -> Option<Self> {
         if is_cancelled() {
-            return Ok(None);
+            return None;
+        }
+        if let Err(diagnostic) = preflight_resolved_hierarchy(
+            input.units().iter().map(|unit| unit.source().len()),
+            input.aliases().len(),
+        ) {
+            if is_cancelled() {
+                return None;
+            }
+            return Some(Self::from_recovered(version, Vec::new(), vec![diagnostic]));
         }
         let mut sources = Vec::with_capacity(input.units().len());
         for unit in input.units() {
             if is_cancelled() {
-                return Ok(None);
+                return None;
             }
-            sources.push((unit.file().to_owned(), unit.source().to_owned()));
+            sources.push((unit.diagnostic_file(), unit.source().to_owned()));
         }
-        let Some(analyzed) = input.analyze_with_cancellation(&mut is_cancelled)? else {
-            return Ok(None);
+        let analyzed = match input.analyze_with_cancellation(&mut is_cancelled) {
+            Ok(Some(analyzed)) => analyzed,
+            Ok(None) => return None,
+            Err(diagnostics) => {
+                if is_cancelled() {
+                    return None;
+                }
+                return Some(Self::from_recovered(version, sources, diagnostics));
+            }
         };
-        let _validated = analyzed.clone().validate_definitions()?;
-        if is_cancelled() {
-            return Ok(None);
+        if let Err(diagnostics) = analyzed.clone().validate_definitions() {
+            if is_cancelled() {
+                return None;
+            }
+            return Some(Self::from_recovered(version, sources, diagnostics));
         }
-        Ok(Some(Self::from_analyzed(version, sources, &analyzed)))
+        if is_cancelled() {
+            return None;
+        }
+        Some(Self::from_analyzed(version, sources, &analyzed))
     }
 
     /// Replay one exact locked package graph through the ordinary package and
@@ -529,8 +578,44 @@ impl EditorWorkspaceSnapshot {
         Self {
             version,
             documents,
+            diagnostics: Vec::new(),
             definitions,
             references,
+        }
+    }
+
+    fn from_recovered(
+        version: u64,
+        sources: Vec<(String, String)>,
+        diagnostics: Vec<Diagnostic>,
+    ) -> Self {
+        let documents = sources
+            .into_iter()
+            .map(|(file, source)| {
+                let document_diagnostics = diagnostics
+                    .iter()
+                    .filter(|diagnostic| {
+                        diagnostic
+                            .source_span()
+                            .is_some_and(|span| span.file == file)
+                    })
+                    .cloned()
+                    .collect();
+                let snapshot = EditorSnapshot::from_recovered_source(
+                    version,
+                    &file,
+                    source,
+                    document_diagnostics,
+                );
+                (file, snapshot)
+            })
+            .collect();
+        Self {
+            version,
+            documents,
+            diagnostics,
+            definitions: Vec::new(),
+            references: Vec::new(),
         }
     }
 
@@ -538,6 +623,12 @@ impl EditorWorkspaceSnapshot {
     #[must_use]
     pub const fn version(&self) -> u64 {
         self.version
+    }
+
+    /// Ordered compiler diagnostics for the complete resolved graph.
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
     }
 
     /// Package-qualified source labels in resolved-graph order.
