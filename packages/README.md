@@ -94,7 +94,7 @@ operation.
 The initial library is intentionally small:
 
 The Python distribution exposes `eqiora.vendor_standard_package(...)` for
-copying `Eqiora.Fluid@0.2.0` or `Eqiora.Solid@0.2.0` and its exact dependency
+copying `Eqiora.Fluid@0.3.0` or `Eqiora.Solid@0.3.0` and its exact dependency
 closure into an ordinary local package project. It returns each vendored
 release's semantic identity, source identity, and project-relative path for
 the application manifest and `eqiora.toml`.
@@ -129,11 +129,11 @@ later release identity; directory location never participates in selection.
   mass matrix, time method, or FSI policy. Immutable
   [`0.5.0`](releases/Eqiora.Solid.LinearElasticity/0.5.0/) adds only the
   corresponding three-dimensional dynamic law and interface.
-- [`Eqiora.Solid 0.2.0`](releases/Eqiora.Solid/0.2.0/) is the standard starting
+- [`Eqiora.Solid 0.3.0`](releases/Eqiora.Solid/0.3.0/) is the standard starting
   point for 2D isotropic linear elasticity. It provides plane-strain and
   plane-stress models parameterized by Young's modulus and Poisson's ratio,
-  typed material composition, composable Lamé-form parts, fixed displacement,
-  and traction-free boundary conditions.
+  typed material composition, composable Lamé-form parts, and fixed, free, or
+  field-driven displacement and traction boundary conditions.
 - [`Eqiora.Mechanics.Interfaces`](Eqiora.Mechanics.Interfaces/) provides one
   nominal power-conjugate velocity/traction boundary plus exact zero-velocity
   and zero-traction terminals. It is intentionally distinct from the solid
@@ -152,10 +152,11 @@ later release identity; directory location never participates in selection.
   [`0.3.0`](releases/Eqiora.Fluid.Incompressible/0.3.0/) adds a conservative
   transient 3D law and matching complete-exterior interface while retaining
   that separation.
-- [`Eqiora.Fluid 0.2.0`](releases/Eqiora.Fluid/0.2.0/) is the standard starting
+- [`Eqiora.Fluid 0.3.0`](releases/Eqiora.Fluid/0.3.0/) is the standard starting
   point for 2D steady Stokes models. One import provides a curated model,
   separate balance and interface components, and no-slip, traction-free,
-  normal-pressure, and prescribed inward-normal-velocity boundary conditions.
+  normal-pressure, prescribed inward-normal-velocity, and field-driven vector
+  velocity and traction boundary conditions.
 - [`Eqiora.Fluid.InertialStokes`](Eqiora.Fluid.InertialStokes/) provides the
   distinct inertial incompressible Newtonian volume law used by the first
   fixed-reference FSI slice. It owns no boundary, time method, initial state,

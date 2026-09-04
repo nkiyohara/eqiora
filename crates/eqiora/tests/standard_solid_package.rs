@@ -17,7 +17,7 @@ use eqiora_numerics::{
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
 
-const VERSION: &str = "0.2.0";
+const VERSION: &str = "0.3.0";
 static NEXT_SCRATCH: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy)]
@@ -93,6 +93,15 @@ fn curated_assumptions_produce_distinct_expected_lame_parameters() {
 
     assert_eq!(plane_strain.first_lame_parameter(), 48.0);
     assert_eq!(plane_stress.first_lame_parameter(), 32.0);
+}
+
+#[test]
+fn standard_vector_boundary_data_compiles_through_the_ordinary_package_path() {
+    let solid = standard_release();
+    compile_root(
+        &solid,
+        &root_source_with_boundaries(true, Assumption::PlaneStrain, 0.25, true),
+    );
 }
 
 #[test]
@@ -253,6 +262,15 @@ impl Drop for Scratch {
 }
 
 fn root_source(curated: bool, assumption: Assumption, poisson_ratio: f64) -> String {
+    root_source_with_boundaries(curated, assumption, poisson_ratio, false)
+}
+
+fn root_source_with_boundaries(
+    curated: bool,
+    assumption: Assumption,
+    poisson_ratio: f64,
+    prescribed_boundaries: bool,
+) -> String {
     let (preamble, material_parameters, governing) = if curated {
         let component = match assumption {
             Assumption::PlaneStrain => "PlaneStrainMaterial2d",
@@ -313,6 +331,50 @@ public material composition ReferenceMaterial {{
         )
     };
     let interface = if curated { "governing" } else { "interface" };
+    let (boundary_fields, x_lower_condition, x_upper_condition) = if prescribed_boundaries {
+        (
+            r#"  field displacement_potential on body as space: m ^ 2 = 0;
+  field boundary_displacement on body as space: m shape spatial_vector;
+  field traction_potential on body as space: kg / s ^ 2 = 0;
+  field boundary_traction on body as space:
+    kg / (m * s ^ 2) shape spatial_vector;
+  parameter displacement_scale: m = 1;
+  parameter traction_scale: kg / (m * s ^ 2) = 2;
+  relation displacement_potential_definition continuous on body {
+    displacement_potential - displacement_scale * coordinate(0) = 0;
+  }
+  relation boundary_displacement_definition continuous on body {
+    boundary_displacement - grad(displacement_potential) = 0;
+  }
+  relation traction_potential_definition continuous on body {
+    traction_potential - traction_scale * coordinate(0) = 0;
+  }
+  relation boundary_traction_definition continuous on body {
+    boundary_traction - grad(traction_potential) = 0;
+  }
+"#,
+            r#"  instance x_lower_condition: solid.PrescribedDisplacement2d(
+    support body = body,
+    support face = x_lower,
+    field displacement = boundary_displacement
+  );"#,
+            r#"  instance x_upper_condition: solid.PrescribedTraction2d(
+    support body = body,
+    support face = x_upper,
+    field traction = boundary_traction
+  );"#,
+        )
+    } else {
+        (
+            "",
+            r#"  instance x_lower_condition: solid.FixedDisplacement2d(
+    support body = body, support face = x_lower
+  );"#,
+            r#"  instance x_upper_condition: solid.TractionFree2d(
+    support body = body, support face = x_upper
+  );"#,
+        )
+    };
     format!(
         r#"{preamble}model Main {{
   domain body = box(0, 4, 0, 2);
@@ -328,13 +390,10 @@ public material composition ReferenceMaterial {{
   relation load_definition continuous on body {{
     load_potential - zero_load = 0;
   }}
+{boundary_fields}
 {governing}
-  instance x_lower_condition: solid.FixedDisplacement2d(
-    support body = body, support face = x_lower
-  );
-  instance x_upper_condition: solid.TractionFree2d(
-    support body = body, support face = x_upper
-  );
+{x_lower_condition}
+{x_upper_condition}
   instance y_lower_condition: solid.TractionFree2d(
     support body = body, support face = y_lower
   );

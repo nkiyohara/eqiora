@@ -16,8 +16,9 @@ are recorded here.
   bounded background worker, discards superseded document versions, and accepts
   request cancellation while an editor operation waits for the current snapshot.
 
-- Added `Eqiora.Fluid@0.2.0` with a reusable scalar-Field-driven
-  inward-normal-velocity inlet boundary and installed-distribution vendoring.
+- Added `Eqiora.Fluid@0.3.0` and `Eqiora.Solid@0.3.0` with field-driven vector
+  velocity, displacement, and traction boundaries. Installed-distribution
+  vendoring now provides these releases.
 
 ### Changed
 
