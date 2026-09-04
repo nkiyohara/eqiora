@@ -30,6 +30,27 @@ use eqiora_package::{
 
 pub use model_document::PackagedModelDocument;
 
+pub(crate) fn analyze_editor_workspace(
+    version: u64,
+    store: &impl eqiora_package::PackageStore,
+    resolution: &eqiora_package::ResolutionRecordV1,
+) -> Result<crate::editor::EditorWorkspaceSnapshot, PackageCompilationError> {
+    let resolved = ExactResolver.resolve(resolution, store)?;
+    let namespaces = compilation_namespaces(&resolved)?;
+    let input = compiler_input(&resolved, &namespaces)?;
+    let sources = input
+        .units()
+        .iter()
+        .map(|unit| (unit.file().to_owned(), unit.source().to_owned()))
+        .collect();
+    let analyzed = analyze_resolved_hierarchy(input)?;
+    verify_semantic_content(&resolved, &namespaces, &analyzed)?;
+    let _validated = analyzed.clone().validate_definitions()?;
+    Ok(crate::editor::EditorWorkspaceSnapshot::from_analyzed(
+        version, sources, &analyzed,
+    ))
+}
+
 const AUTHORING_NAMESPACE_DOMAIN_V1: &str = "eqiora.package-authoring.v1";
 
 /// Failure while preparing exact package releases from admitted author sources.

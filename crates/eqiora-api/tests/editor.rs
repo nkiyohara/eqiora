@@ -1,4 +1,7 @@
-use eqiora_api::editor::{EditorPosition, EditorService, EditorSymbolKind};
+use eqiora_api::editor::{
+    EditorPosition, EditorService, EditorSymbolKind, EditorWorkspaceSnapshot,
+};
+use eqiora_compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
 use eqiora_core::diagnostic::codes;
 
 #[test]
@@ -119,4 +122,43 @@ fn service_rejects_stale_and_unknown_versions_without_mutation() {
     assert!(service.snapshot(4).is_err());
     assert!(service.snapshot(6).is_err());
     assert_eq!(service.snapshot(5).unwrap().symbols()[0].name(), "Five");
+}
+
+#[test]
+fn workspace_uses_compiler_resolved_module_identities_and_locations() {
+    let owner = CompilationNamespaceId::new(["editor-test"]).expect("namespace");
+    let main = "import library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
+    let library = "module library.parts;\npublic component Resistor {}\n";
+    let input = ResolvedHierarchyInput::new(
+        owner.clone(),
+        vec![
+            ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", main),
+            ResolvedSourceUnit::new(owner, "src/library.eqi", library),
+        ],
+        vec![],
+    );
+
+    let workspace =
+        EditorWorkspaceSnapshot::analyze_modules(11, input).expect("valid resolved workspace");
+    assert_eq!(workspace.version(), 11);
+    assert_eq!(workspace.files().len(), 2);
+    assert_eq!(workspace.definitions().len(), 2);
+
+    let resistor = workspace
+        .definitions()
+        .iter()
+        .find(|definition| definition.path() == "library.parts.Resistor")
+        .expect("resolved component definition");
+    assert_eq!(resistor.namespace(), &["editor-test"]);
+    assert_eq!(resistor.kind(), EditorSymbolKind::Component);
+    assert!(resistor.file().ends_with(":src/library.eqi"));
+    let document = workspace
+        .document(resistor.file())
+        .expect("definition source document");
+    assert_eq!(
+        &library[usize::try_from(resistor.range().start()).unwrap()
+            ..usize::try_from(resistor.range().end()).unwrap()],
+        "public component Resistor {}"
+    );
+    assert_eq!(document.symbols()[1].name(), "Resistor");
 }

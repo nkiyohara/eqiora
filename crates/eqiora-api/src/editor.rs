@@ -1,5 +1,9 @@
 //! In-process source analysis for editor adapters.
 
+use eqiora_compiler::{
+    AnalyzedResolvedHierarchy, CanonicalDeclarationKind, ResolvedHierarchyInput,
+    analyze_resolved_hierarchy,
+};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_lang::{ComponentItem, Document, Item, TextRange, format, parse};
@@ -197,6 +201,22 @@ impl EditorSnapshot {
         }
     }
 
+    fn from_resolved_source(version: u64, file: &str, source: String) -> Self {
+        let parsed = parse(file, &source);
+        debug_assert!(parsed.diagnostics().is_empty());
+        let document = parsed
+            .document()
+            .expect("compiler-accepted source reparses to one document");
+        Self {
+            version,
+            line_starts: line_starts(&source),
+            source,
+            diagnostics: Vec::new(),
+            formatted: Some(format(document)),
+            symbols: document_symbols(document),
+        }
+    }
+
     /// Exact monotonically increasing document version supplied by the client.
     #[must_use]
     pub const fn version(&self) -> u64 {
@@ -278,6 +298,166 @@ impl EditorSnapshot {
         }
         Some(end)
     }
+}
+
+/// One compiler-resolved top-level declaration and its definition location.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EditorDefinition {
+    namespace: Box<[String]>,
+    path: String,
+    kind: EditorSymbolKind,
+    file: String,
+    range: TextRange,
+}
+
+impl EditorDefinition {
+    /// Exact compilation namespace segments, including locked package identity.
+    #[must_use]
+    pub fn namespace(&self) -> &[String] {
+        &self.namespace
+    }
+
+    /// Compiler-canonical declaration path within the namespace.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// Declaration category.
+    #[must_use]
+    pub const fn kind(&self) -> EditorSymbolKind {
+        self.kind
+    }
+
+    /// Source file supplied by the resolved graph.
+    #[must_use]
+    pub fn file(&self) -> &str {
+        &self.file
+    }
+
+    /// Complete UTF-8 byte range of the declaration.
+    #[must_use]
+    pub const fn range(&self) -> TextRange {
+        self.range
+    }
+}
+
+/// Immutable editor analysis of one valid resolved source graph.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EditorWorkspaceSnapshot {
+    version: u64,
+    documents: Vec<(String, EditorSnapshot)>,
+    definitions: Vec<EditorDefinition>,
+}
+
+impl EditorWorkspaceSnapshot {
+    /// Analyze a closed local or package-shaped source graph with the compiler's
+    /// existing module and name resolver.
+    ///
+    /// # Errors
+    /// Returns the compiler's ordered diagnostics when the graph is not valid.
+    pub fn analyze_modules(
+        version: u64,
+        input: ResolvedHierarchyInput,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let sources = input
+            .units()
+            .iter()
+            .map(|unit| (unit.file().to_owned(), unit.source().to_owned()))
+            .collect::<Vec<_>>();
+        let analyzed = analyze_resolved_hierarchy(input)?;
+        let _validated = analyzed.clone().validate_definitions()?;
+        Ok(Self::from_analyzed(version, sources, &analyzed))
+    }
+
+    /// Replay one exact locked package graph through the ordinary package and
+    /// compiler owners, then expose its editor projection.
+    ///
+    /// # Errors
+    /// Returns the package resolver, source, or semantic-content error without
+    /// publishing a partial workspace.
+    pub fn analyze_locked(
+        version: u64,
+        store: &impl eqiora_package::PackageStore,
+        resolution: &eqiora_package::ResolutionRecordV1,
+    ) -> Result<Self, crate::package::PackageCompilationError> {
+        crate::package::analyze_editor_workspace(version, store, resolution)
+    }
+
+    pub(crate) fn from_analyzed(
+        version: u64,
+        sources: Vec<(String, String)>,
+        analyzed: &AnalyzedResolvedHierarchy,
+    ) -> Self {
+        let resolved_sources = analyzed.resolved_source_files().collect::<Vec<_>>();
+        debug_assert_eq!(sources.len(), resolved_sources.len());
+
+        let documents = sources
+            .into_iter()
+            .zip(resolved_sources)
+            .map(|((_file, source), resolved_file)| {
+                let snapshot = EditorSnapshot::from_resolved_source(version, resolved_file, source);
+                (resolved_file.to_owned(), snapshot)
+            })
+            .collect();
+        let definitions = analyzed
+            .resolved_declarations()
+            .filter_map(|(identity, resolved_file, range)| {
+                Some(EditorDefinition {
+                    namespace: identity.namespace().segments().to_vec().into_boxed_slice(),
+                    path: identity.path().to_owned(),
+                    kind: canonical_symbol_kind(identity.kind())?,
+                    file: resolved_file.to_owned(),
+                    range,
+                })
+            })
+            .collect();
+        Self {
+            version,
+            documents,
+            definitions,
+        }
+    }
+
+    /// Exact workspace version supplied by the client.
+    #[must_use]
+    pub const fn version(&self) -> u64 {
+        self.version
+    }
+
+    /// Package-qualified source labels in resolved-graph order.
+    #[must_use]
+    pub fn files(&self) -> impl ExactSizeIterator<Item = &str> {
+        self.documents.iter().map(|(file, _)| file.as_str())
+    }
+
+    /// Analyze one source file by its resolver-supplied path.
+    #[must_use]
+    pub fn document(&self, file: &str) -> Option<&EditorSnapshot> {
+        self.documents
+            .iter()
+            .find_map(|(candidate, snapshot)| (candidate == file).then_some(snapshot))
+    }
+
+    /// Compiler-resolved declarations in canonical identity order.
+    #[must_use]
+    pub fn definitions(&self) -> &[EditorDefinition] {
+        &self.definitions
+    }
+}
+
+const fn canonical_symbol_kind(kind: CanonicalDeclarationKind) -> Option<EditorSymbolKind> {
+    Some(match kind {
+        CanonicalDeclarationKind::PropertyContract | CanonicalDeclarationKind::PropertyRelease => {
+            EditorSymbolKind::Property
+        }
+        CanonicalDeclarationKind::MaterialComposition => EditorSymbolKind::Material,
+        CanonicalDeclarationKind::PureOperator => EditorSymbolKind::Operator,
+        CanonicalDeclarationKind::Connector => EditorSymbolKind::Connector,
+        CanonicalDeclarationKind::Component => EditorSymbolKind::Component,
+        CanonicalDeclarationKind::Model => EditorSymbolKind::Model,
+        _ => return None,
+    })
 }
 
 /// Version owner for one editor document.

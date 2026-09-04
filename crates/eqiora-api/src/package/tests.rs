@@ -162,6 +162,42 @@ fn locked_root_can_select_one_direct_dependency_public_model() {
 }
 
 #[test]
+fn editor_workspace_replays_exact_locked_dependency_sources() {
+    let dependency = release(
+        "org.example.EditorLibrary",
+        "public component Resistor {}",
+        &[],
+    );
+    let root = release(
+        "org.example.EditorRoot",
+        "model Main { instance load: library.Resistor(); }",
+        &[("library", &dependency)],
+    );
+    let resolution =
+        ResolutionRecordV1::from_exact_releases(&root, std::slice::from_ref(&dependency))
+            .expect("exact dependency lock");
+    let mut store = InMemoryPackageStore::default();
+    store.insert(&root).expect("store root");
+    store.insert(&dependency).expect("store dependency");
+
+    let workspace = crate::editor::EditorWorkspaceSnapshot::analyze_locked(23, &store, &resolution)
+        .expect("locked editor workspace");
+    assert_eq!(workspace.version(), 23);
+    assert_eq!(workspace.definitions().len(), 2);
+    let resistor = workspace
+        .definitions()
+        .iter()
+        .find(|definition| definition.path() == "Resistor")
+        .expect("dependency definition");
+    assert_eq!(resistor.namespace()[0], "org.example.EditorLibrary");
+    assert!(workspace.document(resistor.file()).is_some());
+    assert_ne!(
+        workspace.definitions()[0].namespace(),
+        workspace.definitions()[1].namespace()
+    );
+}
+
+#[test]
 fn locked_scalar_property_replays_offline_with_inspectable_provenance() {
     const SOURCE: &str = r#"
 public property contract Diffusivity {
