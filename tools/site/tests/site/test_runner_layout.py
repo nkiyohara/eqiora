@@ -14,6 +14,7 @@ from fixture import (
     REPOSITORY,
     _write_rustc_preflight_double,
     checker,
+    copy_editor_check_inputs,
     git_object_authority,
     historical_git,
     pinned_node_path,
@@ -213,6 +214,7 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         (scratch / "uv-cache").mkdir()
         self._copy_locked_browser_supply(source)
         (source / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
+        copy_editor_check_inputs(source)
         self._copy_exact_toolchain(source)
         shutil.copy2(REPOSITORY / "AGENTS.md", source / "AGENTS.md")
         if admitted_link:

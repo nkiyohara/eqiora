@@ -1,0 +1,17 @@
+{
+  "Component": {
+    "prefix": "component",
+    "body": ["public component ${1:Name} {", "  $0", "}"],
+    "description": "Declare a public Eqiora component"
+  },
+  "Model": {
+    "prefix": "model",
+    "body": ["public model ${1:Name} {", "  $0", "}"],
+    "description": "Declare a public Eqiora model"
+  },
+  "Relation": {
+    "prefix": "relation",
+    "body": ["relation ${1:name} continuous on ${2:domain} {", "  ${3:left} = ${4:right};", "}"],
+    "description": "Declare a continuous relation"
+  }
+}

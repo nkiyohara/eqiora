@@ -124,6 +124,8 @@ export PYTHONDONTWRITEBYTECODE=1
 source_manifest_before="$EQIORA_API_SCRATCH/source-sha256.before"
 source_manifest_after="$EQIORA_API_SCRATCH/source-sha256.after"
 cd "$EQIORA_SITE_SOURCE_ROOT"
+python3 tools/editor/check_syntax_bundle.py
+python3 -m unittest discover -s tools/editor/tests -p 'test_*.py' -v
 python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
 find "$EQIORA_SITE_SOURCE_ROOT" \
   -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules" -prune -o \

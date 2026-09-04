@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { rejectExternalRequests } from './support';
 
-test('Eqiora source blocks use the local grammar in light and dark themes', async ({ page }) => {
+test('Eqiora source blocks use the canonical grammar in light and dark themes', async ({ page }) => {
   const external = await rejectExternalRequests(page);
   await page.goto('/gallery/exact-cylinder-steady-stokes/');
 
