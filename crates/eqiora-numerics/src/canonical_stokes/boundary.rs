@@ -331,12 +331,6 @@ fn lower_entries<const D: usize, K: Clone + Ord>(
         let (candidate, side_relations) = if direct.len() == 1 && relations.len() == 1 {
             (direct[0].1, BTreeSet::from([direct[0].0]))
         } else {
-            if !direct.is_empty() {
-                return Err(lowering_error(
-                    boundary,
-                    "direct steady-Stokes boundary meaning is ambiguous with additional Relations",
-                ));
-            }
             let normalized = normalize_physical_interface(
                 program,
                 boundary,

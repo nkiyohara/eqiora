@@ -6,6 +6,11 @@ are recorded here.
 
 ## [Unreleased]
 
+### Added
+
+- Added `Eqiora.Fluid@0.2.0` with a reusable scalar-Field-driven
+  inward-normal-velocity inlet boundary and installed-distribution vendoring.
+
 ### Changed
 
 - Refreshed the exact Diffsol runtime to 0.16.2 and re-bound its backend
