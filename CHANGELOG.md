@@ -9,9 +9,9 @@ are recorded here.
 ### Added
 
 - Added the `eqiora-language-server` stdio preview with versioned full-document
-  diagnostics, formatting, symbols, folding, Markdown hover, and definition
-  navigation across open workspace modules through the shared editor analysis
-  service. Workspace folders containing `eqiora.toml` also load exact local
+  diagnostics, formatting, symbols, folding, Markdown hover, definition navigation,
+  and reference lookup across open workspace modules through the shared editor
+  analysis service. Workspace folders containing `eqiora.toml` also load exact local
   package sources without writing a lock or store. Workspace analysis runs on a
   bounded background worker, discards superseded document versions, and accepts
   request cancellation while an editor operation waits for the current snapshot.

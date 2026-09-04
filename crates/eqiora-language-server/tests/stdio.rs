@@ -160,6 +160,10 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
         initialize["result"]["capabilities"]["positionEncoding"],
         "utf-16"
     );
+    assert_eq!(
+        initialize["result"]["capabilities"]["referencesProvider"],
+        true
+    );
 
     let symbols = response(&messages, 2)["result"]
         .as_array()
@@ -246,6 +250,8 @@ fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":library_uri,"languageId":"eqiora","version":1,"text":library}}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":main_uri,"languageId":"eqiora","version":1,"text":main}}}),
         json!({"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32}}}),
+        json!({"jsonrpc":"2.0","id":6,"method":"textDocument/references","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32},"context":{"includeDeclaration":true}}}),
+        json!({"jsonrpc":"2.0","id":7,"method":"textDocument/references","params":{"textDocument":{"uri":library_uri},"position":{"line":1,"character":20},"context":{"includeDeclaration":false}}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":library_uri,"version":2},"contentChanges":[{"text":changed_library}]}}),
         json!({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32}}}),
         json!({"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32}}}),
@@ -275,6 +281,19 @@ fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
     assert_eq!(definition["result"]["range"]["start"]["line"], 1);
     assert_eq!(definition["result"]["range"]["start"]["character"], 17);
     assert_eq!(definition["result"]["range"]["end"]["character"], 25);
+
+    let references_with_declaration = response(&messages, 6)["result"]
+        .as_array()
+        .expect("references with declaration");
+    assert_eq!(references_with_declaration.len(), 2);
+    assert_eq!(references_with_declaration[0]["uri"], library_uri);
+    assert_eq!(references_with_declaration[1]["uri"], main_uri);
+    assert_eq!(references_with_declaration[1]["range"]["start"]["line"], 2);
+    let references = response(&messages, 7)["result"]
+        .as_array()
+        .expect("references without declaration");
+    assert_eq!(references.len(), 1);
+    assert_eq!(references[0]["uri"], main_uri);
 
     let hover = response(&messages, 3)["result"]["contents"]["value"]
         .as_str()
@@ -417,6 +436,7 @@ fn stdio_workspace_loads_unopened_exact_package_sources_without_writing_a_lock()
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":root_uri,"languageId":"eqiora","version":1,"text":root}}}),
         json!({"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":root_uri},"position":{"line":0,"character":40}}}),
         json!({"jsonrpc":"2.0","id":3,"method":"textDocument/definition","params":{"textDocument":{"uri":root_uri},"position":{"line":0,"character":40}}}),
+        json!({"jsonrpc":"2.0","id":6,"method":"textDocument/references","params":{"textDocument":{"uri":root_uri},"position":{"line":0,"character":40},"context":{"includeDeclaration":true}}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":root_uri,"version":2},"contentChanges":[{"text":changed_root}]}}),
         json!({"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":root_uri},"position":{"line":1,"character":40}}}),
         json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
@@ -440,6 +460,12 @@ fn stdio_workspace_loads_unopened_exact_package_sources_without_writing_a_lock()
         .expect("package Markdown hover");
     assert!(hover.contains("**Component** `Resistor`"));
     assert_eq!(response(&messages, 3)["result"]["uri"], library_uri);
+    let references = response(&messages, 6)["result"]
+        .as_array()
+        .expect("exact-package references");
+    assert_eq!(references.len(), 2);
+    assert_eq!(references[0]["uri"], library_uri);
+    assert_eq!(references[1]["uri"], root_uri);
     assert_eq!(response(&messages, 4)["result"]["uri"], library_uri);
     assert!(response(&messages, 5)["result"].is_null());
     assert!(!fixture.0.join("eqiora.lock").exists());
