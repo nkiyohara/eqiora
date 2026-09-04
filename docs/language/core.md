@@ -8,7 +8,7 @@ must be reviewed together before this specification is complete. Delivered behav
 indexed in the [capability matrix](../capability-matrix.md).
 
 Specimens: [resistor divider](divider.md), [heated body](heated-body.md),
-[sampled state](sampled-state.md).
+[sampled state](sampled-state.md), [data-backed property](data-backed-property.md).
 
 ## Source and modules
 
@@ -56,6 +56,13 @@ specialized declarations will extend the closed table, not accept arbitrary attr
 | `support` | Required support contract | No | No | Abstract exact support requirement |
 | `observable` | Required | Optional assertion | Optional assertion | Derived `= expression`; no solve unknown |
 | `test` | Required | Inferred from trial field | Inferred from trial field | `for field`, with an optional `zero_on` boundary restriction |
+| `property` requirement | Required exact contract reference | No | No | Signature requirement bound to an exact release |
+
+A property requirement binds a release, not the scalar obtained by evaluating that release.
+The contract owns the independent-variable signature and result type; each call supplies its
+named inputs. State-dependent input does not make a pure property call mutable. Support and
+activation come from the typed call arguments, subject to the contract; the release cannot
+perform sampling, history updates, or support conversion implicitly.
 
 `relation name [on support] [at activation] { ... }` contains simultaneous equations.
 `law name on support { ... }` contains one physical `flux`, one `source`, and optional
