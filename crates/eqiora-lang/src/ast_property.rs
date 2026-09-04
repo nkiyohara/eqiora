@@ -127,7 +127,6 @@ impl Document {
                     declaration.visibility,
                     Self {
                         retained_source: None,
-                        module: None,
                         imports: Vec::new(),
                         dimensions: self.dimensions.clone(),
                         property_contracts: vec![declaration.clone()],
@@ -147,7 +146,6 @@ impl Document {
                 declaration.visibility,
                 Self {
                     retained_source: None,
-                    module: None,
                     imports: Vec::new(),
                     dimensions: self.dimensions.clone(),
                     property_contracts: Vec::new(),
@@ -166,7 +164,6 @@ impl Document {
                 declaration.visibility,
                 Self {
                     retained_source: None,
-                    module: None,
                     imports: Vec::new(),
                     dimensions: self.dimensions.clone(),
                     property_contracts: Vec::new(),

@@ -1,7 +1,7 @@
 //! Exact-package alias evidence for RFC 0041 family elaboration.
 
 use eqiora::compiler::{
-    CompilationNamespaceId, CompiledModel, ResolvedAlias, ResolvedHierarchyInput,
+    CompilationNamespaceId, CompiledModel, ResolvedDependency, ResolvedHierarchyInput,
     ResolvedSourceUnit, analyze_resolved_hierarchy,
 };
 
@@ -35,6 +35,8 @@ fn namespace(name: &str) -> CompilationNamespaceId {
 fn root_source(alias: &str) -> String {
     format!(
         r#"
+import mechanics_package.main as {alias};
+
 public component BoundaryTerminal {{
   public support body: volume(ambient_dimension = 2);
   public support face: boundary(parent = body);
@@ -87,15 +89,17 @@ model Main {{
 }
 
 fn compile_with_alias(alias: &str) -> CompiledModel {
-    let root = namespace("root-package-digest");
-    let dependency = namespace("mechanics-package-digest");
+    let root = namespace("root_package");
+    let dependency = namespace("mechanics_package");
     let input = ResolvedHierarchyInput::new(
         root.clone(),
         vec![
-            ResolvedSourceUnit::new(root.clone(), "root/main.eqi", root_source(alias)),
-            ResolvedSourceUnit::new(dependency.clone(), "mechanics/exterior.eqi", DEPENDENCY),
+            ResolvedSourceUnit::new(root.clone(), "src/main.eqi", root_source(alias))
+                .expect("root source path"),
+            ResolvedSourceUnit::new(dependency.clone(), "src/main.eqi", DEPENDENCY)
+                .expect("dependency source path"),
         ],
-        vec![ResolvedAlias::new(root, alias, dependency)],
+        vec![ResolvedDependency::new(root, dependency)],
     );
     analyze_resolved_hierarchy(input)
         .expect("exact hierarchy analysis")

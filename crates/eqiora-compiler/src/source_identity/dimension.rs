@@ -72,9 +72,10 @@ mod tests {
             namespace.clone(),
             vec![crate::ResolvedSourceUnit::new(
                 namespace,
-                "model.eqi",
+                "src/main.eqi",
                 "dimension Speed = m / s; model Main { field velocity: Speed = 0; relation balance continuous { velocity = 0; } }",
-            )],
+            )
+            .expect("source path")],
             Vec::new(),
         );
         let compiled = crate::analyze_resolved_hierarchy(input)

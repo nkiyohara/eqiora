@@ -477,8 +477,14 @@ pub(crate) fn packaged_document() -> PackagedModelDocument {
         .expect("exact dependency")
     })
     .collect();
+    let source = format!(
+        "import Eqiora.Fluid.InertialStokes.inertial_stokes as inertial;\n\
+         import Eqiora.Fluid.Incompressible.incompressible as fluid;\n\
+         import Eqiora.Solid.LinearElasticity.linear_elasticity as solid;\n\
+         import Eqiora.Mechanics.Interfaces.interfaces as mechanics;\n{PACKAGED}"
+    );
     let root = prepare_package_release_v1(
-        inline_sources(ROOT_PACKAGE, "0.1.0", dependencies, PACKAGED),
+        inline_sources(ROOT_PACKAGE, "0.1.0", dependencies, &source),
         &[
             inertial.clone(),
             fluid.clone(),

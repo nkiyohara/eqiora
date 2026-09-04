@@ -10,7 +10,6 @@ use eqiora_core::diagnostic::codes;
 #[test]
 fn snapshot_combines_recovery_formatting_symbols_and_semantic_diagnostics() {
     let source = r#"// authored note
-module local.main;
 dimension Scalar = 1;
 component Source {
   public parameter gain: Scalar;
@@ -37,14 +36,13 @@ model Demo {
             .map(|symbol| (symbol.kind(), symbol.name()))
             .collect::<Vec<_>>(),
         vec![
-            (EditorSymbolKind::Module, "local.main"),
             (EditorSymbolKind::Dimension, "Scalar"),
             (EditorSymbolKind::Component, "Source"),
             (EditorSymbolKind::Model, "Demo"),
         ]
     );
     assert_eq!(
-        snapshot.symbols()[2]
+        snapshot.symbols()[1]
             .children()
             .iter()
             .map(|symbol| (symbol.kind(), symbol.name()))
@@ -55,7 +53,7 @@ model Demo {
         ]
     );
     assert_eq!(
-        snapshot.symbols()[3]
+        snapshot.symbols()[2]
             .children()
             .iter()
             .map(|symbol| (symbol.kind(), symbol.name()))
@@ -129,21 +127,17 @@ fn service_rejects_stale_and_unknown_versions_without_mutation() {
 
 #[test]
 fn workspace_cancellation_publishes_no_partial_snapshot() {
-    let owner = CompilationNamespaceId::new(["editor-cancel"]).expect("namespace");
+    let owner = CompilationNamespaceId::new(["editor_cancel"]).expect("namespace");
     let polls = Cell::new(0_u8);
     let cancelled = EditorWorkspaceSnapshot::analyze_modules_with_cancellation(
         9,
         ResolvedHierarchyInput::new(
             owner.clone(),
             vec![
-                ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", "model Main {}"),
-                ResolvedSourceUnit::in_module(
-                    owner,
-                    ["broken"],
-                    "src/broken.eqi",
-                    "not valid source",
-                )
-                .expect("module input"),
+                ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", "model Main {}")
+                    .expect("main source path"),
+                ResolvedSourceUnit::new(owner, "src/broken.eqi", "not valid source")
+                    .expect("broken source path"),
             ],
             vec![],
         ),
@@ -159,19 +153,18 @@ fn workspace_cancellation_publishes_no_partial_snapshot() {
 
 #[test]
 fn workspace_uses_compiler_resolved_module_identities_and_locations() {
-    let owner = CompilationNamespaceId::new(["editor-test"]).expect("namespace");
-    let main =
-        "// 🧪\nimport library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
-    let library = r#"module library.parts;
-public connector Pin = scalar_physical(across = 1, through = A);
+    let owner = CompilationNamespaceId::new(["editor_test"]).expect("namespace");
+    let main = "// 🧪\nimport editor_test.library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
+    let library = r#"public connector Pin = scalar_physical(across = 1, through = A);
 public component Socket { public port terminal: conserving on Pin; }
 public component Resistor {}
 "#;
     let input = ResolvedHierarchyInput::new(
         owner.clone(),
         vec![
-            ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", main),
-            ResolvedSourceUnit::new(owner, "src/library.eqi", library),
+            ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", main).expect("main source path"),
+            ResolvedSourceUnit::new(owner, "src/library/parts.eqi", library)
+                .expect("library source path"),
         ],
         vec![],
     );
@@ -256,9 +249,9 @@ public component Resistor {}
         .iter()
         .find(|definition| definition.path() == "library.parts.Resistor")
         .expect("resolved component definition");
-    assert_eq!(resistor.namespace(), &["editor-test"]);
+    assert_eq!(resistor.namespace(), &["editor_test"]);
     assert_eq!(resistor.kind(), EditorSymbolKind::Component);
-    assert!(resistor.file().ends_with(":src/library.eqi"));
+    assert!(resistor.file().ends_with(":src/library/parts.eqi"));
     let document = workspace
         .document(resistor.file())
         .expect("definition source document");
@@ -345,14 +338,15 @@ public component Resistor {}
 
 #[test]
 fn invalid_workspace_retains_recovered_documents_and_diagnostics() {
-    let owner = CompilationNamespaceId::new(["editor-recovery"]).expect("namespace");
-    let main = "import library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
-    let broken = "module library.parts;\npublic component Resistor { nonsense; }\n";
+    let owner = CompilationNamespaceId::new(["editor_recovery"]).expect("namespace");
+    let main = "import editor_recovery.library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
+    let broken = "public component Resistor { nonsense; }\n";
     let input = ResolvedHierarchyInput::new(
         owner.clone(),
         vec![
-            ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", main),
-            ResolvedSourceUnit::new(owner, "src/library.eqi", broken),
+            ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", main).expect("main source path"),
+            ResolvedSourceUnit::new(owner, "src/library/parts.eqi", broken)
+                .expect("library source path"),
         ],
         vec![],
     );
@@ -375,7 +369,7 @@ fn invalid_workspace_retains_recovered_documents_and_diagnostics() {
         .to_owned();
     let broken_file = workspace
         .files()
-        .find(|file| file.ends_with(":src/library.eqi"))
+        .find(|file| file.ends_with(":src/library/parts.eqi"))
         .expect("broken module file")
         .to_owned();
     let main_document = workspace.document(&main_file).expect("root document");

@@ -1,4 +1,4 @@
-use crate::ast::document::{ImportDecl, ModuleDecl};
+use crate::ast::document::ImportDecl;
 use crate::ast::{
     ComponentDecl, ConnectorDecl, Document, Expr, Item, ModelDecl, NamePath, PureOperatorDecl,
     TextRange, VisibilitySyntax,
@@ -27,29 +27,6 @@ impl SourceAstFactory {
         })
     }
 
-    /// Give one source document an explicit logical module identity.
-    ///
-    /// # Errors
-    /// Returns an error for an invalid qualified name, source range, or a
-    /// document that already has a module declaration.
-    pub fn with_module(
-        mut document: Document,
-        name: NamePath,
-        range: TextRange,
-    ) -> Result<Document, AstConstructionError> {
-        validate_name_path(&name)?;
-        if document.module.is_some() {
-            return Err(AstConstructionError::new(
-                "a source document has exactly one logical module identity",
-            ));
-        }
-        document.module = Some(ModuleDecl {
-            name,
-            range: checked_range(range)?,
-        });
-        Ok(document)
-    }
-
     /// Add one explicit semantic module import to a source document.
     ///
     /// # Errors
@@ -57,10 +34,17 @@ impl SourceAstFactory {
     pub fn with_import(
         mut document: Document,
         module: NamePath,
-        alias: impl Into<String>,
+        alias: Option<String>,
         range: TextRange,
     ) -> Result<Document, AstConstructionError> {
         validate_name_path(&module)?;
+        let alias = alias.unwrap_or_else(|| {
+            module
+                .segments()
+                .last()
+                .expect("a validated NamePath is nonempty")
+                .to_owned()
+        });
         let import = ImportDecl {
             module,
             alias: checked_identifier(alias, "module import alias")?,
@@ -107,7 +91,6 @@ impl SourceAstFactory {
             .collect::<Result<_, _>>()?;
         Ok(Document {
             retained_source: None,
-            module: None,
             imports: Vec::new(),
             dimensions,
             property_contracts: Vec::new(),
@@ -139,7 +122,6 @@ impl SourceAstFactory {
         }
         Ok(Document {
             retained_source: None,
-            module: None,
             imports: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
@@ -173,7 +155,6 @@ impl SourceAstFactory {
         }
         Ok(Document {
             retained_source: None,
-            module: None,
             imports: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
@@ -198,7 +179,6 @@ impl SourceAstFactory {
         }
         Ok(Document {
             retained_source: None,
-            module: None,
             imports: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
@@ -222,41 +202,38 @@ mod tests {
         let document = parse("main.eqi", "model Main {}")
             .into_document()
             .expect("base document");
-        let document = SourceAstFactory::with_module(
-            document,
-            NamePath::from_segments(["models", "main"], range).unwrap(),
-            range,
-        )
-        .expect("checked module identity");
         let document = SourceAstFactory::with_import(
             document,
             NamePath::from_segments(["library", "parts"], range).unwrap(),
-            "lib",
+            Some("lib".to_owned()),
             range,
         )
         .expect("checked import");
         assert_eq!(
             format(&document),
-            "module models.main;\nimport library.parts as lib;\n\nmodel Main {\n}\n"
-        );
-
-        assert!(
-            SourceAstFactory::with_module(
-                document.clone(),
-                NamePath::from_segments(["other"], range).unwrap(),
-                range,
-            )
-            .is_err()
+            "import library.parts as lib;\n\nmodel Main {\n}\n"
         );
 
         assert!(
             SourceAstFactory::with_import(
                 document,
                 NamePath::from_segments(["other"], range).unwrap(),
-                "lib",
+                Some("lib".to_owned()),
                 range,
             )
             .is_err()
+        );
+
+        let implicit = SourceAstFactory::with_import(
+            parse("main.eqi", "model Main {}").into_document().unwrap(),
+            NamePath::from_segments(["org", "example", "parts"], range).unwrap(),
+            None,
+            range,
+        )
+        .expect("implicit final-segment alias");
+        assert_eq!(
+            format(&implicit),
+            "import org.example.parts;\n\nmodel Main {\n}\n"
         );
     }
 }

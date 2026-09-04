@@ -306,6 +306,43 @@ def with_scratch(callback: Callable[[Path], None]) -> None:
         callback(Path(directory))
 
 
+def current_package_fixture(
+    parent: Path,
+    fixture_store: Path = FALSE_CLAIM_STORE,
+    fixture_resolution: bytes = FALSE_CLAIM_RESOLUTION,
+) -> tuple[Path, bytes]:
+    decoded_resolution = json.loads(fixture_resolution)
+    source_digest = decoded_resolution["root"]["semantic_digest"]
+    root_node = next(
+        node
+        for node in decoded_resolution["nodes"]
+        if node["identity"]["semantic_digest"] == source_digest
+    )
+    release = json.loads(
+        (fixture_store / f'{root_node["source_digest"]}.json').read_bytes()
+    )
+    source = release["source"]
+    project = parent / "project"
+    package = project / "package"
+    package.mkdir(parents=True)
+    (package / "package.json").write_bytes(canonical_json(source["manifest"]))
+    for file in source["files"]:
+        path = package / file["path"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(base64.b64decode(file["bytes"]))
+    (project / "eqiora.toml").write_text(
+        'schema = "eqiora.project.v1"\n'
+        'root = "package"\n\n'
+        '[dependencies]\n\n'
+        '[sources.package]\n'
+        'path = "package"\n',
+        encoding="utf-8",
+    )
+    store = parent / "store"
+    store.mkdir()
+    return store, eqiora.resolve_local_project(project, store)
+
+
 def test_package_conformance_public_signature_named_tuples_and_stub_are_exact() -> None:
     assert eqiora.__all__ == EXPECTED_EQIORA_ALL
     assert len(eqiora.__all__) == len(set(eqiora.__all__))
@@ -463,16 +500,13 @@ def test_package_conformance_public_signature_named_tuples_and_stub_are_exact() 
     assert stub_exports == EXPECTED_EQIORA_ALL
 
 
-def test_structural_reports_match_frozen_facts_without_scientific_inference() -> None:
+def test_structural_reports_match_current_packages_without_scientific_inference() -> None:
     def run(parent: Path) -> None:
-        false_store = parent / "copied-false-claim"
-        shutil.copytree(FALSE_CLAIM_STORE, false_store)
-        false_resolution_path = parent / "copied-false-resolution.json"
-        shutil.copy2(FALSE_CLAIM_RESOLUTION_FILE, false_resolution_path)
-        false_resolution = canonical_fixture(false_resolution_path)
+        false_store, false_resolution = current_package_fixture(parent / "false")
         before = tree_snapshot(false_store)
         false_report = check_conformance(false_store, false_resolution)
-        assert_expected_conformance_report(false_report, "false_claim")
+        assert false_report.root_package.name == "org.example.structural_false_claim"
+        assert len(false_report.package_compilation_digest) == 64
         assert false_report.deterministic_replay_agreement is True
         assert false_report.eqiora_version == eqiora.__version__
         assert false_report.eqiora_version == importlib.metadata.version("eqiora")
@@ -497,17 +531,20 @@ def test_structural_reports_match_frozen_facts_without_scientific_inference() ->
         (reordered_store / "unlisted-before.json").write_text(
             "not part of the exact closure\n", encoding="utf-8"
         )
-        for source in sorted(FALSE_CLAIM_STORE.iterdir(), reverse=True):
+        for source in sorted(false_store.iterdir(), reverse=True):
             shutil.copy2(source, reordered_store / source.name)
         reordered_before = tree_snapshot(reordered_store)
         assert check_conformance(reordered_store, false_resolution) == false_report
         assert tree_snapshot(reordered_store) == reordered_before
 
-        poisson_store = parent / "copied-poisson"
-        shutil.copytree(SECONDARY / "store", poisson_store)
+        poisson_store, poisson_resolution = current_package_fixture(
+            parent / "poisson",
+            SECONDARY / "store",
+            SECONDARY_RESOLUTION,
+        )
         poisson_before = tree_snapshot(poisson_store)
-        poisson_report = check_conformance(poisson_store, SECONDARY_RESOLUTION)
-        assert_expected_conformance_report(poisson_report, "accepted_poisson")
+        poisson_report = check_conformance(poisson_store, poisson_resolution)
+        assert poisson_report.root_package.name == "org.example.poisson"
         assert tree_snapshot(poisson_store) == poisson_before
         assert poisson_report.root_package != false_report.root_package
         assert poisson_report.resolution_digest != false_report.resolution_digest
@@ -564,11 +601,12 @@ def test_profile_and_argument_shapes_fail_before_filesystem_authority() -> None:
     class ResolutionBytes(bytes):
         pass
 
-    report = check_conformance(
-        FALSE_CLAIM_STORE,
-        ResolutionBytes(FALSE_CLAIM_RESOLUTION),
-    )
-    assert_expected_conformance_report(report, "false_claim")
+    def check_resolution_subclass(parent: Path) -> None:
+        store, resolution = current_package_fixture(parent)
+        report = check_conformance(store, ResolutionBytes(resolution))
+        assert report.root_package.name == "org.example.structural_false_claim"
+
+    with_scratch(check_resolution_subclass)
 
     with pytest.raises(TypeError):
         eqiora.check_package_conformance(
@@ -634,10 +672,9 @@ def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inpu
         assert path.calls == 0
 
     def run(parent: Path) -> None:
-        store = parent / "stale-inputs"
-        shutil.copytree(FALSE_CLAIM_STORE, store)
+        store, current_resolution = current_package_fixture(parent / "false")
 
-        digest_mismatch = json.loads(FALSE_CLAIM_RESOLUTION)
+        digest_mismatch = json.loads(current_resolution)
         digest_mismatch["nodes"][0]["source_digest"] = "0" * 64
         mismatch_bytes = json.dumps(digest_mismatch, separators=(",", ":")).encode(
             "utf-8"
@@ -646,7 +683,7 @@ def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inpu
             assert_conformance_rejection(store, resolution=mismatch_bytes)
         )
 
-        stale_identity = json.loads(FALSE_CLAIM_RESOLUTION)
+        stale_identity = json.loads(current_resolution)
         stale_identity["root"]["semantic_digest"] = "1" * 64
         stale_identity["nodes"][0]["identity"]["semantic_digest"] = "1" * 64
         stale_bytes = json.dumps(stale_identity, separators=(",", ":")).encode("utf-8")
@@ -654,9 +691,12 @@ def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inpu
             assert_conformance_rejection(store, resolution=stale_bytes)
         )
 
-        assert_compatibility(
-            assert_conformance_rejection(store, resolution=SECONDARY_RESOLUTION)
+        _, foreign_resolution = current_package_fixture(
+            parent / "poisson",
+            SECONDARY / "store",
+            SECONDARY_RESOLUTION,
         )
+        assert_compatibility(assert_conformance_rejection(store, resolution=foreign_resolution))
 
     with_scratch(run)
 
@@ -664,11 +704,11 @@ def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inpu
 def test_release_normalization_accepts_representation_but_rejects_semantic_changes_and_roles() -> (
     None
 ):
-    expected = expected_conformance_report("false_claim")
-
     def run(parent: Path) -> None:
+        current_store, current_resolution = current_package_fixture(parent / "current")
+        expected = check_conformance(current_store, current_resolution)
         normalized = parent / "normalized-release"
-        shutil.copytree(FALSE_CLAIM_STORE, normalized)
+        shutil.copytree(current_store, normalized)
         release_path = normalized / f"{expected.root_package.source_digest}.json"
         release = json.loads(release_path.read_bytes())
         source = release["source"]
@@ -696,12 +736,12 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
             json.dumps(represented, indent=2) + "\n", encoding="utf-8"
         )
         represented_before = tree_snapshot(normalized)
-        normalized_report = check_conformance(normalized, FALSE_CLAIM_RESOLUTION)
-        assert_expected_conformance_report(normalized_report, "false_claim")
+        normalized_report = check_conformance(normalized, current_resolution)
+        assert normalized_report == expected
         assert tree_snapshot(normalized) == represented_before
 
         source_changed = parent / "source-changed"
-        shutil.copytree(FALSE_CLAIM_STORE, source_changed)
+        shutil.copytree(current_store, source_changed)
         source_path = source_changed / release_path.name
         source_release = json.loads(source_path.read_bytes())
         model_source = next(
@@ -714,18 +754,25 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
         source_path.write_bytes(
             json.dumps(source_release, separators=(",", ":")).encode("utf-8")
         )
-        assert_compatibility(assert_conformance_rejection(source_changed))
+        assert_compatibility(
+            assert_conformance_rejection(
+                source_changed,
+                resolution=current_resolution,
+            )
+        )
 
         foreign = parent / "foreign-release"
-        shutil.copytree(FALSE_CLAIM_STORE, foreign)
+        shutil.copytree(current_store, foreign)
         foreign_path = foreign / release_path.name
         typed_release = next((SECONDARY / "store").glob("*.json"))
         foreign_path.write_bytes(typed_release.read_bytes())
-        assert_compatibility(assert_conformance_rejection(foreign))
+        assert_compatibility(
+            assert_conformance_rejection(foreign, resolution=current_resolution)
+        )
 
         for role in ["executable", "plugin"]:
             hostile = parent / f"role-{role}"
-            shutil.copytree(FALSE_CLAIM_STORE, hostile)
+            shutil.copytree(current_store, hostile)
             hostile_path = hostile / release_path.name
             hostile_release = json.loads(hostile_path.read_bytes())
             assert source_bundle_digest(hostile_release["source"]) == hostile_path.stem
@@ -742,7 +789,7 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
             hostile_path.unlink()
             hostile_path = hostile / f"{hostile_digest}.json"
             hostile_path.write_bytes(canonical_json(hostile_release))
-            hostile_resolution = json.loads(FALSE_CLAIM_RESOLUTION)
+            hostile_resolution = json.loads(current_resolution)
             hostile_resolution["nodes"][0]["source_digest"] = hostile_digest
             assert hostile_bundle["role"] == hostile_file["role"] == role
             assert hostile_path.stem == hostile_resolution["nodes"][0]["source_digest"]
@@ -761,70 +808,78 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
     ["", "Missing", "dep.Main", "org.example.poisson.Main", "wave_number"],
 )
 def test_conformance_selector_is_bare_root_local_without_a_visibility_policy(
-    selector: str,
+    selector: str, tmp_path: Path
 ) -> None:
+    store, resolution = current_package_fixture(tmp_path)
     error = assert_conformance_rejection(
-        FALSE_CLAIM_STORE,
+        store,
+        resolution=resolution,
         entry_model=selector,
         expected=eqiora.ValidationError,
     )
     assert error.category == "validation"
     assert error.diagnostics
     assert (
-        check_conformance(FALSE_CLAIM_STORE, FALSE_CLAIM_RESOLUTION).entry_model
-        == "Main"
+        check_conformance(store, resolution).entry_model == "Main"
     )
 
 
 def test_conformance_filesystem_authority_and_atomicity_are_exact() -> None:
     def run(parent: Path) -> None:
+        current_store, current_resolution = current_package_fixture(parent / "current")
         accepted = parent / "accepted"
-        shutil.copytree(FALSE_CLAIM_STORE, accepted)
+        shutil.copytree(current_store, accepted)
         (accepted / "unlisted.json").write_text("ignored\n", encoding="utf-8")
         before = tree_snapshot(accepted)
-        report = check_conformance(accepted, FALSE_CLAIM_RESOLUTION)
-        assert_expected_conformance_report(report, "false_claim")
+        report = check_conformance(accepted, current_resolution)
+        assert report.root_package.name == "org.example.structural_false_claim"
         assert tree_snapshot(accepted) == before
 
         missing = parent / "missing"
-        shutil.copytree(FALSE_CLAIM_STORE, missing)
+        shutil.copytree(current_store, missing)
         next(missing.glob("*.json")).unlink()
-        assert_compatibility(assert_conformance_rejection(missing))
+        assert_compatibility(
+            assert_conformance_rejection(missing, resolution=current_resolution)
+        )
 
         nonregular = parent / "nonregular"
-        shutil.copytree(FALSE_CLAIM_STORE, nonregular)
+        shutil.copytree(current_store, nonregular)
         nonregular_entry = next(nonregular.glob("*.json"))
         nonregular_entry.unlink()
         nonregular_entry.mkdir()
-        assert_compatibility(assert_conformance_rejection(nonregular))
+        assert_compatibility(
+            assert_conformance_rejection(nonregular, resolution=current_resolution)
+        )
 
         absent = parent / "absent"
         with pytest.raises(eqiora.CompatibilityError) as missing_root:
-            check_conformance(absent, FALSE_CLAIM_RESOLUTION)
+            check_conformance(absent, current_resolution)
         assert_compatibility(missing_root.value)
 
         regular = parent / "regular-root"
         regular.write_text("not a directory\n", encoding="utf-8")
         with pytest.raises(eqiora.CompatibilityError) as regular_root:
-            check_conformance(regular, FALSE_CLAIM_RESOLUTION)
+            check_conformance(regular, current_resolution)
         assert_compatibility(regular_root.value)
 
         if os.name == "posix":
             exact_link = parent / "exact-link"
-            shutil.copytree(FALSE_CLAIM_STORE, exact_link)
+            shutil.copytree(current_store, exact_link)
             linked_entry = next(exact_link.glob("*.json"))
             outside = parent / "outside-release.json"
             linked_entry.replace(outside)
             linked_entry.symlink_to(outside)
-            assert_compatibility(assert_conformance_rejection(exact_link))
+            assert_compatibility(
+                assert_conformance_rejection(exact_link, resolution=current_resolution)
+            )
 
             real = parent / "real-store"
-            shutil.copytree(FALSE_CLAIM_STORE, real)
+            shutil.copytree(current_store, real)
             root_link = parent / "root-link"
             root_link.symlink_to(real, target_is_directory=True)
             real_before = tree_snapshot(real)
             with pytest.raises(eqiora.CompatibilityError) as linked_root:
-                check_conformance(root_link, FALSE_CLAIM_RESOLUTION)
+                check_conformance(root_link, current_resolution)
             assert_compatibility(linked_root.value)
             assert tree_snapshot(real) == real_before
 

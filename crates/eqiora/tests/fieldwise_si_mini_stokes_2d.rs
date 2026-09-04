@@ -832,6 +832,11 @@ fn root_release(component: &PackageReleaseV1) -> PackageReleaseV1 {
         ],
     )
     .unwrap();
+    let component_name = component
+        .package_identity()
+        .expect("fluid package identity")
+        .name;
+    let source = format!("import {component_name}.incompressible as fluid;\n{PACKAGED}");
     let sources = AuthorPackageSourcesV1::new(
         manifest,
         vec![
@@ -840,11 +845,7 @@ fn root_release(component: &PackageReleaseV1) -> PackageReleaseV1 {
                 BundleRoleV1::Documentation,
                 b"Field-wise SI MINI Stokes verification root.\n".to_vec(),
             ),
-            SourceFileV1::new(
-                model,
-                BundleRoleV1::ModelSource,
-                PACKAGED.as_bytes().to_vec(),
-            ),
+            SourceFileV1::new(model, BundleRoleV1::ModelSource, source.into_bytes()),
         ],
     )
     .unwrap();

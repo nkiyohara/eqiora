@@ -72,7 +72,10 @@ fn root_release(operators: &PackageReleaseV1, alias: &str, source_path: &str) ->
             .expect("operator package identity"),
     )
     .expect("exact dependency");
-    let source = RESOLVED.replace("ops.", &format!("{alias}."));
+    let source = format!(
+        "import {OPERATOR_PACKAGE}.operators as {alias};\n{}",
+        RESOLVED.replace("ops.", &format!("{alias}."))
+    );
     prepare_package_release_v1(
         source_package(ROOT_PACKAGE, source_path, &source, vec![dependency]),
         std::slice::from_ref(operators),
@@ -157,11 +160,11 @@ fn direct_and_exact_package_variants_share_name_free_meaning() {
     assert_one_generic_application(direct_permuted.program());
 
     let operators = operator_release("src/operators.eqi", OPERATORS);
-    let relocated = operator_release("relocated/definitions.eqi", OPERATORS_PERMUTED);
+    let relocated = operator_release("src/operators.eqi", OPERATORS_PERMUTED);
     assert_eq!(
         operators.package_identity().unwrap(),
         relocated.package_identity().unwrap(),
-        "formal spelling, declaration order, and file location are not package semantics"
+        "formal spelling and declaration order are not package semantics"
     );
     let changed = operator_release(
         "src/operators.eqi",
@@ -177,18 +180,18 @@ fn direct_and_exact_package_variants_share_name_free_meaning() {
     );
 
     let root = root_release(&operators, "ops", "src/main.eqi");
-    let aliased_root = root_release(&relocated, "algebra", "moved/main.eqi");
+    let aliased_root = root_release(&relocated, "algebra", "src/main.eqi");
     assert_eq!(
         root.package_identity().unwrap(),
         aliased_root.package_identity().unwrap(),
-        "dependency aliases and source paths are not root package semantics"
+        "dependency aliases are not root package semantics"
     );
     let packaged = compile_locked(&operators, &root);
     let packaged_aliased = compile_locked(&relocated, &aliased_root);
     assert_eq!(
         packaged.model().canonical_json().unwrap(),
         packaged_aliased.model().canonical_json().unwrap(),
-        "resolved aliases and source layout cannot perturb Model V5 bytes"
+        "resolved aliases cannot perturb Model V5 bytes"
     );
     assert_one_generic_application(packaged.model().program());
     assert_one_generic_application(packaged_aliased.model().program());

@@ -2,7 +2,7 @@
 //!
 //! Package storage, version selection, and digest verification remain outside
 //! the compiler. This module accepts only an explicit set of source units and
-//! direct dependency aliases. Analysis is a separate phase so callers can
+//! direct dependencies and source-authored imports. Analysis is a separate phase so callers can
 //! compare canonical declarations with a signed or locked package record
 //! before hierarchy elaboration creates a graph transaction.
 
@@ -51,12 +51,11 @@ fn resolved_hierarchy_limits() -> ResolvedHierarchyResourceLimits {
     }
 }
 
-/// Opaque, deterministic identity of one package compilation namespace.
+/// Deterministic identity of one package compilation namespace.
 ///
-/// The compiler deliberately does not interpret package names, versions, or
-/// digests. L4 supplies their already-verified canonical identity as bounded
-/// segments; the compiler adds its own domain separator before using them for
-/// elaboration identities.
+/// The first segment is the canonical dotted package name used by source
+/// imports. Remaining segments are opaque exact-resolution identity supplied
+/// by L4.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CompilationNamespaceId(Box<[String]>);
 
@@ -95,7 +94,19 @@ impl CompilationNamespaceId {
         if result.is_empty() {
             return Err(resolved_error("compilation namespace must be nonempty"));
         }
+        if !result[0].split('.').all(is_identifier) {
+            return Err(resolved_error(format!(
+                "canonical package name `{}` must contain only dotted Eqiora identifiers",
+                result[0]
+            )));
+        }
         Ok(Self(result.into_boxed_slice()))
+    }
+
+    /// Canonical dotted package name used as the source import root.
+    #[must_use]
+    pub fn package_name(&self) -> &str {
+        &self.0[0]
     }
 
     /// Opaque identity segments in canonical order.
@@ -156,10 +167,6 @@ impl ModuleName {
         Self(vec!["main".to_owned()].into_boxed_slice())
     }
 
-    pub(crate) fn is_main(&self) -> bool {
-        self == &Self::main()
-    }
-
     /// Identifier segments in canonical order.
     #[must_use]
     pub fn segments(&self) -> &[String] {
@@ -213,10 +220,7 @@ impl CompilationModuleId {
 impl fmt::Display for CompilationModuleId {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.owner.fmt(formatter)?;
-        if !self.name.is_main() {
-            write!(formatter, "::{}", self.name)?;
-        }
-        Ok(())
+        write!(formatter, "::{}", self.name)
     }
 }
 
@@ -224,45 +228,44 @@ impl fmt::Display for CompilationModuleId {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedSourceUnit {
     module: CompilationModuleId,
-    module_from_host: bool,
     file: String,
     source: String,
 }
 
 impl ResolvedSourceUnit {
-    /// Construct a source unit without parsing it prematurely.
+    /// Construct a source unit from its portable path below the `src/` root.
     ///
-    /// Parsing every unit together is part of [`analyze_resolved_hierarchy`],
-    /// which accumulates diagnostics before any root can be elaborated.
-    #[must_use]
+    /// The path is the sole logical module identity. For example,
+    /// `src/models/main.eqi` belongs to `models.main`.
+    ///
+    /// # Errors
+    /// Rejects paths outside `src/`, non-`.eqi` files, and path segments that
+    /// are not Eqiora identifiers.
     pub fn new(
         namespace: CompilationNamespaceId,
         file: impl Into<String>,
         source: impl Into<String>,
-    ) -> Self {
-        Self {
-            module: CompilationModuleId::main(namespace),
-            module_from_host: false,
-            file: file.into(),
-            source: source.into(),
+    ) -> Result<Self, Diagnostic> {
+        let file = file.into();
+        let relative = file.strip_prefix("src/").ok_or_else(|| {
+            resolved_error(format!(
+                "model source `{file}` must be below the `src/` source root"
+            ))
+        })?;
+        let without_extension = relative.strip_suffix(".eqi").ok_or_else(|| {
+            resolved_error(format!(
+                "model source `{file}` must have an `.eqi` extension"
+            ))
+        })?;
+        if without_extension.is_empty() {
+            return Err(resolved_error(format!(
+                "model source `{file}` must name a module below `src/`"
+            )));
         }
-    }
-
-    /// Construct one source unit with an explicit logical module identity.
-    pub fn in_module<I, S>(
-        owner: CompilationNamespaceId,
-        module: I,
-        file: impl Into<String>,
-        source: impl Into<String>,
-    ) -> Result<Self, Diagnostic>
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
+        let module = ModuleName::new(without_extension.split('/'))?;
         Ok(Self {
-            module: CompilationModuleId::new(owner, ModuleName::new(module)?),
-            module_from_host: true,
-            file: file.into(),
+            module: CompilationModuleId::new(namespace, module),
+            file,
             source: source.into(),
         })
     }
@@ -279,6 +282,12 @@ impl ResolvedSourceUnit {
         &self.module
     }
 
+    /// Path-derived logical module segments below the source root.
+    #[must_use]
+    pub fn module_segments(&self) -> &[String] {
+        self.module.name().segments()
+    }
+
     /// Provenance path supplied by the exact source bundle.
     #[must_use]
     pub fn file(&self) -> &str {
@@ -293,55 +302,50 @@ impl ResolvedSourceUnit {
 
     /// Package-qualified source label used by compiler diagnostics.
     ///
-    /// A valid authored `module` header participates in the label. Invalid
-    /// source retains the provisional host-assigned label used by parsing.
+    /// The host-assigned module identity participates in the label.
     #[must_use]
     pub fn diagnostic_file(&self) -> String {
-        let provisional = resolved_source_label(self.module(), &self.file);
-        if preflight_resolved_hierarchy([self.source.len()], 0).is_err() {
-            return provisional;
-        }
-        let parsed = eqiora_lang::parse(&provisional, &self.source);
-        if !parsed.diagnostics().is_empty() {
-            return provisional;
-        }
-        parsed
-            .document()
-            .and_then(|document| effective_source_module(self, document, &provisional).ok())
-            .map_or(provisional, |module| {
-                resolved_source_label(&module, &self.file)
-            })
+        resolved_source_label(self.module(), &self.file)
     }
 }
 
-/// One direct source alias from a declaring package to an exact target.
+/// One direct package dependency authorized by an already-resolved graph.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ResolvedAlias {
+pub struct ResolvedDependency {
+    declaring: CompilationNamespaceId,
+    target: CompilationNamespaceId,
+}
+
+impl ResolvedDependency {
+    /// Bind one declaring package to one exact direct dependency.
+    #[must_use]
+    pub const fn new(declaring: CompilationNamespaceId, target: CompilationNamespaceId) -> Self {
+        Self { declaring, target }
+    }
+
+    /// Package that declares the dependency.
+    #[must_use]
+    pub const fn declaring(&self) -> &CompilationNamespaceId {
+        &self.declaring
+    }
+
+    /// Exact package made directly importable.
+    #[must_use]
+    pub const fn target(&self) -> &CompilationNamespaceId {
+        &self.target
+    }
+}
+
+/// One source-authored local name for an imported canonical module.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ResolvedAlias {
     declaring: CompilationModuleId,
     alias: String,
     target: CompilationModuleId,
-    source_import: bool,
-    source_span: Option<(String, TextRange)>,
+    source_span: (String, TextRange),
 }
 
 impl ResolvedAlias {
-    /// Construct one direct alias. Alias spelling is validated during joint
-    /// analysis so all input errors are reported together.
-    #[must_use]
-    pub fn new(
-        declaring: CompilationNamespaceId,
-        alias: impl Into<String>,
-        target: CompilationNamespaceId,
-    ) -> Self {
-        Self {
-            declaring: CompilationModuleId::main(declaring),
-            alias: alias.into(),
-            target: CompilationModuleId::main(target),
-            source_import: false,
-            source_span: None,
-        }
-    }
-
     fn authored_import(
         declaring: CompilationModuleId,
         alias: impl Into<String>,
@@ -353,25 +357,12 @@ impl ResolvedAlias {
             declaring,
             alias: alias.into(),
             target,
-            source_import: true,
-            source_span: Some((file.into(), range)),
+            source_span: (file.into(), range),
         }
     }
 
-    pub(crate) const fn is_source_import(&self) -> bool {
-        self.source_import
-    }
-
-    pub(crate) fn source_span(&self) -> Option<(&str, TextRange)> {
-        self.source_span
-            .as_ref()
-            .map(|(file, range)| (file.as_str(), *range))
-    }
-
-    /// Package in whose source the alias may be used.
-    #[must_use]
-    pub const fn declaring(&self) -> &CompilationNamespaceId {
-        self.declaring.owner()
+    pub(crate) fn source_span(&self) -> (&str, TextRange) {
+        (self.source_span.0.as_str(), self.source_span.1)
     }
 
     /// Logical module containing the import.
@@ -386,12 +377,6 @@ impl ResolvedAlias {
         &self.alias
     }
 
-    /// Exact target package namespace.
-    #[must_use]
-    pub const fn target(&self) -> &CompilationNamespaceId {
-        self.target.owner()
-    }
-
     /// Exact logical module selected by the import.
     #[must_use]
     pub(crate) const fn target_module(&self) -> &CompilationModuleId {
@@ -404,7 +389,7 @@ impl ResolvedAlias {
 pub struct ResolvedHierarchyInput {
     root: CompilationModuleId,
     units: Vec<ResolvedSourceUnit>,
-    aliases: Vec<ResolvedAlias>,
+    dependencies: Vec<ResolvedDependency>,
 }
 
 impl ResolvedHierarchyInput {
@@ -414,12 +399,12 @@ impl ResolvedHierarchyInput {
     pub fn new(
         root: CompilationNamespaceId,
         units: Vec<ResolvedSourceUnit>,
-        aliases: Vec<ResolvedAlias>,
+        dependencies: Vec<ResolvedDependency>,
     ) -> Self {
         Self {
             root: CompilationModuleId::main(root),
             units,
-            aliases,
+            dependencies,
         }
     }
 
@@ -428,7 +413,7 @@ impl ResolvedHierarchyInput {
         owner: CompilationNamespaceId,
         module: I,
         units: Vec<ResolvedSourceUnit>,
-        aliases: Vec<ResolvedAlias>,
+        dependencies: Vec<ResolvedDependency>,
     ) -> Result<Self, Diagnostic>
     where
         I: IntoIterator<Item = S>,
@@ -437,7 +422,7 @@ impl ResolvedHierarchyInput {
         Ok(Self {
             root: CompilationModuleId::new(owner, ModuleName::new(module)?),
             units,
-            aliases,
+            dependencies,
         })
     }
 
@@ -454,10 +439,10 @@ impl ResolvedHierarchyInput {
         &self.units
     }
 
-    /// Direct aliases in resolver-provided order.
+    /// Exact direct dependencies in resolver-provided order.
     #[must_use]
-    pub fn aliases(&self) -> &[ResolvedAlias] {
-        &self.aliases
+    pub fn dependencies(&self) -> &[ResolvedDependency] {
+        &self.dependencies
     }
 
     /// Analyze this graph while observing cooperative cancellation between
@@ -513,7 +498,7 @@ where
 {
     if alias_count > limits.aliases {
         return Err(resolved_error(format!(
-            "resolved hierarchy exceeds the {} direct-alias limit",
+            "resolved hierarchy exceeds the {} module-link limit",
             limits.aliases
         )));
     }
@@ -797,7 +782,7 @@ fn collect_canonical_declarations(
 
 fn canonical_alias_target(alias: &ResolvedAlias) -> ResolvedAliasTarget {
     let target = alias.target_module();
-    if alias.is_source_import() {
+    if alias.declaring_module().owner() == target.owner() {
         ResolvedAliasTarget::local_module(target.name().segments())
     } else {
         ResolvedAliasTarget::external_module(target.owner().segments(), target.name().segments())
@@ -805,11 +790,7 @@ fn canonical_alias_target(alias: &ResolvedAlias) -> ResolvedAliasTarget {
 }
 
 fn canonical_declaration_path(module: &CompilationModuleId, declaration: &str) -> String {
-    if module.name() == &ModuleName::main() {
-        declaration.to_owned()
-    } else {
-        format!("{}.{}", module.name(), declaration)
-    }
+    format!("{}.{}", module.name(), declaration)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -899,46 +880,12 @@ fn resolved_source_label(module: &CompilationModuleId, file: &str) -> String {
     for segment in module.owner().segments() {
         write!(label, "{}:{segment}:", segment.len()).expect("String writes cannot fail");
     }
-    if !module.name().is_main() {
-        write!(label, "module:{}:", module.name().segments().len())
-            .expect("String writes cannot fail");
-        for segment in module.name().segments() {
-            write!(label, "{}:{segment}:", segment.len()).expect("String writes cannot fail");
-        }
+    write!(label, "module:{}:", module.name().segments().len()).expect("String writes cannot fail");
+    for segment in module.name().segments() {
+        write!(label, "{}:{segment}:", segment.len()).expect("String writes cannot fail");
     }
     label.push_str(file);
     label
-}
-
-fn effective_source_module(
-    unit: &ResolvedSourceUnit,
-    document: &eqiora_lang::Document,
-    file: &str,
-) -> Result<CompilationModuleId, Vec<Diagnostic>> {
-    let Some((name, range)) = document.module() else {
-        return Ok(unit.module.clone());
-    };
-    let name = ModuleName::new(name.segments()).map_err(|error| {
-        vec![crate::diagnostics::source_error(
-            error.code(),
-            file,
-            range,
-            error.message(),
-        )]
-    })?;
-    let declared = CompilationModuleId::new(unit.module.owner().clone(), name);
-    if unit.module_from_host && declared != unit.module {
-        return Err(vec![crate::diagnostics::source_error(
-            codes::LANGUAGE_LOWERING_ERROR,
-            file,
-            range,
-            format!(
-                "source declares module `{declared}` but its resolved graph assigns `{}`",
-                unit.module
-            ),
-        )]);
-    }
-    Ok(declared)
 }
 
 fn resolved_error(message: impl Into<String>) -> Diagnostic {

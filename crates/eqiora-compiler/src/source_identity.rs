@@ -80,8 +80,8 @@ impl LocalSourceIdentity {
     }
 
     /// Compute a package declaration identity after structurally replacing
-    /// direct dependency aliases in type references with exact target
-    /// namespace segments.
+    /// source import aliases in type references with exact target namespace
+    /// segments.
     pub(crate) fn from_document_with_resolved_aliases(
         document: &Document,
         aliases: &BTreeMap<String, ResolvedAliasTarget>,

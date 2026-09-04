@@ -79,6 +79,11 @@ fn compile_packaged_as(
             .expect("elasticity package identity"),
     )
     .expect("exact dependency requirement");
+    let package_name = dependency
+        .package_identity()
+        .expect("elasticity package identity")
+        .name;
+    let source = format!("import {package_name}.linear_elasticity as {alias};\n{source}");
     let manifest = AuthorManifestV1::new(
         QualifiedName::parse("org.eqiora.verify.conforming_elasticity_pair_2d")
             .expect("root package name"),
@@ -95,7 +100,7 @@ fn compile_packaged_as(
         vec![SourceFileV1::new(
             model_path,
             BundleRoleV1::ModelSource,
-            source.as_bytes().to_vec(),
+            source.into_bytes(),
         )],
     )
     .expect("closed root sources");

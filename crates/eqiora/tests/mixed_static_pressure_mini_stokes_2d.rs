@@ -444,8 +444,14 @@ fn compile_root(
     } else {
         vec![fluid.clone(), mechanics.clone(), loads.clone()]
     };
+    let source = format!(
+        "import Eqiora.Fluid.Incompressible.incompressible as {};\n\
+         import Eqiora.Mechanics.Interfaces.interfaces as {};\n\
+         import Eqiora.Mechanics.BoundaryLoads.boundary_loads as {};\n{source}",
+        aliases[0], aliases[1], aliases[2]
+    );
     let root = prepare_package_release_v1(
-        inline_sources(ROOT_PACKAGE, VERSION, dependencies, "src/main.eqi", source),
+        inline_sources(ROOT_PACKAGE, VERSION, dependencies, "src/main.eqi", &source),
         &closure,
     )
     .expect("prepare exact verification root");

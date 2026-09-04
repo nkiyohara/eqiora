@@ -69,10 +69,14 @@ fn compiler_owned_math_root_cannot_be_a_package_alias() {
     let input = ResolvedHierarchyInput::new(
         root.clone(),
         vec![
-            unit(&root, "root.eqi", "model Main {}"),
+            unit(
+                &root,
+                "root.eqi",
+                "import dependency.main as math; model Main {}",
+            ),
             unit(&dependency, "dependency.eqi", "public component C {}"),
         ],
-        vec![alias(&root, "math", &dependency)],
+        vec![dependency_edge(&root, &dependency)],
     );
     let diagnostics = analyze_resolved_hierarchy(input).expect_err("math alias must reject");
     assert!(diagnostics.iter().any(|diagnostic| {

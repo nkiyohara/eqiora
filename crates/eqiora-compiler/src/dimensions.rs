@@ -544,11 +544,10 @@ model Main { instance domain: Diffusion(property diffusivity = Reference); }
 "#;
         let input = crate::ResolvedHierarchyInput::new(
             namespace.clone(),
-            vec![crate::ResolvedSourceUnit::new(
-                namespace,
-                "property.eqi",
-                source,
-            )],
+            vec![
+                crate::ResolvedSourceUnit::new(namespace, "src/main.eqi", source)
+                    .expect("source path"),
+            ],
             Vec::new(),
         );
         let analyzed = crate::analyze_resolved_hierarchy(input).expect("property alias analyzes");

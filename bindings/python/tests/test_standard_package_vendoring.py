@@ -8,7 +8,9 @@ import pytest
 import eqiora
 
 
-FLUID_MODEL = """model Main {
+FLUID_MODEL = """import Eqiora.Fluid.Incompressible.incompressible as fluid;
+
+model Main {
   domain body = box(0, 4, 0, 2);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -21,43 +23,16 @@ FLUID_MODEL = """model Main {
   field inlet_speed on body as space: m / s = 0;
   parameter dynamic_viscosity: kg / (m * s) = 2;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
-  parameter inlet_speed_value: m / s = 1;
   relation force_definition continuous on body {
     force_potential - zero_pressure = 0;
   }
-  relation inlet_speed_definition continuous on body {
-    inlet_speed - inlet_speed_value = 0;
-  }
-  instance governing: fluid.SteadyStokes2d(
+  instance governing: fluid.SteadyStokesWithPotential2d(
     support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
     field velocity = velocity,
     field pressure = pressure,
     field force_potential = force_potential,
     dynamic_viscosity = dynamic_viscosity
   );
-  instance x_lower_condition: fluid.NormalVelocityInlet2d(
-    support body = body,
-    support face = x_lower,
-    field speed = inlet_speed
-  );
-  instance x_upper_condition: fluid.NoSlip2d(
-    support body = body, support face = x_upper
-  );
-  instance y_lower_condition: fluid.NoSlip2d(
-    support body = body, support face = y_lower
-  );
-  instance y_upper_condition: fluid.NoSlip2d(
-    support body = body, support face = y_upper
-  );
-  connect conserving governing.mechanical[boundary = x_lower],
-    x_lower_condition.mechanical;
-  connect conserving governing.mechanical[boundary = x_upper],
-    x_upper_condition.mechanical;
-  connect conserving governing.mechanical[boundary = y_lower],
-    y_lower_condition.mechanical;
-  connect conserving governing.mechanical[boundary = y_upper],
-    y_upper_condition.mechanical;
 }
 """
 
@@ -90,16 +65,23 @@ def write_fluid_application(root: Path, fluid: eqiora.VendoredStandardPackage) -
 
 
 def test_vendored_standard_fluid_resolves_and_compiles_offline(tmp_path: Path) -> None:
-    packages = eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.3.0")
+    packages = eqiora.vendor_standard_package(
+        tmp_path, "Eqiora.Fluid.Incompressible@0.2.0"
+    )
     assert [package.name for package in packages] == [
         "Eqiora.Mechanics.Interfaces",
-        "Eqiora.Fluid",
+        "Eqiora.Fluid.Incompressible",
     ]
     mechanics, fluid = packages
     assert len(fluid.semantic_digest) == 64
     assert len(fluid.source_digest) == 64
-    assert fluid.path == "packages/Eqiora.Fluid/0.3.0"
-    assert eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.3.0") == packages
+    assert fluid.path == "packages/Eqiora.Fluid.Incompressible/0.2.0"
+    assert (
+        eqiora.vendor_standard_package(
+            tmp_path, "Eqiora.Fluid.Incompressible@0.2.0"
+        )
+        == packages
+    )
 
     write_fluid_application(tmp_path, fluid)
     (tmp_path / "eqiora.toml").write_text(
@@ -130,26 +112,33 @@ path = "{mechanics.path}"
 def test_standard_vendoring_rejects_changed_or_escaping_destinations(
     tmp_path: Path,
 ) -> None:
-    (mechanics, fluid) = eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.3.0")
-    fluid_source = tmp_path / fluid.path / "src/fluid.eqi"
+    (mechanics, fluid) = eqiora.vendor_standard_package(
+        tmp_path, "Eqiora.Fluid.Incompressible@0.2.0"
+    )
+    fluid_source = tmp_path / fluid.path / "src/incompressible.eqi"
     fluid_source.write_text("changed", encoding="utf-8")
 
     with pytest.raises(eqiora.CompatibilityError, match="different bytes"):
-        eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.3.0")
+        eqiora.vendor_standard_package(
+            tmp_path, "Eqiora.Fluid.Incompressible@0.2.0"
+        )
     assert fluid_source.read_text(encoding="utf-8") == "changed"
     assert (tmp_path / mechanics.path / "src/interfaces.eqi").is_file()
 
     with pytest.raises(eqiora.CompatibilityError, match="destination is invalid"):
         eqiora.vendor_standard_package(
             tmp_path,
-            "Eqiora.Solid@0.3.0",
+            "Eqiora.Solid.LinearElasticity@0.4.0",
             destination="../outside",
         )
     assert not (tmp_path.parent / "outside").exists()
 
 
 def test_standard_solid_is_available_from_the_same_distribution(tmp_path: Path) -> None:
-    (solid,) = eqiora.vendor_standard_package(tmp_path, "Eqiora.Solid@0.3.0")
-    assert solid.name == "Eqiora.Solid"
-    assert solid.version == "0.3.0"
-    assert (tmp_path / solid.path / "src/solid.eqi").is_file()
+    mechanics, solid = eqiora.vendor_standard_package(
+        tmp_path, "Eqiora.Solid.LinearElasticity@0.4.0"
+    )
+    assert mechanics.name == "Eqiora.Mechanics.Interfaces"
+    assert solid.name == "Eqiora.Solid.LinearElasticity"
+    assert solid.version == "0.4.0"
+    assert (tmp_path / solid.path / "src/linear_elasticity.eqi").is_file()

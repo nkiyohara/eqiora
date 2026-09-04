@@ -36,10 +36,8 @@ impl DefinitionNamespace {
                 let mut prefix = core::iter::once("package".to_owned())
                     .chain(module.owner().segments().iter().cloned())
                     .collect::<Vec<_>>();
-                if !module.name().is_main() {
-                    prefix.push("module".to_owned());
-                    prefix.extend(module.name().segments().iter().cloned());
-                }
+                prefix.push("module".to_owned());
+                prefix.extend(module.name().segments().iter().cloned());
                 prefix
             }
         }
@@ -204,10 +202,8 @@ impl<'a> Elaborator<'a> {
         let mut identity_segments = core::iter::once("resolved-package-v1".to_owned())
             .chain(analysis.root.owner().segments().iter().cloned())
             .collect::<Vec<_>>();
-        if !analysis.root.name().is_main() {
-            identity_segments.push("module".to_owned());
-            identity_segments.extend(analysis.root.name().segments().iter().cloned());
-        }
+        identity_segments.push("module".to_owned());
+        identity_segments.extend(analysis.root.name().segments().iter().cloned());
         let identity_namespace = IdentityNamespace::with_limits(identity_segments, limits.identity)
             .map_err(|error| vec![error])?;
         let mut connectors = BTreeMap::new();

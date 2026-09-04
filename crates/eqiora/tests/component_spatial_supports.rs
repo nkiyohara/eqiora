@@ -118,6 +118,8 @@ fn packaged_model(components: &PackageReleaseV1, alias: &str) -> PackagedModelDo
     .expect("exact dependency requirement");
     let source = format!(
         r#"
+import Eqiora.Verify.SpatialSupport.model as {alias};
+
 model Main {{
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);

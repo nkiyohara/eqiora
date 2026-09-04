@@ -1,3 +1,6 @@
+import Eqiora.Electromechanical.DcDrive.drive as drive;
+import Eqiora.Electrical.Basic.basic as electrical;
+
 component SampledPController {
   public parameter setpoint: 1 / s;
   public parameter gain: kg * m ^ 2 / (s ^ 2 * A);
@@ -37,4 +40,3 @@ model Main {
   connect conserving source.negative, motor.negative, ground.terminal;
   connect conserving motor.shaft, load.shaft, sensor.shaft;
 }
-

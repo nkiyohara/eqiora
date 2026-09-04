@@ -1,3 +1,5 @@
+import Eqiora.Mechanics.Interfaces.interfaces as mechanics;
+
 public component SteadyStokesWithPotential2d {
   public support body: volume(ambient_dimension = 2);
   public field slot velocity on body as continuum: m / s shape spatial_vector;

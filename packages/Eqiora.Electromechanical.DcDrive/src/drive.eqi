@@ -1,3 +1,5 @@
+import Eqiora.Electrical.Basic.basic as electrical;
+
 public connector RotationalFlange = scalar_physical(
   across = 1 / s,
   through = kg * m ^ 2 / s ^ 2
@@ -66,4 +68,3 @@ public component SpeedSensor {
     speed - across(shaft) = 0;
   }
 }
-

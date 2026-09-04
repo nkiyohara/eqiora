@@ -24,8 +24,6 @@ use eqiora_numerics::{
     scalar::lower_scalar_physical_affine, scalar::solve_scalar_physical_affine_with_initial_guess,
 };
 
-const PERMUTED_CIRCUITS_SOURCE: &str =
-    include_str!("../../../verify/packages/composed-model-package/models/circuits-permuted.eqi");
 const VALUE_TOLERANCE: f64 = 2.0e-11;
 const RESIDUAL_TOLERANCE: f64 = 1.2e-11;
 
@@ -180,7 +178,7 @@ fn transitive_composed_component_installs_flattens_and_solves() {
     let circuits = release("Eqiora.Electrical.Circuits", std::slice::from_ref(&basic));
     assert_eq!(circuits.semantic().declarations().len(), 1);
     let exported = &circuits.semantic().declarations()[0];
-    assert_eq!(exported.path().as_str(), "ParallelDc");
+    assert_eq!(exported.path().as_str(), "circuits.ParallelDc");
     assert_eq!(exported.kind(), DeclarationKindV1::Component);
     assert_eq!(exported.visibility(), VisibilityV1::Public);
     let root_sources = sources("org.example.closed_circuit");
@@ -404,11 +402,18 @@ fn transitive_composed_component_installs_flattens_and_solves() {
 fn semantic_permutation_changes_only_the_intermediate_source_lineage() {
     let basic = release("Eqiora.Electrical.Basic", &[]);
     let circuits_sources = sources("Eqiora.Electrical.Circuits");
+    let circuits_source = circuits_sources
+        .files()
+        .iter()
+        .find(|file| file.role() == BundleRoleV1::ModelSource)
+        .and_then(|file| std::str::from_utf8(file.bytes()).ok())
+        .expect("UTF-8 circuits source");
+    let permuted_source = format!("// alternate source layout\n{circuits_source}");
     let circuits =
         prepare_package_release_v1(circuits_sources.clone(), std::slice::from_ref(&basic))
             .expect("prepare canonical circuits release");
     let permuted_circuits = prepare_package_release_v1(
-        replace_model_source(&circuits_sources, PERMUTED_CIRCUITS_SOURCE),
+        replace_model_source(&circuits_sources, &permuted_source),
         std::slice::from_ref(&basic),
     )
     .expect("prepare permuted circuits release");
@@ -514,7 +519,7 @@ fn root_cannot_escape_its_direct_typed_component_contract() {
 
     let transitive_alias = replace_model_source(
         &root_sources,
-        "model Main { instance forbidden: basic.Resistor(resistance = 2); }",
+        "import Eqiora.Electrical.Basic.basic as basic; model Main { instance forbidden: basic.Resistor(resistance = 2); }",
     );
     let transitive_alias_error =
         prepare_package_release_v1(transitive_alias, &[basic.clone(), circuits.clone()])
@@ -522,7 +527,10 @@ fn root_cannot_escape_its_direct_typed_component_contract() {
     let PackagePreparationError::Diagnostics(diagnostics) = transitive_alias_error else {
         panic!("expected typed diagnostics, got {transitive_alias_error}");
     };
-    assert_diagnostic_contains(&diagnostics, "unknown direct package alias");
+    assert_diagnostic_contains(
+        &diagnostics,
+        "not in the current package or a direct dependency",
+    );
 
     let circuits_sources = sources("Eqiora.Electrical.Circuits");
     let public_source = circuits_sources
@@ -554,6 +562,8 @@ fn root_cannot_escape_its_direct_typed_component_contract() {
     let dimension_mismatch = replace_model_source(
         &root_sources,
         r#"
+import Eqiora.Electrical.Circuits.circuits as circuits;
+
 model Main {
   parameter duration: s = 1;
   instance circuit: circuits.ParallelDc(

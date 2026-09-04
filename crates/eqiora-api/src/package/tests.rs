@@ -9,7 +9,7 @@ use eqiora_package::{
 };
 
 const VERSION: &str = "1.0.0";
-const SOURCE_PATH: &str = "src/package.eqi";
+const SOURCE_PATH: &str = "src/main.eqi";
 
 fn author_sources(
     name: &str,
@@ -73,15 +73,15 @@ fn caller_geometry(volume: &str) -> CanonicalGeometryV1 {
 }
 
 #[test]
-fn locked_source_bundle_reconstructs_declared_module_graph() {
+fn locked_source_bundle_reconstructs_path_derived_module_graph() {
     let main_path = NormalizedRelativePath::parse("src/main.eqi").expect("main path");
-    let library_path = NormalizedRelativePath::parse("sources/anywhere.eqi").expect("library path");
+    let library_path =
+        NormalizedRelativePath::parse("src/library/parts.eqi").expect("library path");
     let main_source = r#"
-import library.parts as lib;
+import org.example.DeclaredModules.library.parts as lib;
 model Main { instance load: lib.Resistor(resistance = 2); }
 "#;
     let library_source = r#"
-module library.parts;
 public component Resistor {
   public parameter resistance: 1;
   relation law continuous { resistance - 2 = 0; }
@@ -144,7 +144,7 @@ fn locked_root_can_select_one_direct_dependency_public_model() {
     );
     let root = release(
         "org.example.Root",
-        "model Local {}",
+        "import org.example.Library.main as library; model Local {}",
         &[("library", &dependency)],
     );
     let resolution =
@@ -172,7 +172,7 @@ fn editor_workspace_replays_exact_locked_dependency_sources() {
     );
     let root = release(
         "org.example.EditorRoot",
-        "model Main { instance load: library.Resistor(); }",
+        "import org.example.EditorLibrary.main as library; model Main { instance load: library.Resistor(); }",
         &[("library", &dependency)],
     );
     let resolution =
@@ -205,7 +205,7 @@ fn editor_workspace_replays_exact_locked_dependency_sources() {
     let resistor = workspace
         .definitions()
         .iter()
-        .find(|definition| definition.path() == "Resistor")
+        .find(|definition| definition.path() == "main.Resistor")
         .expect("dependency definition");
     assert_eq!(resistor.namespace()[0], "org.example.EditorLibrary");
     assert!(workspace.document(resistor.file()).is_some());
@@ -383,6 +383,7 @@ public component Resistor {
 }
 "#;
     const ROOT_SOURCE: &str = r#"
+import Eqiora.Electrical.Basic.main as electrical;
 model Main {
   instance load: electrical.Resistor(resistance = 3);
 }
@@ -553,11 +554,13 @@ public component Resistor {
 }
 "#;
     const MIDDLE: &str = r#"
+import org.example.Leaf.main as leaf;
 public component Branch {
   instance load: leaf.Resistor(resistance = 3);
 }
 "#;
     const ROOT: &str = r#"
+import org.example.Middle.main as middle;
 model Main {
   instance branch: middle.Branch;
 }
@@ -589,6 +592,7 @@ public component Resistor {
 }
 "#;
     const ROOT: &str = r#"
+import org.example.Library.main as electrical;
 model Main {
   instance load: electrical.Resistor(resistance = 3);
 }
@@ -620,6 +624,7 @@ public component Resistor {
 }
 "#;
     const ROOT_SOURCE: &str = r#"
+import org.example.Dishonest.main as electrical;
 model Main {
   instance load: electrical.Resistor(resistance = 3);
 }

@@ -1,8 +1,8 @@
 use eqiora::kernel::BoundarySide;
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackagePreparationError,
-    PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
 use eqiora_numerics::{ale::AleFsiCartesianModel, ale::lower_ale_fsi_cartesian_3d};
@@ -14,10 +14,6 @@ const PACKAGED_ROOT: &str =
     include_str!("../../../verify/fsi/fixed-topology-ale-monolithic-3d/models/packaged.eqi");
 const DIRECT_SOURCE: &str =
     include_str!("../../../verify/fsi/fixed-topology-ale-monolithic-3d/models/direct.eqi");
-const MECHANICS_SEMANTIC_DIGEST: &str =
-    "5bff8e5ac0adee425bbaff949ffedc29c455966b074352c7149816d4b63b50d7";
-const MECHANICS_SOURCE_DIGEST: &str =
-    "6dce490b9b5d4407edd281c0a0c3b5bd1d9d6774d7400fb27d06fe3e750a24b7";
 
 fn prepare_release(
     package: &str,
@@ -25,28 +21,55 @@ fn prepare_release(
     dependencies: &[PackageReleaseV1],
 ) -> PackageReleaseV1 {
     let sources = embedded_package::release_sources(package, version);
+    let import = match package {
+        "Eqiora.Fluid.Incompressible" | "Eqiora.Solid.LinearElasticity" => {
+            Some("import Eqiora.Mechanics.Interfaces.interfaces as mechanics;\n")
+        }
+        _ => None,
+    };
+    let sources = if let Some(import) = import {
+        let (manifest, files) = sources.into_parts();
+        let requirements = manifest
+            .dependencies()
+            .iter()
+            .map(|requirement| {
+                let target = dependencies
+                    .iter()
+                    .find_map(|release| release.package_identity().ok())
+                    .filter(|identity| identity.name == requirement.target().name)
+                    .expect("matching migrated dependency");
+                DependencyRequirementV1::new(requirement.alias().clone(), target)
+                    .expect("migrated dependency requirement")
+            })
+            .collect();
+        let manifest = AuthorManifestV1::new(
+            manifest.name().clone(),
+            manifest.version().clone(),
+            requirements,
+            manifest.bundle().to_vec(),
+        )
+        .expect("migrated author manifest");
+        let files = files
+            .into_iter()
+            .map(|file| {
+                if file.role() != BundleRoleV1::ModelSource {
+                    return file;
+                }
+                let source = std::str::from_utf8(file.bytes()).expect("model source is UTF-8");
+                SourceFileV1::new(
+                    file.path().clone(),
+                    file.role(),
+                    format!("{import}{source}").into_bytes(),
+                )
+            })
+            .collect();
+        AuthorPackageSourcesV1::new(manifest, files).expect("migrated package sources")
+    } else {
+        sources
+    };
     prepare_package_release_v1(sources, dependencies)
         .unwrap_or_else(|error| panic!("prepare package release {package} {version}: {error:?}"))
 }
-
-fn prepare_public_release(package: &str, dependencies: &[PackageReleaseV1]) -> PackageReleaseV1 {
-    prepare_package_release_v1(embedded_package::public_sources(package), dependencies)
-        .unwrap_or_else(|error| panic!("prepare public package {package}: {error:?}"))
-}
-
-#[test]
-fn prepares_immutable_three_dimensional_mechanics_release() {
-    let release = prepare_release("Eqiora.Mechanics.Interfaces", "0.2.0", &[]);
-    let identity = release.package_identity().expect("mechanics identity");
-    assert_eq!(identity.semantic_digest.to_hex(), MECHANICS_SEMANTIC_DIGEST);
-    assert_eq!(identity.name.as_str(), "Eqiora.Mechanics.Interfaces");
-    assert_eq!(identity.version.as_str(), "0.2.0");
-    assert_eq!(
-        release.source_digest().expect("source digest").to_hex(),
-        MECHANICS_SOURCE_DIGEST
-    );
-}
-
 #[test]
 fn prepares_method_neutral_three_dimensional_fluid_and_solid_releases() {
     let mechanics = prepare_release("Eqiora.Mechanics.Interfaces", "0.2.0", &[]);
@@ -190,21 +213,6 @@ fn assert_same_canonical_roles(
     );
 }
 
-#[test]
-fn new_releases_reject_the_old_mechanics_identity_before_elaboration() {
-    let old_mechanics = prepare_public_release("Eqiora.Mechanics.Interfaces", &[]);
-    let error = prepare_release_result(
-        "Eqiora.Fluid.Incompressible",
-        "0.3.0",
-        std::slice::from_ref(&old_mechanics),
-    )
-    .expect_err("exact dependency digest mismatch must fail closed");
-    assert!(matches!(
-        error,
-        PackagePreparationError::MissingDependency { .. }
-    ));
-}
-
 fn prepare_root(
     mechanics: &PackageReleaseV1,
     fluid: &PackageReleaseV1,
@@ -226,6 +234,11 @@ fn prepare_root(
     .collect();
     let readme = NormalizedRelativePath::parse("README.md").expect("README path");
     let source = NormalizedRelativePath::parse("src/main.eqi").expect("source path");
+    let model_source = format!(
+        "import Eqiora.Mechanics.Interfaces.interfaces as mechanics;\n\
+         import Eqiora.Fluid.Incompressible.incompressible as fluid_laws;\n\
+         import Eqiora.Solid.LinearElasticity.linear_elasticity as solid_laws;\n{PACKAGED_ROOT}"
+    );
     let manifest = AuthorManifestV1::new(
         QualifiedName::parse("org.eqiora.verify.ale_fsi_3d_packages").expect("root name"),
         ExactVersion::parse("0.1.0").expect("root version"),
@@ -244,25 +257,10 @@ fn prepare_root(
                 BundleRoleV1::Documentation,
                 b"Exact-package authoring fixture for canonical tetrahedral ALE FSI.\n".to_vec(),
             ),
-            SourceFileV1::new(
-                source,
-                BundleRoleV1::ModelSource,
-                PACKAGED_ROOT.as_bytes().to_vec(),
-            ),
+            SourceFileV1::new(source, BundleRoleV1::ModelSource, model_source.into_bytes()),
         ],
     )
     .expect("closed root source inventory");
     prepare_package_release_v1(sources, &[mechanics.clone(), fluid.clone(), solid.clone()])
         .expect("prepare exact 3D FSI root")
-}
-
-fn prepare_release_result(
-    package: &str,
-    version: &str,
-    dependencies: &[PackageReleaseV1],
-) -> Result<PackageReleaseV1, eqiora::package::PackagePreparationError> {
-    prepare_package_release_v1(
-        embedded_package::release_sources(package, version),
-        dependencies,
-    )
 }

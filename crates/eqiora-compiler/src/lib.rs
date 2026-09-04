@@ -33,8 +33,8 @@ pub use formulation::{
 pub use lower::{CompiledModel, ModelSymbols, lower_draft, lower_model};
 pub use resolved::{
     AnalyzedResolvedHierarchy, CanonicalDeclarationIdentity, CanonicalDeclarationKind,
-    CanonicalDeclarationVisibility, CompilationNamespaceId, ResolvedAlias, ResolvedHierarchyInput,
-    ResolvedSourceUnit, ValidatedResolvedHierarchy, analyze_resolved_hierarchy,
-    preflight_resolved_hierarchy,
+    CanonicalDeclarationVisibility, CompilationNamespaceId, ResolvedDependency,
+    ResolvedHierarchyInput, ResolvedSourceUnit, ValidatedResolvedHierarchy,
+    analyze_resolved_hierarchy, preflight_resolved_hierarchy,
 };
 pub use source_compile::compile;

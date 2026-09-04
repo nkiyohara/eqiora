@@ -24,7 +24,7 @@ python examples/python/fixed_reference_fsi.py
 | Example | Source | What it shows |
 | --- | --- | --- |
 | `quickstart` | [`decay.eqi`](decay.eqi) | Compile one scalar decay model and run it through the common root Plan lifecycle. |
-| `project-modules` | [`modules/resistor-project`](modules/resistor-project/) | Compile a directly imported public Model from a closed, portable multi-file source inventory whose `.eqi` module declarations own logical identity independently of file paths; the optional `package-filesystem` run discovers that same closure through bounded no-follow directory traversal. |
+| `project-modules` | [`modules/resistor-project`](modules/resistor-project/) | Compile a directly imported public Model from a closed, portable multi-file source inventory whose module identities come from paths below `src/`; the optional `package-filesystem` run discovers that same closure through bounded no-follow directory traversal. |
 | `poisson` | [`packages/org.example.poisson`](../packages/org.example.poisson/) | Compile a 2D Poisson model and exercise its verification-only native reference solve. |
 | `exact-cylinder-geometry` | [`python/exact_cylinder_geometry.py`](python/exact_cylinder_geometry.py) | From an installed `eqiora` package, author the exact rectangle-with-one-circular-hole identity and inspect its fixed-role named selections. |
 | `exact-cylinder-mesh` | [`python/exact_cylinder_mesh.py`](python/exact_cylinder_mesh.py) | From an installed `eqiora` package, realize the exact cylinder source with typed Gmsh policy and inspect Rust-derived selection counts. |

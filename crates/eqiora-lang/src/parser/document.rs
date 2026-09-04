@@ -1,4 +1,4 @@
-use crate::ast::document::{ImportDecl, ModuleDecl};
+use crate::ast::document::ImportDecl;
 use crate::ast::{DimensionDecl, Document, ModelDecl, TextRange, VisibilitySyntax};
 use crate::lexer::TokenKind;
 
@@ -6,7 +6,6 @@ use super::Parser;
 
 impl Parser<'_> {
     pub(super) fn parse_document(&mut self) -> Option<Document> {
-        let mut module = None;
         let mut imports = Vec::new();
         let mut dimensions = Vec::new();
         let mut property_contracts = Vec::new();
@@ -18,7 +17,6 @@ impl Parser<'_> {
         let mut models = Vec::new();
         let mut models_started = false;
         let mut declarations_started = false;
-        let mut module_prefix_closed = false;
         let mut import_prefix_closed = false;
         while !self.at(TokenKind::Eof) {
             let modifier = if self.at_keyword("public") {
@@ -36,23 +34,7 @@ impl Parser<'_> {
                 |(_, token)| token.range().start(),
             );
 
-            if self.at_keyword("module") {
-                if let Some((_, token)) = &modifier {
-                    self.error_token(token, "module declarations have no visibility modifier");
-                }
-                if module_prefix_closed {
-                    self.error_here("the module declaration must precede imports and declarations");
-                }
-                if module.is_some() {
-                    self.error_here("a source file has exactly one module declaration");
-                }
-                if let Some(declaration) = self.parse_module(declaration_start) {
-                    module.get_or_insert(declaration);
-                } else {
-                    self.recover_top_level();
-                }
-            } else if self.at_keyword("import") {
-                module_prefix_closed = true;
+            if self.at_keyword("import") {
                 if let Some((_, token)) = &modifier {
                     self.error_token(token, "module imports have no visibility modifier");
                 }
@@ -65,7 +47,6 @@ impl Parser<'_> {
                     self.recover_top_level();
                 }
             } else if self.at_keyword("dimension") {
-                module_prefix_closed = true;
                 import_prefix_closed = true;
                 if modifier.is_some() {
                     self.error_here(
@@ -81,7 +62,6 @@ impl Parser<'_> {
                     self.recover_top_level();
                 }
             } else if self.at_keyword("property") {
-                module_prefix_closed = true;
                 import_prefix_closed = true;
                 declarations_started = true;
                 self.parse_top_property(
@@ -92,7 +72,6 @@ impl Parser<'_> {
                     &mut property_releases,
                 );
             } else if self.at_keyword("material") {
-                module_prefix_closed = true;
                 import_prefix_closed = true;
                 declarations_started = true;
                 if models_started {
@@ -106,7 +85,6 @@ impl Parser<'_> {
                     self.recover_top_level();
                 }
             } else if self.at_keyword("connector") {
-                module_prefix_closed = true;
                 import_prefix_closed = true;
                 declarations_started = true;
                 if models_started {
@@ -120,7 +98,6 @@ impl Parser<'_> {
                     self.recover_top_level();
                 }
             } else if self.at_keyword("component") {
-                module_prefix_closed = true;
                 import_prefix_closed = true;
                 declarations_started = true;
                 if models_started {
@@ -134,7 +111,6 @@ impl Parser<'_> {
                     self.recover_top_level();
                 }
             } else if self.at_keyword("pure") {
-                module_prefix_closed = true;
                 import_prefix_closed = true;
                 declarations_started = true;
                 if models_started {
@@ -148,7 +124,6 @@ impl Parser<'_> {
                     self.recover_top_level();
                 }
             } else if self.at_keyword("model") {
-                module_prefix_closed = true;
                 import_prefix_closed = true;
                 declarations_started = true;
                 models_started = true;
@@ -160,32 +135,28 @@ impl Parser<'_> {
             } else {
                 let expected = if import_prefix_closed {
                     "expected `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
-                } else if module.is_some() {
-                    "expected `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
                 } else {
-                    "expected `module`, `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
+                    "expected `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
                 };
                 self.error_here(expected);
                 self.recover_top_level();
             }
         }
-        (module.is_some()
-            || !(imports.is_empty()
-                && dimensions.is_empty()
-                && property_contracts.is_empty()
-                && property_releases.is_empty()
-                && material_compositions.is_empty()
-                && connectors.is_empty()
-                && components.is_empty()
-                && pure_operators.is_empty()
-                && models.is_empty()))
+        (!(imports.is_empty()
+            && dimensions.is_empty()
+            && property_contracts.is_empty()
+            && property_releases.is_empty()
+            && material_compositions.is_empty()
+            && connectors.is_empty()
+            && components.is_empty()
+            && pure_operators.is_empty()
+            && models.is_empty()))
         .then_some(Document {
             retained_source: self
                 .tokens
                 .iter()
                 .any(|token| token.kind() == TokenKind::LineComment)
                 .then(|| self.tokens.iter().map(|token| token.text()).collect()),
-            module,
             imports,
             dimensions,
             property_contracts,
@@ -225,27 +196,21 @@ impl Parser<'_> {
         })
     }
 
-    fn parse_module(&mut self, start: u32) -> Option<ModuleDecl> {
-        self.expect_keyword("module")?;
-        let name = self.parse_name_path("logical module name")?;
-        let end = self
-            .expect(TokenKind::Semicolon, "`;` after module declaration")?
-            .range()
-            .end();
-        Some(ModuleDecl {
-            name,
-            range: TextRange::new(start, end),
-        })
-    }
-
     fn parse_import(&mut self, start: u32) -> Option<ImportDecl> {
         self.expect_keyword("import")?;
         let module = self.parse_name_path("logical module name")?;
-        self.expect_keyword("as")?;
-        let alias = self
-            .expect_identifier("module import alias")?
-            .text()
-            .to_owned();
+        let alias = if self.at_keyword("as") {
+            self.bump();
+            self.expect_identifier("module import alias")?
+                .text()
+                .to_owned()
+        } else {
+            module
+                .segments()
+                .last()
+                .expect("a parsed NamePath is nonempty")
+                .to_owned()
+        };
         let end = self
             .expect(TokenKind::Semicolon, "`;` after module import")?
             .range()
@@ -282,25 +247,24 @@ mod tests {
     use crate::{format, parse};
 
     #[test]
-    fn parser_and_formatter_retain_explicit_module_import_prefix() {
-        let source =
-            "import geometry.channel as channel;\nimport materials.water as water;\nmodel Main {}";
+    fn parser_and_formatter_retain_explicit_import_prefix() {
+        let source = "import org.example.geometry.channel;\nimport org.example.materials.water as fluid;\nmodel Main {}";
         let document = parse("main.eqi", source)
             .into_document()
             .expect("module imports parse");
         let imports = document.imports().collect::<Vec<_>>();
 
         assert_eq!(imports.len(), 2);
-        assert_eq!(imports[0].0.as_str(), "geometry.channel");
+        assert_eq!(imports[0].0.as_str(), "org.example.geometry.channel");
         assert_eq!(imports[0].1, "channel");
         assert_eq!(
             &source[imports[0].2.start() as usize..imports[0].2.end() as usize],
-            "import geometry.channel as channel;"
+            "import org.example.geometry.channel;"
         );
 
         let formatted = format(&document);
         assert!(formatted.starts_with(
-            "import geometry.channel as channel;\nimport materials.water as water;\n\nmodel Main"
+            "import org.example.geometry.channel;\nimport org.example.materials.water as fluid;\n\nmodel Main"
         ));
         let reparsed = parse("main.eqi", &formatted)
             .into_document()
@@ -309,7 +273,7 @@ mod tests {
 
         let misplaced = parse(
             "misplaced.eqi",
-            "model Main {} import geometry.channel as channel;",
+            "model Main {} import org.example.geometry.channel;",
         );
         assert!(
             misplaced
@@ -320,44 +284,15 @@ mod tests {
     }
 
     #[test]
-    fn parser_and_formatter_retain_source_owned_module_identity() {
-        let source = "module library.primitives;\nimport materials.water as water;\npublic component Resistor {}";
-        let document = parse("primitives.eqi", source)
-            .into_document()
-            .expect("module declaration parses");
-        let (module, range) = document.module().expect("declared module");
-        assert_eq!(module.as_str(), "library.primitives");
-        assert_eq!(
-            &source[range.start() as usize..range.end() as usize],
-            "module library.primitives;"
+    fn source_module_declarations_are_not_language_syntax() {
+        let parsed = parse(
+            "primitives.eqi",
+            "module library.primitives; public component Resistor {}",
         );
-
-        let formatted = format(&document);
-        assert!(formatted.starts_with(
-            "module library.primitives;\nimport materials.water as water;\n\npublic component Resistor"
-        ));
-        assert_eq!(
-            format(
-                &parse("primitives.eqi", &formatted)
-                    .into_document()
-                    .expect("formatted module reparses")
-            ),
-            formatted
-        );
-
-        let empty_module = parse("empty.eqi", "module library.empty;")
-            .into_document()
-            .expect("an explicitly named empty module is a document");
-        assert_eq!(format(&empty_module), "module library.empty;\n");
-
-        let misplaced = parse(
-            "misplaced.eqi",
-            "import a.b as b; module c.d; model Main {}",
-        );
-        assert!(misplaced.diagnostics().iter().any(|diagnostic| {
+        assert!(parsed.diagnostics().iter().any(|diagnostic| {
             diagnostic
                 .message()
-                .contains("module declaration must precede")
+                .contains("expected `import`, `dimension`")
         }));
     }
 
@@ -366,7 +301,7 @@ mod tests {
         let before = parse("before.eqi", "unexpected");
         assert_eq!(
             before.diagnostics()[0].message(),
-            "expected `module`, `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
+            "expected `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
         );
 
         let after = parse("after.eqi", "model Main {} unexpected");

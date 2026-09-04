@@ -90,12 +90,13 @@ fn root_sources(components: &PackageReleaseV1, source: &str) -> AuthorPackageSou
         identity,
     )
     .expect("exact component dependency");
+    let source = format!("import Eqiora.Verify.PhysicalComponents.model as components;\n{source}");
     sources(
         manifest(
             "org.eqiora.verify.hierarchical_physical_boundary",
             vec![dependency],
         ),
-        source,
+        &source,
     )
 }
 
@@ -216,6 +217,8 @@ fn assert_root_connection_identity(
         root.name.as_str(),
         root.version.as_str(),
         digest.as_str(),
+        "module",
+        "model",
     ])
     .expect("root identity namespace");
     let declaration = DeclarationPath::new([
@@ -223,6 +226,8 @@ fn assert_root_connection_identity(
         root.name.as_str(),
         root.version.as_str(),
         digest.as_str(),
+        "module",
+        "model",
         "model",
         "Main",
         "net",

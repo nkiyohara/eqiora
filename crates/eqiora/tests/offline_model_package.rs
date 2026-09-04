@@ -172,7 +172,7 @@ fn inline_sources(
     source: &str,
     dependencies: &[(&str, &PackageReleaseV1)],
 ) -> AuthorPackageSourcesV1 {
-    let path = NormalizedRelativePath::parse("src/package.eqi").expect("inline path");
+    let path = NormalizedRelativePath::parse("src/main.eqi").expect("inline path");
     let requirements = dependencies
         .iter()
         .map(|(alias, release)| {
@@ -218,11 +218,12 @@ fn package_preparation_replays_transitive_closure_independent_of_input_order() {
     let leaf = inline_release("org.example.Leaf", "public component Resistor {}", &[], &[]);
     let middle = inline_release(
         "org.example.Middle",
-        "public component Branch { instance load: leaf.Resistor; }",
+        "import org.example.Leaf.main as leaf; public component Branch { instance load: leaf.Resistor; }",
         &[("leaf", &leaf)],
         std::slice::from_ref(&leaf),
     );
-    let root_source = "model Main { instance branch: middle.Branch; }";
+    let root_source =
+        "import org.example.Middle.main as middle; model Main { instance branch: middle.Branch; }";
     let first = prepare_package_release_v1(
         inline_sources("org.example.Root", root_source, &[("middle", &middle)]),
         &[leaf.clone(), middle.clone()],

@@ -214,6 +214,8 @@ fn root_source(alias: &str, permuted: bool) -> String {
     if permuted {
         format!(
             r#"
+import Eqiora.Verify.OccurrenceBoundFields.model as {alias};
+
 model Main {{
   instance law: {alias}.FieldLawWrapper(
     field displacement = displacement,
@@ -230,6 +232,8 @@ model Main {{
     } else {
         format!(
             r#"
+import Eqiora.Verify.OccurrenceBoundFields.model as {alias};
+
 model Main {{
   domain body = box(0, 1, 0, 1);
   representation space = continuum;

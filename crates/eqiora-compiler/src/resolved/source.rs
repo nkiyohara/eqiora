@@ -1,10 +1,7 @@
 use eqiora_core::Diagnostic;
 use eqiora_lang::parse;
 
-use super::{
-    AnalyzedSourceUnit, ResolvedSourceUnit, effective_source_module, resolved_error,
-    resolved_source_label,
-};
+use super::{AnalyzedSourceUnit, ResolvedSourceUnit, resolved_error, resolved_source_label};
 
 pub(super) fn analyze_source_unit(
     unit: ResolvedSourceUnit,
@@ -19,7 +16,7 @@ pub(super) fn analyze_source_unit(
     let parse_file = resolved_source_label(unit.module(), &unit.file);
     check_provenance_path(&parse_file, max_provenance_path_bytes)?;
     let document = parse(&parse_file, &unit.source).into_document()?;
-    let module = effective_source_module(&unit, &document, &parse_file)?;
+    let module = unit.module;
     let provenance_file = resolved_source_label(&module, &unit.file);
     check_provenance_path(&provenance_file, max_provenance_path_bytes)?;
 
