@@ -13,7 +13,8 @@ are recorded here.
   navigation across open workspace modules through the shared editor analysis
   service. Workspace folders containing `eqiora.toml` also load exact local
   package sources without writing a lock or store. Workspace analysis runs on a
-  bounded background worker and discards superseded document versions.
+  bounded background worker, discards superseded document versions, and accepts
+  request cancellation while an editor operation waits for the current snapshot.
 
 - Added `Eqiora.Fluid@0.2.0` with a reusable scalar-Field-driven
   inward-normal-velocity inlet boundary and installed-distribution vendoring.

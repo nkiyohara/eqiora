@@ -330,6 +330,52 @@ fn stdio_discards_superseded_workspace_analysis() {
 }
 
 #[test]
+fn stdio_cancels_an_editor_request_waiting_for_analysis() {
+    let uri = "file:///workspace/request-cancellation.eqi";
+    let mut child = Command::new(SERVER)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn language server");
+    let messages = [
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":1,"text":"model Cancelled {}\n"}}}),
+        json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}}),
+        json!({"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":2}}),
+        json!({"jsonrpc":"2.0","id":3,"method":"shutdown","params":null}),
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    ];
+    let mut stdin = child.stdin.take().expect("language server stdin");
+    for message in messages {
+        write_packet(&mut stdin, &message);
+    }
+    drop(stdin);
+
+    let output = child.wait_with_output().expect("language server output");
+    assert!(
+        output.status.success(),
+        "language server failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let messages = parse_packets(&output.stdout);
+    assert_eq!(response(&messages, 2)["error"]["code"], -32800);
+    assert_eq!(
+        response(&messages, 2)["error"]["message"],
+        "canceled by client"
+    );
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| message["id"].as_i64() == Some(2))
+            .count(),
+        1
+    );
+    assert!(response(&messages, 3)["result"].is_null());
+}
+
+#[test]
 fn stdio_workspace_loads_unopened_exact_package_sources_without_writing_a_lock() {
     let fixture = TestDirectory::create("package project");
     let library_path = fixture.0.join("library");

@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     error::Error,
     path::PathBuf,
     str::FromStr,
@@ -8,29 +8,33 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     thread,
+    time::Duration,
 };
 
 use crossbeam_channel::{Receiver, Sender};
 use eqiora::api::{
-    EditorPosition, EditorService, EditorSnapshot, EditorSymbol, EditorSymbolKind,
-    EditorWorkspaceSnapshot,
+    EditorService, EditorSnapshot, EditorSymbol, EditorSymbolKind, EditorWorkspaceSnapshot,
 };
 use eqiora::compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
-use eqiora::{Diagnostic as EqioraDiagnostic, Severity};
-use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
+use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentFormattingParams, DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse,
-    FoldingRange, FoldingRangeParams, FoldingRangeProviderCapability, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    InitializeParams, Location, MarkupContent, MarkupKind, NumberOrString, OneOf, Position,
-    PositionEncodingKind, PublishDiagnosticsParams, Range, ServerCapabilities, SymbolKind,
+    CancelParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DocumentFormattingParams, DocumentSymbol, DocumentSymbolParams,
+    DocumentSymbolResponse, FoldingRange, FoldingRangeParams, FoldingRangeProviderCapability,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
+    HoverProviderCapability, InitializeParams, Location, MarkupContent, MarkupKind, NumberOrString,
+    OneOf, PositionEncodingKind, PublishDiagnosticsParams, ServerCapabilities,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, TextEdit, Uri,
     WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use serde::de::DeserializeOwned;
 
-use crate::workspace_uri::{file_uri_path, project_file_uri};
+use crate::{
+    lsp_projection::{
+        editor_position, lsp_diagnostic, source_range, symbol_kind, symbol_label, symbol_range,
+    },
+    workspace_uri::{file_uri_path, project_file_uri},
+};
 
 type ServerResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -463,16 +467,27 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
             }
         }
     });
+    let mut buffered = VecDeque::new();
+    let mut input_closed = false;
     loop {
-        let message = crossbeam_channel::select_biased! {
-            recv(connection.receiver) -> message => match message {
-                Ok(message) => Some(message),
-                Err(_) => break,
-            },
-            recv(analysis_receiver) -> completed => {
-                apply_completed(&connection, &mut state, completed?)?;
-                None
-            },
+        let message = if let Some(message) = buffered.pop_front() {
+            Some(message)
+        } else if input_closed {
+            break;
+        } else {
+            crossbeam_channel::select_biased! {
+                recv(connection.receiver) -> message => match message {
+                    Ok(message) => Some(message),
+                    Err(_) => {
+                        input_closed = true;
+                        None
+                    },
+                },
+                recv(analysis_receiver) -> completed => {
+                    apply_completed(&connection, &mut state, completed?)?;
+                    None
+                },
+            }
         };
         let Some(message) = message else {
             continue;
@@ -481,10 +496,28 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
             Message::Request(request) => {
                 if request.method == "shutdown" {
                     settle_pending(&connection, &mut state, &analysis_receiver)?;
-                } else if let Some(group) = request_group(&request, &state) {
-                    settle_group(&connection, &mut state, &analysis_receiver, &group)?;
+                } else if let Some(group) = request_group(&request, &state)
+                    && settle_group(
+                        &connection,
+                        &mut state,
+                        &analysis_receiver,
+                        &group,
+                        &request.id,
+                        &mut buffered,
+                        &mut input_closed,
+                    )?
+                {
+                    connection.sender.send(
+                        Response::new_err(
+                            request.id,
+                            ErrorCode::RequestCanceled as i32,
+                            "canceled by client".to_owned(),
+                        )
+                        .into(),
+                    )?;
+                    continue;
                 }
-                if connection.handle_shutdown(&request)? {
+                if handle_shutdown(&connection, &request, &mut buffered)? {
                     break;
                 }
                 handle_request(&connection, request, &state)?;
@@ -633,16 +666,98 @@ fn settle_group(
     state: &mut ServerState,
     receiver: &Receiver<CompletedAnalysis>,
     group: &str,
-) -> ServerResult<()> {
-    while state.pending.contains_key(group) {
-        apply_completed(connection, state, receiver.recv()?)?;
+    request_id: &RequestId,
+    buffered: &mut VecDeque<Message>,
+    input_closed: &mut bool,
+) -> ServerResult<bool> {
+    loop {
+        if remove_cancellation(buffered, request_id) {
+            return Ok(true);
+        }
+        if !state.pending.contains_key(group) {
+            return Ok(false);
+        }
+        if *input_closed {
+            apply_completed(connection, state, receiver.recv()?)?;
+            continue;
+        }
+        crossbeam_channel::select_biased! {
+            recv(connection.receiver) -> message => {
+                match message {
+                    Ok(message) => {
+                        if cancels_request(&message, request_id) {
+                            return Ok(true);
+                        }
+                        buffered.push_back(message);
+                    }
+                    Err(_) => {
+                        *input_closed = true;
+                    }
+                }
+            },
+            recv(receiver) -> completed => {
+                apply_completed(connection, state, completed?)?;
+            },
+        }
     }
-    Ok(())
+}
+
+fn remove_cancellation(buffered: &mut VecDeque<Message>, request_id: &RequestId) -> bool {
+    let Some(index) = buffered
+        .iter()
+        .position(|message| cancels_request(message, request_id))
+    else {
+        return false;
+    };
+    buffered.remove(index);
+    true
+}
+
+fn cancels_request(message: &Message, request_id: &RequestId) -> bool {
+    let Message::Notification(notification) = message else {
+        return false;
+    };
+    if notification.method != "$/cancelRequest" {
+        return false;
+    }
+    let Ok(params) = serde_json::from_value::<CancelParams>(notification.params.clone()) else {
+        return false;
+    };
+    let cancelled_id = match params.id {
+        NumberOrString::Number(id) => RequestId::from(id),
+        NumberOrString::String(id) => RequestId::from(id),
+    };
+    cancelled_id == *request_id
 }
 
 fn request_group(request: &Request, state: &ServerState) -> Option<String> {
     let uri = request.params.get("textDocument")?.get("uri")?.as_str()?;
     Some(state.group_for_uri(uri))
+}
+
+fn handle_shutdown(
+    connection: &Connection,
+    request: &Request,
+    buffered: &mut VecDeque<Message>,
+) -> ServerResult<bool> {
+    if request.method != "shutdown" {
+        return Ok(false);
+    }
+    connection
+        .sender
+        .send(Response::new_ok(request.id.clone(), ()).into())?;
+    let message = if let Some(message) = buffered.pop_front() {
+        message
+    } else {
+        connection
+            .receiver
+            .recv_timeout(Duration::from_secs(30))
+            .map_err(|error| format!("failed waiting for exit notification: {error}"))?
+    };
+    match message {
+        Message::Notification(notification) if notification.method == "exit" => Ok(true),
+        message => Err(format!("unexpected message during shutdown: {message:?}").into()),
+    }
 }
 
 fn decode_notification<T: DeserializeOwned>(params: serde_json::Value) -> Option<T> {
@@ -870,109 +985,4 @@ fn publish_diagnostics(
         .sender
         .send(Notification::new("textDocument/publishDiagnostics".to_owned(), params).into())?;
     Ok(())
-}
-
-fn lsp_diagnostic(
-    snapshot: &EditorSnapshot,
-    diagnostic: &EqioraDiagnostic,
-) -> lsp_types::Diagnostic {
-    let range = diagnostic
-        .source_span()
-        .and_then(|span| {
-            source_range(
-                snapshot,
-                usize::try_from(span.start).ok()?,
-                usize::try_from(span.end).ok()?,
-            )
-            .ok()
-        })
-        .unwrap_or_default();
-    lsp_types::Diagnostic {
-        range,
-        severity: Some(match diagnostic.severity() {
-            Severity::Error => lsp_types::DiagnosticSeverity::ERROR,
-            Severity::Warning => lsp_types::DiagnosticSeverity::WARNING,
-            Severity::Note => lsp_types::DiagnosticSeverity::INFORMATION,
-        }),
-        code: Some(NumberOrString::String(diagnostic.code().to_string())),
-        source: Some("eqiora".to_owned()),
-        message: diagnostic.message().to_owned(),
-        ..lsp_types::Diagnostic::default()
-    }
-}
-
-fn source_range(snapshot: &EditorSnapshot, start: usize, end: usize) -> Result<Range, String> {
-    let start = u32::try_from(start).map_err(|_| "source offset exceeds u32".to_owned())?;
-    let end = u32::try_from(end).map_err(|_| "source offset exceeds u32".to_owned())?;
-    let start = snapshot
-        .position(start)
-        .ok_or_else(|| "source start is not an exact UTF-8 boundary".to_owned())?;
-    let end = snapshot
-        .position(end)
-        .ok_or_else(|| "source end is not an exact UTF-8 boundary".to_owned())?;
-    Ok(Range::new(lsp_position(start), lsp_position(end)))
-}
-
-fn symbol_range(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> Result<Range, String> {
-    source_range(
-        snapshot,
-        usize::try_from(symbol.range().start()).map_err(|_| "source offset exceeds usize")?,
-        usize::try_from(symbol.range().end()).map_err(|_| "source offset exceeds usize")?,
-    )
-}
-
-fn lsp_position(position: EditorPosition) -> Position {
-    Position::new(position.line(), position.character())
-}
-
-const fn editor_position(position: Position) -> EditorPosition {
-    EditorPosition::new(position.line, position.character)
-}
-
-const fn symbol_kind(kind: EditorSymbolKind) -> SymbolKind {
-    match kind {
-        EditorSymbolKind::Module => SymbolKind::MODULE,
-        EditorSymbolKind::Import => SymbolKind::NAMESPACE,
-        EditorSymbolKind::Dimension => SymbolKind::TYPE_PARAMETER,
-        EditorSymbolKind::Property | EditorSymbolKind::Parameter => SymbolKind::PROPERTY,
-        EditorSymbolKind::Material => SymbolKind::OBJECT,
-        EditorSymbolKind::Connector => SymbolKind::INTERFACE,
-        EditorSymbolKind::Component | EditorSymbolKind::Model => SymbolKind::CLASS,
-        EditorSymbolKind::Operator => SymbolKind::FUNCTION,
-        EditorSymbolKind::Domain | EditorSymbolKind::Support => SymbolKind::NAMESPACE,
-        EditorSymbolKind::Let | EditorSymbolKind::Formal => SymbolKind::CONSTANT,
-        EditorSymbolKind::Field => SymbolKind::FIELD,
-        EditorSymbolKind::Representation => SymbolKind::TYPE_PARAMETER,
-        EditorSymbolKind::Port => SymbolKind::INTERFACE,
-        EditorSymbolKind::Clock => SymbolKind::EVENT,
-        EditorSymbolKind::Relation => SymbolKind::OPERATOR,
-        EditorSymbolKind::Instance => SymbolKind::OBJECT,
-        _ => SymbolKind::OBJECT,
-    }
-}
-
-const fn symbol_label(kind: EditorSymbolKind) -> &'static str {
-    match kind {
-        EditorSymbolKind::Module => "Module",
-        EditorSymbolKind::Import => "Import",
-        EditorSymbolKind::Dimension => "Dimension",
-        EditorSymbolKind::Property => "Property",
-        EditorSymbolKind::Material => "Material",
-        EditorSymbolKind::Connector => "Connector",
-        EditorSymbolKind::Component => "Component",
-        EditorSymbolKind::Operator => "Operator",
-        EditorSymbolKind::Model => "Model",
-        EditorSymbolKind::Domain => "Domain",
-        EditorSymbolKind::Parameter => "Parameter",
-        EditorSymbolKind::Let => "Let",
-        EditorSymbolKind::Formal => "Formal",
-        EditorSymbolKind::Support => "Support",
-        EditorSymbolKind::Field => "Field",
-        EditorSymbolKind::Representation => "Representation",
-        EditorSymbolKind::Port => "Port",
-        EditorSymbolKind::Clock => "Clock",
-        EditorSymbolKind::Relation => "Relation",
-        EditorSymbolKind::Instance => "Instance",
-        _ => "Declaration",
-    }
 }

@@ -1,3 +1,4 @@
+mod lsp_projection;
 mod protocol;
 mod workspace_uri;
 
@@ -24,8 +25,8 @@ fn main() -> ExitCode {
             log_event("info", "server_stopped");
             ExitCode::SUCCESS
         }
-        Err(_) => {
-            log_event("error", "server_failed");
+        Err(error) => {
+            log_failure(error.as_ref());
             ExitCode::FAILURE
         }
     }
@@ -43,6 +44,16 @@ fn log_event(level: &str, event: &str) {
         "level": level,
         "target": "eqiora-language-server",
         "event": event,
+    });
+    let _ = writeln!(io::stderr().lock(), "{entry}");
+}
+
+fn log_failure(error: &(dyn Error + Send + Sync)) {
+    let entry = serde_json::json!({
+        "level": "error",
+        "target": "eqiora-language-server",
+        "event": "server_failed",
+        "message": error.to_string(),
     });
     let _ = writeln!(io::stderr().lock(), "{entry}");
 }
