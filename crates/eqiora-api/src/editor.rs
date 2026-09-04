@@ -310,6 +310,34 @@ pub struct EditorDefinition {
     range: TextRange,
 }
 
+/// One compiler-resolved source reference and its canonical definition.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EditorReference {
+    file: String,
+    range: TextRange,
+    definition: EditorDefinition,
+}
+
+impl EditorReference {
+    /// Package-qualified source file containing the reference.
+    #[must_use]
+    pub fn file(&self) -> &str {
+        &self.file
+    }
+
+    /// Exact UTF-8 byte range of the referenced name.
+    #[must_use]
+    pub const fn range(&self) -> TextRange {
+        self.range
+    }
+
+    /// Canonical target and its definition location.
+    #[must_use]
+    pub const fn definition(&self) -> &EditorDefinition {
+        &self.definition
+    }
+}
+
 impl EditorDefinition {
     /// Exact compilation namespace segments, including locked package identity.
     #[must_use]
@@ -348,6 +376,7 @@ pub struct EditorWorkspaceSnapshot {
     version: u64,
     documents: Vec<(String, EditorSnapshot)>,
     definitions: Vec<EditorDefinition>,
+    references: Vec<EditorReference>,
 }
 
 impl EditorWorkspaceSnapshot {
@@ -411,11 +440,28 @@ impl EditorWorkspaceSnapshot {
                     range,
                 })
             })
+            .collect::<Vec<_>>();
+        let references = analyzed
+            .resolved_references()
+            .filter_map(|(target, file, range, definition_file, definition_range)| {
+                Some(EditorReference {
+                    file: file.to_owned(),
+                    range,
+                    definition: EditorDefinition {
+                        namespace: target.namespace().segments().to_vec().into_boxed_slice(),
+                        path: target.path().to_owned(),
+                        kind: canonical_symbol_kind(target.kind())?,
+                        file: definition_file.to_owned(),
+                        range: definition_range,
+                    },
+                })
+            })
             .collect();
         Self {
             version,
             documents,
             definitions,
+            references,
         }
     }
 
@@ -443,6 +489,27 @@ impl EditorWorkspaceSnapshot {
     #[must_use]
     pub fn definitions(&self) -> &[EditorDefinition] {
         &self.definitions
+    }
+
+    /// Compiler-resolved declaration references in source order.
+    #[must_use]
+    pub fn references(&self) -> &[EditorReference] {
+        &self.references
+    }
+
+    /// Resolve the reference covering one exact UTF-8 byte offset.
+    #[must_use]
+    pub fn definition_for_reference(
+        &self,
+        file: &str,
+        byte_offset: u32,
+    ) -> Option<&EditorDefinition> {
+        self.references.iter().find_map(|reference| {
+            (reference.file == file
+                && reference.range.start() <= byte_offset
+                && byte_offset < reference.range.end())
+            .then_some(&reference.definition)
+        })
     }
 }
 

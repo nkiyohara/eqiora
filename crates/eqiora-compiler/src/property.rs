@@ -669,9 +669,11 @@ fn error(file: &str, range: TextRange, message: impl Into<String>) -> Diagnostic
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use crate::{
-        CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit,
-        analyze_resolved_hierarchy,
+        CanonicalDeclarationKind, CompilationNamespaceId, ResolvedHierarchyInput,
+        ResolvedSourceUnit, analyze_resolved_hierarchy,
     };
 
     #[test]
@@ -760,6 +762,37 @@ model Main { instance domain: DiffusionLaw(material = MaterialA); }
             vec![],
         ))
         .expect("material composition analyzes");
+        let references = analyzed.resolved_references().collect::<Vec<_>>();
+        assert_eq!(references.len(), 8);
+        assert!(references.windows(2).all(|pair| {
+            (pair[0].1, pair[0].2.start(), pair[0].2.end())
+                < (pair[1].1, pair[1].2.start(), pair[1].2.end())
+        }));
+        let reference_kinds = references.iter().fold(
+            BTreeMap::<CanonicalDeclarationKind, usize>::new(),
+            |mut counts, (target, _, _, _, _)| {
+                *counts.entry(target.kind()).or_default() += 1;
+                counts
+            },
+        );
+        assert_eq!(
+            reference_kinds[&CanonicalDeclarationKind::PropertyContract],
+            4
+        );
+        assert_eq!(
+            reference_kinds[&CanonicalDeclarationKind::PropertyRelease],
+            2
+        );
+        assert_eq!(reference_kinds[&CanonicalDeclarationKind::Component], 1);
+        assert_eq!(
+            reference_kinds[&CanonicalDeclarationKind::MaterialComposition],
+            1
+        );
+        for (_, _, range, _, _) in references {
+            let spelling = &source
+                [usize::try_from(range.start()).unwrap()..usize::try_from(range.end()).unwrap()];
+            assert!(!spelling.contains(char::is_whitespace));
+        }
         let bindings = analyzed.property_bindings().collect::<Vec<_>>();
         assert_eq!(bindings.len(), 2);
         assert!(bindings.iter().all(|binding| binding.0.is_some()));

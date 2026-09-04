@@ -80,6 +80,7 @@
         { "name": "CompleteParameterStudy", "from": "eqiora_api::CompleteParameterStudy" },
         { "name": "EditorDefinition", "from": "eqiora_api::editor::EditorDefinition" },
         { "name": "EditorPosition", "from": "eqiora_api::editor::EditorPosition" },
+        { "name": "EditorReference", "from": "eqiora_api::editor::EditorReference" },
         { "name": "EditorService", "from": "eqiora_api::editor::EditorService" },
         { "name": "EditorSnapshot", "from": "eqiora_api::editor::EditorSnapshot" },
         { "name": "EditorSymbol", "from": "eqiora_api::editor::EditorSymbol" },
