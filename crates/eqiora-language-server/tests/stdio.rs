@@ -145,6 +145,67 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
     assert_eq!(response(&messages, 8)["error"]["code"], -32602);
 }
 
+#[test]
+fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
+    let main =
+        "// 🧪\nimport library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
+    let library = "module library.parts;\npublic component Resistor {}\n";
+    let changed_library =
+        "module library.parts;\npublic component Resistor {\n  // unsaved workspace edit\n}\n";
+    let main_uri = "file:///workspace/main.eqi";
+    let library_uri = "file:///workspace/library.eqi";
+    let mut child = Command::new(SERVER)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn language server");
+
+    let messages = [
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{"workspace":{"workspaceFolders":true}},"workspaceFolders":[{"uri":"file:///workspace","name":"workspace"}]}}),
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":library_uri,"languageId":"eqiora","version":1,"text":library}}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":main_uri,"languageId":"eqiora","version":1,"text":main}}}),
+        json!({"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32}}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":library_uri,"version":2},"contentChanges":[{"text":changed_library}]}}),
+        json!({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32}}}),
+        json!({"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32}}}),
+        json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    ];
+    let mut stdin = child.stdin.take().expect("language server stdin");
+    for message in messages {
+        write_packet(&mut stdin, &message);
+    }
+    drop(stdin);
+
+    let output = child.wait_with_output().expect("language server output");
+    assert!(
+        output.status.success(),
+        "language server failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let messages = parse_packets(&output.stdout);
+
+    assert_eq!(
+        response(&messages, 1)["result"]["capabilities"]["workspace"]["workspaceFolders"]["supported"],
+        true
+    );
+    let definition = response(&messages, 2);
+    assert_eq!(definition["result"]["uri"], library_uri);
+    assert_eq!(definition["result"]["range"]["start"]["line"], 1);
+    assert_eq!(definition["result"]["range"]["start"]["character"], 17);
+    assert_eq!(definition["result"]["range"]["end"]["character"], 25);
+
+    let hover = response(&messages, 3)["result"]["contents"]["value"]
+        .as_str()
+        .expect("workspace Markdown hover");
+    assert!(hover.contains("**Component** `library.parts.Resistor`"));
+    assert!(hover.contains("// unsaved workspace edit"));
+    assert_eq!(response(&messages, 4)["result"]["uri"], library_uri);
+    assert!(response(&messages, 5)["result"].is_null());
+}
+
 fn write_packet(writer: &mut impl Write, message: &Value) {
     let body = serde_json::to_vec(message).expect("serialize LSP message");
     write!(writer, "Content-Length: {}\r\n\r\n", body.len()).expect("write LSP header");
