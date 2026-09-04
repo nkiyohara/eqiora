@@ -530,6 +530,7 @@ pub struct AnalyzedResolvedHierarchy {
     pub(crate) aliases: Vec<ResolvedAlias>,
     canonical_declarations: Box<[CanonicalDeclarationIdentity]>,
     declaration_locations: Box<[(String, TextRange)]>,
+    reference_locations: Box<[(usize, String, TextRange)]>,
     property_bindings: Box<[crate::property::ResolvedPropertyBinding]>,
 }
 
@@ -709,6 +710,7 @@ pub fn analyze_resolved_hierarchy(
         aliases,
         canonical_declarations: Box::new([]),
         declaration_locations: Box::new([]),
+        reference_locations: Box::new([]),
         property_bindings: Box::new([]),
     };
     let canonical_units = analysis.units.clone();
@@ -733,6 +735,12 @@ pub fn analyze_resolved_hierarchy(
         &canonical_units,
         &analysis.canonical_declarations,
     )
+    .into_boxed_slice();
+    analysis.reference_locations = declaration::collect_reference_locations(
+        &canonical_units,
+        &analysis.aliases,
+        &analysis.canonical_declarations,
+    )?
     .into_boxed_slice();
     if diagnostics.is_empty() {
         Ok(analysis)

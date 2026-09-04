@@ -195,6 +195,9 @@ fn editor_workspace_replays_exact_locked_dependency_sources() {
         workspace.definitions()[0].namespace(),
         workspace.definitions()[1].namespace()
     );
+    let reference = workspace.references().first().expect("component reference");
+    assert_eq!(reference.definition(), resistor);
+    assert_eq!(reference.range().end() - reference.range().start(), 16);
 }
 
 #[test]

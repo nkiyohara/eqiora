@@ -128,7 +128,11 @@ fn service_rejects_stale_and_unknown_versions_without_mutation() {
 fn workspace_uses_compiler_resolved_module_identities_and_locations() {
     let owner = CompilationNamespaceId::new(["editor-test"]).expect("namespace");
     let main = "import library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
-    let library = "module library.parts;\npublic component Resistor {}\n";
+    let library = r#"module library.parts;
+public connector Pin = scalar_physical(across = 1, through = A);
+public component Socket { public port terminal: conserving on Pin; }
+public component Resistor {}
+"#;
     let input = ResolvedHierarchyInput::new(
         owner.clone(),
         vec![
@@ -142,7 +146,7 @@ fn workspace_uses_compiler_resolved_module_identities_and_locations() {
         EditorWorkspaceSnapshot::analyze_modules(11, input).expect("valid resolved workspace");
     assert_eq!(workspace.version(), 11);
     assert_eq!(workspace.files().len(), 2);
-    assert_eq!(workspace.definitions().len(), 2);
+    assert_eq!(workspace.definitions().len(), 4);
 
     let resistor = workspace
         .definitions()
@@ -160,5 +164,45 @@ fn workspace_uses_compiler_resolved_module_identities_and_locations() {
             ..usize::try_from(resistor.range().end()).unwrap()],
         "public component Resistor {}"
     );
-    assert_eq!(document.symbols()[1].name(), "Resistor");
+    assert!(
+        document
+            .symbols()
+            .iter()
+            .any(|symbol| symbol.name() == "Resistor")
+    );
+
+    let reference_start = u32::try_from(main.find("lib.Resistor").unwrap()).unwrap();
+    let reference = workspace
+        .references()
+        .iter()
+        .find(|reference| reference.range().start() == reference_start)
+        .expect("resolved component reference");
+    assert!(reference.file().ends_with(":src/main.eqi"));
+    assert_eq!(reference.definition(), resistor);
+    assert_eq!(
+        workspace
+            .definition_for_reference(reference.file(), reference_start + 4)
+            .expect("go-to-definition target"),
+        resistor
+    );
+    assert!(
+        workspace
+            .definition_for_reference(reference.file(), reference.range().end())
+            .is_none()
+    );
+
+    let pin_reference = workspace
+        .references()
+        .iter()
+        .find(|reference| reference.definition().path() == "library.parts.Pin")
+        .expect("resolved Connector reference");
+    assert_eq!(
+        &library[usize::try_from(pin_reference.range().start()).unwrap()
+            ..usize::try_from(pin_reference.range().end()).unwrap()],
+        "Pin"
+    );
+    assert_eq!(
+        pin_reference.definition().kind(),
+        EditorSymbolKind::Connector
+    );
 }
