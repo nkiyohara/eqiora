@@ -303,9 +303,10 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 }
 ```
 
-## Boundary and evidence
+## Usage notes
 
-Control-v2 is a closed JSON request/response contract for compile/check. It does not define REST, HTTP, authentication, persistence, remote execution, preview, run, cancellation, artifact inspection, or a scientific data plane.
+Control-v2 carries compile/check requests and structured responses in a closed,
+transport-neutral JSON schema.
 
-- <ExactSourceLink kind="blob" path="verify/interfaces/control-plane-compile-check/case.toml">Registered control-v2 evidence</ExactSourceLink>
-- <ExactSourceLink kind="blob" path="verify/interfaces/control-plane-compile-check/README.md">Control-v2 claim and nonclaims</ExactSourceLink>
+- <ExactSourceLink kind="blob" path="verify/interfaces/control-plane-compile-check/case.toml">Control-v2 verification case</ExactSourceLink>
+- <ExactSourceLink kind="blob" path="verify/interfaces/control-plane-compile-check/README.md">Control-v2 verification details</ExactSourceLink>

@@ -10,7 +10,7 @@ links every row to its evidence.
 Use that table in three steps:
 
 1. Find the closest problem class.
-2. Open its evidence to check the exact assumptions and nonclaims.
+2. Open its evidence to check the supported inputs and assumptions.
 3. Return to the topic-specific matrix only when you need contract, execution,
    verification, or maturity detail.
 
@@ -30,8 +30,8 @@ Eqiora reports capability maturity along four independent gates:
 
 The complete, maintained product map is the
 [capability and maturity matrix](https://github.com/nkiyohara/eqiora/blob/main/docs/capability-matrix.md).
-It includes the exact boundary and nonclaims for semantics, numerics, physics,
-execution, artifacts, Python, Studio, and OSS maturity.
+It covers semantics, numerics, physics, execution, artifacts, Python, Studio,
+and OSS maturity.
 
 ## Trace a claim to evidence
 
