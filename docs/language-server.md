@@ -35,5 +35,6 @@ local package graph from disk, including unopened sources, without writing a loc
 or package store. Open model sources override their disk content until they are
 closed, so hover and definition navigation stay current after full-document
 changes. Workspace analysis runs on one background worker, coalesces pending
-edits, and prevents superseded results from publishing diagnostics. Partial edits
-are planned next.
+edits, and prevents superseded results from publishing diagnostics. An editor
+request waiting for the current snapshot can be cancelled through
+`$/cancelRequest`. Partial edits are planned next.
