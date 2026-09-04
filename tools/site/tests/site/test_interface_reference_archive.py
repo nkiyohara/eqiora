@@ -18,13 +18,13 @@ REPOSITORY = Path(__file__).resolve().parents[4]
 GENERATOR = REPOSITORY / "tools/docs/generate_interface_reference.py"
 OUTPUTS = {
     Path("docs/site/src/content/docs/reference/cli/index.mdx"): (
-        "53e212b04a839bb92d9ce02245fde9140e4154e84d16ebaac33b7d4baf51e871"
+        "a71eedc79c0fa89fbe1c438f311436993b8637c140d2c8f7422d641956eee64f"
     ),
     Path("docs/site/src/content/docs/reference/control-v2/index.mdx"): (
-        "71265ea8c47bcbf73c5d3d606311bec905b3c4da3b39948eb744d3e3fa57e0f9"
+        "5a265a15c9e2ff72214870e272b8489fd6b9208fcb318600fd4d3fe611eb27c2"
     ),
     Path("docs/site/src/content/docs/reference/mcp/index.mdx"): (
-        "3414a23100c12fe20de01bfae9c00834030eec6eee92de8ef40c368474d7d5c1"
+        "c6d80f72ae169f3d3ea549d9c85b3e3d52bcd40be94851c80b830e7490138dbb"
     ),
 }
 FORBIDDEN_GIT_ENVIRONMENT = {

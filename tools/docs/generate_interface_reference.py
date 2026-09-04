@@ -394,12 +394,13 @@ $ eqiora check --help
 {_code_block(cli["check_help"])}
 ```
 
-## Boundary and evidence
+## Usage notes
 
-The public command checks one local Model source file. Its registered boundary does not claim execution, solving, artifact output, stdin, multiple files, JSON output, remote operation, Python, or Studio integration. Exit semantics are intentionally not documented here.
+`eqiora check` validates and compiles one local regular Model source file
+supplied as a path.
 
-- <ExactSourceLink kind="blob" path="verify/interfaces/cli-compile-check/case.toml">Registered CLI evidence</ExactSourceLink>
-- <ExactSourceLink kind="blob" path="verify/interfaces/cli-compile-check/README.md">CLI claim and nonclaims</ExactSourceLink>
+- <ExactSourceLink kind="blob" path="verify/interfaces/cli-compile-check/case.toml">CLI verification case</ExactSourceLink>
+- <ExactSourceLink kind="blob" path="verify/interfaces/cli-compile-check/README.md">CLI verification details</ExactSourceLink>
 """
 
 
@@ -462,12 +463,13 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 {schema_text.removesuffix(chr(10))}
 ```
 
-## Boundary and evidence
+## Usage notes
 
-Control-v2 is a closed JSON request/response contract for compile/check. It does not define REST, HTTP, authentication, persistence, remote execution, preview, run, cancellation, artifact inspection, or a scientific data plane.
+Control-v2 carries compile/check requests and structured responses in a closed,
+transport-neutral JSON schema.
 
-- <ExactSourceLink kind="blob" path="verify/interfaces/control-plane-compile-check/case.toml">Registered control-v2 evidence</ExactSourceLink>
-- <ExactSourceLink kind="blob" path="verify/interfaces/control-plane-compile-check/README.md">Control-v2 claim and nonclaims</ExactSourceLink>
+- <ExactSourceLink kind="blob" path="verify/interfaces/control-plane-compile-check/case.toml">Control-v2 verification case</ExactSourceLink>
+- <ExactSourceLink kind="blob" path="verify/interfaces/control-plane-compile-check/README.md">Control-v2 verification details</ExactSourceLink>
 """
 
 
@@ -518,12 +520,13 @@ Live response:
 {_json_block(list_response)}
 ```
 
-## Boundary and evidence
+## Usage notes
 
-This is not a general framing reference. It does not publish numeric line limits, a metadata/token/cancellation grammar, an error table, exit behavior, HTTP, sessions, persistence, remote hosting, resources, prompts, tasks, a generic MCP layer, or tools not returned above.
+Eqiora's compile/check adapter communicates over local stdio and exposes the
+tools returned by the live tool list above.
 
-- <ExactSourceLink kind="blob" path="verify/interfaces/mcp-stdio-compile-check/case.toml">Registered MCP evidence</ExactSourceLink>
-- <ExactSourceLink kind="blob" path="verify/interfaces/mcp-stdio-compile-check/README.md">MCP framing claim and nonclaims</ExactSourceLink>
+- <ExactSourceLink kind="blob" path="verify/interfaces/mcp-stdio-compile-check/case.toml">MCP verification case</ExactSourceLink>
+- <ExactSourceLink kind="blob" path="verify/interfaces/mcp-stdio-compile-check/README.md">MCP verification details</ExactSourceLink>
 """
 
 
