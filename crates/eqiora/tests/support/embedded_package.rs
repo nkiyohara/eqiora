@@ -136,6 +136,23 @@ pub(crate) fn release_sources(package: &str, version: &str) -> AuthorPackageSour
                 ),
             ],
         ),
+        ("Eqiora.Fluid", "0.2.0") => sources(
+            include_bytes!("../../../../packages/releases/Eqiora.Fluid/0.2.0/package.json"),
+            &[
+                (
+                    "README.md",
+                    BundleRoleV1::Documentation,
+                    include_bytes!("../../../../packages/releases/Eqiora.Fluid/0.2.0/README.md"),
+                ),
+                (
+                    "src/fluid.eqi",
+                    BundleRoleV1::ModelSource,
+                    include_bytes!(
+                        "../../../../packages/releases/Eqiora.Fluid/0.2.0/src/fluid.eqi"
+                    ),
+                ),
+            ],
+        ),
         ("Eqiora.Solid", "0.2.0") => sources(
             include_bytes!("../../../../packages/releases/Eqiora.Solid/0.2.0/package.json"),
             &[

@@ -19,8 +19,14 @@ use eqiora_numerics::{
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
 
-const VERSION: &str = "0.1.0";
+const VERSION: &str = "0.2.0";
 static NEXT_SCRATCH: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Clone, Copy)]
+enum Inlet {
+    NoSlip,
+    NormalVelocity,
+}
 
 #[derive(Clone, Copy)]
 enum Outlet {
@@ -32,8 +38,16 @@ enum Outlet {
 #[test]
 fn curated_and_explicit_standard_stokes_share_the_package_neutral_path() {
     let (mechanics, fluid) = standard_releases();
-    let curated = compile_root(&mechanics, &fluid, &root_source(true, Outlet::NoSlip));
-    let explicit = compile_root(&mechanics, &fluid, &root_source(false, Outlet::NoSlip));
+    let curated = compile_root(
+        &mechanics,
+        &fluid,
+        &root_source(true, Inlet::NoSlip, Outlet::NoSlip),
+    );
+    let explicit = compile_root(
+        &mechanics,
+        &fluid,
+        &root_source(false, Inlet::NoSlip, Outlet::NoSlip),
+    );
     let curated = lower(curated.model().program());
     let explicit = lower(explicit.model().program());
 
@@ -68,7 +82,11 @@ fn curated_and_explicit_standard_stokes_share_the_package_neutral_path() {
 #[test]
 fn standard_outlets_retain_typed_traction_and_pressure_meaning() {
     let (mechanics, fluid) = standard_releases();
-    let traction = compile_root(&mechanics, &fluid, &root_source(true, Outlet::TractionFree));
+    let traction = compile_root(
+        &mechanics,
+        &fluid,
+        &root_source(true, Inlet::NoSlip, Outlet::TractionFree),
+    );
     let traction = lower(traction.model().program());
     assert_eq!(
         traction
@@ -82,7 +100,7 @@ fn standard_outlets_retain_typed_traction_and_pressure_meaning() {
     let pressure = compile_root(
         &mechanics,
         &fluid,
-        &root_source(true, Outlet::NormalPressure),
+        &root_source(true, Inlet::NoSlip, Outlet::NormalPressure),
     );
     let pressure = lower(pressure.model().program());
     let outlet = pressure
@@ -104,6 +122,26 @@ fn standard_outlets_retain_typed_traction_and_pressure_meaning() {
 }
 
 #[test]
+fn standard_normal_velocity_inlet_retains_prescribed_trace_meaning() {
+    let (mechanics, fluid) = standard_releases();
+    let inlet = compile_root(
+        &mechanics,
+        &fluid,
+        &root_source(true, Inlet::NormalVelocity, Outlet::TractionFree),
+    );
+    let inlet = lower(inlet.model().program());
+    assert!(matches!(
+        inlet
+            .boundary_inventory()
+            .boundary(0, BoundarySide::Lower)
+            .expect("normal-velocity inlet")
+            .disposition(),
+        PhysicalBoundaryDisposition::Prescribed(law)
+            if law.quantity() == PhysicalBoundaryQuantity::Trace
+    ));
+}
+
+#[test]
 fn standard_package_reopens_from_the_project_lock_and_offline_store() {
     let scratch = Scratch::create();
     let mechanics_sources =
@@ -113,7 +151,7 @@ fn standard_package_reopens_from_the_project_lock_and_offline_store() {
     let fluid_sources = embedded_package::release_sources("Eqiora.Fluid", VERSION);
     let fluid = prepare_package_release_v1(fluid_sources.clone(), std::slice::from_ref(&mechanics))
         .expect("standard fluid release");
-    let root_sources = root_sources(&fluid, &root_source(true, Outlet::NoSlip));
+    let root_sources = root_sources(&fluid, &root_source(true, Inlet::NoSlip, Outlet::NoSlip));
 
     write_package(&scratch.child("root"), &root_sources);
     write_package(&scratch.child("fluid"), &fluid_sources);
@@ -273,7 +311,7 @@ impl Drop for Scratch {
     }
 }
 
-fn root_source(curated: bool, outlet: Outlet) -> String {
+fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
     let governing = if curated {
         r#"  instance governing: fluid.SteadyStokes2d(
     support body = body,
@@ -300,6 +338,25 @@ fn root_source(curated: bool, outlet: Outlet) -> String {
   );"#
     };
     let interface = if curated { "governing" } else { "interface" };
+    let (inlet_field, inlet_instance) = match inlet {
+        Inlet::NoSlip => (
+            "",
+            "  instance x_lower_condition: fluid.NoSlip2d(\n    support body = body, support face = x_lower\n  );",
+        ),
+        Inlet::NormalVelocity => (
+            r#"  field inlet_speed on body as space: m / s = 0;
+  parameter inlet_speed_value: m / s = 1;
+  relation inlet_speed_definition continuous on body {
+    inlet_speed - inlet_speed_value = 0;
+  }
+"#,
+            r#"  instance x_lower_condition: fluid.NormalVelocityInlet2d(
+    support body = body,
+    support face = x_lower,
+    field speed = inlet_speed
+  );"#,
+        ),
+    };
     let (outlet_field, outlet_instance) = match outlet {
         Outlet::NoSlip => (
             "",
@@ -339,10 +396,8 @@ fn root_source(curated: bool, outlet: Outlet) -> String {
   relation force_definition continuous on body {{
     force_potential - zero_pressure = 0;
   }}
-{outlet_field}{governing}
-  instance x_lower_condition: fluid.NoSlip2d(
-    support body = body, support face = x_lower
-  );
+{inlet_field}{outlet_field}{governing}
+{inlet_instance}
 {outlet_instance}
   instance y_lower_condition: fluid.NoSlip2d(
     support body = body, support face = y_lower

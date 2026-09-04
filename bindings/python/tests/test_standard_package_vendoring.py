@@ -18,10 +18,15 @@ FLUID_MODEL = """model Main {
   field velocity on body as space: m / s shape spatial_vector;
   field pressure on body as space: kg / (m * s ^ 2) = 0;
   field force_potential on body as space: kg / (m * s ^ 2) = 0;
+  field inlet_speed on body as space: m / s = 0;
   parameter dynamic_viscosity: kg / (m * s) = 2;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
+  parameter inlet_speed_value: m / s = 1;
   relation force_definition continuous on body {
     force_potential - zero_pressure = 0;
+  }
+  relation inlet_speed_definition continuous on body {
+    inlet_speed - inlet_speed_value = 0;
   }
   instance governing: fluid.SteadyStokes2d(
     support body = body,
@@ -31,8 +36,10 @@ FLUID_MODEL = """model Main {
     field force_potential = force_potential,
     dynamic_viscosity = dynamic_viscosity
   );
-  instance x_lower_condition: fluid.NoSlip2d(
-    support body = body, support face = x_lower
+  instance x_lower_condition: fluid.NormalVelocityInlet2d(
+    support body = body,
+    support face = x_lower,
+    field speed = inlet_speed
   );
   instance x_upper_condition: fluid.NoSlip2d(
     support body = body, support face = x_upper
@@ -83,7 +90,7 @@ def write_fluid_application(root: Path, fluid: eqiora.VendoredStandardPackage) -
 
 
 def test_vendored_standard_fluid_resolves_and_compiles_offline(tmp_path: Path) -> None:
-    packages = eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.1.0")
+    packages = eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.2.0")
     assert [package.name for package in packages] == [
         "Eqiora.Mechanics.Interfaces",
         "Eqiora.Fluid",
@@ -91,8 +98,8 @@ def test_vendored_standard_fluid_resolves_and_compiles_offline(tmp_path: Path) -
     mechanics, fluid = packages
     assert len(fluid.semantic_digest) == 64
     assert len(fluid.source_digest) == 64
-    assert fluid.path == "packages/Eqiora.Fluid/0.1.0"
-    assert eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.1.0") == packages
+    assert fluid.path == "packages/Eqiora.Fluid/0.2.0"
+    assert eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.2.0") == packages
 
     write_fluid_application(tmp_path, fluid)
     (tmp_path / "eqiora.toml").write_text(
@@ -123,14 +130,12 @@ path = "{mechanics.path}"
 def test_standard_vendoring_rejects_changed_or_escaping_destinations(
     tmp_path: Path,
 ) -> None:
-    (mechanics, fluid) = eqiora.vendor_standard_package(
-        tmp_path, "Eqiora.Fluid@0.1.0"
-    )
+    (mechanics, fluid) = eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.2.0")
     fluid_source = tmp_path / fluid.path / "src/fluid.eqi"
     fluid_source.write_text("changed", encoding="utf-8")
 
     with pytest.raises(eqiora.CompatibilityError, match="different bytes"):
-        eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.1.0")
+        eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.2.0")
     assert fluid_source.read_text(encoding="utf-8") == "changed"
     assert (tmp_path / mechanics.path / "src/interfaces.eqi").is_file()
 
