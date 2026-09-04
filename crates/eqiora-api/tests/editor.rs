@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use eqiora_api::editor::{
     EditorPosition, EditorService, EditorSymbolKind, EditorWorkspaceSnapshot,
 };
@@ -122,6 +124,37 @@ fn service_rejects_stale_and_unknown_versions_without_mutation() {
     assert!(service.snapshot(4).is_err());
     assert!(service.snapshot(6).is_err());
     assert_eq!(service.snapshot(5).unwrap().symbols()[0].name(), "Five");
+}
+
+#[test]
+fn workspace_cancellation_publishes_no_partial_snapshot() {
+    let owner = CompilationNamespaceId::new(["editor-cancel"]).expect("namespace");
+    let polls = Cell::new(0_u8);
+    let cancelled = EditorWorkspaceSnapshot::analyze_modules_with_cancellation(
+        9,
+        ResolvedHierarchyInput::new(
+            owner.clone(),
+            vec![
+                ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", "model Main {}"),
+                ResolvedSourceUnit::in_module(
+                    owner,
+                    ["broken"],
+                    "src/broken.eqi",
+                    "not valid source",
+                )
+                .expect("module input"),
+            ],
+            vec![],
+        ),
+        || {
+            let next = polls.get() + 1;
+            polls.set(next);
+            next == 6
+        },
+    )
+    .expect("cancellation is not a diagnostic");
+    assert!(cancelled.is_none());
+    assert_eq!(polls.get(), 6);
 }
 
 #[test]

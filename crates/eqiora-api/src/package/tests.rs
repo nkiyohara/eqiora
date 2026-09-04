@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use super::*;
 use eqiora_artifact::{ArtifactDigest, RunManifestV1};
 use eqiora_geometry::CanonicalGeometryV1;
@@ -182,6 +184,22 @@ fn editor_workspace_replays_exact_locked_dependency_sources() {
 
     let workspace = crate::editor::EditorWorkspaceSnapshot::analyze_locked(23, &store, &resolution)
         .expect("locked editor workspace");
+    let polls = Cell::new(0_u8);
+    assert!(
+        crate::editor::EditorWorkspaceSnapshot::analyze_locked_with_cancellation(
+            24,
+            &store,
+            &resolution,
+            || {
+                let next = polls.get() + 1;
+                polls.set(next);
+                next == 2
+            },
+        )
+        .expect("cancellation is not a package error")
+        .is_none()
+    );
+    assert_eq!(polls.get(), 2);
     assert_eq!(workspace.version(), 23);
     assert_eq!(workspace.definitions().len(), 2);
     let resistor = workspace

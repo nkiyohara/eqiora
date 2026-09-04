@@ -1,4 +1,6 @@
 mod additional_tests;
+use std::cell::Cell;
+
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 
 use super::*;
@@ -35,6 +37,37 @@ public component Resistor {
   relation law continuous { resistance - 2 = 0; }
 }
 "#;
+
+#[test]
+fn resolved_analysis_cancellation_publishes_no_partial_result() {
+    let owner = namespace("org.example.cancelled");
+    let immediately = ResolvedHierarchyInput::new(
+        owner.clone(),
+        vec![unit(&owner, "src/main.eqi", "model Main {}")],
+        vec![],
+    )
+    .analyze_with_cancellation(|| true)
+    .expect("cancellation is not a diagnostic");
+    assert!(immediately.is_none());
+
+    let polls = Cell::new(0_u8);
+    let between_sources = ResolvedHierarchyInput::new(
+        owner.clone(),
+        vec![
+            unit(&owner, "src/main.eqi", "model Main {}"),
+            module_unit(&owner, "broken", "src/broken.eqi", "not valid source"),
+        ],
+        vec![],
+    )
+    .analyze_with_cancellation(|| {
+        let next = polls.get() + 1;
+        polls.set(next);
+        next == 3
+    })
+    .expect("cancellation suppresses incomplete diagnostics");
+    assert!(between_sources.is_none());
+    assert_eq!(polls.get(), 3);
+}
 
 #[test]
 fn module_labels_preserve_implicit_main_and_name_explicit_modules() {
