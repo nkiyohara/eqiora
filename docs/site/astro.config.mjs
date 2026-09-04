@@ -12,7 +12,7 @@ import { katexMathPlugin } from './src/plugins/katex.ts';
 
 const SOURCE_SHA = /^[0-9a-f]{40}$/;
 const eqioraLanguage = JSON.parse(
-  readFileSync(fileURLToPath(new URL('./src/syntaxes/eqiora.tmLanguage.json', import.meta.url)), 'utf8'),
+  readFileSync(fileURLToPath(new URL('../../editor/eqiora/syntaxes/eqiora.tmLanguage.json', import.meta.url)), 'utf8'),
 );
 
 function outputDirectory() {

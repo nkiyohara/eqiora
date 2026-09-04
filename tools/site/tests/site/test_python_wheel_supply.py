@@ -12,7 +12,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from fixture import _write_rustc_preflight_double
+from fixture import _write_rustc_preflight_double, copy_editor_check_inputs
 
 
 REPOSITORY = Path(__file__).resolve().parents[4]
@@ -560,6 +560,7 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
             source / "Cargo.toml",
             '[workspace]\nmembers = []\n[workspace.package]\nversion = "0.1.0-alpha.1"\n',
         )
+        copy_editor_check_inputs(source)
         self._copy_exact_toolchain(source)
         shutil.copy2(REPOSITORY / "AGENTS.md", source / "AGENTS.md")
         (source / "CLAUDE.md").symlink_to("AGENTS.md")

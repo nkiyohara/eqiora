@@ -16,6 +16,24 @@ from typing import Mapping, Sequence
 
 SOURCE_SHA = "a" * 40
 REPOSITORY = Path(__file__).resolve().parents[4]
+EDITOR_CHECK_INPUTS = (
+    "crates/eqiora-lang/src/parser.rs",
+    "crates/eqiora-lang/src/parser/compile_time.rs",
+    "crates/eqiora-lang/src/parser/document.rs",
+    "crates/eqiora-lang/src/parser/domain.rs",
+    "crates/eqiora-lang/src/parser/formulation.rs",
+    "crates/eqiora-lang/src/parser/instance.rs",
+    "crates/eqiora-lang/src/parser/property.rs",
+    "crates/eqiora-lang/src/parser/relation.rs",
+    "docs/site/astro.config.mjs",
+    "editor/eqiora/README.md",
+    "editor/eqiora/bundle.json",
+    "editor/eqiora/language-configuration.json",
+    "editor/eqiora/snippets/eqiora.json",
+    "editor/eqiora/syntaxes/eqiora.tmLanguage.json",
+    "tools/editor/check_syntax_bundle.py",
+    "tools/editor/tests/test_syntax_bundle.py",
+)
 PRESSURE_ALT = (
     "Pressure in pascals for a 2D steady-Stokes exact-cylinder demonstration, "
     "shown with a viridis color scale and its current Gmsh mesh overlaid. "
@@ -105,6 +123,16 @@ SITE_ROUTES = (
     "/textbooks/structural-mechanics-fem/",
     "/404.html",
 )
+
+
+def copy_editor_check_inputs(destination: Path) -> None:
+    for relative in EDITOR_CHECK_INPUTS:
+        source = REPOSITORY / relative
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+
+
 GIT_OBJECT_REPOSITORY_VARIABLE = "EQIORA_SITE_GIT_OBJECT_REPOSITORY"
 SOURCE_SHA_VARIABLE = "EQIORA_SITE_SOURCE_SHA"
 GIT_TIMEOUT_SECONDS = 30

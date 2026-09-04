@@ -1,0 +1,10 @@
+{
+  "schema": "eqiora.editor-syntax-bundle.v1",
+  "bundleVersion": "0.1.0",
+  "languageVersion": "0",
+  "languageId": "eqiora",
+  "extensions": [".eqi"],
+  "grammar": "syntaxes/eqiora.tmLanguage.json",
+  "configuration": "language-configuration.json",
+  "snippets": "snippets/eqiora.json"
+}

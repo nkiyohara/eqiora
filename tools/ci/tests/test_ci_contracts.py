@@ -1148,7 +1148,9 @@ class ChangeClassificationTests(unittest.TestCase):
             "crates/eqiora/src/lib.rs",
             "bindings/python/python/eqiora/fluid.pyi",
             "docs/site/src/content/docs/index.mdx",
+            "editor/eqiora/syntaxes/eqiora.tmLanguage.json",
             "tools/docs/generate_python_api.py",
+            "tools/editor/check_syntax_bundle.py",
             "tools/xtask/src/main.rs",
             "verify/fluid/example/case.toml",
         )
@@ -1165,6 +1167,17 @@ class ChangeClassificationTests(unittest.TestCase):
         for path in irrelevant:
             with self.subTest(path=path):
                 self.assertFalse(classify([path])["site"])
+
+        editor = impact_plan(
+            [
+                "editor/eqiora/bundle.json",
+                "tools/editor/check_syntax_bundle.py",
+            ]
+        )
+        self.assertTrue(editor.lane("site").selected)
+        for lane in SURFACES:
+            with self.subTest(editor_lane=lane):
+                self.assertFalse(editor.lane(lane).selected)
 
     def test_numerics_change_selects_rust_and_msrv_only(self) -> None:
         selected = classify(["crates/eqiora-numerics/src/lib.rs"])
