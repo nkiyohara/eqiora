@@ -8,7 +8,8 @@ must be reviewed together before this specification is complete. Delivered behav
 indexed in the [capability matrix](../capability-matrix.md).
 
 Specimens: [resistor divider](divider.md), [heated body](heated-body.md),
-[sampled state](sampled-state.md), [data-backed property](data-backed-property.md).
+[sampled state](sampled-state.md), [data-backed property](data-backed-property.md),
+[finite-state mathematics](finite-state.md).
 
 ## Source and modules
 
@@ -142,11 +143,10 @@ an array contains a checked element type and exact static extent. Spatial frame 
 may be inferred only from a unique exact support contract. Without that context a frame
 requirement must be supplied explicitly; an extent alone cannot select a frame.
 
-Finite component spaces and maps have nominal declared basis identities under
+Finite component spaces and maps use the [finite-space grammar](finite-spaces.md) under
 [#915](https://github.com/nkiyohara/eqiora/issues/915). They are distinct from both arrays and
-spatial vectors. Their declaration and constructor spelling will be settled with the complete
-finite-state specimen in this specification. Equal size does not permit substitution between
-two bases, between bases and spatial frames, or between a basis and a coordinate domain.
+spatial vectors. Equal size does not permit substitution between two bases, between bases
+and spatial frames, or between a basis and a coordinate domain.
 
 Array indexes are zero-based exact integers. An extent is a positive static integer; zero-sized
 arrays are rejected. Indexing preserves element type and does not choose a component basis or
