@@ -340,7 +340,7 @@ fn stdio_discards_superseded_workspace_analysis() {
 }
 
 #[test]
-fn stdio_cancels_an_editor_request_waiting_for_analysis() {
+fn stdio_answers_once_when_cancellation_races_with_analysis() {
     let uri = "file:///workspace/request-cancellation.eqi";
     let mut child = Command::new(SERVER)
         .stdin(Stdio::piped())
@@ -370,11 +370,18 @@ fn stdio_cancels_an_editor_request_waiting_for_analysis() {
         String::from_utf8_lossy(&output.stderr)
     );
     let messages = parse_packets(&output.stdout);
-    assert_eq!(response(&messages, 2)["error"]["code"], -32800);
-    assert_eq!(
-        response(&messages, 2)["error"]["message"],
-        "canceled by client"
-    );
+    // Stdio delivery and analysis run independently: a completed response may win.
+    // The pending-analysis cancellation path is exercised deterministically in protocol tests.
+    let answer = response(&messages, 2);
+    if answer.get("error").is_some() {
+        assert_eq!(answer["error"]["code"], -32800);
+        assert_eq!(answer["error"]["message"], "canceled by client");
+        assert!(answer.get("result").is_none());
+    } else {
+        let symbols = answer["result"].as_array().expect("completed symbols");
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0]["name"], "Cancelled");
+    }
     assert_eq!(
         messages
             .iter()
