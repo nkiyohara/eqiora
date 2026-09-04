@@ -6,7 +6,7 @@ use eqiora_compiler::{
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{ComponentItem, Document, Item, TextRange, format, parse};
+use eqiora_lang::{ComponentItem, Document, Item, TextRange, Token, TokenKind, format, lex, parse};
 
 const MAX_EDITOR_SOURCE_BYTES: usize = 16 * 1024 * 1024;
 
@@ -308,6 +308,7 @@ pub struct EditorDefinition {
     kind: EditorSymbolKind,
     file: String,
     range: TextRange,
+    name_range: Option<TextRange>,
 }
 
 /// One compiler-resolved source reference and its canonical definition.
@@ -420,15 +421,17 @@ impl EditorWorkspaceSnapshot {
     ) -> Self {
         let resolved_sources = analyzed.resolved_source_files().collect::<Vec<_>>();
         debug_assert_eq!(sources.len(), resolved_sources.len());
-
-        let documents = sources
-            .into_iter()
-            .zip(resolved_sources)
+        let tokens_by_file = sources
+            .iter()
+            .zip(&resolved_sources)
             .map(|((_file, source), resolved_file)| {
-                let snapshot = EditorSnapshot::from_resolved_source(version, resolved_file, source);
-                (resolved_file.to_owned(), snapshot)
+                (
+                    (*resolved_file).to_owned(),
+                    lex(*resolved_file, source).tokens().to_vec(),
+                )
             })
-            .collect();
+            .collect::<std::collections::BTreeMap<_, _>>();
+
         let definitions = analyzed
             .resolved_declarations()
             .filter_map(|(identity, resolved_file, range)| {
@@ -438,6 +441,12 @@ impl EditorWorkspaceSnapshot {
                     kind: canonical_symbol_kind(identity.kind())?,
                     file: resolved_file.to_owned(),
                     range,
+                    name_range: declaration_name_range(
+                        &tokens_by_file,
+                        resolved_file,
+                        range,
+                        identity.path(),
+                    ),
                 })
             })
             .collect::<Vec<_>>();
@@ -453,8 +462,22 @@ impl EditorWorkspaceSnapshot {
                         kind: canonical_symbol_kind(target.kind())?,
                         file: definition_file.to_owned(),
                         range: definition_range,
+                        name_range: declaration_name_range(
+                            &tokens_by_file,
+                            definition_file,
+                            definition_range,
+                            target.path(),
+                        ),
                     },
                 })
+            })
+            .collect();
+        let documents = sources
+            .into_iter()
+            .zip(resolved_sources)
+            .map(|((_file, source), resolved_file)| {
+                let snapshot = EditorSnapshot::from_resolved_source(version, resolved_file, source);
+                (resolved_file.to_owned(), snapshot)
             })
             .collect();
         Self {
@@ -511,6 +534,44 @@ impl EditorWorkspaceSnapshot {
             .then_some(&reference.definition)
         })
     }
+
+    /// Return compiler-owned declaration detail for a definition or reference
+    /// covering one exact UTF-8 byte offset.
+    #[must_use]
+    pub fn hover(&self, file: &str, byte_offset: u32) -> Option<(&EditorDefinition, &str)> {
+        let definition = self
+            .definition_for_reference(file, byte_offset)
+            .or_else(|| {
+                self.definitions.iter().find(|definition| {
+                    definition.file == file
+                        && definition.name_range.is_some_and(|range| {
+                            range.start() <= byte_offset && byte_offset < range.end()
+                        })
+                })
+            })?;
+        let document = self.document(definition.file())?;
+        let text = document.source.get(
+            usize::try_from(definition.range().start()).ok()?
+                ..usize::try_from(definition.range().end()).ok()?,
+        )?;
+        Some((definition, text))
+    }
+}
+
+fn declaration_name_range(
+    tokens: &std::collections::BTreeMap<String, Vec<Token>>,
+    file: &str,
+    declaration: TextRange,
+    path: &str,
+) -> Option<TextRange> {
+    let name = path.rsplit('.').next()?;
+    tokens.get(file)?.iter().find_map(|token| {
+        (token.kind() == TokenKind::Identifier
+            && token.text() == name
+            && declaration.start() <= token.range().start()
+            && token.range().end() <= declaration.end())
+        .then_some(token.range())
+    })
 }
 
 const fn canonical_symbol_kind(kind: CanonicalDeclarationKind) -> Option<EditorSymbolKind> {

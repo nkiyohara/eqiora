@@ -198,6 +198,11 @@ fn editor_workspace_replays_exact_locked_dependency_sources() {
     let reference = workspace.references().first().expect("component reference");
     assert_eq!(reference.definition(), resistor);
     assert_eq!(reference.range().end() - reference.range().start(), 16);
+    let (hovered, detail) = workspace
+        .hover(reference.file(), reference.range().start() + 8)
+        .expect("locked dependency hover");
+    assert_eq!(hovered, resistor);
+    assert_eq!(detail, "public component Resistor {}");
 }
 
 #[test]
