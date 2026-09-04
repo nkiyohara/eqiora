@@ -23,5 +23,5 @@ the library does not promise an implicit copy or device transfer.
 
 The
 [repository Python guide](https://github.com/nkiyohara/eqiora/blob/main/docs/python/README.md)
-is the detailed source of truth. The [capability matrix](../capabilities.md)
-remains authoritative for scope and nonclaims.
+has the complete API examples. The [capability matrix](../capabilities.md)
+summarizes supported workflows and their maturity.

@@ -137,13 +137,9 @@ The repository's verified cases include bounded paths for:
 - CPU, MPI, and CUDA execution contracts;
 - Python modeling, arrays, differentiation, and framework adapters.
 
-Those bullets are navigation categories, not blanket support claims. Choose a
-case from the [evidence catalog](evidence/index.md), then read its manifest and
-README for its exact claim and nonclaims.
-
-The Poisson example above is orientation, not evidence. It establishes nothing
-about accuracy, performance, or support for any other problem. The registered
-counterparts with claims and falsifiers are
+Choose a verified case from the [evidence catalog](evidence/index.md) for its
+supported inputs and acceptance results. For the Poisson and package workflows
+shown above, see
 [`numerics.compiled-cartesian-poisson-q1-2d`](https://github.com/nkiyohara/eqiora/blob/main/verify/numerics/compiled-cartesian-poisson-q1-2d/README.md)
 and
 [`packages.typed-execution-lineage`](https://github.com/nkiyohara/eqiora/blob/main/verify/packages/typed-execution-lineage/README.md).

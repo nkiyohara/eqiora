@@ -11,6 +11,6 @@ the optional JAX adapter uses typed native CPU FFI for primal, JVP, and VJP.
 Base `import eqiora` imports neither framework, and no device transfer is
 hidden.
 
-Read the maintained
-[differentiation contract](https://github.com/nkiyohara/eqiora/blob/main/docs/python/differentiation.md)
-for exact versions, examples, transformations, and explicit nonclaims.
+The maintained
+[differentiation guide](https://github.com/nkiyohara/eqiora/blob/main/docs/python/differentiation.md)
+lists supported versions, transformations, and complete examples.

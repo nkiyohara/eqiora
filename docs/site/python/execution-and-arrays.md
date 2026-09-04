@@ -12,6 +12,6 @@ independent writable allocation. DLPack exports are explicit CPU snapshots,
 not aliases of immutable evidence.
 
 Failures cross the Python boundary as typed `EqioraError` subclasses with
-stable categories and structured diagnostics. Read the maintained
-[execution and array contract](https://github.com/nkiyohara/eqiora/blob/main/docs/python/execution-and-arrays.md)
-for exact states, ownership, cancellation behavior, and nonclaims.
+stable categories and structured diagnostics. The maintained
+[execution and array guide](https://github.com/nkiyohara/eqiora/blob/main/docs/python/execution-and-arrays.md)
+has complete lifecycle, ownership, cancellation, NumPy, and DLPack details.

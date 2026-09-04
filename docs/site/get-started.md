@@ -63,10 +63,10 @@ an impossible zero-copy request into a hidden copy.
 - [Python guide](python/index.md) covers spatial modeling, structured diagnostics,
   asynchronous runs, cancellation, and framework adapters.
 - [Concepts](concepts.md) explains relations, realizations, and evidence.
-- [Examples](examples.md) separates readable orientation from capability
-  proof.
-- [Capabilities](capabilities.md) states the exact supported boundary and
-  nonclaims.
+- [Examples](examples.md) walks through runnable workflows and links their
+  verified counterparts.
+- [Capabilities](capabilities.md) summarizes current problem classes and
+  maturity.
 
 Rust users can run the small public-facade orientation examples from a source
 checkout:
