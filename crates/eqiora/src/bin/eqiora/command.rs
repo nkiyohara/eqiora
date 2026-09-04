@@ -95,7 +95,10 @@ impl CommandError {
             #[cfg(feature = "package-filesystem")]
             Self::Package(message) => OracleOutcome::stderr(
                 1,
-                format!("eqiora: package operation rejected: {message}\n").into_bytes(),
+                terminal::render_package_error(&message).unwrap_or_else(|| {
+                    b"eqiora: package operation rejected; error exceeds terminal output limit\n"
+                        .to_vec()
+                }),
             ),
         }
     }

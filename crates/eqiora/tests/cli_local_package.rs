@@ -71,6 +71,22 @@ fn cli_locks_and_checks_the_same_local_package_project_offline() {
     assert!(lock.stdout.starts_with(b"locked "));
     let accepted_lock = fs::read(project.join("eqiora.lock")).expect("read accepted lock");
 
+    let hostile = Command::new(env!("CARGO_BIN_EXE_eqiora"))
+        .args(["package", "add"])
+        .arg(&project)
+        .arg("org.example.\u{1b}[31m")
+        .args(["--version", "1.0.0", "--path", "../dependency", "--store"])
+        .arg(&store)
+        .output()
+        .unwrap();
+    assert!(!hostile.status.success());
+    assert!(!hostile.stderr.contains(&0x1b));
+    assert!(String::from_utf8_lossy(&hostile.stderr).contains("\\u{1b}"));
+    assert_eq!(
+        fs::read(project.join("eqiora.lock")).unwrap(),
+        accepted_lock
+    );
+
     let remove = Command::new(env!("CARGO_BIN_EXE_eqiora"))
         .args(["package", "remove"])
         .arg(&project)

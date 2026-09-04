@@ -58,6 +58,26 @@ fn append_escaped(output: &mut Vec<u8>, value: &str) -> Option<()> {
     Some(())
 }
 
+#[cfg(feature = "package-filesystem")]
+pub(crate) fn render_package_error(message: &str) -> Option<Vec<u8>> {
+    let mut output = Vec::new();
+    append(&mut output, b"eqiora: package operation rejected: ")?;
+    append_escaped(&mut output, message)?;
+    append(&mut output, b"\n")?;
+    Some(output)
+}
+
+#[cfg(all(test, feature = "package-filesystem"))]
+#[test]
+fn package_errors_escape_terminal_controls_and_obey_the_output_limit() {
+    assert_eq!(
+        render_package_error("bad\u{1b}[31m\npath").unwrap(),
+        b"eqiora: package operation rejected: bad\\u{1b}[31m\\u{a}path\n"
+    );
+    assert!(render_package_error(&"x".repeat(TERMINAL_LIMIT_BYTES)).is_none());
+    assert!(render_package_error(&"\u{1b}".repeat(TERMINAL_LIMIT_BYTES / 2)).is_none());
+}
+
 pub(crate) fn severity_label(severity: Severity) -> &'static str {
     match severity {
         Severity::Error => "error",
