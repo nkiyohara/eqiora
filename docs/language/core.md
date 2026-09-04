@@ -14,6 +14,7 @@ Specimens: [resistor divider](divider.md), [heated body](heated-body.md),
 The [calculus and branching rules](calculus.md) include the foundation audit's explicit
 partials, continuous time, second-order oscillator, and piecewise constitutive examples.
 The [coordinate and measure rules](coordinates.md) specify product supports and partial integrals.
+The [tensor and local-map rules](tensors.md) include the rank-four constitutive specimen.
 
 ## Source and modules
 
