@@ -156,6 +156,9 @@ pub struct EditorSnapshot {
 }
 
 impl EditorSnapshot {
+    /// Maximum UTF-8 source bytes analyzed for one editor document.
+    pub const MAX_SOURCE_BYTES: usize = MAX_EDITOR_SOURCE_BYTES;
+
     fn analyze(file: &str, version: u64, source: String) -> Self {
         if source.len() > MAX_EDITOR_SOURCE_BYTES {
             return Self {

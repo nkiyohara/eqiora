@@ -100,6 +100,11 @@ tool over newline-delimited stdio and returns either structured compiler
 diagnostics or the current Model descriptor and comparison fingerprint. Python
 is the primary execution API; Studio consumes the same Rust-owned model semantics.
 
+The `eqiora-language-server` preview connects the compiler-owned editor service
+to any LSP client over stdio. It currently provides full-document synchronization,
+diagnostics, formatting, outline and folding symbols, Markdown hover, and
+same-file definition navigation. See the [language-server setup](docs/language-server.md).
+
 ## One model, two layers
 
 Eqiora treats block diagrams, state charts, PDEs, and acausal physical

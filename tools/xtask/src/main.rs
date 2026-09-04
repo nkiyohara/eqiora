@@ -240,6 +240,7 @@ const LAYER_DECLARATIONS: &[(&str, u8)] = &[
     ("eqiora-artifact", 3),
     ("eqiora-verify", 4),
     ("eqiora-api", 4),
+    ("eqiora-language-server", 4),
     ("eqiora-python", 4),
 ];
 

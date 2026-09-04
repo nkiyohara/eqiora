@@ -74,6 +74,8 @@ diffsol = { version = "=0.16.2", default-features = false, features = ["nalgebra
 # not an incidental consequence of the workspace MSRV decision.
 cudarc = { version = "=0.18.2", default-features = false, features = ["std", "driver", "cuda-12000", "dynamic-loading"] }
 libloading = "=0.8.9"
+lsp-server = "=0.10.0"
+lsp-types = "=0.97.0"
 # Rust parser for the `cargo xtask check-architecture` predicates, consumed
 # only by `xtask` (`publish = false`), so it never reaches a published crate.
 # A public API surface cannot be counted soundly by regular expression: `pub`
