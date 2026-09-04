@@ -1,4 +1,5 @@
 mod protocol;
+mod workspace_uri;
 
 use std::{
     error::Error,

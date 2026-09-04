@@ -34,4 +34,6 @@ module graph. When that folder contains `eqiora.toml`, the server loads its exac
 local package graph from disk, including unopened sources, without writing a lock
 or package store. Open model sources override their disk content until they are
 closed, so hover and definition navigation stay current after full-document
-changes. Partial edits and asynchronous cancellation are planned next.
+changes. Workspace analysis runs on one background worker, coalesces pending
+edits, and prevents superseded results from publishing diagnostics. Partial edits
+are planned next.

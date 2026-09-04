@@ -969,6 +969,7 @@ dependencies = [
 name = "eqiora-language-server"
 version = "0.1.0-alpha.7"
 dependencies = [
+ "crossbeam-channel",
  "eqiora",
  "lsp-server",
  "lsp-types",

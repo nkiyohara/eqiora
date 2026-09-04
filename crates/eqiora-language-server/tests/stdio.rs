@@ -123,6 +123,7 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
         json!({"jsonrpc":"2.0","id":8,"method":"textDocument/formatting","params":{"textDocument":42}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":42}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":-1},"contentChanges":[{"text":"model Broken { nonsense; }\n"}]}}),
+        json!({"jsonrpc":"2.0","id":9,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":-2},"contentChanges":[{"text":source}]}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":0},"contentChanges":[{"text":source}]}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didClose","params":{"textDocument":{"uri":uri}}}),
@@ -202,7 +203,7 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
         .filter(|message| message["method"] == "textDocument/publishDiagnostics")
         .map(|message| &message["params"])
         .collect::<Vec<_>>();
-    assert_eq!(diagnostics.len(), 4);
+    assert_eq!(diagnostics.len(), 3);
     assert_eq!(diagnostics[0]["version"], -3);
     assert_eq!(diagnostics[0]["diagnostics"], json!([]));
     assert_eq!(diagnostics[1]["version"], -1);
@@ -212,14 +213,12 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
             .expect("malformed diagnostics")
             .is_empty()
     );
-    assert_eq!(diagnostics[2]["version"], 0);
+    assert!(diagnostics[2]["version"].is_null());
     assert_eq!(diagnostics[2]["diagnostics"], json!([]));
-    assert!(diagnostics[3]["version"].is_null());
-    assert_eq!(diagnostics[3]["diagnostics"], json!([]));
     assert!(
         messages
             .iter()
-            .all(|message| message["params"]["version"] != -2)
+            .all(|message| !matches!(message["params"]["version"].as_i64(), Some(-2 | 0)))
     );
     assert!(response(&messages, 7)["result"].is_null());
     assert_eq!(response(&messages, 8)["error"]["code"], -32602);
@@ -284,6 +283,50 @@ fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
     assert!(hover.contains("// unsaved workspace edit"));
     assert_eq!(response(&messages, 4)["result"]["uri"], library_uri);
     assert!(response(&messages, 5)["result"].is_null());
+}
+
+#[test]
+fn stdio_discards_superseded_workspace_analysis() {
+    let uri = "file:///workspace/cancelled.eqi";
+    let valid = "model Current {}\n";
+    let mut child = Command::new(SERVER)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn language server");
+    let messages = [
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":1,"text":valid}}}),
+        json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":2},"contentChanges":[{"text":"model Superseded { nonsense; }\n"}]}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":3},"contentChanges":[{"text":valid}]}}),
+        json!({"jsonrpc":"2.0","id":3,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}}),
+        json!({"jsonrpc":"2.0","id":4,"method":"shutdown","params":null}),
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    ];
+    let mut stdin = child.stdin.take().expect("language server stdin");
+    for message in messages {
+        write_packet(&mut stdin, &message);
+    }
+    drop(stdin);
+
+    let output = child.wait_with_output().expect("language server output");
+    assert!(
+        output.status.success(),
+        "language server failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let messages = parse_packets(&output.stdout);
+    let diagnostics = messages
+        .iter()
+        .filter(|message| message["method"] == "textDocument/publishDiagnostics")
+        .map(|message| message["params"]["version"].as_i64())
+        .collect::<Vec<_>>();
+    assert_eq!(diagnostics, vec![Some(1), Some(3)]);
+    assert_eq!(response(&messages, 3)["result"][0]["name"], "Current");
+    assert!(response(&messages, 4)["result"].is_null());
 }
 
 #[test]
