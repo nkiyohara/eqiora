@@ -90,7 +90,7 @@ def write_fluid_application(root: Path, fluid: eqiora.VendoredStandardPackage) -
 
 
 def test_vendored_standard_fluid_resolves_and_compiles_offline(tmp_path: Path) -> None:
-    packages = eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.2.0")
+    packages = eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.3.0")
     assert [package.name for package in packages] == [
         "Eqiora.Mechanics.Interfaces",
         "Eqiora.Fluid",
@@ -98,8 +98,8 @@ def test_vendored_standard_fluid_resolves_and_compiles_offline(tmp_path: Path) -
     mechanics, fluid = packages
     assert len(fluid.semantic_digest) == 64
     assert len(fluid.source_digest) == 64
-    assert fluid.path == "packages/Eqiora.Fluid/0.2.0"
-    assert eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.2.0") == packages
+    assert fluid.path == "packages/Eqiora.Fluid/0.3.0"
+    assert eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.3.0") == packages
 
     write_fluid_application(tmp_path, fluid)
     (tmp_path / "eqiora.toml").write_text(
@@ -130,26 +130,26 @@ path = "{mechanics.path}"
 def test_standard_vendoring_rejects_changed_or_escaping_destinations(
     tmp_path: Path,
 ) -> None:
-    (mechanics, fluid) = eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.2.0")
+    (mechanics, fluid) = eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.3.0")
     fluid_source = tmp_path / fluid.path / "src/fluid.eqi"
     fluid_source.write_text("changed", encoding="utf-8")
 
     with pytest.raises(eqiora.CompatibilityError, match="different bytes"):
-        eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.2.0")
+        eqiora.vendor_standard_package(tmp_path, "Eqiora.Fluid@0.3.0")
     assert fluid_source.read_text(encoding="utf-8") == "changed"
     assert (tmp_path / mechanics.path / "src/interfaces.eqi").is_file()
 
     with pytest.raises(eqiora.CompatibilityError, match="destination is invalid"):
         eqiora.vendor_standard_package(
             tmp_path,
-            "Eqiora.Solid@0.2.0",
+            "Eqiora.Solid@0.3.0",
             destination="../outside",
         )
     assert not (tmp_path.parent / "outside").exists()
 
 
 def test_standard_solid_is_available_from_the_same_distribution(tmp_path: Path) -> None:
-    (solid,) = eqiora.vendor_standard_package(tmp_path, "Eqiora.Solid@0.2.0")
+    (solid,) = eqiora.vendor_standard_package(tmp_path, "Eqiora.Solid@0.3.0")
     assert solid.name == "Eqiora.Solid"
-    assert solid.version == "0.2.0"
+    assert solid.version == "0.3.0"
     assert (tmp_path / solid.path / "src/solid.eqi").is_file()

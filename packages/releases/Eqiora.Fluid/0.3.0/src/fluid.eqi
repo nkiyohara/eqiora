@@ -1,0 +1,140 @@
+public component SteadyNewtonianBalance2d {
+  public support body: volume(ambient_dimension = 2);
+  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot pressure on body as continuum: kg / (m * s ^ 2);
+  public field slot force_potential on body as continuum: kg / (m * s ^ 2);
+  public parameter dynamic_viscosity: kg / (m * s);
+
+  relation momentum continuous on body {
+    -div(
+      2 * dynamic_viscosity * symmetric_part(grad(velocity))
+      - isotropic_lift(pressure)
+    ) - grad(force_potential) = 0;
+  }
+  relation incompressibility continuous on body {
+    div(velocity) = 0;
+  }
+}
+
+public component VelocityTractionInterface2d {
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot pressure on body as continuum: kg / (m * s ^ 2);
+  public parameter dynamic_viscosity: kg / (m * s);
+
+  public port mechanical[boundary in exterior]:
+    conserving mechanics.VelocityTractionBoundary over boundary;
+
+  relation boundary_interface[boundary in exterior] continuous on boundary {
+    trace(velocity)
+      - trace(mechanical[boundary = boundary]) = 0;
+    normal(
+      2 * dynamic_viscosity * symmetric_part(grad(velocity))
+      - isotropic_lift(pressure)
+    ) - flux(mechanical[boundary = boundary]) = 0;
+  }
+}
+
+public component SteadyStokes2d {
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot pressure on body as continuum: kg / (m * s ^ 2);
+  public field slot force_potential on body as continuum: kg / (m * s ^ 2);
+  public parameter dynamic_viscosity: kg / (m * s);
+
+  public port mechanical[boundary in exterior]:
+    conserving mechanics.VelocityTractionBoundary over boundary;
+
+  instance balance: SteadyNewtonianBalance2d(
+    support body = body,
+    field velocity = velocity,
+    field pressure = pressure,
+    field force_potential = force_potential,
+    dynamic_viscosity = dynamic_viscosity
+  );
+  instance interface: VelocityTractionInterface2d(
+    support body = body,
+    support exterior = exterior,
+    field velocity = velocity,
+    field pressure = pressure,
+    dynamic_viscosity = dynamic_viscosity
+  );
+
+  connect conserving [boundary in exterior]
+    mechanical[boundary = boundary],
+    interface.mechanical[boundary = boundary];
+}
+
+public component NoSlip2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public port mechanical:
+    conserving mechanics.VelocityTractionBoundary over face;
+
+  relation prescribed_velocity continuous on face {
+    trace(mechanical) = 0;
+  }
+}
+
+public component TractionFree2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public port mechanical:
+    conserving mechanics.VelocityTractionBoundary over face;
+
+  relation prescribed_traction continuous on face {
+    flux(mechanical) = 0;
+  }
+}
+
+public component NormalPressureOutlet2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public field slot exterior_pressure on body as continuum: kg / (m * s ^ 2);
+  public port mechanical:
+    conserving mechanics.VelocityTractionBoundary over face;
+
+  relation prescribed_traction continuous on face {
+    flux(mechanical)
+      - normal(isotropic_lift(exterior_pressure)) = 0;
+  }
+}
+
+public component NormalVelocityInlet2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public field slot speed on body as continuum: m / s;
+  public port mechanical:
+    conserving mechanics.VelocityTractionBoundary over face;
+
+  relation prescribed_velocity continuous on face {
+    trace(mechanical) + normal(isotropic_lift(speed)) = 0;
+  }
+}
+
+public component PrescribedVelocity2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public port mechanical:
+    conserving mechanics.VelocityTractionBoundary over face;
+
+  relation prescribed_velocity continuous on face {
+    trace(mechanical) - trace(velocity) = 0;
+  }
+}
+
+public component PrescribedTraction2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public field slot traction on body as continuum:
+    kg / (m * s ^ 2) shape spatial_vector;
+  public port mechanical:
+    conserving mechanics.VelocityTractionBoundary over face;
+
+  relation prescribed_traction continuous on face {
+    flux(mechanical) - trace(traction) = 0;
+  }
+}

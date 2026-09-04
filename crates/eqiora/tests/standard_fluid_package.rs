@@ -19,13 +19,14 @@ use eqiora_numerics::{
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
 
-const VERSION: &str = "0.2.0";
+const VERSION: &str = "0.3.0";
 static NEXT_SCRATCH: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy)]
 enum Inlet {
     NoSlip,
     NormalVelocity,
+    PrescribedVelocity,
 }
 
 #[derive(Clone, Copy)]
@@ -33,6 +34,7 @@ enum Outlet {
     NoSlip,
     TractionFree,
     NormalPressure,
+    PrescribedTraction,
 }
 
 #[test]
@@ -139,6 +141,16 @@ fn standard_normal_velocity_inlet_retains_prescribed_trace_meaning() {
         PhysicalBoundaryDisposition::Prescribed(law)
             if law.quantity() == PhysicalBoundaryQuantity::Trace
     ));
+}
+
+#[test]
+fn standard_vector_boundary_data_compiles_through_the_ordinary_package_path() {
+    let (mechanics, fluid) = standard_releases();
+    compile_root(
+        &mechanics,
+        &fluid,
+        &root_source(true, Inlet::PrescribedVelocity, Outlet::PrescribedTraction),
+    );
 }
 
 #[test]
@@ -356,6 +368,23 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
     field speed = inlet_speed
   );"#,
         ),
+        Inlet::PrescribedVelocity => (
+            r#"  field inlet_potential on body as space: m ^ 2 / s = 0;
+  field inlet_velocity on body as space: m / s shape spatial_vector;
+  parameter inlet_speed: m / s = 1;
+  relation inlet_potential_definition continuous on body {
+    inlet_potential - inlet_speed * coordinate(0) = 0;
+  }
+  relation inlet_velocity_definition continuous on body {
+    inlet_velocity - grad(inlet_potential) = 0;
+  }
+"#,
+            r#"  instance x_lower_condition: fluid.PrescribedVelocity2d(
+    support body = body,
+    support face = x_lower,
+    field velocity = inlet_velocity
+  );"#,
+        ),
     };
     let (outlet_field, outlet_instance) = match outlet {
         Outlet::NoSlip => (
@@ -377,6 +406,24 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
     support body = body,
     support face = x_upper,
     field exterior_pressure = exterior_pressure
+  );"#,
+        ),
+        Outlet::PrescribedTraction => (
+            r#"  field traction_potential on body as space: kg / s ^ 2 = 0;
+  field outlet_traction on body as space:
+    kg / (m * s ^ 2) shape spatial_vector;
+  parameter outlet_stress: kg / (m * s ^ 2) = 2;
+  relation traction_potential_definition continuous on body {
+    traction_potential - outlet_stress * coordinate(0) = 0;
+  }
+  relation outlet_traction_definition continuous on body {
+    outlet_traction - grad(traction_potential) = 0;
+  }
+"#,
+            r#"  instance x_upper_condition: fluid.PrescribedTraction2d(
+    support body = body,
+    support face = x_upper,
+    field traction = outlet_traction
   );"#,
         ),
     };

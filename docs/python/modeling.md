@@ -146,7 +146,7 @@ package, including its exact dependency closure, into a project:
 ```python
 import eqiora
 
-packages = eqiora.vendor_standard_package(".", "Eqiora.Fluid@0.2.0")
+packages = eqiora.vendor_standard_package(".", "Eqiora.Fluid@0.3.0")
 fluid = next(package for package in packages if package.name == "Eqiora.Fluid")
 print(fluid.path, fluid.semantic_digest)
 ```
