@@ -1816,10 +1816,10 @@ phase progress, so its existing summary-only claim is unchanged.
 ## Dependency layers
 
 ```text
-L4  agent / verify / API
+L4  agent / verify / API / interface adapters
 L3  numerics / runtime / differentiation / backend adapters / coupling / hybrid / ML / artifacts
 L2  semantics / IR / compiler / codegen / geometry / meshing / assembly / spatial distribution / solver / time / realization / distributed algebra / device execution
-L1  graph / language / type checking / LSP
+L1  graph / language / type checking
 L0  core / schemas
 ```
 

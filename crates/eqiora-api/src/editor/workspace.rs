@@ -173,6 +173,29 @@ impl EditorWorkspaceService {
 }
 
 impl EditorWorkspaceSnapshot {
+    /// Analyze one standalone source through the compiler-owned resolved graph.
+    ///
+    /// This is the single-document adapter path for clients that do not yet
+    /// have an `eqiora.toml` project. Imports still require a resolved module or
+    /// locked-package workspace.
+    #[must_use]
+    pub fn analyze_standalone(version: u64, source: impl Into<String>) -> Self {
+        let owner = eqiora_compiler::CompilationNamespaceId::new(["editor-standalone"])
+            .expect("fixed standalone editor namespace is valid");
+        Self::analyze_modules(
+            version,
+            ResolvedHierarchyInput::new(
+                owner.clone(),
+                vec![eqiora_compiler::ResolvedSourceUnit::new(
+                    owner,
+                    "document.eqi",
+                    source,
+                )],
+                vec![],
+            ),
+        )
+    }
+
     /// Analyze a closed local or package-shaped source graph with the compiler's
     /// existing module and name resolver.
     #[must_use]

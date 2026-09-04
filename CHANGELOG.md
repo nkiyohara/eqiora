@@ -8,6 +8,10 @@ are recorded here.
 
 ### Added
 
+- Added the `eqiora-language-server` stdio preview with versioned full-document
+  diagnostics, formatting, symbols, folding, Markdown hover, and same-file
+  definition navigation through the shared editor analysis service.
+
 - Added `Eqiora.Fluid@0.2.0` with a reusable scalar-Field-driven
   inward-normal-velocity inlet boundary and installed-distribution vendoring.
 
