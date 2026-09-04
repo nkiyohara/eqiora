@@ -16,7 +16,7 @@ PRESSURE_CAPTION = "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstra
 PUBLIC_CLAIM = "One presentation-only 2D steady incompressible Stokes exact-cylinder demonstration rendered through exact Geometry, typed Gmsh policy, and the root Result path; output counts, digests, numerical values, and pixels are not independently verified."
 WITNESS_COPY = "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
 RENDERED_SOURCE_SENTENCE = "This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository’s architecture, RFCs, capability matrix, and validated verify manifests."
-REFERENCE_BOUNDARY = "API presence is neither capability evidence nor maturity."
+REFERENCE_GUIDANCE = "These pages describe interfaces and signatures."
 TEXTBOOK_SERIES = (
     ("circuits-dynamics-hybrid", "Circuits, Dynamics, and Hybrid Systems"),
     ("fluid-mechanics-cfd", "Fluid Mechanics and Computational Fluid Dynamics"),
@@ -517,12 +517,12 @@ def check_starlight_content(
         )
     reference = inspections.get(artifact / "reference/index.html")
     if reference:
-        boundary = (
-            REFERENCE_BOUNDARY
+        guidance = (
+            REFERENCE_GUIDANCE
             if enhanced
             else "API presence is not verification or maturity."
         )
-        required = ("Python", "Rust", "CLI", "control-v2", "MCP", boundary)
+        required = ("Python", "Rust", "CLI", "control-v2", "MCP", guidance)
         for phrase in required:
             if phrase not in reference[1].visible_text:
                 errors.append(f"reference landing omits {phrase!r}")
