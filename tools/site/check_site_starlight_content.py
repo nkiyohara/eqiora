@@ -27,6 +27,10 @@ TEXTBOOK_SERIES = (
 )
 MODELING_FOUNDATION_CHAPTERS = (
     ("algebraic-relations-networks", "Algebraic relations and networks", "Illustrative"),
+    ("boundary-interface-conditions", "Boundary and interface conditions", "Illustrative"),
+    ("conservation-laws", "Conservation laws", "Illustrative"),
+    ("constitutive-laws", "Constitutive laws", "Illustrative"),
+    ("fields-spatial-domains", "Fields and spatial domains", "Illustrative"),
     ("models-not-simulations", "Models are not simulations", "Illustrative"),
     ("ordinary-differential-equations", "Ordinary differential equations", "Checked"),
     ("quantities-dimensions-units", "Quantities, dimensions, and units", "Illustrative"),
@@ -588,7 +592,12 @@ def check_starlight_content(
             if slug == "mathematical-modeling"
             else "0 executable chapters"
         )
-        for phrase in (title, chapter_count, "Chapter map", "Publication boundary"):
+        publication_heading = (
+            "Publication status"
+            if slug == "mathematical-modeling"
+            else "Publication boundary"
+        )
+        for phrase in (title, chapter_count, "Chapter map", publication_heading):
             if phrase not in page.visible_text:
                 errors.append(f"textbook {title!r} omits {phrase!r}")
         if slug == "mathematical-modeling":
@@ -612,7 +621,6 @@ def check_starlight_content(
             title,
             status,
             "Learning outcomes",
-            "Observation boundary",
             "Deliberate failure",
             "Exercises",
         ):

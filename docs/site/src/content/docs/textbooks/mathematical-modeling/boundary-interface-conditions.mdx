@@ -1,0 +1,129 @@
+---
+title: 8. Boundary and interface conditions
+description: State what a model prescribes at an exterior boundary and what connected regions exchange across an interface.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+<Aside type="note" title="Chapter status">
+  **Illustrative · compile-only.** The boundary components target the current
+  <ReleaseIdentity /> Fluid and Solid packages.
+</Aside>
+
+## A domain is not isolated by default
+
+Interior equations describe behavior inside a region. Boundary conditions say
+how that region meets its environment; interface conditions say how two modeled
+regions meet each other. These relations are part of the mathematical model,
+not settings to leave for a solver to invent.
+
+## Learning outcomes
+
+After this chapter, you should be able to:
+
+- distinguish prescribed trace data from prescribed normal flux or traction;
+- read the standard fluid and solid boundary components;
+- explain continuity and action/reaction at an interface; and
+- diagnose missing or contradictory boundary assumptions.
+
+## Trace and flux form a boundary pair
+
+An essential condition prescribes a field trace, such as velocity or
+displacement. A natural condition prescribes its conjugate flux, such as
+traction. The names describe mathematical roles; whether a condition is
+physically appropriate depends on the modeled boundary.
+
+The standard fluid package includes no-slip and traction-free components:
+
+```eqiora
+public component NoSlip2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public port mechanical:
+    conserving mechanics.VelocityTractionBoundary over face;
+
+  relation prescribed_velocity continuous on face {
+    trace(mechanical) = 0;
+  }
+}
+
+public component TractionFree2d {
+  // same support and port structure
+  relation prescribed_traction continuous on face {
+    flux(mechanical) = 0;
+  }
+}
+```
+
+`NormalPressureOutlet2d` supplies a nonzero normal traction from an exterior
+pressure. The solid package uses the same pattern for `FixedDisplacement2d` and
+its own `TractionFree2d`.
+
+<ExactSourceLink path="packages/releases/Eqiora.Fluid/0.1.0/src/fluid.eqi" kind="blob">Read the fluid boundary components</ExactSourceLink> ·
+<ExactSourceLink path="packages/releases/Eqiora.Solid/0.2.0/src/solid.eqi" kind="blob">read the solid boundary components</ExactSourceLink>.
+
+## Interfaces exchange equal and opposite action
+
+At an interface between compatible regions, the trace variable is continuous
+and the outward fluxes balance. With outward normals defined separately for
+the two regions, a compact statement is
+
+$$
+\operatorname{tr}u_1 = \operatorname{tr}u_2,
+\qquad
+f_1 + f_2 = 0.
+$$
+
+The first relation is compatibility. The second is action/reaction. Conserving
+ports let components expose this pair without deciding in advance which side
+computes the trace and which computes the flux.
+
+The package interface components connect the interior field to a boundary port:
+
+```eqiora
+relation boundary_interface[boundary in exterior] continuous on boundary {
+  trace(velocity)
+    - trace(mechanical[boundary = boundary]) = 0;
+  normal(
+    2 * dynamic_viscosity * symmetric_part(grad(velocity))
+    - isotropic_lift(pressure)
+  ) - flux(mechanical[boundary = boundary]) = 0;
+}
+```
+
+## Choose conditions from the phenomenon
+
+A wall may justify no slip; a free solid surface may justify zero traction; an
+outlet may justify a prescribed normal pressure. These are different physical
+assumptions even when they use the same boundary support machinery. A complete
+set must constrain the intended problem without prescribing incompatible data.
+
+## Deliberate failure: fix and free the same quantity
+
+Suppose the same solid face is declared both fixed and subject to a prescribed
+nonzero displacement. Each relation can be dimensionally valid on its own, but
+together they contradict one another. Conversely, omitting every condition
+that removes rigid translation can leave an elasticity problem undetermined.
+
+Count and interpret the boundary freedoms before choosing a realization. A
+successful syntax check cannot decide whether the physical boundary story is
+complete.
+
+## Exercises
+
+1. Classify no slip, fixed displacement, traction free, and normal pressure as
+   trace or flux conditions.
+2. Explain why outward tractions on two sides of an interface sum to zero
+   rather than being textually identical.
+3. Assign conditions to the inlet, outlet, walls, and cylinder in the checked-in
+   steady-flow example. State the physical assumption behind each choice.
+4. For an elastic body in two dimensions, explain why traction-free boundaries
+   alone do not remove rigid translation.
+5. Propose one fluid–solid interface pair: which trace quantity should be
+   compatible, and which actions should balance?
+
+[Previous: Constitutive laws](/textbooks/mathematical-modeling/constitutive-laws/) ·
+[Back to the series map](/textbooks/mathematical-modeling/) ·
+[Next: Scaling and nondimensionalization (planned)](/textbooks/mathematical-modeling/)

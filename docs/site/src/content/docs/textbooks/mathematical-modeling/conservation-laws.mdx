@@ -1,0 +1,113 @@
+---
+title: 6. Conservation laws
+description: Relate storage, outward flux, and sources, then move carefully between integral and local balance statements.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+<Aside type="note" title="Chapter status">
+  **Illustrative · compile-only.** The local fluid balances target the current
+  <ReleaseIdentity /> surface; their integral interpretation is derived here.
+</Aside>
+
+## Account for what can change
+
+A conservation law is an accounting identity. For an extensive quantity $Q$
+inside a fixed region $\Omega$,
+
+$$
+\frac{\mathrm{d}}{\mathrm{d}t}\int_\Omega q\,\mathrm{d}V
++ \int_{\partial\Omega}\boldsymbol{j}\!\cdot\boldsymbol{n}\,\mathrm{d}A
+= \int_\Omega s\,\mathrm{d}V.
+$$
+
+The three terms are storage, outward flux, and production. This sign convention
+makes positive $\boldsymbol{j}\!\cdot\boldsymbol{n}$ a loss from the region.
+Changing the orientation changes the flux sign, not the physics.
+
+## Learning outcomes
+
+After this chapter, you should be able to:
+
+- identify storage, flux, and source terms in a balance;
+- use the divergence theorem to relate integral and local forms;
+- distinguish conservation from a constitutive law that supplies a flux; and
+- catch a sign error by checking a simple control-volume limit.
+
+## From a control volume to a local relation
+
+For a sufficiently smooth flux, the divergence theorem gives
+
+$$
+\int_{\partial\Omega}\boldsymbol{j}\!\cdot\boldsymbol{n}\,\mathrm{d}A
+= \int_\Omega \nabla\!\cdot\boldsymbol{j}\,\mathrm{d}V.
+$$
+
+If the balance holds for every suitable subregion, its local form is
+
+$$
+\partial_t q + \nabla\!\cdot\boldsymbol{j} - s = 0.
+$$
+
+The integral form states the accounting principle directly. The local form is
+often convenient for authoring field relations. Moving between them requires
+regularity and a clear orientation; it is not a change of numerical method.
+
+## Two steady fluid balances
+
+For constant-density incompressible flow, mass conservation reduces to
+
+```eqiora
+relation incompressibility continuous on body {
+  div(velocity) = 0;
+}
+```
+
+The zero divergence says that a small control volume has no net volumetric
+outflow. It does not determine the velocity by itself.
+
+The same standard package writes a steady momentum balance as
+
+```eqiora
+relation momentum continuous on body {
+  -div(
+    2 * dynamic_viscosity * symmetric_part(grad(velocity))
+    - isotropic_lift(pressure)
+  ) - grad(force_potential) = 0;
+}
+```
+
+Here the divergence acts on the stress-like flux. Viscosity and pressure
+specify how that flux depends on the fields; those are constitutive ingredients
+inside the conservation statement.
+
+<ExactSourceLink path="packages/releases/Eqiora.Fluid/0.1.0/src/fluid.eqi" kind="blob">Read the standard fluid components</ExactSourceLink>.
+
+## Deliberate failure: reverse only one flux sign
+
+Imagine a source-free, steady one-dimensional region with more flux leaving
+the right face than entering the left. Its contents cannot remain steady. A
+residual that declares this imbalance zero after reversing only the right-face
+sign has lost the chosen outward-normal convention.
+
+Test the signs on this two-face control volume before manipulating the full
+field equation. A compiler can verify compatible types and dimensions, but it
+cannot infer which orientation you intended.
+
+## Exercises
+
+1. Set $s=0$ and storage to zero. What must the total outward flux be?
+2. Derive the local balance from the integral statement using the divergence
+   theorem.
+3. Integrate `div(velocity) = 0` over a region and interpret the boundary
+   integral.
+4. In the momentum excerpt, identify the conserved balance and the
+   constitutive ingredients separately.
+5. Draw a one-dimensional control volume and label the outward normal at both
+   ends. Use it to check the flux signs.
+
+[Previous: Fields and spatial domains](/textbooks/mathematical-modeling/fields-spatial-domains/) ·
+[Back to the series map](/textbooks/mathematical-modeling/) ·
+[Next: Constitutive laws](/textbooks/mathematical-modeling/constitutive-laws/)
