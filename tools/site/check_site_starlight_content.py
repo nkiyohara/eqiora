@@ -557,7 +557,7 @@ def check_starlight_content(
             "Verified",
             "Exact boundary",
             "What this establishes",
-            "Important non-claims",
+            "Current limits",
             "Thermal",
             "Technical catalog",
         )
