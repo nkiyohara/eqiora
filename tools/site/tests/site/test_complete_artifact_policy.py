@@ -45,7 +45,7 @@ RENDERED_SOURCE_SENTENCE = (
     "Detailed contracts remain in the repository’s architecture, RFCs, "
     "capability matrix, and validated verify manifests."
 )
-REFERENCE_BOUNDARY = "API presence is neither capability evidence nor maturity."
+REFERENCE_GUIDANCE = "These pages describe interfaces and signatures."
 
 SOURCE_PATHS = (
     "examples/python/exact_cylinder_stokes.py",
@@ -355,7 +355,7 @@ def _ordinary(root: Path):
     _set_main(
         artifact / "reference/index.html",
         "<h1>Reference</h1><p>Python Rust CLI control-v2 MCP</p>"
-        f"<p>{REFERENCE_BOUNDARY}</p>",
+        f"<p>{REFERENCE_GUIDANCE}</p>",
     )
 
     _write(artifact / "assets/KaTeX_Main-Regular.woff2", b"wOF2local-katex")
@@ -784,13 +784,13 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 f"claim boundary omits {phrase!r}",
             )
         reject(
-            "old reference landing phrase",
+            "reference landing guidance omitted",
             lambda artifact: _replace(
                 artifact / reference,
-                REFERENCE_BOUNDARY,
-                "API presence is not verification or maturity.",
+                REFERENCE_GUIDANCE,
+                "Choose the interface you need.",
             ),
-            REFERENCE_BOUNDARY,
+            REFERENCE_GUIDANCE,
         )
 
         index = Path("sitemap-index.xml")
