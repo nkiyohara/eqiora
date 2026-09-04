@@ -4,16 +4,18 @@ use eqiora::api::{
     EditorPosition, EditorService, EditorSnapshot, EditorSymbol, EditorSymbolKind,
     EditorWorkspaceSnapshot,
 };
+use eqiora::compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
 use eqiora::{Diagnostic as EqioraDiagnostic, Severity};
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DocumentFormattingParams, DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse,
     FoldingRange, FoldingRangeParams, FoldingRangeProviderCapability, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability, Location,
-    MarkupContent, MarkupKind, NumberOrString, OneOf, Position, PositionEncodingKind,
-    PublishDiagnosticsParams, Range, ServerCapabilities, SymbolKind, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncOptions, TextEdit, Uri,
+    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
+    InitializeParams, Location, MarkupContent, MarkupKind, NumberOrString, OneOf, Position,
+    PositionEncodingKind, PublishDiagnosticsParams, Range, ServerCapabilities, SymbolKind,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, TextEdit, Uri,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use serde::de::DeserializeOwned;
 
@@ -24,22 +26,17 @@ struct OpenDocument {
     source: String,
     version: i32,
     analysis: EditorService,
-    resolved: Option<(EditorWorkspaceSnapshot, String)>,
 }
 
 impl OpenDocument {
     fn new(uri: Uri, version: i32, source: String) -> Self {
         let analysis_version = analysis_version(version);
         let analysis = EditorService::new(uri.as_str(), analysis_version, source.clone());
-        let resolved = (source.len() <= EditorSnapshot::MAX_SOURCE_BYTES)
-            .then(|| resolved_snapshot(analysis_version, &source))
-            .flatten();
         Self {
             uri,
             source,
             version,
             analysis,
-            resolved,
         }
     }
 
@@ -55,9 +52,6 @@ impl OpenDocument {
         }
         self.source = source;
         self.version = version;
-        self.resolved = (self.source.len() <= EditorSnapshot::MAX_SOURCE_BYTES)
-            .then(|| resolved_snapshot(analysis_version, &self.source))
-            .flatten();
         true
     }
 
@@ -66,15 +60,104 @@ impl OpenDocument {
     }
 }
 
+struct WorkspaceAnalysis {
+    snapshot: EditorWorkspaceSnapshot,
+    file_by_uri: BTreeMap<String, String>,
+    uri_by_file: BTreeMap<String, Uri>,
+}
+
+struct ServerState {
+    documents: BTreeMap<String, OpenDocument>,
+    roots: Vec<String>,
+    workspaces: BTreeMap<String, WorkspaceAnalysis>,
+    next_analysis_version: u64,
+}
+
+impl ServerState {
+    fn new(mut roots: Vec<String>) -> Self {
+        roots.sort();
+        roots.dedup();
+        roots.sort_by_key(|root| std::cmp::Reverse(root.len()));
+        Self {
+            documents: BTreeMap::new(),
+            roots,
+            workspaces: BTreeMap::new(),
+            next_analysis_version: 0,
+        }
+    }
+
+    fn group_for_uri(&self, uri: &str) -> String {
+        self.roots
+            .iter()
+            .find(|root| uri.starts_with(root.as_str()))
+            .cloned()
+            .unwrap_or_else(|| uri.to_owned())
+    }
+
+    fn rebuild_group(&mut self, group: &str) {
+        let owner = CompilationNamespaceId::new(["editor-workspace"])
+            .expect("fixed editor workspace namespace is valid");
+        let mut units = Vec::new();
+        let mut file_by_uri = BTreeMap::new();
+        let mut uri_by_file = BTreeMap::new();
+        for (uri, document) in &self.documents {
+            if self.group_for_uri(uri) != group
+                || document.source.len() > EditorSnapshot::MAX_SOURCE_BYTES
+            {
+                continue;
+            }
+            let unit = ResolvedSourceUnit::new(owner.clone(), uri, document.source.as_str());
+            let file = unit.diagnostic_file();
+            file_by_uri.insert(uri.clone(), file.clone());
+            uri_by_file.insert(file, document.uri.clone());
+            units.push(unit);
+        }
+        if units.is_empty() {
+            self.workspaces.remove(group);
+            return;
+        }
+        self.next_analysis_version = self.next_analysis_version.saturating_add(1);
+        let snapshot = EditorWorkspaceSnapshot::analyze_modules(
+            self.next_analysis_version,
+            ResolvedHierarchyInput::new(owner, units, vec![]),
+        );
+        self.workspaces.insert(
+            group.to_owned(),
+            WorkspaceAnalysis {
+                snapshot,
+                file_by_uri,
+                uri_by_file,
+            },
+        );
+    }
+
+    fn resolved(&self, uri: &Uri) -> Option<(&EditorWorkspaceSnapshot, &str)> {
+        let group = self.group_for_uri(uri.as_str());
+        let workspace = self.workspaces.get(&group)?;
+        let file = workspace.file_by_uri.get(uri.as_str())?;
+        Some((&workspace.snapshot, file))
+    }
+
+    fn snapshot(&self, uri: &Uri) -> Result<&EditorSnapshot, String> {
+        let document = self
+            .documents
+            .get(uri.as_str())
+            .ok_or_else(|| format!("document `{}` is not open", uri.as_str()))?;
+        Ok(self
+            .resolved(uri)
+            .and_then(|(workspace, file)| workspace.document(file))
+            .unwrap_or_else(|| document.snapshot()))
+    }
+
+    fn uri_for_file(&self, source_uri: &Uri, file: &str) -> Option<Uri> {
+        let group = self.group_for_uri(source_uri.as_str());
+        self.workspaces.get(&group)?.uri_by_file.get(file).cloned()
+    }
+}
+
 fn analysis_version(version: i32) -> u64 {
     u64::try_from(i64::from(version) - i64::from(i32::MIN))
         .expect("every LSP document version maps to u64")
-}
-
-fn resolved_snapshot(version: u64, source: &str) -> Option<(EditorWorkspaceSnapshot, String)> {
-    let snapshot = EditorWorkspaceSnapshot::analyze_standalone(version, source);
-    let file = snapshot.files().next()?.to_owned();
-    Some((snapshot, file))
 }
 
 pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
@@ -92,9 +175,18 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
         document_symbol_provider: Some(OneOf::Left(true)),
         document_formatting_provider: Some(OneOf::Left(true)),
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
+        workspace: Some(WorkspaceServerCapabilities {
+            workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                supported: Some(true),
+                change_notifications: Some(OneOf::Left(false)),
+            }),
+            file_operations: None,
+        }),
         ..ServerCapabilities::default()
     };
-    let (initialize_id, _) = connection.initialize_start()?;
+    let (initialize_id, initialize_params) = connection.initialize_start()?;
+    let initialize_params: InitializeParams = serde_json::from_value(initialize_params)?;
+    let roots = workspace_roots(&initialize_params);
     connection.initialize_finish(
         initialize_id,
         serde_json::json!({
@@ -103,20 +195,20 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
         }),
     )?;
 
-    let mut documents = BTreeMap::<String, OpenDocument>::new();
+    let mut state = ServerState::new(roots);
     for message in &connection.receiver {
         match message {
             Message::Request(request) => {
                 if connection.handle_shutdown(&request)? {
                     break;
                 }
-                handle_request(&connection, request, &documents)?;
+                handle_request(&connection, request, &state)?;
             }
             Message::Notification(notification) => {
                 if notification.method == "exit" {
                     break;
                 }
-                handle_notification(&connection, notification, &mut documents)?;
+                handle_notification(&connection, notification, &mut state)?;
             }
             Message::Response(_) => {}
         }
@@ -124,10 +216,29 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
     Ok(())
 }
 
+#[allow(deprecated)]
+fn workspace_roots(params: &InitializeParams) -> Vec<String> {
+    let roots = params.workspace_folders.as_ref().map_or_else(
+        || params.root_uri.iter().collect::<Vec<_>>(),
+        |folders| folders.iter().map(|folder| &folder.uri).collect(),
+    );
+    roots
+        .into_iter()
+        .map(|uri| {
+            let uri = uri.as_str();
+            if uri.ends_with('/') {
+                uri.to_owned()
+            } else {
+                format!("{uri}/")
+            }
+        })
+        .collect()
+}
+
 fn handle_notification(
     connection: &Connection,
     notification: Notification,
-    documents: &mut BTreeMap<String, OpenDocument>,
+    state: &mut ServerState,
 ) -> ServerResult<()> {
     match notification.method.as_str() {
         "textDocument/didOpen" => {
@@ -137,8 +248,11 @@ fn handle_notification(
             let params: DidOpenTextDocumentParams = params;
             let item = params.text_document;
             let document = OpenDocument::new(item.uri.clone(), item.version, item.text);
-            publish_diagnostics(connection, &document)?;
-            documents.insert(item.uri.as_str().to_owned(), document);
+            let group = state.group_for_uri(item.uri.as_str());
+            state
+                .documents
+                .insert(item.uri.as_str().to_owned(), document);
+            rebuild_and_publish(connection, state, &group)?;
         }
         "textDocument/didChange" => {
             let Some(params) = decode_notification(notification.params) else {
@@ -155,10 +269,13 @@ fn handle_notification(
             if change.range.is_some() {
                 return Ok(());
             }
-            if let Some(document) = documents.get_mut(identifier.uri.as_str())
-                && document.replace(identifier.version, change.text)
-            {
-                publish_diagnostics(connection, document)?;
+            let group = state.group_for_uri(identifier.uri.as_str());
+            let accepted = state
+                .documents
+                .get_mut(identifier.uri.as_str())
+                .is_some_and(|document| document.replace(identifier.version, change.text));
+            if accepted {
+                rebuild_and_publish(connection, state, &group)?;
             }
         }
         "textDocument/didClose" => {
@@ -166,10 +283,13 @@ fn handle_notification(
                 return Ok(());
             };
             let params: DidCloseTextDocumentParams = params;
-            if documents
+            let group = state.group_for_uri(params.text_document.uri.as_str());
+            if state
+                .documents
                 .remove(params.text_document.uri.as_str())
                 .is_some()
             {
+                rebuild_and_publish(connection, state, &group)?;
                 let notification = Notification::new(
                     "textDocument/publishDiagnostics".to_owned(),
                     PublishDiagnosticsParams::new(params.text_document.uri, Vec::new(), None),
@@ -183,6 +303,24 @@ fn handle_notification(
     Ok(())
 }
 
+fn rebuild_and_publish(
+    connection: &Connection,
+    state: &mut ServerState,
+    group: &str,
+) -> ServerResult<()> {
+    state.rebuild_group(group);
+    let uris = state
+        .documents
+        .values()
+        .filter(|document| state.group_for_uri(document.uri.as_str()) == group)
+        .map(|document| document.uri.clone())
+        .collect::<Vec<_>>();
+    for uri in uris {
+        publish_diagnostics(connection, state, &uri)?;
+    }
+    Ok(())
+}
+
 fn decode_notification<T: DeserializeOwned>(params: serde_json::Value) -> Option<T> {
     serde_json::from_value(params).ok()
 }
@@ -190,29 +328,29 @@ fn decode_notification<T: DeserializeOwned>(params: serde_json::Value) -> Option
 fn handle_request(
     connection: &Connection,
     request: Request,
-    documents: &BTreeMap<String, OpenDocument>,
+    state: &ServerState,
 ) -> ServerResult<()> {
     let id = request.id.clone();
     let response = match request.method.as_str() {
         "textDocument/formatting" => response_from(
             id,
-            decode(request.params).and_then(|params| formatting(params, documents)),
+            decode(request.params).and_then(|params| formatting(params, state)),
         ),
         "textDocument/documentSymbol" => response_from(
             id,
-            decode(request.params).and_then(|params| document_symbols(params, documents)),
+            decode(request.params).and_then(|params| document_symbols(params, state)),
         ),
         "textDocument/foldingRange" => response_from(
             id,
-            decode(request.params).and_then(|params| folding_ranges(params, documents)),
+            decode(request.params).and_then(|params| folding_ranges(params, state)),
         ),
         "textDocument/hover" => response_from(
             id,
-            decode(request.params).and_then(|params| hover(params, documents)),
+            decode(request.params).and_then(|params| hover(params, state)),
         ),
         "textDocument/definition" => response_from(
             id,
-            decode(request.params).and_then(|params| definition(params, documents)),
+            decode(request.params).and_then(|params| definition(params, state)),
         ),
         _ => Response::new_err(
             id,
@@ -238,42 +376,40 @@ fn response_from<T: serde::Serialize>(
     }
 }
 
-fn document<'a>(
-    documents: &'a BTreeMap<String, OpenDocument>,
-    uri: &Uri,
-) -> Result<&'a OpenDocument, String> {
-    documents
+fn document<'a>(state: &'a ServerState, uri: &Uri) -> Result<&'a OpenDocument, String> {
+    state
+        .documents
         .get(uri.as_str())
         .ok_or_else(|| format!("document `{}` is not open", uri.as_str()))
 }
 
 fn formatting(
     params: DocumentFormattingParams,
-    documents: &BTreeMap<String, OpenDocument>,
+    state: &ServerState,
 ) -> Result<Vec<TextEdit>, String> {
-    let document = document(documents, &params.text_document.uri)?;
-    let Some(formatted) = document.snapshot().formatted() else {
+    let document = document(state, &params.text_document.uri)?;
+    let snapshot = state.snapshot(&params.text_document.uri)?;
+    let Some(formatted) = snapshot.formatted() else {
         return Ok(Vec::new());
     };
     if formatted == document.source {
         return Ok(Vec::new());
     }
     Ok(vec![TextEdit {
-        range: source_range(document.snapshot(), 0, document.source.len())?,
+        range: source_range(snapshot, 0, document.source.len())?,
         new_text: formatted.to_owned(),
     }])
 }
 
 fn document_symbols(
     params: DocumentSymbolParams,
-    documents: &BTreeMap<String, OpenDocument>,
+    state: &ServerState,
 ) -> Result<DocumentSymbolResponse, String> {
-    let document = document(documents, &params.text_document.uri)?;
-    let symbols = document
-        .snapshot()
+    let snapshot = state.snapshot(&params.text_document.uri)?;
+    let symbols = snapshot
         .symbols()
         .iter()
-        .map(|symbol| lsp_symbol(document.snapshot(), symbol))
+        .map(|symbol| lsp_symbol(snapshot, symbol))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(DocumentSymbolResponse::Nested(symbols))
 }
@@ -300,15 +436,11 @@ fn lsp_symbol(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> Result<Docume
 
 fn folding_ranges(
     params: FoldingRangeParams,
-    documents: &BTreeMap<String, OpenDocument>,
+    state: &ServerState,
 ) -> Result<Vec<FoldingRange>, String> {
-    let document = document(documents, &params.text_document.uri)?;
+    let snapshot = state.snapshot(&params.text_document.uri)?;
     let mut ranges = Vec::new();
-    collect_folding_ranges(
-        document.snapshot(),
-        document.snapshot().symbols(),
-        &mut ranges,
-    )?;
+    collect_folding_ranges(snapshot, snapshot.symbols(), &mut ranges)?;
     Ok(ranges)
 }
 
@@ -334,13 +466,10 @@ fn collect_folding_ranges(
     Ok(())
 }
 
-fn hover(
-    params: HoverParams,
-    documents: &BTreeMap<String, OpenDocument>,
-) -> Result<Option<Hover>, String> {
+fn hover(params: HoverParams, state: &ServerState) -> Result<Option<Hover>, String> {
     let uri = &params.text_document_position_params.text_document.uri;
-    let document = document(documents, uri)?;
-    let Some((workspace, file)) = &document.resolved else {
+    document(state, uri)?;
+    let Some((workspace, file)) = state.resolved(uri) else {
         return Ok(None);
     };
     let position = editor_position(params.text_document_position_params.position);
@@ -371,22 +500,22 @@ fn markdown_hover(kind: EditorSymbolKind, path: &str, source: &str) -> String {
 
 fn definition(
     params: GotoDefinitionParams,
-    documents: &BTreeMap<String, OpenDocument>,
+    state: &ServerState,
 ) -> Result<Option<GotoDefinitionResponse>, String> {
     let uri = &params.text_document_position_params.text_document.uri;
-    let document = document(documents, uri)?;
-    let Some((workspace, file)) = &document.resolved else {
+    document(state, uri)?;
+    let Some((workspace, file)) = state.resolved(uri) else {
         return Ok(None);
     };
     let position = editor_position(params.text_document_position_params.position);
     let Some(definition) = workspace.definition_for_reference_at_position(file, position) else {
         return Ok(None);
     };
-    if definition.file() != file {
-        return Ok(None);
-    }
+    let target_uri = state
+        .uri_for_file(uri, definition.file())
+        .ok_or_else(|| "resolved definition URI is unavailable".to_owned())?;
     let target = workspace
-        .document(file)
+        .document(definition.file())
         .ok_or_else(|| "resolved definition document is unavailable".to_owned())?;
     let definition_range = definition.name_range().unwrap_or(definition.range());
     let range = source_range(
@@ -395,17 +524,21 @@ fn definition(
         usize::try_from(definition_range.end()).map_err(|_| "source offset exceeds usize")?,
     )?;
     Ok(Some(GotoDefinitionResponse::Scalar(Location::new(
-        document.uri.clone(),
-        range,
+        target_uri, range,
     ))))
 }
 
-fn publish_diagnostics(connection: &Connection, document: &OpenDocument) -> ServerResult<()> {
-    let diagnostics = document
-        .snapshot()
+fn publish_diagnostics(
+    connection: &Connection,
+    state: &ServerState,
+    uri: &Uri,
+) -> ServerResult<()> {
+    let document = document(state, uri)?;
+    let snapshot = state.snapshot(uri)?;
+    let diagnostics = snapshot
         .diagnostics()
         .iter()
-        .map(|diagnostic| lsp_diagnostic(document.snapshot(), diagnostic))
+        .map(|diagnostic| lsp_diagnostic(snapshot, diagnostic))
         .collect();
     let params =
         PublishDiagnosticsParams::new(document.uri.clone(), diagnostics, Some(document.version));

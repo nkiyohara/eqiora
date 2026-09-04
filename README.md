@@ -103,7 +103,8 @@ is the primary execution API; Studio consumes the same Rust-owned model semantic
 The `eqiora-language-server` preview connects the compiler-owned editor service
 to any LSP client over stdio. It currently provides full-document synchronization,
 diagnostics, formatting, outline and folding symbols, Markdown hover, and
-same-file definition navigation. See the [language-server setup](docs/language-server.md).
+definition navigation across open workspace modules. See the
+[language-server setup](docs/language-server.md).
 
 ## One model, two layers
 

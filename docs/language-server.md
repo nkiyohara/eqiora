@@ -24,13 +24,14 @@ vim.lsp.start({
 The preview uses standard UTF-16 LSP positions and full-document synchronization.
 Each document has a 16 MiB analysis limit. The server publishes ordered
 parser/compiler diagnostics after open and accepted newer changes, clears
-diagnostics on close, and serves whole-document formatting,
-nested document symbols, folding ranges, Markdown declaration hover, and
-same-file definition locations for the same accepted document version.
+diagnostics on close, and serves whole-document formatting, nested document
+symbols, folding ranges, Markdown declaration hover, and definition locations.
 Lifecycle events are emitted as one JSON object per line on stderr, leaving
 stdout exclusively for LSP framing.
 
-Each open file is currently analyzed independently. Project-root discovery,
-resolved local modules and locked packages, partial edit synchronization,
-asynchronous request cancellation, completion, and signature help will follow
-on the same editor-service boundary.
+Files opened under the same initialization workspace folder are analyzed as one
+module graph. Hover and definition navigation follow imports across those open
+files and update from unsaved full-document changes. Files outside an announced
+workspace folder remain independent. Loading unopened project files and exact
+packages from disk, partial edits, cancellation, completion, and signature help
+are planned next.
