@@ -2,7 +2,6 @@
 
 use eqiora_compiler::{
     AnalyzedResolvedHierarchy, CanonicalDeclarationKind, ResolvedHierarchyInput,
-    analyze_resolved_hierarchy,
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -390,14 +389,41 @@ impl EditorWorkspaceSnapshot {
         version: u64,
         input: ResolvedHierarchyInput,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let sources = input
-            .units()
-            .iter()
-            .map(|unit| (unit.file().to_owned(), unit.source().to_owned()))
-            .collect::<Vec<_>>();
-        let analyzed = analyze_resolved_hierarchy(input)?;
+        Self::analyze_modules_with_cancellation(version, input, || false)
+            .map(|snapshot| snapshot.expect("non-cancellable analysis produces a snapshot"))
+    }
+
+    /// Analyze a resolved source graph with cooperative cancellation.
+    ///
+    /// `Ok(None)` publishes no partial workspace when `is_cancelled` returns
+    /// true at a compiler or snapshot-construction boundary.
+    ///
+    /// # Errors
+    /// Returns the compiler's ordered diagnostics when analysis fails before
+    /// cancellation is observed.
+    pub fn analyze_modules_with_cancellation(
+        version: u64,
+        input: ResolvedHierarchyInput,
+        mut is_cancelled: impl FnMut() -> bool,
+    ) -> Result<Option<Self>, Vec<Diagnostic>> {
+        if is_cancelled() {
+            return Ok(None);
+        }
+        let mut sources = Vec::with_capacity(input.units().len());
+        for unit in input.units() {
+            if is_cancelled() {
+                return Ok(None);
+            }
+            sources.push((unit.file().to_owned(), unit.source().to_owned()));
+        }
+        let Some(analyzed) = input.analyze_with_cancellation(&mut is_cancelled)? else {
+            return Ok(None);
+        };
         let _validated = analyzed.clone().validate_definitions()?;
-        Ok(Self::from_analyzed(version, sources, &analyzed))
+        if is_cancelled() {
+            return Ok(None);
+        }
+        Ok(Some(Self::from_analyzed(version, sources, &analyzed)))
     }
 
     /// Replay one exact locked package graph through the ordinary package and
@@ -412,6 +438,26 @@ impl EditorWorkspaceSnapshot {
         resolution: &eqiora_package::ResolutionRecordV1,
     ) -> Result<Self, crate::package::PackageCompilationError> {
         crate::package::analyze_editor_workspace(version, store, resolution)
+    }
+
+    /// Replay and analyze one exact locked package graph with cooperative
+    /// cancellation between resolver, compiler, validation, and projection.
+    ///
+    /// # Errors
+    /// Returns package resolution, source, or semantic-content failures
+    /// observed before cancellation.
+    pub fn analyze_locked_with_cancellation(
+        version: u64,
+        store: &impl eqiora_package::PackageStore,
+        resolution: &eqiora_package::ResolutionRecordV1,
+        is_cancelled: impl FnMut() -> bool,
+    ) -> Result<Option<Self>, crate::package::PackageCompilationError> {
+        crate::package::analyze_editor_workspace_with_cancellation(
+            version,
+            store,
+            resolution,
+            is_cancelled,
+        )
     }
 
     pub(crate) fn from_analyzed(

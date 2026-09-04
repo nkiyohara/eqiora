@@ -35,20 +35,46 @@ pub(crate) fn analyze_editor_workspace(
     store: &impl eqiora_package::PackageStore,
     resolution: &eqiora_package::ResolutionRecordV1,
 ) -> Result<crate::editor::EditorWorkspaceSnapshot, PackageCompilationError> {
+    analyze_editor_workspace_with_cancellation(version, store, resolution, || false)
+        .map(|snapshot| snapshot.expect("non-cancellable package analysis produces a snapshot"))
+}
+
+pub(crate) fn analyze_editor_workspace_with_cancellation(
+    version: u64,
+    store: &impl eqiora_package::PackageStore,
+    resolution: &eqiora_package::ResolutionRecordV1,
+    mut is_cancelled: impl FnMut() -> bool,
+) -> Result<Option<crate::editor::EditorWorkspaceSnapshot>, PackageCompilationError> {
+    if is_cancelled() {
+        return Ok(None);
+    }
     let resolved = ExactResolver.resolve(resolution, store)?;
+    if is_cancelled() {
+        return Ok(None);
+    }
     let namespaces = compilation_namespaces(&resolved)?;
     let input = compiler_input(&resolved, &namespaces)?;
-    let sources = input
-        .units()
-        .iter()
-        .map(|unit| (unit.file().to_owned(), unit.source().to_owned()))
-        .collect();
-    let analyzed = analyze_resolved_hierarchy(input)?;
+    let mut sources = Vec::with_capacity(input.units().len());
+    for unit in input.units() {
+        if is_cancelled() {
+            return Ok(None);
+        }
+        sources.push((unit.file().to_owned(), unit.source().to_owned()));
+    }
+    let Some(analyzed) = input.analyze_with_cancellation(&mut is_cancelled)? else {
+        return Ok(None);
+    };
     verify_semantic_content(&resolved, &namespaces, &analyzed)?;
+    if is_cancelled() {
+        return Ok(None);
+    }
     let _validated = analyzed.clone().validate_definitions()?;
-    Ok(crate::editor::EditorWorkspaceSnapshot::from_analyzed(
+    if is_cancelled() {
+        return Ok(None);
+    }
+    Ok(Some(crate::editor::EditorWorkspaceSnapshot::from_analyzed(
         version, sources, &analyzed,
-    ))
+    )))
 }
 
 const AUTHORING_NAMESPACE_DOMAIN_V1: &str = "eqiora.package-authoring.v1";
