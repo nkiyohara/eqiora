@@ -1,10 +1,16 @@
 use std::{
     collections::BTreeMap,
     error::Error,
-    path::{Path, PathBuf},
+    path::PathBuf,
     str::FromStr,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread,
 };
 
+use crossbeam_channel::{Receiver, Sender};
 use eqiora::api::{
     EditorPosition, EditorService, EditorSnapshot, EditorSymbol, EditorSymbolKind,
     EditorWorkspaceSnapshot,
@@ -23,6 +29,8 @@ use lsp_types::{
     WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use serde::de::DeserializeOwned;
+
+use crate::workspace_uri::{file_uri_path, project_file_uri};
 
 type ServerResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -71,6 +79,7 @@ struct WorkspaceAnalysis {
     uri_by_file: BTreeMap<String, Uri>,
 }
 
+#[derive(Clone)]
 struct PackageProject {
     root_path: PathBuf,
     relative_by_uri: BTreeMap<String, PathBuf>,
@@ -81,7 +90,48 @@ struct ServerState {
     roots: Vec<String>,
     projects: BTreeMap<String, PackageProject>,
     workspaces: BTreeMap<String, WorkspaceAnalysis>,
+    pending: BTreeMap<String, PendingAnalysis>,
     next_analysis_version: u64,
+}
+
+struct PendingAnalysis {
+    version: u64,
+    cancelled: Arc<AtomicBool>,
+}
+
+struct AnalysisDocument {
+    key: String,
+    uri: Uri,
+    source: String,
+}
+
+struct AnalysisJob {
+    group: String,
+    version: u64,
+    documents: Vec<AnalysisDocument>,
+    project: Option<PackageProject>,
+    cancelled: Arc<AtomicBool>,
+}
+
+#[derive(Clone)]
+struct AnalysisScheduler {
+    queued: Arc<Mutex<BTreeMap<String, AnalysisJob>>>,
+    wake: Sender<()>,
+}
+
+struct CompletedAnalysis {
+    group: String,
+    version: u64,
+    outcome: AnalysisOutcome,
+}
+
+enum AnalysisOutcome {
+    Workspace {
+        analysis: WorkspaceAnalysis,
+        relative_by_uri: Option<BTreeMap<String, PathBuf>>,
+    },
+    Empty,
+    Cancelled,
 }
 
 impl ServerState {
@@ -94,6 +144,7 @@ impl ServerState {
             roots,
             projects: BTreeMap::new(),
             workspaces: BTreeMap::new(),
+            pending: BTreeMap::new(),
             next_analysis_version: 0,
         };
         for root in state.roots.clone() {
@@ -138,74 +189,85 @@ impl ServerState {
             .unwrap_or_else(|| uri.to_owned())
     }
 
-    fn rebuild_group(&mut self, group: &str) {
-        if let Some(project) = self.projects.get(group) {
-            let root_path = project.root_path.clone();
-            let overrides = self
-                .documents
-                .iter()
-                .filter_map(|(uri, document)| {
-                    project
-                        .relative_by_uri
-                        .get(uri)
-                        .cloned()
-                        .map(|path| (path, document.source.clone()))
-                })
-                .collect::<BTreeMap<_, _>>();
-            self.next_analysis_version = self.next_analysis_version.saturating_add(1);
-            if let Ok((snapshot, paths)) = EditorWorkspaceSnapshot::analyze_local_package_project_v1(
-                self.next_analysis_version,
-                &root_path,
-                &overrides,
-            ) && let Some((workspace, relative_by_uri)) =
-                package_workspace(group, snapshot, paths)
-            {
-                self.projects
-                    .get_mut(group)
-                    .expect("package project remains indexed")
-                    .relative_by_uri = relative_by_uri;
-                self.workspaces.insert(group.to_owned(), workspace);
-                return;
-            }
-        }
-        let owner = CompilationNamespaceId::new(["editor-workspace"])
-            .expect("fixed editor workspace namespace is valid");
-        let mut units = Vec::new();
-        let mut file_by_uri = BTreeMap::new();
-        let mut uri_by_file = BTreeMap::new();
-        for (uri, document) in &self.documents {
-            if self.group_for_uri(uri) != group
-                || document.source.len() > EditorSnapshot::MAX_SOURCE_BYTES
-            {
-                continue;
-            }
-            let unit = ResolvedSourceUnit::new(owner.clone(), uri, document.source.as_str());
-            let file = unit.diagnostic_file();
-            file_by_uri.insert(uri.clone(), file.clone());
-            uri_by_file.insert(file, document.uri.clone());
-            units.push(unit);
-        }
-        if units.is_empty() {
-            self.workspaces.remove(group);
-            return;
+    fn schedule_group(&mut self, group: &str, scheduler: &AnalysisScheduler) -> ServerResult<()> {
+        if let Some(pending) = self.pending.remove(group) {
+            pending.cancelled.store(true, Ordering::Release);
         }
         self.next_analysis_version = self.next_analysis_version.saturating_add(1);
-        let snapshot = EditorWorkspaceSnapshot::analyze_modules(
-            self.next_analysis_version,
-            ResolvedHierarchyInput::new(owner, units, vec![]),
-        );
-        self.workspaces.insert(
+        let version = self.next_analysis_version;
+        let cancelled = Arc::new(AtomicBool::new(false));
+        self.pending.insert(
             group.to_owned(),
-            WorkspaceAnalysis {
-                snapshot,
-                file_by_uri,
-                uri_by_file,
+            PendingAnalysis {
+                version,
+                cancelled: Arc::clone(&cancelled),
             },
         );
+        let documents = self
+            .documents
+            .iter()
+            .filter(|(uri, _)| self.group_for_uri(uri) == group)
+            .map(|(uri, document)| AnalysisDocument {
+                key: uri.clone(),
+                uri: document.uri.clone(),
+                source: document.source.clone(),
+            })
+            .collect();
+        let project = self.projects.get(group).cloned();
+        scheduler
+            .queued
+            .lock()
+            .map_err(|_| "analysis queue failed")?
+            .insert(
+                group.to_owned(),
+                AnalysisJob {
+                    group: group.to_owned(),
+                    version,
+                    documents,
+                    project,
+                    cancelled,
+                },
+            );
+        match scheduler.wake.try_send(()) {
+            Ok(()) | Err(crossbeam_channel::TrySendError::Full(())) => Ok(()),
+            Err(crossbeam_channel::TrySendError::Disconnected(())) => {
+                Err("analysis worker stopped".into())
+            }
+        }
+    }
+
+    fn apply_completed(&mut self, completed: CompletedAnalysis) -> Option<String> {
+        let current = self.pending.get(&completed.group)?;
+        if current.version != completed.version {
+            return None;
+        }
+        self.pending.remove(&completed.group);
+        match completed.outcome {
+            AnalysisOutcome::Workspace {
+                analysis,
+                relative_by_uri,
+            } => {
+                if let Some(relative_by_uri) = relative_by_uri {
+                    self.projects
+                        .get_mut(&completed.group)
+                        .expect("package project remains indexed")
+                        .relative_by_uri = relative_by_uri;
+                }
+                self.workspaces.insert(completed.group.clone(), analysis);
+            }
+            AnalysisOutcome::Empty => {
+                self.workspaces.remove(&completed.group);
+            }
+            AnalysisOutcome::Cancelled => return None,
+        }
+        Some(completed.group)
     }
 
     fn resolved(&self, uri: &Uri) -> Option<(&EditorWorkspaceSnapshot, &str)> {
         let group = self.group_for_uri(uri.as_str());
+        if self.pending.contains_key(&group) {
+            return None;
+        }
         let workspace = self.workspaces.get(&group)?;
         let file = workspace.file_by_uri.get(uri.as_str())?;
         Some((&workspace.snapshot, file))
@@ -225,6 +287,79 @@ impl ServerState {
     fn uri_for_file(&self, source_uri: &Uri, file: &str) -> Option<Uri> {
         let group = self.group_for_uri(source_uri.as_str());
         self.workspaces.get(&group)?.uri_by_file.get(file).cloned()
+    }
+}
+
+fn analyze_group(
+    group: &str,
+    version: u64,
+    documents: Vec<AnalysisDocument>,
+    project: Option<PackageProject>,
+    cancelled: &AtomicBool,
+) -> AnalysisOutcome {
+    if cancelled.load(Ordering::Acquire) {
+        return AnalysisOutcome::Cancelled;
+    }
+    if let Some(project) = project {
+        let overrides = documents
+            .iter()
+            .filter_map(|document| {
+                project
+                    .relative_by_uri
+                    .get(&document.key)
+                    .cloned()
+                    .map(|path| (path, document.source.clone()))
+            })
+            .collect::<BTreeMap<_, _>>();
+        if let Ok((snapshot, paths)) = EditorWorkspaceSnapshot::analyze_local_package_project_v1(
+            version,
+            &project.root_path,
+            &overrides,
+        ) && !cancelled.load(Ordering::Acquire)
+            && let Some((analysis, relative_by_uri)) = package_workspace(group, snapshot, paths)
+        {
+            return AnalysisOutcome::Workspace {
+                analysis,
+                relative_by_uri: Some(relative_by_uri),
+            };
+        }
+    }
+    let owner = CompilationNamespaceId::new(["editor-workspace"])
+        .expect("fixed editor workspace namespace is valid");
+    let mut units = Vec::new();
+    let mut file_by_uri = BTreeMap::new();
+    let mut uri_by_file = BTreeMap::new();
+    for document in documents {
+        if document.source.len() > EditorSnapshot::MAX_SOURCE_BYTES {
+            continue;
+        }
+        let unit = ResolvedSourceUnit::new(owner.clone(), &document.key, document.source);
+        let file = unit.diagnostic_file();
+        file_by_uri.insert(document.key, file.clone());
+        uri_by_file.insert(file, document.uri);
+        units.push(unit);
+    }
+    if units.is_empty() {
+        return if cancelled.load(Ordering::Acquire) {
+            AnalysisOutcome::Cancelled
+        } else {
+            AnalysisOutcome::Empty
+        };
+    }
+    let Some(snapshot) = EditorWorkspaceSnapshot::analyze_modules_with_cancellation(
+        version,
+        ResolvedHierarchyInput::new(owner, units, vec![]),
+        || cancelled.load(Ordering::Acquire),
+    ) else {
+        return AnalysisOutcome::Cancelled;
+    };
+    AnalysisOutcome::Workspace {
+        analysis: WorkspaceAnalysis {
+            snapshot,
+            file_by_uri,
+            uri_by_file,
+        },
+        relative_by_uri: None,
     }
 }
 
@@ -250,44 +385,6 @@ fn package_workspace(
         },
         relative_by_uri,
     ))
-}
-
-fn file_uri_path(uri: &Uri) -> Option<PathBuf> {
-    if !uri.scheme()?.as_str().eq_ignore_ascii_case("file")
-        || uri.authority().is_some_and(|authority| {
-            !authority.as_str().is_empty() && !authority.as_str().eq_ignore_ascii_case("localhost")
-        })
-    {
-        return None;
-    }
-    let path = uri
-        .path()
-        .as_estr()
-        .decode()
-        .into_string()
-        .ok()?
-        .into_owned();
-    #[cfg(windows)]
-    let path = if path.starts_with('/') && path.as_bytes().get(2) == Some(&b':') {
-        path[1..].to_owned()
-    } else {
-        path
-    };
-    Some(PathBuf::from(path))
-}
-
-fn project_file_uri(root: &str, relative: &Path) -> Option<Uri> {
-    let path = relative.to_str()?.replace(std::path::MAIN_SEPARATOR, "/");
-    let mut encoded = String::with_capacity(path.len());
-    for byte in path.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/') {
-            encoded.push(char::from(byte));
-        } else {
-            use std::fmt::Write as _;
-            write!(&mut encoded, "%{byte:02X}").expect("writing to String cannot fail");
-        }
-    }
-    Uri::from_str(&format!("{root}{encoded}")).ok()
 }
 
 fn analysis_version(version: i32) -> u64 {
@@ -331,9 +428,62 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
     )?;
 
     let mut state = ServerState::new(roots);
-    for message in &connection.receiver {
+    let queued = Arc::new(Mutex::new(BTreeMap::<String, AnalysisJob>::new()));
+    let (wake, wake_receiver) = crossbeam_channel::bounded(1);
+    let scheduler = AnalysisScheduler {
+        queued: Arc::clone(&queued),
+        wake,
+    };
+    let (analysis_sender, analysis_receiver) = crossbeam_channel::unbounded();
+    thread::spawn(move || {
+        while wake_receiver.recv().is_ok() {
+            let Ok(mut queued_jobs) = queued.lock() else {
+                return;
+            };
+            let jobs = std::mem::take(&mut *queued_jobs);
+            drop(queued_jobs);
+            for (_group, job) in jobs {
+                let outcome = analyze_group(
+                    &job.group,
+                    job.version,
+                    job.documents,
+                    job.project,
+                    &job.cancelled,
+                );
+                if analysis_sender
+                    .send(CompletedAnalysis {
+                        group: job.group,
+                        version: job.version,
+                        outcome,
+                    })
+                    .is_err()
+                {
+                    return;
+                }
+            }
+        }
+    });
+    loop {
+        let message = crossbeam_channel::select_biased! {
+            recv(connection.receiver) -> message => match message {
+                Ok(message) => Some(message),
+                Err(_) => break,
+            },
+            recv(analysis_receiver) -> completed => {
+                apply_completed(&connection, &mut state, completed?)?;
+                None
+            },
+        };
+        let Some(message) = message else {
+            continue;
+        };
         match message {
             Message::Request(request) => {
+                if request.method == "shutdown" {
+                    settle_pending(&connection, &mut state, &analysis_receiver)?;
+                } else if let Some(group) = request_group(&request, &state) {
+                    settle_group(&connection, &mut state, &analysis_receiver, &group)?;
+                }
                 if connection.handle_shutdown(&request)? {
                     break;
                 }
@@ -343,7 +493,7 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
                 if notification.method == "exit" {
                     break;
                 }
-                handle_notification(&connection, notification, &mut state)?;
+                handle_notification(&connection, notification, &mut state, &scheduler)?;
             }
             Message::Response(_) => {}
         }
@@ -374,6 +524,7 @@ fn handle_notification(
     connection: &Connection,
     notification: Notification,
     state: &mut ServerState,
+    scheduler: &AnalysisScheduler,
 ) -> ServerResult<()> {
     match notification.method.as_str() {
         "textDocument/didOpen" => {
@@ -387,7 +538,7 @@ fn handle_notification(
             state
                 .documents
                 .insert(item.uri.as_str().to_owned(), document);
-            rebuild_and_publish(connection, state, &group)?;
+            state.schedule_group(&group, scheduler)?;
         }
         "textDocument/didChange" => {
             let Some(params) = decode_notification(notification.params) else {
@@ -410,7 +561,7 @@ fn handle_notification(
                 .get_mut(identifier.uri.as_str())
                 .is_some_and(|document| document.replace(identifier.version, change.text));
             if accepted {
-                rebuild_and_publish(connection, state, &group)?;
+                state.schedule_group(&group, scheduler)?;
             }
         }
         "textDocument/didClose" => {
@@ -424,7 +575,7 @@ fn handle_notification(
                 .remove(params.text_document.uri.as_str())
                 .is_some()
             {
-                rebuild_and_publish(connection, state, &group)?;
+                state.schedule_group(&group, scheduler)?;
                 let notification = Notification::new(
                     "textDocument/publishDiagnostics".to_owned(),
                     PublishDiagnosticsParams::new(params.text_document.uri, Vec::new(), None),
@@ -438,12 +589,11 @@ fn handle_notification(
     Ok(())
 }
 
-fn rebuild_and_publish(
+fn publish_group_diagnostics(
     connection: &Connection,
-    state: &mut ServerState,
+    state: &ServerState,
     group: &str,
 ) -> ServerResult<()> {
-    state.rebuild_group(group);
     let uris = state
         .documents
         .values()
@@ -454,6 +604,45 @@ fn rebuild_and_publish(
         publish_diagnostics(connection, state, &uri)?;
     }
     Ok(())
+}
+
+fn apply_completed(
+    connection: &Connection,
+    state: &mut ServerState,
+    completed: CompletedAnalysis,
+) -> ServerResult<()> {
+    if let Some(group) = state.apply_completed(completed) {
+        publish_group_diagnostics(connection, state, &group)?;
+    }
+    Ok(())
+}
+
+fn settle_pending(
+    connection: &Connection,
+    state: &mut ServerState,
+    receiver: &Receiver<CompletedAnalysis>,
+) -> ServerResult<()> {
+    while !state.pending.is_empty() {
+        apply_completed(connection, state, receiver.recv()?)?;
+    }
+    Ok(())
+}
+
+fn settle_group(
+    connection: &Connection,
+    state: &mut ServerState,
+    receiver: &Receiver<CompletedAnalysis>,
+    group: &str,
+) -> ServerResult<()> {
+    while state.pending.contains_key(group) {
+        apply_completed(connection, state, receiver.recv()?)?;
+    }
+    Ok(())
+}
+
+fn request_group(request: &Request, state: &ServerState) -> Option<String> {
+    let uri = request.params.get("textDocument")?.get("uri")?.as_str()?;
+    Some(state.group_for_uri(uri))
 }
 
 fn decode_notification<T: DeserializeOwned>(params: serde_json::Value) -> Option<T> {
