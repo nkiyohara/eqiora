@@ -1,3 +1,5 @@
+import Eqiora.Electrical.Basic.basic as electrical;
+
 model Main {
   instance source: electrical.IdealVoltageSource(voltage = 12);
   instance resistor_two: electrical.Resistor(resistance = 2);

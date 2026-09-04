@@ -696,7 +696,9 @@ model Main { instance domain: Diffusion(property diffusivity = ReferenceDiffusiv
 "#;
         let input = ResolvedHierarchyInput::new(
             root.clone(),
-            vec![ResolvedSourceUnit::new(root.clone(), "root.eqi", source)],
+            vec![
+                ResolvedSourceUnit::new(root.clone(), "src/main.eqi", source).expect("source path"),
+            ],
             vec![],
         );
         let analyzed = analyze_resolved_hierarchy(input).expect("property graph analyzes");
@@ -716,7 +718,7 @@ model Main { instance domain: Diffusion(diffusivity = 0.025); }
 "#;
         let direct_model = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
             root.clone(),
-            vec![ResolvedSourceUnit::new(root, "direct.eqi", direct)],
+            vec![ResolvedSourceUnit::new(root, "src/main.eqi", direct).expect("source path")],
             vec![],
         ))
         .unwrap()
@@ -758,7 +760,7 @@ model Main { instance domain: DiffusionLaw(material = MaterialA); }
 "#;
         let analyzed = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
             root.clone(),
-            vec![ResolvedSourceUnit::new(root, "material.eqi", source)],
+            vec![ResolvedSourceUnit::new(root, "src/main.eqi", source).expect("source path")],
             vec![],
         ))
         .expect("material composition analyzes");
@@ -817,11 +819,10 @@ model Main {}
 "#;
         let diagnostics = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
             root.clone(),
-            vec![ResolvedSourceUnit::new(
-                root.clone(),
-                "wrong.eqi",
-                wrong_dimension,
-            )],
+            vec![
+                ResolvedSourceUnit::new(root.clone(), "src/main.eqi", wrong_dimension)
+                    .expect("source path"),
+            ],
             vec![],
         ))
         .unwrap_err();
@@ -841,7 +842,7 @@ model Main { instance domain: Diffusion; }
 "#;
         let diagnostics = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
             root.clone(),
-            vec![ResolvedSourceUnit::new(root, "missing.eqi", missing)],
+            vec![ResolvedSourceUnit::new(root, "src/main.eqi", missing).expect("source path")],
             vec![],
         ))
         .unwrap_err();
@@ -914,11 +915,7 @@ model Main {
             let root = CompilationNamespaceId::new(["root", "1.0.0", "material-invalid"]).unwrap();
             let diagnostics = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
                 root.clone(),
-                vec![ResolvedSourceUnit::new(
-                    root,
-                    "invalid-material.eqi",
-                    source,
-                )],
+                vec![ResolvedSourceUnit::new(root, "src/main.eqi", source).expect("source path")],
                 vec![],
             ))
             .unwrap_err();

@@ -569,6 +569,19 @@ fn try_release(
     dependencies: &[(&str, &PackageReleaseV1)],
 ) -> Result<PackageReleaseV1, String> {
     let path = NormalizedRelativePath::parse(SOURCE_PATH).unwrap();
+    let imports = dependencies
+        .iter()
+        .map(|(alias, release)| {
+            let name = &release.package_identity().expect("package identity").name;
+            format!("import {name}.main as {alias};")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let source = if imports.is_empty() {
+        source.to_owned()
+    } else {
+        format!("{imports}\n{source}")
+    };
     let requirements = dependencies
         .iter()
         .map(|(alias, release)| {
@@ -591,7 +604,7 @@ fn try_release(
         vec![SourceFileV1::new(
             path,
             BundleRoleV1::ModelSource,
-            source.as_bytes().to_vec(),
+            source.into_bytes(),
         )],
     )
     .unwrap();

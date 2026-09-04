@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 
 use eqiora_compiler::{
     AnalyzedResolvedHierarchy, CanonicalDeclarationKind, CanonicalDeclarationVisibility,
-    CompilationNamespaceId, ResolvedAlias, ResolvedHierarchyInput, ResolvedSourceUnit,
+    CompilationNamespaceId, ResolvedDependency, ResolvedHierarchyInput, ResolvedSourceUnit,
     analyze_resolved_hierarchy, preflight_resolved_hierarchy,
 };
 use eqiora_core::Diagnostic;
@@ -705,11 +705,10 @@ fn preparation_compiler_input(
         )?;
     }
 
-    let mut aliases = Vec::new();
+    let mut direct_dependencies = Vec::new();
     for requirement in root.manifest().dependencies() {
-        aliases.push(ResolvedAlias::new(
+        direct_dependencies.push(ResolvedDependency::new(
             root_namespace.clone(),
-            requirement.alias().as_str(),
             preparation_dependency_namespace(
                 namespaces,
                 root.manifest().name(),
@@ -721,19 +720,47 @@ fn preparation_compiler_input(
     for (identity, release) in &dependencies.releases {
         let declaring = preparation_dependency_namespace(namespaces, &identity.name, identity)?;
         for requirement in release.manifest().dependencies() {
-            aliases.push(ResolvedAlias::new(
+            direct_dependencies.push(ResolvedDependency::new(
                 declaring.clone(),
-                requirement.alias().as_str(),
                 preparation_dependency_namespace(namespaces, &identity.name, requirement.target())?
                     .clone(),
             ));
         }
     }
-    Ok(ResolvedHierarchyInput::new(
-        root_namespace.clone(),
+    package_hierarchy_input(root_namespace.clone(), units, direct_dependencies).map_err(Into::into)
+}
+
+fn package_hierarchy_input(
+    root: CompilationNamespaceId,
+    units: Vec<ResolvedSourceUnit>,
+    dependencies: Vec<ResolvedDependency>,
+) -> Result<ResolvedHierarchyInput, Diagnostic> {
+    let root_units = units
+        .iter()
+        .filter(|unit| unit.namespace() == &root)
+        .collect::<Vec<_>>();
+    let entry = root_units
+        .iter()
+        .copied()
+        .find(|unit| unit.module_segments() == ["main"])
+        .or_else(|| (root_units.len() == 1).then(|| root_units[0]))
+        .ok_or_else(|| {
+            Diagnostic::error(
+                codes::LANGUAGE_LOWERING_ERROR,
+                format!(
+                    "package `{}` must provide `src/main.eqi` when it contains multiple source modules",
+                    root.package_name()
+                ),
+            )
+        })?
+        .module_segments()
+        .to_vec();
+    ResolvedHierarchyInput::with_root_module(
+        root,
+        entry.iter().map(String::as_str),
         units,
-        aliases,
-    ))
+        dependencies,
+    )
 }
 
 fn append_preparation_sources(
@@ -758,7 +785,7 @@ fn append_preparation_sources(
             namespace.clone(),
             file.path().as_str(),
             source,
-        ));
+        )?);
     }
     Ok(())
 }
@@ -815,27 +842,27 @@ fn compiler_input(
                 namespace.clone(),
                 file.path().as_str(),
                 source,
-            ));
+            )?);
         }
     }
 
-    let aliases = resolved
+    let direct_dependencies = resolved
         .edges()
         .iter()
         .map(|edge| {
-            Ok(ResolvedAlias::new(
+            Ok(ResolvedDependency::new(
                 namespace(namespaces, edge.declaring())?.clone(),
-                edge.alias().as_str(),
                 namespace(namespaces, edge.target())?.clone(),
             ))
         })
         .collect::<Result<Vec<_>, PackageCompilationError>>()?;
 
-    Ok(ResolvedHierarchyInput::new(
+    package_hierarchy_input(
         namespace(namespaces, resolved.root())?.clone(),
         units,
-        aliases,
-    ))
+        direct_dependencies,
+    )
+    .map_err(|diagnostic| PackageCompilationError::Diagnostics(vec![diagnostic]))
 }
 
 fn verify_semantic_content(

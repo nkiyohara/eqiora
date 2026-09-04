@@ -263,14 +263,12 @@ public connector OtherVelocityTractionBoundary = field_physical(
         )
         .unwrap(),
     ];
+    let source = format!(
+        "import Eqiora.Fluid.Incompressible.incompressible as fluid;\n\
+         import Eqiora.Mechanics.Interfaces.interfaces as mechanics;\n{PACKAGED}"
+    );
     let error = prepare_package_release_v1(
-        inline_sources(
-            ROOT_PACKAGE,
-            VERSION,
-            dependencies,
-            "src/main.eqi",
-            PACKAGED,
-        ),
+        inline_sources(ROOT_PACKAGE, VERSION, dependencies, "src/main.eqi", &source),
         &[other_fluid, other_mechanics],
     )
     .expect_err("distinct nominal Connectors must fail before a root release exists");
@@ -547,8 +545,17 @@ fn root_release(
         )
         .unwrap(),
     ];
+    let fluid_name = fluid.package_identity().expect("fluid identity").name;
+    let mechanics_name = mechanics
+        .package_identity()
+        .expect("mechanics identity")
+        .name;
+    let source = format!(
+        "import {fluid_name}.incompressible as {fluid_alias};\n\
+         import {mechanics_name}.interfaces as {mechanics_alias};\n{source}"
+    );
     prepare_package_release_v1(
-        inline_sources(ROOT_PACKAGE, VERSION, dependencies, "src/main.eqi", source),
+        inline_sources(ROOT_PACKAGE, VERSION, dependencies, "src/main.eqi", &source),
         &[fluid.clone(), mechanics.clone()],
     )
     .expect("prepare exact verification root")

@@ -1510,7 +1510,7 @@ fn revised_oracle_sequence() {
 
     // Stage 9: exact locked-package path, compared only for structural meaning.
     let source_path =
-        NormalizedRelativePath::parse("models/natural.eqi").expect("package source path");
+        NormalizedRelativePath::parse("src/models/natural.eqi").expect("package source path");
     let manifest = AuthorManifestV1::new(
         QualifiedName::parse("org.eqiora.oracle.NaturalEquation").expect("package name"),
         ExactVersion::parse("1.0.0").expect("package version"),

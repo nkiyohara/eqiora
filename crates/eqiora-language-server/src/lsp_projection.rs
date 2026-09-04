@@ -68,7 +68,6 @@ pub(crate) const fn editor_position(position: Position) -> EditorPosition {
 
 pub(crate) const fn symbol_kind(kind: EditorSymbolKind) -> SymbolKind {
     match kind {
-        EditorSymbolKind::Module => SymbolKind::MODULE,
         EditorSymbolKind::Import => SymbolKind::NAMESPACE,
         EditorSymbolKind::Dimension => SymbolKind::TYPE_PARAMETER,
         EditorSymbolKind::Property | EditorSymbolKind::Parameter => SymbolKind::PROPERTY,
@@ -90,7 +89,6 @@ pub(crate) const fn symbol_kind(kind: EditorSymbolKind) -> SymbolKind {
 
 pub(crate) const fn symbol_label(kind: EditorSymbolKind) -> &'static str {
     match kind {
-        EditorSymbolKind::Module => "Module",
         EditorSymbolKind::Import => "Import",
         EditorSymbolKind::Dimension => "Dimension",
         EditorSymbolKind::Property => "Property",

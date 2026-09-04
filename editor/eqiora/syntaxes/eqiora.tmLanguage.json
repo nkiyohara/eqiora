@@ -19,8 +19,8 @@
     "declarations": {
       "patterns": [
         {
-          "match": "\\b(?:(public|private)\\s+)?(module|import)\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)",
-          "captures": { "1": { "name": "keyword.declaration.eqiora" }, "2": { "name": "keyword.declaration.eqiora" }, "3": { "name": "entity.name.namespace.eqiora" } }
+          "match": "\\b(import)\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": { "1": { "name": "keyword.declaration.eqiora" }, "2": { "name": "entity.name.namespace.eqiora" } }
         },
         {
           "match": "\\b(?:(public|private)\\s+)?(?:(property)\\s+(contract|release)|(material)\\s+(composition)|(pure)\\s+(operator)|(component|connector|model|dimension))\\s+([A-Za-z_][A-Za-z0-9_]*)",
@@ -41,7 +41,7 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.eqiora",
-        "match": "\\b(?:across|ambient_dimension|as|axis|boundaries|boundary|citation|clock|complete_exterior|component|composition|connect|connector|conserving|continuous|contract|delta|dimension|discrete|domain|field|for|form|implements|import|in|input|instance|license|let|lower|material|model|module|on|operator|output|over|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|representation|scalar|shape|side|signal|slot|source_unit|spatial|support|through|unconditional|upper|validity|value|volume)\\b"
+        "match": "\\b(?:across|ambient_dimension|as|axis|boundaries|boundary|citation|clock|complete_exterior|component|composition|connect|connector|conserving|continuous|contract|delta|dimension|discrete|domain|field|for|form|implements|import|in|input|instance|license|let|lower|material|model|on|operator|output|over|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|representation|scalar|shape|side|signal|slot|source_unit|spatial|support|through|unconditional|upper|validity|value|volume)\\b"
       }]
     },
     "functions": {

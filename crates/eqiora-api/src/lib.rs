@@ -125,10 +125,9 @@ impl ModelDocument {
 
     /// Compile one selected Model from a closed inventory of local project sources.
     ///
-    /// Each `path` is validated as a portable normalized relative path. The
-    /// logical identity of every source comes from its `module` declaration,
-    /// not from that path; input order and source relocation therefore do not
-    /// change Model meaning. ASCII-case path collisions are rejected so one
+    /// Each `path` is validated as a portable normalized path below `src/` and
+    /// is the source's logical module identity. Moving a source therefore
+    /// renames its module. ASCII-case path collisions are rejected so one
     /// accepted inventory names the same files on case-sensitive and
     /// case-insensitive hosts.
     /// `entry_model` is either root-local or exactly `alias.Model` for one
@@ -152,7 +151,7 @@ impl ModelDocument {
         S: Into<String>,
     {
         let owner =
-            CompilationNamespaceId::new(["eqiora-local-project-v1"]).map_err(single_diagnostic)?;
+            CompilationNamespaceId::new(["eqiora.local_project"]).map_err(single_diagnostic)?;
         let mut paths = BTreeMap::<String, String>::new();
         let mut units = Vec::new();
         let mut diagnostics = Vec::new();
@@ -180,11 +179,10 @@ impl ModelDocument {
                 continue;
             }
             paths.insert(collision_key, path.as_str().to_owned());
-            units.push(ResolvedSourceUnit::new(
-                owner.clone(),
-                path.as_str(),
-                source,
-            ));
+            match ResolvedSourceUnit::new(owner.clone(), path.as_str(), source) {
+                Ok(unit) => units.push(unit),
+                Err(diagnostic) => diagnostics.push(diagnostic),
+            }
         }
 
         if !diagnostics.is_empty() {
@@ -509,16 +507,14 @@ model decay {
                 .unwrap();
         let input = |reverse: bool| {
             let mut units = vec![
-                ResolvedSourceUnit::in_module(
+                ResolvedSourceUnit::new(
                     owner.clone(),
-                    "models.main".split('.'),
                     "src/models/main.eqi",
-                    "import library.parts as lib; model Main { instance part: lib.Part(p = 1); }",
+                    "import org.example.project.library.parts as lib; model Main { instance part: lib.Part(p = 1); }",
                 )
                 .unwrap(),
-                ResolvedSourceUnit::in_module(
+                ResolvedSourceUnit::new(
                     owner.clone(),
-                    "library.parts".split('.'),
                     "src/library/parts.eqi",
                     "public component Part { public parameter p: 1; relation law continuous { p - 1 = 0; } }",
                 )
@@ -550,14 +546,12 @@ model decay {
     }
 
     #[test]
-    fn project_sources_map_paths_to_authored_modules_deterministically() {
+    fn project_sources_derive_modules_from_paths_deterministically() {
         let main = r#"
-module models.main;
-import library.parts as lib;
+import eqiora.local_project.library.parts as lib;
 model Main { instance load: lib.Resistor(resistance = 2); }
 "#;
         let library = r#"
-module library.parts;
 public component Resistor {
   public parameter resistance: 1;
   relation law continuous { resistance - 2 = 0; }
@@ -571,26 +565,26 @@ public component Resistor {
             ModelDocument::compile_project_sources("models.main", sources, "Main").unwrap()
         };
 
-        let original = compile("src/main.eqi", "src/library.eqi", false);
-        let reordered_and_relocated = compile("elsewhere/root.eqi", "parts/value.eqi", true);
+        let original = compile("src/models/main.eqi", "src/library/parts.eqi", false);
+        let reordered = compile("src/models/main.eqi", "src/library/parts.eqi", true);
         assert_eq!(
             original.canonical_json().unwrap(),
-            reordered_and_relocated.canonical_json().unwrap()
+            reordered.canonical_json().unwrap()
         );
     }
 
     #[test]
     fn project_sources_compile_a_directly_imported_public_model() {
         let imported = ModelDocument::compile_project_sources(
-            "models.main",
+            "main",
             [
                 (
                     "src/main.eqi",
-                    "module models.main; import library.entries as lib; model Local {}",
+                    "import eqiora.local_project.library.entries as lib; model Local {}",
                 ),
                 (
-                    "src/library.eqi",
-                    "module library.entries; public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+                    "src/library/entries.eqi",
+                    "public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
                 ),
             ],
             "lib.Shared",
@@ -599,13 +593,13 @@ public component Resistor {
         assert!(imported.aliases().contains_key("law"));
 
         let diagnostics = ModelDocument::compile_project_sources(
-            "models.main",
+            "main",
             [
                 (
                     "src/main.eqi",
-                    "module models.main; import library.entries as lib; model Local {}",
+                    "import eqiora.local_project.library.entries as lib; model Local {}",
                 ),
-                ("src/library.eqi", "module library.entries; model Hidden {}"),
+                ("src/library/entries.eqi", "model Hidden {}"),
             ],
             "lib.Hidden",
         )
@@ -622,15 +616,9 @@ public component Resistor {
         let diagnostics = ModelDocument::compile_project_sources(
             "models.main",
             [
-                ("../main.eqi", "module models.main; model Main {}"),
-                (
-                    "src/Part.eqi",
-                    "module library.one; public component One {}",
-                ),
-                (
-                    "src/part.eqi",
-                    "module library.two; public component Two {}",
-                ),
+                ("../main.eqi", "model Main {}"),
+                ("src/Part.eqi", "public component One {}"),
+                ("src/part.eqi", "public component Two {}"),
             ],
             "Main",
         )

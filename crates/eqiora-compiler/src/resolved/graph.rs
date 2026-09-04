@@ -12,11 +12,8 @@ use super::{
 const MAX_MODULE_IMPORT_DEPTH: usize = 1_024;
 
 fn alias_error(alias: &ResolvedAlias, message: impl Into<String>) -> Diagnostic {
-    let message = message.into();
-    match alias.source_span() {
-        Some((file, range)) => source_error(codes::LANGUAGE_LOWERING_ERROR, file, range, message),
-        None => resolved_error(message),
-    }
+    let (file, range) = alias.source_span();
+    source_error(codes::LANGUAGE_LOWERING_ERROR, file, range, message)
 }
 
 pub(super) fn validate_graph_shape(
@@ -173,9 +170,7 @@ fn reject_source_import_cycles(
         .map(|module| (module, BTreeSet::new()))
         .collect::<BTreeMap<_, _>>();
     for alias in aliases.iter().filter(|alias| {
-        alias.is_source_import()
-            && modules.contains(alias.declaring_module())
-            && modules.contains(alias.target_module())
+        modules.contains(alias.declaring_module()) && modules.contains(alias.target_module())
     }) {
         outgoing
             .get_mut(alias.declaring_module())
@@ -221,9 +216,7 @@ fn reject_source_import_cycles(
                 cycle.push(target.to_string());
                 let message = format!("semantic module import cycle: {}", cycle.join(" -> "));
                 let closing_alias = aliases.iter().find(|alias| {
-                    alias.is_source_import()
-                        && alias.declaring_module() == module
-                        && alias.target_module() == &target
+                    alias.declaring_module() == module && alias.target_module() == &target
                 });
                 diagnostics.push(match closing_alias {
                     Some(alias) => alias_error(alias, message),
@@ -236,9 +229,7 @@ fn reject_source_import_cycles(
                     "semantic module import depth exceeds the {MAX_MODULE_IMPORT_DEPTH} module limit"
                 );
                 let edge = aliases.iter().find(|alias| {
-                    alias.is_source_import()
-                        && alias.declaring_module() == module
-                        && alias.target_module() == &target
+                    alias.declaring_module() == module && alias.target_module() == &target
                 });
                 diagnostics.push(match edge {
                     Some(alias) => alias_error(alias, message),

@@ -184,7 +184,7 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
         hover["result"]["contents"]["value"]
             .as_str()
             .expect("Markdown hover")
-            .contains("**Component** `Part`")
+            .contains("**Component** `main.Part`")
     );
 
     let definition = response(&messages, 5);
@@ -230,11 +230,9 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
 
 #[test]
 fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
-    let main =
-        "// 🧪\nimport library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
-    let library = "module library.parts;\npublic component Resistor {}\n";
-    let changed_library =
-        "module library.parts;\npublic component Resistor {\n  // unsaved workspace edit\n}\n";
+    let main = "// 🧪\nimport editor.workspace.library as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
+    let library = "public component Resistor {}\n";
+    let changed_library = "public component Resistor {\n  // unsaved workspace edit\n}\n";
     let main_uri = "file:///workspace/main.eqi";
     let library_uri = "file:///workspace/library.eqi";
     let mut child = Command::new(SERVER)
@@ -251,7 +249,7 @@ fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":main_uri,"languageId":"eqiora","version":1,"text":main}}}),
         json!({"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32}}}),
         json!({"jsonrpc":"2.0","id":6,"method":"textDocument/references","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32},"context":{"includeDeclaration":true}}}),
-        json!({"jsonrpc":"2.0","id":7,"method":"textDocument/references","params":{"textDocument":{"uri":library_uri},"position":{"line":1,"character":20},"context":{"includeDeclaration":false}}}),
+        json!({"jsonrpc":"2.0","id":7,"method":"textDocument/references","params":{"textDocument":{"uri":library_uri},"position":{"line":0,"character":20},"context":{"includeDeclaration":false}}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":library_uri,"version":2},"contentChanges":[{"text":changed_library}]}}),
         json!({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32}}}),
         json!({"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32}}}),
@@ -278,7 +276,7 @@ fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
     );
     let definition = response(&messages, 2);
     assert_eq!(definition["result"]["uri"], library_uri);
-    assert_eq!(definition["result"]["range"]["start"]["line"], 1);
+    assert_eq!(definition["result"]["range"]["start"]["line"], 0);
     assert_eq!(definition["result"]["range"]["start"]["character"], 17);
     assert_eq!(definition["result"]["range"]["end"]["character"], 25);
 
@@ -298,7 +296,7 @@ fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
     let hover = response(&messages, 3)["result"]["contents"]["value"]
         .as_str()
         .expect("workspace Markdown hover");
-    assert!(hover.contains("**Component** `library.parts.Resistor`"));
+    assert!(hover.contains("**Component** `library.Resistor`"));
     assert!(hover.contains("// unsaved workspace edit"));
     assert_eq!(response(&messages, 4)["result"]["uri"], library_uri);
     assert!(response(&messages, 5)["result"].is_null());
@@ -400,7 +398,7 @@ fn stdio_workspace_loads_unopened_exact_package_sources_without_writing_a_lock()
     let library_path = fixture.0.join("library");
     let root_path = fixture.0.join("root");
     let library = "public component Resistor {}\n";
-    let root = "model Main { instance load: library.Resistor(); }\n";
+    let root = "import org.example.EditorLibrary.main as library;\nmodel Main { instance load: library.Resistor(); }\n";
     let library_sources = author_sources("org.example.EditorLibrary", library, vec![]);
     let library_release =
         prepare_package_release_v1(library_sources.clone(), &[]).expect("library release");
@@ -434,11 +432,11 @@ fn stdio_workspace_loads_unopened_exact_package_sources_without_writing_a_lock()
         json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{"workspace":{"workspaceFolders":true}},"workspaceFolders":[{"uri":workspace_uri,"name":"package project"}]}}),
         json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":root_uri,"languageId":"eqiora","version":1,"text":root}}}),
-        json!({"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":root_uri},"position":{"line":0,"character":40}}}),
-        json!({"jsonrpc":"2.0","id":3,"method":"textDocument/definition","params":{"textDocument":{"uri":root_uri},"position":{"line":0,"character":40}}}),
-        json!({"jsonrpc":"2.0","id":6,"method":"textDocument/references","params":{"textDocument":{"uri":root_uri},"position":{"line":0,"character":40},"context":{"includeDeclaration":true}}}),
+        json!({"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":root_uri},"position":{"line":1,"character":40}}}),
+        json!({"jsonrpc":"2.0","id":3,"method":"textDocument/definition","params":{"textDocument":{"uri":root_uri},"position":{"line":1,"character":40}}}),
+        json!({"jsonrpc":"2.0","id":6,"method":"textDocument/references","params":{"textDocument":{"uri":root_uri},"position":{"line":1,"character":40},"context":{"includeDeclaration":true}}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":root_uri,"version":2},"contentChanges":[{"text":changed_root}]}}),
-        json!({"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":root_uri},"position":{"line":1,"character":40}}}),
+        json!({"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":root_uri},"position":{"line":2,"character":40}}}),
         json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
         json!({"jsonrpc":"2.0","method":"exit","params":null}),
     ];
@@ -458,7 +456,7 @@ fn stdio_workspace_loads_unopened_exact_package_sources_without_writing_a_lock()
     let hover = response(&messages, 2)["result"]["contents"]["value"]
         .as_str()
         .expect("package Markdown hover");
-    assert!(hover.contains("**Component** `Resistor`"));
+    assert!(hover.contains("**Component** `main.Resistor`"));
     assert_eq!(response(&messages, 3)["result"]["uri"], library_uri);
     let references = response(&messages, 6)["result"]
         .as_array()

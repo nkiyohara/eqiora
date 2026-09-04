@@ -200,17 +200,16 @@ impl EditorWorkspaceSnapshot {
     /// locked-package workspace.
     #[must_use]
     pub fn analyze_standalone(version: u64, source: impl Into<String>) -> Self {
-        let owner = eqiora_compiler::CompilationNamespaceId::new(["editor-standalone"])
+        let owner = eqiora_compiler::CompilationNamespaceId::new(["editor.standalone"])
             .expect("fixed standalone editor namespace is valid");
         Self::analyze_modules(
             version,
             ResolvedHierarchyInput::new(
                 owner.clone(),
-                vec![eqiora_compiler::ResolvedSourceUnit::new(
-                    owner,
-                    "document.eqi",
-                    source,
-                )],
+                vec![
+                    eqiora_compiler::ResolvedSourceUnit::new(owner, "src/main.eqi", source)
+                        .expect("fixed standalone source path is valid"),
+                ],
                 vec![],
             ),
         )
@@ -239,7 +238,7 @@ impl EditorWorkspaceSnapshot {
         }
         if let Err(diagnostic) = preflight_resolved_hierarchy(
             input.units().iter().map(|unit| unit.source().len()),
-            input.aliases().len(),
+            input.dependencies().len(),
         ) {
             if is_cancelled() {
                 return None;

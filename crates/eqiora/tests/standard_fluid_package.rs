@@ -160,7 +160,7 @@ fn standard_package_reopens_from_the_project_lock_and_offline_store() {
         embedded_package::release_sources("Eqiora.Mechanics.Interfaces", "0.2.0");
     let mechanics =
         prepare_package_release_v1(mechanics_sources.clone(), &[]).expect("mechanics release");
-    let fluid_sources = embedded_package::release_sources("Eqiora.Fluid", VERSION);
+    let fluid_sources = standard_fluid_sources(&mechanics);
     let fluid = prepare_package_release_v1(fluid_sources.clone(), std::slice::from_ref(&mechanics))
         .expect("standard fluid release");
     let root_sources = root_sources(&fluid, &root_source(true, Inlet::NoSlip, Outlet::NoSlip));
@@ -212,11 +212,44 @@ fn standard_releases() -> (PackageReleaseV1, PackageReleaseV1) {
     )
     .expect("mechanics release");
     let fluid = prepare_package_release_v1(
-        embedded_package::release_sources("Eqiora.Fluid", VERSION),
+        standard_fluid_sources(&mechanics),
         std::slice::from_ref(&mechanics),
     )
     .expect("standard fluid release");
     (mechanics, fluid)
+}
+
+fn standard_fluid_sources(mechanics: &PackageReleaseV1) -> AuthorPackageSourcesV1 {
+    let sources = embedded_package::release_sources("Eqiora.Fluid", VERSION);
+    let (manifest, files) = sources.into_parts();
+    let dependency = DependencyRequirementV1::new(
+        manifest.dependencies()[0].alias().clone(),
+        mechanics.package_identity().expect("mechanics identity"),
+    )
+    .expect("mechanics dependency");
+    let manifest = AuthorManifestV1::new(
+        manifest.name().clone(),
+        manifest.version().clone(),
+        vec![dependency],
+        manifest.bundle().to_vec(),
+    )
+    .expect("current fluid manifest");
+    let files = files
+        .into_iter()
+        .map(|file| {
+            if file.role() != BundleRoleV1::ModelSource {
+                return file;
+            }
+            let source = std::str::from_utf8(file.bytes()).expect("fluid source is UTF-8");
+            SourceFileV1::new(
+                file.path().clone(),
+                file.role(),
+                format!("import Eqiora.Mechanics.Interfaces.interfaces as mechanics;\n{source}")
+                    .into_bytes(),
+            )
+        })
+        .collect();
+    AuthorPackageSourcesV1::new(manifest, files).expect("current fluid sources")
 }
 
 fn compile_root(
@@ -254,12 +287,13 @@ fn root_sources(fluid: &PackageReleaseV1, source: &str) -> AuthorPackageSourcesV
         vec![BundleEntryV1::new(path.clone(), BundleRoleV1::ModelSource)],
     )
     .expect("root manifest");
+    let source = format!("import Eqiora.Fluid.fluid as fluid;\n{source}");
     AuthorPackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             path,
             BundleRoleV1::ModelSource,
-            source.as_bytes().to_vec(),
+            source.into_bytes(),
         )],
     )
     .expect("root sources")

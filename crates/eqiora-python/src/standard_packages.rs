@@ -100,7 +100,7 @@ fn standard_closure(
     package: &str,
 ) -> Result<Vec<(AuthorPackageSourcesV1, PackageReleaseV1)>, String> {
     match package {
-        "Eqiora.Fluid@0.3.0" => {
+        "Eqiora.Fluid.Incompressible@0.2.0" => {
             let mechanics_sources = mechanics_sources()?;
             let mechanics = prepare_package_release_v1(mechanics_sources.clone(), &[])
                 .map_err(|error| format!("bundled mechanics package is invalid: {error}"))?;
@@ -110,14 +110,18 @@ fn standard_closure(
                     .map_err(|error| format!("bundled fluid package is invalid: {error}"))?;
             Ok(vec![(mechanics_sources, mechanics), (fluid_sources, fluid)])
         }
-        "Eqiora.Solid@0.3.0" => {
+        "Eqiora.Solid.LinearElasticity@0.4.0" => {
+            let mechanics_sources = mechanics_sources()?;
+            let mechanics = prepare_package_release_v1(mechanics_sources.clone(), &[])
+                .map_err(|error| format!("bundled mechanics package is invalid: {error}"))?;
             let solid_sources = solid_sources()?;
-            let solid = prepare_package_release_v1(solid_sources.clone(), &[])
-                .map_err(|error| format!("bundled solid package is invalid: {error}"))?;
-            Ok(vec![(solid_sources, solid)])
+            let solid =
+                prepare_package_release_v1(solid_sources.clone(), std::slice::from_ref(&mechanics))
+                    .map_err(|error| format!("bundled solid package is invalid: {error}"))?;
+            Ok(vec![(mechanics_sources, mechanics), (solid_sources, solid)])
         }
         _ => Err(format!(
-            "unsupported exact package {package:?}; expected Eqiora.Fluid@0.3.0 or Eqiora.Solid@0.3.0"
+            "unsupported exact package {package:?}; expected Eqiora.Fluid.Incompressible@0.2.0 or Eqiora.Solid.LinearElasticity@0.4.0"
         )),
     }
 }
@@ -142,21 +146,17 @@ fn embedded_sources(
 
 fn mechanics_sources() -> Result<AuthorPackageSourcesV1, String> {
     embedded_sources(
-        include_bytes!("../../../packages/releases/Eqiora.Mechanics.Interfaces/0.2.0/package.json"),
+        include_bytes!("../../../packages/Eqiora.Mechanics.Interfaces/package.json"),
         &[
             (
                 "README.md",
                 BundleRoleV1::Documentation,
-                include_bytes!(
-                    "../../../packages/releases/Eqiora.Mechanics.Interfaces/0.2.0/README.md"
-                ),
+                include_bytes!("../../../packages/Eqiora.Mechanics.Interfaces/README.md"),
             ),
             (
                 "src/interfaces.eqi",
                 BundleRoleV1::ModelSource,
-                include_bytes!(
-                    "../../../packages/releases/Eqiora.Mechanics.Interfaces/0.2.0/src/interfaces.eqi"
-                ),
+                include_bytes!("../../../packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi"),
             ),
         ],
     )
@@ -164,17 +164,19 @@ fn mechanics_sources() -> Result<AuthorPackageSourcesV1, String> {
 
 fn fluid_sources() -> Result<AuthorPackageSourcesV1, String> {
     embedded_sources(
-        include_bytes!("../../../packages/releases/Eqiora.Fluid/0.3.0/package.json"),
+        include_bytes!("../../../packages/Eqiora.Fluid.Incompressible/package.json"),
         &[
             (
                 "README.md",
                 BundleRoleV1::Documentation,
-                include_bytes!("../../../packages/releases/Eqiora.Fluid/0.3.0/README.md"),
+                include_bytes!("../../../packages/Eqiora.Fluid.Incompressible/README.md"),
             ),
             (
-                "src/fluid.eqi",
+                "src/incompressible.eqi",
                 BundleRoleV1::ModelSource,
-                include_bytes!("../../../packages/releases/Eqiora.Fluid/0.3.0/src/fluid.eqi"),
+                include_bytes!(
+                    "../../../packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"
+                ),
             ),
         ],
     )
@@ -182,17 +184,19 @@ fn fluid_sources() -> Result<AuthorPackageSourcesV1, String> {
 
 fn solid_sources() -> Result<AuthorPackageSourcesV1, String> {
     embedded_sources(
-        include_bytes!("../../../packages/releases/Eqiora.Solid/0.3.0/package.json"),
+        include_bytes!("../../../packages/Eqiora.Solid.LinearElasticity/package.json"),
         &[
             (
                 "README.md",
                 BundleRoleV1::Documentation,
-                include_bytes!("../../../packages/releases/Eqiora.Solid/0.3.0/README.md"),
+                include_bytes!("../../../packages/Eqiora.Solid.LinearElasticity/README.md"),
             ),
             (
-                "src/solid.eqi",
+                "src/linear_elasticity.eqi",
                 BundleRoleV1::ModelSource,
-                include_bytes!("../../../packages/releases/Eqiora.Solid/0.3.0/src/solid.eqi"),
+                include_bytes!(
+                    "../../../packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"
+                ),
             ),
         ],
     )

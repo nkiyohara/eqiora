@@ -43,8 +43,6 @@ impl EditorPosition {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum EditorSymbolKind {
-    /// Logical source module.
-    Module,
     /// Imported module alias.
     Import,
     /// Structural dimension alias.
@@ -421,13 +419,6 @@ fn line_starts(source: &str) -> Vec<u32> {
 
 fn document_symbols(document: &Document) -> Vec<EditorSymbol> {
     let mut symbols = Vec::new();
-    if let Some((module, range)) = document.module() {
-        symbols.push(EditorSymbol::leaf(
-            EditorSymbolKind::Module,
-            module.as_str(),
-            range,
-        ));
-    }
     symbols.extend(
         document
             .imports()

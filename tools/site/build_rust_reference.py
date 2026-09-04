@@ -66,6 +66,7 @@ SPECIAL_HIDEME_LABELS = frozenset(
         "Show 15 fields",
         "Show 16 variants",
         "Show 17 variants",
+        "Show 19 variants",
         "Show 20 variants",
         "Show 23 variants",
         "Show 26 variants",

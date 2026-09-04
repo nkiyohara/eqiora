@@ -94,8 +94,9 @@ operation.
 The initial library is intentionally small:
 
 The Python distribution exposes `eqiora.vendor_standard_package(...)` for
-copying `Eqiora.Fluid@0.3.0` or `Eqiora.Solid@0.3.0` and its exact dependency
-closure into an ordinary local package project. It returns each vendored
+copying `Eqiora.Fluid.Incompressible@0.2.0` or
+`Eqiora.Solid.LinearElasticity@0.4.0` and its exact dependency closure into an
+ordinary local package project. It returns each vendored
 release's semantic identity, source identity, and project-relative path for
 the application manifest and `eqiora.toml`.
 

@@ -289,9 +289,9 @@ assert isinstance(model.property_bindings, tuple)
 assert len(model.property_bindings) == 1
 binding = model.property_bindings[0]
 assert binding.composition is None
-assert binding.contract == f"{namespace}::Diffusivity"
-assert binding.release == f"{namespace}::ReferenceDiffusivity"
-assert binding.component == f"{namespace}::PoissonLaw"
+assert binding.contract == f"{namespace}::poisson::Diffusivity"
+assert binding.release == f"{namespace}::poisson::ReferenceDiffusivity"
+assert binding.component == f"{namespace}::poisson::PoissonLaw"
 assert binding.requirement == "diffusivity"
 assert binding.normalized_value == 0.025
 assert binding.validity == "unconditional"

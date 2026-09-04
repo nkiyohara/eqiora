@@ -139,7 +139,14 @@ fn root_sources(
         ],
     )
     .expect("root manifest");
-    let source = source.replace("fluid.", &format!("{alias}."));
+    let package_name = component
+        .package_identity()
+        .expect("component package identity")
+        .name;
+    let source = format!(
+        "import {package_name}.incompressible as {alias};\n{}",
+        source.replace("fluid.", &format!("{alias}."))
+    );
     let mut files = vec![
         SourceFileV1::new(
             readme_path,

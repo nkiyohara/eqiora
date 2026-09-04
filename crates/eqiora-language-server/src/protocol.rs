@@ -329,7 +329,7 @@ fn analyze_group(
             };
         }
     }
-    let owner = CompilationNamespaceId::new(["editor-workspace"])
+    let owner = CompilationNamespaceId::new(["editor.workspace"])
         .expect("fixed editor workspace namespace is valid");
     let mut units = Vec::new();
     let mut file_by_uri = BTreeMap::new();
@@ -338,7 +338,19 @@ fn analyze_group(
         if document.source.len() > EditorSnapshot::MAX_SOURCE_BYTES {
             continue;
         }
-        let unit = ResolvedSourceUnit::new(owner.clone(), &document.key, document.source);
+        let relative = document
+            .key
+            .strip_prefix(group)
+            .unwrap_or(&document.key)
+            .trim_start_matches('/');
+        let virtual_path = if relative.is_empty() {
+            "src/main.eqi".to_owned()
+        } else {
+            format!("src/{relative}")
+        };
+        let Ok(unit) = ResolvedSourceUnit::new(owner.clone(), virtual_path, document.source) else {
+            continue;
+        };
         let file = unit.diagnostic_file();
         file_by_uri.insert(document.key, file.clone());
         uri_by_file.insert(file, document.uri);

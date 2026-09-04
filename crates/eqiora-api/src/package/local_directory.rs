@@ -186,7 +186,7 @@ pub(crate) fn analyze_local_package_editor_project_v1(
                 namespace.clone(),
                 file.path().as_str(),
                 source,
-            );
+            )?;
             relative_paths.insert(
                 unit.diagnostic_file(),
                 PathBuf::from(package.relative_path.as_str()).join(file.path().as_str()),
@@ -746,7 +746,7 @@ mod tests {
 
         let root_sources = author_sources(
             "org.example.Root",
-            "model Local {}",
+            "import org.example.Library.main as library; model Local {}",
             vec![
                 exact_dependency("library", &library_release),
                 exact_dependency("auxiliary", &auxiliary_release),
@@ -795,7 +795,7 @@ mod tests {
         let library_release =
             prepare_package_release_v1(library_sources.clone(), &[]).expect("library release");
         write_package(&library_path, &library_sources);
-        let root_source = "model Main { instance load: library.Resistor(); }";
+        let root_source = "import org.example.EditorLibrary.main as library; model Main { instance load: library.Resistor(); }";
         let root_sources = author_sources(
             "org.example.EditorRoot",
             root_source,

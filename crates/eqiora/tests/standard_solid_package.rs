@@ -201,12 +201,13 @@ fn root_sources(solid: &PackageReleaseV1, source: &str) -> AuthorPackageSourcesV
         vec![BundleEntryV1::new(path.clone(), BundleRoleV1::ModelSource)],
     )
     .expect("root manifest");
+    let source = format!("import Eqiora.Solid.solid as solid;\n{source}");
     AuthorPackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             path,
             BundleRoleV1::ModelSource,
-            source.as_bytes().to_vec(),
+            source.into_bytes(),
         )],
     )
     .expect("root sources")

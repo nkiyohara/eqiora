@@ -1,6 +1,6 @@
 use eqiora::artifact::{ArtifactDigest, RunManifestV1};
 use eqiora::compiler::{
-    ResolvedAlias, ResolvedHierarchyInput, ResolvedSourceUnit, analyze_resolved_hierarchy,
+    ResolvedDependency, ResolvedHierarchyInput, ResolvedSourceUnit, analyze_resolved_hierarchy,
 };
 use eqiora::entity::kinds;
 use eqiora::graph::EdgeKind;
@@ -159,8 +159,12 @@ fn drive_release_with_spelling(
         ],
     )
     .expect("drive manifest");
-    let drive_source =
-        DRIVE_SOURCE.replace("electrical.", &format!("{}.", spelling.electrical_in_drive));
+    let drive_source = DRIVE_SOURCE
+        .replace(
+            "as electrical;",
+            &format!("as {};", spelling.electrical_in_drive),
+        )
+        .replace("electrical.", &format!("{}.", spelling.electrical_in_drive));
     let sources = package_sources(
         manifest,
         vec![
@@ -223,6 +227,11 @@ fn root_release_with_spelling(
     .expect("root manifest");
 
     let root_source = root_source
+        .replace(
+            "as electrical;",
+            &format!("as {};", spelling.electrical_in_root),
+        )
+        .replace("as drive;", &format!("as {};", spelling.drive_in_root))
         .replace("electrical.", &format!("{}.", spelling.electrical_in_root))
         .replace("drive.", &format!("{}.", spelling.drive_in_root));
     let sources = package_sources(
@@ -575,18 +584,21 @@ fn invalid_root_diagnostics(root_source: &str) -> Vec<Diagnostic> {
     let input = ResolvedHierarchyInput::new(
         selected.clone(),
         vec![
-            ResolvedSourceUnit::new(selected.clone(), ROOT_PATH, root_source),
-            ResolvedSourceUnit::new(drive_namespace.clone(), DRIVE_PATH, DRIVE_SOURCE),
+            ResolvedSourceUnit::new(selected.clone(), ROOT_PATH, root_source)
+                .expect("root source path"),
+            ResolvedSourceUnit::new(drive_namespace.clone(), DRIVE_PATH, DRIVE_SOURCE)
+                .expect("drive source path"),
             ResolvedSourceUnit::new(
                 electrical_namespace.clone(),
                 ELECTRICAL_PATH,
                 ELECTRICAL_SOURCE,
-            ),
+            )
+            .expect("electrical source path"),
         ],
         vec![
-            ResolvedAlias::new(selected.clone(), "drive", drive_namespace.clone()),
-            ResolvedAlias::new(selected, "electrical", electrical_namespace.clone()),
-            ResolvedAlias::new(drive_namespace, "electrical", electrical_namespace),
+            ResolvedDependency::new(selected.clone(), drive_namespace.clone()),
+            ResolvedDependency::new(selected, electrical_namespace.clone()),
+            ResolvedDependency::new(drive_namespace, electrical_namespace),
         ],
     );
     match analyze_resolved_hierarchy(input) {
@@ -611,7 +623,8 @@ component OtherAnchor {
   relation law continuous { through(shaft) = 0; }
 }
 "#;
-    let nominal_mismatch = format!("{same_dimension_connector}\n{ROOT_SOURCE}")
+    let nominal_mismatch = ROOT_SOURCE
+        .replacen("\n\n", &format!("\n\n{same_dimension_connector}\n"), 1)
         .replace(
             "  instance ground: electrical.Ground;",
             "  instance ground: electrical.Ground;\n  instance other: OtherAnchor;",
@@ -1022,8 +1035,8 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
     let respelled = packaged_model_with_spelling(
         ROOT_SOURCE,
         PackageSpelling {
-            drive_path: "models/drive.eqi",
-            root_path: "models/system.eqi",
+            drive_path: DRIVE_PATH,
+            root_path: ROOT_PATH,
             electrical_in_drive: "circuit",
             electrical_in_root: "foundation",
             drive_in_root: "machines",
@@ -1048,7 +1061,7 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
             .model()
             .digest()
             .expect("respelled model digest"),
-        "nested alias spelling, file relocation, and source-unit insertion order are not model meaning"
+        "source import aliases and source-unit insertion order are not model meaning"
     );
 
     let changed_clock_source = ROOT_SOURCE.replacen("period = 1 / 100", "period = 1 / 50", 1);

@@ -23,7 +23,7 @@ pub(super) fn analyze_resolved_hierarchy_with_cancellation(
     }
     preflight_resolved_hierarchy(
         input.units.iter().map(|unit| unit.source.len()),
-        input.aliases.len(),
+        input.dependencies.len(),
     )
     .map_err(|diagnostic| vec![diagnostic])?;
 
@@ -46,16 +46,30 @@ pub(super) fn analyze_resolved_hierarchy_with_cancellation(
     let authored_imports = units.iter().try_fold(0_usize, |count, unit| {
         count.checked_add(unit.document.imports().len())
     });
-    let alias_count = authored_imports.and_then(|count| input.aliases.len().checked_add(count));
+    let alias_count =
+        authored_imports.and_then(|count| input.dependencies.len().checked_add(count));
     if alias_count.is_none_or(|count| count > MAX_ALIASES) {
         diagnostics.push(resolved_error(format!(
-            "resolved hierarchy exceeds the {MAX_ALIASES} direct-alias limit"
+            "resolved hierarchy exceeds the {MAX_ALIASES} module-link limit"
         )));
         stable_sort(&mut diagnostics);
         return Err(diagnostics);
     }
 
-    let mut aliases = input.aliases;
+    let mut module_index = BTreeMap::new();
+    for unit in &units {
+        let path = canonical_module_path(&unit.module);
+        if let Some(previous) = module_index.insert(path.clone(), unit.file.clone()) {
+            diagnostics.push(resolved_error(format!(
+                "canonical module identity `{path}` is supplied by both `{previous}` and `{}`",
+                unit.file
+            )));
+        }
+    }
+
+    validate_dependencies(&units, &input.dependencies, &mut diagnostics);
+
+    let mut aliases = Vec::new();
     aliases
         .try_reserve(authored_imports.expect("checked authored import count"))
         .map_err(|_| vec![resolved_error("cannot reserve authored module imports")])?;
@@ -64,22 +78,40 @@ pub(super) fn analyze_resolved_hierarchy_with_cancellation(
             return Ok(None);
         }
         for (import_module, import_alias, import_range) in unit.document.imports() {
-            let module = match ModuleName::new(import_module.segments()) {
-                Ok(module) => module,
-                Err(error) => {
-                    diagnostics.push(source_error(
-                        error.code(),
-                        &unit.file,
-                        import_range,
-                        error.message(),
-                    ));
-                    continue;
-                }
+            let Some(target_file) = module_index.get(import_module.as_str()) else {
+                diagnostics.push(source_error(
+                    codes::LANGUAGE_LOWERING_ERROR,
+                    &unit.file,
+                    import_range,
+                    format!("unknown canonical module `{import_module}`"),
+                ));
+                continue;
             };
+            let target = units
+                .iter()
+                .find(|candidate| candidate.file == *target_file)
+                .map(|candidate| &candidate.module)
+                .expect("module index refers to an analyzed source unit");
+            if target.owner() != unit.module.owner()
+                && !input.dependencies.iter().any(|dependency| {
+                    dependency.declaring() == unit.module.owner()
+                        && dependency.target() == target.owner()
+                })
+            {
+                diagnostics.push(source_error(
+                    codes::LANGUAGE_LOWERING_ERROR,
+                    &unit.file,
+                    import_range,
+                    format!(
+                        "canonical module `{import_module}` is not in the current package or a direct dependency"
+                    ),
+                ));
+                continue;
+            }
             aliases.push(ResolvedAlias::authored_import(
                 unit.module.clone(),
                 import_alias,
-                CompilationModuleId::new(unit.module.owner().clone(), module),
+                target.clone(),
                 &unit.file,
                 import_range,
             ));
@@ -152,5 +184,48 @@ pub(super) fn analyze_resolved_hierarchy_with_cancellation(
     } else {
         stable_sort(&mut diagnostics);
         Err(diagnostics)
+    }
+}
+
+fn canonical_module_path(module: &CompilationModuleId) -> String {
+    format!("{}.{}", module.owner().package_name(), module.name())
+}
+
+fn validate_dependencies(
+    units: &[AnalyzedSourceUnit],
+    dependencies: &[ResolvedDependency],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let namespaces = units
+        .iter()
+        .map(|unit| unit.module.owner())
+        .collect::<BTreeSet<_>>();
+    let mut edges = BTreeSet::new();
+    for dependency in dependencies {
+        if dependency.declaring() == dependency.target() {
+            diagnostics.push(resolved_error(format!(
+                "package `{}` cannot depend on itself",
+                dependency.declaring()
+            )));
+        }
+        if !namespaces.contains(dependency.declaring()) {
+            diagnostics.push(resolved_error(format!(
+                "dependency has unknown declaring package `{}`",
+                dependency.declaring()
+            )));
+        }
+        if !namespaces.contains(dependency.target()) {
+            diagnostics.push(resolved_error(format!(
+                "dependency has unknown target package `{}`",
+                dependency.target()
+            )));
+        }
+        if !edges.insert((dependency.declaring(), dependency.target())) {
+            diagnostics.push(resolved_error(format!(
+                "duplicate direct dependency `{}` -> `{}`",
+                dependency.declaring(),
+                dependency.target()
+            )));
+        }
     }
 }

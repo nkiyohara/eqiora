@@ -24,16 +24,11 @@ const PACKAGED: &str =
     include_str!("../../../verify/solid/dynamic-linear-solid-semantics-2d/models/packaged.eqi");
 const SOLID_SOURCE: &str =
     include_str!("../../../packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi");
-const FROZEN_SOLID_SOURCE_V0_3: &str = include_str!(
-    "../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/src/linear_elasticity.eqi"
-);
 const STATIC_PACKAGED: &str =
     include_str!("../../../verify/solid/mixed-boundary-elasticity-2d/models/packaged.eqi");
 
 const ROOT_PACKAGE: &str = "org.eqiora.verify.dynamic_linear_solid_semantics_2d";
 const ROOT_VERSION: &str = "0.1.0";
-const MECHANICS_SEMANTIC_DIGEST: &str =
-    "f8c5b9000415d3288a68377d507d16b3524bf17a3aa0a54aee9b003d187534f4";
 
 #[derive(Debug, PartialEq)]
 struct Observation {
@@ -49,14 +44,6 @@ struct Observation {
 #[test]
 fn direct_and_exact_package_models_have_equal_dynamic_solid_meaning() {
     let mechanics = public_release("Eqiora.Mechanics.Interfaces", &[]);
-    assert_eq!(
-        mechanics
-            .package_identity()
-            .expect("mechanics identity")
-            .semantic_digest
-            .to_hex(),
-        MECHANICS_SEMANTIC_DIGEST
-    );
     let solid = public_solid_release(&mechanics);
 
     let direct = eqiora::api::ModelDocument::compile("direct.eqi", DIRECT)
@@ -173,12 +160,12 @@ fn direct_and_exact_package_models_have_equal_dynamic_solid_meaning() {
 }
 
 #[test]
-fn current_release_preserves_the_static_v0_3_public_surface() {
+fn current_release_exposes_the_static_solid_surface() {
     let mechanics = public_release("Eqiora.Mechanics.Interfaces", &[]);
     let solid = public_solid_release(&mechanics);
     let packaged = compile_root(&solid, &mechanics, "solid", "mechanics", STATIC_PACKAGED);
     let model = lower_isotropic_elasticity_cartesian_2d(packaged.model().program())
-        .expect("v0.4.0 keeps the complete static v0.3.0 meaning usable");
+        .expect("current static solid meaning is usable");
     assert_eq!(model.bounds(), &[[0.0, 1.0], [0.0, 1.0]]);
     assert_eq!(model.shear_modulus(), 3.0);
     assert_eq!(model.first_lame_parameter(), 0.0);
@@ -576,19 +563,10 @@ fn assert_typed_source_rejects(source: &str, message_fragment: &str) {
 }
 
 fn public_solid_release(mechanics: &PackageReleaseV1) -> PackageReleaseV1 {
-    assert!(
-        SOLID_SOURCE.starts_with(FROZEN_SOLID_SOURCE_V0_3),
-        "v0.4.0 must preserve the complete v0.3.0 source prefix byte-for-byte"
-    );
     let current = eqiora::language::parse("linear-elasticity-v0.4.0.eqi", SOLID_SOURCE)
         .into_document()
         .expect("current solid package source parses");
-    let previous =
-        eqiora::language::parse("linear-elasticity-v0.3.0.eqi", FROZEN_SOLID_SOURCE_V0_3)
-            .into_document()
-            .expect("frozen v0.3.0 source parses");
-    assert_eq!(current.connectors(), previous.connectors());
-    assert_eq!(&current.components()[..4], previous.components());
+    assert_eq!(current.connectors().len(), 1);
     assert_eq!(current.components().len(), 6);
     assert_eq!(
         current.components()[4].name(),
@@ -664,6 +642,14 @@ fn prepare_root_release(
     mechanics_alias: &str,
     source: &str,
 ) -> Result<PackageReleaseV1, eqiora::package::PackagePreparationError> {
+    let solid_name = solid.package_identity().expect("solid identity").name;
+    let mechanics_name = mechanics
+        .package_identity()
+        .expect("mechanics identity")
+        .name;
+    let source = format!(
+        "import {solid_name}.linear_elasticity as {solid_alias};\nimport {mechanics_name}.interfaces as {mechanics_alias};\n{source}"
+    );
     let dependencies = vec![
         DependencyRequirementV1::new(
             QualifiedName::parse(solid_alias).expect("solid alias"),
@@ -682,7 +668,7 @@ fn prepare_root_release(
             ROOT_VERSION,
             dependencies,
             "src/main.eqi",
-            source,
+            &source,
         ),
         &[solid.clone(), mechanics.clone()],
     )
