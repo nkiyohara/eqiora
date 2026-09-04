@@ -57,7 +57,8 @@ def main() -> int:
     grammar = load(str(manifest["grammar"]))
     configuration = load(str(manifest["configuration"]))
     snippets = load(str(manifest["snippets"]))
-    assert isinstance(grammar, dict) and grammar["scopeName"] == "source.eqiora"
+    assert isinstance(grammar, dict) and grammar["name"] == manifest["languageId"]
+    assert grammar["scopeName"] == "source.eqiora"
     assert grammar["fileTypes"] == ["eqi"]
     assert isinstance(configuration, dict) and configuration["comments"] == {"lineComment": "//"}
     assert isinstance(snippets, dict) and set(snippets) == {"Component", "Model", "Relation"}
