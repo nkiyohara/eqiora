@@ -28,6 +28,8 @@ use eqiora_package::{
     VisibilityV1,
 };
 
+#[cfg(feature = "project-filesystem")]
+pub(crate) use local_directory::analyze_local_package_editor_project_v1;
 pub use model_document::PackagedModelDocument;
 
 pub(crate) fn analyze_editor_workspace(

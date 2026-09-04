@@ -1,6 +1,8 @@
 //! Resolved multi-source editor projection.
 
 use std::collections::BTreeMap;
+#[cfg(feature = "project-filesystem")]
+use std::path::PathBuf;
 
 use eqiora_compiler::{
     AnalyzedResolvedHierarchy, CanonicalDeclarationKind, ResolvedHierarchyInput,
@@ -173,6 +175,24 @@ impl EditorWorkspaceService {
 }
 
 impl EditorWorkspaceSnapshot {
+    /// Analyze an exact local package project without writing its lock or store.
+    ///
+    /// `overrides` replaces declared model sources by project-relative path so
+    /// editor clients can include unsaved full-document text. The returned map
+    /// connects compiler diagnostic labels to those same project-relative paths.
+    ///
+    /// # Errors
+    /// Returns project admission, package preparation, resolution, or compiler
+    /// failures without mutating the project directory.
+    #[cfg(feature = "project-filesystem")]
+    pub fn analyze_local_package_project_v1(
+        version: u64,
+        project_root: impl Into<PathBuf>,
+        overrides: &BTreeMap<PathBuf, String>,
+    ) -> Result<(Self, BTreeMap<String, PathBuf>), crate::package::PackagePreparationError> {
+        crate::package::analyze_local_package_editor_project_v1(version, project_root, overrides)
+    }
+
     /// Analyze one standalone source through the compiler-owned resolved graph.
     ///
     /// This is the single-document adapter path for clients that do not yet
