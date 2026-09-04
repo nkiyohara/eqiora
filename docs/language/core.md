@@ -9,7 +9,7 @@ indexed in the [capability matrix](../capability-matrix.md).
 
 Specimens: [resistor divider](divider.md), [heated body](heated-body.md),
 [sampled state](sampled-state.md), [data-backed property](data-backed-property.md),
-[finite-state mathematics](finite-state.md).
+[finite-state mathematics](finite-state.md), [harmonic RC response](harmonic-rc.md).
 
 The [calculus and branching rules](calculus.md) include the foundation audit's explicit
 partials, continuous time, second-order oscillator, and piecewise constitutive examples.
