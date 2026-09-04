@@ -11,6 +11,7 @@ Specimens: [resistor divider](divider.md), [heated body](heated-body.md),
 [sampled state](sampled-state.md), [data-backed property](data-backed-property.md),
 [finite-state mathematics](finite-state.md), [harmonic RC response](harmonic-rc.md).
 The [1D wavefunction](wavefunction.md) covers stationary normalization and complex time evolution.
+The [Maxwell cavity](maxwell.md) covers vector evolution and oriented boundary traces.
 
 The [calculus and branching rules](calculus.md) include the foundation audit's explicit
 partials, continuous time, second-order oscillator, and piecewise constitutive examples.
