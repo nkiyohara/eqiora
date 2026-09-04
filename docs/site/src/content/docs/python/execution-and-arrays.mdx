@@ -9,4 +9,4 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 Dense result arrays are rank-one CPU `float64` values in the current alpha. `numpy(copy=False)` is lifetime-safe and read-only; an impossible zero-copy request fails instead of copying silently. `numpy(copy=True)` returns an independent writable allocation. DLPack exports are explicit CPU snapshots, not aliases of immutable evidence.
 
-Failures cross the Python boundary as typed `EqioraError` subclasses with stable categories and structured diagnostics. Read the maintained <ExactSourceLink path="docs/python/execution-and-arrays.md" kind="blob">execution and array contract</ExactSourceLink> for exact states, ownership, cancellation behavior, and nonclaims.
+Failures cross the Python boundary as typed `EqioraError` subclasses with stable categories and structured diagnostics. Read the maintained <ExactSourceLink path="docs/python/execution-and-arrays.md" kind="blob">execution and array guide</ExactSourceLink> for states, ownership, cancellation behavior, and current limits.

@@ -468,9 +468,7 @@ Gouraud shading is presentation interpolation of accepted vertex coefficients,
 not a new scientific field.
 
 Matplotlib remains optional and is not imported by base `eqiora`. This bounded
-still does not claim raw-array or arbitrary Field plotting, contours, velocity,
-interactive behavior, animation, deterministic image bytes, media admission,
-or validation from visual similarity.
+helper currently renders scalar vertex or cell fields as still images.
 
 ## Mixed-boundary structural result
 
@@ -728,8 +726,7 @@ result = eqiora.run(portable)
 `.eqplan` contains exactly `plan.to_bytes()`. Reading re-resolves the Plan
 against the locally admitted provider identities and rejects unknown,
 noncanonical, oversized, non-regular, symlinked, or wrongly suffixed inputs.
-This local file is not a project archive, cloud protocol, or historical
-migration format.
+Use it to move one exact Plan between local processes.
 
 Complete Results and spatial Trajectories use the same exact, type-owned file
 boundary. Reopening always requires the owning Plan:

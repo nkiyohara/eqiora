@@ -7,8 +7,8 @@ import { Aside } from '@astrojs/starlight/components';
 import CapabilitySummary from '@components/site/CapabilitySummary.astro';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
-This page answers **what can Eqiora do today, how was that conclusion reached,
-and what remains outside the claim?** It is organized by problem family. The
+This page answers **what can Eqiora do today, and how was that conclusion reached?**
+It is organized by problem family. The
 repository <ExactSourceLink path="docs/capability-matrix.md" kind="blob">capability
 matrix</ExactSourceLink> remains the maintained complete product map.
 
@@ -16,19 +16,13 @@ matrix</ExactSourceLink> remains the maintained complete product map.
 
 These labels describe different facts; they are not a single maturity ladder.
 
-- **Available** — a user-visible contract or surface exists. This alone says
-  nothing about end-to-end execution or scientific correctness.
-- **Executable** — at least one explicitly bounded path runs. A plausible result
-  or image is not verification.
-- **Checked** — focused product tests exercise the stated behavior, but no
-  registered scientific claim is implied.
-- **Verified** — reproducible registered evidence supports the exact stated
-  claim. It does not make the surrounding product family mature or general.
+- **Available** — a user-visible contract or surface exists.
+- **Executable** — at least one described path runs end to end.
+- **Checked** — focused product tests exercise the stated behavior.
+- **Verified** — reproducible registered evidence supports the stated result.
 
 <Aside type="caution" title="Read the boundary, not only the label">
-  Every summary below is narrower than its section heading. Eqiora is alpha;
-  none of these labels means production readiness, general geometry, every
-  backend, or unrestricted dimensional support.
+  Every summary names the exact current path. Eqiora remains alpha software.
 </Aside>
 
 ## At a glance
@@ -39,15 +33,14 @@ These labels describe different facts; they are not a single maturity ladder.
 | Fluid | Exact-cylinder steady Stokes product path | Checked |
 | Fluid | Transient cylinder-flow startup presentation | Executable |
 | Solid | Bounded mixed-boundary linear elasticity | Verified |
-| Thermal | No general heat-transfer problem class claimed | Not claimed |
+| Thermal | Passive-scalar temperature transport only | Not available as a general thermal package |
 | Circuits and hybrid systems | Packaged DC motor and sampled controller | Verified |
 | Geometry and meshing | Exact circular-hole planar geometry | Verified |
 | Differentiation and optimization | Bounded spatial Poisson differentiation | Verified |
 | Execution | Common scalar first-order ODE lifecycle | Verified |
 | Interfaces | Local CLI compile and check | Verified |
 
-The summaries below state the exact boundary, what establishes the status, and
-the important non-claims behind each row.
+The summaries below state the current boundary, status basis, and main limits.
 
 ## Foundations and numerics
 
@@ -59,7 +52,7 @@ the important non-claims behind each row.
     outcome="Poisson problems run on generated Cartesian meshes in 1D–3D through finite elements or finite volumes; one fixed 2D triangular finite-element path is also covered."
     boundary="Generated Cartesian meshes in 1D–3D and one fixed affine-triangle 2D path, within the formulations and solvers named by the matrix."
     establishes="Bounded numerical execution and independently registered checks for the listed Poisson paths."
-    nonclaims="No general scalar PDE family, arbitrary geometry, nonlinear coefficient, production-scale performance, or universal solver selection."
+    limits="Fixed Poisson formulations and the listed Cartesian or affine-triangle meshes."
     routeHref="/examples/"
     routeLabel="Browse bounded examples"
     casePath="verify/numerics/poisson-fem-fvm/case.toml"
@@ -77,7 +70,7 @@ the important non-claims behind each row.
     outcome="One installed-Python path authors exact planar geometry, meshes it with Gmsh, resolves a steady Stokes plan, and publishes finite Result observations."
     boundary="One 2D exact circular-hole geometry and the named Gmsh, MINI/P1, linear, and result-projection policies used by the walkthrough."
     establishes="Focused product tests cover the current Geometry → Mesh → Plan → Run → Result lifecycle."
-    nonclaims="No fixed Gmsh mesh, convergence, drag or lift, Navier–Stokes behavior, performance, or scientific verification of the pictured result."
+    limits="One steady Stokes setup; convergence and force coefficients are not included."
     routeHref="/gallery/exact-cylinder-steady-stokes/"
     routeLabel="Open the bounded Gallery walkthrough"
     casePath="verify/fluid/packaged-steady-stokes-2d/case.toml"
@@ -90,7 +83,7 @@ the important non-claims behind each row.
     outcome="One bounded installed-Python startup path advances accepted states and exposes typed vorticity, force, and pressure observations for caller-owned media."
     boundary="The fixed exact-cylinder setup, policies, time window, and serial execution shown in the Gallery page."
     establishes="The bounded lifecycle produces accepted observations suitable for an illustrative walkthrough."
-    nonclaims="No developed wake, vortex-shedding, benchmark, convergence, validated force, production performance, or scientific verification."
+    limits="A short startup interval, not a developed-wake benchmark."
     routeHref="/gallery/transient-cylinder-startup/"
     routeLabel="Open the illustrative Gallery walkthrough"
   />
@@ -106,7 +99,7 @@ the important non-claims behind each row.
     outcome="One bounded 2D linear-elasticity problem executes through direct and exact-package authoring to the same common result."
     boundary="A Cartesian Q1 realization with complete trace-zero sides, zero weak traction, and the registered manufactured mixed-boundary case."
     establishes="The registered case checks direct/package equivalence, convergence, traction recovery, reaction balance, and fail-closed binding."
-    nonclaims="No general materials, nonlinear or finite-strain mechanics, arbitrary meshes, contact, dynamics, or production solver claim."
+    limits="Linear small-strain behavior on the listed 2D Cartesian realization."
     routeHref="/gallery/mixed-boundary-elasticity/"
     routeLabel="Open the bounded Gallery walkthrough"
     casePath="verify/solid/mixed-boundary-elasticity-2d/case.toml"
@@ -116,12 +109,10 @@ the important non-claims behind each row.
 
 ## Thermal
 
-Eqiora does not currently claim a thermal component library or a supported
-general heat-transfer problem class. A verified passive-scalar transport case
-uses a field with temperature dimension, but the maintained matrix explicitly
-does **not** promote that numerical case to a thermal-component, reaction, or
-source-library claim. See the <ExactSourceLink path="docs/capability-matrix.md" kind="blob">thermal
-and transport rows in the complete matrix</ExactSourceLink>.
+Eqiora does not yet ship a general thermal component package. The current
+temperature-dimension example exercises passive-scalar transport. See the
+<ExactSourceLink path="docs/capability-matrix.md" kind="blob">thermal and
+transport rows in the complete matrix</ExactSourceLink>.
 
 ## Circuits and hybrid systems
 
@@ -133,7 +124,7 @@ and transport rows in the complete matrix</ExactSourceLink>.
     outcome="One serial model combines an ideal linear DC motor, viscous load, and proportional sampled controller."
     boundary="Exactly three packages, scalar electrical and rotational coordinates, one 10 ms clock, host-serial f64, dense Newton, and backward Euler."
     establishes="Registered evidence checks package composition, continuous and sampled semantics, typed physical observations, and the bounded trajectory."
-    nonclaims="No broad device or control library, switching, saturation, field model, multiple rates, production execution, MPI/GPU, or real-time behavior."
+    limits="Ideal linear devices and one fixed-rate sampled controller on the serial host path."
     routeHref="/examples/"
     routeLabel="Browse current examples"
     casePath="verify/hybrid/packaged-dc-motor-controller/case.toml"
@@ -151,7 +142,7 @@ and transport rows in the complete matrix</ExactSourceLink>.
     outcome="Python authors one axis-aligned rectangle minus one strictly interior exact circle with complete named region and boundary membership."
     boundary="One tolerance-free planar geometry family and its bounded Gmsh realization path."
     establishes="Registered cases check canonical geometry identity, named membership, Python projection, and fail-closed replay."
-    nonclaims="No arbitrary CSG/CAD, multiple holes, general arcs, 3D authoring, user-selected classification tolerance, or cross-platform mesh-byte identity."
+    limits="One planar rectangle-minus-circle family with its named boundaries."
     routeHref="/gallery/exact-cylinder-steady-stokes/"
     routeLabel="See the geometry in a Gallery walkthrough"
     casePath="verify/geometry/planar-circular-hole-geometry-v2/case.toml"
@@ -169,7 +160,7 @@ and transport rows in the complete matrix</ExactSourceLink>.
     outcome="Selected Poisson objectives expose parameter derivatives through the admitted differentiation paths."
     boundary="The exact FEM/FVM formulations, scalar parameters, objectives, and host reference environments named by the registered case."
     establishes="Registered comparisons include independently evaluated centered finite differences for the bounded derivative claims."
-    nonclaims="No arbitrary-model autodiff, general shape calculus, optimizer convergence, uncertainty quantification, or every backend."
+    limits="The listed Poisson objectives, scalar parameters, and host paths."
     routeHref="/python/differentiation/"
     routeLabel="Read the Python differentiation guide"
     casePath="verify/differentiation/spatial-poisson-fem-fvm/case.toml"
@@ -187,7 +178,7 @@ and transport rows in the complete matrix</ExactSourceLink>.
     outcome="Canonical scalar first-order models resolve without a mesh and run through the common Python Plan, State, Run, and Trajectory lifecycle."
     boundary="Admitted non-stiff scalar problems using exact field-bound tolerances, Diffsol Tsitouras 5(4), and strictly increasing requested output times."
     establishes="Registered interface and time cases check execution, immutable field-selected series, replay, and retained model lineage."
-    nonclaims="No general shaped state, DAE or event support on this arm, string lookup, step-count schedules, or portable adaptive-controller restart."
+    limits="Non-stiff scalar first-order models with requested output times."
     routeHref="/python/execution-and-arrays/"
     routeLabel="Read the execution and arrays guide"
     casePath="verify/interfaces/python-common-ode-lifecycle/case.toml"
@@ -205,7 +196,7 @@ and transport rows in the complete matrix</ExactSourceLink>.
     outcome="The installed `eqiora check` command compiles and checks one local Eqiora Model source file and returns bounded diagnostics."
     boundary="The exact command, help, exit behavior, source size, diagnostic envelope, and local-file contract documented by the CLI reference."
     establishes="Registered interface checks bind the current command surface and its compile/check behavior."
-    nonclaims="No project scaffolding, package discovery, remote execution, simulation command, watch mode, or stable-1.0 compatibility promise."
+    limits="One local source file per invocation; compilation and checking only."
     routeHref="/reference/cli/"
     routeLabel="Open the exact CLI reference"
     casePath="verify/interfaces/cli-compile-check/case.toml"
