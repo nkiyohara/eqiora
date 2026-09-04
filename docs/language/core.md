@@ -13,6 +13,7 @@ Specimens: [resistor divider](divider.md), [heated body](heated-body.md),
 The [1D wavefunction](wavefunction.md) covers stationary normalization and complex time evolution.
 The [Maxwell cavity](maxwell.md) covers vector evolution and oriented boundary traces.
 The [stochastic specimen](stochastic.md) specifies explicit calculus and noise identity.
+The [phase-separation specimen](phase-separation.md) specifies functional variations and mixed dynamics.
 
 The [calculus and branching rules](calculus.md) include the foundation audit's explicit
 partials, continuous time, second-order oscillator, and piecewise constitutive examples.
