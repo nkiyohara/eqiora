@@ -179,6 +179,11 @@ public component Resistor {}
         .expect("resolved component reference");
     assert!(reference.file().ends_with(":src/main.eqi"));
     assert_eq!(reference.definition(), resistor);
+    let (hovered, detail) = workspace
+        .hover(reference.file(), reference_start + 4)
+        .expect("reference hover");
+    assert_eq!(hovered, resistor);
+    assert_eq!(detail, "public component Resistor {}");
     assert_eq!(
         workspace
             .definition_for_reference(reference.file(), reference_start + 4)
@@ -188,6 +193,17 @@ public component Resistor {}
     assert!(
         workspace
             .definition_for_reference(reference.file(), reference.range().end())
+            .is_none()
+    );
+    let definition_name = u32::try_from(library.find("Resistor").unwrap()).unwrap();
+    let (hovered, detail) = workspace
+        .hover(resistor.file(), definition_name + 2)
+        .expect("definition hover");
+    assert_eq!(hovered, resistor);
+    assert_eq!(detail, "public component Resistor {}");
+    assert!(
+        workspace
+            .hover(resistor.file(), resistor.range().start())
             .is_none()
     );
 
