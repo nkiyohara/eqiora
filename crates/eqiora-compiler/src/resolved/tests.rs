@@ -84,6 +84,22 @@ fn module_labels_preserve_implicit_main_and_name_explicit_modules() {
         .to_string(),
         format!("{owner}::library.primitives")
     );
+    let declared = ResolvedSourceUnit::new(
+        owner.clone(),
+        "src/library.eqi",
+        "module library.primitives;\npublic component Part {}",
+    );
+    assert!(
+        declared
+            .diagnostic_file()
+            .contains("module:2:7:library:10:primitives:src/library.eqi")
+    );
+    let recovering = ResolvedSourceUnit::new(
+        owner,
+        "src/broken.eqi",
+        "module library.primitives;\npublic component Part {",
+    );
+    assert!(!recovering.diagnostic_file().contains("module:"));
 }
 
 #[test]

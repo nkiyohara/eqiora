@@ -290,6 +290,28 @@ impl ResolvedSourceUnit {
     pub fn source(&self) -> &str {
         &self.source
     }
+
+    /// Package-qualified source label used by compiler diagnostics.
+    ///
+    /// A valid authored `module` header participates in the label. Invalid
+    /// source retains the provisional host-assigned label used by parsing.
+    #[must_use]
+    pub fn diagnostic_file(&self) -> String {
+        let provisional = resolved_source_label(self.module(), &self.file);
+        if preflight_resolved_hierarchy([self.source.len()], 0).is_err() {
+            return provisional;
+        }
+        let parsed = eqiora_lang::parse(&provisional, &self.source);
+        if !parsed.diagnostics().is_empty() {
+            return provisional;
+        }
+        parsed
+            .document()
+            .and_then(|document| effective_source_module(self, document, &provisional).ok())
+            .map_or(provisional, |module| {
+                resolved_source_label(&module, &self.file)
+            })
+    }
 }
 
 /// One direct source alias from a declaring package to an exact target.
@@ -886,6 +908,37 @@ fn resolved_source_label(module: &CompilationModuleId, file: &str) -> String {
     }
     label.push_str(file);
     label
+}
+
+fn effective_source_module(
+    unit: &ResolvedSourceUnit,
+    document: &eqiora_lang::Document,
+    file: &str,
+) -> Result<CompilationModuleId, Vec<Diagnostic>> {
+    let Some((name, range)) = document.module() else {
+        return Ok(unit.module.clone());
+    };
+    let name = ModuleName::new(name.segments()).map_err(|error| {
+        vec![crate::diagnostics::source_error(
+            error.code(),
+            file,
+            range,
+            error.message(),
+        )]
+    })?;
+    let declared = CompilationModuleId::new(unit.module.owner().clone(), name);
+    if unit.module_from_host && declared != unit.module {
+        return Err(vec![crate::diagnostics::source_error(
+            codes::LANGUAGE_LOWERING_ERROR,
+            file,
+            range,
+            format!(
+                "source declares module `{declared}` but its resolved graph assigns `{}`",
+                unit.module
+            ),
+        )]);
+    }
+    Ok(declared)
 }
 
 fn resolved_error(message: impl Into<String>) -> Diagnostic {
