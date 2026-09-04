@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::canonical;
 use crate::{
-    AuthorManifestV1, CompilationPackageV1, ContractError, ModelPackageIdentityV1,
+    CompilationPackageV1, ContractError, ModelPackageIdentityV1, PackageManifestV1,
     PackageReleaseV1, PackageStore, QualifiedName, ResolutionDigest, SourceBundleDigest,
     StoreError,
 };
@@ -52,41 +52,22 @@ impl ResolutionNodeV1 {
     }
 }
 
-/// One exact local alias in the locked dependency graph.
+/// One exact direct edge in the locked dependency graph.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResolutionEdgeV1 {
     declaring: ModelPackageIdentityV1,
-    alias: QualifiedName,
     target: ModelPackageIdentityV1,
 }
 
 impl ResolutionEdgeV1 {
-    pub fn new(
-        declaring: ModelPackageIdentityV1,
-        alias: QualifiedName,
-        target: ModelPackageIdentityV1,
-    ) -> Result<Self, ContractError> {
-        if alias.as_str().contains('.') {
-            return Err(ContractError::new(format!(
-                "resolution alias `{alias}` must be one local identifier"
-            )));
-        }
-        Ok(Self {
-            declaring,
-            alias,
-            target,
-        })
+    pub fn new(declaring: ModelPackageIdentityV1, target: ModelPackageIdentityV1) -> Self {
+        Self { declaring, target }
     }
 
     #[must_use]
     pub fn declaring(&self) -> &ModelPackageIdentityV1 {
         &self.declaring
-    }
-
-    #[must_use]
-    pub fn alias(&self) -> &QualifiedName {
-        &self.alias
     }
 
     #[must_use]
@@ -119,7 +100,7 @@ impl ResolutionRecordV1 {
         .normalize()
     }
 
-    /// Validate the allocation footprint of one author manifest and its
+    /// Validate the allocation footprint of one package manifest and its
     /// caller-supplied exact dependency release closure.
     ///
     /// This performs no discovery and does not validate graph reachability or
@@ -133,7 +114,7 @@ impl ResolutionRecordV1 {
     /// Returns a package contract error when the package or manifest-edge
     /// count exceeds the v1 resolution bounds or a checked count overflows.
     pub fn preflight_exact_release_closure(
-        root_manifest: &AuthorManifestV1,
+        root_manifest: &PackageManifestV1,
         dependencies: &[PackageReleaseV1],
     ) -> Result<(), ContractError> {
         exact_release_shape_with_limits(root_manifest, dependencies, RESOLUTION_LIMITS)?;
@@ -145,7 +126,7 @@ impl ResolutionRecordV1 {
     ///
     /// This operation performs no discovery, selection, store access, or
     /// source fetching. Nodes come only from the supplied release identities
-    /// and source digests; edges come only from their closed author manifests.
+    /// and source digests; edges come only from their closed package manifests.
     /// Ordinary resolution normalization rejects duplicate, ambiguous,
     /// missing, cyclic, and unreachable inputs.
     ///
@@ -223,10 +204,11 @@ impl ResolutionRecordV1 {
         }
         self.edges.sort();
         for pair in self.edges.windows(2) {
-            if pair[0].declaring == pair[1].declaring && pair[0].alias == pair[1].alias {
+            if pair[0].declaring == pair[1].declaring && pair[0].target.name == pair[1].target.name
+            {
                 return Err(ContractError::new(format!(
-                    "duplicate resolution alias `{}` in `{}`",
-                    pair[0].alias, pair[0].declaring.name
+                    "duplicate direct dependency `{}` in `{}`",
+                    pair[0].target.name, pair[0].declaring.name
                 )));
             }
         }
@@ -278,7 +260,7 @@ impl ResolutionRecordV1 {
 }
 
 fn exact_release_shape_with_limits(
-    root_manifest: &AuthorManifestV1,
+    root_manifest: &PackageManifestV1,
     dependencies: &[PackageReleaseV1],
     limits: ResolutionResourceLimits,
 ) -> Result<(usize, usize), ContractError> {
@@ -315,9 +297,8 @@ fn append_release_edges(
     for requirement in release.manifest().dependencies() {
         edges.push(ResolutionEdgeV1::new(
             declaring.clone(),
-            requirement.alias().clone(),
             requirement.target().clone(),
-        )?);
+        ));
     }
     Ok(())
 }
@@ -546,17 +527,17 @@ impl ExactResolver {
         }
 
         for (identity, release) in &packages {
-            let manifest_edges: BTreeMap<_, _> = release
+            let manifest_edges: BTreeSet<_> = release
                 .manifest()
                 .dependencies()
                 .iter()
-                .map(|dependency| (dependency.alias().clone(), dependency.target().clone()))
+                .map(|dependency| dependency.target().clone())
                 .collect();
-            let locked_edges: BTreeMap<_, _> = record
+            let locked_edges: BTreeSet<_> = record
                 .edges()
                 .iter()
                 .filter(|edge| edge.declaring() == identity)
-                .map(|edge| (edge.alias().clone(), edge.target().clone()))
+                .map(|edge| edge.target().clone())
                 .collect();
             if manifest_edges != locked_edges {
                 return Err(ResolutionError::DependencyMismatch(identity.clone()));
@@ -655,16 +636,16 @@ impl ResolvedPackageGraph {
     }
 
     #[must_use]
-    pub fn import(
+    pub fn dependency(
         &self,
         declaring: &ModelPackageIdentityV1,
-        alias: &QualifiedName,
+        package_name: &QualifiedName,
     ) -> Option<&ModelPackageIdentityV1> {
         self.edges
             .binary_search_by(|edge| {
                 edge.declaring()
                     .cmp(declaring)
-                    .then_with(|| edge.alias().cmp(alias))
+                    .then_with(|| edge.target().name.cmp(package_name))
             })
             .ok()
             .map(|index| &self.edges[index])
@@ -697,18 +678,15 @@ impl ResolvedPackageGraph {
 mod tests {
     use super::*;
     use crate::{
-        AuthorManifestV1, BundleEntryV1, BundleRoleV1, CanonicalDeclaration, DeclarationKindV1,
-        DependencyRequirementV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+        BundleEntryV1, BundleRoleV1, CanonicalDeclaration, DeclarationKindV1, ExactVersion,
+        InMemoryPackageStore, NormalizedRelativePath, PackageDependencyV1, PackageManifestV1,
         SemanticContentV1, SemanticDeclarationV1, SourceFileV1, VisibilityV1,
     };
 
-    fn release(
-        name: &str,
-        dependencies: Vec<DependencyRequirementV1>,
-        body: &str,
-    ) -> PackageReleaseV1 {
+    fn release(name: &str, dependencies: Vec<PackageDependencyV1>, body: &str) -> PackageReleaseV1 {
         let path = NormalizedRelativePath::parse("src/package.eqi").expect("path");
-        let manifest = AuthorManifestV1::new(
+        let manifest = PackageManifestV1::new(
+            "package",
             QualifiedName::parse(name).expect("name"),
             ExactVersion::parse("1.0.0").expect("version"),
             dependencies,
@@ -738,11 +716,7 @@ mod tests {
     fn exact_graph_resolves_offline_and_is_order_independent() {
         let leaf = release("org.example.Leaf", vec![], "model Main {}\n");
         let leaf_id = leaf.package_identity().expect("identity");
-        let dependency = DependencyRequirementV1::new(
-            QualifiedName::parse("leaf").expect("alias"),
-            leaf_id.clone(),
-        )
-        .expect("dependency");
+        let dependency = PackageDependencyV1::new(leaf_id.clone());
         let root = release("org.example.Root", vec![dependency], "model Main {}\n");
         let root_id = root.package_identity().expect("identity");
         assert!(
@@ -774,12 +748,7 @@ mod tests {
         let mut store = InMemoryPackageStore::default();
         let leaf_source = store.insert(&leaf).expect("insert");
         let root_source = store.insert(&root).expect("insert");
-        let edge = ResolutionEdgeV1::new(
-            root_id.clone(),
-            QualifiedName::parse("leaf").expect("alias"),
-            leaf_id.clone(),
-        )
-        .expect("edge");
+        let edge = ResolutionEdgeV1::new(root_id.clone(), leaf_id.clone());
         let first = ResolutionRecordV1::new(
             root_id.clone(),
             vec![
@@ -851,10 +820,7 @@ mod tests {
         );
         assert_eq!(graph.root(), &root_id);
         assert_eq!(graph.package(&leaf_id), Some(&leaf));
-        assert_eq!(
-            graph.import(&root_id, &QualifiedName::parse("leaf").expect("alias")),
-            Some(&leaf_id)
-        );
+        assert_eq!(graph.dependency(&root_id, &leaf_id.name), Some(&leaf_id));
         assert_eq!(graph.packages().count(), 2);
         assert_eq!(borrowed.root(), graph.root());
         assert_eq!(borrowed.packages().count(), graph.packages().count());
@@ -882,30 +848,13 @@ mod tests {
             ResolutionRecordV1::new(
                 a_id.clone(),
                 vec![a_node.clone()],
-                vec![
-                    ResolutionEdgeV1::new(
-                        a_id.clone(),
-                        QualifiedName::parse("b").expect("alias"),
-                        b_id.clone()
-                    )
-                    .expect("edge")
-                ]
+                vec![ResolutionEdgeV1::new(a_id.clone(), b_id.clone())]
             )
             .is_err()
         );
         let cycle = vec![
-            ResolutionEdgeV1::new(
-                a_id.clone(),
-                QualifiedName::parse("b").expect("alias"),
-                b_id.clone(),
-            )
-            .expect("edge"),
-            ResolutionEdgeV1::new(
-                b_id.clone(),
-                QualifiedName::parse("a").expect("alias"),
-                a_id.clone(),
-            )
-            .expect("edge"),
+            ResolutionEdgeV1::new(a_id.clone(), b_id.clone()),
+            ResolutionEdgeV1::new(b_id.clone(), a_id.clone()),
         ];
         assert!(
             ResolutionRecordV1::new(a_id.clone(), vec![a_node.clone(), b_node.clone()], cycle)
@@ -979,14 +928,7 @@ mod tests {
                     ResolutionNodeV1::new(first.clone(), source),
                     ResolutionNodeV1::new(second.clone(), source),
                 ],
-                vec![
-                    ResolutionEdgeV1::new(
-                        first,
-                        QualifiedName::parse("ambiguous").expect("alias"),
-                        second,
-                    )
-                    .expect("edge"),
-                ],
+                vec![ResolutionEdgeV1::new(first, second),],
             )
             .is_err()
         );

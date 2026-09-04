@@ -2,8 +2,8 @@ use eqiora::compiler::{CompiledModel, compile};
 use eqiora::entity::kinds;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore};
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -74,18 +74,19 @@ fn has_edge(
 
 fn package_sources(
     name: &str,
-    dependencies: Vec<DependencyRequirementV1>,
+    dependencies: Vec<PackageDependencyV1>,
     source: &str,
-) -> AuthorPackageSourcesV1 {
+) -> PackageSourcesV1 {
     let path = NormalizedRelativePath::parse("src/model.eqi").expect("normalized source path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "model",
         QualifiedName::parse(name).expect("package name"),
         ExactVersion::parse(VERSION).expect("package version"),
         dependencies,
         vec![BundleEntryV1::new(path.clone(), BundleRoleV1::ModelSource)],
     )
-    .expect("author manifest");
-    AuthorPackageSourcesV1::new(
+    .expect("package manifest");
+    PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             path,
@@ -109,13 +110,11 @@ fn component_release() -> PackageReleaseV1 {
 }
 
 fn packaged_model(components: &PackageReleaseV1, alias: &str) -> PackagedModelDocument {
-    let dependency = DependencyRequirementV1::new(
-        QualifiedName::parse(alias).expect("dependency alias"),
+    let dependency = PackageDependencyV1::new(
         components
             .package_identity()
             .expect("component package identity"),
-    )
-    .expect("exact dependency requirement");
+    );
     let source = format!(
         r#"
 import Eqiora.Verify.SpatialSupport.model as {alias};

@@ -653,7 +653,7 @@ fn canonical_declarations_normalize_aliases_to_exact_targets() {
     assert_eq!(
         first.canonical_declarations(),
         second.canonical_declarations(),
-        "resolution aliases are not package semantics"
+        "import aliases are not package semantics"
     );
 
     let other_target = namespace("other_target");

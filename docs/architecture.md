@@ -78,7 +78,7 @@ The bounded exact-package slice of
 pre-elaboration barrier without changing kernel meaning:
 
 ```text
-author manifest + exact file inventory + complete exact dependency releases
+package manifest + exact file inventory + complete exact dependency releases
   → bounded source admission
   → compiler-derived semantic content
   → candidate release + manifest-derived exact lock
@@ -105,10 +105,10 @@ Model, Plan, and Run, never as a package-specific resolver or execution mode.
 
 `eqiora-package` owns closed manifest, semantic content, source bundle,
 resolution, store, and compilation-record contracts but has no compiler
-dependency. `eqiora-compiler` owns neutral namespace/source/alias inputs but
-has no package dependency. `eqiora-api` is the only composition point. Local
-dependency aliases are alpha-normalized to exact target namespaces for
-semantic identity, while the resolution record retains their source spelling.
+dependency. `eqiora-compiler` owns neutral namespace, source, dependency, and
+source-import inputs but has no package dependency. `eqiora-api` is the only
+composition point. Package manifests and resolution records contain canonical
+exact dependency targets; source-local names exist only in explicit imports.
 The current compilation sidecar is v2 with semantic-canonicalization epoch 2;
 the reader rejects pre-1.0 v1 records instead of migrating or retrying them.
 The public preparation operation accepts no author semantic payload and does
@@ -344,7 +344,7 @@ occurrence displacement trace and parent-outward isotropic traction to each
 Port. Static family elaboration leaves only ordinary exact-boundary Ports,
 Relations, Activations, and conserving Connections. The registered
 [`solid.packaged-elastic-boundary-2d`](../verify/solid/packaged-elastic-boundary-2d/README.md)
-case proves exact package resolution, member-order and dependency-alias
+case proves exact package resolution, member-order and import-alias
 invariance, and the complete typed boundary expression. Mesh facets, trace
 spaces, essential elimination, and coupled execution remain Realization
 gates.

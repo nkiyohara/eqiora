@@ -6,8 +6,8 @@ use eqiora::kernel::pure_operator::PureOperatorDefinition;
 use eqiora::kernel::typing::{ExpressionType, RootContract, SpatialSupport, TypedResidual};
 use eqiora::kernel::{ExprDagBuilder, ExprNode, KernelNode, SymbolRef, ValueFrame};
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -38,17 +38,24 @@ fn source_package(
     name: &str,
     path: &str,
     source: &str,
-    dependencies: Vec<DependencyRequirementV1>,
-) -> AuthorPackageSourcesV1 {
+    dependencies: Vec<PackageDependencyV1>,
+) -> PackageSourcesV1 {
     let path = NormalizedRelativePath::parse(path).expect("fixture source path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        &path
+            .as_str()
+            .strip_prefix("src/")
+            .unwrap()
+            .strip_suffix(".eqi")
+            .unwrap()
+            .replace('/', "."),
         QualifiedName::parse(name).expect("fixture package name"),
         ExactVersion::parse(VERSION).expect("fixture package version"),
         dependencies,
         vec![BundleEntryV1::new(path.clone(), BundleRoleV1::ModelSource)],
     )
     .expect("fixture manifest");
-    AuthorPackageSourcesV1::new(
+    PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             path,
@@ -65,13 +72,11 @@ fn operator_release(path: &str, source: &str) -> PackageReleaseV1 {
 }
 
 fn root_release(operators: &PackageReleaseV1, alias: &str, source_path: &str) -> PackageReleaseV1 {
-    let dependency = DependencyRequirementV1::new(
-        QualifiedName::parse(alias).expect("dependency alias"),
+    let dependency = PackageDependencyV1::new(
         operators
             .package_identity()
             .expect("operator package identity"),
-    )
-    .expect("exact dependency");
+    );
     let source = format!(
         "import {OPERATOR_PACKAGE}.operators as {alias};\n{}",
         RESOLVED.replace("ops.", &format!("{alias}."))
@@ -184,7 +189,7 @@ fn direct_and_exact_package_variants_share_name_free_meaning() {
     assert_eq!(
         root.package_identity().unwrap(),
         aliased_root.package_identity().unwrap(),
-        "dependency aliases are not root package semantics"
+        "import aliases are not root package semantics"
     );
     let packaged = compile_locked(&operators, &root);
     let packaged_aliased = compile_locked(&relocated, &aliased_root);

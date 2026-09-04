@@ -1,9 +1,9 @@
 //! Exact checked-in package closure for the DC-drive presentation.
 
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleRoleV1, InMemoryPackageStore,
-    NormalizedRelativePath, PackageReleaseV1, PackagedModelDocument, ResolutionRecordV1,
-    SourceFileV1, prepare_package_release_v1,
+    BundleRoleV1, InMemoryPackageStore, NormalizedRelativePath, PackageManifestV1,
+    PackageReleaseV1, PackageSourcesV1, PackagedModelDocument, ResolutionRecordV1, SourceFileV1,
+    prepare_package_release_v1,
 };
 
 const ELECTRICAL_SOURCE: &str =
@@ -76,8 +76,8 @@ fn release(
     readme: &[u8],
     dependencies: &[PackageReleaseV1],
 ) -> Result<PackageReleaseV1, String> {
-    let manifest = AuthorManifestV1::from_json(manifest).map_err(|error| error.to_string())?;
-    let sources = AuthorPackageSourcesV1::new(
+    let manifest = PackageManifestV1::from_json(manifest).map_err(|error| error.to_string())?;
+    let sources = PackageSourcesV1::new(
         manifest,
         vec![
             source_file("README.md", BundleRoleV1::Documentation, readme)?,

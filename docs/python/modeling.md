@@ -151,32 +151,41 @@ fluid = next(package for package in packages if package.name == "Eqiora.Fluid")
 print(fluid.path, fluid.semantic_digest)
 ```
 
-Each returned `VendoredStandardPackage` provides the exact identity needed by
-an application package manifest and the project-relative path for a
-`[sources.*].path` entry.
+Each returned `VendoredStandardPackage` provides the exact identity and path
+needed to name a local dependency.
 Calling the function again is idempotent when every file is unchanged and
 rejects a changed destination without overwriting it.
 
-`eqiora.toml` maps short project names and root dependency aliases to contained
-package directories:
+`eqiora.toml` is the author-maintained project and package manifest. It owns the
+canonical name, exact version, source root, entry module, and direct local
+dependencies:
 
 ```toml
-schema = "eqiora.project.v1"
-root = "application"
+[package]
+name = "org.example.application"
+version = "0.1.0"
+source = "src"
+entry = "models.main"
 
-[dependencies]
-materials = "materials"
-components = "components"
-
-[sources.application]
-path = "packages/application"
-
-[sources.materials]
+[dependencies."org.example.materials"]
+version = "1.0.0"
 path = "packages/materials"
 
-[sources.components]
+[dependencies."org.example.components"]
+version = "2.1.0"
 path = "packages/components"
 ```
+
+Each dependency directory contains its own `eqiora.toml`. Dependency paths are
+relative to the declaring manifest; `../library` explicitly selects a sibling
+outside the project directory. Absolute paths and parent segments after named
+directories are rejected. Each package's source root remains confined to that
+package directory. Package names, not local aliases, authorize imports.
+
+`entry` selects a module relative to the source root: `models.main` selects
+`src/models/main.eqi` with the default source root. The generated package
+manifest retains this selection for offline compilation. `entry_model` selects
+a Model in that module or through one of its explicit imports.
 
 Python resolves that project into the store and atomically writes the canonical
 resolution to `eqiora.lock`:
@@ -198,11 +207,32 @@ model = eqiora.compile_package(
 )
 ```
 
-The shared Rust owner opens project-relative paths without following symbolic
-links, validates every bounded `package.json` inventory and dependency alias,
-prepares the exact graph leaf-first, and publishes the lock only after the
-complete closure is installed. A failed resolution leaves the previous lock
-usable.
+The shared Rust owner opens manifest-relative paths without following symbolic
+links, discovers bounded `.eqi` inventories, generates each closed package
+manifest, prepares the exact graph leaf-first, and publishes the lock only
+after the complete closure is installed.
+An optional package-root `README.md` is retained as documentation in the exact
+source bundle; it is never compiled as model source.
+
+Use `eqiora.add_local_dependency(project_root, store_root, name, version="1.0.0",
+path="packages/library")` to add or replace a direct dependency, and
+`eqiora.remove_local_dependency(project_root, store_root, name)` to remove it.
+Both return the new lock bytes. The complete candidate is validated before the
+manifest and lock are published; a failed update preserves the accepted pair.
+Remove source imports before removing a dependency they require.
+
+The CLI uses the same operations:
+
+```bash
+eqiora package lock . --store package-store
+eqiora package add . org.example.Library --version 1.0.0 --path packages/library --store package-store
+eqiora package remove . org.example.Library --store package-store
+eqiora package check . --store package-store --entry-model Main
+```
+
+If a process stops during publication, locked compilation reads the previous
+accepted lock. The next explicit update recovers the saved pair before resolving.
+Concurrent project writes are rejected; retry after the other operation finishes.
 
 ## Compile one exact locked package Model or Component
 

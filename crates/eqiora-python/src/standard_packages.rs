@@ -9,8 +9,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use eqiora::Diagnostic;
 use eqiora::diagnostic::codes;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleRoleV1, NormalizedRelativePath,
-    PackageReleaseV1, SourceFileV1, prepare_package_release_v1,
+    BundleRoleV1, NormalizedRelativePath, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
+    SourceFileV1, prepare_package_release_v1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyModule};
@@ -96,9 +96,7 @@ fn vendor_native(
     Ok(facts)
 }
 
-fn standard_closure(
-    package: &str,
-) -> Result<Vec<(AuthorPackageSourcesV1, PackageReleaseV1)>, String> {
+fn standard_closure(package: &str) -> Result<Vec<(PackageSourcesV1, PackageReleaseV1)>, String> {
     match package {
         "Eqiora.Fluid.Incompressible@0.2.0" => {
             let mechanics_sources = mechanics_sources()?;
@@ -129,8 +127,8 @@ fn standard_closure(
 fn embedded_sources(
     manifest: &[u8],
     files: &[(&str, BundleRoleV1, &[u8])],
-) -> Result<AuthorPackageSourcesV1, String> {
-    let manifest = AuthorManifestV1::from_json(manifest)
+) -> Result<PackageSourcesV1, String> {
+    let manifest = PackageManifestV1::from_json(manifest)
         .map_err(|error| format!("bundled manifest is invalid: {error}"))?;
     let files = files
         .iter()
@@ -140,11 +138,11 @@ fn embedded_sources(
             Ok(SourceFileV1::new(path, *role, bytes.to_vec()))
         })
         .collect::<Result<Vec<_>, String>>()?;
-    AuthorPackageSourcesV1::new(manifest, files)
+    PackageSourcesV1::new(manifest, files)
         .map_err(|error| format!("bundled package inventory is invalid: {error}"))
 }
 
-fn mechanics_sources() -> Result<AuthorPackageSourcesV1, String> {
+fn mechanics_sources() -> Result<PackageSourcesV1, String> {
     embedded_sources(
         include_bytes!("../../../packages/Eqiora.Mechanics.Interfaces/package.json"),
         &[
@@ -162,7 +160,7 @@ fn mechanics_sources() -> Result<AuthorPackageSourcesV1, String> {
     )
 }
 
-fn fluid_sources() -> Result<AuthorPackageSourcesV1, String> {
+fn fluid_sources() -> Result<PackageSourcesV1, String> {
     embedded_sources(
         include_bytes!("../../../packages/Eqiora.Fluid.Incompressible/package.json"),
         &[
@@ -182,7 +180,7 @@ fn fluid_sources() -> Result<AuthorPackageSourcesV1, String> {
     )
 }
 
-fn solid_sources() -> Result<AuthorPackageSourcesV1, String> {
+fn solid_sources() -> Result<PackageSourcesV1, String> {
     embedded_sources(
         include_bytes!("../../../packages/Eqiora.Solid.LinearElasticity/package.json"),
         &[
@@ -230,7 +228,7 @@ fn ensure_directory_tree(root: &Path, relative: &str) -> Result<PathBuf, String>
     Ok(current)
 }
 
-fn expected_files(sources: &AuthorPackageSourcesV1) -> Result<BTreeMap<String, Vec<u8>>, String> {
+fn expected_files(sources: &PackageSourcesV1) -> Result<BTreeMap<String, Vec<u8>>, String> {
     let mut expected = BTreeMap::new();
     expected.insert(
         "package.json".to_owned(),
@@ -245,7 +243,7 @@ fn expected_files(sources: &AuthorPackageSourcesV1) -> Result<BTreeMap<String, V
     Ok(expected)
 }
 
-fn validate_existing_package(root: &Path, sources: &AuthorPackageSourcesV1) -> Result<(), String> {
+fn validate_existing_package(root: &Path, sources: &PackageSourcesV1) -> Result<(), String> {
     require_plain_directory(root, "existing package")?;
     let expected = expected_files(sources)?;
     let actual = collect_files(root)?;
@@ -313,7 +311,7 @@ fn collect_files(root: &Path) -> Result<BTreeSet<String>, String> {
     Ok(files)
 }
 
-fn publish_package(target: &Path, sources: &AuthorPackageSourcesV1) -> Result<(), String> {
+fn publish_package(target: &Path, sources: &PackageSourcesV1) -> Result<(), String> {
     let parent = target
         .parent()
         .ok_or_else(|| "vendor target has no parent directory".to_owned())?;

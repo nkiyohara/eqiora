@@ -6,9 +6,9 @@ use eqiora::language::{
     UnaryOp, format, parse,
 };
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, ExactVersion,
-    InMemoryPackageStore, NormalizedRelativePath, PackagedModelDocument, QualifiedName,
-    ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageManifestV1, PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1,
+    SourceFileV1, prepare_package_release_v1,
 };
 use eqiora::{Diagnostic, DimExponents};
 
@@ -1511,7 +1511,8 @@ fn revised_oracle_sequence() {
     // Stage 9: exact locked-package path, compared only for structural meaning.
     let source_path =
         NormalizedRelativePath::parse("src/models/natural.eqi").expect("package source path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "models.natural",
         QualifiedName::parse("org.eqiora.oracle.NaturalEquation").expect("package name"),
         ExactVersion::parse("1.0.0").expect("package version"),
         vec![],
@@ -1520,9 +1521,9 @@ fn revised_oracle_sequence() {
             BundleRoleV1::ModelSource,
         )],
     )
-    .expect("author manifest");
+    .expect("package manifest");
     accounting.operation();
-    let sources = AuthorPackageSourcesV1::new(
+    let sources = PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             source_path,

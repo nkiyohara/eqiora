@@ -10,10 +10,10 @@ use eqiora::artifact::{
 use eqiora::language::{ComponentItem, DomainSyntax, Item};
 use eqiora::meshing::QuadratureRule;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationRecordV2,
-    PackageExecutionBindingV1, PackageReleaseV1, PackagedModelDocument, QualifiedName,
-    ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageCompilationRecordV2, PackageDependencyV1, PackageExecutionBindingV1, PackageManifestV1,
+    PackageReleaseV1, PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1,
+    SourceFileV1, prepare_package_release_v1,
 };
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
@@ -34,9 +34,6 @@ mod embedded_package;
 
 const VERIFIED_COMPONENT_V0_1: &str = include_str!(
     "../../../verify/solid/packaged-isotropic-balance-2d/package-v0.1.0/src/linear_elasticity.eqi"
-);
-const VERIFIED_MANIFEST_V0_1: &[u8] = include_bytes!(
-    "../../../verify/solid/packaged-isotropic-balance-2d/package-v0.1.0/package.json"
 );
 const VERIFIED_README_V0_1: &[u8] =
     include_bytes!("../../../verify/solid/packaged-isotropic-balance-2d/package-v0.1.0/README.md");
@@ -82,9 +79,10 @@ const PACKAGED_TO_EXPLICIT: [(&str, &str); 18] = [
     ("y_upper_value", "y_upper_value"),
 ];
 
-fn verified_component_v0_1_sources() -> AuthorPackageSourcesV1 {
-    embedded_package::sources(
-        VERIFIED_MANIFEST_V0_1,
+fn verified_component_v0_1_sources() -> PackageSourcesV1 {
+    embedded_package::generated_sources(
+        PUBLIC_PACKAGE,
+        VERSION,
         &[
             (
                 "README.md",
@@ -105,15 +103,12 @@ fn verified_component_v0_1_release() -> PackageReleaseV1 {
         .expect("prepare the checked-in reusable solid package")
 }
 
-fn synthetic_component_sources(
-    name: &str,
-    source: &str,
-    reverse_files: bool,
-) -> AuthorPackageSourcesV1 {
+fn synthetic_component_sources(name: &str, source: &str, reverse_files: bool) -> PackageSourcesV1 {
     let model_path =
         NormalizedRelativePath::parse("src/linear_elasticity.eqi").expect("component source path");
     let readme_path = NormalizedRelativePath::parse("README.md").expect("README path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "linear_elasticity",
         QualifiedName::parse(name).expect("component package name"),
         ExactVersion::parse(VERSION).expect("component package version"),
         Vec::new(),
@@ -138,7 +133,7 @@ fn synthetic_component_sources(
     if reverse_files {
         files.reverse();
     }
-    AuthorPackageSourcesV1::new(manifest, files).expect("closed component author sources")
+    PackageSourcesV1::new(manifest, files).expect("closed component author sources")
 }
 
 fn synthetic_component_release(name: &str, source: &str, reverse_files: bool) -> PackageReleaseV1 {
@@ -154,17 +149,16 @@ fn root_sources(
     alias: &str,
     source: &str,
     reverse_files: bool,
-) -> AuthorPackageSourcesV1 {
+) -> PackageSourcesV1 {
     let model_path = NormalizedRelativePath::parse("src/main.eqi").expect("root source path");
     let readme_path = NormalizedRelativePath::parse("README.md").expect("root README path");
-    let requirement = DependencyRequirementV1::new(
-        QualifiedName::parse(alias).expect("dependency alias"),
+    let requirement = PackageDependencyV1::new(
         component
             .package_identity()
             .expect("component package identity"),
-    )
-    .expect("exact component dependency");
-    let manifest = AuthorManifestV1::new(
+    );
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse(ROOT_PACKAGE).expect("root package name"),
         ExactVersion::parse(VERSION).expect("root package version"),
         vec![requirement],
@@ -193,7 +187,7 @@ fn root_sources(
     if reverse_files {
         files.reverse();
     }
-    AuthorPackageSourcesV1::new(manifest, files).expect("closed root author sources")
+    PackageSourcesV1::new(manifest, files).expect("closed root author sources")
 }
 
 fn root_release(
@@ -663,7 +657,7 @@ fn exact_package_structure_order_and_flat_kernel_meaning_are_closed() {
         permuted_root
             .package_identity()
             .expect("permuted root identity"),
-        "dependency alias, declaration, binding, and file order are non-semantic"
+        "import alias, declaration, binding, and file order are non-semantic"
     );
 
     let (packaged, _) = compile_locked(&component, &root);

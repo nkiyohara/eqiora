@@ -1,6 +1,6 @@
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleRoleV1, InMemoryPackageStore,
-    ModelPackageIdentityV1, NormalizedRelativePath, PackageCompilationRecordV2, PackageReleaseV1,
+    BundleRoleV1, InMemoryPackageStore, ModelPackageIdentityV1, NormalizedRelativePath,
+    PackageCompilationRecordV2, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, ResolutionNodeV1, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -11,7 +11,7 @@ const README: &[u8] = include_bytes!("../../../packages/org.example.poisson/READ
 const SOURCE_PATH: &str = "src/main.eqi";
 
 fn package_release(readme: &[u8], reverse_files: bool) -> PackageReleaseV1 {
-    let manifest = AuthorManifestV1::from_json(MANIFEST).expect("manifest");
+    let manifest = PackageManifestV1::from_json(MANIFEST).expect("manifest");
     let mut files = vec![
         SourceFileV1::new(
             NormalizedRelativePath::parse("README.md").expect("README path"),
@@ -28,7 +28,7 @@ fn package_release(readme: &[u8], reverse_files: bool) -> PackageReleaseV1 {
         files.reverse();
     }
     prepare_package_release_v1(
-        AuthorPackageSourcesV1::new(manifest, files).expect("closed source inventory"),
+        PackageSourcesV1::new(manifest, files).expect("closed source inventory"),
         &[],
     )
     .expect("compiler-derived release")

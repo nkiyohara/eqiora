@@ -7,10 +7,10 @@ use eqiora::graph::EdgeKind;
 use eqiora::ir::ComponentScalarization;
 use eqiora::kernel::SymbolRef;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationError,
-    PackagePreparationError, PackageReleaseV1, PackagedModelDocument, QualifiedName,
-    ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageCompilationError, PackageDependencyV1, PackageManifestV1, PackagePreparationError,
+    PackageReleaseV1, PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1,
+    SourceFileV1, prepare_package_release_v1,
 };
 use eqiora::{Entity, Id};
 
@@ -32,8 +32,9 @@ const PROJECTED: &str =
 const VERSION: &str = "0.1.0";
 const ROOT_PACKAGE: &str = "org.eqiora.verify.field_valued_boundary_interface";
 
-fn manifest(name: &str, dependencies: Vec<DependencyRequirementV1>) -> AuthorManifestV1 {
-    AuthorManifestV1::new(
+fn manifest(name: &str, dependencies: Vec<PackageDependencyV1>) -> PackageManifestV1 {
+    PackageManifestV1::new(
+        "model",
         QualifiedName::parse(name).expect("package name"),
         ExactVersion::parse(VERSION).expect("package version"),
         dependencies,
@@ -42,11 +43,11 @@ fn manifest(name: &str, dependencies: Vec<DependencyRequirementV1>) -> AuthorMan
             BundleRoleV1::ModelSource,
         )],
     )
-    .expect("author manifest")
+    .expect("package manifest")
 }
 
-fn sources(manifest: AuthorManifestV1, source: &str) -> AuthorPackageSourcesV1 {
-    AuthorPackageSourcesV1::new(
+fn sources(manifest: PackageManifestV1, source: &str) -> PackageSourcesV1 {
+    PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             NormalizedRelativePath::parse("src/model.eqi").expect("model path"),
@@ -69,14 +70,12 @@ fn root_sources(
     components: &PackageReleaseV1,
     dependency_alias: &str,
     source: &str,
-) -> AuthorPackageSourcesV1 {
-    let dependency = DependencyRequirementV1::new(
-        QualifiedName::parse(dependency_alias).expect("dependency alias"),
+) -> PackageSourcesV1 {
+    let dependency = PackageDependencyV1::new(
         components
             .package_identity()
             .expect("component package identity"),
-    )
-    .expect("exact dependency requirement");
+    );
     let source =
         format!("import Eqiora.Verify.FieldBoundary.model as {dependency_alias};\n{source}");
     sources(manifest(ROOT_PACKAGE, vec![dependency]), &source)
@@ -206,8 +205,8 @@ fn packaged_field_valued_boundary_interface() {
     let permuted_root = root_release(&components, "mechanics", COUPLED_PERMUTED)
         .expect("permuted coupled root release");
     let short_alias_source = COUPLED.replace("mechanics.", "m.");
-    let short_alias_root = root_release(&components, "m", &short_alias_source)
-        .expect("dependency-alias variant release");
+    let short_alias_root =
+        root_release(&components, "m", &short_alias_source).expect("import-alias variant release");
 
     let root_identity = coupled_root.package_identity().expect("root identity");
     assert_eq!(
@@ -218,7 +217,7 @@ fn packaged_field_valued_boundary_interface() {
     assert_eq!(
         root_identity,
         short_alias_root.package_identity().expect("alias identity"),
-        "dependency alias spelling must not enter package meaning"
+        "import alias spelling must not enter package meaning"
     );
 
     let coupled = compile_locked(&components, &coupled_root).expect("compile coupled package");
@@ -237,7 +236,7 @@ fn packaged_field_valued_boundary_interface() {
                 .model()
                 .canonical_json()
                 .expect("equivalent Model"),
-            "source order and dependency aliases must not change canonical bytes"
+            "source order and import aliases must not change canonical bytes"
         );
         assert_eq!(
             canonical_digest,

@@ -5,34 +5,21 @@ use crate::{
     ContractError, ExactVersion, ModelPackageIdentityV1, NormalizedRelativePath, QualifiedName,
 };
 
-const SCHEMA: &str = "eqiora.author-manifest.v1";
+const SCHEMA: &str = "eqiora.package-manifest.v1";
 const MAX_DEPENDENCIES: usize = 4096;
 const MAX_BUNDLE_ENTRIES: usize = 65_536;
 
-/// The exact package selected for one local dependency alias.
+/// One exact direct dependency in a generated package manifest.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DependencyRequirementV1 {
-    alias: QualifiedName,
+pub struct PackageDependencyV1 {
     target: ModelPackageIdentityV1,
 }
 
-impl DependencyRequirementV1 {
-    pub fn new(
-        alias: QualifiedName,
-        target: ModelPackageIdentityV1,
-    ) -> Result<Self, ContractError> {
-        if alias.as_str().contains('.') {
-            return Err(ContractError::new(format!(
-                "dependency alias `{alias}` must be one local identifier"
-            )));
-        }
-        Ok(Self { alias, target })
-    }
-
+impl PackageDependencyV1 {
     #[must_use]
-    pub fn alias(&self) -> &QualifiedName {
-        &self.alias
+    pub const fn new(target: ModelPackageIdentityV1) -> Self {
+        Self { target }
     }
 
     #[must_use]
@@ -49,7 +36,7 @@ pub enum BundleRoleV1 {
     Documentation,
 }
 
-/// One author-declared source-bundle inventory entry.
+/// One generated source-bundle inventory entry.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BundleEntryV1 {
@@ -74,26 +61,29 @@ impl BundleEntryV1 {
     }
 }
 
-/// Closed author metadata. Computed digests are intentionally absent.
+/// Closed generated package-artifact metadata. Computed digests are absent.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct AuthorManifestV1 {
+pub struct PackageManifestV1 {
     schema: String,
+    entry: QualifiedName,
     name: QualifiedName,
     version: ExactVersion,
-    dependencies: Vec<DependencyRequirementV1>,
+    dependencies: Vec<PackageDependencyV1>,
     bundle: Vec<BundleEntryV1>,
 }
 
-impl AuthorManifestV1 {
+impl PackageManifestV1 {
     pub fn new(
+        entry: &str,
         name: QualifiedName,
         version: ExactVersion,
-        dependencies: Vec<DependencyRequirementV1>,
+        dependencies: Vec<PackageDependencyV1>,
         bundle: Vec<BundleEntryV1>,
     ) -> Result<Self, ContractError> {
         Self {
             schema: SCHEMA.to_owned(),
+            entry: QualifiedName::parse(entry)?,
             name,
             version,
             dependencies,
@@ -105,18 +95,18 @@ impl AuthorManifestV1 {
     pub(crate) fn normalize(mut self) -> Result<Self, ContractError> {
         if self.schema != SCHEMA {
             return Err(ContractError::new(format!(
-                "unsupported author manifest schema `{}`",
+                "unsupported package manifest schema `{}`",
                 self.schema
             )));
         }
         if self.dependencies.len() > MAX_DEPENDENCIES {
             return Err(ContractError::new(
-                "author manifest exceeds dependency limit",
+                "package manifest exceeds dependency limit",
             ));
         }
         if self.bundle.len() > MAX_BUNDLE_ENTRIES {
             return Err(ContractError::new(
-                "author manifest exceeds bundle-entry limit",
+                "package manifest exceeds bundle-entry limit",
             ));
         }
         if !self
@@ -130,10 +120,10 @@ impl AuthorManifestV1 {
         }
         self.dependencies.sort();
         for pair in self.dependencies.windows(2) {
-            if pair[0].alias == pair[1].alias {
+            if pair[0].target.name == pair[1].target.name {
                 return Err(ContractError::new(format!(
-                    "duplicate dependency alias `{}`",
-                    pair[0].alias
+                    "duplicate direct dependency `{}`",
+                    pair[0].target.name
                 )));
             }
         }
@@ -176,13 +166,19 @@ impl AuthorManifestV1 {
         &self.name
     }
 
+    /// Relative module selected as the package entry.
+    #[must_use]
+    pub fn entry(&self) -> &QualifiedName {
+        &self.entry
+    }
+
     #[must_use]
     pub fn version(&self) -> &ExactVersion {
         &self.version
     }
 
     #[must_use]
-    pub fn dependencies(&self) -> &[DependencyRequirementV1] {
+    pub fn dependencies(&self) -> &[PackageDependencyV1] {
         &self.dependencies
     }
 
@@ -207,16 +203,8 @@ mod tests {
 
     #[test]
     fn manifest_order_does_not_change_canonical_bytes() {
-        let a = DependencyRequirementV1::new(
-            QualifiedName::parse("a").expect("alias"),
-            identity("org.example.A"),
-        )
-        .expect("dependency");
-        let b = DependencyRequirementV1::new(
-            QualifiedName::parse("b").expect("alias"),
-            identity("org.example.B"),
-        )
-        .expect("dependency");
+        let a = PackageDependencyV1::new(identity("org.example.A"));
+        let b = PackageDependencyV1::new(identity("org.example.B"));
         let source = BundleEntryV1::new(
             NormalizedRelativePath::parse("src/root.eqi").expect("path"),
             BundleRoleV1::ModelSource,
@@ -226,7 +214,8 @@ mod tests {
             BundleRoleV1::Documentation,
         );
         let make = |dependencies, bundle| {
-            AuthorManifestV1::new(
+            PackageManifestV1::new(
+                "main",
                 QualifiedName::parse("org.example.Root").expect("name"),
                 ExactVersion::parse("1.0.0+build.7").expect("version"),
                 dependencies,
@@ -241,21 +230,22 @@ mod tests {
         let second = make(vec![a, b], vec![docs, source]);
         assert_eq!(first.canonical_json(), second.canonical_json());
         assert_eq!(
-            AuthorManifestV1::from_json(&first.canonical_json().expect("JSON")),
+            PackageManifestV1::from_json(&first.canonical_json().expect("JSON")),
             Ok(first)
         );
     }
 
     #[test]
     fn manifest_rejects_unknown_fields_and_duplicate_normalized_paths() {
-        let invalid = br#"{"schema":"eqiora.author-manifest.v1","name":"a","version":"1.0.0","dependencies":[],"bundle":[],"payload":{}}"#;
-        assert!(AuthorManifestV1::from_json(invalid).is_err());
+        let invalid = br#"{"schema":"eqiora.package-manifest.v1","name":"a","version":"1.0.0","dependencies":[],"bundle":[],"payload":{}}"#;
+        assert!(PackageManifestV1::from_json(invalid).is_err());
         let entry = BundleEntryV1::new(
             NormalizedRelativePath::parse("a.eqi").expect("path"),
             BundleRoleV1::ModelSource,
         );
         assert!(
-            AuthorManifestV1::new(
+            PackageManifestV1::new(
+                "main",
                 QualifiedName::parse("a").expect("name"),
                 ExactVersion::parse("1.0.0").expect("version"),
                 vec![],
@@ -264,7 +254,8 @@ mod tests {
             .is_err()
         );
         assert!(
-            AuthorManifestV1::new(
+            PackageManifestV1::new(
+                "main",
                 QualifiedName::parse("a").expect("name"),
                 ExactVersion::parse("1.0.0").expect("version"),
                 vec![],
@@ -285,7 +276,8 @@ mod tests {
             BundleRoleV1::ModelSource,
         );
         assert!(
-            AuthorManifestV1::new(
+            PackageManifestV1::new(
+                "main",
                 QualifiedName::parse("a").expect("name"),
                 ExactVersion::parse("1.0.0").expect("version"),
                 vec![],

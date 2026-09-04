@@ -1,8 +1,8 @@
 use std::fmt::Write as _;
 
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, ExactVersion,
-    NormalizedRelativePath, PackagePreparationError, PackageReleaseV1, QualifiedName, SourceFileV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, NormalizedRelativePath, PackageManifestV1,
+    PackagePreparationError, PackageReleaseV1, PackageSourcesV1, QualifiedName, SourceFileV1,
     prepare_package_release_v1,
 };
 
@@ -29,7 +29,18 @@ const VALID_COMPONENTWISE_GRADIENT: &str = include_str!(
     "../../../verify/packages/package-definition-validation/models/valid/componentwise-gradient-residual.eqi"
 );
 
-fn sources(name: &str, files: &[(&str, &str)]) -> AuthorPackageSourcesV1 {
+fn sources(name: &str, files: &[(&str, &str)]) -> PackageSourcesV1 {
+    let entry = files
+        .iter()
+        .find(|(path, _)| *path == "src/main.eqi")
+        .or_else(|| (files.len() == 1).then(|| &files[0]))
+        .expect("fixture entry module")
+        .0
+        .strip_prefix("src/")
+        .unwrap()
+        .strip_suffix(".eqi")
+        .unwrap()
+        .replace('/', ".");
     let entries = files
         .iter()
         .map(|(path, _)| {
@@ -39,7 +50,8 @@ fn sources(name: &str, files: &[(&str, &str)]) -> AuthorPackageSourcesV1 {
             )
         })
         .collect();
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        &entry,
         QualifiedName::parse(name).expect("fixture package name"),
         ExactVersion::parse("0.1.0").expect("fixture version"),
         vec![],
@@ -56,7 +68,7 @@ fn sources(name: &str, files: &[(&str, &str)]) -> AuthorPackageSourcesV1 {
             )
         })
         .collect();
-    AuthorPackageSourcesV1::new(manifest, files).expect("closed fixture source inventory")
+    PackageSourcesV1::new(manifest, files).expect("closed fixture source inventory")
 }
 
 fn release(files: &[(&str, &str)]) -> PackageReleaseV1 {

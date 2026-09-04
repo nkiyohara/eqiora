@@ -12,13 +12,13 @@ use crate::directory_io::{
 };
 use crate::source::MAX_TOTAL_BYTES;
 use crate::{
-    AuthorManifestV1, AuthorPackageSourcesV1, ContractError, NormalizedRelativePath, SourceFileV1,
+    ContractError, NormalizedRelativePath, PackageManifestV1, PackageSourcesV1, SourceFileV1,
 };
 
 const MANIFEST_PATH: &str = "package.json";
 
 #[derive(Clone, Copy, Debug)]
-struct AuthorPackageDirectoryLimits {
+struct PackageDirectoryLimits {
     manifest_bytes: usize,
     source_file_bytes: usize,
     source_bytes: usize,
@@ -27,12 +27,12 @@ struct AuthorPackageDirectoryLimits {
 #[derive(Clone, Copy, Debug)]
 struct ReadBudget {
     bytes: usize,
-    resource: AuthorPackageDirectoryResource,
+    resource: PackageDirectoryResource,
     observed_offset: u64,
     reported_limit: u64,
 }
 
-const V1_LIMITS: AuthorPackageDirectoryLimits = AuthorPackageDirectoryLimits {
+const V1_LIMITS: PackageDirectoryLimits = PackageDirectoryLimits {
     manifest_bytes: 16 * 1024 * 1024,
     source_file_bytes: MAX_TOTAL_BYTES,
     source_bytes: MAX_TOTAL_BYTES,
@@ -41,7 +41,7 @@ const V1_LIMITS: AuthorPackageDirectoryLimits = AuthorPackageDirectoryLimits {
 /// Resource category enforced while reading one retained author source directory.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
-pub enum AuthorPackageDirectoryResource {
+pub enum PackageDirectoryResource {
     /// Canonical `package.json` bytes.
     ManifestBytes,
     /// Bytes read from one inventoried source file.
@@ -59,7 +59,7 @@ pub enum AuthorPackageDirectoryResource {
 /// Failure while reading one exact package inventory or discovering local
 /// project sources from a directory capability.
 #[derive(Debug)]
-pub enum AuthorPackageDirectoryError {
+pub enum PackageDirectoryError {
     /// Opening or inspecting the supplied root capability failed.
     RootIo {
         /// Ambient root path, when the adapter opened it for the caller.
@@ -91,7 +91,7 @@ pub enum AuthorPackageDirectoryError {
         /// Author-root-relative entry whose bound was exceeded.
         path: NormalizedRelativePath,
         /// Resource whose bound was exceeded.
-        resource: AuthorPackageDirectoryResource,
+        resource: PackageDirectoryResource,
         /// Observed count or byte length.
         observed: u64,
         /// Maximum accepted count or byte length.
@@ -106,7 +106,7 @@ pub enum AuthorPackageDirectoryError {
     },
 }
 
-impl std::fmt::Display for AuthorPackageDirectoryError {
+impl std::fmt::Display for PackageDirectoryError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::RootIo { path, source } => match path {
@@ -142,14 +142,12 @@ impl std::fmt::Display for AuthorPackageDirectoryError {
                 limit,
             } => {
                 let name = match resource {
-                    AuthorPackageDirectoryResource::ManifestBytes => "manifest bytes",
-                    AuthorPackageDirectoryResource::SourceFileBytes => "source-file bytes",
-                    AuthorPackageDirectoryResource::SourceTotalBytes => "total source bytes",
-                    AuthorPackageDirectoryResource::ProjectEntries => "project entries",
-                    AuthorPackageDirectoryResource::ProjectDirectoryDepth => {
-                        "project directory depth"
-                    }
-                    AuthorPackageDirectoryResource::ProjectSourceFiles => "project source files",
+                    PackageDirectoryResource::ManifestBytes => "manifest bytes",
+                    PackageDirectoryResource::SourceFileBytes => "source-file bytes",
+                    PackageDirectoryResource::SourceTotalBytes => "total source bytes",
+                    PackageDirectoryResource::ProjectEntries => "project entries",
+                    PackageDirectoryResource::ProjectDirectoryDepth => "project directory depth",
+                    PackageDirectoryResource::ProjectSourceFiles => "project source files",
                 };
                 write!(
                     formatter,
@@ -173,7 +171,7 @@ impl std::fmt::Display for AuthorPackageDirectoryError {
     }
 }
 
-impl std::error::Error for AuthorPackageDirectoryError {
+impl std::error::Error for PackageDirectoryError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::RootIo { source, .. } | Self::EntryIo { source, .. } => Some(source),
@@ -186,7 +184,7 @@ impl std::error::Error for AuthorPackageDirectoryError {
     }
 }
 
-impl From<ContractError> for AuthorPackageDirectoryError {
+impl From<ContractError> for PackageDirectoryError {
     fn from(error: ContractError) -> Self {
         Self::Contract(error)
     }
@@ -198,11 +196,11 @@ impl From<ContractError> for AuthorPackageDirectoryError {
 /// Local-project discovery is a separate explicit method. Neither operation
 /// performs another ambient lookup or follows a symbolic link below the root.
 #[derive(Clone, Debug)]
-pub struct AuthorPackageDirectory {
+pub struct PackageDirectory {
     root: Arc<Dir>,
 }
 
-impl AuthorPackageDirectory {
+impl PackageDirectory {
     /// Retain a caller-opened directory capability without acquiring ambient
     /// filesystem authority.
     ///
@@ -210,14 +208,14 @@ impl AuthorPackageDirectory {
     ///
     /// Returns a path-aware error when the supplied handle does not identify
     /// a directory.
-    pub fn try_from_dir(root: Dir) -> Result<Self, AuthorPackageDirectoryError> {
+    pub fn try_from_dir(root: Dir) -> Result<Self, PackageDirectoryError> {
         if let Err(error) = validate_directory(&root) {
             return Err(match error {
                 DirectoryRootError::Io(source) => {
-                    AuthorPackageDirectoryError::RootIo { path: None, source }
+                    PackageDirectoryError::RootIo { path: None, source }
                 }
                 DirectoryRootError::NotDirectory => {
-                    AuthorPackageDirectoryError::RootNotDirectory { path: None }
+                    PackageDirectoryError::RootNotDirectory { path: None }
                 }
             });
         }
@@ -237,14 +235,14 @@ impl AuthorPackageDirectory {
     ///
     /// Returns a path-aware I/O or file-kind error when the root cannot be
     /// opened as a non-symlink directory.
-    pub fn open_ambient(root: impl Into<PathBuf>) -> Result<Self, AuthorPackageDirectoryError> {
+    pub fn open_ambient(root: impl Into<PathBuf>) -> Result<Self, PackageDirectoryError> {
         let root_path = root.into();
         let root = open_ambient_directory(&root_path).map_err(|error| match error {
-            DirectoryRootError::Io(source) => AuthorPackageDirectoryError::RootIo {
+            DirectoryRootError::Io(source) => PackageDirectoryError::RootIo {
                 path: Some(root_path.clone()),
                 source,
             },
-            DirectoryRootError::NotDirectory => AuthorPackageDirectoryError::RootNotDirectory {
+            DirectoryRootError::NotDirectory => PackageDirectoryError::RootNotDirectory {
                 path: Some(root_path.clone()),
             },
         })?;
@@ -266,7 +264,7 @@ impl AuthorPackageDirectory {
     ///
     /// Returns a path-aware I/O, file-kind, resource, manifest, inventory, or
     /// UTF-8 contract error. No partial author input is returned.
-    pub fn read_sources(&self) -> Result<AuthorPackageSourcesV1, AuthorPackageDirectoryError> {
+    pub fn read_sources(&self) -> Result<PackageSourcesV1, PackageDirectoryError> {
         self.read_sources_with_limits(V1_LIMITS)
     }
 
@@ -284,43 +282,43 @@ impl AuthorPackageDirectory {
     /// resource-limit error. No partial inventory is returned.
     pub fn discover_project_sources(
         &self,
-    ) -> Result<BTreeMap<NormalizedRelativePath, String>, AuthorPackageDirectoryError> {
+    ) -> Result<BTreeMap<NormalizedRelativePath, String>, PackageDirectoryError> {
         crate::project_directory::discover_project_sources(&self.root)
     }
 
     fn read_sources_with_limits(
         &self,
-        limits: AuthorPackageDirectoryLimits,
-    ) -> Result<AuthorPackageSourcesV1, AuthorPackageDirectoryError> {
+        limits: PackageDirectoryLimits,
+    ) -> Result<PackageSourcesV1, PackageDirectoryError> {
         let manifest_path = NormalizedRelativePath::parse(MANIFEST_PATH)?;
         let manifest_limit = u64::try_from(limits.manifest_bytes).unwrap_or(u64::MAX);
         let manifest_bytes = self.read_regular_file(
             &manifest_path,
             ReadBudget {
                 bytes: limits.manifest_bytes,
-                resource: AuthorPackageDirectoryResource::ManifestBytes,
+                resource: PackageDirectoryResource::ManifestBytes,
                 observed_offset: 0,
                 reported_limit: manifest_limit,
             },
         )?;
-        let manifest = AuthorManifestV1::from_json(&manifest_bytes)?;
+        let manifest = PackageManifestV1::from_json(&manifest_bytes)?;
         let mut files = Vec::new();
         files
             .try_reserve_exact(manifest.bundle().len())
-            .map_err(|source| AuthorPackageDirectoryError::Allocation { path: None, source })?;
+            .map_err(|source| PackageDirectoryError::Allocation { path: None, source })?;
         let mut remaining = limits.source_bytes;
         for entry in manifest.bundle() {
             let budget = if limits.source_file_bytes <= remaining {
                 ReadBudget {
                     bytes: limits.source_file_bytes,
-                    resource: AuthorPackageDirectoryResource::SourceFileBytes,
+                    resource: PackageDirectoryResource::SourceFileBytes,
                     observed_offset: 0,
                     reported_limit: u64::try_from(limits.source_file_bytes).unwrap_or(u64::MAX),
                 }
             } else {
                 ReadBudget {
                     bytes: remaining,
-                    resource: AuthorPackageDirectoryResource::SourceTotalBytes,
+                    resource: PackageDirectoryResource::SourceTotalBytes,
                     observed_offset: u64::try_from(limits.source_bytes.saturating_sub(remaining))
                         .unwrap_or(u64::MAX),
                     reported_limit: u64::try_from(limits.source_bytes).unwrap_or(u64::MAX),
@@ -332,33 +330,31 @@ impl AuthorPackageDirectory {
                 .ok_or_else(|| ContractError::new("package author source byte count overflow"))?;
             files.push(SourceFileV1::new(entry.path().clone(), entry.role(), bytes));
         }
-        AuthorPackageSourcesV1::new(manifest, files).map_err(Into::into)
+        PackageSourcesV1::new(manifest, files).map_err(Into::into)
     }
 
     fn read_regular_file(
         &self,
         path: &NormalizedRelativePath,
         budget: ReadBudget,
-    ) -> Result<Vec<u8>, AuthorPackageDirectoryError> {
+    ) -> Result<Vec<u8>, PackageDirectoryError> {
         read_bounded_regular_file(&self.root, path, budget.bytes).map_err(|error| match error {
             DirectoryFileError::RootIo(source) => {
-                AuthorPackageDirectoryError::RootIo { path: None, source }
+                PackageDirectoryError::RootIo { path: None, source }
             }
             DirectoryFileError::Io { path, source } => {
-                AuthorPackageDirectoryError::EntryIo { path, source }
+                PackageDirectoryError::EntryIo { path, source }
             }
             DirectoryFileError::NonRegularFile { path } => {
-                AuthorPackageDirectoryError::NonRegularFile { path }
+                PackageDirectoryError::NonRegularFile { path }
             }
             DirectoryFileError::LimitExceeded { path, observed, .. } => {
                 limit_exceeded(&path, observed, budget)
             }
-            DirectoryFileError::Allocation { path, source } => {
-                AuthorPackageDirectoryError::Allocation {
-                    path: Some(path),
-                    source,
-                }
-            }
+            DirectoryFileError::Allocation { path, source } => PackageDirectoryError::Allocation {
+                path: Some(path),
+                source,
+            },
         })
     }
 }
@@ -367,8 +363,8 @@ fn limit_exceeded(
     path: &NormalizedRelativePath,
     observed_bytes: u64,
     budget: ReadBudget,
-) -> AuthorPackageDirectoryError {
-    AuthorPackageDirectoryError::LimitExceeded {
+) -> PackageDirectoryError {
+    PackageDirectoryError::LimitExceeded {
         path: path.clone(),
         resource: budget.resource,
         observed: budget.observed_offset.saturating_add(observed_bytes),
@@ -409,8 +405,9 @@ mod tests {
         }
     }
 
-    fn manifest(entries: &[(&str, BundleRoleV1)]) -> AuthorManifestV1 {
-        AuthorManifestV1::new(
+    fn manifest(entries: &[(&str, BundleRoleV1)]) -> PackageManifestV1 {
+        PackageManifestV1::new(
+            "main",
             QualifiedName::parse("org.example.DirectoryInput").expect("package name"),
             ExactVersion::parse("1.0.0").expect("package version"),
             vec![],
@@ -424,7 +421,7 @@ mod tests {
                 })
                 .collect(),
         )
-        .expect("author manifest")
+        .expect("package manifest")
     }
 
     fn write_manifest(root: &TestDirectory, entries: &[(&str, BundleRoleV1)]) -> Vec<u8> {
@@ -484,13 +481,13 @@ mod tests {
         let directory = TestDirectory::create("constructors");
         write_valid_package(&directory);
 
-        let ambient = AuthorPackageDirectory::open_ambient(&directory.0)
+        let ambient = PackageDirectory::open_ambient(&directory.0)
             .expect("open explicit ambient root")
             .read_sources()
             .expect("load ambient package");
         let root = Dir::open_ambient_dir(&directory.0, ambient_authority())
             .expect("caller opens directory");
-        let retained = AuthorPackageDirectory::try_from_dir(root)
+        let retained = PackageDirectory::try_from_dir(root)
             .expect("retain caller directory")
             .read_sources()
             .expect("load retained package");
@@ -498,8 +495,8 @@ mod tests {
 
         let regular_file = fs::File::open(directory.0.join(MANIFEST_PATH)).expect("open file");
         assert!(matches!(
-            AuthorPackageDirectory::try_from_dir(Dir::from_std_file(regular_file)),
-            Err(AuthorPackageDirectoryError::RootNotDirectory { .. })
+            PackageDirectory::try_from_dir(Dir::from_std_file(regular_file)),
+            Err(PackageDirectoryError::RootNotDirectory { .. })
         ));
     }
 
@@ -508,7 +505,7 @@ mod tests {
         let directory = TestDirectory::create("closed-inventory");
         fs::write(directory.0.join("unlisted.bin"), b"before").expect("write decoy first");
         write_valid_package(&directory);
-        let package = AuthorPackageDirectory::open_ambient(&directory.0).expect("open package");
+        let package = PackageDirectory::open_ambient(&directory.0).expect("open package");
         let first = package.read_sources().expect("first load");
 
         fs::write(directory.0.join("unlisted.bin"), b"changed and larger").expect("replace decoy");
@@ -524,10 +521,10 @@ mod tests {
     fn missing_or_non_regular_inventory_entries_fail_closed_with_the_path() {
         let missing_manifest = TestDirectory::create("missing-manifest");
         assert!(matches!(
-            AuthorPackageDirectory::open_ambient(&missing_manifest.0)
+            PackageDirectory::open_ambient(&missing_manifest.0)
                 .expect("open root")
                 .read_sources(),
-            Err(AuthorPackageDirectoryError::EntryIo { path, .. })
+            Err(PackageDirectoryError::EntryIo { path, .. })
                 if path.as_str() == MANIFEST_PATH
         ));
 
@@ -537,10 +534,10 @@ mod tests {
             &[("src/missing.eqi", BundleRoleV1::ModelSource)],
         );
         assert!(matches!(
-            AuthorPackageDirectory::open_ambient(&missing_source.0)
+            PackageDirectory::open_ambient(&missing_source.0)
                 .expect("open root")
                 .read_sources(),
-            Err(AuthorPackageDirectoryError::EntryIo { path, .. })
+            Err(PackageDirectoryError::EntryIo { path, .. })
                 if matches!(path.as_str(), "src" | "src/missing.eqi")
         ));
 
@@ -548,10 +545,10 @@ mod tests {
         fs::create_dir(non_regular.0.join("source.eqi")).expect("create directory entry");
         write_manifest(&non_regular, &[("source.eqi", BundleRoleV1::ModelSource)]);
         assert!(matches!(
-            AuthorPackageDirectory::open_ambient(&non_regular.0)
+            PackageDirectory::open_ambient(&non_regular.0)
                 .expect("open root")
                 .read_sources(),
-            Err(AuthorPackageDirectoryError::NonRegularFile { path })
+            Err(PackageDirectoryError::NonRegularFile { path })
                 if path.as_str() == "source.eqi"
         ));
     }
@@ -568,17 +565,17 @@ mod tests {
                 ("b.eqi", BundleRoleV1::ModelSource),
             ],
         );
-        let package = AuthorPackageDirectory::open_ambient(&directory.0).expect("open package");
+        let package = PackageDirectory::open_ambient(&directory.0).expect("open package");
 
         assert!(matches!(
-            package.read_sources_with_limits(AuthorPackageDirectoryLimits {
+            package.read_sources_with_limits(PackageDirectoryLimits {
                 manifest_bytes: manifest_bytes.len() - 1,
                 source_file_bytes: 3,
                 source_bytes: 6,
             }),
-            Err(AuthorPackageDirectoryError::LimitExceeded {
+            Err(PackageDirectoryError::LimitExceeded {
                 path,
-                resource: AuthorPackageDirectoryResource::ManifestBytes,
+                resource: PackageDirectoryResource::ManifestBytes,
                 observed,
                 limit,
             }) if path.as_str() == MANIFEST_PATH
@@ -586,28 +583,28 @@ mod tests {
                 && limit == u64::try_from(manifest_bytes.len() - 1).expect("manifest limit")
         ));
         assert!(matches!(
-            package.read_sources_with_limits(AuthorPackageDirectoryLimits {
+            package.read_sources_with_limits(PackageDirectoryLimits {
                 manifest_bytes: manifest_bytes.len(),
                 source_file_bytes: 3,
                 source_bytes: 5,
             }),
-            Err(AuthorPackageDirectoryError::LimitExceeded {
+            Err(PackageDirectoryError::LimitExceeded {
                 path,
-                resource: AuthorPackageDirectoryResource::SourceTotalBytes,
+                resource: PackageDirectoryResource::SourceTotalBytes,
                 observed: 6,
                 limit: 5,
             }) if path.as_str() == "b.eqi"
         ));
 
         assert!(matches!(
-            package.read_sources_with_limits(AuthorPackageDirectoryLimits {
+            package.read_sources_with_limits(PackageDirectoryLimits {
                 manifest_bytes: manifest_bytes.len(),
                 source_file_bytes: 2,
                 source_bytes: 6,
             }),
-            Err(AuthorPackageDirectoryError::LimitExceeded {
+            Err(PackageDirectoryError::LimitExceeded {
                 path,
-                resource: AuthorPackageDirectoryResource::SourceFileBytes,
+                resource: PackageDirectoryResource::SourceFileBytes,
                 observed: 3,
                 limit: 2,
             }) if path.as_str() == "a.eqi"
@@ -620,10 +617,10 @@ mod tests {
         write_entry(&directory, "main.eqi", &[0xff]);
         write_manifest(&directory, &[("main.eqi", BundleRoleV1::ModelSource)]);
         assert!(matches!(
-            AuthorPackageDirectory::open_ambient(&directory.0)
+            PackageDirectory::open_ambient(&directory.0)
                 .expect("open root")
                 .read_sources(),
-            Err(AuthorPackageDirectoryError::Contract(_))
+            Err(PackageDirectoryError::Contract(_))
         ));
     }
 
@@ -633,14 +630,14 @@ mod tests {
         write_entry(&directory, "main.eqi", b"model Main {}");
         fs::write(
             directory.0.join(MANIFEST_PATH),
-            br#"{"schema":"eqiora.author-manifest.v1","name":"org.example.Bad","version":"1.0.0","dependencies":[],"bundle":[{"path":"main.eqi","role":"executable_plugin"}]}"#,
+            br#"{"schema":"eqiora.package-manifest.v1","name":"org.example.Bad","version":"1.0.0","dependencies":[],"bundle":[{"path":"main.eqi","role":"executable_plugin"}]}"#,
         )
         .expect("write malformed manifest");
         assert!(matches!(
-            AuthorPackageDirectory::open_ambient(&directory.0)
+            PackageDirectory::open_ambient(&directory.0)
                 .expect("open root")
                 .read_sources(),
-            Err(AuthorPackageDirectoryError::Contract(_))
+            Err(PackageDirectoryError::Contract(_))
         ));
     }
 
@@ -659,7 +656,7 @@ mod tests {
         symlink("manifest-target.json", manifest_link.0.join(MANIFEST_PATH))
             .expect("create manifest symlink");
         assert!(
-            AuthorPackageDirectory::open_ambient(&manifest_link.0)
+            PackageDirectory::open_ambient(&manifest_link.0)
                 .expect("open root")
                 .read_sources()
                 .is_err()
@@ -670,7 +667,7 @@ mod tests {
         symlink("target.eqi", final_link.0.join("main.eqi")).expect("create final symlink");
         write_manifest(&final_link, &[("main.eqi", BundleRoleV1::ModelSource)]);
         assert!(
-            AuthorPackageDirectory::open_ambient(&final_link.0)
+            PackageDirectory::open_ambient(&final_link.0)
                 .expect("open root")
                 .read_sources()
                 .is_err()
@@ -686,7 +683,7 @@ mod tests {
             &[("src/main.eqi", BundleRoleV1::ModelSource)],
         );
         assert!(
-            AuthorPackageDirectory::open_ambient(&intermediate_link.0)
+            PackageDirectory::open_ambient(&intermediate_link.0)
                 .expect("open root")
                 .read_sources()
                 .is_err()
@@ -696,7 +693,7 @@ mod tests {
         write_valid_package(&root_target);
         let root_link = root_target.0.with_extension("link");
         symlink(&root_target.0, &root_link).expect("create root symlink");
-        assert!(AuthorPackageDirectory::open_ambient(&root_link).is_err());
+        assert!(PackageDirectory::open_ambient(&root_link).is_err());
         fs::remove_file(root_link).expect("remove root symlink");
     }
 
@@ -707,7 +704,7 @@ mod tests {
         let _listener = bind_socket_entry(&directory);
         write_manifest(&directory, &[("main.eqi", BundleRoleV1::ModelSource)]);
         assert!(
-            AuthorPackageDirectory::open_ambient(&directory.0)
+            PackageDirectory::open_ambient(&directory.0)
                 .expect("open root")
                 .read_sources()
                 .is_err()
@@ -719,7 +716,7 @@ mod tests {
     fn retained_root_cannot_be_redirected_by_replacing_its_path() {
         let directory = TestDirectory::create("root-replacement");
         write_valid_package(&directory);
-        let package = AuthorPackageDirectory::open_ambient(&directory.0).expect("open package");
+        let package = PackageDirectory::open_ambient(&directory.0).expect("open package");
         let expected = package.read_sources().expect("original package");
         let moved = directory.0.with_extension("moved");
 

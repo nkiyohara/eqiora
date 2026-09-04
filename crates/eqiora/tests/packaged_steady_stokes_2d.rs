@@ -6,9 +6,9 @@ use eqiora::diagnostic::codes;
 use eqiora::kernel::BoundarySide;
 use eqiora::language::{ComponentItem, DomainSyntax, Item};
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationRecordV2,
-    PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageCompilationRecordV2, PackageDependencyV1, PackageManifestV1, PackageReleaseV1,
+    PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
 use eqiora::sem::KernelProgram;
@@ -23,8 +23,6 @@ mod embedded_package;
 const COMPONENT: &str = include_str!(
     "../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi"
 );
-const COMPONENT_MANIFEST: &[u8] =
-    include_bytes!("../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/package.json");
 const COMPONENT_README: &[u8] =
     include_bytes!("../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/README.md");
 const COMPONENT_PERMUTED: &str =
@@ -63,8 +61,9 @@ const PACKAGED_TO_DIRECT: [(&str, &str); 19] = [
 ];
 
 fn component_release() -> PackageReleaseV1 {
-    let sources = embedded_package::sources(
-        COMPONENT_MANIFEST,
+    let sources = embedded_package::generated_sources(
+        PUBLIC_PACKAGE,
+        VERSION,
         &[
             ("README.md", BundleRoleV1::Documentation, COMPONENT_README),
             (
@@ -85,7 +84,8 @@ fn synthetic_component_release(
     let readme_path = NormalizedRelativePath::parse("README.md").expect("README path");
     let model_path =
         NormalizedRelativePath::parse("src/incompressible.eqi").expect("component source path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "incompressible",
         QualifiedName::parse(package_name).expect("component package name"),
         ExactVersion::parse(VERSION).expect("component package version"),
         Vec::new(),
@@ -110,7 +110,7 @@ fn synthetic_component_release(
     if reverse_files {
         files.reverse();
     }
-    let sources = AuthorPackageSourcesV1::new(manifest, files).expect("closed component sources");
+    let sources = PackageSourcesV1::new(manifest, files).expect("closed component sources");
     prepare_package_release_v1(sources, &[]).expect("prepare synthetic fluid provider")
 }
 
@@ -119,17 +119,16 @@ fn root_sources(
     alias: &str,
     source: &str,
     reverse_files: bool,
-) -> AuthorPackageSourcesV1 {
+) -> PackageSourcesV1 {
     let readme_path = NormalizedRelativePath::parse("README.md").expect("root README path");
     let model_path = NormalizedRelativePath::parse("src/main.eqi").expect("root source path");
-    let dependency = DependencyRequirementV1::new(
-        QualifiedName::parse(alias).expect("dependency alias"),
+    let dependency = PackageDependencyV1::new(
         component
             .package_identity()
             .expect("component package identity"),
-    )
-    .expect("exact component dependency");
-    let manifest = AuthorManifestV1::new(
+    );
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse(ROOT_PACKAGE).expect("root package name"),
         ExactVersion::parse(VERSION).expect("root version"),
         vec![dependency],
@@ -158,7 +157,7 @@ fn root_sources(
     if reverse_files {
         files.reverse();
     }
-    AuthorPackageSourcesV1::new(manifest, files).expect("closed root author sources")
+    PackageSourcesV1::new(manifest, files).expect("closed root author sources")
 }
 
 fn root_release(
@@ -568,7 +567,7 @@ fn exact_package_identity_and_lowered_meaning_are_name_and_order_independent() {
         permuted_root
             .package_identity()
             .expect("permuted root identity"),
-        "dependency alias, declaration, binding, and file order are non-semantic"
+        "import alias, declaration, binding, and file order are non-semantic"
     );
     let (packaged, _) = compile_locked(&component, &root);
     let (permuted, _) = compile_locked(&permuted_component, &permuted_root);

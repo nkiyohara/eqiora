@@ -4,9 +4,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use eqiora::kernel::BoundarySide;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    DirectoryPackageStore, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    BundleEntryV1, BundleRoleV1, DirectoryPackageStore, ExactVersion, InMemoryPackageStore,
+    NormalizedRelativePath, PackageDependencyV1, PackageManifestV1, PackageReleaseV1,
+    PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
 use eqiora_numerics::{
@@ -129,20 +129,27 @@ fn standard_package_reopens_from_the_project_lock_and_offline_store() {
     let store_path = scratch.child("store");
     fs::write(
         scratch.0.join("eqiora.toml"),
-        r#"schema = "eqiora.project.v1"
-root = "root"
+        r#"[package]
+name = "org.example.StandardSolid"
+version = "1.0.0"
+source = "root/src"
+entry = "main"
 
-[dependencies]
-solid = "solid"
-
-[sources.root]
-path = "root"
-
-[sources.solid]
+[dependencies."Eqiora.Solid"]
+version = "0.3.0"
 path = "solid"
 "#,
     )
     .expect("write project manifest");
+    fs::write(
+        scratch.0.join("solid/eqiora.toml"),
+        r#"[package]
+name = "Eqiora.Solid"
+version = "0.3.0"
+entry = "solid"
+"#,
+    )
+    .expect("write solid manifest");
 
     let resolution =
         PackagedModelDocument::resolve_local_package_project_v1(&scratch.0, &store_path)
@@ -187,14 +194,11 @@ fn compile_root_result(
     PackagedModelDocument::compile_locked(&store, &resolution, "Main")
 }
 
-fn root_sources(solid: &PackageReleaseV1, source: &str) -> AuthorPackageSourcesV1 {
+fn root_sources(solid: &PackageReleaseV1, source: &str) -> PackageSourcesV1 {
     let path = NormalizedRelativePath::parse("src/main.eqi").expect("root path");
-    let dependency = DependencyRequirementV1::new(
-        QualifiedName::parse("solid").expect("solid alias"),
-        solid.package_identity().expect("solid identity"),
-    )
-    .expect("solid dependency");
-    let manifest = AuthorManifestV1::new(
+    let dependency = PackageDependencyV1::new(solid.package_identity().expect("solid identity"));
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse("org.example.StandardSolid").expect("root name"),
         ExactVersion::parse(VERSION).expect("root version"),
         vec![dependency],
@@ -202,7 +206,7 @@ fn root_sources(solid: &PackageReleaseV1, source: &str) -> AuthorPackageSourcesV
     )
     .expect("root manifest");
     let source = format!("import Eqiora.Solid.solid as solid;\n{source}");
-    AuthorPackageSourcesV1::new(
+    PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             path,
@@ -218,16 +222,8 @@ fn lower(program: &eqiora::sem::KernelProgram) -> IsotropicElasticityContinuum<2
         .expect("standard package reaches common elasticity lowering")
 }
 
-fn write_package(path: &Path, sources: &AuthorPackageSourcesV1) {
+fn write_package(path: &Path, sources: &PackageSourcesV1) {
     fs::create_dir_all(path).expect("create package directory");
-    fs::write(
-        path.join("package.json"),
-        sources
-            .manifest()
-            .canonical_json()
-            .expect("canonical package manifest"),
-    )
-    .expect("write package manifest");
     for file in sources.files() {
         let destination = path.join(file.path().as_str());
         fs::create_dir_all(destination.parent().expect("package file parent"))

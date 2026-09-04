@@ -5,7 +5,11 @@ use std::io::Read;
 use std::path::Path;
 
 use eqiora::Diagnostic;
+#[cfg(feature = "package-filesystem")]
+use eqiora::api::package::{PackageCompilationError, PackagedModelDocument as LockedPackage};
 use eqiora::api::{ModelDocument, StructuralSemanticFingerprint};
+#[cfg(feature = "package-filesystem")]
+use eqiora::package::DirectoryPackageStore;
 
 use super::terminal;
 
@@ -77,6 +81,8 @@ enum CommandError {
     InvalidUtf8,
     Unavailable,
     Internal,
+    #[cfg(feature = "package-filesystem")]
+    Package(String),
 }
 
 impl CommandError {
@@ -86,6 +92,14 @@ impl CommandError {
             Self::InvalidUtf8 => OracleOutcome::stderr(65, INVALID_UTF8),
             Self::Unavailable => OracleOutcome::stderr(66, UNAVAILABLE),
             Self::Internal => OracleOutcome::stderr(70, INTERNAL),
+            #[cfg(feature = "package-filesystem")]
+            Self::Package(message) => OracleOutcome::stderr(
+                1,
+                terminal::render_package_error(&message).unwrap_or_else(|| {
+                    b"eqiora: package operation rejected; error exceeds terminal output limit\n"
+                        .to_vec()
+                }),
+            ),
         }
     }
 }
@@ -160,6 +174,75 @@ fn cli_command() -> clap::Command {
                         .num_args(1),
                 ),
         )
+        .subcommand(
+            Command::new("package")
+                .disable_help_flag(true)
+                .disable_version_flag(true)
+                .subcommands(["add", "remove"].map(|name| {
+                    let command = Command::new(name)
+                        .arg(
+                            Arg::new("project-path")
+                                .required(true)
+                                .value_parser(clap::builder::OsStringValueParser::new()),
+                        )
+                        .arg(Arg::new("dependency").required(true))
+                        .arg(
+                            Arg::new("store-path")
+                                .long("store")
+                                .required(true)
+                                .value_parser(clap::builder::OsStringValueParser::new()),
+                        );
+                    if name == "add" {
+                        command
+                            .arg(
+                                Arg::new("dependency-version")
+                                    .long("version")
+                                    .required(true),
+                            )
+                            .arg(Arg::new("dependency-path").long("path").required(true))
+                    } else {
+                        command
+                    }
+                }))
+                .subcommand(
+                    Command::new("lock")
+                        .disable_help_flag(true)
+                        .disable_version_flag(true)
+                        .arg(
+                            Arg::new("project-path")
+                                .value_parser(clap::builder::OsStringValueParser::new())
+                                .num_args(1),
+                        )
+                        .arg(
+                            Arg::new("store-path")
+                                .long("store")
+                                .value_parser(clap::builder::OsStringValueParser::new())
+                                .num_args(1),
+                        ),
+                )
+                .subcommand(
+                    Command::new("check")
+                        .disable_help_flag(true)
+                        .disable_version_flag(true)
+                        .arg(
+                            Arg::new("project-path")
+                                .value_parser(clap::builder::OsStringValueParser::new())
+                                .num_args(1),
+                        )
+                        .arg(
+                            Arg::new("store-path")
+                                .long("store")
+                                .value_parser(clap::builder::OsStringValueParser::new())
+                                .num_args(1),
+                        )
+                        .arg(
+                            Arg::new("entry-model")
+                                .long("entry-model")
+                                .value_parser(clap::builder::NonEmptyStringValueParser::new())
+                                .num_args(1),
+                        ),
+                ),
+        )
 }
 
 fn root_help() -> CommandResult {
@@ -211,6 +294,86 @@ fn rejected_projection(rendered: Option<Vec<u8>>) -> CommandResult {
         Some(payload) => OracleOutcome::stderr(1, payload),
         None => OracleOutcome::stderr(1, DIAGNOSTIC_OVERFLOW),
     })
+}
+
+#[cfg(feature = "package-filesystem")]
+fn package_path(value: Option<&OsString>) -> Option<std::path::PathBuf> {
+    let value = value?.to_str()?;
+    if value.is_empty()
+        || value.len() > 4096
+        || value.chars().count() > 4096
+        || value.chars().any(char::is_control)
+    {
+        return None;
+    }
+    Some(value.into())
+}
+
+#[cfg(feature = "package-filesystem")]
+fn run_package_command(package: &clap::ArgMatches) -> CommandResult {
+    match package.subcommand() {
+        Some((operation @ ("add" | "remove"), args)) => {
+            let (Some(project), Some(store), Some(name)) = (
+                package_path(args.get_one::<OsString>("project-path")),
+                package_path(args.get_one::<OsString>("store-path")),
+                args.get_one::<String>("dependency"),
+            ) else {
+                return invalid_command_line();
+            };
+            let result = if operation == "add" {
+                let (Some(version), Some(path)) = (
+                    args.get_one::<String>("dependency-version"),
+                    args.get_one::<String>("dependency-path"),
+                ) else {
+                    return invalid_command_line();
+                };
+                LockedPackage::add_local_package_dependency_v1(project, store, name, version, path)
+            } else {
+                LockedPackage::remove_local_package_dependency_v1(project, store, name)
+            };
+            let resolution = result.map_err(|error| CommandError::Package(error.to_string()))?;
+            let digest = resolution
+                .digest()
+                .map_err(|error| CommandError::Package(error.to_string()))?;
+            Ok(OracleOutcome::stdout(0, format!("locked {digest}\n")))
+        }
+        Some(("lock", lock)) => {
+            let (Some(project), Some(store)) = (
+                package_path(lock.get_one::<OsString>("project-path")),
+                package_path(lock.get_one::<OsString>("store-path")),
+            ) else {
+                return invalid_command_line();
+            };
+            let resolution = LockedPackage::resolve_local_package_project_v1(project, store)
+                .map_err(|error| CommandError::Package(error.to_string()))?;
+            let digest = resolution
+                .digest()
+                .map_err(|error| CommandError::Package(error.to_string()))?;
+            Ok(OracleOutcome::stdout(0, format!("locked {digest}\n")))
+        }
+        Some(("check", check)) => {
+            let (Some(project), Some(store), Some(entry_model)) = (
+                package_path(check.get_one::<OsString>("project-path")),
+                package_path(check.get_one::<OsString>("store-path")),
+                check.get_one::<String>("entry-model"),
+            ) else {
+                return invalid_command_line();
+            };
+            let resolution = LockedPackage::load_local_package_project_lock_v1(project)
+                .map_err(|error| CommandError::Package(error.to_string()))?;
+            let store = DirectoryPackageStore::open_ambient(store)
+                .map_err(|error| CommandError::Package(error.to_string()))?;
+            let document = match LockedPackage::compile_locked(&store, &resolution, entry_model) {
+                Ok(document) => document,
+                Err(PackageCompilationError::Diagnostics(diagnostics)) => {
+                    return rejected_projection(terminal::render_diagnostics(&diagnostics));
+                }
+                Err(error) => return Err(CommandError::Package(error.to_string())),
+            };
+            accepted_projection(document.model().structural_fingerprint())
+        }
+        _ => invalid_command_line(),
+    }
 }
 
 pub(crate) fn read_bounded(
@@ -268,6 +431,12 @@ where
                 return invalid_command_line();
             }
             return package_version();
+        }
+        if let Some(("package", package)) = matches.subcommand() {
+            #[cfg(feature = "package-filesystem")]
+            return run_package_command(package);
+            #[cfg(not(feature = "package-filesystem"))]
+            return invalid_command_line();
         }
         let Some(("check", check)) = matches.subcommand() else {
             return invalid_command_line();

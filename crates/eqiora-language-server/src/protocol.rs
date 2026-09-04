@@ -38,6 +38,8 @@ use crate::{
 type ServerResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 mod navigation;
+#[cfg(test)]
+mod tests;
 
 struct OpenDocument {
     uri: Uri,

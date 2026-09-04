@@ -141,6 +141,8 @@ EXPECTED_EQIORA_ALL = [
     "lang",
     "resolve",
     "resolve_local_project",
+    "add_local_dependency",
+    "remove_local_dependency",
     "run",
     "submit",
     "through",
@@ -325,17 +327,18 @@ def current_package_fixture(
     project = parent / "project"
     package = project / "package"
     package.mkdir(parents=True)
-    (package / "package.json").write_bytes(canonical_json(source["manifest"]))
     for file in source["files"]:
-        path = package / file["path"]
+        path = (project if file["role"] == "documentation" else package) / file["path"]
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(base64.b64decode(file["bytes"]))
+    manifest = source["manifest"]
     (project / "eqiora.toml").write_text(
-        'schema = "eqiora.project.v1"\n'
-        'root = "package"\n\n'
-        '[dependencies]\n\n'
-        '[sources.package]\n'
-        'path = "package"\n',
+        f'''[package]
+name = "{manifest["name"]}"
+version = "{manifest["version"]}"
+source = "package/src"
+entry = "main"
+''',
         encoding="utf-8",
     )
     store = parent / "store"
@@ -722,6 +725,7 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
                     "version": manifest["version"],
                     "name": manifest["name"],
                     "schema": manifest["schema"],
+                    "entry": manifest["entry"],
                 },
                 "package": source["package"],
                 "schema": source["schema"],

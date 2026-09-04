@@ -105,7 +105,7 @@ support claims merely by appearing here.
 | support slot | A Component declaration for required spatial support: either a volume with an exact ambient dimension or a boundary with an exact parent volume slot. A slot is compiler vocabulary, not a Kernel entity, mesh, or realization. |
 | support binding | An occurrence-local mapping from one public support slot to one exact existing Domain. It must preserve support kind, dimension, and boundary parentage and disappears after flattening except for source provenance. |
 | Model Package | A versioned, content-addressed unit of reusable model-space declarations. It cannot contain a private semantic engine or execution backend. |
-| source bundle | Complete canonical author manifest plus exact source and diagnostic material, recorded separately from canonical semantic content so formatting or dependency-alias spelling can change provenance without changing meaning. |
+| source bundle | Complete canonical package manifest plus exact source and diagnostic material, recorded separately from canonical semantic content so formatting or import-alias spelling can change provenance without changing meaning. |
 
 The accepted decisions for component terms live in
 [RFC 0021](../rfcs/0021-component-hierarchy-and-instantiation.md), and package

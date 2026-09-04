@@ -3,13 +3,13 @@ use eqiora::compiler::{
     CompilationNamespaceId,
 };
 use eqiora::package::{
-    AuthorManifestV1, CanonicalDeclaration, DeclarationKindV1, ExactVersion,
-    ModelPackageIdentityV1, PackageReleaseV1, PackageSemanticDigest, QualifiedName,
-    SemanticContentV1, SemanticDeclarationV1, SourceFileV1, VisibilityV1,
+    CanonicalDeclaration, DeclarationKindV1, ExactVersion, ModelPackageIdentityV1,
+    PackageManifestV1, PackageReleaseV1, PackageSemanticDigest, QualifiedName, SemanticContentV1,
+    SemanticDeclarationV1, SourceFileV1, VisibilityV1,
 };
 
-pub(crate) fn canonical_manifest(encoded: &[u8]) -> AuthorManifestV1 {
-    let manifest = AuthorManifestV1::from_json(encoded).expect("package manifest");
+pub(crate) fn canonical_manifest(encoded: &[u8]) -> PackageManifestV1 {
+    let manifest = PackageManifestV1::from_json(encoded).expect("package manifest");
     assert_eq!(
         manifest.canonical_json().expect("canonical manifest"),
         encoded.strip_suffix(b"\n").unwrap_or(encoded)
@@ -66,7 +66,7 @@ fn semantic_content(
 }
 
 pub(crate) fn package_release(
-    manifest: AuthorManifestV1,
+    manifest: PackageManifestV1,
     analyzed: &AnalyzedResolvedHierarchy,
     selected: &CompilationNamespaceId,
     source_files: Vec<SourceFileV1>,

@@ -53,12 +53,93 @@ fn resolve_local_project(
     project_root: &Bound<'_, PyAny>,
     store_root: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyBytes>> {
+    update_local_project(py, project_root, store_root, LocalDependencyEdit::Lock)
+}
+
+/// Add or replace one exact local dependency and update the project lock.
+#[pyfunction]
+#[pyo3(signature = (project_root, store_root, name, *, version, path))]
+fn add_local_dependency(
+    py: Python<'_>,
+    project_root: &Bound<'_, PyAny>,
+    store_root: &Bound<'_, PyAny>,
+    name: String,
+    version: String,
+    path: String,
+) -> PyResult<Py<PyBytes>> {
+    update_local_project(
+        py,
+        project_root,
+        store_root,
+        LocalDependencyEdit::Add {
+            name,
+            version,
+            path,
+        },
+    )
+}
+
+/// Remove one direct dependency and update the project lock.
+#[pyfunction]
+fn remove_local_dependency(
+    py: Python<'_>,
+    project_root: &Bound<'_, PyAny>,
+    store_root: &Bound<'_, PyAny>,
+    name: String,
+) -> PyResult<Py<PyBytes>> {
+    update_local_project(
+        py,
+        project_root,
+        store_root,
+        LocalDependencyEdit::Remove(name),
+    )
+}
+
+enum LocalDependencyEdit {
+    Lock,
+    Add {
+        name: String,
+        version: String,
+        path: String,
+    },
+    Remove(String),
+}
+
+fn update_local_project(
+    py: Python<'_>,
+    project_root: &Bound<'_, PyAny>,
+    store_root: &Bound<'_, PyAny>,
+    edit: LocalDependencyEdit,
+) -> PyResult<Py<PyBytes>> {
     panic_boundary(py, || {
         let project_root = unicode_path(py, project_root)?;
         let store_root = unicode_path(py, store_root)?;
         let resolution = py
-            .detach(move || {
-                PackagedModelDocument::resolve_local_package_project_v1(project_root, store_root)
+            .detach(move || match edit {
+                LocalDependencyEdit::Lock => {
+                    PackagedModelDocument::resolve_local_package_project_v1(
+                        project_root,
+                        store_root,
+                    )
+                }
+                LocalDependencyEdit::Add {
+                    name,
+                    version,
+                    path,
+                } => PackagedModelDocument::add_local_package_dependency_v1(
+                    project_root,
+                    store_root,
+                    &name,
+                    &version,
+                    &path,
+                ),
+                LocalDependencyEdit::Remove(name) => {
+                    PackagedModelDocument::remove_local_package_dependency_v1(
+                        project_root,
+                        store_root,
+                        &name,
+                    )
+                }
             })
             .map_err(|error| {
                 compatibility_error(
@@ -437,6 +518,8 @@ fn compatibility_failure(message: impl Into<String>) -> CompilePackageFailure {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(resolve_local_project, module)?)?;
+    module.add_function(wrap_pyfunction!(add_local_dependency, module)?)?;
+    module.add_function(wrap_pyfunction!(remove_local_dependency, module)?)?;
     module.add_function(wrap_pyfunction!(compile_package, module)?)?;
     module.add_function(wrap_pyfunction!(check_package_conformance, module)?)?;
     Ok(())

@@ -4,9 +4,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use eqiora::kernel::BoundarySide;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    DirectoryPackageStore, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    BundleEntryV1, BundleRoleV1, DirectoryPackageStore, ExactVersion, InMemoryPackageStore,
+    NormalizedRelativePath, PackageDependencyV1, PackageManifestV1, PackageReleaseV1,
+    PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
 use eqiora_numerics::{
@@ -171,23 +171,40 @@ fn standard_package_reopens_from_the_project_lock_and_offline_store() {
     let store_path = scratch.child("store");
     fs::write(
         scratch.0.join("eqiora.toml"),
-        r#"schema = "eqiora.project.v1"
-root = "root"
+        r#"[package]
+name = "org.example.StandardFluid"
+version = "1.0.0"
+source = "root/src"
+entry = "main"
 
-[dependencies]
-fluid = "fluid"
-
-[sources.root]
-path = "root"
-
-[sources.fluid]
+[dependencies."Eqiora.Fluid"]
+version = "0.3.0"
 path = "fluid"
-
-[sources.mechanics]
-path = "mechanics"
 "#,
     )
     .expect("write project manifest");
+    fs::write(
+        scratch.0.join("fluid/eqiora.toml"),
+        r#"[package]
+name = "Eqiora.Fluid"
+version = "0.3.0"
+entry = "fluid"
+
+[dependencies."Eqiora.Mechanics.Interfaces"]
+version = "0.2.0"
+path = "../mechanics"
+"#,
+    )
+    .expect("write fluid manifest");
+    fs::write(
+        scratch.0.join("mechanics/eqiora.toml"),
+        r#"[package]
+name = "Eqiora.Mechanics.Interfaces"
+version = "0.2.0"
+entry = "interfaces"
+"#,
+    )
+    .expect("write mechanics manifest");
 
     let resolution =
         PackagedModelDocument::resolve_local_package_project_v1(&scratch.0, &store_path)
@@ -219,15 +236,13 @@ fn standard_releases() -> (PackageReleaseV1, PackageReleaseV1) {
     (mechanics, fluid)
 }
 
-fn standard_fluid_sources(mechanics: &PackageReleaseV1) -> AuthorPackageSourcesV1 {
+fn standard_fluid_sources(mechanics: &PackageReleaseV1) -> PackageSourcesV1 {
     let sources = embedded_package::release_sources("Eqiora.Fluid", VERSION);
     let (manifest, files) = sources.into_parts();
-    let dependency = DependencyRequirementV1::new(
-        manifest.dependencies()[0].alias().clone(),
-        mechanics.package_identity().expect("mechanics identity"),
-    )
-    .expect("mechanics dependency");
-    let manifest = AuthorManifestV1::new(
+    let dependency =
+        PackageDependencyV1::new(mechanics.package_identity().expect("mechanics identity"));
+    let manifest = PackageManifestV1::new(
+        manifest.entry().as_str(),
         manifest.name().clone(),
         manifest.version().clone(),
         vec![dependency],
@@ -249,7 +264,7 @@ fn standard_fluid_sources(mechanics: &PackageReleaseV1) -> AuthorPackageSourcesV
             )
         })
         .collect();
-    AuthorPackageSourcesV1::new(manifest, files).expect("current fluid sources")
+    PackageSourcesV1::new(manifest, files).expect("current fluid sources")
 }
 
 fn compile_root(
@@ -273,14 +288,11 @@ fn compile_root(
         .expect("compile standard fluid project")
 }
 
-fn root_sources(fluid: &PackageReleaseV1, source: &str) -> AuthorPackageSourcesV1 {
+fn root_sources(fluid: &PackageReleaseV1, source: &str) -> PackageSourcesV1 {
     let path = NormalizedRelativePath::parse("src/main.eqi").expect("root path");
-    let dependency = DependencyRequirementV1::new(
-        QualifiedName::parse("fluid").expect("fluid alias"),
-        fluid.package_identity().expect("fluid identity"),
-    )
-    .expect("fluid dependency");
-    let manifest = AuthorManifestV1::new(
+    let dependency = PackageDependencyV1::new(fluid.package_identity().expect("fluid identity"));
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse("org.example.StandardFluid").expect("root name"),
         ExactVersion::parse(VERSION).expect("root version"),
         vec![dependency],
@@ -288,7 +300,7 @@ fn root_sources(fluid: &PackageReleaseV1, source: &str) -> AuthorPackageSourcesV
     )
     .expect("root manifest");
     let source = format!("import Eqiora.Fluid.fluid as fluid;\n{source}");
-    AuthorPackageSourcesV1::new(
+    PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             path,
@@ -313,16 +325,8 @@ fn cartesian_sides() -> [(usize, BoundarySide); 4] {
     ]
 }
 
-fn write_package(path: &Path, sources: &AuthorPackageSourcesV1) {
+fn write_package(path: &Path, sources: &PackageSourcesV1) {
     fs::create_dir_all(path).expect("create package directory");
-    fs::write(
-        path.join("package.json"),
-        sources
-            .manifest()
-            .canonical_json()
-            .expect("canonical package manifest"),
-    )
-    .expect("write package manifest");
     for file in sources.files() {
         let destination = path.join(file.path().as_str());
         fs::create_dir_all(destination.parent().expect("package file parent"))

@@ -5,12 +5,11 @@ package here receives no built-in name, search path, compiler branch, or trust
 status. Verification resolves project-maintained and third-party-shaped
 releases through the same exact content-addressed store contract.
 
-Each `package.json` is a closed author manifest. It declares a canonical
-package name and exact version, exact dependency identities, and the source
-bundle inventory. Computed semantic and source digests remain release outputs;
-they are not self-asserted fields in the author manifest. The source digest
-covers that complete canonical manifest as well as the inventoried bytes, so
-resolution-relevant alias spelling cannot collide in the content store.
+`eqiora.toml` is the author-maintained manifest for a local package. Resolution
+discovers its bounded source root and generates the closed `package.json`
+carried by a published or vendored artifact. Exact dependency identities and
+source inventories are generated after the local dependency closure is read;
+authors do not duplicate them.
 
 The public Rust adapter may admit the manifest and exact inventory from one
 explicitly retained directory capability. It reads only `package.json` and the
@@ -27,14 +26,14 @@ The Rust seam is deliberately small:
 
 ```rust
 # // Cargo.toml: eqiora = { features = ["package-filesystem"] }
-use eqiora::package::{AuthorPackageDirectory, prepare_package_release_v1};
+use eqiora::package::{PackageDirectory, prepare_package_release_v1};
 
-let sources = AuthorPackageDirectory::open_ambient(package_root)?.read_sources()?;
+let sources = PackageDirectory::open_ambient(package_root)?.read_sources()?;
 let release = prepare_package_release_v1(sources, &exact_dependency_releases)?;
 ```
 
 Callers that already hold a sandboxed `cap_std::fs::Dir` use
-`AuthorPackageDirectory::try_from_dir` and do not grant ambient authority to
+`PackageDirectory::try_from_dir` and do not grant ambient authority to
 the adapter. All three directory adapters in this document require the
 opt-in `package-filesystem` facade feature; package identity, in-memory release
 preparation, and exact resolution remain available without it.
@@ -98,13 +97,11 @@ copying `Eqiora.Fluid.Incompressible@0.2.0` or
 `Eqiora.Solid.LinearElasticity@0.4.0` and its exact dependency closure into an
 ordinary local package project. It returns each vendored
 release's semantic identity, source identity, and project-relative path for
-the application manifest and `eqiora.toml`.
+the dependency entry in `eqiora.toml`.
 
-Top-level package directories retain the exact releases already consumed by
-registered evidence. Later immutable releases live under
-[`releases/<package>/<version>`](releases/) instead of rewriting those source
-authorities in place. A dependency manifest always names the exact earlier or
-later release identity; directory location never participates in selection.
+Top-level directories contain the current package sources. Versioned release
+artifacts live under [`releases/<package>/<version>`](releases/). Dependency
+selection uses exact package identity rather than directory location.
 
 - [`Eqiora.Electrical.Basic`](Eqiora.Electrical.Basic/) provides one scalar
   conserving connector and three ideal static components.

@@ -9,8 +9,8 @@ use eqiora::diagnostic::codes;
 use eqiora::kernel::{BoundarySide, DomainKind, KernelNode};
 use eqiora::meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -50,9 +50,6 @@ const LIVE_PACKAGE_SOURCE: &str =
 const FROZEN_PACKAGE_SOURCE: &str = include_str!(
     "../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/src/linear_elasticity.eqi"
 );
-const FROZEN_PACKAGE_MANIFEST: &[u8] = include_bytes!(
-    "../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/package.json"
-);
 const FROZEN_PACKAGE_README: &[u8] =
     include_bytes!("../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/README.md");
 const FROZEN_PACKAGE_SOURCE_V0_2: &str = include_str!(
@@ -63,9 +60,10 @@ const PACKAGE_VERSION: &str = "0.3.0";
 const ROOT_NAME: &str = "org.eqiora.verify.mixed_boundary_elasticity_2d";
 const ROOT_VERSION: &str = "0.1.0";
 
-fn frozen_package_sources() -> AuthorPackageSourcesV1 {
-    embedded_package::sources(
-        FROZEN_PACKAGE_MANIFEST,
+fn frozen_package_sources() -> PackageSourcesV1 {
+    embedded_package::generated_sources(
+        PACKAGE_NAME,
+        PACKAGE_VERSION,
         &[
             (
                 "README.md",
@@ -143,21 +141,19 @@ fn elasticity_package_with_source(source: &str) -> PackageReleaseV1 {
             }
         })
         .collect();
-    let sources =
-        AuthorPackageSourcesV1::new(manifest, files).expect("modified exact package sources");
+    let sources = PackageSourcesV1::new(manifest, files).expect("modified exact package sources");
     prepare_package_release_v1(sources, &[]).expect("modified package remains valid meaning")
 }
 
 fn root_release(dependency: &PackageReleaseV1, source: &str) -> PackageReleaseV1 {
     let model_path = NormalizedRelativePath::parse("src/main.eqi").expect("root model path");
-    let requirement = DependencyRequirementV1::new(
-        QualifiedName::parse("solid").expect("dependency alias"),
+    let requirement = PackageDependencyV1::new(
         dependency
             .package_identity()
             .expect("elasticity package identity"),
-    )
-    .expect("exact dependency requirement");
-    let manifest = AuthorManifestV1::new(
+    );
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse(ROOT_NAME).expect("root package name"),
         ExactVersion::parse(ROOT_VERSION).expect("root package version"),
         vec![requirement],
@@ -166,13 +162,13 @@ fn root_release(dependency: &PackageReleaseV1, source: &str) -> PackageReleaseV1
             BundleRoleV1::ModelSource,
         )],
     )
-    .expect("root author manifest");
+    .expect("root package manifest");
     let dependency_name = dependency
         .package_identity()
         .expect("elasticity package identity")
         .name;
     let source = format!("import {dependency_name}.linear_elasticity as solid;\n{source}");
-    let sources = AuthorPackageSourcesV1::new(
+    let sources = PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             model_path,

@@ -1,7 +1,7 @@
 use eqiora::kernel::BoundarySide;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -29,26 +29,19 @@ fn prepare_release(
     };
     let sources = if let Some(import) = import {
         let (manifest, files) = sources.into_parts();
-        let requirements = manifest
-            .dependencies()
+        let target = dependencies
             .iter()
-            .map(|requirement| {
-                let target = dependencies
-                    .iter()
-                    .find_map(|release| release.package_identity().ok())
-                    .filter(|identity| identity.name == requirement.target().name)
-                    .expect("matching migrated dependency");
-                DependencyRequirementV1::new(requirement.alias().clone(), target)
-                    .expect("migrated dependency requirement")
-            })
-            .collect();
-        let manifest = AuthorManifestV1::new(
+            .find_map(|release| release.package_identity().ok())
+            .filter(|identity| identity.name.as_str() == "Eqiora.Mechanics.Interfaces")
+            .expect("mechanics dependency");
+        let manifest = PackageManifestV1::new(
+            manifest.entry().as_str(),
             manifest.name().clone(),
             manifest.version().clone(),
-            requirements,
+            vec![PackageDependencyV1::new(target)],
             manifest.bundle().to_vec(),
         )
-        .expect("migrated author manifest");
+        .expect("migrated package manifest");
         let files = files
             .into_iter()
             .map(|file| {
@@ -63,7 +56,7 @@ fn prepare_release(
                 )
             })
             .collect();
-        AuthorPackageSourcesV1::new(manifest, files).expect("migrated package sources")
+        PackageSourcesV1::new(manifest, files).expect("migrated package sources")
     } else {
         sources
     };
@@ -224,12 +217,8 @@ fn prepare_root(
         ("solid_laws", solid),
     ]
     .into_iter()
-    .map(|(alias, release)| {
-        DependencyRequirementV1::new(
-            QualifiedName::parse(alias).expect("dependency alias"),
-            release.package_identity().expect("dependency identity"),
-        )
-        .expect("exact dependency")
+    .map(|(_, release)| {
+        PackageDependencyV1::new(release.package_identity().expect("dependency identity"))
     })
     .collect();
     let readme = NormalizedRelativePath::parse("README.md").expect("README path");
@@ -239,7 +228,8 @@ fn prepare_root(
          import Eqiora.Fluid.Incompressible.incompressible as fluid_laws;\n\
          import Eqiora.Solid.LinearElasticity.linear_elasticity as solid_laws;\n{PACKAGED_ROOT}"
     );
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse("org.eqiora.verify.ale_fsi_3d_packages").expect("root name"),
         ExactVersion::parse("0.1.0").expect("root version"),
         dependencies,
@@ -249,7 +239,7 @@ fn prepare_root(
         ],
     )
     .expect("root manifest");
-    let sources = AuthorPackageSourcesV1::new(
+    let sources = PackageSourcesV1::new(
         manifest,
         vec![
             SourceFileV1::new(
