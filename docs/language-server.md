@@ -30,8 +30,8 @@ Lifecycle events are emitted as one JSON object per line on stderr, leaving
 stdout exclusively for LSP framing.
 
 Files opened under the same initialization workspace folder are analyzed as one
-module graph. Hover and definition navigation follow imports across those open
-files and update from unsaved full-document changes. Files outside an announced
-workspace folder remain independent. Loading unopened project files and exact
-packages from disk, partial edits, cancellation, completion, and signature help
-are planned next.
+module graph. When that folder contains `eqiora.toml`, the server loads its exact
+local package graph from disk, including unopened sources, without writing a lock
+or package store. Open model sources override their disk content until they are
+closed, so hover and definition navigation stay current after full-document
+changes. Partial edits and asynchronous cancellation are planned next.

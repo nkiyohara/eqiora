@@ -1,4 +1,9 @@
-use std::{collections::BTreeMap, error::Error};
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use eqiora::api::{
     EditorPosition, EditorService, EditorSnapshot, EditorSymbol, EditorSymbolKind,
@@ -66,9 +71,15 @@ struct WorkspaceAnalysis {
     uri_by_file: BTreeMap<String, Uri>,
 }
 
+struct PackageProject {
+    root_path: PathBuf,
+    relative_by_uri: BTreeMap<String, PathBuf>,
+}
+
 struct ServerState {
     documents: BTreeMap<String, OpenDocument>,
     roots: Vec<String>,
+    projects: BTreeMap<String, PackageProject>,
     workspaces: BTreeMap<String, WorkspaceAnalysis>,
     next_analysis_version: u64,
 }
@@ -78,12 +89,45 @@ impl ServerState {
         roots.sort();
         roots.dedup();
         roots.sort_by_key(|root| std::cmp::Reverse(root.len()));
-        Self {
+        let mut state = Self {
             documents: BTreeMap::new(),
             roots,
+            projects: BTreeMap::new(),
             workspaces: BTreeMap::new(),
             next_analysis_version: 0,
+        };
+        for root in state.roots.clone() {
+            let Ok(uri) = Uri::from_str(&root) else {
+                continue;
+            };
+            let Some(root_path) = file_uri_path(&uri) else {
+                continue;
+            };
+            if !root_path.join("eqiora.toml").is_file() {
+                continue;
+            }
+            state.next_analysis_version = state.next_analysis_version.saturating_add(1);
+            let Ok((snapshot, paths)) = EditorWorkspaceSnapshot::analyze_local_package_project_v1(
+                state.next_analysis_version,
+                &root_path,
+                &BTreeMap::new(),
+            ) else {
+                continue;
+            };
+            let Some((workspace, relative_by_uri)) = package_workspace(&root, snapshot, paths)
+            else {
+                continue;
+            };
+            state.projects.insert(
+                root.clone(),
+                PackageProject {
+                    root_path,
+                    relative_by_uri,
+                },
+            );
+            state.workspaces.insert(root, workspace);
         }
+        state
     }
 
     fn group_for_uri(&self, uri: &str) -> String {
@@ -95,6 +139,35 @@ impl ServerState {
     }
 
     fn rebuild_group(&mut self, group: &str) {
+        if let Some(project) = self.projects.get(group) {
+            let root_path = project.root_path.clone();
+            let overrides = self
+                .documents
+                .iter()
+                .filter_map(|(uri, document)| {
+                    project
+                        .relative_by_uri
+                        .get(uri)
+                        .cloned()
+                        .map(|path| (path, document.source.clone()))
+                })
+                .collect::<BTreeMap<_, _>>();
+            self.next_analysis_version = self.next_analysis_version.saturating_add(1);
+            if let Ok((snapshot, paths)) = EditorWorkspaceSnapshot::analyze_local_package_project_v1(
+                self.next_analysis_version,
+                &root_path,
+                &overrides,
+            ) && let Some((workspace, relative_by_uri)) =
+                package_workspace(group, snapshot, paths)
+            {
+                self.projects
+                    .get_mut(group)
+                    .expect("package project remains indexed")
+                    .relative_by_uri = relative_by_uri;
+                self.workspaces.insert(group.to_owned(), workspace);
+                return;
+            }
+        }
         let owner = CompilationNamespaceId::new(["editor-workspace"])
             .expect("fixed editor workspace namespace is valid");
         let mut units = Vec::new();
@@ -153,6 +226,68 @@ impl ServerState {
         let group = self.group_for_uri(source_uri.as_str());
         self.workspaces.get(&group)?.uri_by_file.get(file).cloned()
     }
+}
+
+fn package_workspace(
+    root: &str,
+    snapshot: EditorWorkspaceSnapshot,
+    paths: BTreeMap<String, PathBuf>,
+) -> Option<(WorkspaceAnalysis, BTreeMap<String, PathBuf>)> {
+    let mut file_by_uri = BTreeMap::new();
+    let mut uri_by_file = BTreeMap::new();
+    let mut relative_by_uri = BTreeMap::new();
+    for (file, path) in paths {
+        let uri = project_file_uri(root, &path)?;
+        file_by_uri.insert(uri.as_str().to_owned(), file.clone());
+        relative_by_uri.insert(uri.as_str().to_owned(), path);
+        uri_by_file.insert(file, uri);
+    }
+    Some((
+        WorkspaceAnalysis {
+            snapshot,
+            file_by_uri,
+            uri_by_file,
+        },
+        relative_by_uri,
+    ))
+}
+
+fn file_uri_path(uri: &Uri) -> Option<PathBuf> {
+    if !uri.scheme()?.as_str().eq_ignore_ascii_case("file")
+        || uri.authority().is_some_and(|authority| {
+            !authority.as_str().is_empty() && !authority.as_str().eq_ignore_ascii_case("localhost")
+        })
+    {
+        return None;
+    }
+    let path = uri
+        .path()
+        .as_estr()
+        .decode()
+        .into_string()
+        .ok()?
+        .into_owned();
+    #[cfg(windows)]
+    let path = if path.starts_with('/') && path.as_bytes().get(2) == Some(&b':') {
+        path[1..].to_owned()
+    } else {
+        path
+    };
+    Some(PathBuf::from(path))
+}
+
+fn project_file_uri(root: &str, relative: &Path) -> Option<Uri> {
+    let path = relative.to_str()?.replace(std::path::MAIN_SEPARATOR, "/");
+    let mut encoded = String::with_capacity(path.len());
+    for byte in path.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/') {
+            encoded.push(char::from(byte));
+        } else {
+            use std::fmt::Write as _;
+            write!(&mut encoded, "%{byte:02X}").expect("writing to String cannot fail");
+        }
+    }
+    Uri::from_str(&format!("{root}{encoded}")).ok()
 }
 
 fn analysis_version(version: i32) -> u64 {

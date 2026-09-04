@@ -11,9 +11,9 @@ use cap_fs_ext::{
 use cap_std::ambient_authority;
 use cap_std::fs::{Dir, File, OpenOptions};
 use eqiora_package::{
-    AuthorPackageDirectory, AuthorPackageSourcesV1, DirectoryPackageInstaller, ExactVersion,
-    ModelPackageIdentityV1, NormalizedRelativePath, PackageReleaseV1, QualifiedName,
-    ResolutionRecordV1,
+    AuthorPackageDirectory, AuthorPackageSourcesV1, BundleRoleV1, DirectoryPackageInstaller,
+    ExactResolver, ExactVersion, ModelPackageIdentityV1, NormalizedRelativePath, PackageReleaseV1,
+    QualifiedName, ResolutionRecordV1, SourceFileV1,
 };
 use serde::Deserialize;
 
@@ -31,6 +31,7 @@ type PackageKey = (QualifiedName, ExactVersion);
 #[derive(Clone)]
 struct LocalPackageSource {
     path: PathBuf,
+    relative_path: NormalizedRelativePath,
     sources: AuthorPackageSourcesV1,
 }
 
@@ -38,6 +39,13 @@ struct LocalPackageSource {
 struct PreparedLocalPackage {
     release: PackageReleaseV1,
     dependencies: BTreeMap<ModelPackageIdentityV1, PackageReleaseV1>,
+}
+
+struct PreparedLocalProject {
+    project: Dir,
+    root: PreparedLocalPackage,
+    packages: BTreeMap<PackageKey, LocalPackageSource>,
+    prepared: BTreeMap<PackageKey, PreparedLocalPackage>,
 }
 
 #[derive(Deserialize)]
@@ -91,9 +99,114 @@ where
     P: Into<PathBuf>,
 {
     let project_path = project_root.into();
-    let project = open_project_root(&project_path)?;
+    let prepared = prepare_local_package_project(&project_path, &BTreeMap::new())?;
+    let dependencies = prepared
+        .root
+        .dependencies
+        .values()
+        .cloned()
+        .collect::<Vec<_>>();
+    let resolution =
+        ResolutionRecordV1::from_exact_releases(&prepared.root.release, &dependencies)?;
+    let store_root = store_root.into();
+    let installer = DirectoryPackageInstaller::open_ambient(&store_root).map_err(|source| {
+        PackagePreparationError::Installation {
+            store_root: store_root.clone(),
+            source,
+        }
+    })?;
+    for release in dependencies
+        .iter()
+        .chain(std::iter::once(&prepared.root.release))
+    {
+        let _receipt =
+            installer
+                .install(release)
+                .map_err(|source| PackagePreparationError::Installation {
+                    store_root: store_root.clone(),
+                    source,
+                })?;
+    }
+    publish_project_lock(&prepared.project, &resolution)?;
+    Ok(resolution)
+}
+
+pub(crate) fn analyze_local_package_editor_project_v1(
+    version: u64,
+    project_root: impl Into<PathBuf>,
+    overrides: &BTreeMap<PathBuf, String>,
+) -> Result<
+    (
+        crate::editor::EditorWorkspaceSnapshot,
+        BTreeMap<String, PathBuf>,
+    ),
+    PackagePreparationError,
+> {
+    let project_path = project_root.into();
+    let prepared = prepare_local_package_project(&project_path, overrides)?;
+    let dependencies = prepared
+        .root
+        .dependencies
+        .values()
+        .cloned()
+        .collect::<Vec<_>>();
+    let resolution =
+        ResolutionRecordV1::from_exact_releases(&prepared.root.release, &dependencies)?;
+    let resolved = ExactResolver
+        .resolve_releases(&resolution, &prepared.root.release, &dependencies)
+        .map_err(PackagePreparationError::Resolution)?;
+    let namespaces =
+        super::compilation_namespaces(&resolved).map_err(super::map_compilation_preparation)?;
+    let input = super::compiler_input(&resolved, &namespaces)
+        .map_err(super::map_compilation_preparation)?;
+    let mut relative_paths = BTreeMap::new();
+    for (key, package) in &prepared.packages {
+        let identity = prepared
+            .prepared
+            .get(key)
+            .expect("every local package was prepared")
+            .release
+            .package_identity()?;
+        let namespace = namespaces
+            .get(&identity)
+            .expect("every resolved local package has a compilation namespace");
+        for file in package
+            .sources
+            .files()
+            .iter()
+            .filter(|file| file.role() == BundleRoleV1::ModelSource)
+        {
+            let source = std::str::from_utf8(file.bytes()).map_err(|error| {
+                PackagePreparationError::LocalDirectoryGraph(format!(
+                    "model source `{}` is not UTF-8: {error}",
+                    file.path()
+                ))
+            })?;
+            let unit = eqiora_compiler::ResolvedSourceUnit::new(
+                namespace.clone(),
+                file.path().as_str(),
+                source,
+            );
+            relative_paths.insert(
+                unit.diagnostic_file(),
+                PathBuf::from(package.relative_path.as_str()).join(file.path().as_str()),
+            );
+        }
+    }
+    Ok((
+        crate::editor::EditorWorkspaceSnapshot::analyze_modules(version, input),
+        relative_paths,
+    ))
+}
+
+fn prepare_local_package_project(
+    project_path: &Path,
+    overrides: &BTreeMap<PathBuf, String>,
+) -> Result<PreparedLocalProject, PackagePreparationError> {
+    let project = open_project_root(project_path)?;
     let manifest = read_project_manifest(&project)?;
     let (root_source, paths) = normalize_project_manifest(&manifest)?;
+    let mut unused_overrides = overrides.clone();
 
     let mut packages = BTreeMap::<PackageKey, LocalPackageSource>::new();
     let mut source_keys = BTreeMap::new();
@@ -118,6 +231,7 @@ where
                     path: project_path.join(relative_path.as_str()),
                     source,
                 })?;
+        let sources = apply_editor_overrides(sources, &relative_path, &mut unused_overrides)?;
         let key = (
             sources.manifest().name().clone(),
             sources.manifest().version().clone(),
@@ -136,6 +250,7 @@ where
             key,
             LocalPackageSource {
                 path: project_path.join(relative_path.as_str()),
+                relative_path,
                 sources,
             },
         );
@@ -160,34 +275,41 @@ where
             path.display()
         )));
     }
-
-    let dependencies = root_package
-        .dependencies
-        .values()
-        .cloned()
-        .collect::<Vec<_>>();
-    let resolution = ResolutionRecordV1::from_exact_releases(&root_package.release, &dependencies)?;
-    let store_root = store_root.into();
-    let installer = DirectoryPackageInstaller::open_ambient(&store_root).map_err(|source| {
-        PackagePreparationError::Installation {
-            store_root: store_root.clone(),
-            source,
-        }
-    })?;
-    for release in dependencies
-        .iter()
-        .chain(std::iter::once(&root_package.release))
-    {
-        let _receipt =
-            installer
-                .install(release)
-                .map_err(|source| PackagePreparationError::Installation {
-                    store_root: store_root.clone(),
-                    source,
-                })?;
+    if let Some(path) = unused_overrides.keys().next() {
+        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+            "editor override `{}` is not a declared model source",
+            path.display()
+        )));
     }
-    publish_project_lock(&project, &resolution)?;
-    Ok(resolution)
+    Ok(PreparedLocalProject {
+        project,
+        root: root_package,
+        packages,
+        prepared,
+    })
+}
+
+fn apply_editor_overrides(
+    sources: AuthorPackageSourcesV1,
+    package_path: &NormalizedRelativePath,
+    overrides: &mut BTreeMap<PathBuf, String>,
+) -> Result<AuthorPackageSourcesV1, PackagePreparationError> {
+    let (manifest, files) = sources.into_parts();
+    let files = files
+        .into_iter()
+        .map(|file| {
+            let project_path = PathBuf::from(package_path.as_str()).join(file.path().as_str());
+            let bytes = if file.role() == BundleRoleV1::ModelSource {
+                overrides
+                    .remove(&project_path)
+                    .map_or_else(|| file.bytes().to_vec(), String::into_bytes)
+            } else {
+                file.bytes().to_vec()
+            };
+            SourceFileV1::new(file.path().clone(), file.role(), bytes)
+        })
+        .collect();
+    AuthorPackageSourcesV1::new(manifest, files).map_err(PackagePreparationError::Contract)
 }
 
 fn open_project_root(path: &Path) -> Result<Dir, PackagePreparationError> {
@@ -657,6 +779,58 @@ mod tests {
             .validate_against(&first)
             .expect("exact local resolution lineage");
         assert!(model.model().aliases().contains_key("law"));
+    }
+
+    #[test]
+    fn local_project_editor_analysis_is_read_only_and_accepts_source_overrides() {
+        let fixture = TestDirectory::create("editor");
+        let library_path = fixture.child("library");
+        let root_path = fixture.child("root");
+
+        let library_sources = author_sources(
+            "org.example.EditorLibrary",
+            "public component Resistor {}",
+            vec![],
+        );
+        let library_release =
+            prepare_package_release_v1(library_sources.clone(), &[]).expect("library release");
+        write_package(&library_path, &library_sources);
+        let root_source = "model Main { instance load: library.Resistor(); }";
+        let root_sources = author_sources(
+            "org.example.EditorRoot",
+            root_source,
+            vec![exact_dependency("library", &library_release)],
+        );
+        write_package(&root_path, &root_sources);
+        write_project(&fixture, &["root", "library"], &[("library", "library")]);
+
+        let (workspace, paths) = analyze_local_package_editor_project_v1(
+            41,
+            &fixture.0,
+            &BTreeMap::from([(
+                PathBuf::from("root").join(SOURCE_PATH),
+                format!("// unsaved\n{root_source}"),
+            )]),
+        )
+        .expect("read-only editor analysis");
+        let root_file = paths
+            .iter()
+            .find_map(|(file, path)| {
+                (path == &PathBuf::from("root").join(SOURCE_PATH)).then_some(file)
+            })
+            .expect("root source location");
+        let library_file = paths
+            .iter()
+            .find_map(|(file, path)| {
+                (path == &PathBuf::from("library").join(SOURCE_PATH)).then_some(file)
+            })
+            .expect("library source location");
+        assert_eq!(workspace.version(), 41);
+        assert!(workspace.document(root_file).is_some());
+        assert!(workspace.document(library_file).is_some());
+        assert_eq!(workspace.references().len(), 1);
+        assert_eq!(workspace.references()[0].definition().file(), library_file);
+        assert!(!fixture.0.join(PROJECT_LOCK).exists());
     }
 
     #[test]
