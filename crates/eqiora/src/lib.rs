@@ -35,7 +35,7 @@ pub use release_identity::VERSION;
 pub mod api {
     pub use eqiora_api::editor::{
         EditorDefinition, EditorPosition, EditorReference, EditorService, EditorSnapshot,
-        EditorSymbol, EditorSymbolKind, EditorWorkspaceSnapshot,
+        EditorSymbol, EditorSymbolKind, EditorWorkspaceService, EditorWorkspaceSnapshot,
     };
     pub use eqiora_api::package;
     pub use eqiora_api::{

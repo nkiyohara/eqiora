@@ -1,7 +1,8 @@
 use std::cell::Cell;
 
 use eqiora_api::editor::{
-    EditorPosition, EditorService, EditorSymbolKind, EditorWorkspaceSnapshot,
+    EditorPosition, EditorService, EditorSymbolKind, EditorWorkspaceService,
+    EditorWorkspaceSnapshot,
 };
 use eqiora_compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
 use eqiora_core::diagnostic::codes;
@@ -159,7 +160,8 @@ fn workspace_cancellation_publishes_no_partial_snapshot() {
 #[test]
 fn workspace_uses_compiler_resolved_module_identities_and_locations() {
     let owner = CompilationNamespaceId::new(["editor-test"]).expect("namespace");
-    let main = "import library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
+    let main =
+        "// 🧪\nimport library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
     let library = r#"module library.parts;
 public connector Pin = scalar_physical(across = 1, through = A);
 public component Socket { public port terminal: conserving on Pin; }
@@ -174,9 +176,78 @@ public component Resistor {}
         vec![],
     );
 
-    let workspace = EditorWorkspaceSnapshot::analyze_modules(11, input);
+    let workspace = EditorWorkspaceSnapshot::analyze_modules(11, input.clone());
     assert!(workspace.diagnostics().is_empty());
     assert_eq!(workspace.version(), 11);
+    let mut service = EditorWorkspaceService::new(workspace.clone());
+    assert_eq!(service.snapshot(11).expect("current workspace"), &workspace);
+    assert_eq!(
+        service
+            .snapshot(10)
+            .expect_err("older workspace request is stale")
+            .code(),
+        codes::PRECONDITION_FAILED
+    );
+    assert_eq!(
+        service
+            .snapshot(12)
+            .expect_err("future workspace request is unknown")
+            .code(),
+        codes::PRECONDITION_FAILED
+    );
+    assert_eq!(
+        service
+            .replace(workspace.clone())
+            .expect_err("published version cannot be replaced")
+            .code(),
+        codes::PRECONDITION_FAILED
+    );
+    service.begin(12).expect("newer workspace request begins");
+    assert!(service.current().is_none());
+    assert!(service.snapshot(11).is_err());
+    assert!(service.snapshot(12).is_err());
+    let stale = EditorWorkspaceSnapshot::analyze_modules(10, input.clone());
+    assert_eq!(
+        service
+            .replace(stale)
+            .expect_err("completed stale analysis cannot publish")
+            .code(),
+        codes::PRECONDITION_FAILED
+    );
+    assert!(service.current().is_none());
+    let newer = EditorWorkspaceSnapshot::analyze_modules(12, input.clone());
+    assert_eq!(
+        service
+            .replace(newer)
+            .expect("newer analysis publishes")
+            .version(),
+        12
+    );
+    assert_eq!(
+        service.current().map(EditorWorkspaceSnapshot::version),
+        Some(12)
+    );
+    service.begin(13).expect("third workspace request begins");
+    service
+        .begin(14)
+        .expect("newest workspace request supersedes it");
+    let completed_stale = EditorWorkspaceSnapshot::analyze_modules(13, input.clone());
+    assert_eq!(
+        service
+            .replace(completed_stale)
+            .expect_err("superseded analysis cannot publish")
+            .code(),
+        codes::PRECONDITION_FAILED
+    );
+    assert!(service.current().is_none());
+    let latest = EditorWorkspaceSnapshot::analyze_modules(14, input);
+    assert_eq!(
+        service
+            .replace(latest)
+            .expect("current analysis publishes")
+            .version(),
+        14
+    );
     assert_eq!(workspace.files().len(), 2);
     assert_eq!(workspace.definitions().len(), 4);
 
@@ -218,6 +289,17 @@ public component Resistor {}
     assert_eq!(detail, "public component Resistor {}");
     assert_eq!(
         workspace
+            .definition_for_reference_at_position(reference.file(), EditorPosition::new(2, 32),)
+            .expect("UTF-16 go-to-definition target"),
+        resistor
+    );
+    let (position_hovered, position_detail) = workspace
+        .hover_at_position(reference.file(), EditorPosition::new(2, 32))
+        .expect("UTF-16 reference hover");
+    assert_eq!(position_hovered, resistor);
+    assert_eq!(position_detail, "public component Resistor {}");
+    assert_eq!(
+        workspace
             .definition_for_reference(reference.file(), reference_start + 4)
             .expect("go-to-definition target"),
         resistor
@@ -228,6 +310,12 @@ public component Resistor {}
             .is_none()
     );
     let definition_name = u32::try_from(library.find("Resistor").unwrap()).unwrap();
+    let definition_name_range = resistor.name_range().expect("definition name range");
+    assert_eq!(
+        &library[usize::try_from(definition_name_range.start()).unwrap()
+            ..usize::try_from(definition_name_range.end()).unwrap()],
+        "Resistor"
+    );
     let (hovered, detail) = workspace
         .hover(resistor.file(), definition_name + 2)
         .expect("definition hover");
