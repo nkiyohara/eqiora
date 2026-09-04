@@ -15,6 +15,7 @@ The [calculus and branching rules](calculus.md) include the foundation audit's e
 partials, continuous time, second-order oscillator, and piecewise constitutive examples.
 The [coordinate and measure rules](coordinates.md) specify product supports and partial integrals.
 The [tensor and local-map rules](tensors.md) include the rank-four constitutive specimen.
+The [numeric catalog](numeric-catalog.md) defines exact integers and bounded scalar operations.
 
 ## Source and modules
 
