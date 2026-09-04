@@ -7,8 +7,8 @@ use eqiora::kernel::{
     ActivationKind, ConnectionSemantics, ExprDag, ExprId, ExprNode, KernelNode, SymbolRef,
 };
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -25,9 +25,6 @@ const LIVE_PACKAGE_SOURCE: &str =
     include_str!("../../../packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi");
 const VERIFIED_PACKAGE_SOURCE_V0_2: &str = include_str!(
     "../../../verify/solid/packaged-elastic-boundary-2d/package-v0.2.0/src/linear_elasticity.eqi"
-);
-const VERIFIED_PACKAGE_MANIFEST_V0_2: &[u8] = include_bytes!(
-    "../../../verify/solid/packaged-elastic-boundary-2d/package-v0.2.0/package.json"
 );
 const VERIFIED_PACKAGE_README_V0_2: &[u8] =
     include_bytes!("../../../verify/solid/packaged-elastic-boundary-2d/package-v0.2.0/README.md");
@@ -95,8 +92,9 @@ fn package_release() -> PackageReleaseV1 {
         "ElastodynamicMechanicalInterface2d"
     );
 
-    let sources = embedded_package::sources(
-        VERIFIED_PACKAGE_MANIFEST_V0_2,
+    let sources = embedded_package::generated_sources(
+        PACKAGE_NAME,
+        PACKAGE_VERSION,
         &[
             (
                 "README.md",
@@ -118,20 +116,15 @@ fn package_release() -> PackageReleaseV1 {
     release
 }
 
-fn root_sources(
-    dependency: &PackageReleaseV1,
-    alias: &str,
-    source: &str,
-) -> AuthorPackageSourcesV1 {
+fn root_sources(dependency: &PackageReleaseV1, alias: &str, source: &str) -> PackageSourcesV1 {
     let model_path = NormalizedRelativePath::parse("src/main.eqi").expect("root model path");
-    let requirement = DependencyRequirementV1::new(
-        QualifiedName::parse(alias).expect("dependency alias"),
+    let requirement = PackageDependencyV1::new(
         dependency
             .package_identity()
             .expect("elasticity package identity"),
-    )
-    .expect("exact dependency requirement");
-    let manifest = AuthorManifestV1::new(
+    );
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse(ROOT_NAME).expect("root package name"),
         ExactVersion::parse(ROOT_VERSION).expect("root package version"),
         vec![requirement],
@@ -140,7 +133,7 @@ fn root_sources(
             BundleRoleV1::ModelSource,
         )],
     )
-    .expect("root author manifest");
+    .expect("root package manifest");
     let source = format!(
         "import {PACKAGE_NAME}.linear_elasticity as {alias};\n{}",
         source.replace("solid.", &format!("{alias}."))
@@ -148,7 +141,7 @@ fn root_sources(
     if alias != "solid" {
         assert!(!source.contains("solid."));
     }
-    AuthorPackageSourcesV1::new(
+    PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             model_path,
@@ -331,7 +324,7 @@ fn exact_package_elaborates_isotropic_boundary_meaning_without_a_realization() {
         reordered_root
             .package_identity()
             .expect("equivalent root identity"),
-        "dependency alias spelling and exterior order cannot enter root meaning"
+        "import alias spelling and exterior order cannot enter root meaning"
     );
 
     let canonical = compile_locked(&dependency, &canonical_root);
@@ -342,7 +335,7 @@ fn exact_package_elaborates_isotropic_boundary_meaning_without_a_realization() {
             .model()
             .canonical_json()
             .expect("equivalent Model"),
-        "dependency alias spelling and exterior order cannot enter Model bytes"
+        "import alias spelling and exterior order cannot enter Model bytes"
     );
 
     let model = canonical.model();

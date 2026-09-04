@@ -8,8 +8,8 @@ use eqiora::artifact::{
 };
 use eqiora::geometry::{CanonicalGeometryV1, GeometryGraph, PlanarTopologyHandle};
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -584,22 +584,17 @@ fn try_release(
     };
     let requirements = dependencies
         .iter()
-        .map(|(alias, release)| {
-            DependencyRequirementV1::new(
-                QualifiedName::parse(*alias).unwrap(),
-                release.package_identity().unwrap(),
-            )
-            .unwrap()
-        })
+        .map(|(_, release)| PackageDependencyV1::new(release.package_identity().unwrap()))
         .collect();
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse(name).unwrap(),
         ExactVersion::parse(VERSION).unwrap(),
         requirements,
         vec![BundleEntryV1::new(path.clone(), BundleRoleV1::ModelSource)],
     )
     .unwrap();
-    let sources = AuthorPackageSourcesV1::new(
+    let sources = PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             path,

@@ -13,9 +13,9 @@ use eqiora::diagnostic::codes;
 use eqiora::entity::kinds;
 use eqiora::kernel::KernelNode;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, ModelPackageIdentityV1, NormalizedRelativePath,
-    PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, ModelPackageIdentityV1,
+    NormalizedRelativePath, PackageDependencyV1, PackageManifestV1, PackageReleaseV1,
+    PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
 use eqiora::sem::PhysicalUnknown;
@@ -45,8 +45,9 @@ const VERSION: &str = "0.1.0";
 const VALUE_TOLERANCE: f64 = 2.0e-11;
 const RESIDUAL_TOLERANCE: f64 = 1.0e-11;
 
-fn manifest(name: &str, dependencies: Vec<DependencyRequirementV1>) -> AuthorManifestV1 {
-    AuthorManifestV1::new(
+fn manifest(name: &str, dependencies: Vec<PackageDependencyV1>) -> PackageManifestV1 {
+    PackageManifestV1::new(
+        "model",
         QualifiedName::parse(name).expect("package name"),
         ExactVersion::parse(VERSION).expect("package version"),
         dependencies,
@@ -55,11 +56,11 @@ fn manifest(name: &str, dependencies: Vec<DependencyRequirementV1>) -> AuthorMan
             BundleRoleV1::ModelSource,
         )],
     )
-    .expect("author manifest")
+    .expect("package manifest")
 }
 
-fn sources(manifest: AuthorManifestV1, source: &str) -> AuthorPackageSourcesV1 {
-    AuthorPackageSourcesV1::new(
+fn sources(manifest: PackageManifestV1, source: &str) -> PackageSourcesV1 {
+    PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             NormalizedRelativePath::parse("src/model.eqi").expect("model path"),
@@ -81,15 +82,11 @@ fn components_release() -> PackageReleaseV1 {
     .expect("component package release")
 }
 
-fn root_sources(components: &PackageReleaseV1, source: &str) -> AuthorPackageSourcesV1 {
+fn root_sources(components: &PackageReleaseV1, source: &str) -> PackageSourcesV1 {
     let identity = components
         .package_identity()
         .expect("component package identity");
-    let dependency = DependencyRequirementV1::new(
-        QualifiedName::parse("components").expect("dependency alias"),
-        identity,
-    )
-    .expect("exact component dependency");
+    let dependency = PackageDependencyV1::new(identity);
     let source = format!("import Eqiora.Verify.PhysicalComponents.model as components;\n{source}");
     sources(
         manifest(

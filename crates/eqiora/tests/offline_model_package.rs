@@ -12,11 +12,10 @@ use eqiora::entity::kinds;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::KernelNode;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1,
-    DependencyRequirementV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackagePreparationError, PackageReleaseV1, PackageRunBindingV1, PackageStore,
-    PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
-    prepare_package_release_v1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageDirectory, PackageManifestV1, PackagePreparationError,
+    PackageReleaseV1, PackageRunBindingV1, PackageSourcesV1, PackageStore, PackagedModelDocument,
+    QualifiedName, ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
 };
 use eqiora::sem::PhysicalUnknown;
 use eqiora::solver::{
@@ -39,7 +38,7 @@ const SOURCE_PATH: &str = "src/basic.eqi";
 const ROOT_SOURCE_PATH: &str = "src/main.eqi";
 const VALUE_TOLERANCE: f64 = 2.0e-11;
 
-fn library_sources() -> AuthorPackageSourcesV1 {
+fn library_sources() -> PackageSourcesV1 {
     directory_sources("Eqiora.Electrical.Basic")
 }
 
@@ -49,22 +48,22 @@ fn package_root(name: &str) -> PathBuf {
         .join(name)
 }
 
-fn directory_sources(name: &str) -> AuthorPackageSourcesV1 {
-    AuthorPackageDirectory::open_ambient(package_root(name))
+fn directory_sources(name: &str) -> PackageSourcesV1 {
+    PackageDirectory::open_ambient(package_root(name))
         .expect("open explicit package root")
         .read_sources()
         .expect("read exact package inventory")
 }
 
-fn library_sources_in_memory() -> AuthorPackageSourcesV1 {
-    let manifest = AuthorManifestV1::from_json(LIBRARY_MANIFEST).expect("library manifest");
+fn library_sources_in_memory() -> PackageSourcesV1 {
+    let manifest = PackageManifestV1::from_json(LIBRARY_MANIFEST).expect("library manifest");
     assert_eq!(
         manifest.canonical_json().expect("canonical manifest"),
         LIBRARY_MANIFEST
             .strip_suffix(b"\n")
             .unwrap_or(LIBRARY_MANIFEST)
     );
-    AuthorPackageSourcesV1::new(
+    PackageSourcesV1::new(
         manifest,
         vec![
             SourceFileV1::new(
@@ -86,7 +85,7 @@ fn library_release() -> PackageReleaseV1 {
     prepare_package_release_v1(library_sources(), &[]).expect("compiler-derived library release")
 }
 
-fn root_sources(library: &PackageReleaseV1) -> AuthorPackageSourcesV1 {
+fn root_sources(library: &PackageReleaseV1) -> PackageSourcesV1 {
     let sources = directory_sources("org.example.parallel");
     assert_eq!(
         sources.manifest().dependencies()[0].target(),
@@ -95,15 +94,15 @@ fn root_sources(library: &PackageReleaseV1) -> AuthorPackageSourcesV1 {
     sources
 }
 
-fn root_sources_in_memory(library: &PackageReleaseV1) -> AuthorPackageSourcesV1 {
+fn root_sources_in_memory(library: &PackageReleaseV1) -> PackageSourcesV1 {
     let library_identity = library.package_identity().expect("library identity");
-    let manifest = AuthorManifestV1::from_json(ROOT_MANIFEST).expect("root manifest");
+    let manifest = PackageManifestV1::from_json(ROOT_MANIFEST).expect("root manifest");
     assert_eq!(
         manifest.canonical_json().expect("canonical manifest"),
         ROOT_MANIFEST.strip_suffix(b"\n").unwrap_or(ROOT_MANIFEST)
     );
     assert_eq!(manifest.dependencies()[0].target(), &library_identity);
-    AuthorPackageSourcesV1::new(
+    PackageSourcesV1::new(
         manifest,
         vec![
             SourceFileV1::new(
@@ -171,28 +170,27 @@ fn inline_sources(
     name: &str,
     source: &str,
     dependencies: &[(&str, &PackageReleaseV1)],
-) -> AuthorPackageSourcesV1 {
+) -> PackageSourcesV1 {
     let path = NormalizedRelativePath::parse("src/main.eqi").expect("inline path");
     let requirements = dependencies
         .iter()
-        .map(|(alias, release)| {
-            DependencyRequirementV1::new(
-                QualifiedName::parse(*alias).expect("inline alias"),
+        .map(|(_, release)| {
+            PackageDependencyV1::new(
                 release
                     .package_identity()
                     .expect("inline dependency identity"),
             )
-            .expect("inline dependency")
         })
         .collect();
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse(name).expect("inline package name"),
         ExactVersion::parse("1.0.0").expect("inline version"),
         requirements,
         vec![BundleEntryV1::new(path.clone(), BundleRoleV1::ModelSource)],
     )
     .expect("inline manifest");
-    AuthorPackageSourcesV1::new(
+    PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             path,

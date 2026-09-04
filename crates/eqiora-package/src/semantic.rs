@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::canonical;
 use crate::{
-    AuthorManifestV1, ContractError, ModelPackageIdentityV1, PackageSemanticDigest, QualifiedName,
+    ContractError, ModelPackageIdentityV1, PackageManifestV1, PackageSemanticDigest, QualifiedName,
 };
 
 const SCHEMA: &str = "eqiora.semantic-content.v1";
@@ -186,7 +186,7 @@ impl SemanticContentV1 {
 
     pub fn package_identity(
         &self,
-        manifest: &AuthorManifestV1,
+        manifest: &PackageManifestV1,
     ) -> Result<ModelPackageIdentityV1, ContractError> {
         #[derive(Serialize)]
         struct SemanticManifest<'a> {
@@ -210,7 +210,7 @@ impl SemanticContentV1 {
                 dependencies: manifest
                     .dependencies()
                     .iter()
-                    .map(crate::DependencyRequirementV1::target)
+                    .map(crate::PackageDependencyV1::target)
                     .collect(),
             },
             content: self,
@@ -232,7 +232,7 @@ impl SemanticContentV1 {
 mod tests {
     use super::*;
     use crate::{
-        BundleEntryV1, BundleRoleV1, DependencyRequirementV1, ExactVersion, NormalizedRelativePath,
+        BundleEntryV1, BundleRoleV1, ExactVersion, NormalizedRelativePath, PackageDependencyV1,
         PackageSemanticDigest,
     };
 
@@ -254,7 +254,8 @@ mod tests {
 
     #[test]
     fn semantic_identity_ignores_insertion_order_but_not_content() {
-        let manifest = AuthorManifestV1::new(
+        let manifest = PackageManifestV1::new(
+            "main",
             QualifiedName::parse("org.example.Basic").expect("name"),
             ExactVersion::parse("1.0.0").expect("version"),
             vec![],
@@ -288,35 +289,25 @@ mod tests {
     }
 
     #[test]
-    fn semantic_identity_uses_exact_dependency_identity_not_local_alias() {
+    fn semantic_identity_uses_exact_dependency_identity() {
         let target = ModelPackageIdentityV1::new(
             QualifiedName::parse("org.example.Leaf").expect("name"),
             ExactVersion::parse("1.0.0").expect("version"),
             PackageSemanticDigest::parse(&"12".repeat(32)).expect("digest"),
         );
-        let manifest = |alias: &str, target: ModelPackageIdentityV1| {
-            AuthorManifestV1::new(
+        let manifest = |target: ModelPackageIdentityV1| {
+            PackageManifestV1::new(
+                "main",
                 QualifiedName::parse("org.example.Root").expect("name"),
                 ExactVersion::parse("1.0.0").expect("version"),
-                vec![
-                    DependencyRequirementV1::new(
-                        QualifiedName::parse(alias).expect("alias"),
-                        target,
-                    )
-                    .expect("dependency"),
-                ],
+                vec![PackageDependencyV1::new(target)],
                 source_inventory(),
             )
             .expect("manifest")
         };
         let content =
             SemanticContentV1::new(vec![declaration("Main", "model Main {}")]).expect("content");
-        let first = manifest("leaf", target.clone());
-        let renamed = manifest("electrical", target.clone());
-        assert_eq!(
-            content.package_identity(&first),
-            content.package_identity(&renamed)
-        );
+        let first = manifest(target.clone());
 
         let changed_target = ModelPackageIdentityV1::new(
             target.name,
@@ -325,7 +316,7 @@ mod tests {
         );
         assert_ne!(
             content.package_identity(&first),
-            content.package_identity(&manifest("leaf", changed_target))
+            content.package_identity(&manifest(changed_target))
         );
     }
 }

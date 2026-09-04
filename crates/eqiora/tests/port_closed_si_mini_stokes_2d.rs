@@ -4,8 +4,8 @@ use eqiora::artifact::SimplicialMeshEnvelopeV1;
 use eqiora::kernel::BoundarySide;
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh};
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -252,16 +252,8 @@ public connector OtherVelocityTractionBoundary = field_physical(
     );
     let other_fluid = inline_fluid_release(&other_mechanics, &other_fluid_source);
     let dependencies = vec![
-        DependencyRequirementV1::new(
-            QualifiedName::parse("fluid").unwrap(),
-            other_fluid.package_identity().unwrap(),
-        )
-        .unwrap(),
-        DependencyRequirementV1::new(
-            QualifiedName::parse("mechanics").unwrap(),
-            other_mechanics.package_identity().unwrap(),
-        )
-        .unwrap(),
+        PackageDependencyV1::new(other_fluid.package_identity().unwrap()),
+        PackageDependencyV1::new(other_mechanics.package_identity().unwrap()),
     ];
     let source = format!(
         "import Eqiora.Fluid.Incompressible.incompressible as fluid;\n\
@@ -489,11 +481,7 @@ fn inline_mechanics_release(source: &str) -> PackageReleaseV1 {
 }
 
 fn inline_fluid_release(mechanics: &PackageReleaseV1, source: &str) -> PackageReleaseV1 {
-    let dependency = DependencyRequirementV1::new(
-        QualifiedName::parse("mechanics").unwrap(),
-        mechanics.package_identity().unwrap(),
-    )
-    .unwrap();
+    let dependency = PackageDependencyV1::new(mechanics.package_identity().unwrap());
     prepare_package_release_v1(
         inline_sources(
             "Eqiora.Fluid.Incompressible",
@@ -534,16 +522,8 @@ fn root_release(
     source: &str,
 ) -> PackageReleaseV1 {
     let dependencies = vec![
-        DependencyRequirementV1::new(
-            QualifiedName::parse(fluid_alias).unwrap(),
-            fluid.package_identity().unwrap(),
-        )
-        .unwrap(),
-        DependencyRequirementV1::new(
-            QualifiedName::parse(mechanics_alias).unwrap(),
-            mechanics.package_identity().unwrap(),
-        )
-        .unwrap(),
+        PackageDependencyV1::new(fluid.package_identity().unwrap()),
+        PackageDependencyV1::new(mechanics.package_identity().unwrap()),
     ];
     let fluid_name = fluid.package_identity().expect("fluid identity").name;
     let mechanics_name = mechanics
@@ -564,13 +544,19 @@ fn root_release(
 fn inline_sources(
     name: &str,
     version: &str,
-    dependencies: Vec<DependencyRequirementV1>,
+    dependencies: Vec<PackageDependencyV1>,
     model_path: &str,
     model_source: &str,
-) -> AuthorPackageSourcesV1 {
+) -> PackageSourcesV1 {
     let readme = NormalizedRelativePath::parse("README.md").unwrap();
     let model = NormalizedRelativePath::parse(model_path).unwrap();
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        &model_path
+            .strip_prefix("src/")
+            .unwrap()
+            .strip_suffix(".eqi")
+            .unwrap()
+            .replace('/', "."),
         QualifiedName::parse(name).unwrap(),
         ExactVersion::parse(version).unwrap(),
         dependencies,
@@ -580,7 +566,7 @@ fn inline_sources(
         ],
     )
     .unwrap();
-    AuthorPackageSourcesV1::new(
+    PackageSourcesV1::new(
         manifest,
         vec![
             SourceFileV1::new(

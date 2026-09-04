@@ -8,8 +8,8 @@ use eqiora::artifact::{
 };
 use eqiora::meshing::{CellId, FacetId, MeshQualityGate, SimplicialMesh};
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -469,12 +469,8 @@ pub(crate) fn packaged_document() -> PackagedModelDocument {
         ("mechanics", &mechanics),
     ]
     .into_iter()
-    .map(|(alias, release)| {
-        DependencyRequirementV1::new(
-            QualifiedName::parse(alias).expect("dependency alias"),
-            release.package_identity().expect("package identity"),
-        )
-        .expect("exact dependency")
+    .map(|(_, release)| {
+        PackageDependencyV1::new(release.package_identity().expect("package identity"))
     })
     .collect();
     let source = format!(
@@ -520,12 +516,13 @@ fn public_release(package: &str, dependencies: &[PackageReleaseV1]) -> PackageRe
 fn inline_sources(
     name: &str,
     version: &str,
-    dependencies: Vec<DependencyRequirementV1>,
+    dependencies: Vec<PackageDependencyV1>,
     model_source: &str,
-) -> AuthorPackageSourcesV1 {
+) -> PackageSourcesV1 {
     let readme = NormalizedRelativePath::parse("README.md").expect("README path");
     let model = NormalizedRelativePath::parse("src/main.eqi").expect("model path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse(name).expect("package name"),
         ExactVersion::parse(version).expect("exact version"),
         dependencies,
@@ -534,8 +531,8 @@ fn inline_sources(
             BundleEntryV1::new(model.clone(), BundleRoleV1::ModelSource),
         ],
     )
-    .expect("author manifest");
-    AuthorPackageSourcesV1::new(
+    .expect("package manifest");
+    PackageSourcesV1::new(
         manifest,
         vec![
             SourceFileV1::new(

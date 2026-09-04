@@ -535,8 +535,8 @@ mod tests {
     use cap_std::ambient_authority;
 
     use crate::{
-        AuthorManifestV1, BundleEntryV1, BundleRoleV1, CanonicalDeclaration, DeclarationKindV1,
-        ExactVersion, NormalizedRelativePath, QualifiedName, SemanticContentV1,
+        BundleEntryV1, BundleRoleV1, CanonicalDeclaration, DeclarationKindV1, ExactVersion,
+        NormalizedRelativePath, PackageManifestV1, QualifiedName, SemanticContentV1,
         SemanticDeclarationV1, SourceFileV1, VisibilityV1,
     };
 
@@ -577,7 +577,8 @@ mod tests {
 
     fn test_release(body: &str) -> PackageReleaseV1 {
         let path = NormalizedRelativePath::parse("src/package.eqi").expect("path");
-        let manifest = AuthorManifestV1::new(
+        let manifest = PackageManifestV1::new(
+            "package",
             QualifiedName::parse("org.example.Install").expect("name"),
             ExactVersion::parse("1.0.0").expect("version"),
             vec![],

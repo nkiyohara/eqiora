@@ -8,7 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [features]
-default = []
+default = ["package-filesystem"]
 faer = ["dep:eqiora-backend-faer"]
 mpi = ["dep:eqiora-backend-mpi", "dep:mpi"]
 diffsol = ["dep:eqiora-backend-diffsol"]

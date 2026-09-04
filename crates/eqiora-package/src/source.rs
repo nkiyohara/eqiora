@@ -8,7 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::canonical;
 use crate::{
-    AuthorManifestV1, BundleRoleV1, ContractError, ModelPackageIdentityV1, NormalizedRelativePath,
+    BundleRoleV1, ContractError, ModelPackageIdentityV1, NormalizedRelativePath, PackageManifestV1,
     SourceBundleDigest,
 };
 
@@ -143,13 +143,13 @@ impl SourceFileV1 {
 /// inventory, canonical ordering, UTF-8 model sources, and aggregate resource
 /// limits so compiler composition never starts from an unchecked byte bag.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AuthorPackageSourcesV1 {
-    manifest: AuthorManifestV1,
+pub struct PackageSourcesV1 {
+    manifest: PackageManifestV1,
     files: Vec<SourceFileV1>,
 }
 
-impl AuthorPackageSourcesV1 {
-    /// Admit one exact author manifest and its complete file inventory.
+impl PackageSourcesV1 {
+    /// Admit one exact package manifest and its complete file inventory.
     ///
     /// # Errors
     ///
@@ -157,7 +157,7 @@ impl AuthorPackageSourcesV1 {
     /// paths or roles differ from its inventory, a model source is not UTF-8,
     /// or a v1 resource bound is exceeded.
     pub fn new(
-        manifest: AuthorManifestV1,
+        manifest: PackageManifestV1,
         files: Vec<SourceFileV1>,
     ) -> Result<Self, ContractError> {
         let manifest = manifest.normalize()?;
@@ -165,9 +165,9 @@ impl AuthorPackageSourcesV1 {
         Ok(Self { manifest, files })
     }
 
-    /// Canonical author manifest retained by this admitted input.
+    /// Canonical package manifest retained by this admitted input.
     #[must_use]
-    pub const fn manifest(&self) -> &AuthorManifestV1 {
+    pub const fn manifest(&self) -> &PackageManifestV1 {
         &self.manifest
     }
 
@@ -179,7 +179,7 @@ impl AuthorPackageSourcesV1 {
 
     /// Transfer the validated parts to the compiler/package composition layer.
     #[must_use]
-    pub fn into_parts(self) -> (AuthorManifestV1, Vec<SourceFileV1>) {
+    pub fn into_parts(self) -> (PackageManifestV1, Vec<SourceFileV1>) {
         (self.manifest, self.files)
     }
 }
@@ -191,25 +191,24 @@ pub struct SourceBundleIdentityV1 {
     pub source_digest: SourceBundleDigest,
 }
 
-/// Exact source, author-manifest, and diagnostic payload for one semantic
+/// Exact source, package-manifest, and diagnostic payload for one semantic
 /// package identity.
 ///
-/// The manifest is inside this digest domain because dependency aliases and
-/// inventory roles affect exact resolution even though aliases do not affect
-/// semantic identity.
+/// The manifest is inside this digest domain because exact dependency targets
+/// and inventory roles affect exact resolution.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SourceBundleV1 {
     schema: String,
     package: ModelPackageIdentityV1,
-    manifest: AuthorManifestV1,
+    manifest: PackageManifestV1,
     files: Vec<SourceFileV1>,
 }
 
 impl SourceBundleV1 {
     pub fn new(
         package: ModelPackageIdentityV1,
-        manifest: AuthorManifestV1,
+        manifest: PackageManifestV1,
         files: Vec<SourceFileV1>,
     ) -> Result<Self, ContractError> {
         Self {
@@ -228,13 +227,13 @@ impl SourceBundleV1 {
                 self.schema
             )));
         }
-        let sources = AuthorPackageSourcesV1::new(self.manifest, self.files)?;
+        let sources = PackageSourcesV1::new(self.manifest, self.files)?;
         (self.manifest, self.files) = sources.into_parts();
         if self.package.name != *self.manifest.name()
             || self.package.version != *self.manifest.version()
         {
             return Err(ContractError::new(
-                "source bundle package name/version does not match its author manifest",
+                "source bundle package name/version does not match its package manifest",
             ));
         }
         Ok(self)
@@ -262,7 +261,7 @@ impl SourceBundleV1 {
     }
 
     #[must_use]
-    pub fn manifest(&self) -> &AuthorManifestV1 {
+    pub fn manifest(&self) -> &PackageManifestV1 {
         &self.manifest
     }
 
@@ -273,7 +272,7 @@ impl SourceBundleV1 {
 }
 
 fn normalize_author_files(
-    manifest: &AuthorManifestV1,
+    manifest: &PackageManifestV1,
     mut files: Vec<SourceFileV1>,
 ) -> Result<Vec<SourceFileV1>, ContractError> {
     if files.len() > MAX_FILES {
@@ -334,8 +333,9 @@ mod tests {
     use super::*;
     use crate::{BundleEntryV1, ExactVersion, PackageSemanticDigest, QualifiedName};
 
-    fn setup() -> (AuthorManifestV1, ModelPackageIdentityV1) {
-        let manifest = AuthorManifestV1::new(
+    fn setup() -> (PackageManifestV1, ModelPackageIdentityV1) {
+        let manifest = PackageManifestV1::new(
+            "basic",
             QualifiedName::parse("org.example.Basic").expect("name"),
             ExactVersion::parse("1.0.0").expect("version"),
             vec![],
@@ -453,16 +453,15 @@ mod tests {
             b"docs\n".to_vec(),
         );
 
-        let admitted =
-            AuthorPackageSourcesV1::new(manifest.clone(), vec![source.clone(), docs.clone()])
-                .expect("admitted author sources");
+        let admitted = PackageSourcesV1::new(manifest.clone(), vec![source.clone(), docs.clone()])
+            .expect("admitted author sources");
         assert_eq!(admitted.files(), &[docs.clone(), source.clone()]);
 
-        let missing = AuthorPackageSourcesV1::new(manifest.clone(), vec![source.clone()])
+        let missing = PackageSourcesV1::new(manifest.clone(), vec![source.clone()])
             .expect_err("missing inventory entry must fail");
         assert!(missing.to_string().contains("exactly match"));
 
-        let wrong_role = AuthorPackageSourcesV1::new(
+        let wrong_role = PackageSourcesV1::new(
             manifest.clone(),
             vec![
                 SourceFileV1::new(
@@ -476,7 +475,7 @@ mod tests {
         .expect_err("role drift must fail");
         assert!(wrong_role.to_string().contains("exactly match"));
 
-        let invalid_utf8 = AuthorPackageSourcesV1::new(
+        let invalid_utf8 = PackageSourcesV1::new(
             manifest,
             vec![
                 docs,

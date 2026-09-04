@@ -22,10 +22,9 @@ use eqiora_compiler::{
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_package::{
-    AuthorPackageSourcesV1, BundleRoleV1, CanonicalDeclaration, CanonicalModelDigest,
-    ContractError, DeclarationKindV1, ExactResolver, ModelPackageIdentityV1, PackageReleaseV1,
-    QualifiedName, ResolutionError, ResolutionRecordV1, SemanticContentV1, SemanticDeclarationV1,
-    VisibilityV1,
+    BundleRoleV1, CanonicalDeclaration, CanonicalModelDigest, ContractError, DeclarationKindV1,
+    ExactResolver, ModelPackageIdentityV1, PackageReleaseV1, PackageSourcesV1, QualifiedName,
+    ResolutionError, ResolutionRecordV1, SemanticContentV1, SemanticDeclarationV1, VisibilityV1,
 };
 
 #[cfg(feature = "project-filesystem")]
@@ -92,7 +91,7 @@ pub enum PackagePreparationError {
     Diagnostics(Vec<Diagnostic>),
     /// More than one supplied release has the same exact package identity.
     DuplicateDependency(Box<ModelPackageIdentityV1>),
-    /// One dependency target required by an author manifest was not supplied.
+    /// One dependency target required by a package manifest was not supplied.
     MissingDependency {
         /// Package name whose manifest declares the missing target.
         declaring: QualifiedName,
@@ -108,7 +107,7 @@ pub enum PackagePreparationError {
         /// Caller-supplied directory path.
         path: std::path::PathBuf,
         /// Bounded directory-admission failure.
-        source: eqiora_package::AuthorPackageDirectoryError,
+        source: eqiora_package::PackageDirectoryError,
     },
     /// Compiler-owned preparation failed for one admitted local directory.
     #[cfg(feature = "project-filesystem")]
@@ -301,7 +300,7 @@ impl From<SemanticContentDerivationError> for PackageCompilationError {
 ///
 /// `sources` has already crossed the package crate's bounded inventory and
 /// UTF-8 boundary. `dependencies` must contain exactly one release for every
-/// exact identity reachable from the author manifest. Their claimed semantic
+/// exact identity reachable from the package manifest. Their claimed semantic
 /// content is reconstructed from source, and no candidate root release is
 /// returned until every claim passes exact replay.
 ///
@@ -314,7 +313,7 @@ impl From<SemanticContentDerivationError> for PackageCompilationError {
 /// Returns a typed source-contract, dependency-closure, compiler-diagnostic,
 /// or semantic-mismatch error. No partial release is returned.
 pub fn prepare_package_release_v1(
-    sources: AuthorPackageSourcesV1,
+    sources: PackageSourcesV1,
     dependencies: &[PackageReleaseV1],
 ) -> Result<PackageReleaseV1, PackagePreparationError> {
     ResolutionRecordV1::preflight_exact_release_closure(sources.manifest(), dependencies)?;
@@ -346,7 +345,7 @@ pub fn prepare_package_release_v1(
 }
 
 fn preflight_preparation_hierarchy(
-    root: &AuthorPackageSourcesV1,
+    root: &PackageSourcesV1,
     dependencies: &[PackageReleaseV1],
 ) -> Result<(), PackagePreparationError> {
     let alias_count =
@@ -670,7 +669,7 @@ impl<'a> PreparationDependencies<'a> {
 }
 
 fn authoring_namespace(
-    manifest: &eqiora_package::AuthorManifestV1,
+    manifest: &eqiora_package::PackageManifestV1,
 ) -> Result<CompilationNamespaceId, Diagnostic> {
     CompilationNamespaceId::new([
         manifest.name().as_str(),
@@ -690,7 +689,7 @@ fn exact_namespace(
 }
 
 fn preparation_compiler_input(
-    root: &AuthorPackageSourcesV1,
+    root: &PackageSourcesV1,
     root_namespace: &CompilationNamespaceId,
     dependencies: &PreparationDependencies<'_>,
     namespaces: &BTreeMap<ModelPackageIdentityV1, CompilationNamespaceId>,
@@ -727,40 +726,22 @@ fn preparation_compiler_input(
             ));
         }
     }
-    package_hierarchy_input(root_namespace.clone(), units, direct_dependencies).map_err(Into::into)
+    package_hierarchy_input(
+        root_namespace.clone(),
+        root.manifest().entry(),
+        units,
+        direct_dependencies,
+    )
+    .map_err(Into::into)
 }
 
 fn package_hierarchy_input(
     root: CompilationNamespaceId,
+    entry: &QualifiedName,
     units: Vec<ResolvedSourceUnit>,
     dependencies: Vec<ResolvedDependency>,
 ) -> Result<ResolvedHierarchyInput, Diagnostic> {
-    let root_units = units
-        .iter()
-        .filter(|unit| unit.namespace() == &root)
-        .collect::<Vec<_>>();
-    let entry = root_units
-        .iter()
-        .copied()
-        .find(|unit| unit.module_segments() == ["main"])
-        .or_else(|| (root_units.len() == 1).then(|| root_units[0]))
-        .ok_or_else(|| {
-            Diagnostic::error(
-                codes::LANGUAGE_LOWERING_ERROR,
-                format!(
-                    "package `{}` must provide `src/main.eqi` when it contains multiple source modules",
-                    root.package_name()
-                ),
-            )
-        })?
-        .module_segments()
-        .to_vec();
-    ResolvedHierarchyInput::with_root_module(
-        root,
-        entry.iter().map(String::as_str),
-        units,
-        dependencies,
-    )
+    ResolvedHierarchyInput::with_root_module(root, entry.as_str().split('.'), units, dependencies)
 }
 
 fn append_preparation_sources(
@@ -859,6 +840,11 @@ fn compiler_input(
 
     package_hierarchy_input(
         namespace(namespaces, resolved.root())?.clone(),
+        resolved
+            .package(resolved.root())
+            .expect("resolved root package")
+            .manifest()
+            .entry(),
         units,
         direct_dependencies,
     )

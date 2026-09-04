@@ -4,8 +4,8 @@ use eqiora::artifact::SimplicialMeshEnvelopeV1;
 use eqiora::kernel::BoundarySide;
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh};
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -435,9 +435,7 @@ fn compile_root(
         (aliases[2], loads.package_identity().unwrap()),
     ]
     .into_iter()
-    .map(|(alias, identity)| {
-        DependencyRequirementV1::new(QualifiedName::parse(alias).unwrap(), identity).unwrap()
-    })
+    .map(|(_, identity)| PackageDependencyV1::new(identity))
     .collect();
     let closure = if reverse_closure {
         vec![loads.clone(), mechanics.clone(), fluid.clone()]
@@ -468,13 +466,19 @@ fn compile_root(
 fn inline_sources(
     name: &str,
     version: &str,
-    dependencies: Vec<DependencyRequirementV1>,
+    dependencies: Vec<PackageDependencyV1>,
     model_path: &str,
     model_source: &str,
-) -> AuthorPackageSourcesV1 {
+) -> PackageSourcesV1 {
     let readme = NormalizedRelativePath::parse("README.md").unwrap();
     let model = NormalizedRelativePath::parse(model_path).unwrap();
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        &model_path
+            .strip_prefix("src/")
+            .unwrap()
+            .strip_suffix(".eqi")
+            .unwrap()
+            .replace('/', "."),
         QualifiedName::parse(name).unwrap(),
         ExactVersion::parse(version).unwrap(),
         dependencies,
@@ -484,7 +488,7 @@ fn inline_sources(
         ],
     )
     .unwrap();
-    AuthorPackageSourcesV1::new(
+    PackageSourcesV1::new(
         manifest,
         vec![
             SourceFileV1::new(

@@ -6,10 +6,10 @@ use eqiora::entity::kinds;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore};
 use eqiora::kernel::{ExprNode, KernelNode, SymbolRef};
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationError,
-    PackagePreparationError, PackageReleaseV1, PackagedModelDocument, QualifiedName,
-    ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageCompilationError, PackageDependencyV1, PackageManifestV1, PackagePreparationError,
+    PackageReleaseV1, PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1,
+    SourceFileV1, prepare_package_release_v1,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::{Entity, Id, RawId};
@@ -163,13 +163,14 @@ fn source_identity(source: &str) -> LocalSourceIdentity {
 
 fn package_sources(
     name: &str,
-    dependencies: Vec<DependencyRequirementV1>,
+    dependencies: Vec<PackageDependencyV1>,
     source: &str,
     reverse_files: bool,
-) -> AuthorPackageSourcesV1 {
+) -> PackageSourcesV1 {
     let model_path = NormalizedRelativePath::parse("src/model.eqi").expect("model source path");
     let readme_path = NormalizedRelativePath::parse("README.md").expect("documentation path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "model",
         QualifiedName::parse(name).expect("package name"),
         ExactVersion::parse(VERSION).expect("package version"),
         dependencies,
@@ -178,7 +179,7 @@ fn package_sources(
             BundleEntryV1::new(readme_path.clone(), BundleRoleV1::Documentation),
         ],
     )
-    .expect("closed author manifest");
+    .expect("closed package manifest");
     let mut files = vec![
         SourceFileV1::new(
             model_path,
@@ -194,7 +195,7 @@ fn package_sources(
     if reverse_files {
         files.reverse();
     }
-    AuthorPackageSourcesV1::new(manifest, files).expect("closed package sources")
+    PackageSourcesV1::new(manifest, files).expect("closed package sources")
 }
 
 fn component_release(source: &str, reverse_files: bool) -> PackageReleaseV1 {
@@ -256,13 +257,11 @@ fn root_release(
     permuted: bool,
     reverse_files: bool,
 ) -> PackageReleaseV1 {
-    let dependency = DependencyRequirementV1::new(
-        QualifiedName::parse(alias).expect("dependency alias"),
+    let dependency = PackageDependencyV1::new(
         components
             .package_identity()
             .expect("component package identity"),
-    )
-    .expect("exact dependency requirement");
+    );
     prepare_package_release_v1(
         package_sources(
             "org.eqiora.verify.occurrence_bound_fields",
@@ -666,7 +665,7 @@ fn exact_packages_normalize_alias_declaration_binding_and_file_order() {
         permuted_root
             .package_identity()
             .expect("permuted root identity"),
-        "an exact dependency alias and source order do not enter package meaning"
+        "an exact import alias and source order do not enter package meaning"
     );
 
     let packaged = compile_locked(&components, &root);
@@ -737,13 +736,11 @@ fn invalid_exact_package_binding_never_exposes_a_packaged_model() {
     let components = component_release(COMPONENT_PACKAGE, false);
     let alias = "laws";
     let invalid = root_source(alias, false).replace("    field scalar_state = scalar_state,\n", "");
-    let dependency = DependencyRequirementV1::new(
-        QualifiedName::parse(alias).expect("dependency alias"),
+    let dependency = PackageDependencyV1::new(
         components
             .package_identity()
             .expect("component package identity"),
-    )
-    .expect("exact dependency requirement");
+    );
     let root_sources = package_sources(
         "org.eqiora.verify.occurrence_bound_fields",
         vec![dependency],

@@ -6,8 +6,8 @@ use eqiora::artifact::{
 };
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh, triangle_duffy_gauss_legendre};
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -37,8 +37,6 @@ const DIRECT: &str =
     include_str!("../../../verify/fluid/fieldwise-si-mini-stokes-2d/models/direct.eqi");
 const PACKAGED: &str =
     include_str!("../../../verify/fluid/fieldwise-si-mini-stokes-2d/models/packaged.eqi");
-const COMPONENT_MANIFEST: &[u8] =
-    include_bytes!("../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/package.json");
 const COMPONENT_README: &[u8] =
     include_bytes!("../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/README.md");
 const COMPONENT_SOURCE: &[u8] = include_bytes!(
@@ -799,8 +797,9 @@ fn packaged_document() -> PackagedModelDocument {
 }
 
 fn component_release() -> PackageReleaseV1 {
-    let sources = embedded_package::sources(
-        COMPONENT_MANIFEST,
+    let sources = embedded_package::generated_sources(
+        "Eqiora.Fluid.Incompressible",
+        VERSION,
         &[
             ("README.md", BundleRoleV1::Documentation, COMPONENT_README),
             (
@@ -816,16 +815,13 @@ fn component_release() -> PackageReleaseV1 {
 fn root_release(component: &PackageReleaseV1) -> PackageReleaseV1 {
     let readme = NormalizedRelativePath::parse("README.md").unwrap();
     let model = NormalizedRelativePath::parse("src/main.eqi").unwrap();
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse(ROOT_PACKAGE).unwrap(),
         ExactVersion::parse(VERSION).unwrap(),
-        vec![
-            DependencyRequirementV1::new(
-                QualifiedName::parse("fluid").unwrap(),
-                component.package_identity().unwrap(),
-            )
-            .unwrap(),
-        ],
+        vec![PackageDependencyV1::new(
+            component.package_identity().unwrap(),
+        )],
         vec![
             BundleEntryV1::new(readme.clone(), BundleRoleV1::Documentation),
             BundleEntryV1::new(model.clone(), BundleRoleV1::ModelSource),
@@ -837,7 +833,7 @@ fn root_release(component: &PackageReleaseV1) -> PackageReleaseV1 {
         .expect("fluid package identity")
         .name;
     let source = format!("import {component_name}.incompressible as fluid;\n{PACKAGED}");
-    let sources = AuthorPackageSourcesV1::new(
+    let sources = PackageSourcesV1::new(
         manifest,
         vec![
             SourceFileV1::new(

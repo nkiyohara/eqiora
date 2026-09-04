@@ -12,9 +12,9 @@ use eqiora::compiler::compile;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::meshing::QuadratureRule;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleRoleV1, InMemoryPackageStore,
-    ModelPackageIdentityV1, NormalizedRelativePath, PackageReleaseV1, PackagedModelDocument,
-    ResolutionNodeV1, ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
+    BundleRoleV1, InMemoryPackageStore, ModelPackageIdentityV1, NormalizedRelativePath,
+    PackageManifestV1, PackageReleaseV1, PackageSourcesV1, PackagedModelDocument, ResolutionNodeV1,
+    ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
 };
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
@@ -210,8 +210,8 @@ fn e2_conservation_and_shadow_reject_source_omission_and_dof_shift() {
 }
 
 fn compile_package() -> PackagedModelDocument {
-    let manifest = AuthorManifestV1::from_json(MANIFEST).unwrap();
-    let sources = AuthorPackageSourcesV1::new(
+    let manifest = PackageManifestV1::from_json(MANIFEST).unwrap();
+    let sources = PackageSourcesV1::new(
         manifest,
         vec![
             SourceFileV1::new(

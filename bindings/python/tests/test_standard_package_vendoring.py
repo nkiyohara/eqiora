@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -37,31 +36,11 @@ model Main {
 """
 
 
-def write_fluid_application(root: Path, fluid: eqiora.VendoredStandardPackage) -> None:
+def write_fluid_application(root: Path) -> None:
     application = root / "application"
     source = application / "src/main.eqi"
     source.parent.mkdir(parents=True)
     source.write_text(FLUID_MODEL, encoding="utf-8")
-    manifest = {
-        "schema": "eqiora.author-manifest.v1",
-        "name": "org.example.VendoredFluid",
-        "version": "0.1.0",
-        "dependencies": [
-            {
-                "alias": "fluid",
-                "target": {
-                    "name": fluid.name,
-                    "version": fluid.version,
-                    "semantic_digest": fluid.semantic_digest,
-                },
-            }
-        ],
-        "bundle": [{"path": "src/main.eqi", "role": "model_source"}],
-    }
-    (application / "package.json").write_text(
-        json.dumps(manifest, separators=(",", ":")),
-        encoding="utf-8",
-    )
 
 
 def test_vendored_standard_fluid_resolves_and_compiles_offline(tmp_path: Path) -> None:
@@ -83,22 +62,39 @@ def test_vendored_standard_fluid_resolves_and_compiles_offline(tmp_path: Path) -
         == packages
     )
 
-    write_fluid_application(tmp_path, fluid)
+    write_fluid_application(tmp_path)
+    (tmp_path / fluid.path / "eqiora.toml").write_text(
+        f'''[package]
+name = "{fluid.name}"
+version = "{fluid.version}"
+source = "src"
+entry = "incompressible"
+
+[dependencies."{mechanics.name}"]
+version = "{mechanics.version}"
+path = "../../{mechanics.name}/{mechanics.version}"
+''',
+        encoding="utf-8",
+    )
+    (tmp_path / mechanics.path / "eqiora.toml").write_text(
+        f'''[package]
+name = "{mechanics.name}"
+version = "{mechanics.version}"
+source = "src"
+entry = "interfaces"
+''',
+        encoding="utf-8",
+    )
     (tmp_path / "eqiora.toml").write_text(
-        f'''schema = "eqiora.project.v1"
-root = "application"
+        f'''[package]
+name = "org.example.VendoredFluid"
+version = "0.1.0"
+source = "application/src"
+entry = "main"
 
-[dependencies]
-fluid = "fluid"
-
-[sources.application]
-path = "application"
-
-[sources.fluid]
+[dependencies."{fluid.name}"]
+version = "{fluid.version}"
 path = "{fluid.path}"
-
-[sources.mechanics]
-path = "{mechanics.path}"
 ''',
         encoding="utf-8",
     )

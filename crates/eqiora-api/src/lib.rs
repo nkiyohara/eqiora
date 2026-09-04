@@ -210,13 +210,12 @@ impl ModelDocument {
         root_module: &str,
         entry_model: &str,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let directory =
-            eqiora_package::AuthorPackageDirectory::open_ambient(root).map_err(|error| {
-                single_diagnostic(Diagnostic::error(
-                    codes::LANGUAGE_LOWERING_ERROR,
-                    format!("project source discovery failed: {error}"),
-                ))
-            })?;
+        let directory = eqiora_package::PackageDirectory::open_ambient(root).map_err(|error| {
+            single_diagnostic(Diagnostic::error(
+                codes::LANGUAGE_LOWERING_ERROR,
+                format!("project source discovery failed: {error}"),
+            ))
+        })?;
         let sources = directory.discover_project_sources().map_err(|error| {
             single_diagnostic(Diagnostic::error(
                 codes::LANGUAGE_LOWERING_ERROR,

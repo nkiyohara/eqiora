@@ -9,8 +9,8 @@ use eqiora::diagnostic::codes;
 use eqiora::kernel::BoundarySide;
 use eqiora::meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -38,9 +38,6 @@ const DIRECT_SOURCE: &str =
     include_str!("../../../verify/solid/conforming-elasticity-pair-2d/models/direct.eqi");
 const PACKAGED_SOURCE: &str =
     include_str!("../../../verify/solid/conforming-elasticity-pair-2d/models/packaged.eqi");
-const ELASTICITY_MANIFEST: &[u8] = include_bytes!(
-    "../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/package.json"
-);
 const ELASTICITY_README: &[u8] =
     include_bytes!("../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/README.md");
 const ELASTICITY_SOURCE: &[u8] = include_bytes!(
@@ -48,8 +45,9 @@ const ELASTICITY_SOURCE: &[u8] = include_bytes!(
 );
 
 fn elasticity_package() -> PackageReleaseV1 {
-    let sources = embedded_package::sources(
-        ELASTICITY_MANIFEST,
+    let sources = embedded_package::generated_sources(
+        "Eqiora.Solid.LinearElasticity",
+        "0.3.0",
         &[
             ("README.md", BundleRoleV1::Documentation, ELASTICITY_README),
             (
@@ -72,19 +70,18 @@ fn compile_packaged_as(
     alias: &str,
 ) -> PackagedModelDocument {
     let model_path = NormalizedRelativePath::parse("src/main.eqi").expect("root model path");
-    let requirement = DependencyRequirementV1::new(
-        QualifiedName::parse(alias).expect("dependency alias"),
+    let requirement = PackageDependencyV1::new(
         dependency
             .package_identity()
             .expect("elasticity package identity"),
-    )
-    .expect("exact dependency requirement");
+    );
     let package_name = dependency
         .package_identity()
         .expect("elasticity package identity")
         .name;
     let source = format!("import {package_name}.linear_elasticity as {alias};\n{source}");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse("org.eqiora.verify.conforming_elasticity_pair_2d")
             .expect("root package name"),
         ExactVersion::parse("0.1.0").expect("root version"),
@@ -94,8 +91,8 @@ fn compile_packaged_as(
             BundleRoleV1::ModelSource,
         )],
     )
-    .expect("root author manifest");
-    let sources = AuthorPackageSourcesV1::new(
+    .expect("root package manifest");
+    let sources = PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             model_path,

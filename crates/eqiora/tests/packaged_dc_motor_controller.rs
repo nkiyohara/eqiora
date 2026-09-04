@@ -6,9 +6,9 @@ use eqiora::entity::kinds;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::KernelNode;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
-    PackageRunBindingV1, PackagedModelDocument, QualifiedName, ResolutionEdgeV1, ResolutionNodeV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageRunBindingV1,
+    PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionEdgeV1, ResolutionNodeV1,
     ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
 };
 use eqiora::sem::{Interpreter, PhysicalUnknown, ReferenceConfig, Trajectory};
@@ -112,8 +112,8 @@ fn source_file(path: &str, role: BundleRoleV1, bytes: &[u8]) -> SourceFileV1 {
     )
 }
 
-fn package_sources(manifest: AuthorManifestV1, files: Vec<SourceFileV1>) -> AuthorPackageSourcesV1 {
-    AuthorPackageSourcesV1::new(manifest, files).expect("admitted package sources")
+fn package_sources(manifest: PackageManifestV1, files: Vec<SourceFileV1>) -> PackageSourcesV1 {
+    PackageSourcesV1::new(manifest, files).expect("admitted package sources")
 }
 
 fn electrical_release() -> PackageReleaseV1 {
@@ -137,16 +137,17 @@ fn drive_release_with_spelling(
     spelling: PackageSpelling<'_>,
 ) -> PackageReleaseV1 {
     let electrical_identity = electrical.package_identity().expect("electrical identity");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        &spelling
+            .drive_path
+            .strip_prefix("src/")
+            .unwrap()
+            .strip_suffix(".eqi")
+            .unwrap()
+            .replace('/', "."),
         QualifiedName::parse("Eqiora.Electromechanical.DcDrive").expect("drive name"),
         ExactVersion::parse(VERSION).expect("drive version"),
-        vec![
-            DependencyRequirementV1::new(
-                QualifiedName::parse(spelling.electrical_in_drive).expect("drive dependency alias"),
-                electrical_identity.clone(),
-            )
-            .expect("drive dependency"),
-        ],
+        vec![PackageDependencyV1::new(electrical_identity.clone())],
         vec![
             BundleEntryV1::new(
                 NormalizedRelativePath::parse("README.md").expect("drive README path"),
@@ -198,20 +199,19 @@ fn root_release_with_spelling(
 ) -> PackageReleaseV1 {
     let electrical_identity = electrical.package_identity().expect("electrical identity");
     let drive_identity = drive.package_identity().expect("drive identity");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        &spelling
+            .root_path
+            .strip_prefix("src/")
+            .unwrap()
+            .strip_suffix(".eqi")
+            .unwrap()
+            .replace('/', "."),
         QualifiedName::parse("org.example.dc_motor_control").expect("root name"),
         ExactVersion::parse(VERSION).expect("root version"),
         vec![
-            DependencyRequirementV1::new(
-                QualifiedName::parse(spelling.electrical_in_root).expect("root electrical alias"),
-                electrical_identity.clone(),
-            )
-            .expect("root electrical dependency"),
-            DependencyRequirementV1::new(
-                QualifiedName::parse(spelling.drive_in_root).expect("root drive alias"),
-                drive_identity.clone(),
-            )
-            .expect("root drive dependency"),
+            PackageDependencyV1::new(electrical_identity.clone()),
+            PackageDependencyV1::new(drive_identity.clone()),
         ],
         vec![
             BundleEntryV1::new(
@@ -282,7 +282,6 @@ fn packaged_model_from_releases(
     electrical: PackageReleaseV1,
     drive: PackageReleaseV1,
     root: PackageReleaseV1,
-    spelling: PackageSpelling<'_>,
 ) -> PackageFixture {
     let electrical_identity = electrical.package_identity().expect("electrical identity");
     let drive_identity = drive.package_identity().expect("drive identity");
@@ -299,24 +298,9 @@ fn packaged_model_from_releases(
             ResolutionNodeV1::new(root_identity.clone(), root_source),
         ],
         vec![
-            ResolutionEdgeV1::new(
-                drive_identity.clone(),
-                QualifiedName::parse(spelling.electrical_in_drive).expect("alias"),
-                electrical_identity.clone(),
-            )
-            .expect("drive dependency"),
-            ResolutionEdgeV1::new(
-                root_identity.clone(),
-                QualifiedName::parse(spelling.electrical_in_root).expect("alias"),
-                electrical_identity.clone(),
-            )
-            .expect("root electrical dependency"),
-            ResolutionEdgeV1::new(
-                root_identity.clone(),
-                QualifiedName::parse(spelling.drive_in_root).expect("alias"),
-                drive_identity.clone(),
-            )
-            .expect("root drive dependency"),
+            ResolutionEdgeV1::new(drive_identity.clone(), electrical_identity.clone()),
+            ResolutionEdgeV1::new(root_identity.clone(), electrical_identity.clone()),
+            ResolutionEdgeV1::new(root_identity.clone(), drive_identity.clone()),
         ],
     )
     .expect("exact resolution");
@@ -338,7 +322,7 @@ fn packaged_model_with_root(root_source_text: &str) -> PackageFixture {
     let electrical = electrical_release();
     let drive = drive_release(&electrical);
     let root = root_release(&electrical, &drive, root_source_text);
-    packaged_model_from_releases(electrical, drive, root, CANONICAL_SPELLING)
+    packaged_model_from_releases(electrical, drive, root)
 }
 
 fn packaged_model_with_spelling(
@@ -348,7 +332,7 @@ fn packaged_model_with_spelling(
     let electrical = electrical_release();
     let drive = drive_release_with_spelling(&electrical, spelling);
     let root = root_release_with_spelling(&electrical, &drive, root_source_text, spelling);
-    packaged_model_from_releases(electrical, drive, root, spelling)
+    packaged_model_from_releases(electrical, drive, root)
 }
 
 fn packaged_model() -> PackageFixture {

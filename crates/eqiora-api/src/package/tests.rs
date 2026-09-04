@@ -4,8 +4,8 @@ use super::*;
 use eqiora_artifact::{ArtifactDigest, RunManifestV1};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_package::{
-    AuthorManifestV1, BundleEntryV1, DependencyRequirementV1, ExactVersion, InMemoryPackageStore,
-    NormalizedRelativePath, PackageReleaseV1, SourceFileV1,
+    BundleEntryV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageDependencyV1,
+    PackageManifestV1, PackageReleaseV1, SourceFileV1,
 };
 
 const VERSION: &str = "1.0.0";
@@ -15,24 +15,22 @@ fn author_sources(
     name: &str,
     source: &str,
     dependencies: &[(&str, &PackageReleaseV1)],
-) -> AuthorPackageSourcesV1 {
+) -> PackageSourcesV1 {
     let mut requirements = Vec::new();
-    for (alias, dependency) in dependencies {
+    for (_, dependency) in dependencies {
         let target = dependency.package_identity().expect("dependency identity");
-        requirements.push(
-            DependencyRequirementV1::new(QualifiedName::parse(*alias).expect("alias"), target)
-                .expect("dependency requirement"),
-        );
+        requirements.push(PackageDependencyV1::new(target));
     }
     let path = NormalizedRelativePath::parse(SOURCE_PATH).expect("source path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse(name).expect("package name"),
         ExactVersion::parse(VERSION).expect("version"),
         requirements,
         vec![BundleEntryV1::new(path.clone(), BundleRoleV1::ModelSource)],
     )
     .expect("manifest");
-    AuthorPackageSourcesV1::new(
+    PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             path,
@@ -87,7 +85,8 @@ public component Resistor {
   relation law continuous { resistance - 2 = 0; }
 }
 "#;
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse("org.example.DeclaredModules").expect("package name"),
         ExactVersion::parse(VERSION).expect("version"),
         vec![],
@@ -97,7 +96,7 @@ public component Resistor {
         ],
     )
     .expect("manifest");
-    let sources = AuthorPackageSourcesV1::new(
+    let sources = PackageSourcesV1::new(
         manifest,
         vec![
             SourceFileV1::new(
@@ -630,7 +629,8 @@ model Main {
 }
 "#;
     let path = NormalizedRelativePath::parse(SOURCE_PATH).expect("source path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse("org.example.Dishonest").expect("name"),
         ExactVersion::parse(VERSION).expect("version"),
         vec![],
@@ -681,7 +681,8 @@ model Main {
 #[test]
 fn semantic_mismatch_fails_before_model_admission() {
     let path = NormalizedRelativePath::parse(SOURCE_PATH).expect("source path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse("org.example.FalseClaim").expect("name"),
         ExactVersion::parse(VERSION).expect("version"),
         vec![],

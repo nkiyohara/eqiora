@@ -9,9 +9,9 @@ use eqiora::entity::kinds;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::KernelNode;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleRoleV1,
-    DeclarationKindV1, DependencyRequirementV1, DirectoryPackageInstaller, DirectoryPackageStore,
-    InMemoryPackageStore, PackageInstallDisposition, PackagePreparationError, PackageReleaseV1,
+    BundleRoleV1, DeclarationKindV1, DirectoryPackageInstaller, DirectoryPackageStore,
+    InMemoryPackageStore, PackageDependencyV1, PackageDirectory, PackageInstallDisposition,
+    PackageManifestV1, PackagePreparationError, PackageReleaseV1, PackageSourcesV1,
     PackageStageCleanup, PackagedModelDocument, ResolutionRecordV1, SourceFileV1, VisibilityV1,
     prepare_package_release_v1,
 };
@@ -56,8 +56,8 @@ fn package_root(name: &str) -> PathBuf {
         .join(name)
 }
 
-fn sources(name: &str) -> AuthorPackageSourcesV1 {
-    AuthorPackageDirectory::open_ambient(package_root(name))
+fn sources(name: &str) -> PackageSourcesV1 {
+    PackageDirectory::open_ambient(package_root(name))
         .expect("open explicit package root")
         .read_sources()
         .expect("read closed package inventory")
@@ -68,10 +68,7 @@ fn release(name: &str, dependencies: &[PackageReleaseV1]) -> PackageReleaseV1 {
         .expect("prepare compiler-derived release")
 }
 
-fn replace_model_source(
-    sources: &AuthorPackageSourcesV1,
-    model_source: &str,
-) -> AuthorPackageSourcesV1 {
+fn replace_model_source(sources: &PackageSourcesV1, model_source: &str) -> PackageSourcesV1 {
     let files = sources
         .files()
         .iter()
@@ -87,33 +84,26 @@ fn replace_model_source(
             }
         })
         .collect();
-    AuthorPackageSourcesV1::new(sources.manifest().clone(), files)
+    PackageSourcesV1::new(sources.manifest().clone(), files)
         .expect("replace the one closed model source")
 }
 
 fn retarget_only_dependency(
-    sources: &AuthorPackageSourcesV1,
+    sources: &PackageSourcesV1,
     target: &PackageReleaseV1,
-) -> AuthorPackageSourcesV1 {
+) -> PackageSourcesV1 {
     let manifest = sources.manifest();
-    let requirement = manifest
-        .dependencies()
-        .first()
-        .expect("fixture has one direct dependency");
     assert_eq!(manifest.dependencies().len(), 1);
     let target = target.package_identity().expect("target identity");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        manifest.entry().as_str(),
         manifest.name().clone(),
         manifest.version().clone(),
-        vec![
-            DependencyRequirementV1::new(requirement.alias().clone(), target)
-                .expect("retarget direct dependency"),
-        ],
+        vec![PackageDependencyV1::new(target)],
         manifest.bundle().to_vec(),
     )
     .expect("retargeted manifest");
-    AuthorPackageSourcesV1::new(manifest, sources.files().to_vec())
-        .expect("retargeted package sources")
+    PackageSourcesV1::new(manifest, sources.files().to_vec()).expect("retargeted package sources")
 }
 
 fn assert_diagnostic_contains(diagnostics: &[eqiora::Diagnostic], expected: &str) {
@@ -204,15 +194,13 @@ fn transitive_composed_component_installs_flattens_and_solves() {
     let root_identity = root.package_identity().expect("root identity");
     let circuits_identity = circuits.package_identity().expect("circuits identity");
     let basic_identity = basic.package_identity().expect("basic identity");
+    assert!(
+        resolution.edges().iter().any(|edge| {
+            edge.declaring() == &root_identity && edge.target() == &circuits_identity
+        })
+    );
     assert!(resolution.edges().iter().any(|edge| {
-        edge.declaring() == &root_identity
-            && edge.alias().as_str() == "circuits"
-            && edge.target() == &circuits_identity
-    }));
-    assert!(resolution.edges().iter().any(|edge| {
-        edge.declaring() == &circuits_identity
-            && edge.alias().as_str() == "basic"
-            && edge.target() == &basic_identity
+        edge.declaring() == &circuits_identity && edge.target() == &basic_identity
     }));
 
     let directory = TestDirectory::create();

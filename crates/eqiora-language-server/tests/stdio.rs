@@ -8,8 +8,8 @@ use std::{
 
 use eqiora::api::package::prepare_package_release_v1;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, NormalizedRelativePath, QualifiedName, SourceFileV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, NormalizedRelativePath, PackageDependencyV1,
+    PackageManifestV1, PackageSourcesV1, QualifiedName, SourceFileV1,
 };
 use serde_json::{Value, json};
 
@@ -40,17 +40,18 @@ impl Drop for TestDirectory {
 fn author_sources(
     name: &str,
     source: &str,
-    dependencies: Vec<DependencyRequirementV1>,
-) -> AuthorPackageSourcesV1 {
+    dependencies: Vec<PackageDependencyV1>,
+) -> PackageSourcesV1 {
     let path = NormalizedRelativePath::parse(SOURCE_PATH).expect("source path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "main",
         QualifiedName::parse(name).expect("package name"),
         ExactVersion::parse("1.0.0").expect("package version"),
         dependencies,
         vec![BundleEntryV1::new(path.clone(), BundleRoleV1::ModelSource)],
     )
-    .expect("author manifest");
-    AuthorPackageSourcesV1::new(
+    .expect("package manifest");
+    PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             path,
@@ -61,16 +62,8 @@ fn author_sources(
     .expect("author sources")
 }
 
-fn write_package(path: &Path, sources: &AuthorPackageSourcesV1) {
+fn write_package(path: &Path, sources: &PackageSourcesV1) {
     fs::create_dir_all(path.join("src")).expect("create package source directory");
-    fs::write(
-        path.join("package.json"),
-        sources
-            .manifest()
-            .canonical_json()
-            .expect("canonical package manifest"),
-    )
-    .expect("write package manifest");
     fs::write(path.join(SOURCE_PATH), sources.files()[0].bytes()).expect("write package source");
 }
 
@@ -402,21 +395,24 @@ fn stdio_workspace_loads_unopened_exact_package_sources_without_writing_a_lock()
     let library_sources = author_sources("org.example.EditorLibrary", library, vec![]);
     let library_release =
         prepare_package_release_v1(library_sources.clone(), &[]).expect("library release");
-    let dependency = DependencyRequirementV1::new(
-        QualifiedName::parse("library").expect("dependency alias"),
+    let dependency = PackageDependencyV1::new(
         library_release
             .package_identity()
             .expect("library package identity"),
-    )
-    .expect("dependency requirement");
+    );
     let root_sources = author_sources("org.example.EditorRoot", root, vec![dependency]);
     write_package(&library_path, &library_sources);
     write_package(&root_path, &root_sources);
     fs::write(
         fixture.0.join("eqiora.toml"),
-        "schema = \"eqiora.project.v1\"\nroot = \"root\"\n\n[dependencies]\nlibrary = \"library\"\n\n[sources.root]\npath = \"root\"\n\n[sources.library]\npath = \"library\"\n",
+        "[package]\nname = \"org.example.EditorRoot\"\nversion = \"1.0.0\"\nsource = \"root/src\"\nentry = \"main\"\n\n[dependencies.\"org.example.EditorLibrary\"]\nversion = \"1.0.0\"\npath = \"library\"\n",
     )
     .expect("write project manifest");
+    fs::write(
+        library_path.join("eqiora.toml"),
+        "[package]\nname = \"org.example.EditorLibrary\"\nversion = \"1.0.0\"\nentry = \"main\"\n",
+    )
+    .expect("write library manifest");
     let workspace_uri = file_uri(&fixture.0);
     let root_uri = file_uri(&root_path.join(SOURCE_PATH));
     let library_uri = file_uri(&library_path.join(SOURCE_PATH));

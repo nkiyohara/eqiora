@@ -1321,6 +1321,31 @@ def resolve_local_project(
 
     ...
 
+def add_local_dependency(
+    project_root: str | PathLike[str],
+    store_root: str | PathLike[str],
+    name: str,
+    *,
+    version: str,
+    path: str,
+) -> bytes:
+    """Add or replace an exact dependency and publish the manifest and lock.
+
+    Authority: ``crates/eqiora-python/src/package.rs::add_local_dependency``.
+    """
+    ...
+
+def remove_local_dependency(
+    project_root: str | PathLike[str],
+    store_root: str | PathLike[str],
+    name: str,
+) -> bytes:
+    """Remove a direct dependency and publish the validated manifest and lock.
+
+    Authority: ``crates/eqiora-python/src/package.rs::remove_local_dependency``.
+    """
+    ...
+
 def vendor_standard_package(
     project_root: str | PathLike[str],
     package: str,
@@ -1524,6 +1549,8 @@ __all__ = [
     "lang",
     "resolve",
     "resolve_local_project",
+    "add_local_dependency",
+    "remove_local_dependency",
     "run",
     "submit",
     "through",

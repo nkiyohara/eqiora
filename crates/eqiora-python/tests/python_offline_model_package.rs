@@ -3,9 +3,8 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, ExactVersion,
-    NormalizedRelativePath, QualifiedName, ResolutionRecordV1, SourceFileV1,
-    prepare_package_release_v1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, NormalizedRelativePath, PackageManifestV1,
+    PackageSourcesV1, QualifiedName, ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
 };
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
@@ -89,14 +88,15 @@ impl Drop for Scratch {
 
 fn locked_store(source: &str) -> (Scratch, Vec<u8>, String) {
     let path = NormalizedRelativePath::parse("src/poisson.eqi").expect("source path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        "poisson",
         QualifiedName::parse("org.example.geometry_poisson").expect("package name"),
         ExactVersion::parse("1.0.0").expect("version"),
         vec![],
         vec![BundleEntryV1::new(path.clone(), BundleRoleV1::ModelSource)],
     )
     .expect("manifest");
-    let sources = AuthorPackageSourcesV1::new(
+    let sources = PackageSourcesV1::new(
         manifest,
         vec![SourceFileV1::new(
             path,
@@ -130,40 +130,40 @@ fn locked_store(source: &str) -> (Scratch, Vec<u8>, String) {
 #[test]
 fn local_package_project_locks_and_compiles_a_model_through_python() -> PyResult<()> {
     let scratch = Scratch::create();
-    let package_root = scratch.0.join("root");
+    let project_root = scratch.0.join("project");
+    let package_root = project_root.join("root");
     let store_root = scratch.0.join("store");
     fs::create_dir_all(package_root.join("src")).expect("create package source directory");
     fs::create_dir(&store_root).expect("create package store");
     let path = NormalizedRelativePath::parse("src/main.eqi").expect("source path");
-    let manifest = AuthorManifestV1::new(
-        QualifiedName::parse("org.example.LocalRoot").expect("package name"),
-        ExactVersion::parse("1.0.0").expect("version"),
-        vec![],
-        vec![BundleEntryV1::new(path.clone(), BundleRoleV1::ModelSource)],
-    )
-    .expect("manifest");
-    fs::write(
-        package_root.join("package.json"),
-        manifest.canonical_json().expect("canonical manifest"),
-    )
-    .expect("write package manifest");
     fs::write(
         package_root.join(path.as_str()),
         "public model Main { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
     )
     .expect("write package source");
     fs::write(
-        scratch.0.join("eqiora.toml"),
-        "schema = \"eqiora.project.v1\"\nroot = \"root\"\n\n[dependencies]\n\n[sources.root]\npath = \"root\"\n",
+        project_root.join("eqiora.toml"),
+        "[package]\nname = \"org.example.LocalRoot\"\nversion = \"1.0.0\"\nsource = \"root/src\"\nentry = \"main\"\n",
     )
     .expect("write project manifest");
+    fs::create_dir_all(scratch.0.join("library/src")).unwrap();
+    fs::write(
+        scratch.0.join("library/src/main.eqi"),
+        "public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+    )
+    .unwrap();
+    fs::write(
+        scratch.0.join("library/eqiora.toml"),
+        "[package]\nname = \"org.example.Library\"\nversion = \"1.0.0\"\nentry = \"main\"\n",
+    )
+    .unwrap();
 
     Python::initialize();
     Python::attach(|py| {
         let public = public_module(py)?;
         let locals = PyDict::new(py);
         locals.set_item("eqiora", public)?;
-        locals.set_item("project", scratch.0.to_string_lossy())?;
+        locals.set_item("project", project_root.to_string_lossy())?;
         locals.set_item("store", store_root.to_string_lossy())?;
         py.run(
             c_str!(
@@ -174,6 +174,29 @@ assert open(project + "/eqiora.lock", "rb").read() == resolution
 model = eqiora.compile_package(store, resolution, entry_model="Main")
 assert model.package_compilation_digest is not None
 assert len(model.parameter_ids) == 1
+before_manifest = open(project + "/eqiora.toml", "rb").read()
+try:
+    eqiora.add_local_dependency(project, store, "org.example.Library", version="2.0.0", path="../library")
+except eqiora.CompatibilityError:
+    pass
+else:
+    raise AssertionError("wrong exact version accepted")
+assert open(project + "/eqiora.toml", "rb").read() == before_manifest
+assert open(project + "/eqiora.lock", "rb").read() == resolution
+added = eqiora.add_local_dependency(project, store, "org.example.Library", version="1.0.0", path="../library")
+assert added != resolution
+assert open(project + "/eqiora.lock", "rb").read() == added
+eqiora.compile_package(store, added, entry_model="Main")
+from pathlib import Path
+source_path = Path(project) / "root/src/main.eqi"
+original_source = source_path.read_text()
+source_path.write_text("import org.example.Library.main as library; " + original_source)
+imported = eqiora.resolve_local_project(project, store)
+eqiora.compile_package(store, imported, entry_model="library.Shared")
+source_path.write_text(original_source)
+removed = eqiora.remove_local_dependency(project, store, "org.example.Library")
+assert removed == resolution
+assert open(project + "/eqiora.lock", "rb").read() == removed
 "#
             ),
             None,

@@ -7,8 +7,7 @@ use cap_std::fs::Dir;
 
 use crate::directory_io::{DirectoryFileError, read_bounded_regular_file};
 use crate::{
-    AuthorPackageDirectoryError, AuthorPackageDirectoryResource, ContractError,
-    NormalizedRelativePath,
+    ContractError, NormalizedRelativePath, PackageDirectoryError, PackageDirectoryResource,
 };
 
 const MAX_ENTRIES: usize = 100_000;
@@ -19,7 +18,7 @@ const MAX_SOURCE_BYTES: usize = 256 * 1024 * 1024;
 
 pub(crate) fn discover_project_sources(
     root: &Dir,
-) -> Result<BTreeMap<NormalizedRelativePath, String>, AuthorPackageDirectoryError> {
+) -> Result<BTreeMap<NormalizedRelativePath, String>, PackageDirectoryError> {
     let mut pending = BTreeSet::<NormalizedRelativePath>::new();
     let mut root_pending = true;
     let mut sources = BTreeMap::new();
@@ -36,9 +35,9 @@ pub(crate) fn discover_project_sources(
         let directory = match &parent {
             None => root
                 .try_clone()
-                .map_err(|source| AuthorPackageDirectoryError::RootIo { path: None, source })?,
+                .map_err(|source| PackageDirectoryError::RootIo { path: None, source })?,
             Some(path) => root.open_dir_nofollow(path.as_str()).map_err(|source| {
-                AuthorPackageDirectoryError::EntryIo {
+                PackageDirectoryError::EntryIo {
                     path: path.clone(),
                     source,
                 }
@@ -54,13 +53,13 @@ pub(crate) fn discover_project_sources(
             let path = child_path(parent.as_ref(), entry.file_name())?;
             check_limit(
                 path.clone(),
-                AuthorPackageDirectoryResource::ProjectEntries,
+                PackageDirectoryResource::ProjectEntries,
                 entries_seen,
                 MAX_ENTRIES,
             )?;
             entries
                 .try_reserve(1)
-                .map_err(|source| AuthorPackageDirectoryError::Allocation {
+                .map_err(|source| PackageDirectoryError::Allocation {
                     path: parent.clone(),
                     source,
                 })?;
@@ -69,35 +68,34 @@ pub(crate) fn discover_project_sources(
         entries.sort_by(|left, right| left.0.cmp(&right.0));
 
         for (path, entry) in entries {
-            let file_type =
-                entry
-                    .file_type()
-                    .map_err(|source| AuthorPackageDirectoryError::EntryIo {
-                        path: path.clone(),
-                        source,
-                    })?;
+            let file_type = entry
+                .file_type()
+                .map_err(|source| PackageDirectoryError::EntryIo {
+                    path: path.clone(),
+                    source,
+                })?;
             if file_type.is_symlink() {
-                return Err(AuthorPackageDirectoryError::NonRegularFile { path });
+                return Err(PackageDirectoryError::NonRegularFile { path });
             }
             if file_type.is_dir() {
                 check_limit(
                     path.clone(),
-                    AuthorPackageDirectoryResource::ProjectDirectoryDepth,
+                    PackageDirectoryResource::ProjectDirectoryDepth,
                     path.as_str().split('/').count(),
                     MAX_DIRECTORY_DEPTH,
                 )?;
                 pending.insert(path);
                 continue;
             }
+            if !file_type.is_file() {
+                return Err(PackageDirectoryError::NonRegularFile { path });
+            }
             if !path.as_str().ends_with(".eqi") {
                 continue;
             }
-            if !file_type.is_file() {
-                return Err(AuthorPackageDirectoryError::NonRegularFile { path });
-            }
             check_limit(
                 path.clone(),
-                AuthorPackageDirectoryResource::ProjectSourceFiles,
+                PackageDirectoryResource::ProjectSourceFiles,
                 sources.len().saturating_add(1),
                 MAX_SOURCE_FILES,
             )?;
@@ -106,12 +104,12 @@ pub(crate) fn discover_project_sources(
             source_bytes = source_bytes.saturating_add(bytes.len());
             check_limit(
                 path.clone(),
-                AuthorPackageDirectoryResource::SourceTotalBytes,
+                PackageDirectoryResource::SourceTotalBytes,
                 source_bytes,
                 MAX_SOURCE_BYTES,
             )?;
             let source = String::from_utf8(bytes).map_err(|error| {
-                AuthorPackageDirectoryError::Contract(ContractError::new(format!(
+                PackageDirectoryError::Contract(ContractError::new(format!(
                     "project source {path} is not UTF-8: {error}"
                 )))
             })?;
@@ -124,19 +122,19 @@ pub(crate) fn discover_project_sources(
 fn enumeration_error(
     parent: Option<NormalizedRelativePath>,
     source: std::io::Error,
-) -> AuthorPackageDirectoryError {
+) -> PackageDirectoryError {
     match parent {
-        Some(path) => AuthorPackageDirectoryError::EntryIo { path, source },
-        None => AuthorPackageDirectoryError::RootIo { path: None, source },
+        Some(path) => PackageDirectoryError::EntryIo { path, source },
+        None => PackageDirectoryError::RootIo { path: None, source },
     }
 }
 
 fn child_path(
     parent: Option<&NormalizedRelativePath>,
     name: std::ffi::OsString,
-) -> Result<NormalizedRelativePath, AuthorPackageDirectoryError> {
+) -> Result<NormalizedRelativePath, PackageDirectoryError> {
     let name = name.into_string().map_err(|_| {
-        AuthorPackageDirectoryError::Contract(ContractError::new(match parent {
+        PackageDirectoryError::Contract(ContractError::new(match parent {
             Some(parent) => format!("project source directory {parent} contains a non-UTF-8 name"),
             None => "project source root contains a non-UTF-8 name".to_owned(),
         }))
@@ -147,14 +145,14 @@ fn child_path(
 
 fn check_limit(
     path: NormalizedRelativePath,
-    resource: AuthorPackageDirectoryResource,
+    resource: PackageDirectoryResource,
     observed: usize,
     limit: usize,
-) -> Result<(), AuthorPackageDirectoryError> {
+) -> Result<(), PackageDirectoryError> {
     if observed <= limit {
         return Ok(());
     }
-    Err(AuthorPackageDirectoryError::LimitExceeded {
+    Err(PackageDirectoryError::LimitExceeded {
         path,
         resource,
         observed: u64::try_from(observed).unwrap_or(u64::MAX),
@@ -162,33 +160,27 @@ fn check_limit(
     })
 }
 
-fn map_file_error(error: DirectoryFileError) -> AuthorPackageDirectoryError {
+fn map_file_error(error: DirectoryFileError) -> PackageDirectoryError {
     match error {
-        DirectoryFileError::RootIo(source) => {
-            AuthorPackageDirectoryError::RootIo { path: None, source }
-        }
-        DirectoryFileError::Io { path, source } => {
-            AuthorPackageDirectoryError::EntryIo { path, source }
-        }
+        DirectoryFileError::RootIo(source) => PackageDirectoryError::RootIo { path: None, source },
+        DirectoryFileError::Io { path, source } => PackageDirectoryError::EntryIo { path, source },
         DirectoryFileError::NonRegularFile { path } => {
-            AuthorPackageDirectoryError::NonRegularFile { path }
+            PackageDirectoryError::NonRegularFile { path }
         }
         DirectoryFileError::LimitExceeded {
             path,
             observed,
             limit,
-        } => AuthorPackageDirectoryError::LimitExceeded {
+        } => PackageDirectoryError::LimitExceeded {
             path,
-            resource: AuthorPackageDirectoryResource::SourceFileBytes,
+            resource: PackageDirectoryResource::SourceFileBytes,
             observed,
             limit,
         },
-        DirectoryFileError::Allocation { path, source } => {
-            AuthorPackageDirectoryError::Allocation {
-                path: Some(path),
-                source,
-            }
-        }
+        DirectoryFileError::Allocation { path, source } => PackageDirectoryError::Allocation {
+            path: Some(path),
+            source,
+        },
     }
 }
 
@@ -199,7 +191,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
-    use crate::AuthorPackageDirectory;
+    use crate::PackageDirectory;
 
     struct TestDirectory(PathBuf);
 
@@ -238,7 +230,7 @@ mod tests {
         root.write("a/part.eqi", b"public component Part {}");
         root.write("a/notes.txt", b"not Eqiora source");
 
-        let sources = AuthorPackageDirectory::open_ambient(&root.0)
+        let sources = PackageDirectory::open_ambient(&root.0)
             .expect("open project root")
             .discover_project_sources()
             .expect("discover project sources");
@@ -258,10 +250,10 @@ mod tests {
         symlink("target.eqi", root.0.join("main.eqi")).expect("create source symlink");
 
         assert!(matches!(
-            AuthorPackageDirectory::open_ambient(&root.0)
+            PackageDirectory::open_ambient(&root.0)
                 .expect("open project root")
                 .discover_project_sources(),
-            Err(AuthorPackageDirectoryError::NonRegularFile { path })
+            Err(PackageDirectoryError::NonRegularFile { path })
                 if path.as_str() == "main.eqi"
         ));
     }
@@ -269,19 +261,11 @@ mod tests {
     #[test]
     fn project_resource_limit_rejects_the_first_excess() {
         let path = NormalizedRelativePath::parse("main.eqi").expect("test path");
-        assert!(
-            check_limit(
-                path.clone(),
-                AuthorPackageDirectoryResource::ProjectEntries,
-                4,
-                4,
-            )
-            .is_ok()
-        );
+        assert!(check_limit(path.clone(), PackageDirectoryResource::ProjectEntries, 4, 4,).is_ok());
         assert!(matches!(
-            check_limit(path, AuthorPackageDirectoryResource::ProjectEntries, 5, 4,),
-            Err(AuthorPackageDirectoryError::LimitExceeded {
-                resource: AuthorPackageDirectoryResource::ProjectEntries,
+            check_limit(path, PackageDirectoryResource::ProjectEntries, 5, 4,),
+            Err(PackageDirectoryError::LimitExceeded {
+                resource: PackageDirectoryResource::ProjectEntries,
                 observed: 5,
                 limit: 4,
                 ..

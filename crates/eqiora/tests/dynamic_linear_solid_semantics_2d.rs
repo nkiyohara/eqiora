@@ -4,8 +4,8 @@ use eqiora::diagnostic::codes;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::BoundarySide;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
@@ -66,7 +66,7 @@ fn direct_and_exact_package_models_have_equal_dynamic_solid_meaning() {
         reordered_root
             .package_identity()
             .expect("reordered root identity"),
-        "dependency aliases, Cartesian boundary declaration/family order, and Connection order cannot enter root semantic identity"
+        "import aliases, Cartesian boundary declaration/family order, and Connection order cannot enter root semantic identity"
     );
     let packaged = compile_prepared_root(&solid, &mechanics, &canonical_root);
     let reordered = compile_prepared_root(&solid, &mechanics, &reordered_root);
@@ -589,11 +589,8 @@ fn public_release(package: &str, dependencies: &[PackageReleaseV1]) -> PackageRe
 }
 
 fn inline_solid_release(mechanics: &PackageReleaseV1, source: &str) -> PackageReleaseV1 {
-    let dependency = DependencyRequirementV1::new(
-        QualifiedName::parse("mechanics").expect("dependency alias"),
-        mechanics.package_identity().expect("mechanics identity"),
-    )
-    .expect("exact mechanics dependency");
+    let dependency =
+        PackageDependencyV1::new(mechanics.package_identity().expect("mechanics identity"));
     prepare_package_release_v1(
         inline_sources(
             "Eqiora.Solid.LinearElasticity",
@@ -651,16 +648,8 @@ fn prepare_root_release(
         "import {solid_name}.linear_elasticity as {solid_alias};\nimport {mechanics_name}.interfaces as {mechanics_alias};\n{source}"
     );
     let dependencies = vec![
-        DependencyRequirementV1::new(
-            QualifiedName::parse(solid_alias).expect("solid alias"),
-            solid.package_identity().expect("solid identity"),
-        )
-        .expect("solid dependency"),
-        DependencyRequirementV1::new(
-            QualifiedName::parse(mechanics_alias).expect("mechanics alias"),
-            mechanics.package_identity().expect("mechanics identity"),
-        )
-        .expect("mechanics dependency"),
+        PackageDependencyV1::new(solid.package_identity().expect("solid identity")),
+        PackageDependencyV1::new(mechanics.package_identity().expect("mechanics identity")),
     ];
     prepare_package_release_v1(
         inline_sources(
@@ -677,13 +666,19 @@ fn prepare_root_release(
 fn inline_sources(
     name: &str,
     version: &str,
-    dependencies: Vec<DependencyRequirementV1>,
+    dependencies: Vec<PackageDependencyV1>,
     model_path: &str,
     model_source: &str,
-) -> AuthorPackageSourcesV1 {
+) -> PackageSourcesV1 {
     let readme = NormalizedRelativePath::parse("README.md").expect("README path");
     let model = NormalizedRelativePath::parse(model_path).expect("model path");
-    let manifest = AuthorManifestV1::new(
+    let manifest = PackageManifestV1::new(
+        &model_path
+            .strip_prefix("src/")
+            .unwrap()
+            .strip_suffix(".eqi")
+            .unwrap()
+            .replace('/', "."),
         QualifiedName::parse(name).expect("package name"),
         ExactVersion::parse(version).expect("exact version"),
         dependencies,
@@ -692,8 +687,8 @@ fn inline_sources(
             BundleEntryV1::new(model.clone(), BundleRoleV1::ModelSource),
         ],
     )
-    .expect("author manifest");
-    AuthorPackageSourcesV1::new(
+    .expect("package manifest");
+    PackageSourcesV1::new(
         manifest,
         vec![
             SourceFileV1::new(

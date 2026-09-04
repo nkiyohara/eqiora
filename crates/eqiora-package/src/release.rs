@@ -2,9 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::canonical;
 use crate::{
-    AuthorManifestV1, CanonicalModelDigest, ContractError, ExactVersion, ModelPackageIdentityV1,
-    PackageCompilationDigest, QualifiedName, ResolutionDigest, ResolutionRecordV1,
-    ResolvedPackageGraph, SemanticContentV1, SourceBundleDigest, SourceBundleV1, SourceFileV1,
+    CanonicalModelDigest, ContractError, ExactVersion, ModelPackageIdentityV1,
+    PackageCompilationDigest, PackageManifestV1, QualifiedName, ResolutionDigest,
+    ResolutionRecordV1, ResolvedPackageGraph, SemanticContentV1, SourceBundleDigest,
+    SourceBundleV1, SourceFileV1,
 };
 
 const RELEASE_SCHEMA: &str = "eqiora.package-release.v1";
@@ -25,7 +26,7 @@ pub struct PackageReleaseV1 {
 
 impl PackageReleaseV1 {
     pub fn new(
-        manifest: AuthorManifestV1,
+        manifest: PackageManifestV1,
         semantic: SemanticContentV1,
         files: Vec<SourceFileV1>,
     ) -> Result<Self, ContractError> {
@@ -74,7 +75,7 @@ impl PackageReleaseV1 {
     }
 
     #[must_use]
-    pub fn manifest(&self) -> &AuthorManifestV1 {
+    pub fn manifest(&self) -> &PackageManifestV1 {
         self.source.manifest()
     }
 
@@ -311,16 +312,16 @@ impl PackageCompilationRecordV2 {
 mod tests {
     use super::*;
     use crate::{
-        BundleEntryV1, BundleRoleV1, CanonicalDeclaration, DeclarationKindV1,
-        DependencyRequirementV1, ExactResolver, InMemoryPackageStore, NormalizedRelativePath,
-        PackageStore, ResolutionNodeV1, ResolutionRecordV1, SemanticDeclarationV1, StoreError,
-        VisibilityV1,
+        BundleEntryV1, BundleRoleV1, CanonicalDeclaration, DeclarationKindV1, ExactResolver,
+        InMemoryPackageStore, NormalizedRelativePath, ResolutionNodeV1, ResolutionRecordV1,
+        SemanticDeclarationV1, VisibilityV1,
     };
 
     #[test]
     fn formatting_changes_only_source_identity() {
         let path = NormalizedRelativePath::parse("src/main.eqi").expect("path");
-        let manifest = AuthorManifestV1::new(
+        let manifest = PackageManifestV1::new(
+            "main",
             QualifiedName::parse("org.example.Main").expect("name"),
             ExactVersion::parse("1.0.0").expect("version"),
             vec![],
@@ -362,7 +363,8 @@ mod tests {
         let source_b = NormalizedRelativePath::parse("models/main.eqi").expect("path");
         let docs = NormalizedRelativePath::parse("guide/README.md").expect("path");
         let make_manifest = |bundle| {
-            AuthorManifestV1::new(
+            PackageManifestV1::new(
+                "main",
                 QualifiedName::parse("org.example.Main").expect("name"),
                 ExactVersion::parse("1.0.0").expect("version"),
                 vec![],
@@ -417,80 +419,11 @@ mod tests {
     }
 
     #[test]
-    fn dependency_alias_changes_source_identity_not_semantic_identity() {
-        let path = NormalizedRelativePath::parse("src/main.eqi").expect("path");
-        let dependency = ModelPackageIdentityV1::new(
-            QualifiedName::parse("org.example.Dependency").expect("dependency name"),
-            ExactVersion::parse("1.0.0").expect("dependency version"),
-            crate::PackageSemanticDigest::parse(&"12".repeat(32))
-                .expect("dependency semantic digest"),
-        );
-        let semantic = SemanticContentV1::new(vec![SemanticDeclarationV1::new(
-            QualifiedName::parse("Main").expect("declaration"),
-            DeclarationKindV1::Model,
-            VisibilityV1::Public,
-            CanonicalDeclaration::new("model Main {}\n").expect("canonical"),
-        )])
-        .expect("semantic");
-        let make = |alias: &str| {
-            PackageReleaseV1::new(
-                AuthorManifestV1::new(
-                    QualifiedName::parse("org.example.Root").expect("name"),
-                    ExactVersion::parse("1.0.0").expect("version"),
-                    vec![
-                        DependencyRequirementV1::new(
-                            QualifiedName::parse(alias).expect("alias"),
-                            dependency.clone(),
-                        )
-                        .expect("dependency"),
-                    ],
-                    vec![BundleEntryV1::new(path.clone(), BundleRoleV1::ModelSource)],
-                )
-                .expect("manifest"),
-                semantic.clone(),
-                vec![SourceFileV1::new(
-                    path.clone(),
-                    BundleRoleV1::ModelSource,
-                    b"model Main {}\n".to_vec(),
-                )],
-            )
-            .expect("release")
-        };
-        let first = make("dependency");
-        let renamed = make("renamed_dependency");
-
-        assert_eq!(first.package_identity(), renamed.package_identity());
-        assert_ne!(first.source_digest(), renamed.source_digest());
-        assert_ne!(first.canonical_json(), renamed.canonical_json());
-
-        let mut store = InMemoryPackageStore::default();
-        let first_key = store.insert(&first).expect("store first release");
-        let renamed_key = store.insert(&renamed).expect("store renamed release");
-        assert_ne!(first_key, renamed_key);
-        assert_eq!(
-            store.load_exact(first_key, 1_000_000).expect("load first"),
-            Some(first.canonical_json().expect("first JSON"))
-        );
-        assert_eq!(
-            store
-                .load_exact(renamed_key, 1_000_000)
-                .expect("load renamed"),
-            Some(renamed.canonical_json().expect("renamed JSON"))
-        );
-
-        let mut collision_store = InMemoryPackageStore::default();
-        collision_store.insert_unchecked(first_key, b"distinct release bytes".to_vec());
-        assert!(matches!(
-            collision_store.insert(&first),
-            Err(StoreError::DigestCollision(actual)) if actual == first_key
-        ));
-    }
-
-    #[test]
     fn compilation_record_is_closed_ordered_and_model_bound() {
         let path = NormalizedRelativePath::parse("src/main.eqi").expect("path");
         let release = PackageReleaseV1::new(
-            AuthorManifestV1::new(
+            PackageManifestV1::new(
+                "main",
                 QualifiedName::parse("org.example.Main").expect("name"),
                 ExactVersion::parse("1.0.0+cpu").expect("version"),
                 vec![],

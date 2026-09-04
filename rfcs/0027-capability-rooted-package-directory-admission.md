@@ -7,7 +7,7 @@
 
 ## Summary
 
-Eqiora may construct RFC 0022 `AuthorPackageSourcesV1` from one explicitly
+Eqiora may construct RFC 0022 `PackageSourcesV1` from one explicitly
 supplied directory capability. The adapter reads only `package.json` and its
 closed normalized inventory, without directory discovery, post-root symbolic
 link traversal, or a second package meaning.
@@ -30,20 +30,20 @@ an abstraction exists.
 The bounded Rust surface is:
 
 ```rust
-pub struct AuthorPackageDirectory { /* retained capability */ }
+pub struct PackageDirectory { /* retained capability */ }
 
-impl AuthorPackageDirectory {
+impl PackageDirectory {
     pub fn try_from_dir(
         root: cap_std::fs::Dir,
-    ) -> Result<Self, AuthorPackageDirectoryError>;
+    ) -> Result<Self, PackageDirectoryError>;
 
     pub fn open_ambient(
         root: impl Into<std::path::PathBuf>,
-    ) -> Result<Self, AuthorPackageDirectoryError>;
+    ) -> Result<Self, PackageDirectoryError>;
 
     pub fn read_sources(
         &self,
-    ) -> Result<AuthorPackageSourcesV1, AuthorPackageDirectoryError>;
+    ) -> Result<PackageSourcesV1, PackageDirectoryError>;
 }
 ```
 
@@ -66,14 +66,14 @@ For one call to `read_sources`:
    and nonblocking.
 2. Require a regular file and reject its metadata length before allocating or
    reading beyond the manifest budget.
-3. Decode the closed `AuthorManifestV1` and use only its normalized inventory.
+3. Decode the closed `PackageManifestV1` and use only its normalized inventory.
 4. For each inventory path, open every intermediate component with
    `DirExt::open_dir_nofollow` and the final component with no-follow,
    nonblocking options.
 5. Require a regular final file. Read through a fixed stack buffer, check the
    remaining budget before extending owned storage, and use a one-byte stack
    probe at the exact limit to distinguish EOF from growth.
-6. Pass the manifest and owned bytes to `AuthorPackageSourcesV1`, which retains
+6. Pass the manifest and owned bytes to `PackageSourcesV1`, which retains
    role, exact inventory, UTF-8 model-source, file-count, canonical-order, and
    aggregate validation authority.
 
