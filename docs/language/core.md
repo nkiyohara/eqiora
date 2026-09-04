@@ -11,6 +11,9 @@ Specimens: [resistor divider](divider.md), [heated body](heated-body.md),
 [sampled state](sampled-state.md), [data-backed property](data-backed-property.md),
 [finite-state mathematics](finite-state.md).
 
+The [calculus and branching rules](calculus.md) include the foundation audit's explicit
+partials, continuous time, second-order oscillator, and piecewise constitutive examples.
+
 ## Source and modules
 
 A source file is UTF-8. Identifiers are case-sensitive. Whitespace separates tokens but does
@@ -218,6 +221,10 @@ From strongest to weakest binding:
 | `*`, `/` | Left |
 | `+`, `-` | Left |
 | `<`, `<=`, `>`, `>=`, `==`, `!=` | Non-associative |
+| `not` | Prefix Boolean negation, below comparisons |
+| `and` | Left, short-circuit |
+| `or` | Left, short-circuit |
+| `if predicate then value else value` | Right-nested conditional expression |
 
 Power admits a signed right operand. Therefore `-x^2` means `-(x^2)`, `x^-2` means
 `x^(-2)`, and `x^y^z` means `x^(y^z)`. Parentheses are required for chained predicates;
