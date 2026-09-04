@@ -78,10 +78,9 @@ alias of native evidence. Static programs are retained process-locally because
 autograd and compiled graphs may outlive a temporary wrapper; mutable
 evaluations and derivatives are not cached.
 
-Only in-process `torch.compile(fullgraph=True)` belongs to the current claim.
-Double backward, `vmap`, AMP, CUDA, Tensor subclasses, `torch.export`, graph
-serialization, AOT packaging, module reload, and multiprocessing remain
-nonclaims.
+The current adapter supports in-process `torch.compile(fullgraph=True)` with
+first-order gradients. Double backward, `vmap`, AMP, CUDA, `torch.export`, and
+AOT packaging are not yet supported.
 
 ## JAX
 

@@ -8,7 +8,7 @@ interface Props {
   outcome: string;
   boundary: string;
   establishes: string;
-  nonclaims: string;
+  limits: string;
   routeHref?: string;
   routeLabel?: string;
   casePath?: string;
@@ -16,7 +16,7 @@ interface Props {
 }
 
 const {
-  id, title, status, outcome, boundary, establishes, nonclaims,
+  id, title, status, outcome, boundary, establishes, limits,
   routeHref, routeLabel, casePath, technicalHref,
 } = Astro.props;
 ---
@@ -30,7 +30,7 @@ const {
   <dl>
     <div><dt>Exact boundary</dt><dd>{boundary}</dd></div>
     <div><dt>What this establishes</dt><dd>{establishes}</dd></div>
-    <div><dt>Important non-claims</dt><dd>{nonclaims}</dd></div>
+    <div><dt>Current limits</dt><dd>{limits}</dd></div>
   </dl>
   {(routeHref || casePath || technicalHref) && (
     <p class="eq-capability__links">

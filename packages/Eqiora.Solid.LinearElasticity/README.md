@@ -13,28 +13,15 @@ The Connector types the displacement/traction dimensions, spatial-vector
 shape, Cartesian frame, and Euclidean boundary duality. Each occurrence-bound
 Port supplies the exact Boundary support; parent-outward orientation is
 derived from that Boundary's `BoundaryOf` relation. For quasistatic
-displacement, the pairing represents virtual work rather than an implicit
-claim about velocity power.
+displacement, the pairing represents virtual work.
 
-The balance and interface Components own no Domain, Field, load definition,
-or prescribed boundary data. `FixedDisplacement2d` and `ZeroTraction2d` own
-only the exact zero semantic boundary laws: they prescribe zero complete
-displacement trace or zero parent-outward traction on one occurrence-bound
-Boundary. No Component owns a mesh, element, quadrature rule, assembly policy,
-solver, execution target, or schedule. An enclosing Model supplies the exact
-body, its explicit complete boundary set, occurrence Fields, loads, and
-terminal connections, then realizes the ordinary flattened Relation network
-independently. The package has no privileged compiler or execution path.
+`FixedDisplacement2d` and `ZeroTraction2d` prescribe zero complete displacement
+trace or zero parent-outward traction on one occurrence-bound Boundary. An
+enclosing Model supplies the exact body, complete boundary set, occurrence
+Fields, loads, and terminal connections. Mesh, element, quadrature, solver,
+target, and schedule remain ordinary Realization choices.
 
-Version `0.3.0` intentionally does not claim a live coupled boundary
-Realization, nonzero prescribed boundary data, arbitrary boundary subsets,
-plane-stress or plane-strain reduction, anisotropy, three dimensions,
-nonlinear kinematics, dynamics, contact, or a broad solid-mechanics library.
-Those features must extend the same Model/Realization boundary rather than
-enter through package-specific numerical behavior.
-
-Version `0.4.0` preserves those four declarations and adds first-order
-small-strain dynamics without adding a time method. The
+Version `0.4.0` adds first-order small-strain dynamics. The
 `IsotropicElastodynamicsWithPotential2d` Component owns the two canonical
 Relations
 
@@ -50,10 +37,7 @@ positive value. Its separate
 `ElastodynamicMechanicalInterface2d` Component binds the velocity trace and
 parent-outward elastic traction to the exact
 `Eqiora.Mechanics.Interfaces@0.1.0::VelocityTractionBoundary` Connector. This
-is a power-conjugate dynamic boundary; it does not convert the older nominal
-quasistatic Connector or make displacement and velocity interchangeable.
+is a power-conjugate dynamic boundary, distinct from the quasistatic Connector.
 
-The new release still owns no initial field, mass matrix, element, time step,
-integration method, coupled pressure policy, solver, or execution target.
-Spatial discretization, structural-dynamics execution, FSI, ALE, nonlinear
-kinematics, and contact remain explicit nonclaims.
+The enclosing Model and Realization supply initial fields, spatial and time
+discretization, solver, and execution target.

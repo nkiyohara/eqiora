@@ -21,8 +21,6 @@ then use the focused guides:
 - [Generated API reference](api.md) is derived only from the public type
   stubs shipped in the distribution.
 
-The exact verified capability boundary and important nonclaims remain
-authoritative in the
-[capability matrix](https://github.com/nkiyohara/eqiora/blob/main/docs/capability-matrix.md).
-These guides explain how to use accepted capabilities; they do not widen
-them.
+See the
+[capability matrix](https://github.com/nkiyohara/eqiora/blob/main/docs/capability-matrix.md)
+for the current implementation and verification status of each feature.

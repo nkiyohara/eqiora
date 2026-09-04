@@ -209,8 +209,7 @@ figure.savefig("exact-cylinder-pressure.png")
 The adapter selects an exact Model-bound Field from the accepted Result rather
 than accepting raw arrays. It uses the Result's paired Mesh connectivity,
 vertex-associated P1 pressure, and Rust-owned full pressure range in pascals.
-This slice does not claim arbitrary fields, vectors, animation,
-media-publication, or visual validation.
+The plotting helper currently supports scalar vertex and cell fields.
 
 The same accepted objects can be composed in the optional interactive
 Notebook viewer without converting them to renderer-shaped dictionaries:

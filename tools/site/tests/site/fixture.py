@@ -687,7 +687,7 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/": _home_body().format(python_version=python_version),
         "/api/": "<h1>API</h1><p>Eqiora API overview.</p>",
         "/architecture/": "<h1>Architecture</h1><p>Eqiora architecture.</p>",
-        "/capabilities/": '<h1>Capabilities</h1><p>Available Executable Checked Verified</p><h2>Thermal</h2><p>Exact boundary What this establishes Important non-claims</p><article id="exact-cylinder-steady-stokes"><h3>Exact-cylinder steady Stokes product path</h3></article><h2>Technical catalog</h2><a href="/evidence/#exact-packaged-steady-incompressible-stokes-component">Technical evidence entry</a>',
+        "/capabilities/": '<h1>Capabilities</h1><p>Available Executable Checked Verified</p><h2>Thermal</h2><p>Exact boundary What this establishes Current limits</p><article id="exact-cylinder-steady-stokes"><h3>Exact-cylinder steady Stokes product path</h3></article><h2>Technical catalog</h2><a href="/evidence/#exact-packaged-steady-incompressible-stokes-component">Technical evidence entry</a>',
         "/concepts/": "<h1>Concepts</h1><p>Eqiora concepts.</p>",
         "/contributing/": "<h1>Contributing</h1><p>Contribute to Eqiora.</p>",
         "/evidence/": '<h1>Evidence catalog</h1><aside><h2>How to read the technical catalog</h2><p>Case Status Reference Conformance kit Target</p><a href="/capabilities/">human-readable Capabilities</a></aside><h2 id="exact-packaged-steady-incompressible-stokes-component">exact packaged steady incompressible Stokes component</h2>',

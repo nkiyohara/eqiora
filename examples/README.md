@@ -1,8 +1,6 @@
 # Examples
 
-Examples are small orientation paths for users. They favor readability and do
-not establish support claims. Reproducible claim/non-claim contracts live under
-[`verify/`](../verify/) and are indexed by `eqiora-verify`.
+Examples are small, readable orientation paths for users.
 
 Run them from the repository root:
 
@@ -32,8 +30,8 @@ python examples/python/fixed_reference_fsi.py
 | `exact-cylinder-mesh` | [`python/exact_cylinder_mesh.py`](python/exact_cylinder_mesh.py) | From an installed `eqiora` package, realize the exact cylinder source with typed Gmsh policy and inspect Rust-derived selection counts. |
 | `steady-cylinder-source` | [`python/steady_cylinder_source.py`](python/steady_cylinder_source.py) | From an installed `eqiora` package, author the complete equations-only steady-cylinder Component as bounded `eqiora.lang.Source` values and emit readable deterministic `.eqi` through the same compiler ingress used by hand-written source. |
 | `exact-cylinder-stokes` | [`python/exact_cylinder_stokes.py`](python/exact_cylinder_stokes.py) | From an installed `eqiora` package, define the sole concrete Geometry in Python, compile it with the shipped equations-only `.eqi` Component, resolve the common MINI/P1 and linear-solve policies, inspect immutable pressure, solver, force, and flux evidence, and optionally save the pressure through `eqiora[gmsh,matplotlib]`. |
-| `transient-cylinder-wake` | [`python/transient_cylinder_wake.py`](python/transient_cylinder_wake.py) | From an installed package, compose the Python-authored cylinder Geometry, packaged steady and transient equation Components, common Mesh and typed policies, ten accepted nonzero startup States through 0.1 s, typed cell-average vorticity, and an optional caller-owned Figure. This bounded product example is explicitly unverified and does not show a developed wake. |
-| `transient-cylinder-wake-colab` | [`python/transient_cylinder_wake_colab.ipynb`](python/transient_cylinder_wake_colab.ipynb) | In a clean Colab runtime, install the pinned `0.1.0a7` package from PyPI, follow the same public ten-step startup workflow, and inspect the final accepted State and caller-owned Figure without maintainer-owned Drive state. The experience is explicitly unverified. |
+| `transient-cylinder-wake` | [`python/transient_cylinder_wake.py`](python/transient_cylinder_wake.py) | From an installed package, compose the Python-authored cylinder Geometry, packaged steady and transient equation Components, common Mesh and typed policies, ten accepted nonzero startup States through 0.1 s, typed cell-average vorticity, and an optional caller-owned Figure. |
+| `transient-cylinder-wake-colab` | [`python/transient_cylinder_wake_colab.ipynb`](python/transient_cylinder_wake_colab.ipynb) | In a clean Colab runtime, install the pinned `0.1.0a7` package from PyPI, follow the same public ten-step startup workflow, and inspect the final accepted State and caller-owned Figure. |
 | `mixed-boundary-elasticity` | [`python/mixed_boundary_elasticity.py`](python/mixed_boundary_elasticity.py) | Define the sole concrete rectangle in Python, compile the shipped equations-only Component, resolve Q1 and linear-solve policies, run the common Result path, and optionally save a caller-owned deformed-field Figure. |
 | `fixed-reference-fsi` | [`python/fixed_reference_fsi.py`](python/fixed_reference_fsi.py) | Author the adjacent Geometry in Python, compile the equations-only FSI Component, scope MINI/P1 and P1 to exact Model Domains, initialize four exact Fields, and run the common root Plan/State/Run lifecycle. |
 | `steady-flow-past-cylinder` | [`steady-flow-past-cylinder.eqi`](steady-flow-past-cylinder.eqi), [exact geometry](steady-flow-past-cylinder.geometry.json) | Python supplies the concrete Geometry to the equations-only `.eqi`, then uses the common root Plan lifecycle. |
@@ -41,14 +39,10 @@ python examples/python/fixed_reference_fsi.py
 Examples keep the Model, typed numerical Plan, and execution visibly separate;
 their mesh, discretization, solver, and placement choices remain explicit. The
 exact-cylinder Stokes example uses that same common lifecycle with one bounded
-Geometry, Gmsh, MINI/P1, and linear-solve configuration. It is not a default
-Realization for other fluid problems.
+Geometry, Gmsh, MINI/P1, and linear-solve configuration.
 
-The [Poisson walkthrough](../docs/site/examples.md) explains what each stage
-means and what the reported evidence does and does not establish.
+The [Poisson walkthrough](../docs/site/examples.md) explains what each stage means.
 
 The cylinder source and Python-authored exact geometry form one checked
 workflow. Its 50-chord mesh is an error-controlled realization of the exact
-circle; the example does not claim curved
-finite elements, Navier--Stokes flow, a drag coefficient, vortex shedding,
-mesh convergence, or a benchmark comparison.
+circle.
