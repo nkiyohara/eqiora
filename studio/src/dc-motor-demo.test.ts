@@ -69,17 +69,14 @@ function acceptedResult(runDigest = digest("a")): DcMotorDemoResult {
       edges: [
         {
           declaring: "Eqiora.Electromechanical.DcDrive@0.1.0",
-          alias: "electrical",
           target: "Eqiora.Electrical.Basic@0.1.0",
         },
         {
           declaring: "org.example.dc_motor_control@0.1.0",
-          alias: "drive",
           target: "Eqiora.Electromechanical.DcDrive@0.1.0",
         },
         {
           declaring: "org.example.dc_motor_control@0.1.0",
-          alias: "electrical",
           target: "Eqiora.Electrical.Basic@0.1.0",
         },
       ],
@@ -114,6 +111,14 @@ describe("packaged DC-drive Studio protocol", () => {
   it("accepts one closed payload and rejects structural trajectory drift", () => {
     const accepted = acceptedResult();
     expect(dcMotorDemoResultSchema.safeParse(accepted).success).toBe(true);
+    const obsoleteAlias = {
+      ...accepted,
+      packageGraph: {
+        ...accepted.packageGraph,
+        edges: accepted.packageGraph.edges.map((edge) => ({ ...edge, alias: "electrical" })),
+      },
+    };
+    expect(dcMotorDemoResultSchema.safeParse(obsoleteAlias).success).toBe(false);
 
     const perStepVoltage = structuredClone(accepted);
     const mutatedSample = perStepVoltage.trajectory.samples[5];

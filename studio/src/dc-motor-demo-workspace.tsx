@@ -178,13 +178,11 @@ export function DcMotorDemoWorkspace({ result }: DcMotorDemoWorkspaceProps) {
                 </article>
               ))}
             </div>
-            <ul className="dc-drive__edges" aria-label="Package dependency aliases">
+            <ul className="dc-drive__edges" aria-label="Package dependencies">
               {result.packageGraph.edges.map((edge) => (
-                <li key={`${edge.declaring}:${edge.alias}`}>
+                <li key={`${edge.declaring}:${edge.target}`}>
                   <code>{packageShortName(edge.declaring.split("@")[0] ?? edge.declaring)}</code>
                   <span>uses</span>
-                  <strong>{edge.alias}</strong>
-                  <span>→</span>
                   <code>{packageShortName(edge.target.split("@")[0] ?? edge.target)}</code>
                 </li>
               ))}

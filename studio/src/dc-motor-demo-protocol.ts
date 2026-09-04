@@ -81,7 +81,6 @@ export const dcMotorDemoResultSchema = z
             z
               .object({
                 declaring: packageLabelSchema,
-                alias: z.enum(["drive", "electrical"]),
                 target: packageLabelSchema,
               })
               .strict(),
@@ -205,12 +204,12 @@ export const dcMotorDemoResultSchema = z
       }
     }
     const expectedEdges = new Set([
-      "Eqiora.Electromechanical.DcDrive@0.1.0|electrical|Eqiora.Electrical.Basic@0.1.0",
-      "org.example.dc_motor_control@0.1.0|drive|Eqiora.Electromechanical.DcDrive@0.1.0",
-      "org.example.dc_motor_control@0.1.0|electrical|Eqiora.Electrical.Basic@0.1.0",
+      "Eqiora.Electromechanical.DcDrive@0.1.0|Eqiora.Electrical.Basic@0.1.0",
+      "org.example.dc_motor_control@0.1.0|Eqiora.Electromechanical.DcDrive@0.1.0",
+      "org.example.dc_motor_control@0.1.0|Eqiora.Electrical.Basic@0.1.0",
     ]);
     const actualEdges = new Set(
-      result.packageGraph.edges.map((edge) => `${edge.declaring}|${edge.alias}|${edge.target}`),
+      result.packageGraph.edges.map((edge) => `${edge.declaring}|${edge.target}`),
     );
     if (
       actualEdges.size !== expectedEdges.size ||

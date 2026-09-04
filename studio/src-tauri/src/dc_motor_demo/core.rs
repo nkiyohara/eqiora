@@ -106,7 +106,6 @@ struct PackageNode {
 #[serde(rename_all = "camelCase")]
 struct PackageEdge {
     declaring: String,
-    alias: String,
     target: String,
 }
 
@@ -428,7 +427,6 @@ fn package_graph(packages: &PreparedPackages) -> Result<PackageGraph, String> {
         .iter()
         .map(|edge| PackageEdge {
             declaring: identity_label(edge.declaring()),
-            alias: edge.alias().to_string(),
             target: identity_label(edge.target()),
         })
         .collect();
