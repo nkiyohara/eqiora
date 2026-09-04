@@ -1,0 +1,111 @@
+---
+title: 5. Fields and spatial domains
+description: Place scalar and vector quantities on explicit supports, then read gradient, divergence, trace, and normal operators by their physical roles.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+<Aside type="note" title="Chapter status">
+  **Illustrative · compile-only.** The excerpts target the current
+  <ReleaseIdentity /> surface and come from a checked-in spatial model.
+</Aside>
+
+## A field needs somewhere to live
+
+A scalar such as pressure assigns one value to each point of a region. A
+velocity field assigns a spatial vector. Writing only a quantity and its unit
+is therefore incomplete: a spatial model must also say which support carries
+the field and what shape its values have.
+
+Eqiora separates the semantic support from concrete geometry. A volume says
+that a field lives in a region; its boundaries identify the places where the
+interior model meets its surroundings. Meshes and discretization choices come
+later.
+
+## Learning outcomes
+
+After this chapter, you should be able to:
+
+- distinguish a field's support, representation, dimension, and value shape;
+- read `grad`, `div`, `trace`, and `normal` by their mathematical roles;
+- identify which quantities live in a volume and which are compared on its
+  boundary; and
+- diagnose an operator applied to the wrong kind of field.
+
+## Name the region and its boundaries
+
+The steady cylinder example declares one two-dimensional fluid volume and four
+named parts of its boundary:
+
+```eqiora
+public support fluid: volume(ambient_dimension = 2);
+public support inlet: boundary(parent = fluid);
+public support outlet: boundary(parent = fluid);
+public support walls: boundary(parent = fluid);
+public support cylinder: boundary(parent = fluid);
+
+representation space = continuum;
+field velocity on fluid as space: m / s shape spatial_vector;
+field pressure on fluid as space: kg / (m * s ^ 2) = 0;
+```
+
+`velocity` and `pressure` share the support `fluid`, but their value shapes
+differ. The four boundary supports do not create four new fluids; they name
+where distinct boundary relations apply.
+
+## Read spatial operators by where they act
+
+For a scalar field $p$ and vector field $\boldsymbol{u}$:
+
+| Expression | Meaning | Where the result is used |
+| --- | --- | --- |
+| $\nabla p$ | spatial rate of change of a scalar | in the volume |
+| $\nabla\!\cdot\boldsymbol{u}$ | net outward tendency per unit volume | in the volume |
+| $\operatorname{tr}\boldsymbol{u}$ | interior value restricted to a boundary | on the boundary |
+| $\boldsymbol{T}\boldsymbol{n}$ | normal action of a tensor | on the boundary |
+
+The operators also transform dimensions. If velocity has dimension $L/T$,
+its divergence has dimension $1/T$. If pressure has dimension force per area,
+its gradient has dimension force per volume. Shape and dimension are separate
+checks, and both must make sense.
+
+The model uses these roles directly:
+
+```eqiora
+relation incompressibility continuous on fluid {
+  div(velocity) = 0;
+}
+
+relation wall_velocity continuous on walls {
+  trace(velocity) = 0;
+}
+```
+
+The first relation is an interior statement. The second compares the boundary
+trace of the interior velocity with a prescribed zero velocity.
+
+<ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Read the complete steady-flow model</ExactSourceLink>.
+
+## Deliberate failure: divergence of a scalar
+
+Replace the incompressibility relation with `div(pressure) = 0`. Pressure is a
+scalar, while divergence here expects a spatial vector or tensor. The field is
+still on the right support and its unit is still valid, but the operator has no
+matching shape. Repair the mathematical statement; changing the mesh or solver
+cannot make the expression meaningful.
+
+## Exercises
+
+1. State the support, dimension, and value shape of `velocity` and `pressure`.
+2. Explain why `trace(velocity)` belongs in a relation on `walls`, not in the
+   volume relation for incompressibility.
+3. If temperature has dimension $\Theta$, what dimension does its gradient
+   have?
+4. Add a named `symmetry` boundary to the support declarations. What physical
+   relation would still need to be supplied before the name has meaning?
+
+[Previous: Ordinary differential equations](/textbooks/mathematical-modeling/ordinary-differential-equations/) ·
+[Back to the series map](/textbooks/mathematical-modeling/) ·
+[Next: Conservation laws](/textbooks/mathematical-modeling/conservation-laws/)

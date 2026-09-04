@@ -1,0 +1,111 @@
+---
+title: 7. Constitutive laws
+description: Close conservation equations with material relations for Newtonian flow and linear elasticity.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+
+<Aside type="note" title="Chapter status">
+  **Illustrative · compile-only.** The fluid and solid excerpts target the
+  current <ReleaseIdentity /> standard packages.
+</Aside>
+
+## Conservation needs material behavior
+
+Conservation constrains storage and transport, but usually does not say how a
+material carries flux or stress. A constitutive law supplies that closure. Its
+parameters and assumptions describe the modeled material, not a universal
+identity.
+
+## Learning outcomes
+
+After this chapter, you should be able to:
+
+- separate a balance law from the constitutive relation that closes it;
+- read Newtonian viscosity and isotropic linear elasticity in residual form;
+- check the dimensions of material parameters; and
+- identify when a constitutive assumption is unsuitable even though its source
+  is well typed.
+
+## Newtonian viscous stress
+
+For the steady fluid component, the Cauchy stress is represented by
+
+$$
+\boldsymbol{\sigma}
+= 2\mu\,\operatorname{sym}(\nabla\boldsymbol{u}) - p\boldsymbol{I}.
+$$
+
+Velocity gradient has dimension $1/T$. Dynamic viscosity $\mu$ has dimension
+$M/(LT)$, so their product has pressure dimension $M/(LT^2)$. The isotropic
+pressure term has the same dimension and tensor shape.
+
+The package places that expression inside momentum balance:
+
+```eqiora
+2 * dynamic_viscosity * symmetric_part(grad(velocity))
+  - isotropic_lift(pressure)
+```
+
+This is a Newtonian, isotropic relation. Selecting it is a modeling decision.
+
+## Isotropic linear elasticity
+
+For small displacement $\boldsymbol{d}$, the solid package uses
+
+$$
+\boldsymbol{\sigma}
+=2\mu_s\,\operatorname{sym}(\nabla\boldsymbol{d})
++\lambda\,(\nabla\!\cdot\boldsymbol{d})\boldsymbol{I}.
+$$
+
+Both strain measures are dimensionless. The Lamé parameters $\mu_s$ and
+$\lambda$ therefore have stress dimension. Eqiora expresses the balance as:
+
+```eqiora
+relation balance continuous on body {
+  -div(
+    2 * shear_modulus * symmetric_part(grad(displacement))
+    + first_lame_parameter * isotropic_lift(div(displacement))
+  ) - grad(load_potential) = 0;
+}
+```
+
+The plane-strain and plane-stress components derive different Lamé parameters
+from Young's modulus and Poisson's ratio. They share an equilibrium structure
+while making different kinematic assumptions.
+
+<ExactSourceLink path="packages/releases/Eqiora.Solid/0.2.0/src/solid.eqi" kind="blob">Read the standard solid components</ExactSourceLink>.
+
+## Parameters do not validate the material model
+
+Dimensional checking can reject a viscosity supplied in metres or a Young's
+modulus supplied in seconds. It cannot establish that a fluid is Newtonian,
+that deformation is small, or that an isotropic material adequately describes
+the specimen. Those judgments come from the phenomenon, scale, and intended
+use of the model.
+
+## Deliberate failure: give viscosity the pressure dimension
+
+If `dynamic_viscosity` is declared as `kg / (m * s ^ 2)`, multiplying it by
+`grad(velocity)` produces pressure per time rather than pressure. It can no
+longer be subtracted from `isotropic_lift(pressure)`. The dimensional error
+points to the parameter declaration; rearranging the momentum equation does
+not repair it.
+
+## Exercises
+
+1. Verify the dimensions of both terms in the Newtonian stress.
+2. Explain which part of the fluid example is conservation and which part is
+   constitutive closure.
+3. Show that displacement gradient is dimensionless.
+4. Compare the plane-stress and plane-strain parameter expressions in the
+   standard package. Which balance and interface structures stay unchanged?
+5. Name a material behavior for which isotropic linear elasticity would be a
+   poor assumption, even if every unit checks.
+
+[Previous: Conservation laws](/textbooks/mathematical-modeling/conservation-laws/) ·
+[Back to the series map](/textbooks/mathematical-modeling/) ·
+[Next: Boundary and interface conditions](/textbooks/mathematical-modeling/boundary-interface-conditions/)

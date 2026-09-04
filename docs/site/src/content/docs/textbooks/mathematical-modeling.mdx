@@ -12,10 +12,11 @@ model from its numerical realization. It teaches how phenomena become typed
 relations before a discretization or solver is chosen.
 
 <Aside type="note" title="Publication status">
-  **In progress · 4 published foundation chapters · 1 executable simulation
+  **In progress · 8 published foundation chapters · 1 executable simulation
   chapter · current <ReleaseIdentity />.** Chapters 1–3 establish model
-  structure and compile-time checks. Chapter 4 runs one bounded scalar ODE and
-  compares three observations with its closed form.
+  structure and compile-time checks, Chapter 4 runs one bounded scalar ODE,
+  and Chapters 5–8 develop the spatial modeling vocabulary used by the domain
+  books.
 </Aside>
 
 ## Prerequisites
@@ -39,10 +40,10 @@ meaningless models before simulation.
 2. [**Quantities, dimensions, and units**](/textbooks/mathematical-modeling/quantities-dimensions-units/) — quantities, dimensions, consistency, and the boundary of dimensional checking. **Published · Illustrative.**
 3. [**Algebraic relations and networks**](/textbooks/mathematical-modeling/algebraic-relations-networks/) — unknown counts, constraints, conservation, and acausal composition. **Published · Illustrative.**
 4. [**Ordinary differential equations**](/textbooks/mathematical-modeling/ordinary-differential-equations/) — state, initial conditions, scalar decay, installed execution, and closed-form comparison. **Published · Checked · executable.**
-5. **Fields and spatial domains** — scalar and vector fields, support, gradients, divergence, flux, and integral balance.
-6. **Conservation laws** — storage, flux, source, and local versus integral statements.
-7. **Constitutive laws** — empirical and fundamental relations across transport, mechanics, and networks.
-8. **Boundary and interface conditions** — essential and natural meaning, continuity, and action/reaction.
+5. [**Fields and spatial domains**](/textbooks/mathematical-modeling/fields-spatial-domains/) — scalar and vector fields, support, gradients, divergence, flux, and integral balance. **Published · Illustrative.**
+6. [**Conservation laws**](/textbooks/mathematical-modeling/conservation-laws/) — storage, flux, source, and local versus integral statements. **Published · Illustrative.**
+7. [**Constitutive laws**](/textbooks/mathematical-modeling/constitutive-laws/) — empirical closure across transport and mechanics. **Published · Illustrative.**
+8. [**Boundary and interface conditions**](/textbooks/mathematical-modeling/boundary-interface-conditions/) — essential and natural meaning, continuity, and action/reaction. **Published · Illustrative.**
 9. **Scaling and nondimensionalization** — characteristic scales and dimensionless groups without embedding solver choices.
 10. **Hierarchy and reusable components** — Components, parameters, bindings, occurrences, and model closure.
 11. **Events and hybrid meaning** — guards, resets, sampled behavior, and continuous behavior.
@@ -56,13 +57,11 @@ pressure, Couette flow, axial-bar equilibrium, and a sampled controller. Each
 lesson will include a deliberate dimensional, relation, boundary, or sign error
 so diagnosis is taught alongside the successful path.
 
-## Publication boundary
+## Publication status
 
-Most lessons are intended to be **Illustrative** or **Checked** through
-dimensional identities and closed-form relations. None is executable until its
-derivation, installed-release source, comparison, failure mode, exercises,
-accessibility, and explicit limitations ship together. This series is not an
-API manual, symbolic theorem prover, or promise of general equation coverage.
+Each chapter is labeled **Illustrative**, **Checked**, or **executable**. The
+label describes what readers can reproduce today; the reference pages remain
+the authority for exact interfaces.
 
 [Return to all Textbooks](/textbooks/) · [Read product modeling Docs](/python/modeling/) ·
 [Look up exact interfaces](/reference/)
