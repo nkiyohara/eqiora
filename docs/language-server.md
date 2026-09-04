@@ -26,6 +26,7 @@ Each document has a 16 MiB analysis limit. The server publishes ordered
 parser/compiler diagnostics after open and accepted newer changes, clears
 diagnostics on close, and serves whole-document formatting, nested document
 symbols, folding ranges, Markdown declaration hover, and definition locations.
+Resolved references can be found across open modules and exact local packages.
 Lifecycle events are emitted as one JSON object per line on stderr, leaving
 stdout exclusively for LSP framing.
 

@@ -21,11 +21,10 @@ use lsp_types::{
     CancelParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DocumentFormattingParams, DocumentSymbol, DocumentSymbolParams,
     DocumentSymbolResponse, FoldingRange, FoldingRangeParams, FoldingRangeProviderCapability,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
-    HoverProviderCapability, InitializeParams, Location, MarkupContent, MarkupKind, NumberOrString,
-    OneOf, PositionEncodingKind, PublishDiagnosticsParams, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, TextEdit, Uri,
-    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+    Hover, HoverContents, HoverParams, HoverProviderCapability, InitializeParams, MarkupContent,
+    MarkupKind, NumberOrString, OneOf, PositionEncodingKind, PublishDiagnosticsParams,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TextEdit, Uri, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use serde::de::DeserializeOwned;
 
@@ -37,6 +36,8 @@ use crate::{
 };
 
 type ServerResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
+
+mod navigation;
 
 struct OpenDocument {
     uri: Uri,
@@ -408,6 +409,7 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
         )),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
         definition_provider: Some(OneOf::Left(true)),
+        references_provider: Some(OneOf::Left(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
         document_formatting_provider: Some(OneOf::Left(true)),
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
@@ -789,7 +791,11 @@ fn handle_request(
         ),
         "textDocument/definition" => response_from(
             id,
-            decode(request.params).and_then(|params| definition(params, state)),
+            decode(request.params).and_then(|params| navigation::definition(params, state)),
+        ),
+        "textDocument/references" => response_from(
+            id,
+            decode(request.params).and_then(|params| navigation::references(params, state)),
         ),
         _ => Response::new_err(
             id,
@@ -935,36 +941,6 @@ fn markdown_hover(kind: EditorSymbolKind, path: &str, source: &str) -> String {
         "**{}** `{path}`\n\n{fence}eqiora\n{source}\n{fence}",
         symbol_label(kind)
     )
-}
-
-fn definition(
-    params: GotoDefinitionParams,
-    state: &ServerState,
-) -> Result<Option<GotoDefinitionResponse>, String> {
-    let uri = &params.text_document_position_params.text_document.uri;
-    document(state, uri)?;
-    let Some((workspace, file)) = state.resolved(uri) else {
-        return Ok(None);
-    };
-    let position = editor_position(params.text_document_position_params.position);
-    let Some(definition) = workspace.definition_for_reference_at_position(file, position) else {
-        return Ok(None);
-    };
-    let target_uri = state
-        .uri_for_file(uri, definition.file())
-        .ok_or_else(|| "resolved definition URI is unavailable".to_owned())?;
-    let target = workspace
-        .document(definition.file())
-        .ok_or_else(|| "resolved definition document is unavailable".to_owned())?;
-    let definition_range = definition.name_range().unwrap_or(definition.range());
-    let range = source_range(
-        target,
-        usize::try_from(definition_range.start()).map_err(|_| "source offset exceeds usize")?,
-        usize::try_from(definition_range.end()).map_err(|_| "source offset exceeds usize")?,
-    )?;
-    Ok(Some(GotoDefinitionResponse::Scalar(Location::new(
-        target_uri, range,
-    ))))
 }
 
 fn publish_diagnostics(
