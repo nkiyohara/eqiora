@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 165 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 619 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 167 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 619 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 195 literal public spellings, 165 canonical grouped declarations, 816 visible method signatures (619 non-dunder and 197 dunder), and 79 visible class assignments.
+Inventory: 18 modules, 197 literal public spellings, 167 canonical grouped declarations, 816 visible method signatures (619 non-dunder and 197 dunder), and 79 visible class assignments.
 
 Regenerate with:
 
@@ -1576,6 +1576,30 @@ Authority: [`crates/eqiora-python/src/package.rs::resolve_local_project`](../../
 
 ```python
 def resolve_local_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
+```
+
+<a id="api-eqiora-add_local_dependency"></a>
+
+### `eqiora.add_local_dependency`
+
+Add or replace an exact dependency and publish the manifest and lock.
+
+Authority: [`crates/eqiora-python/src/package.rs::add_local_dependency`](../../crates/eqiora-python/src/package.rs)
+
+```python
+def add_local_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, path: str) -> bytes: ...
+```
+
+<a id="api-eqiora-remove_local_dependency"></a>
+
+### `eqiora.remove_local_dependency`
+
+Remove a direct dependency and publish the validated manifest and lock.
+
+Authority: [`crates/eqiora-python/src/package.rs::remove_local_dependency`](../../crates/eqiora-python/src/package.rs)
+
+```python
+def remove_local_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str) -> bytes: ...
 ```
 
 <a id="api-eqiora-run"></a>
