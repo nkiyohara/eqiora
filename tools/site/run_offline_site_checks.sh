@@ -198,8 +198,8 @@ python3 tools/site/build_products.py \
   --receipt "$build_receipt" \
   --cargo "$rustup_proxy_bin/cargo" \
   --rust-toolchain "$selected_rust_toolchain"
-eqiora_binary="$cargo_target/release/eqiora"
-mcp_binary="$cargo_target/release/eqiora-mcp"
+eqiora_binary="$cargo_target/debug/eqiora"
+mcp_binary="$cargo_target/debug/eqiora-mcp"
 test -x "$eqiora_binary"
 test -x "$mcp_binary"
 test "$($eqiora_binary --version)" = "eqiora $cargo_version"
@@ -210,7 +210,7 @@ python3 tools/docs/generate_interface_reference.py \
   --mcp-binary "$mcp_binary" \
   --source-sha "$EQIORA_SITE_SOURCE_SHA" \
   --check
-"$cargo_target/release/xtask" check-facade
+"$cargo_target/debug/xtask" check-facade
 mkdir "$EQIORA_SITE_RUSTDOC_STAGE"
 python3 tools/site/build_rust_reference.py \
   --rustdoc-root "$EQIORA_SITE_RUSTDOC_TARGET/doc" \

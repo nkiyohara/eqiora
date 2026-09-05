@@ -22,7 +22,7 @@ REQUIRED_CONSUMERS = {
     "xtask": "facade-admission",
 }
 REQUIRED_DOMAINS = {
-    "rust-executables": "cargo-release",
+    "rust-executables": "cargo-dev",
     "rust-reference": "cargo-doc/rustdoc-all-features",
 }
 
@@ -52,12 +52,13 @@ def plan(
     return (
         BuildStep(
             name="rust-executables",
-            domain="cargo-release",
+            domain="cargo-dev",
             command=(
                 cargo,
                 "build",
                 "--locked",
-                "--release",
+                "--profile",
+                "dev",
                 "--bins",
                 "--features",
                 "eqiora/cli",
@@ -70,16 +71,21 @@ def plan(
             ),
             products=(
                 Product(
-                    "eqiora-cli", "interface-reference", str(target / "release/eqiora")
+                    "eqiora-cli", "interface-reference", str(target / "debug/eqiora")
                 ),
                 Product(
                     "eqiora-mcp",
                     "interface-reference",
-                    str(target / "release/eqiora-mcp"),
+                    str(target / "debug/eqiora-mcp"),
                 ),
-                Product("xtask", "facade-admission", str(target / "release/xtask")),
+                Product("xtask", "facade-admission", str(target / "debug/xtask")),
             ),
-            environment=rust_environment,
+            environment=(
+                *rust_environment,
+                ("CARGO_PROFILE_DEV_DEBUG", "0"),
+                ("CARGO_PROFILE_DEV_INCREMENTAL", "false"),
+                ("CARGO_PROFILE_DEV_OPT_LEVEL", "0"),
+            ),
         ),
         BuildStep(
             name="rust-reference",
@@ -123,10 +129,14 @@ def validate(build_plan: Sequence[BuildStep]) -> None:
             raise ValueError(
                 f"build step has the wrong compilation domain: {step.name}"
             )
-        if step.name == "rust-executables" and "--release" not in step.command:
-            raise ValueError(
-                f"executable step is outside its release profile: {step.name}"
-            )
+        if step.name == "rust-executables":
+            profile = step.command.index("--profile") if "--profile" in step.command else -1
+            if (
+                "--release" in step.command
+                or profile < 0
+                or step.command[profile + 1 : profile + 2] != ("dev",)
+            ):
+                raise ValueError("executable step is outside its development profile")
         if step.name == "rust-reference" and "--release" in step.command:
             raise ValueError("Rust reference step changed its documentation profile")
         if step.name == "rust-reference" and "--all-features" not in step.command:
