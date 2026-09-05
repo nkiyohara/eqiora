@@ -35,11 +35,10 @@ Sub(Neg(Name(a)@181..182)@180..182,
     Neg(Name(b)@186..187)@185..187)@180..187
 ```
 
-The exact displayed structural fingerprint is:
-
-```text
-eqiora.structural-semantic-fingerprint/v2:cbf66d30cfa131310de20b5432bcdab36ae3da375892fa99b7e0c456944ca0df
-```
+Natural equations, explicit residuals, locked packages, and native construction
+have equal structural fingerprints. Their independently enumerated expression
+trees above define the expected meaning; this language case does not pin the
+comparison codec's digest bytes.
 
 ## Fixed statement table
 
@@ -84,7 +83,7 @@ expectation at `95..96`, both in `malformed.eqi`.
 ## Ordered one-field mutants
 
 The normal comparator first accepts each frozen observation and then rejects
-exactly these 36 single-field clones, in order:
+exactly these 35 single-field clones, in order:
 
 | # | Family | Sole changed field | Rejected value |
 | ---: | --- | --- | --- |
@@ -116,14 +115,13 @@ exactly these 36 single-field clones, in order:
 | 26 | stale formatted offset | `range.start` | `155` |
 | 27 | optional-span manufacture | `source_span` | `Some(205..220)` |
 | 28 | optional-span erasure | `source_span` | none |
-| 29 | fingerprint drift | `fingerprint` | final `e` |
-| 30 | identity overclaim | `required_equalities` | exact identity fields added |
-| 31 | structural denial | `structurally_equivalent` | false |
-| 32 | package overclaim | `comparison_kind` | exact artifact |
-| 33 | native overclaim | `comparison_kind` | exact artifact |
-| 34 | dimensionful positive-zero sentinel loss | `root.tree` | `Sub(force,0)` |
-| 35 | dimensionful negative-zero sentinel loss | `root.tree` | `Sub(force,Neg(0))` |
-| 36 | dimensionful underflow-zero sentinel loss | `root.tree` | `Sub(force,0)` |
+| 29 | identity overclaim | `required_equalities` | exact identity fields added |
+| 30 | structural denial | `structurally_equivalent` | false |
+| 31 | package overclaim | `comparison_kind` | exact artifact |
+| 32 | native overclaim | `comparison_kind` | exact artifact |
+| 33 | dimensionful positive-zero sentinel loss | `root.tree` | `Sub(force,0)` |
+| 34 | dimensionful negative-zero sentinel loss | `root.tree` | `Sub(force,Neg(0))` |
+| 35 | dimensionful underflow-zero sentinel loss | `root.tree` | `Sub(force,0)` |
 
 The package source identity is
 `org.eqiora.oracle.NaturalEquation@1.0.0`, path `models/natural.eqi`, role

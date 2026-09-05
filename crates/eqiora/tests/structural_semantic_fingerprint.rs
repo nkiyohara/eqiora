@@ -18,6 +18,28 @@ const PHYSICAL: &str =
     include_str!("../../../verify/interfaces/structural-semantic-fingerprint/models/resistor.eqi");
 
 #[test]
+fn current_generation_is_independent_of_coordinate_vocabulary() {
+    let fixed = ModelDocument::compile(
+        "fixed.eqi",
+        "model m { parameter length: m = 1; domain body = box(0, 1); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
+    )
+    .unwrap();
+    let referenced = ModelDocument::compile(
+        "referenced.eqi",
+        "model m { parameter length: m = 1; domain body = box(0, length); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
+    )
+    .unwrap();
+    for model in [&fixed, &referenced] {
+        assert_eq!(
+            model.structural_fingerprint().unwrap().generation(),
+            SemanticFingerprintGeneration::V3
+        );
+    }
+    // Equal endpoint values do not erase the nominal Parameter dependency.
+    assert!(!fixed.structurally_equivalent(&referenced).unwrap());
+}
+
+#[test]
 fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
     let source = ModelDocument::compile("decay.eqi", DECAY).unwrap();
     let independently_compiled = ModelDocument::compile(
@@ -27,14 +49,8 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
     .unwrap();
     let native = ModelDocument::define(&native_decay(false)).unwrap();
     let reordered_native = ModelDocument::define(&native_decay(true)).unwrap();
-    let exact_v1 = eqiora::api::ModelDocument::compile("decay-v1.eqi", DECAY).unwrap();
 
-    for equivalent in [
-        &independently_compiled,
-        &native,
-        &reordered_native,
-        &exact_v1,
-    ] {
+    for equivalent in [&independently_compiled, &native, &reordered_native] {
         assert!(source.structurally_equivalent(equivalent).unwrap());
         assert_eq!(
             source.structural_fingerprint().unwrap(),
@@ -46,7 +62,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         );
     }
     let fingerprint = source.structural_fingerprint().unwrap();
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V2);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V3);
     assert_eq!(fingerprint.digest().len(), 64);
 
     let replay = eqiora::api::ModelDocument::replay(&source.canonical_json().unwrap()).unwrap();

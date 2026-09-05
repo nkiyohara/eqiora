@@ -341,7 +341,7 @@ mod full {
         ];
         assert_eq!(
             fingerprints[0].generation(),
-            SemanticFingerprintGeneration::V2
+            SemanticFingerprintGeneration::V3
         );
         assert_eq!(fingerprints[0], fingerprints[1]);
         assert_eq!(fingerprints[0], fingerprints[2]);
@@ -570,7 +570,7 @@ mod full {
         fs::write(&selected, &selected_source).unwrap(); fs::write(&decoy, &decoy_source).unwrap();
         let selected_name = selected.to_str().unwrap(); let decoy_name = decoy.to_str().unwrap();
         let selected_document = ModelDocument::compile(selected_name, &selected_source).unwrap(); let decoy_document = ModelDocument::compile(decoy_name, &decoy_source).unwrap();
-        let selected_fingerprint = selected_document.structural_fingerprint().unwrap(); let decoy_fingerprint = decoy_document.structural_fingerprint().unwrap(); assert_eq!(selected_fingerprint.generation(), SemanticFingerprintGeneration::V2); assert_eq!(decoy_fingerprint.generation(), SemanticFingerprintGeneration::V2); assert_ne!(selected_fingerprint, decoy_fingerprint);
+        let selected_fingerprint = selected_document.structural_fingerprint().unwrap(); let decoy_fingerprint = decoy_document.structural_fingerprint().unwrap(); assert_eq!(selected_fingerprint.generation(), SemanticFingerprintGeneration::V3); assert_eq!(decoy_fingerprint.generation(), SemanticFingerprintGeneration::V3); assert_ne!(selected_fingerprint, decoy_fingerprint);
         let selected_stdout = format!("accepted {selected_fingerprint}\n").into_bytes(); let decoy_stdout = format!("accepted {decoy_fingerprint}\n").into_bytes();
         assert_output(&run(["check", selected_name], &scratch.path), 0, &selected_stdout, b""); assert_output(&run(["check", decoy_name], &scratch.path), 0, &decoy_stdout, b"");
         let substituted = run_oracle_child(&scratch, &["check".into(), selected.as_os_str().to_owned()], "valid-decoy-substitution", "none", Some(&decoy), Some(selected_name)); assert_eq!(substituted.count, 1); assert_eq!(substituted.exit, 0); assert!(substituted.stderr.is_empty()); assert_eq!(substituted.stdout, decoy_stdout); assert_ne!(substituted.stdout, selected_stdout);

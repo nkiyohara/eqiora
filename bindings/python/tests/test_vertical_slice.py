@@ -271,7 +271,7 @@ def test_source_and_native_models_share_only_structural_identity() -> None:
     assert source != native
     assert source.structural_fingerprint == native.structural_fingerprint
     assert source.structural_fingerprint.generation == (
-        "eqiora.structural-semantic-fingerprint/v2"
+        "eqiora.structural-semantic-fingerprint/v3"
     )
     assert len(source.structural_fingerprint.digest) == 64
     assert source.structurally_equivalent(native)

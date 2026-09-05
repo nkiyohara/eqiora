@@ -2,16 +2,16 @@
 
 This case verifies one versioned, non-authoritative identity for comparing
 accepted Semantic Models built through independent authoring routes. The
-generation-v2 projection removes occurrence ULIDs and source presentation but
+generation-v3 projection removes occurrence ULIDs and source presentation but
 retains the complete admitted kernel graph, nominal identity relationships,
 current values, expression structure, physical connections, and Model boundary
-membership. It extends the closed generation-v1 vocabulary with exact
-geometry-region digests and entity-set names plus geometry-boundary names;
-their topology remains in the graph edges.
+membership. Geometry-region digests, entity-set names, geometry-boundary names,
+and Cartesian coordinate source kinds are retained; nominal dependencies and
+topology remain in the graph edges.
 
 The positive fixtures compile independently, use distinct names and declaration
-orders, cross source and native Rust authoring, and cross exact Model artifact
-codecs. Their exact Model artifact references remain distinct while their
+orders, and cross source and native Rust authoring. Their exact Model artifact
+references remain distinct while their
 structural fingerprints and bounded byte-confirmed comparison agree. Exact
 artifact replay retains both identities for their respective purposes.
 
