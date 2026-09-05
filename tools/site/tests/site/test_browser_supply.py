@@ -66,7 +66,6 @@ class BrowserSupplyTests(unittest.TestCase):
         scratch = root / "scratch"
         source = scratch / "source"
         (scratch / "build").mkdir(parents=True)
-        (scratch / "uv-cache").mkdir()
         (source / "docs/site/node_modules").mkdir(parents=True)
         (source / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
         package = {

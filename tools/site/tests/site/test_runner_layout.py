@@ -168,7 +168,6 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
                 "TZ": "UTC",
                 "npm_config_offline": "true",
                 "CARGO_NET_OFFLINE": "true",
-                "UV_OFFLINE": "1",
                 "HOME": str(root / "home"),
                 "PATH": f"{root / 'fixture-bin'}{os.pathsep}{pinned_node_path(root)}",
                 "EQIORA_API_SCRATCH": str(scratch),
@@ -211,7 +210,6 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         scratch = root / "scratch"
         source = scratch / "source"
         (scratch / "build").mkdir(parents=True)
-        (scratch / "uv-cache").mkdir()
         self._copy_locked_browser_supply(source)
         (source / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
         copy_editor_check_inputs(source)
@@ -247,7 +245,6 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         scratch = root / "scratch"
         source = scratch / "source"
         (scratch / "build").mkdir(parents=True)
-        (scratch / "uv-cache").mkdir()
         source.mkdir()
         archive = root / "source.tar"
         with archive.open("wb") as target:

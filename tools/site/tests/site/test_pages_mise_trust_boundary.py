@@ -75,7 +75,6 @@ class PagesMiseTrustBoundaryTests(unittest.TestCase):
         self.assertIn("            unshare --net -- bash -ceu '\n", step)
         self.assertIn("              ip link set lo up\n", step)
         self.assertIn("                  CARGO_NET_OFFLINE=true \\\n", step)
-        self.assertIn("                  UV_OFFLINE=1 \\\n", step)
         self.assertIn("                  npm_config_offline=true \\\n", step)
         self.assertNotIn("mise trust", workflow)
         self.assertNotIn("MISE_YES", workflow)
