@@ -1,9 +1,8 @@
 # RFC 0058: Portable Realization and bound execution graphs
 
-- Status: Implemented and verified for the bounded portable-graph, host,
+- Status: Implemented for the bounded portable-graph, host,
   single-device CUDA, and one-host MPI slices;
   [`numerics.threaded-cpu`](../verify/numerics/threaded-cpu/README.md),
-  [`numerics.canonical-cartesian-poisson-cuda`](../verify/numerics/canonical-cartesian-poisson-cuda/README.md),
   [`numerics.canonical-cartesian-poisson-mpi`](../verify/numerics/canonical-cartesian-poisson-mpi/README.md)
 - Authors: Eqiora contributors
 - Created: 2026-07-21
@@ -373,14 +372,10 @@ The host Phase-B slice verifies pre-pool capability rejection with an
 allocation spy, exact graph/operator/plan/report substitution rejection,
 independent serial true-residual replay, and one common serial/Rayon logical
 DAG with distinct bindings. The registered `numerics.threaded-cpu` application
-case owns the ordinary public-path evidence. The CUDA Phase-B slice is also
-closed for one Q1/TPFA Jacobi-CG/`Fast`, implicit-zero, run-owned
-single-device/single-queue path: it verifies pre-device-allocation binding and
-admission, the seven-transfer/generation trace, real waited input/solve/output
-fences, exact nine-step DAG, native host acceptance, independent receipt
-replay, and complete-output fingerprint. The registered
-`numerics.canonical-cartesian-poisson-cuda` case owns the physical observation
-and ordinary-host structural replay. The MPI Phase-B slice is closed by the
+case owns the ordinary public-path evidence. The CUDA Phase-B implementation
+provides one Q1/TPFA Jacobi-CG/`Fast`, implicit-zero, run-owned
+single-device/single-queue path with pre-device-allocation binding and admission
+and waited input/solve/output fences. The MPI Phase-B slice is closed by the
 registered canonical Q1/TPFA case at one, two, and four ranks on one host. It
 verifies the exact distributed binding and admission identities, bounded
 actual collective trace, fixed nine-step macro DAG, explicit-index owner
