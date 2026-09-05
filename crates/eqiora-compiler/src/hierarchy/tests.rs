@@ -358,10 +358,7 @@ fn external_dimensioned_parameter_failures_are_typed() {
         (
             DynQuantity::new(
                 2.0,
-                DimExponents {
-                    length: 1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
             "has dimension",
         ),

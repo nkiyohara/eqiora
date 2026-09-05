@@ -508,11 +508,11 @@ fn infer_node<I: Clone + Eq, E>(
             power(&base, *exponent)
         }
         ExprNode::SpatialCoordinate(axis) => coordinate(*axis, relation_support),
-        ExprNode::UnaryMath(UnaryMathFunction::Sin, value) => {
+        ExprNode::UnaryMath(function, value) => {
             let Some(value) = inferred_type(inferred, *value) else {
                 return NodeInference::Unavailable;
             };
-            sine(&value)
+            unary_math(*function, &value)
         }
         ExprNode::Gradient(value) => {
             let Some(value) = inferred_type(inferred, *value) else {
@@ -627,11 +627,12 @@ pub fn multiply<I: Clone + Eq>(
         return Err(TypeViolation::MultiplicationRequiresScalar);
     };
     Ok(ExpressionType {
-        dimension: combine_dimensions(left.dimension, right.dimension, i8::checked_add).ok_or(
-            TypeViolation::DimensionOverflow {
+        dimension: left
+            .dimension
+            .mul(right.dimension)
+            .ok_or(TypeViolation::DimensionOverflow {
                 operation: "multiplication",
-            },
-        )?,
+            })?,
         shape,
         frame,
         support: combine_support(&left.support, &right.support)?,
@@ -647,10 +648,11 @@ pub fn divide<I: Clone + Eq>(
         return Err(TypeViolation::DivisionDenominatorNotScalar);
     }
     Ok(ExpressionType {
-        dimension: combine_dimensions(numerator.dimension, denominator.dimension, i8::checked_sub)
-            .ok_or(TypeViolation::DimensionOverflow {
+        dimension: numerator.dimension.div(denominator.dimension).ok_or(
+            TypeViolation::DimensionOverflow {
                 operation: "division",
-            })?,
+            },
+        )?,
         shape: numerator.shape.clone(),
         frame: numerator.frame,
         support: combine_support(&numerator.support, &denominator.support)?,
@@ -666,11 +668,12 @@ pub fn power<I: Clone>(
         return Err(TypeViolation::PowerRequiresScalar);
     }
     Ok(ExpressionType {
-        dimension: scale_dimension(base.dimension, exponent).ok_or(
-            TypeViolation::DimensionOverflow {
+        dimension: base
+            .dimension
+            .pow(exponent, 1)
+            .ok_or(TypeViolation::DimensionOverflow {
                 operation: "integer power",
-            },
-        )?,
+            })?,
         shape: base.shape.clone(),
         frame: base.frame,
         support: base.support.clone(),
@@ -690,16 +693,29 @@ pub fn coordinate<I: Clone>(
         });
     }
     Ok(ExpressionType::scalar(
-        DimExponents {
-            length: 1,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
         Some(support.clone()),
     ))
 }
 
-/// Type a sine application.
-pub fn sine<I: Clone>(operand: &ExpressionType<I>) -> Result<ExpressionType<I>, TypeViolation<I>> {
+/// Type one supported unary mathematical application.
+pub fn unary_math<I: Clone>(
+    function: UnaryMathFunction,
+    operand: &ExpressionType<I>,
+) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if function == UnaryMathFunction::Sqrt {
+        if !operand.shape.is_scalar() || operand.frame != ValueFrame::Invariant {
+            return Err(TypeViolation::PowerRequiresScalar);
+        }
+        let mut result = operand.clone();
+        result.dimension = operand
+            .dimension
+            .pow(1, 2)
+            .ok_or(TypeViolation::DimensionOverflow {
+                operation: "square root",
+            })?;
+        return Ok(result);
+    }
     if !operand.shape.is_scalar()
         || operand.dimension != DimExponents::DIMENSIONLESS
         || operand.frame != ValueFrame::Invariant
@@ -862,17 +878,12 @@ pub fn time_derivative<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
     Ok(ExpressionType {
-        dimension: combine_dimensions(
-            operand.dimension,
-            DimExponents {
-                time: 1,
-                ..DimExponents::DIMENSIONLESS
-            },
-            i8::checked_sub,
-        )
-        .ok_or(TypeViolation::DimensionOverflow {
-            operation: "Field derivative",
-        })?,
+        dimension: operand
+            .dimension
+            .div(DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"))
+            .ok_or(TypeViolation::DimensionOverflow {
+                operation: "Field derivative",
+            })?,
         shape: operand.shape.clone(),
         frame: operand.frame,
         support: operand.support.clone(),
@@ -983,50 +994,11 @@ fn combine_additive_support<I: Clone + Eq>(
 fn spatial_derivative_dimension<I>(
     dimension: DimExponents,
 ) -> Result<DimExponents, TypeViolation<I>> {
-    combine_dimensions(
-        dimension,
-        DimExponents {
-            length: 1,
-            ..DimExponents::DIMENSIONLESS
-        },
-        i8::checked_sub,
-    )
-    .ok_or(TypeViolation::DimensionOverflow {
-        operation: "spatial derivative",
-    })
-}
-
-fn combine_dimensions(
-    left: DimExponents,
-    right: DimExponents,
-    operation: fn(i8, i8) -> Option<i8>,
-) -> Option<DimExponents> {
-    Some(DimExponents {
-        mass: operation(left.mass, right.mass)?,
-        length: operation(left.length, right.length)?,
-        time: operation(left.time, right.time)?,
-        current: operation(left.current, right.current)?,
-        temperature: operation(left.temperature, right.temperature)?,
-        amount: operation(left.amount, right.amount)?,
-        luminous_intensity: operation(left.luminous_intensity, right.luminous_intensity)?,
-    })
-}
-
-fn scale_dimension(dimension: DimExponents, exponent: i32) -> Option<DimExponents> {
-    fn scale(value: i8, exponent: i32) -> Option<i8> {
-        i32::from(value)
-            .checked_mul(exponent)
-            .and_then(|value| i8::try_from(value).ok())
-    }
-    Some(DimExponents {
-        mass: scale(dimension.mass, exponent)?,
-        length: scale(dimension.length, exponent)?,
-        time: scale(dimension.time, exponent)?,
-        current: scale(dimension.current, exponent)?,
-        temperature: scale(dimension.temperature, exponent)?,
-        amount: scale(dimension.amount, exponent)?,
-        luminous_intensity: scale(dimension.luminous_intensity, exponent)?,
-    })
+    dimension
+        .div(DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"))
+        .ok_or(TypeViolation::DimensionOverflow {
+            operation: "spatial derivative",
+        })
 }
 
 #[cfg(test)]

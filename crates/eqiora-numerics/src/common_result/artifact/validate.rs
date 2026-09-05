@@ -52,10 +52,7 @@ pub(super) fn validate_fields(
                 && field_matches(
                     &fields[0],
                     plan.displacement_field_id(),
-                    DimExponents {
-                        length: 1,
-                        ..DimExponents::DIMENSIONLESS
-                    },
+                    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
                     &[2],
                     "continuous-lagrange-p1",
                     &[(CommonFieldAssociation::Vertex, vec![vertices, 2])],
@@ -71,11 +68,7 @@ pub(super) fn validate_fields(
                 && field_matches(
                     &fields[0],
                     plan.velocity_field_id(),
-                    DimExponents {
-                        length: 1,
-                        time: -1,
-                        ..DimExponents::DIMENSIONLESS
-                    },
+                    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
                     &[2],
                     "simplex-p1-bubble",
                     &[
@@ -86,12 +79,8 @@ pub(super) fn validate_fields(
                 && field_matches(
                     &fields[1],
                     plan.pressure_field_id(),
-                    DimExponents {
-                        mass: 1,
-                        length: -1,
-                        time: -2,
-                        ..DimExponents::DIMENSIONLESS
-                    },
+                    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0])
+                        .expect("bounded dimension"),
                     &[],
                     "continuous-lagrange-p1",
                     &[(CommonFieldAssociation::Vertex, vec![vertices])],

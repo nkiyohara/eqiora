@@ -25,28 +25,14 @@ use crate::canonical::{
     unique_root,
 };
 
-const DENSITY: DimExponents = DimExponents {
-    mass: 1,
-    length: -3,
-    ..DimExponents::DIMENSIONLESS
-};
-const MOMENTUM_DENSITY: DimExponents = DimExponents {
-    mass: 1,
-    length: -2,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const ENERGY_DENSITY: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
+const DENSITY: DimExponents =
+    DimExponents::from_integers([1, -3, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const MOMENTUM_DENSITY: DimExponents =
+    DimExponents::from_integers([1, -2, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const ENERGY_DENSITY: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
+const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
 
 /// Exact conservative state order admitted by the private Euler descriptor.
 #[derive(Debug, Clone, Copy, PartialEq)]

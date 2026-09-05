@@ -6,7 +6,7 @@ use eqiora_schema::kernel::ValueFrame;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, FieldSnapshotEnvelopeV1,
+    ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, FieldSnapshotEnvelopeV2,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, MeshDecoderLimits,
     ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1, check_json_limits,
     invalid_artifact,
@@ -51,7 +51,7 @@ impl GeometryStateEnvelopeV1 {
         step: u64,
         time_s: f64,
         predecessor: Option<&Self>,
-        solid_displacement: &FieldSnapshotEnvelopeV1,
+        solid_displacement: &FieldSnapshotEnvelopeV2,
         mut current_coordinates_m: Vec<Vec<f64>>,
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
@@ -340,7 +340,7 @@ impl GeometryStateEnvelopeV1 {
         reference_mesh: &SimplicialMeshEnvelopeV1,
         realization: &(impl CanonicalRealizationArtifact + ?Sized),
         predecessor: Option<&Self>,
-        solid_displacement: &FieldSnapshotEnvelopeV1,
+        solid_displacement: &FieldSnapshotEnvelopeV2,
     ) -> Result<(), Diagnostic> {
         let expected = Self::new(
             model,
@@ -502,7 +502,7 @@ impl GeometryStateEnvelopeV1 {
 }
 
 pub(crate) fn validate_geometry_driver(
-    driver: &FieldSnapshotEnvelopeV1,
+    driver: &FieldSnapshotEnvelopeV2,
     model: &ArtifactDigest,
     realization: &ArtifactDigest,
     geometry: &ArtifactDigest,
@@ -520,10 +520,7 @@ pub(crate) fn validate_geometry_driver(
             "geometry-state displacement driver has stale reference lineage",
         ));
     }
-    let length = DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
     let shape = driver.value_shape();
     if driver.dimension() != length
         || shape.rank() != 1

@@ -49,7 +49,6 @@ WITNESS_COPY = (
     "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
 )
 CASE_EVIDENCE_PATHS = (
-    "verify/artifacts/current-model-canonical-identity/README.md",
     "verify/fluid/packaged-steady-stokes-2d/README.md",
     "verify/geometry/exact-circular-hole-geometry/README.md",
     "verify/interfaces/python-exact-circular-hole-geometry/README.md",

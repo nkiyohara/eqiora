@@ -30,7 +30,7 @@ use crate::canonical_boundary::{
     CartesianBoundaryInventory, PhysicalBoundaryDisposition, PhysicalBoundaryQuantity,
 };
 
-const BLOCK_SYSTEM_IDENTITY_DOMAIN: &[u8] = b"eqiora.discrete-block-system/v1\0";
+const BLOCK_SYSTEM_IDENTITY_DOMAIN: &[u8] = b"eqiora.discrete-block-system/v2\0";
 
 /// Exact Realization selection represented by one block system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

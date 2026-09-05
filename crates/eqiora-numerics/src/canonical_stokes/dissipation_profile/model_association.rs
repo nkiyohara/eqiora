@@ -11,21 +11,12 @@ use super::super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d;
 use super::{StokesDissipationProfileGeometry2d, invalid};
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VISCOSITY: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const VISCOSITY: DimExponents =
+    DimExponents::from_integers([1, -1, -1, 0, 0, 0, 0]).expect("bounded dimension");
 
 /// Read the exact `r_A`, `a_2`, `a_4` values the Model retains for this design.
 ///

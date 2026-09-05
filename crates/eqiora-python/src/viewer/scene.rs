@@ -105,7 +105,7 @@ pub(super) struct ScalarFieldLayer {
     pub(super) association: String,
     pub(super) component_shape: Vec<usize>,
     pub(super) unit: String,
-    pub(super) dimension: [i8; 7],
+    pub(super) dimension: [(i32, i32); 7],
     pub(super) frame: String,
     pub(super) space: String,
     pub(super) values: BufferRef,

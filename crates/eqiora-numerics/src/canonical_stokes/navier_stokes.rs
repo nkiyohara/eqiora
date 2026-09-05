@@ -35,17 +35,10 @@ mod geometry;
 pub(super) use geometry::lower_transient_incompressible_navier_stokes_geometry_2d;
 pub(crate) use geometry::recognize_transient_incompressible_navier_stokes_geometry_mathematics;
 
-const VELOCITY_DIMENSION: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE_DIMENSION: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
+const VELOCITY_DIMENSION: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const PRESSURE_DIMENSION: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
 
 /// Exact fixed-domain transient incompressible Navier--Stokes meaning in `D` dimensions.
 ///

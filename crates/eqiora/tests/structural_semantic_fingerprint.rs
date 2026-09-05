@@ -18,6 +18,72 @@ const PHYSICAL: &str =
     include_str!("../../../verify/interfaces/structural-semantic-fingerprint/models/resistor.eqi");
 
 #[test]
+fn rational_dimension_meaning_survives_canonical_model_replay() {
+    let source = "model Wave { parameter amplitude: m ^ (-1 / 2) = 1; relation r continuous { amplitude = 0; } }";
+    let model = ModelDocument::compile("wave.eqi", source).unwrap();
+    let equivalent =
+        ModelDocument::compile("equal.eqi", &source.replace("-1 / 2", "-2 / 4")).unwrap();
+    let changed =
+        ModelDocument::compile("changed.eqi", &source.replace("-1 / 2", "-1 / 3")).unwrap();
+    assert!(model.structurally_equivalent(&equivalent).unwrap());
+    assert!(!model.structurally_equivalent(&changed).unwrap());
+    let bytes = model.canonical_json().unwrap();
+    let replay = ModelDocument::replay(&bytes).unwrap();
+    assert_eq!(replay.canonical_json().unwrap(), bytes);
+    assert!(model.structurally_equivalent(&replay).unwrap());
+    let old_schema = String::from_utf8(bytes)
+        .unwrap()
+        .replace("eqiora.model-envelope/v9", "eqiora.model-envelope/v8");
+    assert!(ModelDocument::replay(old_schema.as_bytes()).is_err());
+    assert_eq!(
+        model.structural_fingerprint().unwrap().generation(),
+        SemanticFingerprintGeneration::V4
+    );
+}
+
+#[test]
+fn rational_physical_relations_typecheck_and_replay_together() {
+    let source = r#"
+model RationalQuantities {
+  parameter amplitude: m ^ (-1 / 2) = 1;
+  parameter width: m = 1;
+  parameter area: m ^ 2 = 4;
+  parameter spectral_amplitude: Hz ^ (-1 / 2) = 1;
+  field probability: 1 = 1;
+  field length: m = 2;
+  field time_root: s ^ (1 / 2) = 1;
+  relation dimensions continuous {
+    probability = amplitude * amplitude * width;
+    length = math.sqrt(area);
+    time_root = spectral_amplitude;
+  }
+}
+"#;
+    // For a real constant amplitude on an interval, |psi|² dx has
+    // dimension L^(-1/2 - 1/2 + 1) = 1. Hz^(-1/2) has T^(1/2).
+    let model = ModelDocument::compile("rational-quantities.eqi", source).unwrap();
+    let bytes = model.canonical_json().unwrap();
+    let replay = ModelDocument::replay(&bytes).unwrap();
+    assert_eq!(replay.canonical_json().unwrap(), bytes);
+    assert!(model.structurally_equivalent(&replay).unwrap());
+
+    for (original, incompatible) in [
+        ("amplitude: m ^ (-1 / 2)", "amplitude: m ^ -1"),
+        ("length: m = 2", "length: m ^ 2 = 2"),
+        (
+            "spectral_amplitude: Hz ^ (-1 / 2)",
+            "spectral_amplitude: Hz ^ (1 / 2)",
+        ),
+    ] {
+        assert!(
+            ModelDocument::compile("incompatible.eqi", &source.replace(original, incompatible))
+                .is_err(),
+            "incompatible dimension must reject: {incompatible}",
+        );
+    }
+}
+
+#[test]
 fn current_generation_is_independent_of_coordinate_vocabulary() {
     let fixed = ModelDocument::compile(
         "fixed.eqi",
@@ -32,7 +98,7 @@ fn current_generation_is_independent_of_coordinate_vocabulary() {
     for model in [&fixed, &referenced] {
         assert_eq!(
             model.structural_fingerprint().unwrap().generation(),
-            SemanticFingerprintGeneration::V3
+            SemanticFingerprintGeneration::V4
         );
     }
     // Equal endpoint values do not erase the nominal Parameter dependency.
@@ -62,7 +128,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         );
     }
     let fingerprint = source.structural_fingerprint().unwrap();
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V3);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V4);
     assert_eq!(fingerprint.digest().len(), 64);
 
     let replay = eqiora::api::ModelDocument::replay(&source.canonical_json().unwrap()).unwrap();
@@ -225,10 +291,7 @@ fn native_decay(reversed: bool) -> ModelDraft {
     let field = DraftField::new("state", DimExponents::DIMENSIONLESS, 1.0);
     let rate = DraftParameter::new(
         "coefficient",
-        DimExponents {
-            time: -1,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
         1.0,
     );
     let relation = DraftRelation::continuous(
@@ -246,30 +309,15 @@ fn native_decay(reversed: bool) -> ModelDraft {
 fn native_resistor(reversed: bool) -> ModelDraft {
     let electrical = DraftPhysicalDomain::new(
         "pin",
-        DimExponents {
-            mass: 1,
-            length: 2,
-            time: -3,
-            current: -1,
-            ..DimExponents::DIMENSIONLESS
-        },
-        DimExponents {
-            current: 1,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension"),
+        DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension"),
     );
     let positive = DraftConservingPort::new("p", &electrical);
     let negative = DraftConservingPort::new("n", &electrical);
     let tap = DraftConservingPort::new("t", &electrical);
     let resistance = DraftParameter::new(
         "r",
-        DimExponents {
-            mass: 1,
-            length: 2,
-            time: -3,
-            current: -2,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension"),
         2.0,
     );
     let law = DraftRelation::continuous(

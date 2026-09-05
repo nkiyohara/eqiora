@@ -400,7 +400,7 @@ fn admission_counts_once_and_links_the_descriptor_to_the_same_document() {
         model["structuralFingerprint"]["digest"],
         fingerprint.digest()
     );
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V3);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V4);
     let output_schema = &tool_definition()["outputSchema"]["oneOf"][0];
     assert_eq!(
         model["schema"],

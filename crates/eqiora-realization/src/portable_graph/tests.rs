@@ -19,35 +19,18 @@ use crate::{
     TransientFieldwiseRealizationRequirements, resolve_transient_fieldwise,
 };
 
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const TIME: DimExponents = DimExponents {
-    time: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
-const GAUGE: DimExponents = DimExponents {
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const FUNCTIONAL: DimExponents = DimExponents {
-    mass: 1,
-    length: 1,
-    time: -3,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const TIME: DimExponents =
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
+const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
+const GAUGE: DimExponents =
+    DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const FUNCTIONAL: DimExponents =
+    DimExponents::from_integers([1, 1, -3, 0, 0, 0, 0]).expect("bounded dimension");
 
 #[test]
 fn transient_projection_is_one_connected_typed_solve_dag() {
@@ -155,7 +138,7 @@ fn portable_wire_round_trips_and_has_a_domain_separated_digest() {
     assert_eq!(decoded.to_bytes().unwrap(), bytes);
 
     let mut expected = Sha256::new();
-    expected.update(b"eqiora.portable-realization-graph/v1\0");
+    expected.update(b"eqiora.portable-realization-graph/v2\0");
     expected.update(&bytes);
     assert_eq!(
         graph.digest().unwrap(),
@@ -190,8 +173,8 @@ fn portable_wire_rejects_noncanonical_unknown_and_disconnected_payloads() {
     );
 
     let unsupported = String::from_utf8(bytes.clone()).unwrap().replace(
-        "eqiora.portable-realization-graph/v1",
         "eqiora.portable-realization-graph/v2",
+        "eqiora.portable-realization-graph/v1",
     );
     assert_eq!(
         PortableRealizationGraph::from_bytes(unsupported.as_bytes())

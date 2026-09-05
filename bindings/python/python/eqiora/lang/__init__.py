@@ -237,6 +237,10 @@ class _Math:
     def sin(value: object) -> Expression:
         return _unary("math.sin", value)
 
+    @staticmethod
+    def sqrt(value: object) -> Expression:
+        return _unary("math.sqrt", value)
+
 
 math: Final = _Math()
 
@@ -340,6 +344,14 @@ def _expression(value: object) -> Expression:
     if isinstance(value, Expression):
         return value
     return Expression(_CREATE, _number(value), None, 1, 1, 100)
+
+
+def quantity(value: int | float, unit: Unit) -> Expression:
+    """Author an input quantity; the compiler owns conversion to coherent SI."""
+    if not isinstance(unit, Unit):
+        raise TypeError("unit must be an eqiora.lang.units.Unit")
+    text = f"{_number(value)} [{unit._text}]"
+    return Expression(_CREATE, text, None, 1, 1, 40 if value < 0 else 100)
 
 
 def _owner(left: Expression, right: Expression) -> object | None:
@@ -1267,6 +1279,7 @@ __all__ = [
     "isotropic_lift",
     "math",
     "normal",
+    "quantity",
     "spatial_vector",
     "symmetric_part",
     "test",

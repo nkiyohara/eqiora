@@ -4,9 +4,11 @@
 //! Decoding reconstructs validated definitions and commits one typed graph
 //! transaction; deserialization never bypasses an existing invariant.
 
+mod ale_wire;
 mod cad;
 mod cartesian_mesh;
 mod cartesian_q1_field_snapshot;
+mod dimension;
 mod discrete_field;
 mod distributed;
 mod external_import;
@@ -32,10 +34,9 @@ mod model_wire;
 mod physical_exposure;
 mod realization;
 mod realization_reference;
-mod realization_v2;
-mod realization_v3;
-mod realization_v4;
-mod realization_v5;
+mod realization_v6;
+mod realization_v7;
+mod realization_v8;
 mod remesh_transfer;
 mod resolved_array;
 mod root_registration;
@@ -59,7 +60,7 @@ use sha2::{Digest, Sha256};
 
 pub use cad::{CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1};
 pub use cartesian_mesh::{CartesianMeshDecoderLimits, CartesianMeshEnvelopeV1};
-pub use cartesian_q1_field_snapshot::CartesianQ1FieldSnapshotEnvelopeV1;
+pub use cartesian_q1_field_snapshot::CartesianQ1FieldSnapshotEnvelopeV2;
 pub use discrete_field::{DiscreteFieldEnvelopeV1, FieldDecoderLimits};
 pub use distributed::{
     DistributedDecoderLimits, DistributedLayoutEnvelopeV1, LinearSystemEnvelopeV1,
@@ -118,10 +119,9 @@ pub use realization_reference::{
     CanonicalRealizationArtifact, RealizationArtifactReference,
     ReplayableFixedTopologyAleRealizationArtifact,
 };
-pub use realization_v2::RealizationEnvelopeV2;
-pub use realization_v3::RealizationEnvelopeV3;
-pub use realization_v4::RealizationEnvelopeV4;
-pub use realization_v5::RealizationEnvelopeV5;
+pub use realization_v6::RealizationEnvelopeV6;
+pub use realization_v7::RealizationEnvelopeV7;
+pub use realization_v8::RealizationEnvelopeV8;
 pub use remesh_transfer::{
     BoundedRemeshDefectV1, FieldTransferReceiptV1, RemeshDecoderLimits, RemeshFieldRoleV1,
     RemeshIntegrationChartV1, RemeshNormalizationWitnessV1, RemeshProjectionActionV1,
@@ -140,8 +140,8 @@ pub use semantic_fingerprint::{
     SemanticFingerprintGeneration, StructuralSemanticFingerprint, structurally_equivalent,
 };
 pub use spatial_data::{
-    DiscreteFieldStorageEnvelopeV1, FieldSnapshotEnvelopeV1, MlDatasetChannelStatisticsV1,
-    MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1, MlDatasetEnvelopeV1,
+    DiscreteFieldStorageEnvelopeV1, FieldSnapshotEnvelopeV2, MlDatasetChannelStatisticsV1,
+    MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1, MlDatasetEnvelopeV2,
     MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1, MlDatasetSampleSplitV1,
     MlDatasetSampleV1, MlDatasetStateKindV1, MlDatasetStateReferenceV1, StorageChunkSha256V1,
     StorageChunkV1, TrajectoryDecoderLimits,

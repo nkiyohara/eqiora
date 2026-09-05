@@ -386,10 +386,8 @@ model Use {
             dimensions: 2,
         };
         let target = FieldContract::continuum(ExpressionType::shaped(
-            eqiora_core::DimExponents {
-                length: 1,
-                ..eqiora_core::DimExponents::DIMENSIONLESS
-            },
+            eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
+                .expect("bounded dimension"),
             eqiora_core::ValueShape::new([2]).expect("shape"),
             eqiora_schema::kernel::ValueFrame::SpatialCartesian,
             Some(exact_support.clone()),

@@ -9,10 +9,7 @@ fn native_and_source_models_share_structure_and_artifacts() {
     let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
     let rate = DraftParameter::new(
         "rate",
-        DimExponents {
-            time: -1,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
         1.0,
     );
     let flow = DraftRelation::continuous(
@@ -53,18 +50,12 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
 
     let temperature = DraftField::new(
         "temperature",
-        DimExponents {
-            temperature: 1,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension"),
         293.0,
     );
     let duration = DraftParameter::new(
         "duration",
-        DimExponents {
-            time: 1,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
         1.0,
     );
     let invalid = DraftRelation::continuous(

@@ -10,21 +10,12 @@ use super::{SteadyStokesGeometryBinding2d, invalid};
 use crate::canonical_stokes::api::StokesBoundaryKey2d;
 use crate::canonical_stokes::realization::IncompressibleFlowScaleProfile2d;
 
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct IncompressibleScalingRequest2d {
@@ -317,17 +308,11 @@ impl IncompressibleScalingReceipt2d {
             bytes.push(component_code(record.component));
             bytes.extend_from_slice(&record.value.value().to_bits().to_be_bytes());
             let dimension = record.value.dim();
-            bytes.extend_from_slice(&[
-                dimension.mass as u8,
-                dimension.length as u8,
-                dimension.time as u8,
-                dimension.current as u8,
-                dimension.temperature as u8,
-                dimension.amount as u8,
-                dimension.luminous_intensity as u8,
-                mode_code(record.mode),
-                rule_code(record.rule),
-            ]);
+            for (numerator, denominator) in dimension.exponents() {
+                bytes.extend_from_slice(&numerator.to_be_bytes());
+                bytes.extend_from_slice(&denominator.to_be_bytes());
+            }
+            bytes.extend_from_slice(&[mode_code(record.mode), rule_code(record.rule)]);
             bytes.push(record.dependencies.as_slice().len() as u8);
             for dependency in record.dependencies.as_slice() {
                 bytes.push(component_code(*dependency));
@@ -340,7 +325,7 @@ impl IncompressibleScalingReceipt2d {
         ArtifactDigest::from_sha256(
             Sha256::digest(
                 [
-                    b"eqiora.incompressible-scaling-receipt-2d/v1\0".as_slice(),
+                    b"eqiora.incompressible-scaling-receipt-2d/v2\0".as_slice(),
                     bytes.as_slice(),
                 ]
                 .concat(),

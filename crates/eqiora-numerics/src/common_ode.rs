@@ -217,7 +217,7 @@ impl CommonOdePlan {
             state_space.extend_from_slice(&dimension_bytes(*dimension));
         }
         push(&mut state_space, b"scalar-f64/no-method-history/v1");
-        let state_space_identity = digest(b"eqiora.common-ode-state-space/v1\0", &state_space);
+        let state_space_identity = digest(b"eqiora.common-ode-state-space/v2\0", &state_space);
 
         let mut identity = state_space;
         identity.extend_from_slice(&temporal.initial_step_s().to_bits().to_be_bytes());
@@ -545,16 +545,18 @@ fn digest(domain: &[u8], bytes: &[u8]) -> String {
     value.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-fn dimension_bytes(value: DimExponents) -> [u8; 7] {
-    [
-        value.mass as u8,
-        value.length as u8,
-        value.time as u8,
-        value.current as u8,
-        value.temperature as u8,
-        value.amount as u8,
-        value.luminous_intensity as u8,
-    ]
+fn dimension_bytes(value: DimExponents) -> [u8; 56] {
+    let mut bytes = [0; 56];
+    for (chunk, (numerator, denominator)) in bytes
+        .as_chunks_mut::<8>()
+        .0
+        .iter_mut()
+        .zip(value.exponents())
+    {
+        chunk[..4].copy_from_slice(&numerator.to_be_bytes());
+        chunk[4..].copy_from_slice(&denominator.to_be_bytes());
+    }
+    bytes
 }
 
 #[cfg(test)]
@@ -603,10 +605,8 @@ model decay {
         Id<kinds::Field>,
         Id<kinds::Field>,
     ) {
-        let inverse_time = DimExponents {
-            time: -1,
-            ..DimExponents::DIMENSIONLESS
-        };
+        let inverse_time =
+            DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension");
         let decay = Id::<kinds::Field>::new();
         let integral = Id::<kinds::Field>::new();
         let rate = Id::<kinds::Parameter>::new();

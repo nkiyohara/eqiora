@@ -36,31 +36,16 @@ use eqiora_numerics::{
 
 pub(super) const COMPONENTS: usize = 2;
 pub(super) const TIME_STEP: f64 = 1.0 / 512.0;
-pub(super) const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const TIME: DimExponents = DimExponents {
-    time: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-pub(super) const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-pub(super) const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
-pub(super) const WEAK_FUNCTIONAL: DimExponents = DimExponents {
-    mass: 1,
-    length: 1,
-    time: -3,
-    ..DimExponents::DIMENSIONLESS
-};
+pub(super) const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const TIME: DimExponents =
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
+pub(super) const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+pub(super) const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
+pub(super) const WEAK_FUNCTIONAL: DimExponents =
+    DimExponents::from_integers([1, 1, -3, 0, 0, 0, 0]).expect("bounded dimension");
 const DIRECT_SOURCE: &str =
     include_str!("../../../../verify/fsi/remeshing-transfer-2d/models/direct.eqi");
 const CASE_CONTRACT: &str = include_str!("../../../../verify/fsi/remeshing-transfer-2d/case.toml");

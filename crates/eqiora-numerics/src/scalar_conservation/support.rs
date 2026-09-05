@@ -50,17 +50,17 @@ pub(super) fn node_dimension(
 }
 
 pub(super) fn integrate_dimension(
-    mut dimension: DimExponents,
+    dimension: DimExponents,
     spatial_dimensions: usize,
     owner: RawId,
 ) -> Result<DimExponents, Diagnostic> {
-    let increment = i8::try_from(spatial_dimensions)
+    let increment = i32::try_from(spatial_dimensions)
         .map_err(|_| lowering_error(owner, "integrated source dimension is unrepresentable"))?;
-    dimension.length = dimension
-        .length
-        .checked_add(increment)
-        .ok_or_else(|| lowering_error(owner, "integrated source dimension overflows"))?;
-    Ok(dimension)
+    let measure = DimExponents::from_integers([0, increment, 0, 0, 0, 0, 0])
+        .ok_or_else(|| lowering_error(owner, "integration measure dimension is unrepresentable"))?;
+    dimension
+        .mul(measure)
+        .ok_or_else(|| lowering_error(owner, "integrated source dimension overflows"))
 }
 
 pub(super) fn contains_exact_derivative(expression: &ExprDag, value: ExprId, field: RawId) -> bool {

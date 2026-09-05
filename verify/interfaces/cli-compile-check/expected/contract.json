@@ -5,7 +5,7 @@
   "packageVersion": "0.1.0-alpha.3",
   "acceptedFixtureBytes": 169,
   "rejectedFixtureBytes": 39,
-  "acceptedFingerprintGeneration": "eqiora.structural-semantic-fingerprint/v3",
+  "acceptedFingerprintGeneration": "eqiora.structural-semantic-fingerprint/v4",
   "rejectedDiagnostic": {
     "severity": "error",
     "code": "EQ0602",

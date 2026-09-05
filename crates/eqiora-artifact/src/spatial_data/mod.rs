@@ -10,10 +10,10 @@ mod ml_dataset;
 mod storage;
 mod trajectory;
 
-pub use field::FieldSnapshotEnvelopeV1;
+pub use field::FieldSnapshotEnvelopeV2;
 pub use ml_dataset::{
     MlDatasetChannelStatisticsV1, MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1,
-    MlDatasetEnvelopeV1, MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1,
+    MlDatasetEnvelopeV2, MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1,
     MlDatasetSampleSplitV1, MlDatasetSampleV1, MlDatasetStateKindV1, MlDatasetStateReferenceV1,
 };
 pub use storage::{DiscreteFieldStorageEnvelopeV1, StorageChunkSha256V1, StorageChunkV1};

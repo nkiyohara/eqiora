@@ -229,7 +229,7 @@ impl Parser<'_> {
             .text()
             .to_owned();
         self.expect(TokenKind::Equal, "`=` before dimension expression")?;
-        let expression = self.parse_expression(0)?;
+        let expression = self.parse_dimension_expression()?;
         let end = self
             .expect(TokenKind::Semicolon, "`;` after dimension alias")?
             .range()

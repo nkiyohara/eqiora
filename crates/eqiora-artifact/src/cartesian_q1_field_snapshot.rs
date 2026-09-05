@@ -3,8 +3,10 @@
 use std::num::NonZeroU16;
 use std::str::FromStr;
 
+use crate::dimension::WireDimension;
+
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, Entity, Id, ValueShape};
+use eqiora_core::{Diagnostic, Entity, Id, ValueShape};
 use eqiora_graph::EdgeKind;
 use eqiora_meshing::MeshTopology;
 use eqiora_realization::{DiscretizationMethod, MeshPolicy, SpaceFamily};
@@ -18,7 +20,7 @@ use crate::{
     ReplayableCanonicalModelArtifact, check_json_limits, invalid_artifact,
 };
 
-const CARTESIAN_Q1_FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.cartesian-q1-field-snapshot-envelope/v1";
+const CARTESIAN_Q1_FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.cartesian-q1-field-snapshot-envelope/v2";
 
 /// One exact vertex-associated scalar or fixed-vector Field on a generated
 /// Cartesian continuous-Lagrange Q1 realization.
@@ -27,11 +29,11 @@ const CARTESIAN_Q1_FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.cartesian-q1-field-snap
 /// semantic and spatial lineage. It deliberately does not imply stress
 /// recovery, interpolation away from vertices, or identity across revisions.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CartesianQ1FieldSnapshotEnvelopeV1 {
-    wire: WireCartesianQ1FieldSnapshotEnvelopeV1,
+pub struct CartesianQ1FieldSnapshotEnvelopeV2 {
+    wire: WireCartesianQ1FieldSnapshotEnvelopeV2,
 }
 
-impl CartesianQ1FieldSnapshotEnvelopeV1 {
+impl CartesianQ1FieldSnapshotEnvelopeV2 {
     /// Bind finite vertex-major values to one exact generated Cartesian Q1
     /// realization. Physical metadata and support are derived from the Model;
     /// callers cannot assert them independently.
@@ -111,7 +113,7 @@ impl CartesianQ1FieldSnapshotEnvelopeV1 {
         }
 
         let value = Self {
-            wire: WireCartesianQ1FieldSnapshotEnvelopeV1 {
+            wire: WireCartesianQ1FieldSnapshotEnvelopeV2 {
                 schema: CARTESIAN_Q1_FIELD_SNAPSHOT_SCHEMA.to_owned(),
                 encoding: CANONICAL_ENCODING.to_owned(),
                 model_sha256: reference.artifact().to_string(),
@@ -382,7 +384,7 @@ fn parse_id<K: Entity>(value: &str, label: &str) -> Result<Id<K>, Diagnostic> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCartesianQ1FieldSnapshotEnvelopeV1 {
+struct WireCartesianQ1FieldSnapshotEnvelopeV2 {
     schema: String,
     encoding: String,
     model_sha256: String,
@@ -446,32 +448,6 @@ impl WireValueShape {
                 })?)
                 .ok_or_else(|| invalid_artifact("Cartesian Q1 component count overflows usize"))
         })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireDimension {
-    mass: i8,
-    length: i8,
-    time: i8,
-    current: i8,
-    temperature: i8,
-    amount: i8,
-    luminous_intensity: i8,
-}
-
-impl WireDimension {
-    const fn encode(value: DimExponents) -> Self {
-        Self {
-            mass: value.mass,
-            length: value.length,
-            time: value.time,
-            current: value.current,
-            temperature: value.temperature,
-            amount: value.amount,
-            luminous_intensity: value.luminous_intensity,
-        }
     }
 }
 

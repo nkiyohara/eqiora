@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use eqiora_artifact::{
-    ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, MlDatasetChannelStatisticsV1,
-    MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1, MlDatasetEnvelopeV1,
+    ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, MlDatasetChannelStatisticsV1,
+    MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1, MlDatasetEnvelopeV2,
     MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1, MlDatasetSampleSplitV1,
     MlDatasetSampleV1, MlDatasetStateReferenceV1, ReplayableCanonicalModelArtifact,
 };
@@ -389,7 +389,7 @@ impl MlDatasetMaterializationV1 {
 /// Freshly derived logical artifact and its explicit owned CPU projection.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MlDatasetArtifactsV1 {
-    envelope: MlDatasetEnvelopeV1,
+    envelope: MlDatasetEnvelopeV2,
     envelope_digest: ArtifactDigest,
     materialization: MlDatasetMaterializationV1,
 }
@@ -397,7 +397,7 @@ pub struct MlDatasetArtifactsV1 {
 impl MlDatasetArtifactsV1 {
     /// Storage-independent logical Dataset manifest.
     #[must_use]
-    pub const fn envelope(&self) -> &MlDatasetEnvelopeV1 {
+    pub const fn envelope(&self) -> &MlDatasetEnvelopeV2 {
         &self.envelope
     }
 
@@ -447,7 +447,7 @@ pub fn derive_ml_dataset_v1<M: ReplayableCanonicalModelArtifact>(
 /// Returns `EQ0901` for any substituted dependency, manifest, statistic,
 /// active support, ordering, or materialized scalar.
 pub fn verify_ml_dataset_v1<M: ReplayableCanonicalModelArtifact>(
-    expected_envelope: &MlDatasetEnvelopeV1,
+    expected_envelope: &MlDatasetEnvelopeV2,
     expected_materialization: &MlDatasetMaterializationV1,
     input: &RemeshingTrajectoryReplayInputV1<'_, M>,
     plan: &MlDatasetDerivationPlanV1,
@@ -515,7 +515,7 @@ fn derive_dataset<M: ReplayableCanonicalModelArtifact>(
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
     let statistics = derive_statistics(input, plan, &frames, &descriptors, limits)?;
-    let envelope = MlDatasetEnvelopeV1::new(
+    let envelope = MlDatasetEnvelopeV2::new(
         input.trajectory(),
         descriptors.clone(),
         samples,
@@ -569,7 +569,7 @@ impl<'replay, 'data> DatasetFrame<'replay, 'data> {
         self,
         descriptor_ordinal: usize,
         descriptor: &MlDatasetFieldDescriptorV1,
-        snapshot: &FieldSnapshotEnvelopeV1,
+        snapshot: &FieldSnapshotEnvelopeV2,
     ) -> Result<MlDatasetObservationReferenceV1, Diagnostic> {
         match self {
             Self::Moving(frame) => MlDatasetObservationReferenceV1::from_v2(
@@ -1039,7 +1039,7 @@ fn materialize<M: ReplayableCanonicalModelArtifact>(
 fn active_entities<M: ReplayableCanonicalModelArtifact>(
     input: &RemeshingTrajectoryReplayInputV1<'_, M>,
     frame: DatasetFrame<'_, '_>,
-    snapshot: &FieldSnapshotEnvelopeV1,
+    snapshot: &FieldSnapshotEnvelopeV2,
     association: DiscreteFieldAssociation,
 ) -> Result<Vec<usize>, Diagnostic> {
     match frame {
@@ -1055,7 +1055,7 @@ fn active_entities<M: ReplayableCanonicalModelArtifact>(
 fn active_entity_count<M: ReplayableCanonicalModelArtifact>(
     input: &RemeshingTrajectoryReplayInputV1<'_, M>,
     frame: DatasetFrame<'_, '_>,
-    snapshot: &FieldSnapshotEnvelopeV1,
+    snapshot: &FieldSnapshotEnvelopeV2,
     association: DiscreteFieldAssociation,
 ) -> Result<usize, Diagnostic> {
     match frame {

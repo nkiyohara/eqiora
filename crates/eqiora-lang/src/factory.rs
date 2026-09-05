@@ -3,6 +3,7 @@
 use core::fmt;
 
 mod compile_time;
+use compile_time::validate_parameter_binding;
 mod component;
 mod dimension_rewrite;
 mod document;
@@ -949,6 +950,10 @@ fn validate_expression(expression: &Expr) -> Result<(), AstConstructionError> {
     checked_range(expression.range())?;
     match expression.kind() {
         ExprKind::Number(value) => validate_finite(*value, "expression literal"),
+        ExprKind::Quantity { value, unit } => {
+            validate_finite(*value, "quantity literal")?;
+            validate_expression(unit)
+        }
         ExprKind::Name(name) => validate_identifier(name, "expression name"),
         ExprKind::Path(path) => validate_name_path(path),
         ExprKind::BoundaryPortSelection { port, selector } => {
@@ -1145,12 +1150,6 @@ fn validate_value_shape(shape: &ValueShapeSyntax) -> Result<(), AstConstructionE
         )),
         ValueShapeSyntax::Exact(_) => Ok(()),
     }
-}
-
-fn validate_parameter_binding(binding: &ParameterBindingDecl) -> Result<(), AstConstructionError> {
-    validate_identifier(binding.parameter(), "Parameter binding")?;
-    checked_range(binding.range())?;
-    validate_expression(binding.value())
 }
 
 fn validate_support_binding(binding: &SupportBindingDecl) -> Result<(), AstConstructionError> {

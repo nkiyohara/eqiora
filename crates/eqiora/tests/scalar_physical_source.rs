@@ -55,11 +55,8 @@ fn source_constructs_one_nominal_current_physical_program() {
         DomainKind::ScalarPhysical {
             across_dimension,
             through_dimension,
-        } if across_dimension.mass == 1
-            && across_dimension.length == 2
-            && across_dimension.time == -3
-            && across_dimension.current == -1
-            && through_dimension.current == 1
+        } if across_dimension.exponents() == [(1, 1), (2, 1), (-3, 1), (-1, 1), (0, 1), (0, 1), (0, 1)]
+            && through_dimension.exponents() == [(0, 1), (0, 1), (0, 1), (1, 1), (0, 1), (0, 1), (0, 1)]
     ));
 
     for port in [left, right] {

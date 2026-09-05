@@ -58,27 +58,14 @@ const NONLINEAR_ABSOLUTE_TOLERANCE: f64 = 1.0e-10;
 const NONLINEAR_RELATIVE_TOLERANCE: f64 = 1.0e-10;
 const MAXIMUM_NONLINEAR_ITERATIONS: usize = 32;
 const MAXIMUM_SEMANTIC_STEPS: usize = 1_000_000;
-const VOLTAGE_DIMENSION: DimExponents = DimExponents {
-    mass: 1,
-    length: 2,
-    time: -3,
-    current: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const CURRENT_DIMENSION: DimExponents = DimExponents {
-    current: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const ANGULAR_SPEED_DIMENSION: DimExponents = DimExponents {
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const TORQUE_DIMENSION: DimExponents = DimExponents {
-    mass: 1,
-    length: 2,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
+const VOLTAGE_DIMENSION: DimExponents =
+    DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension");
+const CURRENT_DIMENSION: DimExponents =
+    DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension");
+const ANGULAR_SPEED_DIMENSION: DimExponents =
+    DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const TORQUE_DIMENSION: DimExponents =
+    DimExponents::from_integers([1, 2, -2, 0, 0, 0, 0]).expect("bounded dimension");
 const VOLTAGE_RESIDUAL_TOLERANCE_V: f64 = 2.0e-8;
 const CURRENT_RESIDUAL_TOLERANCE_A: f64 = 2.0e-8;
 const ANGULAR_SPEED_RESIDUAL_TOLERANCE_PER_S: f64 = 2.0e-8;

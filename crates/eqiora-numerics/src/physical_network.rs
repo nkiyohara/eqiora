@@ -445,24 +445,12 @@ mod tests {
     }
 
     fn fixture() -> Fixture {
-        let voltage = DimExponents {
-            mass: 1,
-            length: 2,
-            time: -3,
-            current: -1,
-            ..DimExponents::DIMENSIONLESS
-        };
-        let current = DimExponents {
-            current: 1,
-            ..DimExponents::DIMENSIONLESS
-        };
-        let resistance = DimExponents {
-            mass: 1,
-            length: 2,
-            time: -3,
-            current: -2,
-            ..DimExponents::DIMENSIONLESS
-        };
+        let voltage =
+            DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension");
+        let current =
+            DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension");
+        let resistance =
+            DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension");
         let domain = Id::new();
         let supply = Id::new();
         let load = Id::new();

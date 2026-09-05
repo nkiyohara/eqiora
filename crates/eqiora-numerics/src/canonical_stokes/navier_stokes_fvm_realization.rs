@@ -41,10 +41,8 @@ use super::navier_stokes_integral_formulation::{
 };
 
 const DIMENSION: usize = 2;
-const TIME: DimExponents = DimExponents {
-    time: 1,
-    ..DimExponents::DIMENSIONLESS
-};
+const TIME: DimExponents =
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
 
 /// Coherent-SI cell-centered initial state bound to exact canonical Fields.
 #[derive(Debug, Clone, PartialEq)]

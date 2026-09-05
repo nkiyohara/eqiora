@@ -28,6 +28,7 @@ impl Expr {
     /// topology and every expression/source range are preserved. Call callees
     /// are structural [`NamePath`] values and are visited before their ordered
     /// arguments.
+    /// Unit-catalog names inside quantity literals are not value-name occurrences.
     #[must_use]
     pub fn rewrite_name_paths(
         &self,
@@ -42,6 +43,10 @@ impl Expr {
     ) -> Self {
         let kind = match &self.kind {
             ExprKind::Number(value) => ExprKind::Number(*value),
+            ExprKind::Quantity { value, unit } => ExprKind::Quantity {
+                value: *value,
+                unit: unit.clone(),
+            },
             ExprKind::Name(name) => {
                 let path = NamePath::single(name.clone(), self.range);
                 rewrite(&path).map_or_else(
@@ -98,6 +103,13 @@ fn expression_name(path: NamePath) -> ExprKind {
 pub enum ExprKind {
     /// Floating-point literal.
     Number(f64),
+    /// Numeric literal with an explicit input-unit expression.
+    Quantity {
+        /// Numeric value before unit conversion.
+        value: f64,
+        /// Unit-catalog expression, independent of value names and dimension aliases.
+        unit: Box<Expr>,
+    },
     /// Source identifier.
     Name(String),
     /// Qualified lexical or instance-member name.

@@ -222,15 +222,13 @@ pub(crate) fn validate_and_elaborate(
                     continue;
                 }
             };
-            let value = source_value * scale;
-            if !value.is_finite() {
-                diagnostics.push(error(
-                    &unit.file,
-                    range,
-                    "normalized property release value must be finite",
-                ));
-                continue;
-            }
+            let value = match crate::units::normalize_value(source_value, scale) {
+                Ok(value) => value,
+                Err(message) => {
+                    diagnostics.push(error(&unit.file, range, message));
+                    continue;
+                }
+            };
             let key = (unit.module.clone(), name.to_owned());
             if releases
                 .insert(
@@ -675,6 +673,54 @@ mod tests {
         CanonicalDeclarationKind, CompilationNamespaceId, ResolvedHierarchyInput,
         ResolvedSourceUnit, analyze_resolved_hierarchy,
     };
+
+    #[test]
+    fn rational_property_units_and_pure_operator_dimensions_share_exact_algebra() {
+        let source = r#"
+pure operator square(x: scalar) -> scalar = component(x) * component(x);
+property contract Amplitude { scalar value: m ^ (-1 / 2); }
+property release Reference implements Amplitude {
+  value = 8;
+  source_unit: m ^ (-2 / 4) = 1 / 4;
+  validity = unconditional;
+  citation = org.example.measurement;
+  license = spdx.CC0_1_0;
+}
+component Wave {
+  public support body: volume(ambient_dimension = 1);
+  representation space = continuum;
+  public property amplitude: Amplitude;
+  field value on body as space: m ^ (-1 / 2) = 0;
+  field intensity on body as space: m ^ -1 = 0;
+  relation law continuous on body { value = amplitude; intensity = square(value); }
+}
+model Main {
+  domain interval = box(0, 1);
+  instance wave: Wave(support body = interval, property amplitude = Reference);
+}
+"#;
+        let input = |text: &str| {
+            let root = CompilationNamespaceId::new(["root", "1.0.0", "dimension-test"]).unwrap();
+            ResolvedHierarchyInput::new(
+                root.clone(),
+                vec![ResolvedSourceUnit::new(root, "src/main.eqi", text).unwrap()],
+                vec![],
+            )
+        };
+        let analyzed = analyze_resolved_hierarchy(input(source)).unwrap();
+        // The existing conversion owner applies 8 * (1/4) once.
+        assert_eq!(analyzed.property_bindings().next().unwrap().5, 2.0);
+        analyzed
+            .validate_definitions()
+            .unwrap()
+            .compile_root("Main")
+            .unwrap();
+        let wrong_unit = source.replace("source_unit: m ^ (-2 / 4)", "source_unit: m ^ -1");
+        assert!(analyze_resolved_hierarchy(input(&wrong_unit)).is_err());
+        let wrong_output = source.replace("as space: m ^ -1", "as space: m ^ (-1 / 2)");
+        let invalid = analyze_resolved_hierarchy(input(&wrong_output)).unwrap();
+        assert!(invalid.validate_definitions().is_err());
+    }
 
     #[test]
     fn exact_scalar_property_elaborates_through_parameter_terms() {

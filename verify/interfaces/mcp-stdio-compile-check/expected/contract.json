@@ -523,7 +523,7 @@
     "filename": "shared-decay.eqi",
     "status": "accepted",
     "semanticRevision": 1,
-    "fingerprintGeneration": "eqiora.structural-semantic-fingerprint/v3",
+    "fingerprintGeneration": "eqiora.structural-semantic-fingerprint/v4",
     "directAndMcpFingerprintEqual": true,
     "directAndMcpModelIdEqual": false,
     "directAndMcpArtifactDigestEqual": false,

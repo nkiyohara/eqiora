@@ -637,10 +637,7 @@ public component Resistor {
         let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
         let rate = DraftParameter::new(
             "rate",
-            DimExponents {
-                time: -1,
-                ..DimExponents::DIMENSIONLESS
-            },
+            DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
             1.0,
         );
         let flow = DraftRelation::continuous(
@@ -710,7 +707,7 @@ model pure_relation {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v8"));
+        assert!(json.contains("eqiora.model-envelope/v9"));
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
@@ -742,7 +739,7 @@ model pure_relation {
         assert!(
             String::from_utf8(plan.transaction_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-transaction-envelope/v8")
+                .contains("eqiora.model-transaction-envelope/v9")
         );
 
         let result = document.commit_value_edit(plan.clone()).unwrap();

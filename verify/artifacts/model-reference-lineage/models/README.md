@@ -8,5 +8,4 @@ reviewable path; this directory adds no second copy of those sources.
 
 A second fixture constructs one native semantic graph, encodes and decodes its
 current artifact, and validates the resulting reference against an existing
-Realization. Historical v1--v7 bytes are rejection specimens owned by
-`artifacts.current-model-canonical-identity`, not positive fixtures here.
+Realization.

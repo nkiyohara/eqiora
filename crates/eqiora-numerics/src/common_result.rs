@@ -362,10 +362,7 @@ impl CommonResult {
         let vertices = values.len() / 2;
         let field = CommonResultField::new(
             plan.displacement_field_id().to_owned(),
-            DimExponents {
-                length: 1,
-                ..DimExponents::DIMENSIONLESS
-            },
+            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             vec![2],
             "continuous-lagrange-p1",
             vec![CommonResultFieldBlock::new(
@@ -407,11 +404,7 @@ impl CommonResult {
         let pressure = solution.pressure().vertex_values();
         let velocity = CommonResultField::new(
             plan.velocity_field_id().to_owned(),
-            DimExponents {
-                length: 1,
-                time: -1,
-                ..DimExponents::DIMENSIONLESS
-            },
+            DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
             vec![2],
             "simplex-p1-bubble",
             vec![
@@ -429,12 +422,7 @@ impl CommonResult {
         )?;
         let pressure = CommonResultField::new(
             plan.pressure_field_id().to_owned(),
-            DimExponents {
-                mass: 1,
-                length: -1,
-                time: -2,
-                ..DimExponents::DIMENSIONLESS
-            },
+            DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension"),
             Vec::new(),
             "continuous-lagrange-p1",
             vec![CommonResultFieldBlock::new(

@@ -500,10 +500,7 @@ fn axis_bounds(bounds: [f64; 2]) -> AxisBounds {
 }
 
 fn length_dimension() -> eqiora::DimExponents {
-    eqiora::DimExponents {
-        length: 1,
-        ..eqiora::DimExponents::DIMENSIONLESS
-    }
+    eqiora::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 fn mesh_artifact(bounds: [[f64; 2]; 3]) -> SimplicialMeshEnvelopeV1 {

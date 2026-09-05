@@ -1,4 +1,5 @@
 from pathlib import Path
+from fractions import Fraction
 
 import pytest
 
@@ -7,6 +8,49 @@ import eqiora
 
 q = eqiora.lang
 u = q.units
+
+
+def test_rational_unit_exponents_preserve_exact_source_spelling():
+    source = q.Source()
+    component = source.component("Wave")
+    component.parameter("amplitude", unit=u.m ** Fraction(-1, 2))
+    text = source.to_eqi()
+    assert "m ^ (-1 / 2)" in text
+    for exponent in [True, 0.5, 1.0]:
+        with pytest.raises(TypeError):
+            u.m ** exponent
+    for exponent in [2147483648, -2147483648, Fraction(1, 2147483648)]:
+        with pytest.raises(ValueError):
+            u.m ** exponent
+
+
+def test_input_quantities_compile_from_python_and_emitted_source(tmp_path: Path):
+    source = q.Source()
+    law = source.component("RootLength")
+    region = law.volume("region", dimensions=2)
+    length = law.field("length", on=region, unit=u.m, initial=0)
+    law.relation(
+        "balance", on=region,
+        residual=length - q.math.sqrt(q.quantity(4, u.m.prefixed("m") ** 2)),
+    )
+    assert "4 [(mm ^ 2)]" in source.to_eqi()
+    direct = eqiora.compile(source=source, geometry=rectangle_geometry())
+    path = tmp_path / "quantity.eqi"
+    source.write_eqi(path)
+    emitted = eqiora.compile(path=path, geometry=rectangle_geometry())
+    assert direct.digest == emitted.digest
+    assert eqiora.Model.from_bytes(direct.to_bytes()).digest == direct.digest
+    for unit in [u.kg, u.one, u.s.prefixed("m"), u.m / u.s]:
+        with pytest.raises(ValueError):
+            unit.prefixed("m")
+    for prefix in ["MILLI", "µ", "", "kk"]:
+        with pytest.raises(ValueError):
+            u.s.prefixed(prefix)
+    for value in [True, float("inf"), float("nan")]:
+        with pytest.raises((TypeError, ValueError)):
+            q.quantity(value, u.s)
+    with pytest.raises(TypeError):
+        q.quantity(1, "s")
 
 
 def cylinder_source(

@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_artifact::{
-    ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1,
+    ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2,
     GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelopeV1, GeometryStateEnvelopeV2,
     MeshRevisionOverlapEnvelopeV1, RemeshTransferReceiptEnvelopeV1,
     ReplayableCanonicalModelArtifact, SpatialStateEnvelopeV2, SpatialStateEnvelopeV3,
@@ -37,7 +37,7 @@ const ADAPTER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Clone)]
 pub(crate) struct ReplayedField<'a> {
-    pub(crate) snapshot: &'a FieldSnapshotEnvelopeV1,
+    pub(crate) snapshot: &'a FieldSnapshotEnvelopeV2,
     pub(crate) blocks: Vec<&'a DiscreteFieldEnvelopeV1>,
 }
 
@@ -86,7 +86,7 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         target_segments: &'a [SpatialTrajectorySegmentEnvelopeV3],
         target_states: &'a [SpatialStateEnvelopeV3],
         target_geometry_states: &'a [GeometryStateEnvelopeV2],
-        snapshots: &'a [FieldSnapshotEnvelopeV1],
+        snapshots: &'a [FieldSnapshotEnvelopeV2],
         blocks: &'a [DiscreteFieldEnvelopeV1],
         association: &'a GeometryRevisionAssociationEnvelopeV1,
         overlap: &'a MeshRevisionOverlapEnvelopeV1,
@@ -175,7 +175,7 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
             "target geometry state",
         )?;
         let snapshot_index =
-            index_catalog(snapshots, FieldSnapshotEnvelopeV1::digest, "Field snapshot")?;
+            index_catalog(snapshots, FieldSnapshotEnvelopeV2::digest, "Field snapshot")?;
         let block_index = index_catalog(
             blocks,
             DiscreteFieldEnvelopeV1::digest,
@@ -406,7 +406,7 @@ fn replay_fields<'a>(
         eqiora_core::Id<eqiora_core::entity::kinds::Field>,
         ArtifactDigest,
     )],
-    snapshots: &BTreeMap<ArtifactDigest, &'a FieldSnapshotEnvelopeV1>,
+    snapshots: &BTreeMap<ArtifactDigest, &'a FieldSnapshotEnvelopeV2>,
     blocks: &BTreeMap<ArtifactDigest, &'a DiscreteFieldEnvelopeV1>,
     used_snapshots: &mut BTreeSet<ArtifactDigest>,
     used_blocks: &mut BTreeSet<ArtifactDigest>,
@@ -723,14 +723,14 @@ fn validate_source_frames<M: ReplayableCanonicalModelArtifact>(
     Ok(())
 }
 
-fn snapshot_objects(fields: &[ReplayedField<'_>]) -> Vec<FieldSnapshotEnvelopeV1> {
+fn snapshot_objects(fields: &[ReplayedField<'_>]) -> Vec<FieldSnapshotEnvelopeV2> {
     fields.iter().map(|field| field.snapshot.clone()).collect()
 }
 
 fn snapshot_by_digest<'a>(
     fields: &'a [ReplayedField<'a>],
     digest: &ArtifactDigest,
-) -> Result<&'a FieldSnapshotEnvelopeV1, Diagnostic> {
+) -> Result<&'a FieldSnapshotEnvelopeV2, Diagnostic> {
     for field in fields {
         if field.snapshot.digest()? == *digest {
             return Ok(field.snapshot);
@@ -777,7 +777,7 @@ fn storage_fields(
 
 #[cfg(feature = "hdf5")]
 fn storage_field(
-    snapshot: &FieldSnapshotEnvelopeV1,
+    snapshot: &FieldSnapshotEnvelopeV2,
     blocks: &[&DiscreteFieldEnvelopeV1],
 ) -> Result<XdmfHdf5TrajectoryFieldV1, Diagnostic> {
     XdmfHdf5TrajectoryFieldV1::new(

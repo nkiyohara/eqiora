@@ -187,10 +187,10 @@ model decay {
         let CompileOutcomeV2::Accepted { model } = control.outcome() else {
             panic!("accepted fixture must return one Model descriptor");
         };
-        assert_eq!(model.schema(), "eqiora.model-envelope/v8");
+        assert_eq!(model.schema(), "eqiora.model-envelope/v9");
         assert_eq!(
             model.transaction_schema(),
-            "eqiora.model-transaction-envelope/v8"
+            "eqiora.model-transaction-envelope/v9"
         );
         assert!(response.diagnostics.is_empty());
         assert!(state.documents.lock().unwrap().contains(&projection.digest));

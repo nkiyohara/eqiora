@@ -158,6 +158,17 @@ impl ExpressionChecker<'_, '_, '_> {
     fn check(&mut self, expression: &Expr) -> Result<ExpressionType<String>, Diagnostic> {
         match expression.kind() {
             ExprKind::Number(_) => Ok(ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)),
+            ExprKind::Quantity { value, unit } => {
+                let quantity = crate::units::quantity(*value, unit).map_err(|message| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        message,
+                    )
+                })?;
+                Ok(ExpressionType::scalar(quantity.dim(), None))
+            }
             ExprKind::Name(name) if name == "time" => {
                 Ok(ExpressionType::scalar(time_dimension(), None))
             }
@@ -335,8 +346,13 @@ impl ExpressionChecker<'_, '_, '_> {
             return typing::coordinate(axis, self.relation_support.as_ref())
                 .map_err(|error| type_error(self.scope.file, expression, error));
         }
-        if callee_name == "math.sin" {
-            return typing::sine(&self.check(argument)?)
+        if matches!(callee_name, "math.sin" | "math.sqrt") {
+            let function = if callee_name == "math.sqrt" {
+                eqiora_schema::kernel::UnaryMathFunction::Sqrt
+            } else {
+                eqiora_schema::kernel::UnaryMathFunction::Sin
+            };
+            return typing::unary_math(function, &self.check(argument)?)
                 .map_err(|error| type_error(self.scope.file, expression, error));
         }
         if matches!(

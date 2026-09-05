@@ -10,7 +10,7 @@ use eqiora_lang::{BinaryOp, ComponentDecl, Expr, ExprKind, NamePath, TextRange, 
 use eqiora_schema::kernel::{KernelNode, ParameterDef};
 
 use crate::diagnostics::source_error;
-use crate::dimensions::{checked_dimensions, checked_scale_dimension, length_dimension};
+use crate::dimensions::length_dimension;
 use crate::lower::ModelSymbols;
 use crate::source_identity::formulation::AuthoredFormSourceIdentity;
 
@@ -429,7 +429,7 @@ impl ExpressionContext<'_> {
                     "Formulation power requires an integer literal",
                 )
             })?;
-            let dimension = checked_scale_dimension(base.dimension, exponent).ok_or_else(|| {
+            let dimension = base.dimension.pow(exponent, 1).ok_or_else(|| {
                 error(
                     self.file,
                     expression.range(),
@@ -478,18 +478,17 @@ impl ExpressionContext<'_> {
                         "multiplication accepts at most one non-scalar operand",
                     ));
                 }
-                let dimension = checked_dimensions(
-                    left_value.dimension,
-                    right_value.dimension,
-                    i8::checked_add,
-                )
-                .ok_or_else(|| {
-                    error(
-                        self.file,
-                        expression.range(),
-                        "Formulation dimension multiplication overflows",
-                    )
-                })?;
+                let dimension =
+                    left_value
+                        .dimension
+                        .mul(right_value.dimension)
+                        .ok_or_else(|| {
+                            error(
+                                self.file,
+                                expression.range(),
+                                "Formulation dimension multiplication overflows",
+                            )
+                        })?;
                 let shape = if left_value.shape.is_scalar() {
                     right_value.shape.clone()
                 } else {
@@ -503,18 +502,17 @@ impl ExpressionContext<'_> {
             }
             BinaryOp::Div => {
                 require_scalar(self.file, right.range(), &right_value)?;
-                let dimension = checked_dimensions(
-                    left_value.dimension,
-                    right_value.dimension,
-                    i8::checked_sub,
-                )
-                .ok_or_else(|| {
-                    error(
-                        self.file,
-                        expression.range(),
-                        "Formulation dimension division overflows",
-                    )
-                })?;
+                let dimension =
+                    left_value
+                        .dimension
+                        .div(right_value.dimension)
+                        .ok_or_else(|| {
+                            error(
+                                self.file,
+                                expression.range(),
+                                "Formulation dimension division overflows",
+                            )
+                        })?;
                 let shape = left_value.shape.clone();
                 (
                     binary(BinaryOp::Div, left_value, right_value),
@@ -564,15 +562,13 @@ impl ExpressionContext<'_> {
                         "grad requires a spatially supported expression",
                     )
                 })?;
-                let dimension =
-                    checked_dimensions(argument.dimension, length_dimension(), i8::checked_sub)
-                        .ok_or_else(|| {
-                            error(
-                                self.file,
-                                expression.range(),
-                                "gradient dimension overflows",
-                            )
-                        })?;
+                let dimension = argument.dimension.div(length_dimension()).ok_or_else(|| {
+                    error(
+                        self.file,
+                        expression.range(),
+                        "gradient dimension overflows",
+                    )
+                })?;
                 let extent = u32::try_from(self.ambient_dimension)
                     .ok()
                     .filter(|value| *value > 0)
@@ -609,15 +605,13 @@ impl ExpressionContext<'_> {
                 }
                 let support =
                     merge_support(self.file, expression.range(), left.support, right.support)?;
-                let dimension =
-                    checked_dimensions(left.dimension, right.dimension, i8::checked_add)
-                        .ok_or_else(|| {
-                            error(
-                                self.file,
-                                expression.range(),
-                                "dot-product dimension overflows",
-                            )
-                        })?;
+                let dimension = left.dimension.mul(right.dimension).ok_or_else(|| {
+                    error(
+                        self.file,
+                        expression.range(),
+                        "dot-product dimension overflows",
+                    )
+                })?;
                 Ok(typed(
                     AuthoredFormExpressionKind::Dot(Box::new(left), Box::new(right)),
                     dimension,
@@ -753,7 +747,8 @@ impl ExpressionContext<'_> {
                 "Geometry dimension is not representable",
             )
         })?;
-        let measure_dimension = checked_scale_dimension(length_dimension(), topological_dimension)
+        let measure_dimension = length_dimension()
+            .pow(topological_dimension, 1)
             .ok_or_else(|| {
                 error(
                     self.file,
@@ -761,14 +756,13 @@ impl ExpressionContext<'_> {
                     "integration-measure dimension overflows",
                 )
             })?;
-        let dimension = checked_dimensions(integrand.dimension, measure_dimension, i8::checked_add)
-            .ok_or_else(|| {
-                error(
-                    self.file,
-                    expression.range(),
-                    "integral dimension overflows",
-                )
-            })?;
+        let dimension = integrand.dimension.mul(measure_dimension).ok_or_else(|| {
+            error(
+                self.file,
+                expression.range(),
+                "integral dimension overflows",
+            )
+        })?;
         Ok(typed(
             AuthoredFormExpressionKind::Integrate {
                 domain: domain_id,

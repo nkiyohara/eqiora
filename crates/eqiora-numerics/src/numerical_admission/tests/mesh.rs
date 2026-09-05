@@ -229,27 +229,15 @@ pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurr
     let stokes_scales = IncompressibleFlowScaleProfile2d::new(
         DynQuantity::new(
             1.0,
-            DimExponents {
-                length: 1,
-                ..DimExponents::DIMENSIONLESS
-            },
+            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
         ),
         DynQuantity::new(
             1.0,
-            DimExponents {
-                length: 1,
-                time: -1,
-                ..DimExponents::DIMENSIONLESS
-            },
+            DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
         ),
         DynQuantity::new(
             1.0,
-            DimExponents {
-                mass: 1,
-                length: -1,
-                time: -2,
-                ..DimExponents::DIMENSIONLESS
-            },
+            DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension"),
         ),
     )
     .unwrap();
@@ -369,20 +357,14 @@ pub(super) fn scalar_model_from_source(
             "wave_number",
             DynQuantity::new(
                 std::f64::consts::PI,
-                DimExponents {
-                    length: -1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, -1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (
             "source_scale",
             DynQuantity::new(
                 2.0 * std::f64::consts::PI.powi(2),
-                DimExponents {
-                    length: -2,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
     ];
@@ -422,12 +404,7 @@ pub(super) fn elasticity_model(geometry: &CanonicalGeometryV1, mu: f64) -> Model
             Some(("region", region)),
         ),
     ];
-    let pressure = DimExponents {
-        mass: 1,
-        length: -1,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let pressure = DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
     let parameters = [
         ("mu", DynQuantity::new(mu, pressure)),
         ("lambda", DynQuantity::new(0.0, pressure)),
@@ -435,10 +412,7 @@ pub(super) fn elasticity_model(geometry: &CanonicalGeometryV1, mu: f64) -> Model
             "length_scale",
             DynQuantity::new(
                 1.0,
-                DimExponents {
-                    length: 1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
     ];
@@ -588,45 +562,28 @@ pub(super) fn stokes_model_from_source(
             "dynamic_viscosity",
             DynQuantity::new(
                 0.001,
-                DimExponents {
-                    mass: 1,
-                    length: -1,
-                    time: -1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([1, -1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (
             "zero_pressure",
             DynQuantity::new(
                 0.0,
-                DimExponents {
-                    mass: 1,
-                    length: -1,
-                    time: -2,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (
             "inlet_speed",
             DynQuantity::new(
                 0.3,
-                DimExponents {
-                    length: 1,
-                    time: -1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (
             "channel_height",
             DynQuantity::new(
                 0.41,
-                DimExponents {
-                    length: 1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
     ];

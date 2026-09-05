@@ -108,20 +108,11 @@ fn canonical_direction_and_guard_point_fail_closed() {
 }
 
 fn bouncing_ball(direction: EventDirection) -> BouncingBall {
-    let length = DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let velocity_dimension = DimExponents {
-        length: 1,
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let acceleration_dimension = DimExponents {
-        length: 1,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+    let velocity_dimension =
+        DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+    let acceleration_dimension =
+        DimExponents::from_integers([0, 1, -2, 0, 0, 0, 0]).expect("bounded dimension");
     let height = Id::<kinds::Field>::new();
     let velocity = Id::<kinds::Field>::new();
     let gravity = Id::<kinds::Parameter>::new();

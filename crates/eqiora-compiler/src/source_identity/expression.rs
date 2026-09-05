@@ -12,6 +12,13 @@ pub(super) fn encode_expression(
             encoder.u16(1)?;
             encoder.f64(*value)
         }
+        ExprKind::Quantity { value, unit } => {
+            encoder.u16(9)?;
+            encoder.field(1, |encoder| encoder.f64(*value))?;
+            encoder.field(2, |encoder| {
+                encode_expression(encoder, unit, budget, next_depth(depth)?)
+            })
+        }
         ExprKind::Name(name) => {
             encoder.u16(2)?;
             encoder.field(1, |encoder| encode_name(encoder, name, budget))

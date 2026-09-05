@@ -371,23 +371,10 @@ fn fsi_model(geometry: &CanonicalGeometryV1) -> ModelEnvelope {
             Some(("solid", solid)),
         ),
     ];
-    let density = DimExponents {
-        mass: 1,
-        length: -3,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let viscosity = DimExponents {
-        mass: 1,
-        length: -1,
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let pressure = DimExponents {
-        mass: 1,
-        length: -1,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let density = DimExponents::from_integers([1, -3, 0, 0, 0, 0, 0]).expect("bounded dimension");
+    let viscosity =
+        DimExponents::from_integers([1, -1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+    let pressure = DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
     compile_model(
         "fixed-reference-fsi.eqi",
         FSI_COMPONENT,

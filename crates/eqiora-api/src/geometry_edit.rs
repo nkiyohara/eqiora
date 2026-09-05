@@ -558,10 +558,7 @@ model Pair {
     }
 
     fn axis_bounds(lower: f64, upper: f64) -> AxisBounds {
-        let length = DimExponents {
-            length: 1,
-            ..DimExponents::DIMENSIONLESS
-        };
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
         AxisBounds::new(
             DynQuantity::new(lower, length),
             DynQuantity::new(upper, length),

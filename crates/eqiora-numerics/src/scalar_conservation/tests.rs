@@ -119,8 +119,11 @@ fn projects_transient_storage_source_and_robin_without_physics_names() {
     let source = region.source.as_ref().unwrap();
     assert_eq!(source.expression.constant_value(), Some(0.5));
     assert_eq!(
-        source.integrated_dimension.length,
-        source.dimension.length + 1
+        source.integrated_dimension.exponents()[1],
+        (
+            source.dimension.exponents()[1].0 + source.dimension.exponents()[1].1,
+            source.dimension.exponents()[1].1
+        )
     );
     assert!(matches!(
         &region.exterior[&(0, BoundarySide::Lower)].law,
@@ -399,10 +402,7 @@ fn axial_scalar_balance_is_math_equivalent_not_a_thermal_claim() {
     assert_eq!(descriptor.regions.len(), 1);
     assert_eq!(
         descriptor.regions[0].field_dimension,
-        DimExponents {
-            length: 1,
-            ..DimExponents::DIMENSIONLESS
-        }
+        DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension")
     );
     assert!(descriptor.regions[0].storage.is_none());
 }

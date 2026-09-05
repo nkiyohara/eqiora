@@ -45,8 +45,13 @@ fn owned_flat_model_formats_and_parses_identically() {
         range(0, 0),
     )
     .expect("Field");
-    let parameter =
-        SourceAstFactory::parameter("gain", dimension(), 2.0, range(0, 0)).expect("Parameter");
+    let parameter = SourceAstFactory::parameter(
+        "gain",
+        dimension(),
+        SourceAstFactory::expression(ExprKind::Number(2.0), range(0, 0)).unwrap(),
+        range(0, 0),
+    )
+    .expect("Parameter");
     let output = SourceAstFactory::port(
         "output",
         PortSyntax::Signal {

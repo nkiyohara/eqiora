@@ -35,7 +35,7 @@ own filename/source admission it invokes `ModelDocument::compile` directly on
 a detached native path, without constructing a control request or importing a
 control DTO. Independently accepted Python, control-v2, and direct
 compilations have pairwise-distinct Model IDs and artifact digests but the
-same generation-v3 structural fingerprint. Ordinary rejected compilation is
+same generation-v4 structural fingerprint. Ordinary rejected compilation is
 normalized across all three paths; control-envelope overflow behavior is not
 a cross-adapter claim.
 

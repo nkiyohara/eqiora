@@ -15,9 +15,9 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, FieldDecoderLimits, FieldSnapshotEnvelopeV1,
+    ArtifactDigest, CANONICAL_ENCODING, FieldDecoderLimits, FieldSnapshotEnvelopeV2,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
-    RealizationEnvelopeV4, ReplayableCanonicalModelArtifact,
+    RealizationEnvelopeV6, ReplayableCanonicalModelArtifact,
     ReplayableFixedTopologyAleRealizationArtifact, ReplayableFixedTopologyGeometryStateArtifact,
     ReplayedCanonicalModel, SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
 };
@@ -37,7 +37,7 @@ const MAX_EXACT_F64_INTEGER: u64 = 1_u64 << 53;
 pub struct ValidatedMovingSpatialContextV2<
     'a,
     M: ReplayableCanonicalModelArtifact,
-    R: ReplayableFixedTopologyAleRealizationArtifact = RealizationEnvelopeV4,
+    R: ReplayableFixedTopologyAleRealizationArtifact = RealizationEnvelopeV6,
 > {
     model: &'a M,
     replayed_model: ReplayedCanonicalModel,
@@ -147,7 +147,7 @@ impl<'a, M: ReplayableCanonicalModelArtifact, R: ReplayableFixedTopologyAleReali
 
     pub(crate) fn validate_snapshot(
         &self,
-        snapshot: &FieldSnapshotEnvelopeV1,
+        snapshot: &FieldSnapshotEnvelopeV2,
     ) -> Result<(), Diagnostic> {
         let expected = self
             .represented_fields
@@ -292,7 +292,7 @@ impl SpatialStateEnvelopeV2 {
         >,
         geometry_state: &G,
         predecessor_geometry_state: Option<&G>,
-        snapshots: &[FieldSnapshotEnvelopeV1],
+        snapshots: &[FieldSnapshotEnvelopeV2],
         geometry_driver_evidence: G::DriverReplayEvidence<'a>,
     ) -> Result<Self, Diagnostic> {
         let step = geometry_state.step();
@@ -562,7 +562,7 @@ impl SpatialStateEnvelopeV2 {
         >,
         geometry_state: &G,
         predecessor_geometry_state: Option<&G>,
-        snapshots: &[FieldSnapshotEnvelopeV1],
+        snapshots: &[FieldSnapshotEnvelopeV2],
         geometry_driver_evidence: G::DriverReplayEvidence<'a>,
     ) -> Result<(), Diagnostic> {
         let expected = Self::new(

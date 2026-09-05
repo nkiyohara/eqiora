@@ -18,7 +18,7 @@ A notification `_meta.progressToken` member is instead open, unrecognized, and
 ignored like other valid notification metadata.
 
 The accepted decay witness is compiled independently through the direct and
-MCP paths. Their outcomes and generation-v3 structural fingerprints agree,
+MCP paths. Their outcomes and generation-v4 structural fingerprints agree,
 while their occurrence IDs and artifact digests differ. The MCP descriptor is
 linked exactly to the document returned by that same MCP invocation without a
 second compilation. Empty source is rejected by both paths with matching

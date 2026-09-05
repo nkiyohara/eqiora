@@ -344,17 +344,8 @@ impl PyScalingComponentRecord2d {
         self.native.value().value()
     }
     #[getter]
-    const fn dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
-        let dimension = self.native.value().dim();
-        (
-            dimension.mass,
-            dimension.length,
-            dimension.time,
-            dimension.current,
-            dimension.temperature,
-            dimension.amount,
-            dimension.luminous_intensity,
-        )
+    fn dimension(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyTuple>> {
+        crate::modeling::dimension::exponents(py, self.native.value().dim())
     }
     #[getter]
     const fn mode(&self) -> PyScalingMode {

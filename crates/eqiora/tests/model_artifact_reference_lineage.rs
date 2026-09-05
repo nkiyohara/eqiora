@@ -169,10 +169,7 @@ fn artifact_owner_replays_the_current_model_and_preserves_lineage() {
     let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
     let rate = DraftParameter::new(
         "rate",
-        DimExponents {
-            time: -1,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
         1.0,
     );
     let flow = DraftRelation::continuous(

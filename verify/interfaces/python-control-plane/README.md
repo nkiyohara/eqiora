@@ -25,7 +25,7 @@ and overflow-substitution policies are deliberately not copied into Python.
 
 Accepted frozen source compiled independently through Python, control-v2, and
 direct Rust has pairwise-distinct Model occurrence IDs and artifact digests,
-while all three generation-v3 structural fingerprints agree. Rejected source
+while all three generation-v4 structural fingerprints agree. Rejected source
 has the same normalized ordinary diagnostics through all three paths. Identity
 or digest equality is required only for a response and document from the same
 invocation, never across independent compilations.

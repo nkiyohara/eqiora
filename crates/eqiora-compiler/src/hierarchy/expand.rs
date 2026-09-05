@@ -40,9 +40,7 @@ mod cartesian;
 mod external;
 mod model_lets;
 mod names;
-use super::parameters::{
-    ConstantValue, ParameterLineage, ParameterResolver, ResolvedParameter, normalize_zero,
-};
+use super::parameters::{ConstantValue, ParameterLineage, ParameterResolver, ResolvedParameter};
 use super::preflight::{
     ComponentDefinition, ConnectorDefinition, DefinitionKey, DefinitionNamespace, Elaborator,
     ExpansionSize, ModelDefinition,
@@ -881,7 +879,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 Item::Parameter(declaration) => {
                     let dimension = lower_dimension(self.model.file, declaration.dimension())?;
                     let value = ConstantValue {
-                        value: normalize_zero(declaration.initial()),
+                        value: crate::units::parameter_value(self.model.file, declaration)?,
                         dimension,
                     };
                     (
@@ -2207,7 +2205,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     self.items.push(FlatItemBlueprint::Parameter {
                         name: internal_name(identity.full),
                         dimension: declaration.dimension().clone(),
-                        value: declaration.initial(),
+                        value: crate::units::parameter_value(self.model.file, declaration)?,
                         range: declaration.range(),
                         identity,
                     });

@@ -115,10 +115,8 @@ fn resolve_coordinate(
         CartesianCoordinateSource::Parameter(parameter) => {
             let parameter = parameter.erase();
             references.insert(parameter);
-            let length = DimExponents {
-                length: 1,
-                ..DimExponents::DIMENSIONLESS
-            };
+            let length =
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
             let Some(KernelNode::Parameter(definition)) = nodes.get(&parameter) else {
                 diagnostics.push(kernel_error(
                     domain,

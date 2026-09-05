@@ -31,8 +31,7 @@ multi-root Relations and borrowed N-ary Connection membership. Ordinary native
 authoring and source compilation both use the current semantic profile and
 current Model/Transaction owner. Each reconstructs its canonical bytes and
 digest without fallback and matches the source-authored analytic values port
-by port. Historical v1--v7 bytes remain rejection-only specimens in
-`artifacts.current-model-canonical-identity`.
+by port.
 Source and native CSR systems each reaccept the exact analytic vector through
 the same faer request and original semantic DAGs. Repeating unconstrained
 Krylov solves for fresh, identity-permuted drafts would test BiCGSTAB

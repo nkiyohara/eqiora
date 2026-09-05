@@ -146,20 +146,14 @@ fn scalar_document_from_source(
             "wave_number",
             DynQuantity::new(
                 std::f64::consts::PI,
-                DimExponents {
-                    length: -1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, -1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (
             "source_scale",
             DynQuantity::new(
                 source_scale,
-                DimExponents {
-                    length: -2,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
     ];
@@ -209,45 +203,28 @@ fn stokes_document_with_speed(geometry: &CanonicalGeometryV1, inlet_speed: f64) 
             "dynamic_viscosity",
             DynQuantity::new(
                 0.001,
-                DimExponents {
-                    mass: 1,
-                    length: -1,
-                    time: -1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([1, -1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (
             "zero_pressure",
             DynQuantity::new(
                 0.0,
-                DimExponents {
-                    mass: 1,
-                    length: -1,
-                    time: -2,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (
             "inlet_speed",
             DynQuantity::new(
                 inlet_speed,
-                DimExponents {
-                    length: 1,
-                    time: -1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (
             "channel_height",
             DynQuantity::new(
                 0.41,
-                DimExponents {
-                    length: 1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
     ];
@@ -300,56 +277,35 @@ fn transient_cylinder_document_with_speed(
             "density",
             DynQuantity::new(
                 1.0,
-                DimExponents {
-                    mass: 1,
-                    length: -3,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([1, -3, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (
             "dynamic_viscosity",
             DynQuantity::new(
                 0.001,
-                DimExponents {
-                    mass: 1,
-                    length: -1,
-                    time: -1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([1, -1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (
             "zero_pressure",
             DynQuantity::new(
                 0.0,
-                DimExponents {
-                    mass: 1,
-                    length: -1,
-                    time: -2,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (
             "inlet_speed",
             DynQuantity::new(
                 inlet_speed,
-                DimExponents {
-                    length: 1,
-                    time: -1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (
             "channel_height",
             DynQuantity::new(
                 0.41,
-                DimExponents {
-                    length: 1,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
     ];

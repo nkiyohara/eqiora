@@ -16,40 +16,37 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct WireDimension {
-    mass: i8,
-    length: i8,
-    time: i8,
-    current: i8,
-    temperature: i8,
-    amount: i8,
-    luminous_intensity: i8,
-}
+#[serde(try_from = "[(i32, i32); 7]", into = "[(i32, i32); 7]")]
+pub(super) struct WireDimension(DimExponents);
 
 impl WireDimension {
     pub(super) const fn encode(value: DimExponents) -> Self {
-        Self {
-            mass: value.mass,
-            length: value.length,
-            time: value.time,
-            current: value.current,
-            temperature: value.temperature,
-            amount: value.amount,
-            luminous_intensity: value.luminous_intensity,
-        }
+        Self(value)
     }
 
     const fn decode(self) -> DimExponents {
-        DimExponents {
-            mass: self.mass,
-            length: self.length,
-            time: self.time,
-            current: self.current,
-            temperature: self.temperature,
-            amount: self.amount,
-            luminous_intensity: self.luminous_intensity,
+        self.0
+    }
+}
+
+impl From<WireDimension> for [(i32, i32); 7] {
+    fn from(value: WireDimension) -> Self {
+        value.0.exponents()
+    }
+}
+
+impl TryFrom<[(i32, i32); 7]> for WireDimension {
+    type Error = Diagnostic;
+
+    fn try_from(value: [(i32, i32); 7]) -> Result<Self, Self::Error> {
+        let dimension = DimExponents::from_rationals(value)
+            .ok_or_else(|| invalid_realization("invalid rational dimension exponents"))?;
+        if dimension.exponents() != value {
+            return Err(invalid_realization(
+                "dimension exponents must be canonical reduced fractions",
+            ));
         }
+        Ok(Self(dimension))
     }
 }
 
@@ -854,6 +851,29 @@ mod tests {
             )
             .into_bytes()
         );
+    }
+
+    #[test]
+    fn quantity_wire_requires_canonical_rational_dimensions() {
+        let dimension =
+            DimExponents::from_rationals([(0, 1), (-1, 2), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1)])
+                .unwrap();
+        let quantity = DynQuantity::new(2.0, dimension);
+        let wire = serde_json::to_value(WireQuantity::encode(quantity)).unwrap();
+        assert_eq!(
+            serde_json::from_value::<WireQuantity>(wire.clone())
+                .unwrap()
+                .decode(),
+            quantity
+        );
+        for pair in [(1, 0), (2, 4), (1, -2), (0, 2), (i32::MIN, 1)] {
+            let mut invalid = wire.clone();
+            invalid["dimension"][1] = serde_json::json!(pair);
+            assert!(serde_json::from_value::<WireQuantity>(invalid).is_err());
+        }
+        let mut old = wire;
+        old["dimension"] = serde_json::json!([0, -1, 0, 0, 0, 0, 0]);
+        assert!(serde_json::from_value::<WireQuantity>(old).is_err());
     }
 
     #[test]

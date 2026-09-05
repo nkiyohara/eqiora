@@ -2,8 +2,8 @@
 
 use crate::{
     ArtifactDigest, CanonicalModelArtifact, LayoutArtifacts, RealizationEnvelopeV1,
-    RealizationEnvelopeV2, RealizationEnvelopeV3, RealizationEnvelopeV4, RealizationEnvelopeV5,
-    SimplicialMeshEnvelopeV1, invalid_artifact,
+    RealizationEnvelopeV6, RealizationEnvelopeV7, RealizationEnvelopeV8, SimplicialMeshEnvelopeV1,
+    invalid_artifact,
 };
 use eqiora_core::Diagnostic;
 use eqiora_realization::{
@@ -33,12 +33,8 @@ pub trait CanonicalRealizationArtifact: sealed::Sealed {
 /// One canonical fixed-topology ALE Realization that can be replayed against
 /// its exact Model and immutable reference mesh.
 ///
-/// This is deliberately narrower than a general Realization-provider API. It
-/// unifies only the V4 and V5 ALE wire generations needed by moving spatial
-/// artifacts while retaining each generation's own schema, bytes, digest
-/// domain, and validation rules. The [`CanonicalRealizationArtifact`]
-/// supertrait keeps implementations closed to canonical artifact types owned
-/// by this crate.
+/// Moving spatial artifacts replay the current ALE wire through this sealed
+/// boundary, including its Model, mesh, and complete plan validation.
 pub trait ReplayableFixedTopologyAleRealizationArtifact: CanonicalRealizationArtifact {
     /// Replay the exact fixed-topology ALE lowerer requirements.
     ///
@@ -196,9 +192,9 @@ impl CanonicalRealizationArtifact for RealizationEnvelopeV1 {
     }
 }
 
-impl sealed::Sealed for RealizationEnvelopeV2 {}
+impl sealed::Sealed for RealizationEnvelopeV7 {}
 
-impl CanonicalRealizationArtifact for RealizationEnvelopeV2 {
+impl CanonicalRealizationArtifact for RealizationEnvelopeV7 {
     fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic> {
         let plan = self.plan()?;
         Ok(RealizationArtifactReference::new(
@@ -213,9 +209,9 @@ impl CanonicalRealizationArtifact for RealizationEnvelopeV2 {
     }
 }
 
-impl sealed::Sealed for RealizationEnvelopeV3 {}
+impl sealed::Sealed for RealizationEnvelopeV8 {}
 
-impl CanonicalRealizationArtifact for RealizationEnvelopeV3 {
+impl CanonicalRealizationArtifact for RealizationEnvelopeV8 {
     fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic> {
         let plan = self.plan()?;
         Ok(RealizationArtifactReference::new(
@@ -230,9 +226,9 @@ impl CanonicalRealizationArtifact for RealizationEnvelopeV3 {
     }
 }
 
-impl sealed::Sealed for RealizationEnvelopeV4 {}
+impl sealed::Sealed for RealizationEnvelopeV6 {}
 
-impl CanonicalRealizationArtifact for RealizationEnvelopeV4 {
+impl CanonicalRealizationArtifact for RealizationEnvelopeV6 {
     fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic> {
         let plan = self.plan()?;
         Ok(RealizationArtifactReference::new(
@@ -247,50 +243,7 @@ impl CanonicalRealizationArtifact for RealizationEnvelopeV4 {
     }
 }
 
-impl ReplayableFixedTopologyAleRealizationArtifact for RealizationEnvelopeV4 {
-    fn ale_requirements(
-        &self,
-    ) -> Result<FixedTopologyAleCoupledRealizationRequirements, Diagnostic> {
-        self.requirements()
-    }
-
-    fn ale_plan(&self) -> Result<FixedTopologyAleCoupledRealizationPlan, Diagnostic> {
-        self.plan()
-    }
-
-    fn validate_ale_model_artifact(
-        &self,
-        model: &impl CanonicalModelArtifact,
-    ) -> Result<(), Diagnostic> {
-        self.validate_model_artifact(model)
-    }
-
-    fn validate_ale_mesh_artifact(
-        &self,
-        mesh: &SimplicialMeshEnvelopeV1,
-    ) -> Result<(), Diagnostic> {
-        self.validate_mesh_artifact(mesh)
-    }
-}
-
-impl sealed::Sealed for RealizationEnvelopeV5 {}
-
-impl CanonicalRealizationArtifact for RealizationEnvelopeV5 {
-    fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic> {
-        let plan = self.plan()?;
-        Ok(RealizationArtifactReference::new(
-            self.digest()?,
-            self.model_artifact(),
-            self.semantic_revision(),
-            plan.coupled().target(),
-            self.requirements()?.coupled().execution().vector_layout(),
-            self.layout_artifacts(),
-            plan.coupled().solver().reduction(),
-        ))
-    }
-}
-
-impl ReplayableFixedTopologyAleRealizationArtifact for RealizationEnvelopeV5 {
+impl ReplayableFixedTopologyAleRealizationArtifact for RealizationEnvelopeV6 {
     fn ale_requirements(
         &self,
     ) -> Result<FixedTopologyAleCoupledRealizationRequirements, Diagnostic> {

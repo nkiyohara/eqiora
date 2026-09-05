@@ -95,23 +95,14 @@ fn backward_euler_reference_error_decreases_with_step_size() {
 }
 
 fn thermal_fixture() -> ThermalFixture {
-    let temperature_dimension = DimExponents {
-        temperature: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let time_dimension = DimExponents {
-        time: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let temperature_rate_dimension = DimExponents {
-        time: -1,
-        temperature: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let inverse_temperature_dimension = DimExponents {
-        temperature: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let temperature_dimension =
+        DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension");
+    let time_dimension =
+        DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
+    let temperature_rate_dimension =
+        DimExponents::from_integers([0, 0, -1, 0, 1, 0, 0]).expect("bounded dimension");
+    let inverse_temperature_dimension =
+        DimExponents::from_integers([0, 0, 0, 0, -1, 0, 0]).expect("bounded dimension");
 
     let temperature = Id::<kinds::Field>::new();
     let command = Id::<kinds::Field>::new();

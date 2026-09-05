@@ -88,30 +88,15 @@ impl LoweringIdentities for AssignedTestIdentities {
 }
 
 fn voltage_dimension() -> DimExponents {
-    DimExponents {
-        mass: 1,
-        length: 2,
-        time: -3,
-        current: -1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension")
 }
 
 fn current_dimension() -> DimExponents {
-    DimExponents {
-        current: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension")
 }
 
 fn resistance_dimension() -> DimExponents {
-    DimExponents {
-        mass: 1,
-        length: 2,
-        time: -3,
-        current: -2,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension")
 }
 
 #[test]
@@ -513,18 +498,12 @@ model invalid {
 fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
     let temperature = eqiora_lang::DraftField::new(
         "temperature",
-        DimExponents {
-            temperature: 1,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension"),
         293.0,
     );
     let duration = eqiora_lang::DraftParameter::new(
         "duration",
-        DimExponents {
-            time: 1,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
         1.0,
     );
     let relation = eqiora_lang::DraftRelation::continuous(

@@ -11,9 +11,9 @@ impl Parser<'_> {
             .text()
             .to_owned();
         self.expect(TokenKind::Colon, "`:` before dimension")?;
-        let dimension = self.parse_expression(0)?;
+        let dimension = self.parse_dimension_expression()?;
         self.expect(TokenKind::Equal, "`=` before value")?;
-        let initial = self.parse_signed_number()?;
+        let value = self.parse_signed_quantity_literal()?;
         let end = self
             .expect(TokenKind::Semicolon, "`;` after declaration")?
             .range()
@@ -21,7 +21,7 @@ impl Parser<'_> {
         Some(ParameterDecl {
             name,
             dimension,
-            initial,
+            value,
             range: TextRange::new(start, end),
         })
     }
@@ -31,7 +31,7 @@ impl Parser<'_> {
         let name = self.expect_identifier("alias name")?.text().to_owned();
         let dimension = if self.at(TokenKind::Colon) {
             self.bump();
-            Some(self.parse_expression(0)?)
+            Some(self.parse_dimension_expression()?)
         } else {
             None
         };

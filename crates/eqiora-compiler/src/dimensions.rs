@@ -12,6 +12,7 @@ use eqiora_core::{Diagnostic, DimExponents};
 use eqiora_lang::{BinaryOp, Document, Expr, ExprKind, SourceAstFactory, TextRange, UnaryOp};
 
 use crate::diagnostics::source_error;
+use crate::units::coherent_dimension;
 
 #[derive(Default)]
 struct DimensionEnvironment {
@@ -51,12 +52,11 @@ fn lower_dimension_with_aliases(
             let left = lower_dimension_with_aliases(file, left, aliases, declared_names)?;
             let right = lower_dimension_with_aliases(file, right, aliases, declared_names)?;
             let operation = if *op == BinaryOp::Mul {
-                i8::checked_add
+                DimExponents::mul
             } else {
-                i8::checked_sub
+                DimExponents::div
             };
-            checked_dimensions(left, right, operation)
-                .ok_or_else(|| dimension_overflow(file, expression.range()))
+            operation(left, right).ok_or_else(|| dimension_overflow(file, expression.range()))
         }
         ExprKind::Binary {
             op: BinaryOp::Pow,
@@ -64,22 +64,23 @@ fn lower_dimension_with_aliases(
             right,
         } => {
             let dimension = lower_dimension_with_aliases(file, left, aliases, declared_names)?;
-            let exponent = integer_literal(right).ok_or_else(|| {
+            let (numerator, denominator) = rational_literal(right).ok_or_else(|| {
                 source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     file,
                     right.range(),
-                    "dimension power must be an i32 integer literal",
+                    "dimension power must be a bounded integer or a ratio of integers with positive denominator",
                 )
             })?;
-            checked_scale_dimension(dimension, exponent)
+            dimension
+                .pow(numerator, denominator)
                 .ok_or_else(|| dimension_overflow(file, expression.range()))
         }
         _ => Err(source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,
             expression.range(),
-            "dimension must use `1`, SI base symbols, `*`, `/`, and integer powers",
+            "dimension must use `1`, SI base symbols, `*`, `/`, and exact rational powers",
         )),
     }
 }
@@ -184,31 +185,25 @@ fn rewrite_alias_uses(expression: &Expr, aliases: &BTreeMap<String, DimExponents
 }
 
 fn dimension_expression(dimension: DimExponents, range: TextRange) -> Expr {
-    let factors = [
-        ("kg", dimension.mass),
-        ("m", dimension.length),
-        ("s", dimension.time),
-        ("A", dimension.current),
-        ("K", dimension.temperature),
-        ("mol", dimension.amount),
-        ("cd", dimension.luminous_intensity),
-    ];
+    let factors = ["kg", "m", "s", "A", "K", "mol", "cd"]
+        .into_iter()
+        .zip(dimension.exponents());
     let mut expression = None;
-    for (name, exponent) in factors {
-        if exponent == 0 {
+    for (name, (numerator, denominator)) in factors {
+        if numerator == 0 {
             continue;
         }
         let name = SourceAstFactory::expression(ExprKind::Name(name.to_owned()), range)
             .expect("coherent-SI name expression");
-        let factor = if exponent == 1 {
+        let factor = if (numerator, denominator) == (1, 1) {
             name
         } else {
             let magnitude = SourceAstFactory::expression(
-                ExprKind::Number(f64::from(exponent.unsigned_abs())),
+                ExprKind::Number(f64::from(numerator.unsigned_abs())),
                 range,
             )
             .expect("bounded exponent");
-            let exponent = if exponent < 0 {
+            let exponent = if numerator < 0 {
                 SourceAstFactory::expression(
                     ExprKind::Unary {
                         op: UnaryOp::Neg,
@@ -219,6 +214,25 @@ fn dimension_expression(dimension: DimExponents, range: TextRange) -> Expr {
                 .expect("negative exponent")
             } else {
                 magnitude
+            };
+            let exponent = if denominator == 1 {
+                exponent
+            } else {
+                SourceAstFactory::expression(
+                    ExprKind::Binary {
+                        op: BinaryOp::Div,
+                        left: Box::new(exponent),
+                        right: Box::new(
+                            SourceAstFactory::expression(
+                                ExprKind::Number(f64::from(denominator)),
+                                range,
+                            )
+                            .expect("positive dimension denominator"),
+                        ),
+                    },
+                    range,
+                )
+                .expect("rational dimension exponent")
             };
             SourceAstFactory::expression(
                 ExprKind::Binary {
@@ -249,40 +263,16 @@ fn dimension_expression(dimension: DimExponents, range: TextRange) -> Expr {
     })
 }
 
-pub(crate) fn checked_dimensions(
-    left: DimExponents,
-    right: DimExponents,
-    operation: fn(i8, i8) -> Option<i8>,
-) -> Option<DimExponents> {
-    Some(DimExponents {
-        mass: operation(left.mass, right.mass)?,
-        length: operation(left.length, right.length)?,
-        time: operation(left.time, right.time)?,
-        current: operation(left.current, right.current)?,
-        temperature: operation(left.temperature, right.temperature)?,
-        amount: operation(left.amount, right.amount)?,
-        luminous_intensity: operation(left.luminous_intensity, right.luminous_intensity)?,
-    })
-}
-
-pub(crate) fn checked_scale_dimension(
-    dimension: DimExponents,
-    exponent: i32,
-) -> Option<DimExponents> {
-    fn scale(value: i8, exponent: i32) -> Option<i8> {
-        i32::from(value)
-            .checked_mul(exponent)
-            .and_then(|value| i8::try_from(value).ok())
-    }
-    Some(DimExponents {
-        mass: scale(dimension.mass, exponent)?,
-        length: scale(dimension.length, exponent)?,
-        time: scale(dimension.time, exponent)?,
-        current: scale(dimension.current, exponent)?,
-        temperature: scale(dimension.temperature, exponent)?,
-        amount: scale(dimension.amount, exponent)?,
-        luminous_intensity: scale(dimension.luminous_intensity, exponent)?,
-    })
+pub(crate) fn rational_literal(expression: &Expr) -> Option<(i32, i32)> {
+    let (numerator, denominator) = match expression.kind() {
+        ExprKind::Binary {
+            op: BinaryOp::Div,
+            left,
+            right,
+        } => (integer_literal(left)?, integer_literal(right)?),
+        _ => (integer_literal(expression)?, 1),
+    };
+    (numerator != i32::MIN && denominator > 0).then_some((numerator, denominator))
 }
 
 pub(crate) fn integer_literal(expression: &Expr) -> Option<i32> {
@@ -302,53 +292,11 @@ pub(crate) fn integer_literal(expression: &Expr) -> Option<i32> {
 }
 
 pub(crate) const fn time_dimension() -> DimExponents {
-    DimExponents {
-        time: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 pub(crate) const fn length_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
-}
-
-fn coherent_dimension(name: &str) -> Option<DimExponents> {
-    let mut dimension = DimExponents::DIMENSIONLESS;
-    match name {
-        "kg" => dimension.mass = 1,
-        "m" => dimension.length = 1,
-        "s" => dimension.time = 1,
-        "A" => dimension.current = 1,
-        "K" => dimension.temperature = 1,
-        "mol" => dimension.amount = 1,
-        "cd" => dimension.luminous_intensity = 1,
-        "Hz" => dimension.time = -1,
-        "N" => {
-            dimension.mass = 1;
-            dimension.length = 1;
-            dimension.time = -2;
-        }
-        "Pa" => {
-            dimension.mass = 1;
-            dimension.length = -1;
-            dimension.time = -2;
-        }
-        "J" => {
-            dimension.mass = 1;
-            dimension.length = 2;
-            dimension.time = -2;
-        }
-        "W" => {
-            dimension.mass = 1;
-            dimension.length = 2;
-            dimension.time = -3;
-        }
-        _ => return None,
-    }
-    Some(dimension)
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 pub(crate) fn dimension_overflow(file: &str, range: TextRange) -> Diagnostic {
@@ -356,7 +304,7 @@ pub(crate) fn dimension_overflow(file: &str, range: TextRange) -> Diagnostic {
         codes::LANGUAGE_TYPE_ERROR,
         file,
         range,
-        "physical-dimension exponent arithmetic overflows i8",
+        "physical-dimension arithmetic exceeds rational exponent bounds",
     )
 }
 
@@ -390,6 +338,31 @@ mod tests {
         ] {
             assert_eq!(parameter_dimension(alias), parameter_dimension(expanded));
         }
+    }
+
+    #[test]
+    fn rational_dimensions_normalize_and_round_trip_alias_expressions() {
+        for (source, equivalent) in [
+            ("m ^ (2 / 4)", "m ^ (1 / 2)"),
+            ("(m ^ 2) ^ (1 / 2)", "m"),
+            ("Hz ^ (-1 / 2)", "s ^ (1 / 2)"),
+            ("(m ^ (-1 / 2)) ^ 2 * m", "1"),
+            ("m ^ (0 / 7)", "1"),
+            ("m ^ 2147483647 / m ^ 2147483646", "m"),
+        ] {
+            let dimension = parameter_dimension(source);
+            assert_eq!(dimension, parameter_dimension(equivalent), "{source}");
+            let expression =
+                super::dimension_expression(dimension, eqiora_lang::TextRange::new(0, 1));
+            assert_eq!(
+                lower_dimension("roundtrip.eqi", &expression).unwrap(),
+                dimension
+            );
+        }
+        assert_ne!(
+            parameter_dimension("(m ^ -1) ^ 2 * m"),
+            eqiora_core::DimExponents::DIMENSIONLESS,
+        );
     }
 
     #[test]
@@ -502,12 +475,27 @@ model Example {
             ),
             (
                 "overflow",
-                "dimension D = m ^ 128; model M { field x: D = 0; }",
-                "overflows i8",
+                "dimension D = m ^ 2147483647 * m; model M { field x: D = 0; }",
+                "exceeds rational exponent bounds",
+            ),
+            (
+                "denominator-overflow",
+                "dimension D = (m ^ (1 / 2147483647)) ^ (1 / 2); model M { field x: D = 0; }",
+                "exceeds rational exponent bounds",
+            ),
+            (
+                "zero-denominator",
+                "dimension D = m ^ (1 / 0); model M { field x: D = 0; }",
+                "positive denominator",
+            ),
+            (
+                "negative-denominator",
+                "dimension D = m ^ (1 / -2); model M { field x: D = 0; }",
+                "positive denominator",
             ),
             (
                 "malformed",
-                "dimension D = m + s; model M { field x: D = 0; }",
+                "dimension D = 2; model M { field x: D = 0; }",
                 "dimension must use",
             ),
         ] {

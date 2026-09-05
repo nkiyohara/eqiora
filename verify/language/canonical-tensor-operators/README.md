@@ -28,9 +28,6 @@ The accepted Relation and its ordered transaction cross the one current Model
 and Transaction owner.
 
 Canonical bytes, domain-separated digests, and typed replay must agree exactly.
-Historical v1--v7 bytes are rejection-only specimens owned by
-`artifacts.current-model-canonical-identity`; no historical generation remains
-callable from this case.
 
 Run:
 

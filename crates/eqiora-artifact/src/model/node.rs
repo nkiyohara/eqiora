@@ -8,6 +8,7 @@ use eqiora_schema::kernel::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::dimension::WireDimension;
 use crate::{ArtifactDigest, invalid_artifact};
 
 use super::*;

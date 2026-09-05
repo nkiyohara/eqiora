@@ -25,9 +25,9 @@ use crate::{ArtifactDigest, invalid_artifact};
 use canonical::{Canonicalizer, Encoder};
 use projection::{ConstructionBudget, ProjectionGraph, Reference};
 
-const FINGERPRINT_DOMAIN_V3: &[u8] = b"eqiora.structural-semantic-fingerprint/v3\0";
+const FINGERPRINT_DOMAIN_V4: &[u8] = b"eqiora.structural-semantic-fingerprint/v4\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V3: u16 = 3;
+const GENERATION_V4: u16 = 4;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -36,8 +36,8 @@ const GENERATION_V3: u16 = 3;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum SemanticFingerprintGeneration {
-    /// Closed projection including direct Cartesian coordinate sources.
-    V3,
+    /// Closed projection with exact rational dimensions and real square roots.
+    V4,
 }
 
 impl SemanticFingerprintGeneration {
@@ -45,19 +45,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V3 => "eqiora.structural-semantic-fingerprint/v3",
+            Self::V4 => "eqiora.structural-semantic-fingerprint/v4",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V3 => GENERATION_V3,
+            Self::V4 => GENERATION_V4,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V3 => FINGERPRINT_DOMAIN_V3,
+            Self::V4 => FINGERPRINT_DOMAIN_V4,
         }
     }
 }
@@ -200,7 +200,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V3;
+        let generation = SemanticFingerprintGeneration::V4;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -471,6 +471,7 @@ fn encode_expression(
                 encoder.u8(10)?;
                 match function {
                     UnaryMathFunction::Sin => encoder.u8(1)?,
+                    UnaryMathFunction::Sqrt => encoder.u8(2)?,
                     _ => return Err(newer_vocabulary("unary math function")),
                 }
                 encoder.u32(canonical_expr_id(*value, &canonical_index)?)?;
@@ -728,16 +729,9 @@ fn encode_quantity(encoder: &mut Encoder, value: DynQuantity) -> Result<(), Diag
 }
 
 fn encode_dimension(encoder: &mut Encoder, value: DimExponents) -> Result<(), Diagnostic> {
-    for exponent in [
-        value.mass,
-        value.length,
-        value.time,
-        value.current,
-        value.temperature,
-        value.amount,
-        value.luminous_intensity,
-    ] {
-        encoder.i8(exponent)?;
+    for (numerator, denominator) in value.exponents() {
+        encoder.i32(numerator)?;
+        encoder.i32(denominator)?;
     }
     Ok(())
 }
@@ -804,7 +798,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v3"
+        "{subject} is newer than structural semantic fingerprint generation v4"
     ))
 }
 

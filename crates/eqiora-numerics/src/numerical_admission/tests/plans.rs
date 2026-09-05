@@ -91,10 +91,7 @@ fn scalar_box_model(
             "source_scale",
             DynQuantity::new(
                 1.0,
-                DimExponents {
-                    length: -2,
-                    ..DimExponents::DIMENSIONLESS
-                },
+                DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         )],
     )
@@ -530,27 +527,18 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
                 IncompressibleFlowScaleProfile2d::new(
                     DynQuantity::new(
                         1.0,
-                        DimExponents {
-                            length: 1,
-                            ..DimExponents::DIMENSIONLESS
-                        }
+                        DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
+                            .expect("bounded dimension")
                     ),
                     DynQuantity::new(
                         1.0,
-                        DimExponents {
-                            length: 1,
-                            time: -1,
-                            ..DimExponents::DIMENSIONLESS
-                        }
+                        DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0])
+                            .expect("bounded dimension")
                     ),
                     DynQuantity::new(
                         1.0,
-                        DimExponents {
-                            mass: 1,
-                            length: -1,
-                            time: -2,
-                            ..DimExponents::DIMENSIONLESS
-                        }
+                        DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0])
+                            .expect("bounded dimension")
                     ),
                 )
                 .unwrap(),

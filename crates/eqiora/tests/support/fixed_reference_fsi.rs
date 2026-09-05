@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV3,
+    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV8,
     RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora::meshing::{CellId, FacetId, MeshQualityGate, SimplicialMesh};
@@ -39,25 +39,14 @@ pub(crate) const PACKAGED: &str =
     include_str!("../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/packaged.eqi");
 
 const ROOT_PACKAGE: &str = "org.eqiora.verify.fixed_reference_monolithic_fsi_step_2d";
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const TIME: DimExponents = DimExponents {
-    time: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const TIME: DimExponents =
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
+const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
 
 pub(crate) struct SpatialContext {
     pub(crate) model: ModelEnvelope,
@@ -103,7 +92,7 @@ impl SpatialContext {
 pub(crate) struct ExecutionContext {
     pub(crate) mesh_reference: MeshArtifactReference,
     pub(crate) resolved: ResolvedCoupledFieldwiseRealization,
-    pub(crate) realization: RealizationEnvelopeV3,
+    pub(crate) realization: RealizationEnvelopeV8,
     pub(crate) run: RunManifestV2,
 }
 
@@ -253,7 +242,7 @@ pub(crate) fn execution_context(
         &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
     )
     .expect("reference coupled capability resolves exact FSI plan");
-    let realization = RealizationEnvelopeV3::from_resolved(
+    let realization = RealizationEnvelopeV8::from_resolved(
         &spatial.model,
         &resolved,
         LayoutArtifacts::Replicated,

@@ -879,17 +879,8 @@ model decay {
         let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
         let domain = Id::<kinds::Domain>::new();
         let port = Id::<kinds::Port>::new();
-        let across_dimension = DimExponents {
-            mass: 1,
-            length: 2,
-            time: -3,
-            current: -1,
-            ..DimExponents::DIMENSIONLESS
-        };
-        let through_dimension = DimExponents {
-            current: 1,
-            ..DimExponents::DIMENSIONLESS
-        };
+        let across_dimension = DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).unwrap();
+        let through_dimension = DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).unwrap();
         let domain_node = KernelNode::from(DomainDef::scalar_physical(
             domain,
             across_dimension,

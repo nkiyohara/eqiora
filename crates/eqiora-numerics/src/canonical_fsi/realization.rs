@@ -91,25 +91,14 @@ impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
     }
 }
 
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const TIME: DimExponents = DimExponents {
-    time: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const TIME: DimExponents =
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
+const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
 
 /// Closed execution tuples admitted by the fixed-reference FSI finalizer.
 ///
@@ -188,7 +177,10 @@ impl FixedReferenceFsiScaleProfile2d {
         let velocity = PositivePhysicalScale::new(velocity).map_err(realization_error)?;
         let pressure = PositivePhysicalScale::new(pressure).map_err(realization_error)?;
         let weak_functional = PositivePhysicalScale::new(
-            pressure.quantity() * velocity.quantity() * length.quantity(),
+            pressure
+                .quantity()
+                .try_mul(velocity.quantity())?
+                .try_mul(length.quantity())?,
         )
         .map_err(realization_error)?;
         Ok(Self {

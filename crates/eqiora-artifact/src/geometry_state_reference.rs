@@ -3,7 +3,7 @@
 use eqiora_core::Diagnostic;
 
 use crate::{
-    ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, GeometryStateEnvelopeV1,
+    ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, GeometryStateEnvelopeV1,
     GeometryStateEnvelopeV3, ReplayableCanonicalModelArtifact,
     ReplayableFixedTopologyAleRealizationArtifact, ValidatedMovingSpatialContextV2,
 };
@@ -78,7 +78,7 @@ pub trait ReplayableFixedTopologyGeometryStateArtifact: sealed::Sealed {
         &self,
         context: &ValidatedMovingSpatialContextV2<'_, M, R>,
         predecessor: Option<&Self>,
-        solid_displacement: &FieldSnapshotEnvelopeV1,
+        solid_displacement: &FieldSnapshotEnvelopeV2,
         evidence: Self::DriverReplayEvidence<'a>,
     ) -> Result<(), Diagnostic>;
 }
@@ -144,7 +144,7 @@ impl ReplayableFixedTopologyGeometryStateArtifact for GeometryStateEnvelopeV1 {
         &self,
         context: &ValidatedMovingSpatialContextV2<'_, M, R>,
         predecessor: Option<&Self>,
-        solid_displacement: &FieldSnapshotEnvelopeV1,
+        solid_displacement: &FieldSnapshotEnvelopeV2,
         (): Self::DriverReplayEvidence<'a>,
     ) -> Result<(), Diagnostic> {
         self.validate_against(
@@ -172,7 +172,7 @@ impl ReplayableFixedTopologyGeometryStateArtifact for GeometryStateEnvelopeV3 {
         &self,
         context: &ValidatedMovingSpatialContextV2<'_, M, R>,
         predecessor: Option<&Self>,
-        solid_displacement: &FieldSnapshotEnvelopeV1,
+        solid_displacement: &FieldSnapshotEnvelopeV2,
         evidence: Self::DriverReplayEvidence<'a>,
     ) -> Result<(), Diagnostic> {
         self.validate_against(context, predecessor, solid_displacement, evidence)

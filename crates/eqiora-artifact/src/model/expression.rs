@@ -13,6 +13,7 @@ use eqiora_schema::kernel::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::dimension::WireDimension;
 use crate::invalid_artifact;
 
 use super::*;
@@ -522,12 +523,14 @@ impl WireSymbol {
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum WireUnaryMath {
     Sin,
+    Sqrt,
 }
 
 impl WireUnaryMath {
     pub(crate) fn encode(value: UnaryMathFunction) -> Result<Self, Diagnostic> {
         match value {
             UnaryMathFunction::Sin => Ok(Self::Sin),
+            UnaryMathFunction::Sqrt => Ok(Self::Sqrt),
             _ => Err(invalid_artifact(
                 "unary math function is unsupported by the current Model contract",
             )),
@@ -537,6 +540,7 @@ impl WireUnaryMath {
     pub(crate) const fn decode(self) -> UnaryMathFunction {
         match self {
             Self::Sin => UnaryMathFunction::Sin,
+            Self::Sqrt => UnaryMathFunction::Sqrt,
         }
     }
 }

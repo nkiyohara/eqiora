@@ -24,13 +24,19 @@ impl LoweringExpression {
                 .iter()
                 .all(|argument| argument.collect_physical_port_names(names)),
             LoweringExpressionNode::Quantity(_) | LoweringExpressionNode::Name(_) => true,
-            LoweringExpressionNode::UnknownMath(_) | LoweringExpressionNode::Unsupported => false,
+            LoweringExpressionNode::UnknownMath(_)
+            | LoweringExpressionNode::InvalidUnit(_)
+            | LoweringExpressionNode::Unsupported => false,
         }
     }
 }
 
 pub(super) fn from_source(expression: &Expr) -> LoweringExpression {
     let kind = match expression.kind() {
+        ExprKind::Quantity { value, unit } => match crate::units::quantity(*value, unit) {
+            Ok(value) => LoweringExpressionNode::Quantity(value),
+            Err(message) => LoweringExpressionNode::InvalidUnit(message),
+        },
         ExprKind::Number(value) => LoweringExpressionNode::Quantity(DynQuantity::new(
             normalize_zero(*value),
             DimExponents::DIMENSIONLESS,
@@ -228,7 +234,12 @@ fn validate_spatial_operator_types(
                     typing::isotropic_lift(&operand)
                         .map_err(|error| spatial_type_error(file, expression, error))?,
                 ),
-                ("math.sin", Some(operand)) => typing::sine(&operand).ok(),
+                ("math.sin", Some(operand)) => {
+                    typing::unary_math(UnaryMathFunction::Sin, &operand).ok()
+                }
+                ("math.sqrt", Some(operand)) => {
+                    typing::unary_math(UnaryMathFunction::Sqrt, &operand).ok()
+                }
                 _ => None,
             }
         }
@@ -238,7 +249,9 @@ fn validate_spatial_operator_types(
             }
             None
         }
-        LoweringExpressionNode::UnknownMath(_) | LoweringExpressionNode::Unsupported => None,
+        LoweringExpressionNode::UnknownMath(_)
+        | LoweringExpressionNode::InvalidUnit(_)
+        | LoweringExpressionNode::Unsupported => None,
     };
     Ok(typed)
 }
@@ -309,6 +322,12 @@ impl ExpressionLowerer<'_> {
             return Ok(*lowered);
         }
         let lowered = match expression.node.as_ref() {
+            LoweringExpressionNode::InvalidUnit(message) => Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.file,
+                expression.range(),
+                *message,
+            )),
             LoweringExpressionNode::Quantity(value) => self
                 .builder
                 .constant(*value)
@@ -446,7 +465,7 @@ impl ExpressionLowerer<'_> {
                 "bare `sin` is not language vocabulary; use compiler-owned `math.sin`",
             ));
         }
-        if callee.starts_with("math.") && callee != "math.sin" {
+        if callee.starts_with("math.") && !matches!(callee, "math.sin" | "math.sqrt") {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.file,
@@ -486,9 +505,9 @@ impl ExpressionLowerer<'_> {
                 })
                 .map_err(|diagnostic| self.builder_error(expression, diagnostic));
         }
-        if callee == "math.sin" {
+        if matches!(callee, "math.sin" | "math.sqrt") {
             let operand = self.lower(argument)?;
-            if operand.dimension != DimExponents::DIMENSIONLESS {
+            if callee == "math.sin" && operand.dimension != DimExponents::DIMENSIONLESS {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     self.file,
@@ -499,13 +518,21 @@ impl ExpressionLowerer<'_> {
                     ),
                 ));
             }
+            let (function, dimension) = if callee == "math.sqrt" {
+                (
+                    UnaryMathFunction::Sqrt,
+                    operand
+                        .dimension
+                        .pow(1, 2)
+                        .ok_or_else(|| dimension_overflow(self.file, expression.range()))?,
+                )
+            } else {
+                (UnaryMathFunction::Sin, DimExponents::DIMENSIONLESS)
+            };
             return self
                 .builder
-                .unary_math(UnaryMathFunction::Sin, operand.id)
-                .map(|id| TypedExpression {
-                    id,
-                    dimension: DimExponents::DIMENSIONLESS,
-                })
+                .unary_math(function, operand.id)
+                .map(|id| TypedExpression { id, dimension })
                 .map_err(|diagnostic| self.builder_error(expression, diagnostic));
         }
         if matches!(
@@ -516,12 +543,16 @@ impl ExpressionLowerer<'_> {
             let (result, dimension) = match callee {
                 "grad" => (
                     self.builder.gradient(operand.id),
-                    checked_dimensions(operand.dimension, length_dimension(), i8::checked_sub)
+                    operand
+                        .dimension
+                        .div(length_dimension())
                         .ok_or_else(|| dimension_overflow(self.file, expression.range()))?,
                 ),
                 "div" => (
                     self.builder.divergence(operand.id),
-                    checked_dimensions(operand.dimension, length_dimension(), i8::checked_sub)
+                    operand
+                        .dimension
+                        .div(length_dimension())
                         .ok_or_else(|| dimension_overflow(self.file, expression.range()))?,
                 ),
                 "symmetric_part" => (self.builder.symmetric_part(operand.id), operand.dimension),
@@ -561,15 +592,14 @@ impl ExpressionLowerer<'_> {
         let (symbol, dimension) = match callee {
             "derivative" => (
                 SymbolRef::Derivative(field),
-                checked_dimensions(contract.dimension, time_dimension(), i8::checked_sub)
-                    .ok_or_else(|| {
-                        source_error(
-                            codes::LANGUAGE_TYPE_ERROR,
-                            self.file,
-                            expression.range(),
-                            "derivative dimension exponent overflows i8",
-                        )
-                    })?,
+                contract.dimension.div(time_dimension()).ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.file,
+                        expression.range(),
+                        "derivative dimension exponent exceeds rational exponent bounds",
+                    )
+                })?,
             ),
             "pre" => (SymbolRef::Pre(field), contract.dimension),
             "next" => (SymbolRef::Next(field), contract.dimension),
@@ -708,12 +738,12 @@ impl ExpressionLowerer<'_> {
                     "power exponent must be an i32 integer literal",
                 )
             })?;
-            let dimension = checked_scale_dimension(base.dimension, exponent).ok_or_else(|| {
+            let dimension = base.dimension.pow(exponent, 1).ok_or_else(|| {
                 source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     self.file,
                     expression.range(),
-                    "power dimension exponent overflows i8",
+                    "power dimension exponent exceeds rational exponent bounds",
                 )
             })?;
             return self
@@ -738,9 +768,13 @@ impl ExpressionLowerer<'_> {
                     ),
                 ));
             }
-            BinaryOp::Mul => checked_dimensions(left.dimension, right.dimension, i8::checked_add)
+            BinaryOp::Mul => left
+                .dimension
+                .mul(right.dimension)
                 .ok_or_else(|| dimension_overflow(self.file, expression.range()))?,
-            BinaryOp::Div => checked_dimensions(left.dimension, right.dimension, i8::checked_sub)
+            BinaryOp::Div => left
+                .dimension
+                .div(right.dimension)
                 .ok_or_else(|| dimension_overflow(self.file, expression.range()))?,
             BinaryOp::Pow => unreachable!("power handled above"),
         };

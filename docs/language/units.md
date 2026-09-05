@@ -1,8 +1,8 @@
 # Initial unit and dimension catalog
 
-This target catalog supplies the units used by the [language specimens](core.md). Type
+This catalog supplies the units used by the [language specimens](core.md). Type
 dimensions, scaled input units, and output presentation remain separate. The compiler owns
-one catalog shared by source and explicit Python `eqiora.units`; no root-level unit aliases
+one catalog shared by source and Python `eqiora.lang.units`; no root-level unit aliases
 or package-specific unit evaluator are introduced.
 
 ## Coherent symbols
@@ -54,9 +54,14 @@ not accepted aliases. Thus `ms`, `kOhm`, `GPa`, and `uF` are admitted; `mkg`, `k
 `KOhm` are rejected.
 
 Prefixed symbols are input units, not dimension names. `parameter resistance: Ohm = 1 [kOhm];`
-is valid target source; a type `kOhm` cannot encode a scale into its dimension. A quantity's
+is valid source; a type `kOhm` cannot encode a scale into its dimension. A quantity's
 product/division/power composes dimensions and scales exactly before the canonical numerical
 rounding boundary. Non-exact rational scale roots reject in the initial profile.
+
+Python constructs the same source with `eqiora.lang.quantity(1, units.Ohm.prefixed("k"))`.
+It does not evaluate unit scales independently. The compiler composes decimal scale powers
+exactly, rounds the resulting decimal scale to binary64, and multiplies the input value once.
+Nonfinite scales and results reject; zero is canonicalized to positive zero.
 
 For independent conversions, 10 ms is 1/100 s, 1 kOhm is 1000 Ohm, 210 GPa is
 210,000,000,000 Pa, and 1 uF is 1/1,000,000 F. Exact clocks retain the 1/100-second rational;
@@ -66,6 +71,18 @@ ordinary values do not affect these conversions.
 Affine Celsius/Fahrenheit symbols are not admitted by this initial multiplicative catalog.
 Absolute/difference quantity semantics must precede their admission; an offset cannot be
 approximated by a scale or inferred from a property-input name.
+
+## Exact dimension powers
+
+Dimension exponents are reduced rational numbers. Write an integer directly or a fraction
+in parentheses: `m ^ -1`, `m ^ (-1 / 2)`, or `Hz ^ (-1 / 2)`. Equivalent fractions such as
+`m ^ (2 / 4)` and `m ^ (1 / 2)` denote the same dimension. Numerator magnitude and positive
+denominator are bounded by 2,147,483,647, including the raw source tokens before reduction.
+
+For a real constant wave amplitude on an interval, `(m ^ (-1 / 2)) ^ 2 * m` is dimensionless.
+Likewise, `Hz ^ (-1 / 2)` equals `s ^ (1 / 2)`. `math.sqrt(area)` has dimension length when
+`area` has dimension `m ^ 2`; real evaluation requires a nonnegative value, and its derivative
+at zero is rejected. Dimension algebra does not choose a numerical branch for value powers.
 
 ## Structural aliases
 

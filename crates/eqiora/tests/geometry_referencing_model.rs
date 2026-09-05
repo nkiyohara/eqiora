@@ -141,12 +141,12 @@ fn geometry_identity_names_and_topology_are_fingerprint_meaning() {
         StructuralSemanticFingerprint::from_program(&baseline.program).unwrap();
     assert_eq!(
         baseline_fingerprint.generation(),
-        SemanticFingerprintGeneration::V3
+        SemanticFingerprintGeneration::V4
     );
     assert!(
         baseline_fingerprint
             .to_string()
-            .starts_with("eqiora.structural-semantic-fingerprint/v3:")
+            .starts_with("eqiora.structural-semantic-fingerprint/v4:")
     );
 
     let mut changed_digest = GeometryMeaning::default();
@@ -283,10 +283,7 @@ fn build_transaction(
     extra: ExtraMeaning,
     region_has_parent: bool,
 ) -> Transaction {
-    let length = DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
     let mut expression = ExprDagBuilder::new();
     let root = expression
         .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))

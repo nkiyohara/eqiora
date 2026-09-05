@@ -132,15 +132,10 @@ fn hash_shape(hash: &mut Sha256, shape: &ValueShape) {
 }
 
 fn hash_dimension(hash: &mut Sha256, dimension: DimExponents) {
-    hash.update([
-        dimension.mass as u8,
-        dimension.length as u8,
-        dimension.time as u8,
-        dimension.current as u8,
-        dimension.temperature as u8,
-        dimension.amount as u8,
-        dimension.luminous_intensity as u8,
-    ]);
+    for (numerator, denominator) in dimension.exponents() {
+        hash.update(numerator.to_le_bytes());
+        hash.update(denominator.to_le_bytes());
+    }
 }
 
 fn hash_quantity(hash: &mut Sha256, quantity: DynQuantity) {
