@@ -458,9 +458,7 @@ variable_q1 = package.resolve(variable_model, mesh=mesh, spatial=package.fem.Q1(
 variable_tpfa = package.resolve(variable_model, mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=linear)
 q1_bytes = q1.to_bytes()
 portable_q1 = package.Plan.from_bytes(q1_bytes)
-plan_directory_owner = tempfile.TemporaryDirectory(
-    dir=package_path.parents[3] / "target"
-)
+plan_directory_owner = tempfile.TemporaryDirectory()
 plan_directory = pathlib.Path(plan_directory_owner.name)
 plan_path = plan_directory / "q1.eqplan"
 plan_path.write_bytes(b"incomplete previous output")
@@ -1504,9 +1502,7 @@ assert mini_trajectory_replayed.to_bytes() == mini_trajectory_bytes
 assert tuple(state.digest for state in mini_trajectory_replayed.states) == tuple(
     state.digest for state in mini_two.trajectory.states
 )
-trajectory_directory_owner = tempfile.TemporaryDirectory(
-    dir=package_path.parents[3] / "target"
-)
+trajectory_directory_owner = tempfile.TemporaryDirectory()
 trajectory_directory = pathlib.Path(trajectory_directory_owner.name)
 trajectory_path = trajectory_directory / "run.eqtrajectory"
 mini_two.trajectory.write(trajectory_path)

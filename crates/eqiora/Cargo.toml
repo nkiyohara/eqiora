@@ -16,7 +16,6 @@ diffsol = ["dep:eqiora-backend-diffsol"]
 cuda = ["dep:eqiora-backend-cuda", "eqiora-backend-cuda/cuda-runtime"]
 mpi-cuda = ["mpi", "cuda", "dep:eqiora-backend-mpi-cuda", "eqiora-backend-mpi-cuda/runtime"]
 rayon = ["dep:eqiora-backend-rayon", "eqiora-api/rayon"]
-gmsh = ["dep:eqiora-io-gmsh"]
 xdmf = ["dep:eqiora-io-xdmf", "eqiora-api/xdmf"]
 hdf5 = ["xdmf", "dep:eqiora-io-hdf5", "eqiora-api/hdf5"]
 vtu = ["dep:eqiora-io-vtu", "eqiora-api/vtu"]
@@ -45,7 +44,7 @@ eqiora-graph = { workspace = true }
 eqiora-geometry = { workspace = true }
 eqiora-ir = { workspace = true }
 eqiora-cad-truck = { workspace = true, optional = true }
-eqiora-io-gmsh = { workspace = true, optional = true }
+eqiora-io-gmsh = { workspace = true }
 eqiora-io-hdf5 = { workspace = true, optional = true }
 eqiora-io-vtu = { workspace = true, optional = true }
 eqiora-io-xdmf = { workspace = true, optional = true }

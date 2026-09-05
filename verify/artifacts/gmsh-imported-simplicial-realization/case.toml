@@ -6,7 +6,7 @@ reference_kind = "official-generator-ascii-binary-equivalence-exact-digest-and-s
 capabilities = [
   "bounded-ascii-gmsh-4-1-decoder",
   "bounded-binary-gmsh-4-1-decoder",
-  "public-facade-feature-wiring",
+  "public-facade-wiring",
   "decoded-work-and-fallible-memory-budget",
   "aggregate-decoded-byte-work-and-ignored-element-bounds",
   "checked-ascii-extreme-declaration-closure",
@@ -57,5 +57,4 @@ adaptive_refinement = false
 [evidence]
 package = "eqiora"
 test = "gmsh_imported_simplicial_realization"
-features = ["gmsh"]
 table = "expected/mesh.sha256"

@@ -1,5 +1,3 @@
-#![cfg(feature = "gmsh")]
-
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::artifact::{

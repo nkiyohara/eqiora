@@ -935,6 +935,7 @@ dependencies = [
  "eqiora-distributed",
  "eqiora-geometry",
  "eqiora-graph",
+ "eqiora-io-gmsh",
  "eqiora-ir",
  "eqiora-lang",
  "eqiora-meshing",
