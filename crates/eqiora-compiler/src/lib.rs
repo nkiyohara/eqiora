@@ -27,6 +27,7 @@ mod source_compile;
 #[doc(hidden)]
 pub mod source_identity;
 mod units;
+mod value_types;
 
 pub use formulation::{
     AuthoredFormExpressionV1, AuthoredFormulationProjection, CompiledAuthoredFormulation,
