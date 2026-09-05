@@ -62,6 +62,9 @@ recursive source expression into the canonical DAG, and emits the same typed
 Transaction as the Rust API. Graph commit remains atomic; compilation cannot
 partially mutate a store.
 
+The [converged language specification](language/core.md) describes the adopted target surface
+and its review specimens. It distinguishes specified syntax from delivered compiler behavior.
+
 For the bounded local-source slice of
 [RFC 0021](../rfcs/0021-component-hierarchy-and-instantiation.md), compilation-unit
 Connector and Component declarations enter a resource-bounded staging area.
