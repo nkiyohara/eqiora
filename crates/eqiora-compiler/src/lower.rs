@@ -675,19 +675,17 @@ pub(crate) fn lower_typed_model(
                 };
                 resolve_field_contract(file, *range, &contract, &bindings)
                     .and_then(|resolved| {
+                        let value_type = eqiora_schema::kernel::ValueType::shaped(
+                            eqiora_core::ScalarDomain::Real, resolved.dimension,
+                            resolved.shape.clone(), resolved.frame,
+                        ).map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, *range, error.to_string()))?;
                         let definition = match (resolved.shape.is_scalar(), *initial) {
-                            (true, Some(initial)) => FieldDef::new(id, resolved.dimension)
+                            (true, Some(initial)) => FieldDef::new(id, value_type)
                                 .with_initial(DynQuantity::new(
                                     normalize_zero(initial),
                                     resolved.dimension,
                                 )),
-                            (true, None) => Ok(FieldDef::new(id, resolved.dimension)),
-                            (false, None) => FieldDef::shaped(
-                                id,
-                                resolved.dimension,
-                                resolved.shape,
-                                resolved.frame,
-                            ),
+                            (_, None) => Ok(FieldDef::new(id, value_type)),
                             (false, Some(_)) => Err(source_error(
                                 codes::LANGUAGE_TYPE_ERROR,
                                 file,

@@ -59,14 +59,26 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
 
     let nodes = [
         KernelNode::from(
-            FieldDef::new(differential, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
+            FieldDef::new(
+                differential,
+                eqiora_schema::kernel::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+            .unwrap(),
         ),
         KernelNode::from(
-            FieldDef::new(algebraic, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
+            FieldDef::new(
+                algebraic,
+                eqiora_schema::kernel::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+            .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(rate, DynQuantity::new(1.0, inverse_time))),
         KernelNode::from(RelationDef::new(

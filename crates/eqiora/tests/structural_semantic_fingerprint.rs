@@ -33,11 +33,11 @@ fn rational_dimension_meaning_survives_canonical_model_replay() {
     assert!(model.structurally_equivalent(&replay).unwrap());
     let old_schema = String::from_utf8(bytes)
         .unwrap()
-        .replace("eqiora.model-envelope/v9", "eqiora.model-envelope/v8");
+        .replace("eqiora.model-envelope/v10", "eqiora.model-envelope/v8");
     assert!(ModelDocument::replay(old_schema.as_bytes()).is_err());
     assert_eq!(
         model.structural_fingerprint().unwrap().generation(),
-        SemanticFingerprintGeneration::V4
+        SemanticFingerprintGeneration::V5
     );
 }
 
@@ -98,7 +98,7 @@ fn current_generation_is_independent_of_coordinate_vocabulary() {
     for model in [&fixed, &referenced] {
         assert_eq!(
             model.structural_fingerprint().unwrap().generation(),
-            SemanticFingerprintGeneration::V4
+            SemanticFingerprintGeneration::V5
         );
     }
     // Equal endpoint values do not erase the nominal Parameter dependency.
@@ -128,7 +128,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         );
     }
     let fingerprint = source.structural_fingerprint().unwrap();
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V4);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V5);
     assert_eq!(fingerprint.digest().len(), 64);
 
     let replay = eqiora::api::ModelDocument::replay(&source.canonical_json().unwrap()).unwrap();
@@ -408,16 +408,28 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
     let mut transaction = Transaction::new("manual expression allocation");
     transaction
         .push(Op::DefineKernelNode {
-            node: FieldDef::new(left, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
-                .unwrap()
-                .into(),
+            node: FieldDef::new(
+                left,
+                eqiora_schema::kernel::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+            .unwrap()
+            .into(),
         })
         .push(Op::DefineKernelNode {
-            node: FieldDef::new(right, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
-                .unwrap()
-                .into(),
+            node: FieldDef::new(
+                right,
+                eqiora_schema::kernel::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
+            .unwrap()
+            .into(),
         })
         .push(Op::DefineKernelNode {
             node: RelationDef::new(relation, expression).into(),

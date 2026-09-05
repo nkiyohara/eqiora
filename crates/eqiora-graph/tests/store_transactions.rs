@@ -29,7 +29,13 @@ fn commit_is_atomic_and_records_provenance() {
     let field = Id::<kinds::Field>::new();
     let mut transaction = Transaction::new("add inlet velocity");
     transaction
-        .push(define(FieldDef::new(field, dim::VelocityDim::EXPONENTS)))
+        .push(define(FieldDef::new(
+            field,
+            eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                dim::VelocityDim::EXPONENTS,
+            ),
+        )))
         .push(Op::SetValue {
             target: field.erase(),
             value: DynQuantity::new(12.0, dim::VelocityDim::EXPONENTS),
@@ -56,7 +62,13 @@ fn failed_operation_rolls_back_the_whole_transaction() {
     let domain = Id::<kinds::Domain>::new();
     let mut transaction = Transaction::new("invalid mixed transaction");
     transaction
-        .push(define(FieldDef::new(field, dim::VelocityDim::EXPONENTS)))
+        .push(define(FieldDef::new(
+            field,
+            eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                dim::VelocityDim::EXPONENTS,
+            ),
+        )))
         .push(Op::SetValue {
             target: domain.erase(),
             value: DynQuantity::new(1.0, dim::LengthDim::EXPONENTS),
@@ -184,13 +196,16 @@ fn dimension_change_is_rejected() {
 #[test]
 fn scalar_set_value_cannot_initialize_a_shaped_field() {
     let field = Id::<kinds::Field>::new();
-    let definition = FieldDef::shaped(
+    let definition = FieldDef::new(
         field,
-        dim::VelocityDim::EXPONENTS,
-        ValueShape::new([2]).unwrap(),
-        ValueFrame::SpatialCartesian,
-    )
-    .unwrap();
+        eqiora_schema::kernel::ValueType::shaped(
+            eqiora_core::ScalarDomain::Real,
+            dim::VelocityDim::EXPONENTS,
+            ValueShape::new([2]).unwrap(),
+            ValueFrame::SpatialCartesian,
+        )
+        .unwrap(),
+    );
     let mut transaction = Transaction::new("reject scalar shaped-field value");
     transaction.push(define(definition)).push(Op::SetValue {
         target: field.erase(),
@@ -215,7 +230,13 @@ fn graph_boundaries_are_checked_by_edge_kind() {
             kind: EntityKind::Space,
             id: space.erase(),
         })
-        .push(define(FieldDef::new(field, dim::LengthDim::EXPONENTS)))
+        .push(define(FieldDef::new(
+            field,
+            eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                dim::LengthDim::EXPONENTS,
+            ),
+        )))
         .push(Op::Connect {
             from: space.erase(),
             to: field.erase(),

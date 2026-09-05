@@ -175,14 +175,26 @@ fn thermal_fixture() -> ThermalFixture {
 
     let nodes = [
         KernelNode::from(
-            FieldDef::new(temperature, temperature_dimension)
-                .with_initial(DynQuantity::new(293.0, temperature_dimension))
-                .expect("temperature initial"),
+            FieldDef::new(
+                temperature,
+                eqiora_schema::kernel::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    temperature_dimension,
+                ),
+            )
+            .with_initial(DynQuantity::new(293.0, temperature_dimension))
+            .expect("temperature initial"),
         ),
         KernelNode::from(
-            FieldDef::new(command, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
-                .expect("command initial"),
+            FieldDef::new(
+                command,
+                eqiora_schema::kernel::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+            .expect("command initial"),
         ),
         KernelNode::from(ParameterDef::new(
             ambient,

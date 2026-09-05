@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::dimension::WireDimension;
 use crate::{ArtifactDigest, invalid_artifact};
 
+use super::value_type::WireValueType;
 use super::*;
 use super::{expression::*, primitive::*, vocabulary::*};
 
@@ -23,10 +24,8 @@ impl WireNode {
             KernelNode::Representation(value) => WireNodeDefinition::Representation {
                 representation: WireRepresentationKind::encode(value.kind())?,
             },
-            KernelNode::Field(value) => WireNodeDefinition::ShapedField {
-                dimension: WireDimension::encode(value.dimension()),
-                shape: WireValueShape::encode(value.shape()),
-                frame: WireValueFrame::encode(value.frame()),
+            KernelNode::Field(value) => WireNodeDefinition::Field {
+                value_type: WireValueType::encode(value.value_type())?,
                 initial: value.initial().map(WireQuantity::encode),
             },
             KernelNode::Parameter(value) => WireNodeDefinition::Parameter {
@@ -92,26 +91,12 @@ impl WireNode {
                 }
                 .into())
             }
-            WireNodeDefinition::Field { dimension, initial } => {
-                let id = self.id.typed::<kinds::Field>()?;
-                let mut definition = FieldDef::new(id, dimension.decode());
-                if let Some(initial) = initial {
-                    definition = definition
-                        .with_initial(initial.decode()?)
-                        .map_err(|error| invalid_artifact(error.message()))?;
-                }
-                Ok(definition.into())
-            }
-            WireNodeDefinition::ShapedField {
-                dimension,
-                shape,
-                frame,
+            WireNodeDefinition::Field {
+                value_type,
                 initial,
             } => {
                 let id = self.id.typed::<kinds::Field>()?;
-                let mut definition =
-                    FieldDef::shaped(id, dimension.decode(), shape.decode()?, frame.decode())
-                        .map_err(|error| invalid_artifact(error.message()))?;
+                let mut definition = FieldDef::new(id, value_type.decode()?);
                 if let Some(initial) = initial {
                     definition = definition
                         .with_initial(initial.decode()?)
@@ -209,27 +194,13 @@ impl WireNode {
         }
     }
 
-    pub(crate) fn ensure_current(&self) -> Result<(), Diagnostic> {
-        match &self.definition {
-            WireNodeDefinition::Field { .. } => Err(invalid_artifact(
-                "the current Model contract requires the single shaped Field representation",
-            )),
-            WireNodeDefinition::Domain {
-                domain: WireDomainKind::CartesianBox { .. },
-            } => Err(invalid_artifact(
-                "model wire v8 requires Cartesian coordinate-source definitions",
-            )),
-            _ => Ok(()),
-        }
-    }
-
     pub(crate) fn ensure_value_shape_limits(
         &self,
         limits: ModelDecoderLimits,
     ) -> Result<(), Diagnostic> {
         match &self.definition {
-            WireNodeDefinition::ShapedField { shape, .. }
-            | WireNodeDefinition::Domain {
+            WireNodeDefinition::Field { value_type, .. } => value_type.ensure_limits(limits),
+            WireNodeDefinition::Domain {
                 domain: WireDomainKind::BoundaryPhysical { shape, .. },
             } => shape.ensure_limits(limits),
             _ => Ok(()),
@@ -266,13 +237,7 @@ pub(crate) enum WireNodeDefinition {
         representation: WireRepresentationKind,
     },
     Field {
-        dimension: WireDimension,
-        initial: Option<WireQuantity>,
-    },
-    ShapedField {
-        dimension: WireDimension,
-        shape: WireValueShape,
-        frame: WireValueFrame,
+        value_type: WireValueType,
         initial: Option<WireQuantity>,
     },
     Parameter {
@@ -307,9 +272,6 @@ pub(crate) enum WireNodeDefinition {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WireDomainKind {
     Abstract,
-    CartesianBox {
-        bounds: Vec<WireAxisBounds>,
-    },
     CartesianBoxSources {
         coordinates: Vec<WireCartesianAxisDefinition>,
     },
@@ -387,14 +349,6 @@ impl WireDomainKind {
     pub(crate) fn decode(&self, id: Id<kinds::Domain>) -> Result<DomainDef, Diagnostic> {
         match self {
             Self::Abstract => Ok(DomainDef::new(id)),
-            Self::CartesianBox { bounds } => DomainDef::cartesian_box(
-                id,
-                bounds
-                    .iter()
-                    .map(WireAxisBounds::decode)
-                    .collect::<Result<Vec<_>, _>>()?,
-            )
-            .map_err(|error| invalid_artifact(error.message())),
             Self::CartesianBoxSources { coordinates } => DomainDef::cartesian_box_from_sources(
                 id,
                 coordinates

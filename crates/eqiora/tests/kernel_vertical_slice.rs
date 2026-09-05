@@ -51,7 +51,13 @@ fn public_api_builds_a_clocked_relation_network() {
     let mut transaction = Transaction::new("define a clocked relation");
     for node in [
         KernelNode::from(DomainDef::new(domain)),
-        KernelNode::from(FieldDef::new(field, DimExponents::DIMENSIONLESS)),
+        KernelNode::from(FieldDef::new(
+            field,
+            eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+        )),
         KernelNode::from(relation_definition),
         KernelNode::from(PortDef::signal(
             port,

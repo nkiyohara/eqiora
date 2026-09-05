@@ -226,7 +226,14 @@ fn with_unrelated_relation(source: &Transaction, model: OntologyId<Model>) -> Tr
                 let source_view = view.downcast::<Model>().expect("fixture Model view");
                 transaction
                     .push(Op::DefineKernelNode {
-                        node: FieldDef::new(field, DimExponents::DIMENSIONLESS).into(),
+                        node: FieldDef::new(
+                            field,
+                            eqiora_schema::kernel::ValueType::scalar(
+                                eqiora_core::ScalarDomain::Real,
+                                DimExponents::DIMENSIONLESS,
+                            ),
+                        )
+                        .into(),
                     })
                     .push(Op::SetValue {
                         target: field.erase(),

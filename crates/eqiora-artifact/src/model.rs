@@ -95,6 +95,7 @@ pub(crate) struct WireNode {
 mod expression;
 mod node;
 mod primitive;
+mod value_type;
 mod vocabulary;
 
 pub(crate) use expression::PureOperatorWireCounts;

@@ -707,7 +707,7 @@ model pure_relation {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v9"));
+        assert!(json.contains("eqiora.model-envelope/v10"));
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
@@ -739,7 +739,7 @@ model pure_relation {
         assert!(
             String::from_utf8(plan.transaction_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-transaction-envelope/v9")
+                .contains("eqiora.model-transaction-envelope/v10")
         );
 
         let result = document.commit_value_edit(plan.clone()).unwrap();

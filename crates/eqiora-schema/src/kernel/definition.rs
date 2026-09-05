@@ -3,8 +3,7 @@
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{
-    Diagnostic, DimExponents, DynQuantity, EntityKind, GraphPath, Id, RawId, ScalarDomain,
-    ValueShape,
+    Diagnostic, DimExponents, DynQuantity, EntityKind, GraphPath, Id, RawId, ValueShape,
 };
 
 use super::{BoundaryPhysicalConnector, ExprDag, RationalTime, ValueFrame, ValueType};
@@ -75,38 +74,14 @@ pub struct FieldDef {
 }
 
 impl FieldDef {
-    /// Define a scalar Field with no initial value.
+    /// Define a Field with one complete checked mathematical type.
     #[must_use]
-    pub fn new(id: Id<kinds::Field>, dimension: DimExponents) -> Self {
+    pub fn new(id: Id<kinds::Field>, value_type: ValueType) -> Self {
         Self {
-            id,
-            value_type: ValueType::scalar(ScalarDomain::Real, dimension),
-            initial: None,
-        }
-    }
-
-    /// Define a shaped Field. Spatial support compatibility is validated by
-    /// the whole-model validator once its exact Domain is known.
-    ///
-    /// # Errors
-    /// Returns `EQ0302` for an unrepresentable component product or a scalar
-    /// carrying a non-invariant component frame.
-    pub fn shaped(
-        id: Id<kinds::Field>,
-        dimension: DimExponents,
-        shape: ValueShape,
-        frame: ValueFrame,
-    ) -> Result<Self, Diagnostic> {
-        let value_type =
-            ValueType::shaped(ScalarDomain::Real, dimension, shape, frame).map_err(|error| {
-                Diagnostic::error(codes::INVALID_KERNEL_DEFINITION, error.to_string())
-                    .with_graph_path(kernel_path(id.erase()))
-            })?;
-        Ok(Self {
             id,
             value_type,
             initial: None,
-        })
+        }
     }
 
     /// Attach a dimension-checked initial value.
@@ -733,9 +708,15 @@ mod tests {
     #[test]
     fn field_initial_value_is_dimension_checked() {
         let field = Id::<kinds::Field>::new();
-        let diagnostic = FieldDef::new(field, dim::TemperatureDim::EXPONENTS)
-            .with_initial(DynQuantity::new(2.0, dim::TimeDim::EXPONENTS))
-            .expect_err("time is not temperature");
+        let diagnostic = FieldDef::new(
+            field,
+            ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                dim::TemperatureDim::EXPONENTS,
+            ),
+        )
+        .with_initial(DynQuantity::new(2.0, dim::TimeDim::EXPONENTS))
+        .expect_err("time is not temperature");
 
         assert_eq!(diagnostic.code(), codes::DIMENSION_MISMATCH);
     }

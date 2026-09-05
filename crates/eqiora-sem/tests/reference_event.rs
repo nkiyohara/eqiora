@@ -215,14 +215,23 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
 
     let mut nodes = vec![
         KernelNode::from(
-            FieldDef::new(height, length)
-                .with_initial(DynQuantity::new(1.0, length))
-                .unwrap(),
+            FieldDef::new(
+                height,
+                eqiora_schema::kernel::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
+            )
+            .with_initial(DynQuantity::new(1.0, length))
+            .unwrap(),
         ),
         KernelNode::from(
-            FieldDef::new(velocity, velocity_dimension)
-                .with_initial(DynQuantity::new(0.0, velocity_dimension))
-                .unwrap(),
+            FieldDef::new(
+                velocity,
+                eqiora_schema::kernel::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    velocity_dimension,
+                ),
+            )
+            .with_initial(DynQuantity::new(0.0, velocity_dimension))
+            .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(
             gravity,
@@ -355,9 +364,15 @@ fn chattering_program() -> KernelProgram {
 
     let nodes = [
         KernelNode::from(
-            FieldDef::new(state, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(1.0e-6, DimExponents::DIMENSIONLESS))
-                .unwrap(),
+            FieldDef::new(
+                state,
+                eqiora_schema::kernel::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(DynQuantity::new(1.0e-6, DimExponents::DIMENSIONLESS))
+            .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(rate, DynQuantity::new(1.0, inverse_time))),
         KernelNode::from(ParameterDef::new(
