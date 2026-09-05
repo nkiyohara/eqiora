@@ -165,6 +165,7 @@ jobs:
         if: needs.changes.outputs.rust == 'true'
         with:
           ref: ${{ needs.changes.outputs.target_sha }}
+          fetch-depth: 0
           persist-credentials: false
       - name: Fetch frozen semantic-impact Cargo authority revision
         if: needs.changes.outputs.rust == 'true'
@@ -195,7 +196,7 @@ jobs:
         run: cargo +stable fmt --all -- --check
       - name: Clippy
         if: needs.changes.outputs.rust == 'true'
-        run: cargo +stable clippy --workspace --all-targets --all-features --keep-going -- -D warnings
+        run: python tools/ci/rust_quality.py clippy
       - name: Tests
         if: needs.changes.outputs.rust == 'true'
         env:
@@ -205,7 +206,7 @@ jobs:
           CARGO_PROFILE_TEST_OPT_LEVEL: "1"
           CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"
           TMPDIR: ${{ runner.temp }}
-        run: cargo +stable test --workspace --all-targets --locked
+        run: python tools/ci/rust_quality.py test
       - name: Full feature tests
         if: needs.changes.outputs.rust == 'true' && needs.changes.outputs.full == 'true'
         env:
@@ -229,7 +230,7 @@ jobs:
         if: needs.changes.outputs.rust == 'true'
         env:
           RUSTDOCFLAGS: -D warnings
-        run: cargo +stable doc --workspace --no-deps --locked
+        run: python tools/ci/rust_quality.py doc
 
   msrv:
     name: MSRV 1.89

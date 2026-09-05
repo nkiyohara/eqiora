@@ -150,6 +150,11 @@ after TestPyPI acceptance.
 
 ## Cost and security boundaries
 
+- Rust Clippy, tests, and rustdoc use the local planner's reverse-dependency
+  closure for ordinary package-owned Rust source changes. Cargo definitions,
+  shared fixtures, unknown paths, file-mode changes, or unavailable commit
+  authority retain the whole workspace. Manual runs remain full; formatting,
+  architecture, MSRV, and the other lanes keep their existing checks.
 - Pull-request jobs run only on GitHub-hosted ephemeral runners.
 - No private developer, GPU, or HPC runner is attached to public Actions.
 - Checkout credentials are not persisted.
