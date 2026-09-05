@@ -79,7 +79,7 @@ model Main {
   domain solid_z_upper = boundary(solid, axis = 2, side = upper);
   representation space = continuum;
 
-  field fluid_velocity on fluid as space: m / s shape spatial_vector;
+  field fluid_velocity on fluid as space: vector<m / s, 3>;
   field fluid_pressure on fluid as space: kg / (m * s ^ 2) = 0;
   field fluid_load_potential on fluid as space: kg / (m * s ^ 2) = 0;
   parameter fluid_density: kg / m ^ 3 = 1;
@@ -101,8 +101,8 @@ model Main {
     div(fluid_velocity) = 0;
   }
 
-  field solid_displacement on solid as space: m shape spatial_vector;
-  field solid_velocity on solid as space: m / s shape spatial_vector;
+  field solid_displacement on solid as space: vector<m, 3>;
+  field solid_velocity on solid as space: vector<m / s, 3>;
   field solid_load_potential on solid as space: kg / (m * s ^ 2) = 0;
   parameter solid_density: kg / m ^ 3 = 1;
   parameter solid_mu: kg / (m * s ^ 2) = 2;

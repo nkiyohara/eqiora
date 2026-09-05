@@ -22,7 +22,7 @@ const SOURCE: &str = r#"public component MixedBoundaryElasticity2d {
   public support y_lower: boundary(parent = body);
   public support y_upper: boundary(parent = body);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   field load_potential on body as space: kg / (m * s ^ 2) = 0;
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);

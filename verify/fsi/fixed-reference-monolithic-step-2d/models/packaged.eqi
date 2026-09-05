@@ -12,7 +12,7 @@ model Main {
   domain solid_y_upper = boundary(solid_domain, axis = 1, side = upper);
   representation space = continuum;
 
-  field fluid_velocity on fluid_domain as space: m / s shape spatial_vector;
+  field fluid_velocity on fluid_domain as space: vector<m / s, 2>;
   field fluid_pressure on fluid_domain as space: kg / (m * s ^ 2) = 0;
   field fluid_load_potential on fluid_domain as space: kg / (m * s ^ 2) = 0;
   parameter fluid_zero_pressure: kg / (m * s ^ 2) = 0;
@@ -37,8 +37,8 @@ model Main {
     dynamic_viscosity = 0.5
   );
 
-  field solid_displacement on solid_domain as space: m shape spatial_vector;
-  field solid_velocity on solid_domain as space: m / s shape spatial_vector;
+  field solid_displacement on solid_domain as space: vector<m, 2>;
+  field solid_velocity on solid_domain as space: vector<m / s, 2>;
   field solid_load_potential on solid_domain as space: kg / (m * s ^ 2) = 0;
   parameter solid_zero_pressure: kg / (m * s ^ 2) = 0;
   relation solid_load_definition continuous on solid_domain {

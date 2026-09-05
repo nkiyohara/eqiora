@@ -223,7 +223,7 @@ model Main {{
     field scalar_state = scalar_state,
     support body = body
   );
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   field scalar_state on body as space: 1 = 0;
   representation space = continuum;
   domain body = box(0, 1, 0, 1);
@@ -239,7 +239,7 @@ model Main {{
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   instance law: {alias}.FieldLawWrapper(
     support body = body,
     field scalar_state = scalar_state,
@@ -439,7 +439,7 @@ model M {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   instance law: FieldLaw(support body = body, field displacement = displacement);
 }
 "#,
@@ -452,7 +452,7 @@ model M {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = scalar_state,
@@ -470,7 +470,7 @@ model M {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = scalar_state,
@@ -488,7 +488,7 @@ model M {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   parameter gain: 1 = 0;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = gain,
@@ -505,7 +505,7 @@ model M {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field scalar_state on body as space: m = 0;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = scalar_state,
@@ -539,7 +539,7 @@ model M {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: m shape [2];
+  field displacement on body as space: array<m, 2>;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = scalar_state,
@@ -547,7 +547,7 @@ model M {
   );
 }
 "#,
-            &["displacement", "coordinate frame"][..],
+            &["displacement", "array and spatial axis roles"][..],
         ),
         (
             "exact-support",
@@ -557,7 +557,7 @@ model M {
   domain other = box(0, 1, 0, 1);
   representation space = continuum;
   field scalar_state on other as space: 1 = 0;
-  field displacement on other as space: m shape spatial_vector;
+  field displacement on other as space: vector<m, 2>;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = scalar_state,
@@ -596,7 +596,7 @@ model M {{
   domain line = box(0, 1);
   representation space = continuum;
   field scalar_state on line as space: 1 = 0;
-  field displacement on line as space: m shape spatial_vector;
+  field displacement on line as space: vector<m, 1>;
   instance law: FieldLaw(
     support body = line,
     field scalar_state = scalar_state,
@@ -771,14 +771,5 @@ fn invalid_exact_package_binding_never_exposes_a_packaged_model() {
     assert_diagnostic_contains(
         &diagnostics,
         &["has no binding for required Field slot", "scalar_state"],
-    );
-}
-
-#[test]
-fn legacy_source_identity_golden_is_unchanged_without_field_slots() {
-    let identity = source_identity("model minimal { parameter gain: 1 = 2; }");
-    assert_eq!(
-        identity.to_string(),
-        "dba42a75e6e12596d935fc7161127605c1c769e89a9686e8e93ac4ab150e63a5"
     );
 }

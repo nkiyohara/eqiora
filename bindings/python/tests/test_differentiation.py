@@ -42,7 +42,7 @@ public component MixedBoundaryElasticity {
   public parameter lambda: kg / (m * s ^ 2);
   public parameter length_scale: m;
   representation space = continuum;
-  field displacement on region as space: m shape spatial_vector;
+  field displacement on region as space: vector<m, 2>;
   field load_potential on region as space: kg / (m * s ^ 2) = 0;
   relation load continuous on region {
     load_potential - 2 * mu * coordinate(0) / length_scale = 0;

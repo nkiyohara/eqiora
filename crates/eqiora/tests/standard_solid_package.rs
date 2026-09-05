@@ -331,10 +331,10 @@ public material composition ReferenceMaterial {{
     let (boundary_fields, x_lower_condition, x_upper_condition) = if prescribed_boundaries {
         (
             r#"  field displacement_potential on body as space: m ^ 2 = 0;
-  field boundary_displacement on body as space: m shape spatial_vector;
+  field boundary_displacement on body as space: vector<m, 2>;
   field traction_potential on body as space: kg / s ^ 2 = 0;
   field boundary_traction on body as space:
-    kg / (m * s ^ 2) shape spatial_vector;
+    vector<kg / (m * s ^ 2), 2>;
   parameter displacement_scale: m = 1;
   parameter traction_scale: kg / (m * s ^ 2) = 2;
   relation displacement_potential_definition continuous on body {
@@ -380,7 +380,7 @@ public material composition ReferenceMaterial {{
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   field load_potential on body as space: kg / (m * s ^ 2) = 0;
   parameter zero_load: kg / (m * s ^ 2) = 0;
 {material_parameters}

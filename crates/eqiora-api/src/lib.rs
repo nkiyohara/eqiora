@@ -667,7 +667,7 @@ public component Resistor {
 model elastic_relation {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   parameter mu: kg / (m * s ^ 2) = 2;
   parameter lambda: kg / (m * s ^ 2) = 3;
   relation balance continuous on body {
@@ -695,8 +695,8 @@ public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
 model pure_relation {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field left on body as space: 1 shape spatial_vector;
-  field right on body as space: 1 shape spatial_vector;
+  field left on body as space: vector<1, 2>;
+  field right on body as space: vector<1, 2>;
   relation balance continuous on body {
     div(div(dyadic(left, right))) = 0;
   }

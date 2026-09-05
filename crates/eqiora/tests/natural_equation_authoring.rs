@@ -560,8 +560,8 @@ fn diagnostic_specs() -> Vec<DiagnosticSpec> {
         },
         DiagnosticSpec {
             class: "shape",
-            natural: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field scalar on body as space: 1 = 0; field vector on body as space: 1 shape spatial_vector; relation r continuous on body { scalar = vector; } }",
-            explicit: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field scalar on body as space: 1 = 0; field vector on body as space: 1 shape spatial_vector; relation r continuous on body { scalar - vector = 0; } }",
+            natural: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field scalar on body as space: 1 = 0; field vector on body as space: vector<1, 2>; relation r continuous on body { scalar = vector; } }",
+            explicit: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field scalar on body as space: 1 = 0; field vector on body as space: vector<1, 2>; relation r continuous on body { scalar - vector = 0; } }",
             natural_bytes: 220,
             explicit_bytes: 224,
             code: "EQ0304",
@@ -571,8 +571,8 @@ fn diagnostic_specs() -> Vec<DiagnosticSpec> {
         },
         DiagnosticSpec {
             class: "frame",
-            natural: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field invariant on body as space: 1 shape [2]; field spatial on body as space: 1 shape spatial_vector; relation r continuous on body { invariant = spatial; } }",
-            explicit: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field invariant on body as space: 1 shape [2]; field spatial on body as space: 1 shape spatial_vector; relation r continuous on body { invariant - spatial = 0; } }",
+            natural: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field invariant on body as space: array<1, 2>; field spatial on body as space: vector<1, 2>; relation r continuous on body { invariant = spatial; } }",
+            explicit: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field invariant on body as space: array<1, 2>; field spatial on body as space: vector<1, 2>; relation r continuous on body { invariant - spatial = 0; } }",
             natural_bytes: 234,
             explicit_bytes: 238,
             code: "EQ0304",

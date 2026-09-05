@@ -408,7 +408,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
         ),
         Inlet::PrescribedVelocity => (
             r#"  field inlet_potential on body as space: m ^ 2 / s = 0;
-  field inlet_velocity on body as space: m / s shape spatial_vector;
+  field inlet_velocity on body as space: vector<m / s, 2>;
   parameter inlet_speed: m / s = 1;
   relation inlet_potential_definition continuous on body {
     inlet_potential - inlet_speed * coordinate(0) = 0;
@@ -449,7 +449,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
         Outlet::PrescribedTraction => (
             r#"  field traction_potential on body as space: kg / s ^ 2 = 0;
   field outlet_traction on body as space:
-    kg / (m * s ^ 2) shape spatial_vector;
+    vector<kg / (m * s ^ 2), 2>;
   parameter outlet_stress: kg / (m * s ^ 2) = 2;
   relation traction_potential_definition continuous on body {
     traction_potential - outlet_stress * coordinate(0) = 0;
@@ -473,7 +473,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
   representation space = continuum;
-  field velocity on body as space: m / s shape spatial_vector;
+  field velocity on body as space: vector<m / s, 2>;
   field pressure on body as space: kg / (m * s ^ 2) = 0;
   field force_potential on body as space: kg / (m * s ^ 2) = 0;
   parameter dynamic_viscosity: kg / (m * s) = 2;

@@ -1601,7 +1601,7 @@ component Law {
 model M {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   field potential on body as space: K = 0;
   field other on body as space: K = 0;
   instance law: Law(
@@ -1625,7 +1625,7 @@ model M {
   );
   field other on body as space: K = 0;
   field potential on body as space: K = 0;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   representation space = continuum;
   domain body = box(0, 1, 0, 1);
 }
@@ -1750,23 +1750,13 @@ model M {
     }
 
     #[test]
-    fn explicit_and_implicit_scalar_field_shapes_share_identity() {
-        let implicit = eqiora_lang::parse(
-            "implicit.eqi",
-            "model M { field x: 1 = 0; relation r continuous { x = 0; } }",
-        )
-        .into_document()
-        .unwrap();
-        let explicit = eqiora_lang::parse(
-            "explicit.eqi",
+    fn retired_scalar_shape_spelling_is_not_an_identity_alias() {
+        let retired = eqiora_lang::parse(
+            "retired.eqi",
             "model M { field x: 1 shape [] = 0; relation r continuous { x = 0; } }",
         )
-        .into_document()
-        .unwrap();
-        assert_eq!(
-            LocalSourceIdentity::from_document(&implicit).unwrap(),
-            LocalSourceIdentity::from_document(&explicit).unwrap()
-        );
+        .into_document();
+        assert!(retired.is_err());
     }
 
     #[test]

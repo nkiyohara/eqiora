@@ -16,7 +16,7 @@ public component SteadyFlowPastCylinder {
 
   // Unknown continuum fields live on the fluid volume.
   representation space = continuum;
-  field velocity on fluid as space: m / s shape spatial_vector;
+  field velocity on fluid as space: vector<m / s, 2>;
   field pressure on fluid as space: kg / (m * s ^ 2) = 0;
 
   // Auxiliary fields keep prescribed forcing and profiles explicit and unit-checked.

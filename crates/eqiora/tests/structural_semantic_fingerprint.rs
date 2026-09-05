@@ -221,7 +221,7 @@ fn semantic_types_support_and_model_time_are_fingerprint_meaning() {
     .unwrap();
     let vector_spatial = ModelDocument::compile(
         "vector-spatial.eqi",
-        "model m { domain body = box(0, 1, 0, 1); representation space = continuum; field value on body as space: m shape spatial_vector; relation r continuous on body { value = 0; } }",
+        "model m { domain body = box(0, 1, 0, 1); representation space = continuum; field value on body as space: vector<m, 2>; relation r continuous on body { value = 0; } }",
     )
     .unwrap();
     assert!(

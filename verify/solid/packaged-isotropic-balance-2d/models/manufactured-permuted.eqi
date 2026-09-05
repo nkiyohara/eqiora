@@ -25,7 +25,7 @@ model Main {
   relation x_upper_value continuous on x_upper { trace(displacement) = 0; }
   domain x_lower = boundary(body, axis = 0, side = lower);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   relation y_lower_value continuous on y_lower { trace(displacement) = 0; }
   domain y_lower = boundary(body, axis = 1, side = lower);
   parameter wave_number: 1 / m = 3.141592653589793;

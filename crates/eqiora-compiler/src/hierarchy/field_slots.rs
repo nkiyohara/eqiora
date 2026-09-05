@@ -395,7 +395,7 @@ component Law {
 model Use {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   instance law: Law(support body = body, field displacement = displacement);
 }
 "#,

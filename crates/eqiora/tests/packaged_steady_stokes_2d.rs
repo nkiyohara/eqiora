@@ -852,8 +852,8 @@ fn canonical_stokes_recognizer_rejects_semantic_near_misses() {
 
     let wrong_dimensions = DIRECT
         .replace(
-            "field velocity on body as space: m / s shape spatial_vector;",
-            "field velocity on body as space: 1 shape spatial_vector;",
+            "field velocity on body as space: vector<m / s, 2>;",
+            "field velocity on body as space: vector<1, 2>;",
         )
         .replace(
             "field pressure on body as space: kg / (m * s ^ 2) = 0;",

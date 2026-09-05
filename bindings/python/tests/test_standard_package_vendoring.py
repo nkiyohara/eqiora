@@ -16,7 +16,7 @@ model Main {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
   representation space = continuum;
-  field velocity on body as space: m / s shape spatial_vector;
+  field velocity on body as space: vector<m / s, 2>;
   field pressure on body as space: kg / (m * s ^ 2) = 0;
   field force_potential on body as space: kg / (m * s ^ 2) = 0;
   field inlet_speed on body as space: m / s = 0;

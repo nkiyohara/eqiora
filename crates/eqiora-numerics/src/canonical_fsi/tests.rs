@@ -69,11 +69,11 @@ model Main {
   representation fluid_space = continuum;
   representation solid_space = continuum;
 
-  field fluid_velocity on fluid as fluid_space: m / s shape spatial_vector;
+  field fluid_velocity on fluid as fluid_space: vector<m / s, 2>;
   field pressure on fluid as fluid_space: kg / (m * s ^ 2) = 0;
   field fluid_load on fluid as fluid_space: kg / (m * s ^ 2) = 0;
-  field displacement on solid as solid_space: m shape spatial_vector;
-  field solid_velocity on solid as solid_space: m / s shape spatial_vector;
+  field displacement on solid as solid_space: vector<m, 2>;
+  field solid_velocity on solid as solid_space: vector<m / s, 2>;
   field solid_load on solid as solid_space: kg / (m * s ^ 2) = 0;
 
   parameter fluid_density: kg / m ^ 3 = 2;
@@ -162,6 +162,8 @@ fn ale_source() -> String {
 
 fn ale_source_3d() -> String {
     ale_source()
+        .replace("vector<m / s, 2>", "vector<m / s, 3>")
+        .replace("vector<m, 2>", "vector<m, 3>")
         .replace("ambient_dimension = 2", "ambient_dimension = 3")
         .replace(
             "domain fluid = box(0, 1, 0, 1);",

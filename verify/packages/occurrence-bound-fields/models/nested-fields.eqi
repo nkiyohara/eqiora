@@ -27,7 +27,7 @@ model Main {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
 
   instance law: FieldLawWrapper(
     support body = body,

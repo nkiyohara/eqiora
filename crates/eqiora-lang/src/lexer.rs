@@ -301,8 +301,8 @@ mod tests {
     }
 
     #[test]
-    fn lexer_retains_exact_value_shape_delimiters() {
-        let source = "field velocity: m / s shape [2, 3];";
+    fn lexer_retains_component_index_delimiters() {
+        let source = "let component = velocity[2, 3];";
         let result = lex("shape.eqi", source);
 
         assert!(result.diagnostics().is_empty());

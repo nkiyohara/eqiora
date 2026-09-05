@@ -23,7 +23,7 @@ model Main {
   field pressure on body as space: kg / (m * s ^ 2) = 0;
   domain x_lower = boundary(body, axis = 0, side = lower);
   representation space = continuum;
-  field velocity on body as space: m / s shape spatial_vector;
+  field velocity on body as space: vector<m / s, 2>;
   relation y_lower_value continuous on y_lower { trace(velocity) = 0; }
   domain y_lower = boundary(body, axis = 1, side = lower);
   parameter wave_number: 1 / m = 6.283185307179586;

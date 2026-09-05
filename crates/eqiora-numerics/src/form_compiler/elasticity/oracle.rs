@@ -565,10 +565,10 @@ fn derivation_rejects_ambiguous_incomplete_foreign_and_mixed_roles() {
     assert_derivation_rejects(&duplicated_coefficient, "duplicated Lamé coefficient role");
 
     let duplicate_unknown = SOURCE.replace(
-        "field displacement on body as space: m shape spatial_vector;",
+        "field displacement on body as space: vector<m, 2>;",
         concat!(
-            "field displacement on body as space: m shape spatial_vector;\n",
-            "  field foreign_displacement on body as space: m shape spatial_vector;",
+            "field displacement on body as space: vector<m, 2>;\n",
+            "  field foreign_displacement on body as space: vector<m, 2>;",
         ),
     );
     assert_derivation_rejects(&duplicate_unknown, "duplicate displacement role");

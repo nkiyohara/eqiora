@@ -220,17 +220,17 @@ model Poisson {
             ),
             (
                 "symmetric vector",
-                "model M { domain d = box(0,1,0,1); representation space = continuum; field u on d as space: 1 shape spatial_vector; relation r continuous on d { symmetric_part(u) = 0; } }",
+                "model M { domain d = box(0,1,0,1); representation space = continuum; field u on d as space: vector<1, 2>; relation r continuous on d { symmetric_part(u) = 0; } }",
                 "symmetric_part requires an exact [d,d] spatial Cartesian tensor",
             ),
             (
                 "symmetric nonsquare",
-                "model M { domain d = box(0,1,0,1); representation space = continuum; field a on d as space: 1 shape [2,3]; relation r continuous on d { symmetric_part(a) = 0; } }",
+                "model M { domain d = box(0,1,0,1); representation space = continuum; field a on d as space: array<array<1, 3>, 2>; relation r continuous on d { symmetric_part(a) = 0; } }",
                 "symmetric_part requires an exact [d,d] spatial Cartesian tensor",
             ),
             (
                 "lift vector",
-                "model M { domain d = box(0,1,0,1); representation space = continuum; field u on d as space: 1 shape spatial_vector; relation r continuous on d { isotropic_lift(u) = 0; } }",
+                "model M { domain d = box(0,1,0,1); representation space = continuum; field u on d as space: vector<1, 2>; relation r continuous on d { isotropic_lift(u) = 0; } }",
                 "isotropic_lift requires an invariant scalar",
             ),
             (

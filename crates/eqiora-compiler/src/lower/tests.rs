@@ -323,7 +323,7 @@ fn compiler_lowers_canonical_tensor_structure_without_a_physics_node() {
 model elastic_relation {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   parameter mu: kg / (m * s ^ 2) = 2;
   parameter lambda: kg / (m * s ^ 2) = 3;
   relation balance continuous on body {
@@ -374,12 +374,8 @@ model scalar_poisson {
 "#;
     compile("scalar-poisson.eqi", scalar).expect("a scalar gradient remains admissible");
 
-    let wrong_displacement = scalar
-        .replace(
-            "field potential on body as space: 1;",
-            "field potential on body as space: 1 shape scalar;",
-        )
-        .replace("-div(grad(potential))", "symmetric_part(grad(potential))");
+    let wrong_displacement =
+        scalar.replace("-div(grad(potential))", "symmetric_part(grad(potential))");
     let diagnostics = compile("wrong-strain.eqi", &wrong_displacement)
         .expect_err("symmetric strain requires a spatial-vector Field");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -399,8 +395,8 @@ public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
 model generic_operator {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field left on body as space: 1 shape spatial_vector;
-  field right on body as space: 1 shape spatial_vector;
+  field left on body as space: vector<1, 2>;
+  field right on body as space: vector<1, 2>;
   relation balance continuous on body {
     div(div(dyadic(left, right))) = 0;
   }
@@ -456,7 +452,7 @@ model invalid {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field scalar on body as space: 1 = 0;
-  field vector on body as space: 1 shape spatial_vector;
+  field vector on body as space: vector<1, 2>;
   relation balance continuous on body {
 "#;
     for (residual, expected) in [

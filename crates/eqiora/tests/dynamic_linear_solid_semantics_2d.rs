@@ -360,7 +360,7 @@ fn kinematic_inertia_stress_density_and_closure_near_misses_fail_closed() {
     assert_lowering_rejects(&distinct_representation, "same continuum Representation");
 
     let scalar_velocity = DIRECT.replace(
-        "field velocity on body as space: m / s shape spatial_vector;",
+        "field velocity on body as space: vector<m / s, 2>;",
         "field velocity on body as space: m / s = 0;",
     );
     assert_typed_source_rejects(&scalar_velocity, "shape");
