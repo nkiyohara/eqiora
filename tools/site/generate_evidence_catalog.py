@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from collections import defaultdict
@@ -315,7 +316,11 @@ def _write_atomic(output: Path, rendered: bytes) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", required=True, type=Path, help="complete index JSON")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--input", type=Path, help="complete index JSON")
+    source.add_argument(
+        "--repository", type=Path, help="derive the index with eqiora-verify"
+    )
     parser.add_argument("--output", required=True, type=Path, help="canonical MDX output")
     parser.add_argument(
         "--check",
@@ -328,7 +333,25 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        source = args.input.read_text(encoding="utf-8")
+        source = (
+            args.input.read_text(encoding="utf-8")
+            if args.input is not None
+            else subprocess.check_output(
+                [
+                    "cargo",
+                    "run",
+                    "--locked",
+                    "-p",
+                    "eqiora-verify",
+                    "--",
+                    "index",
+                    "--format",
+                    "json",
+                ],
+                cwd=args.repository,
+                encoding="utf-8",
+            )
+        )
         rendered = render_catalog(_parse_json(source)).encode("utf-8")
         if args.check:
             tracked = args.output.read_bytes()
@@ -336,7 +359,13 @@ def main(argv: list[str] | None = None) -> int:
                 raise CatalogError(f"{args.output} is not the canonical evidence catalog")
         else:
             _write_atomic(args.output, rendered)
-    except (OSError, UnicodeError, json.JSONDecodeError, CatalogError) as error:
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        CatalogError,
+        subprocess.CalledProcessError,
+    ) as error:
         print(f"evidence catalog: {error}", file=sys.stderr)
         return 1
     return 0

@@ -210,6 +210,29 @@ class PlanTests(unittest.TestCase):
         pr = build_plan("pr", ["docs/site/src/content/docs/index.mdx"], [], workspace())
         self.assertFalse(any(item.label == "Site source" for item in pr.commands))
 
+    def test_catalog_inputs_select_index_check_without_executing_cases(self) -> None:
+        for path in (
+            "verify/interfaces/cli-compile-check/case.toml",
+            "crates/eqiora-verify/src/main.rs",
+            "tools/site/generate_evidence_catalog.py",
+            "docs/site/src/content/docs/evidence/index.mdx",
+            "Cargo.lock",
+        ):
+            for tier in ("fast", "affected", "periodic"):
+                with self.subTest(path=path, tier=tier):
+                    plan = build_plan(tier, [path], [], workspace())
+                    checks = [
+                        item for item in plan.commands if item.label == "Site catalog"
+                    ]
+                    self.assertEqual(len(checks), 1)
+                    self.assertIn("--check", checks[0].argv)
+                    self.assertIn("--repository", checks[0].argv)
+                    self.assertEqual(checks[0].lane.name, "root-cargo")
+        plan = build_plan(
+            "pr", ["verify/interfaces/cli-compile-check/case.toml"], [], workspace()
+        )
+        self.assertFalse(any(item.label == "Site catalog" for item in plan.commands))
+
     def test_fast_plan_keeps_direct_package_and_explicit_case(self) -> None:
         plan = build_plan(
             "fast",

@@ -87,6 +87,10 @@ Site changes select `python3 tools/site/check_site.py source --root .` in `fast`
 `affected`, and `periodic`. This reuses the source checks without building the site;
 rendered output and browser checks remain in hosted Pages CI.
 
+Changes to case manifests, the index producer, or the generated site catalog also check
+the committed catalog against `eqiora-verify index`. This builds only the index tool,
+does not execute cases, and catches stale projections before a hosted site build.
+
 `affected` adds conservative Cargo reverse dependencies, Rustdoc, affected clients, registered
 case inventory, and selected Python, Studio, dependency-policy, or isolated-experiment checks.
 Use it for a high-risk integration boundary, an anomaly, or uncertainty that focused checks

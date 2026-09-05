@@ -693,6 +693,34 @@ def build_plan(
                 "Environment-dependent hardware and multi-node evidence is not implied unless explicitly run and recorded.",
             )
 
+    if tier != "pr" and (
+        tier == "periodic"
+        or any(
+            path.startswith(("verify/", "crates/eqiora-verify/"))
+            or path
+            in {
+                "Cargo.toml",
+                "Cargo.lock",
+                "tools/site/generate_evidence_catalog.py",
+                "docs/site/src/content/docs/evidence/index.mdx",
+            }
+            for path in paths
+        )
+    ):
+        commands.append(
+            command(
+                "Site catalog",
+                sys.executable,
+                "tools/site/generate_evidence_catalog.py",
+                "--repository",
+                ".",
+                "--check",
+                "--output",
+                "docs/site/src/content/docs/evidence/index.mdx",
+                lane=ROOT_CARGO_LANE,
+            )
+        )
+
     if tier != "pr" and surfaces["site"]:
         commands.append(
             command(
