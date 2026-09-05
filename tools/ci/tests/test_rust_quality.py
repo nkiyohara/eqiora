@@ -21,6 +21,9 @@ class RustQualityTests(unittest.TestCase):
                 "consumer", "crates/consumer", frozenset({"core"})
             ),
             "leaf": WorkspacePackage("leaf", "crates/leaf", frozenset()),
+            "eqiora-python": WorkspacePackage(
+                "eqiora-python", "crates/eqiora-python", frozenset()
+            ),
         }
 
     def test_reverse_closure_includes_consumers_but_not_unrelated_packages(self):
@@ -47,6 +50,7 @@ class RustQualityTests(unittest.TestCase):
             "crates/core/README.md",
             "packages/physics/README.md",
             "README.md",
+            "crates/eqiora-python/src/lib.rs",
             "packages/physics/src/model.eqi",
             "tools/ci/rust_quality.py",
             "crates/deleted/src/lib.rs",

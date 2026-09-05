@@ -31,6 +31,10 @@ def package_selectors(
         return ("--workspace",)
     sources = []
     for path in paths:
+        # The facade's control-plane test reads Python adapter source directly,
+        # without a Cargo dependency. Keep that shared source workspace-scoped.
+        if path.startswith("crates/eqiora-python/"):
+            return ("--workspace",)
         if path.startswith(("docs/", "rfcs/")):
             continue
         if not path.endswith(".rs") or not direct_packages([path], packages):
