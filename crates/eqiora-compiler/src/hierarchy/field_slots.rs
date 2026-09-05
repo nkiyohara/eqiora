@@ -267,12 +267,7 @@ pub(super) fn resolve_instance_fields<I: Clone + Eq>(
             continue;
         };
         let expected = FieldContract {
-            value: ExpressionType::shaped(
-                slot.field.value.dimension,
-                slot.field.value.shape.clone(),
-                slot.field.value.frame,
-                Some(support),
-            ),
+            value: ExpressionType::new(slot.field.value.value_type.clone(), Some(support)),
             representation: slot.field.representation,
         };
         if let Some(message) = field_contract_mismatch(binding.slot(), &expected, &target) {
@@ -314,19 +309,22 @@ fn field_contract_mismatch<I: Eq>(
     expected: &FieldContract<I>,
     actual: &FieldContract<I>,
 ) -> Option<String> {
-    let mismatch = if expected.value.dimension != actual.value.dimension {
-        "physical dimension"
-    } else if expected.value.shape != actual.value.shape {
-        "exact value shape"
-    } else if expected.value.frame != actual.value.frame {
-        "coordinate frame"
-    } else if expected.value.support != actual.value.support {
-        "exact spatial support"
-    } else if expected.representation != actual.representation {
-        "representation family"
-    } else {
-        return None;
-    };
+    let mismatch =
+        if expected.value.value_type.scalar_domain() != actual.value.value_type.scalar_domain() {
+            "mathematical scalar domain"
+        } else if expected.value.dimension() != actual.value.dimension() {
+            "physical dimension"
+        } else if expected.value.shape() != actual.value.shape() {
+            "exact value shape"
+        } else if expected.value.frame() != actual.value.frame() {
+            "coordinate frame"
+        } else if expected.value.support != actual.value.support {
+            "exact spatial support"
+        } else if expected.representation != actual.representation {
+            "representation family"
+        } else {
+            return None;
+        };
     Some(format!(
         "Field slot `{slot}` and its target disagree in {mismatch}"
     ))
@@ -385,13 +383,16 @@ model Use {
             domain: "body-id",
             dimensions: 2,
         };
-        let target = FieldContract::continuum(ExpressionType::shaped(
-            eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
-                .expect("bounded dimension"),
-            eqiora_core::ValueShape::new([2]).expect("shape"),
-            eqiora_schema::kernel::ValueFrame::SpatialCartesian,
-            Some(exact_support.clone()),
-        ));
+        let target = FieldContract::continuum(
+            ExpressionType::shaped(
+                eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
+                    .expect("bounded dimension"),
+                eqiora_core::ValueShape::new([2]).expect("shape"),
+                eqiora_schema::kernel::ValueFrame::SpatialCartesian,
+                Some(exact_support.clone()),
+            )
+            .unwrap(),
+        );
         let resolved = resolve_instance_fields(
             "field_slots.eqi",
             component,

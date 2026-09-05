@@ -9,6 +9,15 @@ pub enum ScalarDomain {
     Complex,
 }
 
+impl ScalarDomain {
+    pub(crate) const fn common(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Real, Self::Real) => Self::Real,
+            _ => Self::Complex,
+        }
+    }
+}
+
 /// Coordinate-frame meaning of mathematical value components.
 ///
 /// Version one intentionally admits only invariant values and components in
@@ -32,6 +41,12 @@ pub struct ValueType {
 }
 
 impl ValueType {
+    /// Preserve the scalar domain and component meaning with a derived dimension.
+    #[must_use]
+    pub fn with_dimension(mut self, dimension: DimExponents) -> Self {
+        self.dimension = dimension;
+        self
+    }
     /// Construct an invariant scalar type.
     #[must_use]
     pub fn scalar(scalar_domain: ScalarDomain, dimension: DimExponents) -> Self {

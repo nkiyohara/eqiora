@@ -137,7 +137,8 @@ fn component_scalarization_is_the_exact_pointwise_tensor_map() {
                     ValueShape::new([2, 2]).unwrap(),
                     ValueFrame::SpatialCartesian,
                     Some(support.clone()),
-                ),
+                )
+                .unwrap(),
                 SymbolRef::Field(field) if field == pressure => {
                     ExpressionType::scalar(dimension, Some(support.clone()))
                 }
@@ -196,7 +197,8 @@ fn tensor_typing_fails_closed_without_exact_shape_frame_and_volume_support() {
         ValueShape::new([2, 2]).unwrap(),
         ValueFrame::SpatialCartesian,
         Some(volume.clone()),
-    );
+    )
+    .unwrap();
     assert_eq!(symmetric_part(&tensor).unwrap(), tensor);
 
     for invalid in [
@@ -205,13 +207,15 @@ fn tensor_typing_fails_closed_without_exact_shape_frame_and_volume_support() {
             ValueShape::new([2, 3]).unwrap(),
             ValueFrame::SpatialCartesian,
             Some(volume.clone()),
-        ),
+        )
+        .unwrap(),
         ExpressionType::shaped(
             dimension,
             ValueShape::new([2, 2]).unwrap(),
             ValueFrame::Invariant,
             Some(volume.clone()),
-        ),
+        )
+        .unwrap(),
     ] {
         assert!(matches!(
             symmetric_part(&invalid),
@@ -223,7 +227,8 @@ fn tensor_typing_fails_closed_without_exact_shape_frame_and_volume_support() {
         ValueShape::new([2, 2]).unwrap(),
         ValueFrame::SpatialCartesian,
         Some(boundary.clone()),
-    );
+    )
+    .unwrap();
     assert!(matches!(
         symmetric_part(&boundary_tensor),
         Err(TypeViolation::SymmetricPartRequiresVolume)
@@ -231,9 +236,9 @@ fn tensor_typing_fails_closed_without_exact_shape_frame_and_volume_support() {
 
     let scalar = ExpressionType::scalar(dimension, Some(volume));
     let lifted = isotropic_lift(&scalar).unwrap();
-    assert_eq!(lifted.dimension, dimension);
-    assert_eq!(lifted.shape, ValueShape::new([2, 2]).unwrap());
-    assert_eq!(lifted.frame, ValueFrame::SpatialCartesian);
+    assert_eq!(lifted.dimension(), dimension);
+    assert_eq!(lifted.shape(), &ValueShape::new([2, 2]).unwrap());
+    assert_eq!(lifted.frame(), ValueFrame::SpatialCartesian);
     assert_eq!(lifted.support, scalar.support);
     assert!(matches!(
         isotropic_lift(&ExpressionType::<&str>::scalar(dimension, None)),

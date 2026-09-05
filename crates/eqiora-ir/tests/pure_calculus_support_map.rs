@@ -26,6 +26,7 @@ fn volume_tensor_with_dimension(
             dimensions: 2,
         }),
     )
+    .unwrap()
 }
 
 fn volume_scalar(domain: &'static str) -> ExpressionType<&'static str> {

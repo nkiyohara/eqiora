@@ -192,7 +192,7 @@ fn validate_spatial_operator_types(
             match (left, right) {
                 (Some(left), Some(right)) => {
                     let result = match operator {
-                        BinaryOp::Add | BinaryOp::Sub if left.dimension != right.dimension => {
+                        BinaryOp::Add | BinaryOp::Sub if left.dimension() != right.dimension() => {
                             // Preserve the established flat-lowerer diagnostic,
                             // which reports the two dimensions compactly.
                             return Ok(None);
@@ -278,12 +278,8 @@ fn field_expression_type(
             dimensions: *dimensions,
         })
     });
-    Ok(ExpressionType::shaped(
-        resolved.dimension,
-        resolved.shape,
-        resolved.frame,
-        support,
-    ))
+    ExpressionType::shaped(resolved.dimension, resolved.shape, resolved.frame, support)
+        .map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string()))
 }
 
 fn spatial_type_error(

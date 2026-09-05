@@ -763,18 +763,21 @@ fn validate_argument_class<I>(
     class: PureValueClass,
     argument: &ExpressionType<I>,
 ) -> Result<(), PureOperatorError> {
+    if argument.value_type.scalar_domain() != super::ScalarDomain::Real {
+        return Err(PureOperatorError::FormalTypeMismatch);
+    }
     let Some(SpatialSupport::Volume { dimensions, .. }) = argument.support.as_ref() else {
         return Err(PureOperatorError::FormalTypeMismatch);
     };
     match class.spatial_rank() {
-        None if argument.shape.is_scalar() && argument.frame == ValueFrame::Invariant => Ok(()),
+        None if argument.shape().is_scalar() && argument.frame() == ValueFrame::Invariant => Ok(()),
         Some(rank)
-            if argument.frame == ValueFrame::SpatialCartesian
-                && argument.shape.rank() == usize::from(rank)
+            if argument.frame() == ValueFrame::SpatialCartesian
+                && argument.shape().rank() == usize::from(rank)
                 && u32::try_from(*dimensions).is_ok_and(|dimension| {
                     dimension != 0
                         && argument
-                            .shape
+                            .shape()
                             .extents()
                             .iter()
                             .all(|extent| extent.get() == dimension)
@@ -802,12 +805,13 @@ fn expression_type_for_class<I>(
             let shape =
                 eqiora_core::ValueShape::new(std::iter::repeat_n(extent, usize::from(rank)))
                     .map_err(|_| PureOperatorError::FormalTypeMismatch)?;
-            Ok(ExpressionType::shaped(
+            ExpressionType::shaped(
                 dimension,
                 shape,
                 ValueFrame::SpatialCartesian,
                 Some(support),
-            ))
+            )
+            .map_err(|_| PureOperatorError::FormalTypeMismatch)
         }
     }
 }
@@ -819,7 +823,7 @@ fn instantiate_dimension<I>(
     let mut result = eqiora_core::DimExponents::DIMENSIONLESS;
     for (argument, exponent) in arguments.iter().zip(monomial.exponents()) {
         let term = argument
-            .dimension
+            .dimension()
             .pow(i32::from(*exponent), 1)
             .ok_or(PureOperatorError::ResultDimensionOverflow)?;
         result = result
@@ -964,6 +968,7 @@ mod tests {
                 dimensions: 2,
             }),
         )
+        .unwrap()
     }
 
     fn volume_scalar(domain: &str) -> ExpressionType<&str> {
@@ -986,6 +991,7 @@ mod tests {
                 dimensions: 2,
             }),
         )
+        .unwrap()
     }
 
     #[test]
@@ -1011,13 +1017,16 @@ mod tests {
 
         let isotropic = PureOperatorDefinition::isotropic_lift().unwrap();
         let isotropic_application = isotropic.instantiate(&[volume_scalar("body")]).unwrap();
-        assert_eq!(isotropic_application.result_type().shape.extents().len(), 2);
         assert_eq!(
-            isotropic_application.result_type().shape.extents()[0].get(),
+            isotropic_application.result_type().shape().extents().len(),
             2
         );
         assert_eq!(
-            isotropic_application.result_type().shape.extents()[1].get(),
+            isotropic_application.result_type().shape().extents()[0].get(),
+            2
+        );
+        assert_eq!(
+            isotropic_application.result_type().shape().extents()[1].get(),
             2
         );
     }
@@ -1051,8 +1060,8 @@ mod tests {
             .instantiate(&[volume_vector("body", length), volume_vector("body", force)])
             .unwrap();
         let result = application.result_type();
-        assert_eq!(result.shape, ValueShape::new([2, 2]).unwrap());
-        assert_eq!(result.frame, ValueFrame::SpatialCartesian);
+        assert_eq!(result.shape(), &ValueShape::new([2, 2]).unwrap());
+        assert_eq!(result.frame(), ValueFrame::SpatialCartesian);
         assert_eq!(
             result.support,
             Some(SpatialSupport::Volume {
@@ -1061,7 +1070,7 @@ mod tests {
             })
         );
         assert_eq!(
-            result.dimension,
+            result.dimension(),
             DimExponents::from_integers([1, 2, -2, 0, 0, 0, 0]).expect("bounded dimension")
         );
         assert_ne!(

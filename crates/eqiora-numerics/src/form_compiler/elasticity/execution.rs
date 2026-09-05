@@ -752,7 +752,7 @@ impl<'a> ProgramCompiler<'a> {
         let node_type = typed
             .node_type(node)
             .ok_or_else(|| tape_error("typed source sidecar is stale"))?;
-        Ok(if node_type.shape.is_scalar() {
+        Ok(if node_type.shape().is_scalar() {
             Vec::new()
         } else {
             axes.to_vec()

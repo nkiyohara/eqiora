@@ -300,6 +300,7 @@ mod tests {
                 dimensions: 2,
             }),
         )
+        .unwrap()
     }
 
     fn equivalent_definition(distributed_two: bool) -> PureOperatorDefinition {

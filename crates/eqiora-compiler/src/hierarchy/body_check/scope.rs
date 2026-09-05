@@ -493,7 +493,7 @@ pub(in crate::hierarchy) fn field_expression_type<I>(
         declaration.shape(),
         support,
     )?;
-    match (inferred.shape.is_scalar(), declaration.initial()) {
+    match (inferred.shape().is_scalar(), declaration.initial()) {
         (true, Some(_)) | (true, None) | (false, None) => {}
         (false, Some(_)) => {
             return Err(source_error(
@@ -558,7 +558,8 @@ pub(in crate::hierarchy) fn field_value_type<I>(
             ));
         }
     };
-    Ok(ExpressionType::shaped(dimension, shape, frame, support))
+    ExpressionType::shaped(dimension, shape, frame, support)
+        .map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string()))
 }
 
 pub(super) fn component_port_contract(

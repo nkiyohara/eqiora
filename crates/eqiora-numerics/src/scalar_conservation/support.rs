@@ -40,7 +40,7 @@ pub(super) fn node_dimension(
 ) -> Result<DimExponents, Diagnostic> {
     typed
         .node_type(value)
-        .map(|value| value.dimension)
+        .map(|value| value.dimension())
         .ok_or_else(|| {
             lowering_error(
                 owner,

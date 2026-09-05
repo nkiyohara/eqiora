@@ -278,12 +278,15 @@ fn compiled_definition_scalarizes_as_the_exact_dyadic_map() {
         RootContract::ComponentwiseResidual,
         |symbol| {
             assert!(matches!(symbol, SymbolRef::Field(field) if field == left || field == right));
-            Ok::<_, ()>(ExpressionType::shaped(
-                DimExponents::DIMENSIONLESS,
-                ValueShape::new([2]).unwrap(),
-                ValueFrame::SpatialCartesian,
-                Some(support.clone()),
-            ))
+            Ok::<_, ()>(
+                ExpressionType::shaped(
+                    DimExponents::DIMENSIONLESS,
+                    ValueShape::new([2]).unwrap(),
+                    ValueFrame::SpatialCartesian,
+                    Some(support.clone()),
+                )
+                .unwrap(),
+            )
         },
     )
     .expect("compiled definition instantiates under the exact vector type");

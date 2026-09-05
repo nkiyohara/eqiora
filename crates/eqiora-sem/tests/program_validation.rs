@@ -267,7 +267,7 @@ fn shaped_relation_roots_are_componentwise_but_activation_roots_remain_scalar() 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message()
-            .contains("expression root must be an invariant scalar")
+            .contains("expression root must be a real invariant scalar")
     }));
 }
 

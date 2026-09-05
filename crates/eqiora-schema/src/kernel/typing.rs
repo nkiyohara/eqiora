@@ -12,6 +12,9 @@ use eqiora_core::{DimExponents, ValueShape};
 use super::pure_operator::PureOperatorError;
 use super::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction, ValueFrame};
 
+mod value;
+pub use value::ExpressionType;
+
 /// Exact spatial support carried by an expression value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SpatialSupport<I> {
@@ -70,48 +73,6 @@ impl<I> SpatialSupport<I> {
         match self {
             Self::Volume { .. } | Self::Interface { .. } => None,
             Self::Boundary { parent, .. } => Some(parent),
-        }
-    }
-}
-
-/// Complete static type of one residual-expression value.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExpressionType<I> {
-    /// SI base-dimension exponents.
-    pub dimension: DimExponents,
-    /// Exact mathematical value shape.
-    pub shape: ValueShape,
-    /// Coordinate-frame meaning of the value components.
-    pub frame: ValueFrame,
-    /// Exact nominal spatial support, absent for global scalars.
-    pub support: Option<SpatialSupport<I>>,
-}
-
-impl<I> ExpressionType<I> {
-    /// A scalar with the supplied physical dimension and spatial support.
-    #[must_use]
-    pub fn scalar(dimension: DimExponents, support: Option<SpatialSupport<I>>) -> Self {
-        Self {
-            dimension,
-            shape: ValueShape::scalar(),
-            frame: ValueFrame::Invariant,
-            support,
-        }
-    }
-
-    /// A value with an exact shape, frame, physical dimension, and support.
-    #[must_use]
-    pub fn shaped(
-        dimension: DimExponents,
-        shape: ValueShape,
-        frame: ValueFrame,
-        support: Option<SpatialSupport<I>>,
-    ) -> Self {
-        Self {
-            dimension,
-            shape,
-            frame,
-            support,
         }
     }
 }
@@ -186,8 +147,8 @@ pub enum TypeViolation<I> {
     NormalRequiresTensor,
     /// A content-addressed pure definition rejected its exact application.
     PureOperatorApplication(PureOperatorError),
-    /// A root whose consumer requires one scalar value was shaped.
-    RootRequiresScalar,
+    /// An activation root was complex, shaped, or frame-bearing.
+    RootRequiresRealScalar,
     /// Residual support differs from its Relation scope.
     ResidualSupportMismatch {
         /// Support inferred for the residual root.
@@ -219,7 +180,7 @@ impl<I> TypeViolation<I> {
                     PureOperatorError::FormalTypeMismatch
                         | PureOperatorError::ResultDimensionOverflow
                 )
-                | Self::RootRequiresScalar
+                | Self::RootRequiresRealScalar
         )
     }
 }
@@ -302,8 +263,8 @@ impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
             Self::PureOperatorApplication(error) => {
                 write!(formatter, "pure operator application is invalid: {error}")
             }
-            Self::RootRequiresScalar => {
-                formatter.write_str("this expression root must be an invariant scalar")
+            Self::RootRequiresRealScalar => {
+                formatter.write_str("this expression root must be a real invariant scalar")
             }
             Self::ResidualSupportMismatch { residual, relation } => write!(
                 formatter,
@@ -600,18 +561,24 @@ pub fn additive<I: Clone + Eq>(
     left: &ExpressionType<I>,
     right: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if left.dimension != right.dimension || left.shape != right.shape || left.frame != right.frame {
+    if left.dimension() != right.dimension()
+        || left.shape() != right.shape()
+        || left.frame() != right.frame()
+    {
         return Err(TypeViolation::AdditiveTypeMismatch {
             left: Box::new(left.clone()),
             right: Box::new(right.clone()),
         });
     }
-    Ok(ExpressionType {
-        dimension: left.dimension,
-        shape: left.shape.clone(),
-        frame: left.frame,
-        support: combine_additive_support(&left.support, &right.support)?,
-    })
+    ExpressionType::checked(
+        left.value_type
+            .scalar_domain()
+            .common(right.value_type.scalar_domain()),
+        left.dimension(),
+        left.shape().clone(),
+        left.frame(),
+        combine_additive_support(&left.support, &right.support)?,
+    )
 }
 
 /// Multiply two typed expressions using scalar-times-tensor v0 semantics.
@@ -619,24 +586,26 @@ pub fn multiply<I: Clone + Eq>(
     left: &ExpressionType<I>,
     right: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    let (shape, frame) = if left.shape.is_scalar() && left.frame == ValueFrame::Invariant {
-        (right.shape.clone(), right.frame)
-    } else if right.shape.is_scalar() && right.frame == ValueFrame::Invariant {
-        (left.shape.clone(), left.frame)
+    let (shape, frame) = if left.shape().is_scalar() && left.frame() == ValueFrame::Invariant {
+        (right.shape().clone(), right.frame())
+    } else if right.shape().is_scalar() && right.frame() == ValueFrame::Invariant {
+        (left.shape().clone(), left.frame())
     } else {
         return Err(TypeViolation::MultiplicationRequiresScalar);
     };
-    Ok(ExpressionType {
-        dimension: left
-            .dimension
-            .mul(right.dimension)
+    ExpressionType::checked(
+        left.value_type
+            .scalar_domain()
+            .common(right.value_type.scalar_domain()),
+        left.dimension()
+            .mul(right.dimension())
             .ok_or(TypeViolation::DimensionOverflow {
                 operation: "multiplication",
             })?,
         shape,
         frame,
-        support: combine_support(&left.support, &right.support)?,
-    })
+        combine_support(&left.support, &right.support)?,
+    )
 }
 
 /// Divide by one typed scalar expression.
@@ -644,19 +613,23 @@ pub fn divide<I: Clone + Eq>(
     numerator: &ExpressionType<I>,
     denominator: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if !denominator.shape.is_scalar() || denominator.frame != ValueFrame::Invariant {
+    if !denominator.shape().is_scalar() || denominator.frame() != ValueFrame::Invariant {
         return Err(TypeViolation::DivisionDenominatorNotScalar);
     }
-    Ok(ExpressionType {
-        dimension: numerator.dimension.div(denominator.dimension).ok_or(
+    ExpressionType::checked(
+        numerator
+            .value_type
+            .scalar_domain()
+            .common(denominator.value_type.scalar_domain()),
+        numerator.dimension().div(denominator.dimension()).ok_or(
             TypeViolation::DimensionOverflow {
                 operation: "division",
             },
         )?,
-        shape: numerator.shape.clone(),
-        frame: numerator.frame,
-        support: combine_support(&numerator.support, &denominator.support)?,
-    })
+        numerator.shape().clone(),
+        numerator.frame(),
+        combine_support(&numerator.support, &denominator.support)?,
+    )
 }
 
 /// Raise one scalar expression to an integer power.
@@ -664,20 +637,20 @@ pub fn power<I: Clone>(
     base: &ExpressionType<I>,
     exponent: i32,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if !base.shape.is_scalar() || base.frame != ValueFrame::Invariant {
+    if !base.shape().is_scalar() || base.frame() != ValueFrame::Invariant {
         return Err(TypeViolation::PowerRequiresScalar);
     }
-    Ok(ExpressionType {
-        dimension: base
-            .dimension
+    ExpressionType::checked(
+        base.value_type.scalar_domain(),
+        base.dimension()
             .pow(exponent, 1)
             .ok_or(TypeViolation::DimensionOverflow {
                 operation: "integer power",
             })?,
-        shape: base.shape.clone(),
-        frame: base.frame,
-        support: base.support.clone(),
-    })
+        base.shape().clone(),
+        base.frame(),
+        base.support.clone(),
+    )
 }
 
 /// Type one Cartesian coordinate in the Relation scope.
@@ -704,21 +677,22 @@ pub fn unary_math<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
     if function == UnaryMathFunction::Sqrt {
-        if !operand.shape.is_scalar() || operand.frame != ValueFrame::Invariant {
+        if !operand.shape().is_scalar() || operand.frame() != ValueFrame::Invariant {
             return Err(TypeViolation::PowerRequiresScalar);
         }
         let mut result = operand.clone();
-        result.dimension = operand
-            .dimension
+        let dimension = operand
+            .dimension()
             .pow(1, 2)
             .ok_or(TypeViolation::DimensionOverflow {
                 operation: "square root",
             })?;
+        result.value_type = result.value_type.with_dimension(dimension);
         return Ok(result);
     }
-    if !operand.shape.is_scalar()
-        || operand.dimension != DimExponents::DIMENSIONLESS
-        || operand.frame != ValueFrame::Invariant
+    if !operand.shape().is_scalar()
+        || operand.dimension() != DimExponents::DIMENSIONLESS
+        || operand.frame() != ValueFrame::Invariant
     {
         return Err(TypeViolation::SinRequiresDimensionlessScalar);
     }
@@ -736,8 +710,8 @@ pub fn gradient<I: Clone>(
     if !matches!(support, SpatialSupport::Volume { .. }) {
         return Err(TypeViolation::GradientRequiresVolume);
     }
-    if (operand.shape.is_scalar() && operand.frame != ValueFrame::Invariant)
-        || (!operand.shape.is_scalar() && operand.frame != ValueFrame::SpatialCartesian)
+    if (operand.shape().is_scalar() && operand.frame() != ValueFrame::Invariant)
+        || (!operand.shape().is_scalar() && operand.frame() != ValueFrame::SpatialCartesian)
     {
         return Err(TypeViolation::IncompatibleFrame);
     }
@@ -746,15 +720,16 @@ pub fn gradient<I: Clone>(
         .filter(|extent| *extent > 0)
         .ok_or(TypeViolation::SpatialExtentInvalid)?;
     let shape = operand
-        .shape
+        .shape()
         .appended(extent)
         .map_err(|_| TypeViolation::SpatialExtentInvalid)?;
-    Ok(ExpressionType {
-        dimension: spatial_derivative_dimension(operand.dimension)?,
+    ExpressionType::checked(
+        operand.value_type.scalar_domain(),
+        spatial_derivative_dimension(operand.dimension())?,
         shape,
-        frame: ValueFrame::SpatialCartesian,
-        support: operand.support.clone(),
-    })
+        ValueFrame::SpatialCartesian,
+        operand.support.clone(),
+    )
 }
 
 /// Type a physical-space divergence.
@@ -768,25 +743,27 @@ pub fn divergence<I: Clone>(
     if !matches!(support, SpatialSupport::Volume { .. }) {
         return Err(TypeViolation::DivergenceRequiresVolume);
     }
-    let Some((shape, last)) = operand.shape.remove_last() else {
+    let Some((shape, last)) = operand.shape().remove_last() else {
         return Err(TypeViolation::DivergenceRequiresTensor);
     };
-    if operand.frame != ValueFrame::SpatialCartesian {
+    if operand.frame() != ValueFrame::SpatialCartesian {
         return Err(TypeViolation::IncompatibleFrame);
     }
     if usize::try_from(last.get()).ok() != Some(support.dimensions()) {
         return Err(TypeViolation::DivergenceRequiresTensor);
     }
-    Ok(ExpressionType {
-        dimension: spatial_derivative_dimension(operand.dimension)?,
-        frame: if shape.is_scalar() {
-            ValueFrame::Invariant
-        } else {
-            ValueFrame::SpatialCartesian
-        },
+    let frame = if shape.is_scalar() {
+        ValueFrame::Invariant
+    } else {
+        ValueFrame::SpatialCartesian
+    };
+    ExpressionType::checked(
+        operand.value_type.scalar_domain(),
+        spatial_derivative_dimension(operand.dimension())?,
         shape,
-        support: operand.support.clone(),
-    })
+        frame,
+        operand.support.clone(),
+    )
 }
 
 /// Type the symmetric part of an exact square Cartesian tensor.
@@ -796,8 +773,8 @@ pub fn symmetric_part<I: Clone>(
     let Some(SpatialSupport::Volume { dimensions, .. }) = operand.support.as_ref() else {
         return Err(TypeViolation::SymmetricPartRequiresVolume);
     };
-    let extents = operand.shape.extents();
-    if operand.frame != ValueFrame::SpatialCartesian
+    let extents = operand.shape().extents();
+    if operand.frame() != ValueFrame::SpatialCartesian
         || extents.len() != 2
         || usize::try_from(extents[0].get()).ok() != Some(*dimensions)
         || usize::try_from(extents[1].get()).ok() != Some(*dimensions)
@@ -815,7 +792,7 @@ pub fn isotropic_lift<I: Clone>(
     let Some(SpatialSupport::Volume { dimensions, .. }) = operand.support.as_ref() else {
         return Err(TypeViolation::IsotropicLiftRequiresVolume);
     };
-    if !operand.shape.is_scalar() || operand.frame != ValueFrame::Invariant {
+    if !operand.shape().is_scalar() || operand.frame() != ValueFrame::Invariant {
         return Err(TypeViolation::IsotropicLiftRequiresInvariantScalar);
     }
     let extent = u32::try_from(*dimensions)
@@ -824,12 +801,13 @@ pub fn isotropic_lift<I: Clone>(
         .ok_or(TypeViolation::SpatialExtentInvalid)?;
     let shape =
         ValueShape::new([extent, extent]).map_err(|_| TypeViolation::SpatialExtentInvalid)?;
-    Ok(ExpressionType {
-        dimension: operand.dimension,
+    ExpressionType::checked(
+        operand.value_type.scalar_domain(),
+        operand.dimension(),
         shape,
-        frame: ValueFrame::SpatialCartesian,
-        support: operand.support.clone(),
-    })
+        ValueFrame::SpatialCartesian,
+        operand.support.clone(),
+    )
 }
 
 /// Type a boundary trace.
@@ -862,13 +840,16 @@ pub fn residual<I: Clone + Eq>(
     Ok(())
 }
 
-/// Check one activation root, which must remain an invariant scalar.
+/// Check one activation root, which must remain a real invariant scalar.
 pub fn scalar_root<I: Clone + Eq>(
     root: &ExpressionType<I>,
     relation: Option<&SpatialSupport<I>>,
 ) -> Result<(), TypeViolation<I>> {
-    if !root.shape.is_scalar() || root.frame != ValueFrame::Invariant {
-        return Err(TypeViolation::RootRequiresScalar);
+    if !root.shape().is_scalar()
+        || root.frame() != ValueFrame::Invariant
+        || root.value_type.scalar_domain() != super::ScalarDomain::Real
+    {
+        return Err(TypeViolation::RootRequiresRealScalar);
     }
     residual(root, relation)
 }
@@ -877,17 +858,18 @@ pub fn scalar_root<I: Clone + Eq>(
 pub fn time_derivative<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    Ok(ExpressionType {
-        dimension: operand
-            .dimension
+    ExpressionType::checked(
+        operand.value_type.scalar_domain(),
+        operand
+            .dimension()
             .div(DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"))
             .ok_or(TypeViolation::DimensionOverflow {
                 operation: "Field derivative",
             })?,
-        shape: operand.shape.clone(),
-        frame: operand.frame,
-        support: operand.support.clone(),
-    })
+        operand.shape().clone(),
+        operand.frame(),
+        operand.support.clone(),
+    )
 }
 
 fn boundary_operator<I: Clone + Eq>(
@@ -914,33 +896,35 @@ fn boundary_operator<I: Clone + Eq>(
         return Err(TypeViolation::BoundaryOperandSupportMismatch);
     }
     let shape = if normal_component {
-        let Some((shape, last)) = operand.shape.remove_last() else {
+        let Some((shape, last)) = operand.shape().remove_last() else {
             return Err(TypeViolation::NormalRequiresTensor);
         };
         if usize::try_from(last.get()).ok() != Some(*dimensions) {
             return Err(TypeViolation::NormalRequiresTensor);
         }
-        if operand.frame != ValueFrame::SpatialCartesian {
+        if operand.frame() != ValueFrame::SpatialCartesian {
             return Err(TypeViolation::IncompatibleFrame);
         }
         shape
     } else {
-        operand.shape.clone()
+        operand.shape().clone()
     };
-    Ok(ExpressionType {
-        dimension: operand.dimension,
-        frame: if shape.is_scalar() {
-            ValueFrame::Invariant
-        } else {
-            operand.frame
-        },
+    let frame = if shape.is_scalar() {
+        ValueFrame::Invariant
+    } else {
+        operand.frame()
+    };
+    ExpressionType::checked(
+        operand.value_type.scalar_domain(),
+        operand.dimension(),
         shape,
-        support: Some(SpatialSupport::Boundary {
+        frame,
+        Some(SpatialSupport::Boundary {
             domain: domain.clone(),
             parent: parent.clone(),
             dimensions: *dimensions,
         }),
-    })
+    )
 }
 
 fn combine_support<I: Clone + Eq>(

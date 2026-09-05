@@ -26,7 +26,7 @@ pub trait OperatorExpansionExt<I> {
 
 impl<I: Clone> OperatorExpansionExt<I> for PureOperatorInstantiation<'_, I> {
     fn component(&self, component: &[u32]) -> Result<ScalarCalculus<I>, CalculusError> {
-        validate_component(&self.result_type().shape, component)?;
+        validate_component(self.result_type().shape(), component)?;
         let definition = self.definition();
         let mut nodes = Vec::with_capacity(definition.nodes().len());
         for node in definition.nodes() {
@@ -46,7 +46,7 @@ impl<I: Clone> OperatorExpansionExt<I> for PureOperatorInstantiation<'_, I> {
                                 .ok_or(CalculusError::ResultAxisOutOfRange)
                         })
                         .collect::<Result<Box<[_]>, _>>()?;
-                    validate_component(&argument.shape, &coordinates)?;
+                    validate_component(argument.shape(), &coordinates)?;
                     ScalarCalculusNode::FormalComponent(ScalarCalculusAtom {
                         formal: *formal,
                         component: coordinates,
@@ -188,6 +188,7 @@ mod tests {
                 dimensions: 2,
             }),
         )
+        .unwrap()
     }
 
     fn volume_scalar(domain: &str) -> ExpressionType<&str> {
@@ -210,6 +211,7 @@ mod tests {
                 dimensions: 2,
             }),
         )
+        .unwrap()
     }
 
     #[test]

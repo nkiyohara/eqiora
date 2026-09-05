@@ -210,7 +210,8 @@ mod tests {
                 domain: "body",
                 dimensions: 2,
             }),
-        );
+        )
+        .unwrap();
         let typed = TypedResidual::infer(
             dag,
             Some(SpatialSupport::Volume {
@@ -257,7 +258,8 @@ mod tests {
             ValueShape::new([2]).unwrap(),
             ValueFrame::SpatialCartesian,
             Some(support.clone()),
-        );
+        )
+        .unwrap();
         let typed = TypedResidual::infer(
             dag,
             Some(support),
@@ -272,7 +274,7 @@ mod tests {
         assert_eq!(proof.definition_digest(), definition.digest());
         assert_eq!(proof.arguments(), [left_value, right_value]);
         assert_eq!(
-            proof.result_type().shape.extents(),
+            proof.result_type().shape().extents(),
             [
                 std::num::NonZeroU32::new(2).unwrap(),
                 std::num::NonZeroU32::new(2).unwrap(),
