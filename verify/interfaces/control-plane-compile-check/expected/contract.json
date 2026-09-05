@@ -95,11 +95,11 @@
     ],
     "pairwiseDistinctFields": ["modelId", "digest"],
     "equalFields": ["structuralSemanticFingerprint"],
-    "fingerprintGeneration": "eqiora.structural-semantic-fingerprint/v2",
+    "fingerprintGeneration": "eqiora.structural-semantic-fingerprint/v3",
     "semanticRevision": 1,
     "frozenFingerprintDigest": false,
     "frozenOccurrenceIdentity": false,
-    "reason": "flat source compilation allocates fresh occurrence ULIDs; the generation-v2 projection alpha-normalizes them and covers this witness's scalar meaning"
+    "reason": "flat source compilation allocates fresh occurrence ULIDs; the generation-v3 projection alpha-normalizes them and covers this witness's scalar meaning"
   },
   "dispatcherNullDiagnosticFields": ["graphPath", "span", "patch"],
   "rejections": [

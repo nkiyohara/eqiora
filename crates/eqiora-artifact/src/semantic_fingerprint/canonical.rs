@@ -12,7 +12,6 @@ struct Signature {
 pub(super) struct Canonicalizer<'a> {
     graph: &'a ProjectionGraph,
     limits: SemanticFingerprintLimits,
-    generation: u16,
     search_states: usize,
     refinement_work: usize,
     serialization_work: usize,
@@ -20,15 +19,10 @@ pub(super) struct Canonicalizer<'a> {
 }
 
 impl<'a> Canonicalizer<'a> {
-    pub(super) const fn new(
-        graph: &'a ProjectionGraph,
-        limits: SemanticFingerprintLimits,
-        generation: u16,
-    ) -> Self {
+    pub(super) const fn new(graph: &'a ProjectionGraph, limits: SemanticFingerprintLimits) -> Self {
         Self {
             graph,
             limits,
-            generation,
             search_states: 0,
             refinement_work: 0,
             serialization_work: 0,
@@ -195,7 +189,7 @@ impl<'a> Canonicalizer<'a> {
         }
         let mut encoder = Encoder::new(self.limits.max_canonical_bytes.min(remaining_work));
         encoder.raw(PROJECTION_MAGIC)?;
-        encoder.u16(self.generation)?;
+        encoder.u16(SemanticFingerprintGeneration::V3.code())?;
         encoder.len(order.len())?;
         for vertex in order {
             let value = &self.graph.vertices[vertex];

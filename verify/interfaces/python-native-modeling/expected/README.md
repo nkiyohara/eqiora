@@ -7,7 +7,7 @@
 - The Python spatial artifact replays exactly, matches the source Poisson
   structural fingerprint, and reaches the existing one-dimensional FEM path.
 - Independently authored source/Python scalar, scalar-physical, and spatial
-  pairs have distinct exact digests and equal generation-v2 structural
+  pairs have distinct exact digests and equal generation-v3 structural
   fingerprints.
 - Foreign same-named symbols, nominal Domain substitution, omitted Connection
   members, spatial scope/parent and Representation substitution, dimensional

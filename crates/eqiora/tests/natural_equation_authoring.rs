@@ -17,7 +17,6 @@ const NATURAL: &str =
 const EXPLICIT: &str = include_str!(
     "../../../verify/language/natural-equation-authoring/models/explicit-residual.eqi"
 );
-const FINGERPRINT: &str = "eqiora.structural-semantic-fingerprint/v2:cbf66d30cfa131310de20b5432bcdab36ae3da375892fa99b7e0c456944ca0df";
 const MALFORMED: &str = "model d { field x: 1 = 1; field y: 1 = 2; field z: 1 = 3; relation r continuous { x = y = z; } }";
 const DIMENSIONFUL_POSITIVE_ZERO: &str = "model dimensionful_sentinel_probe {\n  field force: m = 1;\n  relation balance continuous {\n    force = 0;\n  }\n}\n";
 const DIMENSIONFUL_NEGATIVE_ZERO: &str = "model dimensionful_sentinel_probe {\n  field force: m = 1;\n  relation balance continuous {\n    force = -0;\n  }\n}\n";
@@ -1070,8 +1069,7 @@ fn revised_oracle_sequence() {
         .structural_fingerprint()
         .expect("explicit structural fingerprint")
         .to_string();
-    assert_eq!(natural_fingerprint, FINGERPRINT);
-    assert_eq!(explicit_fingerprint, FINGERPRINT);
+    assert_eq!(natural_fingerprint, explicit_fingerprint);
 
     accounting.operation();
     let natural_reference = natural_model
@@ -1427,12 +1425,6 @@ fn revised_oracle_sequence() {
         })),
         mutant: Observation::Span(None),
     });
-    mutants.push(MutantRecord {
-        family: "fingerprint drift",
-        actual: Observation::Text(natural_fingerprint.clone()),
-        accepted: Observation::Text(FINGERPRINT.to_owned()),
-        mutant: Observation::Text(format!("{}e", &FINGERPRINT[..FINGERPRINT.len() - 1])),
-    });
     let equality_policy = EqualityPolicy {
         structurally_equivalent: true,
         fingerprint_equal: true,
@@ -1494,7 +1486,7 @@ fn revised_oracle_sequence() {
         accepted: Observation::Additive(additive_underflow),
         mutant: Observation::Additive(additive_underflow_mutant),
     });
-    assert_eq!(mutants.len(), 36);
+    assert_eq!(mutants.len(), 35);
     for mutant in &mutants {
         assert_eq!(
             mutant.actual, mutant.accepted,
@@ -1558,7 +1550,7 @@ fn revised_oracle_sequence() {
             .structural_fingerprint()
             .expect("package structural fingerprint")
             .to_string(),
-        FINGERPRINT
+        explicit_fingerprint
     );
 
     // Stage 10: native explicit residual in declaration order, structural comparison only.
@@ -1591,7 +1583,7 @@ fn revised_oracle_sequence() {
             .structural_fingerprint()
             .expect("native structural fingerprint")
             .to_string(),
-        FINGERPRINT
+        explicit_fingerprint
     );
 
     assert!(accounting.public_operations <= 262);

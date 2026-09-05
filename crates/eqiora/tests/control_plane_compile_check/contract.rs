@@ -233,6 +233,6 @@ fn promoted_contract_is_consumed_by_schema_fixtures_and_runtime_boundaries() {
     );
     assert_eq!(
         expected["structuralRelation"]["fingerprintGeneration"],
-        SemanticFingerprintGeneration::V2.as_str()
+        SemanticFingerprintGeneration::V3.as_str()
     );
 }
