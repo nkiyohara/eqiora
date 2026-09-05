@@ -9,10 +9,11 @@ on:
 permissions:
   actions: read
   contents: read
+  deployments: read
   pull-requests: read
 concurrency:
   group: pages-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event.action != 'edited' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'edited' }}
 jobs:
   build:
     name: Build and verify static documentation
@@ -37,14 +38,23 @@ jobs:
           SITE_PREVIOUS_SHA: ${{ github.event.action == 'edited' && github.event.pull_request.head.sha || github.event.before }}
           SITE_PULL_REQUEST: ${{ github.event.pull_request.number }}
           SITE_REPOSITORY: ${{ github.repository }}
+          SITE_EVENT_NAME: ${{ github.event_name }}
         run: |
           attestation="$RUNNER_TEMP/eqiora-previous-pages.json"
+          reuse_mode=()
+          if [ "$SITE_EVENT_NAME" = push ]; then
+            reuse_mode=(--deployed-pages)
+          fi
           python3 tools/ci/authenticate_previous_run.py \
             --repository "$SITE_REPOSITORY" \
             --pull-request "${SITE_PULL_REQUEST:-0}" \
             --previous-sha "$SITE_PREVIOUS_SHA" \
             --workflow pages.yml \
+            "${reuse_mode[@]}" \
             --output "$attestation"
+          if [ "$SITE_EVENT_NAME" = push ]; then
+            SITE_PREVIOUS_SHA="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("previous_sha", ""))' "$attestation")"
+          fi
           {
             printf 'EQIORA_PREVIOUS_SHA=%s\n' "$SITE_PREVIOUS_SHA"
             printf 'EQIORA_REUSE_ATTESTATION=%s\n' "$attestation"
