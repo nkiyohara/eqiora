@@ -674,16 +674,13 @@ pub(crate) fn lower_typed_model(
                     unreachable!("first pass assigns Field bindings");
                 };
                 resolve_field_contract(file, *range, &contract, &bindings)
-                    .and_then(|resolved| {
-                        let value_type = eqiora_schema::kernel::ValueType::shaped(
-                            eqiora_core::ScalarDomain::Real, resolved.dimension,
-                            resolved.shape.clone(), resolved.frame,
-                        ).map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, *range, error.to_string()))?;
-                        let definition = match (resolved.shape.is_scalar(), *initial) {
+                    .and_then(|value_type| {
+                        let dimension = value_type.dimension();
+                        let definition = match (value_type.shape().is_scalar(), *initial) {
                             (true, Some(initial)) => FieldDef::new(id, value_type)
                                 .with_initial(DynQuantity::new(
                                     normalize_zero(initial),
-                                    resolved.dimension,
+                                    dimension,
                                 )),
                             (_, None) => Ok(FieldDef::new(id, value_type)),
                             (false, Some(_)) => Err(source_error(

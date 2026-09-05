@@ -425,6 +425,7 @@ pub(super) fn validate_fields(
                 .shape()
                 .extents()
                 .iter()
+                .skip(field.value_type().array_rank())
                 .any(|extent| usize::try_from(extent.get()).ok() != Some(dimensions))
         {
             let message = if matches!(

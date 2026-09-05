@@ -1,4 +1,5 @@
 use super::*;
+mod value_types;
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Id, OntologyId};

@@ -278,8 +278,7 @@ fn field_expression_type(
             dimensions: *dimensions,
         })
     });
-    ExpressionType::shaped(resolved.dimension, resolved.shape, resolved.frame, support)
-        .map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string()))
+    Ok(ExpressionType::new(resolved, support))
 }
 
 fn spatial_type_error(

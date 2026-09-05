@@ -48,13 +48,6 @@ pub(super) struct FieldContract {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct ResolvedFieldContract {
-    pub(super) dimension: DimExponents,
-    pub(super) shape: ValueShape,
-    pub(super) frame: ValueFrame,
-}
-
-#[derive(Debug, Clone)]
 pub(super) enum PortContract {
     Signal {
         direction: SignalDirectionSyntax,
@@ -125,7 +118,7 @@ pub(super) fn resolve_field_contract(
     range: TextRange,
     contract: &FieldContract,
     bindings: &BTreeMap<String, Binding>,
-) -> Result<ResolvedFieldContract, Diagnostic> {
+) -> Result<eqiora_schema::kernel::ValueType, Diagnostic> {
     let (shape, frame) = match contract.shape.as_ref() {
         None | Some(ValueShapeSyntax::Scalar) => (ValueShape::scalar(), ValueFrame::Invariant),
         Some(ValueShapeSyntax::Exact(extents)) => (
@@ -183,11 +176,13 @@ pub(super) fn resolve_field_contract(
             ));
         }
     };
-    Ok(ResolvedFieldContract {
-        dimension: contract.dimension,
+    eqiora_schema::kernel::ValueType::shaped(
+        eqiora_core::ScalarDomain::Real,
+        contract.dimension,
         shape,
         frame,
-    })
+    )
+    .map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string()))
 }
 
 pub(super) fn bind_port(
