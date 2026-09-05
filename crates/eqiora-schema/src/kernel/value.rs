@@ -2,9 +2,8 @@ use eqiora_core::{DimExponents, ScalarDomain, ValueShape};
 
 /// Coordinate-frame meaning of mathematical value components.
 ///
-/// Version one intentionally admits only invariant values and components in
-/// the model-global Cartesian spatial frame. Arbitrary local frames and frame
-/// transforms require an explicit future contract.
+/// Spatial components use the model-global Cartesian frame. Channel-array
+/// axes do not introduce a frame or change their element's frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ValueFrame {
     /// Components are unchanged by a Cartesian spatial frame change.
@@ -20,9 +19,44 @@ pub struct ValueType {
     dimension: DimExponents,
     shape: ValueShape,
     frame: ValueFrame,
+    array_rank: usize,
 }
 
 impl ValueType {
+    /// Embed scalar components in a new mathematical domain without changing their roles.
+    #[must_use]
+    pub(crate) fn with_scalar_domain(mut self, scalar_domain: ScalarDomain) -> Self {
+        self.scalar_domain = scalar_domain;
+        self
+    }
+
+    /// Wrap this complete element type in one ordered channel-array axis.
+    ///
+    /// # Errors
+    /// Rejects a zero extent or an unrepresentable component count.
+    pub fn array(self, extent: u32) -> Result<Self, InvalidValueType> {
+        let shape = ValueShape::new(
+            [extent]
+                .into_iter()
+                .chain(self.shape.extents().iter().map(|n| n.get())),
+        )
+        .map_err(|_| InvalidValueType::ArrayExtent)?;
+        if shape.component_count().is_none() {
+            return Err(InvalidValueType::ComponentCountOverflow);
+        }
+        Ok(Self {
+            shape,
+            array_rank: self.array_rank + 1,
+            ..self
+        })
+    }
+
+    /// Number of outer channel-array axes, distinct from inner spatial axes.
+    #[must_use]
+    pub const fn array_rank(&self) -> usize {
+        self.array_rank
+    }
+
     /// Preserve the scalar domain and component meaning with a derived dimension.
     #[must_use]
     pub fn with_dimension(mut self, dimension: DimExponents) -> Self {
@@ -37,10 +71,12 @@ impl ValueType {
             dimension,
             shape: ValueShape::scalar(),
             frame: ValueFrame::Invariant,
+            array_rank: 0,
         }
     }
 
-    /// Construct an exact shaped mathematical type.
+    /// Construct exact channel axes (invariant) or spatial axes (Cartesian).
+    /// Wrap spatial elements with [`Self::array`] for arrays of vectors or tensors.
     ///
     /// # Errors
     /// Rejects an unrepresentable component count or a frame-bearing scalar.
@@ -59,6 +95,11 @@ impl ValueType {
         Ok(Self {
             scalar_domain,
             dimension,
+            array_rank: if frame == ValueFrame::Invariant {
+                shape.rank()
+            } else {
+                0
+            },
             shape,
             frame,
         })
@@ -92,6 +133,8 @@ impl ValueType {
 /// Invalid mathematical shape/frame combination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvalidValueType {
+    /// An array axis must contain at least one element.
+    ArrayExtent,
     /// Component count cannot be represented on this target.
     ComponentCountOverflow,
     /// A scalar cannot carry component-frame axes.
@@ -101,6 +144,7 @@ pub enum InvalidValueType {
 impl core::fmt::Display for InvalidValueType {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter.write_str(match self {
+            Self::ArrayExtent => "array extent must be positive",
             Self::ComponentCountOverflow => "mathematical component count is not representable",
             Self::ScalarFrame => "a scalar must have an invariant component frame",
         })

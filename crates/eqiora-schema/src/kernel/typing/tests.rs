@@ -370,3 +370,4 @@ fn generic_pure_application_rejects_argument_type_and_support_mismatches() {
         }]
     ));
 }
+mod arrays;

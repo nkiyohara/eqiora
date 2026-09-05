@@ -316,6 +316,8 @@ fn field_contract_mismatch<I: Eq>(
             "physical dimension"
         } else if expected.value.shape() != actual.value.shape() {
             "exact value shape"
+        } else if expected.value.value_type.array_rank() != actual.value.value_type.array_rank() {
+            "array and spatial axis roles"
         } else if expected.value.frame() != actual.value.frame() {
             "coordinate frame"
         } else if expected.value.support != actual.value.support {
@@ -334,6 +336,31 @@ fn field_contract_mismatch<I: Eq>(
 mod tests {
     use super::*;
     use eqiora_lang::{Document, Item, ModelDecl};
+
+    #[test]
+    fn field_binding_retains_array_and_spatial_axis_roles() {
+        use eqiora_core::{DimExponents, ScalarDomain, ValueShape};
+        use eqiora_schema::kernel::{ValueFrame, ValueType};
+        let spatial = |extents| {
+            ValueType::shaped(
+                ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+                ValueShape::new(extents).unwrap(),
+                ValueFrame::SpatialCartesian,
+            )
+            .unwrap()
+        };
+        let array = FieldContract::continuum(ExpressionType::<()>::new(
+            spatial(vec![2]).array(2).unwrap(),
+            None,
+        ));
+        let tensor = FieldContract::continuum(ExpressionType::<()>::new(spatial(vec![2, 2]), None));
+        assert!(field_contract_mismatch("input", &array, &array).is_none());
+        assert_eq!(
+            field_contract_mismatch("input", &tensor, &array).as_deref(),
+            Some("Field slot `input` and its target disagree in array and spatial axis roles")
+        );
+    }
 
     fn parse(source: &str) -> Document {
         eqiora_lang::parse("field_slots.eqi", source)

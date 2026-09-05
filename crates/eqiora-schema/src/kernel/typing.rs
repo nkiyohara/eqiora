@@ -564,21 +564,21 @@ pub fn additive<I: Clone + Eq>(
     if left.dimension() != right.dimension()
         || left.shape() != right.shape()
         || left.frame() != right.frame()
+        || left.value_type.array_rank() != right.value_type.array_rank()
     {
         return Err(TypeViolation::AdditiveTypeMismatch {
             left: Box::new(left.clone()),
             right: Box::new(right.clone()),
         });
     }
-    ExpressionType::checked(
-        left.value_type
-            .scalar_domain()
-            .common(right.value_type.scalar_domain()),
-        left.dimension(),
-        left.shape().clone(),
-        left.frame(),
+    Ok(ExpressionType::new(
+        left.value_type.clone().with_scalar_domain(
+            left.value_type
+                .scalar_domain()
+                .common(right.value_type.scalar_domain()),
+        ),
         combine_additive_support(&left.support, &right.support)?,
-    )
+    ))
 }
 
 /// Multiply two typed expressions using scalar-times-tensor v0 semantics.
@@ -586,26 +586,28 @@ pub fn multiply<I: Clone + Eq>(
     left: &ExpressionType<I>,
     right: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    let (shape, frame) = if left.shape().is_scalar() && left.frame() == ValueFrame::Invariant {
-        (right.shape().clone(), right.frame())
+    let value_type = if left.shape().is_scalar() && left.frame() == ValueFrame::Invariant {
+        &right.value_type
     } else if right.shape().is_scalar() && right.frame() == ValueFrame::Invariant {
-        (left.shape().clone(), left.frame())
+        &left.value_type
     } else {
         return Err(TypeViolation::MultiplicationRequiresScalar);
     };
-    ExpressionType::checked(
-        left.value_type
-            .scalar_domain()
-            .common(right.value_type.scalar_domain()),
-        left.dimension()
-            .mul(right.dimension())
-            .ok_or(TypeViolation::DimensionOverflow {
-                operation: "multiplication",
-            })?,
-        shape,
-        frame,
+    Ok(ExpressionType::new(
+        value_type
+            .clone()
+            .with_scalar_domain(
+                left.value_type
+                    .scalar_domain()
+                    .common(right.value_type.scalar_domain()),
+            )
+            .with_dimension(left.dimension().mul(right.dimension()).ok_or(
+                TypeViolation::DimensionOverflow {
+                    operation: "multiplication",
+                },
+            )?),
         combine_support(&left.support, &right.support)?,
-    )
+    ))
 }
 
 /// Divide by one typed scalar expression.
@@ -616,20 +618,23 @@ pub fn divide<I: Clone + Eq>(
     if !denominator.shape().is_scalar() || denominator.frame() != ValueFrame::Invariant {
         return Err(TypeViolation::DivisionDenominatorNotScalar);
     }
-    ExpressionType::checked(
+    Ok(ExpressionType::new(
         numerator
             .value_type
-            .scalar_domain()
-            .common(denominator.value_type.scalar_domain()),
-        numerator.dimension().div(denominator.dimension()).ok_or(
-            TypeViolation::DimensionOverflow {
-                operation: "division",
-            },
-        )?,
-        numerator.shape().clone(),
-        numerator.frame(),
+            .clone()
+            .with_scalar_domain(
+                numerator
+                    .value_type
+                    .scalar_domain()
+                    .common(denominator.value_type.scalar_domain()),
+            )
+            .with_dimension(numerator.dimension().div(denominator.dimension()).ok_or(
+                TypeViolation::DimensionOverflow {
+                    operation: "division",
+                },
+            )?),
         combine_support(&numerator.support, &denominator.support)?,
-    )
+    ))
 }
 
 /// Raise one scalar expression to an integer power.
@@ -710,7 +715,8 @@ pub fn gradient<I: Clone>(
     if !matches!(support, SpatialSupport::Volume { .. }) {
         return Err(TypeViolation::GradientRequiresVolume);
     }
-    if (operand.shape().is_scalar() && operand.frame() != ValueFrame::Invariant)
+    if operand.value_type.array_rank() != 0
+        || (operand.shape().is_scalar() && operand.frame() != ValueFrame::Invariant)
         || (!operand.shape().is_scalar() && operand.frame() != ValueFrame::SpatialCartesian)
     {
         return Err(TypeViolation::IncompatibleFrame);
@@ -746,7 +752,7 @@ pub fn divergence<I: Clone>(
     let Some((shape, last)) = operand.shape().remove_last() else {
         return Err(TypeViolation::DivergenceRequiresTensor);
     };
-    if operand.frame() != ValueFrame::SpatialCartesian {
+    if operand.frame() != ValueFrame::SpatialCartesian || operand.value_type.array_rank() != 0 {
         return Err(TypeViolation::IncompatibleFrame);
     }
     if usize::try_from(last.get()).ok() != Some(support.dimensions()) {
@@ -775,6 +781,7 @@ pub fn symmetric_part<I: Clone>(
     };
     let extents = operand.shape().extents();
     if operand.frame() != ValueFrame::SpatialCartesian
+        || operand.value_type.array_rank() != 0
         || extents.len() != 2
         || usize::try_from(extents[0].get()).ok() != Some(*dimensions)
         || usize::try_from(extents[1].get()).ok() != Some(*dimensions)
@@ -858,18 +865,17 @@ pub fn scalar_root<I: Clone + Eq>(
 pub fn time_derivative<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    ExpressionType::checked(
-        operand.value_type.scalar_domain(),
-        operand
-            .dimension()
-            .div(DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"))
-            .ok_or(TypeViolation::DimensionOverflow {
-                operation: "Field derivative",
-            })?,
-        operand.shape().clone(),
-        operand.frame(),
+    Ok(ExpressionType::new(
+        operand.value_type.clone().with_dimension(
+            operand
+                .dimension()
+                .div(DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"))
+                .ok_or(TypeViolation::DimensionOverflow {
+                    operation: "Field derivative",
+                })?,
+        ),
         operand.support.clone(),
-    )
+    ))
 }
 
 fn boundary_operator<I: Clone + Eq>(
@@ -895,20 +901,21 @@ fn boundary_operator<I: Clone + Eq>(
     if !operand_is_parent_volume && !operand_is_this_boundary {
         return Err(TypeViolation::BoundaryOperandSupportMismatch);
     }
-    let shape = if normal_component {
-        let Some((shape, last)) = operand.shape().remove_last() else {
-            return Err(TypeViolation::NormalRequiresTensor);
-        };
-        if usize::try_from(last.get()).ok() != Some(*dimensions) {
-            return Err(TypeViolation::NormalRequiresTensor);
-        }
-        if operand.frame() != ValueFrame::SpatialCartesian {
-            return Err(TypeViolation::IncompatibleFrame);
-        }
-        shape
-    } else {
-        operand.shape().clone()
+    if !normal_component {
+        return Ok(ExpressionType::new(
+            operand.value_type.clone(),
+            relation.cloned(),
+        ));
+    }
+    let Some((shape, last)) = operand.shape().remove_last() else {
+        return Err(TypeViolation::NormalRequiresTensor);
     };
+    if usize::try_from(last.get()).ok() != Some(*dimensions) {
+        return Err(TypeViolation::NormalRequiresTensor);
+    }
+    if operand.frame() != ValueFrame::SpatialCartesian || operand.value_type.array_rank() != 0 {
+        return Err(TypeViolation::IncompatibleFrame);
+    }
     let frame = if shape.is_scalar() {
         ValueFrame::Invariant
     } else {

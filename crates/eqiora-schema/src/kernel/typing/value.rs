@@ -24,7 +24,9 @@ impl<I> ExpressionType<I> {
         let value_type = ValueType::shaped(scalar_domain, dimension, shape, frame).map_err(
             |error| match error {
                 InvalidValueType::ScalarFrame => TypeViolation::IncompatibleFrame,
-                InvalidValueType::ComponentCountOverflow => TypeViolation::SpatialExtentInvalid,
+                InvalidValueType::ComponentCountOverflow | InvalidValueType::ArrayExtent => {
+                    TypeViolation::SpatialExtentInvalid
+                }
             },
         )?;
         Ok(Self::new(value_type, support))

@@ -773,6 +773,7 @@ fn validate_argument_class<I>(
         None if argument.shape().is_scalar() && argument.frame() == ValueFrame::Invariant => Ok(()),
         Some(rank)
             if argument.frame() == ValueFrame::SpatialCartesian
+                && argument.value_type.array_rank() == 0
                 && argument.shape().rank() == usize::from(rank)
                 && u32::try_from(*dimensions).is_ok_and(|dimension| {
                     dimension != 0
