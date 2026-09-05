@@ -53,8 +53,8 @@ kind name [@{notation}] [: type] [on support] [at activation]
 ```
 
 Brackets here mean optional grammar, not literal source brackets. Optional syntax does not
-make every clause legal for every kind. The following value rules are fixed; container and
-specialized declarations will extend the closed table, not accept arbitrary attributes.
+make every clause legal for every kind. The tables are closed; specialized children are typed
+constructs, not arbitrary attributes.
 
 | Kind | Type | `on` | `at` | Definition |
 |---|---|---|---|---|
@@ -66,10 +66,30 @@ specialized declarations will extend the closed table, not accept arbitrary attr
 | `output` | Required | Optional | Optional | Owned causal output in a signature; equations in the body |
 | `port` | Required connector type | Optional | Optional | Owned connector occurrence; role laws come from its connector |
 | `clock` | `periodic` for a requirement | No | No | Signature requirement or concrete `= periodic(...)` in an owning scope |
-| `support` | Required support contract | No | No | Abstract exact support requirement |
+| `support` | Required support contract | No | No | Signature requirement or exact derived product/boundary in a body |
 | `observable` | Required | Optional assertion | Optional assertion | Derived `= expression`; no solve unknown |
 | `test` | Required | Inferred from trial field | Inferred from trial field | `for field`, with an optional `zero_on` boundary restriction |
 | `property` requirement | Required exact contract reference | No | No | Signature requirement bound to an exact release |
+| `coordinate` | Required coordinate dimension | Required | No | `from` exact coordinate factor; no initializer |
+| `space` | None | No | No | `= orthonormal(...)` or `= product(...)` |
+| `noise` | Required admitted noise contract | No in the scalar profile | No | Exact process-channel declaration |
+| `amplitude` | Required complex value type | Inherited/asserted | No | Form child `for` an exact original value |
+
+| Container or definition | Header after name/notation | Contents |
+|---|---|---|
+| `component`, `model` | Required parenthesized signature, including `()` | Braced private body |
+| `connector` | No value type or support/activation clauses | Named typed member roles |
+| `operator` | Parenthesized input signature, `: result-type` | `= expression;` |
+| `property contract` | Parenthesized input signature, `: result-type` | Closed contract children |
+| `relation` | Optional `on`, then optional `at` | Braced simultaneous equalities |
+| Conservation `law` | Required `on support` | `storage`, `flux`, `source` children |
+| Stochastic `law` | `for state` | `calculus`, `drift`, `diffusion` children |
+| `form` | `for` exact Law or Relation | Typed tests, relations, or selected reduction children |
+| `instance` | `: qualified-component(named-bindings)` | Semicolon; no overriding body |
+
+Notation always follows the declared name, before its signature or type. Instance support
+and clock requirements are named bindings; `on` or `at` does not override a component body.
+Omitting an instance argument list is not another canonical spelling: use `Ground()`.
 
 A property requirement binds a release, not the scalar obtained by evaluating that release.
 The contract owns the independent-variable signature and result type; each call supplies its
@@ -296,8 +316,8 @@ range at end of input.
 Recovery must make progress, respect nested delimiters, and preserve later declarations.
 A malformed unit island or type constructor must not consume the next complete declaration.
 The existing lossless lexer and recovering parser remain the owners; no new parser framework
-is needed. Concrete resource limits and diagnostic cases will complete this section before
-the specification is frozen.
+is needed. The [resource and diagnostic profile](resources.md) specifies finite bounds and
+focused rejection/recovery examples.
 
 Canonical formatting must preserve parsed mathematical structure, attached documentation,
 and ordinary comments. It must be idempotent and preserve binding through parentheses, including
