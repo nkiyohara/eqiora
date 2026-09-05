@@ -1,8 +1,7 @@
 # Tensor contractions and local maps
 
-These [target-language](core.md) rules specify the bounded operations in
-[#991](https://github.com/nkiyohara/eqiora/issues/991) and
-[#992](https://github.com/nkiyohara/eqiora/issues/992). The source examples are specified,
+These [target-language](core.md) rules specify bounded tensor and local-map operations.
+The source examples are specified,
 not current parser or runtime admission claims.
 
 ## Axes and construction

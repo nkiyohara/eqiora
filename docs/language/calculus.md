@@ -1,7 +1,6 @@
 # Explicit calculus, time, and branches
 
-These target-language decisions implement the foundation audit in
-[#855](https://github.com/nkiyohara/eqiora/issues/855). The examples are specified source,
+These target-language decisions define explicit calculus and branching. The examples are specified source,
 not claims of current parser, derivative, or numerical admission.
 
 ## Independent bindings and partial derivatives

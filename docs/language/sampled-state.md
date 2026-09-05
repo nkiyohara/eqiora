@@ -3,7 +3,7 @@
 This is a complete target-language model with explicit external clock and input requirements,
 following the [core rules](core.md). The converged signatures, initial equations, and supplied-clock
 component workflow are specified here; the full source below is not yet an executable compiler
-example. [#895](https://github.com/nkiyohara/eqiora/issues/895) owns the standard components.
+example. The standard components use these same equations.
 
 ## Inspect the components
 

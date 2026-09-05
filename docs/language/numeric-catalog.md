@@ -1,9 +1,6 @@
 # Numeric domains and scalar operations
 
-This target-language catalog completes the scalar decisions requested by
-[#988](https://github.com/nkiyohara/eqiora/issues/988),
-[#989](https://github.com/nkiyohara/eqiora/issues/989), and
-[#990](https://github.com/nkiyohara/eqiora/issues/990). Each implementation slice must expose
+This target-language catalog defines the bounded scalar operations. Each implementation slice must expose
 only the rows it actually supports. The table does not establish current execution coverage.
 
 ## Exact integers

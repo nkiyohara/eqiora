@@ -1,7 +1,6 @@
 # Specimen: harmonic RC response
 
-This target-language specimen fixes a bounded harmonic Formulation under
-[#921](https://github.com/nkiyohara/eqiora/issues/921). It uses the same resistor/capacitor
+This target-language specimen fixes a bounded harmonic Formulation. It uses the same resistor/capacitor
 mathematics as the time-domain model, not a separate AC component implementation. The source
 form and its complex execution are specified here and are not yet delivered capabilities.
 

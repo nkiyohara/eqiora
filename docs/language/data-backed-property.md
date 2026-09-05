@@ -2,9 +2,7 @@
 
 This [target-language](core.md) specimen binds one exact property release into two components.
 Constant property contracts already have a source owner; callable contracts, table-backed
-releases, and the complete converged source below await
-[#887](https://github.com/nkiyohara/eqiora/issues/887) and
-[#888](https://github.com/nkiyohara/eqiora/issues/888).
+releases, and the complete converged source below await their implementation slices.
 
 ## Contract and complete consumer
 

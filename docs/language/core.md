@@ -1,7 +1,6 @@
 # Converged language: core rules
 
-Working specification for [#855](https://github.com/nkiyohara/eqiora/issues/855),
-following the adopted [language direction](https://github.com/nkiyohara/eqiora/issues/772).
+Working specification of the adopted converged language direction.
 This draft describes the target language, not the grammar currently accepted by the compiler.
 The complete declaration table, resource profile, and engineering and mathematical specimens
 must be reviewed together before this specification is complete. Delivered behavior remains
@@ -183,8 +182,8 @@ an array contains a checked element type and exact static extent. Spatial frame 
 may be inferred only from a unique exact support contract. Without that context a frame
 requirement must be supplied explicitly; an extent alone cannot select a frame.
 
-Finite component spaces and maps use the [finite-space grammar](finite-spaces.md) under
-[#915](https://github.com/nkiyohara/eqiora/issues/915). They are distinct from both arrays and
+Finite component spaces and maps use the [finite-space grammar](finite-spaces.md).
+They are distinct from both arrays and
 spatial vectors. Equal size does not permit substitution between two bases, between bases
 and spatial frames, or between a basis and a coordinate domain.
 

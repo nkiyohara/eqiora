@@ -2,8 +2,7 @@
 
 This target-language example uses one real Wiener channel and an Ornstein–Uhlenbeck process.
 It fixes stochastic meaning without selecting a sampler or claiming current execution.
-[#969](https://github.com/nkiyohara/eqiora/issues/969) owns that meaning and
-[#971](https://github.com/nkiyohara/eqiora/issues/971) owns the first numerical profile.
+The first numerical profile is fixed-step Euler–Maruyama for admitted Ito equations.
 
 ```eqiora
 model Relaxation(
