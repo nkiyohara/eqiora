@@ -1,5 +1,5 @@
 id = "solid.axial-bar"
-status = "verified"
+status = "implemented"
 scope = "canonical-model"
 reference_kind = "analytic"
 

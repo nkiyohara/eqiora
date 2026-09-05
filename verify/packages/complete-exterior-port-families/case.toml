@@ -1,5 +1,5 @@
 id = "packages.complete-exterior-port-families"
-status = "verified"
+status = "implemented"
 scope = "hierarchy-only-complete-cartesian-exterior-and-pointwise-boundary-families"
 reference_kind = "canonical-kernel-identity-provenance-and-fail-closed-diagnostics"
 

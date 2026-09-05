@@ -1,5 +1,5 @@
 id = "numerics.poisson-fem-fvm"
-status = "verified"
+status = "implemented"
 scope = "canonical-spatial"
 reference_kind = "analytic"
 

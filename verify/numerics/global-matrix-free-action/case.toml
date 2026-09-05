@@ -1,5 +1,5 @@
 id = "numerics.global-matrix-free-action"
-status = "verified"
+status = "implemented"
 scope = "host-reference-global-packet-linear-action"
 reference_kind = "hand-calculated-nonsymmetric-oracle-plus-independent-assembled-csr-and-affine-solution"
 

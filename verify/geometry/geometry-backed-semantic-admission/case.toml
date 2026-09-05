@@ -1,5 +1,5 @@
 id = "geometry.geometry-backed-semantic-admission"
-status = "verified"
+status = "implemented"
 scope = "exact-closed-straight-edged-planar-artifact-bundle-to-semantic-spatial-support"
 reference_kind = "independent-frozen-geometry-identity-and-parent-relative-entity-set-falsifiers"
 

@@ -153,13 +153,17 @@ after TestPyPI acceptance.
 - Dependency caches are added only after measured benefit and key-isolation
   review.
 - The hosted quality job owns formatting, linting, workspace tests, dependency
-  layers, the public facade, and rustdoc. Registered Cargo evidence and the
-  Python installed-wheel candidate execute in two concurrent fresh-runner jobs
-  so neither serializes the other's critical path. The Cargo job remains on
-  the Rust surface. The Python candidate job belongs to both Rust and Python:
-  Rust changes retain the complete evidence coverage formerly owned by the
-  combined job, while Python-only changes exercise the installed-wheel claim.
-- Hosted test and registered-evidence steps use Cargo's ordinary `test`
+  layers, the public facade, and rustdoc. Ordinary CI does not separately rerun
+  the complete registered Cargo suite or build the complete Python distribution
+  candidate. Installed-wheel product tests remain in the Python version matrix;
+  the release-candidate workflow retains the complete artifact-family validation
+  before publication. CI definition trust and release trust checks are unchanged.
+- Host-CPU case manifests disconnected from mandatory CI are marked
+  `implemented`, and their capability-matrix verification is absent while the
+  evidence suite is being reduced. Existing cases remain explicitly runnable
+  with `cargo run -p eqiora-verify -- run --case <id>` or `mise run periodic`.
+  A passing product test is not an automatic promotion of registered evidence.
+- Hosted test steps use Cargo's ordinary `test`
   profile with debug information disabled, incremental compilation disabled,
   and optimization level 1 because their target trees are disposable. Debug
   assertions and overflow checks remain enabled, and no relaxed floating-point
@@ -171,12 +175,6 @@ after TestPyPI acceptance.
   still needs the variables set explicitly, and the difference is not cosmetic:
   the registered preconditioner-scaling case takes 1150.8 s at Cargo's default
   `opt-level = 0` and 64.5 s at the hosted `opt-level = 1`.
-- Each evidence job validates the complete registry, then intersects the exact
-  `host-cpu` environment with either the `cargo` or
-  `python-installed-wheel` runner kind. Targets outside either intersection
-  remain visible as `not-selected`; they are never relabeled as hosted
-  successes. The Python candidate path uses no MPI system packages because its
-  default-feature wheel does not link MPI.
 - Physical GPU/MPI evidence remains an explicit maintainer-run verification
   boundary. Running the unfiltered or exact physical case without its declared
   environment still fails closed.

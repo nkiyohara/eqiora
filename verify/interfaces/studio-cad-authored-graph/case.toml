@@ -1,5 +1,5 @@
 id = "interfaces.studio-cad-authored-graph"
-status = "verified"
+status = "implemented"
 scope = "two-closed-authored-cad-histories-through-native-studio-owner-replay"
 reference_kind = "presentation-only-projection-of-existing-frozen-cad-evidence"
 

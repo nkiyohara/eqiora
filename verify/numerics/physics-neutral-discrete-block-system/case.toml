@@ -1,5 +1,5 @@
 id = "numerics.physics-neutral-discrete-block-system"
-status = "verified"
+status = "implemented"
 scope = "private-physics-neutral-discrete-block-system-first-spatial-slice"
 reference_kind = "structural-falsifier-and-existing-cpu-physics-regression"
 

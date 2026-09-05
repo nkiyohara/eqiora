@@ -1,5 +1,5 @@
 id = "interfaces.agent-authored-model-change"
-status = "verified"
+status = "implemented"
 scope = "offline-agent-proposed-exact-value-edit-through-independent-scientific-acceptance"
 reference_kind = "ordinary-public-control-edit-replay-and-native-verification-composition"
 

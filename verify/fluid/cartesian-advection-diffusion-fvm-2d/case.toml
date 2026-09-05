@@ -1,5 +1,5 @@
 id = "fluid.cartesian-advection-diffusion-fvm-2d"
-status = "verified"
+status = "implemented"
 scope = "canonical-potential-driven-cell-centered-advection-diffusion-fvm-upwind-and-minmod-reference-2d"
 reference_kind = "analytic-zero-initial-inflow-step-space-time-refinement-and-reflection"
 

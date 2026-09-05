@@ -1,5 +1,5 @@
 id = "differentiation.hybrid-event"
-status = "verified"
+status = "implemented"
 scope = "localized-transversal-explicit-ode-event"
 reference_kind = "analytic-bouncing-ball-first-impact"
 

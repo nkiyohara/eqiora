@@ -1,5 +1,5 @@
 id = "fsi.remeshing-transfer-2d"
-status = "verified"
+status = "implemented"
 scope = "zero-time-conservative-remesh-target-continuation-and-v3-trajectory-2d"
 reference_kind = "independent-common-refinement-cpu-reference"
 

@@ -1,5 +1,5 @@
 id = "geometry.direct-parameter-cartesian-coordinates"
-status = "verified"
+status = "implemented"
 scope = "one-root-length-parameter-two-endpoints-one-3d-cartesian-domain"
 reference_kind = "dual-independent-analytic-and-direct-coordinate-oracle"
 

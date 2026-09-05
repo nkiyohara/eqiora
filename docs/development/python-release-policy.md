@@ -71,8 +71,10 @@ versioned cache entry. Updating either reviewed tool is an ordinary dependency
 change followed by the complete distribution gate; a floating `latest` never
 enters candidate identity.
 
-Registered host evidence builds this complete candidate once for one source
-commit and platform. The distribution, typing, PyTorch, JAX, and Matplotlib
+The release-candidate workflow builds this complete candidate once for one source
+commit and platform. Explicit registered-evidence runs can exercise the same
+builder, but ordinary product-development CI does not build this full family.
+The distribution, typing, PyTorch, JAX, and Matplotlib
 validations then require their own closed check groups from that same manifest
 and wheel family. The distinct evidence cases share one exact aggregate target,
 so the verification runner may execute the target once while retaining a

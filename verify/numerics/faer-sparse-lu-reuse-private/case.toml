@@ -1,5 +1,5 @@
 id = "numerics.faer-sparse-lu-reuse-private"
-status = "verified"
+status = "implemented"
 scope = "crate-private-faer-sparse-lu-reuse-state-ledger-and-falsifiers"
 reference_kind = "independent-exact-phase-inventory-and-injected-component-mutants"
 

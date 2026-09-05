@@ -1,5 +1,5 @@
 id = "geometry.cartesian-domain-edit-3d"
-status = "verified"
+status = "implemented"
 scope = "current-model-one-body-two-axis-topology-preserving-cartesian-edit"
 reference_kind = "independently-compiled-target-and-geometry-identity-replay"
 

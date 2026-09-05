@@ -1,5 +1,5 @@
 id = "fluid.simplicial-mini-stokes-2d"
-status = "verified"
+status = "implemented"
 scope = "nondimensional-connected-affine-triangle-mini-stokes-reference-minres"
 reference_kind = "analytic-manufactured-convergence-gauge-and-balance"
 

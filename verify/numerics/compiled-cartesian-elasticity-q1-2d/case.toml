@@ -1,5 +1,5 @@
 id = "numerics.compiled-cartesian-elasticity-q1-2d"
-status = "verified"
+status = "implemented"
 scope = "private-proof-carrying-cartesian-q1-isotropic-elasticity-form"
 reference_kind = "dual-independent-exact-local-derivative-and-patch-oracles"
 

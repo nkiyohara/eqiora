@@ -1,5 +1,5 @@
 id = "language.canonical-pure-operator"
-status = "verified"
+status = "implemented"
 scope = "source-declared-content-addressed-pure-operator-and-current-artifact-replay"
 reference_kind = "direct-and-exact-package-identity-current-artifact-replay-and-component-scalarization"
 

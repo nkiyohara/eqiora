@@ -1,5 +1,5 @@
 id = "interfaces.python-offline-model-package"
-status = "verified"
+status = "implemented"
 scope = "installed-python-locked-package-component-caller-geometry-common-plan-run"
 reference_kind = "focused-product-lifecycle-and-exact-lineage-falsifiers"
 

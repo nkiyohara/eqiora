@@ -1,5 +1,5 @@
 id = "geometry.cad-authored-surface-sweep"
-status = "verified"
+status = "implemented"
 scope = "one-accepted-authored-face-surface-swept-inward-through-one-uncut-body-into-one-conforming-positively-oriented-tetrahedral-volume-mesh"
 reference_kind = "dual-independent-analytic-and-clean-room-enumeration-oracle"
 

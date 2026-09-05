@@ -1,5 +1,5 @@
 id = "interfaces.python-common-ode-lifecycle"
-status = "verified"
+status = "implemented"
 scope = "python-model-first-no-mesh-explicit-ode"
 reference_kind = "analytic-exponential-decay-and-public-api-falsifiers"
 

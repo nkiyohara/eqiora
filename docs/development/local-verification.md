@@ -73,13 +73,13 @@ a shared executor package does not imply semantic ownership of all its cases.
 ## Gate tiers
 
 `pr` is the iteration loop while a change is being written: formatting, default-target tests
-and Clippy for directly changed packages, and changed or explicitly named cases only. It defers
+and Clippy for directly changed packages, and explicitly named cases only. It defers
 documentation, release-tree, dependency-layer, facade, CI-contract, and surface checks to
 hosted pull-request CI or a `fast`/`affected` run, and states that deferral as a limitation.
 It never substitutes for the tier a high-risk delta or release requires.
 
-`fast` selects formatting, direct changed-package tests and Clippy, explicitly named or directly
-changed cases, and relevant lightweight documentation, dependency, or CI-contract checks. It is
+`fast` selects formatting, direct changed-package tests and Clippy, explicitly named
+cases, and relevant lightweight documentation, dependency, or CI-contract checks. It is
 the broad fallback for an ordinary localized edit, not a mandatory first step when a narrower
 owned command exists.
 

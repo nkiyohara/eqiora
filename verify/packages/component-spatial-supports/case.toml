@@ -1,5 +1,5 @@
 id = "packages.component-spatial-supports"
-status = "verified"
+status = "implemented"
 scope = "local-and-exact-package-2d-scalar-volume-boundary-support-lowering"
 reference_kind = "canonical-model-topology-provenance-and-fail-closed-diagnostics"
 

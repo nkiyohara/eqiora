@@ -1,5 +1,5 @@
 id = "solid.isotropic-elasticity-2d"
-status = "verified"
+status = "implemented"
 scope = "canonical-two-field-2d-isotropic-elasticity-to-host-serial-q1-csr-cg"
 reference_kind = "analytic-local-patch-manufactured-convergence-and-component-balance"
 

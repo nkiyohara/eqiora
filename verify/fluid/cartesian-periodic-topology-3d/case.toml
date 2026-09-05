@@ -1,5 +1,5 @@
 id = "fluid.cartesian-periodic-topology-3d"
-status = "verified"
+status = "implemented"
 scope = "one-exact-current-model-and-nonuniform-2x3x4-cartesian-mesh-periodic-topology-3d"
 reference_kind = "independent-model-boundary-and-mesh-axis-structural-replay"
 

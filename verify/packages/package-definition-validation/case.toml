@@ -1,5 +1,5 @@
 id = "packages.package-definition-validation"
-status = "verified"
+status = "implemented"
 scope = "complete-exact-source-definition-graph-static-admission"
 reference_kind = "frozen-package-identity-and-source-diagnostic-falsifiers"
 

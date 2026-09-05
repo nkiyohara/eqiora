@@ -1,5 +1,5 @@
 id = "artifacts.discrete-field-import-provenance"
-status = "verified"
+status = "implemented"
 scope = "mesh-bound-discrete-field-identity-and-external-import-lineage-assertion"
 reference_kind = "public-facade-canonical-identity-and-fail-closed-reference-validation"
 

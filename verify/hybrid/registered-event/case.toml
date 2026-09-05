@@ -1,5 +1,5 @@
 id = "hybrid.registered-event"
-status = "verified"
+status = "implemented"
 scope = "content-linked-explicit-ode-root-to-restart"
 reference_kind = "analytic-bouncing-ball-first-impact-and-flight"
 

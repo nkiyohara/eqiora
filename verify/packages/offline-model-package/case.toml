@@ -1,5 +1,5 @@
 id = "packages.offline-model-package"
-status = "verified"
+status = "implemented"
 scope = "exact-two-package-scalar-electrical-host-serial"
 reference_kind = "package-resolution-integrity-provenance-and-analytic-dc"
 

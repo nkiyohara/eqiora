@@ -1,5 +1,5 @@
 id = "differentiation.spatial-poisson-fem-fvm"
-status = "verified"
+status = "implemented"
 scope = "supplied-rectangle-2d-common-plan-bound-relation-and-complete-field-output-differentiation"
 reference_kind = "independent-centered-finite-difference"
 

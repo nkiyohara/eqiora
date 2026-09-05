@@ -1,5 +1,5 @@
 id = "artifacts.xdmf-uniform-grid-import"
-status = "verified"
+status = "implemented"
 scope = "bounded-xdmf-3-hdf-referenced-uniform-tri3-mesh-and-field-import"
 reference_kind = "independently-readable-hdf5-source-exact-normalized-arrays-and-fail-closed-replay"
 

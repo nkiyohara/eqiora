@@ -1,5 +1,5 @@
 id = "numerics.reference-minres-w64"
-status = "verified"
+status = "implemented"
 scope = "host-reference-ill-conditioned-symmetric-indefinite-minimum-residual"
 reference_kind = "dual-independent-exact-dyadic-hadamard-oracle"
 

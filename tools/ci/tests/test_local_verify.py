@@ -32,12 +32,10 @@ from local_verify import (  # noqa: E402
     VerificationPlan,
     WorkspacePackage,
     build_plan,
-    changed_case_ids,
     direct_packages,
     local_changed_paths,
     reverse_dependency_closure,
     run_plan,
-    selected_case_ids,
 )
 from classify_changes import impact_plan  # noqa: E402
 from check_docs import check as check_docs  # noqa: E402
@@ -110,35 +108,6 @@ class PackageSelectionTests(unittest.TestCase):
             reverse_dependency_closure({"eqiora-core"}, workspace()),
             {"eqiora-core", "eqiora-compiler", "eqiora"},
         )
-
-    def test_changed_verification_paths_select_their_case(self) -> None:
-        self.assertEqual(
-            changed_case_ids(
-                [
-                    "verify/packages/example/models/model.eqi",
-                    "verify/packages/example/README.md",
-                    "docs/architecture.md",
-                ]
-            ),
-            {"packages.example"},
-        )
-
-    def test_deleted_changed_case_cannot_reenter_through_explicit_selection(
-        self,
-    ) -> None:
-        self.assertEqual(
-            selected_case_ids(
-                [
-                    "verify/interfaces/live/README.md",
-                    "verify/interfaces/deleted/case.toml",
-                ],
-                ["interfaces.deleted", "interfaces.explicit"],
-                ["interfaces.live"],
-            ),
-            {"interfaces.live", "interfaces.explicit"},
-        )
-
-
 class PlanTests(unittest.TestCase):
     def test_local_planner_consumes_the_shared_impact_plan_owner(self) -> None:
         with mock.patch("local_verify.impact_plan", wraps=impact_plan) as owner:
@@ -156,7 +125,7 @@ class PlanTests(unittest.TestCase):
         )
         self.assertIn("eqiora-core", plan.packages)
 
-    def test_affected_selects_live_changed_cases_but_not_deleted_cases(self) -> None:
+    def test_affected_does_not_automatically_run_changed_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             manifest = root / "verify" / "interfaces" / "live" / "case.toml"
@@ -168,11 +137,14 @@ class PlanTests(unittest.TestCase):
                     "verify/interfaces/live/README.md",
                     "verify/interfaces/deleted/README.md",
                 ],
-                ["interfaces.deleted"],
+                [],
                 workspace(),
                 root,
             )
-        self.assertEqual(plan.cases, ("interfaces.live",))
+        self.assertEqual(plan.cases, ())
+        self.assertFalse(
+            any(item.label.startswith("Registered evidence") for item in plan.commands)
+        )
 
     def test_periodic_msrv_checks_every_production_feature(self) -> None:
         plan = build_plan("periodic", [], [], workspace())
