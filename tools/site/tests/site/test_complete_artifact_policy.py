@@ -588,21 +588,6 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "broken or escaping link",
         )
         reject(
-            "rendered apostrophe",
-            lambda artifact: _replace(artifact / home, "repository’s", "repository's"),
-            "curated projection copy",
-        )
-        reject(
-            "changed home clause",
-            lambda artifact: _replace(
-                artifact / home,
-                "This website is a curated projection",
-                "This website is the specification",
-            ),
-            "curated projection copy",
-        )
-
-        reject(
             "title-only stage heading",
             lambda artifact: _replace(
                 artifact / case, "Stage 1 Problem setup", "Problem setup"

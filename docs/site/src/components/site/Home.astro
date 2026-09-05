@@ -1,0 +1,91 @@
+---
+import pressureImage from '../../assets/gallery/exact-cylinder-pressure.png';
+import publication from '../../data/gallery/exact-cylinder-steady-stokes.publication.json';
+import ReleaseIdentity from './ReleaseIdentity.astro';
+---
+
+<div class="eq-home eq-wide not-content">
+  <section class="eq-intro" aria-label="About Eqiora">
+    <div class="eq-intro__copy">
+      <p class="eq-eyebrow">Open-source computational physics</p>
+      <p class="eq-lead">Eqiora helps researchers and engineers turn mathematical models into simulations, with the physics, numerical choices, and results kept explicit.</p>
+      <div class="eq-actions">
+        <a class="eq-button eq-button--primary" href="/get-started/">Start with an example <span aria-hidden="true">↗</span></a>
+        <a class="eq-button" href="/gallery/">Explore simulations <span aria-hidden="true">→</span></a>
+      </div>
+      <p class="eq-alpha">Alpha <ReleaseIdentity /> · Actively developed. <a href="/capabilities/">See what works today.</a></p>
+    </div>
+    <figure class="eq-preview">
+      <div class="eq-preview__label"><span>Inside a simulation</span><span>01 / Fluid mechanics</span></div>
+      <img src={pressureImage.src} alt={publication.publication_payload.text.alt} width={pressureImage.width} height={pressureImage.height} fetchpriority="high" />
+      <figcaption><span>Pressure around a circular obstacle</span><span>2D · steady Stokes</span></figcaption>
+    </figure>
+  </section>
+
+  <section class="eq-workflow" aria-labelledby="workflow-title">
+    <div class="eq-section-heading"><p class="eq-eyebrow">From equations to results</p><h2 id="workflow-title">Keep the physics in view.</h2></div>
+    <ol>
+      <li><span class="eq-step" aria-hidden="true">01</span><h3>Define the model</h3><p>Describe quantities, equations, geometry, and boundary conditions. Make the assumptions visible.</p></li>
+      <li><span class="eq-step" aria-hidden="true">02</span><h3>Choose the numerics</h3><p>Select a discretization and solver through a realization, separate from the mathematical model.</p></li>
+      <li><span class="eq-step" aria-hidden="true">03</span><h3>Inspect the result</h3><p>Follow the run into fields, diagnostics, and plots. Trace the result back to the choices that produced it.</p></li>
+    </ol>
+  </section>
+
+  <section class="eq-walkthrough" aria-labelledby="walkthrough-title">
+    <p class="eq-eyebrow">Featured walkthrough</p>
+    <h2 id="walkthrough-title">Follow a flow simulation, end to end.</h2>
+    <p>Follow the exact-cylinder steady-Stokes example from a Python model and named boundaries to a static pressure plot. Read the source, the numerical setup, and the result together.</p>
+    <a class="eq-text-link" href="/gallery/exact-cylinder-steady-stokes/">Explore the flow example <span aria-hidden="true">→</span></a>
+  </section>
+
+  <section class="eq-paths" aria-labelledby="paths-title">
+    <div class="eq-section-heading"><p class="eq-eyebrow">Go further</p><h2 id="paths-title">Find your next step.</h2></div>
+    <div class="eq-path-grid">
+      <a href="/get-started/"><h3>Get started <span aria-hidden="true">↗</span></h3><p>Set up Eqiora and work through your first example.</p></a>
+      <a href="/textbooks/"><h3>Learn the foundations <span aria-hidden="true">↗</span></h3><p>Explore the guide to mathematics, physics, and numerical methods.</p></a>
+      <a href="/reference/"><h3>Browse the reference <span aria-hidden="true">↗</span></h3><p>Find Python and Rust APIs, command-line tools, and protocols.</p></a>
+      <a href="/capabilities/"><h3>Check capabilities <span aria-hidden="true">↗</span></h3><p>See implemented features, tested examples, and current limitations.</p></a>
+    </div>
+  </section>
+</div>
+
+<style is:global>
+  :root:has(.eq-home) h1#_top { max-width: 20ch; font-size: clamp(2.5rem, 5vw, 4.5rem); line-height: 1.08; letter-spacing: -0.045em; padding-block: 1.5rem 0.5rem; }
+  .eq-home { display: grid; gap: clamp(3rem, 7vw, 6rem); }
+  .eq-home p { margin-block: 0; }
+  .eq-eyebrow { color: var(--eq-color-brand); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+  .eq-intro { display: grid; gap: 2.5rem; align-items: center; }
+  .eq-intro__copy { display: grid; gap: 1.5rem; }
+  .eq-lead { max-width: 42ch; font-size: clamp(1.125rem, 2vw, 1.4rem); line-height: 1.65; color: var(--eq-color-text-muted); }
+  .eq-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+  .eq-button { display: inline-flex; align-items: center; justify-content: space-between; gap: 1.25rem; min-height: 3rem; padding: 0.75rem 1rem; border: 1px solid var(--eq-color-border-strong); border-radius: 0.5rem; color: var(--eq-color-text); text-decoration: none; font-weight: 650; }
+  .eq-button--primary { background: var(--eq-color-action-bg); border-color: var(--eq-color-action-bg); color: var(--eq-color-action-text); }
+  .eq-button:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+  .eq-alpha { font-size: 0.875rem; color: var(--eq-color-text-muted); }
+  .eq-preview { margin: 0; min-width: 0; padding: 1rem; border: 1px solid var(--eq-color-border); border-radius: 0.875rem; background: var(--eq-color-surface); }
+  .eq-preview__label, .eq-preview figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; font-size: 0.75rem; color: var(--eq-color-text-muted); }
+  .eq-preview img { display: block; width: 100%; height: auto; margin-block: 1rem; border-radius: 0.25rem; }
+  .eq-section-heading { margin-bottom: 2rem; }
+  .eq-home h2 { margin-top: 0.75rem; font-size: clamp(1.75rem, 3vw, 2.5rem); letter-spacing: -0.035em; line-height: 1.2; }
+  .eq-workflow ol { display: grid; gap: 2rem; list-style: none; padding: 0; margin: 0; }
+  .eq-workflow li { border-top: 1px solid var(--eq-color-border-strong); padding-top: 1rem; }
+  .eq-step { color: var(--eq-color-brand); font-family: var(--eq-font-mono); font-size: 0.8rem; }
+  .eq-home h3 { font-size: 1.125rem; margin-block: 1rem 0.75rem; }
+  .eq-workflow p, .eq-paths p { color: var(--eq-color-text-muted); line-height: 1.7; }
+  .eq-walkthrough { border-left: 3px solid var(--eq-color-brand); padding: 0.5rem 0 0.5rem clamp(1rem, 3vw, 2rem); }
+  .eq-walkthrough p:not(.eq-eyebrow) { max-width: 65ch; color: var(--eq-color-text-muted); }
+  .eq-text-link { display: inline-flex; align-items: center; min-height: 2.75rem; gap: 1rem; margin-top: 1rem; font-weight: 650; }
+  .eq-path-grid { display: grid; gap: 1rem; }
+  .eq-path-grid > a { padding: 1.5rem; border: 1px solid var(--eq-color-border); border-radius: 0.75rem; text-decoration: none; color: var(--eq-color-text); background: var(--eq-color-surface); }
+  .eq-path-grid > a:hover { border-color: var(--eq-color-brand); }
+  .eq-path-grid h3 { display: flex; justify-content: space-between; gap: 1rem; margin-top: 0; }
+  .eq-path-grid > a:hover h3 { text-decoration: underline; text-underline-offset: 0.2em; }
+  @media (min-width: 50rem) {
+    .eq-intro { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
+    .eq-workflow ol { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .eq-path-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (forced-colors: active) {
+    .eq-button--primary { border-color: ButtonText; color: ButtonText; background: ButtonFace; }
+  }
+</style>

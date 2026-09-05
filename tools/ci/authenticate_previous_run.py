@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Authenticate heavy CI work completed on the immediately previous PR head.
+"""Authenticate previous PR work or the latest successful main Pages deployment.
 
 This helper deliberately makes no lane-selection decision.  It only emits an
 ephemeral attestation for exact successful jobs and witness steps from the
-same pull request.  The repository-owned classifier separately proves that a
+same pull request, or the main run that actually deployed Pages. The classifier proves that a
 lane's complete input closure is unchanged before consuming the attestation.
 Any unavailable or ambiguous GitHub state produces an empty attestation.
 """
@@ -177,6 +177,101 @@ def authenticate(
     }
 
 
+def authenticate_deployed_pages(
+    *, repository: str, fetch: Callable[[str], Any]
+) -> dict[str, Any]:
+    """Bind the latest Pages deployment only after its publishing run succeeded."""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise ValueError("repository identity is malformed")
+    api = f"https://api.github.com/repos/{repository}"
+    deployments = fetch(f"{api}/deployments?environment=github-pages&per_page=1")
+    if not isinstance(deployments, list) or len(deployments) != 1:
+        raise ValueError("latest Pages deployment is unavailable")
+    deployment = deployments[0]
+    if (
+        not isinstance(deployment, dict)
+        or type(deployment.get("id")) is not int
+        or deployment.get("environment") != "github-pages"
+        or deployment.get("ref") != "main"
+        or not isinstance(deployment.get("sha"), str)
+        or FULL_SHA.fullmatch(deployment["sha"]) is None
+    ):
+        raise ValueError("latest deployment is not an exact main Pages deployment")
+    statuses = fetch(f"{api}/deployments/{deployment['id']}/statuses?per_page=1")
+    if (
+        not isinstance(statuses, list)
+        or len(statuses) != 1
+        or not isinstance(statuses[0], dict)
+        or statuses[0].get("state") != "success"
+        or statuses[0].get("environment") != "github-pages"
+    ):
+        raise ValueError("latest Pages deployment did not succeed")
+    match = re.fullmatch(
+        rf"https://github\.com/{re.escape(repository)}/actions/runs/([0-9]+)/job/([0-9]+)",
+        str(statuses[0].get("log_url", "")),
+    )
+    if match is None:
+        raise ValueError("deployment has no canonical publishing job")
+    run_id, job_id = map(int, match.groups())
+    run = fetch(f"{api}/actions/runs/{run_id}")
+    if (
+        not isinstance(run, dict)
+        or run.get("id") != run_id
+        or run.get("event") != "push"
+        or run.get("head_branch") != "main"
+        or run.get("head_sha") != deployment["sha"]
+        or run.get("path") != ".github/workflows/pages.yml"
+        or run.get("status") != "completed"
+        or run.get("conclusion") != "success"
+    ):
+        raise ValueError("publishing run is not a successful main Pages push")
+    payload = fetch(f"{api}/actions/runs/{run_id}/jobs?filter=latest&per_page=100")
+    if not isinstance(payload, dict):
+        raise ValueError("publishing job response is malformed")
+    jobs = payload.get("jobs")
+    if not isinstance(jobs, list) or payload.get("total_count") != len(jobs):
+        raise ValueError("publishing job list is incomplete")
+    required = {
+        (
+            "Build and verify static documentation",
+            "Build and verify with only loopback networking",
+        ),
+        ("Deploy static documentation", "Deploy GitHub Pages artifact"),
+    }
+    completed = set()
+    for job in jobs:
+        if not isinstance(job, dict) or job.get("conclusion") != "success":
+            continue
+        if not isinstance(job.get("name"), str):
+            continue
+        if job.get("name") == "Deploy static documentation" and job.get("id") != job_id:
+            continue
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if (
+                isinstance(step, dict)
+                and isinstance(step.get("name"), str)
+                and step.get("status") == "completed"
+                and step.get("conclusion") == "success"
+            ):
+                completed.add((job.get("name"), step.get("name")))
+    if not required <= completed:
+        raise ValueError("publishing run lacks successful build and deployment steps")
+    return {
+        "version": 1,
+        "repository": repository,
+        "pull_request": 0,
+        "workflow": "pages.yml",
+        "event": "push",
+        "previous_sha": deployment["sha"],
+        "run_id": run_id,
+        "run_url": f"https://github.com/{repository}/actions/runs/{run_id}",
+        "lanes": {"site": True},
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
@@ -184,6 +279,7 @@ def main() -> int:
     parser.add_argument("--previous-sha", required=True)
     parser.add_argument("--workflow", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--deployed-pages", action="store_true")
     arguments = parser.parse_args()
     output = Path(arguments.output)
     if not output.is_absolute() or (os.path.lexists(output) and output.is_symlink()):
@@ -197,13 +293,21 @@ def main() -> int:
     try:
         if not token:
             raise ValueError("GitHub token is unavailable")
-        attestation = authenticate(
-            repository=arguments.repository,
-            pull_request=arguments.pull_request,
-            previous_sha=arguments.previous_sha,
-            workflow=arguments.workflow,
-            fetch=lambda url: _request_json(url, token),
-        )
+        if arguments.deployed_pages:
+            if arguments.workflow != "pages.yml" or arguments.pull_request != 0:
+                raise ValueError("deployment reuse is only available for main Pages")
+            attestation = authenticate_deployed_pages(
+                repository=arguments.repository,
+                fetch=lambda url: _request_json(url, token),
+            )
+        else:
+            attestation = authenticate(
+                repository=arguments.repository,
+                pull_request=arguments.pull_request,
+                previous_sha=arguments.previous_sha,
+                workflow=arguments.workflow,
+                fetch=lambda url: _request_json(url, token),
+            )
     except (OSError, ValueError, urllib.error.URLError, json.JSONDecodeError) as error:
         print(
             f"Previous-run reuse unavailable; running current lanes: {error}",

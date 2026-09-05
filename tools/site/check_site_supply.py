@@ -98,7 +98,6 @@ OFFLINE_WORKFLOW_TOKENS = (
     "setpriv",
     "npm_config_offline=true",
     "CARGO_NET_OFFLINE=true",
-    "UV_OFFLINE=1",
     DIRECT_SOURCE_ARCHIVE_COMMAND,
     "EQIORA_SITE_SOURCE_ROOT=$scratch/source",
     'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',

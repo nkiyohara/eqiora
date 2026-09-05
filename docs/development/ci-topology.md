@@ -41,7 +41,11 @@ Draft therefore verifies its exact head immediately, while changing that same
 head from Draft to Ready reuses the existing required contexts instead of
 starting and cancelling an identical full run. A pushed head still starts a
 new run, and the per-pull-request concurrency groups cancel only its stale
-predecessor. This relies on GitHub's provider-owned event contract delivering
+predecessor. Pages edits queue behind the running job instead of cancelling it.
+Once queued work starts, the existing authenticator may reuse a successful full
+run on the same head, but only when the complete site input snapshot is unchanged.
+Missing or ambiguous prior success still requires a full build; base-owned trust
+checks continue to run on edits. This relies on GitHub's provider-owned event contract delivering
 those activities for Draft pull requests and retaining commit-bound check runs
 across a readiness-only transition. Repository tests pin the workflow side of
 that boundary; live Actions observation owns the provider side.
@@ -179,6 +183,16 @@ does not establish optional native-backend or scientific claims.
   candidate. Installed-wheel product tests remain in the Python version matrix;
   the release-candidate workflow retains the complete artifact-family validation
   before publication. CI definition trust and release trust checks are unchanged.
+- Pages builds only the Rust executables and Rustdoc consumed by site generation.
+  Python API documentation is parsed from shipped type stubs without importing the
+  package. Wheel construction and installed-package checks belong to the Python
+  version matrix and release workflow, not to the documentation build.
+- Main Pages runs queue instead of cancelling an in-progress publication. After the
+  preceding run finishes, the next run compares its complete site input closure with
+  the latest successfully deployed main commit. Unchanged inputs skip both build and
+  deployment. Missing, failed, or unauthenticated publication state falls back to a
+  full build; comparison never uses only the immediately preceding push. Manual
+  dispatch remains a full build.
 - Host-CPU case manifests disconnected from mandatory CI are marked
   `implemented`, and their capability-matrix verification is absent while the
   evidence suite is being reduced. Existing cases remain explicitly runnable

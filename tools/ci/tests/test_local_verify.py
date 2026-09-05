@@ -175,6 +175,34 @@ class PlanTests(unittest.TestCase):
             ),
         )
 
+    def test_site_only_changes_select_source_check_without_building(self) -> None:
+        expected = (
+            sys.executable, "tools/site/check_site.py", "source", "--root", "."
+        )
+        for path in (
+            "docs/site/src/content/docs/index.mdx",
+            "docs/site/src/styles/tokens.css",
+            "docs/site/public/favicon.svg",
+            "tools/site/check_site.py",
+        ):
+            for tier in ("fast", "affected"):
+                with self.subTest(path=path, tier=tier):
+                    plan = build_plan(tier, [path], [], workspace())
+                    self.assertEqual(plan.packages, ())
+                    self.assertEqual(
+                        [item.argv for item in plan.commands if item.label == "Site source"],
+                        [expected],
+                    )
+                    if tier == "fast":
+                        self.assertEqual([item.argv for item in plan.commands], [expected])
+        periodic = build_plan("periodic", [], [], workspace())
+        self.assertEqual(
+            [item.argv for item in periodic.commands if item.label == "Site source"],
+            [expected],
+        )
+        pr = build_plan("pr", ["docs/site/src/content/docs/index.mdx"], [], workspace())
+        self.assertFalse(any(item.label == "Site source" for item in pr.commands))
+
     def test_fast_plan_keeps_direct_package_and_explicit_case(self) -> None:
         plan = build_plan(
             "fast",

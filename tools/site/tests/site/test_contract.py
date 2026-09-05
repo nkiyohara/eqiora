@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
 from fixture import (
     CASE_EVIDENCE_PATHS,
@@ -18,6 +21,18 @@ from fixture import (
 
 
 class CompleteContractTests(unittest.TestCase):
+    def test_source_command_reports_checker_result(self) -> None:
+        for errors, status in (([], 0), (["invalid site source"], 1)):
+            with self.subTest(errors=errors), mock.patch.object(
+                checker, "check_source", return_value=errors
+            ) as check, contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+                io.StringIO()
+            ) as stderr:
+                self.assertEqual(checker.main(["source", "--root", str(REPOSITORY)]), status)
+                check.assert_called_once_with(REPOSITORY.resolve())
+                if errors:
+                    self.assertIn("invalid site source", stderr.getvalue())
+
     PUBLICATION_RELATIVE = Path(
         "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json"
     )
@@ -539,10 +554,6 @@ class CompleteContractTests(unittest.TestCase):
             (
                 "docs/site/src/components/site/ReleaseIdentity.astro",
                 "EQIORA_SITE_PYTHON_VERSION",
-            ),
-            (
-                "docs/site/src/content/docs/index.mdx",
-                "@components/site/ReleaseIdentity.astro",
             ),
             (
                 "docs/site/astro.config.mjs",

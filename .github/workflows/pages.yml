@@ -9,10 +9,11 @@ on:
 permissions:
   actions: read
   contents: read
+  deployments: read
   pull-requests: read
 concurrency:
   group: pages-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'edited' }}
 jobs:
   build:
     name: Build and verify static documentation
@@ -34,17 +35,26 @@ jobs:
       - name: Authenticate successful documentation work on the previous PR head
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          SITE_PREVIOUS_SHA: ${{ github.event.before }}
+          SITE_PREVIOUS_SHA: ${{ github.event.action == 'edited' && github.event.pull_request.head.sha || github.event.before }}
           SITE_PULL_REQUEST: ${{ github.event.pull_request.number }}
           SITE_REPOSITORY: ${{ github.repository }}
+          SITE_EVENT_NAME: ${{ github.event_name }}
         run: |
           attestation="$RUNNER_TEMP/eqiora-previous-pages.json"
+          reuse_mode=()
+          if [ "$SITE_EVENT_NAME" = push ]; then
+            reuse_mode=(--deployed-pages)
+          fi
           python3 tools/ci/authenticate_previous_run.py \
             --repository "$SITE_REPOSITORY" \
             --pull-request "${SITE_PULL_REQUEST:-0}" \
             --previous-sha "$SITE_PREVIOUS_SHA" \
             --workflow pages.yml \
+            "${reuse_mode[@]}" \
             --output "$attestation"
+          if [ "$SITE_EVENT_NAME" = push ]; then
+            SITE_PREVIOUS_SHA="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("previous_sha", ""))' "$attestation")"
+          fi
           {
             printf 'EQIORA_PREVIOUS_SHA=%s\n' "$SITE_PREVIOUS_SHA"
             printf 'EQIORA_REUSE_ATTESTATION=%s\n' "$attestation"
@@ -101,7 +111,6 @@ jobs:
           test ! -L "$RUNNER_TEMP"
           {
             echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/eqiora-pw-1.62.1-r1234"
-            echo "UV_CACHE_DIR=$RUNNER_TEMP/eqiora-site-uv-cache"
           } >> "$GITHUB_ENV"
       - name: Restore the exact Playwright browser cache
         if: steps.site_closure.outputs.site == 'true'
@@ -137,7 +146,7 @@ jobs:
             "$RUNNER_TEMP"/eqiora-site.*) ;;
             *) echo "site scratch escaped RUNNER_TEMP" >&2; exit 1 ;;
           esac
-          mkdir "$scratch/source" "$scratch/build" "$scratch/uv-cache"
+          mkdir "$scratch/source" "$scratch/build"
           git ls-tree -r "$GITHUB_SHA" > "$scratch/source-tree"
           source_links="$(awk '$1 == "120000" { print $4 }' "$scratch/source-tree")"
           case "$source_links" in
@@ -216,8 +225,6 @@ jobs:
           npx --prefix docs/site playwright install --with-deps chromium
 
           cargo +stable fetch --locked
-          uv pip install --target "$RUNNER_TEMP/eqiora-site-build-supply" \
-            --python 3.13 --no-python-downloads "maturin==1.15.0"
 
           browser_path="$({ cd docs/site; node --input-type=module -e \
             "import { chromium } from '@playwright/test'; console.log(chromium.executablePath())"; })"
@@ -261,8 +268,6 @@ jobs:
           printf 'ImageOS=%s\nImageVersion=%s\n' "${ImageOS:-unset}" "${ImageVersion:-unset}"
           uname -a
           rustc -Vv
-          test -d "$UV_CACHE_DIR"
-          cp -a "$UV_CACHE_DIR/." "$EQIORA_API_SCRATCH/uv-cache/"
           git fetch --no-tags --no-recurse-submodules --no-write-fetch-head \
             origin refs/pull/501/head
           mv docs/site/node_modules "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules"
@@ -283,7 +288,7 @@ jobs:
         run: |
           set -euo pipefail
           test -x "$EQIORA_SITE_SOURCE_ROOT/tools/site/run_offline_site_checks.sh"
-          sudo --preserve-env=ASTRO_TELEMETRY_DISABLED,EQIORA_API_SCRATCH,EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_GIT_OBJECT_REPOSITORY,EQIORA_SITE_ASTRO_OUT_DIR,EQIORA_SITE_CARGO_TARGET,EQIORA_SITE_RUSTDOC_TARGET,EQIORA_SITE_RUSTDOC_STAGE,EQIORA_SITE_ARTIFACT,EQIORA_SITE_SOURCE_SHA,EQIORA_SITE_BROWSER_SHA256,EQIORA_SITE_BROWSER_BYTES,EQIORA_RUNNER_UID,EQIORA_RUNNER_GID,EQIORA_RUNNER_HOME,EQIORA_RUNNER_PATH,PLAYWRIGHT_BROWSERS_PATH,UV_CACHE_DIR,LC_ALL,TZ \
+          sudo --preserve-env=ASTRO_TELEMETRY_DISABLED,EQIORA_API_SCRATCH,EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_GIT_OBJECT_REPOSITORY,EQIORA_SITE_ASTRO_OUT_DIR,EQIORA_SITE_CARGO_TARGET,EQIORA_SITE_RUSTDOC_TARGET,EQIORA_SITE_RUSTDOC_STAGE,EQIORA_SITE_ARTIFACT,EQIORA_SITE_SOURCE_SHA,EQIORA_SITE_BROWSER_SHA256,EQIORA_SITE_BROWSER_BYTES,EQIORA_RUNNER_UID,EQIORA_RUNNER_GID,EQIORA_RUNNER_HOME,EQIORA_RUNNER_PATH,PLAYWRIGHT_BROWSERS_PATH,LC_ALL,TZ \
             unshare --net -- bash -ceu '
               ip link set lo up
               exec setpriv \
@@ -300,9 +305,7 @@ jobs:
                   ASTRO_TELEMETRY_DISABLED="$ASTRO_TELEMETRY_DISABLED" \
                   npm_config_offline=true \
                   CARGO_NET_OFFLINE=true \
-                  UV_OFFLINE=1 \
                   PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" \
-                  UV_CACHE_DIR="$UV_CACHE_DIR" \
                   EQIORA_API_SCRATCH="$EQIORA_API_SCRATCH" \
                   EQIORA_SITE_SOURCE_ROOT="$EQIORA_SITE_SOURCE_ROOT" \
                   EQIORA_SITE_GIT_OBJECT_REPOSITORY="$EQIORA_SITE_GIT_OBJECT_REPOSITORY" \

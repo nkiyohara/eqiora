@@ -586,7 +586,7 @@ def _workflow() -> str:
 
 def _runner() -> str:
     return """#!/usr/bin/env bash
-export npm_config_offline=true CARGO_NET_OFFLINE=true UV_OFFLINE=1
+export npm_config_offline=true CARGO_NET_OFFLINE=true
 export EQIORA_SITE_CARGO_VERSION=0.1.0-alpha.1 EQIORA_SITE_PYTHON_VERSION=0.1.0a1
 python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
 python3 tools/site/check_site.py browser-supply --site-root docs/site --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"

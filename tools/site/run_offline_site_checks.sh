@@ -44,10 +44,8 @@ test "$EQIORA_SITE_ARTIFACT" = "$EQIORA_API_SCRATCH/build/site"
 case "$PLAYWRIGHT_BROWSERS_PATH" in */eqiora-pw-1.62.1-r1234) ;; *) exit 1 ;; esac
 test -d "$EQIORA_API_SCRATCH/build"
 test ! -L "$EQIORA_API_SCRATCH/build"
-test -d "$EQIORA_API_SCRATCH/uv-cache"
-test ! -L "$EQIORA_API_SCRATCH/uv-cache"
 test -z "$(find "$EQIORA_API_SCRATCH/build" -mindepth 1 -print -quit)"
-test "$(find "$EQIORA_API_SCRATCH" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort)" = $'build\nsource\nuv-cache'
+test "$(find "$EQIORA_API_SCRATCH" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort)" = $'build\nsource'
 test ! -e "$EQIORA_SITE_SOURCE_ROOT/.git"
 test -f "$EQIORA_SITE_SOURCE_ROOT/Cargo.toml"
 test -f "$EQIORA_SITE_SOURCE_ROOT/docs/site/package.json"
@@ -66,12 +64,10 @@ do
 done
 test "$npm_config_offline" = true
 test "$CARGO_NET_OFFLINE" = true
-test "$UV_OFFLINE" = 1
 test "$(uname -m)" = x86_64
 test "$(node --version)" = v24.18.1
 test "$(npm --version)" = 11.16.0
 test "$(python3 --version)" = "Python 3.13.14"
-test "$(uv --version)" = "uv 0.12.1 (x86_64-unknown-linux-musl)"
 required_rust_release=1.97.1
 rustc_has_required_release() {
   local version_output="$1"
@@ -188,18 +184,14 @@ print(cargo, module.python_distribution_version(cargo))
 PY
 )
 cargo_target="$EQIORA_SITE_CARGO_TARGET"
-wheels="$EQIORA_API_SCRATCH/wheels"
-venv="$EQIORA_API_SCRATCH/venv"
-identity_cwd="$EQIORA_API_SCRATCH/identity-cwd"
 build_receipt="$EQIORA_API_SCRATCH/build-products.json"
-for path in "$cargo_target" "$wheels" "$venv" "$identity_cwd" "$build_receipt" \
+for path in "$cargo_target" "$build_receipt" \
   "$EQIORA_SITE_ASTRO_OUT_DIR" "$EQIORA_SITE_RUSTDOC_STAGE" \
   "$EQIORA_SITE_ARTIFACT"
 do
   test ! -e "$path"
   test ! -L "$path"
 done
-mkdir "$wheels" "$identity_cwd"
 RUSTDOCFLAGS="-D warnings --html-in-header docs/site/src/reference/rustdoc-head.html --extend-css docs/site/src/styles/rustdoc.css" \
 python3 tools/site/build_products.py \
   --scratch-root "$EQIORA_API_SCRATCH" \
@@ -211,63 +203,6 @@ mcp_binary="$cargo_target/release/eqiora-mcp"
 test -x "$eqiora_binary"
 test -x "$mcp_binary"
 test "$($eqiora_binary --version)" = "eqiora $cargo_version"
-test -d "$wheels"; test ! -L "$wheels"
-mapfile -d '' wheel_entries < <(find "$wheels" -mindepth 1 -maxdepth 1 -print0)
-mapfile -d '' wheel_files < <(find "$wheels" -mindepth 1 -maxdepth 1 -name '*.whl' -print0)
-test "${#wheel_entries[@]}" = 2; test "${#wheel_files[@]}" = 1
-wheel="${wheel_files[0]}"; control="$wheels/.gitignore"
-test "$(basename "$wheel")" != .whl
-for output in "$wheel" "$control"; do
-  test -f "$output"; test ! -L "$output"; test "$(stat -c %h "$output")" = 1
-done
-test -s "$wheel"
-test "$(stat -c %s "$control")" = 1
-test "$(sha256sum "$control" | cut -d ' ' -f 1)" = 684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1
-wheel_identity="$(stat -c %d:%i "$wheel") $(sha256sum "$wheel")"; control_identity="$(stat -c %d:%i "$control") $(sha256sum "$control")"
-uv venv --python 3.13 --no-python-downloads "$venv"
-test "$(find "$wheels" -mindepth 1 -maxdepth 1 -printf '.\n' | wc -l)" = 2
-for output in "$wheel" "$control"; do test -f "$output"; test ! -L "$output"; test "$(stat -c %h "$output")" = 1; done
-test "$(stat -c %d:%i "$wheel") $(sha256sum "$wheel")" = "$wheel_identity"
-test "$(stat -c %d:%i "$control") $(sha256sum "$control")" = "$control_identity"
-uv pip install --python "$venv/bin/python" --no-index --no-deps "$wheel"
-(
-  cd "$identity_cwd"
-  env -u PYTHONPATH PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 LC_ALL=C \
-    "$venv/bin/python" -I - "$python_version" "$venv" <<'PY'
-import importlib.metadata
-import importlib.machinery
-import importlib.util
-import importlib
-import pathlib
-import sys
-
-expected = sys.argv[1]
-venv = pathlib.Path(sys.argv[2]).resolve()
-import eqiora
-import eqiora._eqiora as native
-
-assert eqiora.__version__ == expected
-assert native.__version__ == expected
-assert importlib.metadata.version("eqiora") == expected
-public_file = pathlib.Path(eqiora.__file__)
-native_file = pathlib.Path(native.__file__)
-package = public_file.resolve().parent
-assert not public_file.is_symlink() and public_file.resolve().is_relative_to(venv)
-assert not native_file.is_symlink() and native_file.resolve().is_relative_to(venv)
-assert native.__name__ == "eqiora._eqiora"
-assert native_file.resolve().parent == package
-assert any(native_file.name.endswith(suffix) for suffix in importlib.machinery.EXTENSION_SUFFIXES)
-distribution = importlib.metadata.distribution("eqiora")
-assert pathlib.Path(distribution.locate_file("")).resolve().is_relative_to(venv)
-assert importlib.util.find_spec("_eqiora") is None
-try:
-    importlib.import_module("_eqiora")
-except ModuleNotFoundError as error:
-    assert error.name == "_eqiora"
-else:
-    raise AssertionError("top-level _eqiora unexpectedly exists")
-PY
-)
 # The committed evidence projection is checked before API projection or Astro.
 "$cargo_target/release/eqiora-verify" \
   index --format json > "$EQIORA_API_SCRATCH/evidence-index.json"

@@ -15,7 +15,6 @@ PRESSURE_ALT = "Pressure in pascals for a 2D steady-Stokes exact-cylinder demons
 PRESSURE_CAPTION = "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at cd1185b0f8ec8940352e7b6bc832fd4ebe67591b; presentation only, not validation."
 PUBLIC_CLAIM = "One presentation-only 2D steady incompressible Stokes exact-cylinder demonstration rendered through exact Geometry, typed Gmsh policy, and the root Result path; output counts, digests, numerical values, and pixels are not independently verified."
 WITNESS_COPY = "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
-RENDERED_SOURCE_SENTENCE = "This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository’s architecture, RFCs, capability matrix, and validated verify manifests."
 REFERENCE_GUIDANCE = "These pages describe interfaces and signatures."
 TEXTBOOK_SERIES = (
     ("circuits-dynamics-hybrid", "Circuits, Dynamics, and Hybrid Systems"),
@@ -64,35 +63,6 @@ CASE_EVIDENCE_PATHS = (
     "verify/fluid/packaged-steady-stokes-2d/README.md",
     "verify/geometry/exact-circular-hole-geometry/README.md",
     "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-)
-HOME_COPY = (
-    "Model meaning once. Realize it many ways.",
-    "Eqiora is an open-source, meaning-first foundation for scientific modeling, simulation, differentiation, and execution.",
-    "Its central boundary is simple:",
-    "A model states typed mathematical relations. A realization chooses how those relations are discretized, solved, and executed.",
-    "That separation lets block diagrams, acausal physical networks, PDE fields, hybrid dynamics, and reusable components share one canonical meaning without making a numerical method or hardware backend part of the model.",
-    "Get started",
-    "Explore gallery",
-    "Featured walkthrough",
-    "Exact-cylinder steady Stokes",
-    "Follow one frozen 2D steady-Stokes problem from model definition and named boundaries through one submit/Result path to an independently admitted static pressure image.",
-    "Python",
-    "2D",
-    "steady Stokes",
-    "View the static walkthrough",
-    "Docs",
-    "Learn the Model–Realization boundary and start from bounded examples.",
-    "Textbooks",
-    "Follow the planned path from mathematics and physics to Eqiora models, numerical realization, and interpretation.",
-    "Capabilities",
-    "See what is available, executable, checked, or verified.",
-    "Reference",
-    "Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces.",
-    "Docs explains how to use Eqiora. Textbooks teach the mathematics, physics, and numerics. Gallery presents complete simulations. Reference records exact APIs and protocols. Capabilities states what runs and the boundary of each claim.",
-    "{release_identity}",
-    "Eqiora is alpha research software under active development. The capability matrix and generated evidence catalog bound what is currently supported; this site does not widen those claims.",
-    "One source of truth",
-    RENDERED_SOURCE_SENTENCE,
 )
 EXECUTION_CONTROL = re.compile(
     r"\b(?:run|submit|reset|start|begin|try|solv\w*|execut\w*|simulat\w*|comput\w*|calculat\w*|launch\w*|evaluat\w*|process\w*|generat\w*|analy[sz]\w*|predict\w*)\b",
@@ -269,24 +239,8 @@ def _check_home(
 ) -> list[str]:
     errors: list[str] = []
     report = errors.append
-    release = f"Alpha {expected_python_version}"
-    expected = tuple(item.format(release_identity=release) for item in HOME_COPY)
-    if not enhanced:
-        expected = (
-            *expected[:-1],
-            expected[-1].replace("repository’s", "repository's"),
-        )
-    position = 0
-    for fragment in expected:
-        found = home.visible_text.find(fragment, position)
-        if found < 0:
-            report(f"/: missing or out-of-order visible text {fragment!r}")
-        else:
-            position = found + len(fragment)
-    if enhanced and RENDERED_SOURCE_SENTENCE not in home.visible_text:
-        report(
-            "/: curated projection copy must retain the accepted rendered apostrophe"
-        )
+    if f"Alpha {expected_python_version}" not in home.visible_text:
+        report("/: current alpha release must be visible")
     start = home.visible_text.find("Featured walkthrough")
     end = home.visible_text.find("Docs", start + 1)
     featured = home.visible_text[start:end].casefold()

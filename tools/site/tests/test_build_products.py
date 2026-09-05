@@ -44,12 +44,12 @@ class BuildProductsTests(unittest.TestCase):
                 build_products.validate(steps)
 
             steps = list(plan(Path(temporary)))
-            steps[2] = replace(
-                steps[2],
+            steps[1] = replace(
+                steps[1],
                 command=(
-                    *steps[2].command[:3],
+                    *steps[1].command[:3],
                     "--release",
-                    *steps[2].command[3:],
+                    *steps[1].command[3:],
                 ),
             )
             with self.assertRaisesRegex(ValueError, "documentation profile"):
@@ -65,10 +65,10 @@ class BuildProductsTests(unittest.TestCase):
             steps = list(plan(Path(temporary)))
             command = tuple(
                 argument
-                for argument in steps[2].command
+                for argument in steps[1].command
                 if argument != "--all-features"
             )
-            steps[2] = replace(steps[2], command=command)
+            steps[1] = replace(steps[1], command=command)
             with self.assertRaisesRegex(ValueError, "all-features closure"):
                 build_products.validate(steps)
 
@@ -77,25 +77,21 @@ class BuildProductsTests(unittest.TestCase):
             steps = list(plan(Path(temporary)))
             steps[1] = replace(
                 steps[1],
-                environment=(
-                    steps[1].environment[0],
-                    ("RUSTUP_TOOLCHAIN", "stable"),
-                ),
+                environment=(("RUSTUP_TOOLCHAIN", "stable"),),
             )
             with self.assertRaisesRegex(ValueError, "toolchain identity"):
                 build_products.validate(steps)
 
             steps = list(plan(Path(temporary)))
-            steps[2] = replace(
-                steps[2], command=("/other/cargo", *steps[2].command[1:])
+            steps[1] = replace(
+                steps[1], command=("/other/cargo", *steps[1].command[1:])
             )
             with self.assertRaisesRegex(ValueError, "Cargo or Rust"):
                 build_products.validate(steps)
 
-    def test_execution_builds_each_product_once_in_shared_target(self) -> None:
+    def test_execution_builds_each_product_once_in_its_target(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             scratch = Path(temporary)
-            (scratch / "uv-cache").mkdir()
             receipt = scratch / "build-products.json"
             invocations: list[tuple[tuple[str, ...], str | None, str | None]] = []
 
@@ -115,10 +111,6 @@ class BuildProductsTests(unittest.TestCase):
                     release.mkdir(parents=True)
                     for name in ("eqiora", "eqiora-mcp", "eqiora-verify", "xtask"):
                         (release / name).write_text(name, encoding="utf-8")
-                elif command[:2] == ("uv", "build"):
-                    wheels = scratch / "wheels"
-                    wheels.mkdir()
-                    (wheels / "eqiora-0.1.0a1-cp313.whl").write_bytes(b"wheel")
                 elif command[:2] == (CARGO, "doc"):
                     rustdoc = scratch / "rustdoc-target/doc/eqiora"
                     rustdoc.mkdir(parents=True)
@@ -131,38 +123,34 @@ class BuildProductsTests(unittest.TestCase):
 
             payload = json.loads(receipt.read_text(encoding="utf-8"))
             self.assertEqual(payload["schema"], build_products.RECEIPT_SCHEMA)
-            self.assertEqual(payload["total_invocations"], 3)
-            self.assertEqual(payload["total_products"], 6)
+            self.assertEqual(payload["total_invocations"], 2)
+            self.assertEqual(payload["total_products"], 5)
             self.assertEqual(
                 payload["invocations_by_domain"],
                 {
                     "cargo-release": 1,
-                    "cargo-release/python-extension-features": 1,
                     "cargo-doc/rustdoc-all-features": 1,
                 },
             )
             products = [
                 product for step in payload["steps"] for product in step["products"]
             ]
-            self.assertEqual(len({product["name"] for product in products}), 6)
+            self.assertEqual(len({product["name"] for product in products}), 5)
             self.assertTrue(all(product["build_count"] == 1 for product in products))
             self.assertNotIn("cache_hit", payload)
             self.assertNotIn("cache", json.dumps(payload))
-            self.assertEqual(invocations[1][1], str(scratch / "cargo-target"))
             self.assertTrue(
                 all(toolchain == RUST_TOOLCHAIN for _, _, toolchain in invocations)
             )
-            for command, _, _ in invocations[:2]:
-                if command[:2] == (CARGO, "build"):
-                    self.assertIn("--release", command)
-                if command[0] == CARGO:
-                    self.assertEqual(
-                        command[command.index("--target-dir") + 1],
-                        str(scratch / "cargo-target"),
-                    )
-            self.assertNotIn("--release", invocations[2][0])
+            command = invocations[0][0]
+            self.assertIn("--release", command)
             self.assertEqual(
-                invocations[2][0][invocations[2][0].index("--target-dir") + 1],
+                command[command.index("--target-dir") + 1],
+                str(scratch / "cargo-target"),
+            )
+            self.assertNotIn("--release", invocations[1][0])
+            self.assertEqual(
+                invocations[1][0][invocations[1][0].index("--target-dir") + 1],
                 str(scratch / "rustdoc-target"),
             )
 

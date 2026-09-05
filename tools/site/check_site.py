@@ -530,12 +530,6 @@ def check_source(
                 )
 
     provider_consumers = {
-        site / "src/content/docs/index.mdx": (
-            "@components/site/ExactSourceLink.astro",
-            "@components/site/ReleaseIdentity.astro",
-            "<ExactSourceLink",
-            "<ReleaseIdentity",
-        ),
         site / "src/content/docs/evidence/index.mdx": (
             "@components/site/ExactSourceLink.astro",
             "<ExactSourceLink",
@@ -644,7 +638,6 @@ def check_source(
             "check_site.py serve",
             "npm_config_offline",
             "CARGO_NET_OFFLINE",
-            "UV_OFFLINE",
             "EQIORA_SITE_CARGO_VERSION",
             "EQIORA_SITE_PYTHON_VERSION",
             "tools.site.tests.test_site_tools",
@@ -805,6 +798,8 @@ def serve(artifact: Path, host: str, port: int) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
+    source = subparsers.add_parser("source")
+    source.add_argument("--root", type=Path, required=True)
     check = subparsers.add_parser("check")
     check.add_argument("--root", type=Path, required=True)
     check.add_argument("--artifact", type=Path, required=True)
@@ -826,6 +821,13 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.command == "source":
+        errors = check_source(args.root.resolve())
+        if errors:
+            print("\n".join(f"site source: {error}" for error in errors), file=sys.stderr)
+            return 1
+        print("site source: checks passed (build and browser checks run separately)")
+        return 0
     if args.command == "serve":
         try:
             return serve(args.artifact, args.host, args.port)
