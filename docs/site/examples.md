@@ -138,11 +138,8 @@ The repository's verified cases include bounded paths for:
 - Python modeling, arrays, differentiation, and framework adapters.
 
 Choose a verified case from the [verification guide](evidence/index.md) for its
-supported inputs and acceptance results. For the Poisson and package workflows
-shown above, see
-[`numerics.compiled-cartesian-poisson-q1-2d`](https://github.com/nkiyohara/eqiora/blob/main/verify/numerics/compiled-cartesian-poisson-q1-2d/README.md)
-and
-[`packages.typed-execution-lineage`](https://github.com/nkiyohara/eqiora/blob/main/verify/packages/typed-execution-lineage/README.md).
+supported inputs and acceptance results. For the Poisson workflow shown above, see
+[`numerics.compiled-cartesian-poisson-q1-2d`](https://github.com/nkiyohara/eqiora/blob/main/verify/numerics/compiled-cartesian-poisson-q1-2d/README.md).
 
 ## Close a new capability
 

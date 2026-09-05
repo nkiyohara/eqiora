@@ -19,22 +19,12 @@ import eqiora
 
 
 ROOT = Path(__file__).resolve().parents[3]
-EXPECTED_TYPED = (
-    ROOT
-    / "verify/packages/typed-execution-lineage/expected"
-)
 SECONDARY = (
     ROOT
     / "verify/interfaces/python-offline-model-package/models/typed-execution-lineage"
 )
 HOME_SCRATCH = Path.home() / ".cache/eqiora/oracle-tests"
 
-TYPED_MODEL_ID = "09MDETDHJVSEN2N9F76N6TM5N4"
-TYPED_SOURCE_DIGEST = "2cc42bb0b474c4aafc5e4cd8ceb297e2d1785898c419bedced422f6b6469987d"
-TYPED_RESOLUTION_DIGEST = (
-    "b7c44d3ab011ac8f0819b1c519c0da1e31db1b5cb69b42c590e118eeb90a6945"
-)
-TYPED_MODEL_DIGEST = "14dcde8f8b11ba8c919411ac17c6356732b9a9d88846b2024d765bd536ff6287"
 CURRENT_COMPILER_VERSION = "0.1.0-alpha.7"
 CURRENT_SEMANTIC_CANONICALIZATION_VERSION = 2
 CONFORMANCE = ROOT / "verify/interfaces/python-package-conformance"
@@ -183,7 +173,6 @@ def source_bundle_digest(source: object) -> str:
 
 
 SECONDARY_RESOLUTION = canonical_fixture(SECONDARY / "resolution.json")
-EXPECTED_TYPED_MODEL = canonical_fixture(EXPECTED_TYPED / "model.json")
 FALSE_CLAIM_RESOLUTION = canonical_fixture(FALSE_CLAIM_RESOLUTION_FILE)
 
 
