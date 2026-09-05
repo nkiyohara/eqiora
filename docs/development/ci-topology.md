@@ -166,6 +166,12 @@ after TestPyPI acceptance.
   Python API documentation is parsed from shipped type stubs without importing the
   package. Wheel construction and installed-package checks belong to the Python
   version matrix and release workflow, not to the documentation build.
+- Main Pages runs queue instead of cancelling an in-progress publication. After the
+  preceding run finishes, the next run compares its complete site input closure with
+  the latest successfully deployed main commit. Unchanged inputs skip both build and
+  deployment. Missing, failed, or unauthenticated publication state falls back to a
+  full build; comparison never uses only the immediately preceding push. Manual
+  dispatch remains a full build.
 - Host-CPU case manifests disconnected from mandatory CI are marked
   `implemented`, and their capability-matrix verification is absent while the
   evidence suite is being reduced. Existing cases remain explicitly runnable

@@ -14,7 +14,7 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any, Iterable
@@ -607,6 +607,11 @@ def main() -> int:
 
     try:
         target_sha = exact_head(arguments.requested_commit)
+        main_pages = (
+            arguments.event == "push"
+            and arguments.workflow == "pages.yml"
+            and os.environ.get("GITHUB_REF") == "refs/heads/main"
+        )
         full = arguments.event != "pull_request"
         if full:
             paths: list[str] = []
@@ -629,7 +634,7 @@ def main() -> int:
             base_authority=site_source_sha,
             unsafe_mode=unsafe_mode if not full else False,
         )
-        if not full and arguments.previous and arguments.reuse_attestation:
+        if (not full or main_pages) and arguments.previous and arguments.reuse_attestation:
             attestation_path = Path(arguments.reuse_attestation)
             if not attestation_path.is_absolute() or attestation_path.is_symlink():
                 raise ValueError(
@@ -638,6 +643,10 @@ def main() -> int:
             attestation = json.loads(attestation_path.read_text(encoding="utf-8"))
             if not isinstance(attestation, dict):
                 raise ValueError("reuse attestation is not an object")
+            if main_pages and (
+                attestation.get("event") != "push" or attestation.get("pull_request") != 0
+            ):
+                raise ValueError("main Pages requires a successful deployment attestation")
             plan = apply_previous_run_reuse(
                 plan,
                 previous_sha=arguments.previous,
@@ -645,6 +654,10 @@ def main() -> int:
                 workflow=arguments.workflow,
                 attestation=attestation,
             )
+            if main_pages and not plan.lane("site").selected:
+                full = False
+                unsafe_mode = False
+                plan = replace(plan, full=False)
         selected = plan.selections()
         if not full:
             if selected["site"]:
