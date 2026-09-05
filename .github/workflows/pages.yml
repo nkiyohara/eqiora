@@ -12,7 +12,7 @@ permissions:
   pull-requests: read
 concurrency:
   group: pages-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event.action != 'edited' }}
 jobs:
   build:
     name: Build and verify static documentation
@@ -34,7 +34,7 @@ jobs:
       - name: Authenticate successful documentation work on the previous PR head
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          SITE_PREVIOUS_SHA: ${{ github.event.before }}
+          SITE_PREVIOUS_SHA: ${{ github.event.action == 'edited' && github.event.pull_request.head.sha || github.event.before }}
           SITE_PULL_REQUEST: ${{ github.event.pull_request.number }}
           SITE_REPOSITORY: ${{ github.repository }}
         run: |

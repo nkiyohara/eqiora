@@ -41,7 +41,11 @@ Draft therefore verifies its exact head immediately, while changing that same
 head from Draft to Ready reuses the existing required contexts instead of
 starting and cancelling an identical full run. A pushed head still starts a
 new run, and the per-pull-request concurrency groups cancel only its stale
-predecessor. This relies on GitHub's provider-owned event contract delivering
+predecessor. Pages edits queue behind the running job instead of cancelling it.
+Once queued work starts, the existing authenticator may reuse a successful full
+run on the same head, but only when the complete site input snapshot is unchanged.
+Missing or ambiguous prior success still requires a full build; base-owned trust
+checks continue to run on edits. This relies on GitHub's provider-owned event contract delivering
 those activities for Draft pull requests and retaining commit-bound check runs
 across a readiness-only transition. Repository tests pin the workflow side of
 that boundary; live Actions observation owns the provider side.

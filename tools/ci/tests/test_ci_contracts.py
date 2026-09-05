@@ -97,6 +97,29 @@ class HostedTriggerTests(unittest.TestCase):
             "  cancel-in-progress: true\n",
         )
 
+    def test_pages_edits_queue_and_authenticate_the_same_head(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/pages.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assert_exact_pull_request_actions(
+            workflow, "pull_request", (*self.EXPECTED_PULL_REQUEST_ACTIONS, "edited")
+        )
+        concurrency = workflow.split("concurrency:\n", maxsplit=1)[1].split(
+            "\njobs:", maxsplit=1
+        )[0]
+        self.assertEqual(
+            concurrency,
+            "  group: pages-${{ github.workflow }}-${{ github.ref }}\n"
+            "  cancel-in-progress: ${{ github.event.action != 'edited' }}",
+        )
+        self.assertIn(
+            "SITE_PREVIOUS_SHA: ${{ github.event.action == 'edited' && "
+            "github.event.pull_request.head.sha || github.event.before }}",
+            workflow,
+        )
+        self.assertIn('--previous-sha "$SITE_PREVIOUS_SHA"', workflow)
+        self.assertIn('EQIORA_REUSE_ATTESTATION=%s', workflow)
+
     def test_change_ownership_stages_pinned_mise_without_reading_config(
         self,
     ) -> None:
@@ -1425,6 +1448,28 @@ class ChangeClassificationTests(unittest.TestCase):
                 )
             self.assertTrue(not_reused.lane("rust").selected)
             self.assertEqual(not_reused.lane("rust").reason, "changed input closure")
+
+    def test_same_head_pages_reuse_requires_a_successful_full_build(self) -> None:
+        head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        plan = impact_plan(["docs/site/src/styles/site/layout.css"])
+        for full_build in (True, False):
+            with self.subTest(full_build=full_build), mock.patch(
+                "classify_changes.snapshot_changed_paths", wraps=snapshot_changed_paths
+            ) as compare:
+                reused = apply_previous_run_reuse(
+                    plan,
+                    previous_sha=head,
+                    current_sha=head,
+                    workflow="pages.yml",
+                    attestation={
+                        "version": 1, "workflow": "pages.yml", "previous_sha": head,
+                        "run_id": 42,
+                        "run_url": "https://github.com/nkiyohara/eqiora/actions/runs/42",
+                        "lanes": {"site": full_build},
+                    },
+                )
+                compare.assert_called_once_with(head, head)
+                self.assertEqual(reused.lane("site").selected, not full_build)
 
     def test_snapshot_comparison_uses_exact_trees_not_a_merge_base(self) -> None:
         completed = mock.Mock(stdout=b"")
