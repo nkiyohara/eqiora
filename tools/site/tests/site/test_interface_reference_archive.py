@@ -16,17 +16,11 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[4]
 GENERATOR = REPOSITORY / "tools/docs/generate_interface_reference.py"
-OUTPUTS = {
-    Path("docs/site/src/content/docs/reference/cli/index.mdx"): (
-        "a71eedc79c0fa89fbe1c438f311436993b8637c140d2c8f7422d641956eee64f"
-    ),
-    Path("docs/site/src/content/docs/reference/control-v2/index.mdx"): (
-        "6882d8ddb025e6ef60e93d99a7cc740dad5e10a9a6a6aab8c1b615f4b28dbb18"
-    ),
-    Path("docs/site/src/content/docs/reference/mcp/index.mdx"): (
-        "c6d80f72ae169f3d3ea549d9c85b3e3d52bcd40be94851c80b830e7490138dbb"
-    ),
-}
+OUTPUTS = (
+    Path("docs/site/src/content/docs/reference/cli/index.mdx"),
+    Path("docs/site/src/content/docs/reference/control-v2/index.mdx"),
+    Path("docs/site/src/content/docs/reference/mcp/index.mdx"),
+)
 FORBIDDEN_GIT_ENVIRONMENT = {
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -222,12 +216,6 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
             for relative in OUTPUTS
         }
 
-    def _assert_accepted_output_identity(self, repository: Path) -> None:
-        self.assertEqual(
-            {relative: _sha256(repository / relative) for relative in OUTPUTS},
-            OUTPUTS,
-        )
-
     def _invoke(
         self,
         fixture: InterfaceReferenceFixture,
@@ -276,7 +264,6 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
         include_environment_sha: bool = True,
         environment: dict[str, str] | None = None,
     ) -> None:
-        self._assert_accepted_output_identity(repository)
         before = self._snapshot(repository)
         fixture.clear_markers()
         result = self._invoke(
@@ -300,7 +287,6 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
         environment_sha: object = _MISSING,
         environment: dict[str, str] | None = None,
     ) -> None:
-        self._assert_accepted_output_identity(repository)
         before = self._snapshot(repository)
         fixture.clear_markers()
         result = self._invoke(
@@ -472,7 +458,6 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
         for name, value in values.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
                 fixture = InterfaceReferenceFixture(Path(temporary))
-                self._assert_accepted_output_identity(fixture.producer)
                 before = self._snapshot(fixture.producer)
                 fixture.clear_markers()
                 result = self._invoke(

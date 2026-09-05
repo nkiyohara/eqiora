@@ -20,7 +20,7 @@ mise run affected -- --case language.natural-equation-authoring
 ```
 
 The finite oracle contains exactly 38 distinct raw sources and 5,313 raw UTF-8
-bytes, exactly 36 ordered one-field mutants, and at most 262 charged public
+bytes, exactly 35 ordered one-field mutants, and at most 262 charged public
 operations. It caps formatter comparisons at 8 KiB aggregate and 1 KiB per
 document, diagnostics at two per source and 40 aggregate, private expected
 records at 64, and the two direct canonical Model vectors at 256 KiB each.

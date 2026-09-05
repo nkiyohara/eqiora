@@ -1,6 +1,6 @@
 id = "geometry.model-references-a-geometry"
 status = "verified"
-scope = "graph-authored-current-model-geometry-reference-and-structural-fingerprint-v2"
+scope = "graph-authored-current-model-geometry-reference-and-structural-fingerprint-v3"
 reference_kind = "independent-topology-and-identity-falsifiers"
 
 capabilities = [
@@ -13,7 +13,7 @@ capabilities = [
 [problem]
 model = "two authored-geometry regions, one named boundary, one unrelated Cartesian Domain, and one global Relation"
 identity = "full geometry digest, region entity-set names, boundary entity-set name, and BoundaryOf topology"
-generation = "eqiora.structural-semantic-fingerprint/v2"
+generation = "eqiora.structural-semantic-fingerprint/v3"
 
 [claim_boundary]
 model_owner = "current"

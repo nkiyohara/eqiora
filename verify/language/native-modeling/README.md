@@ -2,7 +2,7 @@
 
 This case defines the scalar decay model twice: once as Eqiora source and once
 from client-neutral immutable Rust declarations. It compares their complete
-accepted graph through the shared generation-v2 structural semantic fingerprint
+accepted graph through the shared generation-v3 structural semantic fingerprint
 and compares the reference trajectories. Their fresh exact occurrence/artifact
 identities intentionally remain distinct.
 
