@@ -615,7 +615,6 @@ identities = [
   "cfg(feature = \"cad-truck\") | eqiora_cad_truck::* | package eqiora-cad-truck (path crates/eqiora-cad-truck)",
   "cfg(feature = \"diffsol\") | eqiora_backend_diffsol::* | package eqiora-backend-diffsol (path crates/eqiora-backend-diffsol)",
   "cfg(feature = \"faer\") | eqiora_backend_faer::* | package eqiora-backend-faer (path crates/eqiora-backend-faer)",
-  "cfg(feature = \"gmsh\") | eqiora_io_gmsh::* | package eqiora-io-gmsh (path crates/eqiora-io-gmsh)",
   "cfg(feature = \"hdf5\") | eqiora_io_hdf5::* | package eqiora-io-hdf5 (path crates/eqiora-io-hdf5)",
   "cfg(feature = \"mpi\") | eqiora_backend_mpi::* | package eqiora-backend-mpi (path crates/eqiora-backend-mpi)",
   "cfg(feature = \"mpi-cuda\") | eqiora_backend_mpi_cuda::* | package eqiora-backend-mpi-cuda (path crates/eqiora-backend-mpi-cuda)",

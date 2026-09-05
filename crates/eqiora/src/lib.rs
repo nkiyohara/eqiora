@@ -196,14 +196,11 @@ pub mod geometry {
     }
 }
 
-/// Optional external-format adapters. Imported data is always reconstructed
+/// External-format adapters. Imported data is always reconstructed
 /// through the backend-neutral contracts exposed by [`meshing`].
 pub mod io {
     /// Bounded ASCII and binary Gmsh MSH 4.1 simplex import.
-    #[cfg(feature = "gmsh")]
-    pub mod gmsh {
-        pub use eqiora_io_gmsh::*;
-    }
+    pub use eqiora_io_gmsh as gmsh;
 
     /// Pure, bounded XDMF 3 metadata planning and caller-owned array replay.
     #[cfg(feature = "xdmf")]

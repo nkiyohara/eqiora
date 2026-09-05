@@ -11,7 +11,7 @@ Realization.
 The four-triangle mesh has one free degree of freedom. Its independently
 derived P1 value is exactly `1 / 12`, and integrated source plus boundary
 reaction balance to roundoff. The end-to-end test imports through the public
-`eqiora::io::gmsh` facade with the `gmsh` feature and rejects every truncated
+`eqiora::io::gmsh` facade without an optional feature and rejects every truncated
 prefix of the official binary fixture. Unit evidence additionally covers
 sparse tags, multiple blocks, four- and eight-byte `size_t`, both endian
 orders, every truncated prefix of all four binary representations, exact and
@@ -32,6 +32,6 @@ Run:
 
 ```bash
 cargo test -p eqiora-io-gmsh
-cargo test -p eqiora --features gmsh --test gmsh_imported_simplicial_realization
+cargo test -p eqiora --test gmsh_imported_simplicial_realization
 cargo run -p eqiora-verify -- run --case artifacts.gmsh-imported-simplicial-realization
 ```

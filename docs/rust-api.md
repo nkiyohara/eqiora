@@ -72,12 +72,14 @@ paths and their independently registered evidence.
 ## Optional features
 
 The default feature is `package-filesystem`, which enables filesystem-backed
-model-package operations. Existing feature boundaries are retained:
+model-package operations. The bounded Gmsh MSH parser is always available through
+`eqiora::io::gmsh`, including with default features disabled: common-Mesh admission
+also uses it to validate stored provider output. It does not require the external
+Gmsh executable; automatic mesh generation does.
 
 | Feature | Purpose and boundary |
 | --- | --- |
 | `rayon`, `faer` | Optional threaded CPU and linear algebra integrations. |
-| `gmsh` | Gmsh-format facade exports; disabling this feature does not remove every transitive Gmsh-format dependency. Automatic Gmsh meshing also requires its external executable. |
 | `vtu`, `xdmf`, `hdf5` | Optional data-format operations; `hdf5` enables `xdmf` and the native HDF5 dependency. |
 | `cad-truck` | The bounded Rust-native CAD adapter. |
 | `diffsol` | Optional adaptive integration backend. |
