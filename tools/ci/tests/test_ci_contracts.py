@@ -567,7 +567,7 @@ jobs:
                     "needs.changes.outputs.rust == 'true' && "
                     "needs.changes.outputs.full == 'true'",
                 ),
-                "cargo +stable test --workspace --all-targets --all-features --locked",
+                "cargo +stable test --workspace --all-targets --all-features --locked --timings",
             ),
         )
 
