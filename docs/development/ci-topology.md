@@ -162,6 +162,10 @@ after TestPyPI acceptance.
   candidate. Installed-wheel product tests remain in the Python version matrix;
   the release-candidate workflow retains the complete artifact-family validation
   before publication. CI definition trust and release trust checks are unchanged.
+- Pages builds only the Rust executables and Rustdoc consumed by site generation.
+  Python API documentation is parsed from shipped type stubs without importing the
+  package. Wheel construction and installed-package checks belong to the Python
+  version matrix and release workflow, not to the documentation build.
 - Host-CPU case manifests disconnected from mandatory CI are marked
   `implemented`, and their capability-matrix verification is absent while the
   evidence suite is being reduced. Existing cases remain explicitly runnable

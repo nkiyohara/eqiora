@@ -19,12 +19,10 @@ REQUIRED_CONSUMERS = {
     "eqiora-cli": "interface-reference",
     "eqiora-mcp": "interface-reference",
     "eqiora-verify": "evidence-catalog",
-    "python-wheel": "installed-wheel-admission",
     "rust-reference": "site-assembly",
     "xtask": "facade-admission",
 }
 REQUIRED_DOMAINS = {
-    "python-wheel": "cargo-release/python-extension-features",
     "rust-executables": "cargo-release",
     "rust-reference": "cargo-doc/rustdoc-all-features",
 }
@@ -44,7 +42,6 @@ class BuildStep:
     command: tuple[str, ...]
     products: tuple[Product, ...]
     environment: tuple[tuple[str, str], ...] = ()
-    output_glob: str | None = None
 
 
 def plan(
@@ -52,7 +49,6 @@ def plan(
 ) -> tuple[BuildStep, ...]:
     target = scratch / "cargo-target"
     rustdoc_target = scratch / "rustdoc-target"
-    wheels = scratch / "wheels"
     rust_environment = (("RUSTUP_TOOLCHAIN", rust_toolchain),)
     return (
         BuildStep(
@@ -90,30 +86,6 @@ def plan(
                 Product("xtask", "facade-admission", str(target / "release/xtask")),
             ),
             environment=rust_environment,
-        ),
-        BuildStep(
-            name="python-wheel",
-            domain="cargo-release/python-extension-features",
-            command=(
-                "uv",
-                "build",
-                "--wheel",
-                "--clear",
-                "--python",
-                "3.13",
-                "--no-python-downloads",
-                "--cache-dir",
-                str(scratch / "uv-cache"),
-                "--out-dir",
-                str(wheels),
-                ".",
-            ),
-            products=(Product("python-wheel", "installed-wheel-admission", "*.whl"),),
-            environment=(
-                ("CARGO_TARGET_DIR", str(target)),
-                *rust_environment,
-            ),
-            output_glob=str(wheels / "*.whl"),
         ),
         BuildStep(
             name="rust-reference",
@@ -204,16 +176,6 @@ def validate(build_plan: Sequence[BuildStep]) -> None:
 
 
 def _admit_outputs(step: BuildStep) -> list[str]:
-    if step.output_glob is not None:
-        pattern = Path(step.output_glob)
-        if not pattern.is_absolute():
-            raise ValueError(f"output glob is not absolute: {step.output_glob}")
-        matches = sorted(pattern.parent.glob(pattern.name))
-        if len(matches) != len(step.products):
-            raise RuntimeError(
-                f"{step.name} produced {len(matches)} matching outputs; expected {len(step.products)}"
-            )
-        return [str(path) for path in matches]
     outputs = [Path(product.output) for product in step.products]
     missing = [str(path) for path in outputs if not path.is_file() or path.is_symlink()]
     if missing:
