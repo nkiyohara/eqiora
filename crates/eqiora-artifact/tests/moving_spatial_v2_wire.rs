@@ -30,9 +30,7 @@ use eqiora_solver::{
 };
 use ulid::Ulid;
 
-const MODEL: &[u8] = include_bytes!(
-    "../../../verify/fsi/fixed-reference-cuda-solve-2d/expected/current-model-bridge.json"
-);
+const MODEL: &[u8] = include_bytes!("fixtures/fixed-reference-model.json");
 
 #[test]
 fn moving_state_segment_and_prefix_root_round_trip_with_frozen_identities() {

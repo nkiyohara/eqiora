@@ -21,8 +21,7 @@ use eqiora_numerics::{
     scalar::solve_resolved_scalar_elliptic_cartesian,
 };
 
-pub const SOURCE: &str =
-    include_str!("../../../../verify/numerics/canonical-cartesian-poisson-cuda/models/poisson.eqi");
+pub const SOURCE: &str = include_str!("canonical_poisson.eqi");
 pub const CELLS_PER_AXIS: usize = 16;
 pub const CPU_CUDA_ABSOLUTE: f64 = 2.0e-12;
 pub const CPU_CUDA_RELATIVE: f64 = 2.0e-12;
