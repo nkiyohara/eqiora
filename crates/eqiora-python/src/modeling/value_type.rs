@@ -1,0 +1,152 @@
+use eqiora::{DimExponents, ScalarDomain, ValueFrame, ValueShape, ValueType};
+use pyo3::exceptions::{PyTypeError, PyValueError};
+use pyo3::prelude::*;
+use pyo3::types::{PyBool, PyInt, PyTuple};
+
+use super::PyDimension;
+
+fn extent(value: &Bound<'_, PyAny>) -> PyResult<u32> {
+    if !value.is_instance_of::<PyInt>() || value.is_instance_of::<PyBool>() {
+        return Err(PyTypeError::new_err("type extent must be an integer"));
+    }
+    value.extract()
+}
+
+/// Immutable mathematical type shared with native model admission.
+#[pyclass(
+    name = "ValueType",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    skip_from_py_object
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct PyValueType {
+    pub(super) value: ValueType,
+}
+
+impl PyValueType {
+    fn scalar(domain: ScalarDomain, dimension: Option<&PyDimension>) -> Self {
+        Self {
+            value: ValueType::scalar(
+                domain,
+                dimension.map_or(DimExponents::DIMENSIONLESS, |dimension| dimension.value),
+            ),
+        }
+    }
+
+    fn spatial(scalar: &Self, extents: Vec<u32>) -> PyResult<Self> {
+        if !scalar.value.shape().is_scalar() {
+            return Err(PyValueError::new_err(
+                "spatial components require a scalar type",
+            ));
+        }
+        let shape =
+            ValueShape::new(extents).map_err(|error| PyValueError::new_err(error.to_string()))?;
+        let value = ValueType::shaped(
+            scalar.value.scalar_domain(),
+            scalar.value.dimension(),
+            shape,
+            ValueFrame::SpatialCartesian,
+        )
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        Ok(Self { value })
+    }
+}
+
+#[pymethods]
+impl PyValueType {
+    #[staticmethod]
+    #[pyo3(signature = (dimension=None))]
+    fn real(dimension: Option<&PyDimension>) -> Self {
+        Self::scalar(ScalarDomain::Real, dimension)
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (dimension=None))]
+    fn complex(dimension: Option<&PyDimension>) -> Self {
+        Self::scalar(ScalarDomain::Complex, dimension)
+    }
+
+    #[staticmethod]
+    fn vector(scalar: &Self, #[pyo3(from_py_with = extent)] extent: u32) -> PyResult<Self> {
+        Self::spatial(scalar, vec![extent])
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (scalar, *extents))]
+    fn tensor(scalar: &Self, extents: &Bound<'_, PyTuple>) -> PyResult<Self> {
+        if extents.len() < 2 {
+            return Err(PyValueError::new_err(
+                "tensor requires at least two spatial axes",
+            ));
+        }
+        Self::spatial(
+            scalar,
+            extents
+                .iter()
+                .map(|value| extent(&value))
+                .collect::<PyResult<_>>()?,
+        )
+    }
+
+    #[staticmethod]
+    fn array(element: &Self, #[pyo3(from_py_with = extent)] extent: u32) -> PyResult<Self> {
+        let value = element
+            .value
+            .clone()
+            .array(extent)
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        Ok(Self { value })
+    }
+
+    #[getter]
+    fn scalar_domain(&self) -> &'static str {
+        match self.value.scalar_domain() {
+            ScalarDomain::Real => "real",
+            ScalarDomain::Complex => "complex",
+        }
+    }
+
+    #[getter]
+    fn dimension(&self) -> PyDimension {
+        PyDimension {
+            value: self.value.dimension(),
+        }
+    }
+
+    #[getter]
+    fn shape(&self) -> Vec<u32> {
+        self.value
+            .shape()
+            .extents()
+            .iter()
+            .map(|extent| extent.get())
+            .collect()
+    }
+
+    #[getter]
+    fn array_rank(&self) -> usize {
+        self.value.array_rank()
+    }
+
+    #[getter]
+    fn frame(&self) -> &'static str {
+        match self.value.frame() {
+            ValueFrame::Invariant => "invariant",
+            ValueFrame::SpatialCartesian => "spatial_cartesian",
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "ValueType(domain={:?}, dimension={:?}, shape={:?}, array_rank={}, frame={:?})",
+            self.scalar_domain(),
+            self.value.dimension().exponents(),
+            self.shape(),
+            self.array_rank(),
+            self.frame()
+        )
+    }
+}

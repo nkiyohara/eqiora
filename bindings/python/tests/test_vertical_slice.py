@@ -306,6 +306,7 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
         "potential",
         domain=interval,
         representation=space,
+        initial=0.0,
     )
     source_scale = eqiora.Parameter(
         "source_scale",
@@ -381,7 +382,7 @@ def test_native_declarations_fail_closed_without_python_semantics() -> None:
 def test_native_declarations_are_frozen_and_keep_typed_compiler_diagnostics() -> None:
     temperature = eqiora.Field(
         "temperature",
-        dimension=eqiora.Dimension(temperature=1),
+        value_type=eqiora.ValueType.real(eqiora.Dimension(temperature=1)),
         initial=293.0,
     )
     duration = eqiora.Parameter(

@@ -22,6 +22,28 @@ flow = eqiora.Relation(
 model = eqiora.Model.define("decay", x, rate, flow)
 ```
 
+`Field.value_type` holds its mathematical scalar domain, physical dimension and
+component roles. Omitted types are dimensionless real scalars; omitted initial
+values remain absent. Supply an initial value explicitly when one is required.
+
+```python
+voltage = eqiora.ValueType.complex(eqiora.Dimension(mass=1, length=2, time=-3, current=-1))
+body = eqiora.Domain.box("body", (0.0, 1.0), (0.0, 1.0))
+space = eqiora.Representation.continuum("space")
+channels = eqiora.Field(
+    "channels",
+    domain=body,
+    representation=space,
+    value_type=eqiora.ValueType.array(eqiora.ValueType.vector(voltage, 2), 3),
+)
+```
+
+`ValueType.real(dimension)` and `ValueType.complex(dimension)` construct scalars.
+`vector(scalar, extent)` and `tensor(scalar, *extents)` introduce spatial axes;
+`array(element, extent)` adds a channel axis without changing the element's frame.
+Spatial extents must match the Field's exact Domain. Complex execution is still
+under development.
+
 A relation receives an explicit zero-valued residual. Symbolic equality and
 Python truth testing are not modeling syntax. Declarations and expressions
 are frozen; validation and artifact creation happen atomically in Rust.
