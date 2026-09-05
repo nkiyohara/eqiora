@@ -81,6 +81,7 @@ constructs, not arbitrary attributes.
 | `connector` | No value type or support/activation clauses | Named typed member roles |
 | `operator` | Parenthesized input signature, `: result-type` | `= expression;` |
 | `property contract` | Parenthesized input signature, `: result-type` | Closed contract children |
+| `property release` | `: qualified-contract` | Closed definition, validity, provenance, and license children |
 | `relation` | Optional `on`, then optional `at` | Braced simultaneous equalities |
 | Conservation `law` | Required `on support` | `storage`, `flux`, `source` children |
 | Stochastic `law` | `for state` | `calculus`, `drift`, `diffusion` children |
@@ -92,6 +93,7 @@ and clock requirements are named bindings; `on` or `at` does not override a comp
 Omitting an instance argument list is not another canonical spelling: use `Ground()`.
 
 A property requirement binds a release, not the scalar obtained by evaluating that release.
+The [property declaration rules](properties.md) define its contract and release children.
 The contract owns the independent-variable signature and result type; each call supplies its
 named inputs. State-dependent input does not make a pure property call mutable. Support and
 activation come from the typed call arguments, subject to the contract; the release cannot

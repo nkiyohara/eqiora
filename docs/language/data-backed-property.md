@@ -114,8 +114,8 @@ The property release binds the artifact's actual content identity through the ex
 owner, along with interpolation, validity, branch, derivative, and preprocessing meaning.
 Large tables remain outside `.eqi`. Source refers to the release by its exact package declaration;
 a mutable filename, network location, or provider default is not the accepted binding.
-The final release-declaration spelling belongs with the specialized grammar in #855; this page
-fixes the consumer and the mathematical binding without inventing another table file format.
+The [release declaration](properties.md) spells these choices with closed typed children and
+an exact package asset reference, without inventing another table file format.
 
 ## Independent values and slopes
 
