@@ -508,35 +508,6 @@ export async function seriousAxeViolations(page: Page) {
   return result.violations;
 }
 
-function normalizeAxeViolations(
-  violations: readonly Readonly<{
-    id: string;
-    impact: string | null;
-    nodes: readonly Readonly<{ target: unknown }>[];
-  }>[],
-) {
-  return violations
-    .map((violation) => ({
-      id: violation.id,
-      impact: violation.impact,
-      targets: violation.nodes.map(({ target }) => JSON.stringify(target)).sort(),
-    }))
-    .sort((left, right) => left.id.localeCompare(right.id));
-}
-
-export async function assertSeriousAxeProjectionEquivalent(page: Page): Promise<void> {
-  const unrestrictedResult = await measureSitePhase(
-    'axeAnalysis',
-    () => new AxeBuilder({ page }).analyze(),
-    axeInternals._audit.rules.filter(({ enabled }) => enabled).length,
-  );
-  const unrestricted = unrestrictedResult.violations.filter(
-    (violation) => violation.impact === 'serious' || violation.impact === 'critical',
-  );
-  const projected = await seriousAxeViolations(page);
-  expect(normalizeAxeViolations(projected)).toEqual(normalizeAxeViolations(unrestricted));
-}
-
 export async function conditionDependentAxeViolations(
   page: Page,
   projection: ConditionAxeProjection = 'forced-color',
@@ -557,33 +528,8 @@ export async function conditionDependentAxeViolations(
   return result.violations;
 }
 
-export async function assertConditionDependentAxeProjectionEquivalent(
-  page: Page,
-): Promise<void> {
-  const projected = await seriousAxeViolations(page);
-  const conditional = await conditionDependentAxeViolations(page);
-  expect(normalizeAxeViolations(conditional)).toEqual(normalizeAxeViolations(projected));
-}
-
 export async function assertNoSeriousAxeViolations(page: Page): Promise<void> {
   expect(await seriousAxeViolations(page)).toEqual([]);
-}
-
-export async function assertTextContrast(locator: Locator, minimum = 4.5): Promise<void> {
-  const ratio = await locator.evaluate((element) => {
-    const parse = (value: string) =>
-      (value.match(/[\d.]+/g) ?? []).slice(0, 3).map((channel) => Number.parseFloat(channel) / 255);
-    const luminance = (channels: number[]) =>
-      channels.reduce((total, channel, index) => {
-        const linear = channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-        return total + linear * [0.2126, 0.7152, 0.0722][index];
-      }, 0);
-    const style = getComputedStyle(element);
-    const foreground = luminance(parse(style.color));
-    const background = luminance(parse(style.backgroundColor));
-    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
-  });
-  expect(ratio).toBeGreaterThanOrEqual(minimum);
 }
 
 export async function assertNoPageOverflow(page: Page): Promise<void> {
@@ -1434,45 +1380,6 @@ export async function assertParentForcedTableBoundary(
   expect(violations[0].impact).toBe('serious');
   expect(violations[0].nodes).toHaveLength(1);
   expect(violations[0].nodes[0].target).toEqual([target]);
-}
-
-export async function assertTableFixtureGreen(page: Page): Promise<void> {
-  const observation = await observeTables(page);
-  expect(observation.counts).toEqual({ main: 2, all: 2, generic: 2, direct: 1, component: 1 });
-  assertTableContentAndSemantics(observation);
-  expect(observation.failures.localOverflow).toBe(0);
-  expect(await seriousAxeViolations(page)).toEqual([]);
-}
-
-const ZERO_TABLE_FAILURES: TableObservation['failures'] = {
-  tag: 0,
-  relation: 0,
-  wrapper: 0,
-  role: 0,
-  focus: 0,
-  handler: 0,
-  rows: 0,
-  headers: 0,
-  cells: 0,
-  links: 0,
-  text: 0,
-  selection: 0,
-  size: 0,
-  bounds: 0,
-  overlap: 0,
-  concealment: 0,
-  localOverflow: 0,
-  parentLocalOverflow: 0,
-};
-
-export async function assertTableFixtureOnlyFailure(
-  page: Page,
-  failure: keyof TableObservation['failures'],
-): Promise<void> {
-  const observation = await observeTables(page);
-  expect(observation.counts).toEqual({ main: 2, all: 2, generic: 2, direct: 1, component: 1 });
-  expect(observation.failures).toEqual({ ...ZERO_TABLE_FAILURES, [failure]: 1 });
-  expect(await seriousAxeViolations(page)).toEqual([]);
 }
 
 type CssRule = { selectors: string[]; declarations: ReadonlyMap<string, string> };
