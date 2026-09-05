@@ -6,7 +6,9 @@ use eqiora_core::{
     Diagnostic, DimExponents, DynQuantity, EntityKind, GraphPath, Id, RawId, ValueShape,
 };
 
-use super::{BoundaryPhysicalConnector, ExprDag, RationalTime, ValueFrame};
+use super::{
+    BoundaryPhysicalConnector, ExprDag, RationalTime, ScalarDomain, ValueFrame, ValueType,
+};
 
 mod spatial;
 
@@ -69,9 +71,7 @@ impl RepresentationDef {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldDef {
     id: Id<kinds::Field>,
-    dimension: DimExponents,
-    shape: ValueShape,
-    frame: ValueFrame,
+    value_type: ValueType,
     initial: Option<DynQuantity>,
 }
 
@@ -81,9 +81,7 @@ impl FieldDef {
     pub fn new(id: Id<kinds::Field>, dimension: DimExponents) -> Self {
         Self {
             id,
-            dimension,
-            shape: ValueShape::scalar(),
-            frame: ValueFrame::Invariant,
+            value_type: ValueType::scalar(ScalarDomain::Real, dimension),
             initial: None,
         }
     }
@@ -100,20 +98,14 @@ impl FieldDef {
         shape: ValueShape,
         frame: ValueFrame,
     ) -> Result<Self, Diagnostic> {
-        if shape.component_count().is_none()
-            || (shape.is_scalar() && frame != ValueFrame::Invariant)
-        {
-            return Err(Diagnostic::error(
-                codes::INVALID_KERNEL_DEFINITION,
-                "Field shape/frame contract is not representable",
-            )
-            .with_graph_path(kernel_path(id.erase())));
-        }
+        let value_type =
+            ValueType::shaped(ScalarDomain::Real, dimension, shape, frame).map_err(|error| {
+                Diagnostic::error(codes::INVALID_KERNEL_DEFINITION, error.to_string())
+                    .with_graph_path(kernel_path(id.erase()))
+            })?;
         Ok(Self {
             id,
-            dimension,
-            shape,
-            frame,
+            value_type,
             initial: None,
         })
     }
@@ -123,20 +115,20 @@ impl FieldDef {
     /// # Errors
     /// Returns `EQ0401` when the value dimension differs from the Field.
     pub fn with_initial(mut self, initial: DynQuantity) -> Result<Self, Diagnostic> {
-        if !self.shape.is_scalar() || self.frame != ValueFrame::Invariant {
+        if !self.shape().is_scalar() || self.frame() != ValueFrame::Invariant {
             return Err(Diagnostic::error(
                 codes::INVALID_KERNEL_DEFINITION,
                 "non-scalar Field initialization requires a future shaped-value contract",
             )
             .with_graph_path(kernel_path(self.id.erase())));
         }
-        if initial.dim() != self.dimension {
+        if initial.dim() != self.dimension() {
             return Err(Diagnostic::error(
                 codes::DIMENSION_MISMATCH,
                 format!(
                     "Field initial dimension [{}] differs from declared [{}]",
                     initial.dim(),
-                    self.dimension
+                    self.dimension()
                 ),
             )
             .with_graph_path(kernel_path(self.id.erase())));
@@ -154,19 +146,25 @@ impl FieldDef {
     /// Declared physical dimension.
     #[must_use]
     pub const fn dimension(&self) -> DimExponents {
-        self.dimension
+        self.value_type.dimension()
     }
 
     /// Exact mathematical value shape.
     #[must_use]
     pub const fn shape(&self) -> &ValueShape {
-        &self.shape
+        self.value_type.shape()
     }
 
     /// Coordinate-frame meaning of Field components.
     #[must_use]
     pub const fn frame(&self) -> ValueFrame {
-        self.frame
+        self.value_type.frame()
+    }
+
+    /// Complete mathematical type, independent of support and execution choices.
+    #[must_use]
+    pub const fn value_type(&self) -> &ValueType {
+        &self.value_type
     }
 
     /// Initial value when supplied by the model.
