@@ -533,6 +533,12 @@ jobs:
             self.assertEqual(workflow.count(setting), 2)
         self.assertNotIn("CARGO_PROFILE_TEST_", studio)
         self.assertNotIn("fast-math", workflow.lower())
+        self.assertIn("--locked --timings", full_feature_tests)
+        timings = quality.split("- name: Retain Cargo build timings\n", maxsplit=1)[1]
+        self.assertIn("if: needs.changes.outputs.rust == 'true'", timings)
+        self.assertIn("path: target/cargo-timings/*.html", timings)
+        self.assertIn("if-no-files-found: error", timings)
+        self.assertIn("retention-days: 7", timings)
 
     def test_quality_workspace_tests_use_step_scoped_runner_temp(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(

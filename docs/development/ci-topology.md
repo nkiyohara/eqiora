@@ -184,6 +184,9 @@ does not establish optional native-backend or scientific claims.
 - Fork pull requests receive no release environment or package credential.
 - Dependency caches are added only after measured benefit and key-isolation
   review.
+- The quality job retains Cargo's HTML build-timing reports for seven days,
+  including per-crate compilation and scheduling. Use reports from the same
+  hosted profile to investigate build cost before changing optimization or caches.
 - The hosted quality job owns formatting, linting, workspace tests, dependency
   layers, the public facade, and rustdoc. Ordinary CI does not separately rerun
   the complete registered Cargo suite or build the complete Python distribution

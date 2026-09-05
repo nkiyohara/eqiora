@@ -93,7 +93,7 @@ def cargo_command(check: str, selectors: Sequence[str]) -> list[str]:
             "-D",
             "warnings",
         ],
-        "test": [*cli_feature_args(packages), "--all-targets"],
+        "test": ["--timings", *cli_feature_args(packages), "--all-targets"],
         "doc": ["--no-deps"],
     }
     return ["cargo", "+stable", check, "--locked", *selectors, *options[check]]
