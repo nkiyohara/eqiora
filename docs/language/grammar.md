@@ -25,7 +25,8 @@ instance = "instance" identifier [annotation] ":" qualified-name "("
            [named-argument {"," named-argument}] ")" ";"
 named-argument = identifier "=" expression-or-exact-reference
 initial = "initial" "{" {equation} "}"
-relation = "relation" identifier [annotation] ["on" qualified-name]
+boundary-family = "[" identifier "in" qualified-name "]"
+relation = "relation" identifier [annotation] [boundary-family] ["on" qualified-name]
            ["at" qualified-name] "{" {equation} "}"
 equation = expression "=" expression ";"
 connection = "connect" qualified-name "->" qualified-name ";"
@@ -38,6 +39,10 @@ The operator signature contains only admitted pure input/static requirements. Co
 signatures admit the roles in the core table. A reference argument retains its typed role;
 the broad grammar above does not convert a support, clock, property, or state into a numeric
 expression. No repeated argument-category words or positional instance bindings are admitted.
+
+A Relation's boundary-family binder is restricted to a Component's complete-exterior
+requirement. It follows notation and precedes `on`; `on` must name the bound member.
+The [core family rules](core.md#boundary-relation-families) define its scope and expansion.
 
 Imports precede declarations. Library files may contain declarations without a Model; an
 execution entry selects a Model explicitly. Top-level declaration order does not control
