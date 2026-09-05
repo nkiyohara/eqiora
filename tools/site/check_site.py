@@ -798,6 +798,8 @@ def serve(artifact: Path, host: str, port: int) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
+    source = subparsers.add_parser("source")
+    source.add_argument("--root", type=Path, required=True)
     check = subparsers.add_parser("check")
     check.add_argument("--root", type=Path, required=True)
     check.add_argument("--artifact", type=Path, required=True)
@@ -819,6 +821,13 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.command == "source":
+        errors = check_source(args.root.resolve())
+        if errors:
+            print("\n".join(f"site source: {error}" for error in errors), file=sys.stderr)
+            return 1
+        print("site source: checks passed (build and browser checks run separately)")
+        return 0
     if args.command == "serve":
         try:
             return serve(args.artifact, args.host, args.port)

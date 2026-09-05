@@ -79,9 +79,13 @@ hosted pull-request CI or a `fast`/`affected` run, and states that deferral as a
 It never substitutes for the tier a high-risk delta or release requires.
 
 `fast` selects formatting, direct changed-package tests and Clippy, explicitly named
-cases, and relevant lightweight documentation, dependency, or CI-contract checks. It is
+cases, and relevant lightweight documentation, site-source, dependency, or CI-contract checks. It is
 the broad fallback for an ordinary localized edit, not a mandatory first step when a narrower
 owned command exists.
+
+Site changes select `python3 tools/site/check_site.py source --root .` in `fast`,
+`affected`, and `periodic`. This reuses the source checks without building the site;
+rendered output and browser checks remain in hosted Pages CI.
 
 `affected` adds conservative Cargo reverse dependencies, Rustdoc, affected clients, registered
 case inventory, and selected Python, Studio, dependency-policy, or isolated-experiment checks.

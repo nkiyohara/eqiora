@@ -685,6 +685,19 @@ def build_plan(
                 "Environment-dependent hardware and multi-node evidence is not implied unless explicitly run and recorded.",
             )
 
+    if tier != "pr" and surfaces["site"]:
+        commands.append(
+            command(
+                "Site source",
+                sys.executable,
+                "tools/site/check_site.py",
+                "source",
+                "--root",
+                ".",
+            )
+        )
+        limitations = (*limitations, "Site build and browser checks run in hosted Pages CI.")
+
     if tier in ("affected", "periodic") and surfaces["studio"] and not chrome_available:
         limitations = (
             *limitations,
