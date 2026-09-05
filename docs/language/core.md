@@ -87,7 +87,7 @@ constructs, not arbitrary attributes.
 | `operator` | Parenthesized input signature, `: result-type` | `= expression;` |
 | `property contract` | Parenthesized input signature, `: result-type` | Closed contract children |
 | `property release` | `: qualified-contract` | Closed definition, validity, provenance, and license children |
-| `relation` | Optional `on`, then optional `at` | Braced simultaneous equalities |
+| `relation` | Optional boundary-family binder, optional `on`, then optional `at` | Braced simultaneous equalities |
 | Conservation `law` | Required `on support` | `storage`, `flux`, `source` children |
 | Stochastic `law` | `for state` | `calculus`, `drift`, `diffusion` children |
 | `form` | `for` exact Law or Relation | Typed tests, relations, or selected reduction children |
@@ -104,7 +104,8 @@ named inputs. State-dependent input does not make a pure property call mutable. 
 activation come from the typed call arguments, subject to the contract; the release cannot
 perform sampling, history updates, or support conversion implicitly.
 
-`relation name [on support] [at activation] { ... }` contains simultaneous equations.
+`relation name [family] [on support] [at activation] { ... }` contains simultaneous equations.
+The optional family uses the restricted boundary binder defined below.
 `law name on support { ... }` contains one physical `flux`, one `source`, and optional
 `storage` expression, each terminated by a semicolon. Omitting storage means a steady balance,
 not inferred zero initial energy. Its fixed-domain convention is
@@ -164,6 +165,47 @@ and outputs exist at ticks, not as implicit continuous held signals.
 The target has no source `field`, `field slot`, `as continuum`, postfix `shape`, explicit
 `continuous`, or initialized unknown declaration. Kernel Fields and continuum semantics retain
 their existing owners.
+
+## Boundary Relation families
+
+Inside a Component, `[member in exterior]` expands a Relation once per exact member of
+that Component's `complete_exterior` support requirement. This retains the existing
+[complete-exterior owner](../../rfcs/0041-complete-exterior-port-families.md) with the
+converged header; it is not an array index or a runtime loop.
+
+For example, this component applies the same prescribed temperature to every supplied
+exterior member:
+
+```eqiora
+component PrescribedExteriorTemperature(
+  support body: volume(ambient_dimension = 3),
+  support exterior: complete_exterior(parent = body),
+  variable temperature: K on body,
+  parameter value: K
+) {
+  relation prescribed[face in exterior] on face {
+    trace(temperature) = value;
+  }
+}
+```
+
+The signature borrows the temperature occurrence; the component adds boundary equations,
+not another temperature unknown or an initialization rule. The caller supplies the exact
+complete exterior. Missing, duplicate, or foreign-parent members reject before expansion;
+neither mesh facets nor coordinate proximity select members. Member order is non-semantic.
+
+The binder follows optional notation and precedes `on`. It is visible only in that Relation's
+support clause and body, cannot shadow an existing declaration, and must be the Relation's
+`on` support. Nested binders, arithmetic on members, subset selection, and families over a
+parameter or singular boundary reject. The ordinary activation rules still apply: omitting
+`at` means continuous, and a family does not admit an otherwise unsupported activation.
+
+Expansion retains the exact member and source occurrence for diagnostics, then produces ordinary
+Relations through the existing elaborator. Expanded members and expressions count toward the
+source unit's shared budgets in the [resource profile](resources.md), and each generated Relation
+obeys the per-Relation equality limit. Expansion must be bounded before allocation and publishes
+no partial Model on failure.
+The example specifies the new header; current parser acceptance arrives with its migration.
 
 ## Mathematical types
 
