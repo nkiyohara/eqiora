@@ -112,6 +112,27 @@ def model_and_plan(method, *, diffusion: float = 1.0):
     return model, plan
 
 
+def test_numerical_method_changes_plan_but_not_model_identity() -> None:
+    model, fem_plan = model_and_plan(eqiora.fem.Q1())
+    fingerprint = model.structural_fingerprint
+    model_bytes = model.to_bytes()
+    fvm_plan = eqiora.resolve(
+        model,
+        mesh=fem_plan.mesh,
+        spatial=eqiora.fvm.CellCenteredTpfa(),
+        solve=eqiora.solve.Linear(
+            relative_tolerance=1.0e-10,
+            absolute_tolerance=1.0e-12,
+            maximum_iterations=10_000,
+        ),
+    )
+    assert fvm_plan.identity != fem_plan.identity
+    assert fvm_plan.model is fem_plan.model is model
+    assert fvm_plan.model_digest == fem_plan.model_digest == model.digest
+    assert model.structural_fingerprint == fingerprint
+    assert model.to_bytes() == model_bytes
+
+
 def elasticity_model_and_plan():
     graph = eqiora.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
