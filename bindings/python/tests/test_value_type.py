@@ -101,3 +101,23 @@ def test_field_has_one_type_input_and_explicit_optional_initial() -> None:
     assert eqiora.Field("u", initial=0.0).initial == 0.0
     with pytest.raises(TypeError):
         eqiora.Field("u", dimension=eqiora.Dimension())
+
+
+def test_source_field_uses_the_shared_type_and_native_formatter() -> None:
+    value_type = eqiora.ValueType.array(eqiora.ValueType.vector(
+        eqiora.ValueType.complex(eqiora.Dimension(length=Fraction(-3, 2))), 2), 3)
+    syntax = value_type.to_eqi()
+    assert syntax == "array<vector<complex<m ^ (-3 / 2)>, 2>, 3>"
+    source = eqiora.lang.Source()
+    component = source.component("Typed")
+    body = component.volume("body", dimensions=2)
+    component.field("channels", on=body, value_type=value_type)
+    assert f"field channels on body as space: {syntax};" in source.to_eqi()
+    with pytest.raises(TypeError):
+        component.field("old", on=body, unit=eqiora.lang.units.m)
+
+
+def test_type_emission_obeys_the_native_source_resource_limit() -> None:
+    oversized = eqiora.ValueType.array(eqiora.ValueType.real(), 65_537)
+    with pytest.raises(ValueError, match="65536"):
+        oversized.to_eqi()

@@ -2,20 +2,32 @@ use super::*;
 use crate::{SourceAstFactory, ValueTypeSyntax, ValueTypeSyntaxKind};
 
 pub(super) fn validate(value: &ValueType) -> Result<(), String> {
-    // Bound projection work before constructing the source AST. The shared
-    // factory then applies the exact source constructor and element-count rules.
-    if value.array_rank() >= 256 || value.shape().rank() - value.array_rank() > 4 {
-        return Err("mathematical type exceeds source nesting or spatial-rank limits".into());
-    }
-    let syntax = project(
-        value,
-        &GraphPath::new(["value-type"]),
-        &mut RangeAllocator::default(),
-        &mut HashMap::new(),
-    );
-    SourceAstFactory::value_type(syntax.kind, syntax.range)
+    ValueTypeSyntax::from_checked(value)
         .map(|_| ())
         .map_err(|error| error.to_string())
+}
+
+impl ValueTypeSyntax {
+    /// Project a checked mathematical type into the bounded source grammar.
+    ///
+    /// # Errors
+    /// Rejects types exceeding source constructor or component-count limits.
+    pub fn from_checked(value: &ValueType) -> Result<Self, crate::AstConstructionError> {
+        // Bound projection work before constructing the source AST. The shared
+        // factory then applies the exact source constructor and element-count rules.
+        if value.array_rank() >= 256 || value.shape().rank() - value.array_rank() > 4 {
+            return Err(crate::AstConstructionError::new(
+                "mathematical type exceeds source nesting or spatial-rank limits",
+            ));
+        }
+        let syntax = project(
+            value,
+            &GraphPath::new(["value-type"]),
+            &mut RangeAllocator::default(),
+            &mut HashMap::new(),
+        );
+        SourceAstFactory::value_type(syntax.kind, syntax.range)
+    }
 }
 
 pub(super) fn project(

@@ -57,6 +57,13 @@ impl PyValueType {
 
 #[pymethods]
 impl PyValueType {
+    /// Emit the bounded canonical language type using the native formatter.
+    fn to_eqi(&self) -> PyResult<String> {
+        eqiora::language::ValueTypeSyntax::from_checked(&self.value)
+            .map(|syntax| syntax.to_source())
+            .map_err(|error| PyValueError::new_err(error.to_string()))
+    }
+
     #[staticmethod]
     #[pyo3(signature = (dimension=None))]
     fn real(dimension: Option<&PyDimension>) -> Self {

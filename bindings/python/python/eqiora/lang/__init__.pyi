@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from fractions import Fraction
 from os import PathLike
 from typing import Final, final, overload
+from .. import ValueType
 
 @final
 class SourceError(ValueError):
@@ -120,8 +121,7 @@ class Component:
         name: str,
         *,
         on: Support,
-        unit: _Unit,
-        shape: _Shape | None = None,
+        value_type: ValueType,
         initial: int | float | None = None,
         doc: str | None = None,
     ) -> Expression: ...
@@ -210,9 +210,6 @@ class Source:
     def to_eqi(self) -> str: ...
     def write_eqi(self, path: str | PathLike[str]) -> None: ...
 
-@final
-class _Shape: ...
-
 class _Unit:
     def __mul__(self, other: _Unit, /) -> _Unit: ...
     def __truediv__(self, other: _Unit, /) -> _Unit: ...
@@ -259,11 +256,6 @@ class _Math:
 #:
 #: Authority: ``bindings/python/python/eqiora/lang/__init__.py::math``.
 math: _Math
-
-#: The current ambient-dimension-sized continuum vector shape.
-#:
-#: Authority: ``bindings/python/python/eqiora/lang/__init__.py::spatial_vector``.
-spatial_vector: _Shape
 
 def coordinate(axis: int) -> Expression:
     """Return one indexed spatial-coordinate expression.
@@ -377,7 +369,6 @@ __all__ = [
     "math",
     "normal",
     "quantity",
-    "spatial_vector",
     "symmetric_part",
     "test",
     "trace",

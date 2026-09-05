@@ -251,7 +251,12 @@ class Dimension:
 
 @final
 class ValueType:
-    """Exact scalar domain, dimension, channel axes and spatial frame."""
+    """Exact scalar domain, dimension, channel axes and spatial frame.
+
+    Authority: ``crates/eqiora-python/src/modeling/value_type.rs::PyValueType``.
+    """
+
+    def to_eqi(self) -> str: ...
 
     @staticmethod
     def real(dimension: Dimension | None = None) -> ValueType: ...
@@ -1528,6 +1533,7 @@ __all__ = [
     "DifferentiationEvidence",
     "DifferentiationMode",
     "Dimension",
+    "ValueType",
     "DomainRef",
     "Domain",
     "EqioraError",

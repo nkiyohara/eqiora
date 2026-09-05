@@ -17,7 +17,7 @@ def check_language_source() -> None:
     source = eqiora.lang.Source()
     component = source.component("Poisson")
     volume = component.volume("volume", dimensions=2)
-    value = component.field("value", on=volume, unit=eqiora.lang.units.m)
+    value = component.field("value", on=volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
     natural = component.relation(
         "balance",
         on=volume,

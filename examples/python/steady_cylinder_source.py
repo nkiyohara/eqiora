@@ -1,6 +1,7 @@
 """Author the steady-cylinder equations as one Eqiora Language Source."""
 
 from eqiora import lang as q
+from eqiora import Dimension, ValueType
 from eqiora.lang import units as u
 
 
@@ -26,22 +27,21 @@ def build_source() -> q.Source:
     velocity = stokes.field(
         "velocity",
         on=fluid,
-        unit=u.m / u.s,
-        shape=q.spatial_vector,
+        value_type=ValueType.vector(ValueType.real(Dimension(length=1, time=-1)), 2),
     )
     pressure = stokes.field(
         "pressure",
         on=fluid,
-        unit=u.kg / (u.m * u.s**2),
+        value_type=ValueType.real(Dimension(mass=1, length=-1, time=-2)),
         initial=0,
     )
     force_potential = stokes.field(
         "force_potential",
         on=fluid,
-        unit=u.kg / (u.m * u.s**2),
+        value_type=ValueType.real(Dimension(mass=1, length=-1, time=-2)),
         initial=0,
     )
-    inlet_profile = stokes.field("inlet_profile", on=fluid, unit=u.m / u.s, initial=0)
+    inlet_profile = stokes.field("inlet_profile", on=fluid, value_type=ValueType.real(Dimension(length=1, time=-1)), initial=0)
 
     stokes.relation(
         "force_definition",

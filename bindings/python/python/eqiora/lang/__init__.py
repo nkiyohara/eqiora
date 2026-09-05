@@ -15,6 +15,8 @@ import tempfile
 import textwrap
 from typing import Final
 
+from .._eqiora import ValueType
+
 from . import units
 from .units import Unit
 
@@ -32,21 +34,6 @@ _MISSING = object()
 
 class SourceError(ValueError):
     """A source-authoring value violates the bounded authoring contract."""
-
-
-class _Shape:
-    __slots__ = ("_text",)
-
-    def __init__(self, _token: object = _MISSING, _text: str = "") -> None:
-        if _token is not _CREATE:
-            raise TypeError("shapes are provided by eqiora.lang")
-        object.__setattr__(self, "_text", _text)
-
-    def __setattr__(self, name: str, value: object) -> None:
-        raise AttributeError("shape values are immutable")
-
-
-spatial_vector: Final = _Shape(_CREATE, "spatial_vector")
 
 
 class PropertyContract:
@@ -569,7 +556,7 @@ class Component:
         ] = []
         self._fields: list[
             tuple[
-                Expression, Support, Unit, _Shape | None, object | None, tuple[str, ...]
+                Expression, Support, str, object | None, tuple[str, ...]
             ]
         ] = []
         self._relations: list[
@@ -682,8 +669,7 @@ class Component:
         name: str,
         *,
         on: Support,
-        unit: Unit,
-        shape: _Shape | None = None,
+        value_type: ValueType,
         initial: int | float | None = None,
         doc: str | None = None,
     ) -> Expression:
@@ -692,15 +678,14 @@ class Component:
             raise SourceError(
                 "the initial Source vocabulary admits fields on volumes only"
             )
-        if not isinstance(unit, Unit):
-            raise TypeError("unit must be an eqiora.lang.units.Unit")
-        if shape is not None and shape is not spatial_vector:
-            raise SourceError("shape must be eqiora.lang.spatial_vector or None")
+        if not isinstance(value_type, ValueType):
+            raise TypeError("value_type must be an eqiora.ValueType")
+        syntax = value_type.to_eqi()
         if initial is not None:
             _number(initial)
         admitted = self._add_name(name)
         expression = _Field(self._owner, self._component_token, admitted)
-        self._fields.append((expression, on, unit, shape, initial, _doc(doc)))
+        self._fields.append((expression, on, syntax, initial, _doc(doc)))
         return expression
 
     def relation(
@@ -935,13 +920,12 @@ class Component:
             lines.append("")
         if self._fields:
             lines.append("  representation space = continuum;")
-            for field, support, unit, shape, initial, doc in self._fields:
+            for field, support, value_type, initial, doc in self._fields:
                 lines.extend(_comment(doc, "  "))
-                suffix = f" shape {shape._text}" if shape is not None else ""
                 initialized = f" = {_number(initial)}" if initial is not None else ""
                 lines.append(
                     f"  field {field._text} on {support._name} as space: "
-                    f"{unit._text}{suffix}{initialized};"
+                    f"{value_type}{initialized};"
                 )
         if self._fields and (self._relations or self._instances):
             lines.append("")
@@ -1280,7 +1264,6 @@ __all__ = [
     "math",
     "normal",
     "quantity",
-    "spatial_vector",
     "symmetric_part",
     "test",
     "trace",

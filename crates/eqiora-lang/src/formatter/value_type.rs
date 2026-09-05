@@ -6,6 +6,16 @@ use crate::{ValueTypeSyntax, ValueTypeSyntaxKind};
 
 use super::format_expression;
 
+impl ValueTypeSyntax {
+    /// Emit this type using the canonical source constructors.
+    #[must_use]
+    pub fn to_source(&self) -> String {
+        let mut output = String::new();
+        format_value_type(self, &mut output);
+        output
+    }
+}
+
 pub(super) fn format_value_type(value: &ValueTypeSyntax, output: &mut String) {
     match value.kind() {
         ValueTypeSyntaxKind::Scalar { domain, dimension } => {

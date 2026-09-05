@@ -28,7 +28,7 @@ def test_input_quantities_compile_from_python_and_emitted_source(tmp_path: Path)
     source = q.Source()
     law = source.component("RootLength")
     region = law.volume("region", dimensions=2)
-    length = law.field("length", on=region, unit=u.m, initial=0)
+    length = law.field("length", on=region, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)), initial=0)
     law.relation(
         "balance", on=region,
         residual=length - q.math.sqrt(q.quantity(4, u.m.prefixed("m") ** 2)),
@@ -56,7 +56,7 @@ def test_input_quantities_compile_from_python_and_emitted_source(tmp_path: Path)
 def cylinder_source(
     *,
     doc: str = "Equations-only steady incompressible flow component.",
-    velocity_shape=q.spatial_vector,
+    velocity_type=eqiora.ValueType.vector(eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)), 2),
 ):
     source = q.Source()
     stokes = source.component("SteadyFlowPastCylinder", doc=doc)
@@ -71,12 +71,12 @@ def cylinder_source(
     inlet_speed = stokes.parameter("inlet_speed", unit=u.m / u.s)
     channel_height = stokes.parameter("channel_height", unit=u.m)
 
-    velocity = stokes.field("velocity", on=fluid, unit=u.m / u.s, shape=velocity_shape)
-    pressure = stokes.field("pressure", on=fluid, unit=u.kg / (u.m * u.s**2), initial=0)
+    velocity = stokes.field("velocity", on=fluid, value_type=velocity_type)
+    pressure = stokes.field("pressure", on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)), initial=0)
     force_potential = stokes.field(
-        "force_potential", on=fluid, unit=u.kg / (u.m * u.s**2), initial=0
+        "force_potential", on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)), initial=0
     )
-    inlet_profile = stokes.field("inlet_profile", on=fluid, unit=u.m / u.s, initial=0)
+    inlet_profile = stokes.field("inlet_profile", on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)), initial=0)
 
     stokes.relation(
         "force_definition", on=fluid, left=force_potential, right=zero_pressure
@@ -118,7 +118,7 @@ def test_relation_accepts_exactly_residual_or_complete_natural_equation() -> Non
     source = q.Source()
     component = source.component("NaturalEquation")
     body = component.volume("body", dimensions=2)
-    value = component.field("value", on=body, unit=u.one)
+    value = component.field("value", on=body, value_type=eqiora.ValueType.real())
     source_scale = component.parameter("source_scale", unit=u.one)
 
     natural = component.relation(
@@ -146,11 +146,11 @@ def test_relation_rejects_mixed_incomplete_foreign_and_nonfinite_equations() -> 
     source = q.Source()
     component = source.component("Relations")
     body = component.volume("body", dimensions=2)
-    value = component.field("value", on=body, unit=u.one)
+    value = component.field("value", on=body, value_type=eqiora.ValueType.real())
     foreign = q.Source()
     foreign_component = foreign.component("Foreign")
     foreign_body = foreign_component.volume("body", dimensions=2)
-    foreign_value = foreign_component.field("value", on=foreign_body, unit=u.one)
+    foreign_value = foreign_component.field("value", on=foreign_body, value_type=eqiora.ValueType.real())
 
     invalid = (
         lambda: component.relation("missing", on=body),
@@ -219,7 +219,7 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
     law_top = law.boundary("top", parent=law_region)
     law_source_scale = law.parameter("source_scale", unit=u.one / u.m**2)
     diffusivity = law.property("diffusivity", contract=contract)
-    potential = law.field("potential", on=law_region, unit=u.one, initial=0)
+    potential = law.field("potential", on=law_region, value_type=eqiora.ValueType.real(), initial=0)
     law.relation(
         "balance",
         on=law_region,
@@ -364,7 +364,7 @@ def scalar_primal_source():
     diffusion = law.parameter("diffusion", unit=u.one)
     wave_number = law.parameter("wave_number", unit=u.one / u.m)
     source_scale = law.parameter("source_scale", unit=u.one / u.m**2)
-    potential = law.field("potential", on=region, unit=u.one, initial=0)
+    potential = law.field("potential", on=region, value_type=eqiora.ValueType.real(), initial=0)
     balance = law.relation(
         "balance",
         on=region,
@@ -432,7 +432,7 @@ def test_uninitialized_scalar_field_compiles_from_source_and_emitted_file(
     source = q.Source()
     law = source.component("AlgebraicField")
     region = law.volume("region", dimensions=2)
-    potential = law.field("potential", on=region, unit=u.one)
+    potential = law.field("potential", on=region, value_type=eqiora.ValueType.real())
     law.relation("balance", on=region, residual=potential)
 
     text = source.to_eqi()
@@ -580,19 +580,19 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
     left = q.Source()
     left_component = left.component("Left")
     left_volume = left_component.volume("left", dimensions=2)
-    left_value = left_component.field("value", on=left_volume, unit=u.m)
+    left_value = left_component.field("value", on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
     right = q.Source()
     right_component = right.component("Right")
     right_volume = right_component.volume("right", dimensions=2)
-    right_value = right_component.field("value", on=right_volume, unit=u.m)
+    right_value = right_component.field("value", on=right_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
     invalid = (
         lambda: left_value + right_value,
         lambda: left_component.boundary("foreign_parent", parent=right_volume),
-        lambda: left_component.field("wrong_support", on=right_volume, unit=u.m),
-        lambda: left_component.field("value", on=left_volume, unit=u.m),
+        lambda: left_component.field("wrong_support", on=right_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1))),
+        lambda: left_component.field("value", on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1))),
         lambda: left_component.field(
-            "nonfinite", on=left_volume, unit=u.m, initial=float("nan")
+            "nonfinite", on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)), initial=float("nan")
         ),
     )
     for operation in invalid:
@@ -613,7 +613,7 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
     with pytest.raises(q.SourceError):
         q.Source().component("a" * 1025)
     with pytest.raises(q.SourceError):
-        left_component.field("huge", on=left_volume, unit=u.m, initial=1 << 1025)
+        left_component.field("huge", on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)), initial=1 << 1025)
 
     deep = q.math.pi
     with pytest.raises(q.SourceError):
@@ -629,7 +629,7 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
     bounded_volume = bounded.volume("volume", dimensions=2)
     with pytest.raises(q.SourceError):
         for index in range(300):
-            bounded.field(f"value_{index}", on=bounded_volume, unit=u.m)
+            bounded.field(f"value_{index}", on=bounded_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
     target = tmp_path / "target.eqi"
     target.write_text("preserved", encoding="utf-8")
@@ -643,7 +643,7 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
 def test_canonical_compiler_owns_expression_shape_diagnostics() -> None:
     with pytest.raises(eqiora.ValidationError) as error:
         eqiora.compile(
-            source=cylinder_source(velocity_shape=None),
+            source=cylinder_source(velocity_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1))),
             geometry=cylinder_geometry(),
             parameters=PARAMETERS,
         )

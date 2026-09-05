@@ -44,6 +44,9 @@ channels = eqiora.Field(
 Spatial extents must match the Field's exact Domain. Complex execution is still
 under development.
 
+The same `value_type=` objects apply to `eqiora.lang.Component.field`.
+`ValueType.to_eqi()` emits the canonical type through the Rust formatter.
+
 A relation receives an explicit zero-valued residual. Symbolic equality and
 Python truth testing are not modeling syntax. Declarations and expressions
 are frozen; validation and artifact creation happen atomically in Rust.
@@ -61,7 +64,7 @@ from eqiora.lang import units as u
 source = q.Source()
 component = source.component("Diffusion")
 body = component.volume("body", dimensions=2)
-value = component.field("value", on=body, unit=u.m)
+value = component.field("value", on=body, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 length = component.parameter("length", unit=u.m)
 wave_number = q.math.pi / length
 component.relation(
@@ -115,7 +118,7 @@ release = source.scalar_property_release(
 law = source.component("DiffusionLaw")
 law_body = law.volume("body", dimensions=2)
 diffusivity = law.property("diffusivity", contract=contract)
-value = law.field("value", on=law_body, unit=u.one, initial=0)
+value = law.field("value", on=law_body, value_type=eqiora.ValueType.real(), initial=0)
 law.relation(
     "balance",
     on=law_body,
