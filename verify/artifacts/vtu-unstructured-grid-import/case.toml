@@ -1,5 +1,5 @@
 id = "artifacts.vtu-unstructured-grid-import"
-status = "verified"
+status = "implemented"
 scope = "bounded-vtk-xml-ascii-one-piece-tri3-mesh-and-selected-field-import"
 reference_kind = "official-vtk-python-writer-and-independent-exact-decoded-summary"
 

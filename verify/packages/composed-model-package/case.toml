@@ -1,5 +1,5 @@
 id = "packages.composed-model-package"
-status = "verified"
+status = "implemented"
 scope = "exact-three-package-closed-scalar-electrical-host-serial"
 reference_kind = "exact-resolution-relations-and-analytic-dc"
 

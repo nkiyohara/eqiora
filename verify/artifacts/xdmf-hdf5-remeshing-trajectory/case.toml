@@ -1,5 +1,5 @@
 id = "artifacts.xdmf-hdf5-remeshing-trajectory"
-status = "verified"
+status = "implemented"
 scope = "bounded-xdmf3-hdf5-projection-of-one-2d-v2-to-v3-remeshing-trajectory"
 reference_kind = "replayed-content-addressed-cpu-trajectory-and-native-hdf5-audit"
 
@@ -60,4 +60,3 @@ production_scale = false
 package = "eqiora"
 test = "remeshing_transfer_2d"
 features = ["faer", "hdf5"]
-

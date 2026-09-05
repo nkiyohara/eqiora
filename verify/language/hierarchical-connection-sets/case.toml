@@ -1,5 +1,5 @@
 id = "language.hierarchical-connection-sets"
-status = "verified"
+status = "implemented"
 scope = "local-source-hierarchical-scalar-physical-connection-set-normalization"
 reference_kind = "canonical-artifact-equivalence-exposure-elimination-and-source-falsifiers"
 

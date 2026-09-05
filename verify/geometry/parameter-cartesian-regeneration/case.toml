@@ -1,5 +1,5 @@
 id = "geometry.parameter-cartesian-regeneration"
-status = "verified"
+status = "implemented"
 scope = "one-root-length-parameter-two-endpoints-one-3d-cartesian-domain-one-value-transaction"
 reference_kind = "dual-independent-analytic-and-symbolic-coordinate-oracle"
 

@@ -1,5 +1,5 @@
 id = "artifacts.model-reference-lineage"
-status = "verified"
+status = "implemented"
 scope = "current-model-typed-artifact-reference-lineage"
 reference_kind = "current-owner-round-trip-and-realization-run-linkage"
 

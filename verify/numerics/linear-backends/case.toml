@@ -1,5 +1,5 @@
 id = "numerics.linear-backends"
-status = "verified"
+status = "implemented"
 scope = "linear-execution"
 reference_kind = "independent-backend-analytic-and-exact-rational"
 

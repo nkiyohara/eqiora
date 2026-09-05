@@ -1,5 +1,5 @@
 id = "numerics.finalized-spatial-handoff"
-status = "verified"
+status = "implemented"
 scope = "canonical-cartesian-scalar-elliptic-finalized-linear-handoff"
 reference_kind = "cpu-regression-and-falsifying-cross-wire"
 

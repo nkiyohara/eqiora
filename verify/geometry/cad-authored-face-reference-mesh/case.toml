@@ -1,5 +1,5 @@
 id = "geometry.cad-authored-face-reference-mesh"
-status = "verified"
+status = "implemented"
 scope = "one-source-bound-rectangular-authored-face-realized-as-one-planar-reference-mesh"
 reference_kind = "dual-independent-analytic-and-exact-rational-enumeration-oracle"
 

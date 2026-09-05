@@ -1,5 +1,5 @@
 id = "time.general-implicit-dae"
-status = "verified"
+status = "implemented"
 scope = "canonical-time"
 reference_kind = "analytic"
 

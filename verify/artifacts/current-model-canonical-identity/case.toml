@@ -1,5 +1,5 @@
 id = "artifacts.current-model-canonical-identity"
-status = "verified"
+status = "implemented"
 scope = "one-current-model-artifact-epoch"
 reference_kind = "independently-frozen-full-byte-oracle-and-historical-rejection-corpus"
 

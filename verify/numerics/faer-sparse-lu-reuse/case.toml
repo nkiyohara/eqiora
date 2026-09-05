@@ -1,5 +1,5 @@
 id = "numerics.faer-sparse-lu-reuse"
-status = "verified"
+status = "implemented"
 scope = "one-host-serial-prepared-faer-sparse-lu-factorization-reuse"
 reference_kind = "dual-independent-exact-scientific-oracle-plus-independent-state-machine-oracle"
 

@@ -1,5 +1,5 @@
 id = "numerics.preconditioner-stress"
-status = "verified"
+status = "implemented"
 scope = "host-local-spd-preconditioner-evidence"
 reference_kind = "manufactured-congruence-scaled-diffusion"
 

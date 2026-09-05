@@ -1,5 +1,5 @@
 id = "geometry.authored-planar-geometry-artifact"
-status = "verified"
+status = "implemented"
 scope = "one-canonical-straight-edged-planar-region-artifact"
 reference_kind = "independent-canonical-encoding-and-digest-derivation"
 

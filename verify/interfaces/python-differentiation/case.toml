@@ -1,5 +1,5 @@
 id = "interfaces.python-differentiation"
-status = "verified"
+status = "implemented"
 scope = "python-exact-common-scalar-plan-supplied-rectangle-mesh-bound-immutable-point-first-order-implicit-differentiation"
 reference_kind = "centered-finite-difference-and-jvp-vjp-duality"
 

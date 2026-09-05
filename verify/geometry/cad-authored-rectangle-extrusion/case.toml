@@ -1,5 +1,5 @@
 id = "geometry.cad-authored-rectangle-extrusion"
-status = "verified"
+status = "implemented"
 scope = "one-provider-neutral-rectangle-face-positive-z-extrusion-authored-graph"
 reference_kind = "dual-independent-analytic-and-oriented-polyhedral-oracle"
 

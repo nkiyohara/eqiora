@@ -1,5 +1,5 @@
 id = "interfaces.python-jax-differentiation"
-status = "verified"
+status = "implemented"
 scope = "installed-wheel-common-plan-supplied-rectangle-2d-linux-x86-64-cpython-3-13-cpu-f64-jax-0-11-first-order-typed-ffi"
 reference_kind = "eqiora-primal-jvp-vjp"
 

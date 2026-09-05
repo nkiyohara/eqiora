@@ -1,5 +1,5 @@
 id = "numerics.multigrid-entry-envelope"
-status = "verified"
+status = "implemented"
 scope = "multigrid-deferred-gate-entry-envelope-declared-then-measured"
 reference_kind = "measurement-admitted-after-a-protected-merge-ordered-declaration"
 

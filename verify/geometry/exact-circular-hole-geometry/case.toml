@@ -1,5 +1,5 @@
 id = "geometry.exact-circular-hole-geometry"
-status = "verified"
+status = "implemented"
 scope = "one-canonical-axis-aligned-rectangle-with-one-exact-circular-hole"
 reference_kind = "independent-canonical-encoding-and-domain-separated-digest-oracle"
 

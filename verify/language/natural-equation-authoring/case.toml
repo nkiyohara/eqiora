@@ -1,5 +1,5 @@
 id = "language.natural-equation-authoring"
-status = "verified"
+status = "implemented"
 scope = "Relation-body ordered structural/static equality plus collision-safe formatter roundtrip, parser-owned ranges, public structural comparison, exact locked package, and native explicit residual"
 
 reference_kind = "public-rust-fingerprint-and-comparison"

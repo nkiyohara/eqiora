@@ -1,5 +1,5 @@
 id = "artifacts.xdmf-hdf5-native-import"
-status = "verified"
+status = "implemented"
 scope = "bounded-native-hdf5-file-image-resolution-for-one-xdmf-uniform-grid"
 reference_kind = "checked-in-real-hdf5-source-exact-runtime-provenance-and-hostile-profile-corpus"
 

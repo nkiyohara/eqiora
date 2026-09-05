@@ -1,5 +1,5 @@
 id = "interfaces.studio-python-cad-round-trip"
-status = "verified"
+status = "implemented"
 scope = "deterministic-studio-python-projection-of-two-frozen-authored-cad-histories"
 reference_kind = "exact-precommitted-generated-programs-over-existing-native-cad-oracles"
 

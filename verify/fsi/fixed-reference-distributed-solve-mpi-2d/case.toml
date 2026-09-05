@@ -1,5 +1,5 @@
 id = "fsi.fixed-reference-distributed-solve-mpi-2d"
-status = "verified"
+status = "implemented"
 scope = "fixed-reference-fsi-accepted-owner-shards-physical-mpi-minres-solve-2d"
 reference_kind = "mpi-transport-independent-complete-cpu-path-sharing-canonical-physics-and-lowering"
 

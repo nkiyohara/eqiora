@@ -1,5 +1,5 @@
 id = "interfaces.python-package-conformance"
-status = "verified"
+status = "implemented"
 scope = "installed-python-explicit-store-exact-resolution-structural-package-report"
 reference_kind = "independent-package-conformance-and-installed-wheel-contract"
 

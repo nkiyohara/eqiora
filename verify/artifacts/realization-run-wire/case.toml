@@ -1,5 +1,5 @@
 id = "artifacts.realization-run-wire"
-status = "verified"
+status = "implemented"
 scope = "typed-realization-and-run-provenance"
 reference_kind = "typed-round-trip-and-cross-artifact-invariants"
 

@@ -1,5 +1,5 @@
 id = "artifacts.gmsh-imported-simplicial-realization"
-status = "verified"
+status = "implemented"
 scope = "bounded-gmsh-4.1-to-content-addressed-affine-simplex-realization"
 reference_kind = "official-generator-ascii-binary-equivalence-exact-digest-and-single-dof-solution"
 

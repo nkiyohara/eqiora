@@ -1,5 +1,5 @@
 id = "solid.conforming-elasticity-pair-2d"
-status = "verified"
+status = "implemented"
 scope = "exact-two-body-coincident-full-side-conforming-q1-elasticity-interface"
 reference_kind = "analytic-heterogeneous-interface-convergence-and-equilibrium"
 

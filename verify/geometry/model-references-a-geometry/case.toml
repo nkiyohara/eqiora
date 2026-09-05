@@ -1,5 +1,5 @@
 id = "geometry.model-references-a-geometry"
-status = "verified"
+status = "implemented"
 scope = "graph-authored-current-model-geometry-reference-and-structural-fingerprint-v3"
 reference_kind = "independent-topology-and-identity-falsifiers"
 

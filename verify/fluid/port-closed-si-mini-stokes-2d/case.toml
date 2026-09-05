@@ -1,5 +1,5 @@
 id = "fluid.port-closed-si-mini-stokes-2d"
-status = "verified"
+status = "implemented"
 scope = "power-conjugate-fluid-boundary-package-and-port-closed-si-mini-execution"
 reference_kind = "direct-package-boundary-role-equivalence-and-existing-stokes-oracle"
 

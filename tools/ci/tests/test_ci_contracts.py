@@ -227,69 +227,24 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn("--workspace --all-targets --all-features --locked", msrv)
         self.assertIn("libopenmpi-dev", msrv)
 
-    def test_host_evidence_has_an_independent_declared_environment(self) -> None:
+    def test_product_ci_retains_runtime_dependencies_without_broad_evidence(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"
         )
         quality = workflow.split("  quality:\n", maxsplit=1)[1].split(
-            "\n  host_evidence:", maxsplit=1
+            "\n  msrv:", maxsplit=1
         )[0]
-        evidence = workflow.split("  host_evidence:\n", maxsplit=1)[1].split(
-            "\n  python_host_evidence:", maxsplit=1
-        )[0]
-        python_evidence = workflow.split("  python_host_evidence:\n", maxsplit=1)[
-            1
-        ].split("\n  msrv:", maxsplit=1)[0]
-        action = "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97"
-
-        self.assertIn(action, quality)
         self.assertIn('python-version: "3.12"', quality)
         self.assertIn('["tested-numpy-floor"]', quality)
-        self.assertIn("python -m pip install --only-binary=:all:", quality)
-        self.assertNotIn('["uv"]', quality)
-        self.assertNotIn("uv --version", quality)
-        self.assertNotIn("eqiora-verify -- run --environment host-cpu", quality)
-        self.assertIn("name: Host-CPU verification evidence", evidence)
-        self.assertIn("runs-on: ubuntu-latest", evidence)
-        self.assertIn("libopenmpi-dev", evidence)
-        # The Cargo evidence job needs an interpreter and the NumPy floor even
-        # though neither reads as Cargo work: `eqiora-python`'s Cargo tests
-        # import NumPy through the embedded pyo3 interpreter. An earlier split
-        # moved both to the Python job on the strength of their names, and
-        # `interfaces.python-array-transport` failed closed on a missing module.
-        self.assertIn(action, evidence)
-        self.assertIn('["tested-numpy-floor"]', evidence)
-        # It does not need the candidate builder; only wheel construction does.
-        self.assertNotIn('["uv"]', evidence)
-        self.assertNotIn("uv --version", evidence)
-        self.assertIn(
-            "eqiora-verify -- run --environment host-cpu --runner-kind cargo",
-            evidence,
-        )
-        self.assertIn("name: Host-CPU Python installed-wheel evidence", python_evidence)
-        self.assertIn("runs-on: ubuntu-latest", python_evidence)
-        self.assertIn(action, python_evidence)
-        self.assertIn('python-version: "3.12"', python_evidence)
-        self.assertIn('["tested-numpy-floor"]', python_evidence)
-        self.assertNotIn('["uv"]', python_evidence)
-        self.assertIn("python -m pip install --only-binary=:all:", python_evidence)
-        self.assertNotIn("uv --version", python_evidence)
-        self.assertIn(
-            "sudo apt-get install --no-install-recommends --yes ffmpeg",
-            python_evidence,
-        )
-        self.assertIn("ffprobe -version", python_evidence)
-        self.assertNotIn("openmpi", python_evidence)
-        self.assertIn(
-            "eqiora-verify -- run --environment host-cpu "
-            "--runner-kind python-installed-wheel",
-            python_evidence,
-        )
+        self.assertIn("libopenmpi-dev", quality)
+        self.assertIn("gmsh==4.15.2", quality)
+        self.assertIn("cargo +stable test --workspace --all-targets --locked", quality)
+        self.assertNotIn("eqiora-verify -- run", workflow)
+        self.assertNotIn("host_evidence:", workflow)
 
         release = (
             REPOSITORY_ROOT / ".github/workflows/python-release-candidate.yml"
         ).read_text(encoding="utf-8")
-        self.assertNotIn("uv==", release)
         self.assertIn("tools/release/python_candidate.py", release)
 
     def test_python_release_has_two_revision_bound_trust_jobs_before_publish(
@@ -524,14 +479,8 @@ jobs:
             encoding="utf-8"
         )
         quality = workflow.split("  quality:\n", maxsplit=1)[1].split(
-            "\n  host_evidence:", maxsplit=1
+            "\n  msrv:", maxsplit=1
         )[0]
-        evidence = workflow.split("  host_evidence:\n", maxsplit=1)[1].split(
-            "\n  python_host_evidence:", maxsplit=1
-        )[0]
-        python_evidence = workflow.split("  python_host_evidence:\n", maxsplit=1)[
-            1
-        ].split("\n  msrv:", maxsplit=1)[0]
         studio = workflow.split("  studio:\n", maxsplit=1)[1].split(
             "\n  gate:", maxsplit=1
         )[0]
@@ -541,13 +490,6 @@ jobs:
         full_feature_tests = quality.split("- name: Full feature tests\n", maxsplit=1)[
             1
         ].split("- name: Dependency layers\n", maxsplit=1)[0]
-        host_evidence = evidence.split(
-            "- name: Run registered Cargo host evidence\n", maxsplit=1
-        )[1]
-        python_host_evidence = python_evidence.split(
-            "- name: Run registered Python installed-wheel host evidence\n",
-            maxsplit=1,
-        )[1]
         profile = (
             'CARGO_PROFILE_TEST_DEBUG: "0"',
             'CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: "true"',
@@ -559,14 +501,12 @@ jobs:
         for step in (
             tests,
             full_feature_tests,
-            host_evidence,
-            python_host_evidence,
         ):
             for setting in profile:
                 self.assertIn(setting, step)
             self.assertNotIn("RUSTFLAGS", step)
         for setting in profile:
-            self.assertEqual(workflow.count(setting), 4)
+            self.assertEqual(workflow.count(setting), 2)
         self.assertNotIn("CARGO_PROFILE_TEST_", studio)
         self.assertNotIn("fast-math", workflow.lower())
 
@@ -575,7 +515,7 @@ jobs:
             encoding="utf-8"
         )
         quality = workflow.split("  quality:\n", maxsplit=1)[1].split(
-            "\n  host_evidence:", maxsplit=1
+            "\n  msrv:", maxsplit=1
         )[0]
         expected_job_contract = (
             "    name: Stable quality gate\n"
@@ -605,10 +545,10 @@ jobs:
             quality.split("    steps:\n", maxsplit=1)[0],
             expected_job_contract,
         )
-        self.assertEqual(workflow.count("TMPDIR"), 3)
+        self.assertEqual(workflow.count("TMPDIR"), 2)
         self.assertEqual(
             re.findall(r"(?m)^[ \t]*TMPDIR:[ \t]*(.*?)[ \t]*$", workflow),
-            ["${{ runner.temp }}"] * 3,
+            ["${{ runner.temp }}"] * 2,
         )
         self.assertLess(quality.index(steps[0][0]), quality.index(steps[1][0]))
         self.assertNotRegex(
@@ -638,57 +578,6 @@ jobs:
                 [command],
             )
 
-    def test_host_cpu_cargo_evidence_uses_step_scoped_runner_temp(self) -> None:
-        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
-            encoding="utf-8"
-        )
-        host_evidence = workflow.split("  host_evidence:\n", maxsplit=1)[1].split(
-            "\n  python_host_evidence:", maxsplit=1
-        )[0]
-        expected_job_contract = (
-            "    name: Host-CPU verification evidence\n"
-            "    needs: changes\n"
-            "    runs-on: ubuntu-latest\n"
-            "    timeout-minutes: 120\n"
-        )
-        previous_marker = "      - name: Install stable Rust\n"
-        marker = "      - name: Run registered Cargo host evidence\n"
-        command = (
-            "cargo +stable run --locked -p eqiora-verify -- run "
-            "--environment host-cpu --runner-kind cargo"
-        )
-
-        self.assertEqual(
-            host_evidence.split("    steps:\n", maxsplit=1)[0],
-            expected_job_contract,
-        )
-        self.assertEqual(host_evidence.count(marker), 1)
-        self.assertLess(
-            host_evidence.index(previous_marker), host_evidence.index(marker)
-        )
-        self.assertNotRegex(
-            workflow.split("jobs:\n", maxsplit=1)[0],
-            r"(?m)^\s*TMPDIR:",
-        )
-        self.assertNotRegex(host_evidence, r"(?m)^ {0,8}TMPDIR:")
-
-        step = host_evidence.split(marker, maxsplit=1)[1]
-        self.assertNotRegex(step, r"(?m)^      - ")
-        self.assertEqual(
-            re.findall(r"(?m)^        if: (.+)$", step),
-            ["needs.changes.outputs.rust == 'true'"],
-        )
-        environment = step.split("        env:\n", maxsplit=1)[1].split(
-            "        run:", maxsplit=1
-        )[0]
-        self.assertEqual(
-            re.findall(r"(?m)^          TMPDIR:[ \t]*(.*?)[ \t]*$", environment),
-            ["${{ runner.temp }}"],
-        )
-        self.assertEqual(
-            re.findall(r"(?m)^        run: (.+)$", step),
-            [command],
-        )
 
     def test_studio_checks_its_independent_manifest_at_the_same_msrv(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
@@ -1207,7 +1096,7 @@ class ChangeClassificationTests(unittest.TestCase):
         selected = classify(["bindings/python/frontend/package-lock.json"])
         self.assertTrue(selected["python"])
         self.assertIn(
-            "python_host_evidence=true",
+            "python=true",
             render_outputs("a" * 40, selected, full=False),
         )
         self.assertFalse(selected["studio"])
@@ -1461,20 +1350,6 @@ class ChangeClassificationTests(unittest.TestCase):
             append_github_outputs(output, valid)
             self.assertEqual(output.read_text(encoding="utf-8"), valid + "\n")
 
-    def test_python_host_evidence_is_selected_by_rust_or_python(self) -> None:
-        for path in (
-            "crates/eqiora-numerics/src/lib.rs",
-            "bindings/python/python/eqiora/__init__.pyi",
-        ):
-            with self.subTest(path=path):
-                selected = classify([path])
-                rendered = render_outputs("a" * 40, selected, full=False)
-                self.assertIn("python_host_evidence=true", rendered)
-
-        selected = classify(["docs/architecture.md"])
-        rendered = render_outputs("a" * 40, selected, full=False)
-        self.assertIn("python_host_evidence=false", rendered)
-
     def test_patch_equivalent_head_reuses_only_authenticated_unchanged_lanes(
         self,
     ) -> None:
@@ -1577,11 +1452,8 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
         }
         required = (
             ("Stable quality gate", "Tests"),
-            ("Host-CPU verification evidence", "Run registered Cargo host evidence"),
-            (
-                "Host-CPU Python installed-wheel evidence",
-                "Run registered Python installed-wheel host evidence",
-            ),
+            ("Python 3.11 installed wheel", "Test installed wheel"),
+            ("Python 3.14 installed wheel", "Test installed wheel"),
         )
         jobs = [
             {
@@ -1615,7 +1487,22 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
             fetch=fetch,
         )
         self.assertTrue(result["lanes"]["rust"])
+        self.assertTrue(result["lanes"]["python"])
         self.assertFalse(result["lanes"]["msrv"])
+
+        for job in jobs:
+            with self.subTest(missing=job["name"]):
+                job["steps"][0]["conclusion"] = "skipped"
+                result = authenticate(
+                    repository="nkiyohara/eqiora",
+                    pull_request=716,
+                    previous_sha=previous,
+                    workflow="ci.yml",
+                    fetch=fetch,
+                )
+                lane = "rust" if job["name"] == "Stable quality gate" else "python"
+                self.assertFalse(result["lanes"][lane])
+                job["steps"][0]["conclusion"] = "success"
 
     def test_rejects_cross_pr_or_ambiguous_success(self) -> None:
         previous = "b" * 40
@@ -1648,8 +1535,6 @@ class AggregateGateTests(unittest.TestCase):
             "changes": "success",
             "documentation": "success",
             "quality": "success",
-            "host_evidence": "success",
-            "python_host_evidence": "success",
             "msrv": "success",
             "dependency_policy": "success",
             "cubecl_experiment": "success",
@@ -1671,17 +1556,6 @@ class AggregateGateTests(unittest.TestCase):
     def test_relevant_success_is_accepted(self) -> None:
         self.relevance["python"] = True
         self.results["python_wheel"] = "success"
-        self.results["python_host_evidence"] = "success"
-        self.assertEqual(evaluate(self.relevance, self.results), [])
-
-    def test_rust_surface_requires_quality_and_registered_evidence(self) -> None:
-        self.relevance["rust"] = True
-        self.results["host_evidence"] = "skipped"
-        self.results["python_host_evidence"] = "skipped"
-        self.assertTrue(evaluate(self.relevance, self.results))
-        self.results["host_evidence"] = "success"
-        self.assertTrue(evaluate(self.relevance, self.results))
-        self.results["python_host_evidence"] = "success"
         self.assertEqual(evaluate(self.relevance, self.results), [])
 
     def test_every_lane_job_returns_an_explicit_success_conclusion(self) -> None:
@@ -1690,8 +1564,6 @@ class AggregateGateTests(unittest.TestCase):
         )
         selectors = {
             "quality": "rust",
-            "host_evidence": "rust",
-            "python_host_evidence": "python_host_evidence",
             "msrv": "msrv",
             "dependency_policy": "dependency_policy",
             "cubecl_experiment": "cubecl_experiment",
@@ -1754,7 +1626,7 @@ class AggregateGateTests(unittest.TestCase):
             {
                 key: value
                 for key, value in self.results.items()
-                if key != "host_evidence"
+                if key != "quality"
             },
             {**self.results, "unregistered_job": "success"},
         ):

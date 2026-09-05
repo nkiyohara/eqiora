@@ -1,5 +1,5 @@
 id = "interfaces.studio-packaged-dc-motor-demo"
-status = "verified"
+status = "implemented"
 scope = "one-pinned-three-package-dc-drive-native-studio-composition"
 reference_kind = "presentation-only-projection-of-an-existing-verified-trajectory"
 

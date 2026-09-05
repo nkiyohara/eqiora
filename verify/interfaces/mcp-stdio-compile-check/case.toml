@@ -1,5 +1,5 @@
 id = "interfaces.mcp-stdio-compile-check"
-status = "verified"
+status = "implemented"
 scope = "mcp-2026-07-28-stdio-bounded-compile-check"
 reference_kind = "independent-direct-operation-and-black-box-stdio-parity"
 

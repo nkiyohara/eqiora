@@ -1,5 +1,5 @@
 id = "artifacts.implicit-time-restart-lineage"
-status = "verified"
+status = "implemented"
 scope = "residual-native-semantic-checkpoint-and-restart"
 reference_kind = "canonical-operator-replay-and-uninterrupted-reference-run"
 

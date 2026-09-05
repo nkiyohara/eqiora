@@ -1,5 +1,5 @@
 id = "interfaces.python-cad-authored-graph"
-status = "verified"
+status = "implemented"
 scope = "installed-python-common-geometry-graph-projection-of-two-exact-solid-operation-histories"
 reference_kind = "existing-dual-oracle-geometry-cases-and-public-rust-replay"
 

@@ -1,5 +1,5 @@
 id = "numerics.distributed-layout"
-status = "verified"
+status = "implemented"
 scope = "distributed-layout-and-halo-protocol"
 reference_kind = "global-action-versus-partitioned-loopback"
 

@@ -1,5 +1,5 @@
 id = "interfaces.control-plane-compile-check"
-status = "verified"
+status = "implemented"
 scope = "client-neutral-bounded-compile-check-control-v2"
 reference_kind = "shared-wire-fixtures-and-ordinary-compiler-admission"
 

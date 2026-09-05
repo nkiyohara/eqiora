@@ -1,5 +1,5 @@
 id = "interfaces.python-control-plane"
-status = "verified"
+status = "implemented"
 scope = "python-opaque-model-revision-value-edit-and-structured-failure-boundary"
 reference_kind = "in-process-pyo3-module-and-current-public-rust-facade-replay"
 

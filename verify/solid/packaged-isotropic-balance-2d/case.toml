@@ -1,5 +1,5 @@
 id = "solid.packaged-isotropic-balance-2d"
-status = "verified"
+status = "implemented"
 scope = "exact-two-package-2d-isotropic-balance-to-host-serial-q1-csr-cg"
 reference_kind = "identity-normalized-structure-lowered-equivalence-convergence-and-exact-lineage"
 

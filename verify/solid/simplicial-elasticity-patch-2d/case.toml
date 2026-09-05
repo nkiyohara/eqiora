@@ -1,5 +1,5 @@
 id = "solid.simplicial-elasticity-patch-2d"
-status = "verified"
+status = "implemented"
 scope = "intrinsic-2d-isotropic-small-strain-p1-elasticity-on-affine-triangles-of-one-box"
 reference_kind = "independent-analytic-and-exact-rational-distorted-patch"
 

@@ -1,5 +1,5 @@
 id = "fsi.fixed-reference-monolithic-step-2d"
-status = "verified"
+status = "implemented"
 scope = "fixed-reference-inertial-fluid-linear-solid-monolithic-backward-euler-2d"
 reference_kind = "content-bound-cpu-reference-coupled-saddle-step"
 

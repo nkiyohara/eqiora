@@ -1,5 +1,5 @@
 id = "differentiation.bounded-parameter-study"
-status = "verified"
+status = "implemented"
 scope = "one-host-serial-fem-program-one-diffusion-coordinate-two-to-sixty-four-point-complete-study"
 reference_kind = "separately-executed-accepted-evaluations"
 

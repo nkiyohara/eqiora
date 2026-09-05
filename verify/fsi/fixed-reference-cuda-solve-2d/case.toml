@@ -1,5 +1,5 @@
 id = "fsi.fixed-reference-cuda-solve-2d"
-status = "verified"
+status = "implemented"
 scope = "fixed-reference-fsi-finalized-single-device-cuda-minres-solve-2d"
 reference_kind = "privacy-safe-selected-device-collector-with-independent-cpu-and-host-reacceptance"
 

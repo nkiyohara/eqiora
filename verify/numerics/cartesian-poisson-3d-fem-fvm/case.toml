@@ -1,5 +1,5 @@
 id = "numerics.cartesian-poisson-3d-fem-fvm"
-status = "verified"
+status = "implemented"
 scope = "canonical-spatial"
 reference_kind = "analytic"
 

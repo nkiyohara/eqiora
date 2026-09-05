@@ -1,5 +1,5 @@
 id = "fluid.packaged-steady-stokes-2d"
-status = "verified"
+status = "implemented"
 scope = "exact-package-and-direct-flat-canonical-steady-incompressible-stokes-2d"
 reference_kind = "semantic-entity-bijection-lowered-equivalence-and-exact-package-replay"
 

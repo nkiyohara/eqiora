@@ -1,5 +1,5 @@
 id = "interfaces.python-mixed-boundary-elasticity-demo"
-status = "verified"
+status = "implemented"
 scope = "installed-python-root-plan-mixed-boundary-elasticity-common-result"
 reference_kind = "existing-scientific-oracle-projected-through-common-model-first-lifecycle"
 

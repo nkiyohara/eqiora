@@ -1,5 +1,5 @@
 id = "geometry.geometry-boundary-relation-scope"
-status = "verified"
+status = "implemented"
 scope = "admitted-geometry-boundary-relation-scope-and-two-exact-constant-side-normals"
 reference_kind = "independent-symbolic-parent-relative-admission-and-normal-rule-oracle"
 

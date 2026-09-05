@@ -1,5 +1,5 @@
 id = "numerics.canonical-cartesian-poisson-cuda"
-status = "verified"
+status = "implemented"
 scope = "canonical-2d-cartesian-poisson-finalized-cuda-handoff"
 reference_kind = "public-source-selected-device-observation-with-independent-host-replay"
 

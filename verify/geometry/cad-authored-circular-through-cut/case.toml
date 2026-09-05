@@ -1,5 +1,5 @@
 id = "geometry.cad-authored-circular-through-cut"
-status = "verified"
+status = "implemented"
 scope = "one-provider-neutral-rectangle-extrusion-with-one-exact-circular-through-cut"
 reference_kind = "dual-independent-analytic-and-high-precision-symbolic-oracle"
 

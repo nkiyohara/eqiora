@@ -1,5 +1,5 @@
 id = "interfaces.python-exact-circular-hole-geometry"
-status = "verified"
+status = "implemented"
 scope = "python-rust-owned-exact-axis-aligned-rectangle-with-one-circular-hole"
 reference_kind = "existing-canonical-example-bytes-and-public-rust-identity-replay"
 

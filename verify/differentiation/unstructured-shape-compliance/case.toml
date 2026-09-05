@@ -1,5 +1,5 @@
 id = "differentiation.unstructured-shape-compliance"
-status = "verified"
+status = "implemented"
 scope = "fixed-connectivity-affine-simplex-shape-differentiation"
 reference_kind = "independent-rebuild-centered-difference-and-continuous-series"
 

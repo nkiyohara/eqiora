@@ -1,5 +1,5 @@
 id = "fsi.fixed-topology-ale-monolithic-2d"
-status = "verified"
+status = "implemented"
 scope = "fixed-topology-current-geometry-navier-stokes-linear-solid-monolithic-backward-euler-2d"
 reference_kind = "independent-reassembly-and-step-refinement-cpu-reference"
 

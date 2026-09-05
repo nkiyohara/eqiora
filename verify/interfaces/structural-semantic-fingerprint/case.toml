@@ -1,5 +1,5 @@
 id = "interfaces.structural-semantic-fingerprint"
-status = "verified"
+status = "implemented"
 scope = "alpha-normalized-structural-semantic-comparison-v3"
 reference_kind = "public-rust-fingerprint-and-comparison"
 

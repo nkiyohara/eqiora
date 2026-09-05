@@ -1,5 +1,5 @@
 id = "time.diffsol-adaptive"
-status = "verified"
+status = "implemented"
 scope = "adaptive-ode-and-mass-matrix-dae"
 reference_kind = "analytic-solutions-and-algebraic-constraint"
 

@@ -153,30 +153,11 @@ def reverse_dependency_closure(
     return closure
 
 
-def changed_case_ids(paths: Iterable[str]) -> set[str]:
-    cases = set()
-    for raw in paths:
-        parts = PurePosixPath(raw).parts
-        if len(parts) >= 3 and parts[0] == "verify":
-            cases.add(f"{parts[1]}.{parts[2]}")
-    return cases
-
-
 def all_case_ids(root: Path = ROOT) -> set[str]:
     return {
         str(tomllib.loads(path.read_text(encoding="utf-8"))["id"])
         for path in sorted((root / "verify").glob("*/*/case.toml"))
     }
-
-
-def selected_case_ids(
-    paths: Iterable[str], explicit_cases: Iterable[str], live_cases: Iterable[str]
-) -> set[str]:
-    """Select changed and explicit cases without resurrecting deleted cases."""
-    changed = changed_case_ids(paths)
-    live = set(live_cases)
-    deleted = changed.difference(live)
-    return changed.union(explicit_cases).difference(deleted)
 
 
 def command(
@@ -567,7 +548,7 @@ def build_plan(
         )
         if tier == "affected" and surfaces["rust"] and not direct:
             selected_packages = set(packages)
-        cases = selected_case_ids(paths, explicit_cases, all_case_ids(root))
+        cases = set(explicit_cases)
         ci_contract_lane = (
             ROOT_CARGO_LANE
             if "interfaces.python-distribution-candidate" in cases
@@ -693,13 +674,13 @@ def build_plan(
             )
         if tier == "pr":
             limitations = (
-                "The pr tier is the local iteration loop: formatting, default-target tests and Clippy for directly changed packages, and changed or explicitly named cases only.",
+                "The pr tier is the local iteration loop: formatting, default-target tests and Clippy for directly changed packages, and explicitly named cases only.",
                 "Documentation, release-tree, dependency-layer, facade, CI-contract, and surface checks are deferred to hosted pull-request CI or a fast/affected run.",
                 "Reverse-dependency closure is not computed; use affected for uncertain dependency closure.",
             )
         else:
             limitations = (
-                "Affected evidence runs changed and explicitly named cases; semantic owners must name every affected case with --case.",
+                "Registered evidence runs only when explicitly selected with --case; broad execution belongs to periodic verification.",
                 "Default-feature Clippy is the local code gate; optional backend features require their registered case or an explicit environment-specific check.",
                 "Environment-dependent hardware and multi-node evidence is not implied unless explicitly run and recorded.",
             )

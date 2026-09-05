@@ -1,5 +1,5 @@
 id = "quality.semantic-impact-cargo-authority"
-status = "verified"
+status = "implemented"
 scope = "exact-c1-head-bounded-repository-derived-cargo-authority-s1"
 reference_kind = "precommitted-typed-record-arrays-certificates-and-causal-falsifiers"
 

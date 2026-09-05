@@ -1,5 +1,5 @@
 id = "fluid.fieldwise-si-mini-stokes-2d"
-status = "verified"
+status = "implemented"
 scope = "canonical-and-exact-package-coherent-si-fieldwise-mini-stokes-2d"
 reference_kind = "analytic-affine-solution-symmetric-congruence-and-artifact-replay"
 

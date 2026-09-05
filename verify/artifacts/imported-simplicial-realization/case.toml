@@ -1,5 +1,5 @@
 id = "artifacts.imported-simplicial-realization"
-status = "verified"
+status = "implemented"
 scope = "content-addressed-imported-affine-simplex-realization"
 reference_kind = "typed-round-trip-exact-single-dof-and-worker-independent-ordered-assembly"
 

@@ -45,8 +45,6 @@ jobs:
       dependency_policy_reason: ${{ steps.classify.outputs.dependency_policy_reason }}
       cubecl_experiment: ${{ steps.classify.outputs.cubecl_experiment }}
       cubecl_experiment_reason: ${{ steps.classify.outputs.cubecl_experiment_reason }}
-      python_host_evidence: ${{ steps.classify.outputs.python_host_evidence }}
-      python_host_evidence_reason: ${{ steps.classify.outputs.python_host_evidence_reason }}
       python_versions: ${{ steps.classify.outputs.python_versions }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -232,125 +230,6 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo +stable doc --workspace --no-deps --locked
-
-  host_evidence:
-    name: Host-CPU verification evidence
-    needs: changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    steps:
-      - name: Complete the unchanged input closure
-        if: needs.changes.outputs.rust != 'true'
-        env:
-          TARGET_SHA: ${{ needs.changes.outputs.target_sha }}
-          LANE_REASON: ${{ needs.changes.outputs.rust_reason }}
-        run: |
-          test -n "$TARGET_SHA"
-          test -n "$LANE_REASON"
-          printf 'Host-CPU verification evidence: %s; heavy execution did not run on %s.\n' \
-            "$LANE_REASON" "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: needs.changes.outputs.rust == 'true'
-        with:
-          ref: ${{ needs.changes.outputs.target_sha }}
-          persist-credentials: false
-      - name: Fetch frozen semantic-impact Cargo authority revision
-        if: needs.changes.outputs.rust == 'true'
-        run: git fetch --no-tags --depth=1 origin 8e9aec96d5170cb7ab7b7a5f52281e0a0ef09582
-      - name: Install evidence build and runtime dependencies
-        if: needs.changes.outputs.rust == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes libopenmpi-dev openmpi-bin libclang-dev libffi-dev
-          mpirun --version
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        if: needs.changes.outputs.rust == 'true'
-        with:
-          python-version: "3.12"
-      # `eqiora-python`'s Cargo tests import NumPy through the embedded pyo3
-      # interpreter, so this belongs to the Cargo evidence job even though its
-      # name reads as Python work. Removing it here is what made
-      # `interfaces.python-array-transport` fail closed on a missing module.
-      - name: Install the declared NumPy test floor
-        if: needs.changes.outputs.rust == 'true'
-        run: |
-          requirement="$(
-            python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["tool"]["eqiora-distribution"]["tested-numpy-floor"])'
-          )"
-          python -m pip install --only-binary=:all: "$requirement"
-      - name: Install stable Rust
-        if: needs.changes.outputs.rust == 'true'
-        run: rustup toolchain install stable --profile minimal
-      - name: Run registered Cargo host evidence
-        if: needs.changes.outputs.rust == 'true'
-        env:
-          CARGO_PROFILE_TEST_DEBUG: "0"
-          CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: "true"
-          CARGO_PROFILE_TEST_INCREMENTAL: "false"
-          CARGO_PROFILE_TEST_OPT_LEVEL: "1"
-          CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"
-          TMPDIR: ${{ runner.temp }}
-        run: cargo +stable run --locked -p eqiora-verify -- run --environment host-cpu --runner-kind cargo
-
-  python_host_evidence:
-    name: Host-CPU Python installed-wheel evidence
-    needs: changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    steps:
-      - name: Complete the unchanged input closure
-        if: needs.changes.outputs.python_host_evidence != 'true'
-        env:
-          TARGET_SHA: ${{ needs.changes.outputs.target_sha }}
-          LANE_REASON: ${{ needs.changes.outputs.python_host_evidence_reason }}
-        run: |
-          test -n "$TARGET_SHA"
-          test -n "$LANE_REASON"
-          printf 'Host-CPU Python installed-wheel evidence: %s; heavy execution did not run on %s.\n' \
-            "$LANE_REASON" "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: needs.changes.outputs.python_host_evidence == 'true'
-        with:
-          ref: ${{ needs.changes.outputs.target_sha }}
-          persist-credentials: false
-      - name: Install gallery media runtime dependencies
-        if: needs.changes.outputs.python_host_evidence == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes ffmpeg libglu1-mesa
-          ffmpeg -version
-          ffprobe -version
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        if: needs.changes.outputs.python_host_evidence == 'true'
-        with:
-          python-version: "3.13"
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        if: needs.changes.outputs.python_host_evidence == 'true'
-        with:
-          python-version: "3.12"
-      - name: Install the declared NumPy test floor
-        if: needs.changes.outputs.python_host_evidence == 'true'
-        run: |
-          requirement="$(
-            python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["tool"]["eqiora-distribution"]["tested-numpy-floor"])'
-          )"
-          python -m pip install --only-binary=:all: "$requirement"
-      - name: Install candidate-manifest validation tooling
-        if: needs.changes.outputs.python_host_evidence == 'true'
-        run: |
-          python -m pip install --only-binary=:all: "packaging==24.0"
-      - name: Install stable Rust
-        if: needs.changes.outputs.python_host_evidence == 'true'
-        run: rustup toolchain install stable --profile minimal
-      - name: Run registered Python installed-wheel host evidence
-        if: needs.changes.outputs.python_host_evidence == 'true'
-        env:
-          CARGO_PROFILE_TEST_DEBUG: "0"
-          CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: "true"
-          CARGO_PROFILE_TEST_INCREMENTAL: "false"
-          CARGO_PROFILE_TEST_OPT_LEVEL: "1"
-          CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"
-        run: cargo +stable run --locked -p eqiora-verify -- run --environment host-cpu --runner-kind python-installed-wheel
 
   msrv:
     name: MSRV 1.89
@@ -571,8 +450,6 @@ jobs:
       - changes
       - documentation
       - quality
-      - host_evidence
-      - python_host_evidence
       - msrv
       - dependency_policy
       - cubecl_experiment
@@ -598,8 +475,6 @@ jobs:
             {"changes":"${{ needs.changes.result }}",
              "documentation":"${{ needs.documentation.result }}",
              "quality":"${{ needs.quality.result }}",
-             "host_evidence":"${{ needs.host_evidence.result }}",
-             "python_host_evidence":"${{ needs.python_host_evidence.result }}",
              "msrv":"${{ needs.msrv.result }}",
              "dependency_policy":"${{ needs.dependency_policy.result }}",
              "cubecl_experiment":"${{ needs.cubecl_experiment.result }}",
