@@ -1191,6 +1191,8 @@ custom_newton = package.solve.Newton(
 temporal = package.time.BackwardEuler(0.01)
 scaling = package.fluid.IncompressibleScaling(length_m=1.0, velocity_m_per_s=2.0, pressure_pa=3.0)
 
+model_fingerprint = model.structural_fingerprint
+model_bytes = model.to_bytes()
 mini = package.resolve(model, mesh=affine, spatial=package.fem.MiniP1(), solve=newton, scaling=scaling, temporal=temporal)
 fvm = package.resolve(model, mesh=cartesian, spatial=package.fvm.CellCentered(), solve=newton, scaling=scaling, temporal=temporal)
 mini_bytes = mini.to_bytes()
@@ -1310,6 +1312,10 @@ assert fvm.solve.linear.algorithm == "bicgstab"
 assert mini.solve.linear.reduction == "fast" and fvm.solve.linear.reduction == "reproducible"
 assert mini.solve.linear.backend == "eqiora.faer"
 assert fvm.solve.linear.backend == "eqiora.reference"
+for numerical_plan in (mini, fvm, mini_exact, fvm_exact, *planned.values()):
+    assert numerical_plan.model is model
+    assert numerical_plan.model.structural_fingerprint == model_fingerprint
+    assert numerical_plan.model.to_bytes() == model_bytes
 expected_planning = {
     "robust": (
         package.solve.Robust,

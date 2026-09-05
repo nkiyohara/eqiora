@@ -2,9 +2,8 @@
 
 - A geometry region without a boundary validates.
 - A geometry boundary validates only with exactly one geometry-region parent.
-- Model and Transaction v7 replay preserves exact bytes and digests.
-- Model and Transaction v6 reject the geometry vocabulary.
-- Structural fingerprint generation v2 preserves geometry digest, region and
+- Current Model and Transaction replay preserves exact bytes and digests.
+- The structural fingerprint preserves geometry digest, region and
   boundary entity-set names, and boundary-parent topology.
 - Fresh occurrence IDs change exact Model identity but not the structural
   fingerprint.

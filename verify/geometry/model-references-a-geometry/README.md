@@ -7,14 +7,14 @@ and has exactly one `BoundaryOf` parent, which must be a geometry region.
 
 The positive fixtures prove a region alone and a region with a boundary,
 deterministic current Model and Transaction round-trip, current vocabulary
-inheritance, and structural fingerprint generation v2. Independently allocated
+inheritance, and the current structural fingerprint. Independently allocated
 occurrence IDs change exact Model identity while preserving the structural
 fingerprint.
 
 Falsifiers change the digest's final byte, either entity-set name, or the
 boundary's parent among two distinct regions. Missing, multiple, Cartesian, or
-wrong-kind parents fail whole-Model validation. Historical Model/Transaction
-schemas reject, and malformed digest text fails as `EQ0901` without fallback.
+wrong-kind parents fail whole-Model validation. Malformed digest text fails as
+`EQ0901`.
 
 Fields, Relations, and boundary-physical Ports cannot yet use geometry Domains
 as spatial support. The Model lacks the admitted geometry artifact needed to

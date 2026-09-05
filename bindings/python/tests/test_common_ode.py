@@ -99,6 +99,26 @@ def test_replay_and_fresh_compile_use_the_same_resolver_without_fixed_identity()
     assert second_plan.model_digest != first_plan.model_digest
 
 
+def test_output_cadence_changes_results_without_changing_model_identity() -> None:
+    model = eqiora.compile(source=DECAY)
+    plan, field = resolve_decay(model)
+    fingerprint = model.structural_fingerprint
+    model_bytes = model.to_bytes()
+    results = []
+    for output_times in ((0.2,), (0.1, 0.2)):
+        result = eqiora.run(
+            plan,
+            state=eqiora.State.initial(plan),
+            until_s=0.2,
+            output_times_s=output_times,
+        )
+        assert tuple(result.series(field).time.numpy()) == output_times
+        results.append(result.to_bytes())
+        assert model.structural_fingerprint == fingerprint
+        assert model.to_bytes() == model_bytes
+    assert results[0] != results[1]
+
+
 def test_restart_is_a_new_adaptive_run_and_step_controls_are_rejected() -> None:
     model = eqiora.compile(source=DECAY)
     plan, field = resolve_decay(model)

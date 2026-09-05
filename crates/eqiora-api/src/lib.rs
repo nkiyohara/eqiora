@@ -379,7 +379,7 @@ impl ModelDocument {
         Ok(bytes)
     }
 
-    /// Domain-separated semantic content digest.
+    /// Domain-separated exact Model artifact digest, including occurrence identity.
     ///
     /// # Errors
     /// Returns an artifact diagnostic if invariant replay fails.
