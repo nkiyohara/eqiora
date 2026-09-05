@@ -28,6 +28,18 @@ version; the release packaging check uses Rust 1.98.0. Source distributions
 require a Rust toolchain and linker. This does not establish support for every
 platform or optional native backend.
 
+## Build command-line tools from this checkout
+
+The CLI and MCP binaries use the opt-in `cli` feature. Library builds do not
+enable it or pull in the CLI argument parser. From the repository root:
+
+```console
+cargo install --locked --path crates/eqiora --features cli
+```
+
+This installs `eqiora` and `eqiora-mcp`. Repository test and site-build commands
+enable the feature explicitly when they need those binaries.
+
 ## Compile a model
 
 Put this in `src/main.rs`, then run `cargo run`:

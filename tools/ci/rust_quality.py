@@ -14,6 +14,7 @@ from classify_changes import FULL_SHA, changed_paths
 from local_verify import (
     ROOT,
     WorkspacePackage,
+    cli_feature_args,
     direct_packages,
     load_workspace,
     reverse_dependency_closure,
@@ -77,6 +78,7 @@ def hosted_selectors() -> tuple[str, ...]:
 
 
 def cargo_command(check: str, selectors: Sequence[str]) -> list[str]:
+    packages = ("eqiora",) if "--workspace" in selectors else selectors[1::2]
     options = {
         "clippy": [
             "--all-targets",
@@ -86,7 +88,7 @@ def cargo_command(check: str, selectors: Sequence[str]) -> list[str]:
             "-D",
             "warnings",
         ],
-        "test": ["--all-targets"],
+        "test": [*cli_feature_args(packages), "--all-targets"],
         "doc": ["--no-deps"],
     }
     return ["cargo", "+stable", check, "--locked", *selectors, *options[check]]

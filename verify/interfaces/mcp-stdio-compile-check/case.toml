@@ -28,3 +28,4 @@ remote_transport = false
 [evidence]
 package = "eqiora"
 test = "mcp_stdio_compile_check"
+features = ["cli"]

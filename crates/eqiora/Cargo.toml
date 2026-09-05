@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [features]
 default = ["package-filesystem"]
+cli = ["dep:clap"]
 faer = ["dep:eqiora-backend-faer"]
 mpi = ["dep:eqiora-backend-mpi", "dep:mpi"]
 diffsol = ["dep:eqiora-backend-diffsol"]
@@ -24,7 +25,7 @@ package-filesystem = ["dep:cap-std", "eqiora-api/project-filesystem", "eqiora-pa
 
 [dependencies]
 cap-std = { workspace = true, optional = true }
-clap = { workspace = true }
+clap = { workspace = true, optional = true }
 eqiora-api = { workspace = true }
 eqiora-assembly = { workspace = true }
 eqiora-artifact = { workspace = true }
@@ -73,6 +74,28 @@ sha2 = { workspace = true }
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "eqiora"
+path = "src/bin/eqiora/main.rs"
+required-features = ["cli"]
+
+[[bin]]
+name = "eqiora-mcp"
+path = "src/bin/eqiora-mcp/main.rs"
+required-features = ["cli"]
+
+[[test]]
+name = "cli_compile_check"
+required-features = ["cli"]
+
+[[test]]
+name = "cli_local_package"
+required-features = ["cli", "package-filesystem"]
+
+[[test]]
+name = "mcp_stdio_compile_check"
+required-features = ["cli"]
 
 [[example]]
 name = "canonical_cartesian_poisson_cuda_collect"

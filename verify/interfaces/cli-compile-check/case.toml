@@ -28,3 +28,4 @@ studio = false
 [evidence]
 package = "eqiora"
 test = "cli_compile_check"
+features = ["cli"]

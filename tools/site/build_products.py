@@ -60,6 +60,8 @@ def plan(
                 "--locked",
                 "--release",
                 "--bins",
+                "--features",
+                "eqiora/cli",
                 "--target-dir",
                 str(target),
                 "-p",
