@@ -644,7 +644,6 @@ def check_source(
             "check_site.py serve",
             "npm_config_offline",
             "CARGO_NET_OFFLINE",
-            "UV_OFFLINE",
             "EQIORA_SITE_CARGO_VERSION",
             "EQIORA_SITE_PYTHON_VERSION",
             "tools.site.tests.test_site_tools",
