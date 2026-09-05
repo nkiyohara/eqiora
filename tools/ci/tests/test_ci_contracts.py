@@ -261,7 +261,8 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn('["tested-numpy-floor"]', quality)
         self.assertIn("libopenmpi-dev", quality)
         self.assertIn("gmsh==4.15.2", quality)
-        self.assertIn("cargo +stable test --workspace --all-targets --locked", quality)
+        self.assertIn("python tools/ci/rust_quality.py test", quality)
+        self.assertIn("fetch-depth: 0", quality)
         self.assertNotIn("eqiora-verify -- run", workflow)
         self.assertNotIn("host_evidence:", workflow)
 
@@ -551,7 +552,7 @@ jobs:
                 "      - name: Tests\n",
                 "      - name: Full feature tests\n",
                 ("needs.changes.outputs.rust == 'true'",),
-                "cargo +stable test --workspace --all-targets --locked",
+                "python tools/ci/rust_quality.py test",
             ),
             (
                 "      - name: Full feature tests\n",
