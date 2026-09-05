@@ -4,6 +4,7 @@ Authority: ``bindings/python/python/eqiora/__init__.py``.
 """
 
 from collections.abc import Generator, Iterator, Sequence
+from fractions import Fraction
 import os
 from os import PathLike
 from typing import (
@@ -235,16 +236,16 @@ class Dimension:
     def __new__(
         cls,
         *,
-        mass: int = 0,
-        length: int = 0,
-        time: int = 0,
-        current: int = 0,
-        temperature: int = 0,
-        amount: int = 0,
-        luminous_intensity: int = 0,
+        mass: int | Fraction = 0,
+        length: int | Fraction = 0,
+        time: int | Fraction = 0,
+        current: int | Fraction = 0,
+        temperature: int | Fraction = 0,
+        amount: int | Fraction = 0,
+        luminous_intensity: int | Fraction = 0,
     ) -> Self: ...
     @property
-    def exponents(self) -> tuple[int, int, int, int, int, int, int]: ...
+    def exponents(self) -> tuple[Fraction, Fraction, Fraction, Fraction, Fraction, Fraction, Fraction]: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __ne__(self, other: object, /) -> bool: ...
 
@@ -631,7 +632,7 @@ class FieldOutput:
     @property
     def mesh(self) -> meshing.Mesh: ...
     @property
-    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    def dimension(self) -> tuple[Fraction, Fraction, Fraction, Fraction, Fraction, Fraction, Fraction]: ...
     @property
     def value_shape(self) -> tuple[int, ...]: ...
     @property
@@ -1123,7 +1124,7 @@ class Series:
     @property
     def name(self) -> str | None: ...
     @property
-    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    def dimension(self) -> tuple[Fraction, Fraction, Fraction, Fraction, Fraction, Fraction, Fraction]: ...
     @property
     def time(self) -> Array: ...
     @property

@@ -328,10 +328,7 @@ fn invalid_stale_and_foreign_edits_fail_before_mutation() {
         .into_document();
     assert!(child.commit_cartesian_domain_edit(accepted).is_err());
 
-    let length = DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
     assert!(
         AxisBounds::new(
             DynQuantity::new(f64::NAN, length),
@@ -519,10 +516,7 @@ fn cartesian_bounds(document: &ModelDocument) -> Vec<(f64, f64)> {
 }
 
 fn axis_bounds(lower: f64, upper: f64) -> AxisBounds {
-    let length = DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
     AxisBounds::new(
         DynQuantity::new(lower, length),
         DynQuantity::new(upper, length),

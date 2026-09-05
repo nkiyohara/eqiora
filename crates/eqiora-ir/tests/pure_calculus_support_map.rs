@@ -185,12 +185,7 @@ fn standard_tensor_operators_expand_and_exact_equivalence_replays() {
     assert!(compact_proof.same_normal_form(&expanded_proof));
     assert!(compact_proof.verify(&expanded).is_err());
 
-    let pressure = DimExponents {
-        mass: 1,
-        length: -1,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let pressure = DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
     let dimensioned_arguments = [volume_tensor_with_dimension("body", pressure)];
     let dimensioned = compact_definition
         .instantiate(&dimensioned_arguments)

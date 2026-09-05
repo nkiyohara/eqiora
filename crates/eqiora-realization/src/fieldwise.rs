@@ -298,10 +298,7 @@ fn block_order(left: AlgebraicBlock, right: AlgebraicBlock) -> Ordering {
 }
 
 const fn length_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 #[cfg(test)]

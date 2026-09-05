@@ -29,10 +29,8 @@ use super::{
 };
 use crate::canonical_stokes::support::{is_field, relation_expression, relations_on, unique_root};
 
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
 
 /// Exact sealed source labels mapped onto the contract-owned outer roles.
 const OUTER_ROLE_FOR_SIDE: [(usize, BoundarySide, &str); 4] = [

@@ -11,7 +11,7 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, ExternalAdapterIdentityV1,
-    ExternalRuntimeComponentV1, ExternalRuntimeRoleV1, FieldSnapshotEnvelopeV1,
+    ExternalRuntimeComponentV1, ExternalRuntimeRoleV1, FieldSnapshotEnvelopeV2,
     SpatialStateEnvelopeV2, SpatialStateEnvelopeV3, SpatialTrajectoryEnvelopeV3,
     StorageChunkSha256V1, check_json_limits, invalid_artifact,
 };
@@ -123,7 +123,7 @@ impl XdmfHdf5TrajectoryFieldV1 {
     /// Returns `EQ0901` for substituted, missing, duplicate, cross-mesh, or
     /// untruthfully presented coefficient blocks.
     pub fn new(
-        snapshot: &FieldSnapshotEnvelopeV1,
+        snapshot: &FieldSnapshotEnvelopeV2,
         blocks: Vec<(&DiscreteFieldEnvelopeV1, TemporalStorageBlockPresentationV1)>,
     ) -> Result<Self, Diagnostic> {
         let mut blocks = blocks

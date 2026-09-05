@@ -15,14 +15,10 @@ use crate::{
     Target, TargetCapabilities, TransformationNode, VectorLayoutKind,
 };
 
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const TIME: DimExponents = DimExponents {
-    time: 1,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const TIME: DimExponents =
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
 
 #[test]
 fn exact_collocated_request_resolves_to_one_nonlinear_portable_graph() {

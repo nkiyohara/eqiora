@@ -816,32 +816,17 @@ fn instantiate_dimension<I>(
     monomial: &FormalDimensionMonomial,
     arguments: &[ExpressionType<I>],
 ) -> Result<eqiora_core::DimExponents, PureOperatorError> {
-    fn component<I>(
-        monomial: &FormalDimensionMonomial,
-        arguments: &[ExpressionType<I>],
-        select: impl Fn(eqiora_core::DimExponents) -> i8,
-    ) -> Result<i8, PureOperatorError> {
-        let mut result = 0_i32;
-        for (argument, exponent) in arguments.iter().zip(monomial.exponents()) {
-            let term = i32::from(select(argument.dimension))
-                .checked_mul(i32::from(*exponent))
-                .ok_or(PureOperatorError::ResultDimensionOverflow)?;
-            result = result
-                .checked_add(term)
-                .ok_or(PureOperatorError::ResultDimensionOverflow)?;
-        }
-        i8::try_from(result).map_err(|_| PureOperatorError::ResultDimensionOverflow)
+    let mut result = eqiora_core::DimExponents::DIMENSIONLESS;
+    for (argument, exponent) in arguments.iter().zip(monomial.exponents()) {
+        let term = argument
+            .dimension
+            .pow(i32::from(*exponent), 1)
+            .ok_or(PureOperatorError::ResultDimensionOverflow)?;
+        result = result
+            .mul(term)
+            .ok_or(PureOperatorError::ResultDimensionOverflow)?;
     }
-
-    Ok(eqiora_core::DimExponents {
-        mass: component(monomial, arguments, |value| value.mass)?,
-        length: component(monomial, arguments, |value| value.length)?,
-        time: component(monomial, arguments, |value| value.time)?,
-        current: component(monomial, arguments, |value| value.current)?,
-        temperature: component(monomial, arguments, |value| value.temperature)?,
-        amount: component(monomial, arguments, |value| value.amount)?,
-        luminous_intensity: component(monomial, arguments, |value| value.luminous_intensity)?,
-    })
+    Ok(result)
 }
 
 /// One semantically typed instantiation of a pure definition.
@@ -1057,16 +1042,8 @@ mod tests {
 
     #[test]
     fn dyadic_product_derives_shape_support_and_product_dimension() {
-        let length = DimExponents {
-            length: 1,
-            ..DimExponents::DIMENSIONLESS
-        };
-        let force = DimExponents {
-            mass: 1,
-            length: 1,
-            time: -2,
-            ..DimExponents::DIMENSIONLESS
-        };
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+        let force = DimExponents::from_integers([1, 1, -2, 0, 0, 0, 0]).expect("bounded dimension");
         let definition = PureOperatorDefinition::dyadic_product().unwrap();
         assert_eq!(definition.formals().len(), 2);
         assert_eq!(definition.dimension_monomial().exponents(), &[1, 1]);
@@ -1085,12 +1062,7 @@ mod tests {
         );
         assert_eq!(
             result.dimension,
-            DimExponents {
-                mass: 1,
-                length: 2,
-                time: -2,
-                ..DimExponents::DIMENSIONLESS
-            }
+            DimExponents::from_integers([1, 2, -2, 0, 0, 0, 0]).expect("bounded dimension")
         );
         assert_ne!(
             definition.digest(),
@@ -1114,10 +1086,8 @@ mod tests {
             Err(PureOperatorError::CommonVolumeMismatch)
         ));
 
-        let large = DimExponents {
-            length: 100,
-            ..DimExponents::DIMENSIONLESS
-        };
+        let large =
+            DimExponents::from_integers([0, i32::MAX, 0, 0, 0, 0, 0]).expect("bounded dimension");
         assert!(matches!(
             definition.instantiate(&[volume_vector("body", large), volume_vector("body", large),]),
             Err(PureOperatorError::ResultDimensionOverflow)

@@ -2,20 +2,11 @@ use super::*;
 use crate::draft_spatial::DraftBoundarySide;
 
 fn voltage_dimension() -> DimExponents {
-    DimExponents {
-        mass: 1,
-        length: 2,
-        time: -3,
-        current: -1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension")
 }
 
 fn current_dimension() -> DimExponents {
-    DimExponents {
-        current: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension")
 }
 
 #[test]
@@ -37,10 +28,7 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
     let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
     let rate = DraftParameter::new(
         "rate",
-        DimExponents {
-            time: -1,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
         1.0,
     );
     let residual = DraftExpression::derivative(&state) + rate.expression() * state.expression();
@@ -99,13 +87,7 @@ fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
     let negative = DraftConservingPort::new("negative", &electrical);
     let resistance = DraftParameter::new(
         "resistance",
-        DimExponents {
-            mass: 1,
-            length: 2,
-            time: -3,
-            current: -2,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension"),
         2.0,
     );
     let relation = DraftRelation::continuous(
@@ -408,6 +390,7 @@ fn expression_contains_call(expression: &Expr, expected: &str) -> bool {
             expression_contains_call(left, expected) || expression_contains_call(right, expected)
         }
         ExprKind::Number(_)
+        | ExprKind::Quantity { .. }
         | ExprKind::Name(_)
         | ExprKind::Path(_)
         | ExprKind::BoundaryPortSelection { .. } => false,

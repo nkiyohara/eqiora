@@ -5,6 +5,47 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods, PyModule};
 
 #[test]
+fn python_rational_dimensions_preserve_exact_equality_and_native_authoring() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", native.bind(py))?;
+        py.run(
+            c_str!(
+                r#"
+from fractions import Fraction
+Dimension = eqiora.Dimension
+wave = Dimension(length=Fraction(-1, 2))
+assert wave == Dimension(length=Fraction(-2, 4))
+assert wave != Dimension(length=-1)
+assert len({wave, Dimension(length=Fraction(1, -2))}) == 1
+assert wave.exponents == (0, Fraction(-1, 2), 0, 0, 0, 0, 0)
+assert all(isinstance(value, Fraction) for value in wave.exponents)
+assert eval(repr(wave)) == wave
+assert Dimension().exponents == (0, 0, 0, 0, 0, 0, 0)
+assert Dimension(length=2147483647).exponents[1] == 2147483647
+for invalid in [0.5, 1.0, True, (1, 2), None, 2147483648, -2147483648,
+                Fraction(1, 2147483648)]:
+    try:
+        Dimension(length=invalid)
+    except (TypeError, ValueError, OverflowError):
+        pass
+    else:
+        raise AssertionError(f"accepted invalid exponent: {invalid!r}")
+field = eqiora.Field("psi", dimension=wave, initial=1.0)
+assert field.dimension == wave
+balance = eqiora.Relation("balance", residual=field)
+model = eqiora.Model.define("wave", field, balance)
+"#
+            ),
+            Some(&locals),
+            None,
+        )
+    })
+}
+
+#[test]
 fn python_native_modeling_crosses_only_shared_rust_contracts() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {

@@ -472,7 +472,9 @@ pub(super) fn rewrite_expression_with_boundary_member(
     active: Option<ActiveBoundaryMember<'_>>,
 ) -> Result<LoweringExpression, Diagnostic> {
     let lowered = match expression.kind() {
-        ExprKind::Number(_) => LoweringExpression::from_source(expression),
+        ExprKind::Number(_) | ExprKind::Quantity { .. } => {
+            LoweringExpression::from_source(expression)
+        }
         ExprKind::Name(name) if name == "time" => {
             LoweringExpression::name(name.clone(), expression.range())
         }

@@ -66,16 +66,8 @@ impl PySeries {
     }
 
     #[getter]
-    fn dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
-        (
-            self.dimension.mass,
-            self.dimension.length,
-            self.dimension.time,
-            self.dimension.current,
-            self.dimension.temperature,
-            self.dimension.amount,
-            self.dimension.luminous_intensity,
-        )
+    fn dimension(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyTuple>> {
+        crate::modeling::dimension::exponents(py, self.dimension)
     }
 
     #[getter]

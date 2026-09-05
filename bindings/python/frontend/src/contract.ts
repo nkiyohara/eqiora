@@ -65,7 +65,15 @@ export interface ScalarFieldLayer {
 	readonly association: "vertex" | "cell";
 	readonly component_shape: readonly [];
 	readonly unit: "coherent-si";
-	readonly dimension: readonly [number, number, number, number, number, number, number];
+	readonly dimension: readonly [
+		readonly [number, number],
+		readonly [number, number],
+		readonly [number, number],
+		readonly [number, number],
+		readonly [number, number],
+		readonly [number, number],
+		readonly [number, number],
+	];
 	readonly frame: "scalar";
 	readonly space: string;
 	readonly values: BufferReference;

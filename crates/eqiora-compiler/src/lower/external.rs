@@ -38,6 +38,9 @@ impl LoweringExpression {
             LoweringExpressionNode::UnknownMath(path) => {
                 LoweringExpressionNode::UnknownMath(path.clone())
             }
+            LoweringExpressionNode::InvalidUnit(message) => {
+                LoweringExpressionNode::InvalidUnit(message)
+            }
             LoweringExpressionNode::Unsupported => LoweringExpressionNode::Unsupported,
         };
         Self {

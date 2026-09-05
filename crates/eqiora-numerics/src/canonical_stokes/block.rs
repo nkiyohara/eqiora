@@ -26,17 +26,10 @@ use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
 };
 
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
+const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
 
 pub(super) fn steady_stokes_block_system(
     model: &SteadyIncompressibleStokesModel2d,

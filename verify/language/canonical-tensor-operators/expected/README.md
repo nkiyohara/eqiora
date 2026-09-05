@@ -14,5 +14,4 @@ The registered integration target must prove all of the following:
   domain-separated digests through the one current owner.
 
 No numerical field, stress, residual norm, convergence rate, or solver output
-is expected from this case. Historical Model and Transaction bytes remain
-negative specimens in `artifacts.current-model-canonical-identity`.
+is expected from this case.

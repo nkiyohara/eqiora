@@ -432,7 +432,10 @@ impl ModelDraft {
                         &mut ranges,
                         &mut paths,
                     ),
-                    initial: parameter.value,
+                    value: Expr {
+                        kind: ExprKind::Number(parameter.value),
+                        range,
+                    },
                     range,
                 }),
                 DraftDeclaration::ConservingPort(port) => Item::Port(PortDecl {
@@ -1259,63 +1262,8 @@ impl RangeAllocator {
     }
 }
 
-fn dimension_expression(
-    dimension: DimExponents,
-    path: &GraphPath,
-    ranges: &mut RangeAllocator,
-    paths: &mut HashMap<TextRange, GraphPath>,
-) -> Expr {
-    let exponents = [
-        ("kg", dimension.mass),
-        ("m", dimension.length),
-        ("s", dimension.time),
-        ("A", dimension.current),
-        ("K", dimension.temperature),
-        ("mol", dimension.amount),
-        ("cd", dimension.luminous_intensity),
-    ];
-    let mut factors = exponents
-        .into_iter()
-        .filter(|(_, exponent)| *exponent != 0)
-        .map(|(name, exponent)| {
-            let base = Expr {
-                kind: ExprKind::Name(name.to_owned()),
-                range: ranges.allocate(path, paths),
-            };
-            if exponent == 1 {
-                base
-            } else {
-                Expr {
-                    kind: ExprKind::Binary {
-                        op: BinaryOp::Pow,
-                        left: Box::new(base),
-                        right: Box::new(Expr {
-                            kind: ExprKind::Number(f64::from(exponent)),
-                            range: ranges.allocate(path, paths),
-                        }),
-                    },
-                    range: ranges.allocate(path, paths),
-                }
-            }
-        })
-        .collect::<Vec<_>>()
-        .into_iter();
-
-    let Some(first) = factors.next() else {
-        return Expr {
-            kind: ExprKind::Number(1.0),
-            range: ranges.allocate(path, paths),
-        };
-    };
-    factors.fold(first, |left, right| Expr {
-        kind: ExprKind::Binary {
-            op: BinaryOp::Mul,
-            left: Box::new(left),
-            right: Box::new(right),
-        },
-        range: ranges.allocate(path, paths),
-    })
-}
+mod dimension;
+use dimension::dimension_expression;
 
 fn native_diagnostic(model: &str, declaration: &str, message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::LANGUAGE_TYPE_ERROR, message)

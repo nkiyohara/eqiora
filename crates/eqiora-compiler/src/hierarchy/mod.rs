@@ -321,7 +321,8 @@ fn compile_external_component_from_definition<'a>(
         let declaration = SourceAstFactory::parameter(
             declaration.name(),
             declaration.dimension().clone(),
-            parameter.value().value(),
+            SourceAstFactory::expression(ExprKind::Number(parameter.value().value()), range)
+                .map_err(|error| vec![hierarchy_error(error.message())])?,
             range,
         )
         .map_err(|error| vec![hierarchy_error(error.message())])?;

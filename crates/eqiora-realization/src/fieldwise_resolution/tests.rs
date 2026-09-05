@@ -190,41 +190,21 @@ fn physical_scale(dimension: DimExponents) -> PositivePhysicalScale {
 }
 
 fn length_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 fn velocity_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 fn pressure_dimension() -> DimExponents {
-    DimExponents {
-        mass: 1,
-        length: -1,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 fn gauge_dimension() -> DimExponents {
-    DimExponents {
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 fn functional_dimension() -> DimExponents {
-    DimExponents {
-        mass: 1,
-        length: 1,
-        time: -3,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([1, 1, -3, 0, 0, 0, 0]).expect("bounded dimension")
 }

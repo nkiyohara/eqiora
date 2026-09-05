@@ -209,10 +209,8 @@ impl PyDerivedFieldSnapshot {
         support_domain_id: &str,
         values: &[f64],
     ) -> PyResult<Self> {
-        const INVERSE_TIME: DimExponents = DimExponents {
-            time: -1,
-            ..DimExponents::DIMENSIONLESS
-        };
+        const INVERSE_TIME: DimExponents =
+            DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension");
         let source_field_id = source_field.exact_id().to_owned();
         let block = common_scalar_block("cell", values)?;
         let mut hasher = Sha256::new();
@@ -281,16 +279,8 @@ impl PyDerivedFieldSnapshot {
     }
 
     #[getter]
-    fn dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
-        (
-            self.dimension.mass,
-            self.dimension.length,
-            self.dimension.time,
-            self.dimension.current,
-            self.dimension.temperature,
-            self.dimension.amount,
-            self.dimension.luminous_intensity,
-        )
+    fn dimension(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyTuple>> {
+        crate::modeling::dimension::exponents(py, self.dimension)
     }
 
     #[getter]
@@ -366,21 +356,12 @@ impl PyFieldSnapshot {
         state: &CommonState,
         mesh_digest: &str,
     ) -> PyResult<Vec<Self>> {
-        const VELOCITY: DimExponents = DimExponents {
-            length: 1,
-            time: -1,
-            ..DimExponents::DIMENSIONLESS
-        };
-        const PRESSURE: DimExponents = DimExponents {
-            mass: 1,
-            length: -1,
-            time: -2,
-            ..DimExponents::DIMENSIONLESS
-        };
-        const DISPLACEMENT: DimExponents = DimExponents {
-            length: 1,
-            ..DimExponents::DIMENSIONLESS
-        };
+        const VELOCITY: DimExponents =
+            DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+        const PRESSURE: DimExponents =
+            DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
+        const DISPLACEMENT: DimExponents =
+            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
         let velocity = state.velocity_vertex_values().ok_or_else(|| {
             PyRuntimeError::new_err("FSI State omitted shared vertex velocity coefficients")
         })?;
@@ -485,16 +466,8 @@ impl PyFieldSnapshot {
 
     /// Coherent-SI base exponents in M,L,T,I,Theta,N,J order.
     #[getter]
-    fn dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
-        (
-            self.dimension.mass,
-            self.dimension.length,
-            self.dimension.time,
-            self.dimension.current,
-            self.dimension.temperature,
-            self.dimension.amount,
-            self.dimension.luminous_intensity,
-        )
+    fn dimension(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyTuple>> {
+        crate::modeling::dimension::exponents(py, self.dimension)
     }
 
     /// Exact mathematical component shape; an empty tuple is scalar.
@@ -563,11 +536,8 @@ impl PyFieldSnapshot {
         state: &CommonState,
         mesh_digest: &str,
     ) -> PyResult<Self> {
-        const VELOCITY: DimExponents = DimExponents {
-            length: 1,
-            time: -1,
-            ..DimExponents::DIMENSIONLESS
-        };
+        const VELOCITY: DimExponents =
+            DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
         let mut blocks = Vec::new();
         if let Some(values) = state.velocity_vertex_values() {
             blocks.push(common_vector_block("vertex", values)?);
@@ -591,12 +561,8 @@ impl PyFieldSnapshot {
         state: &CommonState,
         mesh_digest: &str,
     ) -> PyResult<Self> {
-        const PRESSURE: DimExponents = DimExponents {
-            mass: 1,
-            length: -1,
-            time: -2,
-            ..DimExponents::DIMENSIONLESS
-        };
+        const PRESSURE: DimExponents =
+            DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
         let block = match (state.pressure_vertex_values(), state.pressure_cell_values()) {
             (Some(values), None) => common_scalar_block("vertex", values)?,
             (None, Some(values)) => common_scalar_block("cell", values)?,

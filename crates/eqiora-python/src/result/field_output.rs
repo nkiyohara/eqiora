@@ -128,17 +128,8 @@ impl PyFieldOutput {
     }
 
     #[getter]
-    fn dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
-        let value = self.dimension;
-        (
-            value.mass,
-            value.length,
-            value.time,
-            value.current,
-            value.temperature,
-            value.amount,
-            value.luminous_intensity,
-        )
+    fn dimension(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyTuple>> {
+        crate::modeling::dimension::exponents(py, self.dimension)
     }
 
     /// Exact mathematical component shape; an empty tuple is scalar.

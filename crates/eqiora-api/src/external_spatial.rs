@@ -425,45 +425,30 @@ public component SteadyFlowPastCylinder {
                 "dynamic_viscosity",
                 DynQuantity::new(
                     1.0e-3,
-                    DimExponents {
-                        length: -1,
-                        mass: 1,
-                        time: -1,
-                        ..DimExponents::DIMENSIONLESS
-                    },
+                    DimExponents::from_integers([1, -1, -1, 0, 0, 0, 0])
+                        .expect("bounded dimension"),
                 ),
             ),
             (
                 "zero_pressure",
                 DynQuantity::new(
                     0.0,
-                    DimExponents {
-                        length: -1,
-                        mass: 1,
-                        time: -2,
-                        ..DimExponents::DIMENSIONLESS
-                    },
+                    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0])
+                        .expect("bounded dimension"),
                 ),
             ),
             (
                 "inlet_speed",
                 DynQuantity::new(
                     0.3,
-                    DimExponents {
-                        length: 1,
-                        time: -1,
-                        ..DimExponents::DIMENSIONLESS
-                    },
+                    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
                 ),
             ),
             (
                 "channel_height",
                 DynQuantity::new(
                     0.41,
-                    DimExponents {
-                        length: 1,
-                        ..DimExponents::DIMENSIONLESS
-                    },
+                    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
                 ),
             ),
         ]

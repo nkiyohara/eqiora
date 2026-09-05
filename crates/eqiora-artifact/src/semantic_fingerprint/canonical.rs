@@ -189,7 +189,7 @@ impl<'a> Canonicalizer<'a> {
         }
         let mut encoder = Encoder::new(self.limits.max_canonical_bytes.min(remaining_work));
         encoder.raw(PROJECTION_MAGIC)?;
-        encoder.u16(SemanticFingerprintGeneration::V3.code())?;
+        encoder.u16(SemanticFingerprintGeneration::V4.code())?;
         encoder.len(order.len())?;
         for vertex in order {
             let value = &self.graph.vertices[vertex];
@@ -257,10 +257,6 @@ impl Encoder {
 
     pub(super) fn u8(&mut self, value: u8) -> Result<(), Diagnostic> {
         self.raw(&[value])
-    }
-
-    pub(super) fn i8(&mut self, value: i8) -> Result<(), Diagnostic> {
-        self.u8(value as u8)
     }
 
     pub(super) fn u16(&mut self, value: u16) -> Result<(), Diagnostic> {

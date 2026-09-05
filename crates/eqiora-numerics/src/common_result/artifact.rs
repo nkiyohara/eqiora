@@ -19,13 +19,13 @@ use validate::{
     require_reference_assembly, require_text, require_trajectory_family, validate_fields,
 };
 
-const SCHEMA: &str = "eqiora.common-result/v1";
+const SCHEMA: &str = "eqiora.common-result/v2";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCommonResultV1 {
+struct WireCommonResultV2 {
     schema: String,
     encoding: String,
     identity: String,
@@ -71,7 +71,7 @@ enum WireResultPayload {
 #[serde(deny_unknown_fields)]
 struct WireField {
     field_id: String,
-    dimension: [i8; 7],
+    dimension: [(i32, i32); 7],
     value_shape: Vec<u64>,
     space: String,
     blocks: Vec<WireFieldBlock>,
@@ -232,7 +232,7 @@ struct WireFsiInterfaceAction {
 impl CommonResult {
     /// Encode all accepted Fields, observations, evidence, and Trajectory content canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonResultV1::from_result(self)?)
+        serde_json::to_vec(&WireCommonResultV2::from_result(self)?)
             .map_err(|error| invalid(format!("cannot encode common Result artifact: {error}")))
     }
 
@@ -244,7 +244,7 @@ impl CommonResult {
                 bytes.len()
             )));
         }
-        let wire: WireCommonResultV1 = serde_json::from_slice(bytes)
+        let wire: WireCommonResultV2 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common Result JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid("common Result has an unknown schema or encoding"));
@@ -259,7 +259,7 @@ impl CommonResult {
     }
 }
 
-impl WireCommonResultV1 {
+impl WireCommonResultV2 {
     fn from_result(result: &CommonResult) -> Result<Self, Diagnostic> {
         let content = WireResultContent::from_result(result)?;
         let identity = identity(&content)?;
@@ -415,7 +415,7 @@ impl WireField {
     fn replay(&self) -> Result<CommonResultField, Diagnostic> {
         CommonResultField::new(
             self.field_id.clone(),
-            dimension_from_wire(self.dimension),
+            dimension_from_wire(self.dimension)?,
             decode_shape(&self.value_shape)?,
             self.space.clone(),
             self.blocks
@@ -858,7 +858,7 @@ fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
     let bytes = serde_json::to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(
-        Sha256::digest([b"eqiora.common-result/v1\0".as_slice(), &bytes].concat())
+        Sha256::digest([b"eqiora.common-result/v2\0".as_slice(), &bytes].concat())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

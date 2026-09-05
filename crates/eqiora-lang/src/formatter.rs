@@ -596,6 +596,12 @@ fn format_expression(expression: &Expr, parent_precedence: u8, output: &mut Stri
     }
     match &expression.kind {
         ExprKind::Number(value) => output.push_str(&format_number(*value)),
+        ExprKind::Quantity { value, unit } => {
+            output.push_str(&format_number(*value));
+            output.push_str(" [");
+            format_expression(unit, 0, output);
+            output.push(']');
+        }
         ExprKind::Name(name) => output.push_str(name),
         ExprKind::Path(path) => write!(output, "{path}").expect("String write"),
         ExprKind::BoundaryPortSelection { port, selector } => {
@@ -653,6 +659,7 @@ fn expression_precedence(expression: &Expr) -> u8 {
         } => 7,
         ExprKind::Unary { .. } => 9,
         ExprKind::Number(_)
+        | ExprKind::Quantity { .. }
         | ExprKind::Name(_)
         | ExprKind::Path(_)
         | ExprKind::BoundaryPortSelection { .. }

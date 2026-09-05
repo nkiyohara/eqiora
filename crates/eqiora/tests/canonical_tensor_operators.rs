@@ -87,7 +87,7 @@ fn source_meaning_crosses_the_closed_current_wire() {
     let model = ModelEnvelope::from_program(&program).expect("current Model");
     let model_bytes = model.canonical_json().unwrap();
     let model_text = String::from_utf8_lossy(&model_bytes);
-    assert!(model_text.contains("eqiora.model-envelope/v8"));
+    assert!(model_text.contains("eqiora.model-envelope/v9"));
     assert!(model_text.contains("symmetric-part"));
     assert!(model_text.contains("isotropic-lift"));
     let replayed_model = ModelEnvelope::from_json(&model_bytes, Default::default())
@@ -99,7 +99,7 @@ fn source_meaning_crosses_the_closed_current_wire() {
     let document = eqiora::api::ModelDocument::compile("elastic-relation.eqi", ELASTIC_RELATION)
         .expect("public facade must preserve the current wire");
     let document_bytes = document.canonical_json().unwrap();
-    assert!(String::from_utf8_lossy(&document_bytes).contains("eqiora.model-envelope/v8"));
+    assert!(String::from_utf8_lossy(&document_bytes).contains("eqiora.model-envelope/v9"));
     assert_eq!(
         eqiora::api::ModelDocument::replay(&document_bytes)
             .unwrap()
@@ -120,12 +120,8 @@ fn component_scalarization_is_the_exact_pointwise_tensor_map() {
     let isotropic = expression.isotropic_lift(pressure_value).unwrap();
     let residual = expression.add(symmetric, isotropic).unwrap();
     let expression = expression.finish([residual]).unwrap();
-    let dimension = DimExponents {
-        mass: 1,
-        length: -1,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let dimension =
+        DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
     let support = SpatialSupport::Volume {
         domain: "body",
         dimensions: 2,
@@ -184,12 +180,8 @@ fn component_scalarization_is_the_exact_pointwise_tensor_map() {
 
 #[test]
 fn tensor_typing_fails_closed_without_exact_shape_frame_and_volume_support() {
-    let dimension = DimExponents {
-        mass: 1,
-        length: -1,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let dimension =
+        DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
     let volume = SpatialSupport::Volume {
         domain: "body",
         dimensions: 2,

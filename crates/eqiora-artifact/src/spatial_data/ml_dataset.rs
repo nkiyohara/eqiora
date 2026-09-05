@@ -4,6 +4,8 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
+use crate::dimension::WireDimension;
+
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, ValueShape};
 use eqiora_meshing::DiscreteFieldAssociation;
@@ -12,12 +14,12 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV1, JsonDecoderLimits,
+    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, JsonDecoderLimits,
     SpatialStateEnvelopeV2, SpatialStateEnvelopeV3, SpatialTrajectoryEnvelopeV3, check_json_limits,
     invalid_artifact,
 };
 
-const SCHEMA: &str = "eqiora.ml-dataset-envelope/v1";
+const SCHEMA: &str = "eqiora.ml-dataset-envelope/v2";
 const SEAM_POLICY: &str = "target-replaces-source-at-remesh";
 
 /// Semantic work budgets for the ML Dataset artifact family.
@@ -106,7 +108,7 @@ impl MlDatasetFieldDescriptorV1 {
     pub fn from_snapshot(
         role: MlDatasetDescriptorRoleV1,
         window_offset: u32,
-        snapshot: &FieldSnapshotEnvelopeV1,
+        snapshot: &FieldSnapshotEnvelopeV2,
     ) -> Self {
         Self {
             wire: WireDescriptor {
@@ -178,7 +180,7 @@ impl MlDatasetFieldDescriptorV1 {
             .then_with(|| self.wire.field_ulid.cmp(&other.wire.field_ulid))
     }
 
-    fn matches_snapshot(&self, snapshot: &FieldSnapshotEnvelopeV1) -> bool {
+    fn matches_snapshot(&self, snapshot: &FieldSnapshotEnvelopeV2) -> bool {
         self.field() == snapshot.field()
             && self.support_domain() == snapshot.support_domain()
             && self.dimension() == snapshot.dimension()
@@ -314,7 +316,7 @@ impl MlDatasetObservationReferenceV1 {
         descriptor_ordinal: usize,
         descriptor: &MlDatasetFieldDescriptorV1,
         state: &SpatialStateEnvelopeV2,
-        snapshot: &FieldSnapshotEnvelopeV1,
+        snapshot: &FieldSnapshotEnvelopeV2,
     ) -> Result<Self, Diagnostic> {
         Self::from_state(
             descriptor_ordinal,
@@ -335,7 +337,7 @@ impl MlDatasetObservationReferenceV1 {
         descriptor_ordinal: usize,
         descriptor: &MlDatasetFieldDescriptorV1,
         state: &SpatialStateEnvelopeV3,
-        snapshot: &FieldSnapshotEnvelopeV1,
+        snapshot: &FieldSnapshotEnvelopeV2,
     ) -> Result<Self, Diagnostic> {
         Self::from_state(
             descriptor_ordinal,
@@ -353,7 +355,7 @@ impl MlDatasetObservationReferenceV1 {
         state: ArtifactDigest,
         mesh: ArtifactDigest,
         state_fields: &[(Id<kinds::Domain>, Id<kinds::Field>, ArtifactDigest)],
-        snapshot: &FieldSnapshotEnvelopeV1,
+        snapshot: &FieldSnapshotEnvelopeV2,
     ) -> Result<Self, Diagnostic> {
         let snapshot_digest = snapshot.digest()?;
         if !descriptor.matches_snapshot(snapshot)
@@ -603,11 +605,11 @@ impl MlDatasetChannelStatisticsV1 {
 /// layouts, device choices, and storage paths belong to materialization and
 /// storage adapters.
 #[derive(Debug, Clone, PartialEq)]
-pub struct MlDatasetEnvelopeV1 {
+pub struct MlDatasetEnvelopeV2 {
     wire: WireEnvelope,
 }
 
-impl MlDatasetEnvelopeV1 {
+impl MlDatasetEnvelopeV2 {
     /// Close one Dataset manifest over an exact V3 trajectory root.
     ///
     /// Descriptor order is canonical: feature before target, then window
@@ -1246,44 +1248,6 @@ enum WireUnitSystem {
     CoherentSi,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireDimension {
-    mass: i8,
-    length: i8,
-    time: i8,
-    current: i8,
-    temperature: i8,
-    amount: i8,
-    luminous_intensity: i8,
-}
-
-impl WireDimension {
-    const fn encode(value: DimExponents) -> Self {
-        Self {
-            mass: value.mass,
-            length: value.length,
-            time: value.time,
-            current: value.current,
-            temperature: value.temperature,
-            amount: value.amount,
-            luminous_intensity: value.luminous_intensity,
-        }
-    }
-
-    const fn decode(self) -> DimExponents {
-        DimExponents {
-            mass: self.mass,
-            length: self.length,
-            time: self.time,
-            current: self.current,
-            temperature: self.temperature,
-            amount: self.amount,
-            luminous_intensity: self.luminous_intensity,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireValueShape {
@@ -1570,13 +1534,32 @@ mod tests {
         validate_wire(&wire, MlDatasetDecoderLimits::default()).unwrap();
         let bytes = serde_json::to_vec(&wire).unwrap();
         let decoded =
-            MlDatasetEnvelopeV1::from_json(&bytes, MlDatasetDecoderLimits::default()).unwrap();
+            MlDatasetEnvelopeV2::from_json(&bytes, MlDatasetDecoderLimits::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         let json = String::from_utf8(bytes).unwrap();
         assert!(!json.contains("values"));
         assert!(!json.contains("path"));
         assert!(decoded.statistics()[0].is_constant());
         assert_eq!(decoded.statistics()[0].scale(), 1.0);
+    }
+
+    #[test]
+    fn rational_dimension_roundtrips_and_old_schema_is_rejected() {
+        let mut wire = fixture();
+        let dimension =
+            DimExponents::from_rationals([(0, 1), (-1, 2), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1)])
+                .unwrap();
+        wire.descriptors[0].physical.dimension = WireDimension::encode(dimension);
+        let bytes = serde_json::to_vec(&wire).unwrap();
+        let decoded = MlDatasetEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
+        assert_eq!(decoded.descriptors()[0].dimension(), dimension);
+        assert_eq!(decoded.canonical_json().unwrap(), bytes);
+
+        wire.schema = "eqiora.ml-dataset-envelope/v1".to_owned();
+        assert!(
+            MlDatasetEnvelopeV2::from_json(&serde_json::to_vec(&wire).unwrap(), Default::default())
+                .is_err()
+        );
     }
 
     #[test]
@@ -1659,7 +1642,7 @@ mod tests {
         let mut seam = fixture();
         seam.samples[2].states[0].state_kind = MlDatasetStateKindV1::MovingV2;
         let bytes = serde_json::to_vec(&seam).unwrap();
-        assert!(MlDatasetEnvelopeV1::from_json(&bytes, MlDatasetDecoderLimits::default()).is_err());
+        assert!(MlDatasetEnvelopeV2::from_json(&bytes, MlDatasetDecoderLimits::default()).is_err());
 
         let bytes = serde_json::to_vec(&fixture()).unwrap();
         let mut json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
@@ -1667,7 +1650,7 @@ mod tests {
             .unwrap()
             .insert("storage_path".to_owned(), serde_json::json!("hidden"));
         assert!(
-            MlDatasetEnvelopeV1::from_json(
+            MlDatasetEnvelopeV2::from_json(
                 &serde_json::to_vec(&json).unwrap(),
                 MlDatasetDecoderLimits::default(),
             )

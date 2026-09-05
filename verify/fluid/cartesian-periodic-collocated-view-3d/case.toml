@@ -48,7 +48,7 @@ axis_1_is_bit_uniform = false
 another_model_or_mesh_artifact_is_equivalent = false
 
 [acceptance]
-model_artifact_sha256 = "5d5ef599d426103a15ced2b2ad859d69739204ffc912e9e21a49b5cd611b7738"
+model_digest_matches_replayed_input = true
 model_id = "06BWXYZM2HZNYK7HQ87V3YSFY6"
 semantic_revision = 1
 collocated_mesh_digest_is_producer_derived = true

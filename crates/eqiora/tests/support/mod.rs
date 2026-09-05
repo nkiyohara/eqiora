@@ -29,10 +29,8 @@ pub(crate) struct CanonicalStateDependentMassDae {
 
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
 pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMassDae {
-    let inverse_time = DimExponents {
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let inverse_time =
+        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension");
     let differential = Id::<kinds::Field>::new();
     let algebraic = Id::<kinds::Field>::new();
     let rate = Id::<kinds::Parameter>::new();

@@ -429,10 +429,8 @@ fn canonical_decay_with_integral() -> (
     Id<kinds::Field>,
     Id<kinds::Field>,
 ) {
-    let inverse_time = DimExponents {
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let inverse_time =
+        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension");
     let x = Id::<kinds::Field>::new();
     let integral = Id::<kinds::Field>::new();
     let rate = Id::<kinds::Parameter>::new();
@@ -506,10 +504,8 @@ fn canonical_decay_with_integral() -> (
 }
 
 fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Relation>) {
-    let inverse_time = DimExponents {
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let inverse_time =
+        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension");
     let state = Id::<kinds::Field>::new();
     let rate = Id::<kinds::Parameter>::new();
     let relation = Id::<kinds::Relation>::new();
@@ -572,10 +568,8 @@ fn canonical_index_one_dae() -> (
     Id<kinds::Field>,
     Id<kinds::Field>,
 ) {
-    let inverse_time = DimExponents {
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let inverse_time =
+        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension");
     let differential = Id::<kinds::Field>::new();
     let algebraic = Id::<kinds::Field>::new();
     let rate = Id::<kinds::Parameter>::new();
@@ -659,10 +653,8 @@ fn canonical_dense_mass_matrix(
     Id<kinds::Field>,
     Id<kinds::Field>,
 ) {
-    let inverse_time = DimExponents {
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let inverse_time =
+        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension");
     let x = Id::<kinds::Field>::new();
     let y = Id::<kinds::Field>::new();
     let rate = Id::<kinds::Parameter>::new();
@@ -760,20 +752,11 @@ struct CanonicalBouncingBall {
 }
 
 fn canonical_bouncing_ball() -> CanonicalBouncingBall {
-    let length = DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let velocity_dimension = DimExponents {
-        length: 1,
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let acceleration_dimension = DimExponents {
-        length: 1,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+    let velocity_dimension =
+        DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+    let acceleration_dimension =
+        DimExponents::from_integers([0, 1, -2, 0, 0, 0, 0]).expect("bounded dimension");
     let height = Id::<kinds::Field>::new();
     let velocity = Id::<kinds::Field>::new();
     let gravity = Id::<kinds::Parameter>::new();

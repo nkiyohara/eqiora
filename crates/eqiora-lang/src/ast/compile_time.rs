@@ -33,7 +33,7 @@ impl DimensionDecl {
 pub struct ParameterDecl {
     pub(crate) name: String,
     pub(crate) dimension: Expr,
-    pub(crate) initial: f64,
+    pub(crate) value: Expr,
     pub(crate) range: TextRange,
 }
 
@@ -50,10 +50,10 @@ impl ParameterDecl {
         &self.dimension
     }
 
-    /// Returns the initial scalar value.
+    /// Returns the numeric value, including any explicit input unit.
     #[must_use]
-    pub const fn initial(&self) -> f64 {
-        self.initial
+    pub const fn value(&self) -> &Expr {
+        &self.value
     }
 
     /// Returns the declaration's source range.

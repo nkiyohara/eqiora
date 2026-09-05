@@ -34,6 +34,7 @@ enum Instruction {
     Div(usize, usize),
     PowI(usize, i32),
     Sin(usize),
+    Sqrt(usize),
 }
 
 impl ScalarSpatialExpression {
@@ -68,6 +69,7 @@ impl ScalarSpatialExpression {
                 Instruction::Div(left, right) => values[left] / values[right],
                 Instruction::PowI(base, exponent) => f64::powi(values[base], exponent),
                 Instruction::Sin(value) => f64::sin(values[value]),
+                Instruction::Sqrt(value) => real_sqrt(values[value])?,
             };
             if !value.is_finite() {
                 return Err(nonfinite(
@@ -260,6 +262,13 @@ impl ScalarSpatialExpression {
                     f64::sin(values[value]),
                     f64::cos(values[value]) * tangents[value],
                 ),
+                Instruction::Sqrt(value) => {
+                    let root = real_sqrt(values[value])?;
+                    if root == 0.0 {
+                        return Err(nonfinite("square-root derivative is undefined at zero"));
+                    }
+                    (root, tangents[value] / (2.0 * root))
+                }
             };
             if !value.is_finite() || !tangent.is_finite() {
                 return Err(nonfinite(
@@ -351,6 +360,12 @@ impl ScalarSpatialExpression {
                 Instruction::PowI(_, _) => {}
                 Instruction::Sin(value) => {
                     adjoints[value] += adjoint * f64::cos(values[value]);
+                }
+                Instruction::Sqrt(value) => {
+                    if values[index] == 0.0 {
+                        return Err(nonfinite("square-root derivative is undefined at zero"));
+                    }
+                    adjoints[value] += adjoint / (2.0 * values[index]);
                 }
             }
         }
@@ -449,6 +464,9 @@ impl ScalarSpatialExpression {
                 }
                 Instruction::Sin(value) if !affine_is_spatial(&forms[value]) => {
                     (forms[value].0.sin(), zero())
+                }
+                Instruction::Sqrt(value) if !affine_is_spatial(&forms[value]) => {
+                    (real_sqrt(forms[value].0).ok()?, zero())
                 }
                 _ => return None,
             };
@@ -612,6 +630,9 @@ pub(crate) fn lower(
             ExprNode::UnaryMath(UnaryMathFunction::Sin, value) => {
                 Instruction::Sin(remapped(&remap, *value, owner)?)
             }
+            ExprNode::UnaryMath(UnaryMathFunction::Sqrt, value) => {
+                Instruction::Sqrt(remapped(&remap, *value, owner)?)
+            }
             _ => {
                 return Err(invalid(
                     owner,
@@ -650,6 +671,7 @@ fn remap_instruction(
         Instruction::Div(left, right) => Instruction::Div(node_offset + left, node_offset + right),
         Instruction::PowI(base, exponent) => Instruction::PowI(node_offset + base, exponent),
         Instruction::Sin(value) => Instruction::Sin(node_offset + value),
+        Instruction::Sqrt(value) => Instruction::Sqrt(node_offset + value),
     }
 }
 
@@ -706,6 +728,15 @@ fn invalid(owner: RawId, message: impl Into<String>) -> Diagnostic {
         format!("{:?}", owner.kind()),
         owner.to_string(),
     ]))
+}
+
+fn real_sqrt(value: f64) -> Result<f64, Diagnostic> {
+    if value < 0.0 {
+        return Err(nonfinite(
+            "real square root requires a nonnegative argument",
+        ));
+    }
+    Ok(value.sqrt())
 }
 
 fn nonfinite(message: impl Into<String>) -> Diagnostic {

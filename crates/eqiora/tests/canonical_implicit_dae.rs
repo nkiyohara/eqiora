@@ -352,10 +352,8 @@ fn canonical_nonlinear_derivative_relation() -> (
     Id<kinds::Relation>,
     Id<kinds::Field>,
 ) {
-    let inverse_time_squared = DimExponents {
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let inverse_time_squared =
+        DimExponents::from_integers([0, 0, -2, 0, 0, 0, 0]).expect("bounded dimension");
     let state = Id::<kinds::Field>::new();
     let relation = Id::<kinds::Relation>::new();
     let continuous = Id::<kinds::Activation>::new();

@@ -96,13 +96,13 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-artifact/src/remesh_transfer.rs"
-ceiling = 2594
+ceiling = 2582
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-artifact/src/spatial_data/ml_dataset.rs"
-ceiling = 1677
+ceiling = 1660
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -162,13 +162,13 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/expand.rs"
-ceiling = 2862
+ceiling = 2860
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/parameters.rs"
-ceiling = 1312
+ceiling = 1291
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -216,19 +216,19 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/draft.rs"
-ceiling = 1342
+ceiling = 1290
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/factory.rs"
-ceiling = 1255
+ceiling = 1254
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/parser.rs"
-ceiling = 1515
+ceiling = 1511
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -252,7 +252,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-numerics/src/canonical_fsi/ale_realization.rs"
-ceiling = 2372
+ceiling = 2361
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -300,13 +300,13 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-schema/src/kernel/pure_operator.rs"
-ceiling = 1146
+ceiling = 1116
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-schema/src/kernel/typing.rs"
-ceiling = 1033
+ceiling = 1005
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -349,12 +349,12 @@ removal = "Fold the regeneration pair only when a general accepted parametric-CA
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 142
+ceiling = 141
 reason = """
 The current Model and ModelTransaction envelopes own the single admitted wire
 epoch; validated content, canonical bytes, and digest derivation remain below
 that boundary.
-CartesianMeshEnvelopeV1 and CartesianQ1FieldSnapshotEnvelopeV1 close the exact
+CartesianMeshEnvelopeV1 and CartesianQ1FieldSnapshotEnvelopeV2 close the exact
 generated-mesh and Field-output identities needed to remove the bounded
 structural result surface without triangulating Q1 cells or inventing a
 lineage-free projection. They reuse the existing mesh and Field decoder

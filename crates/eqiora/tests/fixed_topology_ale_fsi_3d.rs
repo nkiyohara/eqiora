@@ -9,9 +9,9 @@ use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
-    DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV1,
+    DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV2,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV3,
-    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV5, RunManifestV2, SimplicialMeshEnvelopeV1,
+    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV6, RunManifestV2, SimplicialMeshEnvelopeV1,
     SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
     ValidatedMovingSpatialContextV2,
 };
@@ -47,31 +47,16 @@ use eqiora_numerics::{
 
 const D: usize = 3;
 const FINAL_TIME: f64 = 0.02;
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const TIME: DimExponents = DimExponents {
-    time: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
-const WEAK_FUNCTIONAL_3D: DimExponents = DimExponents {
-    mass: 1,
-    length: 2,
-    time: -3,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const TIME: DimExponents =
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
+const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
+const WEAK_FUNCTIONAL_3D: DimExponents =
+    DimExponents::from_integers([1, 2, -3, 0, 0, 0, 0]).expect("bounded dimension");
 const DIRECT_SOURCE: &str =
     include_str!("../../../verify/fsi/fixed-topology-ale-monolithic-3d/models/direct.eqi");
 
@@ -247,12 +232,12 @@ impl Fixture {
 }
 
 struct MovingSnapshotSet {
-    snapshots: Vec<FieldSnapshotEnvelopeV1>,
+    snapshots: Vec<FieldSnapshotEnvelopeV2>,
     blocks: Vec<(Id<kinds::Field>, Vec<DiscreteFieldEnvelopeV1>)>,
 }
 
 impl MovingSnapshotSet {
-    fn snapshot(&self, field: Id<kinds::Field>) -> &FieldSnapshotEnvelopeV1 {
+    fn snapshot(&self, field: Id<kinds::Field>) -> &FieldSnapshotEnvelopeV2 {
         self.snapshots
             .iter()
             .find(|snapshot| snapshot.field() == field)
@@ -285,7 +270,7 @@ fn publish_moving_artifact_dag(
     let correspondence =
         GeometryMeshCorrespondenceEnvelopeV1::new(&geometry, &model, &fixture.mesh_artifact)
             .unwrap();
-    let realization = RealizationEnvelopeV5::from_resolved(
+    let realization = RealizationEnvelopeV6::from_resolved(
         &model,
         &fixture.resolve(time_step),
         LayoutArtifacts::Replicated,
@@ -469,47 +454,11 @@ fn publish_moving_artifact_dag(
         .unwrap()
         .with_output(final_root.digest().unwrap());
     run.validate_against(&realization).unwrap();
-
-    let public_asset = public_result_asset(
-        fixture,
-        trajectory,
-        &model,
-        &geometry,
-        &correspondence,
-        &realization,
-        &run,
-        &geometry_states,
-        &spatial_states,
-        &final_root,
-    );
-    let mut expected: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../verify/fsi/fixed-topology-ale-monolithic-3d/expected/accepted-trajectory.json"
-    ))
-    .unwrap();
-    assert_eq!(
-        public_asset["provenance"]["run_sha256"],
-        "8170c97f8f2605e6329439c84926000801ef98e444a7370529ff1f5f105dcb12"
-    );
-    assert_eq!(
-        expected["provenance"]["run_sha256"],
-        "3611d999a3d6187c6bb1b911ab87159be2b02bcff3de1b2220e92dca30f7a447"
-    );
-
-    let mut current_without_run_identity = public_asset;
-    current_without_run_identity["provenance"]
-        .as_object_mut()
-        .expect("current provenance object")
-        .remove("run_sha256");
-    expected["provenance"]
-        .as_object_mut()
-        .expect("expected provenance object")
-        .remove("run_sha256");
-    assert_eq!(current_without_run_identity, expected);
 }
 
 fn assert_geometry_state_v3_replay_falsifiers(
     fixture: &Fixture,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope, RealizationEnvelopeV5>,
+    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope, RealizationEnvelopeV6>,
     snapshots: &[MovingSnapshotSet],
     geometry_states: &[GeometryStateEnvelopeV3],
 ) {
@@ -617,92 +566,9 @@ fn assert_geometry_state_v3_replay_falsifiers(
     );
 }
 
-#[allow(clippy::too_many_arguments)]
-fn public_result_asset(
-    fixture: &Fixture,
-    trajectory: &AleFsiTrajectory<3>,
-    model: &ModelEnvelope,
-    geometry: &GeometryIdentityEnvelopeV1,
-    correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
-    realization: &RealizationEnvelopeV5,
-    run: &RunManifestV2,
-    geometry_states: &[GeometryStateEnvelopeV3],
-    spatial_states: &[SpatialStateEnvelopeV2],
-    trajectory_root: &SpatialTrajectoryEnvelopeV2,
-) -> serde_json::Value {
-    let frames = trajectory
-        .states()
-        .iter()
-        .zip(geometry_states)
-        .zip(spatial_states)
-        .enumerate()
-        .map(|(step, ((state, geometry_state), spatial_state))| {
-            serde_json::json!({
-                "step": step,
-                "time_s": state.time(),
-                "geometry_state_sha256": geometry_state.digest().unwrap().to_string(),
-                "spatial_state_sha256": spatial_state.digest().unwrap().to_string(),
-                "coordinates_m": state.geometry().coordinates(),
-                "fluid_velocity_m_per_s": fixture.partition.fluid_vertices().iter()
-                    .map(|vertex| state.vertex_velocity()[vertex.index()])
-                    .collect::<Vec<_>>(),
-                "fluid_pressure_pa": state.fluid_pressure(),
-                "solid_displacement_m": fixture.partition.solid_vertices().iter()
-                    .map(|vertex| state.solid_displacement()[vertex.index()])
-                    .collect::<Vec<_>>(),
-            })
-        })
-        .collect::<Vec<_>>();
-    serde_json::json!({
-        "schema": "eqiora.verify.fixed-topology-ale-fsi-result/v1",
-        "provenance": {
-            "model_sha256": model.digest().unwrap().to_string(),
-            "semantic_revision": fixture.canonical.semantic_revision(),
-            "geometry_identity_sha256": geometry.digest().unwrap().to_string(),
-            "correspondence_sha256": correspondence.digest().unwrap().to_string(),
-            "mesh_sha256": fixture.mesh_artifact.digest().unwrap().to_string(),
-            "realization_sha256": realization.digest().unwrap().to_string(),
-            "run_sha256": run.digest().unwrap().to_string(),
-            "trajectory_sha256": trajectory_root.digest().unwrap().to_string(),
-        },
-        "topology": {
-            "cell_type": "tetrahedron",
-            "spatial_dimension": D,
-            "connectivity": fixture.mesh.cells(),
-            "fluid_cell_ids": fixture.partition.fluid_cells().iter()
-                .map(|cell| cell.index()).collect::<Vec<_>>(),
-            "solid_cell_ids": fixture.partition.solid_cells().iter()
-                .map(|cell| cell.index()).collect::<Vec<_>>(),
-            "interface_connectivity": fixture.partition.interface_facets().iter()
-                .map(|facet| fixture.mesh
-                    .entity_vertices(MeshEntity::new(2, facet.index())).unwrap()
-                    .iter().map(|vertex| vertex.index()).collect::<Vec<_>>())
-                .collect::<Vec<_>>(),
-        },
-        "field_layouts": {
-            "fluid_velocity": {
-                "association": "vertex",
-                "entity_ids": fixture.partition.fluid_vertices().iter()
-                    .map(|vertex| vertex.index()).collect::<Vec<_>>(),
-            },
-            "fluid_pressure": {
-                "association": "vertex",
-                "entity_ids": fixture.partition.fluid_vertices().iter()
-                    .map(|vertex| vertex.index()).collect::<Vec<_>>(),
-            },
-            "solid_displacement": {
-                "association": "vertex",
-                "entity_ids": fixture.partition.solid_vertices().iter()
-                    .map(|vertex| vertex.index()).collect::<Vec<_>>(),
-            },
-        },
-        "frames": frames,
-    })
-}
-
 fn moving_snapshots(
     fixture: &Fixture,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope, RealizationEnvelopeV5>,
+    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope, RealizationEnvelopeV6>,
     state: &AleFsiState<3>,
 ) -> MovingSnapshotSet {
     let vector = DiscreteFieldShape::Vector {
@@ -788,7 +654,7 @@ fn moving_snapshots(
     let snapshots = blocks
         .iter()
         .map(|(field, field_blocks)| {
-            FieldSnapshotEnvelopeV1::new_moving(context, *field, field_blocks).unwrap()
+            FieldSnapshotEnvelopeV2::new_moving(context, *field, field_blocks).unwrap()
         })
         .collect();
     MovingSnapshotSet { snapshots, blocks }

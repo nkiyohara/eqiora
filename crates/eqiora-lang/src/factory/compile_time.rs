@@ -1,8 +1,17 @@
 use super::{
-    AstConstructionError, Expr, Item, LetDecl, ParameterDecl, SourceAstFactory, TextRange,
-    checked_identifier, checked_range, validate_expression, validate_finite,
+    AstConstructionError, Expr, Item, LetDecl, ParameterBindingDecl, ParameterDecl,
+    SourceAstFactory, TextRange, checked_identifier, checked_range, validate_expression,
+    validate_identifier,
 };
 use crate::ast::DimensionDecl;
+
+pub(super) fn validate_parameter_binding(
+    binding: &ParameterBindingDecl,
+) -> Result<(), AstConstructionError> {
+    validate_identifier(binding.parameter(), "Parameter binding")?;
+    checked_range(binding.range())?;
+    validate_expression(binding.value())
+}
 
 impl SourceAstFactory {
     /// Construct one compilation-unit structural dimension alias.
@@ -29,15 +38,23 @@ impl SourceAstFactory {
     pub fn parameter(
         name: impl Into<String>,
         dimension: Expr,
-        initial: f64,
+        value: Expr,
         range: TextRange,
     ) -> Result<ParameterDecl, AstConstructionError> {
         validate_expression(&dimension)?;
-        validate_finite(initial, "Parameter value")?;
+        validate_expression(&value)?;
+        if !matches!(
+            value.kind(),
+            crate::ExprKind::Number(_) | crate::ExprKind::Quantity { .. }
+        ) {
+            return Err(AstConstructionError::new(
+                "Parameter value must be a numeric quantity literal",
+            ));
+        }
         Ok(ParameterDecl {
             name: checked_identifier(name, "Parameter")?,
             dimension,
-            initial,
+            value,
             range: checked_range(range)?,
         })
     }

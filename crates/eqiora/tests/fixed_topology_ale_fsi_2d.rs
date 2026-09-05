@@ -4,9 +4,9 @@ use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
-    DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
+    DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts, ModelEnvelope,
-    RealizationEnvelopeV4, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2,
+    RealizationEnvelopeV6, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2,
     SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
     ValidatedMovingSpatialContextV2,
 };
@@ -42,31 +42,16 @@ use eqiora_numerics::{
 
 const COMPONENTS: usize = 2;
 const FINAL_TIME: f64 = 0.02;
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const TIME: DimExponents = DimExponents {
-    time: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
-const WEAK_FUNCTIONAL: DimExponents = DimExponents {
-    mass: 1,
-    length: 1,
-    time: -3,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const TIME: DimExponents =
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
+const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
+const WEAK_FUNCTIONAL: DimExponents =
+    DimExponents::from_integers([1, 1, -3, 0, 0, 0, 0]).expect("bounded dimension");
 const DIRECT_SOURCE: &str =
     include_str!("../../../verify/fsi/fixed-topology-ale-monolithic-2d/models/direct.eqi");
 
@@ -291,12 +276,12 @@ struct ExecutedTrajectory {
 }
 
 struct MovingSnapshotSet {
-    snapshots: Vec<FieldSnapshotEnvelopeV1>,
+    snapshots: Vec<FieldSnapshotEnvelopeV2>,
     blocks: Vec<(Id<kinds::Field>, Vec<DiscreteFieldEnvelopeV1>)>,
 }
 
 impl MovingSnapshotSet {
-    fn snapshot(&self, field: Id<kinds::Field>) -> &FieldSnapshotEnvelopeV1 {
+    fn snapshot(&self, field: Id<kinds::Field>) -> &FieldSnapshotEnvelopeV2 {
         self.snapshots
             .iter()
             .find(|snapshot| snapshot.field() == field)
@@ -335,7 +320,7 @@ fn assert_moving_artifact_dag_replays(
             .unwrap();
     let resolved = fixture.resolve(time_step);
     let realization =
-        RealizationEnvelopeV4::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
+        RealizationEnvelopeV6::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
             .unwrap();
     let context = ValidatedMovingSpatialContextV2::new(
         &model,
@@ -547,7 +532,7 @@ fn moving_snapshots(
     let snapshots = blocks
         .iter()
         .map(|(field, field_blocks)| {
-            FieldSnapshotEnvelopeV1::new_moving(context, *field, field_blocks).unwrap()
+            FieldSnapshotEnvelopeV2::new_moving(context, *field, field_blocks).unwrap()
         })
         .collect();
     MovingSnapshotSet { snapshots, blocks }

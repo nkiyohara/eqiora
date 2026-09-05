@@ -384,10 +384,7 @@ fn canonical_zero(value: f64) -> f64 {
 }
 
 fn length_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 fn plan_key(base_digest: &str, transaction_digest: &str, child_digest: &str) -> String {

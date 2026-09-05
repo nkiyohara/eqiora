@@ -35,8 +35,8 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "schema": {"const": "eqiora.model-envelope/v8"},
-              "transactionSchema": {"const": "eqiora.model-transaction-envelope/v8"},
+              "schema": {"const": "eqiora.model-envelope/v9"},
+              "transactionSchema": {"const": "eqiora.model-transaction-envelope/v9"},
               "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
               "modelId": {"type": "string", "minLength": 1, "maxLength": 128},
               "semanticRevision": {"type": "integer", "minimum": 0},
@@ -46,7 +46,7 @@
                 "properties": {
                   "generation": {
                     "enum": [
-                      "eqiora.structural-semantic-fingerprint/v3"
+                      "eqiora.structural-semantic-fingerprint/v4"
                     ]
                   },
                   "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}

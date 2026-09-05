@@ -24,10 +24,7 @@ impl AxisBounds {
     /// Returns `EQ0302` when either value is not a length, is non-finite, or
     /// does not form an increasing interval.
     pub fn new(lower: DynQuantity, upper: DynQuantity) -> Result<Self, Diagnostic> {
-        let length = DimExponents {
-            length: 1,
-            ..DimExponents::DIMENSIONLESS
-        };
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
         if lower.dim() != length || upper.dim() != length {
             return Err(Diagnostic::error(
                 codes::INVALID_KERNEL_DEFINITION,
@@ -81,10 +78,7 @@ impl CartesianCoordinateSource {
     /// # Errors
     /// Returns `EQ0302` when `value` is not a finite length.
     pub fn fixed(value: DynQuantity) -> Result<Self, Diagnostic> {
-        let length = DimExponents {
-            length: 1,
-            ..DimExponents::DIMENSIONLESS
-        };
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
         if value.dim() != length || !value.value().is_finite() {
             return Err(Diagnostic::error(
                 codes::INVALID_KERNEL_DEFINITION,

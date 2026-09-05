@@ -169,7 +169,7 @@ fn offline_agent_proposal_uses_the_ordinary_exact_edit_and_execution_path() {
     assert!(
         String::from_utf8(agent_plan.transaction_json().unwrap())
             .unwrap()
-            .contains("eqiora.model-transaction-envelope/v8")
+            .contains("eqiora.model-transaction-envelope/v9")
     );
     assert_eq!(base.canonical_json().unwrap(), base_bytes);
     assert_eq!(base.digest().unwrap(), base_digest);

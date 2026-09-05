@@ -377,12 +377,8 @@ mod tests {
 
     #[test]
     fn proof_equivalence_requires_the_complete_typed_context() {
-        let pressure = DimExponents {
-            mass: 1,
-            length: -1,
-            time: -2,
-            ..DimExponents::DIMENSIONLESS
-        };
+        let pressure =
+            DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
         let definition = PureOperatorDefinition::symmetric_part().unwrap();
         let dimensionless = definition
             .instantiate(&[volume_tensor("body", DimExponents::DIMENSIONLESS)])

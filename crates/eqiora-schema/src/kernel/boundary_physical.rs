@@ -372,10 +372,7 @@ mod tests {
     fn length(value: f64) -> DynQuantity {
         DynQuantity::new(
             value,
-            DimExponents {
-                length: 1,
-                ..DimExponents::DIMENSIONLESS
-            },
+            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
         )
     }
 
@@ -397,17 +394,10 @@ mod tests {
 
     #[test]
     fn connector_keeps_exact_shape_frame_and_dual_dimensions() {
-        let velocity = DimExponents {
-            length: 1,
-            time: -1,
-            ..DimExponents::DIMENSIONLESS
-        };
-        let traction = DimExponents {
-            mass: 1,
-            length: -1,
-            time: -2,
-            ..DimExponents::DIMENSIONLESS
-        };
+        let velocity =
+            DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+        let traction =
+            DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
         let connector = BoundaryPhysicalConnector::new(
             velocity,
             traction,

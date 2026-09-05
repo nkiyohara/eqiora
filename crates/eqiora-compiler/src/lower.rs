@@ -40,10 +40,7 @@ use eqiora_schema::{Model, ModelView};
 
 use crate::connection_sets::{ConnectionFragment, ConnectionSetLimits, normalize_connection_sets};
 use crate::diagnostics::{native_diagnostic, source_error};
-use crate::dimensions::{
-    checked_dimensions, checked_scale_dimension, dimension_overflow, length_dimension,
-    lower_dimension, time_dimension,
-};
+use crate::dimensions::{dimension_overflow, length_dimension, lower_dimension, time_dimension};
 use crate::formulation::CompiledAuthoredFormulation;
 use crate::projection::PhysicalExposureProjectionMap;
 use crate::provenance::ProvenanceMap;
@@ -236,6 +233,7 @@ enum LoweringExpressionNode {
         arguments: Vec<LoweringExpression>,
     },
     UnknownMath(String),
+    InvalidUnit(&'static str),
     Unsupported,
 }
 
@@ -389,9 +387,7 @@ pub(crate) enum LoweringItem {
 mod source;
 /// Identity source for one completely staged lowering.
 ///
-/// Hierarchical elaboration implements this seam only after every full
-/// identity and its Kernel projection has been checked for collision. The
-/// legacy flat path deliberately remains fresh and non-persistent.
+/// Supplies collision-checked hierarchical identities or fresh flat identities.
 pub(crate) trait LoweringIdentities {
     fn model(&mut self, name: &str) -> OntologyId<Model>;
 
@@ -457,7 +453,11 @@ pub(crate) fn lower_model_with_identities(
     model: &ModelDecl,
     identities: &mut impl LoweringIdentities,
 ) -> Result<CompiledModel, Vec<Diagnostic>> {
-    lower_typed_model(file, &LoweringModel::from_source(model), identities)
+    lower_typed_model(
+        file,
+        &LoweringModel::from_source(file, model).map_err(|error| vec![error])?,
+        identities,
+    )
 }
 
 pub(crate) fn lower_typed_model(
@@ -1024,8 +1024,8 @@ fn instantiate_pure_dimension(
         .try_fold(
             DimExponents::DIMENSIONLESS,
             |result, (argument, exponent)| {
-                let term = checked_scale_dimension(argument.dimension, i32::from(*exponent))?;
-                checked_dimensions(result, term, i8::checked_add)
+                let term = argument.dimension.pow(i32::from(*exponent), 1)?;
+                result.mul(term)
             },
         )
 }

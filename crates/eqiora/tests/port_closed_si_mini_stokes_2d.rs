@@ -42,21 +42,12 @@ const FLUID_SOURCE: &str =
 const ROOT_PACKAGE: &str = "org.eqiora.verify.port_closed_si_mini_stokes_2d";
 const VERSION: &str = "0.1.0";
 
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
 
 #[derive(Debug)]
 struct Observation {

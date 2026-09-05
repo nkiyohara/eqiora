@@ -7,8 +7,7 @@ use eqiora::language::{
     DraftExpression, DraftField, DraftParameter, DraftPhysicalDomain, DraftRelation,
     DraftRepresentation, DraftSpatialDomain, ModelDraft,
 };
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+pub(crate) mod dimension;
 
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
@@ -176,78 +175,6 @@ impl PyRepresentation {
     }
 }
 
-#[pymethods]
-impl PyDimension {
-    #[new]
-    #[pyo3(signature = (*, mass=0, length=0, time=0, current=0, temperature=0, amount=0, luminous_intensity=0))]
-    #[allow(clippy::too_many_arguments)]
-    const fn new(
-        mass: i8,
-        length: i8,
-        time: i8,
-        current: i8,
-        temperature: i8,
-        amount: i8,
-        luminous_intensity: i8,
-    ) -> Self {
-        Self {
-            value: DimExponents {
-                mass,
-                length,
-                time,
-                current,
-                temperature,
-                amount,
-                luminous_intensity,
-            },
-        }
-    }
-
-    #[getter]
-    const fn exponents(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
-        let value = self.value;
-        (
-            value.mass,
-            value.length,
-            value.time,
-            value.current,
-            value.temperature,
-            value.amount,
-            value.luminous_intensity,
-        )
-    }
-
-    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
-        other
-            .extract::<PyRef<'_, Self>>()
-            .is_ok_and(|other| self.value == other.value)
-    }
-
-    /// Consistent with `__eq__`, so equal dimensions collide as dict keys.
-    ///
-    /// Defining `__eq__` without this makes the type unhashable, which is a
-    /// silent loss: `{Dimension.LENGTH: metres}` stops working for a value type
-    /// whose whole purpose is to be compared.
-    fn __hash__(&self) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        self.value.hash(&mut hasher);
-        hasher.finish()
-    }
-
-    fn __ne__(&self, other: &Bound<'_, PyAny>) -> bool {
-        !self.__eq__(other)
-    }
-
-    fn __repr__(&self) -> String {
-        let (mass, length, time, current, temperature, amount, luminous_intensity) =
-            self.exponents();
-        format!(
-            "Dimension(mass={mass}, length={length}, time={time}, current={current}, \
-             temperature={temperature}, amount={amount}, luminous_intensity={luminous_intensity})"
-        )
-    }
-}
-
 /// Immutable scalar Field declaration.
 #[pyclass(name = "Field", module = "eqiora._eqiora", frozen, skip_from_py_object)]
 #[derive(Debug, Clone)]
@@ -365,13 +292,13 @@ impl PyField {
                 self.name(),
                 domain.name(),
                 representation.name(),
-                self.dimension().exponents(),
+                self.dimension().value.exponents(),
                 self.initial()
             ),
             _ => format!(
                 "Field({:?}, dimension={:?}, initial={:?})",
                 self.name(),
-                self.dimension().exponents(),
+                self.dimension().value.exponents(),
                 self.initial()
             ),
         }
@@ -465,7 +392,7 @@ impl PyParameter {
         format!(
             "Parameter({:?}, dimension={:?}, value={:?})",
             self.name(),
-            self.dimension().exponents(),
+            self.dimension().value.exponents(),
             self.value()
         )
     }
@@ -516,8 +443,8 @@ impl PyPhysicalDomain {
         format!(
             "PhysicalDomain({:?}, across_dimension={:?}, through_dimension={:?})",
             self.name(),
-            self.across_dimension().exponents(),
-            self.through_dimension().exponents()
+            self.across_dimension().value.exponents(),
+            self.through_dimension().value.exponents()
         )
     }
 }

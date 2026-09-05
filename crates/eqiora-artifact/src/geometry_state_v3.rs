@@ -12,7 +12,7 @@ use crate::geometry_state::{
     validate_geometry_coordinate_array,
 };
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1,
+    ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2,
     MeshDecoderLimits, ReplayableCanonicalModelArtifact,
     ReplayableFixedTopologyAleRealizationArtifact, SimplicialMeshEnvelopeV1,
     ValidatedMovingSpatialContextV2, check_json_limits, invalid_artifact,
@@ -56,7 +56,7 @@ impl GeometryStateEnvelopeV3 {
         step: u64,
         time_s: f64,
         predecessor: Option<&Self>,
-        solid_displacement: &FieldSnapshotEnvelopeV1,
+        solid_displacement: &FieldSnapshotEnvelopeV2,
         solid_displacement_blocks: &[DiscreteFieldEnvelopeV1],
         mut current_coordinates_m: Vec<Vec<f64>>,
     ) -> Result<Self, Diagnostic> {
@@ -371,7 +371,7 @@ impl GeometryStateEnvelopeV3 {
         &self,
         context: &ValidatedMovingSpatialContextV2<'_, M, R>,
         predecessor: Option<&Self>,
-        solid_displacement: &FieldSnapshotEnvelopeV1,
+        solid_displacement: &FieldSnapshotEnvelopeV2,
         solid_displacement_blocks: &[DiscreteFieldEnvelopeV1],
     ) -> Result<(), Diagnostic> {
         let expected = Self::new(
@@ -543,7 +543,7 @@ fn validate_coordinate_derivation<
     R: ReplayableFixedTopologyAleRealizationArtifact,
 >(
     context: &ValidatedMovingSpatialContextV2<'_, M, R>,
-    solid_displacement: &FieldSnapshotEnvelopeV1,
+    solid_displacement: &FieldSnapshotEnvelopeV2,
     solid_displacement_blocks: &[DiscreteFieldEnvelopeV1],
     current_coordinates_m: &[Vec<f64>],
 ) -> Result<(), Diagnostic> {

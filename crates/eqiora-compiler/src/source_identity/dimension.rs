@@ -92,7 +92,8 @@ mod tests {
                 .any(|operation| matches!(
                     operation,
                     Op::DefineKernelNode { node: KernelNode::Field(field) }
-                        if field.dimension().length == 1 && field.dimension().time == -1
+                        if field.dimension().exponents()[1] == (1, 1)
+                            && field.dimension().exponents()[2] == (-1, 1)
                 ))
         );
     }

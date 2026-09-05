@@ -10,7 +10,7 @@
 ## Summary
 
 Eqiora exposes a generation-tagged structural semantic fingerprint for one
-accepted `KernelProgram`. The current generation v3 is the domain-separated digest of a closed,
+accepted `KernelProgram`. The current generation v4 is the domain-separated digest of a closed,
 alpha-normalized, exactly canonically labelled projection of the selected
 Semantic Model graph. It supports bounded comparison across independent source,
 Rust-native, and Python-native authoring routes without weakening exact Model
@@ -64,7 +64,7 @@ The projection also includes:
 - every admitted Domain, Representation, Field, Parameter, Port, Relation,
   Activation, Connection, and ClockDomain definition;
 - revision-local current quantities and Model boundary membership;
-- dimensions, value shapes, frames, supports, connector and boundary
+- exact rational dimensions, value shapes, frames, supports, connector and boundary
   references;
 - residual and guard expression DAGs, ordered roots, symbol roles, pure
   operator definitions, and their complete content identities;
@@ -88,7 +88,7 @@ as mathematical zero. Non-finite quantities are rejected by this projection.
 The projection is closed over the vocabulary explicitly enumerated above. A
 future node, edge, expression, symbol, or enum variant is not silently omitted:
 construction returns a diagnostic until the feature explicitly extends its
-projection. All constructors emit generation v3, including scalar and fixed-box
+projection. All constructors emit generation v4, including scalar and fixed-box
 Models. There is no vocabulary-dependent generation selection or older encoder.
 
 ## Exact canonical labelling
@@ -134,7 +134,7 @@ Canonicalization proceeds as follows:
 3. when symmetry remains, individualize each candidate and recursively refine;
 4. serialize the lexicographically least discrete labelling; and
 5. hash the bytes with the domain
-   `eqiora.structural-semantic-fingerprint/v3` using SHA-256.
+   `eqiora.structural-semantic-fingerprint/v4` using SHA-256.
 
 Refinement uses complete bytes, not a probabilistic intermediate digest. The
 individualization search is exact; occurrence order may affect traversal only,
@@ -161,7 +161,7 @@ StructuralSemanticFingerprint { generation, digest }
 
 The public type is version-neutral; its explicit generation is part of
 equality and display. Internal construction limits are an admission policy and
-do not alter accepted generation-v3 bytes.
+do not alter accepted generation-v4 bytes.
 
 Python exposes the same boundary as the frozen
 `StructuralSemanticFingerprint`, `Model.structural_fingerprint`, and
@@ -208,7 +208,7 @@ evidence when those surfaces exist.
 
 Fingerprint generations are independent of Model artifact codecs and compiler
 crate versions. Equality is defined only for equal explicit generations.
-Every current construction uses v3. Previous comparison generations are not
+Every current construction uses v4. Previous comparison generations are not
 accepted or constructed; callers recompute comparison identities from current
 Models.
 

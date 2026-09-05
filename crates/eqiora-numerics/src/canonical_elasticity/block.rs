@@ -21,16 +21,10 @@ use crate::discrete_block::{
 };
 use eqiora_meshing::CartesianMesh;
 
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
 
 pub(super) fn conforming_elasticity_pair_block_system(
     model: &ConformingIsotropicElasticityCartesianPair2d,

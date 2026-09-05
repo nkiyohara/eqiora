@@ -2,8 +2,10 @@
 
 use std::str::FromStr;
 
+use crate::dimension::WireDimension;
+
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Entity, EntityKind, Id, RawId};
+use eqiora_core::{Diagnostic, DynQuantity, Entity, EntityKind, Id, RawId};
 use eqiora_graph::EdgeKind;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
@@ -25,44 +27,6 @@ impl WireQuantity {
             return Err(invalid_artifact("wire quantity value must be finite"));
         }
         Ok(DynQuantity::new(self.value, self.dimension.decode()))
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct WireDimension {
-    pub(crate) mass: i8,
-    pub(crate) length: i8,
-    pub(crate) time: i8,
-    pub(crate) current: i8,
-    pub(crate) temperature: i8,
-    pub(crate) amount: i8,
-    pub(crate) luminous_intensity: i8,
-}
-
-impl WireDimension {
-    pub(crate) const fn encode(value: DimExponents) -> Self {
-        Self {
-            mass: value.mass,
-            length: value.length,
-            time: value.time,
-            current: value.current,
-            temperature: value.temperature,
-            amount: value.amount,
-            luminous_intensity: value.luminous_intensity,
-        }
-    }
-
-    pub(crate) const fn decode(self) -> DimExponents {
-        DimExponents {
-            mass: self.mass,
-            length: self.length,
-            time: self.time,
-            current: self.current,
-            temperature: self.temperature,
-            amount: self.amount,
-            luminous_intensity: self.luminous_intensity,
-        }
     }
 }
 

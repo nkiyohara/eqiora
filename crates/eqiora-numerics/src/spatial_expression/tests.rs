@@ -4,6 +4,58 @@ use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_schema::kernel::KernelNode;
 
 #[test]
+fn source_square_root_halves_dimensions_and_checks_value_and_derivative_domains() {
+    let source = r#"
+model Root {
+  domain interval = box(0, 1);
+  representation space = continuum;
+  parameter area: m ^ 2 = 4000000 [mm ^ 2];
+  field length on interval as space: m = 0;
+  relation law continuous on interval { length - math.sqrt(area) = 0; }
+}
+"#;
+    let mut compiled = compile("sqrt.eqi", source).unwrap();
+    let (transaction, model, _) = compiled.remove(0).into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let relation = program
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Relation(relation) => Some(relation),
+            _ => None,
+        })
+        .unwrap();
+    let expression = relation.residuals();
+    let Some(ExprNode::Sub(_, root)) = expression.node(expression.roots()[0]) else {
+        panic!("length minus square root");
+    };
+    let tape = lower(&program, expression, *root, relation.id().erase(), 1).unwrap();
+    assert_eq!(tape.evaluate(&[0.0]).unwrap(), 2.0);
+    assert_eq!(
+        tape.evaluate_parameter_jvp(&[0.0], &[1.0]).unwrap(),
+        (2.0, 0.25)
+    );
+    assert_eq!(
+        tape.evaluate_parameter_vjp(&[0.0], 1.0).unwrap(),
+        (2.0, vec![0.25])
+    );
+    let zero = tape
+        .bind_parameter_point(tape.parameter_fields(), &[0.0])
+        .unwrap();
+    assert_eq!(zero.evaluate(&[0.0]).unwrap(), 0.0);
+    assert!(zero.evaluate_parameter_jvp(&[0.0], &[0.0]).is_err());
+    assert!(zero.evaluate_parameter_vjp(&[0.0], 0.0).is_err());
+    let negative = tape
+        .bind_parameter_point(tape.parameter_fields(), &[-1.0])
+        .unwrap();
+    assert!(negative.evaluate(&[0.0]).is_err());
+    assert!(negative.evaluate_parameter_jvp(&[0.0], &[1.0]).is_err());
+    assert!(negative.evaluate_parameter_vjp(&[0.0], 1.0).is_err());
+    assert!(compile("wrong.eqi", &source.replace("space: m =", "space: m ^ 2 =")).is_err());
+}
+
+#[test]
 fn evaluates_distinct_axes_and_requires_exact_coordinate_shape() {
     let expression = ScalarSpatialExpression {
         coordinate_dimension: 2,

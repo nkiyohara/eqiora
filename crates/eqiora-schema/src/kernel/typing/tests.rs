@@ -25,12 +25,8 @@ fn spatial_rules_are_identity_parametric_and_shape_aware() {
 
 #[test]
 fn tensor_structure_comes_only_from_exact_spatial_types() {
-    let dimension = DimExponents {
-        mass: 1,
-        length: -1,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let dimension =
+        DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
     let tensor = ExpressionType::shaped(
         dimension,
         ValueShape::new([2, 2]).unwrap(),
@@ -203,14 +199,9 @@ fn generic_pure_application_derives_shape_support_and_dimension_from_its_table()
         .pure_operator(&definition, [left_value, right_value])
         .unwrap();
     let expression = builder.finish([product]).unwrap();
-    let length = DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let inverse_time = DimExponents {
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+    let inverse_time =
+        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension");
 
     let typed = TypedResidual::infer(
         expression,
@@ -237,11 +228,7 @@ fn generic_pure_application_derives_shape_support_and_dimension_from_its_table()
     assert_eq!(result.support, Some(volume("body")));
     assert_eq!(
         result.dimension,
-        DimExponents {
-            length: 1,
-            time: -1,
-            ..DimExponents::DIMENSIONLESS
-        }
+        DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension")
     );
 }
 

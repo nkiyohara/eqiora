@@ -59,7 +59,6 @@ CASE_SOURCE_PATHS = (
     "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
 )
 CASE_EVIDENCE_PATHS = (
-    "verify/artifacts/current-model-canonical-identity/README.md",
     "verify/fluid/packaged-steady-stokes-2d/README.md",
     "verify/geometry/exact-circular-hole-geometry/README.md",
     "verify/interfaces/python-exact-circular-hole-geometry/README.md",

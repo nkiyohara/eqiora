@@ -2,6 +2,8 @@ use std::collections::BTreeSet;
 use std::num::NonZeroU16;
 use std::str::FromStr;
 
+use crate::dimension::WireDimension;
+
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, ValueShape};
 use eqiora_graph::EdgeKind;
@@ -18,10 +20,9 @@ use crate::{
     ValidatedMovingSpatialContextV2, check_json_limits, invalid_artifact,
 };
 
-const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v1";
+const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v2";
 
-/// The common validated lineage needed to construct the unchanged V1
-/// coefficient-snapshot wire after any admitted spatial lineage.
+/// Validated lineage shared by coefficient snapshots across spatial contexts.
 ///
 /// This stays private: it removes duplicated validation machinery without
 /// turning an implementation seam into another public extension point.
@@ -47,16 +48,15 @@ pub(super) trait ValidatedFieldSnapshotContext {
 /// canonical positive zero, so every block retains the canonical mesh entity
 /// order while the Domain support remains exact.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FieldSnapshotEnvelopeV1 {
-    wire: WireFieldSnapshotV1,
+pub struct FieldSnapshotEnvelopeV2 {
+    wire: WireFieldSnapshotV2,
 }
 
-impl FieldSnapshotEnvelopeV1 {
+impl FieldSnapshotEnvelopeV2 {
     /// Bind normalized coefficient blocks in a fixed-topology moving context.
     ///
-    /// The wire remains `field-snapshot-envelope/v1`: geometry motion changes
-    /// the enclosing state lineage, not the reference-mesh coefficient
-    /// representation or the snapshot's semantic meaning.
+    /// Geometry motion changes the enclosing state lineage, not the
+    /// reference-mesh coefficient representation.
     ///
     /// # Errors
     /// Returns `EQ0901` when the exact ALE Realization, immutable reference
@@ -116,7 +116,7 @@ impl FieldSnapshotEnvelopeV1 {
             ],
             _ => {
                 return Err(invalid_artifact(
-                    "field-snapshot/v1 admits only P1 and simplex P1-bubble coefficient spaces",
+                    "field snapshots admit only P1 and simplex P1-bubble coefficient spaces",
                 ));
             }
         };
@@ -161,7 +161,7 @@ impl FieldSnapshotEnvelopeV1 {
         }
 
         let value = Self {
-            wire: WireFieldSnapshotV1 {
+            wire: WireFieldSnapshotV2 {
                 schema: FIELD_SNAPSHOT_SCHEMA.to_owned(),
                 encoding: CANONICAL_ENCODING.to_owned(),
                 model_sha256: context.model_reference().artifact().to_string(),
@@ -560,7 +560,7 @@ fn require_portable_shape(shape: &ValueShape) -> Result<(), Diagnostic> {
         Ok(())
     } else {
         Err(invalid_artifact(
-            "field-snapshot/v1 admits only scalar and rank-one vector Fields",
+            "field snapshots admit only scalar and rank-one vector Fields",
         ))
     }
 }
@@ -604,7 +604,7 @@ fn parse_id<E: eqiora_core::Entity>(value: &str, label: &str) -> Result<Id<E>, D
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireFieldSnapshotV1 {
+struct WireFieldSnapshotV2 {
     schema: String,
     encoding: String,
     model_sha256: String,
@@ -723,43 +723,5 @@ impl WireValueShape {
     fn decode(&self) -> Result<ValueShape, Diagnostic> {
         ValueShape::new(self.extents.iter().copied())
             .map_err(|error| invalid_artifact(error.to_string()))
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireDimension {
-    mass: i8,
-    length: i8,
-    time: i8,
-    current: i8,
-    temperature: i8,
-    amount: i8,
-    luminous_intensity: i8,
-}
-
-impl WireDimension {
-    const fn encode(value: DimExponents) -> Self {
-        Self {
-            mass: value.mass,
-            length: value.length,
-            time: value.time,
-            current: value.current,
-            temperature: value.temperature,
-            amount: value.amount,
-            luminous_intensity: value.luminous_intensity,
-        }
-    }
-
-    const fn decode(self) -> DimExponents {
-        DimExponents {
-            mass: self.mass,
-            length: self.length,
-            time: self.time,
-            current: self.current,
-            temperature: self.temperature,
-            amount: self.amount,
-            luminous_intensity: self.luminous_intensity,
-        }
     }
 }

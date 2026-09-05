@@ -11728,7 +11728,8 @@ function Hl(e) {
 	}));
 }
 function Ul(e) {
-	return `${e.unit} [${e.dimension.join(",")}] · ${e.frame}`;
+	let t = e.dimension.map(([e, t]) => t === 1 ? `${e}` : `${e}/${t}`);
+	return `${e.unit} [${t.join(",")}] · ${e.frame}`;
 }
 function Wl(e, t, n, r, i) {
 	let a = t.getBoundingClientRect(), o = new G((e.clientX - a.left) / a.width * 2 - 1, -((e.clientY - a.top) / a.height) * 2 + 1), s = new Ca();

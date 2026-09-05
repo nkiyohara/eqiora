@@ -58,6 +58,23 @@ pub(super) fn evaluate_parameter_expression(
             )),
             lineage: Some(ParameterLineage::Constant),
         },
+        ExprKind::Quantity { value, unit } => {
+            let quantity = crate::units::quantity(*value, unit).map_err(|message| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    message,
+                )
+            })?;
+            EvaluatedParameter {
+                value: Some(quantity.value()),
+                dimension: EvaluatedDimension::Known(quantity.dim()),
+                bare_literal: false,
+                expression: Some(LoweringExpression::quantity(quantity, expression.range())),
+                lineage: Some(ParameterLineage::Constant),
+            }
+        }
         ExprKind::Name(name) => resolve(name, expression.range())?.into(),
         ExprKind::Path(path) => match crate::math::constant(path) {
             Some(value) => EvaluatedParameter {

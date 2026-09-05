@@ -59,6 +59,8 @@ pub enum SymbolRef {
 pub enum UnaryMathFunction {
     /// Sine of a dimensionless scalar.
     Sin,
+    /// Nonnegative real square root; halves exact dimension exponents.
+    Sqrt,
 }
 
 /// One content-addressed application of a closed pure-operator definition.

@@ -11,7 +11,16 @@ pub(super) fn encode_parameter(
     encoder.field(2, |encoder| {
         encode_expression(encoder, declaration.dimension(), budget, 1)
     })?;
-    encoder.field(3, |encoder| encoder.f64(declaration.initial()))
+    match declaration.value().kind() {
+        ExprKind::Number(value) => encoder.field(3, |encoder| encoder.f64(*value)),
+        ExprKind::Quantity { value, unit } => {
+            encoder.field(3, |encoder| encoder.f64(*value))?;
+            encoder.field(4, |encoder| encode_expression(encoder, unit, budget, 1))
+        }
+        _ => Err(source_identity_error(
+            "parameter value must be a numeric or quantity literal",
+        )),
+    }
 }
 
 pub(super) fn encode_let(

@@ -391,7 +391,10 @@ function requestDraw(state: ViewerState): void {
 }
 
 function unitLabel(field: ScalarFieldLayer): string {
-	return `${field.unit} [${field.dimension.join(",")}] · ${field.frame}`;
+	const exponents = field.dimension.map(([numerator, denominator]) =>
+		denominator === 1 ? `${numerator}` : `${numerator}/${denominator}`,
+	);
+	return `${field.unit} [${exponents.join(",")}] · ${field.frame}`;
 }
 
 function pickAcceptedValue(

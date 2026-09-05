@@ -30,7 +30,7 @@ fn demotion_roundtrip_is_lossless() {
 fn dynamic_arithmetic_combines_dimensions() {
     let v = Velocity::new(3.0).into_dyn();
     let t = Time::new(2.0).into_dyn();
-    let l: Length = (v * t).checked_cast().expect("L·T⁻¹ × T = L");
+    let l: Length = v.try_mul(t).unwrap().checked_cast().expect("L·T⁻¹ × T = L");
     assert_eq!(l.value(), 6.0);
 }
 

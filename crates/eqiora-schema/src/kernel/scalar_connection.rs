@@ -175,10 +175,8 @@ mod tests {
     use super::*;
 
     const UNIT: DimExponents = DimExponents::DIMENSIONLESS;
-    const LENGTH: DimExponents = DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    const LENGTH: DimExponents =
+        DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
 
     fn signal(direction: SignalDirection, dimension: DimExponents) -> ScalarPortContract<u8> {
         ScalarPortContract::Signal {

@@ -207,10 +207,7 @@ fn fieldwise_request(
     };
     let length_scale = PositivePhysicalScale::new(eqiora::DynQuantity::new(
         1.0,
-        eqiora::DimExponents {
-            length: 1,
-            ..eqiora::DimExponents::DIMENSIONLESS
-        },
+        eqiora::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
     ))
     .unwrap();
     let unit_scale = PositivePhysicalScale::new(eqiora::DynQuantity::new(

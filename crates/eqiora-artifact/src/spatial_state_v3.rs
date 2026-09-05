@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, FieldDecoderLimits, FieldSnapshotEnvelopeV1,
+    ArtifactDigest, CANONICAL_ENCODING, FieldDecoderLimits, FieldSnapshotEnvelopeV2,
     GeometryStateEnvelopeV2, GeometryStateOriginKindV2, MeshRevisionOverlapEnvelopeV1,
     RemeshTransferReceiptEnvelopeV1, ReplayableCanonicalModelArtifact,
     ValidatedMovingSpatialContextV2, ValidatedRemeshGeometrySourceV2, check_json_limits,
@@ -44,11 +44,11 @@ impl SpatialStateEnvelopeV3 {
         source: &ValidatedRemeshGeometrySourceV2<'_, M>,
         target_context: &ValidatedMovingSpatialContextV2<'_, M>,
         target_geometry_state: &GeometryStateEnvelopeV2,
-        target_solid_displacement: &FieldSnapshotEnvelopeV1,
+        target_solid_displacement: &FieldSnapshotEnvelopeV2,
         overlap: &MeshRevisionOverlapEnvelopeV1,
         receipt: &RemeshTransferReceiptEnvelopeV1,
-        source_snapshots: &[FieldSnapshotEnvelopeV1],
-        target_snapshots: &[FieldSnapshotEnvelopeV1],
+        source_snapshots: &[FieldSnapshotEnvelopeV2],
+        target_snapshots: &[FieldSnapshotEnvelopeV2],
     ) -> Result<Self, Diagnostic> {
         if target_geometry_state.origin() != GeometryStateOriginKindV2::Remesh
             || target_geometry_state.step() != source.state().step()
@@ -99,8 +99,8 @@ impl SpatialStateEnvelopeV3 {
         geometry_state: &GeometryStateEnvelopeV2,
         predecessor_geometry_state: &GeometryStateEnvelopeV2,
         predecessor: &Self,
-        solid_displacement: &FieldSnapshotEnvelopeV1,
-        snapshots: &[FieldSnapshotEnvelopeV1],
+        solid_displacement: &FieldSnapshotEnvelopeV2,
+        snapshots: &[FieldSnapshotEnvelopeV2],
     ) -> Result<Self, Diagnostic> {
         geometry_state.validate_against_continuous(
             context.model(),
@@ -332,11 +332,11 @@ impl SpatialStateEnvelopeV3 {
         source: &ValidatedRemeshGeometrySourceV2<'_, M>,
         target_context: &ValidatedMovingSpatialContextV2<'_, M>,
         target_geometry_state: &GeometryStateEnvelopeV2,
-        target_solid_displacement: &FieldSnapshotEnvelopeV1,
+        target_solid_displacement: &FieldSnapshotEnvelopeV2,
         overlap: &MeshRevisionOverlapEnvelopeV1,
         receipt: &RemeshTransferReceiptEnvelopeV1,
-        source_snapshots: &[FieldSnapshotEnvelopeV1],
-        target_snapshots: &[FieldSnapshotEnvelopeV1],
+        source_snapshots: &[FieldSnapshotEnvelopeV2],
+        target_snapshots: &[FieldSnapshotEnvelopeV2],
     ) -> Result<(), Diagnostic> {
         require_equal(
             self,
@@ -363,8 +363,8 @@ impl SpatialStateEnvelopeV3 {
         geometry_state: &GeometryStateEnvelopeV2,
         predecessor_geometry_state: &GeometryStateEnvelopeV2,
         predecessor: &Self,
-        solid_displacement: &FieldSnapshotEnvelopeV1,
-        snapshots: &[FieldSnapshotEnvelopeV1],
+        solid_displacement: &FieldSnapshotEnvelopeV2,
+        snapshots: &[FieldSnapshotEnvelopeV2],
     ) -> Result<(), Diagnostic> {
         require_equal(
             self,
@@ -459,7 +459,7 @@ impl SpatialStateEnvelopeV3 {
 fn validate_target_snapshots<M: ReplayableCanonicalModelArtifact>(
     context: &ValidatedMovingSpatialContextV2<'_, M>,
     geometry_state: &GeometryStateEnvelopeV2,
-    snapshots: &[FieldSnapshotEnvelopeV1],
+    snapshots: &[FieldSnapshotEnvelopeV2],
 ) -> Result<Vec<WireSpatialFieldV3>, Diagnostic> {
     if geometry_state.model_artifact() != *context.model_reference().artifact()
         || geometry_state.realization_artifact() != context.realization().digest()?

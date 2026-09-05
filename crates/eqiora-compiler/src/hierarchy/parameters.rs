@@ -8,7 +8,7 @@ use eqiora_lang::{
 };
 
 use crate::diagnostics::{source_error, stable_sort};
-use crate::dimensions::{checked_dimensions, lower_dimension};
+use crate::dimensions::lower_dimension;
 use crate::identity::FullElaborationIdentity;
 use crate::lower::LoweringExpression;
 
@@ -317,7 +317,7 @@ fn collect_default_dependencies(
     let mut pending = vec![expression];
     while let Some(expression) = pending.pop() {
         match expression.kind() {
-            ExprKind::Number(_) => {}
+            ExprKind::Number(_) | ExprKind::Quantity { .. } => {}
             ExprKind::Name(name) => {
                 if declarations.contains_key(name) {
                     dependencies
@@ -924,22 +924,21 @@ fn combine_dimensions(
         BinaryOp::Mul | BinaryOp::Div => match (left, right) {
             (EvaluatedDimension::Known(left), EvaluatedDimension::Known(right)) => {
                 let operation = if operator == BinaryOp::Mul {
-                    i8::checked_add
+                    DimExponents::mul
                 } else {
-                    i8::checked_sub
+                    DimExponents::div
                 };
-                checked_dimensions(left, right, operation)
+                operation(left, right)
                     .map(EvaluatedDimension::Known)
                     .ok_or_else(|| constant_dimension_overflow(file, range))
             }
             _ => Ok(EvaluatedDimension::Deferred),
         },
         BinaryOp::Pow => match (left, exponent) {
-            (EvaluatedDimension::Known(dimension), Some(exponent)) => {
-                scale_dimension(dimension, exponent)
-                    .map(EvaluatedDimension::Known)
-                    .ok_or_else(|| constant_dimension_overflow(file, range))
-            }
+            (EvaluatedDimension::Known(dimension), Some(exponent)) => dimension
+                .pow(exponent, 1)
+                .map(EvaluatedDimension::Known)
+                .ok_or_else(|| constant_dimension_overflow(file, range)),
             (EvaluatedDimension::Deferred, Some(0)) => {
                 Ok(EvaluatedDimension::Known(DimExponents::DIMENSIONLESS))
             }
@@ -976,23 +975,6 @@ fn exact_i32(value: f64) -> Option<i32> {
         .then_some(value as i32)
 }
 
-fn scale_dimension(dimension: DimExponents, exponent: i32) -> Option<DimExponents> {
-    fn scale(value: i8, exponent: i32) -> Option<i8> {
-        i32::from(value)
-            .checked_mul(exponent)
-            .and_then(|value| i8::try_from(value).ok())
-    }
-    Some(DimExponents {
-        mass: scale(dimension.mass, exponent)?,
-        length: scale(dimension.length, exponent)?,
-        time: scale(dimension.time, exponent)?,
-        current: scale(dimension.current, exponent)?,
-        temperature: scale(dimension.temperature, exponent)?,
-        amount: scale(dimension.amount, exponent)?,
-        luminous_intensity: scale(dimension.luminous_intensity, exponent)?,
-    })
-}
-
 fn finite_constant(file: &str, range: TextRange, value: f64) -> Result<f64, Diagnostic> {
     value
         .is_finite()
@@ -1016,7 +998,7 @@ fn constant_dimension_overflow(file: &str, range: TextRange) -> Diagnostic {
         codes::LANGUAGE_TYPE_ERROR,
         file,
         range,
-        "compile-time dimension exponent arithmetic overflows i8",
+        "compile-time dimension arithmetic exceeds rational exponent bounds",
     )
 }
 
@@ -1043,11 +1025,8 @@ mod tests {
             .expect("component exists")
     }
 
-    fn length(exponent: i8) -> DimExponents {
-        DimExponents {
-            length: exponent,
-            ..DimExponents::DIMENSIONLESS
-        }
+    fn length(exponent: i32) -> DimExponents {
+        DimExponents::from_integers([0, exponent, 0, 0, 0, 0, 0]).expect("bounded dimension")
     }
 
     #[test]

@@ -9,7 +9,7 @@ use crate::geometry_state::{
     validate_geometry_coordinate_array, validate_geometry_driver,
 };
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, FieldSnapshotEnvelopeV1,
+    ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, FieldSnapshotEnvelopeV2,
     GeometryAssociationArtifactError, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryRevisionAssociationEnvelopeV1,
     GeometryStateEnvelopeV1, MeshDecoderLimits, ReplayableCanonicalModelArtifact,
@@ -46,7 +46,7 @@ impl<'a, M: ReplayableCanonicalModelArtifact> ValidatedRemeshGeometrySourceV2<'a
         state: &'a SpatialStateEnvelopeV2,
         geometry_state: &'a GeometryStateEnvelopeV1,
         predecessor_geometry_state: Option<&GeometryStateEnvelopeV1>,
-        snapshots: &[FieldSnapshotEnvelopeV1],
+        snapshots: &[FieldSnapshotEnvelopeV2],
         association: &'a GeometryRevisionAssociationEnvelopeV1,
     ) -> Result<Self, Diagnostic> {
         state.validate_against(
@@ -118,7 +118,7 @@ impl GeometryStateEnvelopeV2 {
         step: u64,
         time_s: f64,
         predecessor: &Self,
-        solid_displacement: &FieldSnapshotEnvelopeV1,
+        solid_displacement: &FieldSnapshotEnvelopeV2,
         current_coordinates_m: Vec<Vec<f64>>,
     ) -> Result<Self, Diagnostic> {
         let common = validate_common(
@@ -187,7 +187,7 @@ impl GeometryStateEnvelopeV2 {
         target_correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
         target_reference_mesh: &SimplicialMeshEnvelopeV1,
         target_realization: &(impl CanonicalRealizationArtifact + ?Sized),
-        target_solid_displacement: &FieldSnapshotEnvelopeV1,
+        target_solid_displacement: &FieldSnapshotEnvelopeV2,
         target_current_coordinates_m: Vec<Vec<f64>>,
     ) -> Result<Self, Diagnostic> {
         let target_model_reference = target_model.artifact_reference()?;
@@ -456,7 +456,7 @@ impl GeometryStateEnvelopeV2 {
         reference_mesh: &SimplicialMeshEnvelopeV1,
         realization: &(impl CanonicalRealizationArtifact + ?Sized),
         predecessor: &Self,
-        solid_displacement: &FieldSnapshotEnvelopeV1,
+        solid_displacement: &FieldSnapshotEnvelopeV2,
     ) -> Result<(), Diagnostic> {
         let expected = Self::continuous(
             model,
@@ -486,7 +486,7 @@ impl GeometryStateEnvelopeV2 {
         target_correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
         target_reference_mesh: &SimplicialMeshEnvelopeV1,
         target_realization: &(impl CanonicalRealizationArtifact + ?Sized),
-        target_solid_displacement: &FieldSnapshotEnvelopeV1,
+        target_solid_displacement: &FieldSnapshotEnvelopeV2,
     ) -> Result<(), Diagnostic> {
         let expected = Self::remesh(
             source,
@@ -626,7 +626,7 @@ fn validate_common(
     realization: &(impl CanonicalRealizationArtifact + ?Sized),
     step: u64,
     time_s: f64,
-    solid_displacement: &FieldSnapshotEnvelopeV1,
+    solid_displacement: &FieldSnapshotEnvelopeV2,
     mut current_coordinates_m: Vec<Vec<f64>>,
 ) -> Result<CommonConstruction, Diagnostic> {
     let model_reference = model.artifact_reference()?;

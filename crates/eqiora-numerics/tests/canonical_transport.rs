@@ -1303,24 +1303,14 @@ fn scale(value: f64, dimension: DimExponents) -> PositivePhysicalScale {
     PositivePhysicalScale::new(DynQuantity::new(value, dimension)).unwrap()
 }
 
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const TIME: DimExponents = DimExponents {
-    time: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const TEMPERATURE: DimExponents = DimExponents {
-    temperature: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const TRANSPORT_WEAK_FUNCTIONAL: DimExponents = DimExponents {
-    length: 2,
-    time: -1,
-    temperature: 1,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const TIME: DimExponents =
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
+const TEMPERATURE: DimExponents =
+    DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension");
+const TRANSPORT_WEAK_FUNCTIONAL: DimExponents =
+    DimExponents::from_integers([0, 2, -1, 0, 1, 0, 0]).expect("bounded dimension");
 
 fn compile_program(source: &str) -> KernelProgram {
     let mut compiled = compile("canonical-transport.eqi", source).expect("source compiles");

@@ -79,7 +79,7 @@ impl Parser<'_> {
         self.expect_keyword("scalar")?;
         self.expect_keyword("value")?;
         self.expect(TokenKind::Colon, "`:` before property dimension")?;
-        let dimension = self.parse_expression(0)?;
+        let dimension = self.parse_dimension_expression()?;
         self.expect(TokenKind::Semicolon, "`;` after property role")?;
         let end = self
             .expect(TokenKind::RightBrace, "`}` after property contract")?
@@ -112,7 +112,7 @@ impl Parser<'_> {
         self.expect(TokenKind::Semicolon, "`;` after release value")?;
         self.expect_keyword("source_unit")?;
         self.expect(TokenKind::Colon, "`:` before source unit dimension")?;
-        let source_dimension = self.parse_expression(0)?;
+        let source_dimension = self.parse_dimension_expression()?;
         self.expect(TokenKind::Equal, "`=` before coherent-SI scale")?;
         let coherent_si_scale = self.parse_expression(0)?;
         self.expect(TokenKind::Semicolon, "`;` after source unit")?;

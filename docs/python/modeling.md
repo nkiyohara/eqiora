@@ -806,7 +806,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v8` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v9` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Model v1--v7 bytes reject; decoding never sniffs, retries, or silently migrates
 an older artifact.

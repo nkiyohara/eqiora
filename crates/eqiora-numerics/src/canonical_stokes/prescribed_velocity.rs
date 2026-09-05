@@ -30,11 +30,8 @@ const OUTER_SOURCE_LABELS: [&str; 4] = [
     "outer_y_plus",
 ];
 
-const SPEED_DIMENSION: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
+const SPEED_DIMENSION: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
 
 /// The complete prescribed-velocity meaning retained from one exact Model.
 ///

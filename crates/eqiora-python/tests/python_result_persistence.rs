@@ -66,7 +66,7 @@ assert reopened.series(field).values.numpy().tolist() == result.series(field).va
 for name, rejected in (
     ("truncated.eqresult", result_bytes[:-1]),
     ("trailing.eqresult", result_bytes + b"\n"),
-    ("unknown-version.eqresult", result_bytes.replace(b"common-result/v1", b"common-result/v9")),
+    ("unknown-version.eqresult", result_bytes.replace(b"common-result/v2", b"common-result/v9")),
 ):
     path = result_directory / name
     path.write_bytes(rejected)

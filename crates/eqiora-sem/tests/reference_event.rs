@@ -145,20 +145,11 @@ fn equal_time_pair(samples: &[(f64, f64)]) -> Option<((f64, f64), (f64, f64))> {
 }
 
 fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingFixture {
-    let length = DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let velocity_dimension = DimExponents {
-        length: 1,
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let acceleration_dimension = DimExponents {
-        length: 1,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+    let velocity_dimension =
+        DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+    let acceleration_dimension =
+        DimExponents::from_integers([0, 1, -2, 0, 0, 0, 0]).expect("bounded dimension");
 
     let height = Id::<kinds::Field>::new();
     let velocity = Id::<kinds::Field>::new();
@@ -326,10 +317,8 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
 }
 
 fn chattering_program() -> KernelProgram {
-    let inverse_time = DimExponents {
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let inverse_time =
+        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension");
     let state = Id::<kinds::Field>::new();
     let rate = Id::<kinds::Parameter>::new();
     let reset_value = Id::<kinds::Parameter>::new();

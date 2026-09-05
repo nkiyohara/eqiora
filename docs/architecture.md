@@ -540,7 +540,7 @@ single current Model contract and accept no artifact-generation selector.
 Source callers use `compile`, client-neutral `ModelDraft` callers use `define`,
 and persisted current bytes use `replay`; all three converge before artifact
 acceptance.
-Canonical bytes expose the persisted `eqiora.model-envelope/v8` schema as an
+Canonical bytes expose the persisted `eqiora.model-envelope/v9` schema as an
 output fact; the suffix is not a selectable authoring profile. Historical
 Model v1--v7 bytes reject, and replay never sniffs, retries, or migrates them.
 The bounded value-edit and scalar-elliptic application workflows retain exact
@@ -1283,14 +1283,14 @@ sensitivities.
 
 ## Durable moving spatial observations
 
-`DiscreteFieldEnvelopeV1` and `FieldSnapshotEnvelopeV1` remain the shared numeric and semantic leaves for current moving and remeshing results. They retain exact Model, Realization, geometry, correspondence, mesh, Field, support, dimension, shape, frame, association, and coefficient-block lineage.
+`DiscreteFieldEnvelopeV1` and `FieldSnapshotEnvelopeV2` remain the shared numeric and semantic leaves for current moving and remeshing results. They retain exact Model, Realization, geometry, correspondence, mesh, Field, support, dimension, shape, frame, association, and coefficient-block lineage.
 
 `SpatialStateEnvelopeV2` and `SpatialTrajectoryEnvelopeV2` own fixed-topology ALE continuation. `SpatialStateEnvelopeV3` and `SpatialTrajectoryEnvelopeV3` add explicit remesh origins, overlap and transfer receipts, and exact V2 source-prefix ancestry. The retired fixed-mesh V1 context, State, trajectory, Dataset view, and application-specific fixed-reference projection are absent; fixed-domain execution publishes through the common Model → Plan → Run/Result path.
 
 `DiscreteFieldStorageEnvelopeV1` remains a low-level optional chunking projection over canonical leaf bytes. It does not enter logical Field, moving State, trajectory, or ML Dataset identity.
 
 [RFC 0067](../rfcs/0067-derived-ml-dataset.md) defines the current
-`MlDatasetEnvelopeV1` over V2/V3 trajectories. The manifest derives one
+`MlDatasetEnvelopeV2` over V2/V3 trajectories. The manifest derives one
 strict-time sequence from an exact V2-to-V3 trajectory:
 the V3 remesh target replaces the equal-time V2 source tip. Typed descriptors
 retain feature/target role, window offset, Field, support Domain, coherent-SI
@@ -1765,7 +1765,7 @@ owned result arrays do not become unbounded DOM state.
 
 Bridge v5 also retains the first canonical model-edit path without adding UI
 semantics. A finite coherent-SI scalar replacement for a `Field` or
-`Parameter` becomes the current `eqiora.model-transaction-envelope/v8`,
+`Parameter` becomes the current `eqiora.model-transaction-envelope/v9`,
 containing both `RevisionIs` and typed `ValueEquals` preconditions. Preview
 exposes the transaction's domain-separated identity; exact-key commit
 reconstructs and atomically replays it through the same current owner,

@@ -65,8 +65,8 @@
     "requestId": "shared-accepted-v2",
     "filename": "shared-decay.eqi",
     "outcome": "accepted",
-    "modelSchema": "eqiora.model-envelope/v8",
-    "modelTransactionSchema": "eqiora.model-transaction-envelope/v8",
+    "modelSchema": "eqiora.model-envelope/v9",
+    "modelTransactionSchema": "eqiora.model-transaction-envelope/v9",
     "semanticRevision": 1,
     "digestPattern": "^[0-9a-f]{64}$",
     "digestCharacters": 64,
@@ -95,11 +95,11 @@
     ],
     "pairwiseDistinctFields": ["modelId", "digest"],
     "equalFields": ["structuralSemanticFingerprint"],
-    "fingerprintGeneration": "eqiora.structural-semantic-fingerprint/v3",
+    "fingerprintGeneration": "eqiora.structural-semantic-fingerprint/v4",
     "semanticRevision": 1,
     "frozenFingerprintDigest": false,
     "frozenOccurrenceIdentity": false,
-    "reason": "flat source compilation allocates fresh occurrence ULIDs; the generation-v3 projection alpha-normalizes them and covers this witness's scalar meaning"
+    "reason": "flat source compilation allocates fresh occurrence ULIDs; the generation-v4 projection alpha-normalizes them and covers this witness's scalar meaning"
   },
   "dispatcherNullDiagnosticFields": ["graphPath", "span", "patch"],
   "rejections": [
@@ -363,7 +363,6 @@
     "unknown-command-v2.json": {"bytes": 297, "sha256": "60c6c686e2769fbcc14ad6567f390d831f8eae1729a3e194738e879db9c02547"},
     "forbidden-model-wire-v2.json": {"bytes": 322, "sha256": "8b0d21508149e56bc438cf778fd78fc84980dc8760b104595651208132914d1d"},
     "forbidden-required-features-v2.json": {"bytes": 368, "sha256": "f61b742a4851a3fac8e9102c2e04fcdc94aeb69cf02d7cd5a60d154440000b82"},
-    "compile-v2.schema.json": {"bytes": 5953, "sha256": "e94e7dd5cb31ebbe81e77b4116d767a183787e58bd8b3c592ba3854d51503f53"},
     "compile-v1.schema.json": {"bytes": 6978, "sha256": "25cb0117212fbec1423dfd931570dac3ab571bc06d61a85daa6d18065d560f8c"}
   },
   "historicalCopies": {

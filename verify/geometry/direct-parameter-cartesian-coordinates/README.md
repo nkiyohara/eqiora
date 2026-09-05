@@ -16,17 +16,14 @@ not claimed here; that is the next slice.
 
 The test also checks current Model and Transaction replay, declaration-order
 structural equivalence without relabelling exact occurrences,
-structural-fingerprint generation v3, closed source syntax, dependency
+structural-fingerprint generation v4, closed source syntax, dependency
 equality, one-Domain ownership, non-Cartesian dependency rejection, malformed
 current-artifact rejection, and rejection by the generic value-edit and direct
 Domain-edit paths. The dedicated regeneration case owns the admitted mutation.
-The artifact crate separately freezes deterministic current Model/Transaction
-byte lengths and digests in `current_model_wire_oracle`.
 
 Run:
 
 ```bash
 cargo test --locked -p eqiora --test direct_parameter_cartesian_coordinates
-cargo test --locked -p eqiora-artifact --test current_model_wire_oracle
 cargo run --locked -p eqiora-verify -- run --case geometry.direct-parameter-cartesian-coordinates
 ```

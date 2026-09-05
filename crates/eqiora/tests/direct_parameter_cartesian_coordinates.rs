@@ -52,7 +52,7 @@ fn direct_sources_resolve_once_and_match_both_precommitted_revisions() {
         StructuralSemanticFingerprint::from_program(&base)
             .unwrap()
             .generation(),
-        SemanticFingerprintGeneration::V3
+        SemanticFingerprintGeneration::V4
     );
 
     let before = base.value(parameter.erase()).unwrap();
@@ -524,10 +524,7 @@ fn domain(document: &ModelDocument, name: &str) -> Id<kinds::Domain> {
 }
 
 fn length_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 fn axis_bounds(lower: f64, upper: f64) -> AxisBounds {

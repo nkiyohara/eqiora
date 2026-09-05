@@ -22,10 +22,3 @@ rows on moving fluid cells. Its accepted residual uses the evidence-owned
 binary64 tolerance and its omitted-GCL witness must be strictly nonzero; this
 is not a claim that a nonzero free stream satisfies the case's homogeneous
 exterior boundary conditions.
-
-`accepted-trajectory.json` is a regression fixture for the public projection
-of the accepted medium trajectory. It is derived output, not an independent
-physical oracle and not a cross-platform floating-point reproducibility
-promise. Complete field blocks, including MINI bubble and solid velocity, are
-validated in the content-addressed artifact graph before this smaller
-human- and renderer-facing projection is built.

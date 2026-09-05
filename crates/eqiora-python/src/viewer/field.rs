@@ -34,15 +34,7 @@ pub(super) fn add_scalar_field(
     let model_digest = field.exact_model_digest().to_owned();
     let field_id = field.exact_id().to_owned();
     let dimension = output.dimension_value();
-    let dimension = [
-        dimension.mass,
-        dimension.length,
-        dimension.time,
-        dimension.current,
-        dimension.temperature,
-        dimension.amount,
-        dimension.luminous_intensity,
-    ];
+    let dimension = dimension.exponents();
     for block in output.blocks() {
         let association = block.association();
         let expected = match association {

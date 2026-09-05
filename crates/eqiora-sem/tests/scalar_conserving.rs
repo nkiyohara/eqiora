@@ -23,17 +23,8 @@ struct PhysicalIds {
 
 fn dimensions() -> (DimExponents, DimExponents) {
     (
-        DimExponents {
-            mass: 1,
-            length: 2,
-            time: -3,
-            current: -1,
-            ..DimExponents::DIMENSIONLESS
-        },
-        DimExponents {
-            current: 1,
-            ..DimExponents::DIMENSIONLESS
-        },
+        DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension"),
+        DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension"),
     )
 }
 

@@ -38,7 +38,3 @@ cargo run -p eqiora-verify -- run --case language.canonical-pure-operator
 This case does not claim general contraction, broadcasting, reduction, weak
 forms, support transfer, numerical discretization, solver or backend
 selection, floating-point reassociation, callbacks, or dynamic plugins.
-
-Historical v1--v7 Model and Transaction bytes are rejection-only specimens
-owned by `artifacts.current-model-canonical-identity`; this case does not
-reintroduce a historical decoder or codec selector.

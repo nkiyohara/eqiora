@@ -51,97 +51,8 @@ impl Scalar for f32 {}
 impl sealed::Sealed for f64 {}
 impl Scalar for f64 {}
 
-/// SI base-dimension exponents.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct DimExponents {
-    /// kg
-    pub mass: i8,
-    /// m
-    pub length: i8,
-    /// s
-    pub time: i8,
-    /// A
-    pub current: i8,
-    /// K
-    pub temperature: i8,
-    /// mol
-    pub amount: i8,
-    /// cd
-    pub luminous_intensity: i8,
-}
-
-impl DimExponents {
-    /// The dimensionless exponent vector.
-    pub const DIMENSIONLESS: Self = Self {
-        mass: 0,
-        length: 0,
-        time: 0,
-        current: 0,
-        temperature: 0,
-        amount: 0,
-        luminous_intensity: 0,
-    };
-
-    /// Exponents of a product of quantities.
-    #[must_use]
-    pub const fn mul(self, o: Self) -> Self {
-        Self {
-            mass: self.mass + o.mass,
-            length: self.length + o.length,
-            time: self.time + o.time,
-            current: self.current + o.current,
-            temperature: self.temperature + o.temperature,
-            amount: self.amount + o.amount,
-            luminous_intensity: self.luminous_intensity + o.luminous_intensity,
-        }
-    }
-
-    /// Exponents of a quotient of quantities.
-    #[must_use]
-    pub const fn div(self, o: Self) -> Self {
-        Self {
-            mass: self.mass - o.mass,
-            length: self.length - o.length,
-            time: self.time - o.time,
-            current: self.current - o.current,
-            temperature: self.temperature - o.temperature,
-            amount: self.amount - o.amount,
-            luminous_intensity: self.luminous_intensity - o.luminous_intensity,
-        }
-    }
-}
-
-impl fmt::Display for DimExponents {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let parts: [(&str, i8); 7] = [
-            ("M", self.mass),
-            ("L", self.length),
-            ("T", self.time),
-            ("I", self.current),
-            ("Θ", self.temperature),
-            ("N", self.amount),
-            ("J", self.luminous_intensity),
-        ];
-        let mut wrote = false;
-        for (sym, exp) in parts {
-            if exp != 0 {
-                if wrote {
-                    write!(f, "·")?;
-                }
-                if exp == 1 {
-                    write!(f, "{sym}")?;
-                } else {
-                    write!(f, "{sym}^{exp}")?;
-                }
-                wrote = true;
-            }
-        }
-        if !wrote {
-            write!(f, "1")?;
-        }
-        Ok(())
-    }
-}
+mod exponents;
+pub use exponents::DimExponents;
 
 /// Compile-time dimension marker.
 ///
@@ -153,16 +64,15 @@ pub trait Dimension: sealed::Sealed + 'static {
 }
 
 macro_rules! define_dimension {
-    ($(#[$doc:meta])* $name:ident { $($f:ident : $v:expr),* $(,)? }) => {
+    ($(#[$doc:meta])* $name:ident $values:expr) => {
         $(#[$doc])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub struct $name;
         impl crate::quantity::sealed::Sealed for $name {}
         impl crate::quantity::Dimension for $name {
-            const EXPONENTS: crate::quantity::DimExponents = crate::quantity::DimExponents {
-                $($f: $v,)*
-                ..crate::quantity::DimExponents::DIMENSIONLESS
-            };
+            const EXPONENTS: crate::quantity::DimExponents =
+                crate::quantity::DimExponents::from_integers($values)
+                    .expect("bounded standard dimension");
         }
     };
 }
@@ -171,76 +81,71 @@ macro_rules! define_dimension {
 pub mod dim {
     define_dimension!(
         /// Dimensionless quantity.
-        Dimensionless {}
+        Dimensionless [0, 0, 0, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Mass, kg.
-        MassDim { mass: 1 }
+        MassDim [1, 0, 0, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Length, m.
-        LengthDim { length: 1 }
+        LengthDim [0, 1, 0, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Time, s.
-        TimeDim { time: 1 }
+        TimeDim [0, 0, 1, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Electric current, A.
-        CurrentDim { current: 1 }
+        CurrentDim [0, 0, 0, 1, 0, 0, 0]
     );
     define_dimension!(
         /// Thermodynamic temperature, K.
-        TemperatureDim { temperature: 1 }
+        TemperatureDim [0, 0, 0, 0, 1, 0, 0]
     );
     define_dimension!(
         /// Amount of substance, mol.
-        AmountDim { amount: 1 }
+        AmountDim [0, 0, 0, 0, 0, 1, 0]
     );
     define_dimension!(
         /// Velocity, m·s⁻¹.
-        VelocityDim { length: 1, time: -1 }
+        VelocityDim [0, 1, -1, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Acceleration, m·s⁻².
-        AccelerationDim { length: 1, time: -2 }
+        AccelerationDim [0, 1, -2, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Frequency, s⁻¹.
-        FrequencyDim { time: -1 }
+        FrequencyDim [0, 0, -1, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Force, kg·m·s⁻² (N).
-        ForceDim { mass: 1, length: 1, time: -2 }
+        ForceDim [1, 1, -2, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Pressure, kg·m⁻¹·s⁻² (Pa).
-        PressureDim { mass: 1, length: -1, time: -2 }
+        PressureDim [1, -1, -2, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Energy, kg·m²·s⁻² (J).
-        EnergyDim { mass: 1, length: 2, time: -2 }
+        EnergyDim [1, 2, -2, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Power, kg·m²·s⁻³ (W).
-        PowerDim { mass: 1, length: 2, time: -3 }
+        PowerDim [1, 2, -3, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Density, kg·m⁻³.
-        DensityDim { mass: 1, length: -3 }
+        DensityDim [1, -3, 0, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Dynamic viscosity, Pa·s.
-        DynamicViscosityDim { mass: 1, length: -1, time: -1 }
+        DynamicViscosityDim [1, -1, -1, 0, 0, 0, 0]
     );
     define_dimension!(
         /// Thermal conductivity, W·m⁻¹·K⁻¹.
-        ThermalConductivityDim {
-            mass: 1,
-            length: 1,
-            time: -3,
-            temperature: -1
-        }
+        ThermalConductivityDim [1, 1, -3, 0, -1, 0, 0]
     );
 }
 
@@ -474,20 +379,27 @@ impl DynQuantity {
     pub fn try_sub(self, rhs: Self) -> Result<Self, Diagnostic> {
         self.try_add(Self::new(-rhs.value, rhs.dim))
     }
-}
 
-/// Multiplication combines dimensions — always well-defined.
-impl Mul for DynQuantity {
-    type Output = Self;
-    fn mul(self, rhs: Self) -> Self {
-        Self::new(self.value * rhs.value, self.dim.mul(rhs.dim))
+    /// Multiply quantities, rejecting dimension-exponent overflow.
+    pub fn try_mul(self, rhs: Self) -> Result<Self, Diagnostic> {
+        let dimension = self.dim.mul(rhs.dim).ok_or_else(|| {
+            Diagnostic::error(
+                codes::DIMENSION_MISMATCH,
+                "dimension product exceeds exponent bounds",
+            )
+        })?;
+        Ok(Self::new(self.value * rhs.value, dimension))
     }
-}
-/// Division combines dimensions — always well-defined.
-impl Div for DynQuantity {
-    type Output = Self;
-    fn div(self, rhs: Self) -> Self {
-        Self::new(self.value / rhs.value, self.dim.div(rhs.dim))
+
+    /// Divide quantities, rejecting dimension-exponent overflow.
+    pub fn try_div(self, rhs: Self) -> Result<Self, Diagnostic> {
+        let dimension = self.dim.div(rhs.dim).ok_or_else(|| {
+            Diagnostic::error(
+                codes::DIMENSION_MISMATCH,
+                "dimension quotient exceeds exponent bounds",
+            )
+        })?;
+        Ok(Self::new(self.value / rhs.value, dimension))
     }
 }
 impl Mul<f64> for DynQuantity {

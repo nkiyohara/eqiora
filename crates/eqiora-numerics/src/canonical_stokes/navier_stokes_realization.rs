@@ -882,10 +882,7 @@ pub(super) fn momentum_id(
 }
 
 const fn time_dimension() -> DimExponents {
-    DimExponents {
-        time: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 fn realization_error(error: Diagnostic) -> Diagnostic {

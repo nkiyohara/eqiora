@@ -754,10 +754,7 @@ mod tests {
 
     #[test]
     fn cartesian_bounds_require_increasing_lengths() {
-        let length = DimExponents {
-            length: 1,
-            ..DimExponents::DIMENSIONLESS
-        };
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
         assert!(
             AxisBounds::new(DynQuantity::new(0.0, length), DynQuantity::new(2.0, length)).is_ok()
         );

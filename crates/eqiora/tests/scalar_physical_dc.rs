@@ -79,24 +79,10 @@ fn compile_fixture(reverse_insertion: bool) -> Fixture {
 }
 
 fn native_parallel_dc_draft() -> ModelDraft {
-    let voltage = DimExponents {
-        mass: 1,
-        length: 2,
-        time: -3,
-        current: -1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let current = DimExponents {
-        current: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
-    let resistance = DimExponents {
-        mass: 1,
-        length: 2,
-        time: -3,
-        current: -2,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let voltage = DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension");
+    let current = DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension");
+    let resistance =
+        DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension");
     let electrical = DraftPhysicalDomain::new("electrical", voltage, current);
     let supply_voltage = DraftParameter::new("supply_voltage", voltage, 12.0);
     let resistance_two = DraftParameter::new("resistance_two", resistance, 2.0);

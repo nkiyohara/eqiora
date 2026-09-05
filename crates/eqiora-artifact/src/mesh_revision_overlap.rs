@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV1, GeometryStateEnvelopeV2,
+    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, GeometryStateEnvelopeV2,
     RemeshDecoderLimits, ReplayableCanonicalModelArtifact, ValidatedMovingSpatialContextV2,
     ValidatedRemeshGeometrySourceV2, check_json_limits, invalid_artifact,
 };
@@ -42,7 +42,7 @@ impl MeshRevisionOverlapEnvelopeV1 {
         source: &ValidatedRemeshGeometrySourceV2<'_, M>,
         target_context: &ValidatedMovingSpatialContextV2<'_, M>,
         target_geometry_state: &GeometryStateEnvelopeV2,
-        target_solid_displacement: &FieldSnapshotEnvelopeV1,
+        target_solid_displacement: &FieldSnapshotEnvelopeV2,
     ) -> Result<Self, Diagnostic> {
         target_geometry_state.validate_against_remesh(
             source,
@@ -231,7 +231,7 @@ impl MeshRevisionOverlapEnvelopeV1 {
         source: &ValidatedRemeshGeometrySourceV2<'_, M>,
         target_context: &ValidatedMovingSpatialContextV2<'_, M>,
         target_geometry_state: &GeometryStateEnvelopeV2,
-        target_solid_displacement: &FieldSnapshotEnvelopeV1,
+        target_solid_displacement: &FieldSnapshotEnvelopeV2,
     ) -> Result<(), Diagnostic> {
         let expected = Self::new(
             source,

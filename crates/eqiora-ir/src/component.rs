@@ -667,10 +667,8 @@ mod tests {
         let scalar = expression.symbol(SymbolRef::PortTrace(pressure)).unwrap();
         let isotropic = expression.isotropic_lift(scalar).unwrap();
         let dag = expression.finish([isotropic]).unwrap();
-        let dimension = DimExponents {
-            length: 1,
-            ..DimExponents::DIMENSIONLESS
-        };
+        let dimension =
+            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
         let support = SpatialSupport::Volume {
             domain: "body",
             dimensions: 2,

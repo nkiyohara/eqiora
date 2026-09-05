@@ -202,14 +202,17 @@ pub(super) fn require_exact_realization(
             ));
         }
     };
-    let length_dimension = DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let length_dimension =
+        DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
     let weak_dimension = field_dimension
         .mul(length_dimension)
-        .mul(length_dimension)
-        .div(time_dimension());
+        .and_then(|dimension| dimension.mul(length_dimension))
+        .and_then(|dimension| dimension.div(time_dimension()))
+        .ok_or_else(|| {
+            invalid_realization(
+                "transport weak-functional dimension exceeds rational exponent bounds",
+            )
+        })?;
     if coordinate_scale.quantity().dim() != length_dimension
         || scales[0].scale().quantity().dim() != field_dimension
         || scaling.weak_functional_scale().quantity().dim() != weak_dimension
@@ -269,10 +272,7 @@ pub(super) fn validate_previous(
 }
 
 pub(super) const fn time_dimension() -> DimExponents {
-    DimExponents {
-        time: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 fn invalid_realization(message: impl Into<String>) -> Diagnostic {

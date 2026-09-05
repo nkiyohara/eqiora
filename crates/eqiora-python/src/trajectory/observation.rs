@@ -9,34 +9,12 @@ use crate::model::PyModelFieldRef;
 
 use super::hex_sha256;
 
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
-const INTRINSIC_2D_FORCE: DimExponents = DimExponents {
-    mass: 1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
-const INTRINSIC_2D_FLUX: DimExponents = DimExponents {
-    length: 2,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-
-fn dimension_tuple(value: DimExponents) -> (i8, i8, i8, i8, i8, i8, i8) {
-    (
-        value.mass,
-        value.length,
-        value.time,
-        value.current,
-        value.temperature,
-        value.amount,
-        value.luminous_intensity,
-    )
-}
+const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
+const INTRINSIC_2D_FORCE: DimExponents =
+    DimExponents::from_integers([1, 0, -2, 0, 0, 0, 0]).expect("bounded dimension");
+const INTRINSIC_2D_FLUX: DimExponents =
+    DimExponents::from_integers([0, 2, -1, 0, 0, 0, 0]).expect("bounded dimension");
 
 fn hash_text(hasher: &mut Sha256, value: &str) {
     hasher.update((value.len() as u64).to_be_bytes());
@@ -148,8 +126,8 @@ impl PyFieldSample {
     }
 
     #[getter]
-    fn dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
-        dimension_tuple(PRESSURE)
+    fn dimension(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyTuple>> {
+        crate::modeling::dimension::exponents(py, PRESSURE)
     }
 
     #[getter]
@@ -277,8 +255,8 @@ impl PyBoundaryForce {
     }
 
     #[getter]
-    fn dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
-        dimension_tuple(INTRINSIC_2D_FORCE)
+    fn dimension(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyTuple>> {
+        crate::modeling::dimension::exponents(py, INTRINSIC_2D_FORCE)
     }
 
     #[getter]
@@ -388,8 +366,8 @@ impl PyBoundaryFlux {
         self.value
     }
     #[getter]
-    fn dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
-        dimension_tuple(INTRINSIC_2D_FLUX)
+    fn dimension(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyTuple>> {
+        crate::modeling::dimension::exponents(py, INTRINSIC_2D_FLUX)
     }
     #[getter]
     const fn frame(&self) -> &'static str {

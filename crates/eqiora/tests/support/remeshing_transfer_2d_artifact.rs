@@ -2,11 +2,11 @@ use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
 use eqiora::artifact::{
-    DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, FieldTransferReceiptV1,
+    DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, FieldTransferReceiptV1,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
     GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelopeV1, GeometryStateEnvelopeV2,
     LayoutArtifacts, MeshRevisionOverlapEnvelopeV1, MlDatasetDecoderLimits, ModelEnvelope,
-    RealizationEnvelopeV4, RemeshDecoderLimits, RemeshFieldRoleV1, RemeshIntegrationChartV1,
+    RealizationEnvelopeV6, RemeshDecoderLimits, RemeshFieldRoleV1, RemeshIntegrationChartV1,
     RemeshNormalizationWitnessV1, RemeshProjectionActionV1, RemeshProjectionEvidenceEnvelopeV1,
     RemeshTransferEvidenceV1, RemeshTransferLawV1, RemeshTransferReceiptEnvelopeV1,
     SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2, SpatialStateEnvelopeV3,
@@ -51,10 +51,10 @@ pub(super) fn assert_artifact_vertical_slice(
         GeometryMeshCorrespondenceEnvelopeV1::new(&geometry, &model, &case.target_mesh_artifact)
             .unwrap();
     let source_realization =
-        RealizationEnvelopeV4::from_resolved(&model, source_resolved, LayoutArtifacts::Replicated)
+        RealizationEnvelopeV6::from_resolved(&model, source_resolved, LayoutArtifacts::Replicated)
             .unwrap();
     let target_realization =
-        RealizationEnvelopeV4::from_resolved(&model, target_resolved, LayoutArtifacts::Replicated)
+        RealizationEnvelopeV6::from_resolved(&model, target_resolved, LayoutArtifacts::Replicated)
             .unwrap();
     let source_context = ValidatedMovingSpatialContextV2::new(
         &model,
@@ -791,11 +791,11 @@ fn assert_ml_dataset_vertical_slice(
 
     let bytes = envelope.canonical_json().unwrap();
     let decoded =
-        eqiora::artifact::MlDatasetEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
+        eqiora::artifact::MlDatasetEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded, *envelope);
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert!(
-        eqiora::artifact::MlDatasetEnvelopeV1::from_json(
+        eqiora::artifact::MlDatasetEnvelopeV2::from_json(
             &bytes,
             MlDatasetDecoderLimits {
                 max_ml_dataset_samples: 2,
@@ -1078,7 +1078,7 @@ fn assert_artifact_falsifiers(
     model: &ModelEnvelope,
     geometry: &GeometryIdentityEnvelopeV1,
     target_correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
-    target_realization: &RealizationEnvelopeV4,
+    target_realization: &RealizationEnvelopeV6,
     case: &Case,
     source_context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
     target_context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
@@ -1323,12 +1323,12 @@ fn projection_for_action(
 }
 
 struct MovingSnapshotSet {
-    snapshots: Vec<FieldSnapshotEnvelopeV1>,
+    snapshots: Vec<FieldSnapshotEnvelopeV2>,
     blocks: BTreeMap<eqiora::RawId, Vec<DiscreteFieldEnvelopeV1>>,
 }
 
 impl MovingSnapshotSet {
-    fn snapshot(&self, field: Id<kinds::Field>) -> &FieldSnapshotEnvelopeV1 {
+    fn snapshot(&self, field: Id<kinds::Field>) -> &FieldSnapshotEnvelopeV2 {
         self.snapshots
             .iter()
             .find(|snapshot| snapshot.field() == field)
@@ -1425,7 +1425,7 @@ fn moving_snapshots(
     let snapshots = blocks
         .iter()
         .map(|(field, blocks)| {
-            FieldSnapshotEnvelopeV1::new_moving(context, *field, blocks).unwrap()
+            FieldSnapshotEnvelopeV2::new_moving(context, *field, blocks).unwrap()
         })
         .collect();
     let retained_blocks = blocks

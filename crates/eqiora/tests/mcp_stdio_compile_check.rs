@@ -1044,7 +1044,7 @@ fn accepted_and_rejected_calls_preserve_direct_operation_meaning() {
     let direct_fingerprint = direct.structural_fingerprint().unwrap();
     assert_eq!(
         direct_fingerprint.generation(),
-        SemanticFingerprintGeneration::V3
+        SemanticFingerprintGeneration::V4
     );
     let mut client = Client::spawn();
     client.send_value(&call_request(

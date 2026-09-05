@@ -15,9 +15,9 @@ use eqiora_solver::{
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::realization_v2::wire::WireSolverPlan;
+use crate::realization_v7::wire::WireSolverPlan;
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV1, GeometryStateEnvelopeV2,
+    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, GeometryStateEnvelopeV2,
     MeshRevisionOverlapEnvelopeV1, SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2,
     ValidatedRemeshGeometrySourceV2, check_json_limits, invalid_artifact,
 };
@@ -443,8 +443,8 @@ impl FieldTransferReceiptV1 {
         role: RemeshFieldRoleV1,
         law: RemeshTransferLawV1,
         chart: RemeshIntegrationChartV1,
-        source: &FieldSnapshotEnvelopeV1,
-        target: &FieldSnapshotEnvelopeV1,
+        source: &FieldSnapshotEnvelopeV2,
+        target: &FieldSnapshotEnvelopeV2,
         projection: &RemeshProjectionEvidenceEnvelopeV1,
         raw_projection_error_l2: f64,
     ) -> Result<Self, Diagnostic> {
@@ -1079,8 +1079,8 @@ impl RemeshTransferReceiptEnvelopeV1 {
         overlap: &MeshRevisionOverlapEnvelopeV1,
         target_context: &ValidatedMovingSpatialContextV2<'_, M>,
         target_geometry_state: &GeometryStateEnvelopeV2,
-        source_snapshots: &[FieldSnapshotEnvelopeV1],
-        target_snapshots: &[FieldSnapshotEnvelopeV1],
+        source_snapshots: &[FieldSnapshotEnvelopeV2],
+        target_snapshots: &[FieldSnapshotEnvelopeV2],
     ) -> Result<(), Diagnostic> {
         let projections = self.projections()?;
         for projection in &projections {
@@ -1233,8 +1233,8 @@ fn validate_complete_fields<M: crate::ReplayableCanonicalModelArtifact>(
 fn replay_field_receipts(
     receipt: &RemeshTransferReceiptEnvelopeV1,
     projections: &[RemeshProjectionEvidenceEnvelopeV1],
-    source_snapshots: &[FieldSnapshotEnvelopeV1],
-    target_snapshots: &[FieldSnapshotEnvelopeV1],
+    source_snapshots: &[FieldSnapshotEnvelopeV2],
+    target_snapshots: &[FieldSnapshotEnvelopeV2],
 ) -> Result<Vec<FieldTransferReceiptV1>, Diagnostic> {
     receipt
         .fields()
@@ -1313,7 +1313,7 @@ fn validate_evidence_projection_normalization(
 }
 
 fn realization_remesh_scales(
-    realization: &crate::RealizationEnvelopeV4,
+    realization: &crate::RealizationEnvelopeV6,
 ) -> Result<AleFsiRemeshScaleProfile2d, Diagnostic> {
     let plan = realization.plan()?;
     let requirements = realization.requirements()?;
@@ -1542,27 +1542,15 @@ fn is_negative_zero(value: f64) -> bool {
 }
 
 const fn length_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 const fn velocity_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 const fn pressure_dimension() -> DimExponents {
-    DimExponents {
-        mass: 1,
-        length: -1,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

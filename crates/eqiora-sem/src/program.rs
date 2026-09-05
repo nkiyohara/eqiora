@@ -919,10 +919,7 @@ fn symbol_type(
             ))
         }
         SymbolRef::Time => Ok(ExpressionType::scalar(
-            DimExponents {
-                time: 1,
-                ..DimExponents::DIMENSIONLESS
-            },
+            DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
             None,
         )),
         _ => Err(SymbolTypeError::Missing),

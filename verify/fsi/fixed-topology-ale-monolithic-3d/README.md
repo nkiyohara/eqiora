@@ -38,10 +38,7 @@ The integration target establishes all of the following:
   MINI-bubble velocity, scalar pressure, GeometryState, SpatialState, and
   immutable trajectory-prefix evidence;
 - `h`, `h/2`, and `h/4` close the bounded first-order temporal-refinement gate
-  in one consistent solid reference-mass norm; and
-- one checked-in public result asset is projected directly from the accepted
-  trajectory and binds exact Model, geometry, mesh, Realization, Run, state,
-  and trajectory digests.
+  in one consistent solid reference-mass norm.
 
 The dimension-parametric local element additionally has a unit invariant that
 stationary geometry is exactly the fixed-domain local action. The accepted 2D

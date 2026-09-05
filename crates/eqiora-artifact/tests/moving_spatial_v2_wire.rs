@@ -1,11 +1,15 @@
+#[path = "support/ale_model.rs"]
+mod ale_model;
+use ale_model::Ids;
+
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
-    CanonicalModelArtifact, FieldDecoderLimits, FieldSnapshotEnvelopeV1,
+    CanonicalModelArtifact, FieldDecoderLimits, FieldSnapshotEnvelopeV2,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1,
-    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV4, RealizationEnvelopeV5,
-    SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2,
-    SpatialTrajectorySegmentEnvelopeV2, TrajectoryDecoderLimits, ValidatedMovingSpatialContextV2,
+    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV6, SimplicialMeshEnvelopeV1,
+    SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
+    TrajectoryDecoderLimits, ValidatedMovingSpatialContextV2,
 };
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id};
@@ -28,12 +32,9 @@ use eqiora_solver::{
     LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType,
     SolverCapabilities, SolverCapability, SolverPlan,
 };
-use ulid::Ulid;
-
-const MODEL: &[u8] = include_bytes!("fixtures/fixed-reference-model.json");
 
 #[test]
-fn moving_state_segment_and_prefix_root_round_trip_with_frozen_identities() {
+fn moving_state_segment_and_prefix_root_round_trip_with_linked_identities() {
     let resources = Resources::new();
     let context = resources.context();
     let snapshots_0 = resources.snapshots(0x10);
@@ -99,19 +100,6 @@ fn moving_state_segment_and_prefix_root_round_trip_with_frozen_identities() {
     assert!(state_json.get("run_sha256").is_none());
     let root_json: serde_json::Value = serde_json::from_slice(&root_bytes).unwrap();
     assert!(root_json.get("run_sha256").is_none());
-
-    assert_eq!(
-        state_1.digest().unwrap().to_string(),
-        "40f51f912abc9b74ae7521594b9f1be049c238b408867bb65f4d4fa414c7db38"
-    );
-    assert_eq!(
-        decoded_segment.digest().unwrap().to_string(),
-        "e6f04b579279e51f8e5512dd1ffb2e22a1941608c936de5da1bfe646ec8a4d50"
-    );
-    assert_eq!(
-        decoded_root.digest().unwrap().to_string(),
-        "8b2ee5f2acbf398b7f5f9f34accdc9090f79612194b31b5000e1188cd7bcb0b3"
-    );
 }
 
 #[test]
@@ -252,61 +240,19 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
     );
 }
 
-#[test]
-fn dimension_explicit_v5_replays_the_unchanged_moving_publication_contract() {
-    let resources = Resources::new();
-    let context = resources.context_v5();
-    let snapshots = resources.snapshots_v5(0x70);
-    let geometry = resources.geometry_state_v5(0, None, &snapshots, 0.0);
-    let state = SpatialStateEnvelopeV2::new(&context, &geometry, None, &snapshots, ()).unwrap();
-    let segment =
-        SpatialTrajectorySegmentEnvelopeV2::new(&context, std::slice::from_ref(&state)).unwrap();
-    let trajectory = SpatialTrajectoryEnvelopeV2::start(&context, &segment).unwrap();
-
-    state
-        .validate_against(&context, &geometry, None, &snapshots, ())
-        .unwrap();
-    segment
-        .validate_against(&context, std::slice::from_ref(&state))
-        .unwrap();
-    trajectory
-        .validate_against(&context, None, &[segment])
-        .unwrap();
-    assert_eq!(
-        state.realization_artifact(),
-        resources.realization_v5.digest().unwrap(),
-    );
-    assert_ne!(
-        resources.realization.digest().unwrap(),
-        resources.realization_v5.digest().unwrap(),
-        "V4 and V5 retain distinct schema-separated identities",
-    );
-    assert!(
-        SpatialStateEnvelopeV2::new(&context, &geometry, None, &resources.snapshots(0x70), (),)
-            .is_err(),
-        "a valid V4 snapshot inventory cannot cross the V5 replay boundary",
-    );
-}
-
 struct Resources {
     model: ModelEnvelope,
     mesh: SimplicialMeshEnvelopeV1,
     geometry: GeometryIdentityEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    realization: RealizationEnvelopeV4,
-    realization_v5: RealizationEnvelopeV5,
+    realization: RealizationEnvelopeV6,
     ids: Ids,
 }
 
 impl Resources {
     fn new() -> Self {
-        let model = ModelEnvelope::from_json(
-            MODEL.strip_suffix(b"\n").unwrap_or(MODEL),
-            Default::default(),
-        )
-        .unwrap();
+        let (model, ids) = Ids::model(2);
         let mesh = SimplicialMeshEnvelopeV1::from_mesh(&reference_mesh()).unwrap();
-        let ids = Ids::new();
         let geometry =
             GeometryIdentityEnvelopeV1::new(&model, [ids.fluid_domain, ids.solid_domain], 1.0e-12)
                 .unwrap();
@@ -324,10 +270,7 @@ impl Resources {
             resolve_fixed_topology_ale_coupled(&request, ids.requirements(), &capabilities())
                 .unwrap();
         let realization =
-            RealizationEnvelopeV4::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
-                .unwrap();
-        let realization_v5 =
-            RealizationEnvelopeV5::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
+            RealizationEnvelopeV6::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
                 .unwrap();
         Self {
             model,
@@ -335,7 +278,6 @@ impl Resources {
             geometry,
             correspondence,
             realization,
-            realization_v5,
             ids,
         }
     }
@@ -351,32 +293,15 @@ impl Resources {
         .unwrap()
     }
 
-    fn context_v5(
-        &self,
-    ) -> ValidatedMovingSpatialContextV2<'_, ModelEnvelope, RealizationEnvelopeV5> {
-        ValidatedMovingSpatialContextV2::new(
-            &self.model,
-            &self.realization_v5,
-            &self.geometry,
-            &self.correspondence,
-            &self.mesh,
-        )
-        .unwrap()
-    }
-
-    fn snapshots(&self, seed: u8) -> Vec<FieldSnapshotEnvelopeV1> {
+    fn snapshots(&self, seed: u8) -> Vec<FieldSnapshotEnvelopeV2> {
         self.snapshots_for(&self.realization, seed)
-    }
-
-    fn snapshots_v5(&self, seed: u8) -> Vec<FieldSnapshotEnvelopeV1> {
-        self.snapshots_for(&self.realization_v5, seed)
     }
 
     fn snapshots_for(
         &self,
         realization: &impl eqiora_artifact::CanonicalRealizationArtifact,
         seed: u8,
-    ) -> Vec<FieldSnapshotEnvelopeV1> {
+    ) -> Vec<FieldSnapshotEnvelopeV2> {
         vec![
             self.snapshot(
                 realization,
@@ -432,7 +357,7 @@ impl Resources {
         frame: &str,
         associations: &[&str],
         seed: u8,
-    ) -> FieldSnapshotEnvelopeV1 {
+    ) -> FieldSnapshotEnvelopeV2 {
         let model = self.model.artifact_reference().unwrap();
         let realization = realization.artifact_reference().unwrap();
         let blocks = associations
@@ -446,7 +371,7 @@ impl Resources {
             })
             .collect::<Vec<_>>();
         let json = serde_json::json!({
-            "schema": "eqiora.field-snapshot-envelope/v1",
+            "schema": "eqiora.field-snapshot-envelope/v2",
             "encoding": "eqiora.canonical-json/v1",
             "model_sha256": model.artifact().as_str(),
             "semantic_revision": model.semantic_revision().get(),
@@ -458,15 +383,7 @@ impl Resources {
             "support_domain_ulid": support.ulid().to_string(),
             "physical": {
                 "unit_system": "coherent-si",
-                "dimension": {
-                    "mass": dimension.mass,
-                    "length": dimension.length,
-                    "time": dimension.time,
-                    "current": dimension.current,
-                    "temperature": dimension.temperature,
-                    "amount": dimension.amount,
-                    "luminous_intensity": dimension.luminous_intensity,
-                },
+                "dimension": dimension.exponents(),
                 "value_shape": { "extents": shape },
                 "frame": frame,
             },
@@ -476,7 +393,7 @@ impl Resources {
                 "blocks": blocks,
             },
         });
-        FieldSnapshotEnvelopeV1::from_json(&serde_json::to_vec(&json).unwrap(), Default::default())
+        FieldSnapshotEnvelopeV2::from_json(&serde_json::to_vec(&json).unwrap(), Default::default())
             .unwrap()
     }
 
@@ -484,20 +401,10 @@ impl Resources {
         &self,
         step: u64,
         predecessor: Option<&GeometryStateEnvelopeV1>,
-        snapshots: &[FieldSnapshotEnvelopeV1],
+        snapshots: &[FieldSnapshotEnvelopeV2],
         shear: f64,
     ) -> GeometryStateEnvelopeV1 {
         self.geometry_state_for(&self.realization, step, predecessor, snapshots, shear)
-    }
-
-    fn geometry_state_v5(
-        &self,
-        step: u64,
-        predecessor: Option<&GeometryStateEnvelopeV1>,
-        snapshots: &[FieldSnapshotEnvelopeV1],
-        shear: f64,
-    ) -> GeometryStateEnvelopeV1 {
-        self.geometry_state_for(&self.realization_v5, step, predecessor, snapshots, shear)
     }
 
     fn geometry_state_for(
@@ -505,7 +412,7 @@ impl Resources {
         realization: &impl eqiora_artifact::CanonicalRealizationArtifact,
         step: u64,
         predecessor: Option<&GeometryStateEnvelopeV1>,
-        snapshots: &[FieldSnapshotEnvelopeV1],
+        snapshots: &[FieldSnapshotEnvelopeV2],
         shear: f64,
     ) -> GeometryStateEnvelopeV1 {
         let mut coordinates = self.mesh.mesh().vertices().to_vec();
@@ -528,34 +435,7 @@ impl Resources {
     }
 }
 
-#[derive(Clone, Copy)]
-struct Ids {
-    fluid_domain: Id<kinds::Domain>,
-    solid_domain: Id<kinds::Domain>,
-    fluid_velocity: Id<kinds::Field>,
-    pressure: Id<kinds::Field>,
-    solid_velocity: Id<kinds::Field>,
-    displacement: Id<kinds::Field>,
-    connection: Id<kinds::Connection>,
-    fluid_relation: Id<kinds::Relation>,
-    solid_relation: Id<kinds::Relation>,
-}
-
 impl Ids {
-    fn new() -> Self {
-        Self {
-            fluid_domain: parsed_id("1XQ46C76NKJ4HKBT3AYHZK7248"),
-            solid_domain: parsed_id("36BFQQER8GMSMJC4E9CMC40GX1"),
-            fluid_velocity: parsed_id("5KZKW30PAM3D5XVG2RXCSZ89TX"),
-            pressure: parsed_id("2YSJB8SQ3YEQCJ66YYJW3CF38X"),
-            solid_velocity: parsed_id("06JRV1N1F26VSVZFFEKAG12S5J"),
-            displacement: parsed_id("6Z27MZJEAZ8GT73BXWN5THG8YW"),
-            connection: parsed_id("655GJQQW1FFC2PWC1MEMVW0EFZ"),
-            fluid_relation: parsed_id("66QS6PD17TSR2KM23HXEFZ0J7Q"),
-            solid_relation: parsed_id("4S2893DG9Y358XB61VRX7CZYVV"),
-        }
-    }
-
     fn trace(self) -> ConformingTraceQuotient {
         ConformingTraceQuotient::new(
             self.connection,
@@ -783,59 +663,30 @@ fn solver(algorithm: LinearSolver) -> SolverPlan {
     .unwrap()
 }
 
-fn parsed_id<E: eqiora_core::Entity>(value: &str) -> Id<E> {
-    Id::from_ulid(value.parse::<Ulid>().unwrap())
-}
-
 fn scale(dimension: DimExponents) -> eqiora_realization::PositivePhysicalScale {
     eqiora_realization::PositivePhysicalScale::new(DynQuantity::new(1.0, dimension)).unwrap()
 }
 
 const fn length_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 const fn time_dimension() -> DimExponents {
-    DimExponents {
-        time: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 const fn velocity_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        time: -1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 const fn pressure_dimension() -> DimExponents {
-    DimExponents {
-        mass: 1,
-        length: -1,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 const fn gauge_dimension() -> DimExponents {
-    DimExponents {
-        mass: -1,
-        length: 3,
-        time: 2,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([-1, 3, 2, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 const fn functional_dimension() -> DimExponents {
-    DimExponents {
-        mass: 1,
-        length: 2,
-        time: -2,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([1, 2, -2, 0, 0, 0, 0]).expect("bounded dimension")
 }

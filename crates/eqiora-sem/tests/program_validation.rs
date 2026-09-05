@@ -152,10 +152,8 @@ fn incompatible_expression_dimensions_are_rejected() {
     let relation = Id::<kinds::Relation>::new();
     let activation = Id::<kinds::Activation>::new();
     let model = OntologyId::<Model>::new();
-    let time_dimension = DimExponents {
-        time: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let time_dimension =
+        DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
 
     let mut expression = ExprDagBuilder::new();
     let time = expression.symbol(SymbolRef::Field(field)).expect("field");
@@ -332,10 +330,8 @@ fn derivative_dimension_overflow_is_not_misreported_as_missing_symbol() {
     let relation = Id::<kinds::Relation>::new();
     let activation = Id::<kinds::Activation>::new();
     let model = OntologyId::<Model>::new();
-    let extreme_dimension = DimExponents {
-        time: i8::MIN,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let extreme_dimension = DimExponents::from_integers([0, 0, -i32::MAX, 0, 0, 0, 0])
+        .expect("lowest admitted integer dimension exponent");
 
     let mut expression = ExprDagBuilder::new();
     let residual = expression
@@ -526,10 +522,7 @@ fn signal_connection_supports_one_to_many_fanout() {
 
 #[test]
 fn semantic_validation_consumes_the_shared_scalar_connection_contract() {
-    let length = DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
     let dimensions = invalid_signal_connection([
         (SignalDirection::Output, DimExponents::DIMENSIONLESS),
         (SignalDirection::Input, length),
@@ -731,10 +724,7 @@ fn invalid_spatial_expression(
     let relation = Id::<kinds::Relation>::new();
     let activation = Id::<kinds::Activation>::new();
     let model = OntologyId::<Model>::new();
-    let length = DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
     let bounds = || {
         vec![
             AxisBounds::new(DynQuantity::new(0.0, length), DynQuantity::new(1.0, length))

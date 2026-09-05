@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
-    CanonicalModelArtifact, FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
+    CanonicalModelArtifact, FieldSnapshotEnvelopeV2, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts,
     MeshDecoderLimits, ModelEnvelope, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1,
 };
@@ -306,7 +306,7 @@ struct Fixture {
     geometry: GeometryIdentityEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
     realization: RealizationEnvelopeV1,
-    driver: FieldSnapshotEnvelopeV1,
+    driver: FieldSnapshotEnvelopeV2,
 }
 
 impl Fixture {
@@ -353,10 +353,8 @@ impl Fixture {
             .find_map(|node| match node {
                 KernelNode::Field(definition)
                     if definition.dimension()
-                        == DimExponents {
-                            length: 1,
-                            ..DimExponents::DIMENSIONLESS
-                        }
+                        == DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
+                            .expect("bounded dimension")
                         && definition.shape().component_count() == Some(2) =>
                 {
                     Some(definition.id())
@@ -456,11 +454,11 @@ fn driver_snapshot(
     mesh: &SimplicialMeshEnvelopeV1,
     field: Id<kinds::Field>,
     support: Id<kinds::Domain>,
-) -> FieldSnapshotEnvelopeV1 {
+) -> FieldSnapshotEnvelopeV2 {
     let reference = model.artifact_reference().unwrap();
     let block = "11".repeat(32);
     let json = serde_json::json!({
-        "schema": "eqiora.field-snapshot-envelope/v1",
+        "schema": "eqiora.field-snapshot-envelope/v2",
         "encoding": "eqiora.canonical-json/v1",
         "model_sha256": reference.artifact().as_str(),
         "semantic_revision": reference.semantic_revision().get(),
@@ -472,15 +470,7 @@ fn driver_snapshot(
         "support_domain_ulid": support.ulid().to_string(),
         "physical": {
             "unit_system": "coherent-si",
-            "dimension": {
-                "mass": 0,
-                "length": 1,
-                "time": 0,
-                "current": 0,
-                "temperature": 0,
-                "amount": 0,
-                "luminous_intensity": 0
-            },
+            "dimension": [[0, 1], [1, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1]],
             "value_shape": { "extents": [2] },
             "frame": "spatial-cartesian"
         },
@@ -493,6 +483,6 @@ fn driver_snapshot(
             }]
         }
     });
-    FieldSnapshotEnvelopeV1::from_json(&serde_json::to_vec(&json).unwrap(), Default::default())
+    FieldSnapshotEnvelopeV2::from_json(&serde_json::to_vec(&json).unwrap(), Default::default())
         .unwrap()
 }

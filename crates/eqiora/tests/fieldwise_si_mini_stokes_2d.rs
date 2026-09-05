@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqiora::artifact::{
     ArtifactDigest, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
-    RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
+    RealizationEnvelopeV7, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh, triangle_duffy_gauss_legendre};
 use eqiora::package::{
@@ -45,21 +45,12 @@ const COMPONENT_SOURCE: &[u8] = include_bytes!(
 const ROOT_PACKAGE: &str = "org.eqiora.verify.fieldwise_si_mini_stokes_2d";
 const VERSION: &str = "0.1.0";
 
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
 
 #[derive(Debug)]
 struct Observation {
@@ -101,7 +92,7 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
     let (lowered, resolved) = resolve_exact(program, mesh_reference, profile_a(), 7);
     let model = ModelEnvelope::from_program(program).unwrap();
     let realization =
-        RealizationEnvelopeV2::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
+        RealizationEnvelopeV7::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
             .unwrap();
 
     for (length, velocity, pressure) in [
@@ -342,7 +333,7 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
     assert!(RunManifestV2::new(&realization, execution_provenance(1, true)).is_err());
     let (_, other_resolved) = resolve_exact(program, mesh_reference, profile_b(), 9);
     let other_realization =
-        RealizationEnvelopeV2::from_resolved(&model, &other_resolved, LayoutArtifacts::Replicated)
+        RealizationEnvelopeV7::from_resolved(&model, &other_resolved, LayoutArtifacts::Replicated)
             .unwrap();
     assert!(valid_run.validate_against(&other_realization).is_err());
 
@@ -375,7 +366,7 @@ fn observe(
     assert_eq!(model_replay.canonical_json().unwrap(), model_bytes);
     assert_eq!(model_replay.digest().unwrap(), model.digest().unwrap());
     let realization =
-        RealizationEnvelopeV2::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
+        RealizationEnvelopeV7::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
             .expect("field-wise Realization v2");
     let realization_bytes = realization.canonical_json().expect("Realization bytes");
     let graph = resolved
@@ -393,7 +384,7 @@ fn observe(
         })
     );
     let realization_replay =
-        RealizationEnvelopeV2::from_json(&realization_bytes, Default::default())
+        RealizationEnvelopeV7::from_json(&realization_bytes, Default::default())
             .expect("Realization v2 replay");
     assert_eq!(
         realization_replay.canonical_json().unwrap(),
@@ -636,7 +627,7 @@ fn decode_and_resolve(
     value: &serde_json::Value,
 ) -> Result<ResolvedFieldwiseRealization, Diagnostic> {
     let envelope =
-        RealizationEnvelopeV2::from_json(&serde_json::to_vec(value).unwrap(), Default::default())?;
+        RealizationEnvelopeV7::from_json(&serde_json::to_vec(value).unwrap(), Default::default())?;
     resolve_fieldwise(
         &FieldwiseRealizationRequest::explicit(
             envelope.model()?,

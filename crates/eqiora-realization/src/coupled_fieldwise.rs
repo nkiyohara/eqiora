@@ -754,23 +754,13 @@ fn algebraic_block_order(left: &AlgebraicBlock, right: &AlgebraicBlock) -> Order
 }
 
 const fn length_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 const fn time_dimension() -> DimExponents {
-    DimExponents {
-        time: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
-const fn derivative_dimension(mut dimension: DimExponents) -> Option<DimExponents> {
-    let Some(time) = dimension.time.checked_sub(1) else {
-        return None;
-    };
-    dimension.time = time;
-    Some(dimension)
+const fn derivative_dimension(dimension: DimExponents) -> Option<DimExponents> {
+    dimension.div(time_dimension())
 }

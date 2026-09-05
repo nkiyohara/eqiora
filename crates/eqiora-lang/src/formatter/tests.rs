@@ -3,6 +3,23 @@ use crate::parse;
 use super::*;
 
 #[test]
+fn signed_parameter_quantities_round_trip_with_exact_unit_powers() {
+    let source = "model M { parameter value: m ^ (1 / 2) = -4[(mm ^ 2) ^ (1 / 4)]; }";
+    let document = parse("quantity.eqi", source).into_document().unwrap();
+    let formatted = format(&document);
+    assert!(formatted.contains("-4 [(mm ^ 2) ^ (1 / 4)]"));
+    let reparsed = parse("quantity.eqi", &formatted).into_document().unwrap();
+    assert_eq!(format(&reparsed), formatted);
+    for value in ["1[]", "1[m", "1[m ^ (1 / 0)]", "1 + 2", "-1[ms] + 2"] {
+        let source = format!("model M {{ parameter value: m = {value}; }}");
+        assert!(
+            parse("invalid.eqi", &source).into_document().is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn canonical_format_is_idempotent() {
     let source = "model m{field x:1=0;relation r continuous{derivative(x)-(1+x*2)=0;}}";
     let first = parse("m.eqi", source).into_document().expect("parse");

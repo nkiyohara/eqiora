@@ -242,12 +242,17 @@ fn validate_definition_bodies_and_parameters(
             .unwrap_or_default();
         for item in definition.declaration.items() {
             if let Item::Parameter(parameter) = item {
-                match lower_dimension(definition.file, parameter.dimension()) {
-                    Ok(dimension) => {
+                match lower_dimension(definition.file, parameter.dimension()).and_then(
+                    |dimension| {
+                        crate::units::parameter_value(definition.file, parameter)
+                            .map(|value| (dimension, value))
+                    },
+                ) {
+                    Ok((dimension, value)) => {
                         parameters.insert(
                             parameter.name().to_owned(),
                             SymbolicParameterValue {
-                                value: Some(parameter.initial()),
+                                value: Some(value),
                                 dimension,
                                 expression: None,
                                 lineage: None,

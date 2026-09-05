@@ -4,6 +4,7 @@ Authority: ``bindings/python/python/eqiora/fluid.py``.
 """
 
 from typing import ClassVar, final
+from fractions import Fraction
 
 from . import FieldRef, LinearSolveSummary, Result
 
@@ -179,7 +180,7 @@ class IncompressibleScalingComponentRecord2d:
     @property
     def value(self) -> float: ...
     @property
-    def dimension(self) -> tuple[int, int, int, int, int, int, int]: ...
+    def dimension(self) -> tuple[Fraction, Fraction, Fraction, Fraction, Fraction, Fraction, Fraction]: ...
     @property
     def mode(self) -> IncompressibleScalingMode: ...
     @property

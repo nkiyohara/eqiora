@@ -51,21 +51,12 @@ use crate::step_count::NonZeroStepCount;
 const LEGACY_TRIANGLE_DUFFY_POINTS_PER_AXIS: usize = 5;
 const TETRAHEDRON_DUFFY_POINTS_PER_AXIS: usize = 7;
 
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const VELOCITY: DimExponents =
+    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
+const PRESSURE: DimExponents =
+    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
 /// Initial physical coefficients before the sole harmonic geometry action.
 ///
 /// This value contains no coordinates, mesh displacement outside the solid,
@@ -939,9 +930,9 @@ fn weak_functional_power<const D: usize>(
     length: eqiora_core::DynQuantity,
 ) -> Result<eqiora_core::DynQuantity, Diagnostic> {
     require_supported_dimension::<D>()?;
-    let mut power = pressure * velocity;
+    let mut power = pressure.try_mul(velocity)?;
     for _ in 1..D {
-        power = power * length;
+        power = power.try_mul(length)?;
     }
     Ok(power)
 }
@@ -1501,10 +1492,8 @@ mod tests {
 
     const BASE_SOURCE: &str =
         include_str!("../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");
-    const TIME: DimExponents = DimExponents {
-        time: 1,
-        ..DimExponents::DIMENSIONLESS
-    };
+    const TIME: DimExponents =
+        DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
     #[test]
     fn exact_resolved_plan_finalizes_and_accepts_a_trajectory() {
         let fixture = Fixture::new();

@@ -229,7 +229,7 @@ def test_scalar_field_preserves_owner_association_unit_and_accepted_values(
     assert field["association"] == association
     assert field["component_shape"] == []
     assert field["unit"] == "coherent-si"
-    assert field["dimension"] == list(output.dimension)
+    assert field["dimension"] == [[value.numerator, value.denominator] for value in output.dimension]
     assert field["frame"] == "scalar"
     assert field["space"] == output.space
     assert field["scale"]["provenance"] == (

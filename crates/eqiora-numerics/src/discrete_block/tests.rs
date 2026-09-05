@@ -10,14 +10,10 @@ use eqiora_realization::{RealizationRevision, SemanticRevision, TraceFieldEndpoi
 
 use super::*;
 
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const TIME: DimExponents = DimExponents {
-    time: 1,
-    ..DimExponents::DIMENSIONLESS
-};
+const LENGTH: DimExponents =
+    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
+const TIME: DimExponents =
+    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
 
 #[derive(Clone, Copy)]
 struct MinimalIds {

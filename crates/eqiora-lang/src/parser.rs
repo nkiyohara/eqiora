@@ -3,6 +3,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Span};
 
 mod compile_time;
+mod dimension;
 mod document;
 mod domain;
 mod formulation;
@@ -535,11 +536,11 @@ impl Parser<'_> {
         self.expect(TokenKind::LeftParen, "`(` after `scalar_physical`")?;
         self.expect_keyword("across")?;
         self.expect(TokenKind::Equal, "`=` after `across`")?;
-        let across_dimension = self.parse_expression(0)?;
+        let across_dimension = self.parse_dimension_expression()?;
         self.expect(TokenKind::Comma, "`,` between physical dimensions")?;
         self.expect_keyword("through")?;
         self.expect(TokenKind::Equal, "`=` after `through`")?;
-        let through_dimension = self.parse_expression(0)?;
+        let through_dimension = self.parse_dimension_expression()?;
         self.expect(TokenKind::RightParen, "`)` after physical dimensions")?;
         Some((across_dimension, through_dimension))
     }
@@ -642,7 +643,7 @@ impl Parser<'_> {
         self.expect(TokenKind::Colon, "`:` before quantity dimension")?;
         Some(ConnectorQuantitySyntax {
             name,
-            dimension: self.parse_expression(0)?,
+            dimension: self.parse_dimension_expression()?,
         })
     }
 
@@ -733,7 +734,7 @@ impl Parser<'_> {
             (None, None)
         };
         self.expect(TokenKind::Colon, "`:` before dimension")?;
-        let dimension = self.parse_expression(0)?;
+        let dimension = self.parse_dimension_expression()?;
         let shape = if self.at_keyword("shape") {
             self.bump();
             Some(self.parse_value_shape()?)
@@ -783,7 +784,7 @@ impl Parser<'_> {
             .text()
             .to_owned();
         self.expect(TokenKind::Colon, "`:` before component Parameter dimension")?;
-        let dimension = self.parse_expression(0)?;
+        let dimension = self.parse_dimension_expression()?;
         let default = if self.at(TokenKind::Equal) {
             self.bump();
             Some(self.parse_expression(0)?)
@@ -884,7 +885,7 @@ impl Parser<'_> {
         self.expect_keyword("as")?;
         self.expect_keyword("continuum")?;
         self.expect(TokenKind::Colon, "`:` before Field-slot dimension")?;
-        let dimension = self.parse_expression(0)?;
+        let dimension = self.parse_dimension_expression()?;
         let shape = if self.at_keyword("shape") {
             self.bump();
             Some(self.parse_value_shape()?)
@@ -942,7 +943,7 @@ impl Parser<'_> {
                         self.cursor = checkpoint;
                         self.diagnostics.truncate(diagnostic_checkpoint);
                         PortSyntax::ConservingMarker {
-                            dimension: self.parse_expression(0)?,
+                            dimension: self.parse_dimension_expression()?,
                         }
                     }
                 }
@@ -1044,7 +1045,7 @@ impl Parser<'_> {
         };
         Some(PortSyntax::Signal {
             direction,
-            dimension: self.parse_expression(0)?,
+            dimension: self.parse_dimension_expression()?,
         })
     }
 
@@ -1308,12 +1309,7 @@ impl Parser<'_> {
                 },
             }
         } else if self.at(TokenKind::Number) {
-            let token = self.bump();
-            let value = self.parse_f64(&token)?;
-            Expr {
-                kind: ExprKind::Number(value),
-                range: token.range(),
-            }
+            self.parse_quantity_or_number()?
         } else if self.at(TokenKind::Identifier) {
             let token = self.bump();
             let name = token.text().to_owned();

@@ -11,7 +11,6 @@ capabilities = [
   "conservative-endpoint-ale-action-with-affine-gcl-3d",
   "monolithic-first-order-navier-stokes-linear-solid-fsi-3d",
   "replayable-three-dimensional-moving-state-lineage",
-  "accepted-trajectory-public-result-asset",
 ]
 
 [problem]
@@ -62,7 +61,6 @@ positive_orientation_and_complete_path_quality_hold = true
 three_accepted_states_publish_complete_field_and_geometry_lineage = true
 geometry_states_replay_from_complete_displacement_blocks_and_the_exact_harmonic_relation = true
 time_refinement = "bounded first order in one common reference-topology mass norm"
-public_result_asset_is_derived_from_the_accepted_trajectory = true
 
 [falsifiers]
 dimension_shape_or_boundary_closure_mismatch = "reject during canonical lowering"
