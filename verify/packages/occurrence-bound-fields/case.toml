@@ -1,5 +1,5 @@
 id = "packages.occurrence-bound-fields"
-status = "verified"
+status = "implemented"
 scope = "local-and-exact-package-continuum-field-slot-elaboration"
 reference_kind = "canonical-kernel-identity-provenance-and-fail-closed-diagnostics"
 

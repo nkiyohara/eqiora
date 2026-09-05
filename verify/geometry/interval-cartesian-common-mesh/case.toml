@@ -1,5 +1,5 @@
 id = "geometry.interval-cartesian-common-mesh"
-status = "verified"
+status = "implemented"
 scope = "exact-interval-to-structured-cartesian-common-mesh"
 reference_kind = "analytic-exact-topology-and-structural-correspondence-falsifiers"
 

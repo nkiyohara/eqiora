@@ -1,5 +1,5 @@
 id = "fluid.cartesian-periodic-collocated-view-3d"
-status = "verified"
+status = "implemented"
 scope = "one-exact-current-model-and-route-sealed-uniform-4x6x8-cartesian-mesh-collocated-periodic-view-3d"
 reference_kind = "independent-model-boundary-route-sealed-mesh-and-packet-structural-replay"
 

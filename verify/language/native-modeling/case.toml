@@ -1,5 +1,5 @@
 id = "language.native-modeling"
-status = "verified"
+status = "implemented"
 scope = "client-neutral-native-scalar-model-definition"
 reference_kind = "source-native-structure-artifact-and-trajectory-equivalence"
 

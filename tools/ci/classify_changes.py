@@ -29,7 +29,6 @@ SURFACES = (
     "cubecl_experiment",
 )
 CLASSIFIED_SURFACES = (*SURFACES, "site")
-PYTHON_HOST_EVIDENCE_SURFACES = ("rust", "python")
 
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
@@ -494,23 +493,6 @@ def render_outputs(
         for surface in SURFACES
     )
     lines.append(f"site={'true' if selected['site'] else 'false'}")
-    python_host_evidence = any(
-        selected[surface] for surface in PYTHON_HOST_EVIDENCE_SURFACES
-    )
-    lines.append(f"python_host_evidence={'true' if python_host_evidence else 'false'}")
-    python_host_reasons = [
-        f"{surface}: {reasons[surface]}"
-        for surface in PYTHON_HOST_EVIDENCE_SURFACES
-        if reasons.get(surface, "").startswith("reused successful heavy run")
-    ]
-    lines.append(
-        "python_host_evidence_reason="
-        + (
-            "changed input closure"
-            if python_host_evidence
-            else " | ".join(python_host_reasons) or "unchanged input closure"
-        )
-    )
     lines.append(f"site_source_sha={site_source_sha or target_sha}")
     lines.append(
         "site_reason="
@@ -536,8 +518,6 @@ def append_github_outputs(path: Path, rendered: str) -> None:
         *SURFACES,
         *(f"{surface}_reason" for surface in SURFACES),
         "site",
-        "python_host_evidence",
-        "python_host_evidence_reason",
         "site_source_sha",
         "site_reason",
         "python_versions",
@@ -556,12 +536,12 @@ def append_github_outputs(path: Path, rendered: str) -> None:
         or FULL_SHA.fullmatch(values["site_source_sha"]) is None
     ):
         raise ValueError("classification output contains an invalid source identity")
-    for key in ("full", *SURFACES, "site", "python_host_evidence"):
+    for key in ("full", *SURFACES, "site"):
         if values[key] not in {"true", "false"}:
             raise ValueError(
                 f"classification output contains an invalid {key} decision"
             )
-    for surface in (*SURFACES, "python_host_evidence"):
+    for surface in SURFACES:
         if not values[f"{surface}_reason"]:
             raise ValueError(f"classification output omits the {surface} reason")
     try:

@@ -1,5 +1,5 @@
 id = "geometry.cad-semantic-selection-box"
-status = "verified"
+status = "implemented"
 scope = "bounded-step-stock-sketch-extrusion-intersection-semantic-selection"
 reference_kind = "content-bound-truck-cad-to-semantic-geometry-mesh-projection"
 

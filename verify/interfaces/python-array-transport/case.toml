@@ -1,5 +1,5 @@
 id = "interfaces.python-array-transport"
-status = "verified"
+status = "implemented"
 scope = "python-immutable-cpu-result-array-producer"
 reference_kind = "in-process-pyo3-and-installed-wheel-array-falsifiers"
 

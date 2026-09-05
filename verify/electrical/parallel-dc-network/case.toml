@@ -1,5 +1,5 @@
 id = "electrical.parallel-dc-network"
-status = "verified"
+status = "implemented"
 scope = "source-and-client-neutral-native-flat-scalar-physical-affine-host-serial"
 reference_kind = "source-native-parity-analytic-and-canonical-dag-reacceptance"
 

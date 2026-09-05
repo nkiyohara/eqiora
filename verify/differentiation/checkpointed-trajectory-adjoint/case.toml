@@ -1,5 +1,5 @@
 id = "differentiation.checkpointed-trajectory-adjoint"
-status = "verified"
+status = "implemented"
 scope = "discrete-adjoint-over-semantic-restart"
 reference_kind = "centered-finite-difference"
 

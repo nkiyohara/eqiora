@@ -1,5 +1,5 @@
 id = "numerics.mpi-distributed"
-status = "verified"
+status = "implemented"
 scope = "generic-complete-csr-mpi-bridge"
 reference_kind = "executable-admission-and-fault-falsification"
 

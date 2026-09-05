@@ -1,5 +1,5 @@
 id = "numerics.compiled-cartesian-poisson-q1-2d"
-status = "verified"
+status = "implemented"
 scope = "private-proof-carrying-cartesian-q1-galerkin-form"
 reference_kind = "precommitted-analytic-element-shadow-convergence-and-conservation-oracles"
 

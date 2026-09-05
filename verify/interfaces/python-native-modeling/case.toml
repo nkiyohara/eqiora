@@ -1,5 +1,5 @@
 id = "interfaces.python-native-modeling"
-status = "verified"
+status = "implemented"
 scope = "python-native-scalar-scalar-physical-and-bounded-spatial-model-construction"
 reference_kind = "public-rust-replay-and-reference-execution"
 

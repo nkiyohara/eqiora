@@ -1,5 +1,5 @@
 id = "geometry.planar-circular-hole-geometry-v2"
-status = "verified"
+status = "implemented"
 scope = "one-provenance-neutral-scale-independent-axis-aligned-rectangle-minus-circle-geometry-v2-foundation"
 reference_kind = "structural-scale-family-canonical-replay-and-separate-producer-lineage-falsifiers"
 

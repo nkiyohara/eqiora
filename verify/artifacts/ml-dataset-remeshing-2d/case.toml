@@ -1,5 +1,5 @@
 id = "artifacts.ml-dataset-remeshing-2d"
-status = "verified"
+status = "implemented"
 scope = "typed-training-only-ragged-ml-dataset-over-one-2d-remeshing-trajectory"
 reference_kind = "fresh-content-addressed-cpu-derivation"
 

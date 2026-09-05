@@ -1,6 +1,6 @@
 # Bounded local CLI compile/check
 
-This evidence fixes one host-Unix application boundary: an installed `eqiora`
+These product tests exercise one host-Unix application boundary: the built `eqiora`
 binary accepts `eqiora check <MODEL_PATH>`, selects one bounded UTF-8 regular-
 file input, invokes the existing transport-neutral compile operation once,
 and emits either the returned document's structural fingerprint or
@@ -27,20 +27,14 @@ A compact source check names only the three CLI production files, the private
 command-route entry, the sole accepted compile authority with its exact
 function-pointer signature, forbidden cross-layer authorities, and absence of
 an externally public item. Execution cardinality is not inferred from source.
-One combined test first admits distinct rate-2 selected and rate-3 decoy files,
-then scratch-injects a result-preserving operation-entry probe into the actual
-top-level candidate. A parent waits for each default or release child to
-terminate, requires the exact selected process result, and then checks the
-final append-only count. Baseline and one-call wrappers count one; named
-commit-order, discard, direct, loop, callback, reorder, and three-attempt
-falsifiers retain the same accepted result but count two or three.
+The selected-input regression checks distinct rate-2 selected and rate-3 decoy
+files through the built executable and rejects substitution through the private
+operation seam. The existing injected-call tests cover operation cardinality
+without rewriting and rebuilding production source.
 
-Final evidence also builds a clean same-HEAD candidate with the locked offline
-`cargo install --path` command under isolated home-backed roots and compares
-its streams byte-for-byte with the workspace binary and the independent
-reference. The registered transition case and repository architecture,
-facade, and layer gates retain their own scopes; this case does not duplicate
-their historical scanners.
+The suite uses Cargo's already-built executable. It does not rebuild or install
+a second copy, require a clean Git checkout, or validate Cargo installation.
+The repository architecture, facade, and layer checks remain separate.
 
 This case does not claim compilation artifacts, execution, solving, packages,
 published distribution, stdin, multiple files, JSON output, remote operation,

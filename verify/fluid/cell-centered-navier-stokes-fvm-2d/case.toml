@@ -1,5 +1,5 @@
 id = "fluid.cell-centered-navier-stokes-fvm-2d"
-status = "verified"
+status = "implemented"
 scope = "canonical-fixed-domain-transient-navier-stokes-collocated-cell-centered-fvm-reference-2d"
 reference_kind = "retained-face-replay-pressure-mode-falsification-and-step-doubling"
 

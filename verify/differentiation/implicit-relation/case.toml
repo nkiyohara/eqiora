@@ -1,5 +1,5 @@
 id = "differentiation.implicit-relation"
-status = "verified"
+status = "implemented"
 scope = "smooth-static-implicit-f64"
 reference_kind = "analytic-and-centered-finite-difference"
 

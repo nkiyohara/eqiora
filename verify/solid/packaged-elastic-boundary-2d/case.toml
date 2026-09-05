@@ -1,5 +1,5 @@
 id = "solid.packaged-elastic-boundary-2d"
-status = "verified"
+status = "implemented"
 scope = "exact-package-complete-exterior-displacement-traction-semantics"
 reference_kind = "canonical-package-model-identity-and-typed-boundary-relations"
 

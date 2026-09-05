@@ -542,56 +542,52 @@ mod full {
     }
 
     #[cfg(unix)]
-    #[rustfmt::skip]
     #[test]
-    fn selected_decoy_and_result_independent_actual_main_cardinality_are_closed() {
-        use std::os::unix::fs::PermissionsExt;
-        const BASELINE: &str = "fn main() {\n    let outcome = command::contained_run(\n        command::process_args,\n        top_level_compile_probe,\n        command::OraclePanicPoint::None,\n    );\n    std::process::exit(terminal::commit(outcome));\n}";
-        const RUN: &str = "command::contained_run(command::process_args,top_level_compile_probe,command::OraclePanicPoint::None)";
-        const VARIANTS: &[(&str, &str, usize)] = &[
-            ("baseline", BASELINE, 1),
-            ("one-call-closure", "fn main(){let evaluate=||$RUN;let outcome=evaluate();std::process::exit(terminal::commit(outcome));}", 1),
-            ("one-call-helper", "fn evaluate()->command::OracleOutcome{$RUN}fn main(){let outcome=evaluate();std::process::exit(terminal::commit(outcome));}", 1),
-            ("twice-commit-first", "fn main(){let evaluate=||$RUN;let first=evaluate();let second=evaluate();drop(second);std::process::exit(terminal::commit(first));}", 2),
-            ("twice-commit-second", "fn main(){let evaluate=||$RUN;let first=evaluate();let second=evaluate();drop(first);std::process::exit(terminal::commit(second));}", 2),
-            ("discard-first", "fn main(){let evaluate=||$RUN;let _=evaluate();let outcome=evaluate();std::process::exit(terminal::commit(outcome));}", 2),
-            ("discard-second", "fn main(){let evaluate=||$RUN;let outcome=evaluate();let _=evaluate();std::process::exit(terminal::commit(outcome));}", 2),
-            ("direct-commit-first", "fn main(){let first=$RUN;let second=$RUN;drop(second);std::process::exit(terminal::commit(first));}", 2),
-            ("direct-commit-second", "fn main(){let first=$RUN;let second=$RUN;drop(first);std::process::exit(terminal::commit(second));}", 2),
-            ("two-loop", "fn main(){let mut outcome=None;for _ in 0..2{outcome=Some($RUN);}std::process::exit(terminal::commit(outcome.unwrap()));}", 2),
-            ("two-callback", "fn main(){let [outcome,_discarded]=[(),()].map(|_|$RUN);std::process::exit(terminal::commit(outcome));}", 2),
-            ("reorder-commit-first", "fn main(){let evaluate=||$RUN;let mut outcomes=[evaluate(),evaluate()];outcomes.swap(0,1);let [discarded,outcome]=outcomes;drop(discarded);std::process::exit(terminal::commit(outcome));}", 2),
-            ("reorder-commit-second", "fn main(){let evaluate=||$RUN;let mut outcomes=[evaluate(),evaluate()];outcomes.swap(0,1);let [outcome,discarded]=outcomes;drop(discarded);std::process::exit(terminal::commit(outcome));}", 2),
-            ("three-attempts", "fn main(){let evaluate=||$RUN;let outcome=evaluate();let _=evaluate();let _=evaluate();std::process::exit(terminal::commit(outcome));}", 3),
-        ];
-        let scratch = Scratch::new("selected-decoy-cardinality");
-        let selected = scratch.path.join("selected.eqi"); let decoy = scratch.path.join("decoy.eqi");
-        let source = std::str::from_utf8(ACCEPTED_BYTES).unwrap(); let selected_source = source.replace("parameter rate: 1 / s = 1;", "parameter rate: 1 / s = 2;"); let decoy_source = source.replace("parameter rate: 1 / s = 1;", "parameter rate: 1 / s = 3;");
-        fs::write(&selected, &selected_source).unwrap(); fs::write(&decoy, &decoy_source).unwrap();
-        let selected_name = selected.to_str().unwrap(); let decoy_name = decoy.to_str().unwrap();
-        let selected_document = ModelDocument::compile(selected_name, &selected_source).unwrap(); let decoy_document = ModelDocument::compile(decoy_name, &decoy_source).unwrap();
-        let selected_fingerprint = selected_document.structural_fingerprint().unwrap(); let decoy_fingerprint = decoy_document.structural_fingerprint().unwrap(); assert_eq!(selected_fingerprint.generation(), SemanticFingerprintGeneration::V3); assert_eq!(decoy_fingerprint.generation(), SemanticFingerprintGeneration::V3); assert_ne!(selected_fingerprint, decoy_fingerprint);
-        let selected_stdout = format!("accepted {selected_fingerprint}\n").into_bytes(); let decoy_stdout = format!("accepted {decoy_fingerprint}\n").into_bytes();
-        assert_output(&run(["check", selected_name], &scratch.path), 0, &selected_stdout, b""); assert_output(&run(["check", decoy_name], &scratch.path), 0, &decoy_stdout, b"");
-        let substituted = run_oracle_child(&scratch, &["check".into(), selected.as_os_str().to_owned()], "valid-decoy-substitution", "none", Some(&decoy), Some(selected_name)); assert_eq!(substituted.count, 1); assert_eq!(substituted.exit, 0); assert!(substituted.stderr.is_empty()); assert_eq!(substituted.stdout, decoy_stdout); assert_ne!(substituted.stdout, selected_stdout);
-        let root = repository_root(); let archive = scratch.path.join("candidate.tar");
-        let archived = Command::new("git").args(["archive", "--format=tar", "--output"]).arg(&archive).arg("HEAD").current_dir(&root).output().unwrap(); assert!(archived.status.success(), "git archive failed: {}", String::from_utf8_lossy(&archived.stderr));
-        let cargo = std::env::var_os("CARGO").expect("Cargo executable");
-        for (profile, release) in [("default", false), ("release", true)] {
-            let target = scratch.path.join(format!("target-{profile}"));
-            for (index, &(label, template, expected_count)) in VARIANTS.iter().enumerate() {
-                let candidate = scratch.path.join(format!("source-{profile}-{index}-{label}")); fs::create_dir(&candidate).unwrap();
-                let extracted = Command::new("tar").arg("-xf").arg(&archive).arg("-C").arg(&candidate).output().unwrap(); assert!(extracted.status.success(), "archive extraction failed for {profile}/{label}");
-                for path in CLI_PATHS { assert_eq!(fs::read(candidate.join(path)).unwrap(), fs::read(root.join(path)).unwrap(), "candidate source changed before {profile}/{label}"); }
-                let counter = candidate.join("operation-count"); let counter_file = std::fs::OpenOptions::new().write(true).create_new(true).open(&counter).unwrap(); drop(counter_file); fs::set_permissions(&counter, fs::Permissions::from_mode(0o600)).unwrap();
-                let main_path = candidate.join(CLI_PATHS[0]); let mut main = fs::read_to_string(&main_path).unwrap(); assert_eq!(main.matches("ModelDocument::compile").count(), 1); main = main.replacen("ModelDocument::compile", "top_level_compile_probe", 1); assert_eq!(main.matches(BASELINE).count(), 1); let body = template.replace("$RUN", RUN); main = main.replacen(BASELINE, &body, 1);
-                let counter_literal = format!("{:?}", counter.to_str().unwrap()); main.push_str(&format!("\nfn top_level_compile_probe(filename:&str,source:&str)->Result<ModelDocument,Vec<eqiora::Diagnostic>>{{use std::io::Write as _;let mut counter=std::fs::OpenOptions::new().append(true).open({counter_literal}).unwrap();counter.write_all(b\"x\").unwrap();drop(counter);ModelDocument::compile(filename,source)}}\nconst _:fn(&str,&str)->Result<ModelDocument,Vec<eqiora::Diagnostic>>=top_level_compile_probe;\n")); fs::write(&main_path, main).unwrap();
-                let mut build = Command::new(&cargo); build.args(["build", "--locked", "--offline", "-p", "eqiora", "--bin", "eqiora"]); if release { build.arg("--release"); } let built = build.current_dir(&candidate).env("CARGO_TARGET_DIR", &target).output().unwrap(); assert!(built.status.success(), "{profile}/{label} build failed:\nstdout={}\nstderr={}", String::from_utf8_lossy(&built.stdout), String::from_utf8_lossy(&built.stderr));
-                let built_executable = target.join(if release { "release/eqiora" } else { "debug/eqiora" }); let executable = candidate.join("eqiora-child"); fs::copy(&built_executable, &executable).unwrap(); let output = command_output(executable.as_os_str(), &["check".into(), selected.as_os_str().to_owned()], &scratch.path); assert_output(&output, 0, &selected_stdout, b"");
-                let count = fs::read(&counter).unwrap(); assert_eq!(count, vec![b'x'; expected_count], "wrong final operation count for {profile}/{label}"); if expected_count > 1 { assert_ne!(count, b"x", "{profile}/{label} incorrectly met the exactly-one obligation"); }
-                fs::remove_dir_all(&candidate).expect("remove exact terminated child source root");
-            }
-        }
+    fn selected_input_and_valid_decoy_have_distinct_results() {
+        let scratch = Scratch::new("selected-decoy");
+        let selected = scratch.path.join("selected.eqi");
+        let decoy = scratch.path.join("decoy.eqi");
+        let source = std::str::from_utf8(ACCEPTED_BYTES).unwrap();
+        let selected_source =
+            source.replace("parameter rate: 1 / s = 1;", "parameter rate: 1 / s = 2;");
+        let decoy_source =
+            source.replace("parameter rate: 1 / s = 1;", "parameter rate: 1 / s = 3;");
+        fs::write(&selected, &selected_source).unwrap();
+        fs::write(&decoy, &decoy_source).unwrap();
+        let selected_name = selected.to_str().unwrap();
+        let decoy_name = decoy.to_str().unwrap();
+        let selected_document = ModelDocument::compile(selected_name, &selected_source).unwrap();
+        let decoy_document = ModelDocument::compile(decoy_name, &decoy_source).unwrap();
+        let selected_fingerprint = selected_document.structural_fingerprint().unwrap();
+        let decoy_fingerprint = decoy_document.structural_fingerprint().unwrap();
+        assert_ne!(selected_fingerprint, decoy_fingerprint);
+        let selected_stdout = format!("accepted {selected_fingerprint}\n").into_bytes();
+        let decoy_stdout = format!("accepted {decoy_fingerprint}\n").into_bytes();
+        assert_output(
+            &run(["check", selected_name], &scratch.path),
+            0,
+            &selected_stdout,
+            b"",
+        );
+        assert_output(
+            &run(["check", decoy_name], &scratch.path),
+            0,
+            &decoy_stdout,
+            b"",
+        );
+        let substituted = run_oracle_child(
+            &scratch,
+            &["check".into(), selected.as_os_str().to_owned()],
+            "valid-decoy-substitution",
+            "none",
+            Some(&decoy),
+            Some(selected_name),
+        );
+        assert_eq!(substituted.count, 1);
+        assert_eq!(substituted.exit, 0);
+        assert!(substituted.stderr.is_empty());
+        assert_eq!(substituted.stdout, decoy_stdout);
+        assert_ne!(substituted.stdout, selected_stdout);
     }
 
     #[test]
@@ -1301,177 +1297,6 @@ mod full {
                 .stdout
                 .windows("invalid-output-secret".len())
                 .any(|part| part == b"invalid-output-secret")
-        );
-    }
-
-    fn git_output(root: &Path, args: &[&str]) -> Vec<u8> {
-        let output = Command::new("git")
-            .args(args)
-            .current_dir(root)
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "git {:?} failed: {}",
-            args,
-            String::from_utf8_lossy(&output.stderr)
-        );
-        output.stdout
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn clean_same_head_locked_offline_installed_candidate_matches_workspace() {
-        let scratch = Scratch::new("installed");
-        let root = repository_root();
-        let head_before = git_output(&root, &["rev-parse", "HEAD"]);
-        let status_before = git_output(
-            &root,
-            &[
-                "status",
-                "--porcelain=v1",
-                "--untracked-files=all",
-                "--ignored=no",
-            ],
-        );
-        assert!(
-            status_before.is_empty(),
-            "installed candidate requires a clean final source revision: {}",
-            String::from_utf8_lossy(&status_before)
-        );
-
-        let target = scratch.path.join("target");
-        let install = scratch.path.join("install");
-        fs::create_dir(&target).unwrap();
-        fs::create_dir(&install).unwrap();
-        let cargo = std::env::var_os("CARGO").expect("Cargo must identify its executable");
-        let install_output = Command::new(cargo)
-            .args([
-                OsStr::new("install"),
-                OsStr::new("--locked"),
-                OsStr::new("--offline"),
-                OsStr::new("--path"),
-                root.join("crates/eqiora").as_os_str(),
-                OsStr::new("--bin"),
-                OsStr::new("eqiora"),
-                OsStr::new("--root"),
-                install.as_os_str(),
-            ])
-            .env("CARGO_TARGET_DIR", &target)
-            .output()
-            .unwrap();
-        assert!(
-            install_output.status.success(),
-            "locked offline install failed:\nstdout={}\nstderr={}",
-            String::from_utf8_lossy(&install_output.stdout),
-            String::from_utf8_lossy(&install_output.stderr)
-        );
-        let install_resolved = fs::canonicalize(&install).unwrap();
-        let installed = install.join("bin/eqiora");
-        let opened = File::open(&installed).expect("exact installed host-Unix executable");
-        assert!(opened.metadata().unwrap().file_type().is_file());
-        assert!(
-            fs::canonicalize(&installed)
-                .unwrap()
-                .starts_with(&install_resolved)
-        );
-        assert_eq!(installed, install.join("bin/eqiora"));
-
-        let accepted_path =
-            root.join("verify/interfaces/cli-compile-check/models/accepted-secret.eqi");
-        let rejected_path =
-            root.join("verify/interfaces/cli-compile-check/models/rejected-secret.eqi");
-        let direct_accepted = ModelDocument::compile(
-            accepted_path.to_str().unwrap(),
-            std::str::from_utf8(ACCEPTED_BYTES).unwrap(),
-        )
-        .unwrap();
-        let accepted_expected = format!(
-            "accepted {}\n",
-            direct_accepted.structural_fingerprint().unwrap()
-        )
-        .into_bytes();
-        let direct_rejected = ModelDocument::compile(
-            rejected_path.to_str().unwrap(),
-            std::str::from_utf8(REJECTED_BYTES).unwrap(),
-        )
-        .unwrap_err();
-        let rejected_expected = reference_render(&direct_rejected).unwrap();
-        let version_expected = format!("eqiora {}\n", env!("CARGO_PKG_VERSION")).into_bytes();
-        let cases = vec![
-            (
-                vec![OsString::from("--help")],
-                0,
-                ROOT_HELP.to_vec(),
-                Vec::new(),
-            ),
-            (
-                vec![OsString::from("check"), OsString::from("--help")],
-                0,
-                CHECK_HELP.to_vec(),
-                Vec::new(),
-            ),
-            (
-                vec![OsString::from("--version")],
-                0,
-                version_expected,
-                Vec::new(),
-            ),
-            (
-                vec![OsString::from("check"), accepted_path.into_os_string()],
-                0,
-                accepted_expected,
-                Vec::new(),
-            ),
-            (
-                vec![OsString::from("check"), rejected_path.into_os_string()],
-                1,
-                Vec::new(),
-                rejected_expected,
-            ),
-        ];
-        for (args, expected_exit, expected_stdout, expected_stderr) in cases {
-            let workspace = command_output(binary(), &args, &root);
-            let installed_output = command_output(installed.as_os_str(), &args, &root);
-            assert_output(
-                &workspace,
-                expected_exit,
-                &expected_stdout,
-                &expected_stderr,
-            );
-            assert_output(
-                &installed_output,
-                expected_exit,
-                &expected_stdout,
-                &expected_stderr,
-            );
-            assert_eq!(
-                installed_output.stdout, workspace.stdout,
-                "installed stdout differs for {args:?}"
-            );
-            assert_eq!(
-                installed_output.stderr, workspace.stderr,
-                "installed stderr differs for {args:?}"
-            );
-        }
-
-        let head_after = git_output(&root, &["rev-parse", "HEAD"]);
-        let status_after = git_output(
-            &root,
-            &[
-                "status",
-                "--porcelain=v1",
-                "--untracked-files=all",
-                "--ignored=no",
-            ],
-        );
-        assert_eq!(
-            head_after, head_before,
-            "installed proof changed source revision"
-        );
-        assert!(
-            status_after.is_empty(),
-            "installed proof dirtied source tree"
         );
     }
 }

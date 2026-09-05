@@ -1,5 +1,5 @@
 id = "geometry.fixed-reference-interface-identity-2d"
-status = "verified"
+status = "implemented"
 scope = "exact-content-bound-semantic-geometry-mesh-interface-correspondence-2d"
 reference_kind = "fixed-reference-two-body-incidence-and-revision-lineage"
 

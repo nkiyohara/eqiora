@@ -1,5 +1,5 @@
 id = "fluid.cartesian-periodic-transport-fvm-2d"
-status = "verified"
+status = "implemented"
 scope = "typed-spatial-periodic-connection-through-conservative-cartesian-fvm-seam-2d"
 reference_kind = "transverse-spectral-oracle-and-nonsymmetric-seam-basis-action"
 

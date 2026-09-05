@@ -1,5 +1,5 @@
 id = "solid.dynamic-linear-solid-semantics-2d"
-status = "verified"
+status = "implemented"
 scope = "exact-package-first-order-isotropic-elastodynamics-velocity-traction-semantics"
 reference_kind = "canonical-package-equivalence-and-fail-closed-structural-recognition"
 

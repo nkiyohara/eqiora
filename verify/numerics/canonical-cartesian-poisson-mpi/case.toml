@@ -1,5 +1,5 @@
 id = "numerics.canonical-cartesian-poisson-mpi"
-status = "verified"
+status = "implemented"
 scope = "canonical-2d-cartesian-poisson-finalized-graph-bound-mpi-execution-receipt"
 reference_kind = "analytic-and-independent-serial-reference"
 

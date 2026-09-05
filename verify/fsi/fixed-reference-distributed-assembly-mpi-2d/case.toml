@@ -1,5 +1,5 @@
 id = "fsi.fixed-reference-distributed-assembly-mpi-2d"
-status = "verified"
+status = "implemented"
 scope = "fixed-reference-fsi-cell-owned-row-routed-physical-mpi-assembly-2d"
 reference_kind = "independent-complete-cpu-reference-assembly"
 

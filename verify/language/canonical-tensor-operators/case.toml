@@ -1,5 +1,5 @@
 id = "language.canonical-tensor-operators"
-status = "verified"
+status = "implemented"
 scope = "canonical-volume-tensor-structure-operators-and-current-artifact-replay"
 reference_kind = "typed-semantics-component-scalarization-and-artifact-roundtrip"
 

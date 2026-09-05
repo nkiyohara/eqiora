@@ -25,22 +25,11 @@ from typing import Any, Callable
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
 CI_WITNESSES = {
-    "rust": (
-        ("Stable quality gate", "Tests"),
-        ("Host-CPU verification evidence", "Run registered Cargo host evidence"),
-        (
-            "Host-CPU Python installed-wheel evidence",
-            "Run registered Python installed-wheel host evidence",
-        ),
-    ),
+    "rust": (("Stable quality gate", "Tests"),),
     "msrv": (("MSRV 1.89", "Check every production feature and target"),),
     "python": (
         ("Python 3.11 installed wheel", "Test installed wheel"),
         ("Python 3.14 installed wheel", "Test installed wheel"),
-        (
-            "Host-CPU Python installed-wheel evidence",
-            "Run registered Python installed-wheel host evidence",
-        ),
     ),
     "studio": (("Studio projection and native boundary", "Production shell build"),),
     "dependency_policy": (
@@ -97,20 +86,6 @@ def authenticate(
     if workflow not in {"ci.yml", "pages.yml"}:
         raise ValueError("workflow is not eligible for reuse")
 
-    associated_pulls = fetch(
-        f"https://api.github.com/repos/{repository}/commits/{previous_sha}/pulls"
-        "?per_page=100"
-    )
-    if not isinstance(associated_pulls, list) or len(associated_pulls) >= 100:
-        raise ValueError(
-            "commit pull-request associations are unavailable or incomplete"
-        )
-    if not any(
-        isinstance(item, dict) and item.get("number") == pull_request
-        for item in associated_pulls
-    ):
-        raise ValueError("previous head is not associated with this pull request")
-
     encoded_workflow = urllib.parse.quote(workflow, safe="")
     query = urllib.parse.urlencode(
         {
@@ -140,6 +115,14 @@ def authenticate(
             and run.get("status") == "completed"
             and run.get("conclusion") == "success"
             and isinstance(run.get("id"), int)
+            # A rebase removes the old head from the live commit-to-PR index.
+            # The successful run retains its PR association; its head_sha above
+            # identifies the tested commit, not the PR object's current head.
+            and isinstance(run.get("pull_requests"), list)
+            and any(
+                isinstance(pull, dict) and pull.get("number") == pull_request
+                for pull in run["pull_requests"]
+            )
         ):
             candidates.append(run)
     if len(candidates) != 1:

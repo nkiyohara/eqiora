@@ -1,5 +1,5 @@
 id = "packages.hierarchical-physical-boundary"
-status = "verified"
+status = "implemented"
 scope = "exact-two-package-hierarchical-scalar-physical-host-serial"
 reference_kind = "canonical-package-model-equivalence-and-analytic-dc"
 

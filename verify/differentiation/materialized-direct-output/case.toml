@@ -1,5 +1,5 @@
 id = "differentiation.materialized-direct-output"
-status = "verified"
+status = "implemented"
 scope = "one-host-local-real-f64-faer-sparse-lu-materialized-direct-output-pair"
 reference_kind = "precommitted-exact-rational-normal-transpose-and-three-mutants"
 

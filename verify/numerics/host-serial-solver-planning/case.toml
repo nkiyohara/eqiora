@@ -1,5 +1,5 @@
 id = "numerics.host-serial-solver-planning"
-status = "verified"
+status = "implemented"
 scope = "deterministic-host-serial-general-csr-solver-planning-v1"
 reference_kind = "independent-exact-rational-and-literal-policy-table"
 

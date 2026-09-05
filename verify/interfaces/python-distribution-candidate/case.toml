@@ -1,5 +1,5 @@
 id = "interfaces.python-distribution-candidate"
-status = "verified"
+status = "implemented"
 scope = "commit-bound-sdist-and-linux-x86-64-per-cpython-wheel-family"
 reference_kind = "clean-installed-artifact-matrix-and-runtime-stub-parity"
 

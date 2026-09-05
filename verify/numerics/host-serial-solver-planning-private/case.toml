@@ -1,5 +1,5 @@
 id = "numerics.host-serial-solver-planning-private"
-status = "verified"
+status = "implemented"
 scope = "crate-private-host-serial-solver-planning-v1-adversarial-oracle"
 reference_kind = "independent-literal-policy-reranking-and-counting-falsifiers"
 

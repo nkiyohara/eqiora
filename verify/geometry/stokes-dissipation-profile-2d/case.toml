@@ -1,5 +1,5 @@
 id = "geometry.stokes-dissipation-profile-2d"
-status = "verified"
+status = "implemented"
 scope = "one-private-exact-area-two-mode-profile-bound-to-two-precommitted-fixed-topology-stokes-models"
 reference_kind = "dual-independent-structural-profile-topology-and-complete-vector-model-oracles"
 

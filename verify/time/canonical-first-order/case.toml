@@ -1,5 +1,5 @@
 id = "time.canonical-first-order"
-status = "verified"
+status = "implemented"
 scope = "canonical-relation-to-first-order-time-system"
 reference_kind = "analytic-ode-and-constant-mass-systems"
 

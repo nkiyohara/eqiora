@@ -1,5 +1,5 @@
 id = "solid.mixed-boundary-elasticity-2d"
-status = "verified"
+status = "implemented"
 scope = "package-neutral-direct-and-exact-package-mixed-boundary-q1-elasticity"
 reference_kind = "analytic-inventory-csr-convergence-and-balance-equivalence"
 

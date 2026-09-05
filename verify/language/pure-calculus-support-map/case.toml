@@ -1,5 +1,5 @@
 id = "language.pure-calculus-support-map"
-status = "verified"
+status = "implemented"
 scope = "bounded-proof-carrying-pure-calculus-and-semantic-trace-support-map"
 reference_kind = "typed-expansion-exact-proof-replay-and-support-identity-falsifiers"
 

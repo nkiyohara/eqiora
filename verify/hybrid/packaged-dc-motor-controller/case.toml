@@ -1,5 +1,5 @@
 id = "hybrid.packaged-dc-motor-controller"
-status = "verified"
+status = "implemented"
 scope = "exact-three-package-scalar-electromechanical-host-serial"
 reference_kind = "exact-sampled-linear-state-transition"
 

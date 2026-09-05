@@ -1,5 +1,5 @@
 id = "fluid.mixed-static-pressure-mini-stokes-2d"
-status = "verified"
+status = "implemented"
 scope = "mixed-velocity-normal-pressure-canonical-si-mini-execution"
 reference_kind = "exact-affine-pressure-facet-load-and-global-balance"
 

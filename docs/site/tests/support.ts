@@ -494,6 +494,8 @@ export async function seriousAxeViolations(page: Page) {
     'axeAnalysis',
     () =>
       new AxeBuilder({ page })
+        // Keep every violation node; callers do not consume passing-node selectors.
+        .options({ resultTypes: ['violations'] })
         .withRules([...SERIOUS_CRITICAL_AXE_RULE_IDS])
         .analyze(),
     SERIOUS_CRITICAL_AXE_RULE_IDS.length,
@@ -547,6 +549,7 @@ export async function conditionDependentAxeViolations(
     'axeAnalysis',
     () =>
       new AxeBuilder({ page })
+        .options({ resultTypes: ['violations'] })
         .withRules([...rules])
         .analyze(),
     rules.length,

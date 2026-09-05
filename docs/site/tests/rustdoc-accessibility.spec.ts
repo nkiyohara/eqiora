@@ -83,7 +83,9 @@ function hashParts(parts: string[]): string {
 }
 
 async function seriousViolations(page: Page) {
-  const results = await new AxeBuilder({ page }).analyze();
+  const results = await new AxeBuilder({ page })
+    .options({ resultTypes: ['violations'] })
+    .analyze();
   return results.violations.filter(({ impact }) => impact === 'serious' || impact === 'critical');
 }
 

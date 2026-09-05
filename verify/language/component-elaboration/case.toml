@@ -1,5 +1,5 @@
 id = "language.component-elaboration"
-status = "verified"
+status = "implemented"
 scope = "local-source-nested-scalar-physical-component-elaboration-host-serial"
 reference_kind = "canonical-identity-provenance-flat-normalization-and-analytic-dc"
 

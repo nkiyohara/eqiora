@@ -1,5 +1,5 @@
 id = "differentiation.spatial-shape-optimization"
-status = "verified"
+status = "implemented"
 scope = "fixed-topology-discrete-shape-differentiation"
 reference_kind = "independent-centered-finite-difference"
 

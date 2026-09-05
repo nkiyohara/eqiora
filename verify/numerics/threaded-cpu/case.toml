@@ -1,5 +1,5 @@
 id = "numerics.threaded-cpu"
-status = "verified"
+status = "implemented"
 scope = "host-threaded-ordered-assembly-and-linear-execution"
 reference_kind = "worker-independent-assembly-reaction-and-true-residual"
 

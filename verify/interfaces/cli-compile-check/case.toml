@@ -1,5 +1,5 @@
 id = "interfaces.cli-compile-check"
-status = "verified"
+status = "implemented"
 scope = "local-path-bounded-current-model-compile-check-cli"
 reference_kind = "independent-direct-operation-and-black-box-terminal-parity"
 

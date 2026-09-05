@@ -1,5 +1,5 @@
 id = "artifacts.cartesian-mesh-default-decode-budget"
-status = "verified"
+status = "implemented"
 scope = "default-and-explicit-resource-policy-for-axis-compressed-cartesian-mesh-decoding"
 reference_kind = "independent-closed-form-axis-state-product-and-literal-boundary-oracle"
 

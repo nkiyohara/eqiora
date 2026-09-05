@@ -1,5 +1,5 @@
 id = "numerics.preconditioner-scaling-envelope"
-status = "verified"
+status = "implemented"
 scope = "host-local-spd-preconditioner-scaling-falsifier"
 reference_kind = "pre-declared-envelope-and-analytic-krylov-asymptotics"
 

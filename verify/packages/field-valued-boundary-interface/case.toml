@@ -1,5 +1,5 @@
 id = "packages.field-valued-boundary-interface"
-status = "verified"
+status = "implemented"
 scope = "exact-package-coincident-cartesian-2d-vector-boundary-host-serial"
 reference_kind = "canonical-identity-and-analytic-pointwise-interface-balance"
 
