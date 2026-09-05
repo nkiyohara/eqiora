@@ -513,20 +513,21 @@ fn invalid_component_ir(message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
+    use eqiora_core::ValueFrame;
     use eqiora_core::entity::kinds;
     use eqiora_core::{DimExponents, Id, ValueShape};
     use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
     use eqiora_schema::kernel::typing::{
         ExpressionType, RootContract, SpatialSupport, TypedResidual,
     };
-    use eqiora_schema::kernel::{ExprDagBuilder, SymbolRef, ValueFrame};
+    use eqiora_schema::kernel::{ExprDagBuilder, SymbolRef};
 
     use super::ComponentScalarization;
 
     #[test]
     fn real_scalarization_rejects_complex_types_before_emitting_rows() {
         use eqiora_core::ScalarDomain;
-        use eqiora_schema::kernel::ValueType;
+        use eqiora_core::ValueType;
         let mut builder = ExprDagBuilder::new();
         let root = builder.symbol(SymbolRef::Field(Id::new())).unwrap();
         let expression = builder.finish([root]).unwrap();
@@ -574,7 +575,7 @@ mod tests {
                     SymbolRef::PortTrace(_) => ExpressionType::shaped(
                         DimExponents::DIMENSIONLESS,
                         vector.clone(),
-                        eqiora_schema::kernel::ValueFrame::SpatialCartesian,
+                        eqiora_core::ValueFrame::SpatialCartesian,
                         None::<eqiora_schema::kernel::typing::SpatialSupport<()>>,
                     )
                     .unwrap(),
@@ -622,7 +623,7 @@ mod tests {
                     SymbolRef::PortFlux(_) => ExpressionType::shaped(
                         DimExponents::DIMENSIONLESS,
                         tensor.clone(),
-                        eqiora_schema::kernel::ValueFrame::SpatialCartesian,
+                        eqiora_core::ValueFrame::SpatialCartesian,
                         None::<eqiora_schema::kernel::typing::SpatialSupport<()>>,
                     )
                     .unwrap(),

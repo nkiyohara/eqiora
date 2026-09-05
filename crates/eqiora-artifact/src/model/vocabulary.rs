@@ -3,6 +3,7 @@
 //! Each is a small closed enum whose only job is to cross the wire without
 //! widening what the Kernel means.
 
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, ValueShape};
 use eqiora_schema::kernel::pure_operator::{
@@ -12,7 +13,7 @@ use eqiora_schema::kernel::pure_operator::{
 use eqiora_schema::kernel::{
     ActivationKind, BoundaryPairing, BoundarySide, CartesianAxisDefinition,
     CartesianCoordinateSource, ClockDomainDef, ClockKind, ConnectionSemantics, EventDirection,
-    PortDef, PortPayload, RationalTime, RepresentationKind, SignalDirection, ValueFrame,
+    PortDef, PortPayload, RationalTime, RepresentationKind, SignalDirection,
 };
 use serde::{Deserialize, Serialize};
 

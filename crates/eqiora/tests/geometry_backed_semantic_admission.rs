@@ -11,11 +11,12 @@ use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::typing::SpatialSupport;
 use eqiora::kernel::{
     ActivationDef, BoundaryPairing, BoundaryPhysicalConnector, DomainDef, ExprDagBuilder, FieldDef,
-    GeometryDigest, KernelNode, PortDef, RelationDef, RepresentationDef, SymbolRef, ValueFrame,
+    GeometryDigest, KernelNode, PortDef, RelationDef, RepresentationDef, SymbolRef,
 };
 use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::sem::KernelProgram;
 use eqiora::{Diagnostic, DimExponents, DynQuantity, Id, RawId, ValueShape, kinds};
+use eqiora_core::ValueFrame;
 
 const FROZEN_DIGEST: &str = "e6f8e17ac215ef37ca3c9de07b9979e34f13412a5de11dc9240ea1def8130030";
 
@@ -195,7 +196,7 @@ fn positive_model(
         KernelNode::from(RepresentationDef::continuum(ids.representation)),
         KernelNode::from(FieldDef::new(
             ids.field,
-            eqiora_schema::kernel::ValueType::shaped(
+            eqiora_core::ValueType::shaped(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
                 ValueShape::new([field_extent]).expect("vector extent"),
@@ -273,7 +274,7 @@ fn boundary_relation_model(
         KernelNode::from(RepresentationDef::continuum(ids.representation)),
         KernelNode::from(FieldDef::new(
             ids.field,
-            eqiora_schema::kernel::ValueType::shaped(
+            eqiora_core::ValueType::shaped(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
                 ValueShape::new([2]).expect("two-component vector"),
@@ -1481,7 +1482,7 @@ fn admitted_geometry_boundary_field_keeps_its_embedding_diagnostic() {
             KernelNode::from(RepresentationDef::continuum(representation)),
             KernelNode::from(FieldDef::new(
                 field,
-                eqiora_schema::kernel::ValueType::shaped(
+                eqiora_core::ValueType::shaped(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                     ValueShape::new([2]).expect("two-component vector"),

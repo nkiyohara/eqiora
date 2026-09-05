@@ -186,12 +186,13 @@ impl<I: Clone + Eq> PureOperatorApplicationProof<I> {
 
 #[cfg(test)]
 mod tests {
+    use eqiora_core::ValueFrame;
     use eqiora_core::entity::kinds;
     use eqiora_core::{DimExponents, Id, ValueShape};
     use eqiora_schema::kernel::typing::{
         ExpressionType, RootContract, SpatialSupport, TypedResidual,
     };
-    use eqiora_schema::kernel::{ExprDagBuilder, SymbolRef, ValueFrame};
+    use eqiora_schema::kernel::{ExprDagBuilder, SymbolRef};
 
     use super::*;
 

@@ -7,9 +7,10 @@ use eqiora::kernel::typing::{
     ExpressionType, RootContract, SpatialSupport, TypeViolation, TypedResidual, isotropic_lift,
     symmetric_part,
 };
-use eqiora::kernel::{ExprDagBuilder, ExprNode, KernelNode, SymbolRef, ValueFrame};
+use eqiora::kernel::{ExprDagBuilder, ExprNode, KernelNode, SymbolRef};
 use eqiora::sem::KernelProgram;
 use eqiora::{DimExponents, Entity, Id, RawId, ValueShape};
+use eqiora_core::ValueFrame;
 
 const ELASTIC_RELATION: &str =
     include_str!("../../../verify/language/canonical-tensor-operators/models/elastic-relation.eqi");

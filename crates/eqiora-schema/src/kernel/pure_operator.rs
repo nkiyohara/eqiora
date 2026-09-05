@@ -11,8 +11,8 @@ use std::num::NonZeroU64;
 
 use sha2::{Digest, Sha256};
 
-use super::ValueFrame;
 use super::typing::{ExpressionType, SpatialSupport};
+use eqiora_core::ValueFrame;
 
 const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v1\0";
 

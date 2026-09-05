@@ -61,7 +61,7 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
         KernelNode::from(
             FieldDef::new(
                 differential,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
@@ -72,7 +72,7 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
         KernelNode::from(
             FieldDef::new(
                 algebraic,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),

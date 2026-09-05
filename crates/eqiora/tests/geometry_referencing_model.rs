@@ -4,11 +4,12 @@ use eqiora::diagnostic::codes;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{
     ActivationDef, AxisBounds, BoundaryPairing, BoundaryPhysicalConnector, BoundarySide, DomainDef,
-    ExprDagBuilder, FieldDef, GeometryDigest, KernelNode, PortDef, RelationDef, ValueFrame,
+    ExprDagBuilder, FieldDef, GeometryDigest, KernelNode, PortDef, RelationDef,
 };
 use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::sem::KernelProgram;
 use eqiora::{DimExponents, DynQuantity, Id, ValueShape, kinds};
+use eqiora_core::ValueFrame;
 use serde_json::Value;
 
 #[derive(Clone, Copy)]
@@ -331,7 +332,7 @@ fn build_transaction(
         ExtraMeaning::None => {}
         ExtraMeaning::FieldSupport => nodes.push(KernelNode::from(FieldDef::new(
             ids.field,
-            eqiora_schema::kernel::ValueType::scalar(
+            eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),

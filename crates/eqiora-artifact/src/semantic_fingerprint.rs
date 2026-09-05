@@ -11,12 +11,13 @@ mod projection;
 use core::fmt;
 use std::collections::BTreeMap;
 
+use eqiora_core::ValueFrame;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId, ValueShape};
 use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::{
     ActivationKind, BoundaryPairing, BoundarySide, CartesianCoordinateSource, ClockKind,
     ConnectionSemantics, DomainKind, EventDirection, ExprDag, ExprNode, KernelNode, PortPayload,
-    RepresentationKind, SignalDirection, SymbolRef, UnaryMathFunction, ValueFrame,
+    RepresentationKind, SignalDirection, SymbolRef, UnaryMathFunction,
 };
 use eqiora_sem::KernelProgram;
 use sha2::{Digest, Sha256};

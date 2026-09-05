@@ -5,6 +5,7 @@ use eqiora_artifact::{
     RealizationDecoderLimits, RealizationEnvelopeV7, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora_compiler::compile;
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
@@ -17,7 +18,7 @@ use eqiora_realization::{
     RealizationRequirements, RealizationRevision, SemanticRevision, Space,
     SymmetricCongruenceScaling, Target, VectorLayoutKind, resolve_fieldwise,
 };
-use eqiora_schema::kernel::{DomainKind, KernelNode, ValueFrame};
+use eqiora_schema::kernel::{DomainKind, KernelNode};
 use eqiora_sem::KernelProgram;
 use eqiora_solver::LinearOperatorProperties;
 use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType, SolverPlan};

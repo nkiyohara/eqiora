@@ -11,6 +11,7 @@ use eqiora_assembly::{
     AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
     AssemblyResult, AssemblyWork,
 };
+use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId, ValueShape};
@@ -19,7 +20,6 @@ use eqiora_realization::{
     MeshArtifactReference, RealizationRevision, SemanticRevision, Space, SpaceFamily,
 };
 use eqiora_schema::Model;
-use eqiora_schema::kernel::ValueFrame;
 use eqiora_solver::{
     CanonicalCsrAgreementFingerprintV1, CanonicalCsrSystemView, LinearOperatorProperties,
 };

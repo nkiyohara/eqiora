@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use eqiora_core::ValueFrame;
 use eqiora_core::{Diagnostic, DimExponents, RawId, ValueShape};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::typing::TypedResidual;
-use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, SymbolRef, ValueFrame};
+use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::CartesianBoundaryEntry;

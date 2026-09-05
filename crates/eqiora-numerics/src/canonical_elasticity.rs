@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 
 use eqiora_artifact::{CartesianMeshEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1};
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
+use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, GraphPath, RawId, ValueShape};
@@ -18,7 +19,7 @@ use eqiora_realization::{
 use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{
     ActivationKind, BoundarySide, DomainKind, ExprDag, ExprId, ExprNode, KernelNode,
-    RepresentationKind, SymbolRef, ValueFrame,
+    RepresentationKind, SymbolRef,
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType};

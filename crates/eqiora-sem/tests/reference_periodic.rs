@@ -43,7 +43,7 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
         KernelNode::from(
             FieldDef::new(
                 left,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
@@ -54,7 +54,7 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
         KernelNode::from(
             FieldDef::new(
                 right,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),

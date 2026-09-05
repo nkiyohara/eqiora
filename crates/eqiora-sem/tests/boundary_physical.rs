@@ -1,10 +1,11 @@
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId, ValueShape};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora_schema::kernel::{
     ActivationDef, AxisBounds, BoundaryPairing, BoundaryPhysicalConnector, BoundarySide,
     ConnectionDef, ConnectionSemantics, DomainDef, ExprDagBuilder, KernelNode, PortDef,
-    RelationDef, SymbolRef, ValueFrame,
+    RelationDef, SymbolRef,
 };
 use eqiora_schema::{Model, ModelView};
 use eqiora_sem::{BoundaryJunctionGeometry, KernelProgram};

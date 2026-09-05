@@ -1,6 +1,6 @@
 use super::*;
-use crate::kernel::ValueType;
 use eqiora_core::ScalarDomain;
+use eqiora_core::ValueType;
 
 #[test]
 fn arrays_of_vectors_are_not_spatial_tensors_with_the_same_extents() {

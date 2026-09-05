@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, EntityKind, GraphPath, ValueShape};
 use eqiora_lang::{
@@ -10,7 +11,7 @@ use eqiora_lang::{
 use eqiora_schema::kernel::typing::SpatialSupport;
 use eqiora_schema::kernel::{
     BoundaryPairing, BoundaryPhysicalConnector, BoundaryPhysicalPortContract, BoundarySide,
-    CartesianBoundaryEmbedding, ValueFrame, validate_boundary_physical_connection,
+    CartesianBoundaryEmbedding, validate_boundary_physical_connection,
 };
 
 use crate::connection_sets::ConnectionFragment;

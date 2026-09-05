@@ -385,7 +385,8 @@ model Main {{
     #[test]
     fn field_binding_retains_array_and_spatial_axis_roles() {
         use eqiora_core::{DimExponents, ScalarDomain, ValueShape};
-        use eqiora_schema::kernel::{ValueFrame, ValueType};
+        use eqiora_core::{ValueFrame, ValueType};
+
         let spatial = |extents| {
             ValueType::shaped(
                 ScalarDomain::Real,
@@ -460,7 +461,7 @@ model Use {
                 eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
                     .expect("bounded dimension"),
                 eqiora_core::ValueShape::new([2]).expect("shape"),
-                eqiora_schema::kernel::ValueFrame::SpatialCartesian,
+                eqiora_core::ValueFrame::SpatialCartesian,
                 Some(exact_support.clone()),
             )
             .unwrap(),

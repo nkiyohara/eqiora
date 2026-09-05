@@ -10,7 +10,8 @@ use core::fmt;
 use eqiora_core::{DimExponents, ValueShape};
 
 use super::pure_operator::PureOperatorError;
-use super::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction, ValueFrame};
+use super::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
+use eqiora_core::ValueFrame;
 
 mod value;
 pub use value::ExpressionType;
@@ -572,11 +573,9 @@ pub fn additive<I: Clone + Eq>(
         });
     }
     Ok(ExpressionType::new(
-        left.value_type.clone().with_scalar_domain(
-            left.value_type
-                .scalar_domain()
-                .common(right.value_type.scalar_domain()),
-        ),
+        left.value_type
+            .clone()
+            .with_common_scalar_domain(&right.value_type),
         combine_additive_support(&left.support, &right.support)?,
     ))
 }
@@ -596,11 +595,8 @@ pub fn multiply<I: Clone + Eq>(
     Ok(ExpressionType::new(
         value_type
             .clone()
-            .with_scalar_domain(
-                left.value_type
-                    .scalar_domain()
-                    .common(right.value_type.scalar_domain()),
-            )
+            .with_common_scalar_domain(&left.value_type)
+            .with_common_scalar_domain(&right.value_type)
             .with_dimension(left.dimension().mul(right.dimension()).ok_or(
                 TypeViolation::DimensionOverflow {
                     operation: "multiplication",
@@ -622,12 +618,7 @@ pub fn divide<I: Clone + Eq>(
         numerator
             .value_type
             .clone()
-            .with_scalar_domain(
-                numerator
-                    .value_type
-                    .scalar_domain()
-                    .common(denominator.value_type.scalar_domain()),
-            )
+            .with_common_scalar_domain(&denominator.value_type)
             .with_dimension(numerator.dimension().div(denominator.dimension()).ok_or(
                 TypeViolation::DimensionOverflow {
                     operation: "division",

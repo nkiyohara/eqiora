@@ -1,3 +1,4 @@
+use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId, RawId, ValueShape};
@@ -5,7 +6,7 @@ use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora_schema::kernel::{
     ActivationDef, ActivationKind, AxisBounds, BoundarySide, ClockDomainDef, ConnectionDef,
     ConnectionSemantics, DomainDef, ExprDagBuilder, ExprId, FieldDef, KernelNode, ParameterDef,
-    PortDef, RationalTime, RelationDef, RepresentationDef, SignalDirection, SymbolRef, ValueFrame,
+    PortDef, RationalTime, RelationDef, RepresentationDef, SignalDirection, SymbolRef,
 };
 use eqiora_schema::{Model, ModelView};
 use eqiora_sem::KernelProgram;
@@ -29,7 +30,7 @@ fn valid_program_owns_one_snapshot_revision() {
         KernelNode::from(
             FieldDef::new(
                 field,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
@@ -116,7 +117,7 @@ fn symbol_outside_model_is_rejected() {
     for node in [
         KernelNode::from(FieldDef::new(
             external_field,
-            eqiora_schema::kernel::ValueType::scalar(
+            eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),
@@ -177,10 +178,7 @@ fn incompatible_expression_dimensions_are_rejected() {
     for node in [
         KernelNode::from(FieldDef::new(
             field,
-            eqiora_schema::kernel::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                time_dimension,
-            ),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension),
         )),
         KernelNode::from(RelationDef::new(
             relation,
@@ -247,7 +245,7 @@ fn shaped_relation_roots_are_componentwise_but_activation_roots_remain_scalar() 
     let nodes = [
         KernelNode::from(FieldDef::new(
             field,
-            eqiora_schema::kernel::ValueType::shaped(
+            eqiora_core::ValueType::shaped(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
                 shape,
@@ -304,7 +302,7 @@ fn boundary_operator_without_boundary_scope_is_rejected() {
     for node in [
         KernelNode::from(FieldDef::new(
             field,
-            eqiora_schema::kernel::ValueType::scalar(
+            eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),
@@ -366,10 +364,7 @@ fn derivative_dimension_overflow_is_not_misreported_as_missing_symbol() {
     for node in [
         KernelNode::from(FieldDef::new(
             field,
-            eqiora_schema::kernel::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                extreme_dimension,
-            ),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, extreme_dimension),
         )),
         KernelNode::from(RelationDef::new(
             relation,
@@ -775,14 +770,14 @@ fn invalid_spatial_expression(
         KernelNode::from(RepresentationDef::continuum(representation)),
         KernelNode::from(FieldDef::new(
             ids.field,
-            eqiora_schema::kernel::ValueType::scalar(
+            eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),
         )),
         KernelNode::from(FieldDef::new(
             ids.other_field,
-            eqiora_schema::kernel::ValueType::scalar(
+            eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),

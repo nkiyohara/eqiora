@@ -171,8 +171,8 @@ impl<I> ScalarCalculus<I> {
 
 #[cfg(test)]
 mod tests {
+    use eqiora_core::ValueFrame;
     use eqiora_core::{DimExponents, ValueShape};
-    use eqiora_schema::kernel::ValueFrame;
     use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
     use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 

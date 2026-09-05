@@ -2,11 +2,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use eqiora_core::ValueFrame;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId};
 use eqiora_graph::{Edge, EdgeKind};
 use eqiora_schema::kernel::typing::SpatialSupport;
 use eqiora_schema::kernel::{
-    AxisBounds, CartesianCoordinateSource, DomainKind, KernelNode, RepresentationKind, ValueFrame,
+    AxisBounds, CartesianCoordinateSource, DomainKind, KernelNode, RepresentationKind,
 };
 
 use super::{edge_targets, kernel_error};

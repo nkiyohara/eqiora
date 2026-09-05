@@ -6,10 +6,10 @@ use std::str::FromStr;
 
 use crate::dimension::WireDimension;
 
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, ValueShape};
 use eqiora_meshing::DiscreteFieldAssociation;
-use eqiora_schema::kernel::ValueFrame;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 

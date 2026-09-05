@@ -370,7 +370,7 @@ fn canonical_nonlinear_derivative_relation() -> (
         KernelNode::from(
             FieldDef::new(
                 state,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),

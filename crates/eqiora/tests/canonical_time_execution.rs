@@ -462,10 +462,7 @@ fn canonical_decay_with_integral() -> (
         KernelNode::from(
             FieldDef::new(
                 x,
-                eqiora_schema::kernel::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    inverse_time,
-                ),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
             )
             .with_initial(DynQuantity::new(1.0, inverse_time))
             .unwrap(),
@@ -473,7 +470,7 @@ fn canonical_decay_with_integral() -> (
         KernelNode::from(
             FieldDef::new(
                 integral,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
@@ -536,7 +533,7 @@ fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Rel
         KernelNode::from(
             FieldDef::new(
                 state,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
@@ -618,7 +615,7 @@ fn canonical_index_one_dae() -> (
         KernelNode::from(
             FieldDef::new(
                 differential,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
@@ -629,7 +626,7 @@ fn canonical_index_one_dae() -> (
         KernelNode::from(
             FieldDef::new(
                 algebraic,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
@@ -727,7 +724,7 @@ fn canonical_dense_mass_matrix(
         KernelNode::from(
             FieldDef::new(
                 x,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
@@ -738,7 +735,7 @@ fn canonical_dense_mass_matrix(
         KernelNode::from(
             FieldDef::new(
                 y,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
@@ -850,7 +847,7 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
         KernelNode::from(
             FieldDef::new(
                 height,
-                eqiora_schema::kernel::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
             )
             .with_initial(DynQuantity::new(1.0, length))
             .unwrap(),
@@ -858,10 +855,7 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
         KernelNode::from(
             FieldDef::new(
                 velocity,
-                eqiora_schema::kernel::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    velocity_dimension,
-                ),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
             )
             .with_initial(DynQuantity::new(0.0, velocity_dimension))
             .unwrap(),

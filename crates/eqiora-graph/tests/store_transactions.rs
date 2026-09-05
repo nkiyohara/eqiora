@@ -1,3 +1,4 @@
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::quantity::dim;
 use eqiora_core::{DimExponents, Dimension, DynQuantity, EntityKind, Id, OntologyId, ValueShape};
@@ -6,7 +7,6 @@ use eqiora_graph::{
 };
 use eqiora_schema::kernel::{
     ExprDagBuilder, FieldDef, KernelNode, ParameterDef, PortDef, RelationDef, SignalDirection,
-    ValueFrame,
 };
 use eqiora_schema::{Model, ModelView};
 
@@ -31,7 +31,7 @@ fn commit_is_atomic_and_records_provenance() {
     transaction
         .push(define(FieldDef::new(
             field,
-            eqiora_schema::kernel::ValueType::scalar(
+            eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 dim::VelocityDim::EXPONENTS,
             ),
@@ -64,7 +64,7 @@ fn failed_operation_rolls_back_the_whole_transaction() {
     transaction
         .push(define(FieldDef::new(
             field,
-            eqiora_schema::kernel::ValueType::scalar(
+            eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 dim::VelocityDim::EXPONENTS,
             ),
@@ -198,7 +198,7 @@ fn scalar_set_value_cannot_initialize_a_shaped_field() {
     let field = Id::<kinds::Field>::new();
     let definition = FieldDef::new(
         field,
-        eqiora_schema::kernel::ValueType::shaped(
+        eqiora_core::ValueType::shaped(
             eqiora_core::ScalarDomain::Real,
             dim::VelocityDim::EXPONENTS,
             ValueShape::new([2]).unwrap(),
@@ -232,7 +232,7 @@ fn graph_boundaries_are_checked_by_edge_kind() {
         })
         .push(define(FieldDef::new(
             field,
-            eqiora_schema::kernel::ValueType::scalar(
+            eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 dim::LengthDim::EXPONENTS,
             ),

@@ -177,7 +177,7 @@ fn thermal_fixture() -> ThermalFixture {
         KernelNode::from(
             FieldDef::new(
                 temperature,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     temperature_dimension,
                 ),
@@ -188,7 +188,7 @@ fn thermal_fixture() -> ThermalFixture {
         KernelNode::from(
             FieldDef::new(
                 command,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),

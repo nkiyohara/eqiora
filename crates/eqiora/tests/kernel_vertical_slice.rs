@@ -53,7 +53,7 @@ fn public_api_builds_a_clocked_relation_network() {
         KernelNode::from(DomainDef::new(domain)),
         KernelNode::from(FieldDef::new(
             field,
-            eqiora_schema::kernel::ValueType::scalar(
+            eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),

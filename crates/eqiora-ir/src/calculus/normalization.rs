@@ -280,8 +280,8 @@ fn canonical_component_bytes<I>(component: &ScalarCalculus<I>) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    use eqiora_core::ValueFrame;
     use eqiora_core::{DimExponents, ValueShape};
-    use eqiora_schema::kernel::ValueFrame;
     use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
     use super::*;

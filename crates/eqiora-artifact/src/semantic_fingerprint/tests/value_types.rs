@@ -1,7 +1,8 @@
 use super::*;
 use crate::{ModelDecoderLimits, ModelEnvelope};
 use eqiora_core::ScalarDomain;
-use eqiora_schema::kernel::{AxisBounds, DomainDef, RepresentationDef, ValueType};
+use eqiora_core::ValueType;
+use eqiora_schema::kernel::{AxisBounds, DomainDef, RepresentationDef};
 
 fn spatial_program(value_type: ValueType) -> Result<KernelProgram, Vec<Diagnostic>> {
     let domain = Id::new();

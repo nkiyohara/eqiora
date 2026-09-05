@@ -118,7 +118,7 @@ pub(super) fn resolve_field_contract(
     _range: TextRange,
     contract: &FieldContract,
     bindings: &BTreeMap<String, Binding>,
-) -> Result<eqiora_schema::kernel::ValueType, Diagnostic> {
+) -> Result<eqiora_core::ValueType, Diagnostic> {
     let support = contract.domain.as_ref().and_then(|name| {
         let Binding::Domain(
             id,

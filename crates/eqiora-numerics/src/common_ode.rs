@@ -635,7 +635,7 @@ model decay {
             KernelNode::from(
                 FieldDef::new(
                     decay,
-                    eqiora_schema::kernel::ValueType::scalar(
+                    eqiora_core::ValueType::scalar(
                         eqiora_core::ScalarDomain::Real,
                         DimExponents::DIMENSIONLESS,
                     ),
@@ -646,7 +646,7 @@ model decay {
             KernelNode::from(
                 FieldDef::new(
                     integral,
-                    eqiora_schema::kernel::ValueType::scalar(
+                    eqiora_core::ValueType::scalar(
                         eqiora_core::ScalarDomain::Real,
                         DimExponents::DIMENSIONLESS,
                     ),

@@ -1,8 +1,9 @@
 //! Resolve mathematical source types without choosing numerical storage.
 
 use eqiora_core::{Diagnostic, ValueShape, diagnostic::codes};
+use eqiora_core::{ValueFrame, ValueType};
 use eqiora_lang::{ValueTypeSyntax, ValueTypeSyntaxKind};
-use eqiora_schema::kernel::{ValueFrame, ValueType, typing::SpatialSupport};
+use eqiora_schema::kernel::typing::SpatialSupport;
 
 use crate::{diagnostics::source_error, dimensions::lower_dimension};
 

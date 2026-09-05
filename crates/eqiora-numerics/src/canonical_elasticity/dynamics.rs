@@ -2,9 +2,10 @@
 
 use std::collections::BTreeMap;
 
+use eqiora_core::ValueFrame;
 use eqiora_core::{Diagnostic, DimExponents, RawId, ValueShape};
 use eqiora_graph::EdgeKind;
-use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, KernelNode, SymbolRef, ValueFrame};
+use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use super::{

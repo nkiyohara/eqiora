@@ -1,5 +1,6 @@
 //! Shared discrete block projection for the conforming elasticity pair.
 
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, RawId, ValueShape};
 use eqiora_meshing::MeshTopology;
@@ -7,7 +8,6 @@ use eqiora_realization::{
     AlgebraicBlock, ConformingTraceQuotient, ResolutionSource, ResolvedRealization,
     TraceFieldEndpoint,
 };
-use eqiora_schema::kernel::ValueFrame;
 use eqiora_solver::LinearOperatorProperties;
 
 use super::ConformingIsotropicElasticityCartesianPair2d;

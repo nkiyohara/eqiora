@@ -1,5 +1,6 @@
 use eqiora_core::{Diagnostic, ScalarDomain, ValueShape};
-use eqiora_schema::kernel::{ValueFrame, ValueType};
+use eqiora_core::{ValueFrame, ValueType};
+
 use serde::{Deserialize, Serialize};
 
 use super::{

@@ -3,12 +3,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 
+use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{Edge, EdgeKind};
 use eqiora_schema::kernel::typing::SpatialSupport;
-use eqiora_schema::kernel::{ConnectionSemantics, DomainKind, KernelNode, ValueFrame};
+use eqiora_schema::kernel::{ConnectionSemantics, DomainKind, KernelNode};
 
 use super::{edge_targets, kernel_error, kernel_path};
 

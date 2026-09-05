@@ -1,4 +1,4 @@
-use eqiora_core::{DimExponents, ScalarDomain, ValueShape};
+use crate::{DimExponents, ScalarDomain, ValueShape};
 
 /// Coordinate-frame meaning of mathematical value components.
 ///
@@ -23,10 +23,10 @@ pub struct ValueType {
 }
 
 impl ValueType {
-    /// Embed scalar components in a new mathematical domain without changing their roles.
+    /// Promote scalar components to the smallest common domain without changing their roles.
     #[must_use]
-    pub(crate) fn with_scalar_domain(mut self, scalar_domain: ScalarDomain) -> Self {
-        self.scalar_domain = scalar_domain;
+    pub fn with_common_scalar_domain(mut self, other: &Self) -> Self {
+        self.scalar_domain = self.scalar_domain.common(other.scalar_domain);
         self
     }
 
@@ -162,6 +162,8 @@ mod tests {
         let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
         let complex = ValueType::scalar(ScalarDomain::Complex, real.dimension());
         assert_ne!(real, complex);
+        assert_eq!(real.clone().with_common_scalar_domain(&complex), complex);
+        assert_eq!(complex.clone().with_common_scalar_domain(&real), complex);
         let channels = ValueType::shaped(
             ScalarDomain::Complex,
             real.dimension(),

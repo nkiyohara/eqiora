@@ -4,7 +4,7 @@ use eqiora::entity::kinds;
 use eqiora::ir::ComponentScalarization;
 use eqiora::kernel::pure_operator::PureOperatorDefinition;
 use eqiora::kernel::typing::{ExpressionType, RootContract, SpatialSupport, TypedResidual};
-use eqiora::kernel::{ExprDagBuilder, ExprNode, KernelNode, SymbolRef, ValueFrame};
+use eqiora::kernel::{ExprDagBuilder, ExprNode, KernelNode, SymbolRef};
 use eqiora::package::{
     BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
     PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
@@ -12,6 +12,7 @@ use eqiora::package::{
     prepare_package_release_v1,
 };
 use eqiora::{DimExponents, Id, ValueShape};
+use eqiora_core::ValueFrame;
 use serde_json::{Map, Value};
 
 const DIRECT: &str =

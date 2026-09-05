@@ -228,7 +228,7 @@ fn with_unrelated_relation(source: &Transaction, model: OntologyId<Model>) -> Tr
                     .push(Op::DefineKernelNode {
                         node: FieldDef::new(
                             field,
-                            eqiora_schema::kernel::ValueType::scalar(
+                            eqiora_core::ValueType::scalar(
                                 eqiora_core::ScalarDomain::Real,
                                 DimExponents::DIMENSIONLESS,
                             ),

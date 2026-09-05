@@ -179,7 +179,7 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
         .push(Op::DefineKernelNode {
             node: FieldDef::new(
                 left,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
@@ -191,7 +191,7 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
         .push(Op::DefineKernelNode {
             node: FieldDef::new(
                 right,
-                eqiora_schema::kernel::ValueType::scalar(
+                eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),

@@ -1,6 +1,7 @@
 use eqiora_core::{DimExponents, ValueShape};
 
-use super::{AxisBounds, BoundarySide, ValueFrame};
+use super::{AxisBounds, BoundarySide};
+use eqiora_core::ValueFrame;
 
 /// Closed dual pairing for one field-valued physical connector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -367,7 +368,8 @@ mod tests {
         SpatialPeriodicBoundaryViolation, validate_boundary_physical_connection,
         validate_spatial_periodic_boundary_connection,
     };
-    use crate::kernel::{AxisBounds, BoundarySide, ValueFrame};
+    use crate::kernel::{AxisBounds, BoundarySide};
+    use eqiora_core::ValueFrame;
 
     fn length(value: f64) -> DynQuantity {
         DynQuantity::new(

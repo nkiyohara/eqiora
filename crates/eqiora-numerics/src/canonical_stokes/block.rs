@@ -1,5 +1,6 @@
 //! Shared discrete block projection for the accepted steady MINI path.
 
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueShape};
 use eqiora_meshing::{MeshTopology, SimplicialMesh};
@@ -7,7 +8,6 @@ use eqiora_realization::{
     AlgebraicBlock, MeshArtifactReference, ResolvedFieldwiseRealization,
     ResolvedTransientFieldwiseRealization, Space,
 };
-use eqiora_schema::kernel::ValueFrame;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::LinearOperatorProperties;
 

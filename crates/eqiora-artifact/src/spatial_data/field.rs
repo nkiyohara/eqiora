@@ -4,12 +4,13 @@ use std::str::FromStr;
 
 use crate::dimension::WireDimension;
 
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, ValueShape};
 use eqiora_graph::EdgeKind;
 use eqiora_meshing::{DiscreteFieldAssociation, DiscreteFieldShape, MeshEntity, MeshTopology};
 use eqiora_realization::SpaceFamily;
-use eqiora_schema::kernel::{KernelNode, ValueFrame};
+use eqiora_schema::kernel::KernelNode;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 

@@ -7,6 +7,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, OntologyId, RawId};
 use eqiora_graph::EdgeKind;
@@ -14,7 +15,7 @@ use eqiora_schema::Model;
 use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{
     ActivationKind, BoundarySide, CartesianBoundaryEmbedding, ConnectionSemantics, ExprDag, ExprId,
-    ExprNode, KernelNode, SymbolRef, ValueFrame,
+    ExprNode, KernelNode, SymbolRef,
 };
 use eqiora_sem::KernelProgram;
 

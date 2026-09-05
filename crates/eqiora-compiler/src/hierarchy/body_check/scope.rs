@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, ValueShape};
 use eqiora_lang::{
@@ -13,9 +14,7 @@ use eqiora_schema::kernel::scalar_connection::{
     ScalarConnectionKind, ScalarConnectionViolation, ScalarPortContract, validate_scalar_connection,
 };
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
-use eqiora_schema::kernel::{
-    BoundaryPairing, BoundaryPhysicalConnector, SignalDirection, ValueFrame,
-};
+use eqiora_schema::kernel::{BoundaryPairing, BoundaryPhysicalConnector, SignalDirection};
 
 use crate::connection_sets::{ConnectionFragment, ConnectionSetError, ConnectionSetLimits};
 use crate::diagnostics::source_error;

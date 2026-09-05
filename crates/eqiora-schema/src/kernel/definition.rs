@@ -6,7 +6,8 @@ use eqiora_core::{
     Diagnostic, DimExponents, DynQuantity, EntityKind, GraphPath, Id, RawId, ValueShape,
 };
 
-use super::{BoundaryPhysicalConnector, ExprDag, RationalTime, ValueFrame, ValueType};
+use super::{BoundaryPhysicalConnector, ExprDag, RationalTime};
+use eqiora_core::{ValueFrame, ValueType};
 
 mod spatial;
 

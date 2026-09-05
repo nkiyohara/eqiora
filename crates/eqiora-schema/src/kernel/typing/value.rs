@@ -1,6 +1,6 @@
 use eqiora_core::{DimExponents, ScalarDomain, ValueShape};
 
-use crate::kernel::{InvalidValueType, ValueFrame, ValueType};
+use eqiora_core::{InvalidValueType, ValueFrame, ValueType};
 
 use super::{SpatialSupport, TypeViolation};
 
