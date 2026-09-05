@@ -1,4 +1,4 @@
-name: Python production publish
+name: Production publish
 
 run-name: Production publish / ${{ inputs.tag }} / candidate ${{ inputs.candidate_run_id }}
 
@@ -132,3 +132,81 @@ jobs:
           packages-dir: candidate-dist
           print-hash: true
           verbose: true
+
+  prepare_rust:
+    name: Verify Rust source archives from the accepted commit
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the accepted release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install the locked Linux Rust toolchain
+        run: |
+          toolchain="$(PYTHONPATH=tools/release python3 -c 'from pathlib import Path; from rust_publish import locked_toolchain; print(locked_toolchain(Path.cwd()))')"
+          rustup toolchain install "$toolchain" --profile minimal
+      - name: Package and build the complete Rust publication closure
+        env:
+          RELEASE_COMMIT: ${{ inputs.commit }}
+        run: >-
+          python3 tools/release/rust_publish.py prepare
+          --commit "$RELEASE_COMMIT"
+          --artifacts "$HOME/.cache/eqiora-rust-artifacts"
+      - name: Retain the verified Cargo archives
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eqiora-rust-crates
+          path: ~/.cache/eqiora-rust-artifacts/*.crate
+          if-no-files-found: error
+
+  publish_rust:
+    name: Publish verified Rust archives to crates.io
+    needs: prepare_rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    environment:
+      name: crates-io
+      url: https://crates.io/crates/eqiora
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the accepted release commit on a fresh runner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install the same locked Linux Rust toolchain
+        run: |
+          toolchain="$(PYTHONPATH=tools/release python3 -c 'from pathlib import Path; from rust_publish import locked_toolchain; print(locked_toolchain(Path.cwd()))')"
+          rustup toolchain install "$toolchain" --profile minimal
+      - name: Download this run's verified Cargo archives
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: eqiora-rust-crates
+          path: ~/.cache/eqiora-rust-artifacts
+      - name: Reconstruct and compare archives without executing build scripts
+        env:
+          RELEASE_COMMIT: ${{ inputs.commit }}
+        run: >-
+          python3 tools/release/rust_publish.py validate
+          --commit "$RELEASE_COMMIT"
+          --artifacts "$HOME/.cache/eqiora-rust-artifacts"
+      - name: Publish in dependency order and resume only identical versions
+        env:
+          RELEASE_COMMIT: ${{ inputs.commit }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: >-
+          python3 tools/release/rust_publish.py publish
+          --commit "$RELEASE_COMMIT"
+          --artifacts "$HOME/.cache/eqiora-rust-artifacts"

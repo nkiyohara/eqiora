@@ -6,8 +6,8 @@ convenience APIs are not necessarily one-to-one.
 
 ## Install the alpha
 
-Initial crates.io publication is in progress. The commands below target the
-release version and become usable after the facade and its dependencies are published.
+[`eqiora 0.1.0-alpha.7`](https://crates.io/crates/eqiora/0.1.0-alpha.7) and its
+34 publication dependencies are available on crates.io.
 
 In a new Cargo project:
 
@@ -22,8 +22,8 @@ Or add this dependency to `Cargo.toml`:
 eqiora = "=0.1.0-alpha.7"
 ```
 
-The initial source-distribution smoke check targets Linux x86-64 with the
-default features. The workspace declares Rust 1.89 as its minimum supported
+The initial source-distribution smoke check passed on Linux x86-64 with Rust
+1.98.0 and default features, using an empty Cargo cache and registry-only dependencies. The workspace declares Rust 1.89 as its minimum supported
 version; the release packaging check uses Rust 1.98.0. Source distributions
 require a Rust toolchain and linker. This does not establish support for every
 platform or optional native backend.
@@ -78,7 +78,8 @@ Default-feature packaging is not verification of these optional environments.
 ## Compatibility
 
 This is an alpha, pre-1.0 API. Breaking corrections may appear in subsequent
-releases; pin the exact version when reproducing a result. Current Rust and
+releases; pin the exact version and retain `Cargo.lock` when reproducing a result.
+Current Rust and
 Python APIs converge together without retaining obsolete aliases or compatibility
 shims unless an explicit stable interoperability promise requires them.
 Published release artifacts remain historical records. See the
