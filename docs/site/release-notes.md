@@ -86,4 +86,4 @@ bind the exact source, artifact manifest, support matrix, and limitations.
 
 For exact support at any revision, use the
 [capability matrix](capabilities.md) and case-level
-[evidence catalog](evidence/index.md).
+[verification guide](evidence/index.md).

@@ -362,7 +362,7 @@ test('table structure is complete across current site routes', async () => {
     directTotal += observation.counts.direct;
     componentTotal += expected.component;
   }
-  expect(tableTotal).toBeGreaterThan(8);
+  expect(tableTotal).toBe(8);
   expect(directTotal).toBe(tableTotal - 1);
   expect(componentTotal).toBe(1);
   expect(invariantRoutes).toBe(6);

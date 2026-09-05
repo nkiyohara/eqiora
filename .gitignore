@@ -3,6 +3,7 @@
 /build/gallery/
 /.astro/
 /node_modules/
+/docs/site/node_modules/
 /experiments/**/target/
 /bindings/python/.venv
 /bindings/python/dist

@@ -275,11 +275,11 @@ class CompleteContractTests(unittest.TestCase):
                 "textbook chapter 'Ordinary differential equations' omits",
             ),
             (
-                "missing technical catalog guide",
+                "missing verification guide",
                 Path("evidence/index.html"),
-                "How to read the technical catalog",
-                "Raw catalog",
-                "technical evidence catalog omits",
+                "Run a selected check",
+                "Overview",
+                "verification guide omits",
             ),
             (
                 "broken learning route",

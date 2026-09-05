@@ -24,6 +24,7 @@ class BuildProductsTests(unittest.TestCase):
         steps = plan(Path("/build-scratch"))
         command = steps[0].command
         self.assertEqual(command[command.index("--features") + 1], "eqiora/cli")
+        self.assertNotIn("eqiora-verify", command)
 
     def test_plan_rejects_duplicate_product(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -114,7 +115,7 @@ class BuildProductsTests(unittest.TestCase):
                 if command[:2] == (CARGO, "build"):
                     release = target / "release"
                     release.mkdir(parents=True)
-                    for name in ("eqiora", "eqiora-mcp", "eqiora-verify", "xtask"):
+                    for name in ("eqiora", "eqiora-mcp", "xtask"):
                         (release / name).write_text(name, encoding="utf-8")
                 elif command[:2] == (CARGO, "doc"):
                     rustdoc = scratch / "rustdoc-target/doc/eqiora"
@@ -129,7 +130,7 @@ class BuildProductsTests(unittest.TestCase):
             payload = json.loads(receipt.read_text(encoding="utf-8"))
             self.assertEqual(payload["schema"], build_products.RECEIPT_SCHEMA)
             self.assertEqual(payload["total_invocations"], 2)
-            self.assertEqual(payload["total_products"], 5)
+            self.assertEqual(payload["total_products"], 4)
             self.assertEqual(
                 payload["invocations_by_domain"],
                 {
@@ -140,7 +141,7 @@ class BuildProductsTests(unittest.TestCase):
             products = [
                 product for step in payload["steps"] for product in step["products"]
             ]
-            self.assertEqual(len({product["name"] for product in products}), 5)
+            self.assertEqual(len({product["name"] for product in products}), 4)
             self.assertTrue(all(product["build_count"] == 1 for product in products))
             self.assertNotIn("cache_hit", payload)
             self.assertNotIn("cache", json.dumps(payload))

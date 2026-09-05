@@ -633,7 +633,6 @@ def check_source(
             "build_rust_reference.py",
             "--rustdoc-root",
             "--output",
-            "generate_evidence_catalog.py",
             "check_site.py check",
             "check_site.py serve",
             "npm_config_offline",

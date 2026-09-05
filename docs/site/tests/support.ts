@@ -92,14 +92,14 @@ export const TABLE_SELECTORS = {
 
 type TableRouteShape = Readonly<{
   route: string;
-  tables: number | null;
-  direct: number | null;
+  tables: number;
+  direct: number;
   component: number;
 }>;
 
 export const TABLE_ROUTES = [
   { route: '/capabilities/', tables: 1, direct: 1, component: 0 },
-  { route: '/evidence/', tables: null, direct: null, component: 0 },
+  { route: '/evidence/', tables: 0, direct: 0, component: 0 },
   { route: '/gallery/exact-cylinder-steady-stokes/', tables: 1, direct: 0, component: 1 },
   { route: '/reference/control-v2/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/python/', tables: 2, direct: 2, component: 0 },
@@ -1181,24 +1181,13 @@ export async function assertTableInventory(
 ): Promise<TableObservation> {
   expect(new URL(page.url()).pathname).toBe(expected.route);
   const observation = await observeTables(page, projection);
-  if (expected.tables === null || expected.direct === null) {
-    expect(observation.counts.main, `table presence ${expected.route}`).toBeGreaterThan(0);
-    expect(observation.counts, `table structure ${expected.route}`).toEqual({
-      main: observation.counts.main,
-      all: observation.counts.main,
-      generic: observation.counts.main,
-      direct: observation.counts.main,
-      component: expected.component,
-    });
-  } else {
-    expect(observation.counts, `table inventory ${expected.route}`).toEqual({
-      main: expected.tables,
-      all: expected.tables,
-      generic: expected.tables,
-      direct: expected.direct,
-      component: expected.component,
-    });
-  }
+  expect(observation.counts, `table inventory ${expected.route}`).toEqual({
+    main: expected.tables,
+    all: expected.tables,
+    generic: expected.tables,
+    direct: expected.direct,
+    component: expected.component,
+  });
   if (projection !== 'dynamic') {
     expect(
       observation.failures.relation,
@@ -1206,7 +1195,7 @@ export async function assertTableInventory(
     ).toBe(0);
   }
   expect(observation.tables.filter((table) => table.direct)).toHaveLength(
-    expected.direct ?? observation.counts.main,
+    expected.direct,
   );
   expect(observation.tables.filter((table) => table.component)).toHaveLength(expected.component);
   return observation;

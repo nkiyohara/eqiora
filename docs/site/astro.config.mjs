@@ -54,7 +54,6 @@ if (process.env.EQIORA_SITE_BUILD_PROFILE === 'complete') {
     'src/components/site/CapabilitySummary.astro',
     'src/components/site/Header.astro',
     'src/components/site/Footer.astro',
-    'src/components/site/PageTitle.astro',
     'src/components/site/ReleaseIdentity.astro',
     'src/content/docs/index.mdx',
     'src/content/docs/capabilities/index.mdx',
@@ -167,7 +166,6 @@ export default defineConfig({
       components: {
         Header: './src/components/site/Header.astro',
         Footer: './src/components/site/Footer.astro',
-        PageTitle: './src/components/site/PageTitle.astro',
         Search: './src/components/site/Search.astro',
         ThemeSelect: './src/components/site/ThemeSelect.astro',
       },

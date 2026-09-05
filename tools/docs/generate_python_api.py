@@ -731,7 +731,7 @@ def render_mdx_index(modules: tuple[ModuleData, ...], counts: dict[str, int]) ->
             "This is the complete public **surface/signature reference** generated from the shipped type stubs. "
             "It parses source without importing Eqiora or optional frameworks.",
             "",
-            "> API presence is neither capability evidence nor maturity. Behavioral guidance remains bounded by each cited source and the linked evidence catalog.",
+            "> API presence is neither capability evidence nor maturity. Behavioral guidance remains bounded by each cited source and the linked verification guide.",
             "",
             "## Coverage",
             "",

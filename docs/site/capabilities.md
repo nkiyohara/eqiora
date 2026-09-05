@@ -35,11 +35,6 @@ and OSS maturity.
 
 ## Trace a claim to evidence
 
-The [evidence catalog](evidence/index.md) is generated during the site build
-from `eqiora-verify index --format json`. It links stable capability identifiers
-to validated case manifests without re-declaring their scientific claims.
-
-Case manifests and their referenced evidence remain authoritative. A generated
-entry means the manifest was accepted by the repository index contract; its
-status states whether the case is proposed, specified, implemented, verified,
-or validated.
+See [Checking a claim](evidence/index.md) to find the underlying case manifests
+and run a selected check. Implementation and verification status are recorded
+separately in the capability matrix.
