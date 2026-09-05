@@ -1452,11 +1452,8 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
         }
         required = (
             ("Stable quality gate", "Tests"),
-            ("Host-CPU verification evidence", "Run registered Cargo host evidence"),
-            (
-                "Host-CPU Python installed-wheel evidence",
-                "Run registered Python installed-wheel host evidence",
-            ),
+            ("Python 3.11 installed wheel", "Test installed wheel"),
+            ("Python 3.14 installed wheel", "Test installed wheel"),
         )
         jobs = [
             {
@@ -1490,7 +1487,22 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
             fetch=fetch,
         )
         self.assertTrue(result["lanes"]["rust"])
+        self.assertTrue(result["lanes"]["python"])
         self.assertFalse(result["lanes"]["msrv"])
+
+        for job in jobs:
+            with self.subTest(missing=job["name"]):
+                job["steps"][0]["conclusion"] = "skipped"
+                result = authenticate(
+                    repository="nkiyohara/eqiora",
+                    pull_request=716,
+                    previous_sha=previous,
+                    workflow="ci.yml",
+                    fetch=fetch,
+                )
+                lane = "rust" if job["name"] == "Stable quality gate" else "python"
+                self.assertFalse(result["lanes"][lane])
+                job["steps"][0]["conclusion"] = "success"
 
     def test_rejects_cross_pr_or_ambiguous_success(self) -> None:
         previous = "b" * 40

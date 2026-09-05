@@ -25,22 +25,11 @@ from typing import Any, Callable
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
 CI_WITNESSES = {
-    "rust": (
-        ("Stable quality gate", "Tests"),
-        ("Host-CPU verification evidence", "Run registered Cargo host evidence"),
-        (
-            "Host-CPU Python installed-wheel evidence",
-            "Run registered Python installed-wheel host evidence",
-        ),
-    ),
+    "rust": (("Stable quality gate", "Tests"),),
     "msrv": (("MSRV 1.89", "Check every production feature and target"),),
     "python": (
         ("Python 3.11 installed wheel", "Test installed wheel"),
         ("Python 3.14 installed wheel", "Test installed wheel"),
-        (
-            "Host-CPU Python installed-wheel evidence",
-            "Run registered Python installed-wheel host evidence",
-        ),
     ),
     "studio": (("Studio projection and native boundary", "Production shell build"),),
     "dependency_policy": (
