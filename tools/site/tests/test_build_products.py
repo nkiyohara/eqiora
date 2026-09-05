@@ -44,9 +44,9 @@ class BuildProductsTests(unittest.TestCase):
     def test_plan_rejects_cargo_profile_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             steps = list(plan(Path(temporary)))
-            command = tuple(arg for arg in steps[0].command if arg != "--release")
+            command = tuple("release" if arg == "dev" else arg for arg in steps[0].command)
             steps[0] = replace(steps[0], command=command)
-            with self.assertRaisesRegex(ValueError, "release profile"):
+            with self.assertRaisesRegex(ValueError, "development profile"):
                 build_products.validate(steps)
 
             steps = list(plan(Path(temporary)))
@@ -64,7 +64,7 @@ class BuildProductsTests(unittest.TestCase):
     def test_plan_rejects_feature_and_domain_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             steps = list(plan(Path(temporary)))
-            steps[1] = replace(steps[1], domain="cargo-release")
+            steps[1] = replace(steps[1], domain="cargo-dev")
             with self.assertRaisesRegex(ValueError, "wrong compilation domain"):
                 build_products.validate(steps)
 
@@ -113,10 +113,13 @@ class BuildProductsTests(unittest.TestCase):
                 )
                 target = scratch / "cargo-target"
                 if command[:2] == (CARGO, "build"):
-                    release = target / "release"
-                    release.mkdir(parents=True)
+                    development = target / "debug"
+                    development.mkdir(parents=True)
                     for name in ("eqiora", "eqiora-mcp", "xtask"):
-                        (release / name).write_text(name, encoding="utf-8")
+                        (development / name).write_text(name, encoding="utf-8")
+                    self.assertEqual(env["CARGO_PROFILE_DEV_DEBUG"], "0")
+                    self.assertEqual(env["CARGO_PROFILE_DEV_INCREMENTAL"], "false")
+                    self.assertEqual(env["CARGO_PROFILE_DEV_OPT_LEVEL"], "0")
                 elif command[:2] == (CARGO, "doc"):
                     rustdoc = scratch / "rustdoc-target/doc/eqiora"
                     rustdoc.mkdir(parents=True)
@@ -134,7 +137,7 @@ class BuildProductsTests(unittest.TestCase):
             self.assertEqual(
                 payload["invocations_by_domain"],
                 {
-                    "cargo-release": 1,
+                    "cargo-dev": 1,
                     "cargo-doc/rustdoc-all-features": 1,
                 },
             )
@@ -149,7 +152,8 @@ class BuildProductsTests(unittest.TestCase):
                 all(toolchain == RUST_TOOLCHAIN for _, _, toolchain in invocations)
             )
             command = invocations[0][0]
-            self.assertIn("--release", command)
+            self.assertNotIn("--release", command)
+            self.assertEqual(command[command.index("--profile") + 1], "dev")
             self.assertEqual(
                 command[command.index("--target-dir") + 1],
                 str(scratch / "cargo-target"),
