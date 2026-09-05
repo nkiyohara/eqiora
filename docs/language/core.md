@@ -29,6 +29,12 @@ A source file is UTF-8. Identifiers are case-sensitive. Whitespace separates tok
 not terminate a statement. Braces delimit bodies, semicolons terminate statements, and commas
 separate signature entries and arguments. There is no implicit multiplication.
 
+Identifiers match `[A-Za-z_][A-Za-z0-9_]*`; Unicode remains available in documentation and
+notation. Decimal tokens require a digit before any fractional point and digits after it,
+with an optional `e`/`E` exponent and signed integer exponent value. Signs remain operators.
+The [grammar productions](grammar.md) collect the shared syntax; specialized child rules
+are defined on their linked owner pages.
+
 `//` introduces a line comment; `///` attaches documentation to a declaration. Declaration
 notation uses `@{...}` immediately after the declaration name. Its contents are a bounded
 notation AST, not executable source or arbitrary TeX. Neither documentation nor notation
