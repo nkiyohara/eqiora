@@ -494,8 +494,11 @@ model invalid {
 fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
     let temperature = eqiora_lang::DraftField::new(
         "temperature",
-        DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension"),
-        293.0,
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension"),
+        ),
+        Some(293.0),
     );
     let duration = eqiora_lang::DraftParameter::new(
         "duration",
@@ -519,6 +522,48 @@ fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
         "thermal.invalid"
     );
     assert!(diagnostics[0].source_span().is_none());
+}
+
+#[test]
+fn native_field_types_survive_direct_lowering() {
+    use eqiora_core::{ScalarDomain, ValueFrame, ValueShape, ValueType};
+    use eqiora_lang::{DraftField, DraftRelation, DraftRepresentation, DraftSpatialDomain};
+    let domain = DraftSpatialDomain::cartesian_box("body", [(0.0, 1.0), (0.0, 1.0)]);
+    let space = DraftRepresentation::continuum("space");
+    let value_type = ValueType::shaped(
+        ScalarDomain::Complex,
+        DimExponents::DIMENSIONLESS,
+        ValueShape::new([2]).unwrap(),
+        ValueFrame::SpatialCartesian,
+    )
+    .unwrap()
+    .array(3)
+    .unwrap();
+    let field = DraftField::spatial("channels", &domain, &space, value_type.clone(), None);
+    let relation = DraftRelation::continuous_on(
+        "balance",
+        &domain,
+        [field.expression() - field.expression()],
+    );
+    let draft = ModelDraft::new(
+        "M",
+        [domain.into(), space.into(), field.into(), relation.into()],
+    )
+    .unwrap();
+    let compiled = lower_draft(&draft).unwrap();
+    let (transaction, _, _) = compiled.into_parts();
+    let field = transaction
+        .ops()
+        .iter()
+        .find_map(|op| match op {
+            Op::DefineKernelNode {
+                node: KernelNode::Field(field),
+            } => Some(field),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(field.value_type(), &value_type);
+    assert_eq!(field.initial(), None);
 }
 
 #[test]

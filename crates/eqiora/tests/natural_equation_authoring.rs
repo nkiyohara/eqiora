@@ -1554,10 +1554,38 @@ fn revised_oracle_sequence() {
     );
 
     // Stage 10: native explicit residual in declaration order, structural comparison only.
-    let a = DraftField::new("a", DimExponents::DIMENSIONLESS, 4.0);
-    let b = DraftField::new("b", DimExponents::DIMENSIONLESS, 3.0);
-    let c = DraftField::new("c", DimExponents::DIMENSIONLESS, 2.0);
-    let d = DraftField::new("d", DimExponents::DIMENSIONLESS, 1.0);
+    let a = DraftField::new(
+        "a",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(4.0),
+    );
+    let b = DraftField::new(
+        "b",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(3.0),
+    );
+    let c = DraftField::new(
+        "c",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(2.0),
+    );
+    let d = DraftField::new(
+        "d",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(1.0),
+    );
     let native_roots = vec![
         a.expression() - b.expression(),
         (a.expression() - (b.expression() - c.expression())) - d.expression(),

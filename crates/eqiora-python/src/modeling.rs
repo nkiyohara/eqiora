@@ -194,14 +194,15 @@ impl PyField {
         initial: f64,
     ) -> PyResult<Self> {
         let dimension = dimension.map_or(DimExponents::DIMENSIONLESS, |value| value.value);
+        let value_type = eqiora::ValueType::scalar(eqiora::ScalarDomain::Real, dimension);
         let value = match (domain, representation) {
-            (None, None) => DraftField::new(name, dimension, initial),
-            (Some(domain), Some(representation)) => DraftField::spatial_scalar(
+            (None, None) => DraftField::new(name, value_type, Some(initial)),
+            (Some(domain), Some(representation)) => DraftField::spatial(
                 name,
                 &domain.value,
                 &representation.value,
-                dimension,
-                initial,
+                value_type,
+                Some(initial),
             ),
             _ => {
                 return Err(PyTypeError::new_err(
@@ -225,7 +226,7 @@ impl PyField {
     }
 
     #[getter]
-    const fn initial(&self) -> f64 {
+    const fn initial(&self) -> Option<f64> {
         self.value.initial()
     }
 
@@ -286,20 +287,23 @@ impl PyField {
     }
 
     fn __repr__(&self) -> String {
+        let initial = self
+            .initial()
+            .map_or_else(|| "None".to_owned(), |value| format!("{value:?}"));
         match (self.value.domain(), self.value.representation()) {
             (Some(domain), Some(representation)) => format!(
-                "Field({:?}, domain={:?}, representation={:?}, dimension={:?}, initial={:?})",
+                "Field({:?}, domain={:?}, representation={:?}, dimension={:?}, initial={})",
                 self.name(),
                 domain.name(),
                 representation.name(),
                 self.dimension().value.exponents(),
-                self.initial()
+                initial
             ),
             _ => format!(
-                "Field({:?}, dimension={:?}, initial={:?})",
+                "Field({:?}, dimension={:?}, initial={})",
                 self.name(),
                 self.dimension().value.exponents(),
-                self.initial()
+                initial
             ),
         }
     }

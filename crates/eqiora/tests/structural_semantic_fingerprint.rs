@@ -288,7 +288,14 @@ fn pathological_default_projection_fails_without_a_partial_identity() {
 }
 
 fn native_decay(reversed: bool) -> ModelDraft {
-    let field = DraftField::new("state", DimExponents::DIMENSIONLESS, 1.0);
+    let field = DraftField::new(
+        "state",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(1.0),
+    );
     let rate = DraftParameter::new(
         "coefficient",
         DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),

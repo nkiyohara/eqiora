@@ -57,7 +57,14 @@ fn rust_authoring_edit_replay_and_control_share_the_current_profile() {
     assert_eq!(replay.canonical_json().unwrap(), child_bytes);
     assert_eq!(replay.digest().unwrap(), child.digest().unwrap());
 
-    let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
+    let state = DraftField::new(
+        "x",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(1.0),
+    );
     let hold = DraftRelation::continuous("hold", [DraftExpression::derivative(&state)]);
     let draft = ModelDraft::new("decay", [state.into(), hold.into()]).unwrap();
     let native = ModelDocument::define(&draft).unwrap();

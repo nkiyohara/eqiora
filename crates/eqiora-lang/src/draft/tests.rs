@@ -11,8 +11,22 @@ fn current_dimension() -> DimExponents {
 
 #[test]
 fn native_draft_rejects_foreign_symbol_even_when_name_matches() {
-    let included = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
-    let foreign = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
+    let included = DraftField::new(
+        "x",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(1.0),
+    );
+    let foreign = DraftField::new(
+        "x",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(1.0),
+    );
     let relation = DraftRelation::continuous("flow", [foreign.expression()]);
 
     let diagnostic = ModelDraft::new("decay", [included.into(), relation.into()]).unwrap_err();
@@ -25,7 +39,14 @@ fn native_draft_rejects_foreign_symbol_even_when_name_matches() {
 
 #[test]
 fn typed_dimensions_and_expression_references_become_source_ast() {
-    let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
+    let state = DraftField::new(
+        "x",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(1.0),
+    );
     let rate = DraftParameter::new(
         "rate",
         DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
@@ -50,7 +71,14 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
 
 #[test]
 fn native_draft_rejects_names_and_numbers_source_could_not_express() {
-    let field = DraftField::new("not valid", DimExponents::DIMENSIONLESS, f64::INFINITY);
+    let field = DraftField::new(
+        "not valid",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(f64::INFINITY),
+    );
     let relation = DraftRelation::continuous(
         "flow",
         [field.expression() + DraftExpression::constant(f64::NAN)],
@@ -239,7 +267,14 @@ fn draft_closure_rejects_invalid_connection_membership_atomically() {
 #[test]
 fn duplicate_names_are_rejected_across_physical_and_scalar_declarations() {
     let domain = DraftPhysicalDomain::new("shared", voltage_dimension(), current_dimension());
-    let field = DraftField::new("shared", DimExponents::DIMENSIONLESS, 0.0);
+    let field = DraftField::new(
+        "shared",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(0.0),
+    );
     let diagnostics = ModelDraft::new("duplicates", [domain.into(), field.into()]).unwrap_err();
     assert!(
         diagnostics[0]
@@ -252,7 +287,14 @@ fn duplicate_names_are_rejected_across_physical_and_scalar_declarations() {
 fn anonymous_connection_diagnostic_paths_follow_membership_not_declaration_position() {
     let domain = DraftPhysicalDomain::new("electrical", voltage_dimension(), current_dimension());
     let terminal = DraftConservingPort::new("terminal", &domain);
-    let unrelated = DraftField::new("x", DimExponents::DIMENSIONLESS, 0.0);
+    let unrelated = DraftField::new(
+        "x",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(0.0),
+    );
     let connection = DraftConservingConnection::new([&terminal]);
     let forward = ModelDraft::new(
         "stable_path",
@@ -291,12 +333,15 @@ fn spatial_draft_retains_exact_scope_identity_before_ast_projection() {
     let foreign = DraftSpatialDomain::cartesian_box("interval", [(0.0, 1.0)]);
     let included_space = DraftRepresentation::continuum("space");
     let foreign_space = DraftRepresentation::continuum("space");
-    let field = DraftField::spatial_scalar(
+    let field = DraftField::spatial(
         "u",
         &foreign,
         &foreign_space,
-        DimExponents::DIMENSIONLESS,
-        0.0,
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(0.0),
     );
     let diagnostics = ModelDraft::new(
         "foreign_scope",
@@ -320,8 +365,16 @@ fn spatial_draft_projects_only_to_existing_source_ast_forms() {
     let interval = DraftSpatialDomain::cartesian_box("interval", [(0.0, 1.0)]);
     let lower = DraftSpatialDomain::boundary("lower", &interval, 0, DraftBoundarySide::Lower);
     let space = DraftRepresentation::continuum("space");
-    let field =
-        DraftField::spatial_scalar("u", &interval, &space, DimExponents::DIMENSIONLESS, 0.0);
+    let field = DraftField::spatial(
+        "u",
+        &interval,
+        &space,
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(0.0),
+    );
     let balance = DraftRelation::continuous_on(
         "balance",
         &interval,

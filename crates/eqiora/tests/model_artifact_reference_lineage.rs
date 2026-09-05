@@ -166,7 +166,14 @@ fn realization_and_run_lineage_accept_current_models_across_vocabularies() {
 
 #[test]
 fn artifact_owner_replays_the_current_model_and_preserves_lineage() {
-    let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
+    let state = DraftField::new(
+        "x",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(1.0),
+    );
     let rate = DraftParameter::new(
         "rate",
         DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),

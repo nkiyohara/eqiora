@@ -634,7 +634,14 @@ public component Resistor {
 
     #[test]
     fn native_definition_closes_an_equivalent_independent_artifact() {
-        let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
+        let state = DraftField::new(
+            "x",
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            Some(1.0),
+        );
         let rate = DraftParameter::new(
             "rate",
             DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),

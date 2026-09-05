@@ -6,7 +6,14 @@ const SOURCE: &str = include_str!("../../../verify/language/native-modeling/mode
 
 #[test]
 fn native_and_source_models_share_structure_and_artifacts() {
-    let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
+    let state = DraftField::new(
+        "x",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(1.0),
+    );
     let rate = DraftParameter::new(
         "rate",
         DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
@@ -39,8 +46,22 @@ fn native_and_source_models_share_structure_and_artifacts() {
 
 #[test]
 fn native_modeling_failures_have_paths_and_never_return_a_model() {
-    let included = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
-    let foreign = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
+    let included = DraftField::new(
+        "x",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(1.0),
+    );
+    let foreign = DraftField::new(
+        "x",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(1.0),
+    );
     let relation = DraftRelation::continuous("flow", [foreign.expression()]);
     let diagnostic = ModelDraft::new("decay", [included.into(), relation.into()]).unwrap_err();
     assert_eq!(
@@ -50,8 +71,11 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
 
     let temperature = DraftField::new(
         "temperature",
-        DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension"),
-        293.0,
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension"),
+        ),
+        Some(293.0),
     );
     let duration = DraftParameter::new(
         "duration",
