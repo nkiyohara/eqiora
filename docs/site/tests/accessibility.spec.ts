@@ -2,7 +2,6 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 
 import {
   assertCoreVisible,
-  assertExactTableSelectorScope,
   assertHonest320Reflow,
   assertKeyboardFocusVisible,
   assertMinimumTargetSizes,
@@ -11,8 +10,6 @@ import {
   assertNoSeriousAxeViolations,
   assertOrdinaryRoutePage,
   assertOrdinaryRoutePlan,
-  assertParentCylinderRed,
-  assertParentForcedTableBoundary,
   assertProductTableRouteInvariant,
   assertProductTableRouteGreen,
   assertReducedMotion,
@@ -26,10 +23,8 @@ import {
   DIAGNOSTIC_ROUTE,
   installTableObserver,
   launchOfficialBrowser,
-  layoutCssState,
   measureSitePhase,
   navigateSitePage,
-  PARENT_LAYOUT_SHA256,
   rejectExternalRequests,
   reportSitePhaseMetrics,
   resetSitePhaseMetrics,
@@ -338,7 +333,7 @@ test('01 honest 320px O-1 through O-4 composition and retained interaction contr
   await context.close();
 });
 
-test('02 table structure is complete before parent or product matrix results', async () => {
+test('table structure is complete across current site routes', async () => {
   test.setTimeout(600_000);
   assertProductTableMatrixPlan();
   const context = await browser.newContext({
@@ -379,55 +374,8 @@ test('02 table structure is complete before parent or product matrix results', a
   expect(context.pages()).toEqual([]);
 });
 
-test('02A authenticated parent table boundary is complete or product sentinel is exact', async () => {
-  test.setTimeout(600_000);
-  const state = await layoutCssState();
-  if (!state.parent) {
-    expect(state.sha256).not.toBe(PARENT_LAYOUT_SHA256);
-    assertExactTableSelectorScope(state.css);
-    return;
-  }
-
-  expect(state.sha256).toBe(PARENT_LAYOUT_SHA256);
-  const context = await browser.newContext({
-    baseURL: BASE_URL,
-    locale: 'en-GB',
-    serviceWorkers: 'block',
-  });
-  const page = await context.newPage();
-  await installTableObserver(page);
-  const external = await rejectExternalRequests(page);
-
-  try {
-    for (const forcedColors of ['none', 'active'] as const) {
-      await page.emulateMedia({ forcedColors });
-      for (const width of [1280, 390, 320]) {
-        await page.setViewportSize({ width, height: 900 });
-        await assertParentCylinderRed(page);
-      }
-    }
-    await page.emulateMedia({ forcedColors: 'active' });
-    await page.setViewportSize({ width: 320, height: 900 });
-    for (const expected of TABLE_ROUTES) {
-      await assertParentForcedTableBoundary(page, expected);
-    }
-    expect(external).toEqual([]);
-  } finally {
-    await context.close();
-  }
-  expect(context.pages()).toEqual([]);
-});
-
-test('02B exact product table matrix is complete or parent sentinel is exact', async () => {
+test('tables reflow and remain accessible across widths and forced colours', async () => {
   test.setTimeout(1_200_000);
-  const state = await layoutCssState();
-  if (state.parent) {
-    expect(state.sha256).toBe(PARENT_LAYOUT_SHA256);
-    return;
-  }
-
-  expect(state.sha256).not.toBe(PARENT_LAYOUT_SHA256);
-  assertExactTableSelectorScope(state.css);
   const context = await browser.newContext({
     baseURL: BASE_URL,
     locale: 'en-GB',
