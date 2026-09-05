@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from classify_changes import FULL_SHA, changed_paths, documentation_path
+from classify_changes import FULL_SHA, changed_paths
 from local_verify import (
     ROOT,
     WorkspacePackage,
@@ -31,7 +31,7 @@ def package_selectors(
         return ("--workspace",)
     sources = []
     for path in paths:
-        if documentation_path(path):
+        if path.startswith(("docs/", "rfcs/")):
             continue
         if not path.endswith(".rs") or not direct_packages([path], packages):
             return ("--workspace",)
