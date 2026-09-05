@@ -9,6 +9,7 @@ every clause legal. Specialized constructs remain closed at their named owner pa
 qualified-name = identifier {"." identifier}
 import = "import" qualified-name "as" identifier ";"
 annotation = "@{" notation-ast "}"
+dimension-declaration = ["public"] "dimension" identifier [annotation] "=" dimension ";"
 value-head = value-kind identifier [annotation] [":" type] ["on" qualified-name]
              ["at" qualified-name]
 value-kind = "parameter" | "variable" | "state" | "let" | "input" | "output"
@@ -38,6 +39,11 @@ signatures admit the roles in the core table. A reference argument retains its t
 the broad grammar above does not convert a support, clock, property, or state into a numeric
 expression. No repeated argument-category words or positional instance bindings are admitted.
 
+Imports precede declarations. Library files may contain declarations without a Model; an
+execution entry selects a Model explicitly. Top-level declaration order does not control
+resolution, and a component cannot redefine an imported equation. The existing package resolver
+retains module-cycle and closure admission rather than running source as import-time code.
+
 ```text
 scalar-type = dimension | "complex" "<" dimension ">"
 type = scalar-type | "bool" | "integer" | "index" "<" qualified-name ">"
@@ -57,6 +63,9 @@ quantity = number "[" unit-expression "]"
 Unit expressions use the same product/power syntax but resolve through the unit catalog,
 not the dimension-alias or value namespaces. Static extents are exact bounded positive
 integer expressions; a numeric expression depending on runtime state is not an extent.
+The parser commits to a quantity island when a numeric token is followed by `[`; it cannot
+fall back to numeric indexing if the unit expression is invalid. In type arguments, static
+integer expressions exclude comparison/Boolean operators, so a closing `>` is unambiguous.
 
 ```text
 expression = conditional

@@ -21,6 +21,7 @@ partials, continuous time, second-order oscillator, and piecewise constitutive e
 The [coordinate and measure rules](coordinates.md) specify product supports and partial integrals.
 The [tensor and local-map rules](tensors.md) include the rank-four constitutive specimen.
 The [numeric catalog](numeric-catalog.md) defines exact integers and bounded scalar operations.
+The [unit catalog](units.md) fixes admitted symbols, prefixes, and structural dimension aliases.
 
 ## Source and modules
 
@@ -311,6 +312,17 @@ defaults may be omitted. An exposed owned port or output is created by the occur
 than supplied as an external requirement. Binding borrowed state preserves its identity and
 owner instead of allocating another state.
 Private members cannot be imported or bound as an exposed interface.
+
+Signature names and body names share one declaration namespace within a container; a body
+cannot shadow a signature requirement. An operator's formal scope is separate from the caller.
+Substitution retains binding identity, not just the spelling of a formal or an import alias.
+
+A pure scalar operator evaluates pointwise when its arguments carry one common exact support
+and activation. This is the scalar operator's lifted application, not a second field evaluator.
+Static scalar coefficients can be constant functions in that context; a runtime value on a
+different support or clock cannot. Scalar-to-vector broadcasting, implicit product-support
+construction, and hidden sample/hold remain forbidden. The result retains the checked common
+support/activation independently of its scalar dimension.
 
 ## Diagnostics, recovery, and formatting
 
