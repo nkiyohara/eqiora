@@ -100,10 +100,6 @@ required-features = ["cli"]
 name = "canonical_cartesian_poisson_cuda_collect"
 required-features = ["cuda"]
 
-[[example]]
-name = "fixed_reference_fsi_cuda_collect"
-required-features = ["cuda"]
-
 [[test]]
 name = "xdmf_uniform_grid_import"
 required-features = ["xdmf"]
