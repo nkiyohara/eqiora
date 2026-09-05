@@ -141,8 +141,29 @@ Release workflows are small and separate from merge CI:
 - publication accepts only that same verified artifact set, uses the protected
   `pypi` environment, and grants `id-token: write` only to its publish job.
 
-Long-lived PyPI tokens are not repository secrets. Production is never rebuilt
+Long-lived PyPI tokens are not repository secrets. Python production is never rebuilt
 after TestPyPI acceptance.
+
+The same [production workflow](../../.github/workflows/python-production-publish.yml)
+also publishes Rust releases after the annotated tag, source commit, and accepted Python
+candidate have been authenticated. Its filename remains unchanged for the existing PyPI
+trusted-publisher identity. [The Rust driver](../../tools/release/rust_publish.py) derives the
+facade's complete local dependency closure from Cargo metadata and uses the exact Linux Rust
+toolchain in `mise.lock`. A job without a publication credential packages and builds the
+default-feature archives; a fresh publication runner reconstructs them without running build
+scripts and checks their source identity and hashes against that run's retained artifacts.
+Only its final publish step receives `CARGO_REGISTRY_TOKEN` from the protected `crates-io`
+environment. This environment admits protected branches, matching the production dispatch
+from `main`.
+
+Rust uploads run in dependency order with Cargo's locked dependency resolution. The driver
+checks every existing version before uploading, resumes only identical unyanked archives,
+honors crates.io's explicit retry time, and checks registry checksums after each upload.
+Use a new workspace version for each subsequent release: the initial Rust alpha is an
+immutable historical publication. If Rust publication stops partway through, rerun the
+failed jobs of the same production run. The two registries do not provide a shared atomic
+publication operation. This source-package path covers Linux default-feature builds; it
+does not establish optional native-backend or scientific claims.
 
 ## Cost and security boundaries
 
