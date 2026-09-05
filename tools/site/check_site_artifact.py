@@ -94,9 +94,20 @@ MAX_TOTAL_BYTES = 512 * 1024 * 1024
 MAX_HTML_BYTES = 4 * 1024 * 1024
 PRESSURE_SHA256 = "b87dd0098661255a57e2abf355387b352c6931f0885b6cda3f13eaf7a2882f71"
 PUBLICATION_SHA256 = "a559af3cb5831f64ba4137cc6d0bcfee4d8a5dda497e488149befc0e4868978b"
-SOCIAL_SHA256 = "26c3987ad5e0e7b094100ce670d42062c51329a71f2859ddc0ccdfb8a21a0329"
-FAVICON_SHA256 = "6c7ae182102b29ed48281c56434f4d57fe37117dc7df3fa0de18fd79215c9598"
-APPLE_TOUCH_SHA256 = "3f7349745502fc3b6f09b79dc989ef6d5d2c820b7300e61819aeb3da44803169"
+_PUBLIC_ASSETS = Path(__file__).resolve().parents[2] / "docs/site/public"
+
+
+def _source_asset_digest(name: str) -> str:
+    path = _PUBLIC_ASSETS / name
+    # Missing source input cannot match any artifact SHA-256. Let the ordinary
+    # source/artifact checks report it instead of failing while importing them.
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else ""
+
+
+# Branding may change; publication must preserve the current source assets.
+SOCIAL_SHA256 = _source_asset_digest("social-card.svg")
+FAVICON_SHA256 = _source_asset_digest("favicon.svg")
+APPLE_TOUCH_SHA256 = _source_asset_digest("apple-touch-icon.png")
 OLD_SOCIAL_SHA256 = "3b9be694357a6db29674e82eabfdb63738d0e40bf70b3f00163737b490b9128b"
 OLD_SOCIAL_LINE = "Open-source computational engineering · Alpha 0.1.0a1"
 PRESSURE_ALT = _starlight.PRESSURE_ALT
@@ -113,7 +124,7 @@ SOURCE_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 @dataclass(frozen=True)
 class SiteIdentities:
-    """Exact admitted input identities. CLI callers cannot replace these."""
+    """Scientific fixture and current source-asset identities."""
 
     pressure: str = PRESSURE_SHA256
     publication: str = PUBLICATION_SHA256

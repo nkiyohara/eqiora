@@ -530,12 +530,6 @@ def check_source(
                 )
 
     provider_consumers = {
-        site / "src/content/docs/index.mdx": (
-            "@components/site/ExactSourceLink.astro",
-            "@components/site/ReleaseIdentity.astro",
-            "<ExactSourceLink",
-            "<ReleaseIdentity",
-        ),
         site / "src/content/docs/evidence/index.mdx": (
             "@components/site/ExactSourceLink.astro",
             "<ExactSourceLink",

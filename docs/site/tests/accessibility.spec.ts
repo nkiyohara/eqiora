@@ -298,9 +298,9 @@ test('01 honest 320px O-1 through O-4 composition and retained interaction contr
   await assertNoPageOverflow(page);
   await assertMinimumTargetSizes(page.getByRole('banner').getByRole('link'));
   await assertMinimumTargetSizes(page.getByRole('banner').getByRole('button'));
-  await assertMinimumTargetSizes(page.getByRole('link', { name: 'Get started', exact: true }));
-  await assertMinimumTargetSizes(page.getByRole('link', { name: 'Explore gallery', exact: true }));
-  await assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Get started', exact: true }));
+  await assertMinimumTargetSizes(page.getByRole('link', { name: 'Start with an example', exact: true }));
+  await assertMinimumTargetSizes(page.getByRole('link', { name: 'Explore simulations', exact: true }));
+  await assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Start with an example', exact: true }));
 
   await navigateSitePage(page, '/gallery/exact-cylinder-steady-stokes/');
   await assertHonest320Reflow(page);
@@ -462,7 +462,7 @@ test('03 forced colours retain core content and exact non-table accessibility bo
     }
   }
   await navigateSitePage(page, '/');
-  await assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Get started', exact: true }));
+  await assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Start with an example', exact: true }));
   expect(external).toEqual([]);
   await context.close();
 });
