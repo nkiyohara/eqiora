@@ -29,9 +29,7 @@ use eqiora_solver::{
 use sha2::{Digest, Sha256};
 use ulid::Ulid;
 
-const MODEL: &[u8] = include_bytes!(
-    "../../../verify/fsi/fixed-reference-cuda-solve-2d/expected/current-model-bridge.json"
-);
+const MODEL: &[u8] = include_bytes!("fixtures/fixed-reference-model.json");
 const GOLDEN: &[u8] = include_bytes!("fixtures/realization-v4.json");
 type JsonMutation = (&'static str, Box<dyn Fn(&mut serde_json::Value)>);
 
