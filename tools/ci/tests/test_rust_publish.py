@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 import subprocess
 import sys
@@ -112,14 +113,26 @@ class RustPublicationTests(unittest.TestCase):
 
     def test_rate_limit_uses_server_date_and_upload_checks_final_checksum(self) -> None:
         rate_limit = "status 429: Please try again after Sat, 05 Sep 2026 01:56:52 GMT and see https://crates.io/docs/rate-limits"
-        self.assertGreater(release.retry_at(rate_limit), 0)
+        resume = datetime(2026, 9, 5, 1, 56, 54, tzinfo=timezone.utc).timestamp()
+        self.assertEqual(release.retry_at(rate_limit), resume)
         self.assertIsNone(release.retry_at("status 403"))
+        now = resume - 121
+        delays = []
+
+        def advance(seconds: float) -> None:
+            nonlocal now
+            self.assertLess(len(delays), 3, "retry exceeded the server deadline")
+            delays.append(seconds)
+            now += seconds
+
         good = {"checksum": release.checksum(self.archive)}
         responses = [subprocess.CompletedProcess([], 1, rate_limit), subprocess.CompletedProcess([], 0, "published")]
         with mock.patch.object(release, "registry_version", side_effect=[None, None, good]), \
              mock.patch.object(release.subprocess, "run", side_effect=responses) as upload, \
-             mock.patch.object(release.time, "time", return_value=release.retry_at(rate_limit) + 1):
+             mock.patch.object(release.time, "time", side_effect=lambda: now), \
+             mock.patch.object(release.time, "sleep", side_effect=advance):
             release.publish([self.package], self.root, self.root, ["cargo"], {})
+            self.assertEqual(delays, [60, 60, 1])
             self.assertEqual(upload.call_count, 2)
             self.assertIn("--no-verify", upload.call_args.args[0])
             self.assertIn("--locked", upload.call_args.args[0])
