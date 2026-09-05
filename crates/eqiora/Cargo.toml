@@ -96,10 +96,6 @@ required-features = ["cli", "package-filesystem"]
 name = "mcp_stdio_compile_check"
 required-features = ["cli"]
 
-[[example]]
-name = "canonical_cartesian_poisson_cuda_collect"
-required-features = ["cuda"]
-
 [[test]]
 name = "xdmf_uniform_grid_import"
 required-features = ["xdmf"]
