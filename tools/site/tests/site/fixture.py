@@ -594,7 +594,6 @@ python3 -m unittest tools.site.tests.test_site_tools -v
 python3 tools/site/build_products.py
 python3 tools/docs/generate_interface_reference.py --repository . --eqiora-binary bin/eqiora --mcp-binary bin/eqiora-mcp --check
 python3 tools/site/build_rust_reference.py --rustdoc-root rustdoc/doc --output rustdoc-stage
-python3 tools/site/generate_evidence_catalog.py
 python3 tools/site/check_site.py check
 python3 tools/site/check_site.py serve
 python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
@@ -694,7 +693,7 @@ def _home_body() -> str:
 <article><h2>Capabilities</h2><p>See what is available, executable, checked, or verified.</p></article>
 <article><h2>Reference</h2><p>Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces.</p></article>
 <p>Docs explains how to use Eqiora. Textbooks teach the mathematics, physics, and numerics. Gallery presents complete simulations. Reference records exact APIs and protocols. Capabilities states what runs and the boundary of each claim.</p>
-<p>Alpha {{python_version}}</p><p>Eqiora is alpha research software under active development. The capability matrix and generated evidence catalog bound what is currently supported; this site does not widen those claims.</p>
+<p>Alpha {{python_version}}</p><p>Eqiora is alpha research software under active development. The capability matrix and verification guide bound what is currently supported; this site does not widen those claims.</p>
 <h2>One source of truth</h2><p>This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository's architecture, RFCs, capability matrix, and validated verify manifests.</p>"""
 
 
@@ -719,10 +718,10 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/": _home_body().format(python_version=python_version),
         "/api/": "<h1>API</h1><p>Eqiora API overview.</p>",
         "/architecture/": "<h1>Architecture</h1><p>Eqiora architecture.</p>",
-        "/capabilities/": '<h1>Capabilities</h1><p>Available Executable Checked Verified</p><h2>Thermal</h2><p>Exact boundary What this establishes Current limits</p><article id="exact-cylinder-steady-stokes"><h3>Exact-cylinder steady Stokes product path</h3></article><h2>Technical catalog</h2><a href="/evidence/#exact-packaged-steady-incompressible-stokes-component">Technical evidence entry</a>',
+        "/capabilities/": '<h1>Capabilities</h1><p>Available Executable Checked Verified</p><h2>Thermal</h2><p>Exact boundary What this establishes Current limits</p><article id="exact-cylinder-steady-stokes"><h3>Exact-cylinder steady Stokes product path</h3></article><h2>Checking a claim</h2><a href="/evidence/">Technical evidence entry</a>',
         "/concepts/": "<h1>Concepts</h1><p>Eqiora concepts.</p>",
         "/contributing/": "<h1>Contributing</h1><p>Contribute to Eqiora.</p>",
-        "/evidence/": '<h1>Evidence catalog</h1><aside><h2>How to read the technical catalog</h2><p>Case Status Reference Conformance kit Target</p><a href="/capabilities/">human-readable Capabilities</a></aside><h2 id="exact-packaged-steady-incompressible-stokes-component">exact packaged steady incompressible Stokes component</h2>',
+        "/evidence/": '<h1>Checking a claim</h1><h2>Find the source</h2><h2>Run a selected check</h2><a href="/capabilities/">Capabilities</a>',
         "/examples/": '<h1>Examples</h1><a href="/gallery/">Gallery</a>',
         "/gallery/": '<h1>Gallery</h1><a href="/gallery/exact-cylinder-steady-stokes/">Exact-cylinder steady Stokes</a><a href="/gallery/mixed-boundary-elasticity/">Mixed-boundary linear elasticity</a>',
         "/gallery/exact-cylinder-steady-stokes/": _case_body(),

@@ -18,7 +18,6 @@ RECEIPT_SCHEMA = "eqiora.site.build-products/v1"
 REQUIRED_CONSUMERS = {
     "eqiora-cli": "interface-reference",
     "eqiora-mcp": "interface-reference",
-    "eqiora-verify": "evidence-catalog",
     "rust-reference": "site-assembly",
     "xtask": "facade-admission",
 }
@@ -67,8 +66,6 @@ def plan(
                 "-p",
                 "eqiora",
                 "-p",
-                "eqiora-verify",
-                "-p",
                 "xtask",
             ),
             products=(
@@ -79,11 +76,6 @@ def plan(
                     "eqiora-mcp",
                     "interface-reference",
                     str(target / "release/eqiora-mcp"),
-                ),
-                Product(
-                    "eqiora-verify",
-                    "evidence-catalog",
-                    str(target / "release/eqiora-verify"),
                 ),
                 Product("xtask", "facade-admission", str(target / "release/xtask")),
             ),

@@ -26,5 +26,5 @@ RUSTDOCFLAGS="-D warnings" cargo doc --locked -p eqiora --no-deps
 ```
 
 API presence alone is not a capability claim. Consult
-[Capabilities](capabilities.md) and the [evidence catalog](evidence/index.md)
+[Capabilities](capabilities.md) and the [verification guide](evidence/index.md)
 before relying on a numerical or execution path.

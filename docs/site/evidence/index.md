@@ -1,8 +1,8 @@
-# Evidence catalog
+# Checking a claim
 
-This page is generated during the documentation build from the validated
-`eqiora-verify` capability index. Run the documented site build command to
-replace this source-only placeholder.
+Start with [Capabilities](../capabilities.md), then consult the repository's
+[`verify/`](https://github.com/nkiyohara/eqiora/tree/main/verify) manifests for
+the selected claim, reference, command, and environment.
 
-The authoritative case contracts remain under
-[`verify/`](https://github.com/nkiyohara/eqiora/tree/main/verify).
+Run `cargo run -p eqiora-verify -- index` from a checkout for the current mapping,
+then use `mise run fast -- --case <case-id>` to run a selected case.

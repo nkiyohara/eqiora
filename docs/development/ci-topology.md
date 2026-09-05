@@ -189,6 +189,8 @@ does not establish optional native-backend or scientific claims.
   the release-candidate workflow retains the complete artifact-family validation
   before publication. CI definition trust and release trust checks are unchanged.
 - Pages builds only the Rust executables and Rustdoc consumed by site generation.
+  It links to the existing case manifests instead of compiling the evidence index
+  tool and regenerating a duplicate case inventory.
   Python API documentation is parsed from shipped type stubs without importing the
   package. Wheel construction and installed-package checks belong to the Python
   version matrix and release workflow, not to the documentation build.

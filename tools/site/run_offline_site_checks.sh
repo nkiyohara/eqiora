@@ -203,19 +203,6 @@ mcp_binary="$cargo_target/release/eqiora-mcp"
 test -x "$eqiora_binary"
 test -x "$mcp_binary"
 test "$($eqiora_binary --version)" = "eqiora $cargo_version"
-# The committed evidence projection is checked before API projection or Astro.
-"$cargo_target/release/eqiora-verify" \
-  index --format json > "$EQIORA_API_SCRATCH/evidence-index.json"
-python3 tools/site/generate_evidence_catalog.py \
-  --input "$EQIORA_API_SCRATCH/evidence-index.json" \
-  --output "$EQIORA_API_SCRATCH/evidence-index.mdx"
-cmp --silent \
-  "$EQIORA_API_SCRATCH/evidence-index.mdx" \
-  docs/site/src/content/docs/evidence/index.mdx
-python3 tools/site/generate_evidence_catalog.py \
-  --check \
-  --input "$EQIORA_API_SCRATCH/evidence-index.json" \
-  --output docs/site/src/content/docs/evidence/index.mdx
 python3 tools/docs/generate_python_api.py --check
 python3 tools/docs/generate_interface_reference.py \
   --repository "$EQIORA_SITE_SOURCE_ROOT" \

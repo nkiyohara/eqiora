@@ -517,7 +517,7 @@ def check_starlight_content(
             "What this establishes",
             "Current limits",
             "Thermal",
-            "Technical catalog",
+            "Checking a claim",
         )
         for phrase in required:
             if phrase not in capabilities.visible_text:
@@ -587,17 +587,9 @@ def check_starlight_content(
             errors.append(f"textbook chapter {title!r} omits its series return route")
     if evidence_value:
         evidence = evidence_value[1]
-        for phrase in (
-            "How to read the technical catalog",
-            "Case",
-            "Status",
-            "Reference",
-            "Conformance kit",
-            "Target",
-            "human-readable Capabilities",
-        ):
+        for phrase in ("Checking a claim", "Find the source", "Run a selected check"):
             if phrase not in evidence.visible_text:
-                errors.append(f"technical evidence catalog omits {phrase!r}")
+                errors.append(f"verification guide omits {phrase!r}")
     if capabilities_value and textbooks_value and case_value and evidence_value:
         route_chain = (
             (
@@ -612,13 +604,11 @@ def check_starlight_content(
             ),
             (
                 capabilities_value[1],
-                "/evidence/#exact-packaged-steady-incompressible-stokes-component",
+                "/evidence/",
                 "capability summary",
             ),
         )
         for page, href, label in route_chain:
             if href not in {anchor for anchor, _ in page.anchors}:
                 errors.append(f"{label} omits the static learning-to-evidence route {href}")
-        if "exact-packaged-steady-incompressible-stokes-component" not in evidence_value[1].id_text:
-            errors.append("technical evidence route omits the linked exact claim anchor")
     return errors

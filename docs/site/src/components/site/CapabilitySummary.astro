@@ -12,12 +12,11 @@ interface Props {
   routeHref?: string;
   routeLabel?: string;
   casePath?: string;
-  technicalHref?: string;
 }
 
 const {
   id, title, status, outcome, boundary, establishes, limits,
-  routeHref, routeLabel, casePath, technicalHref,
+  routeHref, routeLabel, casePath,
 } = Astro.props;
 ---
 
@@ -32,11 +31,10 @@ const {
     <div><dt>What this establishes</dt><dd>{establishes}</dd></div>
     <div><dt>Current limits</dt><dd>{limits}</dd></div>
   </dl>
-  {(routeHref || casePath || technicalHref) && (
+  {(routeHref || casePath) && (
     <p class="eq-capability__links">
       {routeHref && <a href={routeHref}>{routeLabel ?? 'Open the related guide'}</a>}
       {casePath && <ExactSourceLink path={casePath} kind="blob">Case manifest</ExactSourceLink>}
-      {technicalHref && <a href={technicalHref}>Technical evidence entry</a>}
     </p>
   )}
 </article>

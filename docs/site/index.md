@@ -44,7 +44,7 @@ making a numerical method or hardware backend part of the model.
 !!! note "Alpha 0.1.0a1"
     Eqiora is alpha research software under active development. The
     [capability matrix](capabilities.md) and generated
-    [evidence catalog](evidence/index.md) bound what is currently supported;
+    [verification guide](evidence/index.md) bound what is currently supported;
     this site does not widen those claims.
 
 ## One source of truth
