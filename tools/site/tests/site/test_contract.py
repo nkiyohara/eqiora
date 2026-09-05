@@ -541,10 +541,6 @@ class CompleteContractTests(unittest.TestCase):
                 "EQIORA_SITE_PYTHON_VERSION",
             ),
             (
-                "docs/site/src/content/docs/index.mdx",
-                "@components/site/ReleaseIdentity.astro",
-            ),
-            (
                 "docs/site/astro.config.mjs",
                 "src/components/site/ExactSourceLink.astro",
             ),

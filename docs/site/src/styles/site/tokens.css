@@ -1,38 +1,26 @@
-/*
- * Eqiora site design tokens.
- *
- * The palette, type, spacing, radius, and motion values below are the frozen
- * visual language of the accepted site contract. Starlight variables are mapped
- * onto the Eqiora tokens so the shell, sidebar, search, asides, and code blocks
- * adopt the same calm dark-green / mint / coral language without forking any
- * Starlight component.
- *
- * Theme resolution mirrors Starlight exactly: `:root` carries the dark scheme
- * and `[data-theme='light']` the light scheme, so the no-JavaScript page stays
- * one consistent (dark) scheme rather than a hybrid.
- */
+/* Shared site colors and type. Dark is the no-JavaScript default. */
 
 :root {
   /* Eqiora palette — dark */
-  --eq-color-canvas: #0b100d;
-  --eq-color-surface: #111a16;
-  --eq-color-surface-muted: #19251f;
-  --eq-color-text: #f2f8f5;
-  --eq-color-text-muted: #b8c9c0;
-  --eq-color-brand: #9ed2b7;
-  --eq-color-brand-hover: #c1ead3;
-  --eq-color-accent: #ef866f;
-  --eq-color-border: #2b4036;
+  --eq-color-canvas: #0c111b;
+  --eq-color-surface: #131c2b;
+  --eq-color-surface-muted: #1c293b;
+  --eq-color-text: #f4f7fc;
+  --eq-color-text-muted: #b7c5d9;
+  --eq-color-brand: #9ac2ff;
+  --eq-color-brand-hover: #c5dcff;
+  --eq-color-accent: #f5ad87;
+  --eq-color-border: #33445c;
 
   /* Derived roles */
   --eq-color-accent-text: var(--eq-color-accent);
-  --eq-color-text-subtle: #7e978a;
-  --eq-color-border-strong: #3d5648;
+  --eq-color-text-subtle: #91a2bb;
+  --eq-color-border-strong: #52657f;
   --eq-color-action-bg: var(--eq-color-brand-hover);
   --eq-color-action-text: var(--eq-color-canvas);
   --eq-color-focus: var(--eq-color-brand-hover);
-  --eq-color-brand-tint: rgb(158 210 183 / 0.12);
-  --eq-color-accent-tint: rgb(239 134 111 / 0.14);
+  --eq-color-brand-tint: rgb(154 194 255 / 0.12);
+  --eq-color-accent-tint: rgb(245 173 135 / 0.14);
   --eq-color-code-bg: var(--eq-color-surface-muted);
 
   /* Shadow is an affordance only; every boundary also has a border. */
@@ -94,7 +82,7 @@
   --sl-color-gray-6: var(--eq-color-surface);
   --sl-color-black: var(--eq-color-canvas);
 
-  --sl-color-accent-low: #1e513d;
+  --sl-color-accent-low: #17417e;
   --sl-color-accent: var(--eq-color-brand);
   --sl-color-accent-high: var(--eq-color-brand-hover);
 
@@ -109,7 +97,7 @@
   --sl-color-hairline-light: var(--eq-color-border);
   --sl-color-hairline: var(--eq-color-border);
   --sl-color-hairline-shade: var(--eq-color-border);
-  --sl-color-backdrop-overlay: rgb(11 16 13 / 0.72);
+  --sl-color-backdrop-overlay: rgb(12 17 27 / 0.72);
 
   --sl-hue-green: 152;
   --sl-hue-orange: 14;
@@ -139,15 +127,15 @@
 
 :root[data-theme='light'] {
   /* Eqiora palette — light */
-  --eq-color-canvas: #f6faf8;
+  --eq-color-canvas: #f7f8fc;
   --eq-color-surface: #ffffff;
-  --eq-color-surface-muted: #edf5f1;
-  --eq-color-text: #14221c;
-  --eq-color-text-muted: #4a6358;
-  --eq-color-brand: #28684f;
-  --eq-color-brand-hover: #1e513d;
-  --eq-color-accent: #b94e38;
-  --eq-color-border: #d3e2da;
+  --eq-color-surface-muted: #edf1f8;
+  --eq-color-text: #142138;
+  --eq-color-text-muted: #4d607c;
+  --eq-color-brand: #2459a6;
+  --eq-color-brand-hover: #17417e;
+  --eq-color-accent: #a34220;
+  --eq-color-border: #d5dfed;
 
   --eq-color-accent-text: #9c4030;
   --eq-color-text-subtle: #5a7266;
@@ -155,16 +143,16 @@
   --eq-color-action-bg: var(--eq-color-brand-hover);
   --eq-color-action-text: #ffffff;
   --eq-color-focus: var(--eq-color-brand-hover);
-  --eq-color-brand-tint: rgb(40 104 79 / 0.1);
-  --eq-color-accent-tint: rgb(185 78 56 / 0.1);
+  --eq-color-brand-tint: rgb(36 89 166 / 0.1);
+  --eq-color-accent-tint: rgb(163 66 32 / 0.1);
   --eq-color-code-bg: var(--eq-color-surface-muted);
 
-  --eq-shadow-card: 0 1px 2px rgb(20 34 28 / 0.06), 0 8px 24px rgb(20 34 28 / 0.08);
-  --eq-shadow-card-raised: 0 2px 4px rgb(20 34 28 / 0.08), 0 14px 32px rgb(20 34 28 / 0.12);
+  --eq-shadow-card: 0 1px 2px rgb(20 33 56 / 0.06), 0 8px 24px rgb(20 33 56 / 0.08);
+  --eq-shadow-card-raised: 0 2px 4px rgb(20 33 56 / 0.08), 0 14px 32px rgb(20 33 56 / 0.12);
 
   /* Starlight mapping — light */
   --sl-color-white: var(--eq-color-text);
-  --sl-color-gray-1: #2a3d34;
+  --sl-color-gray-1: #293b57;
   --sl-color-gray-2: var(--eq-color-text-muted);
   --sl-color-gray-3: var(--eq-color-text-subtle);
   --sl-color-gray-4: var(--eq-color-border-strong);
@@ -173,7 +161,7 @@
   --sl-color-gray-7: var(--eq-color-canvas);
   --sl-color-black: var(--eq-color-surface);
 
-  --sl-color-accent-low: #d9ebe2;
+  --sl-color-accent-low: #deebff;
   --sl-color-accent: var(--eq-color-brand);
   --sl-color-accent-high: var(--eq-color-brand-hover);
 
@@ -188,9 +176,9 @@
   --sl-color-hairline-light: var(--eq-color-border);
   --sl-color-hairline: var(--eq-color-border);
   --sl-color-hairline-shade: var(--eq-color-border);
-  --sl-color-backdrop-overlay: rgb(20 34 28 / 0.5);
+  --sl-color-backdrop-overlay: rgb(20 33 56 / 0.5);
 
-  --sl-shadow-sm: 0 1px 1px rgb(20 34 28 / 0.05), 0 2px 2px rgb(20 34 28 / 0.05);
+  --sl-shadow-sm: 0 1px 1px rgb(20 33 56 / 0.05), 0 2px 2px rgb(20 33 56 / 0.05);
   --sl-shadow-md: var(--eq-shadow-card);
   --sl-shadow-lg: var(--eq-shadow-card-raised);
 }
