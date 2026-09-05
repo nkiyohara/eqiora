@@ -127,6 +127,15 @@ class RustQualityTests(unittest.TestCase):
             ["--all-targets", "--all-features", "--keep-going", "--", "-D", "warnings"],
         )
 
+    def test_cli_targets_remain_enabled_only_when_the_facade_is_tested(self):
+        for selectors in (("--workspace",), ("-p", "eqiora")):
+            command = rust_quality.cargo_command("test", selectors)
+            self.assertIn("--features", command)
+            self.assertIn("eqiora/cli", command)
+        self.assertNotIn(
+            "eqiora/cli", rust_quality.cargo_command("test", ("-p", "eqiora-core"))
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

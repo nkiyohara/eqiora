@@ -176,6 +176,11 @@ def command(
     )
 
 
+def cli_feature_args(packages: Iterable[str]) -> tuple[str, ...]:
+    """Keep the facade's command-line targets in repository product checks."""
+    return ("--features", "eqiora/cli") if "eqiora" in packages else ()
+
+
 def _rust_commands(
     packages: Iterable[str], *, rustdoc: bool, all_targets: bool = True
 ) -> list[PlannedCommand]:
@@ -183,6 +188,7 @@ def _rust_commands(
     if not selected:
         return []
     selectors = tuple(item for package in selected for item in ("-p", package))
+    feature_scope = cli_feature_args(selected)
     target_scope = ("--all-targets",) if all_targets else ()
     commands = [
         command(
@@ -191,6 +197,7 @@ def _rust_commands(
             "test",
             "--locked",
             *selectors,
+            *feature_scope,
             *target_scope,
             lane=ROOT_CARGO_LANE,
         ),
@@ -199,6 +206,7 @@ def _rust_commands(
             "cargo",
             "clippy",
             *selectors,
+            *feature_scope,
             *target_scope,
             "--",
             "-D",

@@ -20,6 +20,11 @@ def plan(scratch: Path) -> tuple[build_products.BuildStep, ...]:
 
 
 class BuildProductsTests(unittest.TestCase):
+    def test_executable_build_enables_the_cli_feature(self) -> None:
+        steps = plan(Path("/build-scratch"))
+        command = steps[0].command
+        self.assertEqual(command[command.index("--features") + 1], "eqiora/cli")
+
     def test_plan_rejects_duplicate_product(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             steps = list(plan(Path(temporary)))

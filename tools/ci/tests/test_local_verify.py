@@ -32,6 +32,7 @@ from local_verify import (  # noqa: E402
     VerificationPlan,
     WorkspacePackage,
     build_plan,
+    cli_feature_args,
     direct_packages,
     local_changed_paths,
     reverse_dependency_closure,
@@ -80,6 +81,12 @@ def workspace() -> dict[str, WorkspacePackage]:
 
 
 class PackageSelectionTests(unittest.TestCase):
+    def test_cli_feature_is_explicit_for_facade_product_checks(self):
+        self.assertEqual(
+            cli_feature_args(["eqiora"]), ("--features", "eqiora/cli")
+        )
+        self.assertEqual(cli_feature_args(["eqiora-core"]), ())
+
     def test_local_change_set_unions_every_git_state(self) -> None:
         with mock.patch(
             "local_verify._git_paths",
