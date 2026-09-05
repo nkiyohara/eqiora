@@ -176,6 +176,8 @@ does not establish optional native-backend or scientific claims.
   shared fixtures, unknown paths, file-mode changes, or unavailable commit
   authority retain the whole workspace. Manual runs remain full; formatting,
   architecture, MSRV, and the other lanes keep their existing checks.
+  Python adapter Rust changes also include the facade and its reverse dependencies:
+  the facade's control-plane test reads adapter source outside Cargo dependencies.
 - Pull-request jobs run only on GitHub-hosted ephemeral runners.
 - No private developer, GPU, or HPC runner is attached to public Actions.
 - Checkout credentials are not persisted.

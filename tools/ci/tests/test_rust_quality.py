@@ -21,6 +21,12 @@ class RustQualityTests(unittest.TestCase):
                 "consumer", "crates/consumer", frozenset({"core"})
             ),
             "leaf": WorkspacePackage("leaf", "crates/leaf", frozenset()),
+            "eqiora": WorkspacePackage("eqiora", "crates/eqiora", frozenset()),
+            "eqiora-language-server": WorkspacePackage(
+                "eqiora-language-server",
+                "crates/eqiora-language-server",
+                frozenset({"eqiora"}),
+            ),
             "eqiora-python": WorkspacePackage(
                 "eqiora-python", "crates/eqiora-python", frozenset()
             ),
@@ -50,7 +56,7 @@ class RustQualityTests(unittest.TestCase):
             "crates/core/README.md",
             "packages/physics/README.md",
             "README.md",
-            "crates/eqiora-python/src/lib.rs",
+            "crates/eqiora-python/Cargo.toml",
             "packages/physics/src/model.eqi",
             "tools/ci/rust_quality.py",
             "crates/deleted/src/lib.rs",
@@ -74,6 +80,38 @@ class RustQualityTests(unittest.TestCase):
                 ),
                 ("--workspace",),
             )
+
+    def test_python_source_includes_the_non_cargo_reader_and_its_consumers(self):
+        for source in ("src/lib.rs", "src/common_plan/tests.rs", "tests/python_control_plane.rs"):
+            with self.subTest(source=source):
+                self.assertEqual(
+                    rust_quality.package_selectors(
+                        [f"crates/eqiora-python/{source}", "docs/python/api.md"],
+                        self.packages,
+                    ),
+                    ("-p", "eqiora", "-p", "eqiora-language-server", "-p", "eqiora-python"),
+                )
+
+    def test_python_source_unions_other_changed_package_consumers(self):
+        self.assertEqual(
+            rust_quality.package_selectors(
+                ["crates/eqiora-python/src/lib.rs", "crates/core/src/lib.rs"],
+                self.packages,
+            ),
+            (
+                "-p", "consumer", "-p", "core", "-p", "eqiora",
+                "-p", "eqiora-language-server", "-p", "eqiora-python",
+            ),
+        )
+
+    def test_missing_python_source_reader_keeps_workspace_checks(self):
+        del self.packages["eqiora"]
+        self.assertEqual(
+            rust_quality.package_selectors(
+                ["crates/eqiora-python/src/lib.rs"], self.packages
+            ),
+            ("--workspace",),
+        )
 
     def test_exact_event_commits_bind_the_merge_base_diff(self):
         event = {"pull_request": {"base": {"sha": "a" * 40}, "head": {"sha": "b" * 40}}}

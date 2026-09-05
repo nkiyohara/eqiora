@@ -31,19 +31,24 @@ def package_selectors(
     if unsafe_mode:
         return ("--workspace",)
     sources = []
+    source_consumers = set()
     for path in paths:
-        # The facade's control-plane test reads Python adapter source directly,
-        # without a Cargo dependency. Keep that shared source workspace-scoped.
-        if path.startswith("crates/eqiora-python/"):
-            return ("--workspace",)
         if path.startswith(("docs/", "rfcs/")):
             continue
         if not path.endswith(".rs") or not direct_packages([path], packages):
             return ("--workspace",)
+        # The facade's control-plane test reads Python adapter source directly,
+        # without a Cargo dependency. Include that consumer and its dependents.
+        if path.startswith("crates/eqiora-python/"):
+            if "eqiora" not in packages:
+                return ("--workspace",)
+            source_consumers.add("eqiora")
         sources.append(path)
     if not sources:
         return ("--workspace",)
-    selected = reverse_dependency_closure(direct_packages(sources, packages), packages)
+    selected = reverse_dependency_closure(
+        direct_packages(sources, packages) | source_consumers, packages
+    )
     return tuple(arg for name in sorted(selected) for arg in ("-p", name))
 
 
