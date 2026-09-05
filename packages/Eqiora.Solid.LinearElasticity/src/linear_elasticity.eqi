@@ -2,7 +2,7 @@ import Eqiora.Mechanics.Interfaces.interfaces as mechanics;
 
 public component IsotropicBalanceWithPotential2d {
   public support body: volume(ambient_dimension = 2);
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
   public field slot load_potential on body as continuum: kg / (m * s ^ 2);
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
@@ -26,7 +26,7 @@ public connector QuasistaticMechanicalBoundary = field_physical(
 public component IsotropicMechanicalInterface2d {
   public support body: volume(ambient_dimension = 2);
   public support exterior: complete_exterior(parent = body);
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
 
@@ -67,8 +67,8 @@ public component ZeroTraction2d {
 
 public component IsotropicElastodynamicsWithPotential2d {
   public support body: volume(ambient_dimension = 2);
-  public field slot displacement on body as continuum: m shape spatial_vector;
-  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
+  public field slot velocity on body as continuum: vector<m / s, 2>;
   public field slot load_potential on body as continuum: kg / (m * s ^ 2);
   public parameter density: kg / m ^ 3;
   public parameter mu: kg / (m * s ^ 2);
@@ -90,8 +90,8 @@ public component IsotropicElastodynamicsWithPotential2d {
 public component ElastodynamicMechanicalInterface2d {
   public support body: volume(ambient_dimension = 2);
   public support exterior: complete_exterior(parent = body);
-  public field slot displacement on body as continuum: m shape spatial_vector;
-  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
+  public field slot velocity on body as continuum: vector<m / s, 2>;
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
 

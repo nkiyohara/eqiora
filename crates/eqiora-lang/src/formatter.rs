@@ -262,11 +262,7 @@ fn format_component_item(item: &ComponentItem, indent: usize, output: &mut Strin
                 declaration.name, declaration.support
             )
             .expect("String write");
-            format_expression(&declaration.dimension, 0, output);
-            if let Some(shape) = &declaration.shape {
-                output.push_str(" shape ");
-                format_value_shape(shape, output);
-            }
+            value_type::format_value_type(&declaration.value_type, output);
             output.push_str(";\n");
         }
         ComponentItem::Representation(declaration) => {

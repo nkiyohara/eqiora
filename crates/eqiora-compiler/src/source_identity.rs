@@ -719,14 +719,7 @@ fn encode_field_slot(
         encode_name(encoder, declaration.support(), budget)
     })?;
     encoder.field(3, |encoder| {
-        encode_expression(encoder, declaration.dimension(), budget, 1)
-    })?;
-    encoder.field(4, |encoder| match declaration.shape() {
-        Some(shape) => {
-            encoder.u8(1)?;
-            encode_value_shape(encoder, shape)
-        }
-        None => encoder.u8(0),
+        value_type::encode_value_type(encoder, declaration.value_type(), budget, 1)
     })
 }
 
@@ -1595,7 +1588,7 @@ model M {
         let slot_first = r#"
 component Law {
   public support body: volume(ambient_dimension = 2);
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
   public field slot potential on body as continuum: K;
 }
 model M {
@@ -1614,7 +1607,7 @@ model M {
         let permuted = r#"
 component Law {
   public field slot potential on body as continuum: K;
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
   public support body: volume(ambient_dimension = 2);
 }
 model M {

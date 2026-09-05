@@ -13,7 +13,7 @@ use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 use crate::diagnostics::source_error;
 
-use super::body_check::{field_expression_type, field_value_type};
+use super::body_check::field_expression_type;
 use super::supports::SupportInterface;
 
 /// Closed semantic representation family admitted by Field-slot v1.
@@ -132,13 +132,14 @@ fn field_slot_contract(
             ),
         ));
     };
-    let value = field_value_type(
-        file,
-        declaration.range(),
-        declaration.dimension(),
-        declaration.shape(),
+    let value = ExpressionType::new(
+        crate::value_types::lower_value_type(
+            file,
+            declaration.value_type(),
+            Some(support.support()),
+        )?,
         Some(support.support().clone()),
-    )?;
+    );
     Ok(FieldSlotContract {
         support_slot: declaration.support().to_owned(),
         field: FieldContract::continuum(value),
@@ -338,6 +339,50 @@ mod tests {
     use eqiora_lang::{Document, Item, ModelDecl};
 
     #[test]
+    fn source_slots_preserve_complete_types_across_component_binding() {
+        let source = |slot_type, field_type| {
+            format!(
+                r#"
+component Law {{
+  public support body: volume(ambient_dimension = 2);
+  public field slot value on body as continuum: {slot_type};
+  relation balance continuous on body {{ value - value = 0; }}
+}}
+model Main {{
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field value on body as space: {field_type};
+  instance law: Law(support body = body, field value = value);
+}}
+"#
+            )
+        };
+        for value_type in [
+            "complex<V>",
+            "vector<complex<V>, 2>",
+            "array<vector<complex<V>, 2>, 3>",
+            "tensor<complex<Pa>, 2, 2>",
+        ] {
+            crate::compile("types.eqi", &source(value_type, value_type)).unwrap();
+        }
+        for (slot, field, mismatch) in [
+            ("complex<V>", "V", "mathematical scalar domain"),
+            (
+                "array<vector<complex<V>, 2>, 2>",
+                "tensor<complex<V>, 2, 2>",
+                "array and spatial axis roles",
+            ),
+        ] {
+            let diagnostics = crate::compile("mismatch.eqi", &source(slot, field)).unwrap_err();
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|error| error.message().contains(mismatch))
+            );
+        }
+    }
+
+    #[test]
     fn field_binding_retains_array_and_spatial_axis_roles() {
         use eqiora_core::{DimExponents, ScalarDomain, ValueShape};
         use eqiora_schema::kernel::{ValueFrame, ValueType};
@@ -390,7 +435,7 @@ mod tests {
             r#"
 component Law {
   public support body: volume(ambient_dimension = 2);
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
 }
 model Use {
   domain body = box(0, 1, 0, 1);

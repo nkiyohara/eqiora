@@ -21,7 +21,7 @@ const COMPONENT_PACKAGE: &str = r#"
 public component FieldLaw {
   public support body: volume(ambient_dimension = 2);
   public field slot scalar_state on body as continuum: 1;
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
 
   relation scalar_identity continuous on body {
     scalar_state - scalar_state = 0;
@@ -34,7 +34,7 @@ public component FieldLaw {
 public component FieldLawWrapper {
   public support body: volume(ambient_dimension = 2);
   public field slot scalar_state on body as continuum: 1;
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
 
   instance inner: FieldLaw(
     support body = body,
@@ -45,7 +45,7 @@ public component FieldLawWrapper {
 "#;
 const COMPONENT_PACKAGE_PERMUTED: &str = r#"
 public component FieldLawWrapper {
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
   public field slot scalar_state on body as continuum: 1;
   public support body: volume(ambient_dimension = 2);
 
@@ -60,7 +60,7 @@ public component FieldLaw {
   relation vector_identity continuous on body {
     displacement - displacement = 0;
   }
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
   relation scalar_identity continuous on body {
     scalar_state - scalar_state = 0;
   }
@@ -426,7 +426,7 @@ fn invalid_field_slots_fail_closed_before_transaction_or_graph_exposure() {
 component FieldLaw {
   public support body: volume(ambient_dimension = 2);
   public field slot scalar_state on body as continuum: 1;
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
   relation scalar_identity continuous on body { scalar_state - scalar_state = 0; }
   relation vector_identity continuous on body { displacement - displacement = 0; }
 }

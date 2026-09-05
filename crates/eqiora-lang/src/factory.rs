@@ -312,19 +312,13 @@ impl SourceAstFactory {
     pub fn field_slot(
         name: impl Into<String>,
         support: impl Into<String>,
-        dimension: Expr,
-        shape: Option<ValueShapeSyntax>,
+        value_type: crate::ValueTypeSyntax,
         range: TextRange,
     ) -> Result<FieldSlotDecl, AstConstructionError> {
-        validate_expression(&dimension)?;
-        if let Some(shape) = &shape {
-            validate_value_shape(shape)?;
-        }
         Ok(FieldSlotDecl {
             name: checked_identifier(name, "Field slot")?,
             support: checked_identifier(support, "Field-slot support")?,
-            dimension,
-            shape,
+            value_type,
             range: checked_range(range)?,
         })
     }

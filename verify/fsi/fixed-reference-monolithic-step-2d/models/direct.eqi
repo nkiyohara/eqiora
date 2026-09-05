@@ -20,7 +20,7 @@ public component ZeroVelocity2d {
 public component NewtonianMechanicalInterface2d {
   public support body: volume(ambient_dimension = 2);
   public support exterior: complete_exterior(parent = body);
-  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot velocity on body as continuum: vector<m / s, 2>;
   public field slot pressure on body as continuum: kg / (m * s ^ 2);
   public parameter dynamic_viscosity: kg / (m * s);
 
@@ -40,8 +40,8 @@ public component NewtonianMechanicalInterface2d {
 public component ElastodynamicMechanicalInterface2d {
   public support body: volume(ambient_dimension = 2);
   public support exterior: complete_exterior(parent = body);
-  public field slot displacement on body as continuum: m shape spatial_vector;
-  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
+  public field slot velocity on body as continuum: vector<m / s, 2>;
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
 

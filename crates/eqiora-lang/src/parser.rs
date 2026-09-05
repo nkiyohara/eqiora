@@ -875,14 +875,8 @@ impl Parser<'_> {
             .to_owned();
         self.expect_keyword("as")?;
         self.expect_keyword("continuum")?;
-        self.expect(TokenKind::Colon, "`:` before Field-slot dimension")?;
-        let dimension = self.parse_dimension_expression()?;
-        let shape = if self.at_keyword("shape") {
-            self.bump();
-            Some(self.parse_value_shape()?)
-        } else {
-            None
-        };
+        self.expect(TokenKind::Colon, "`:` before Field-slot type")?;
+        let value_type = self.parse_value_type()?;
         let end = self
             .expect(TokenKind::Semicolon, "`;` after Field slot")?
             .range()
@@ -890,8 +884,7 @@ impl Parser<'_> {
         Some(FieldSlotDecl {
             name,
             support,
-            dimension,
-            shape,
+            value_type,
             range: TextRange::new(start, end),
         })
     }

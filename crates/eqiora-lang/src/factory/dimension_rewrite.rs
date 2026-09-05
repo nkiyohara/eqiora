@@ -62,7 +62,8 @@ fn rewrite_component_item(item: &mut ComponentItem, rewrite: &mut impl FnMut(&Ex
             rewrite_port(&mut declaration.port.syntax, rewrite);
         }
         ComponentItem::FieldSlot(declaration) => {
-            declaration.dimension = rewrite(&declaration.dimension);
+            let dimension = declaration.value_type.dimension_mut();
+            *dimension = rewrite(dimension);
         }
         ComponentItem::Field(declaration) => {
             let dimension = declaration.value_type.dimension_mut();

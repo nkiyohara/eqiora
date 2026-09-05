@@ -358,8 +358,8 @@ model coupled {
 fn parser_retains_occurrence_bound_field_slots_and_bindings() {
     let source = r#"component IsotropicBalance2d {
   public support body: volume(ambient_dimension = 2);
-  public field slot displacement on body as continuum: m shape spatial_vector;
-  public field slot load on body as continuum: kg / (m * s ^ 2) shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
+  public field slot load on body as continuum: vector<kg / (m * s ^ 2), 2>;
   public parameter mu: kg / (m * s ^ 2);
 }
 
@@ -380,10 +380,10 @@ model Main {
     };
     assert_eq!(displacement.name(), "displacement");
     assert_eq!(displacement.support(), "body");
-    assert_eq!(displacement.shape(), Some(&ValueShapeSyntax::SpatialVector));
+    assert!(matches!(displacement.value_type().kind(), crate::ValueTypeSyntaxKind::Vector { extent: 2, .. }));
     assert_eq!(
         &source[displacement.range().start() as usize..displacement.range().end() as usize],
-        "public field slot displacement on body as continuum: m shape spatial_vector;"
+        "public field slot displacement on body as continuum: vector<m, 2>;"
     );
 
     let Item::Instance(instance) = &document.models()[0].items()[4] else {

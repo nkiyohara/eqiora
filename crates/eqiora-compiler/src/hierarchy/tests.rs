@@ -892,7 +892,7 @@ fn field_binding_requires_complete_exact_contract() {
     let base = r#"
 component Law {
   public support body: volume(ambient_dimension = 2);
-  public field slot state on body as continuum: K shape spatial_vector;
+  public field slot state on body as continuum: vector<K, 2>;
   relation balance continuous on body { state = 0; }
 }
 model Coupled {

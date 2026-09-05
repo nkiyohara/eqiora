@@ -23,7 +23,7 @@ public component ZeroVelocity3d {
 public component NewtonianMechanicalInterface3d {
   public support body: volume(ambient_dimension = 3);
   public support exterior: complete_exterior(parent = body);
-  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot velocity on body as continuum: vector<m / s, 3>;
   public field slot pressure on body as continuum: kg / (m * s ^ 2);
   public parameter dynamic_viscosity: kg / (m * s);
 
@@ -43,8 +43,8 @@ public component NewtonianMechanicalInterface3d {
 public component ElastodynamicMechanicalInterface3d {
   public support body: volume(ambient_dimension = 3);
   public support exterior: complete_exterior(parent = body);
-  public field slot displacement on body as continuum: m shape spatial_vector;
-  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 3>;
+  public field slot velocity on body as continuum: vector<m / s, 3>;
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
 

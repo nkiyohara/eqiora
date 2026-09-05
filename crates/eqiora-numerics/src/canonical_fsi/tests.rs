@@ -21,7 +21,7 @@ public connector VelocityTractionBoundary = field_physical(
 public component NewtonianInterface2d {
   public support body: volume(ambient_dimension = 2);
   public support face: boundary(parent = body);
-  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot velocity on body as continuum: vector<m / s, 2>;
   public field slot pressure on body as continuum: kg / (m * s ^ 2);
   public parameter dynamic_viscosity: kg / (m * s);
   public port mechanical:
@@ -39,8 +39,8 @@ public component NewtonianInterface2d {
 public component ElasticInterface2d {
   public support body: volume(ambient_dimension = 2);
   public support face: boundary(parent = body);
-  public field slot displacement on body as continuum: m shape spatial_vector;
-  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
+  public field slot velocity on body as continuum: vector<m / s, 2>;
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
   public port mechanical:

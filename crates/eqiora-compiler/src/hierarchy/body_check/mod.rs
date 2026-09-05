@@ -24,7 +24,7 @@ mod component;
 mod expression;
 mod model;
 mod scope;
-pub(super) use scope::{field_expression_type, field_value_type, resolve_value_shape};
+pub(super) use scope::{field_expression_type, resolve_value_shape};
 
 pub(super) fn validate_component_body(
     elaborator: &Elaborator<'_>,

@@ -311,8 +311,14 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
     let state = SourceAstFactory::field_slot(
         "state",
         "body",
-        dimension(),
-        Some(ValueShapeSyntax::SpatialVector),
+        SourceAstFactory::value_type(
+            crate::ValueTypeSyntaxKind::Vector {
+                scalar: Box::new(crate::ValueTypeSyntax::real(dimension())),
+                extent: 2,
+            },
+            range(0, 0),
+        )
+        .unwrap(),
         range(0, 0),
     )
     .expect("Field slot");
@@ -357,17 +363,6 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
         panic!("model member is an instance");
     };
     assert_eq!(instance.field_bindings()[0].target(), "temperature");
-
-    assert!(
-        SourceAstFactory::field_slot(
-            "state",
-            "body",
-            dimension(),
-            Some(ValueShapeSyntax::Exact(Vec::new())),
-            range(0, 0),
-        )
-        .is_err()
-    );
 }
 
 #[test]

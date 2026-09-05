@@ -5,7 +5,7 @@ use eqiora_core::{Diagnostic, DimExponents, ValueShape};
 use eqiora_lang::{
     BoundaryConnectionDecl, BoundaryFamilyBinderSyntax, BoundaryPairingSyntax,
     BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, ComponentItem, ComponentPortDecl,
-    ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax, Expr, FieldDecl,
+    ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax, FieldDecl,
     FrameSyntax, InstanceDecl, NamePath, PortDecl, PortSyntax, SignalDirectionSyntax,
     SupportSlotSyntax, TextRange, ValueShapeSyntax, VisibilitySyntax,
 };
@@ -502,61 +502,6 @@ pub(in crate::hierarchy) fn field_expression_type<I>(
         }
     }
     Ok(inferred)
-}
-
-/// Construct the one identity-parametric Field value type shared by owned
-/// Fields and occurrence-bound Field slots.
-pub(in crate::hierarchy) fn field_value_type<I>(
-    file: &str,
-    range: TextRange,
-    dimension: &Expr,
-    shape: Option<&ValueShapeSyntax>,
-    support: Option<SpatialSupport<I>>,
-) -> Result<ExpressionType<I>, Diagnostic> {
-    let dimension = lower_dimension(file, dimension)?;
-    let (shape, frame) = match shape {
-        None | Some(ValueShapeSyntax::Scalar) => (ValueShape::scalar(), ValueFrame::Invariant),
-        Some(ValueShapeSyntax::Exact(extents)) => (
-            ValueShape::new(extents.iter().copied()).map_err(|error| {
-                source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string())
-            })?,
-            ValueFrame::Invariant,
-        ),
-        Some(ValueShapeSyntax::SpatialVector) => {
-            let Some(SpatialSupport::Volume { dimensions, .. }) = support.as_ref() else {
-                return Err(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    "`spatial_vector` Field shape requires an exact volume support",
-                ));
-            };
-            let extent = u32::try_from(*dimensions).map_err(|_| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    "support ambient dimension exceeds portable u32 shape range",
-                )
-            })?;
-            (
-                ValueShape::new([extent]).map_err(|error| {
-                    source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string())
-                })?,
-                ValueFrame::SpatialCartesian,
-            )
-        }
-        Some(_) => {
-            return Err(source_error(
-                codes::LANGUAGE_LOWERING_ERROR,
-                file,
-                range,
-                "Field value shape is newer than definition-body validation",
-            ));
-        }
-    };
-    ExpressionType::shaped(dimension, shape, frame, support)
-        .map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string()))
 }
 
 pub(super) fn component_port_contract(

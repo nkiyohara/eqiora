@@ -665,8 +665,7 @@ impl BoundaryFamilyBinderSyntax {
 pub struct FieldSlotDecl {
     pub(crate) name: String,
     pub(crate) support: String,
-    pub(crate) dimension: Expr,
-    pub(crate) shape: Option<ValueShapeSyntax>,
+    pub(crate) value_type: ValueTypeSyntax,
     pub(crate) range: TextRange,
 }
 
@@ -683,16 +682,10 @@ impl FieldSlotDecl {
         &self.support
     }
 
-    /// Required physical dimension.
+    /// Complete required mathematical type.
     #[must_use]
-    pub const fn dimension(&self) -> &Expr {
-        &self.dimension
-    }
-
-    /// Required value shape, with omission denoting the scalar source form.
-    #[must_use]
-    pub const fn shape(&self) -> Option<&ValueShapeSyntax> {
-        self.shape.as_ref()
+    pub const fn value_type(&self) -> &ValueTypeSyntax {
+        &self.value_type
     }
 
     /// Full declaration range, including the required `public` modifier.
