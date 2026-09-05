@@ -1447,7 +1447,7 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
             "event": "pull_request",
             "status": "completed",
             "conclusion": "success",
-            "pull_requests": [{"number": 716}],
+            "pull_requests": [{"number": 716, "head": {"sha": "c" * 40}}],
             "html_url": "https://github.com/nkiyohara/eqiora/actions/runs/91",
         }
         required = (
@@ -1472,7 +1472,7 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
 
         def fetch(url: str) -> object:
             if "/commits/" in url:
-                return [{"number": 716}]
+                self.fail("rebased heads need no live commit-to-PR association")
             return (
                 {"total_count": len(jobs), "jobs": jobs}
                 if "/jobs?" in url
@@ -1514,18 +1514,29 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
             "conclusion": "success",
             "pull_requests": [{"number": 999}],
         }
-        with self.assertRaises(ValueError):
-            authenticate(
-                repository="nkiyohara/eqiora",
-                pull_request=716,
-                previous_sha=previous,
-                workflow="ci.yml",
-                fetch=lambda url: (
-                    [{"number": 999}]
-                    if "/commits/" in url
-                    else {"total_count": 1, "workflow_runs": [wrong_pr]}
-                ),
-            )
+        same_pr = {**wrong_pr, "pull_requests": [{"number": 716}]}
+        invalid_runs = [
+            [wrong_pr],
+            [{**same_pr, "pull_requests": []}],
+            [{**same_pr, "pull_requests": None}],
+            [{**same_pr, "pull_requests": [None, {"number": 999}]}],
+            [{**same_pr, "head_sha": "c" * 40}],
+            [{**same_pr, "event": "push"}],
+            [{**same_pr, "conclusion": "failure"}],
+            [{**same_pr, "status": "in_progress"}],
+            [same_pr, {**same_pr, "id": 93}],
+        ]
+        for runs in invalid_runs:
+            with self.subTest(runs=runs), self.assertRaisesRegex(
+                ValueError, "exactly one successful prior workflow run"
+            ):
+                authenticate(
+                    repository="nkiyohara/eqiora",
+                    pull_request=716,
+                    previous_sha=previous,
+                    workflow="ci.yml",
+                    fetch=lambda url: {"total_count": len(runs), "workflow_runs": runs},
+                )
 
 
 class AggregateGateTests(unittest.TestCase):
