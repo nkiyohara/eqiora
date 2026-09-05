@@ -21,7 +21,7 @@ OUTPUTS = {
         "a71eedc79c0fa89fbe1c438f311436993b8637c140d2c8f7422d641956eee64f"
     ),
     Path("docs/site/src/content/docs/reference/control-v2/index.mdx"): (
-        "5a265a15c9e2ff72214870e272b8489fd6b9208fcb318600fd4d3fe611eb27c2"
+        "6882d8ddb025e6ef60e93d99a7cc740dad5e10a9a6a6aab8c1b615f4b28dbb18"
     ),
     Path("docs/site/src/content/docs/reference/mcp/index.mdx"): (
         "c6d80f72ae169f3d3ea549d9c85b3e3d52bcd40be94851c80b830e7490138dbb"
@@ -124,7 +124,7 @@ class InterfaceReferenceFixture:
             '[workspace]\nmembers = []\n[workspace.package]\nversion = "0.1.0-alpha.7"\n',
         )
         copied = [
-            Path("schemas/control/compile-v2.schema.json"),
+            Path("crates/eqiora-api/schemas/compile-v2.schema.json"),
             Path("verify/interfaces/mcp-stdio-compile-check/case.toml"),
             Path("verify/interfaces/mcp-stdio-compile-check/README.md"),
             *OUTPUTS,

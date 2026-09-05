@@ -145,7 +145,7 @@ SITE_INPUT_FILES = {
     "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
     "pyproject.toml",
     "rust-toolchain.toml",
-    "schemas/control/compile-v2.schema.json",
+    "crates/eqiora-api/schemas/compile-v2.schema.json",
     "tools/release/python_candidate_common.py",
     "uv.lock",
 }

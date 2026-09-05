@@ -313,7 +313,7 @@ mkdir "$assembly_scratch"
 python3 tools/site/assemble_site.py \
   --astro-root "$EQIORA_SITE_ASTRO_OUT_DIR" \
   --rustdoc-root "$rustdoc_handoff" \
-  --control-schema schemas/control/compile-v2.schema.json \
+  --control-schema crates/eqiora-api/schemas/compile-v2.schema.json \
   --output "$EQIORA_SITE_ARTIFACT" \
   --scratch-root "$assembly_scratch"
 python3 tools/site/check_site.py check \
