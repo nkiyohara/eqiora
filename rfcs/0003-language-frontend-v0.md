@@ -1,16 +1,15 @@
 # RFC 0003: Eqiora Language frontend v0
 
-- Status: Draft implementation
+- Status: Frontend architecture; grammar defined by the converged language specification
 - Authors: Eqiora contributors
 - Created: 2026-07-17
 
 ## Summary
 
-Eqiora Language v0 begins as a small declaration grammar for scalar fields,
-parameters, typed Ports, exact periodic clocks, implicit Relations,
-Connections, and model boundaries. A byte-lossless lexer, recovering parser,
-source AST, and idempotent formatter form the frontend; semantic lowering is a
-separate compiler-layer operation.
+A byte-lossless lexer, recovering parser, source AST, and idempotent formatter
+form the frontend; semantic lowering is a separate compiler-layer operation.
+The [converged language specification](../docs/language/core.md) owns source
+grammar and semantic decisions. This RFC describes the frontend architecture.
 
 ## Layer boundary
 
@@ -29,36 +28,9 @@ expression passes, checks SI exponent arithmetic, creates complete typed
 kernel definitions, derives exact `DependsOn`/`HasPort` topology, and returns
 an uncommitted `Transaction`. Only the caller may atomically commit it.
 
-## V0 grammar sketch
-
-```eqiora
-model thermal {
-  field temperature: K = 293;
-  field command: 1 = 0;
-  parameter tau: s = 10;
-  port control_out: signal output 1;
-  port control_in: signal input 1;
-
-  clock control = periodic(period = 1 / 10, phase = 0 / 1);
-
-  relation plant continuous {
-    derivative(temperature) = control_in;
-  }
-
-  relation controller periodic(control) {
-    control_out - next(command) = 0;
-  }
-
-  connect signal control_out -> control_in;
-  boundary control_in, control_out;
-}
-```
-
-Declaration values are coherent SI scalars. Dimension expressions use the SI
-base symbols `kg`, `m`, `s`, `A`, `K`, `mol`, and `cd`, the dimensionless
-literal `1`, multiplication, division, and integer powers. Exact clock
-fractions denote seconds. Compiler lowering, not parsing, resolves names,
-validates dimensions, and mints or recovers persistent graph identities.
+Compiler lowering, not parsing, resolves names, validates dimensions, and
+mints or recovers persistent graph identities. Quantity conversion and exact
+clock semantics follow the common language specification.
 
 ## Parser and formatter contract
 
@@ -68,17 +40,9 @@ validates dimensions, and mints or recovers persistent graph identities.
 - Diagnostics carry stable codes and UTF-8 byte spans.
 - Recovery synchronizes at declarations and model boundaries so tools can use
   a partial AST.
-- Numeric literals must be finite `f64`; clocks use unsigned `u64/u64` syntax.
-- A Relation statement may spell its ordered residual naturally as `lhs = rhs;`;
-  it lowers directly to the existing `lhs - rhs` residual structure. The
-  legacy exact signed numeric-zero form (`lhs = 0;`, including finite literals
-  that round to binary64 zero) continues to retain `lhs` as the residual.
 - The formatter emits one style and formatting canonical output is idempotent.
-  A top-level subtraction formats as natural equality with each side in an
-  independent expression context. Exact zero and negative-zero right operands
-  use `(0)` and `(-0)` so reparsing cannot collide with the legacy sentinel.
-- V0 comment tokens are lossless, but comment attachment to formatted AST
-  nodes is deferred rather than guessed.
+- Expression grouping, equation meaning, and comment attachment follow the
+  converged parser/formatter contract rather than a second grammar here.
 
 ## Alternatives considered
 
@@ -106,8 +70,8 @@ to the inspectable DAG.
 - Parse continuous and periodic Relation declarations.
 - Format, parse again, and prove canonical formatting is idempotent.
 - Reject dimensionally invalid residuals with a source span.
-- Lower the thermal sampled-controller source through Transaction,
-  `KernelProgram`, and the reference evaluator to the expected trajectory.
+- Lower admitted source through Transaction, `KernelProgram`, and the reference
+  evaluator to the independently expected trajectory.
 
 ## Unresolved questions
 

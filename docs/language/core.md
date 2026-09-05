@@ -1,10 +1,9 @@
 # Converged language: core rules
 
-Working specification of the adopted converged language direction.
-This draft describes the target language, not the grammar currently accepted by the compiler.
-The complete declaration table, resource profile, and engineering and mathematical specimens
-must be reviewed together before this specification is complete. Delivered behavior remains
-indexed in the [capability matrix](../capability-matrix.md).
+This specification defines the adopted target language. Its grammar and examples do not
+claim current compiler acceptance: implementation lands in dependency-closed feature slices.
+Delivered behavior is indexed in the [capability matrix](../capability-matrix.md).
+The rules here supersede conflicting source sketches in older frontend discussions.
 
 Specimens: [resistor divider](divider.md), [heated body](heated-body.md),
 [sampled state](sampled-state.md), [data-backed property](data-backed-property.md),
