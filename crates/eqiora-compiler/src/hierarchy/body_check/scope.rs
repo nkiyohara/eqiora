@@ -486,13 +486,10 @@ pub(in crate::hierarchy) fn field_expression_type<I>(
     declaration: &FieldDecl,
     support: Option<SpatialSupport<I>>,
 ) -> Result<ExpressionType<I>, Diagnostic> {
-    let inferred = field_value_type(
-        file,
-        declaration.range(),
-        declaration.dimension(),
-        declaration.shape(),
+    let inferred = ExpressionType::new(
+        crate::value_types::lower_value_type(file, declaration.value_type(), support.as_ref())?,
         support,
-    )?;
+    );
     match (inferred.shape().is_scalar(), declaration.initial()) {
         (true, Some(_)) | (true, None) | (false, None) => {}
         (false, Some(_)) => {

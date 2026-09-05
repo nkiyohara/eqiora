@@ -369,11 +369,7 @@ fn format_field(declaration: &FieldDecl, indent: usize, output: &mut String) {
         write!(output, " on {domain} as {representation}").expect("String write");
     }
     output.push_str(": ");
-    format_expression(&declaration.dimension, 0, output);
-    if let Some(shape) = &declaration.shape {
-        output.push_str(" shape ");
-        format_value_shape(shape, output);
-    }
+    value_type::format_value_type(&declaration.value_type, output);
     if let Some(initial) = declaration.initial {
         writeln!(output, " = {};", format_number(initial)).expect("String write");
     } else {

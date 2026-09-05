@@ -414,13 +414,12 @@ impl ModelDraft {
                         .spatial_scope
                         .as_ref()
                         .map(|scope| scope.representation.name.clone()),
-                    shape: None,
-                    dimension: dimension_expression(
+                    value_type: crate::ValueTypeSyntax::real(dimension_expression(
                         field.dimension,
                         &path,
                         &mut ranges,
                         &mut paths,
-                    ),
+                    )),
                     initial: Some(field.initial),
                     range,
                 }),

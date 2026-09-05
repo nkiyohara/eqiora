@@ -106,3 +106,47 @@ fn array_elements_still_require_the_exact_spatial_extent() {
             .contains("Cartesian spatial Field extents must equal its Domain ambient dimension")
     }));
 }
+
+#[test]
+fn source_field_types_reach_semantic_admission_and_exact_model_replay() {
+    for value_type in [
+        "complex<V>",
+        "vector<complex<V>, 2>",
+        "array<vector<complex<V>, 2>, 3>",
+        "tensor<Pa, 2, 2>",
+    ] {
+        let source = format!(
+            r#"
+model Typed {{
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field value on body as space: {value_type};
+  relation balance continuous on body {{ value - value = 0; }}
+}}
+"#
+        );
+        let program = program(&source);
+        let envelope = ModelEnvelope::from_program(&program).unwrap();
+        let replayed = ModelEnvelope::from_json(
+            &envelope.canonical_json().unwrap(),
+            ModelDecoderLimits::default(),
+        )
+        .unwrap()
+        .to_program()
+        .unwrap();
+        assert!(structurally_equivalent(&program, &replayed).unwrap());
+        let expected_domain = if value_type.contains("complex") {
+            ScalarDomain::Complex
+        } else {
+            ScalarDomain::Real
+        };
+        let field = replayed
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Field(field) => Some(field),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(field.value_type().scalar_domain(), expected_domain);
+    }
+}

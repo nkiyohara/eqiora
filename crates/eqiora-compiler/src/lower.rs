@@ -19,12 +19,12 @@ use expression::{TypedExpression, lower_relation};
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId, RawId, ValueShape};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId, RawId};
 use eqiora_graph::{EdgeKind, Op, Transaction};
 use eqiora_lang::{
     ActivationSyntax, BinaryOp, BoundarySideSyntax, ConnectionSyntax, DomainSyntax, Expr, ExprKind,
     Item, ModelDecl, ModelDraft, PortSyntax, RepresentationSyntax, SignalDirectionSyntax,
-    TextRange, UnaryOp, ValueShapeSyntax,
+    TextRange, UnaryOp,
 };
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::scalar_connection::{
@@ -34,7 +34,7 @@ use eqiora_schema::kernel::{
     ActivationDef, BoundaryPhysicalConnector, BoundarySide, ClockDomainDef, ConnectionDef,
     ConnectionSemantics, DomainDef, ExprDag, ExprDagBuilder, ExprId, FieldDef, KernelNode,
     ParameterDef, PortDef, RationalTime, RelationDef, RepresentationDef, SignalDirection,
-    SymbolRef, UnaryMathFunction, ValueFrame,
+    SymbolRef, UnaryMathFunction,
 };
 use eqiora_schema::{Model, ModelView};
 
@@ -341,8 +341,7 @@ pub(crate) enum LoweringItem {
         name: String,
         domain: Option<String>,
         representation: Option<String>,
-        shape: Option<ValueShapeSyntax>,
-        dimension: Expr,
+        value_type: eqiora_lang::ValueTypeSyntax,
         initial: Option<f64>,
         range: TextRange,
     },
@@ -512,11 +511,10 @@ pub(crate) fn lower_typed_model(
             LoweringItem::Field {
                 name,
                 domain,
-                shape,
-                dimension,
+                value_type,
                 range,
                 ..
-            } => match lower_dimension(file, dimension) {
+            } => match lower_dimension(file, value_type.dimension()) {
                 Ok(dimension) => insert_binding(
                     file,
                     &mut bindings,
@@ -525,7 +523,7 @@ pub(crate) fn lower_typed_model(
                         identities.field(name),
                         FieldContract {
                             dimension,
-                            shape: shape.clone(),
+                            value_type: value_type.clone(),
                             domain: domain.clone(),
                         },
                     ),

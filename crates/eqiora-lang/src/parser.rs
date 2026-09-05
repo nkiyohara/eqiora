@@ -734,18 +734,9 @@ impl Parser<'_> {
         } else {
             (None, None)
         };
-        self.expect(TokenKind::Colon, "`:` before dimension")?;
-        let dimension = self.parse_dimension_expression()?;
-        let shape = if self.at_keyword("shape") {
-            self.bump();
-            Some(self.parse_value_shape()?)
-        } else {
-            None
-        };
-        let scalar = shape.as_ref().is_none_or(|shape| {
-            matches!(shape, ValueShapeSyntax::Scalar)
-                || matches!(shape, ValueShapeSyntax::Exact(extents) if extents.is_empty())
-        });
+        self.expect(TokenKind::Colon, "`:` before mathematical type")?;
+        let value_type = self.parse_value_type()?;
+        let scalar = value_type.is_scalar();
         let initial = if scalar && self.at(TokenKind::Equal) {
             self.bump();
             Some(self.parse_signed_number()?)
@@ -767,8 +758,7 @@ impl Parser<'_> {
             name,
             domain,
             representation,
-            shape,
-            dimension,
+            value_type,
             initial,
             range: TextRange::new(start, end),
         })

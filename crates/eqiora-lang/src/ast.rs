@@ -1054,8 +1054,7 @@ pub struct FieldDecl {
     pub(crate) name: String,
     pub(crate) domain: Option<String>,
     pub(crate) representation: Option<String>,
-    pub(crate) shape: Option<ValueShapeSyntax>,
-    pub(crate) dimension: Expr,
+    pub(crate) value_type: ValueTypeSyntax,
     pub(crate) initial: Option<f64>,
     pub(crate) range: TextRange,
 }
@@ -1079,16 +1078,16 @@ impl FieldDecl {
         self.representation.as_deref()
     }
 
-    /// Optional source value shape. Absence preserves legacy scalar syntax.
+    /// Complete declared mathematical type.
     #[must_use]
-    pub const fn shape(&self) -> Option<&ValueShapeSyntax> {
-        self.shape.as_ref()
+    pub const fn value_type(&self) -> &ValueTypeSyntax {
+        &self.value_type
     }
 
     /// Static SI dimension expression.
     #[must_use]
-    pub const fn dimension(&self) -> &Expr {
-        &self.dimension
+    pub fn dimension(&self) -> &Expr {
+        self.value_type.dimension()
     }
 
     /// Scalar initial literal in coherent SI units.

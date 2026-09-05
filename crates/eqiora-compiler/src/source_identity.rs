@@ -761,18 +761,10 @@ fn encode_field(
         encode_optional_name(encoder, declaration.representation(), budget)
     })?;
     encoder.field(4, |encoder| {
-        encode_expression(encoder, declaration.dimension(), budget, 1)
+        value_type::encode_value_type(encoder, declaration.value_type(), budget, 1)
     })?;
     if let Some(initial) = declaration.initial() {
         encoder.field(5, |encoder| encoder.f64(initial))?;
-    }
-    if let Some(shape) = declaration.shape().filter(|shape| {
-        !matches!(shape, ValueShapeSyntax::Scalar)
-            && !matches!(shape, ValueShapeSyntax::Exact(extents) if extents.is_empty())
-    }) {
-        // Disjoint optional tag: legacy scalar declarations retain their
-        // exact v1 bytes and therefore their existing source identity.
-        encoder.field(6, |encoder| encode_value_shape(encoder, shape))?;
     }
     Ok(())
 }
