@@ -455,7 +455,7 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [Download `compile-v2.schema.json`](/reference/control-v2/compile-v2.schema.json)
 
-<ExactSourceLink kind="blob" path="schemas/control/compile-v2.schema.json">View the exact schema source</ExactSourceLink>
+<ExactSourceLink kind="blob" path="crates/eqiora-api/schemas/compile-v2.schema.json">View the exact schema source</ExactSourceLink>
 
 ## JSON Schema
 
@@ -534,7 +534,7 @@ def _render(repository: Path, eqiora_binary: Path, mcp_binary: Path) -> dict[str
     version = _workspace_version(repository)
     cli = _capture_cli(repository, eqiora_binary, version)
     schema_text = _text(
-        repository / "schemas/control/compile-v2.schema.json", "control-v2 schema"
+        repository / "crates/eqiora-api/schemas/compile-v2.schema.json", "control-v2 schema"
     )
     try:
         schema = json.loads(schema_text)

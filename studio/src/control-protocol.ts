@@ -1,5 +1,5 @@
 import { z } from "zod";
-import compileV2SchemaDocument from "../../schemas/control/compile-v2.schema.json";
+import compileV2SchemaDocument from "../../crates/eqiora-api/schemas/compile-v2.schema.json";
 
 export const CONTROL_PROTOCOL_V2 = "eqiora.control/v2" as const;
 export const COMPILE_COMMAND_V1 = "model.compile-check/v1" as const;

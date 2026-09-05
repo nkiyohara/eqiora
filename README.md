@@ -109,6 +109,13 @@ pending edits and prevents superseded results from publishing diagnostics. Edito
 requests waiting for that analysis honor LSP cancellation. See the [language-server
 setup](docs/language-server.md).
 
+## Use from Rust
+
+The `eqiora` crate exposes the canonical Rust implementation through one public
+facade. Initial crates.io publication of `0.1.0-alpha.7` is in progress. See the
+[Rust installation and API guide](docs/rust-api.md) for the exact dependency,
+a model-compilation example, optional features, and pre-1.0 compatibility policy.
+
 ## One model, two layers
 
 Eqiora treats block diagrams, state charts, PDEs, and acausal physical

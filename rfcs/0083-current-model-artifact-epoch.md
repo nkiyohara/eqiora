@@ -260,7 +260,7 @@ The exact identities are therefore:
 | --- | --- |
 | protocol | `eqiora.control/v2` |
 | command | `model.compile-check/v1` |
-| schema file | `schemas/control/compile-v2.schema.json` |
+| schema file | `crates/eqiora-api/schemas/compile-v2.schema.json` |
 | schema `$id` | `urn:eqiora:schema:control:compile-v2` |
 | registered case | `interfaces.control-plane-compile-check` |
 
@@ -464,7 +464,7 @@ The independent control-oracle lane wrote only the former staging tree
 `verify/interfaces/control-plane-compile-check/oracle/v2/**`; it did not edit
 the live schema, v1 fixtures, manifest, implementation, capability matrix, or
 registries. The atomic implementation promoted that frozen schema to
-`schemas/control/compile-v2.schema.json` and the frozen v2 fixtures byte-for-byte
+`crates/eqiora-api/schemas/compile-v2.schema.json` and the frozen v2 fixtures byte-for-byte
 into the live case, then removed the staging tree.
 
 ### Relational identity transition

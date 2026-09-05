@@ -118,7 +118,7 @@ class InterfaceReferenceFixture:
             '[workspace]\nmembers = []\n[workspace.package]\nversion = "0.1.0-alpha.7"\n',
         )
         copied = [
-            Path("schemas/control/compile-v2.schema.json"),
+            Path("crates/eqiora-api/schemas/compile-v2.schema.json"),
             Path("verify/interfaces/mcp-stdio-compile-check/case.toml"),
             Path("verify/interfaces/mcp-stdio-compile-check/README.md"),
             *OUTPUTS,
