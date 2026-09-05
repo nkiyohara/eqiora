@@ -111,9 +111,11 @@ impl ComponentScalarization {
     /// count, inconsistent repeated-symbol shape, a non-pointwise expression,
     /// or an invalid exact component coordinate.
     pub fn lower<I: Clone + Eq>(residual: &TypedResidual<I>) -> Result<Self, Diagnostic> {
-        if residual.node_types().iter().any(|value| {
-            value.value_type.scalar_domain() != eqiora_schema::kernel::ScalarDomain::Real
-        }) {
+        if residual
+            .node_types()
+            .iter()
+            .any(|value| value.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real)
+        {
             return Err(invalid_component_ir(
                 "real component scalarization does not admit complex mathematical values",
             ));
@@ -523,7 +525,8 @@ mod tests {
 
     #[test]
     fn real_scalarization_rejects_complex_types_before_emitting_rows() {
-        use eqiora_schema::kernel::{ScalarDomain, ValueType};
+        use eqiora_core::ScalarDomain;
+        use eqiora_schema::kernel::ValueType;
         let mut builder = ExprDagBuilder::new();
         let root = builder.symbol(SymbolRef::Field(Id::new())).unwrap();
         let expression = builder.finish([root]).unwrap();

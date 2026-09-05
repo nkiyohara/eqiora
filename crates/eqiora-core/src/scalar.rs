@@ -1,3 +1,23 @@
+/// Mathematical scalar domain, independent of numerical storage precision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ScalarDomain {
+    /// Real-valued mathematics.
+    Real,
+    /// Complex-valued mathematics.
+    Complex,
+}
+
+impl ScalarDomain {
+    /// Smallest scalar domain into which both operands embed without loss.
+    #[must_use]
+    pub const fn common(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Real, Self::Real) => Self::Real,
+            _ => Self::Complex,
+        }
+    }
+}
+
 /// Scalar storage representation shared by lowering, realization, and
 /// execution contracts.
 ///

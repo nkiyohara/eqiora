@@ -1,4 +1,4 @@
-use super::{Expr, TextRange};
+use super::{Expr, TextRange, ValueTypeSyntax};
 
 /// Compilation-unit structural dimension alias.
 #[derive(Debug, Clone, PartialEq)]
@@ -32,7 +32,7 @@ impl DimensionDecl {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterDecl {
     pub(crate) name: String,
-    pub(crate) dimension: Expr,
+    pub(crate) value_type: ValueTypeSyntax,
     pub(crate) value: Expr,
     pub(crate) range: TextRange,
 }
@@ -46,8 +46,14 @@ impl ParameterDecl {
 
     /// Returns the declared dimension expression.
     #[must_use]
-    pub const fn dimension(&self) -> &Expr {
-        &self.dimension
+    pub fn dimension(&self) -> &Expr {
+        self.value_type.dimension()
+    }
+
+    /// Complete declared mathematical type.
+    #[must_use]
+    pub const fn value_type(&self) -> &ValueTypeSyntax {
+        &self.value_type
     }
 
     /// Returns the numeric value, including any explicit input unit.

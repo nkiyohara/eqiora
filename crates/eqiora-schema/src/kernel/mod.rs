@@ -28,4 +28,4 @@ pub use expression::{
     UnaryMathFunction,
 };
 pub use time::RationalTime;
-pub use value::{InvalidValueType, ScalarDomain, ValueFrame, ValueType};
+pub use value::{InvalidValueType, ValueFrame, ValueType};

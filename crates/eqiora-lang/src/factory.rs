@@ -9,6 +9,7 @@ mod dimension_rewrite;
 mod document;
 mod domain_validation;
 mod property;
+mod value_type;
 
 use crate::ast::{
     ActivationSyntax, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,

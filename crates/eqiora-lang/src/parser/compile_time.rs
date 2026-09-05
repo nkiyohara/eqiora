@@ -11,7 +11,7 @@ impl Parser<'_> {
             .text()
             .to_owned();
         self.expect(TokenKind::Colon, "`:` before dimension")?;
-        let dimension = self.parse_dimension_expression()?;
+        let value_type = self.parse_value_type()?;
         self.expect(TokenKind::Equal, "`=` before value")?;
         let value = self.parse_signed_quantity_literal()?;
         let end = self
@@ -20,7 +20,7 @@ impl Parser<'_> {
             .end();
         Some(ParameterDecl {
             name,
-            dimension,
+            value_type,
             value,
             range: TextRange::new(start, end),
         })

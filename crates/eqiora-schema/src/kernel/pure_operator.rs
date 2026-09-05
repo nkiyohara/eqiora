@@ -763,7 +763,7 @@ fn validate_argument_class<I>(
     class: PureValueClass,
     argument: &ExpressionType<I>,
 ) -> Result<(), PureOperatorError> {
-    if argument.value_type.scalar_domain() != super::ScalarDomain::Real {
+    if argument.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real {
         return Err(PureOperatorError::FormalTypeMismatch);
     }
     let Some(SpatialSupport::Volume { dimensions, .. }) = argument.support.as_ref() else {

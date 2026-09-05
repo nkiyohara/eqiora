@@ -47,7 +47,7 @@ fn owned_flat_model_formats_and_parses_identically() {
     .expect("Field");
     let parameter = SourceAstFactory::parameter(
         "gain",
-        dimension(),
+        crate::ValueTypeSyntax::real(dimension()),
         SourceAstFactory::expression(ExprKind::Number(2.0), range(0, 0)).unwrap(),
         range(0, 0),
     )

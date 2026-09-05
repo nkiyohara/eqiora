@@ -3,12 +3,11 @@
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{
-    Diagnostic, DimExponents, DynQuantity, EntityKind, GraphPath, Id, RawId, ValueShape,
+    Diagnostic, DimExponents, DynQuantity, EntityKind, GraphPath, Id, RawId, ScalarDomain,
+    ValueShape,
 };
 
-use super::{
-    BoundaryPhysicalConnector, ExprDag, RationalTime, ScalarDomain, ValueFrame, ValueType,
-};
+use super::{BoundaryPhysicalConnector, ExprDag, RationalTime, ValueFrame, ValueType};
 
 mod spatial;
 

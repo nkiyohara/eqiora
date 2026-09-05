@@ -9,6 +9,16 @@ pub(crate) fn parameter_value(
     file: &str,
     declaration: &eqiora_lang::ParameterDecl,
 ) -> Result<f64, eqiora_core::Diagnostic> {
+    if !declaration.value_type().is_scalar()
+        || declaration.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
+    {
+        return Err(crate::diagnostics::source_error(
+            eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+            file,
+            declaration.value_type().range(),
+            "parameter literal lowering requires a real scalar type",
+        ));
+    }
     let dimension = crate::dimensions::lower_dimension(file, declaration.dimension())?;
     let result = match declaration.value().kind() {
         ExprKind::Number(value) => normalize_value(*value, 1.0),

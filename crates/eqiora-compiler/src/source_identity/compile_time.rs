@@ -9,7 +9,7 @@ pub(super) fn encode_parameter(
         encode_name(encoder, declaration.name(), budget)
     })?;
     encoder.field(2, |encoder| {
-        encode_expression(encoder, declaration.dimension(), budget, 1)
+        super::value_type::encode_value_type(encoder, declaration.value_type(), budget, 1)
     })?;
     match declaration.value().kind() {
         ExprKind::Number(value) => encoder.field(3, |encoder| encoder.f64(*value)),

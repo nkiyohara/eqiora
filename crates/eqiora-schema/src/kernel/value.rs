@@ -1,22 +1,4 @@
-use eqiora_core::{DimExponents, ValueShape};
-
-/// Mathematical scalar domain, independent of numerical storage precision.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ScalarDomain {
-    /// Real-valued mathematics.
-    Real,
-    /// Complex-valued mathematics.
-    Complex,
-}
-
-impl ScalarDomain {
-    pub(crate) const fn common(self, other: Self) -> Self {
-        match (self, other) {
-            (Self::Real, Self::Real) => Self::Real,
-            _ => Self::Complex,
-        }
-    }
-}
+use eqiora_core::{DimExponents, ScalarDomain, ValueShape};
 
 /// Coordinate-frame meaning of mathematical value components.
 ///

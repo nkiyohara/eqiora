@@ -3,6 +3,9 @@
 mod compile_time;
 pub(crate) mod document;
 pub(crate) mod formulation;
+mod value_type;
+
+pub use value_type::{ValueTypeSyntax, ValueTypeSyntaxKind};
 
 pub(crate) use compile_time::DimensionDecl;
 pub use compile_time::{LetDecl, ParameterDecl};

@@ -9,6 +9,7 @@ mod formulation;
 mod helpers;
 mod property;
 mod relation;
+mod value_type;
 
 use crate::ast::{
     BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax, BoundaryPairingSyntax,

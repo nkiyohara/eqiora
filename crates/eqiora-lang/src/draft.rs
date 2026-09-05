@@ -426,12 +426,12 @@ impl ModelDraft {
                 }),
                 DraftDeclaration::Parameter(parameter) => Item::Parameter(ParameterDecl {
                     name: parameter.name.clone(),
-                    dimension: dimension_expression(
+                    value_type: crate::ValueTypeSyntax::real(dimension_expression(
                         parameter.dimension,
                         &path,
                         &mut ranges,
                         &mut paths,
-                    ),
+                    )),
                     value: Expr {
                         kind: ExprKind::Number(parameter.value),
                         range,

@@ -49,6 +49,10 @@ pub enum TokenKind {
     Slash,
     /// `^`.
     Caret,
+    /// `<` opening a mathematical type constructor.
+    LeftAngle,
+    /// `>` closing a mathematical type constructor.
+    RightAngle,
     /// `->`.
     Arrow,
     /// Source fragment that is not part of language v0.
@@ -177,6 +181,8 @@ pub fn lex(file: impl Into<String>, source: &str) -> LexResult {
             b'*' => single(&mut offset, TokenKind::Star),
             b'/' => single(&mut offset, TokenKind::Slash),
             b'^' => single(&mut offset, TokenKind::Caret),
+            b'<' => single(&mut offset, TokenKind::LeftAngle),
+            b'>' => single(&mut offset, TokenKind::RightAngle),
             _ => {
                 let width = source[offset..].chars().next().map_or(1, char::len_utf8);
                 offset += width;

@@ -3,6 +3,7 @@
 use super::*;
 
 const MAGIC: &[u8; 8] = b"EQIORAFM";
+const CANONICAL_FORMULATION_VERSION: u16 = 1;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct AuthoredFormSourceIdentity([u8; 32]);
@@ -27,7 +28,7 @@ impl AuthoredFormSourceIdentity {
         )?;
         let mut encoder = Encoder::new(limits.max_canonical_bytes);
         encoder.raw(MAGIC)?;
-        encoder.u16(CANONICAL_VERSION)?;
+        encoder.u16(CANONICAL_FORMULATION_VERSION)?;
         encoder.field(1, |encoder| {
             encode_name(encoder, component.name(), &mut budget)
         })?;

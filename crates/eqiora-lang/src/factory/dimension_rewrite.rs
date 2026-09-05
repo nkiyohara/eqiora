@@ -91,7 +91,10 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
             }
         }
         Item::Field(declaration) => declaration.dimension = rewrite(&declaration.dimension),
-        Item::Parameter(declaration) => declaration.dimension = rewrite(&declaration.dimension),
+        Item::Parameter(declaration) => {
+            let dimension = declaration.value_type.dimension_mut();
+            *dimension = rewrite(dimension);
+        }
         Item::Let(declaration) => {
             if let Some(dimension) = &mut declaration.dimension {
                 *dimension = rewrite(dimension);

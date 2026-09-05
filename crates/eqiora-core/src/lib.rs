@@ -30,5 +30,5 @@ pub use entity::{Entity, EntityKind, GraphClass, GraphKind};
 pub use id::{Id, RawId};
 pub use ontology::{NamedSubgraph, OntologyId, OntologySchema, OntologyView, RawOntologyId};
 pub use quantity::{DimExponents, Dimension, DynQuantity, Quantity, Scalar};
-pub use scalar::ScalarType;
+pub use scalar::{ScalarDomain, ScalarType};
 pub use value_shape::{InvalidValueShape, ValueShape};

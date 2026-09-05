@@ -847,7 +847,7 @@ pub fn scalar_root<I: Clone + Eq>(
 ) -> Result<(), TypeViolation<I>> {
     if !root.shape().is_scalar()
         || root.frame() != ValueFrame::Invariant
-        || root.value_type.scalar_domain() != super::ScalarDomain::Real
+        || root.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
     {
         return Err(TypeViolation::RootRequiresRealScalar);
     }

@@ -11,7 +11,8 @@ fn volume(name: &'static str) -> SpatialSupport<&'static str> {
 
 #[test]
 fn complex_domain_survives_arithmetic_and_spatial_type_inference() {
-    use crate::kernel::{ScalarDomain, ValueType};
+    use crate::kernel::ValueType;
+    use eqiora_core::ScalarDomain;
     let real = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("body")));
     let complex = ExpressionType::new(
         ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS),
@@ -50,7 +51,8 @@ fn complex_domain_survives_arithmetic_and_spatial_type_inference() {
 
 #[test]
 fn real_only_pure_definition_rejects_complex_arguments_without_erasing_the_domain() {
-    use crate::kernel::{ScalarDomain, ValueType};
+    use crate::kernel::ValueType;
+    use eqiora_core::ScalarDomain;
     let tensor = ExpressionType::new(
         ValueType::shaped(
             ScalarDomain::Complex,
