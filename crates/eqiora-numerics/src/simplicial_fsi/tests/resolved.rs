@@ -28,8 +28,17 @@ pub(super) fn finalize(
     config: FixedReferenceFsiStepConfig<2>,
     assembly: &dyn AssemblyBackend,
 ) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
+    finalize_source(SOURCE, problem, config, assembly)
+}
+
+fn finalize_source(
+    source: &str,
+    problem: &Fixture,
+    config: FixedReferenceFsiStepConfig<2>,
+    assembly: &dyn AssemblyBackend,
+) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
     let material = config.material();
-    let mut source = SOURCE.to_owned();
+    let mut source = source.to_owned();
     for (declaration, value) in [
         (
             "parameter fluid_density: kg / m ^ 3 = 2;",
@@ -121,6 +130,96 @@ pub(super) fn finalize(
         &problem.previous,
         assembly,
     )
+}
+
+#[test]
+fn whole_fluid_momentum_residual_reversal_preserves_the_resolved_physical_step() {
+    assert_same_step_for_residual_reversal("fluid", false);
+}
+
+#[test]
+fn whole_solid_momentum_residual_reversal_preserves_the_resolved_physical_step() {
+    assert_same_step_for_residual_reversal("solid", false);
+}
+
+#[test]
+fn swapped_solid_momentum_sides_preserve_the_resolved_physical_step() {
+    assert_same_step_for_residual_reversal("solid", true);
+}
+
+fn assert_same_step_for_residual_reversal(component: &str, swapped_sides: bool) {
+    let problem = fixture_problem();
+    let normal = finalize(&problem, problem.config, &REFERENCE_ASSEMBLY_BACKEND)
+        .unwrap()
+        .solve(&REFERENCE_LINEAR_SOLVER)
+        .unwrap()
+        .into_numerical_evidence();
+    let marker = format!("relation {component}_momentum continuous on {component} {{");
+    assert_eq!(SOURCE.matches(&marker).count(), 1);
+    let (before, residual) = SOURCE.split_once(&marker).unwrap();
+    let (expression, after) = residual.split_once(" = 0;").unwrap();
+    let reversed_expression = if swapped_sides {
+        let (internal, load) = expression.rsplit_once(" - ").unwrap();
+        format!("{load} - ({internal})")
+    } else {
+        format!("-({expression})")
+    };
+    let reversed_source = format!("{before}{marker} {reversed_expression} = 0;{after}");
+    let reversed = finalize_source(
+        &reversed_source,
+        &problem,
+        problem.config,
+        &REFERENCE_ASSEMBLY_BACKEND,
+    )
+    .expect("negating the complete momentum residual preserves the same equation")
+    .solve(&REFERENCE_LINEAR_SOLVER)
+    .unwrap()
+    .into_numerical_evidence();
+    for (left, right) in [
+        (
+            normal
+                .vertex_velocity()
+                .iter()
+                .flatten()
+                .copied()
+                .collect::<Vec<_>>(),
+            reversed
+                .vertex_velocity()
+                .iter()
+                .flatten()
+                .copied()
+                .collect(),
+        ),
+        (
+            normal.fluid_pressure().to_vec(),
+            reversed.fluid_pressure().to_vec(),
+        ),
+        (
+            normal
+                .solid_displacement()
+                .iter()
+                .flatten()
+                .copied()
+                .collect(),
+            reversed
+                .solid_displacement()
+                .iter()
+                .flatten()
+                .copied()
+                .collect(),
+        ),
+    ] {
+        assert_eq!(left.len(), right.len());
+        for (left, right) in left.into_iter().zip(right) {
+            assert!((left - right).abs() < 2.0e-9, "{left:e} != {right:e}");
+        }
+    }
+    assert!(reversed.residual_norm() < 1.0e-9);
+    assert!(reversed.continuity_residual_norm() < 1.0e-9);
+    assert!(reversed.kinematic_residual_norm() < 1.0e-14);
+    assert_eq!(reversed.interface_velocity_jump_norm(), 0.0);
+    assert!(reversed.interface_action_imbalance_norm() < 1.0e-9);
+    assert!(reversed.energy_balance().defect().abs() < 1.0e-9);
 }
 
 #[derive(Debug)]
