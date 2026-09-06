@@ -208,6 +208,9 @@ does not establish optional native-backend or scientific claims.
   deployment. Missing, failed, or unauthenticated publication state falls back to a
   full build; comparison never uses only the immediately preceding push. Manual
   dispatch remains a full build.
+- PR metadata edits reuse the newest authenticated run that actually performed
+  heavy work. Later lightweight successes do not hide that result, and witnesses
+  from different runs are never combined.
 - Host-CPU case manifests disconnected from mandatory CI are marked
   `implemented`, and their capability-matrix verification is absent while the
   evidence suite is being reduced. Existing cases remain explicitly runnable
