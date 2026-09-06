@@ -119,7 +119,7 @@ def differentiable_program(
     return eqiora.diff.compile(
         plan,
         inputs=inputs,
-        output=plan.capability.field,
+        output=plan.capability.fields[0],
     )
 
 

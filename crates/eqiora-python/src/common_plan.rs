@@ -449,10 +449,15 @@ impl PyPlan {
             ResolvedCommonPlan::Scalar(plan) => Py::new(
                 py,
                 PyScalarPlanView {
-                    field: PyModelFieldRef::from_exact(
-                        plan.model_digest().to_owned(),
-                        plan.field_id().to_owned(),
-                    ),
+                    fields: plan
+                        .fields()
+                        .map(|(field, _)| {
+                            PyModelFieldRef::from_exact(
+                                plan.model_digest().to_owned(),
+                                field.ulid().to_string(),
+                            )
+                        })
+                        .collect(),
                     coefficient_sampling: match plan.spatial() {
                         eqiora_numerics::CommonSpatialPolicy::Q1 => "quadrature-point",
                         eqiora_numerics::CommonSpatialPolicy::CellCenteredTpfa => "facet-centroid",
@@ -565,10 +570,12 @@ impl PyPlan {
                 .field_ids()
                 .map(|field| PyModelFieldRef::from_exact(model_digest.clone(), field.to_string()))
                 .collect(),
-            ResolvedCommonPlan::Scalar(plan) => vec![PyModelFieldRef::from_exact(
-                model_digest,
-                plan.field_id().to_owned(),
-            )],
+            ResolvedCommonPlan::Scalar(plan) => plan
+                .fields()
+                .map(|(field, _)| {
+                    PyModelFieldRef::from_exact(model_digest.clone(), field.ulid().to_string())
+                })
+                .collect(),
             ResolvedCommonPlan::Elasticity(plan) => vec![PyModelFieldRef::from_exact(
                 model_digest,
                 plan.displacement_field_id().to_owned(),

@@ -112,7 +112,7 @@ def scalar_output(
         ),
     )
     result = eqiora.run(plan)
-    return geometry, mesh, result.output(plan.capability.field)
+    return geometry, mesh, result.output(plan.capability.fields[0])
 
 
 def document(*values: object) -> tuple[dict[str, object], tuple[bytes, ...]]:

@@ -200,7 +200,7 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
     program = eqiora.diff.compile(
         plan,
         inputs=inputs,
-        output=plan.capability.field,
+        output=plan.capability.fields[0],
     )
 
     direction = np.array([0.7, -0.2, 0.3], dtype=np.float64)
@@ -255,7 +255,7 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
     program = eqiora.diff.compile(
         plan,
         inputs=(model.parameter("source_scale"),),
-        output=plan.capability.field,
+        output=plan.capability.fields[0],
     )
 
     direction = np.array([1.0], dtype=np.float64)
@@ -337,7 +337,7 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
         eqiora.diff.compile(
             plan,
             inputs=iter((model.parameter("source_scale"),)),
-            output=plan.capability.field,
+            output=plan.capability.fields[0],
         )
 
     foreign, foreign_plan = model_and_plan(
@@ -347,7 +347,7 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
         eqiora.diff.compile(
             foreign_plan,
             inputs=(model.parameter("source_scale"),),
-            output=plan.capability.field,
+            output=plan.capability.fields[0],
         )
     with pytest.raises(eqiora.ValidationError, match="duplicate"):
         eqiora.diff.compile(
@@ -356,14 +356,14 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
                 model.parameter("source_scale"),
                 model.parameter("source_scale"),
             ),
-            output=plan.capability.field,
+            output=plan.capability.fields[0],
         )
     with pytest.raises(TypeError):
         eqiora.diff.compile(
             model,
             plan,
             inputs=(model.parameter("source_scale"),),
-            output=plan.capability.field,
+            output=plan.capability.fields[0],
         )
     elasticity_model, elasticity_plan = elasticity_model_and_plan()
     with pytest.raises(eqiora.ValidationError, match="2D scalar"):

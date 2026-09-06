@@ -728,14 +728,14 @@ class Model:
 
 @final
 class ScalarPlanView:
-    """Scalar-elliptic field roles resolved from one Model.
+    """Scalar-valued Fields resolved from one Model.
 
     Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyScalarPlanView``.
     """
     @property
     def kind(self) -> str: ...
     @property
-    def field(self) -> FieldRef: ...
+    def fields(self) -> tuple[FieldRef, ...]: ...
     @property
     def coefficient_sampling(self) -> str: ...
     @property
