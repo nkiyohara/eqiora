@@ -6,7 +6,6 @@
  * Props (private site-component binding v1):
  *   href: string; title: string; description: string;
  *   imageSrc: string; imageAlt: string; tags: readonly string[];
- *   featured?: boolean (default false)
  *
  * No slots. Unknown props, wrong types, or any slot content fail the build.
  * The media region is a stable 16:9 area; the image is shown whole (contain),
@@ -19,7 +18,6 @@ interface Props {
   imageSrc: string;
   imageAlt: string;
   tags: readonly string[];
-  featured?: boolean;
 }
 
 const COMPONENT = 'GalleryCard';
@@ -30,7 +28,6 @@ const ALLOWED_PROPS: ReadonlySet<string> = new Set([
   'imageSrc',
   'imageAlt',
   'tags',
-  'featured',
 ]);
 const rawProps = Astro.props as unknown as Record<string, unknown>;
 
@@ -60,12 +57,6 @@ if (!Array.isArray(tagsValue) || tagsValue.some((tag) => typeof tag !== 'string'
 }
 const tags = tagsValue as readonly string[];
 
-const featuredValue = rawProps.featured;
-if (featuredValue !== undefined && typeof featuredValue !== 'boolean') {
-  throw new Error(`${COMPONENT}: prop "featured" must be a boolean when supplied`);
-}
-const featured = featuredValue === true;
-
 const slotNames = Object.keys(Astro.slots);
 if (slotNames.length > 0) {
   const rendered = await Promise.all(slotNames.map((name) => Astro.slots.render(name)));
@@ -75,10 +66,10 @@ if (slotNames.length > 0) {
 }
 ---
 
-<li class="eq-gallery-card" data-featured={featured ? '' : undefined}>
+<li class="eq-gallery-card">
   <a class="eq-gallery-card__link" href={href}>
     <span class="eq-gallery-card__media">
-      <img src={imageSrc} alt={imageAlt} loading={featured ? 'eager' : 'lazy'} decoding="async" />
+      <img src={imageSrc} alt={imageAlt} loading="lazy" decoding="async" />
     </span>
     <span class="eq-gallery-card__body">
       <span class="eq-gallery-card__title">{title}</span>

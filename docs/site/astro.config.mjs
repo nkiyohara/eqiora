@@ -48,7 +48,8 @@ if (process.env.EQIORA_SITE_BUILD_PROFILE === 'complete') {
 
   const requiredSuccessorInputs = [
     'src/assets/brand/eqiora-mark.svg',
-    'src/assets/gallery/exact-cylinder-pressure.png',
+    'src/assets/gallery/exact-cylinder-pressure-presentation.png',
+    'src/assets/gallery/exact-cylinder-pressure-thumbnail.png',
     'src/assets/gallery/mixed-boundary-elasticity-displacement.png',
     'src/components/site/ExactSourceLink.astro',
     'src/components/site/CapabilitySummary.astro',
@@ -82,8 +83,6 @@ if (process.env.EQIORA_SITE_BUILD_PROFILE === 'complete') {
     'src/content/docs/textbooks/structural-mechanics-fem.mdx',
     'src/content/docs/textbooks/heat-mass-transfer.mdx',
     'src/content/docs/textbooks/circuits-dynamics-hybrid.mdx',
-    'src/data/gallery/exact-cylinder-steady-stokes.publication.json',
-    'src/data/gallery/mixed-boundary-elasticity.publication.json',
     'src/styles/site/tokens.css',
     'src/styles/site/layout.css',
     'src/styles/site/components.css',

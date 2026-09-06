@@ -22,15 +22,8 @@ NUMERIC_FRAGMENT_ID = "123"
 LINE_RANGE_FRAGMENT = "1-325"
 BRAND_PATH = "/assets/eqiora-mark.BN8rmEAl.svg"
 PRESSURE_PATH = "/assets/exact-cylinder-pressure.C0ffee42.png"
-PRESSURE_ALT = (
-    "Pressure in pascals for a 2D steady-Stokes exact-cylinder demonstration, "
-    "shown with a viridis color scale and its current Gmsh mesh overlaid. "
-    "Presentation image only; no numerical or mesh-output oracle."
-)
-PRESSURE_CAPTION = (
-    "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at "
-    "cd1185b0f8ec8940352e7b6bc832fd4ebe67591b; presentation only, not validation."
-)
+PRESSURE_ALT = "Steady Stokes pressure around a cylinder, with the current mesh and pressure scale in pascals."
+PRESSURE_CAPTION = "Steady Stokes pressure on a 0.025 m target mesh."
 PUBLIC_CLAIM = (
     "One presentation-only 2D steady incompressible Stokes exact-cylinder "
     "demonstration rendered through exact Geometry, typed Gmsh policy, and the "

@@ -1,6 +1,5 @@
 ---
-import pressureImage from '../../assets/gallery/exact-cylinder-pressure.png';
-import publication from '../../data/gallery/exact-cylinder-steady-stokes.publication.json';
+import pressureImage from '../../assets/gallery/exact-cylinder-pressure-presentation.png';
 import ReleaseIdentity from './ReleaseIdentity.astro';
 ---
 
@@ -17,7 +16,7 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
     </div>
     <figure class="eq-preview">
       <div class="eq-preview__label"><span>Inside a simulation</span><span>01 / Fluid mechanics</span></div>
-      <img src={pressureImage.src} alt={publication.publication_payload.text.alt} width={pressureImage.width} height={pressureImage.height} fetchpriority="high" />
+      <img src={pressureImage.src} alt="Steady Stokes pressure around a cylinder, with the current mesh and pressure scale in pascals." width={pressureImage.width} height={pressureImage.height} fetchpriority="high" />
       <figcaption><span>Pressure around a circular obstacle</span><span>2D · steady Stokes</span></figcaption>
     </figure>
   </section>

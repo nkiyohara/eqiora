@@ -17,7 +17,7 @@ from matplotlib.figure import Figure
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "examples" / "python"
 FRAME_RATE = 2
-FIGURE_SIZE = (12.0, 3.5)
+FIGURE_SIZE = (10.0, 5.625)
 DPI = 144
 
 
@@ -58,7 +58,7 @@ def _render_frame(
         ),
     )
     for index, (title, panel_values, scale, label) in enumerate(panels):
-        axes = figure.add_axes((0.07 + index * 0.47, 0.2, 0.32, 0.64))
+        axes = figure.add_axes((0.08, 0.64 - index * 0.47, 0.76, 0.25))
         axes.set_facecolor("#f8fafc")
         scalar = axes.tripcolor(
             coordinates[:, 0],
@@ -82,10 +82,9 @@ def _render_frame(
         axes.set_ylim(float(coordinates[:, 1].min()), float(coordinates[:, 1].max()))
         axes.set_aspect("equal", adjustable="box")
         axes.set_xlabel("x [m]")
-        if index == 0:
-            axes.set_ylabel("y [m]")
+        axes.set_ylabel("y [m]")
         axes.set_title(title)
-        colorbar_axes = figure.add_axes((0.4 + index * 0.47, 0.2, 0.014, 0.64))
+        colorbar_axes = figure.add_axes((0.86, 0.64 - index * 0.47, 0.014, 0.25))
         colorbar = figure.colorbar(scalar, cax=colorbar_axes)
         colorbar.set_label(label)
     return figure
@@ -98,7 +97,7 @@ def _render_comparison(
     *,
     magnitude: float,
 ) -> Figure:
-    figure = Figure(figsize=(12.0, 3.5), dpi=DPI, facecolor="#ffffff")
+    figure = Figure(figsize=FIGURE_SIZE, dpi=DPI, facecolor="#ffffff")
     scalar = None
     comparison = (
         (
@@ -119,7 +118,7 @@ def _render_comparison(
         ),
     )
     for index, (title, step, time_s, values, scale, label) in enumerate(comparison):
-        axes = figure.add_axes((0.07 + index * 0.44, 0.2, 0.32, 0.65))
+        axes = figure.add_axes((0.08, 0.64 - index * 0.47, 0.76, 0.25))
         axes.set_facecolor("#f8fafc")
         scalar = axes.tripcolor(
             coordinates[:, 0],
@@ -143,13 +142,11 @@ def _render_comparison(
         axes.set_ylim(float(coordinates[:, 1].min()), float(coordinates[:, 1].max()))
         axes.set_aspect("equal", adjustable="box")
         axes.set_xlabel("x [m]")
-        if index == 0:
-            axes.set_ylabel("y [m]")
+        axes.set_ylabel("y [m]")
         axes.set_title(f"{title} · step {step} · t = {time_s:g} s")
-        colorbar_axes = figure.add_axes((0.4 + index * 0.44, 0.2, 0.014, 0.65))
+        colorbar_axes = figure.add_axes((0.86, 0.64 - index * 0.47, 0.014, 0.25))
         colorbar = figure.colorbar(scalar, cax=colorbar_axes)
         colorbar.set_label(label)
-    figure.suptitle("Unverified cylinder-flow startup: first output and final change")
     return figure
 
 

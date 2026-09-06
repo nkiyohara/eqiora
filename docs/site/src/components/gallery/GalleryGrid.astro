@@ -21,7 +21,6 @@ interface GalleryCardData {
   imageSrc: string;
   imageAlt: string;
   tags: readonly string[];
-  featured?: boolean;
 }
 
 interface Props {
@@ -31,7 +30,7 @@ interface Props {
 const COMPONENT = 'GalleryGrid';
 const ALLOWED_PROPS: ReadonlySet<string> = new Set(['cards']);
 const TEXT_FIELDS = ['href', 'title', 'description', 'imageSrc', 'imageAlt'] as const;
-const ALLOWED_FIELDS: ReadonlySet<string> = new Set([...TEXT_FIELDS, 'tags', 'featured']);
+const ALLOWED_FIELDS: ReadonlySet<string> = new Set([...TEXT_FIELDS, 'tags']);
 const rawProps = Astro.props as unknown as Record<string, unknown>;
 
 // Slots are rejected before props: the locked MDX adapter replaces a same-named
@@ -79,11 +78,7 @@ function validateCard(value: unknown, index: number): GalleryCardData {
       throw new Error(`${COMPONENT}: ${where} tag ${tagIndex} must be a non-empty string`);
     }
   }
-  const featuredValue = hasOwn(record, 'featured') ? record['featured'] : undefined;
-  if (featuredValue !== undefined && typeof featuredValue !== 'boolean') {
-    throw new Error(`${COMPONENT}: ${where} field "featured" must be a boolean when supplied`);
-  }
-  return { ...text, tags: tagsValue as readonly string[], featured: featuredValue };
+  return { ...text, tags: tagsValue as readonly string[] };
 }
 
 const cardsValue = rawProps.cards;
@@ -109,7 +104,6 @@ for (let index = 0; index < cardsValue.length; index += 1) {
         imageSrc={card.imageSrc}
         imageAlt={card.imageAlt}
         tags={card.tags}
-        featured={card.featured}
       />
     ))
   }

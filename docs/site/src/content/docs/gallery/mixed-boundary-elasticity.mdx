@@ -8,7 +8,6 @@ import ClaimBoundary from '../../../components/gallery/ClaimBoundary.astro';
 import ResultFigure from '../../../components/gallery/ResultFigure.astro';
 import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
 import displacementImage from '../../../assets/gallery/mixed-boundary-elasticity-displacement.png';
-import publication from '../../../data/gallery/mixed-boundary-elasticity.publication.json';
 
 **Static walkthrough · shared Python workflow**
 
@@ -115,8 +114,8 @@ mesh generation, or solve policy.
 
 <ResultFigure
   src={displacementImage.src}
-  alt={publication.publication_payload.text.alt}
-  caption={publication.publication_payload.text.caption}
+  alt="Reference and deformed meshes for the bounded 2D mixed-boundary elasticity example."
+  caption="Displacement at scale 1, with the undeformed reference mesh shown for comparison."
   units="m"
   sourcePath="examples/python/mixed_boundary_elasticity.py"
   sourceFragment="L65-L74"
