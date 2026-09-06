@@ -608,7 +608,8 @@ else:
     raise AssertionError("exact primal Formulation must reject an unproved natural boundary")
 assert not hasattr(q1.capability, "scaling")
 assert q1.requested_solve is linear
-assert q1.solve.algorithm == "conjugate-gradient"
+assert q1.solve.algorithm == "bicgstab"
+assert tpfa.solve.algorithm == "conjugate-gradient"
 q1_result = package.run(q1)
 q1_result_bytes = q1_result.to_bytes()
 replayed_q1_result = package.Result.from_bytes(q1, q1_result_bytes)
