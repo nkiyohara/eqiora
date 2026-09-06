@@ -59,9 +59,12 @@ fn expression(
         }
         ExprNode::Div(a, b) => recurse(*a, coefficient.divide(context.data(*b, depth + 1)?), row),
         ExprNode::Constant(value) if value.literal() == 0.0 => {
-            if !coefficient.spatial() {
-                coefficient.evaluate(&vec![0.0; context.dimension])?;
+            if coefficient.spatial() {
+                return Err(invalid(
+                    "discarded zero requires a coordinate-independent multiplier",
+                ));
             }
+            coefficient.evaluate(&vec![0.0; context.dimension])?;
             Ok(())
         }
         ExprNode::Divergence(value) if matches!(position, Position::Strong) => {

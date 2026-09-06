@@ -1,6 +1,24 @@
 use super::*;
 
 #[test]
+fn discarded_zero_rejects_coordinate_dependent_multipliers() {
+    let source = "model Scalar {
+        domain body = box(0, 1, 0, 1);
+        representation space = continuum;
+        field u on body as space: 1;
+        relation balance continuous on body {
+            -div(grad(u)) + (1 / coordinate(0) ^ 2) * 0 = 0;
+        }
+    }";
+    assert!(
+        derive(source)
+            .unwrap_err()
+            .message()
+            .contains("discarded zero requires a coordinate-independent multiplier")
+    );
+}
+
+#[test]
 fn uniform_load_gradients_validate_their_parameter_values_before_erasure() {
     for expression in ["load_scale / divisor", "0 * load_scale / divisor"] {
         let source = MIXED
