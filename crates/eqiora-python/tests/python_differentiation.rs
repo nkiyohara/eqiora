@@ -104,8 +104,8 @@ def make_plan(model, method):
         mesh=mesh,
         spatial=spatial,
         solve=eqiora.solve.Linear(
-            relative_tolerance=1e-10,
-            absolute_tolerance=1e-12,
+            relative_tolerance=1e-12,
+            absolute_tolerance=1e-14,
             maximum_iterations=10000,
         ),
     )
@@ -117,7 +117,7 @@ def compile_program(model, method):
         model.parameter("diffusion"),
         model.parameter("boundary_offset"),
     ]
-    output = plan.capability.field
+    output = plan.capability.fields[0]
     return eqiora.diff.compile(
         plan,
         inputs=inputs,
@@ -270,7 +270,8 @@ for method in (
     assert jvp.evidence.primal_solve.orientation == "normal"
     assert jvp.evidence.derivative_solve.orientation == "normal"
     assert vjp.evidence.derivative_solve.orientation == "transposed"
-    assert jvp.evidence.derivative_solve.algorithm == "conjugate-gradient"
+    expected_algorithm = "bicgstab" if method == eqiora.fem.Q1() else "conjugate-gradient"
+    assert jvp.evidence.derivative_solve.algorithm == expected_algorithm
     assert jvp.evidence.derivative_solve.preconditioner == "identity"
     assert jvp.evidence.derivative_solve.reduction == "reproducible"
     assert len(jvp.evidence.state_system_fingerprint) == 64
@@ -365,7 +366,7 @@ try:
     eqiora.diff.compile(
         foreign_plan,
         inputs=[original.parameter("source_scale")],
-        output=original_plan.capability.field,
+        output=original_plan.capability.fields[0],
     )
 except eqiora.ValidationError:
     pass
@@ -376,7 +377,7 @@ try:
     eqiora.diff.compile(
         foreign_plan,
         inputs=[original.parameter("source_scale")],
-        output=original_plan.capability.field,
+        output=original_plan.capability.fields[0],
     )
 except eqiora.ValidationError:
     pass
@@ -388,7 +389,7 @@ try:
         original,
         original_plan,
         inputs=[original.parameter("source_scale")],
-        output=original_plan.capability.field,
+        output=original_plan.capability.fields[0],
     )
 except TypeError:
     pass

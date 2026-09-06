@@ -11,7 +11,7 @@ import numpy as np
 program = eqiora.diff.compile(
     plan,
     inputs=(model.parameter("source"),),
-    output=plan.capability.field,
+    output=plan.capability.fields[0],
 )
 
 evaluation = program.evaluate(np.array([1.5], dtype=np.float64))
