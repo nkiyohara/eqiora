@@ -15,6 +15,80 @@ const LENGTH: DimExponents =
 const TIME: DimExponents =
     DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
 
+#[test]
+fn block_identity_preserves_complete_field_types_without_admitting_complex_execution() {
+    let mut system = minimal(MinimalIds::new(), false);
+    let real = ValueType::scalar(ScalarDomain::Real, LENGTH);
+    let complex = ValueType::scalar(ScalarDomain::Complex, LENGTH);
+    let vector = ValueType::shaped(
+        ScalarDomain::Real,
+        LENGTH,
+        ValueShape::new([2]).unwrap(),
+        ValueFrame::SpatialCartesian,
+    )
+    .unwrap();
+    let tensor = ValueType::shaped(
+        ScalarDomain::Real,
+        LENGTH,
+        ValueShape::new([2, 2]).unwrap(),
+        ValueFrame::SpatialCartesian,
+    )
+    .unwrap();
+    let channels = real.clone().array(2).unwrap();
+    let vector_channels = vector.clone().array(2).unwrap();
+    assert_eq!(vector.shape(), channels.shape());
+    assert_eq!(tensor.shape(), vector_channels.shape());
+    assert_eq!(tensor.frame(), vector_channels.frame());
+    let types = [real, complex, vector, channels, tensor, vector_channels];
+    let mut identities = std::collections::HashSet::new();
+    for value_type in types {
+        system.fields[0] = FieldBlock::discrete(
+            system.fields[0].domain,
+            system.fields[0].field,
+            system.fields[0].space.unwrap(),
+            value_type.clone(),
+            DynQuantity::new(1.0, LENGTH),
+            FieldBlockRole::Algebraic,
+        )
+        .unwrap();
+        assert_eq!(system.fields[0].value_type, value_type);
+        assert!(identities.insert(system.compute_identity().0));
+        if value_type.scalar_domain() == ScalarDomain::Complex {
+            let error = system.validate().unwrap_err();
+            assert_eq!(error.code(), codes::INVALID_REALIZATION);
+            assert_eq!(
+                error.message(),
+                "discrete block execution requires real Field types"
+            );
+        } else {
+            system.validate().unwrap();
+        }
+    }
+}
+
+#[test]
+fn complete_field_type_retains_scale_validation() {
+    let ids = MinimalIds::new();
+    for scale in [
+        DynQuantity::new(1.0, TIME),
+        DynQuantity::new(0.0, LENGTH),
+        DynQuantity::new(-1.0, LENGTH),
+        DynQuantity::new(f64::INFINITY, LENGTH),
+    ] {
+        assert!(
+            FieldBlock::discrete(
+                ids.domain,
+                ids.fields[0],
+                Space::continuous_lagrange(NonZeroU16::MIN),
+                ValueType::scalar(ScalarDomain::Real, LENGTH),
+                scale,
+                FieldBlockRole::Algebraic
+            )
+            .is_err()
+        );
+    }
+}
+
 #[derive(Clone, Copy)]
 struct MinimalIds {
     model: OntologyId<Model>,
@@ -45,9 +119,7 @@ fn minimal(ids: MinimalIds, order_reversed: bool) -> DiscreteBlockSystem {
                 ids.domain,
                 field,
                 Space::continuous_lagrange(NonZeroU16::MIN),
-                ValueShape::scalar(),
-                LENGTH,
-                ValueFrame::Invariant,
+                ValueType::scalar(ScalarDomain::Real, LENGTH),
                 DynQuantity::new(1.0, LENGTH),
                 FieldBlockRole::Algebraic,
             )
@@ -149,9 +221,7 @@ fn stateful(ids: MinimalIds) -> DiscreteBlockSystem {
             ids.domain,
             state,
             Space::continuous_lagrange(NonZeroU16::MIN),
-            ValueShape::scalar(),
-            LENGTH,
-            ValueFrame::Invariant,
+            ValueType::scalar(ScalarDomain::Real, LENGTH),
             DynQuantity::new(1.0, LENGTH),
             FieldBlockRole::EliminatedState,
         )

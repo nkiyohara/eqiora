@@ -14,7 +14,9 @@ use eqiora_assembly::{
 use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId, ValueShape};
+use eqiora_core::{
+    Diagnostic, DimExponents, DynQuantity, Id, OntologyId, ScalarDomain, ValueShape, ValueType,
+};
 use eqiora_realization::{
     AlgebraicBlock, AlgebraicConstraint, ConformingTraceQuotient, DefaultPolicyVersion,
     MeshArtifactReference, RealizationRevision, SemanticRevision, Space, SpaceFamily,
@@ -30,7 +32,7 @@ use crate::canonical_boundary::{
     CartesianBoundaryInventory, PhysicalBoundaryDisposition, PhysicalBoundaryQuantity,
 };
 
-const BLOCK_SYSTEM_IDENTITY_DOMAIN: &[u8] = b"eqiora.discrete-block-system/v2\0";
+const BLOCK_SYSTEM_IDENTITY_DOMAIN: &[u8] = b"eqiora.discrete-block-system/v3\0";
 
 /// Exact Realization selection represented by one block system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,29 +84,24 @@ pub(crate) struct FieldBlock {
     domain: Id<kinds::Domain>,
     field: Id<kinds::Field>,
     space: Option<Space>,
-    shape: ValueShape,
-    dimension: DimExponents,
-    frame: ValueFrame,
+    value_type: ValueType,
     scale: Option<DynQuantity>,
     role: FieldBlockRole,
 }
 
 impl FieldBlock {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn discrete(
         domain: Id<kinds::Domain>,
         field: Id<kinds::Field>,
         space: Space,
-        shape: ValueShape,
-        dimension: DimExponents,
-        frame: ValueFrame,
+        value_type: ValueType,
         scale: DynQuantity,
         role: FieldBlockRole,
     ) -> Result<Self, Diagnostic> {
         if role == FieldBlockRole::CoefficientData
             || !scale.value().is_finite()
             || scale.value() <= 0.0
-            || scale.dim() != dimension
+            || scale.dim() != value_type.dimension()
         {
             return Err(invalid(
                 "an algebraic or eliminated Field block requires a finite positive scale with the Field dimension",
@@ -114,9 +111,7 @@ impl FieldBlock {
             domain,
             field,
             space: Some(space),
-            shape,
-            dimension,
-            frame,
+            value_type,
             scale: Some(scale),
             role,
         })
@@ -125,17 +120,13 @@ impl FieldBlock {
     pub(crate) const fn coefficient(
         domain: Id<kinds::Domain>,
         field: Id<kinds::Field>,
-        shape: ValueShape,
-        dimension: DimExponents,
-        frame: ValueFrame,
+        value_type: ValueType,
     ) -> Self {
         Self {
             domain,
             field,
             space: None,
-            shape,
-            dimension,
-            frame,
+            value_type,
             scale: None,
             role: FieldBlockRole::CoefficientData,
         }

@@ -1,8 +1,8 @@
 //! Shared discrete block projection for the accepted steady MINI path.
 
-use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueShape};
+use eqiora_core::{ScalarDomain, ValueFrame, ValueType};
 use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{
     AlgebraicBlock, MeshArtifactReference, ResolvedFieldwiseRealization,
@@ -60,9 +60,13 @@ pub(super) fn steady_stokes_block_system(
             domain,
             velocity,
             space_for(velocity),
-            ValueShape::new([2]).expect("two-component vector is representable"),
-            VELOCITY,
-            ValueFrame::SpatialCartesian,
+            ValueType::shaped(
+                ScalarDomain::Real,
+                VELOCITY,
+                ValueShape::new([2]).expect("two-component vector is representable"),
+                ValueFrame::SpatialCartesian,
+            )
+            .expect("admitted spatial type"),
             scales.velocity(),
             FieldBlockRole::Algebraic,
         )?,
@@ -70,18 +74,14 @@ pub(super) fn steady_stokes_block_system(
             domain,
             pressure,
             space_for(pressure),
-            ValueShape::scalar(),
-            PRESSURE,
-            ValueFrame::Invariant,
+            ValueType::scalar(ScalarDomain::Real, PRESSURE),
             scales.pressure(),
             FieldBlockRole::Algebraic,
         )?,
         FieldBlock::coefficient(
             domain,
             force,
-            ValueShape::scalar(),
-            PRESSURE,
-            ValueFrame::Invariant,
+            ValueType::scalar(ScalarDomain::Real, PRESSURE),
         ),
     ];
 
@@ -110,9 +110,7 @@ pub(super) fn steady_stokes_block_system(
             fields.push(FieldBlock::coefficient(
                 domain,
                 coefficient,
-                ValueShape::scalar(),
-                PRESSURE,
-                ValueFrame::Invariant,
+                ValueType::scalar(ScalarDomain::Real, PRESSURE),
             ));
         }
     }
@@ -135,9 +133,7 @@ pub(super) fn steady_stokes_block_system(
             fields.push(FieldBlock::coefficient(
                 domain,
                 coefficient,
-                ValueShape::scalar(),
-                VELOCITY,
-                ValueFrame::Invariant,
+                ValueType::scalar(ScalarDomain::Real, VELOCITY),
             ));
         }
     }
@@ -380,9 +376,13 @@ pub(super) fn transient_navier_stokes_block_system(
             domain,
             velocity,
             Space::simplex_p1_bubble(),
-            ValueShape::new([2]).expect("two-component vector is representable"),
-            VELOCITY,
-            ValueFrame::SpatialCartesian,
+            ValueType::shaped(
+                ScalarDomain::Real,
+                VELOCITY,
+                ValueShape::new([2]).expect("two-component vector is representable"),
+                ValueFrame::SpatialCartesian,
+            )
+            .expect("admitted spatial type"),
             scales.velocity(),
             FieldBlockRole::Algebraic,
         )?,
@@ -390,18 +390,14 @@ pub(super) fn transient_navier_stokes_block_system(
             domain,
             pressure,
             Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-            ValueShape::scalar(),
-            PRESSURE,
-            ValueFrame::Invariant,
+            ValueType::scalar(ScalarDomain::Real, PRESSURE),
             scales.pressure(),
             FieldBlockRole::Algebraic,
         )?,
         FieldBlock::coefficient(
             domain,
             force,
-            ValueShape::scalar(),
-            PRESSURE,
-            ValueFrame::Invariant,
+            ValueType::scalar(ScalarDomain::Real, PRESSURE),
         ),
     ];
     let mut relations = vec![
