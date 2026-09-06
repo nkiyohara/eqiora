@@ -116,8 +116,19 @@ fn whole_row_reversal_preserves_diffusion_reaction_and_source() {
 #[test]
 fn parameter_point_rebinding_preserves_the_original_compiled_form() {
     let source = source(&[vec![3.0]], false);
-    let form = derive(&source).unwrap();
     let program = program(&source);
+    let domain = program
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::CartesianBox { .. }) =>
+            {
+                Some(domain.id().erase())
+            }
+            _ => None,
+        })
+        .unwrap();
+    let form = CompiledLinearBlockForm::derive(&program, domain, 1).unwrap();
     let fields = program
         .nodes()
         .filter_map(|node| match node {

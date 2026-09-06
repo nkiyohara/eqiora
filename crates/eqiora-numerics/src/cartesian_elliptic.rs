@@ -1117,7 +1117,9 @@ pub fn linearize_scalar_elliptic_cartesian_fem(
         }
         let facet_quadrature = scalar_facet_quadrature(dimension)?;
         let facet_dimension = dimension - 1;
-        let facet_space = HypercubeQ1Space::new(facet_dimension)?;
+        let facet_space = (facet_dimension > 0)
+            .then(|| HypercubeQ1Space::new(facet_dimension))
+            .transpose()?;
         for facet_index in 0..mesh
             .entity_count(facet_dimension)
             .expect("mesh owns facets")
@@ -1147,7 +1149,10 @@ pub fn linearize_scalar_elliptic_cartesian_fem(
             let mut physical = vec![0.0; dimension];
             let mut physical_tangent = vec![0.0; dimension];
             for point in facet_quadrature.points() {
-                let basis = facet_space.tabulate(&point.coordinates)?;
+                let basis_values = match &facet_space {
+                    Some(space) => space.tabulate(&point.coordinates)?.values().to_vec(),
+                    None => vec![1.0],
+                };
                 geometry.map_point_jvp(&point.coordinates, &mut physical, &mut physical_tangent)?;
                 let (_, flux, flux_tangent) = model.boundary_jvp(
                     axis,
@@ -1163,7 +1168,7 @@ pub fn linearize_scalar_elliptic_cartesian_fem(
                         continue;
                     };
                     design_jacobian[global_row * design_dimension + coordinate] -=
-                        (scale_tangent * flux + scale * flux_tangent) * basis.values()[local_row];
+                        (scale_tangent * flux + scale * flux_tangent) * basis_values[local_row];
                 }
             }
         }
