@@ -13,6 +13,13 @@ use super::*;
 
 const AXIS: [f64; 4] = [0.0, 0.25, 0.75, 1.0];
 
+fn boundaries(symbols: &ModelSymbols) -> BTreeMap<(usize, BoundarySide), RawId> {
+    BTreeMap::from([
+        ((0, BoundarySide::Lower), symbols.get("left").unwrap()),
+        ((0, BoundarySide::Upper), symbols.get("right").unwrap()),
+    ])
+}
+
 fn authored(reaction: &[Vec<f64>], reverse: bool) -> (String, Vec<String>) {
     let names = (0..reaction.len())
         .map(|index| {
@@ -141,7 +148,7 @@ fn exercise_source(reaction: &[Vec<f64>], source: &str, names: &[String]) {
         &mesh,
         &quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
-        &|_, _, _, _| CartesianBoundaryValue::Essential(0.0),
+        &boundaries(&symbols),
     )
     .unwrap();
     assert_eq!(assembled.fields, form.fields());
@@ -295,11 +302,30 @@ fn two_fields_preserve_nonsymmetric_coupling_and_exact_identity_permutation() {
 
 #[test]
 fn fieldwise_nonzero_trace_and_natural_load_recover_linear_fields() {
-    // Assembly-only probe: the boundary compiler is checked separately.
     let (source, names) = authored(&[vec![0.0; 2], vec![0.0; 2]], false);
     let source = source
         .replace("- 1 * inverse_area", "- 0 * inverse_area")
-        .replace("- 2 * inverse_area", "- 0 * inverse_area");
+        .replace("- 2 * inverse_area", "- 0 * inverse_area")
+        .replace(
+            "representation space = continuum;",
+            "representation space = continuum; parameter q0: 1 / m = 2; parameter q1: 1 / m = 9;",
+        )
+        .replace(
+            "relation left_0 continuous on left { trace(field_0) = 0; }",
+            "relation left_0 continuous on left { trace(field_0) = 2; }",
+        )
+        .replace(
+            "relation left_1 continuous on left { trace(field_1) = 0; }",
+            "relation left_1 continuous on left { trace(field_1) = 4; }",
+        )
+        .replace(
+            "relation right_0 continuous on right { trace(field_0) = 0; }",
+            "relation right_0 continuous on right { normal(2 * grad(field_0)) = q0; }",
+        )
+        .replace(
+            "relation right_1 continuous on right { trace(field_1) = 0; }",
+            "relation right_1 continuous on right { normal(3 * grad(field_1)) = q1; }",
+        );
     let (form, symbols) = compiled(&source);
     let first = symbols.get(&names[0]).unwrap();
     let mesh = CartesianMesh::from_axes(vec![AXIS.to_vec()]).unwrap();
@@ -309,12 +335,7 @@ fn fieldwise_nonzero_trace_and_natural_load_recover_linear_fields() {
         &mesh,
         &quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
-        &|field, _, side, _| match (field == first, side) {
-            (true, BoundarySide::Lower) => CartesianBoundaryValue::Essential(2.0),
-            (false, BoundarySide::Lower) => CartesianBoundaryValue::Essential(4.0),
-            (true, BoundarySide::Upper) => CartesianBoundaryValue::Natural(2.0),
-            (false, BoundarySide::Upper) => CartesianBoundaryValue::Natural(9.0),
-        },
+        &boundaries(&symbols),
     )
     .unwrap();
     let problem = LinearProblem::new(

@@ -1,5 +1,6 @@
 //! Field-major Cartesian assembly of checked linear scalar equations.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use eqiora_assembly::{AssemblyBackend, AssemblyReport, LinearSystem};
@@ -15,6 +16,7 @@ use super::{CartesianBoundaryValue, CartesianQ1Field};
 use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::finalized_spatial::FinalizedLinearCore;
 use crate::form_compiler::linear::CompiledLinearBlockForm;
+use crate::scalar_conservation::ScalarExteriorLaw;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CartesianLinearAssembly {
@@ -82,20 +84,34 @@ impl CartesianLinearAssembly {
         })
     }
 
-    pub(crate) fn assemble<B>(
+    pub(crate) fn assemble(
         form: &CompiledLinearBlockForm,
         mesh: &CartesianMesh,
         quadrature: &QuadratureRule,
         backend: &dyn AssemblyBackend,
-        boundary: &B,
-    ) -> Result<Self, Diagnostic>
-    where
-        B: Fn(RawId, usize, BoundarySide, &[f64]) -> CartesianBoundaryValue + ?Sized,
-    {
+        boundaries: &BTreeMap<(usize, BoundarySide), RawId>,
+    ) -> Result<Self, Diagnostic> {
         super::validate_problem(mesh, quadrature)?;
         let dimension = mesh.topological_dimension();
         if form.dimension() != dimension {
             return Err(super::invalid("linear block and Mesh dimensions differ"));
+        }
+        let domains = boundaries.values().copied().collect::<BTreeSet<_>>();
+        if domains.len() != 2 * dimension
+            || boundaries.len() != domains.len()
+            || (0..dimension).any(|axis| {
+                [BoundarySide::Lower, BoundarySide::Upper]
+                    .iter()
+                    .any(|side| !boundaries.contains_key(&(axis, *side)))
+            })
+            || form
+                .boundary_laws()
+                .values()
+                .any(|laws| laws.keys().copied().collect::<BTreeSet<_>>() != domains)
+        {
+            return Err(super::invalid(
+                "linear boundary laws differ from the exact Cartesian support mapping",
+            ));
         }
         let vertices = mesh.entity_count(0).expect("Cartesian vertices");
         let count = form
@@ -109,8 +125,22 @@ impl CartesianLinearAssembly {
             .map_err(|_| super::invalid("linear block DOF allocation exceeds capacity"))?;
         let mut natural = Vec::new();
         for (index, (field, _)) in form.fields().iter().enumerate() {
-            let boundary =
-                |axis, side, coordinates: &[f64]| boundary(*field, axis, side, coordinates);
+            let boundary = |axis, side, coordinates: &[f64]| match &form.boundary_laws()[field]
+                [&boundaries[&(axis, side)]]
+            {
+                ScalarExteriorLaw::PrescribedTrace { value, .. } => {
+                    CartesianBoundaryValue::Essential(
+                        value.evaluate(coordinates).unwrap_or(f64::NAN),
+                    )
+                }
+                ScalarExteriorLaw::PrescribedOutwardFlux { value, .. } => {
+                    CartesianBoundaryValue::Natural(value.evaluate(coordinates).unwrap_or(f64::NAN))
+                }
+                ScalarExteriorLaw::ZeroOutwardFlux { .. } => CartesianBoundaryValue::Natural(0.0),
+                ScalarExteriorLaw::Robin { .. } => {
+                    unreachable!("linear compiler rejects Robin laws")
+                }
+            };
             fixed.extend(super::essential_fem_values(mesh, &boundary)?);
             natural.extend(super::natural_fem_facets(mesh, &boundary)?.into_iter().map(
                 |(local, facet_vertices)| {
