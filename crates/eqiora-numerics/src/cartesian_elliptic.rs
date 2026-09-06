@@ -32,6 +32,7 @@ use crate::operator::LocalOperator;
 use crate::spatial_design::SpatialDesignCoordinate;
 
 mod design;
+pub(crate) mod linear;
 
 use design::{activate_model_parameter, design_geometry, select_design_coordinates};
 
@@ -721,56 +722,30 @@ where
         .iter()
         .flat_map(|(local, _)| local.rhs())
         .sum::<f64>();
-    let assembly_plan = AssemblyPlan::new(vec![
-        AssemblyTarget::new(constrained_dofs.free_count())?,
-        AssemblyTarget::new(vertex_count)?,
-    ])?;
-    let reduced_target = assembly_plan
-        .target_id(0)
-        .expect("two-target FEM assembly plan owns its reduced target");
-    let full_target = assembly_plan
-        .target_id(1)
-        .expect("two-target FEM assembly plan owns its full target");
     let packet_count = cell_count
         .checked_add(natural_facets.len())
         .ok_or_else(|| invalid("Cartesian FEM packet count overflows usize"))?;
-    let work = IndexedAssemblyWork::new(packet_count, |packet_index| {
-        let (local, vertices) = if packet_index < cell_count {
-            let cell = MeshEntity::new(dimension, packet_index);
-            let geometry = mesh
-                .geometry_map(cell)
-                .expect("mesh cell has affine geometry");
-            (
-                operator.evaluate(&geometry, quadrature)?,
-                mesh.entity_vertices(cell)
-                    .expect("mesh cell has a vertex closure"),
-            )
-        } else {
-            natural_facets[packet_index - cell_count].clone()
-        };
-        let global_dofs = vertices
-            .iter()
-            .map(|vertex| vertex.index())
-            .collect::<Vec<_>>();
-        let reduced = constrained_dofs.reduced_map(&global_dofs)?;
-        let full = constrained_dofs.full_map(&global_dofs)?;
-        AssemblyPacket::new(
-            local,
-            vec![
-                TargetAssemblyMap::new(reduced_target, reduced),
-                TargetAssemblyMap::new(full_target, full),
-            ],
-        )
-    });
-    let (systems, assembly_report) = assembly.assemble(&assembly_plan, &work)?.into_parts();
-    let mut systems = systems.into_iter();
-    let reduced_system = systems
-        .next()
-        .expect("two-target FEM assembly returns its reduced system");
-    let full_system = systems
-        .next()
-        .expect("two-target FEM assembly returns its full system");
-    debug_assert!(systems.next().is_none());
+    let (reduced_system, full_system, assembly_report) =
+        constrained_dofs.assemble(assembly, packet_count, |packet_index| {
+            let (local, vertices) = if packet_index < cell_count {
+                let cell = MeshEntity::new(dimension, packet_index);
+                let geometry = mesh
+                    .geometry_map(cell)
+                    .expect("mesh cell has affine geometry");
+                (
+                    operator.evaluate(&geometry, quadrature)?,
+                    mesh.entity_vertices(cell)
+                        .expect("mesh cell has a vertex closure"),
+                )
+            } else {
+                natural_facets[packet_index - cell_count].clone()
+            };
+            let global_dofs = vertices
+                .iter()
+                .map(|vertex| vertex.index())
+                .collect::<Vec<_>>();
+            Ok((local, global_dofs))
+        })?;
 
     let integrated_source = full_system.rhs().iter().sum::<f64>() - natural_load;
     if !integrated_source.is_finite() {

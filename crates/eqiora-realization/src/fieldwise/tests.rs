@@ -58,6 +58,50 @@ fn physical_scales_fail_closed() {
 }
 
 #[test]
+fn cartesian_galerkin_binds_multiple_fields_without_a_physics_family() {
+    let fields = [Id::<kinds::Field>::new(), Id::<kinds::Field>::new()];
+    for (space, accepted) in [
+        (Space::continuous_lagrange(NonZeroU16::MIN), true),
+        (Space::simplex_p1_bubble(), false),
+        (Space::cell_constant(), false),
+    ] {
+        let spatial = FieldwiseSpatialDiscretization::new(
+            Id::new(),
+            length_scale(),
+            fields.map(|field| FieldSpaceBinding::new(field, space)),
+            [],
+            Discretization::new(
+                DiscretizationMethod::ContinuousGalerkin,
+                MeshPolicy::GeneratedUniform {
+                    cells_per_axis: NonZeroUsize::new(4).unwrap(),
+                },
+                QuadraturePolicy::GaussLegendre {
+                    points_per_axis: NonZeroUsize::new(2).unwrap(),
+                },
+            ),
+        )
+        .unwrap();
+        let result = FieldwiseRealizationPlan::new(
+            spatial,
+            scaling(
+                fields.map(|field| block_scale(AlgebraicBlock::Field(field), pressure_dimension())),
+            ),
+            LinearOperatorProperties::General,
+            SolverPlan::new(
+                LinearSolver::BiConjugateGradientStabilized,
+                1.0e-8,
+                1.0e-12,
+                NonZeroUsize::new(100).unwrap(),
+            )
+            .unwrap(),
+            host(),
+            ExecutionSchedule::Offline,
+        );
+        assert_eq!(result.is_ok(), accepted);
+    }
+}
+
+#[test]
 fn bindings_constraints_and_scaling_have_exact_coverage() {
     let domain = Id::<kinds::Domain>::new();
     let velocity = Id::<kinds::Field>::new();

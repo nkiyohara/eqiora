@@ -322,9 +322,21 @@ impl CommonResult {
                     solution.integrated_source(),
                 ),
             };
+        let (field_id, dimension) = {
+            let mut planned_fields = plan.fields();
+            let (field_id, value_type) = planned_fields
+                .next()
+                .ok_or_else(|| invalid("scalar Plan has no Fields"))?;
+            if planned_fields.next().is_some() {
+                return Err(invalid(
+                    "single-field solution does not cover the complete Plan",
+                ));
+            }
+            (field_id.ulid().to_string(), value_type.dimension())
+        };
         let field = CommonResultField::new(
-            plan.field_id().to_owned(),
-            plan.field_dimension(),
+            field_id,
+            dimension,
             Vec::new(),
             space,
             vec![CommonResultFieldBlock::new(

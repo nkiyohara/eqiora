@@ -299,9 +299,8 @@ impl CommonScalarPlan {
         let portable = resolve_common_scalar_portable(&admission, lowered, mesh, &cells)?;
         let realization_digest = hex_bytes(&portable.digest()?);
         let field = lowered.field_id();
-        let field_id = field.ulid().to_string();
-        let field_dimension = match admission.program().node(field.erase()) {
-            Some(KernelNode::Field(definition)) => definition.dimension(),
+        let value_type = match admission.program().node(field.erase()) {
+            Some(KernelNode::Field(definition)) => definition.value_type().clone(),
             _ => {
                 return Err(invalid(
                     "common scalar admission lost its exact semantic Field definition",
@@ -336,9 +335,7 @@ impl CommonScalarPlan {
             formulation,
             authored_formulation: accepted_authored_formulation,
             lineage,
-            field,
-            field_id,
-            field_dimension,
+            fields: Box::new([(field, value_type)]),
             cells,
         })
     }
@@ -374,6 +371,11 @@ impl CommonScalarPlan {
         selected: &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>],
         values: Option<&[f64]>,
     ) -> Result<CommonScalarDifferentiationPoint, Diagnostic> {
+        if self.fields.len() != 1 {
+            return Err(invalid(
+                "selected-Parameter differentiation requires a single-field Plan",
+            ));
+        }
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
         let RecognizedNativeModel::Scalar(template) = self.admission.recognized_model() else {
@@ -620,21 +622,19 @@ impl CommonScalarPlan {
         &self.portable
     }
 
+    /// Complete scalar-valued Field inventory in canonical identity order.
     #[must_use]
-    pub fn field_id(&self) -> &str {
-        &self.field_id
-    }
-
-    /// Exact scalar Field represented by this Plan.
-    #[must_use]
-    pub const fn field(&self) -> eqiora_core::Id<eqiora_core::entity::kinds::Field> {
-        self.field
-    }
-
-    /// Coherent-SI dimension of the exact scalar Field represented by this Plan.
-    #[must_use]
-    pub const fn field_dimension(&self) -> DimExponents {
-        self.field_dimension
+    pub fn fields(
+        &self,
+    ) -> impl ExactSizeIterator<
+        Item = (
+            eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+            &eqiora_core::ValueType,
+        ),
+    > + '_ {
+        self.fields
+            .iter()
+            .map(|(field, value_type)| (*field, value_type))
     }
 
     #[must_use]

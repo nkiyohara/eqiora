@@ -25,7 +25,7 @@ impl FieldwiseRealizationPlan {
     ///
     /// # Errors
     /// Returns `EQ0807` unless the spatial contract is one admitted complete
-    /// family -- continuous Galerkin on imported simplices or cell-centered
+    /// family -- continuous Galerkin on Cartesian cells or imported simplices, or cell-centered
     /// finite volume on generated Cartesian cells -- and scaling covers every
     /// Field and constraint-multiplier block exactly once.
     pub fn new(
@@ -93,6 +93,19 @@ impl FieldwiseRealizationPlan {
         ) {
             (
                 DiscretizationMethod::ContinuousGalerkin,
+                MeshPolicy::GeneratedUniform { .. }
+                | MeshPolicy::SuppliedCartesian { .. }
+                | MeshPolicy::SuppliedCartesian1d { .. }
+                | MeshPolicy::SuppliedCartesian3d { .. },
+                QuadraturePolicy::GaussLegendre { .. },
+            ) => self.spatial.field_spaces.iter().all(|binding| {
+                matches!(
+                    binding.space.family(),
+                    SpaceFamily::ContinuousLagrange { .. }
+                )
+            }),
+            (
+                DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::ImportedSimplicial { .. },
                 QuadraturePolicy::TriangleDuffyGaussLegendre { .. },
             ) => self.spatial.field_spaces.iter().all(|binding| {
@@ -114,7 +127,7 @@ impl FieldwiseRealizationPlan {
         };
         if !admitted {
             return Err(invalid_realization(
-                "field-wise realization requires either continuous Galerkin with an imported affine-simplex mesh, Duffy triangle quadrature, and continuous spaces, or cell-centered finite volume with a generated or supplied Cartesian mesh, cell-centroid quadrature, and cell-constant spaces",
+                "field-wise realization requires continuous Galerkin with Cartesian cells and Gauss-Legendre quadrature or imported affine simplices and Duffy triangle quadrature, or cell-centered finite volume with Cartesian cells, cell-centroid quadrature, and cell-constant spaces",
             ));
         }
         if matches!(self.schedule, ExecutionSchedule::RealTime { .. })

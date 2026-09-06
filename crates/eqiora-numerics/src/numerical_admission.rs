@@ -721,9 +721,12 @@ pub struct CommonScalarPlan {
     formulation: Option<CommonFormulationDescription>,
     authored_formulation: Option<AuthoredFormulationProjection>,
     lineage: CommonSpatialPlanLineage,
-    field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
-    field_id: String,
-    field_dimension: DimExponents,
+    fields: Box<
+        [(
+            eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+            eqiora_core::ValueType,
+        )],
+    >,
     cells: Box<[usize]>,
 }
 

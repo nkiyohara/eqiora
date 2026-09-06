@@ -35,15 +35,23 @@ pub(super) fn validate_fields(
                     ));
                 }
             };
-            fields.len() == 1
-                && field_matches(
-                    &fields[0],
-                    plan.field_id(),
-                    plan.field_dimension(),
-                    &[],
-                    space,
-                    &[(association, shape)],
-                )
+            fields.len() == plan.fields().len()
+                && plan.fields().all(|(id, value_type)| {
+                    let id = id.ulid().to_string();
+                    fields
+                        .iter()
+                        .find(|field| field.field_id == id)
+                        .is_some_and(|field| {
+                            field_matches(
+                                field,
+                                &id,
+                                value_type.dimension(),
+                                &[],
+                                space,
+                                &[(association, shape.clone())],
+                            )
+                        })
+                })
         }
         ResolvedCommonPlan::Elasticity(plan) => {
             let cells = plan.cells();
