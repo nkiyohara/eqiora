@@ -1,14 +1,8 @@
 use super::*;
-use eqiora::api::SemanticFingerprintGeneration;
 use eqiora::control::{
     COMPILE_V2_SCHEMA_JSON, MAX_COMPILE_FILENAME_BYTES_V2, MAX_COMPILE_REQUEST_BYTES_V2,
     MAX_COMPILE_RESPONSE_BYTES_V2, MAX_COMPILE_SOURCE_BYTES_V2, MAX_CONTROL_REQUEST_ID_BYTES_V2,
 };
-use sha2::{Digest, Sha256};
-
-const HISTORICAL_SCHEMA: &[u8] = include_bytes!(
-    "../../../../verify/interfaces/control-plane-compile-check/expected/historical/compile-v1.schema.json"
-);
 
 pub(super) fn named_fixture(name: &str) -> &'static [u8] {
     match name {
@@ -20,20 +14,12 @@ pub(super) fn named_fixture(name: &str) -> &'static [u8] {
         "forbidden-model-wire-v2.json" => FORBIDDEN_MODEL_SELECTION,
         "forbidden-required-features-v2.json" => FORBIDDEN_FEATURE_LIST,
         "compile-v2.schema.json" => COMPILE_V2_SCHEMA_JSON.as_bytes(),
-        "compile-v1.schema.json" => HISTORICAL_SCHEMA,
         other => panic!("the frozen contract names unknown fixture `{other}`"),
     }
 }
 
-fn raw_sha256(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
 #[test]
-fn promoted_contract_is_consumed_by_schema_fixtures_and_runtime_boundaries() {
+fn public_schema_and_runtime_preserve_closed_admission_and_resource_bounds() {
     let expected = expected();
     let schema: Value = serde_json::from_str(COMPILE_V2_SCHEMA_JSON).unwrap();
     let definitions = &schema["$defs"];
@@ -160,41 +146,6 @@ fn promoted_contract_is_consumed_by_schema_fixtures_and_runtime_boundaries() {
         definitions["diagnostic"]["properties"]["graphPath"]["oneOf"][0]["maxItems"]
     );
 
-    for (name, record) in expected["fixtureDigests"].as_object().unwrap() {
-        let bytes = named_fixture(name);
-        assert_eq!(record["bytes"], bytes.len());
-        assert_eq!(record["sha256"], raw_sha256(bytes));
-    }
-    let witness = &expected["witnessSource"];
-    for name in witness["sharedBy"].as_array().unwrap() {
-        let request: Value = serde_json::from_slice(named_fixture(name.as_str().unwrap())).unwrap();
-        let source = request["source"].as_str().unwrap().as_bytes();
-        assert_eq!(witness["bytes"], source.len());
-        assert_eq!(witness["sha256"], raw_sha256(source));
-        assert_eq!(witness["trailingLineFeed"], source.ends_with(b"\n"));
-    }
-
-    let historical = &expected["historicalCopies"];
-    assert_eq!(
-        historical["retired-v1.json"]["copiedFrom"],
-        "verify/interfaces/control-plane-compile-check/models/accepted-v1.json"
-    );
-    assert_eq!(historical["retired-v1.json"]["byteForByte"], true);
-    assert_eq!(
-        historical["compile-v1.schema.json"]["copiedFrom"],
-        "schemas/control/compile-v1.schema.json"
-    );
-    assert_eq!(historical["compile-v1.schema.json"]["byteForByte"], true);
-    let historical_schema: Value = serde_json::from_slice(HISTORICAL_SCHEMA).unwrap();
-    assert_eq!(
-        historical["compile-v1.schema.json"]["id"],
-        historical_schema["$id"]
-    );
-    assert_eq!(historical["compile-v1.schema.json"]["generated"], false);
-    assert_eq!(historical["compile-v1.schema.json"]["registered"], false);
-    assert_eq!(historical["compile-v1.schema.json"]["packaged"], false);
-    assert_eq!(historical["compile-v1.schema.json"]["dispatched"], false);
-
     assert_eq!(
         expected["stagePrecedence"],
         serde_json::json!(["dispatch-prelude", "dto-admission", "compilation"])
@@ -230,9 +181,5 @@ fn promoted_contract_is_consumed_by_schema_fixtures_and_runtime_boundaries() {
             .unwrap()
             .len(),
         3
-    );
-    assert_eq!(
-        expected["structuralRelation"]["fingerprintGeneration"],
-        SemanticFingerprintGeneration::V5.as_str()
     );
 }

@@ -2,7 +2,7 @@ use eqiora::DimExponents;
 use eqiora::api::ModelDocument;
 use eqiora::control::{CompileRequestV2, execute_compile_v2};
 use eqiora::language::{DraftExpression, DraftField, DraftRelation, ModelDraft};
-use serde::Deserialize;
+use serde_json::Value;
 
 const SCALAR_SOURCE: &str = r#"
 model decay {
@@ -16,40 +16,27 @@ model decay {
 const CURRENT_ONLY_SOURCE: &str = include_str!(
     "../../../verify/interfaces/current-authoring-profile/models/current-authoring.eqi"
 );
-const PROFILE: &[u8] =
-    include_bytes!("../../../verify/interfaces/current-authoring-profile/expected/profile.json");
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ExpectedProfile {
-    schema: String,
-    profile: String,
-    model_schema: String,
-    transaction_schema: String,
-}
 
 #[test]
 fn rust_authoring_edit_replay_and_control_share_the_current_profile() {
-    let expected: ExpectedProfile = serde_json::from_slice(PROFILE).unwrap();
-    assert_eq!(
-        expected.schema,
-        "eqiora.verify.current-authoring-profile/v1"
-    );
-    assert_eq!(expected.profile, "current");
+    let public_schema: Value = serde_json::from_str(include_str!(
+        "../../eqiora-api/schemas/compile-v2.schema.json"
+    ))
+    .unwrap();
+    let schemas = &public_schema["$defs"]["model"]["properties"];
 
     let source = ModelDocument::compile("elastic-relation.eqi", CURRENT_ONLY_SOURCE).unwrap();
     let source_bytes = source.canonical_json().unwrap();
-    assert!(
-        String::from_utf8_lossy(&source_bytes).contains(&expected.model_schema),
-        "ordinary source authoring must emit the current Model schema"
+    assert_eq!(
+        serde_json::from_slice::<Value>(&source_bytes).unwrap()["schema"],
+        schemas["schema"]["const"]
     );
     let edit = source
         .preview_value_edit(source.aliases()["mu"], 4.0)
         .unwrap();
-    assert!(
-        String::from_utf8(edit.transaction_json().unwrap())
-            .unwrap()
-            .contains(&expected.transaction_schema)
+    assert_eq!(
+        serde_json::from_slice::<Value>(&edit.transaction_json().unwrap()).unwrap()["schema"],
+        schemas["transactionSchema"]["const"]
     );
     let child = source.commit_value_edit(edit).unwrap().into_document();
     let child_bytes = child.canonical_json().unwrap();

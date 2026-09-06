@@ -1646,9 +1646,12 @@ mod tests {
     #[test]
     fn finalization_rejects_stale_model_revision_mesh_and_role() {
         let fixture = Fixture::new();
-        let foreign_source = ale_source().replace(
+        let mut foreign_source = ale_source();
+        replace_exactly(
+            &mut foreign_source,
             "parameter fluid_density: kg / m ^ 3 = 2;",
             "parameter fluid_density: kg / m ^ 3 = 2.5;",
+            1,
         );
         let foreign = Fixture::from_source(&foreign_source);
         assert!(
@@ -2213,7 +2216,9 @@ mod tests {
     }
 
     fn ale_source_3d() -> String {
-        let mut source = ale_source();
+        let mut source = ale_source()
+            .replace("vector<m / s, 2>", "vector<m / s, 3>")
+            .replace("vector<m, 2>", "vector<m, 3>");
         replace_exactly(
             &mut source,
             "ambient_dimension = 2",

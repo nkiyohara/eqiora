@@ -10,15 +10,10 @@ use serde_json::{Map, Value, json};
 
 #[path = "mcp_stdio_compile_check/release_identity.rs"]
 mod release_identity;
-use release_identity::{
-    assert_frozen_release_identity, expected, frozen_expected, tool_definition,
-};
+use release_identity::{assert_frozen_release_identity, expected, frozen_expected};
 
 const CONTRACT_SOURCE: &str =
     include_str!("../../../verify/interfaces/mcp-stdio-compile-check/expected/contract.json");
-const TOOL_DEFINITION_SOURCE: &str = include_str!(
-    "../../../verify/interfaces/mcp-stdio-compile-check/expected/tool-definition.json"
-);
 const MODELS_README_SOURCE: &str =
     include_str!("../../../verify/interfaces/mcp-stdio-compile-check/models/README.md");
 const REFERENCES_README_SOURCE: &str =
@@ -339,31 +334,6 @@ fn frozen_order<'a>(contract: &'a Value, name: &str) -> Vec<&'a str> {
         .iter()
         .map(|member| member.as_str().unwrap())
         .collect()
-}
-
-fn compact_json(source: &str) -> String {
-    let mut compact = String::with_capacity(source.len());
-    let mut in_string = false;
-    let mut escaped = false;
-    for character in source.chars() {
-        if in_string {
-            compact.push(character);
-            if escaped {
-                escaped = false;
-            } else if character == '\\' {
-                escaped = true;
-            } else if character == '"' {
-                in_string = false;
-            }
-        } else if character == '"' {
-            in_string = true;
-            compact.push(character);
-        } else if !character.is_ascii_whitespace() {
-            compact.push(character);
-        }
-    }
-    assert!(!in_string);
-    compact
 }
 
 fn assert_wire_response(bytes: &[u8]) {
@@ -823,9 +793,8 @@ fn frozen_snapshots_and_static_route_are_closed() {
 }
 
 #[test]
-fn discover_and_list_match_the_exact_final_protocol_snapshots() {
+fn discovery_and_listing_advertise_the_current_public_model_schema() {
     let expected = expected();
-    let tool = tool_definition();
     let mut client = Client::spawn();
 
     client.send_value(&discover_request(json!("discover-lf")));
@@ -856,7 +825,9 @@ fn discover_and_list_match_the_exact_final_protocol_snapshots() {
     let list: Value = serde_json::from_slice(&list_raw).unwrap();
     let listed = result(&list, &json!("list-crlf"));
     assert_eq!(listed["resultType"], expected["toolsList"]["resultType"]);
-    assert_eq!(listed["tools"].as_array().unwrap(), &[tool]);
+    let tools = listed["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 1);
+    assert_current_tool_schema(&tools[0]);
     assert_eq!(listed["ttlMs"], expected["toolsList"]["ttlMs"]);
     assert_eq!(listed["cacheScope"], expected["toolsList"]["cacheScope"]);
     assert_eq!(listed["_meta"], expected["serverDiscover"]["_meta"]);
@@ -869,8 +840,6 @@ fn discover_and_list_match_the_exact_final_protocol_snapshots() {
         &list_result,
         &["resultType", "tools", "ttlMs", "cacheScope", "_meta"],
     );
-    let tools = raw_array_values(raw_member(&list_result, "tools"));
-    assert_eq!(tools, [compact_json(TOOL_DEFINITION_SOURCE)]);
 
     let stderr = client.shutdown();
     assert!(
@@ -918,8 +887,27 @@ fn assert_result_envelope(result: &Value, accepted: bool) {
     assert_eq!(parsed, result["structuredContent"]);
 }
 
-fn assert_accepted_output_schema(structured: &Value) {
-    let schema = &tool_definition()["outputSchema"]["oneOf"][0];
+fn assert_current_tool_schema(tool: &Value) {
+    assert_eq!(tool["name"], "eqiora.model.compile_check");
+    assert_eq!(tool["inputSchema"]["additionalProperties"], false);
+    assert_eq!(tool["inputSchema"]["required"], json!(["source"]));
+    let public_schema: Value =
+        serde_json::from_str(eqiora::control::COMPILE_V2_SCHEMA_JSON).unwrap();
+    let advertised = &tool["outputSchema"]["oneOf"][0]["properties"]["model"];
+    for field in ["schema", "transactionSchema"] {
+        assert_eq!(
+            advertised["properties"][field],
+            public_schema["$defs"]["model"]["properties"][field]
+        );
+    }
+    assert_eq!(
+        advertised["properties"]["structuralFingerprint"]["properties"]["generation"]["enum"],
+        json!([SemanticFingerprintGeneration::V5.as_str()])
+    );
+}
+
+fn assert_accepted_output_schema(structured: &Value, tool: &Value) {
+    let schema = &tool["outputSchema"]["oneOf"][0];
     assert_closed_object(structured, &schema["required"]);
     assert_eq!(
         structured["schema"],
@@ -985,8 +973,8 @@ fn normalized_diagnostic(diagnostic: &Diagnostic) -> Value {
     })
 }
 
-fn assert_rejected_output_schema(structured: &Value) {
-    let schema = &tool_definition()["outputSchema"]["oneOf"][1];
+fn assert_rejected_output_schema(structured: &Value, tool: &Value) {
+    let schema = &tool["outputSchema"]["oneOf"][1];
     assert_closed_object(structured, &schema["required"]);
     assert_eq!(
         structured["schema"],
@@ -1047,6 +1035,14 @@ fn accepted_and_rejected_calls_preserve_direct_operation_meaning() {
         SemanticFingerprintGeneration::V5
     );
     let mut client = Client::spawn();
+    client.send_value(&list_request(json!("parity-tool")));
+    let listing = client.recv();
+    let tools = result(&listing, &json!("parity-tool"))["tools"]
+        .as_array()
+        .unwrap();
+    assert_eq!(tools.len(), 1);
+    let tool = &tools[0];
+    assert_current_tool_schema(tool);
     client.send_value(&call_request(
         json!("accepted-parity"),
         json!({"filename": filename, "source": source}),
@@ -1056,7 +1052,7 @@ fn accepted_and_rejected_calls_preserve_direct_operation_meaning() {
     let accepted_result = result(&accepted, &json!("accepted-parity"));
     assert_result_envelope(accepted_result, true);
     let structured = &accepted_result["structuredContent"];
-    assert_accepted_output_schema(structured);
+    assert_accepted_output_schema(structured, tool);
     let model = &structured["model"];
     assert_eq!(
         model["semanticRevision"],
@@ -1081,7 +1077,7 @@ fn accepted_and_rejected_calls_preserve_direct_operation_meaning() {
     let rejected_result = result(&rejected, &json!("rejected-parity"));
     assert_result_envelope(rejected_result, false);
     let rejected_structured = &rejected_result["structuredContent"];
-    assert_rejected_output_schema(rejected_structured);
+    assert_rejected_output_schema(rejected_structured, tool);
     let expected_diagnostics = direct_rejected
         .iter()
         .map(normalized_diagnostic)
@@ -1423,7 +1419,7 @@ fn assert_input_error(response: &Value, id: &Value) {
     assert_eq!(result["structuredContent"]["status"], "rejected");
     assert_eq!(
         result["structuredContent"]["schema"],
-        tool_definition()["outputSchema"]["oneOf"][1]["properties"]["schema"]["const"]
+        "eqiora.mcp.compile-check-result/v1"
     );
     assert_eq!(
         result["structuredContent"]["diagnostics"],

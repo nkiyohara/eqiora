@@ -14,29 +14,26 @@ CONTROL_FIXTURES = (
     / "interfaces"
     / "control-plane-compile-check"
 )
-CURRENT_PROFILE_FIXTURE = (
-    Path(__file__).resolve().parents[3]
-    / "verify"
-    / "interfaces"
-    / "current-authoring-profile"
-    / "expected"
-    / "profile.json"
-)
+CURRENT_MODEL_SCHEMA = json.loads(
+    (
+        Path(__file__).resolve().parents[3]
+        / "crates/eqiora-api/schemas/compile-v2.schema.json"
+    ).read_text(encoding="utf-8")
+)["$defs"]["model"]["properties"]["schema"]["const"]
 
 
 def load_control_fixture(relative_path: str) -> dict[str, object]:
     return json.loads((CONTROL_FIXTURES / relative_path).read_text(encoding="utf-8"))
 
 
-def test_python_authoring_and_replay_use_the_registered_current_profile() -> None:
-    profile = json.loads(CURRENT_PROFILE_FIXTURE.read_text(encoding="utf-8"))
+def test_python_authoring_and_replay_use_the_current_public_schema() -> None:
     model = eqiora.compile(source=SOURCE, filename="current.eqi")
-    assert json.loads(model.to_bytes())["schema"] == profile["modelSchema"]
+    assert json.loads(model.to_bytes())["schema"] == CURRENT_MODEL_SCHEMA
 
     state = eqiora.Field("x", initial=1.0)
     hold = eqiora.Relation("hold", residual=eqiora.derivative(state))
     native = eqiora.Model.define("hold", state, hold)
-    assert json.loads(native.to_bytes())["schema"] == profile["modelSchema"]
+    assert json.loads(native.to_bytes())["schema"] == CURRENT_MODEL_SCHEMA
     replayed = eqiora.Model.from_bytes(model.to_bytes())
     assert replayed.to_bytes() == model.to_bytes()
     assert replayed.digest == model.digest
@@ -187,7 +184,7 @@ def test_shared_compile_check_fixtures_cross_the_python_adapter() -> None:
         filename=accepted["filename"],
     )
     artifact = json.loads(model.to_bytes())
-    assert artifact["schema"] == accepted_expectation["modelSchema"]
+    assert artifact["schema"] == CURRENT_MODEL_SCHEMA
 
     rejected_expectation = next(
         rejection

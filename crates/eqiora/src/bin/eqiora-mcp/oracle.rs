@@ -18,15 +18,12 @@ use super::run_for_oracle;
 
 mod worker_outcomes;
 use worker_outcomes::{
-    accepted_source, assert_protocol_error, call, counting_harness, current_server_discover,
-    deterministic_harness, response_result, tool_definition,
+    accepted_source, assert_current_model_schema, assert_protocol_error, call, counting_harness,
+    current_server_discover, deterministic_harness, response_result, tool_definition,
 };
 
 const CONTRACT_SOURCE: &str =
     include_str!("../../../../../verify/interfaces/mcp-stdio-compile-check/expected/contract.json");
-const TOOL_DEFINITION_SOURCE: &str = include_str!(
-    "../../../../../verify/interfaces/mcp-stdio-compile-check/expected/tool-definition.json"
-);
 const ACCEPTED_CONTROL_REQUEST: &[u8] = include_bytes!(
     "../../../../../verify/interfaces/control-plane-compile-check/models/accepted-v2.json"
 );
@@ -401,15 +398,7 @@ fn admission_counts_once_and_links_the_descriptor_to_the_same_document() {
         fingerprint.digest()
     );
     assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V5);
-    let output_schema = &tool_definition()["outputSchema"]["oneOf"][0];
-    assert_eq!(
-        model["schema"],
-        output_schema["properties"]["model"]["properties"]["schema"]["const"]
-    );
-    assert_eq!(
-        model["transactionSchema"],
-        output_schema["properties"]["model"]["properties"]["transactionSchema"]["const"]
-    );
+    assert_current_model_schema(model);
     let text: Value = serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(text, result["structuredContent"]);
 

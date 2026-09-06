@@ -542,7 +542,8 @@ fn derivation_rejects_ambiguous_incomplete_foreign_and_mixed_roles() {
     let full_gradient = SOURCE.replace("symmetric_part(grad(displacement))", "grad(displacement)");
     assert_derivation_rejects(&full_gradient, "full-gradient constitutive law");
 
-    let wrong_field_shape = SOURCE.replace("shape spatial_vector", "shape scalar");
+    let wrong_field_shape = SOURCE.replace("vector<m, 2>", "m");
+    assert_ne!(wrong_field_shape, SOURCE);
     assert!(
         compile("compiled-cartesian-elasticity.eqi", &wrong_field_shape).is_err(),
         "wrong displacement field shape escaped semantic typing"
@@ -885,6 +886,7 @@ fn compile_program(source: &str) -> KernelProgram {
 }
 
 fn assert_derivation_rejects(source: &str, mutation: &str) {
+    assert_ne!(source, SOURCE, "{mutation} did not change its input");
     let program = compile_program(source);
     let error = derive_cartesian_q1_elasticity_form_2d(&program)
         .expect_err("structural mutant must fail closed");

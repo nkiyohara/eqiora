@@ -562,8 +562,8 @@ model dynamic_solid_3d {
   domain z_upper = boundary(solid, axis = 2, side = upper);
   representation space = continuum;
 
-  field displacement on solid as space: vector<m, 2>;
-  field velocity on solid as space: vector<m / s, 2>;
+  field displacement on solid as space: vector<m, 3>;
+  field velocity on solid as space: vector<m / s, 3>;
   field load on solid as space: kg / (m * s ^ 2) = 0;
   parameter density: kg / m ^ 3 = 3;
   parameter mu: kg / (m * s ^ 2) = 4;
