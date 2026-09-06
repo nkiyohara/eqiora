@@ -215,6 +215,14 @@ impl CompiledRegionForm {
 }
 
 impl BoundRegionForm {
+    pub(crate) const fn domain(&self) -> RawId {
+        self.form.domain()
+    }
+
+    pub(crate) const fn reference_cell(&self) -> ReferenceCell {
+        self.reference
+    }
+
     pub(crate) fn fields(&self) -> &[RegionFieldLayout] {
         &self.fields
     }

@@ -12,13 +12,13 @@ use super::binding::{BoundRegionForm, basis};
 use super::invalid;
 
 impl BoundRegionForm {
-    /// Previous coefficients are physical coherent-SI values, not scaled algebraic unknowns.
-    pub(crate) fn evaluate(
+    /// Validate local inputs without performing quadrature or constructing contributions.
+    pub(crate) fn validate_cell(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
         previous: &BTreeMap<RawId, Vec<f64>>,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<(), Diagnostic> {
         if geometry.reference_cell() != self.reference
             || quadrature.reference_cell() != self.reference
             || geometry.physical_dimension() != self.form.dimension
@@ -58,6 +58,17 @@ impl BoundRegionForm {
                 "previous coefficients require exact consumed Field coverage, shape and finite values",
             ));
         }
+        Ok(())
+    }
+
+    /// Previous coefficients are physical coherent-SI values, not scaled algebraic unknowns.
+    pub(crate) fn evaluate(
+        &self,
+        geometry: &AffineGeometryMap,
+        quadrature: &QuadratureRule,
+        previous: &BTreeMap<RawId, Vec<f64>>,
+    ) -> Result<LocalContribution, Diagnostic> {
+        self.validate_cell(geometry, quadrature, previous)?;
         let count = self.fields.last().expect("nonempty region").range.end;
         let entries = count
             .checked_mul(count)
