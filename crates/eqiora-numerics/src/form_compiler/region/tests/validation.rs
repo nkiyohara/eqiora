@@ -1,6 +1,33 @@
 use super::*;
 
 #[test]
+fn uniform_load_gradients_validate_their_parameter_values_before_erasure() {
+    for expression in ["load_scale / divisor", "0 * load_scale / divisor"] {
+        let source = MIXED
+            .replace("field v on", "parameter load_scale: kg / (m * s ^ 2) = 1; parameter divisor: 1 = 0; field load on body as space: kg / (m * s ^ 2); field v on")
+            .replace("relation balance", &format!("relation load_definition continuous on body {{ load - {expression} = 0; }} relation balance"))
+            .replace("isotropic_lift(p)) = 0", "isotropic_lift(p)) - grad(load) = 0");
+        assert!(
+            derive(&source)
+                .unwrap_err()
+                .message()
+                .contains("non-finite")
+        );
+        let valid = source.replace("divisor: 1 = 0", "divisor: 1 = 4");
+        let form = derive(&valid).unwrap();
+        let coefficient = form
+            .roles
+            .relations
+            .values()
+            .find(|role| matches!(role.kind, Role::Coefficient { .. }))
+            .unwrap();
+        // The defined Field and both Parameters remain exact dependencies even
+        // though the coordinate-independent load has a vanishing gradient.
+        assert_eq!(coefficient.dependencies.len(), 3);
+    }
+}
+
+#[test]
 fn exact_plan_bindings_reject_wrong_units_spaces_state_pairs_and_coverage() {
     let form = derive(ELIMINATED).unwrap();
     let reference = ReferenceCell::simplex(2).unwrap();

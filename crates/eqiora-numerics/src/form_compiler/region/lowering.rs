@@ -58,7 +58,12 @@ fn expression(
             }
         }
         ExprNode::Div(a, b) => recurse(*a, coefficient.divide(context.data(*b, depth + 1)?), row),
-        ExprNode::Constant(value) if value.literal() == 0.0 => Ok(()),
+        ExprNode::Constant(value) if value.literal() == 0.0 => {
+            if !coefficient.spatial() {
+                coefficient.evaluate(&vec![0.0; context.dimension])?;
+            }
+            Ok(())
+        }
         ExprNode::Divergence(value) if matches!(position, Position::Strong) => {
             if coefficient.spatial() {
                 return Err(invalid(
@@ -149,7 +154,15 @@ fn expression(
                     Ok(())
                 }
                 // A uniform isotropic stress has zero strong divergence/gradient.
-                Position::Isotropic if !data.spatial() && !coefficient.spatial() => Ok(()),
+                Position::Isotropic if !data.spatial() && !coefficient.spatial() => {
+                    // Coordinate independence proves this value is uniform, not
+                    // defined. Check the exact immutable Parameter point before
+                    // erasing its gradient; role dependencies remain retained.
+                    coefficient
+                        .multiply(data)
+                        .evaluate(&vec![0.0; context.dimension])?;
+                    Ok(())
+                }
                 _ => Err(invalid("unsupported spatial forcing in region weak form")),
             }
         }
