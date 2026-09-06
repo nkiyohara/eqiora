@@ -39,10 +39,9 @@ use crate::canonical_stokes::{
 };
 use crate::cartesian_elasticity::CartesianLinearElasticity2dSolution;
 use crate::cartesian_elliptic::{
-    CartesianBoundaryValue, finalize_scalar_elliptic_cartesian_fem,
-    finalize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fem,
-    linearize_scalar_elliptic_cartesian_fem_output, linearize_scalar_elliptic_cartesian_fvm,
-    linearize_scalar_elliptic_cartesian_fvm_output,
+    CartesianBoundaryValue, finalize_scalar_elliptic_cartesian_fvm,
+    linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
+    linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
 };
 use crate::common::{AssembledLinearizedRelation, SpatialDesignCoordinate};
 use crate::common_ode::{CommonOdePlan, CommonTsitouras45};

@@ -478,7 +478,7 @@ impl NativeNumericalAdmission {
                         (
                             field.downcast().expect("compiled Field identity"),
                             value_type,
-                            values.vertex_values().to_vec(),
+                            values.into_vertex_values(),
                         )
                     })
                     .collect(),

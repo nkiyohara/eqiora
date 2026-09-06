@@ -411,6 +411,7 @@ impl CommonScalarPlan {
                 "common scalar Plan lost its recognized mathematics",
             ));
         };
+        let equations = template;
         let descriptor = template.conservation_descriptor(self.admission.program())?;
         let derived_form = template.primal_form(self.admission.program())?;
         let template =
@@ -467,16 +468,18 @@ impl CommonScalarPlan {
         let finalized = match self.admission.spatial {
             NativeSpatialPolicy::ScalarQ1 => {
                 let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
-                let assembly = finalize_scalar_elliptic_cartesian_fem(
-                    mesh,
-                    &coefficient,
-                    &source,
-                    &boundary,
-                    &quadrature,
-                    &REFERENCE_ASSEMBLY_BACKEND,
-                    None,
-                )?;
-                FinalizedScalarEllipticCartesianProblem::finite_element(
+                let form = equations
+                    .form
+                    .bind_parameter_point(bound.parameter_fields(), bound.parameter_values())?;
+                let assembly =
+                    crate::cartesian_elliptic::linear::CartesianLinearAssembly::assemble(
+                        &form,
+                        mesh,
+                        &quadrature,
+                        &REFERENCE_ASSEMBLY_BACKEND,
+                        &equations.boundaries,
+                    )?;
+                FinalizedScalarEllipticCartesianProblem::finite_element_blocks(
                     self.portable.clone(),
                     solver,
                     VectorLayoutKind::Replicated,

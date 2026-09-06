@@ -708,6 +708,84 @@ fn general_linear() -> NativeLinearPolicy {
 }
 
 #[test]
+fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties() {
+    let geometry = rectangle();
+    let model = model(&geometry);
+    for spatial in [
+        CommonSpatialPolicy::Q1,
+        CommonSpatialPolicy::CellCenteredTpfa,
+    ] {
+        let plan = resolve_scalar_box(&model, resources(&geometry), spatial);
+        let parameter = plan
+            .admission
+            .program()
+            .nodes()
+            .find_map(|node| match node {
+                eqiora_schema::kernel::KernelNode::Parameter(value)
+                    if value.value_type().dimension()
+                        == DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).unwrap() =>
+                {
+                    Some(value.id())
+                }
+                _ => None,
+            })
+            .unwrap();
+        let output = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let (relation, field, _) = plan.differentiate(&[parameter], None).unwrap().into_parts();
+        assert_eq!(
+            relation.state_jacobian().properties(),
+            match spatial {
+                CommonSpatialPolicy::Q1 => LinearOperatorProperties::General,
+                CommonSpatialPolicy::CellCenteredTpfa =>
+                    LinearOperatorProperties::SymmetricPositiveDefinite,
+                _ => unreachable!(),
+            }
+        );
+        for (actual, expected) in field.values().iter().zip(&output.fields[0].2) {
+            assert!((actual - expected).abs() < 1.0e-10);
+        }
+        let (_, doubled, _) = plan
+            .differentiate(&[parameter], Some(&[4.0 * std::f64::consts::PI.powi(2)]))
+            .unwrap()
+            .into_parts();
+        for (actual, expected) in doubled.values().iter().zip(&output.fields[0].2) {
+            assert!((actual - 2.0 * expected).abs() < 1.0e-10);
+        }
+    }
+}
+
+#[test]
+fn scalar_interval_parameter_point_uses_point_boundary_facets() {
+    let geometry = cartesian_interval();
+    let model = scalar_box_model(
+        &geometry,
+        POISSON_INTERVAL,
+        "PoissonIntervalModel",
+        "PoissonInterval",
+        &["left", "right"],
+    );
+    let plan = resolve_scalar_box(
+        &model,
+        cartesian_box_resources(&geometry, &[3]),
+        CommonSpatialPolicy::Q1,
+    );
+    let parameter = plan
+        .admission
+        .program()
+        .nodes()
+        .find_map(|node| match node {
+            eqiora_schema::kernel::KernelNode::Parameter(value) => Some(value.id()),
+            _ => None,
+        })
+        .unwrap();
+    let output = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let (_, field, _) = plan.differentiate(&[parameter], None).unwrap().into_parts();
+    for (actual, expected) in field.values().iter().zip(&output.fields[0].2) {
+        assert!((actual - expected).abs() < 1.0e-10);
+    }
+}
+
+#[test]
 fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results() {
     for count in [1_i32, 2, 3] {
         let mut source = String::from(
