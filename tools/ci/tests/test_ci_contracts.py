@@ -539,6 +539,13 @@ jobs:
         self.assertIn("path: target/cargo-timings/*.html", timings)
         self.assertIn("if-no-files-found: error", timings)
         self.assertIn("retention-days: 7", timings)
+        cargo = tomllib.loads((REPOSITORY_ROOT / "Cargo.toml").read_text())
+        self.assertEqual(cargo["profile"]["test"], {
+            "package": {
+                "eqiora-compiler": {"opt-level": 0},
+                "eqiora-artifact": {"opt-level": 0},
+            },
+        })
 
     def test_quality_workspace_tests_use_step_scoped_runner_temp(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
