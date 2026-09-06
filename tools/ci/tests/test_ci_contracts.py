@@ -1462,6 +1462,19 @@ class ChangeClassificationTests(unittest.TestCase):
             self.assertTrue(not_reused.lane("rust").selected)
             self.assertEqual(not_reused.lane("rust").reason, "changed input closure")
 
+            with mock.patch("classify_changes.subprocess.run") as run, mock.patch(
+                "classify_changes.snapshot_changed_paths",
+                return_value=(["tools/ci/authenticate_previous_run.py"], False),
+            ):
+                run.side_effect = lambda arguments, **kwargs: original_run(
+                    arguments, cwd=repository, **kwargs
+                )
+                protected = apply_previous_run_reuse(
+                    plan, previous_sha=previous, current_sha=current,
+                    workflow="ci.yml", attestation=attestation,
+                )
+            self.assertEqual(protected.lanes, plan.lanes)
+
     def test_same_head_pages_reuse_requires_a_successful_full_build(self) -> None:
         head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
         plan = impact_plan(["docs/site/src/styles/site/layout.css"])
@@ -1512,10 +1525,15 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
             ("Stable quality gate", "Tests"),
             ("Python 3.11 installed wheel", "Test installed wheel"),
             ("Python 3.14 installed wheel", "Test installed wheel"),
+            ("MSRV 1.89", "Check every production feature and target"),
+            ("Dependency policy", "Check root dependency policy"),
+            ("Dependency policy", "Check Studio dependency policy"),
+            ("Isolated CubeCL contract experiment", "Device-independent contract tests"),
         )
         jobs = [
             {
                 "name": job,
+                "status": "completed",
                 "conclusion": "success",
                 "steps": [
                     {
@@ -1546,7 +1564,24 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
         )
         self.assertTrue(result["lanes"]["rust"])
         self.assertTrue(result["lanes"]["python"])
-        self.assertFalse(result["lanes"]["msrv"])
+        self.assertTrue(result["lanes"]["msrv"])
+        self.assertTrue(result["lanes"]["dependency_policy"])
+        self.assertTrue(result["lanes"]["cubecl_experiment"])
+        self.assertFalse(result["lanes"]["studio"])
+
+        run["conclusion"] = "failure"
+        jobs.append({
+            "name": "Studio projection and native boundary",
+            "status": "completed", "conclusion": "failure",
+            "steps": [{"name": "Production shell build", "status": "completed",
+                       "conclusion": "success"}],
+        })
+        partial = authenticate(
+            repository="nkiyohara/eqiora", pull_request=716,
+            previous_sha=previous, workflow="ci.yml", fetch=fetch,
+        )
+        self.assertEqual(partial["lanes"], result["lanes"])
+        jobs.pop()
 
         for job in jobs:
             with self.subTest(missing=job["name"]):
@@ -1558,11 +1593,40 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
                     workflow="ci.yml",
                     fetch=fetch,
                 )
-                lane = "rust" if job["name"] == "Stable quality gate" else "python"
+                lane = {
+                    "Stable quality gate": "rust", "MSRV 1.89": "msrv",
+                    "Dependency policy": "dependency_policy",
+                    "Isolated CubeCL contract experiment": "cubecl_experiment",
+                }.get(job["name"], "python")
                 self.assertFalse(result["lanes"][lane])
                 job["steps"][0]["conclusion"] = "success"
 
-    def test_rejects_missing_same_pr_success(self) -> None:
+        for status, conclusion in (("completed", "failure"), ("in_progress", "success"),
+                                   (None, "success")):
+            with self.subTest(job_status=status, job_conclusion=conclusion):
+                jobs[0].update(status=status, conclusion=conclusion)
+                result = authenticate(
+                    repository="nkiyohara/eqiora", pull_request=716,
+                    previous_sha=previous, workflow="ci.yml", fetch=fetch,
+                )
+                self.assertFalse(result["lanes"]["rust"])
+        jobs[0].update(status="completed", conclusion="success")
+        jobs.pop(2)  # One Python version cannot witness the complete matrix.
+        self.assertFalse(authenticate(
+            repository="nkiyohara/eqiora", pull_request=716,
+            previous_sha=previous, workflow="ci.yml", fetch=fetch,
+        )["lanes"]["python"])
+
+        for url in ("https://github.com/other/repo/actions/runs/91",
+                    "https://github.com/nkiyohara/eqiora/actions/runs/92"):
+            with self.subTest(url=url), self.assertRaisesRegex(ValueError, "canonical"):
+                run["html_url"] = url
+                authenticate(
+                    repository="nkiyohara/eqiora", pull_request=716,
+                    previous_sha=previous, workflow="ci.yml", fetch=fetch,
+                )
+
+    def test_rejects_missing_same_pr_completed_run(self) -> None:
         previous = "b" * 40
         wrong_pr = {
             "id": 92,
@@ -1580,12 +1644,14 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
             [{**same_pr, "pull_requests": [None, {"number": 999}]}],
             [{**same_pr, "head_sha": "c" * 40}],
             [{**same_pr, "event": "push"}],
-            [{**same_pr, "conclusion": "failure"}],
+            [{**same_pr, "conclusion": "cancelled"}],
+            [{**same_pr, "conclusion": "timed_out"}],
+            [{**same_pr, "conclusion": "skipped"}],
             [{**same_pr, "status": "in_progress"}],
         ]
         for runs in invalid_runs:
             with self.subTest(runs=runs), self.assertRaisesRegex(
-                ValueError, "did not find a successful prior workflow run"
+                ValueError, "did not find an eligible completed prior workflow run"
             ):
                 authenticate(
                     repository="nkiyohara/eqiora",
@@ -1593,6 +1659,62 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
                     previous_sha=previous,
                     workflow="ci.yml",
                     fetch=lambda url: {"total_count": len(runs), "workflow_runs": runs},
+                )
+
+    def test_failed_ci_witnesses_never_combine_runs_or_relax_pages(self) -> None:
+        previous = "a" * 40
+        runs = [{
+            "id": run_id, "head_sha": previous, "event": "pull_request",
+            "status": "completed", "conclusion": "failure",
+            "pull_requests": [{"number": 716}],
+            "html_url": f"https://github.com/nkiyohara/eqiora/actions/runs/{run_id}",
+        } for run_id in (91, 92)]
+        requested = []
+
+        def fetch(url: str) -> object:
+            self.assertTrue(url.startswith("https://api.github.com/repos/nkiyohara/eqiora/"))
+            if "/jobs?" not in url:
+                self.assertIn("/actions/workflows/ci.yml/runs?", url)
+                self.assertIn(f"head_sha={previous}", url)
+                return {"total_count": 2, "workflow_runs": runs}
+            run_id = int(url.split("/runs/", 1)[1].split("/", 1)[0])
+            requested.append(run_id)
+            witnesses = (
+                [("Stable quality gate", "Tests"),
+                 ("Python 3.11 installed wheel", "Test installed wheel")]
+                if run_id == 92 else
+                [("Python 3.14 installed wheel", "Test installed wheel")]
+            )
+            jobs = [{"name": name, "status": "completed", "conclusion": "success",
+                     "steps": [{"name": step, "status": "completed",
+                                "conclusion": "success"}]} for name, step in witnesses]
+            return {"total_count": len(jobs), "jobs": jobs}
+
+        result = authenticate(
+            repository="nkiyohara/eqiora", pull_request=716,
+            previous_sha=previous, workflow="ci.yml", fetch=fetch,
+        )
+        self.assertEqual(result["run_id"], 92)
+        self.assertTrue(result["lanes"]["rust"])
+        self.assertFalse(result["lanes"]["python"])
+        self.assertEqual(requested, [92])
+        with self.assertRaisesRegex(ValueError, "eligible completed"):
+            authenticate(
+                repository="nkiyohara/eqiora", pull_request=716,
+                previous_sha=previous, workflow="pages.yml",
+                fetch=lambda url: {"total_count": 2, "workflow_runs": runs},
+            )
+        for incomplete in ({"total_count": 3, "workflow_runs": runs},
+                           {"total_count": 1, "jobs": []}):
+            with self.subTest(incomplete=incomplete), self.assertRaisesRegex(
+                ValueError, "incomplete"
+            ):
+                authenticate(
+                    repository="nkiyohara/eqiora", pull_request=716,
+                    previous_sha=previous, workflow="ci.yml",
+                    fetch=lambda url: incomplete if (
+                        "workflow_runs" in incomplete or "/jobs?" in url
+                    ) else {"total_count": 2, "workflow_runs": runs},
                 )
 
     def test_pages_selects_newest_heavy_run_not_a_later_lightweight_success(self) -> None:
@@ -1614,7 +1736,7 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
                     requested.append(run_id)
                     return {"total_count": 1, "jobs": [{
                         "name": "Build and verify static documentation",
-                        "conclusion": "success", "steps": [{
+                        "status": "completed", "conclusion": "success", "steps": [{
                             "name": "Build and verify with only loopback networking",
                             "status": "completed",
                             "conclusion": "success" if run_id in heavy else "skipped",

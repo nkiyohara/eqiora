@@ -113,10 +113,13 @@ def authenticate(
             run.get("head_sha") == previous_sha
             and run.get("event") == "pull_request"
             and run.get("status") == "completed"
-            and run.get("conclusion") == "success"
+            and (
+                run.get("conclusion") == "success"
+                or (workflow == "ci.yml" and run.get("conclusion") == "failure")
+            )
             and isinstance(run.get("id"), int)
             # A rebase removes the old head from the live commit-to-PR index.
-            # The successful run retains its PR association; its head_sha above
+            # The completed run retains its PR association; its head_sha above
             # identifies the tested commit, not the PR object's current head.
             and isinstance(run.get("pull_requests"), list)
             and any(
@@ -126,7 +129,7 @@ def authenticate(
         ):
             candidates.append(run)
     if not candidates:
-        raise ValueError("did not find a successful prior workflow run")
+        raise ValueError("did not find an eligible completed prior workflow run")
     if len({run["id"] for run in candidates}) != len(candidates):
         raise ValueError("duplicate prior workflow run identity")
 
@@ -165,7 +168,11 @@ def _authenticate_pr_run(
 
     successful_steps: set[tuple[str, str]] = set()
     for job in jobs:
-        if not isinstance(job, dict) or job.get("conclusion") != "success":
+        if (
+            not isinstance(job, dict)
+            or job.get("status") != "completed"
+            or job.get("conclusion") != "success"
+        ):
             continue
         job_name = job.get("name")
         steps = job.get("steps")
