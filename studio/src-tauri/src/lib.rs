@@ -681,14 +681,14 @@ fn project_node(
                     direction: SignalDirection::Input,
                     value_type,
                 } => (
-                    format!("Causal signal input · {}", project_type(value_type)?),
+                    format!("Causal signal input · {}", project_type(&value_type)?),
                     Some(value_type.dimension().to_string()),
                 ),
                 PortPayload::Signal {
                     direction: SignalDirection::Output,
                     value_type,
                 } => (
-                    format!("Causal signal output · {}", project_type(value_type)?),
+                    format!("Causal signal output · {}", project_type(&value_type)?),
                     Some(value_type.dimension().to_string()),
                 ),
                 PortPayload::ScalarPhysical { domain } => {
