@@ -205,7 +205,7 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
             |_| panic!("scalar Plan replayed as FSI"),
         );
         assert_eq!(replayed.cells(), cells);
-        let result = replayed.run_result().unwrap();
+        let result = replayed.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
         let expected_shape = match spatial {
             CommonSpatialPolicy::Q1 => cells.iter().map(|count| count + 1).collect::<Vec<_>>(),
             CommonSpatialPolicy::CellCenteredTpfa => cells.to_vec(),
@@ -225,14 +225,14 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
         &model,
         exact_owner.clone(),
         NativeSpatialPolicy::ScalarQ1,
-        linear(),
+        general_linear(),
     )
     .unwrap();
     let q1_repeat = NativeNumericalAdmission::admit(
         &model,
         resources(&geometry),
         NativeSpatialPolicy::ScalarQ1,
-        linear(),
+        general_linear(),
     )
     .unwrap();
     let tpfa = NativeNumericalAdmission::admit(
@@ -248,7 +248,7 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
         NativeSpatialPolicy::ScalarQ1,
         NativeLinearPolicy::exact(
             SolverPlan::new(
-                LinearSolver::ConjugateGradient,
+                LinearSolver::BiConjugateGradientStabilized,
                 1.0e-10,
                 1.0e-13,
                 NonZeroUsize::new(1000).unwrap(),
@@ -270,16 +270,16 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
     assert_eq!(q1.resources(), q1_repeat.resources());
     assert!(q1.execute_scalar(&AlternateScalarBackend).is_err());
     assert_eq!(
-        q1.execute_scalar(&REFERENCE_LINEAR_SOLVER)
-            .unwrap()
-            .into_primary_field_values()
+        q1.execute_scalar(&REFERENCE_LINEAR_SOLVER).unwrap().fields[0]
+            .2
             .len(),
         12
     );
     assert_eq!(
         tpfa.execute_scalar(&REFERENCE_LINEAR_SOLVER)
             .unwrap()
-            .into_primary_field_values()
+            .fields[0]
+            .2
             .len(),
         6
     );
@@ -369,9 +369,17 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     assert_eq!(q1.cells(), [2, 3]);
     let mut crossed_realization = q1.clone();
     crossed_realization.portable = tpfa.portable_realization().clone();
-    assert!(crossed_realization.run().is_err());
-    assert_eq!(q1.run().unwrap().into_primary_field_values().len(), 12);
-    assert_eq!(tpfa.run().unwrap().into_primary_field_values().len(), 6);
+    assert!(crossed_realization.run(&REFERENCE_LINEAR_SOLVER).is_err());
+    assert_eq!(
+        q1.run(&REFERENCE_LINEAR_SOLVER).unwrap().fields[0].2.len(),
+        12
+    );
+    assert_eq!(
+        tpfa.run(&REFERENCE_LINEAR_SOLVER).unwrap().fields[0]
+            .2
+            .len(),
+        6
+    );
     assert!(
         resolve_common_plan(
             &model,
@@ -502,7 +510,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
         .unwrap()
         .with_reduction(ReductionPolicy::Fast),
         SolverPlan::new(
-            LinearSolver::BiConjugateGradientStabilized,
+            LinearSolver::ConjugateGradient,
             1.0e-10,
             1.0e-13,
             NonZeroUsize::new(1000).unwrap(),
@@ -683,4 +691,91 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
         )
         .is_err()
     );
+}
+
+fn general_linear() -> NativeLinearPolicy {
+    NativeLinearPolicy::exact(
+        SolverPlan::new(
+            LinearSolver::BiConjugateGradientStabilized,
+            1.0e-10,
+            1.0e-13,
+            NonZeroUsize::new(1000).unwrap(),
+        )
+        .unwrap(),
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap()
+}
+
+#[test]
+fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results() {
+    for count in [1_i32, 2, 3] {
+        let mut source = String::from(
+            "public component Coupled { public support body: volume(ambient_dimension = 1); public support left: boundary(parent = body); public support right: boundary(parent = body); public parameter source_scale: 1 / m ^ 2; representation space = continuum;\n",
+        );
+        for row in 0..count {
+            source += &format!("field f{row} on body as space: 1;\n");
+        }
+        for row in 0..count {
+            let coefficients = (0..count)
+                .map(|column| if row == column { 6 } else { 3 * (row - column) })
+                .collect::<Vec<_>>();
+            // Two h=1/2 elements: the interior diffusion entry is 4,
+            // reaction mass entry is C/3, and a constant load integrates to f/2.
+            // Choosing f=8+2*sum(C)/3 therefore gives every interior value 1.
+            let load = 8 + 2 * coefficients.iter().sum::<i32>() / 3;
+            source += &format!("relation row{row} continuous on body {{ -div(grad(f{row}))");
+            for (column, coefficient) in coefficients.iter().enumerate() {
+                source += &format!(" + ({coefficient}) * source_scale * f{column}");
+            }
+            source += &format!(
+                " - ({load}) * source_scale = 0; }}\nrelation left{row} continuous on left {{ trace(f{row}) = 0; }}\nrelation right{row} continuous on right {{ trace(f{row}) = 0; }}\n"
+            );
+        }
+        source += "}";
+        let geometry = cartesian_interval();
+        let model = scalar_box_model(
+            &geometry,
+            &source,
+            "CoupledModel",
+            "Coupled",
+            &["left", "right"],
+        );
+        let plan = resolve_scalar_box(
+            &model,
+            cartesian_box_resources(&geometry, &[2]),
+            CommonSpatialPolicy::Q1,
+        );
+        assert_eq!(plan.fields().len(), usize::try_from(count).unwrap());
+        let resolved = ResolvedCommonPlan::Scalar(Box::new(plan));
+        assert_eq!(
+            resolved.operator_properties(),
+            Some(LinearOperatorProperties::General)
+        );
+        let replayed = replay_plan(resolved, &ResolveOnlyBackend);
+        let ResolvedCommonPlan::Scalar(plan) = &replayed else {
+            unreachable!()
+        };
+        let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+        assert_eq!(result.field_count(), usize::try_from(count).unwrap());
+        for index in 0..result.field_count() {
+            let (_, values, shape) = result.field_block(index, 0).unwrap();
+            assert_eq!(shape, &[3]);
+            for (actual, expected) in values.iter().zip([0.0, 1.0, 0.0]) {
+                assert!((actual - expected).abs() < 1.0e-9, "{actual} != {expected}");
+            }
+        }
+        let bytes = result.to_bytes().unwrap();
+        assert_eq!(
+            crate::CommonResult::from_bytes(&bytes, &replayed)
+                .unwrap()
+                .to_bytes()
+                .unwrap(),
+            bytes
+        );
+        let old = String::from_utf8(bytes)
+            .unwrap()
+            .replace("eqiora.common-result/v3", "eqiora.common-result/v2");
+        assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
+    }
 }

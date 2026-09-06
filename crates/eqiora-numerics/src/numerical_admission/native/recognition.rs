@@ -95,7 +95,7 @@ pub(crate) fn resource_artifact_digests(
 
 pub(crate) fn recognize_capability(
     program: &KernelProgram,
-    scalar: &Result<ExecutableSteadyScalarConservation, Diagnostic>,
+    scalar: &Result<ExecutableScalarEquations, Diagnostic>,
     transient: &Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
     transient_geometry: &Result<(), Diagnostic>,
     fsi: &Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
@@ -160,7 +160,7 @@ pub(crate) fn recognize_exact_model(
     capability: NativeCapability,
     program: &KernelProgram,
     resources: &NativeMeshResources,
-    scalar: Result<ExecutableSteadyScalarConservation, Diagnostic>,
+    scalar: Result<ExecutableScalarEquations, Diagnostic>,
     transient: Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
     fsi: Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
@@ -246,7 +246,7 @@ pub(crate) fn recognize_exact_model(
 pub(crate) fn lower_scalar_candidate(
     program: &KernelProgram,
     resources: &NativeMeshResources,
-) -> Result<ExecutableSteadyScalarConservation, Diagnostic> {
+) -> Result<ExecutableScalarEquations, Diagnostic> {
     let NativeMeshResources::Cartesian {
         geometry,
         mesh,
@@ -260,11 +260,7 @@ pub(crate) fn lower_scalar_candidate(
     };
     let (domain, bounds, boundaries) =
         geometry_cartesian_support(program, geometry, mesh, correspondence)?;
-    let descriptor = recognize_scalar_conservation_on_supports(
-        program,
-        vec![ScalarRegionSupport::new(domain, bounds, boundaries)],
-    )?;
-    ExecutableSteadyScalarConservation::new(program, descriptor)
+    ExecutableScalarEquations::new(program, domain, bounds, boundaries)
 }
 
 pub(crate) fn require_policy_compatibility(
@@ -273,10 +269,15 @@ pub(crate) fn require_policy_compatibility(
     linear: &NativeLinearPolicy,
 ) -> Result<(), Diagnostic> {
     let (properties, method_specific_tuple) = match (capability, spatial) {
-        (
-            NativeCapability::ScalarElliptic,
-            NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa,
-        ) => (
+        (NativeCapability::ScalarElliptic, NativeSpatialPolicy::ScalarQ1) => (
+            LinearOperatorProperties::General,
+            linear.planning_objective.is_none().then_some((
+                LinearSolver::BiConjugateGradientStabilized,
+                PreconditionerPolicy::Identity,
+                ReductionPolicy::Reproducible,
+            )),
+        ),
+        (NativeCapability::ScalarElliptic, NativeSpatialPolicy::ScalarTpfa) => (
             LinearOperatorProperties::SymmetricPositiveDefinite,
             Some((
                 LinearSolver::ConjugateGradient,

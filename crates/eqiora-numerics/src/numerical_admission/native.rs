@@ -222,7 +222,7 @@ pub(super) struct NativeNumericalAdmission {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum RecognizedNativeModel {
-    Scalar(Box<ExecutableSteadyScalarConservation>),
+    Scalar(Box<ExecutableScalarEquations>),
     Elasticity(Box<IsotropicElasticityContinuum<2>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
@@ -276,6 +276,12 @@ impl RecognizedNativeAdmission {
     ) -> Result<NativeNumericalAdmission, Diagnostic> {
         require_policy_compatibility(self.capability, spatial, &linear)?;
         validate_resources(self.capability, spatial, &self.resources)?;
+        if spatial == NativeSpatialPolicy::ScalarTpfa {
+            let RecognizedNativeModel::Scalar(equations) = &self.recognized else {
+                return Err(invalid("TPFA requires scalar equations"));
+            };
+            equations.conservation_descriptor(&self.program)?;
+        }
         let policy_identity = policy_identity(spatial, &linear, temporal, nonlinear);
         Ok(NativeNumericalAdmission {
             recognition: self,
@@ -429,7 +435,7 @@ impl NativeNumericalAdmission {
     pub(super) fn execute_scalar(
         &self,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<ResolvedScalarEllipticCartesianSolution, Diagnostic> {
+    ) -> Result<CommonScalarRunOutput, Diagnostic> {
         self.revalidate()?;
         if backend.provider() != self.linear.provider
             || backend.capabilities() != self.linear.capabilities
@@ -448,7 +454,43 @@ impl NativeNumericalAdmission {
                 "native numerical admission does not own recognized scalar-elliptic meaning",
             ));
         };
-        let region = lowered.region();
+        let solve = LinearSolveRequest::new(backend, self.linear.solver);
+        if self.spatial == NativeSpatialPolicy::ScalarQ1 {
+            let quadrature = QuadratureRule::tensor_product_gauss_legendre(mesh.dimension(), 2)?;
+            let output = crate::cartesian_elliptic::linear::CartesianLinearAssembly::assemble(
+                &lowered.form,
+                mesh.mesh(),
+                &quadrature,
+                &REFERENCE_ASSEMBLY_BACKEND,
+                &lowered.boundaries,
+            )?
+            .solve(
+                solve,
+                Target::HostCpu {
+                    threads: self.linear.workers,
+                },
+            )?;
+            return Ok(CommonScalarRunOutput {
+                fields: output
+                    .fields
+                    .into_iter()
+                    .map(|(field, value_type, values)| {
+                        (
+                            field.downcast().expect("compiled Field identity"),
+                            value_type,
+                            values.vertex_values().to_vec(),
+                        )
+                    })
+                    .collect(),
+                solve_report: output.solve_report,
+                assembly_report: output.assembly_report,
+            });
+        }
+        let descriptor = lowered.conservation_descriptor(self.program())?;
+        let region = descriptor
+            .regions()
+            .next()
+            .expect("one admitted TPFA region");
         let source = |coordinates: &[f64]| {
             region.source().map_or(0.0, |source| {
                 source
@@ -487,22 +529,7 @@ impl NativeNumericalAdmission {
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         match self.spatial {
             NativeSpatialPolicy::ScalarQ1 => {
-                let quadrature =
-                    QuadratureRule::tensor_product_gauss_legendre(mesh.dimension(), 2)?;
-                let finalized = finalize_scalar_elliptic_cartesian_fem(
-                    mesh.mesh(),
-                    &coefficient,
-                    &source,
-                    &boundary,
-                    &quadrature,
-                    &REFERENCE_ASSEMBLY_BACKEND,
-                    lowered.compiled_form(),
-                )?;
-                let (system, state) = finalized.into_canonical()?;
-                let solved = solve.solve(&system.linear_problem()?)?;
-                state
-                    .finish(solved, system)
-                    .map(ResolvedScalarEllipticCartesianSolution::FiniteElement)
+                unreachable!("Q1 executed through linear block assembly")
             }
             NativeSpatialPolicy::ScalarTpfa => {
                 let cell = QuadratureRule::tensor_product_gauss_legendre(mesh.dimension(), 1)?;
@@ -522,9 +549,19 @@ impl NativeNumericalAdmission {
                 )?;
                 let (system, state) = finalized.into_canonical()?;
                 let solved = solve.solve(&system.linear_problem()?)?;
-                state
-                    .finish(solved, system)
-                    .map(ResolvedScalarEllipticCartesianSolution::FiniteVolume)
+                let solution = state.finish(solved, system)?;
+                let [(field, value_type)] = lowered.form.fields() else {
+                    return Err(invalid("TPFA requires one admitted Field"));
+                };
+                Ok(CommonScalarRunOutput {
+                    fields: vec![(
+                        field.downcast().expect("compiled Field identity"),
+                        value_type.clone(),
+                        solution.cell_values().to_vec(),
+                    )],
+                    solve_report: solution.solve_report().clone(),
+                    assembly_report: *solution.assembly_report(),
+                })
             }
             NativeSpatialPolicy::ElasticityQ1 => Err(invalid(
                 "scalar execution received an elasticity spatial policy",

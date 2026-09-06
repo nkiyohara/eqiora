@@ -1,5 +1,6 @@
 use super::solver_planning::{
-    resolve_fixed_reference_fsi, resolve_reference_spd, resolve_stokes_mini, resolve_transient_flow,
+    resolve_fixed_reference_fsi, resolve_general, resolve_reference_spd, resolve_stokes_mini,
+    resolve_transient_flow,
 };
 use super::spatial_planning::{
     TransientSpatialDecision, require_fixed_reference_fsi, resolve_elasticity, resolve_scalar,
@@ -65,7 +66,11 @@ pub fn resolve_common_plan(
                 }
                 _ => unreachable!("scalar resolution returns only scalar policies"),
             };
-            let linear = resolve_reference_spd(solve)?;
+            let linear = match spatial {
+                NativeSpatialPolicy::ScalarQ1 => resolve_general(solve, stokes_backend)?,
+                NativeSpatialPolicy::ScalarTpfa => resolve_reference_spd(solve)?,
+                _ => unreachable!("scalar spatial selection"),
+            };
             let admission = recognized.complete(spatial, linear, None, None)?;
             CommonScalarPlan::from_admission(
                 model,

@@ -1,100 +1,97 @@
 use super::*;
 
-/// Exact steady conservation meaning admitted for Cartesian execution.
-///
-/// Q1 and TPFA retain this shared descriptor and add only their realization.
+/// Checked scalar equations and their exact Cartesian support.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ExecutableSteadyScalarConservation {
-    descriptor: ScalarConservationDescriptor,
-    compiled_form: Option<crate::form_compiler::DerivedScalarGalerkinForm>,
+pub(crate) struct ExecutableScalarEquations {
+    pub(super) form: crate::form_compiler::linear::CompiledLinearBlockForm,
+    bounds: Vec<[f64; 2]>,
+    pub(super) boundaries: BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
 }
 
-impl ExecutableSteadyScalarConservation {
+impl ExecutableScalarEquations {
     pub(super) fn new(
         program: &KernelProgram,
-        descriptor: ScalarConservationDescriptor,
+        domain: eqiora_core::RawId,
+        bounds: Vec<[f64; 2]>,
+        boundaries: BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
     ) -> Result<Self, Diagnostic> {
-        if descriptor.model() != program.model()
-            || descriptor.semantic_revision() != program.revision().0
-        {
-            return Err(crate::canonical::model_lowering_error(
-                program,
-                "scalar-conservation descriptor differs from the exact Kernel Program",
-            ));
-        }
-        let regions = descriptor.regions().collect::<Vec<_>>();
-        let [region] = regions.as_slice() else {
-            return Err(crate::canonical::model_lowering_error(
-                program,
-                "steady Cartesian execution requires exactly one scalar-conservation region",
-            ));
-        };
-        if region.storage().is_some() || descriptor.interfaces().len() != 0 {
-            return Err(crate::canonical::lowering_error(
-                region.domain(),
-                "steady Cartesian execution does not admit storage or material interfaces",
-            ));
-        }
-        for boundary in region.exterior() {
-            if matches!(boundary.law(), ScalarExteriorLaw::Robin { .. }) {
-                return Err(crate::canonical::lowering_error(
-                    boundary.boundary(),
-                    "steady Cartesian Q1/TPFA execution does not yet admit Robin boundaries",
-                ));
-            }
-        }
-        for axis in 0..region.dimensions() {
-            for side in [BoundarySide::Lower, BoundarySide::Upper] {
-                if region.exterior_at(axis, side).is_none() {
-                    return Err(crate::canonical::lowering_error(
-                        region.domain(),
-                        format!(
-                            "steady Cartesian execution is missing boundary axis {axis} {side:?}"
-                        ),
-                    ));
-                }
-            }
-        }
-        let compiled_form = crate::form_compiler::derive_candidate_with_dimension(
+        let form = crate::form_compiler::linear::CompiledLinearBlockForm::derive(
             program,
-            region.domain(),
-            region.dimensions(),
+            domain,
+            bounds.len(),
         )?;
+        let expected = boundaries.values().copied().collect::<BTreeSet<_>>();
+        if form
+            .boundary_laws()
+            .values()
+            .any(|laws| laws.keys().copied().collect::<BTreeSet<_>>() != expected)
+        {
+            return Err(invalid(
+                "compiled boundary laws differ from authenticated Geometry support",
+            ));
+        }
         Ok(Self {
-            descriptor,
-            compiled_form,
+            form,
+            bounds,
+            boundaries,
         })
     }
 
-    pub(super) const fn descriptor(&self) -> &ScalarConservationDescriptor {
-        &self.descriptor
-    }
-
-    pub(super) fn region(&self) -> &ScalarConservationRegion {
-        self.descriptor
-            .regions()
-            .next()
-            .expect("steady scalar admission owns exactly one region")
-    }
-
     pub(super) fn domain_id(&self) -> eqiora_core::Id<eqiora_core::entity::kinds::Domain> {
-        self.region()
+        self.form
             .domain()
             .downcast()
-            .expect("scalar-conservation recognition stores a Domain identifier")
+            .expect("compiled Domain identity")
     }
 
-    pub(super) fn field_id(&self) -> eqiora_core::Id<eqiora_core::entity::kinds::Field> {
-        self.region()
-            .field()
-            .downcast()
-            .expect("scalar-conservation recognition stores a Field identifier")
-    }
-
-    pub(super) const fn compiled_form(
+    /// Independently admit the bounded conservation subset for TPFA or differentiation.
+    pub(super) fn conservation_descriptor(
         &self,
-    ) -> Option<&crate::form_compiler::DerivedScalarGalerkinForm> {
-        self.compiled_form.as_ref()
+        program: &KernelProgram,
+    ) -> Result<ScalarConservationDescriptor, Diagnostic> {
+        let descriptor = recognize_scalar_conservation_on_supports(
+            program,
+            vec![ScalarRegionSupport::new(
+                self.form.domain(),
+                self.bounds.clone(),
+                self.boundaries.clone(),
+            )],
+        )?;
+        let regions = descriptor.regions().collect::<Vec<_>>();
+        let [region] = regions.as_slice() else {
+            return Err(invalid("steady scalar conservation requires one region"));
+        };
+        if region.storage().is_some() || descriptor.interfaces().len() != 0 {
+            return Err(invalid(
+                "steady scalar conservation does not admit storage or interfaces",
+            ));
+        }
+        if region
+            .exterior()
+            .any(|boundary| matches!(boundary.law(), ScalarExteriorLaw::Robin { .. }))
+        {
+            return Err(invalid(
+                "steady scalar conservation does not admit Robin boundaries",
+            ));
+        }
+        Ok(descriptor)
+    }
+
+    /// Existing authored single-equation Formulation metadata, never an execution fallback.
+    fn primal_form(
+        &self,
+        program: &KernelProgram,
+    ) -> Result<Option<crate::form_compiler::DerivedScalarGalerkinForm>, Diagnostic> {
+        if self.form.fields().len() != 1 {
+            return Ok(None);
+        }
+        Ok(crate::form_compiler::derive_candidate_with_dimension(
+            program,
+            self.form.domain(),
+            self.bounds.len(),
+        )
+        .ok()
+        .flatten())
     }
 }
 
@@ -126,7 +123,7 @@ fn describe_primal(
 
 pub(super) fn resolve_common_scalar_portable(
     admission: &NativeNumericalAdmission,
-    lowered: &ExecutableSteadyScalarConservation,
+    lowered: &ExecutableScalarEquations,
     mesh: &CartesianMeshEnvelopeV1,
     cells: &[usize],
 ) -> Result<PortableRealizationGraph, Diagnostic> {
@@ -177,7 +174,7 @@ pub(super) fn resolve_common_scalar_portable(
     admission.linear.capabilities.require_problem(
         solver,
         ScalarType::F64,
-        LinearOperatorProperties::SymmetricPositiveDefinite,
+        scalar_operator_properties(admission.spatial),
     )?;
     PortableRealizationGraph::linear_fields(
         RealizationLineage::explicit(
@@ -186,12 +183,14 @@ pub(super) fn resolve_common_scalar_portable(
             RealizationRevision::new(COMMON_SCALAR_REALIZATION_REVISION),
         ),
         lowered.domain_id(),
-        [eqiora_realization::FieldSpaceBinding::new(
-            lowered.field_id(),
-            space,
-        )],
+        lowered.form.fields().iter().map(|(field, _)| {
+            eqiora_realization::FieldSpaceBinding::new(
+                field.downcast().expect("compiled Field identity"),
+                space,
+            )
+        }),
         Discretization::new(method, mesh, quadrature),
-        LinearOperatorProperties::SymmetricPositiveDefinite,
+        scalar_operator_properties(admission.spatial),
         ScalarType::F64,
         VectorLayoutKind::Replicated,
         solver,
@@ -203,6 +202,12 @@ pub(super) fn resolve_common_scalar_portable(
 }
 
 impl CommonScalarPlan {
+    /// Exact linear solver provider selected by this Plan.
+    #[must_use]
+    pub const fn solver_provider(&self) -> eqiora_solver::SolverProvider {
+        self.admission.linear.provider
+    }
+
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
             return Err(invalid(
@@ -215,13 +220,15 @@ impl CommonScalarPlan {
             ));
         };
         if let Some(authored) = &self.authored_formulation {
-            let derived = lowered.compiled_form().ok_or_else(|| {
-                invalid("authored scalar-primal Plan lost its effective derived Formulation")
-            })?;
+            let derived = lowered
+                .primal_form(self.admission.program())?
+                .ok_or_else(|| {
+                    invalid("authored scalar-primal Plan lost its effective derived Formulation")
+                })?;
             crate::form_compiler::admit_authored_scalar_primal_form(
                 authored,
                 self.admission.program(),
-                derived,
+                &derived,
             )?;
         }
         require_portable_realization(
@@ -256,10 +263,27 @@ impl CommonScalarPlan {
                 "common scalar Plan admitted non-scalar mathematics",
             ));
         };
+        let fields = lowered
+            .form
+            .fields()
+            .iter()
+            .map(|(field, value_type)| {
+                (
+                    field.downcast().expect("compiled Field identity"),
+                    value_type.clone(),
+                )
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+        let derived_form = if formulation_selection.is_some() {
+            lowered.primal_form(admission.program())?
+        } else {
+            None
+        };
         let mut accepted_authored_formulation = None;
         let formulation = match formulation_selection {
             None => None,
-            Some(selection) => match lowered.compiled_form() {
+            Some(selection) => match derived_form.as_ref() {
                 Some(derived) => {
                     if let Some(projection) = authored_formulation {
                         crate::form_compiler::admit_authored_scalar_primal_form(
@@ -300,15 +324,6 @@ impl CommonScalarPlan {
         };
         let portable = resolve_common_scalar_portable(&admission, lowered, mesh, &cells)?;
         let realization_digest = hex_bytes(&portable.digest()?);
-        let field = lowered.field_id();
-        let value_type = match admission.program().node(field.erase()) {
-            Some(KernelNode::Field(definition)) => definition.value_type().clone(),
-            _ => {
-                return Err(invalid(
-                    "common scalar admission lost its exact semantic Field definition",
-                ));
-            }
-        };
         let (digests, mut identity_bytes) =
             static_plan_identity_lineage(&admission, &realization_digest)?;
         push_framed(
@@ -337,14 +352,17 @@ impl CommonScalarPlan {
             formulation,
             authored_formulation: accepted_authored_formulation,
             lineage,
-            fields: Box::new([(field, value_type)]),
+            fields,
             cells,
         })
     }
 
-    pub(crate) fn run(&self) -> Result<ResolvedScalarEllipticCartesianSolution, Diagnostic> {
+    pub(crate) fn run(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonScalarRunOutput, Diagnostic> {
         self.reauthenticate_portable_realization()?;
-        self.admission.execute_scalar(&REFERENCE_LINEAR_SOLVER)
+        self.admission.execute_scalar(backend)
     }
 
     /// Effective primal Galerkin Formulation for Q1, when one is admitted.
@@ -360,8 +378,11 @@ impl CommonScalarPlan {
     }
 
     /// Execute solely from retained Plan state and publish one complete Result.
-    pub fn run_result(&self) -> Result<crate::CommonResult, Diagnostic> {
-        crate::CommonResult::accept_scalar(self.clone(), 0.0, self.run()?)
+    pub fn run_result(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<crate::CommonResult, Diagnostic> {
+        crate::CommonResult::accept_scalar(self.clone(), 0.0, self.run(backend)?)
     }
 
     /// Accept one selected Parameter point through this Plan's exact supplied Mesh and policies.
@@ -378,6 +399,11 @@ impl CommonScalarPlan {
                 "selected-Parameter differentiation requires a single-field Plan",
             ));
         }
+        if self.solver_provider() != REFERENCE_LINEAR_SOLVER.provider() {
+            return Err(invalid(
+                "selected-Parameter differentiation requires the reference solver provider",
+            ));
+        }
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
         let RecognizedNativeModel::Scalar(template) = self.admission.recognized_model() else {
@@ -385,10 +411,10 @@ impl CommonScalarPlan {
                 "common scalar Plan lost its recognized mathematics",
             ));
         };
-        let template = project_scalar_conservation_for_differentiation(
-            template.descriptor(),
-            template.compiled_form(),
-        );
+        let descriptor = template.conservation_descriptor(self.admission.program())?;
+        let derived_form = template.primal_form(self.admission.program())?;
+        let template =
+            project_scalar_conservation_for_differentiation(&descriptor, derived_form.as_ref());
         let selected_values = selected
             .iter()
             .map(|field| {
@@ -665,5 +691,13 @@ impl CommonScalarPlan {
     #[must_use]
     pub const fn linear(&self) -> SolverPlan {
         self.admission.linear.solver
+    }
+}
+
+fn scalar_operator_properties(spatial: NativeSpatialPolicy) -> LinearOperatorProperties {
+    match spatial {
+        NativeSpatialPolicy::ScalarQ1 => LinearOperatorProperties::General,
+        NativeSpatialPolicy::ScalarTpfa => LinearOperatorProperties::SymmetricPositiveDefinite,
+        _ => unreachable!("scalar Plan owns a scalar discretization"),
     }
 }
