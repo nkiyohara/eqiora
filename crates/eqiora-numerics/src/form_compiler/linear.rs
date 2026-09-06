@@ -2,9 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use eqiora_assembly::LocalContribution;
 use eqiora_core::{Diagnostic, RawId, ScalarDomain, ValueFrame, ValueType};
-use eqiora_meshing::{AffineGeometryMap, QuadratureRule};
 use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
@@ -192,15 +190,6 @@ impl CompiledLinearBlockForm {
 
     pub(crate) fn volume(&self) -> &BoundRegionForm {
         &self.volume
-    }
-
-    pub(crate) fn evaluate(
-        &self,
-        geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
-        self.volume()
-            .evaluate(geometry, quadrature, &BTreeMap::new())
     }
 }
 

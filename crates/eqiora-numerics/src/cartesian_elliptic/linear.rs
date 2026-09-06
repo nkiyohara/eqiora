@@ -3,7 +3,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use eqiora_assembly::{AssemblyBackend, AssemblyReport, LinearSystem};
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
+    AssemblyTarget, LinearSystem, TargetAssemblyMap,
+};
 use eqiora_core::{Diagnostic, RawId, ValueType};
 use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
 use eqiora_realization::{Target, VectorLayoutKind};
@@ -16,6 +19,7 @@ use super::{CartesianBoundaryValue, CartesianQ1Field};
 use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::finalized_spatial::FinalizedLinearCore;
 use crate::form_compiler::linear::CompiledLinearBlockForm;
+use crate::region_assembly::{PreparedRegionAssembly, RegionAssemblyCell};
 use crate::scalar_conservation::ScalarExteriorLaw;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -190,16 +194,29 @@ impl CartesianLinearAssembly {
             return Err(super::invalid("linear block requires unconstrained DOFs"));
         }
         let cells = mesh.entity_count(dimension).expect("Cartesian cells");
-        let packets = cells
-            .checked_add(natural.len())
-            .ok_or_else(|| super::invalid("linear block packet count overflows usize"))?;
-        let (system, full_system, report) = constraints.assemble(backend, packets, |index| {
-            if index >= cells {
-                return Ok(natural[index - cells].clone());
-            }
+        let plan = AssemblyPlan::new(vec![
+            AssemblyTarget::new(constraints.free_count())?,
+            AssemblyTarget::new(count)?,
+        ])?;
+        let maps = |globals: &[usize]| -> Result<Vec<TargetAssemblyMap>, Diagnostic> {
+            Ok(vec![
+                TargetAssemblyMap::new(
+                    plan.target_id(0).expect("reduced target"),
+                    constraints.reduced_map(globals)?,
+                ),
+                TargetAssemblyMap::new(
+                    plan.target_id(1).expect("full target"),
+                    constraints.full_map(globals)?,
+                ),
+            ])
+        };
+        let mut region_cells = Vec::new();
+        region_cells
+            .try_reserve_exact(cells)
+            .map_err(|_| super::invalid("linear cell packet allocation exceeds capacity"))?;
+        for index in 0..cells {
             let cell = MeshEntity::new(dimension, index);
             let geometry = mesh.geometry_map(cell).expect("Cartesian cell geometry");
-            let local = form.evaluate(&geometry, quadrature)?;
             let cell_vertices = mesh.entity_vertices(cell).expect("Cartesian cell vertices");
             let local_count = form
                 .fields()
@@ -217,8 +234,31 @@ impl CartesianLinearAssembly {
                         .map(|vertex| field * vertices + vertex.index()),
                 );
             }
-            Ok((local, globals))
-        })?;
+            region_cells.push(RegionAssemblyCell {
+                index,
+                geometry,
+                mappings: maps(&globals)?,
+                previous: BTreeMap::new(),
+            });
+        }
+        let boundary_packets = natural
+            .into_iter()
+            .map(|(local, globals)| AssemblyPacket::new(local, maps(&globals)?))
+            .collect::<Result<Vec<_>, _>>()?;
+        let volume = form.volume();
+        let work = PreparedRegionAssembly::new(
+            AssemblyPacketSetIdentityV1::Unbound,
+            &plan,
+            vec![(volume.clone(), quadrature.clone())],
+            &vec![volume.domain(); cells],
+            region_cells,
+            boundary_packets,
+        )?;
+        let (systems, report) = backend.assemble(&plan, &work)?.into_parts();
+        let mut systems = systems.into_iter();
+        let system = systems.next().expect("validated reduced assembly target");
+        let full_system = systems.next().expect("validated full assembly target");
+        debug_assert!(systems.next().is_none());
         let source_integrals = full_system
             .rhs()
             .chunks_exact(vertices)
