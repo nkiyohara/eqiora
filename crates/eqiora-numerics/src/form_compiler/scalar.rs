@@ -208,27 +208,21 @@ impl AdmittedScalarGalerkinForm<'_> {
         S: Fn(&[f64]) -> f64 + ?Sized,
     {
         self.validate_realization(geometry, quadrature)?;
-        super::linear::integrate(
-            self.dimension,
-            1,
-            geometry,
-            quadrature,
-            |point, diffusion, _, forcing| {
-                diffusion[0] = coefficient(point);
-                if !diffusion[0].is_finite() || diffusion[0] <= 0.0 {
-                    return Err(self.realization_error(
-                        "compiled Q1 coefficient produced a non-positive or non-finite value",
-                    ));
-                }
-                forcing[0] = source(point);
-                if !forcing[0].is_finite() {
-                    return Err(
-                        self.realization_error("compiled Q1 source produced a non-finite value")
-                    );
-                }
-                Ok(())
-            },
-        )
+        super::region::integrate_scalar(self.dimension, geometry, quadrature, |point| {
+            let diffusion = coefficient(point);
+            if !diffusion.is_finite() || diffusion <= 0.0 {
+                return Err(self.realization_error(
+                    "compiled Q1 coefficient produced a non-positive or non-finite value",
+                ));
+            }
+            let forcing = source(point);
+            if !forcing.is_finite() {
+                return Err(
+                    self.realization_error("compiled Q1 source produced a non-finite value")
+                );
+            }
+            Ok((diffusion, forcing))
+        })
     }
 
     fn validate_realization(

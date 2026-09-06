@@ -20,6 +20,7 @@ pub(super) struct Fixture {
     pub forms: Vec<(BoundRegionForm, QuadratureRule)>,
     pub domains: Vec<RawId>,
     pub cells: Vec<RegionAssemblyCell>,
+    pub boundary_packets: Vec<AssemblyPacket>,
     pub matrix: Vec<f64>,
     pub rhs: Vec<f64>,
     pub fixed: Vec<Option<f64>>,
@@ -129,6 +130,7 @@ impl Fixture {
             forms,
             domains,
             cells,
+            boundary_packets: Vec::new(),
             matrix,
             rhs,
             fixed,
@@ -142,6 +144,7 @@ impl Fixture {
             self.forms.clone(),
             &self.domains,
             self.cells.clone(),
+            self.boundary_packets.clone(),
         )
     }
 }

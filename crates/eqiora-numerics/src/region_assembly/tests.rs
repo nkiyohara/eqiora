@@ -2,6 +2,7 @@ use eqiora_assembly::{AssemblyBackend, LinearSystem, REFERENCE_ASSEMBLY_BACKEND}
 
 use super::*;
 
+mod boundary;
 mod fixture;
 mod validation;
 use fixture::Fixture;
