@@ -26,6 +26,7 @@ pub(crate) struct CartesianLinearAssembly {
     pub(crate) system: LinearSystem,
     pub(crate) full_system: LinearSystem,
     pub(crate) report: AssemblyReport,
+    source_integrals: Vec<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +40,36 @@ pub(crate) struct CartesianLinearSolution {
 mod tests;
 
 impl CartesianLinearAssembly {
+    pub(crate) fn into_single_field_canonical(
+        self,
+    ) -> Result<
+        (
+            Arc<CanonicalCsrSystemView>,
+            super::FinalizedCartesianFemState,
+        ),
+        Diagnostic,
+    > {
+        if self.fields.len() != 1 {
+            return Err(super::invalid(
+                "scalar differentiation requires exactly one Field",
+            ));
+        }
+        let canonical = Arc::new(CanonicalCsrSystemView::new(
+            &self.system,
+            LinearOperatorProperties::General,
+        )?);
+        Ok((
+            canonical,
+            super::FinalizedCartesianFemState {
+                mesh: self.mesh,
+                constrained_dofs: self.constraints,
+                full_system: self.full_system,
+                integrated_source: self.source_integrals[0],
+                assembly_report: self.report,
+            },
+        ))
+    }
+
     /// Validate the complete algebraic solution before publishing any Field.
     pub(crate) fn solve(
         self,
@@ -124,6 +155,7 @@ impl CartesianLinearAssembly {
             .try_reserve_exact(count)
             .map_err(|_| super::invalid("linear block DOF allocation exceeds capacity"))?;
         let mut natural = Vec::new();
+        let mut natural_integrals = vec![0.0; form.fields().len()];
         for (index, (field, _)) in form.fields().iter().enumerate() {
             let boundary = |axis, side, coordinates: &[f64]| match &form.boundary_laws()[field]
                 [&boundaries[&(axis, side)]]
@@ -144,6 +176,7 @@ impl CartesianLinearAssembly {
             fixed.extend(super::essential_fem_values(mesh, &boundary)?);
             natural.extend(super::natural_fem_facets(mesh, &boundary)?.into_iter().map(
                 |(local, facet_vertices)| {
+                    natural_integrals[index] += local.rhs().iter().sum::<f64>();
                     let globals = facet_vertices
                         .into_iter()
                         .map(|vertex| index * vertices + vertex.index())
@@ -186,6 +219,15 @@ impl CartesianLinearAssembly {
             }
             Ok((local, globals))
         })?;
+        let source_integrals = full_system
+            .rhs()
+            .chunks_exact(vertices)
+            .zip(natural_integrals)
+            .map(|(rhs, natural)| rhs.iter().sum::<f64>() - natural)
+            .collect::<Vec<_>>();
+        if source_integrals.iter().any(|value| !value.is_finite()) {
+            return Err(super::invalid("linear source integral is non-finite"));
+        }
         Ok(Self {
             fields: form.fields().to_vec(),
             mesh: mesh.clone(),
@@ -193,6 +235,7 @@ impl CartesianLinearAssembly {
             system,
             full_system,
             report,
+            source_integrals,
         })
     }
 }

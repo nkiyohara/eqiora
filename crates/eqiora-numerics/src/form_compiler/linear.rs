@@ -11,6 +11,7 @@ use eqiora_sem::KernelProgram;
 use super::equation_roles::{EquationRoles, Role};
 use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
+mod binding;
 mod boundary;
 mod data;
 mod integration;

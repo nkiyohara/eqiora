@@ -37,6 +37,22 @@ enum FinalizedScalarEllipticCartesianState {
 }
 
 impl FinalizedScalarEllipticCartesianProblem {
+    pub(crate) fn finite_element_blocks(
+        portable_realization: PortableRealizationGraph,
+        solver: SolverPlan,
+        vector_layout: VectorLayoutKind,
+        target: Target,
+        assembly: crate::cartesian_elliptic::linear::CartesianLinearAssembly,
+    ) -> Result<Self, Diagnostic> {
+        let (canonical_system, state) = assembly.into_single_field_canonical()?;
+        Ok(Self {
+            portable_realization,
+            method: DiscretizationMethod::ContinuousGalerkin,
+            core: FinalizedLinearCore::new(solver, vector_layout, target, canonical_system),
+            state: FinalizedScalarEllipticCartesianState::FiniteElement(state),
+        })
+    }
+
     pub(crate) fn finite_element(
         portable_realization: PortableRealizationGraph,
         solver: SolverPlan,

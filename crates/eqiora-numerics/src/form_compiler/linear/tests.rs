@@ -113,6 +113,44 @@ fn whole_row_reversal_preserves_diffusion_reaction_and_source() {
     );
 }
 
+#[test]
+fn parameter_point_rebinding_preserves_the_original_compiled_form() {
+    let source = source(&[vec![3.0]], false);
+    let form = derive(&source).unwrap();
+    let program = program(&source);
+    let fields = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Parameter(parameter) => Some(parameter.id()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(fields.len(), 1);
+    let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
+    let original = form.evaluate(&geometry(), &quadrature).unwrap();
+    let rebound = form.bind_parameter_point(&fields, &[2.0]).unwrap();
+    let changed_source = source.replace(
+        "parameter unit: 1 / m ^ 2 = 1",
+        "parameter unit: 1 / m ^ 2 = 2",
+    );
+    assert_ne!(source, changed_source);
+    let expected = derive(&changed_source)
+        .unwrap()
+        .evaluate(&geometry(), &quadrature)
+        .unwrap();
+    assert_eq!(
+        rebound.evaluate(&geometry(), &quadrature).unwrap(),
+        expected
+    );
+    assert_eq!(form.evaluate(&geometry(), &quadrature).unwrap(), original);
+    assert!(form.bind_parameter_point(&[], &[]).is_err());
+    assert!(form.bind_parameter_point(&fields, &[f64::NAN]).is_err());
+    assert!(
+        form.bind_parameter_point(&[fields[0], fields[0]], &[1.0, 2.0])
+            .is_err()
+    );
+}
+
 fn check(reaction: &[Vec<f64>], reverse: bool) {
     let form = derive(&source(reaction, reverse)).unwrap();
     assert!(form.fields().windows(2).all(|pair| pair[0].0 < pair[1].0));

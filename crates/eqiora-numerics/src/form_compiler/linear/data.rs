@@ -21,6 +21,22 @@ enum Node {
 }
 
 impl Data {
+    pub(super) fn bind_parameter_point(
+        &self,
+        fields: &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>],
+        values: &[f64],
+    ) -> Result<Self, Diagnostic> {
+        let bind = |data: &Self| data.bind_parameter_point(fields, values);
+        Ok(Self(Arc::new(match self.0.as_ref() {
+            Node::Tape(tape) => Node::Tape(tape.bind_parameter_point(fields, values)?),
+            Node::Add(a, b) => Node::Add(bind(a)?, bind(b)?),
+            Node::Mul(a, b) => Node::Mul(bind(a)?, bind(b)?),
+            Node::Div(a, b) => Node::Div(bind(a)?, bind(b)?),
+            Node::Pow(a, power) => Node::Pow(bind(a)?, *power),
+            Node::Math(function, a) => Node::Math(*function, bind(a)?),
+        })))
+    }
+
     /// Compare symbolic coefficient products without sampling or erasing Parameters.
     pub(super) fn same_coefficient(&self, other: &Self) -> bool {
         fn product<'a>(data: &'a Data, scale: &mut f64, factors: &mut Vec<&'a Data>) {
