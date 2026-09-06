@@ -125,10 +125,30 @@ def authenticate(
             )
         ):
             candidates.append(run)
-    if len(candidates) != 1:
-        raise ValueError("did not find exactly one successful prior workflow run")
+    if not candidates:
+        raise ValueError("did not find a successful prior workflow run")
+    if len({run["id"] for run in candidates}) != len(candidates):
+        raise ValueError("duplicate prior workflow run identity")
 
-    run = candidates[0]
+    newest = None
+    for run in sorted(candidates, key=lambda candidate: candidate["id"], reverse=True):
+        attestation = _authenticate_pr_run(
+            run, repository=repository, pull_request=pull_request,
+            previous_sha=previous_sha, workflow=workflow, fetch=fetch,
+        )
+        if newest is None:
+            newest = attestation
+        if any(attestation["lanes"].values()):
+            return attestation
+    assert newest is not None
+    return newest
+
+
+def _authenticate_pr_run(
+    run: dict[str, Any], *, repository: str, pull_request: int,
+    previous_sha: str, workflow: str, fetch: Callable[[str], Any],
+) -> dict[str, Any]:
+    """Bind one run without combining witnesses from different executions."""
     run_id = run["id"]
     expected_run_url = f"https://github.com/{repository}/actions/runs/{run_id}"
     if run.get("html_url") != expected_run_url:
