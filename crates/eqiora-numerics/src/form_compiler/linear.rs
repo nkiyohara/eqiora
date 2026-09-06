@@ -9,17 +9,15 @@ use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use super::equation_roles::{EquationRoles, Role};
+use super::region::{BoundRegionForm, CompiledRegionForm, ScalarRow};
 use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
 mod binding;
 mod boundary;
 pub(super) mod data;
-mod integration;
 mod lowering;
-pub(super) use integration::integrate;
 
 use data::{Context, Data};
-use lowering::Terms;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CompiledLinearBlockForm {
@@ -30,7 +28,7 @@ pub(crate) struct CompiledLinearBlockForm {
     residual_types: Vec<ValueType>,
     dependencies: BTreeMap<RawId, BTreeSet<RawId>>,
     boundary_laws: BTreeMap<RawId, BTreeMap<RawId, crate::scalar_conservation::ScalarExteriorLaw>>,
-    rows: Vec<Terms>,
+    volume: BoundRegionForm,
 }
 
 impl CompiledLinearBlockForm {
@@ -141,20 +139,38 @@ impl CompiledLinearBlockForm {
             .chain(boundary.dependencies.keys().copied())
             .collect();
         continuous_activations(program, &all_relations)?;
+        let dependencies = roles
+            .relations
+            .iter()
+            .map(|(id, role)| (*id, role.dependencies.clone()))
+            .chain(boundary.dependencies)
+            .collect();
+        let volume_rows = residuals
+            .iter()
+            .zip(rows)
+            .zip(&residual_types)
+            .map(|(((field, relation), mut row), residual_type)| ScalarRow {
+                relation: *relation,
+                field: *field,
+                residual_type: residual_type.clone(),
+                diffusion: row
+                    .diffusion
+                    .remove(field)
+                    .expect("admitted principal diffusion"),
+                reaction: row.reaction,
+                forcing: row.constant.multiply(Data::constant(dimension, -1.0)),
+            })
+            .collect();
+        let volume = CompiledRegionForm::scalar(domain, dimension, roles, volume_rows)?;
         Ok(Self {
             domain,
             dimension,
             fields,
             relations: residuals.values().copied().collect(),
             residual_types,
-            dependencies: roles
-                .relations
-                .into_iter()
-                .map(|(id, role)| (id, role.dependencies))
-                .chain(boundary.dependencies)
-                .collect(),
+            dependencies,
             boundary_laws: boundary.fields,
-            rows,
+            volume,
         })
     }
 
@@ -174,37 +190,17 @@ impl CompiledLinearBlockForm {
         &self.boundary_laws
     }
 
+    pub(crate) fn volume(&self) -> &BoundRegionForm {
+        &self.volume
+    }
+
     pub(crate) fn evaluate(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
     ) -> Result<LocalContribution, Diagnostic> {
-        if quadrature
-            .polynomial_exactness()
-            .is_none_or(|order| order < 3)
-        {
-            return Err(invalid(
-                "linear Q1 requires declared quadrature exactness at least three",
-            ));
-        }
-        integrate(
-            self.dimension,
-            self.fields.len(),
-            geometry,
-            quadrature,
-            |point, diffusion, reaction, forcing| {
-                for (row, terms) in self.rows.iter().enumerate() {
-                    diffusion[row] = terms.diffusion[&self.fields[row].0].evaluate(point)?;
-                    forcing[row] = -terms.constant.evaluate(point)?;
-                    for (column, (field, _)) in self.fields.iter().enumerate() {
-                        if let Some(value) = terms.reaction.get(field) {
-                            reaction[row * self.fields.len() + column] = value.evaluate(point)?;
-                        }
-                    }
-                }
-                Ok(())
-            },
-        )
+        self.volume()
+            .evaluate(geometry, quadrature, &BTreeMap::new())
     }
 }
 

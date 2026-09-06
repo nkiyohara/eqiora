@@ -12,6 +12,10 @@ use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
 mod binding;
 mod evaluate;
+mod integration;
+mod scalar;
+pub(super) use integration::integrate_scalar;
+pub(super) use scalar::ScalarRow;
 mod lowering;
 #[cfg(test)]
 mod tests;
@@ -41,6 +45,7 @@ struct Term {
     derivative: bool,
     pairing: Pairing,
     coefficient: Data,
+    positive_diffusion: bool,
 }
 
 impl CompiledRegionForm {

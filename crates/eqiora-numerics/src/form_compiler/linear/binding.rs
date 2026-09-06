@@ -10,12 +10,7 @@ impl CompiledLinearBlockForm {
         values: &[f64],
     ) -> Result<Self, Diagnostic> {
         let mut bound = self.clone();
-        for row in &mut bound.rows {
-            row.constant = row.constant.bind_parameter_point(fields, values)?;
-            for data in row.diffusion.values_mut().chain(row.reaction.values_mut()) {
-                *data = data.bind_parameter_point(fields, values)?;
-            }
-        }
+        bound.volume = self.volume.bind_parameter_point(fields, values)?;
         for law in bound
             .boundary_laws
             .values_mut()

@@ -75,6 +75,7 @@ fn expression(
             }
             if let Some(ExprNode::Symbol(SymbolRef::Field(field))) = context.dag.node(*value) {
                 row.terms.push(Term {
+                    positive_diffusion: false,
                     trial: field.erase(),
                     derivative: false,
                     pairing: Pairing::TestValueTrialDivergence,
@@ -195,6 +196,7 @@ fn trial(
         }
     };
     row.terms.push(Term {
+        positive_diffusion: false,
         trial: field,
         derivative,
         pairing,

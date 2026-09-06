@@ -162,6 +162,48 @@ fn parameter_point_rebinding_preserves_the_original_compiled_form() {
     );
 }
 
+#[test]
+fn bound_volume_preserves_field_order_and_rebound_diffusion_positivity() {
+    let source = source(&[vec![1.0, -2.0], vec![3.0, 4.0]], true)
+        .replace("parameter unit:", "parameter k: 1 = 2; parameter unit:")
+        .replace("2 * grad(renamed_first)", "(k - 1) * grad(renamed_first)");
+    let (transaction, model, symbols) = compile("bound-volume.eqi", &source)
+        .unwrap()
+        .remove(0)
+        .into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let form = CompiledLinearBlockForm::derive(&program, symbols.get("body").unwrap(), 1).unwrap();
+    assert_eq!(form.fields().len(), form.volume().fields().len());
+    for (index, ((field, value_type), layout)) in
+        form.fields().iter().zip(form.volume().fields()).enumerate()
+    {
+        assert_eq!(*field, layout.field);
+        assert_eq!(*value_type, layout.value_type);
+        assert_eq!(layout.range, 2 * index..2 * index + 2);
+    }
+    assert!(form.volume().previous_fields().is_empty());
+    let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
+    let original = form.evaluate(&geometry(), &quadrature).unwrap();
+    let parameters = [
+        symbols.get("k").unwrap().downcast().unwrap(),
+        symbols.get("unit").unwrap().downcast().unwrap(),
+    ];
+    for k in [0.0, 1.0] {
+        let rebound = form.bind_parameter_point(&parameters, &[k, 1.0]).unwrap();
+        let volume = rebound.volume().clone();
+        let error = volume
+            .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+            .unwrap_err();
+        assert!(
+            error.message().contains("positive finite diffusion"),
+            "{error:?}"
+        );
+    }
+    assert_eq!(form.evaluate(&geometry(), &quadrature).unwrap(), original);
+}
+
 fn check(reaction: &[Vec<f64>], reverse: bool) {
     let form = derive(&source(reaction, reverse)).unwrap();
     assert!(form.fields().windows(2).all(|pair| pair[0].0 < pair[1].0));
