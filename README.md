@@ -1,32 +1,103 @@
-# Eqiora
+<p align="center">
+  <a href="https://eqiora.org"><img src="docs/site/src/assets/brand/eqiora-mark.svg" width="88" height="88" alt="Eqiora"></a>
+</p>
 
-Eqiora is an open-source computational engineering platform that represents
-models as one typed network of mathematical relations, then carries that
-meaning through numerical realization to auditable evidence.
+<h1 align="center">Eqiora</h1>
 
-> **Alpha — `0.1.0a7`.** Eqiora is research software under active development.
-> The [capability matrix](docs/capability-matrix.md) shows what is available in
-> the current release.
+<p align="center">
+  <strong>Computational physics, from equations to results.</strong><br>
+  An open-source platform for mathematical models, numerical simulation, and scientific computing.<br>
+  Python for exploration. Rust at the core. The physics stays in view.
+</p>
 
-## Start with Python
+<p align="center">
+  <a href="https://pypi.org/project/eqiora/"><img src="https://img.shields.io/pypi/v/eqiora?include_prereleases&amp;style=flat-square&amp;logo=pypi&amp;logoColor=white" alt="PyPI version"></a>
+  <a href="https://docs.rs/eqiora/0.1.0-alpha.7/eqiora/"><img src="https://img.shields.io/crates/v/eqiora?style=flat-square&amp;logo=rust" alt="crates.io version"></a>
+  <a href="https://github.com/nkiyohara/eqiora/releases"><img src="https://img.shields.io/github/v/release/nkiyohara/eqiora?include_prereleases&amp;sort=semver&amp;style=flat-square&amp;logo=github" alt="Latest release including alphas"></a>
+  <a href="https://pypi.org/project/eqiora/"><img src="https://img.shields.io/pypi/pyversions/eqiora?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Supported Python versions"></a>
+  <a href="docs/rust-api.md"><img src="https://img.shields.io/crates/msrv/eqiora?style=flat-square&amp;logo=rust&amp;label=Rust" alt="Minimum Rust version"></a>
+</p>
 
-The alpha distribution supports ordinary-GIL CPython 3.11–3.14 on
-manylinux x86-64:
+<p align="center">
+  <a href="https://github.com/nkiyohara/eqiora/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/nkiyohara/eqiora/ci.yml?event=pull_request&amp;style=flat-square&amp;label=PR%20CI&amp;logo=githubactions&amp;logoColor=white" alt="Pull request CI"></a>
+  <a href="https://github.com/nkiyohara/eqiora/actions/workflows/pages.yml"><img src="https://img.shields.io/github/actions/workflow/status/nkiyohara/eqiora/pages.yml?branch=main&amp;event=push&amp;style=flat-square&amp;label=docs%20build&amp;logo=githubactions&amp;logoColor=white" alt="Documentation build"></a>
+  <a href="https://eqiora.org"><img src="https://img.shields.io/badge/docs-eqiora.org-17417e?style=flat-square" alt="Documentation at eqiora.org"></a>
+  <a href="https://eqiora.org/capabilities/"><img src="https://img.shields.io/badge/status-alpha-orange?style=flat-square" alt="Development status: alpha"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/pypi/l/eqiora?style=flat-square" alt="Apache License 2.0"></a>
+</p>
+
+<p align="center">
+  <a href="#-get-started-with-uv"><strong>Get started</strong></a> ·
+  <a href="https://eqiora.org/gallery/"><strong>Explore simulations</strong></a> ·
+  <a href="https://eqiora.org/reference/">API reference</a> ·
+  <a href="docs/roadmap.md">Roadmap</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a>
+</p>
+
+---
+
+## 🔬 See the physics
+
+**Pressure around a circular obstacle.** This steady-Stokes example starts with
+an exact geometry and a mathematical model, then produces a pressure field,
+boundary forces, and fluxes through the shared Python workflow.
+
+[![Fine-mesh exact-cylinder steady-Stokes pressure field](docs/site/src/assets/gallery/exact-cylinder-pressure-presentation.png)](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
+
+| Explore | Inside the walkthrough |
+| --- | --- |
+| 🌊 [Flow past a cylinder](https://eqiora.org/gallery/exact-cylinder-steady-stokes/) | Exact geometry, Gmsh meshing, steady Stokes, pressure and boundary observables. |
+| 🧱 [Linear elasticity](https://eqiora.org/gallery/mixed-boundary-elasticity/) | A constrained solid, mixed boundary conditions, and a displacement field. |
+| 🎞️ [Transient flow startup](https://eqiora.org/gallery/transient-cylinder-startup/) | A ten-step startup demonstration with vorticity and force outputs; not a validated wake benchmark. |
+
+## ✨ Why Eqiora?
+
+- **🧮 Keep equations close to the model.** Describe physical quantities,
+  relations, and connections in `.eqi` source; use Python to build and explore
+  the surrounding workflow.
+- **🧭 Separate physics from numerical choices.** Geometry, mesh, discretization,
+  and solver policies remain explicit, so you can see what a simulation assumes.
+- **🐍 Work naturally in Python.** Compile models, resolve a plan, run it, and
+  inspect fields, diagnostics, and Matplotlib plots from one API.
+- **🦀 Build on a shared Rust core.** Python and the Rust facade use the same
+  model semantics, rather than separate implementations of the physics.
+- **🔎 Trace a result back to its inputs.** Typed field handles and immutable
+  plans keep outputs associated with the model, geometry, mesh, and choices
+  that produced them.
+- **🧪 Explore with the evidence in reach.** Follow worked examples into their
+  source, checks, and [capability status](docs/capability-matrix.md).
+
+## 🚀 Get started with uv
+
+With [uv](https://docs.astral.sh/uv/getting-started/installation/) installed,
+create a project with meshing and plotting support:
 
 ```console
-python -m pip install "eqiora[gmsh]==0.1.0a7"
+uv init --python ">=3.11,<3.15" eqiora-demo
+cd eqiora-demo
+uv add "eqiora[gmsh,matplotlib]==0.1.0a7"
 ```
 
-Build an exact rectangle-with-circular-hole geometry, resolve its Gmsh mesh,
-run the accepted steady-Stokes application, and inspect typed outputs and
-boundary observables from the immutable `Result`:
+The published wheels support **ordinary-GIL CPython 3.11–3.14 on Linux x86-64
+(manylinux)**. Gmsh also needs the system OpenGL runtime; see the
+[installation guide](https://eqiora.org/get-started/) for setup details.
 
-![Fine-mesh exact-cylinder steady-Stokes pressure field](docs/site/src/assets/gallery/exact-cylinder-pressure-presentation.png)
+Save the example below as `cylinder.py`, then run:
+
+```console
+uv run cylinder.py
+```
+
+It prints pressure, cylinder force, and net flux, then saves `pressure.png`.
+
+<details>
+<summary><strong>🐍 Show the complete cylinder-flow example</strong></summary>
 
 ```python
 from importlib.resources import files
 
 import eqiora
+import eqiora.matplotlib as eqplot
 
 graph = eqiora.geometry.GeometryGraph()
 rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
@@ -78,92 +149,71 @@ print(result.solve)
 print("pressure", min(pressure_values), max(pressure_values), "Pa")
 print("cylinder force on fluid", cylinder_force.on_domain, "N/m")
 print("net flux", inlet_flux.value + outlet_flux.value, "m^2/s")
+
+figure = eqplot.plot_scalar_field(result, field=plan.capability.pressure)
+figure.savefig("pressure.png", dpi=180)
 ```
 
-This example shows the distinction Eqiora is built around: exact geometry and model meaning
-remain immutable, meshing and solver choices live in explicit resolved plans,
-and every returned output stays tied to the same Geometry, Model, Mesh, Plan,
-and Result lineage.
-[Walk through the pressure result](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
-or run the complete
-[`examples/python/exact_cylinder_stokes.py`](examples/python/exact_cylinder_stokes.py)
-script with optional Matplotlib output.
+</details>
 
-For a bounded local file check, the installed `eqiora` binary accepts
-`eqiora check <MODEL_PATH>`. It reads one UTF-8 regular file, prints only a
-structural comparison fingerprint when the current Model is accepted, and
-prints bounded normalized diagnostics when compilation rejects it.
+Read the [step-by-step walkthrough](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
+alongside the [full example script](examples/python/exact_cylinder_stokes.py).
 
-Local agents can separately compile/check one in-memory Eqiora source through
-the `eqiora-mcp` subprocess. It exposes exactly one bounded MCP `2026-07-28`
-tool over newline-delimited stdio and returns either structured compiler
-diagnostics or the current Model descriptor and comparison fingerprint. Python
-is the primary execution API; Studio consumes the same Rust-owned model semantics.
+## 🧩 From a model to a result
 
-The `eqiora-language-server` preview connects the compiler-owned editor service
-to any LSP client over stdio. It currently provides full-document synchronization,
-diagnostics, formatting, outline and folding symbols, Markdown hover, and
-definition navigation and reference lookup across open workspace modules and exact
-local package projects, including unopened dependency sources. Background analysis coalesces
-pending edits and prevents superseded results from publishing diagnostics. Editor
-requests waiting for that analysis honor LSP cancellation. See the [language-server
-setup](docs/language-server.md).
-
-## Use from Rust
-
-The `eqiora` crate exposes the canonical Rust implementation through one public
-facade. [`0.1.0-alpha.7`](https://crates.io/crates/eqiora/0.1.0-alpha.7) is published on crates.io. See the
-[Rust installation and API guide](docs/rust-api.md) for the exact dependency,
-a model-compilation example, optional features, and pre-1.0 compatibility policy.
-
-## One model, two layers
-
-Eqiora treats block diagrams, state charts, PDEs, and acausal physical
-networks as views of the same small semantic kernel. A canonical model is a
-network of typed relations, activations, and signal or conserving
-connections. Numerical choices—mesh, discretization, solver, schedule, CPU,
-GPU, or distributed execution—are typed policies resolved into an immutable
-**Plan**.
-
-That separation is enforced by one traceable path:
+The model describes the mathematics. A resolved **Plan** records the numerical
+choices. A **Result** carries the outputs and diagnostics of that run.
 
 ```text
-.eqi → compile(geometry) → resolve(typed policies) → Plan → Run / Result
+Equations + Geometry   →   Model   →   Plan   →   Result
+                          compile     resolve    run
+                                      ↑
+                              Mesh · Method · Solver
 ```
 
-Source, Python, Studio, and future visual editors therefore create
-transactions against one Rust-owned model semantics; none is a second
-authority.
+This separation lets you read the physics, numerical setup, and result together.
+Explore the [architecture](docs/architecture.md) for how the pieces fit.
 
-## Current alpha
+## 🦀 Use from Rust
 
-The release includes bounded, reproducible vertical slices for the semantic
-kernel and language, reference hybrid execution, scalar Operator IR,
-one-to-three-dimensional scalar elliptic FEM/FVM paths, selected host/CUDA/MPI
-adapters, implicit differentiation, versioned artifacts, Python model
-construction and execution, and a thin Studio projection. The exact domain,
-platform, method, and maturity of each slice are recorded in the
-[capability matrix](docs/capability-matrix.md); the
-[architecture guide](docs/architecture.md) explains their boundaries.
+Add the published facade to a Cargo project:
 
-Pre-1.0 authoring APIs may change as the project converges on its final public
-surface. Eqiora is not certified for safety-critical or production engineering
-decisions.
+```console
+cargo add eqiora@=0.1.0-alpha.7
+```
 
-## Project
+Start with the [Rust guide](docs/rust-api.md) for model compilation and optional
+backends, or browse the [API docs](https://docs.rs/eqiora/0.1.0-alpha.7/eqiora/).
 
-- [Website and documentation](https://eqiora.org)
-- [Python package](https://pypi.org/project/eqiora/)
-- [Capabilities](docs/capability-matrix.md)
-- [Published benchmarks](docs/benchmarks.md)
-- [Architecture](docs/architecture.md)
-- [Roadmap](docs/roadmap.md)
-- [Contributing](CONTRIBUTING.md)
-- [Security](SECURITY.md)
-- [Governance](GOVERNANCE.md)
-- [Release policy](docs/development/python-release-policy.md)
+## 🛠️ More ways to work
+
+| Interface | What to reach for |
+| --- | --- |
+| 🐍 **Python** | The primary simulation API: author, compile, mesh, solve, and plot. [Reference →](https://eqiora.org/reference/python/) |
+| 🦀 **Rust** | Embed the canonical implementation through the `eqiora` facade. [Guide →](docs/rust-api.md) |
+| ⌨️ **CLI & MCP** | Check a local `.eqi` file with `eqiora check`, or connect agents to the bounded compile/check tool in `eqiora-mcp`. [Build the tools →](docs/rust-api.md#build-command-line-tools-from-this-checkout) |
+| 📝 **Editor preview** | Diagnostics, formatting, hover, and cross-module navigation through LSP. Currently installed from a source checkout. [Setup →](docs/language-server.md) |
+
+## 🌱 Growing in the open
+
+Eqiora is **alpha research software**. The current release covers focused paths
+through hybrid execution, scalar FEM/FVM, fluid flow, elasticity, implicit
+differentiation, and selected CPU/CUDA/MPI adapters. Consult the
+[capability matrix](docs/capability-matrix.md) for each method and environment,
+and the [benchmarks](docs/benchmarks.md) for reproduced results.
+
+Pre-1.0 APIs evolve without compatibility shims. Eqiora is not certified for
+safety-critical or production engineering decisions.
+
+## 🤝 Build with us
+
+Useful bug reports, clearer examples, numerical methods, and improvements to the
+developer experience are all welcome. Start with the [contributing guide](CONTRIBUTING.md),
+explore the [roadmap](docs/roadmap.md), or [join an issue discussion](https://github.com/nkiyohara/eqiora/issues).
 
 Eqiora is developed in public under the
-[Apache License 2.0](LICENSE). Contributions require a
-[Developer Certificate of Origin](CONTRIBUTING.md#developer-certificate-of-origin)
-sign-off.
+[Apache License 2.0](LICENSE), with
+[DCO sign-off](CONTRIBUTING.md#developer-certificate-of-origin) on contributions.
+
+[Security](SECURITY.md) · [Governance](GOVERNANCE.md) ·
+[Release policy](docs/development/python-release-policy.md)
