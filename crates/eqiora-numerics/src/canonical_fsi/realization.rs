@@ -91,7 +91,8 @@ impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
             AssemblyPacketSetIdentityV1::from_sha256(self.mesh_artifact.sha256()),
         )?;
         let assembled = checked_assembly.assemble(prepared.plan(), &work)?;
-        let inner = prepared.finish(assembled)?;
+        let reactions = prepared.reactions(&work)?;
+        let inner = prepared.finish(assembled, reactions)?;
         FinalizedResolvedFixedReferenceFsiStep2d::new(
             self.resolved.model(),
             self.resolved.semantic_revision(),

@@ -16,9 +16,7 @@ mod lowering;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use binding::{
-    BoundRegionForm, RegionFieldBinding, RegionFieldLayout, RegionTimeBinding,
-};
+pub(crate) use binding::{BoundRegionForm, RegionFieldBinding, RegionTimeBinding};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CompiledRegionForm {
@@ -155,13 +153,6 @@ impl CompiledRegionForm {
         self.rows
             .iter()
             .map(|row| (row.tested, &self.roles.fields[&row.tested].1))
-    }
-
-    pub(crate) fn dependencies(&self) -> impl Iterator<Item = (RawId, &BTreeSet<RawId>)> {
-        self.roles
-            .relations
-            .iter()
-            .map(|(id, role)| (*id, &role.dependencies))
     }
 }
 

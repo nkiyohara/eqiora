@@ -64,8 +64,10 @@ fn derive_dimension(source: &str, dimension: usize) -> Result<CompiledRegionForm
     let form = CompiledRegionForm::derive(&program, domain, dimension)?;
     assert_eq!(form.domain(), domain);
     assert!(
-        form.dependencies()
-            .all(|(_, dependencies)| !dependencies.is_empty())
+        form.roles
+            .relations
+            .values()
+            .all(|role| !role.dependencies.is_empty())
     );
     Ok(form)
 }
@@ -220,8 +222,8 @@ fn mixed_p1_mass_strain_and_signed_pressure_blocks_are_equation_derived() {
         )
         .unwrap();
     let n = 9;
-    for i in 0..3 {
-        for a in 0..2 {
+    for (i, gradient) in GRADIENT.iter().enumerate() {
+        for (a, component) in gradient.iter().enumerate() {
             let row = velocity.range.start + 2 * i + a;
             close(local.rhs()[row], 13.0 * 12.0 * [2.0, -1.0][a] / 6.0);
             for j in 0..3 {
@@ -233,11 +235,11 @@ fn mixed_p1_mass_strain_and_signed_pressure_blocks_are_equation_derived() {
                 }
                 close(
                     local.matrix()[row * n + pressure.range.start + j],
-                    -13.0 * 7.0 * GRADIENT[i][a] / 6.0,
+                    -13.0 * 7.0 * component / 6.0,
                 );
                 close(
                     local.matrix()[(pressure.range.start + j) * n + row],
-                    -11.0 * 2.0 * GRADIENT[i][a] / 6.0,
+                    -11.0 * 2.0 * component / 6.0,
                 );
             }
         }
@@ -331,13 +333,17 @@ fn mini_bubble_mass_and_mixed_blocks_use_exact_barycentric_integrals() {
             }
         }
     }
-    for i in 0..4 {
-        for a in 0..2 {
-            for j in 0..3 {
-                let integral = if i == 3 {
-                    -GRADIENT[j][a] * 9.0 / 40.0
-                } else {
-                    GRADIENT[i][a] / 6.0
+    for (i, gradient_i) in GRADIENT
+        .iter()
+        .map(Some)
+        .chain(std::iter::once(None))
+        .enumerate()
+    {
+        for (a, _) in GRADIENT[0].iter().enumerate() {
+            for (j, gradient_j) in GRADIENT.iter().enumerate() {
+                let integral = match gradient_i {
+                    None => -gradient_j[a] * 9.0 / 40.0,
+                    Some(gradient) => gradient[a] / 6.0,
                 };
                 let row = velocity.range.start + 2 * i + a;
                 close(

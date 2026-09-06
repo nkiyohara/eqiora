@@ -65,7 +65,7 @@ fn tetrahedron_mini_vector_and_mixed_blocks_match_barycentric_polynomial_integra
         }
     };
     for i in 0..5 {
-        for a in 0..3 {
+        for (a, _) in gradient[0].iter().enumerate() {
             let row = velocity.range.start + 3 * i + a;
             close(local.rhs()[row], 0.0);
             for j in 0..5 {

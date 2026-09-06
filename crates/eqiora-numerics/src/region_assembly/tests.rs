@@ -26,6 +26,45 @@ fn dense(system: &LinearSystem) -> Vec<f64> {
 }
 
 #[test]
+fn component_reactions_keep_only_selected_rows_from_the_exact_packet_groups() {
+    let fixture = Fixture::new(3, true);
+    let prepared = fixture.prepare().unwrap();
+    let n = fixture.rhs.len();
+    let rows = [0, 4, n - 1].into_iter().collect::<BTreeSet<_>>();
+    let groups = vec![vec![0, 1], vec![2, 3], vec![4, 5]];
+    let target = fixture.plan.target_id(1).unwrap();
+    let reactions = prepare_reaction_rows(&prepared, target, n, &groups, &rows).unwrap();
+    let values = (0..n)
+        .map(|index| 0.25 + index as f64 / 7.0)
+        .collect::<Vec<_>>();
+    for (group, reaction) in reactions.iter().enumerate() {
+        let first = 3 * group * (group + 1) / 2;
+        let end = first + 3 * (group + 1);
+        let actual = reaction.residual(&values).unwrap();
+        for (row, actual) in actual.iter().enumerate() {
+            let expected = if rows.contains(&row) && (first..end).contains(&row) {
+                fixture.matrix[row * n..(row + 1) * n]
+                    .iter()
+                    .zip(&values)
+                    .map(|(coefficient, value)| coefficient * value)
+                    .sum::<f64>()
+                    - fixture.rhs[row]
+            } else {
+                0.0
+            };
+            close(*actual, expected);
+        }
+        assert!(reaction.residual(&values[..n - 1]).is_err());
+    }
+    assert!(prepare_reaction_rows(&prepared, target, n, &[vec![0], vec![0]], &rows).is_err());
+    assert!(
+        prepare_reaction_rows(&prepared, target, n, &groups, &[n].into_iter().collect()).is_err()
+    );
+    let empty = prepare_reaction_rows(&prepared, target, n, &[vec![]], &BTreeSet::new()).unwrap();
+    assert_eq!(empty[0].residual(&values).unwrap(), vec![0.0; n]);
+}
+
+#[test]
 fn two_and_three_regions_assemble_variable_fields_through_existing_constraint_maps() {
     for regions in [2, 3] {
         for reversed in [false, true] {

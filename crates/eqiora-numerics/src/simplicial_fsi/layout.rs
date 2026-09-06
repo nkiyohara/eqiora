@@ -235,19 +235,6 @@ impl<const D: usize> FsiLayout<D> {
         self.fixed_velocity[vertex].iter().any(Option::is_some)
     }
 
-    pub(crate) const fn full_bubble_velocity(
-        &self,
-        fluid_position: usize,
-        component: usize,
-    ) -> usize {
-        self.full_bubble_offset + fluid_position * D + component
-    }
-
-    pub(crate) fn full_pressure(&self, vertex: usize) -> usize {
-        self.full_pressure_offset
-            + self.pressure_position[vertex].expect("fluid vertex owns pressure position")
-    }
-
     pub(crate) fn reconstruct_primal(
         &self,
         values: &[f64],

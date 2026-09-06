@@ -1,6 +1,6 @@
 //! Independent residual, interface-action, pressure, and energy acceptance.
 
-use eqiora_assembly::{CsrMatrix, LinearSystem, LocalContribution};
+use eqiora_assembly::{CsrMatrix, LinearSystem};
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{MeshEntity, MeshGeometry, QuadratureRule, SimplicialMesh};
 use eqiora_solver::CanonicalCsrSystemView;
@@ -9,10 +9,10 @@ use super::api::FixedReferenceFsiEnergyBalance;
 use super::contract::{
     FixedReferenceFsiMaterial, FixedReferenceFsiState, FixedReferenceFsiStepConfig,
 };
-use super::element::{dot, fluid_local, local_velocity_dimension, solid_local};
+use super::element::dot;
 use super::layout::FsiLayout;
-use super::partition::{CellMaterial, FixedReferenceFsiPartition};
-use super::{fluid_local_size, invalid, mini_count, p1_count};
+use super::partition::FixedReferenceFsiPartition;
+use super::{invalid, mini_count, p1_count};
 use crate::affine_fem::physical_gradient;
 use crate::continuum_kinematics::{symmetric_gradient, twice_symmetric_gradient_squared_norm};
 use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
@@ -253,99 +253,6 @@ pub(super) fn require_symmetric(matrix: &CsrMatrix) -> Result<(), Diagnostic> {
         }
     }
     Ok(())
-}
-
-pub(super) fn recover_component_residuals<const D: usize>(
-    mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<D>,
-    previous: &FixedReferenceFsiState<D>,
-    config: FixedReferenceFsiStepConfig<D>,
-    quadrature: &QuadratureRule,
-    layout: &FsiLayout<D>,
-    full_values: &[f64],
-) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
-    let mut fluid_residual = vec![0.0; layout.full_size()];
-    let mut solid_residual = vec![0.0; layout.full_size()];
-    for cell_index in 0..partition.cell_count() {
-        let cell = MeshEntity::new(D, cell_index);
-        let geometry = mesh
-            .geometry_map(cell)
-            .expect("accepted FSI cell owns affine geometry");
-        let vertices = mesh
-            .entity_vertices(cell)
-            .expect("accepted FSI cell owns vertices");
-        let (local, local_values, target) = match partition.material(cell_index) {
-            CellMaterial::Fluid => {
-                let position = partition
-                    .fluid_position(cell_index)
-                    .expect("fluid cell owns bubble position");
-                (
-                    fluid_local(&geometry, quadrature, config, &vertices, previous, position)?,
-                    fluid_local_values(layout, full_values, position, &vertices),
-                    &mut fluid_residual,
-                )
-            }
-            CellMaterial::Solid => (
-                solid_local(&geometry, quadrature, config, &vertices, previous)?,
-                solid_local_values(layout, full_values, &vertices),
-                &mut solid_residual,
-            ),
-            CellMaterial::Unassigned => unreachable!("partition is exhaustive"),
-        };
-        let local_residual = local_residual(&local, &local_values);
-        for (local_vertex, vertex) in vertices.iter().enumerate() {
-            for component in 0..D {
-                target[layout.full_vertex_velocity(vertex.index(), component)] +=
-                    local_residual[local_velocity_dimension::<D>(local_vertex, component)];
-            }
-        }
-    }
-    Ok((fluid_residual, solid_residual))
-}
-
-fn fluid_local_values<const D: usize>(
-    layout: &FsiLayout<D>,
-    full_values: &[f64],
-    fluid_position: usize,
-    vertices: &[MeshEntity],
-) -> Vec<f64> {
-    let mut values = solid_local_values(layout, full_values, vertices);
-    for component in 0..D {
-        values.push(full_values[layout.full_bubble_velocity(fluid_position, component)]);
-    }
-    for vertex in vertices {
-        values.push(full_values[layout.full_pressure(vertex.index())]);
-    }
-    debug_assert_eq!(values.len(), fluid_local_size::<D>());
-    values
-}
-
-fn solid_local_values<const D: usize>(
-    layout: &FsiLayout<D>,
-    full_values: &[f64],
-    vertices: &[MeshEntity],
-) -> Vec<f64> {
-    vertices
-        .iter()
-        .flat_map(|vertex| {
-            (0..D).map(move |component| {
-                full_values[layout.full_vertex_velocity(vertex.index(), component)]
-            })
-        })
-        .collect()
-}
-
-fn local_residual(local: &LocalContribution, values: &[f64]) -> Vec<f64> {
-    (0..local.rows())
-        .map(|row| {
-            local.matrix()[row * local.columns()..(row + 1) * local.columns()]
-                .iter()
-                .zip(values)
-                .map(|(entry, value)| entry * value)
-                .sum::<f64>()
-                - local.rhs()[row]
-        })
-        .collect()
 }
 
 pub(super) fn apply_canonical(

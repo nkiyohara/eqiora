@@ -231,9 +231,9 @@ fn coefficient_chains_and_mixed_rows_ignore_names_and_declaration_order() {
     assert_ne!(with_data, reordered);
     let normalized = |source: &str| {
         let form = derive(source).unwrap();
-        assert_eq!(form.dependencies().count(), 4);
+        assert_eq!(form.roles.relations.len(), 4);
         let bound = bound(&form, false);
-        let velocity: &RegionFieldLayout = bound
+        let velocity = bound
             .fields()
             .iter()
             .find(|layout| layout.components == 2)

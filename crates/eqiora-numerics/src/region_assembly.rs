@@ -11,6 +11,9 @@ use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
 use crate::form_compiler::region::BoundRegionForm;
 
+mod reactions;
+pub(crate) use reactions::{ReactionRows, prepare_reaction_rows};
+
 /// One cell's geometry, resolved algebraic maps and physical previous coefficients.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RegionAssemblyCell {

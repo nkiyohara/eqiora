@@ -15,7 +15,7 @@ use eqiora_solver::{
 
 use super::acceptance::{
     EnergyEvaluation, apply_canonical, energy_balance, kinematic_residual_norm, norm,
-    recover_component_residuals, require_pressure_closed_by_complete_operator, require_symmetric,
+    require_pressure_closed_by_complete_operator, require_symmetric,
 };
 use super::api::{FixedReferenceFsiInterfaceAction, FixedReferenceFsiSolution};
 use super::contract::{
@@ -26,6 +26,7 @@ use super::element::{fluid_local, solid_local};
 use super::invalid;
 use super::layout::FsiLayout;
 use super::partition::{CellMaterial, FixedReferenceFsiPartition};
+use crate::region_assembly::ReactionRows;
 
 /// Captured symmetric-indefinite step plus private acceptance state.
 #[derive(Debug, Clone, PartialEq)]
@@ -206,7 +207,8 @@ pub(crate) fn finalize_fixed_reference_fsi_step_with_packet_set<const D: usize>(
         mesh, partition, boundary, previous, config, quadrature, packet_set,
     )?;
     let result = assembly.assemble(prepared.plan(), &prepared)?;
-    prepared.finish(result)
+    let reactions = prepared.reactions(&prepared)?;
+    prepared.finish(result, reactions)
 }
 
 /// Admitted fixed-reference data and the sole cell-indexed assembly work.
@@ -316,9 +318,54 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
         self.target_roles
     }
 
+    pub(crate) fn reactions(
+        &self,
+        work: &dyn AssemblyWork,
+    ) -> Result<[ReactionRows; 2], Diagnostic> {
+        let vertices = self
+            .partition
+            .interface_vertices()
+            .iter()
+            .filter(|vertex| !self.layout.fixed_velocity(vertex.index()))
+            .map(|vertex| vertex.index())
+            .collect::<std::collections::BTreeSet<_>>();
+        let rows = vertices
+            .iter()
+            .flat_map(|&vertex| {
+                (0..D).map(move |component| self.layout.full_vertex_velocity(vertex, component))
+            })
+            .collect();
+        let groups = [self.partition.fluid_cells(), self.partition.solid_cells()]
+            .into_iter()
+            .map(|cells| {
+                cells
+                    .iter()
+                    .filter_map(|cell| {
+                        self.mesh
+                            .entity_vertices(MeshEntity::new(D, cell.index()))
+                            .expect("validated cell vertex closure")
+                            .iter()
+                            .any(|vertex| vertices.contains(&vertex.index()))
+                            .then_some(cell.index())
+                    })
+                    .collect()
+            })
+            .collect::<Vec<_>>();
+        crate::region_assembly::prepare_reaction_rows(
+            work,
+            self.target_roles.full(),
+            self.layout.full_size(),
+            &groups,
+            &rows,
+        )?
+        .try_into()
+        .map_err(|_| invalid("FSI reaction recovery requires its two component targets"))
+    }
+
     pub(crate) fn finish(
         self,
         result: AssemblyResult,
+        reactions: [ReactionRows; 2],
     ) -> Result<FinalizedFixedReferenceFsiStep<D>, Diagnostic> {
         let (systems, assembly_report) = result.into_parts();
         if assembly_report.packet_count() != self.cell_count
@@ -357,6 +404,7 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
                 assembly_target_roles: self.target_roles,
                 pressure_constant_action_norm,
                 assembly_report,
+                reactions,
             },
         })
     }
@@ -503,6 +551,7 @@ struct FinalizedState<const D: usize> {
     assembly_target_roles: FixedReferenceFsiAssemblyTargetRoles,
     pressure_constant_action_norm: f64,
     assembly_report: AssemblyReport,
+    reactions: [ReactionRows; 2],
 }
 
 impl<const D: usize> FinalizedState<D> {
@@ -592,15 +641,8 @@ impl<const D: usize> FinalizedState<D> {
             )));
         }
 
-        let (fluid_residual, solid_residual) = recover_component_residuals(
-            &self.mesh,
-            &self.partition,
-            &self.previous,
-            self.config,
-            &self.quadrature,
-            &self.layout,
-            &full_values,
-        )?;
+        let fluid_residual = self.reactions[0].residual(&full_values)?;
+        let solid_residual = self.reactions[1].residual(&full_values)?;
         let dimensionless_to_action = self.config.scale().power() / self.config.scale().velocity();
         let interface_actions = self
             .partition
