@@ -880,7 +880,7 @@ model decay {
     fn projection_retains_checked_field_types_without_scalar_narrowing() {
         let document = ModelDocument::compile(
             "channels.eqi",
-            "model channels { field channels: array<m, 2> = 0; }",
+            "model channels { field channels: array<m, 2> = 0; relation hold continuous { channels = 0; } }",
         )
         .unwrap();
         let projection = project_document(&document, document.digest().unwrap()).unwrap();
