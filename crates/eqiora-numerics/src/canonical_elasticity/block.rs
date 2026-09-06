@@ -1,8 +1,8 @@
 //! Shared discrete block projection for the conforming elasticity pair.
 
-use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, RawId, ValueShape};
+use eqiora_core::{ScalarDomain, ValueFrame, ValueType};
 use eqiora_meshing::MeshTopology;
 use eqiora_realization::{
     AlgebraicBlock, ConformingTraceQuotient, ResolutionSource, ResolvedRealization,
@@ -56,18 +56,20 @@ pub(super) fn conforming_elasticity_pair_block_system(
             domains[subdomain],
             displacements[subdomain],
             resolved.plan().space(),
-            vector.clone(),
-            LENGTH,
-            ValueFrame::SpatialCartesian,
+            ValueType::shaped(
+                ScalarDomain::Real,
+                LENGTH,
+                vector.clone(),
+                ValueFrame::SpatialCartesian,
+            )
+            .expect("admitted spatial type"),
             DynQuantity::new(1.0, LENGTH),
             FieldBlockRole::Algebraic,
         )?);
         fields.push(FieldBlock::coefficient(
             domains[subdomain],
             loads[subdomain],
-            ValueShape::scalar(),
-            PRESSURE,
-            ValueFrame::Invariant,
+            ValueType::scalar(ScalarDomain::Real, PRESSURE),
         ));
     }
 

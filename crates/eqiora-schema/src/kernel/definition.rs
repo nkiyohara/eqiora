@@ -157,18 +157,28 @@ impl FieldDef {
     }
 }
 
-/// Scalar Parameter definition.
+/// Typed Parameter definition initialized by a real literal.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterDef {
     id: Id<kinds::Parameter>,
-    value: DynQuantity,
+    value: ValueLiteral,
 }
 
 impl ParameterDef {
-    /// Define a Parameter and its dimensioned value.
-    #[must_use]
-    pub const fn new(id: Id<kinds::Parameter>, value: DynQuantity) -> Self {
-        Self { id, value }
+    /// Define a typed Parameter. Zero adopts the complete declared type.
+    ///
+    /// # Errors
+    /// Rejects non-finite literals and nonzero scalar literals for shaped values.
+    pub fn new(
+        id: Id<kinds::Parameter>,
+        value_type: ValueType,
+        literal: f64,
+    ) -> Result<Self, Diagnostic> {
+        let value = ValueLiteral::new(value_type, literal).map_err(|error| {
+            Diagnostic::error(codes::INVALID_KERNEL_DEFINITION, error.to_string())
+                .with_graph_path(kernel_path(id.erase()))
+        })?;
+        Ok(Self { id, value })
     }
 
     /// Typed Parameter ID.
@@ -177,10 +187,22 @@ impl ParameterDef {
         self.id
     }
 
-    /// Model value.
+    /// Complete declared mathematical type.
     #[must_use]
-    pub const fn value(&self) -> DynQuantity {
-        self.value
+    pub const fn value_type(&self) -> &ValueType {
+        self.value.value_type()
+    }
+
+    /// Real literal embedded into the declared domain, or contextual shaped zero.
+    #[must_use]
+    pub const fn literal(&self) -> f64 {
+        self.value.literal()
+    }
+
+    /// Extract a value only when its mathematical type is a real scalar.
+    #[must_use]
+    pub const fn real_scalar_value(&self) -> Option<DynQuantity> {
+        self.value.real_scalar_value()
     }
 }
 
@@ -194,17 +216,14 @@ pub enum SignalDirection {
 }
 
 /// Closed kernel-level Port payload.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum PortPayload {
-    /// Causal signal with an explicit direction and scalar dimension.
+    /// Causal signal with an explicit direction and complete mathematical type.
     Signal {
         direction: SignalDirection,
-        dimension: DimExponents,
+        value_type: ValueType,
     },
-    /// Structural-only v1 conserving marker. It has no executable
-    /// across/through interpretation.
-    ConservingMarker { dimension: DimExponents },
     /// Scalar conserving connector typed nominally by one physical Domain.
     ScalarPhysical { domain: Id<kinds::Domain> },
     /// Field-valued boundary Port. Parent support and outward orientation are
@@ -228,23 +247,14 @@ impl PortDef {
     pub const fn signal(
         id: Id<kinds::Port>,
         direction: SignalDirection,
-        dimension: DimExponents,
+        value_type: ValueType,
     ) -> Self {
         Self {
             id,
             payload: PortPayload::Signal {
                 direction,
-                dimension,
+                value_type,
             },
-        }
-    }
-
-    /// Preserve one structural-only v1 conserving Port marker.
-    #[must_use]
-    pub const fn conserving_marker(id: Id<kinds::Port>, dimension: DimExponents) -> Self {
-        Self {
-            id,
-            payload: PortPayload::ConservingMarker { dimension },
         }
     }
 
@@ -281,32 +291,19 @@ impl PortDef {
 
     /// Closed Port payload.
     #[must_use]
-    pub const fn payload(&self) -> PortPayload {
-        self.payload
+    pub fn payload(&self) -> PortPayload {
+        self.payload.clone()
     }
 
-    /// Signal direction and scalar dimension, if this is a signal Port.
+    /// Signal direction and complete mathematical type, if this is a signal Port.
     #[must_use]
-    pub const fn signal_contract(&self) -> Option<(SignalDirection, DimExponents)> {
-        match self.payload {
+    pub const fn signal_contract(&self) -> Option<(SignalDirection, &ValueType)> {
+        match &self.payload {
             PortPayload::Signal {
                 direction,
-                dimension,
-            } => Some((direction, dimension)),
-            PortPayload::ConservingMarker { .. }
-            | PortPayload::ScalarPhysical { .. }
-            | PortPayload::BoundaryPhysical { .. } => None,
-        }
-    }
-
-    /// Structural marker dimension, if this is a v1 conserving marker.
-    #[must_use]
-    pub const fn marker_dimension(&self) -> Option<DimExponents> {
-        match self.payload {
-            PortPayload::ConservingMarker { dimension } => Some(dimension),
-            PortPayload::Signal { .. }
-            | PortPayload::ScalarPhysical { .. }
-            | PortPayload::BoundaryPhysical { .. } => None,
+                value_type,
+            } => Some((*direction, value_type)),
+            PortPayload::ScalarPhysical { .. } | PortPayload::BoundaryPhysical { .. } => None,
         }
     }
 
@@ -315,9 +312,7 @@ impl PortDef {
     pub const fn physical_domain(&self) -> Option<Id<kinds::Domain>> {
         match self.payload {
             PortPayload::ScalarPhysical { domain } => Some(domain),
-            PortPayload::Signal { .. }
-            | PortPayload::ConservingMarker { .. }
-            | PortPayload::BoundaryPhysical { .. } => None,
+            PortPayload::Signal { .. } | PortPayload::BoundaryPhysical { .. } => None,
         }
     }
 
@@ -331,9 +326,7 @@ impl PortDef {
                 connector,
                 boundary,
             } => Some((connector, boundary)),
-            PortPayload::Signal { .. }
-            | PortPayload::ConservingMarker { .. }
-            | PortPayload::ScalarPhysical { .. } => None,
+            PortPayload::Signal { .. } | PortPayload::ScalarPhysical { .. } => None,
         }
     }
 }
@@ -648,7 +641,10 @@ impl KernelNode {
         match self {
             Self::Field(value) if value.shape().is_scalar() => Some(value.dimension()),
             Self::Field(_) => None,
-            Self::Parameter(value) => Some(value.value().dim()),
+            Self::Parameter(value) => match value.real_scalar_value() {
+                Some(value) => Some(value.dim()),
+                None => None,
+            },
             _ => None,
         }
     }
@@ -661,7 +657,7 @@ impl KernelNode {
                 Some(initial) => initial.real_scalar_value(),
                 None => None,
             },
-            Self::Parameter(value) => Some(value.value()),
+            Self::Parameter(value) => value.real_scalar_value(),
             _ => None,
         }
     }
@@ -716,6 +712,28 @@ mod tests {
     use super::*;
     use eqiora_core::Dimension;
     use eqiora_core::quantity::dim;
+
+    #[test]
+    fn parameter_literals_preserve_types_without_real_scalar_narrowing() {
+        let real = ValueType::scalar(eqiora_core::ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let complex = ValueType::scalar(
+            eqiora_core::ScalarDomain::Complex,
+            DimExponents::DIMENSIONLESS,
+        );
+        let parameter = ParameterDef::new(Id::new(), real.clone(), 2.0).unwrap();
+        assert_eq!(parameter.real_scalar_value().unwrap().value(), 2.0);
+        let parameter = ParameterDef::new(Id::new(), complex.clone(), 2.0).unwrap();
+        assert_eq!(parameter.value_type(), &complex);
+        assert_eq!(parameter.real_scalar_value(), None);
+        let array = complex.array(3).unwrap();
+        let parameter = ParameterDef::new(Id::new(), array.clone(), -0.0).unwrap();
+        assert_eq!(parameter.literal().to_bits(), 0.0_f64.to_bits());
+        assert_eq!(parameter.real_scalar_value(), None);
+        assert!(ParameterDef::new(Id::new(), array, 1.0).is_err());
+        for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(ParameterDef::new(Id::new(), real.clone(), invalid).is_err());
+        }
+    }
 
     #[test]
     fn field_initial_value_is_dimension_checked() {

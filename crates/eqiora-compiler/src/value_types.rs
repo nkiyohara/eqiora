@@ -7,6 +7,21 @@ use eqiora_schema::kernel::typing::SpatialSupport;
 
 use crate::{diagnostics::source_error, dimensions::lower_dimension};
 
+pub(crate) fn lower_scalar_type(
+    file: &str,
+    syntax: &ValueTypeSyntax,
+) -> Result<ValueType, Diagnostic> {
+    if !syntax.is_scalar() {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            syntax.range(),
+            "scalar physical quantities require scalar mathematical types",
+        ));
+    }
+    lower_value_type::<()>(file, syntax, None)
+}
+
 pub(crate) fn lower_value_type<I>(
     file: &str,
     syntax: &ValueTypeSyntax,

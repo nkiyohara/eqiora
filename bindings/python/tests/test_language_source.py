@@ -10,10 +10,20 @@ q = eqiora.lang
 u = q.units
 
 
+@pytest.mark.parametrize("value, syntax", [
+    (0, "0"),
+    (q.quantity(2, u.one / u.m**2), "2 [(1 / (m ^ 2))]"),
+    (q.quantity(-2, u.one / u.m**2), "-2 [(1 / (m ^ 2))]"),
+])
+def test_component_parameter_bindings_emit_explicit_units(value, syntax):
+    source = scalar_property_source(binding=value)
+    assert f"source_scale = {syntax}" in source.to_eqi()
+
+
 def test_rational_unit_exponents_preserve_exact_source_spelling():
     source = q.Source()
     component = source.component("Wave")
-    component.parameter("amplitude", unit=u.m ** Fraction(-1, 2))
+    component.parameter("amplitude", value_type=eqiora.ValueType.real(eqiora.Dimension(length=Fraction(-1, 2))))
     text = source.to_eqi()
     assert "m ^ (-1 / 2)" in text
     for exponent in [True, 0.5, 1.0]:
@@ -66,10 +76,10 @@ def cylinder_source(
     walls = stokes.boundary("walls", parent=fluid)
     cylinder = stokes.boundary("cylinder", parent=fluid)
 
-    dynamic_viscosity = stokes.parameter("dynamic_viscosity", unit=u.kg / (u.m * u.s))
-    zero_pressure = stokes.parameter("zero_pressure", unit=u.kg / (u.m * u.s**2))
-    inlet_speed = stokes.parameter("inlet_speed", unit=u.m / u.s)
-    channel_height = stokes.parameter("channel_height", unit=u.m)
+    dynamic_viscosity = stokes.parameter("dynamic_viscosity", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-1)))
+    zero_pressure = stokes.parameter("zero_pressure", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)))
+    inlet_speed = stokes.parameter("inlet_speed", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)))
+    channel_height = stokes.parameter("channel_height", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
     velocity = stokes.field("velocity", on=fluid, value_type=velocity_type)
     pressure = stokes.field("pressure", on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)), initial=0)
@@ -119,7 +129,7 @@ def test_relation_accepts_exactly_residual_or_complete_natural_equation() -> Non
     component = source.component("NaturalEquation")
     body = component.volume("body", dimensions=2)
     value = component.field("value", on=body, value_type=eqiora.ValueType.real())
-    source_scale = component.parameter("source_scale", unit=u.one)
+    source_scale = component.parameter("source_scale", value_type=eqiora.ValueType.real())
 
     natural = component.relation(
         "natural",
@@ -197,7 +207,7 @@ PARAMETERS = {
 }
 
 
-def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."):
+def scalar_property_source(*, doc: str = "Reference scalar diffusivity release.", binding=None):
     source = q.Source()
     contract = source.scalar_property_contract("Diffusivity", unit=u.one)
     release = source.scalar_property_release(
@@ -217,7 +227,7 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
     law_right = law.boundary("right", parent=law_region)
     law_bottom = law.boundary("bottom", parent=law_region)
     law_top = law.boundary("top", parent=law_region)
-    law_source_scale = law.parameter("source_scale", unit=u.one / u.m**2)
+    law_source_scale = law.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
     diffusivity = law.property("diffusivity", contract=contract)
     potential = law.field("potential", on=law_region, value_type=eqiora.ValueType.real(), initial=0)
     law.relation(
@@ -239,7 +249,7 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
     root_right = root.boundary("right", parent=root_region)
     root_bottom = root.boundary("bottom", parent=root_region)
     root_top = root.boundary("top", parent=root_region)
-    root_source_scale = root.parameter("source_scale", unit=u.one / u.m**2)
+    root_source_scale = root.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
     root.instance(
         "equation",
         component=law,
@@ -250,7 +260,7 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
             law_bottom: root_bottom,
             law_top: root_top,
         },
-        parameters={law_source_scale: root_source_scale},
+        parameters={law_source_scale: root_source_scale if binding is None else binding},
         properties={diffusivity: release},
     )
     return source
@@ -335,7 +345,7 @@ def test_removed_source_choice_keywords_are_unexpected() -> None:
     for operation in (
         lambda: component.volume("other_volume", dimensions=2, public=True),
         lambda: component.boundary("boundary", parent=volume, public=True),
-        lambda: component.parameter("parameter", unit=u.one, public=True),
+        lambda: component.parameter("parameter", value_type=eqiora.ValueType.real(), public=True),
         lambda: component.property("property", contract=contract, public=True),
     ):
         with pytest.raises(TypeError, match="unexpected keyword argument 'public'"):
@@ -361,9 +371,9 @@ def scalar_primal_source():
     source = q.Source()
     law = source.component("ScalarDiffusion")
     region = law.volume("region", dimensions=2)
-    diffusion = law.parameter("diffusion", unit=u.one)
-    wave_number = law.parameter("wave_number", unit=u.one / u.m)
-    source_scale = law.parameter("source_scale", unit=u.one / u.m**2)
+    diffusion = law.parameter("diffusion", value_type=eqiora.ValueType.real())
+    wave_number = law.parameter("wave_number", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-1)))
+    source_scale = law.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
     potential = law.field("potential", on=region, value_type=eqiora.ValueType.real(), initial=0)
     balance = law.relation(
         "balance",

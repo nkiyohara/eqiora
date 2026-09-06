@@ -382,7 +382,10 @@ fn require_complete_outer_laws(
     let Some(KernelNode::Parameter(definition)) = program.node(speed) else {
         return Err(invalid("complete trace speed identity is not a Parameter"));
     };
-    let value = program.value(speed).unwrap_or(definition.value());
+    let initial = definition
+        .real_scalar_value()
+        .ok_or_else(|| invalid("trace speed requires a real scalar Parameter"))?;
+    let value = program.value(speed).unwrap_or(initial);
     if value.dim() != SPEED_DIMENSION || !value.value().is_finite() || value.value() <= 0.0 {
         return Err(invalid(
             "complete trace speed must be one finite positive velocity Parameter",

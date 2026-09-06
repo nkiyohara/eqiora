@@ -368,10 +368,10 @@ impl Parser<'_> {
         let name = self.expect_identifier("Connector name")?.text().to_owned();
         self.expect(TokenKind::Equal, "`=` before Connector family")?;
         let syntax = if self.at_keyword("scalar_physical") {
-            let (across_dimension, through_dimension) = self.parse_scalar_physical_dimensions()?;
+            let (across_type, through_type) = self.parse_scalar_physical_types()?;
             ConnectorSyntax::ScalarPhysical {
-                across_dimension,
-                through_dimension,
+                across_type,
+                through_type,
             }
         } else if self.at_keyword("field_physical") {
             self.parse_field_physical_connector()?
@@ -532,18 +532,20 @@ impl Parser<'_> {
         }
     }
 
-    fn parse_scalar_physical_dimensions(&mut self) -> Option<(Expr, Expr)> {
+    fn parse_scalar_physical_types(
+        &mut self,
+    ) -> Option<(crate::ValueTypeSyntax, crate::ValueTypeSyntax)> {
         self.expect_keyword("scalar_physical")?;
         self.expect(TokenKind::LeftParen, "`(` after `scalar_physical`")?;
         self.expect_keyword("across")?;
         self.expect(TokenKind::Equal, "`=` after `across`")?;
-        let across_dimension = self.parse_dimension_expression()?;
-        self.expect(TokenKind::Comma, "`,` between physical dimensions")?;
+        let across_type = self.parse_value_type()?;
+        self.expect(TokenKind::Comma, "`,` between physical types")?;
         self.expect_keyword("through")?;
         self.expect(TokenKind::Equal, "`=` after `through`")?;
-        let through_dimension = self.parse_dimension_expression()?;
-        self.expect(TokenKind::RightParen, "`)` after physical dimensions")?;
-        Some((across_dimension, through_dimension))
+        let through_type = self.parse_value_type()?;
+        self.expect(TokenKind::RightParen, "`)` after physical types")?;
+        Some((across_type, through_type))
     }
 
     fn parse_field_physical_connector(&mut self) -> Option<ConnectorSyntax> {
@@ -776,8 +778,8 @@ impl Parser<'_> {
             .expect_identifier("component Parameter name")?
             .text()
             .to_owned();
-        self.expect(TokenKind::Colon, "`:` before component Parameter dimension")?;
-        let dimension = self.parse_dimension_expression()?;
+        self.expect(TokenKind::Colon, "`:` before component Parameter type")?;
+        let value_type = self.parse_value_type()?;
         let default = if self.at(TokenKind::Equal) {
             self.bump();
             Some(self.parse_expression(0)?)
@@ -791,7 +793,7 @@ impl Parser<'_> {
         Some(ComponentParameterDecl {
             visibility,
             name,
-            dimension,
+            value_type,
             default,
             range: TextRange::new(start, end),
         })
@@ -908,8 +910,6 @@ impl Parser<'_> {
                         .to_owned(),
                 }
             } else {
-                let checkpoint = self.cursor;
-                let diagnostic_checkpoint = self.diagnostics.len();
                 let connector = self
                     .at(TokenKind::Identifier)
                     .then(|| self.parse_name_path("field-physical Connector name"))
@@ -926,11 +926,10 @@ impl Parser<'_> {
                         }
                     }
                     _ => {
-                        self.cursor = checkpoint;
-                        self.diagnostics.truncate(diagnostic_checkpoint);
-                        PortSyntax::ConservingMarker {
-                            dimension: self.parse_dimension_expression()?,
-                        }
+                        self.error_here(
+                            "conserving Port requires a physical Domain or boundary Connector",
+                        );
+                        return None;
                     }
                 }
             }
@@ -1031,7 +1030,7 @@ impl Parser<'_> {
         };
         Some(PortSyntax::Signal {
             direction,
-            dimension: self.parse_dimension_expression()?,
+            value_type: self.parse_value_type()?,
         })
     }
 

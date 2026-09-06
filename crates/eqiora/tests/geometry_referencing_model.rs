@@ -8,8 +8,7 @@ use eqiora::kernel::{
 };
 use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::sem::KernelProgram;
-use eqiora::{DimExponents, DynQuantity, Id, ValueShape, kinds};
-use eqiora_core::ValueFrame;
+use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use serde_json::Value;
 
 #[derive(Clone, Copy)]
@@ -142,12 +141,12 @@ fn geometry_identity_names_and_topology_are_fingerprint_meaning() {
         StructuralSemanticFingerprint::from_program(&baseline.program).unwrap();
     assert_eq!(
         baseline_fingerprint.generation(),
-        SemanticFingerprintGeneration::V5
+        SemanticFingerprintGeneration::V6
     );
     assert!(
         baseline_fingerprint
             .to_string()
-            .starts_with("eqiora.structural-semantic-fingerprint/v5:")
+            .starts_with("eqiora.structural-semantic-fingerprint/v6:")
     );
 
     let mut changed_digest = GeometryMeaning::default();
@@ -340,10 +339,14 @@ fn build_transaction(
         ExtraMeaning::RelationSupport => {}
         ExtraMeaning::BoundaryPortSupport => {
             let connector = BoundaryPhysicalConnector::new(
-                DimExponents::DIMENSIONLESS,
-                DimExponents::DIMENSIONLESS,
-                ValueShape::scalar(),
-                ValueFrame::Invariant,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
                 BoundaryPairing::EuclideanBoundaryDuality,
             )
             .unwrap();

@@ -6,7 +6,6 @@ use eqiora_lang::{BoundaryDecl, DomainSyntax, Item, RepresentationSyntax};
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 use crate::diagnostics::source_error;
-use crate::dimensions::lower_dimension;
 
 use super::expression::validate_relation_expression;
 use super::scope::{
@@ -80,19 +79,21 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                     ))),
                     DomainSyntax::Boundary { .. } => Ok(None),
                     DomainSyntax::ScalarPhysical {
-                        across_dimension,
-                        through_dimension,
-                    } => lower_dimension(self.scope.file, across_dimension).and_then(|across| {
-                        lower_dimension(self.scope.file, through_dimension).map(|through| {
-                            Some((
-                                declaration.name(),
-                                SymbolContract::Domain(DomainContract::Physical {
-                                    across_dimension: across,
-                                    through_dimension: through,
-                                }),
-                            ))
-                        })
-                    }),
+                        across_type,
+                        through_type,
+                    } => crate::value_types::lower_scalar_type(self.scope.file, across_type)
+                        .and_then(|across| {
+                            crate::value_types::lower_scalar_type(self.scope.file, through_type)
+                                .map(|through| {
+                                    Some((
+                                        declaration.name(),
+                                        SymbolContract::Domain(DomainContract::Physical {
+                                            across_type: across,
+                                            through_type: through,
+                                        }),
+                                    ))
+                                })
+                        }),
                     _ => Err(source_error(
                         codes::LANGUAGE_LOWERING_ERROR,
                         self.scope.file,
@@ -103,22 +104,25 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                 Item::Representation(declaration) => {
                     Ok(Some((declaration.name(), SymbolContract::Representation)))
                 }
-                Item::Parameter(declaration) => {
-                    lower_dimension(self.scope.file, declaration.dimension()).map(|dimension| {
-                        Some((
-                            declaration.name(),
-                            SymbolContract::Parameter(ExpressionType::scalar(dimension, None)),
-                        ))
-                    })
-                }
+                Item::Parameter(declaration) => crate::value_types::lower_value_type::<String>(
+                    self.scope.file,
+                    declaration.value_type(),
+                    None,
+                )
+                .map(|value_type| {
+                    Some((
+                        declaration.name(),
+                        SymbolContract::Parameter(ExpressionType::new(value_type, None)),
+                    ))
+                }),
                 Item::Let(declaration) => self
                     .compile_time_values
                     .get(declaration.name())
                     .map(|value| {
                         Some((
                             declaration.name(),
-                            SymbolContract::Parameter(ExpressionType::scalar(
-                                value.dimension,
+                            SymbolContract::Parameter(ExpressionType::new(
+                                value.value_type.clone(),
                                 None,
                             )),
                         ))

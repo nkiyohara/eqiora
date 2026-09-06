@@ -130,8 +130,8 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     };
                     self.scope.symbols.insert(
                         declaration.name().to_owned(),
-                        SymbolContract::Parameter(ExpressionType::scalar(
-                            parameter.dimension,
+                        SymbolContract::Parameter(ExpressionType::new(
+                            parameter.value_type.clone(),
                             None,
                         )),
                     );

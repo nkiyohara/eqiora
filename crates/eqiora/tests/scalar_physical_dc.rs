@@ -83,10 +83,26 @@ fn native_parallel_dc_draft() -> ModelDraft {
     let current = DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension");
     let resistance =
         DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension");
-    let electrical = DraftPhysicalDomain::new("electrical", voltage, current);
-    let supply_voltage = DraftParameter::new("supply_voltage", voltage, 12.0);
-    let resistance_two = DraftParameter::new("resistance_two", resistance, 2.0);
-    let resistance_four = DraftParameter::new("resistance_four", resistance, 4.0);
+    let electrical = DraftPhysicalDomain::new(
+        "electrical",
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current),
+    );
+    let supply_voltage = DraftParameter::new(
+        "supply_voltage",
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage),
+        12.0,
+    );
+    let resistance_two = DraftParameter::new(
+        "resistance_two",
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance),
+        2.0,
+    );
+    let resistance_four = DraftParameter::new(
+        "resistance_four",
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance),
+        4.0,
+    );
     let source_positive = DraftConservingPort::new("source_positive", &electrical);
     let source_negative = DraftConservingPort::new("source_negative", &electrical);
     let resistor_two_positive = DraftConservingPort::new("resistor_two_positive", &electrical);

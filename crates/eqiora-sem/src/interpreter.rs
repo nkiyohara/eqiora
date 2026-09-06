@@ -1,8 +1,10 @@
 //! Deterministic reference execution for scalar continuous/periodic models.
 
 mod event_localization;
+mod samples;
 
 use event_localization::{crossing_events, locate_event_time};
+use samples::record_samples;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -664,6 +666,19 @@ struct ExecutionPlan {
 impl ExecutionPlan {
     fn new(program: &KernelProgram) -> Result<Self, Diagnostic> {
         for node in program.nodes() {
+            if let KernelNode::Domain(domain) = node
+                && let DomainKind::ScalarPhysical {
+                    across_type,
+                    through_type,
+                } = domain.kind()
+                && (across_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+                    || through_type.scalar_domain() != eqiora_core::ScalarDomain::Real)
+            {
+                return Err(Diagnostic::error(
+                    codes::NOT_IMPLEMENTED,
+                    "reference execution requires real scalar physical quantities",
+                ));
+            }
             if let KernelNode::Field(field) = node
                 && (field.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
                     || !field.shape().is_scalar())
@@ -671,6 +686,16 @@ impl ExecutionPlan {
                 return Err(Diagnostic::error(
                     codes::NOT_IMPLEMENTED,
                     "reference execution requires real scalar Fields",
+                ));
+            }
+            if let KernelNode::Port(port) = node
+                && let Some((_, value_type)) = port.signal_contract()
+                && (value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+                    || !value_type.shape().is_scalar())
+            {
+                return Err(Diagnostic::error(
+                    codes::NOT_IMPLEMENTED,
+                    "reference execution requires real scalar signal Ports",
                 ));
             }
         }
@@ -1308,7 +1333,7 @@ fn physical_systems(program: &KernelProgram) -> Result<Vec<ComposedResidualSyste
         if !scalar_physical {
             return Err(Diagnostic::error(
                 codes::NOT_IMPLEMENTED,
-                "reference execution does not assign physical meaning to legacy conserving markers",
+                "reference conserving execution requires scalar physical Ports",
             )
             .with_graph_path(kernel_path(connection_id.erase())));
         }
@@ -1379,53 +1404,6 @@ fn edge_targets(
         .filter(|edge| edge.from() == from && edge.kind() == kind)
         .map(eqiora_graph::Edge::to)
         .collect()
-}
-
-fn record_samples(
-    program: &KernelProgram,
-    plan: &ExecutionPlan,
-    state: &RuntimeState,
-    time: f64,
-    samples: &mut Vec<Sample>,
-    physical_samples: &mut Vec<PhysicalSample>,
-) {
-    for &field in &plan.fields {
-        let Some(KernelNode::Field(definition)) = program.node(field) else {
-            continue;
-        };
-        samples.push(Sample::new(
-            time,
-            field,
-            DynQuantity::new(state.fields[&field], definition.dimension()),
-        ));
-    }
-    for (&unknown, &value) in &state.physical {
-        let Some(KernelNode::Port(port)) = program.node(unknown.port().erase()) else {
-            continue;
-        };
-        let Some(domain) = port.physical_domain() else {
-            continue;
-        };
-        let Some(KernelNode::Domain(domain)) = program.node(domain.erase()) else {
-            continue;
-        };
-        let DomainKind::ScalarPhysical {
-            across_dimension,
-            through_dimension,
-        } = domain.kind()
-        else {
-            continue;
-        };
-        let dimension = match unknown {
-            PhysicalUnknown::Across(_) => *across_dimension,
-            PhysicalUnknown::Through(_) => *through_dimension,
-        };
-        physical_samples.push(PhysicalSample::new(
-            time,
-            unknown,
-            DynQuantity::new(value, dimension),
-        ));
-    }
 }
 
 fn config_error(message: impl Into<String>) -> Diagnostic {

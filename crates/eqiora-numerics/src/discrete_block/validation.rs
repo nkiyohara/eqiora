@@ -2,6 +2,15 @@ use super::*;
 
 impl DiscreteBlockSystem {
     pub(super) fn validate(&self) -> Result<(), Diagnostic> {
+        if self
+            .fields
+            .iter()
+            .any(|field| field.value_type.scalar_domain() != ScalarDomain::Real)
+        {
+            return Err(invalid(
+                "discrete block execution requires real Field types",
+            ));
+        }
         if self.fields.is_empty()
             || self.relations.is_empty()
             || self.residuals.is_empty()

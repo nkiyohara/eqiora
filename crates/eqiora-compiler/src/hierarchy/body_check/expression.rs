@@ -240,7 +240,7 @@ impl ExpressionChecker<'_, '_, '_> {
     ) -> Result<ExpressionType<String>, Diagnostic> {
         match contract {
             SymbolContract::Field(inferred) | SymbolContract::Parameter(inferred) => Ok(inferred),
-            SymbolContract::Port(contract) => contract.scalar_type().ok_or_else(|| {
+            SymbolContract::Port(contract) => contract.expression_type().ok_or_else(|| {
                 source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     self.scope.file,
@@ -488,37 +488,27 @@ impl ExpressionChecker<'_, '_, '_> {
         }
         match contract {
             SymbolContract::Port(PortContract::Physical {
-                across_dimension,
-                through_dimension,
+                across_type,
+                through_type,
                 ..
-            }) if matches!(callee, "across" | "through") => Ok(ExpressionType::scalar(
+            }) if matches!(callee, "across" | "through") => Ok(ExpressionType::new(
                 if callee == "across" {
-                    across_dimension
+                    across_type
                 } else {
-                    through_dimension
+                    through_type
                 },
                 None,
             )),
             SymbolContract::Port(PortContract::BoundaryPhysical {
                 connector, support, ..
-            }) if matches!(callee, "trace" | "flux") => ExpressionType::shaped(
+            }) if matches!(callee, "trace" | "flux") => Ok(ExpressionType::new(
                 if callee == "trace" {
-                    connector.trace_dimension()
+                    connector.trace_type().clone()
                 } else {
-                    connector.flux_dimension()
+                    connector.flux_type().clone()
                 },
-                connector.shape().clone(),
-                connector.frame(),
                 Some(support),
-            )
-            .map_err(|error| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    self.scope.file,
-                    argument.range(),
-                    error.to_string(),
-                )
-            }),
+            )),
             SymbolContract::Port(PortContract::BoundaryPhysical { .. }) => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.scope.file,

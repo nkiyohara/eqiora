@@ -5,7 +5,7 @@
 
 use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, Id, ValueShape};
+use eqiora_core::{Diagnostic, Id, ValueShape};
 use eqiora_schema::kernel::pure_operator::{
     CalculusBuilder, CalculusNode, CalculusNodeId, ExactRational, PureOperatorDefinition,
     PureValueClass, ResultAxis,
@@ -13,7 +13,7 @@ use eqiora_schema::kernel::pure_operator::{
 use eqiora_schema::kernel::{
     ActivationKind, BoundaryPairing, BoundarySide, CartesianAxisDefinition,
     CartesianCoordinateSource, ClockDomainDef, ClockKind, ConnectionSemantics, EventDirection,
-    PortDef, PortPayload, RationalTime, RepresentationKind, SignalDirection,
+    RationalTime, RepresentationKind, SignalDirection,
 };
 use serde::{Deserialize, Serialize};
 
@@ -211,34 +211,6 @@ impl WireRepresentationKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-pub(crate) enum WirePortKind {
-    Signal { direction: WireSignalDirection },
-    Conserving,
-}
-
-impl WirePortKind {
-    pub(crate) fn encode(value: PortPayload) -> Result<Self, Diagnostic> {
-        match value {
-            PortPayload::Signal { direction, .. } => Ok(Self::Signal {
-                direction: WireSignalDirection::encode(direction),
-            }),
-            PortPayload::ConservingMarker { .. } => Ok(Self::Conserving),
-            _ => Err(invalid_artifact(
-                "Port payload is newer than the supported model wire vocabulary",
-            )),
-        }
-    }
-
-    pub(crate) const fn decode(self, id: Id<kinds::Port>, dimension: DimExponents) -> PortDef {
-        match self {
-            Self::Signal { direction } => PortDef::signal(id, direction.decode(), dimension),
-            Self::Conserving => PortDef::conserving_marker(id, dimension),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum WireSignalDirection {
     Input,
@@ -276,6 +248,18 @@ pub(crate) enum WireActivationKind {
 }
 
 impl WireActivationKind {
+    pub(crate) fn ensure_value_shape_limits(
+        &self,
+        limits: ModelDecoderLimits,
+    ) -> Result<(), Diagnostic> {
+        match self {
+            Self::Event { guard, .. } | Self::Guard { guard } => {
+                guard.ensure_value_shape_limits(limits)
+            }
+            Self::Continuous | Self::Periodic => Ok(()),
+        }
+    }
+
     pub(crate) fn encode(value: &ActivationKind) -> Result<Self, Diagnostic> {
         match value {
             ActivationKind::Continuous => Ok(Self::Continuous),

@@ -38,9 +38,8 @@ impl DiscreteBlockSystem {
                 }
                 None => hash.update([0]),
             }
-            hash_shape(&mut hash, &field.shape);
-            hash_dimension(&mut hash, field.dimension);
-            hash.update([frame_tag(field.frame), field.role as u8]);
+            hash_value_type(&mut hash, &field.value_type);
+            hash.update([field.role as u8]);
             match field.scale {
                 Some(scale) => {
                     hash.update([1]);
@@ -129,6 +128,17 @@ fn hash_shape(hash: &mut Sha256, shape: &ValueShape) {
     for extent in shape.extents() {
         hash.update(extent.get().to_le_bytes());
     }
+}
+
+fn hash_value_type(hash: &mut Sha256, value_type: &ValueType) {
+    hash.update([match value_type.scalar_domain() {
+        ScalarDomain::Real => 0,
+        ScalarDomain::Complex => 1,
+    }]);
+    hash_dimension(hash, value_type.dimension());
+    hash_shape(hash, value_type.shape());
+    hash.update([frame_tag(value_type.frame())]);
+    hash.update((value_type.array_rank() as u64).to_le_bytes());
 }
 
 fn hash_dimension(hash: &mut Sha256, dimension: DimExponents) {

@@ -26,14 +26,14 @@ model Main {
     field velocity = velocity,
     field pressure = pressure,
     field force_potential = force_potential,
-    dynamic_viscosity = 6
+    dynamic_viscosity = 6[kg / (m * s)]
   );
   instance boundary: fluid.NewtonianMechanicalInterface2d(
     support body = body,
     support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
     field velocity = velocity,
     field pressure = pressure,
-    dynamic_viscosity = 6
+    dynamic_viscosity = 6[kg / (m * s)]
   );
 
   instance x_lower_zero: mechanics.ZeroVelocity2d(

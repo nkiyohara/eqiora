@@ -556,8 +556,8 @@ model Main {
   parameter duration: s = 1;
   instance circuit: circuits.ParallelDc(
     supply_voltage = duration,
-    resistance_two = 2,
-    resistance_four = 4
+    resistance_two = 2[kg * m ^ 2 / (s ^ 3 * A ^ 2)],
+    resistance_four = 4[kg * m ^ 2 / (s ^ 3 * A ^ 2)]
   );
 }
 "#,

@@ -199,8 +199,8 @@ pub enum DomainKind {
     /// One nominal scalar conserving domain. The Domain ID is part of the
     /// physical type; dimensions alone never make two domains compatible.
     ScalarPhysical {
-        across_dimension: DimExponents,
-        through_dimension: DimExponents,
+        across_type: eqiora_core::ValueType,
+        through_type: eqiora_core::ValueType,
     },
     /// One nominal field-valued boundary connector. The Domain ID plus closed
     /// trace/flux role is the exact quantity identity.
@@ -331,19 +331,27 @@ impl DomainDef {
     }
 
     /// Construct a nominal scalar conserving domain.
-    #[must_use]
-    pub const fn scalar_physical(
+    ///
+    /// # Errors
+    /// Rejects shaped across or through quantities.
+    pub fn scalar_physical(
         id: Id<kinds::Domain>,
-        across_dimension: DimExponents,
-        through_dimension: DimExponents,
-    ) -> Self {
-        Self {
+        across_type: eqiora_core::ValueType,
+        through_type: eqiora_core::ValueType,
+    ) -> Result<Self, Diagnostic> {
+        if !across_type.shape().is_scalar() || !through_type.shape().is_scalar() {
+            return Err(Diagnostic::error(
+                codes::INVALID_KERNEL_DEFINITION,
+                "scalar physical quantities require scalar mathematical types",
+            ));
+        }
+        Ok(Self {
             id,
             kind: DomainKind::ScalarPhysical {
-                across_dimension,
-                through_dimension,
+                across_type,
+                through_type,
             },
-        }
+        })
     }
 
     /// Construct a nominal field-valued boundary connector Domain.

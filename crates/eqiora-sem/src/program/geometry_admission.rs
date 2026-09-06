@@ -304,6 +304,7 @@ pub(super) fn admit_geometry_boundary_junctions(
                     .shape()
                     .extents()
                     .iter()
+                    .skip(connector.trace_type().array_rank())
                     .any(|extent| usize::try_from(extent.get()).ok() != Some(first.dimensions))
             {
                 return false;

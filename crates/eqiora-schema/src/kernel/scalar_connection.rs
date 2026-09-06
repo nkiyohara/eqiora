@@ -5,7 +5,9 @@
 //! without being forced into this closed payload. Source spans, graph paths,
 //! and diagnostic prose remain responsibilities of each consuming layer.
 
+#[cfg(test)]
 use eqiora_core::DimExponents;
+use eqiora_core::ValueType;
 
 use super::SignalDirection;
 
@@ -28,13 +30,8 @@ pub enum ScalarPortContract<I> {
     Signal {
         /// Direction relative to the owning relation network.
         direction: SignalDirection,
-        /// Physical dimension of the carried value.
-        dimension: DimExponents,
-    },
-    /// Structural-only conserving marker.
-    ConservingMarker {
-        /// Physical dimension of the marker value.
-        dimension: DimExponents,
+        /// Complete mathematical type of the carried value.
+        value_type: ValueType,
     },
     /// Scalar physical across/through pair with exact nominal identity.
     ScalarPhysical {
@@ -61,12 +58,10 @@ pub enum ScalarConnectionViolation {
         /// Total number of Ports, including incompatible kinds.
         total: usize,
     },
-    /// Signal Port dimensions are not all equal.
-    SignalDimensionMismatch,
+    /// An input cannot receive the output's complete mathematical type.
+    SignalTypeMismatch,
     /// A conserving connection mixes scalar Port families.
     MixedConservingFamilies,
-    /// Conserving-marker dimensions are not all equal.
-    MarkerDimensionMismatch,
     /// Scalar physical Ports do not have one exact nominal identity.
     PhysicalNominalMismatch,
 }
@@ -75,8 +70,8 @@ pub enum ScalarConnectionViolation {
 ///
 /// The check is independent of syntax ordering and graph storage. Signal
 /// causality follows Port direction: exactly one output and one or more inputs
-/// must share one dimension. Conserving markers share one dimension, while
-/// scalar physical Ports share one exact nominal identity.
+/// must accept the output's complete type, with real-to-complex embedding only.
+/// Scalar physical Ports share one exact nominal identity.
 ///
 /// # Errors
 /// Returns the first structural incompatibility in a stable rule order.
@@ -96,24 +91,21 @@ pub fn validate_scalar_connection<I: Eq>(
 fn validate_signal<I>(ports: &[ScalarPortContract<I>]) -> Result<(), ScalarConnectionViolation> {
     let mut outputs = 0;
     let mut inputs = 0;
-    let mut first_dimension = None;
-    let mut dimensions_match = true;
+    let mut output_type = None;
     for port in ports {
         let ScalarPortContract::Signal {
             direction,
-            dimension,
+            value_type,
         } = port
         else {
             continue;
         };
         match direction {
             SignalDirection::Input => inputs += 1,
-            SignalDirection::Output => outputs += 1,
-        }
-        if let Some(first) = first_dimension {
-            dimensions_match &= first == *dimension;
-        } else {
-            first_dimension = Some(*dimension);
+            SignalDirection::Output => {
+                outputs += 1;
+                output_type = Some(value_type);
+            }
         }
     }
     if outputs != 1 || inputs + outputs != ports.len() {
@@ -123,8 +115,16 @@ fn validate_signal<I>(ports: &[ScalarPortContract<I>]) -> Result<(), ScalarConne
             total: ports.len(),
         });
     }
-    if !dimensions_match {
-        return Err(ScalarConnectionViolation::SignalDimensionMismatch);
+    let output_type = output_type.expect("exactly one output was checked");
+    for port in ports {
+        if let ScalarPortContract::Signal {
+            direction: SignalDirection::Input,
+            value_type,
+        } = port
+            && output_type.clone().with_common_scalar_domain(value_type) != *value_type
+        {
+            return Err(ScalarConnectionViolation::SignalTypeMismatch);
+        }
     }
     Ok(())
 }
@@ -133,23 +133,6 @@ fn validate_conserving<I: Eq>(
     ports: &[ScalarPortContract<I>],
 ) -> Result<(), ScalarConnectionViolation> {
     match &ports[0] {
-        ScalarPortContract::ConservingMarker { dimension } => {
-            let mut dimensions_match = true;
-            for port in ports {
-                let ScalarPortContract::ConservingMarker {
-                    dimension: candidate,
-                } = port
-                else {
-                    return Err(ScalarConnectionViolation::MixedConservingFamilies);
-                };
-                dimensions_match &= candidate == dimension;
-            }
-            if dimensions_match {
-                Ok(())
-            } else {
-                Err(ScalarConnectionViolation::MarkerDimensionMismatch)
-            }
-        }
         ScalarPortContract::ScalarPhysical { nominal } => {
             let mut nominal_matches = true;
             for port in ports {
@@ -181,7 +164,52 @@ mod tests {
     fn signal(direction: SignalDirection, dimension: DimExponents) -> ScalarPortContract<u8> {
         ScalarPortContract::Signal {
             direction,
-            dimension,
+            value_type: ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
+        }
+    }
+
+    #[test]
+    fn signal_types_preserve_roles_and_embed_only_toward_complex_inputs() {
+        use eqiora_core::{ScalarDomain, ValueFrame, ValueShape};
+        let real = ValueType::scalar(ScalarDomain::Real, LENGTH);
+        let complex = ValueType::scalar(ScalarDomain::Complex, LENGTH);
+        let array = real.clone().array(3).unwrap();
+        let vector = ValueType::shaped(
+            ScalarDomain::Real,
+            LENGTH,
+            ValueShape::new([3]).unwrap(),
+            ValueFrame::SpatialCartesian,
+        )
+        .unwrap();
+        for (output, input, accepted) in [
+            (real.clone(), complex.clone(), true),
+            (complex.clone(), real.clone(), false),
+            (array.clone(), complex.array(3).unwrap(), true),
+            (array.clone(), real.clone().array(2).unwrap(), false),
+            (array.clone(), vector.clone(), false),
+            (vector, array.clone(), false),
+            (array, real.clone(), false),
+            (real.clone(), real.with_dimension(UNIT), false),
+        ] {
+            let ports = [
+                ScalarPortContract::<u8>::Signal {
+                    direction: SignalDirection::Input,
+                    value_type: input,
+                },
+                ScalarPortContract::Signal {
+                    direction: SignalDirection::Output,
+                    value_type: output,
+                },
+            ];
+            let expected = if accepted {
+                Ok(())
+            } else {
+                Err(ScalarConnectionViolation::SignalTypeMismatch)
+            };
+            assert_eq!(
+                validate_scalar_connection(ScalarConnectionKind::Signal, &ports),
+                expected
+            );
         }
     }
 
@@ -212,21 +240,12 @@ mod tests {
         ];
         assert_eq!(
             validate_scalar_connection(ScalarConnectionKind::Signal, &mismatched),
-            Err(ScalarConnectionViolation::SignalDimensionMismatch)
+            Err(ScalarConnectionViolation::SignalTypeMismatch)
         );
     }
 
     #[test]
-    fn conserving_markers_match_dimension_but_physical_ports_match_identity() {
-        let marker_mismatch = [
-            ScalarPortContract::<u8>::ConservingMarker { dimension: UNIT },
-            ScalarPortContract::ConservingMarker { dimension: LENGTH },
-        ];
-        assert_eq!(
-            validate_scalar_connection(ScalarConnectionKind::Conserving, &marker_mismatch),
-            Err(ScalarConnectionViolation::MarkerDimensionMismatch)
-        );
-
+    fn physical_ports_match_nominal_identity() {
         let nominal_mismatch = [
             ScalarPortContract::ScalarPhysical { nominal: 1_u8 },
             ScalarPortContract::ScalarPhysical { nominal: 2_u8 },
@@ -249,7 +268,7 @@ mod tests {
     #[test]
     fn connection_families_never_coerce() {
         let mixed = [
-            ScalarPortContract::ConservingMarker { dimension: UNIT },
+            signal(SignalDirection::Output, UNIT),
             ScalarPortContract::ScalarPhysical { nominal: 1_u8 },
         ];
         assert_eq!(

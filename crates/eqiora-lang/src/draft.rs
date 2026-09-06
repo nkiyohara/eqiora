@@ -5,10 +5,7 @@
 //! synthetic AST through exactly the same path as parsed source.
 
 use std::collections::{HashMap, HashSet};
-use std::fmt;
-use std::hash::{Hash, Hasher};
 use std::ops::{Add, Div, Mul, Neg, Sub};
-use std::sync::Arc;
 
 use crate::ast::{
     ActivationSyntax, BinaryOp, ConnectionDecl, ConnectionSyntax, DomainDecl, DomainSyntax, Expr,
@@ -107,6 +104,15 @@ impl ModelDraft {
                 }
                 DraftDeclaration::PhysicalDomain(value) => {
                     domain_symbols.insert(value.symbol.clone());
+                    if !value.across_type.shape().is_scalar()
+                        || !value.through_type.shape().is_scalar()
+                    {
+                        diagnostics.push(native_diagnostic(
+                            &self.name,
+                            value.name(),
+                            "scalar physical quantities require scalar mathematical types",
+                        ));
+                    }
                 }
                 DraftDeclaration::SpatialDomain(value) => {
                     spatial_domain_symbols.insert(value.symbol().clone());
@@ -161,12 +167,17 @@ impl ModelDraft {
                         ));
                     }
                 }
-                DraftDeclaration::Parameter(parameter) if !parameter.value.is_finite() => {
-                    diagnostics.push(native_diagnostic(
-                        &self.name,
-                        parameter.name(),
-                        "Parameter value must be finite",
-                    ));
+                DraftDeclaration::Parameter(parameter) => {
+                    if !parameter.value.is_finite() {
+                        diagnostics.push(native_diagnostic(
+                            &self.name,
+                            parameter.name(),
+                            "Parameter value must be finite",
+                        ));
+                    }
+                    if let Err(message) = value_type::validate(&parameter.value_type) {
+                        diagnostics.push(native_diagnostic(&self.name, parameter.name(), message));
+                    }
                 }
                 _ => {}
             }
@@ -396,14 +407,14 @@ impl ModelDraft {
                 DraftDeclaration::PhysicalDomain(domain) => Item::Domain(DomainDecl {
                     name: domain.name.clone(),
                     syntax: DomainSyntax::ScalarPhysical {
-                        across_dimension: dimension_expression(
-                            domain.across_dimension,
+                        across_type: value_type::project(
+                            &domain.across_type,
                             &path,
                             &mut ranges,
                             &mut paths,
                         ),
-                        through_dimension: dimension_expression(
-                            domain.through_dimension,
+                        through_type: value_type::project(
+                            &domain.through_type,
                             &path,
                             &mut ranges,
                             &mut paths,
@@ -442,12 +453,12 @@ impl ModelDraft {
                 }),
                 DraftDeclaration::Parameter(parameter) => Item::Parameter(ParameterDecl {
                     name: parameter.name.clone(),
-                    value_type: crate::ValueTypeSyntax::real(dimension_expression(
-                        parameter.dimension,
+                    value_type: value_type::project(
+                        &parameter.value_type,
                         &path,
                         &mut ranges,
                         &mut paths,
-                    )),
+                    ),
                     value: Expr {
                         kind: ExprKind::Number(parameter.value),
                         range,
@@ -613,8 +624,8 @@ impl From<DraftConservingConnection> for DraftDeclaration {
 pub struct DraftPhysicalDomain {
     symbol: DraftSymbol,
     name: String,
-    across_dimension: DimExponents,
-    through_dimension: DimExponents,
+    across_type: eqiora_core::ValueType,
+    through_type: eqiora_core::ValueType,
 }
 
 impl DraftPhysicalDomain {
@@ -622,14 +633,14 @@ impl DraftPhysicalDomain {
     #[must_use]
     pub fn new(
         name: impl Into<String>,
-        across_dimension: DimExponents,
-        through_dimension: DimExponents,
+        across_type: eqiora_core::ValueType,
+        through_type: eqiora_core::ValueType,
     ) -> Self {
         Self {
             symbol: DraftSymbol::new(),
             name: name.into(),
-            across_dimension,
-            through_dimension,
+            across_type,
+            through_type,
         }
     }
 
@@ -639,16 +650,16 @@ impl DraftPhysicalDomain {
         &self.name
     }
 
-    /// Static SI dimension of the across variable.
+    /// Complete mathematical type of the across variable.
     #[must_use]
-    pub const fn across_dimension(&self) -> DimExponents {
-        self.across_dimension
+    pub const fn across_type(&self) -> &eqiora_core::ValueType {
+        &self.across_type
     }
 
-    /// Static SI dimension of the through variable.
+    /// Complete mathematical type of the through variable.
     #[must_use]
-    pub const fn through_dimension(&self) -> DimExponents {
-        self.through_dimension
+    pub const fn through_type(&self) -> &eqiora_core::ValueType {
+        &self.through_type
     }
 }
 
@@ -728,7 +739,7 @@ struct DraftSpatialScope {
 }
 
 impl DraftField {
-    /// Declare one Field with an exact mathematical type and optional scalar initial value.
+    /// Declare one Field with an exact type and optional scalar or contextual-zero initializer.
     #[must_use]
     pub fn new(name: impl Into<String>, value_type: ValueType, initial: Option<f64>) -> Self {
         Self {
@@ -811,23 +822,23 @@ impl DraftField {
     }
 }
 
-/// Immutable scalar Parameter declaration.
+/// Immutable typed Parameter declaration with a real numeric literal.
 #[derive(Debug, Clone)]
 pub struct DraftParameter {
     symbol: DraftSymbol,
     name: String,
-    dimension: DimExponents,
+    value_type: ValueType,
     value: f64,
 }
 
 impl DraftParameter {
-    /// Declare one scalar Parameter in coherent SI units.
+    /// Declare one typed Parameter literal in coherent SI units.
     #[must_use]
-    pub fn new(name: impl Into<String>, dimension: DimExponents, value: f64) -> Self {
+    pub fn new(name: impl Into<String>, value_type: ValueType, value: f64) -> Self {
         Self {
             symbol: DraftSymbol::new(),
             name: name.into(),
-            dimension,
+            value_type,
             value,
         }
     }
@@ -841,7 +852,13 @@ impl DraftParameter {
     /// Static SI dimension.
     #[must_use]
     pub const fn dimension(&self) -> DimExponents {
-        self.dimension
+        self.value_type.dimension()
+    }
+
+    /// Complete declared mathematical type.
+    #[must_use]
+    pub const fn value_type(&self) -> &ValueType {
+        &self.value_type
     }
 
     /// Value in coherent SI units.
@@ -1198,35 +1215,6 @@ impl DraftSymbolKind {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct DraftSymbol(Arc<()>);
-
-impl DraftSymbol {
-    pub(crate) fn new() -> Self {
-        Self(Arc::new(()))
-    }
-}
-
-impl fmt::Debug for DraftSymbol {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("DraftSymbol(<local>)")
-    }
-}
-
-impl PartialEq for DraftSymbol {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
-    }
-}
-
-impl Eq for DraftSymbol {}
-
-impl Hash for DraftSymbol {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.0).hash(state);
-    }
-}
-
 /// Synthetic AST plus paths that recover native declaration context.
 #[doc(hidden)]
 #[derive(Debug)]
@@ -1251,9 +1239,11 @@ impl NativeModelAst {
 
 mod ast_bridge;
 mod dimension;
+mod symbol;
 mod value_type;
 use ast_bridge::{RangeAllocator, physical_accessor_ast};
 use dimension::dimension_expression;
+pub(crate) use symbol::DraftSymbol;
 
 fn native_diagnostic(model: &str, declaration: &str, message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::LANGUAGE_TYPE_ERROR, message)

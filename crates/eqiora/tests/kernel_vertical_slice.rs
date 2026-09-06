@@ -62,7 +62,10 @@ fn public_api_builds_a_clocked_relation_network() {
         KernelNode::from(PortDef::signal(
             port,
             SignalDirection::Output,
-            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
         )),
         KernelNode::from(ActivationDef::periodic(activation)),
         KernelNode::from(

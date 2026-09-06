@@ -701,16 +701,11 @@ model Network {
     }
 
     #[test]
-    fn signal_marker_and_nominal_mismatch_rules_fail_before_partitioning() {
+    fn signal_and_nominal_mismatch_rules_fail_before_partitioning() {
         for (name, source, expected) in [
             (
                 "signal membership",
                 "model M { port out: signal output 1; port a: signal input 1; port b: signal input 1; connect signal out -> a; connect signal out -> b; }",
-                "already belongs to another Connection",
-            ),
-            (
-                "marker membership",
-                "model M { port a: conserving 1; port b: conserving 1; port c: conserving 1; connect conserving a, b; connect conserving a, c; }",
                 "already belongs to another Connection",
             ),
             (

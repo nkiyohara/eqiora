@@ -36,9 +36,9 @@ pub(super) fn encode_let(
     encoder.field(1, |encoder| {
         encode_name(encoder, declaration.name(), budget)
     })?;
-    if let Some(dimension) = declaration.dimension() {
+    if let Some(value_type) = declaration.value_type() {
         encoder.field(2, |encoder| {
-            encode_expression(encoder, dimension, budget, 1)
+            super::value_type::encode_value_type(encoder, value_type, budget, 1)
         })?;
     }
     encoder.field(3, |encoder| {

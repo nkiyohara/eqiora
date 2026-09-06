@@ -46,9 +46,9 @@ pub fn format(document: &Document) -> String {
         write!(output, "connector {} = ", connector.name).expect("String write");
         match &connector.syntax {
             ConnectorSyntax::ScalarPhysical {
-                across_dimension,
-                through_dimension,
-            } => format_scalar_physical(across_dimension, through_dimension, &mut output),
+                across_type,
+                through_type,
+            } => format_scalar_physical(across_type, through_type, &mut output),
             ConnectorSyntax::FieldPhysical {
                 trace,
                 flux,
@@ -215,7 +215,7 @@ fn format_component_item(item: &ComponentItem, indent: usize, output: &mut Strin
                 output.push_str("public ");
             }
             write!(output, "parameter {}: ", declaration.name).expect("String write");
-            format_expression(&declaration.dimension, 0, output);
+            value_type::format_value_type(&declaration.value_type, output);
             if let Some(default) = &declaration.default {
                 output.push_str(" = ");
                 format_expression(default, 0, output);
@@ -310,9 +310,9 @@ fn format_item(item: &Item, indent: usize, output: &mut String) {
                     output.push(')');
                 }
                 DomainSyntax::ScalarPhysical {
-                    across_dimension,
-                    through_dimension,
-                } => format_scalar_physical(across_dimension, through_dimension, output),
+                    across_type,
+                    through_type,
+                } => format_scalar_physical(across_type, through_type, output),
             }
             output.push_str(";\n");
         }
@@ -396,21 +396,17 @@ fn format_port_syntax(syntax: &PortSyntax, output: &mut String) {
     match syntax {
         PortSyntax::Signal {
             direction: SignalDirectionSyntax::Input,
-            dimension,
+            value_type,
         } => {
             output.push_str("signal input ");
-            format_expression(dimension, 0, output);
+            value_type::format_value_type(value_type, output);
         }
         PortSyntax::Signal {
             direction: SignalDirectionSyntax::Output,
-            dimension,
+            value_type,
         } => {
             output.push_str("signal output ");
-            format_expression(dimension, 0, output);
-        }
-        PortSyntax::ConservingMarker { dimension } => {
-            output.push_str("conserving ");
-            format_expression(dimension, 0, output);
+            value_type::format_value_type(value_type, output);
         }
         PortSyntax::ScalarPhysical { domain } => {
             write!(output, "conserving on {domain}").expect("String write");

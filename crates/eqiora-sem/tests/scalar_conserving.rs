@@ -28,6 +28,10 @@ fn dimensions() -> (DimExponents, DimExponents) {
     )
 }
 
+fn real(dimension: DimExponents) -> eqiora_core::ValueType {
+    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension)
+}
+
 fn ids() -> PhysicalIds {
     let mut ports = [Id::new(), Id::new(), Id::new()];
     ports.sort_by_key(|port: &Id<kinds::Port>| port.erase());
@@ -47,15 +51,18 @@ fn ids() -> PhysicalIds {
 fn physical_transaction(ids: PhysicalIds, reverse_insertion: bool) -> Transaction {
     let (across_dimension, through_dimension) = dimensions();
     let mut nodes = vec![
-        KernelNode::from(DomainDef::scalar_physical(
-            ids.domain,
-            across_dimension,
-            through_dimension,
-        )),
-        KernelNode::from(ParameterDef::new(
-            ids.parameter,
-            DynQuantity::new(12.0, across_dimension),
-        )),
+        KernelNode::from(
+            DomainDef::scalar_physical(ids.domain, real(across_dimension), real(through_dimension))
+                .unwrap(),
+        ),
+        KernelNode::from(
+            ParameterDef::new(
+                ids.parameter,
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, across_dimension),
+                12.0,
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ConnectionDef::new(
             ids.connection,
             ConnectionSemantics::Conserving,
@@ -132,6 +139,74 @@ fn program(ids: PhysicalIds, reverse_insertion: bool) -> KernelProgram {
         .commit(physical_transaction(ids, reverse_insertion))
         .unwrap();
     KernelProgram::from_snapshot(&store.snapshot(), ids.model).unwrap()
+}
+
+#[test]
+fn complex_physical_quantities_typecheck_without_entering_real_execution() {
+    use eqiora_core::{ScalarDomain, ValueType};
+    let ids = ids();
+    let (across, through) = dimensions();
+    let definition = DomainDef::scalar_physical(
+        ids.domain,
+        ValueType::scalar(ScalarDomain::Complex, across),
+        ValueType::scalar(ScalarDomain::Complex, through),
+    )
+    .unwrap();
+    let mut transaction = Transaction::new("complex physical quantities");
+    for op in physical_transaction(ids, false).ops() {
+        transaction.push(match op {
+            Op::DefineKernelNode { node } if node.id() == ids.domain.erase() => {
+                Op::DefineKernelNode {
+                    node: definition.clone().into(),
+                }
+            }
+            _ => op.clone(),
+        });
+    }
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), ids.model).unwrap();
+    for relation in ids.relations {
+        let typed = program.typed_relation_residual(relation).unwrap();
+        let root = typed.expression().roots()[0];
+        assert_eq!(
+            typed.node_type(root).unwrap().value_type.scalar_domain(),
+            ScalarDomain::Complex
+        );
+    }
+    let errors = eqiora_sem::Interpreter::new()
+        .run(
+            &program,
+            eqiora_sem::ReferenceConfig::new(0.0, 0.01).unwrap(),
+        )
+        .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.code() == codes::NOT_IMPLEMENTED
+                && error.message().contains("real scalar physical quantities"))
+    );
+    let composed = program
+        .compose_scalar_physical_subsystem(ids.connection)
+        .unwrap();
+    assert_eq!(composed.unknown_types().len(), composed.unknowns().len());
+    assert!(
+        composed
+            .unknown_types()
+            .iter()
+            .all(|value_type| value_type.scalar_domain() == ScalarDomain::Complex)
+    );
+    assert_eq!(
+        composed.parameter_types(),
+        &[ValueType::scalar(ScalarDomain::Real, across)]
+    );
+    assert_eq!(
+        composed
+            .evaluate_reference(&[0.0; 6], &[12.0], Some(0.0))
+            .unwrap_err()
+            .code(),
+        codes::NOT_IMPLEMENTED
+    );
 }
 
 #[test]
@@ -303,7 +378,10 @@ fn physical_symbols_reject_signal_ports() {
         KernelNode::from(PortDef::signal(
             signal,
             eqiora_schema::kernel::SignalDirection::Input,
-            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
         )),
         KernelNode::from(RelationDef::new(
             relation,
@@ -378,7 +456,9 @@ fn physical_relation_admits_state_but_still_requires_continuous_activation_and_c
     let relation = RelationDef::new(ids.relations[0], expression.finish([root]).unwrap());
     let periodic = ActivationDef::new(ids.activation, ActivationKind::Periodic).unwrap();
     let nodes = vec![
-        DomainDef::scalar_physical(ids.domain, across_dimension, through_dimension).into(),
+        DomainDef::scalar_physical(ids.domain, real(across_dimension), real(through_dimension))
+            .unwrap()
+            .into(),
         PortDef::scalar_physical(ids.ports[0], ids.domain).into(),
         PortDef::scalar_physical(ids.ports[1], ids.domain).into(),
         relation.into(),
@@ -471,8 +551,16 @@ fn nominal_domain_identity_and_complete_ownership_are_required() {
     let activation = ActivationDef::continuous(ids.activation);
     let connection = ConnectionDef::new(ids.connection, ConnectionSemantics::Conserving);
     let mut nodes = vec![
-        DomainDef::scalar_physical(ids.domain, across_dimension, through_dimension).into(),
-        DomainDef::scalar_physical(other_domain, across_dimension, through_dimension).into(),
+        DomainDef::scalar_physical(ids.domain, real(across_dimension), real(through_dimension))
+            .unwrap()
+            .into(),
+        DomainDef::scalar_physical(
+            other_domain,
+            real(across_dimension),
+            real(through_dimension),
+        )
+        .unwrap()
+        .into(),
         PortDef::scalar_physical(ids.ports[0], ids.domain).into(),
         PortDef::scalar_physical(ids.ports[1], other_domain).into(),
         activation.into(),
@@ -533,7 +621,9 @@ fn nominal_domain_identity_and_complete_ownership_are_required() {
     let mut expression = ExprDagBuilder::new();
     let through = expression.symbol(SymbolRef::Through(orphan)).unwrap();
     let nodes = vec![
-        DomainDef::scalar_physical(ids.domain, across_dimension, through_dimension).into(),
+        DomainDef::scalar_physical(ids.domain, real(across_dimension), real(through_dimension))
+            .unwrap()
+            .into(),
         PortDef::scalar_physical(orphan, ids.domain).into(),
         RelationDef::new(relation, expression.finish([through]).unwrap()).into(),
         ActivationDef::continuous(activation).into(),

@@ -43,6 +43,7 @@ def check_native_modeling() -> None:
         value_type=eqiora.ValueType.real(length),
     )
     conductivity = eqiora.Parameter("conductivity", value=1.0)
+    assert_type(conductivity.value_type, eqiora.ValueType)
     assert_type(temperature.value_type, eqiora.ValueType)
     assert_type(temperature.initial, float | None)
     assert_type(eqiora.ValueType.tensor(eqiora.ValueType.complex(length), 2, 2), eqiora.ValueType)

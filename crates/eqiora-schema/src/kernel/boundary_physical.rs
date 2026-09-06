@@ -1,4 +1,4 @@
-use eqiora_core::{DimExponents, ValueShape};
+use eqiora_core::{ScalarDomain, ValueShape, ValueType};
 
 use super::{AxisBounds, BoundarySide};
 use eqiora_core::ValueFrame;
@@ -24,16 +24,14 @@ pub enum BoundaryQuantityRole {
 
 /// Closed, mesh-independent contract of one field-valued physical connector.
 ///
-/// The exact nominal identity is supplied by the owning Domain node. One
-/// shared shape is sufficient because v1 Euclidean boundary duality pairs
-/// equal component spaces. Support and outward orientation belong to Ports,
+/// The exact nominal identity is supplied by the owning Domain node.
+/// Euclidean boundary duality pairs real quantities with equal component
+/// spaces. Support and outward orientation belong to Ports,
 /// not to this reusable nominal contract.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoundaryPhysicalConnector {
-    trace_dimension: DimExponents,
-    flux_dimension: DimExponents,
-    shape: ValueShape,
-    frame: ValueFrame,
+    trace_type: ValueType,
+    flux_type: ValueType,
     pairing: BoundaryPairing,
 }
 
@@ -41,52 +39,49 @@ impl BoundaryPhysicalConnector {
     /// Construct one exact trace/flux dual pair.
     ///
     /// # Errors
-    /// Returns [`BoundaryPhysicalViolation::UnrepresentableComponents`] when
-    /// the exact shape's scalar component product exceeds local `usize`.
+    /// Rejects non-real Euclidean quantities or unequal component roles, shape or frame.
     pub fn new(
-        trace_dimension: DimExponents,
-        flux_dimension: DimExponents,
-        shape: ValueShape,
-        frame: ValueFrame,
+        trace_type: ValueType,
+        flux_type: ValueType,
         pairing: BoundaryPairing,
     ) -> Result<Self, BoundaryPhysicalViolation> {
-        shape
-            .component_count()
-            .ok_or(BoundaryPhysicalViolation::UnrepresentableComponents)?;
-        if shape.is_scalar() && frame != ValueFrame::Invariant {
-            return Err(BoundaryPhysicalViolation::ScalarRequiresInvariantFrame);
+        if trace_type.scalar_domain() != ScalarDomain::Real
+            || flux_type.scalar_domain() != ScalarDomain::Real
+        {
+            return Err(BoundaryPhysicalViolation::EuclideanRequiresReal);
+        }
+        if trace_type.clone().with_dimension(flux_type.dimension()) != flux_type {
+            return Err(BoundaryPhysicalViolation::ComponentTypeMismatch);
         }
         Ok(Self {
-            trace_dimension,
-            flux_dimension,
-            shape,
-            frame,
+            trace_type,
+            flux_type,
             pairing,
         })
     }
 
-    /// Trace-quantity SI dimension.
+    /// Complete mathematical type of the trace quantity.
     #[must_use]
-    pub const fn trace_dimension(&self) -> DimExponents {
-        self.trace_dimension
+    pub const fn trace_type(&self) -> &ValueType {
+        &self.trace_type
     }
 
-    /// Outward-flux SI dimension.
+    /// Complete mathematical type of the outward-flux quantity.
     #[must_use]
-    pub const fn flux_dimension(&self) -> DimExponents {
-        self.flux_dimension
+    pub const fn flux_type(&self) -> &ValueType {
+        &self.flux_type
     }
 
     /// Exact common component shape.
     #[must_use]
     pub const fn shape(&self) -> &ValueShape {
-        &self.shape
+        self.trace_type.shape()
     }
 
     /// Coordinate-frame meaning of components.
     #[must_use]
     pub const fn frame(&self) -> ValueFrame {
-        self.frame
+        self.trace_type.frame()
     }
 
     /// Closed boundary dual pairing.
@@ -99,10 +94,10 @@ impl BoundaryPhysicalConnector {
 /// Pure construction/type failure for a boundary-physical contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryPhysicalViolation {
-    /// The shape's checked scalar component product exceeds local `usize`.
-    UnrepresentableComponents,
-    /// A scalar cannot carry Cartesian component-frame semantics.
-    ScalarRequiresInvariantFrame,
+    /// Euclidean boundary duality requires real quantities.
+    EuclideanRequiresReal,
+    /// Trace and flux have different component roles, shape or frame.
+    ComponentTypeMismatch,
 }
 
 /// Mesh-independent embedding of one axis-aligned Cartesian boundary.
@@ -360,7 +355,7 @@ pub fn validate_spatial_periodic_boundary_connection<I: Eq>(
 
 #[cfg(test)]
 mod tests {
-    use eqiora_core::{DimExponents, DynQuantity, ValueShape};
+    use eqiora_core::{DimExponents, DynQuantity, ScalarDomain, ValueShape, ValueType};
 
     use super::{
         BoundaryPairing, BoundaryPhysicalConnectionViolation, BoundaryPhysicalConnector,
@@ -400,33 +395,78 @@ mod tests {
             DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
         let traction =
             DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
-        let connector = BoundaryPhysicalConnector::new(
+        let trace_type = ValueType::shaped(
+            ScalarDomain::Real,
             velocity,
-            traction,
             ValueShape::new([2]).unwrap(),
             ValueFrame::SpatialCartesian,
+        )
+        .unwrap();
+        let connector = BoundaryPhysicalConnector::new(
+            trace_type.clone(),
+            trace_type.with_dimension(traction),
             BoundaryPairing::EuclideanBoundaryDuality,
         )
         .unwrap();
 
-        assert_eq!(connector.trace_dimension(), velocity);
-        assert_eq!(connector.flux_dimension(), traction);
+        assert_eq!(connector.trace_type().dimension(), velocity);
+        assert_eq!(connector.flux_type().dimension(), traction);
         assert_eq!(connector.shape().extents()[0].get(), 2);
         assert_eq!(connector.frame(), ValueFrame::SpatialCartesian);
     }
 
     #[test]
-    fn scalar_spatial_components_fail_closed() {
-        assert_eq!(
-            BoundaryPhysicalConnector::new(
-                DimExponents::DIMENSIONLESS,
-                DimExponents::DIMENSIONLESS,
-                ValueShape::scalar(),
-                ValueFrame::SpatialCartesian,
-                BoundaryPairing::EuclideanBoundaryDuality,
-            ),
-            Err(BoundaryPhysicalViolation::ScalarRequiresInvariantFrame)
-        );
+    fn euclidean_pairing_requires_real_equal_component_types() {
+        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+        for (trace, flux) in [
+            (scalar.clone(), complex.clone()),
+            (complex.clone(), scalar.clone()),
+            (complex.clone(), complex),
+        ] {
+            assert_eq!(
+                BoundaryPhysicalConnector::new(
+                    trace,
+                    flux,
+                    BoundaryPairing::EuclideanBoundaryDuality
+                ),
+                Err(BoundaryPhysicalViolation::EuclideanRequiresReal)
+            );
+        }
+        let vector = ValueType::shaped(
+            ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+            ValueShape::new([2]).unwrap(),
+            ValueFrame::SpatialCartesian,
+        )
+        .unwrap();
+        let array = scalar.clone().array(2).unwrap();
+        for (trace, flux) in [
+            (scalar, array.clone()),
+            (vector.clone(), array),
+            (vector.clone(), vector.clone().array(1).unwrap()),
+        ] {
+            assert_eq!(
+                BoundaryPhysicalConnector::new(
+                    trace,
+                    flux,
+                    BoundaryPairing::EuclideanBoundaryDuality
+                ),
+                Err(BoundaryPhysicalViolation::ComponentTypeMismatch)
+            );
+        }
+        let nested = vector.array(3).unwrap();
+        let flux = nested
+            .clone()
+            .with_dimension(DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0]).unwrap());
+        let connector = BoundaryPhysicalConnector::new(
+            nested.clone(),
+            flux.clone(),
+            BoundaryPairing::EuclideanBoundaryDuality,
+        )
+        .unwrap();
+        assert_eq!(connector.trace_type(), &nested);
+        assert_eq!(connector.flux_type(), &flux);
     }
 
     #[test]

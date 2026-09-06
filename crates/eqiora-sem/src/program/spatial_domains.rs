@@ -125,7 +125,10 @@ fn resolve_coordinate(
                 ));
                 return None;
             };
-            if definition.value().dim() != length {
+            if !definition
+                .real_scalar_value()
+                .is_some_and(|value| value.dim() == length)
+            {
                 diagnostics.push(kernel_error(
                     domain,
                     format!("Cartesian axis {axis} {role} Parameter {parameter} is not a length"),

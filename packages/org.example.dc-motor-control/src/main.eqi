@@ -19,19 +19,19 @@ component SampledPController {
 model Main {
   instance source: drive.ControlledVoltageSource;
   instance motor: drive.PermanentMagnetDcMotor(
-    resistance = 2,
-    inductance = 0.5,
-    motor_constant = 0.1
+    resistance = 2[kg * m ^ 2 / (s ^ 3 * A ^ 2)],
+    inductance = 0.5[kg * m ^ 2 / (s ^ 2 * A ^ 2)],
+    motor_constant = 0.1[kg * m ^ 2 / (s ^ 2 * A)]
   );
   instance load: drive.InertialLoad(
-    inertia = 0.05,
-    damping = 0.1
+    inertia = 0.05[kg * m ^ 2],
+    damping = 0.1[kg * m ^ 2 / s]
   );
   instance sensor: drive.SpeedSensor;
   instance ground: electrical.Ground;
   instance controller: SampledPController(
-    setpoint = 10,
-    gain = 1
+    setpoint = 10[1 / s],
+    gain = 1[kg * m ^ 2 / (s ^ 2 * A)]
   );
 
   connect signal controller.command -> source.command;

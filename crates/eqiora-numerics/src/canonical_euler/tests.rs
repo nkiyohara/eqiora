@@ -13,11 +13,11 @@ model Main {
   domain upper = boundary(interval, axis = 0, side = upper);
   representation space = continuum;
 
-  field density on interval as space: kg / m ^ 3 = 1;
+  field density on interval as space: kg / m ^ 3 = 1[kg / m ^ 3];
   field momentum on interval as space: kg / (m ^ 2 * s) = 0;
-  field total_energy on interval as space: kg / (m * s ^ 2) = 2.5;
+  field total_energy on interval as space: kg / (m * s ^ 2) = 2.5[kg / (m * s ^ 2)];
   field velocity on interval as space: m / s = 0;
-  field pressure on interval as space: kg / (m * s ^ 2) = 1;
+  field pressure on interval as space: kg / (m * s ^ 2) = 1[kg / (m * s ^ 2)];
   parameter gamma: 1 = 1.4;
 
   relation velocity_definition continuous on interval {
@@ -67,14 +67,18 @@ fn recognizes_name_independent_exact_euler_meaning_and_lineage() {
     assert_eq!(renamed.gamma(), model.gamma());
 
     let reordered = SOURCE.replace(
-        "  field density on interval as space: kg / m ^ 3 = 1;\n  field momentum on interval as space: kg / (m ^ 2 * s) = 0;\n  field total_energy on interval as space: kg / (m * s ^ 2) = 2.5;\n  field velocity on interval as space: m / s = 0;\n  field pressure on interval as space: kg / (m * s ^ 2) = 1;",
-        "  field pressure on interval as space: kg / (m * s ^ 2) = 1;\n  field velocity on interval as space: m / s = 0;\n  field density on interval as space: kg / m ^ 3 = 1;\n  field total_energy on interval as space: kg / (m * s ^ 2) = 2.5;\n  field momentum on interval as space: kg / (m ^ 2 * s) = 0;",
+        "  field density on interval as space: kg / m ^ 3 = 1[kg / m ^ 3];\n  field momentum on interval as space: kg / (m ^ 2 * s) = 0;\n  field total_energy on interval as space: kg / (m * s ^ 2) = 2.5[kg / (m * s ^ 2)];\n  field velocity on interval as space: m / s = 0;\n  field pressure on interval as space: kg / (m * s ^ 2) = 1[kg / (m * s ^ 2)];",
+        "  field pressure on interval as space: kg / (m * s ^ 2) = 1[kg / (m * s ^ 2)];\n  field velocity on interval as space: m / s = 0;\n  field density on interval as space: kg / m ^ 3 = 1[kg / m ^ 3];\n  field total_energy on interval as space: kg / (m * s ^ 2) = 2.5[kg / (m * s ^ 2)];\n  field momentum on interval as space: kg / (m ^ 2 * s) = 0;",
     );
+    assert_ne!(reordered, SOURCE);
     assert_eq!(recognize(&reordered).gamma(), model.gamma());
 
     let different_initials = SOURCE
         .replace("kg / m ^ 3 = 1", "kg / m ^ 3 = 2")
-        .replace("kg / (m ^ 2 * s) = 0", "kg / (m ^ 2 * s) = 3")
+        .replace(
+            "kg / (m ^ 2 * s) = 0",
+            "kg / (m ^ 2 * s) = 3[kg / (m ^ 2 * s)]",
+        )
         .replace("kg / (m * s ^ 2) = 2.5", "kg / (m * s ^ 2) = 9");
     assert_eq!(recognize(&different_initials).gamma(), model.gamma());
 }

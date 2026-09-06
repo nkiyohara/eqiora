@@ -33,6 +33,21 @@ ohm spelling. `g` is an input-only mass unit with exact scale 1/1000 kg. It is n
 base dimension. No angle unit converts degrees implicitly; trigonometry consumes dimensionless
 radian values and frequency roles require their explicit cyclic/angular conversion.
 
+## Declaration initializers
+
+A bare numeric initializer inherits the coherent unit of an explicitly dimension-typed
+declaration. These declarations therefore denote the same value:
+
+```eqiora
+parameter density: kg / m ^ 3 = 1;
+parameter explicit_density: kg / m ^ 3 = 1[kg / m ^ 3];
+```
+
+Use explicit input units for conversions: `parameter density: kg / m ^ 3 = 1[g / cm ^ 3];`
+denotes 1000 kg/m³. An incompatible input unit is rejected. Contextual units apply only to
+numeric declaration initializers, not arbitrary expressions or instance arguments.
+The existing contextual-zero rule is unchanged.
+
 ## Prefixes and conversion
 
 A numeric Field initializer uses its explicitly declared dimension's coherent unit.
@@ -48,6 +63,7 @@ The initial prefix set is closed:
 | `n` | 1/1,000,000,000 |
 | `u` | 1/1,000,000 |
 | `m` | 1/1,000 |
+| `c` | 1/100 |
 | `k` | 1,000 |
 | `M` | 1,000,000 |
 | `G` | 1,000,000,000 |

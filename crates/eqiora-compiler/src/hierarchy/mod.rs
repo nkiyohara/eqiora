@@ -328,8 +328,17 @@ fn compile_external_component_from_definition<'a>(
                 declaration.dimension().range(),
             )
             .map_err(|error| vec![hierarchy_error(error.message())])?,
-            SourceAstFactory::expression(ExprKind::Number(parameter.value().value()), range)
-                .map_err(|error| vec![hierarchy_error(error.message())])?,
+            SourceAstFactory::expression(
+                ExprKind::Quantity {
+                    value: parameter.value().value(),
+                    unit: Box::new(crate::dimensions::dimension_expression(
+                        parameter.value().dim(),
+                        range,
+                    )),
+                },
+                range,
+            )
+            .map_err(|error| vec![hierarchy_error(error.message())])?,
             range,
         )
         .map_err(|error| vec![hierarchy_error(error.message())])?;
@@ -432,7 +441,7 @@ fn validate_external_parameters(
         let Some(parameter) = interface.get(binding.parameter()) else {
             continue;
         };
-        if value.dim() != parameter.dimension {
+        if value.dim() != parameter.value_type.dimension() {
             diagnostics.push(source_error(
                 codes::DIMENSION_MISMATCH,
                 file,
@@ -441,7 +450,7 @@ fn validate_external_parameters(
                     "external Parameter `{}` has dimension [{}], expected [{}]",
                     binding.parameter(),
                     value.dim(),
-                    parameter.dimension,
+                    parameter.value_type.dimension(),
                 ),
             ));
         }

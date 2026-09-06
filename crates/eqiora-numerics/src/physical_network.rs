@@ -118,6 +118,20 @@ pub fn lower_scalar_physical_affine(
     time: Option<f64>,
 ) -> Result<ScalarPhysicalAffineProblem, Diagnostic> {
     let composed = program.compose_scalar_physical_subsystem(connection)?;
+    if composed
+        .unknown_types()
+        .iter()
+        .chain(composed.parameter_types())
+        .any(|value_type| {
+            value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+                || !value_type.shape().is_scalar()
+        })
+    {
+        return Err(Diagnostic::error(
+            codes::NOT_IMPLEMENTED,
+            "affine physical execution requires real scalar inputs",
+        ));
+    }
     validate_time(&composed, time)?;
 
     let mut selected_symbols = Vec::new();
@@ -426,7 +440,7 @@ fn solve_error(message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
-    use eqiora_core::{DimExponents, DynQuantity, OntologyId};
+    use eqiora_core::{DimExponents, OntologyId};
     use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
     use eqiora_schema::kernel::{
         ActivationDef, ConnectionDef, ConnectionSemantics, DomainDef, ExprDagBuilder, KernelNode,
@@ -444,7 +458,7 @@ mod tests {
         load: Id<kinds::Parameter>,
     }
 
-    fn fixture() -> Fixture {
+    fn fixture(scalar_domain: eqiora_core::ScalarDomain) -> Fixture {
         let voltage =
             DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension");
         let current =
@@ -474,9 +488,30 @@ mod tests {
         let load_root = load_dag.sub(voltage_drop, supply_value).unwrap();
 
         let nodes = vec![
-            KernelNode::from(DomainDef::scalar_physical(domain, voltage, current)),
-            KernelNode::from(ParameterDef::new(supply, DynQuantity::new(12.0, voltage))),
-            KernelNode::from(ParameterDef::new(load, DynQuantity::new(2.0, resistance))),
+            KernelNode::from(
+                DomainDef::scalar_physical(
+                    domain,
+                    eqiora_core::ValueType::scalar(scalar_domain, voltage),
+                    eqiora_core::ValueType::scalar(scalar_domain, current),
+                )
+                .unwrap(),
+            ),
+            KernelNode::from(
+                ParameterDef::new(
+                    supply,
+                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage),
+                    12.0,
+                )
+                .unwrap(),
+            ),
+            KernelNode::from(
+                ParameterDef::new(
+                    load,
+                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance),
+                    2.0,
+                )
+                .unwrap(),
+            ),
             KernelNode::from(PortDef::scalar_physical(ports[0], domain)),
             KernelNode::from(PortDef::scalar_physical(ports[1], domain)),
             KernelNode::from(RelationDef::new(
@@ -552,7 +587,7 @@ mod tests {
 
     #[test]
     fn physical_affine_lowering_binds_parameters_and_reuses_reference_dags() {
-        let fixture = fixture();
+        let fixture = fixture(eqiora_core::ScalarDomain::Real);
         let problem =
             lower_scalar_physical_affine(&fixture.program, fixture.connection, None).unwrap();
         assert_eq!(problem.canonical_system().rows(), 4);
@@ -585,10 +620,19 @@ mod tests {
 
     #[test]
     fn physical_affine_lowering_rejects_superfluous_time_before_ir_work() {
-        let fixture = fixture();
+        let fixture = fixture(eqiora_core::ScalarDomain::Real);
         let error = lower_scalar_physical_affine(&fixture.program, fixture.connection, Some(0.0))
             .unwrap_err();
         assert_eq!(error.code(), codes::INVALID_REALIZATION);
         assert!(error.message().contains("does not accept model time"));
+    }
+
+    #[test]
+    fn physical_affine_lowering_rejects_complex_inputs_before_numeric_binding() {
+        let fixture = fixture(eqiora_core::ScalarDomain::Complex);
+        let error =
+            lower_scalar_physical_affine(&fixture.program, fixture.connection, None).unwrap_err();
+        assert_eq!(error.code(), codes::NOT_IMPLEMENTED);
+        assert!(error.message().contains("real scalar inputs"));
     }
 }

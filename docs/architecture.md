@@ -196,24 +196,17 @@ unchanged 2D elasticity execution path.
 and accumulates whole-model diagnostics. It requires a topology closed under
 semantic edges, exact agreement between expression symbols and `DependsOn`
 edges, dimensionally valid expressions, one Activation per Relation,
-unambiguous periodic clocks, valid signal Connection nets, structurally valid
-legacy-shaped conserving markers, and nominal scalar physical Connection
+unambiguous periodic clocks, valid signal Connection nets, and nominal scalar physical Connection
 networks. The reference interpreter and all compiler paths accept only this
 validated form;
 they never read a live mutable graph.
 
-The retained `ConservingMarker` remains structural-only. Its saved scalar
-dimension continues to type an unqualified `Port(marker)` expression so
-already represented programs remain valid `KernelProgram`s, but marker
-networks are excluded from physical composition and the reference interpreter
-rejects their execution. [RFC
-0024](../rfcs/0024-scalar-conserving-connection-semantics.md) separately defines
+[RFC 0024](../rfcs/0024-scalar-conserving-connection-semantics.md) defines
 nominal scalar physical Domains and Ports, explicit `Across` and `Through`
 symbols, one closed-subsystem closure, and deterministic N-ary junction
 residuals. `KernelProgram` validates that boundary and materializes the same
 immutable `ComposedResidualSystem` for later execution. The current Model and
-Transaction wires carry those values. Historical Model bytes are no longer
-runtime inputs and are not reinterpreted. Source exposes the same contract
+Transaction wires carry those values. Source exposes the same contract
 through
 `scalar_physical(across = ..., through = ...)`, `conserving on`, and explicit
 `across(...)` / `through(...)` accessors.
@@ -223,8 +216,7 @@ fragments, not additional Kernel Connections. That path first validates exact
 nominal compatibility, retains definition-local public boundary partitions
 without inventing occurrences, then normalizes the selected hierarchical
 occurrence tree into pairwise-disjoint maximal sets. Each set emits one
-ordinary flat N-ary Kernel Connection. Signal Connections and structural-only
-conserving markers do not enter this union and retain their existing
+ordinary flat N-ary Kernel Connection. Signal Connections do not enter this union and retain their
 duplicate-use rules. Relation ownership is checked independently from
 topological membership, so idempotent physical reconnection cannot hide a
 second constitutive owner.
@@ -540,7 +532,7 @@ single current Model contract and accept no artifact-generation selector.
 Source callers use `compile`, client-neutral `ModelDraft` callers use `define`,
 and persisted current bytes use `replay`; all three converge before artifact
 acceptance.
-Canonical bytes expose the persisted `eqiora.model-envelope/v10` schema as an
+Canonical bytes expose the persisted `eqiora.model-envelope/v11` schema as an
 output fact; the suffix is not a selectable authoring profile. Historical
 Model v1--v7 bytes reject, and replay never sniffs, retries, or migrates them.
 The bounded value-edit and scalar-elliptic application workflows retain exact
@@ -1765,7 +1757,7 @@ owned result arrays do not become unbounded DOM state.
 
 Bridge v5 also retains the first canonical model-edit path without adding UI
 semantics. A finite coherent-SI scalar replacement for a `Field` or
-`Parameter` becomes the current `eqiora.model-transaction-envelope/v10`,
+`Parameter` becomes the current `eqiora.model-transaction-envelope/v11`,
 containing both `RevisionIs` and typed `ValueEquals` preconditions. Preview
 exposes the transaction's domain-separated identity; exact-key commit
 reconstructs and atomically replays it through the same current owner,

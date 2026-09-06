@@ -1,8 +1,8 @@
 //! Exact discrete block projection of the accepted fixed-reference FSI slice.
 
-use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueShape};
+use eqiora_core::{ScalarDomain, ValueFrame, ValueType};
 use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{
     AlgebraicBlock, MeshArtifactReference, ResolvedCoupledFieldwiseRealization,
@@ -49,7 +49,6 @@ pub(super) fn fixed_reference_fsi_block_system(
     let fluid_force = field(model.fluid().force_potential())?;
     let solid_load = field(model.solid().continuum().load_potential())?;
     let vector = ValueShape::new([2]).expect("two-component spatial vectors are representable");
-    let scalar = ValueShape::scalar();
     let plan = resolved.plan();
     let space_for = |field| {
         plan.spatial()
@@ -66,9 +65,13 @@ pub(super) fn fixed_reference_fsi_block_system(
             fluid_domain,
             fluid_velocity,
             space_for(fluid_velocity),
-            vector.clone(),
-            VELOCITY,
-            ValueFrame::SpatialCartesian,
+            ValueType::shaped(
+                ScalarDomain::Real,
+                VELOCITY,
+                vector.clone(),
+                ValueFrame::SpatialCartesian,
+            )
+            .expect("admitted spatial type"),
             scales.velocity(),
             FieldBlockRole::Algebraic,
         )?,
@@ -76,26 +79,26 @@ pub(super) fn fixed_reference_fsi_block_system(
             fluid_domain,
             fluid_pressure,
             space_for(fluid_pressure),
-            scalar.clone(),
-            PRESSURE,
-            ValueFrame::Invariant,
+            ValueType::scalar(ScalarDomain::Real, PRESSURE),
             scales.pressure(),
             FieldBlockRole::Algebraic,
         )?,
         FieldBlock::coefficient(
             fluid_domain,
             fluid_force,
-            scalar.clone(),
-            PRESSURE,
-            ValueFrame::Invariant,
+            ValueType::scalar(ScalarDomain::Real, PRESSURE),
         ),
         FieldBlock::discrete(
             solid_domain,
             solid_velocity,
             space_for(solid_velocity),
-            vector.clone(),
-            VELOCITY,
-            ValueFrame::SpatialCartesian,
+            ValueType::shaped(
+                ScalarDomain::Real,
+                VELOCITY,
+                vector.clone(),
+                ValueFrame::SpatialCartesian,
+            )
+            .expect("admitted spatial type"),
             scales.velocity(),
             FieldBlockRole::Algebraic,
         )?,
@@ -103,18 +106,20 @@ pub(super) fn fixed_reference_fsi_block_system(
             solid_domain,
             solid_displacement,
             state.state_space(),
-            vector,
-            LENGTH,
-            ValueFrame::SpatialCartesian,
+            ValueType::shaped(
+                ScalarDomain::Real,
+                LENGTH,
+                vector,
+                ValueFrame::SpatialCartesian,
+            )
+            .expect("admitted spatial type"),
             state.state_scale().quantity(),
             FieldBlockRole::EliminatedState,
         )?,
         FieldBlock::coefficient(
             solid_domain,
             solid_load,
-            scalar,
-            PRESSURE,
-            ValueFrame::Invariant,
+            ValueType::scalar(ScalarDomain::Real, PRESSURE),
         ),
     ];
 

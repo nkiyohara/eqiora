@@ -643,7 +643,7 @@ model decay {
                 .with_initial(
                     DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
                         .try_into()
-                        .expect("finite real Field initial"),
+                        .expect("finite real initial value"),
                 )
                 .unwrap(),
             ),
@@ -658,11 +658,18 @@ model decay {
                 .with_initial(
                     DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
                         .try_into()
-                        .expect("finite real Field initial"),
+                        .expect("finite real initial value"),
                 )
                 .unwrap(),
             ),
-            KernelNode::from(ParameterDef::new(rate, DynQuantity::new(1.0, inverse_time))),
+            KernelNode::from(
+                ParameterDef::new(
+                    rate,
+                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+                    1.0,
+                )
+                .unwrap(),
+            ),
             KernelNode::from(RelationDef::new(relation, residuals)),
             KernelNode::from(ActivationDef::continuous(continuous)),
         ];

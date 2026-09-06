@@ -69,11 +69,11 @@ impl ParameterDecl {
     }
 }
 
-/// Model-local compile-time expression alias with an optional dimension assertion.
+/// Model-local compile-time expression alias with an optional mathematical type assertion.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LetDecl {
     pub(crate) name: String,
-    pub(crate) dimension: Option<Expr>,
+    pub(crate) value_type: Option<ValueTypeSyntax>,
     pub(crate) value: Expr,
     pub(crate) range: TextRange,
 }
@@ -85,10 +85,10 @@ impl LetDecl {
         &self.name
     }
 
-    /// Returns the optional dimension assertion.
+    /// Returns the optional complete mathematical type assertion.
     #[must_use]
-    pub const fn dimension(&self) -> Option<&Expr> {
-        self.dimension.as_ref()
+    pub const fn value_type(&self) -> Option<&ValueTypeSyntax> {
+        self.value_type.as_ref()
     }
 
     /// Returns the compile-time value expression.

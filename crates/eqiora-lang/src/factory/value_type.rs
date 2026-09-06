@@ -75,6 +75,38 @@ mod tests {
     use eqiora_core::ScalarDomain;
 
     #[test]
+    fn component_parameters_share_checked_type_constructors() {
+        let checked = eqiora_core::ValueType::scalar(
+            ScalarDomain::Complex,
+            eqiora_core::DimExponents::DIMENSIONLESS,
+        )
+        .array(3)
+        .unwrap();
+        let value_type = ValueTypeSyntax::from_checked(&checked).unwrap();
+        let declaration = SourceAstFactory::component_parameter(
+            crate::VisibilitySyntax::Public,
+            "channels",
+            value_type,
+            None,
+            TextRange::new(0, 0),
+        )
+        .unwrap();
+        assert_eq!(declaration.value_type().to_source(), "array<complex<1>, 3>");
+        let document = parse(
+            "component.eqi",
+            "component C { public parameter channels: array<complex<1>, 3>; }",
+        )
+        .into_document()
+        .unwrap();
+        let source = format(&document);
+        assert!(source.contains("parameter channels: array<complex<1>, 3>;"));
+        assert_eq!(
+            format(&parse("reparsed.eqi", &source).into_document().unwrap()),
+            source
+        );
+    }
+
+    #[test]
     fn native_array_nesting_stops_at_the_source_depth_limit() {
         let range = TextRange::new(0, 0);
         let dimension = SourceAstFactory::expression(ExprKind::Number(1.0), range).unwrap();

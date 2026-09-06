@@ -79,6 +79,41 @@ mod tests {
     use eqiora_core::{ScalarDomain, ValueFrame, ValueShape};
 
     #[test]
+    fn native_parameters_preserve_declared_types_in_source_projection() {
+        let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+        for (value_type, expected) in [
+            (scalar.clone(), "complex<1>"),
+            (scalar.array(3).unwrap(), "array<complex<1>, 3>"),
+        ] {
+            let parameter = DraftParameter::new("coefficient", value_type.clone(), 0.0);
+            assert_eq!(parameter.value_type(), &value_type);
+            let draft = ModelDraft::new("M", [parameter.into()]).unwrap();
+            let native = draft.native_ast();
+            let Item::Parameter(parameter) = &native.model().items()[0] else {
+                panic!("Parameter");
+            };
+            assert_eq!(parameter.value_type().to_source(), expected);
+            assert_eq!(
+                native
+                    .graph_path(parameter.value_type().range())
+                    .unwrap()
+                    .to_string(),
+                "M.coefficient"
+            );
+            let document =
+                SourceAstFactory::document(vec![], vec![], vec![native.model().clone()]).unwrap();
+            let source = crate::format(&document);
+            let parsed = crate::parse("native.eqi", &source).into_document().unwrap();
+            assert_eq!(crate::format(&parsed), source);
+        }
+        let oversized = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .array(65_537)
+            .unwrap();
+        let parameter = DraftParameter::new("large", oversized, 0.0);
+        assert!(ModelDraft::new("M", [parameter.into()]).is_err());
+    }
+
+    #[test]
     fn native_fields_keep_nested_types_and_absent_initial_values() {
         let value = ValueType::shaped(
             ScalarDomain::Complex,

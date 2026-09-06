@@ -22,9 +22,9 @@ pub(super) fn format_parameter(declaration: &ParameterDecl, indent: usize, outpu
 pub(super) fn format_let(declaration: &LetDecl, indent: usize, output: &mut String) {
     write_indent(output, indent);
     write!(output, "let {}", declaration.name).expect("String write");
-    if let Some(dimension) = &declaration.dimension {
+    if let Some(value_type) = &declaration.value_type {
         output.push_str(": ");
-        format_expression(dimension, 0, output);
+        super::value_type::format_value_type(value_type, output);
     }
     output.push_str(" = ");
     format_expression(&declaration.value, 0, output);

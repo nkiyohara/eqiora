@@ -242,18 +242,13 @@ fn validate_definition_bodies_and_parameters(
             .unwrap_or_default();
         for item in definition.declaration.items() {
             if let Item::Parameter(parameter) = item {
-                match lower_dimension(definition.file, parameter.dimension()).and_then(
-                    |dimension| {
-                        crate::units::parameter_value(definition.file, parameter)
-                            .map(|value| (dimension, value))
-                    },
-                ) {
-                    Ok((dimension, value)) => {
+                match crate::units::parameter_literal(definition.file, parameter) {
+                    Ok(value) => {
                         parameters.insert(
                             parameter.name().to_owned(),
                             SymbolicParameterValue {
-                                value: Some(value),
-                                dimension,
+                                value: Some(value.literal()),
+                                value_type: value.value_type().clone(),
                                 expression: None,
                                 lineage: None,
                             },
@@ -487,13 +482,17 @@ fn validate_connectors(elaborator: &Elaborator<'_>, diagnostics: &mut BoundedDia
     for (_, definition) in elaborator.connectors() {
         match definition.declaration.syntax() {
             ConnectorSyntax::ScalarPhysical {
-                across_dimension,
-                through_dimension,
+                across_type,
+                through_type,
             } => {
-                if let Err(error) = lower_dimension(definition.file, across_dimension) {
+                if let Err(error) =
+                    crate::value_types::lower_scalar_type(definition.file, across_type)
+                {
                     diagnostics.push(error);
                 }
-                if let Err(error) = lower_dimension(definition.file, through_dimension) {
+                if let Err(error) =
+                    crate::value_types::lower_scalar_type(definition.file, through_type)
+                {
                     diagnostics.push(error);
                 }
             }

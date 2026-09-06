@@ -1207,10 +1207,14 @@ fn geometry_boundary_port_requires_an_embedding_contract_even_after_admission() 
     let connector = Id::new();
     let port = Id::new();
     let boundary_contract = BoundaryPhysicalConnector::new(
-        DimExponents::DIMENSIONLESS,
-        DimExponents::DIMENSIONLESS,
-        ValueShape::scalar(),
-        ValueFrame::Invariant,
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
         BoundaryPairing::EuclideanBoundaryDuality,
     )
     .expect("boundary connector");

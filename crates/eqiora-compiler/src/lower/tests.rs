@@ -3,6 +3,400 @@ use crate::compile;
 use eqiora_lang::parse;
 
 #[test]
+fn source_signal_types_round_trip_and_reject_narrowing_or_shape_changes() {
+    for (output, input, accepted) in [
+        ("m", "complex<m>", true),
+        ("array<m, 3>", "array<complex<m>, 3>", true),
+        ("complex<m>", "m", false),
+        ("array<complex<m>, 3>", "array<complex<m>, 2>", false),
+        ("array<m, 3>", "m", false),
+        ("m", "complex<s>", false),
+        ("array<m, 3>", "vector<m, 3>", false),
+    ] {
+        for source in [
+            format!(
+                "model M {{
+                port out: signal output {output};
+                port sink: signal input {input};
+                connect signal out -> sink;
+                relation r continuous {{ out - out = 0; sink - sink = 0; }}
+            }}"
+            ),
+            format!(
+                "dimension Length = m;
+                component Sender {{ public port out: signal output {output};
+                    relation r continuous {{ out - out = 0; }} }}
+                component Receiver {{ public port sink: signal input {input};
+                    relation r continuous {{ sink - sink = 0; }} }}
+                model M {{ instance a: Sender(); instance b: Receiver();
+                    connect signal a.out -> b.sink; }}"
+            )
+            .replace("<m", "<Length"),
+        ] {
+            let result = compile("signal-types.eqi", &source);
+            if accepted {
+                let compiled = result.unwrap();
+                assert!(compiled[0].transaction().ops().iter().any(|op| matches!(op,
+                    Op::DefineKernelNode { node: KernelNode::Port(port) }
+                    if port.signal_contract().is_some_and(|(_, ty)| ty.scalar_domain() == eqiora_core::ScalarDomain::Complex)
+                )));
+                let document = parse("signal-types.eqi", &source).into_document().unwrap();
+                let canonical = eqiora_lang::format(&document);
+                compile("canonical-signal.eqi", &canonical).unwrap();
+                assert_eq!(
+                    eqiora_lang::format(
+                        &parse("canonical-signal.eqi", &canonical)
+                            .into_document()
+                            .unwrap()
+                    ),
+                    canonical
+                );
+            } else {
+                let errors = result.unwrap_err();
+                assert!(
+                    errors
+                        .iter()
+                        .any(|error| error.code() == codes::LANGUAGE_TYPE_ERROR
+                            && error.source_span().is_some()),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn annotated_let_aliases_preserve_complete_types() {
+    for source in [
+        "model M { let x: complex<m> = 2[m]; relation r continuous { x - x = 0; } }",
+        "model M { parameter p: array<m, 3> = 0; let x: array<complex<m>, 3> = p; relation r continuous { x - x = 0; } }",
+        "dimension Length = m; model M { let x: array<complex<Length>, 3> = 0; relation r continuous { x - x = 0; } }",
+    ] {
+        compile("typed-let.eqi", source).unwrap();
+    }
+    for source in [
+        "model M { parameter p: complex<m> = 0; let x: m = p; relation r continuous { x - x = 0; } }",
+        "model M { parameter p: array<m, 3> = 0; let x: array<m, 2> = p; relation r continuous { x - x = 0; } }",
+    ] {
+        let errors = compile("typed-let.eqi", source).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.code() == codes::LANGUAGE_TYPE_ERROR
+                    && error.source_span().is_some()),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() {
+    use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
+    let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+    for value_type in [scalar.clone(), scalar.array(3).unwrap()] {
+        let literal = LoweringExpression::literal(
+            ValueLiteral::new(value_type.clone(), -0.0).unwrap(),
+            TextRange::new(0, 1),
+        );
+        let literal = LoweringExpression::neg(literal.detached_clone(), TextRange::new(0, 1));
+        assert_eq!(lowering_integer_literal(&literal), None);
+        let parsed = parse(
+            "literal.eqi",
+            "model M { relation r continuous { 0 = 0; } }",
+        )
+        .into_document()
+        .unwrap();
+        let mut model = LoweringModel::from_source("literal.eqi", &parsed.models()[0]).unwrap();
+        let LoweringItem::Relation { residuals, .. } = &mut model.items[0] else {
+            panic!("relation");
+        };
+        *residuals = vec![literal];
+        let compiled =
+            lower_typed_model("literal.eqi", &model, &mut FreshLoweringIdentities).unwrap();
+        let constant = compiled
+            .transaction()
+            .ops()
+            .iter()
+            .find_map(|op| match op {
+                Op::DefineKernelNode {
+                    node: KernelNode::Relation(relation),
+                } => relation
+                    .residuals()
+                    .nodes()
+                    .iter()
+                    .find_map(|node| match node {
+                        eqiora_schema::kernel::ExprNode::Constant(value) => Some(value),
+                        _ => None,
+                    }),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(constant.value_type(), &value_type);
+        assert_eq!(constant.literal().to_bits(), 0.0_f64.to_bits());
+    }
+}
+
+#[test]
+fn signed_parameter_quantities_preserve_the_declared_dimension() {
+    compile(
+        "signed.eqi",
+        "component C {
+        public parameter length: m = -2[m];
+        relation r continuous { length + 1[m] = 0; }
+    } model M { instance c: C(); }",
+    )
+    .unwrap();
+}
+
+#[test]
+fn component_parameters_preserve_complex_and_array_literals() {
+    for syntax in [
+        "complex<m>",
+        "array<complex<m>, 3>",
+        "array<array<m, 2>, 3>",
+    ] {
+        let source = format!(
+            "component C {{
+            public parameter x: {syntax} = 0;
+            relation r continuous {{ x - x = 0; }}
+        }} model M {{ instance c: C(); }}"
+        );
+        let compiled = compile("component-types.eqi", &source).unwrap();
+        assert!(compiled[0].transaction().ops().iter().any(|op| match op {
+            Op::DefineKernelNode {
+                node: KernelNode::Relation(relation),
+            } => relation.residuals().nodes().iter().any(|node| {
+                match node {
+                    eqiora_schema::kernel::ExprNode::Constant(value) => {
+                        eqiora_lang::ValueTypeSyntax::from_checked(value.value_type())
+                            .unwrap()
+                            .to_source()
+                            == syntax
+                    }
+                    _ => false,
+                }
+            }),
+            _ => false,
+        }));
+    }
+}
+
+#[test]
+fn component_real_to_complex_binding_keeps_the_real_parameter_identity() {
+    let compiled = compile(
+        "embedding.eqi",
+        "component C {
+        public parameter z: complex<m>;
+        relation r continuous { z - z = 0; }
+    } model M { parameter p: m = 2[m]; instance c: C(z = p); }",
+    )
+    .unwrap();
+    let nodes = compiled[0]
+        .transaction()
+        .ops()
+        .iter()
+        .filter_map(|op| match op {
+            Op::DefineKernelNode { node } => Some(node),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        nodes
+            .iter()
+            .filter(|node| matches!(node, KernelNode::Parameter(_)))
+            .count(),
+        1
+    );
+    assert!(nodes.iter().any(|node| match node {
+        KernelNode::Parameter(parameter) =>
+            parameter.value_type().scalar_domain() == eqiora_core::ScalarDomain::Real,
+        _ => false,
+    }));
+    assert!(nodes.iter().any(|node| match node {
+        KernelNode::Relation(relation) =>
+            relation.residuals().nodes().iter().any(|node| match node {
+                eqiora_schema::kernel::ExprNode::Constant(value) =>
+                    value.value_type().scalar_domain() == eqiora_core::ScalarDomain::Complex
+                        && value.value_type().dimension() == DimExponents::DIMENSIONLESS
+                        && value.literal() == 1.0,
+                _ => false,
+            }),
+        _ => false,
+    }));
+}
+
+#[test]
+fn component_array_embedding_and_complex_narrowing_follow_declared_types() {
+    compile(
+        "array-embedding.eqi",
+        "component C {
+        public parameter x: array<complex<m>, 3>;
+        relation r continuous { x - x = 0; }
+    } model M { parameter p: array<m, 3> = 0; instance c: C(x = p); }",
+    )
+    .unwrap();
+    let errors = compile(
+        "narrowing.eqi",
+        "component Sink {
+        public parameter x: m;
+        relation r continuous { x - x = 0; }
+    } component C {
+        public parameter x: complex<m>;
+        instance sink: Sink(x = x);
+    } model M { instance c: C(x = 0); }",
+    )
+    .unwrap_err();
+    assert!(
+        errors.iter().any(
+            |error| error.message().contains("requires a real scalar type")
+                && error.source_span().is_some()
+        ),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn component_array_binding_rejects_extent_mismatch() {
+    let errors = compile(
+        "array-binding.eqi",
+        "component C {
+        public parameter x: array<complex<m>, 2>;
+        relation r continuous { x - x = 0; }
+    } model M { parameter p: array<m, 3> = 0; instance c: C(x = p); }",
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("incompatible types")
+                && error.source_span().is_some()),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn typed_lowering_keeps_parameter_domains_and_array_roles() {
+    use eqiora_core::{ScalarDomain, ValueType};
+    let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+    for value_type in [scalar.clone(), scalar.array(3).unwrap()] {
+        let syntax = eqiora_lang::ValueTypeSyntax::from_checked(&value_type).unwrap();
+        let source = format!(
+            "model M {{ parameter p: {} = 0; relation r continuous {{ p - p = 0; }} }}",
+            syntax.to_source(),
+        );
+        let compiled = compile("typed.eqi", &source).unwrap();
+        let parameter = compiled[0]
+            .transaction()
+            .ops()
+            .iter()
+            .find_map(|op| match op {
+                Op::DefineKernelNode {
+                    node: KernelNode::Parameter(parameter),
+                } => Some(parameter),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(parameter.value_type(), &value_type);
+        assert_eq!(parameter.literal(), 0.0);
+    }
+}
+
+#[test]
+fn source_parameter_literals_preserve_domains_and_reject_nonzero_shapes() {
+    let compiled = compile(
+        "typed.eqi",
+        "model M { parameter p: complex<m> = 2[m]; relation r continuous { p - p = 0; } }",
+    )
+    .unwrap();
+    let parameter = compiled[0]
+        .transaction()
+        .ops()
+        .iter()
+        .find_map(|op| match op {
+            Op::DefineKernelNode {
+                node: KernelNode::Parameter(parameter),
+            } => Some(parameter),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        parameter.value_type().scalar_domain(),
+        eqiora_core::ScalarDomain::Complex
+    );
+    assert_eq!(
+        parameter.value_type().dimension(),
+        crate::dimensions::length_dimension()
+    );
+    assert_eq!(parameter.literal(), 2.0);
+    for syntax in ["array<m, 3>", "array<complex<m>, 3>"] {
+        let errors = compile(
+            "typed.eqi",
+            &format!(
+                "model M {{ parameter p: {syntax} = 2[m]; relation r continuous {{ p - p = 0; }} }}"
+            ),
+        )
+        .unwrap_err();
+        assert!(
+            errors.iter().any(|error| {
+                error
+                    .message()
+                    .contains("shaped value requires a contextual zero")
+                    && error.source_span().is_some()
+            }),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn source_parameter_aliases_do_not_erase_complex_or_array_types() {
+    for syntax in ["complex<m>", "array<m, 3>"] {
+        let errors = compile(
+            "typed.eqi",
+            &format!(
+                "component C {{ public parameter x: m; }} model M {{
+                parameter p: {syntax} = 0;
+                let alias = p;
+                instance c: C(x = alias);
+            }}"
+            ),
+        )
+        .unwrap_err();
+        assert!(
+            errors.iter().any(
+                |error| error.message().contains("requires a real scalar type")
+                    && error.source_span().is_some()
+            ),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn typed_cartesian_coordinates_require_real_scalar_lengths() {
+    use eqiora_core::{ScalarDomain, ValueType};
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    for value_type in [
+        ValueType::scalar(ScalarDomain::Complex, length),
+        ValueType::scalar(ScalarDomain::Real, length)
+            .array(1)
+            .unwrap(),
+    ] {
+        let syntax = eqiora_lang::ValueTypeSyntax::from_checked(&value_type).unwrap();
+        let source = format!(
+            "model M {{ parameter extent: {} = 0; domain body = box(0, extent); relation r continuous {{ extent - extent = 0; }} }}",
+            syntax.to_source(),
+        );
+        let errors = compile("coordinate.eqi", &source).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("not a real scalar length"))
+        );
+    }
+}
+
+#[test]
 fn entity_symbols_are_ordered_and_exact() {
     let alpha = Id::<kinds::Field>::new().erase();
     let zeta = Id::<kinds::Parameter>::new().erase();
@@ -164,8 +558,8 @@ model assigned {
 fn compiler_rejects_dimensionally_invalid_residual_at_source_span() {
     let source = r#"
 model invalid {
-  field temperature: K = 293;
-  parameter tau: s = 10;
+  field temperature: K = 293[K];
+  parameter tau: s = 10[s];
   relation bad continuous {
     temperature + tau = 0;
   }
@@ -174,7 +568,10 @@ model invalid {
     let diagnostics = compile("invalid.eqi", source).expect_err("K + s is invalid");
 
     assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.code() == codes::LANGUAGE_TYPE_ERROR && diagnostic.source_span().is_some()
+        diagnostic.code() == codes::LANGUAGE_TYPE_ERROR
+            && diagnostic.source_span().is_some_and(|span| {
+                source[span.start as usize..span.end as usize].contains("temperature + tau")
+            })
     }));
 }
 
@@ -210,8 +607,8 @@ model bar {
   domain loaded = boundary(body, axis = 0, side = upper);
   representation space = continuum;
   field u on body as space: m = 0;
-  parameter stiffness: kg * m / s ^ 2 = 10;
-  parameter wrong_load: m = 1;
+  parameter stiffness: kg * m / s ^ 2 = 10[kg * m / s ^ 2];
+  parameter wrong_load: m = 1[m];
   relation load continuous on loaded {
     normal(stiffness * grad(u)) - wrong_load = 0;
   }
@@ -278,7 +675,7 @@ model valid {
     assert!(relation.residuals().nodes().iter().any(|node| matches!(
         node,
         eqiora_schema::kernel::ExprNode::Constant(value)
-            if value.value().to_bits() == 0x4009_21fb_5444_2d18
+            if value.literal().to_bits() == 0x4009_21fb_5444_2d18
     )));
 
     for (source, expected) in [
@@ -324,8 +721,8 @@ model elastic_relation {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field displacement on body as space: vector<m, 2>;
-  parameter mu: kg / (m * s ^ 2) = 2;
-  parameter lambda: kg / (m * s ^ 2) = 3;
+  parameter mu: kg / (m * s ^ 2) = 2[kg / (m * s ^ 2)];
+  parameter lambda: kg / (m * s ^ 2) = 3[kg / (m * s ^ 2)];
   relation balance continuous on body {
     -div(
       2 * mu * symmetric_part(grad(displacement))
@@ -516,7 +913,10 @@ fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
     );
     let duration = eqiora_lang::DraftParameter::new(
         "duration",
-        DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
+        ),
         1.0,
     );
     let relation = eqiora_lang::DraftRelation::continuous(
@@ -589,7 +989,7 @@ model resistor {
   port positive: conserving on electrical;
   port negative: conserving on electrical;
   port tap: conserving on electrical;
-  parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 2;
+  parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 2[kg * m ^ 2 / (s ^ 3 * A ^ 2)];
   relation law continuous {
     across(positive) - across(negative) - resistance * through(positive) = 0;
     through(positive) + through(negative) + through(tap) = 0;
@@ -601,13 +1001,17 @@ model resistor {
 
     let electrical = eqiora_lang::DraftPhysicalDomain::new(
         "electrical",
-        voltage_dimension(),
-        current_dimension(),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension()),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension()),
     );
     let positive = eqiora_lang::DraftConservingPort::new("positive", &electrical);
     let negative = eqiora_lang::DraftConservingPort::new("negative", &electrical);
     let tap = eqiora_lang::DraftConservingPort::new("tap", &electrical);
-    let resistance = eqiora_lang::DraftParameter::new("resistance", resistance_dimension(), 2.0);
+    let resistance = eqiora_lang::DraftParameter::new(
+        "resistance",
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance_dimension()),
+        2.0,
+    );
     let law = eqiora_lang::DraftRelation::continuous(
         "law",
         [
@@ -649,8 +1053,8 @@ model resistor {
 fn native_physical_projection_is_insensitive_to_declaration_and_net_permutation() {
     let electrical = eqiora_lang::DraftPhysicalDomain::new(
         "electrical",
-        voltage_dimension(),
-        current_dimension(),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension()),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension()),
     );
     let positive = eqiora_lang::DraftConservingPort::new("positive", &electrical);
     let negative = eqiora_lang::DraftConservingPort::new("negative", &electrical);
@@ -751,38 +1155,20 @@ model network {
 }
 
 #[test]
-fn compiler_preserves_legacy_conserving_markers() {
-    let source = r#"
-model legacy {
-  port p: conserving A;
-  relation owner continuous { p = 0; }
-}
-"#;
-    let models = compile("legacy.eqi", source).expect("legacy marker remains source-valid");
-    let port = models[0].symbols().get("p").expect("Port ID");
-    let relation = models[0].symbols().get("owner").expect("Relation ID");
-    let mut saw_marker = false;
-    let mut saw_legacy_symbol = false;
-    for operation in models[0].transaction().ops() {
-        let Op::DefineKernelNode { node } = operation else {
-            continue;
-        };
-        match node {
-            KernelNode::Port(definition) if definition.id().erase() == port => {
-                saw_marker = definition.marker_dimension().is_some();
-            }
-            KernelNode::Relation(definition) if definition.id().erase() == relation => {
-                saw_legacy_symbol = definition
-                        .residuals()
-                        .nodes()
-                        .iter()
-                        .any(|node| matches!(node, eqiora_schema::kernel::ExprNode::Symbol(SymbolRef::Port(id)) if id.erase() == port));
-            }
-            _ => {}
-        }
+fn compiler_rejects_untyped_conserving_markers() {
+    for marker in ["A", "1", "m / s"] {
+        let source = format!(
+            "model M {{ port p: conserving {marker}; relation r continuous {{ p = 0; }} }}"
+        );
+        let errors = compile("marker.eqi", &source).unwrap_err();
+        assert!(
+            errors.iter().any(|error| error
+                .message()
+                .contains("requires a physical Domain or boundary Connector")
+                && error.source_span().is_some()),
+            "{errors:?}"
+        );
     }
-    assert!(saw_marker);
-    assert!(saw_legacy_symbol);
 }
 
 #[test]
@@ -822,7 +1208,7 @@ fn flat_lowering_consumes_the_shared_scalar_connection_contract() {
         ),
         (
             "mixed conserving families",
-            "model m { domain d = scalar_physical(across = 1, through = 1); port marker: conserving 1; port physical: conserving on d; connect conserving marker, physical; }",
+            "model m { domain d = scalar_physical(across = 1, through = 1); port causal: signal input 1; port physical: conserving on d; connect conserving causal, physical; }",
             "cannot mix",
         ),
     ];
@@ -920,12 +1306,12 @@ fn normalized_physical_semantics(model: &CompiledModel) -> Vec<String> {
                 node: KernelNode::Domain(domain),
             } => {
                 if let DomainKind::ScalarPhysical {
-                    across_dimension,
-                    through_dimension,
+                    across_type,
+                    through_type,
                 } = domain.kind()
                 {
                     signatures.push(format!(
-                        "domain:{}:{across_dimension:?}:{through_dimension:?}",
+                        "domain:{}:{across_type:?}:{through_type:?}",
                         named(&names, domain.id().erase())
                     ));
                 }
@@ -935,8 +1321,8 @@ fn normalized_physical_semantics(model: &CompiledModel) -> Vec<String> {
             } => signatures.push(format!(
                 "parameter:{}:{:016x}:{:?}",
                 named(&names, parameter.id().erase()),
-                parameter.value().value().to_bits(),
-                parameter.value().dim()
+                parameter.literal().to_bits(),
+                parameter.value_type().dimension()
             )),
             Op::DefineKernelNode {
                 node: KernelNode::Port(port),
@@ -1023,8 +1409,8 @@ fn normalized_physical_semantics(model: &CompiledModel) -> Vec<String> {
             .map(|node| match node {
                 ExprNode::Constant(value) => format!(
                     "constant({:016x},{:?})",
-                    value.value().to_bits(),
-                    value.dim()
+                    value.literal().to_bits(),
+                    value.value_type()
                 ),
                 ExprNode::Symbol(symbol) => normalize_symbol(*symbol, names),
                 ExprNode::Neg(value) => format!("neg({})", value.index()),
@@ -1080,6 +1466,126 @@ fn normalized_physical_semantics(model: &CompiledModel) -> Vec<String> {
     }
 
     signatures
+}
+#[test]
+fn declaration_literals_inherit_units_but_general_expressions_and_bindings_do_not() {
+    for source in [
+        "model M { field p: m = 2[s]; relation r continuous { p - p = 0; } }",
+        "model M { field p: array<m, 2> = 0[s]; relation r continuous { p - p = 0; } }",
+        "model M { field p: m = 2; relation r continuous { p - 2 = 0; } }",
+        "model M { let p: m = 1 + 1; relation r continuous { p - p = 0; } }",
+        "model M { let n = 2; let p: m = n; relation r continuous { p - p = 0; } }",
+        "component C { public parameter p: m = 1 + 1; relation r continuous { p - p = 0; } } model M { instance c: C(); }",
+        "component C { public parameter p: m; relation r continuous { p - p = 0; } } model M { instance c: C(p = -2); }",
+    ] {
+        let errors = compile("literal-units.eqi", source).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.code() == codes::LANGUAGE_TYPE_ERROR
+                    && error.source_span().is_some()),
+            "{source}: {errors:?}"
+        );
+    }
+    let errors = compile(
+        "literal-shape.eqi",
+        "model M { field p: array<m, 2> = 2; relation r continuous { p - p = 0; } }",
+    )
+    .unwrap_err();
+    assert!(errors.iter().any(|error| {
+        error.code() == codes::SYNTAX_ERROR
+            && error
+                .message()
+                .contains("only contextual zero is supported")
+            && error.source_span().is_some()
+    }));
+    for source in [
+        "model M { field p: m = 2; relation r continuous { p - p = 0; } }",
+        "model M { field p: complex<m> = -2; relation r continuous { p - p = 0; } }",
+        "component C { field p: m = 2; relation r continuous { p - p = 0; } } model M { instance c: C(); }",
+        "model M { parameter p: m = 2; relation r continuous { p - p = 0; } }",
+        "model M { parameter p: complex<m> = 2; relation r continuous { p - p = 0; } }",
+        "model M { let p: m = 2; relation r continuous { p - p = 0; } }",
+        "model M { let p: complex<m> = -2; relation r continuous { p - p = 0; } }",
+        "component C { public parameter p: m = 2; relation r continuous { p - p = 0; } } model M { instance c: C(); }",
+        "model M { field p: m = 0; relation r continuous { p - p = 0; } }",
+        "model M { field p: complex<m> = -2[mm]; relation r continuous { p - p = 0; } }",
+        "model M { field p: array<complex<m>, 2> = 0; relation r continuous { p - p = 0; } }",
+        "component C { field p: m = 2[m]; relation r continuous { p - p = 0; } } model M { instance c: C(); }",
+        "model M { parameter p: m = 0; relation r continuous { p - p = 0; } }",
+        "model M { parameter p: complex<m> = 2[m]; relation r continuous { p - p = 0; } }",
+        "model M { let p: m = -2[m]; relation r continuous { p - p = 0; } }",
+        "model M { let p: complex<1> = -2; relation r continuous { p - p = 0; } }",
+        "component C { public parameter p: m = 2[m]; relation r continuous { p - p = 0; } } model M { instance c: C(); }",
+        "component C { public parameter p: m; relation r continuous { p - p = 0; } } model M { instance c: C(p = -2[m]); }",
+    ] {
+        compile("literal-units.eqi", source).unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}
+
+#[test]
+fn source_physical_domains_and_connectors_keep_complex_scalar_types() {
+    use eqiora_schema::kernel::DomainKind;
+    for source in [
+        "model M { domain electrical = scalar_physical(across = complex<V>, through = complex<A>); port p: conserving on electrical; port n: conserving on electrical; relation r continuous { across(p) - across(n) = 0; through(p) + through(n) = 0; } connect conserving p, n; }",
+        "connector Pin = scalar_physical(across = complex<V>, through = complex<A>); component C { public port p: conserving on Pin; relation r continuous { across(p) = 0; through(p) = 0; } } model M { instance a: C(); instance b: C(); connect conserving a.p, b.p; }",
+    ] {
+        let document = eqiora_lang::parse("physical.eqi", source)
+            .into_document()
+            .unwrap();
+        let emitted = eqiora_lang::format(&document);
+        assert!(emitted.contains("complex<"));
+        let reparsed = eqiora_lang::parse("emitted.eqi", &emitted)
+            .into_document()
+            .unwrap();
+        assert_eq!(eqiora_lang::format(&reparsed), emitted);
+        let models = compile("complex-physical.eqi", source).unwrap();
+        let domains = models[0]
+            .transaction()
+            .ops()
+            .iter()
+            .filter_map(|op| match op {
+                Op::DefineKernelNode {
+                    node: KernelNode::Domain(domain),
+                } => match domain.kind() {
+                    DomainKind::ScalarPhysical {
+                        across_type,
+                        through_type,
+                    } => Some((across_type, through_type)),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(!domains.is_empty());
+        for (across, through) in domains {
+            assert_eq!(across.scalar_domain(), eqiora_core::ScalarDomain::Complex);
+            assert_eq!(through.scalar_domain(), eqiora_core::ScalarDomain::Complex);
+            assert_eq!(across.dimension(), voltage_dimension());
+            assert_eq!(through.dimension(), current_dimension());
+        }
+    }
+    for kind in ["array<complex<V>, 1>", "vector<V, 2>"] {
+        for declaration in ["domain", "connector"] {
+            let source = if declaration == "domain" {
+                format!(
+                    "model M {{ domain electrical = scalar_physical(across = {kind}, through = A); }}"
+                )
+            } else {
+                format!(
+                    "connector Pin = scalar_physical(across = {kind}, through = A); model M {{ field x: 1; }}"
+                )
+            };
+            let errors = compile("physical-shape.eqi", &source).unwrap_err();
+            assert!(
+                errors.iter().any(
+                    |error| error.message().contains("scalar mathematical types")
+                        && error.source_span().is_some()
+                ),
+                "{errors:?}"
+            );
+        }
+    }
 }
 
 #[test]

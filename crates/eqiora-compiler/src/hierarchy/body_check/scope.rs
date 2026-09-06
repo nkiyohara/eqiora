@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DimExponents, ValueShape};
+use eqiora_core::{Diagnostic, ValueShape};
 use eqiora_lang::{
     BoundaryConnectionDecl, BoundaryFamilyBinderSyntax, BoundaryPairingSyntax,
     BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, ComponentItem, ComponentPortDecl,
@@ -39,15 +39,12 @@ pub(super) enum PhysicalNominal {
 pub(super) enum PortContract {
     Signal {
         direction: SignalDirectionSyntax,
-        dimension: DimExponents,
-    },
-    ConservingMarker {
-        dimension: DimExponents,
+        value_type: eqiora_core::ValueType,
     },
     Physical {
         nominal: PhysicalNominal,
-        across_dimension: DimExponents,
-        through_dimension: DimExponents,
+        across_type: eqiora_core::ValueType,
+        through_type: eqiora_core::ValueType,
     },
     BoundaryPhysical {
         nominal: PhysicalNominal,
@@ -156,11 +153,9 @@ impl BoundaryFamilyScope {
 }
 
 impl PortContract {
-    pub(super) fn scalar_type(&self) -> Option<ExpressionType<String>> {
+    pub(super) fn expression_type(&self) -> Option<ExpressionType<String>> {
         match self {
-            Self::Signal { dimension, .. } | Self::ConservingMarker { dimension } => {
-                Some(ExpressionType::scalar(*dimension, None))
-            }
+            Self::Signal { value_type, .. } => Some(ExpressionType::new(value_type.clone(), None)),
             Self::Physical { .. } => None,
             Self::BoundaryPhysical { .. } => None,
         }
@@ -175,8 +170,8 @@ impl PortContract {
 pub(super) enum DomainContract {
     Spatial(SpatialSupport<String>),
     Physical {
-        across_dimension: DimExponents,
-        through_dimension: DimExponents,
+        across_type: eqiora_core::ValueType,
+        through_type: eqiora_core::ValueType,
     },
 }
 
@@ -502,11 +497,11 @@ pub(super) fn component_port_contract(
     match declaration.syntax() {
         PortSyntax::Signal {
             direction,
-            dimension,
-        } => lower_dimension(file, dimension)
-            .map(|dimension| PortContract::Signal {
+            value_type,
+        } => crate::value_types::lower_value_type::<()>(file, value_type, None)
+            .map(|value_type| PortContract::Signal {
                 direction: *direction,
-                dimension,
+                value_type,
             })
             .map_err(|error| vec![error]),
         PortSyntax::ScalarPhysicalConnector { connector } => {
@@ -514,8 +509,8 @@ pub(super) fn component_port_contract(
                 .resolve_connector(&owner.namespace, connector, file, declaration.range())
                 .map_err(|error| vec![error])?;
             let eqiora_lang::ConnectorSyntax::ScalarPhysical {
-                across_dimension,
-                through_dimension,
+                across_type,
+                through_type,
             } = connector.declaration.syntax()
             else {
                 return Err(vec![source_error(
@@ -526,20 +521,20 @@ pub(super) fn component_port_contract(
                 )]);
             };
             let mut diagnostics = Vec::new();
-            let across_dimension = lower_dimension(connector.file, across_dimension)
+            let across_type = crate::value_types::lower_scalar_type(connector.file, across_type)
                 .map_err(|error| diagnostics.push(error))
                 .ok();
-            let through_dimension = lower_dimension(connector.file, through_dimension)
+            let through_type = crate::value_types::lower_scalar_type(connector.file, through_type)
                 .map_err(|error| diagnostics.push(error))
                 .ok();
-            match (across_dimension, through_dimension) {
-                (Some(across_dimension), Some(through_dimension)) => Ok(PortContract::Physical {
+            match (across_type, through_type) {
+                (Some(across_type), Some(through_type)) => Ok(PortContract::Physical {
                     nominal: PhysicalNominal::Connector(DefinitionKey {
                         namespace: connector.namespace,
                         name: connector.declaration.name().to_owned(),
                     }),
-                    across_dimension,
-                    through_dimension,
+                    across_type,
+                    through_type,
                 }),
                 _ => Err(diagnostics),
             }
@@ -932,22 +927,19 @@ pub(super) fn model_port_contract(
     match declaration.syntax() {
         PortSyntax::Signal {
             direction,
-            dimension,
+            value_type,
         } => Ok(PortContract::Signal {
             direction: *direction,
-            dimension: lower_dimension(scope.file, dimension)?,
-        }),
-        PortSyntax::ConservingMarker { dimension } => Ok(PortContract::ConservingMarker {
-            dimension: lower_dimension(scope.file, dimension)?,
+            value_type: crate::value_types::lower_value_type::<()>(scope.file, value_type, None)?,
         }),
         PortSyntax::ScalarPhysical { domain } => match scope.symbols.get(domain) {
             Some(SymbolContract::Domain(DomainContract::Physical {
-                across_dimension,
-                through_dimension,
+                across_type,
+                through_type,
             })) => Ok(PortContract::Physical {
                 nominal: PhysicalNominal::ModelDomain(domain.clone()),
-                across_dimension: *across_dimension,
-                through_dimension: *through_dimension,
+                across_type: across_type.clone(),
+                through_type: through_type.clone(),
             }),
             Some(_) => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
@@ -1140,16 +1132,13 @@ fn connection_port_contract(contract: &PortContract) -> ScalarPortContract<&Phys
     match contract {
         PortContract::Signal {
             direction,
-            dimension,
+            value_type,
         } => ScalarPortContract::Signal {
             direction: match direction {
                 SignalDirectionSyntax::Input => SignalDirection::Input,
                 SignalDirectionSyntax::Output => SignalDirection::Output,
             },
-            dimension: *dimension,
-        },
-        PortContract::ConservingMarker { dimension } => ScalarPortContract::ConservingMarker {
-            dimension: *dimension,
+            value_type: value_type.clone(),
         },
         PortContract::Physical { nominal, .. } => ScalarPortContract::ScalarPhysical { nominal },
         PortContract::BoundaryPhysical { nominal, .. } => {
@@ -1208,11 +1197,25 @@ fn boundary_port_contract(
             )]);
         }
     };
+    let quantity_type = |dimension: &eqiora_lang::Expr| {
+        eqiora_core::ValueType::shaped(
+            eqiora_core::ScalarDomain::Real,
+            lower_dimension(connector_definition.file, dimension).map_err(|e| vec![e])?,
+            shape.clone(),
+            frame,
+        )
+        .map_err(|error| {
+            vec![source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                connector_definition.file,
+                dimension.range(),
+                error.to_string(),
+            )]
+        })
+    };
     let connector = BoundaryPhysicalConnector::new(
-        lower_dimension(connector_definition.file, trace.dimension()).map_err(|e| vec![e])?,
-        lower_dimension(connector_definition.file, flux.dimension()).map_err(|e| vec![e])?,
-        shape.clone(),
-        frame,
+        quantity_type(trace.dimension())?,
+        quantity_type(flux.dimension())?,
         pairing,
     )
     .map_err(|violation| {
@@ -1299,14 +1302,11 @@ fn connection_violation_message(violation: ScalarConnectionViolation) -> &'stati
         ScalarConnectionViolation::SignalDirections { .. } => {
             "signal Connection requires exactly one output and one or more inputs"
         }
-        ScalarConnectionViolation::SignalDimensionMismatch => {
-            "signal Connection requires dimension-matched inputs"
+        ScalarConnectionViolation::SignalTypeMismatch => {
+            "signal Connection requires dimension-matched inputs with compatible scalar domains, shapes and frames"
         }
         ScalarConnectionViolation::MixedConservingFamilies => {
-            "conserving Connection cannot mix signal, marker, and scalar physical Ports"
-        }
-        ScalarConnectionViolation::MarkerDimensionMismatch => {
-            "conserving Connection marker Ports must have identical physical dimensions"
+            "conserving Connection cannot mix signal and scalar physical Ports"
         }
         ScalarConnectionViolation::PhysicalNominalMismatch => {
             "conserving Connection requires scalar physical Ports on the exact same nominal Connector or Domain"

@@ -25,11 +25,11 @@ pub(super) fn validate_domain_syntax(syntax: &DomainSyntax) -> Result<(), AstCon
         }
         DomainSyntax::Boundary { parent, .. } => validate_identifier(parent, "parent Domain"),
         DomainSyntax::ScalarPhysical {
-            across_dimension,
-            through_dimension,
+            across_type,
+            through_type,
         } => {
-            validate_expression(across_dimension)?;
-            validate_expression(through_dimension)
+            validate_expression(across_type.dimension())?;
+            validate_expression(through_type.dimension())
         }
     }
 }

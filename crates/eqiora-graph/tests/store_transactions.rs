@@ -86,7 +86,14 @@ fn optimistic_preconditions_preserve_snapshot_isolation() {
     let parameter = Id::<kinds::Parameter>::new();
     let initial = DynQuantity::new(12.0, dim::VelocityDim::EXPONENTS);
     let mut add = Transaction::new("add parameter");
-    add.push(define(ParameterDef::new(parameter, initial)));
+    add.push(define(
+        ParameterDef::new(
+            parameter,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, initial.dim()),
+            initial.value(),
+        )
+        .unwrap(),
+    ));
 
     let mut store = InMemoryGraphStore::new();
     store.commit(add).expect("setup succeeds");
@@ -120,7 +127,14 @@ fn restored_snapshot_retains_its_revision_and_advances_normally() {
     let parameter = Id::<kinds::Parameter>::new();
     let initial = DynQuantity::new(12.0, dim::VelocityDim::EXPONENTS);
     let mut snapshot = Transaction::new("restore complete snapshot");
-    snapshot.push(define(ParameterDef::new(parameter, initial)));
+    snapshot.push(define(
+        ParameterDef::new(
+            parameter,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, initial.dim()),
+            initial.value(),
+        )
+        .unwrap(),
+    ));
 
     let mut store = InMemoryGraphStore::restore_snapshot(snapshot, Revision(7))
         .expect("a complete snapshot can be hydrated at its recorded revision");
@@ -175,10 +189,17 @@ fn snapshot_restoration_rejects_zero_revision_and_preconditions() {
 fn dimension_change_is_rejected() {
     let parameter = Id::<kinds::Parameter>::new();
     let mut setup = Transaction::new("add length");
-    setup.push(define(ParameterDef::new(
-        parameter,
-        DynQuantity::new(2.0, dim::LengthDim::EXPONENTS),
-    )));
+    setup.push(define(
+        ParameterDef::new(
+            parameter,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                dim::LengthDim::EXPONENTS,
+            ),
+            2.0,
+        )
+        .unwrap(),
+    ));
     let mut store = InMemoryGraphStore::new();
     store.commit(setup).expect("setup succeeds");
 
@@ -294,7 +315,10 @@ fn ontology_view_commits_with_its_kernel_members_but_is_not_a_node() {
         .push(define(PortDef::signal(
             port,
             SignalDirection::Input,
-            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
         )));
 
     let mut store = InMemoryGraphStore::new();

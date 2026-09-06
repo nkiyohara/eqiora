@@ -13,7 +13,7 @@ x = eqiora.Field("x", initial=1.0)
 rate = eqiora.Parameter(
     "rate",
     value=1.0,
-    dimension=eqiora.Dimension(time=-1),
+    value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)),
 )
 flow = eqiora.Relation(
     "flow",
@@ -51,11 +51,15 @@ A scalar Field's numeric `initial=` value uses its declared dimension's coherent
 unit. A vector, tensor, or array Field can be initialized with `0.0`, which takes
 the complete declared type; a nonzero scalar is not broadcast across components.
 
-The same `value_type=` objects apply to `eqiora.lang.Component.field`.
+The same `value_type=` objects apply to `Parameter`,
+`eqiora.lang.Component.field`, and `eqiora.lang.Component.parameter`.
 `ValueType.to_eqi()` emits the canonical type through the Rust formatter.
-In source, `field pressure: Pa = 2;` therefore needs no repeated `[Pa]`.
-Explicit compatible input units still convert normally. Numeric declaration
-initializers provide this context, not arbitrary expressions.
+
+A numeric declaration initializer uses the declared dimension's coherent unit.
+For example, `parameter rate: 1 / s = 1;` gives the same value as
+`parameter rate: 1 / s = 1[1 / s];`. Explicit input units still express compatible
+conversions. This context applies only to numeric declaration initializers;
+nonzero literals in general expressions do not silently acquire units.
 
 A relation receives an explicit zero-valued residual. Symbolic equality and
 Python truth testing are not modeling syntax. Declarations and expressions
@@ -75,7 +79,7 @@ source = q.Source()
 component = source.component("Diffusion")
 body = component.volume("body", dimensions=2)
 value = component.field("value", on=body, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
-length = component.parameter("length", unit=u.m)
+length = component.parameter("length", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 wave_number = q.math.pi / length
 component.relation(
     "balance",
@@ -166,8 +170,9 @@ Model exposes the existing immutable `property_bindings` inspection.
 The complete current vocabulary and steady-cylinder Component are shown in
 [`examples/python/steady_cylinder_source.py`](../../examples/python/steady_cylinder_source.py).
 The baseline slice has one public Component, public volume/parent-boundary
-supports and parameters, scalar, spatial-vector/tensor and channel-array Fields, continuous
-residual Relations, structural SI units, constants, coordinates, arithmetic,
+supports and parameters, typed scalar, spatial-vector/tensor and channel-array
+continuum fields, continuous residual Relations, structural SI units, constants,
+coordinates, arithmetic,
 powers, gradient, divergence, trace, normal contraction, symmetric part, and
 isotropic lift. The package-oriented extension admits multiple scalar contracts
 and constant releases, one material composition, one consumer plus one root
@@ -181,13 +186,16 @@ package, including its exact dependency closure, into a project:
 ```python
 import eqiora
 
-packages = eqiora.vendor_standard_package(".", "Eqiora.Fluid@0.3.0")
-fluid = next(package for package in packages if package.name == "Eqiora.Fluid")
+packages = eqiora.vendor_standard_package(".", "Eqiora.Fluid.Incompressible@0.4.0")
+fluid = next(package for package in packages if package.name == "Eqiora.Fluid.Incompressible")
 print(fluid.path, fluid.semantic_digest)
 ```
 
 Each returned `VendoredStandardPackage` provides the exact identity and path
 needed to name a local dependency.
+The selector must match the exact version shipped in the distribution; older
+versions are rejected, not substituted. The solid selector is
+`Eqiora.Solid.LinearElasticity@0.6.0`.
 Calling the function again is idempotent when every file is unchanged and
 rejects a changed destination without overwriting it.
 
@@ -688,8 +696,8 @@ voltage = eqiora.Dimension(mass=1, length=2, time=-3, current=-1)
 current = eqiora.Dimension(current=1)
 electrical = eqiora.PhysicalDomain(
     "electrical",
-    across_dimension=voltage,
-    through_dimension=current,
+    across_type=eqiora.ValueType.real(voltage),
+    through_type=eqiora.ValueType.real(current),
 )
 left = eqiora.ConservingPort("left", domain=electrical)
 right = eqiora.ConservingPort("right", domain=electrical)
@@ -737,7 +745,7 @@ potential = eqiora.Field(
 source = eqiora.Parameter(
     "source",
     value=1.0,
-    dimension=eqiora.Dimension(length=-2),
+    value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)),
 )
 model = eqiora.Model.define(
     "poisson",
@@ -841,10 +849,10 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v10` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v11` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
-Model v1--v7 bytes reject; decoding never sniffs, retries, or silently migrates
-an older artifact.
+Only the current schema is accepted; decoding never sniffs, retries, or silently
+migrates an older artifact.
 
 Independent definitions allocate fresh canonical occurrence identities, so
 exact equality and digest equality are intentionally stronger than structural
@@ -866,7 +874,7 @@ x = eqiora.Field("x", initial=1.0)
 rate = eqiora.Parameter(
     "rate",
     value=1.0,
-    dimension=eqiora.Dimension(time=-1),
+    value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)),
 )
 native_model = eqiora.Model.define(
     "decay",

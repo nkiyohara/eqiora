@@ -41,10 +41,10 @@ def cylinder_source(*, doc="Equations-only steady incompressible flow component.
     walls = stokes.boundary("walls", parent=fluid)
     cylinder = stokes.boundary("cylinder", parent=fluid)
 
-    dynamic_viscosity = stokes.parameter("dynamic_viscosity", unit=u.kg / (u.m * u.s))
-    zero_pressure = stokes.parameter("zero_pressure", unit=u.kg / (u.m * u.s**2))
-    inlet_speed = stokes.parameter("inlet_speed", unit=u.m / u.s)
-    channel_height = stokes.parameter("channel_height", unit=u.m)
+    dynamic_viscosity = stokes.parameter("dynamic_viscosity", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-1)))
+    zero_pressure = stokes.parameter("zero_pressure", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)))
+    inlet_speed = stokes.parameter("inlet_speed", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)))
+    channel_height = stokes.parameter("channel_height", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
     velocity = stokes.field(
         "velocity", on=fluid, value_type=(

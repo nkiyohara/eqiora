@@ -215,19 +215,14 @@ fn resolved_scalar_port_contract(
     match contract {
         ResolvedPortContract::Signal {
             direction,
-            dimension,
+            value_type,
         } => ScalarPortContract::Signal {
             direction: match direction {
                 SignalDirectionSyntax::Input => SignalDirection::Input,
                 SignalDirectionSyntax::Output => SignalDirection::Output,
             },
-            dimension: *dimension,
+            value_type: value_type.clone(),
         },
-        ResolvedPortContract::ConservingMarker { dimension } => {
-            ScalarPortContract::ConservingMarker {
-                dimension: *dimension,
-            }
-        }
         ResolvedPortContract::ScalarPhysical { domain, .. } => {
             ScalarPortContract::ScalarPhysical { nominal: *domain }
         }
@@ -245,14 +240,11 @@ fn lower_connection_violation_message(violation: ScalarConnectionViolation) -> &
         ScalarConnectionViolation::SignalDirections { .. } => {
             "signal Connection requires exactly one output and one or more inputs"
         }
-        ScalarConnectionViolation::SignalDimensionMismatch => {
-            "signal Connection requires dimension-matched inputs"
+        ScalarConnectionViolation::SignalTypeMismatch => {
+            "signal Connection requires dimension-matched inputs with compatible scalar domains, shapes and frames"
         }
         ScalarConnectionViolation::MixedConservingFamilies => {
-            "conserving Connection cannot mix signal, legacy marker, and scalar physical Ports"
-        }
-        ScalarConnectionViolation::MarkerDimensionMismatch => {
-            "conserving Connection requires dimension-matched legacy markers"
+            "conserving Connection cannot mix signal and scalar physical Ports"
         }
         ScalarConnectionViolation::PhysicalNominalMismatch => {
             "conserving Connection requires scalar physical Ports on the exact same nominal Domain"

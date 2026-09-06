@@ -43,7 +43,16 @@ pub(crate) fn evaluate_expression(
     let mut values = Vec::with_capacity(expression.nodes().len());
     for (index, node) in expression.nodes().iter().enumerate() {
         let value = match node {
-            ExprNode::Constant(value) => value.value(),
+            ExprNode::Constant(value) => value
+                .real_scalar_value()
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        codes::NOT_IMPLEMENTED,
+                        "reference execution requires real scalar constants",
+                    )
+                    .with_graph_path(expression_path(owner, index))
+                })?
+                .value(),
             ExprNode::Symbol(symbol) => resolve(*symbol).ok_or_else(|| {
                 Diagnostic::error(
                     codes::MISSING_EXECUTION_INPUT,
@@ -153,4 +162,41 @@ fn expression_path(owner: RawId, index: usize) -> GraphPath {
         "expression".to_owned(),
         index.to_string(),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_core::{DimExponents, Id, ScalarDomain, ValueLiteral, ValueType, entity::kinds};
+    use eqiora_schema::kernel::ExprDagBuilder;
+
+    #[test]
+    fn reference_evaluation_does_not_narrow_typed_constants() {
+        let owner = Id::<kinds::Relation>::new().erase();
+        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        for value_type in [
+            real.clone(),
+            ValueType::scalar(ScalarDomain::Complex, real.dimension()),
+            real.array(3).unwrap(),
+        ] {
+            let is_real_scalar =
+                value_type.scalar_domain() == ScalarDomain::Real && value_type.shape().is_scalar();
+            let mut builder = ExprDagBuilder::new();
+            let root = builder
+                .constant(ValueLiteral::new(value_type, 0.0).unwrap())
+                .unwrap();
+            let result =
+                evaluate_expression(owner, &builder.finish([root]).unwrap(), &mut |_| None);
+            if is_real_scalar {
+                assert_eq!(result.unwrap(), vec![0.0]);
+            } else {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .message()
+                        .contains("real scalar constants")
+                );
+            }
+        }
+    }
 }

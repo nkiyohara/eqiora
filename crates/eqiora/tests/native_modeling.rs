@@ -16,7 +16,10 @@ fn native_and_source_models_share_structure_and_artifacts() {
     );
     let rate = DraftParameter::new(
         "rate",
-        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
+        ),
         1.0,
     );
     let flow = DraftRelation::continuous(
@@ -79,7 +82,10 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
     );
     let duration = DraftParameter::new(
         "duration",
-        DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
+        ),
         1.0,
     );
     let invalid = DraftRelation::continuous(

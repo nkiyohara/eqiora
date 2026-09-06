@@ -431,7 +431,7 @@ fn infer_node<I: Clone + Eq, E>(
     symbol_type: &mut impl FnMut(SymbolRef) -> Result<ExpressionType<I>, E>,
 ) -> NodeInference<I, E> {
     let typed = match node {
-        ExprNode::Constant(value) => Ok(ExpressionType::scalar(value.dim(), None)),
+        ExprNode::Constant(value) => Ok(ExpressionType::new(value.value_type().clone(), None)),
         ExprNode::Symbol(symbol) => {
             return match symbol_type(*symbol) {
                 Ok(value) => NodeInference::Typed(value),

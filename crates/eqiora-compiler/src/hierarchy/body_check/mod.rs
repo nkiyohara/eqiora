@@ -320,7 +320,7 @@ model Poisson {
             ),
             (
                 "conserving families",
-                "model M { domain d = scalar_physical(across = 1, through = 1); port marker: conserving 1; port physical: conserving on d; connect conserving marker, physical; }",
+                "model M { domain d = scalar_physical(across = 1, through = 1); port causal: signal input 1; port physical: conserving on d; connect conserving causal, physical; }",
                 "cannot mix",
             ),
         ];

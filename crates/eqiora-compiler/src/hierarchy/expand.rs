@@ -37,11 +37,13 @@ use super::flat::{
     RelationIdentity, SourceLocation,
 };
 
+mod binding_locations;
 mod cartesian;
 mod external;
 mod model_lets;
 mod names;
-use super::parameters::{ConstantValue, ParameterLineage, ParameterResolver, ResolvedParameter};
+
+use super::parameters::{ParameterLineage, ParameterResolver, ResolvedParameter};
 use super::preflight::{
     ComponentDefinition, ConnectorDefinition, DefinitionKey, DefinitionNamespace, Elaborator,
     ExpansionSize, ModelDefinition,
@@ -56,108 +58,11 @@ use super::supports::{
     CompleteExteriorMembershipBudget, ResolvedBoundaryTarget, ResolvedSupportBindings,
     component_support_interface, resolve_instance_support_bindings,
 };
+use binding_locations::{
+    boundary_set_forwarding_locations, field_forwarding_locations, instance_binding_locations,
+    normalize_binding_locations, parameter_forwarding_locations,
+};
 use names::{boundary_family_display, display_child, internal_name};
-
-fn instance_binding_locations(file: &str, instance: &InstanceDecl) -> Vec<SourceLocation> {
-    let mut ranges = instance
-        .bindings()
-        .iter()
-        .map(|binding| binding.range())
-        .chain(
-            instance
-                .support_bindings()
-                .iter()
-                .map(|binding| binding.range()),
-        )
-        .chain(
-            instance
-                .boundary_set_bindings()
-                .iter()
-                .map(|binding| binding.range()),
-        )
-        .chain(
-            instance
-                .field_bindings()
-                .iter()
-                .map(|binding| binding.range()),
-        )
-        .collect::<Vec<_>>();
-    ranges.sort_by_key(|range| (range.start(), range.end()));
-    ranges
-        .into_iter()
-        .map(|range| SourceLocation::new(file, range))
-        .collect()
-}
-
-fn field_forwarding_locations(file: &str, instance: &InstanceDecl) -> Vec<SourceLocation> {
-    if instance.field_bindings().is_empty() {
-        return Vec::new();
-    }
-    let mut ranges = instance
-        .support_bindings()
-        .iter()
-        .map(|binding| binding.range())
-        .chain(
-            instance
-                .field_bindings()
-                .iter()
-                .map(|binding| binding.range()),
-        )
-        .collect::<Vec<_>>();
-    ranges.sort_by_key(|range| (range.start(), range.end()));
-    ranges
-        .into_iter()
-        .map(|range| SourceLocation::new(file, range))
-        .collect()
-}
-
-fn parameter_forwarding_locations(file: &str, instance: &InstanceDecl) -> Vec<SourceLocation> {
-    let mut ranges = instance
-        .bindings()
-        .iter()
-        .map(|binding| binding.range())
-        .collect::<Vec<_>>();
-    ranges.sort_by_key(|range| (range.start(), range.end()));
-    ranges
-        .into_iter()
-        .map(|range| SourceLocation::new(file, range))
-        .collect()
-}
-
-fn boundary_set_forwarding_locations(
-    file: &str,
-    instance: &InstanceDecl,
-    support_bindings: &ResolvedSupportBindings<FullElaborationIdentity>,
-) -> Vec<SourceLocation> {
-    if support_bindings.boundary_sets().next().is_none() {
-        return Vec::new();
-    }
-    let mut ranges = instance
-        .support_bindings()
-        .iter()
-        .map(|binding| binding.range())
-        .chain(
-            support_bindings
-                .boundary_sets()
-                .map(|(_, set)| set.source_range()),
-        )
-        .collect::<Vec<_>>();
-    ranges.sort_by_key(|range| (range.start(), range.end()));
-    ranges
-        .into_iter()
-        .map(|range| SourceLocation::new(file, range))
-        .collect()
-}
-
-fn normalize_binding_locations(bindings: &mut Vec<SourceLocation>) {
-    bindings.sort_by(|left, right| {
-        left.file
-            .cmp(&right.file)
-            .then_with(|| left.range.start().cmp(&right.range.start()))
-            .then_with(|| left.range.end().cmp(&right.range.end()))
-    });
-    bindings.dedup_by(|left, right| left.file == right.file && left.range == right.range);
-}
 
 fn one_diagnostic(error: Diagnostic) -> Vec<Diagnostic> {
     vec![error]
@@ -626,16 +531,16 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         };
         let (shape, contract) = match connector.syntax() {
             ConnectorSyntax::ScalarPhysical {
-                across_dimension,
-                through_dimension,
+                across_type,
+                through_type,
             } => {
-                lower_dimension(connector.file, across_dimension)?;
-                lower_dimension(connector.file, through_dimension)?;
+                crate::value_types::lower_scalar_type(connector.file, across_type)?;
+                crate::value_types::lower_scalar_type(connector.file, through_type)?;
                 (
                     ValueShape::scalar(),
                     LoweringDomainContract::Source(DomainSyntax::ScalarPhysical {
-                        across_dimension: across_dimension.clone(),
-                        through_dimension: through_dimension.clone(),
+                        across_type: across_type.clone(),
+                        through_type: through_type.clone(),
                     }),
                 )
             }
@@ -703,11 +608,25 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         ));
                     }
                 };
+                let quantity_type = |dimension: &eqiora_lang::Expr| {
+                    eqiora_core::ValueType::shaped(
+                        eqiora_core::ScalarDomain::Real,
+                        lower_dimension(connector.file, dimension)?,
+                        shape.clone(),
+                        frame,
+                    )
+                    .map_err(|error| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            connector.file,
+                            dimension.range(),
+                            error.to_string(),
+                        )
+                    })
+                };
                 let contract = BoundaryPhysicalConnector::new(
-                    lower_dimension(connector.file, trace.dimension())?,
-                    lower_dimension(connector.file, flux.dimension())?,
-                    shape.clone(),
-                    frame,
+                    quantity_type(trace.dimension())?,
+                    quantity_type(flux.dimension())?,
                     pairing,
                 )
                 .map_err(|violation| {
@@ -878,11 +797,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     value.range(),
                 ),
                 Item::Parameter(declaration) => {
-                    let dimension = lower_dimension(self.model.file, declaration.dimension())?;
-                    let value = ConstantValue {
-                        value: crate::units::parameter_value(self.model.file, declaration)?,
-                        dimension,
-                    };
+                    let value = crate::units::parameter_literal(self.model.file, declaration)?;
                     (
                         declaration.name(),
                         EntityKind::Parameter,
@@ -2006,11 +1921,11 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         match declaration.syntax() {
             PortSyntax::Signal {
                 direction,
-                dimension,
+                value_type,
             } => Ok((
                 LoweringPortContract::Source(PortSyntax::Signal {
                     direction: *direction,
-                    dimension: dimension.clone(),
+                    value_type: value_type.clone(),
                 }),
                 None,
             )),
@@ -2154,11 +2069,11 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             }
                         }
                         DomainSyntax::ScalarPhysical {
-                            across_dimension,
-                            through_dimension,
+                            across_type,
+                            through_type,
                         } => DomainSyntax::ScalarPhysical {
-                            across_dimension: across_dimension.clone(),
-                            through_dimension: through_dimension.clone(),
+                            across_type: across_type.clone(),
+                            through_type: through_type.clone(),
                         },
                         _ => {
                             return Err(source_error(
@@ -2203,8 +2118,9 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     let identity = identities.entities[declaration.name()].clone();
                     self.items.push(FlatItemBlueprint::Parameter {
                         name: internal_name(identity.full),
-                        dimension: declaration.dimension().clone(),
-                        value: crate::units::parameter_value(self.model.file, declaration)?,
+                        value_type: declaration.value_type().clone(),
+                        value: crate::units::parameter_literal(self.model.file, declaration)?
+                            .literal(),
                         range: declaration.range(),
                         identity,
                     });

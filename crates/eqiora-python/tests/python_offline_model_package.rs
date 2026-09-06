@@ -234,7 +234,7 @@ left = law.boundary("left", parent=region)
 right = law.boundary("right", parent=region)
 bottom = law.boundary("bottom", parent=region)
 top = law.boundary("top", parent=region)
-source_scale = law.parameter("source_scale", unit=u.one / u.m**2)
+source_scale = law.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
 diffusivity = law.property("diffusivity", contract=contract)
 potential = law.field("potential", on=region, value_type=eqiora.ValueType.real(), initial=0)
 law.relation(
@@ -253,7 +253,7 @@ root_left = root.boundary("left", parent=root_region)
 root_right = root.boundary("right", parent=root_region)
 root_bottom = root.boundary("bottom", parent=root_region)
 root_top = root.boundary("top", parent=root_region)
-root_source_scale = root.parameter("source_scale", unit=u.one / u.m**2)
+root_source_scale = root.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
 root.instance(
     "equation",
     component=law,

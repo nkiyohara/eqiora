@@ -498,17 +498,26 @@ fn signal_connection_supports_one_to_many_fanout() {
         KernelNode::from(PortDef::signal(
             output,
             SignalDirection::Output,
-            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
         )),
         KernelNode::from(PortDef::signal(
             input_a,
             SignalDirection::Input,
-            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
         )),
         KernelNode::from(PortDef::signal(
             input_b,
             SignalDirection::Input,
-            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
         )),
     ] {
         transaction.push(Op::DefineKernelNode { node });
@@ -599,8 +608,16 @@ fn invalid_signal_connection(
         )),
         KernelNode::from(ActivationDef::continuous(activation)),
         KernelNode::from(ConnectionDef::new(connection, ConnectionSemantics::Signal)),
-        KernelNode::from(PortDef::signal(port_ids[0], ports[0].0, ports[0].1)),
-        KernelNode::from(PortDef::signal(port_ids[1], ports[1].0, ports[1].1)),
+        KernelNode::from(PortDef::signal(
+            port_ids[0],
+            ports[0].0,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, ports[0].1),
+        )),
+        KernelNode::from(PortDef::signal(
+            port_ids[1],
+            ports[1].0,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, ports[1].1),
+        )),
     ] {
         transaction.push(Op::DefineKernelNode { node });
     }
@@ -669,17 +686,26 @@ fn one_port_cannot_belong_to_two_connection_nets() {
         KernelNode::from(PortDef::signal(
             output_a,
             SignalDirection::Output,
-            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
         )),
         KernelNode::from(PortDef::signal(
             output_b,
             SignalDirection::Output,
-            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
         )),
         KernelNode::from(PortDef::signal(
             shared_input,
             SignalDirection::Input,
-            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
         )),
     ] {
         transaction.push(Op::DefineKernelNode { node });
@@ -786,10 +812,17 @@ fn invalid_spatial_expression(
                 DimExponents::DIMENSIONLESS,
             ),
         )),
-        KernelNode::from(ParameterDef::new(
-            ids.parameter,
-            DynQuantity::new(1.0, DimExponents::DIMENSIONLESS),
-        )),
+        KernelNode::from(
+            ParameterDef::new(
+                ids.parameter,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+                1.0,
+            )
+            .unwrap(),
+        ),
         KernelNode::from(RelationDef::new(
             relation,
             expression.finish([residual]).expect("DAG"),

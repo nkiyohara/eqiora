@@ -5,42 +5,13 @@ use eqiora_lang::{BinaryOp, Expr, ExprKind};
 
 use crate::dimensions::rational_literal;
 
-pub(crate) fn parameter_value(
+pub(crate) fn parameter_literal(
     file: &str,
     declaration: &eqiora_lang::ParameterDecl,
-) -> Result<f64, eqiora_core::Diagnostic> {
+) -> Result<eqiora_core::ValueLiteral, eqiora_core::Diagnostic> {
     let value_type =
         crate::value_types::lower_value_type::<()>(file, declaration.value_type(), None)?;
-    if !value_type.shape().is_scalar()
-        || value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
-    {
-        return Err(crate::diagnostics::source_error(
-            eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
-            file,
-            declaration.value_type().range(),
-            "parameter literal lowering requires a real scalar type",
-        ));
-    }
-    let dimension = value_type.dimension();
-    let result = match declaration.value().kind() {
-        ExprKind::Number(value) => normalize_value(*value, 1.0),
-        ExprKind::Quantity { value, unit } => quantity(*value, unit).and_then(|quantity| {
-            if quantity.dim() == dimension {
-                Ok(quantity.value())
-            } else {
-                Err("parameter input unit does not match its declared dimension")
-            }
-        }),
-        _ => Err("parameter value must be a numeric or quantity literal"),
-    };
-    result.map_err(|message| {
-        crate::diagnostics::source_error(
-            eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
-            file,
-            declaration.value().range(),
-            message,
-        )
-    })
+    typed_literal(file, declaration.value(), value_type)
 }
 
 pub(crate) fn typed_literal(
@@ -270,7 +241,7 @@ component Delay {
 }
 model Quantities {
   parameter duration: Duration = -10[ms];
-  let ms: m = 3;
+  let ms: m = 3[m];
   let positive: Duration = 10 [ms];
   field elapsed: s = 0;
   relation balance continuous { elapsed - positive = 0; }
@@ -286,7 +257,7 @@ model Quantities {
             .filter_map(|op| match op {
                 Op::DefineKernelNode {
                     node: KernelNode::Parameter(parameter),
-                } => Some(parameter.value()),
+                } => parameter.real_scalar_value(),
                 _ => None,
             })
             .collect();
@@ -303,6 +274,78 @@ model Quantities {
             source.replace("10 [ms]", "10 [Duration]"),
         ] {
             assert!(crate::compile("wrong.eqi", &wrong).is_err(), "{wrong}");
+        }
+    }
+
+    #[test]
+    fn declaration_units_preserve_values_across_flat_and_component_initializers() {
+        use eqiora_graph::Op;
+        use eqiora_schema::kernel::KernelNode;
+
+        let density = DimExponents::from_integers([1, -3, 0, 0, 0, 0, 0]).unwrap();
+        for literal in ["1000", "1000[kg / m ^ 3]", "1[g / cm ^ 3]"] {
+            let source = format!(
+                "component C {{
+                    public parameter density: kg / m ^ 3 = {literal};
+                    relation r continuous {{ density - density = 0; }}
+                }}
+                model M {{
+                    parameter p: kg / m ^ 3 = {literal};
+                    field f: kg / m ^ 3 = {literal};
+                    let alias: kg / m ^ 3 = {literal};
+                    instance defaulted: C();
+                    instance bound: C(density = alias);
+                    relation r continuous {{ f - p = 0; }}
+                }}"
+            );
+            let compiled = crate::compile("density.eqi", &source).unwrap();
+            let values: Vec<_> = compiled[0]
+                .transaction()
+                .ops()
+                .iter()
+                .filter_map(|op| match op {
+                    Op::DefineKernelNode {
+                        node: KernelNode::Parameter(parameter),
+                    } => parameter.real_scalar_value(),
+                    Op::DefineKernelNode {
+                        node: KernelNode::Field(field),
+                    } => field
+                        .initial()
+                        .and_then(eqiora_core::ValueLiteral::real_scalar_value),
+                    _ => None,
+                })
+                .collect();
+            // Only the model Parameter and Field are kernel entities. Component
+            // defaults and let-bound arguments become constants in their relations.
+            assert_eq!(values.len(), 2);
+            for value in values {
+                assert_eq!(value.dim(), density);
+                assert_eq!(value.value(), 1000.0, "{literal}");
+            }
+            let component_constants: Vec<_> = compiled[0]
+                .transaction()
+                .ops()
+                .iter()
+                .filter_map(|op| match op {
+                    Op::DefineKernelNode {
+                        node: KernelNode::Relation(relation),
+                    } => Some(relation),
+                    _ => None,
+                })
+                .flat_map(|relation| relation.residuals().nodes())
+                .filter_map(|node| match node {
+                    eqiora_schema::kernel::ExprNode::Constant(value) if value.literal() != 0.0 => {
+                        Some(value)
+                    }
+                    _ => None,
+                })
+                .collect();
+            assert!(!component_constants.is_empty());
+            for value in component_constants {
+                assert_eq!(value.value_type().dimension(), density);
+                assert_eq!(value.literal(), 1000.0, "{literal}");
+            }
+            assert!(crate::compile("wrong-density.eqi", &source.replace(literal, "1[s]")).is_err());
         }
     }
 
