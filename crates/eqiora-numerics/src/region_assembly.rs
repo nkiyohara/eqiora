@@ -29,6 +29,7 @@ pub(crate) struct PreparedRegionAssembly {
     forms: BTreeMap<RawId, (BoundRegionForm, QuadratureRule)>,
     cell_domains: Vec<RawId>,
     cells: Vec<RegionAssemblyCell>,
+    boundary_packets: Vec<AssemblyPacket>,
 }
 
 impl PreparedRegionAssembly {
@@ -40,6 +41,7 @@ impl PreparedRegionAssembly {
         forms: Vec<(BoundRegionForm, QuadratureRule)>,
         cell_domains: &[RawId],
         mut cells: Vec<RegionAssemblyCell>,
+        boundary_packets: Vec<AssemblyPacket>,
     ) -> Result<Self, Diagnostic> {
         if cell_domains.is_empty() || cells.len() != cell_domains.len() {
             return Err(invalid(
@@ -82,11 +84,24 @@ impl PreparedRegionAssembly {
             let local_count = form.fields().last().expect("bound nonempty form").range.end;
             validate_maps(plan, local_count, &cell.mappings)?;
         }
+        cells
+            .len()
+            .checked_add(boundary_packets.len())
+            .ok_or_else(|| invalid("region and boundary packet count overflows usize"))?;
+        for packet in &boundary_packets {
+            if packet.local().rows() != packet.local().columns() {
+                return Err(invalid(
+                    "boundary packet requires matching test and trial ranges",
+                ));
+            }
+            validate_maps(plan, packet.local().rows(), packet.mappings())?;
+        }
         Ok(Self {
             packet_set,
             forms: by_domain,
             cell_domains: cell_domains.to_vec(),
             cells,
+            boundary_packets,
         })
     }
 }
@@ -97,10 +112,17 @@ impl AssemblyWork for PreparedRegionAssembly {
     }
 
     fn packet_count(&self) -> usize {
-        self.cells.len()
+        self.cells.len() + self.boundary_packets.len()
     }
 
     fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket, Diagnostic> {
+        if packet_index >= self.cells.len() {
+            return self
+                .boundary_packets
+                .get(packet_index - self.cells.len())
+                .cloned()
+                .ok_or_else(|| invalid("region assembly packet is outside the prepared mesh"));
+        }
         let cell = self
             .cells
             .get(packet_index)

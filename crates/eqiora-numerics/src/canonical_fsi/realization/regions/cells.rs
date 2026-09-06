@@ -147,5 +147,6 @@ pub(in super::super) fn prepare_cells(
             .collect(),
         &domains,
         cells,
+        Vec::new(),
     )
 }
