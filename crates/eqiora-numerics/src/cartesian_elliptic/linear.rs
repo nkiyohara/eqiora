@@ -3,7 +3,9 @@
 use eqiora_assembly::{AssemblyBackend, AssemblyReport, LinearSystem};
 use eqiora_core::{Diagnostic, RawId, ValueType};
 use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
+use eqiora_schema::kernel::BoundarySide;
 
+use super::CartesianBoundaryValue;
 use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::form_compiler::linear::CompiledLinearBlockForm;
 
@@ -21,12 +23,16 @@ pub(crate) struct CartesianLinearAssembly {
 mod tests;
 
 impl CartesianLinearAssembly {
-    pub(crate) fn assemble(
+    pub(crate) fn assemble<B>(
         form: &CompiledLinearBlockForm,
         mesh: &CartesianMesh,
         quadrature: &QuadratureRule,
         backend: &dyn AssemblyBackend,
-    ) -> Result<Self, Diagnostic> {
+        boundary: &B,
+    ) -> Result<Self, Diagnostic>
+    where
+        B: Fn(RawId, usize, BoundarySide, &[f64]) -> CartesianBoundaryValue + ?Sized,
+    {
         super::validate_problem(mesh, quadrature)?;
         let dimension = mesh.topological_dimension();
         if form.dimension() != dimension {
@@ -42,21 +48,33 @@ impl CartesianLinearAssembly {
         fixed
             .try_reserve_exact(count)
             .map_err(|_| super::invalid("linear block DOF allocation exceeds capacity"))?;
-        for _ in form.fields() {
-            for vertex in 0..vertices {
-                fixed.push(
-                    mesh.is_boundary_entity(MeshEntity::new(0, vertex))
-                        .expect("Cartesian vertex boundary classification")
-                        .then_some(0.0),
-                );
-            }
+        let mut natural = Vec::new();
+        for (index, (field, _)) in form.fields().iter().enumerate() {
+            let boundary =
+                |axis, side, coordinates: &[f64]| boundary(*field, axis, side, coordinates);
+            fixed.extend(super::essential_fem_values(mesh, &boundary)?);
+            natural.extend(super::natural_fem_facets(mesh, &boundary)?.into_iter().map(
+                |(local, facet_vertices)| {
+                    let globals = facet_vertices
+                        .into_iter()
+                        .map(|vertex| index * vertices + vertex.index())
+                        .collect::<Vec<_>>();
+                    (local, globals)
+                },
+            ));
         }
         let constraints = ConstrainedDofLayout::new(fixed)?;
         if constraints.free_count() == 0 {
             return Err(super::invalid("linear block requires unconstrained DOFs"));
         }
         let cells = mesh.entity_count(dimension).expect("Cartesian cells");
-        let (system, full_system, report) = constraints.assemble(backend, cells, |index| {
+        let packets = cells
+            .checked_add(natural.len())
+            .ok_or_else(|| super::invalid("linear block packet count overflows usize"))?;
+        let (system, full_system, report) = constraints.assemble(backend, packets, |index| {
+            if index >= cells {
+                return Ok(natural[index - cells].clone());
+            }
             let cell = MeshEntity::new(dimension, index);
             let geometry = mesh.geometry_map(cell).expect("Cartesian cell geometry");
             let local = form.evaluate(&geometry, quadrature)?;

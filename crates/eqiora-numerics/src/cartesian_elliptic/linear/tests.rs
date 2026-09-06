@@ -136,9 +136,14 @@ fn exercise_source(reaction: &[Vec<f64>], source: &str, names: &[String]) {
     let (form, symbols) = compiled(source);
     let mesh = CartesianMesh::from_axes(vec![AXIS.to_vec()]).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
-    let assembled =
-        CartesianLinearAssembly::assemble(&form, &mesh, &quadrature, &REFERENCE_ASSEMBLY_BACKEND)
-            .unwrap();
+    let assembled = CartesianLinearAssembly::assemble(
+        &form,
+        &mesh,
+        &quadrature,
+        &REFERENCE_ASSEMBLY_BACKEND,
+        &|_, _, _, _| CartesianBoundaryValue::Essential(0.0),
+    )
+    .unwrap();
     assert_eq!(assembled.fields, form.fields());
     let ids = names
         .iter()
@@ -242,6 +247,62 @@ fn two_fields_preserve_nonsymmetric_coupling_and_exact_identity_permutation() {
     let reaction = [vec![4.0, -1.0], vec![2.0, 3.0]];
     exercise(&reaction, false);
     exercise(&reaction, true);
+}
+
+#[test]
+fn fieldwise_nonzero_trace_and_natural_load_recover_linear_fields() {
+    // Assembly-only probe: the boundary compiler is checked separately.
+    let (source, names) = authored(&[vec![0.0; 2], vec![0.0; 2]], false);
+    let source = source
+        .replace("- 1 * inverse_area", "- 0 * inverse_area")
+        .replace("- 2 * inverse_area", "- 0 * inverse_area");
+    let (form, symbols) = compiled(&source);
+    let first = symbols.get(&names[0]).unwrap();
+    let mesh = CartesianMesh::from_axes(vec![AXIS.to_vec()]).unwrap();
+    let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
+    let assembled = CartesianLinearAssembly::assemble(
+        &form,
+        &mesh,
+        &quadrature,
+        &REFERENCE_ASSEMBLY_BACKEND,
+        &|field, _, side, _| match (field == first, side) {
+            (true, BoundarySide::Lower) => CartesianBoundaryValue::Essential(2.0),
+            (false, BoundarySide::Lower) => CartesianBoundaryValue::Essential(4.0),
+            (true, BoundarySide::Upper) => CartesianBoundaryValue::Natural(2.0),
+            (false, BoundarySide::Upper) => CartesianBoundaryValue::Natural(9.0),
+        },
+    )
+    .unwrap();
+    let problem = LinearProblem::new(
+        assembled.system.matrix(),
+        assembled.system.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
+    let plan = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(100).unwrap(),
+    )
+    .unwrap();
+    let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap();
+    let values = assembled.constraints.lift(solution.values()).unwrap();
+    let expected = form
+        .fields()
+        .iter()
+        .flat_map(|(field, _)| {
+            AXIS.map(|x| {
+                if *field == first {
+                    2.0 + x
+                } else {
+                    4.0 + 3.0 * x
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+    close(&values, &expected, 2e-11);
+    assert_eq!(assembled.constraints.free_count(), 6);
 }
 
 #[test]

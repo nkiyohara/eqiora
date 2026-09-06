@@ -1,5 +1,88 @@
 use super::*;
 
+pub(super) fn natural_fem_facets<B>(
+    mesh: &CartesianMesh,
+    boundary: &B,
+) -> Result<Vec<(LocalContribution, Vec<MeshEntity>)>, Diagnostic>
+where
+    B: Fn(usize, BoundarySide, &[f64]) -> CartesianBoundaryValue + ?Sized,
+{
+    let dimension = mesh.topological_dimension();
+    let facet_quadrature = scalar_facet_quadrature(dimension)?;
+    let facet_dimension = dimension - 1;
+    let natural_facets = (0..mesh
+        .entity_count(facet_dimension)
+        .expect("mesh owns facets"))
+        .filter_map(|facet_index| {
+            let facet = MeshEntity::new(facet_dimension, facet_index);
+            cartesian_boundary_facet_side(mesh, facet)
+                .transpose()
+                .map(|side| side.map(|side| (facet, side)))
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?
+        .into_iter()
+        .filter_map(|(facet, (axis, side))| {
+            let geometry = mesh.geometry_map(facet).expect("mesh facet has geometry");
+            let coordinates = geometry.origin();
+            matches!(
+                boundary(axis, side, coordinates),
+                CartesianBoundaryValue::Natural(_)
+            )
+            .then_some((facet, axis, side))
+        })
+        .map(|(facet, axis, side)| {
+            let geometry = mesh.geometry_map(facet).expect("mesh facet has geometry");
+            let vertices = mesh
+                .entity_vertices(facet)
+                .expect("mesh facet has a vertex closure");
+            let local =
+                natural_fem_facet_contribution(&geometry, &facet_quadrature, &|coordinates| {
+                    match boundary(axis, side, coordinates) {
+                        CartesianBoundaryValue::Natural(value) => value,
+                        CartesianBoundaryValue::Essential(_) => f64::NAN,
+                    }
+                })?;
+            Ok((local, vertices))
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+    Ok(natural_facets)
+}
+
+pub(super) fn essential_fem_values<B>(
+    mesh: &CartesianMesh,
+    boundary: &B,
+) -> Result<Vec<Option<f64>>, Diagnostic>
+where
+    B: Fn(usize, BoundarySide, &[f64]) -> CartesianBoundaryValue + ?Sized,
+{
+    let vertex_count = mesh.entity_count(0).expect("mesh owns vertices");
+    let mut fixed_values = Vec::with_capacity(vertex_count);
+    for vertex_index in 0..vertex_count {
+        let vertex = MeshEntity::new(0, vertex_index);
+        if mesh
+            .is_boundary_entity(vertex)
+            .expect("mesh vertex has boundary classification")
+        {
+            let coordinates = mesh
+                .vertex_coordinates(vertex)
+                .expect("mesh vertex has geometry");
+            let essential = boundary_sides(mesh, &coordinates)?
+                .into_iter()
+                .filter_map(|(axis, side)| match boundary(axis, side, &coordinates) {
+                    CartesianBoundaryValue::Essential(value) => Some(value),
+                    CartesianBoundaryValue::Natural(_) => None,
+                })
+                .try_fold(None, |accepted: Option<f64>, candidate| {
+                    require_compatible_boundary_value(accepted, candidate)
+                })?;
+            fixed_values.push(essential);
+        } else {
+            fixed_values.push(None);
+        }
+    }
+    Ok(fixed_values)
+}
+
 pub(super) fn validate_linearization_inputs(
     model: &ScalarEllipticCartesianModel,
     mesh: &CartesianMesh,
@@ -220,6 +303,14 @@ where
 {
     require_geometry_rule(geometry, quadrature)?;
     let dimension = geometry.reference_cell().dimension();
+    if dimension == 0 {
+        return LocalContribution::new(
+            1,
+            1,
+            vec![0.0],
+            vec![integrate_boundary_flux(geometry, quadrature, flux)?],
+        );
+    }
     let space = HypercubeQ1Space::new(dimension)?;
     let dof_count = space.local_dofs().len();
     let mut rhs = vec![0.0; dof_count];

@@ -644,31 +644,7 @@ where
         source,
         compiled: &compiled,
     };
-    let vertex_count = mesh.entity_count(0).expect("mesh owns vertices");
-    let mut fixed_values = Vec::with_capacity(vertex_count);
-    for vertex_index in 0..vertex_count {
-        let vertex = MeshEntity::new(0, vertex_index);
-        if mesh
-            .is_boundary_entity(vertex)
-            .expect("mesh vertex has boundary classification")
-        {
-            let coordinates = mesh
-                .vertex_coordinates(vertex)
-                .expect("mesh vertex has geometry");
-            let essential = boundary_sides(mesh, &coordinates)?
-                .into_iter()
-                .filter_map(|(axis, side)| match boundary(axis, side, &coordinates) {
-                    CartesianBoundaryValue::Essential(value) => Some(value),
-                    CartesianBoundaryValue::Natural(_) => None,
-                })
-                .try_fold(None, |accepted: Option<f64>, candidate| {
-                    require_compatible_boundary_value(accepted, candidate)
-                })?;
-            fixed_values.push(essential);
-        } else {
-            fixed_values.push(None);
-        }
-    }
+    let fixed_values = essential_fem_values(mesh, boundary)?;
     if fixed_values.iter().all(Option::is_none) {
         return Err(invalid(
             "Cartesian Q1 system requires at least one essential boundary vertex",
@@ -681,43 +657,7 @@ where
         ));
     }
     let cell_count = mesh.entity_count(dimension).expect("mesh owns cells");
-    let facet_quadrature = scalar_facet_quadrature(dimension)?;
-    let facet_dimension = dimension - 1;
-    let natural_facets = (0..mesh
-        .entity_count(facet_dimension)
-        .expect("mesh owns facets"))
-        .filter_map(|facet_index| {
-            let facet = MeshEntity::new(facet_dimension, facet_index);
-            cartesian_boundary_facet_side(mesh, facet)
-                .transpose()
-                .map(|side| side.map(|side| (facet, side)))
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?
-        .into_iter()
-        .filter_map(|(facet, (axis, side))| {
-            let geometry = mesh.geometry_map(facet).expect("mesh facet has geometry");
-            let coordinates = geometry.origin();
-            matches!(
-                boundary(axis, side, coordinates),
-                CartesianBoundaryValue::Natural(_)
-            )
-            .then_some((facet, axis, side))
-        })
-        .map(|(facet, axis, side)| {
-            let geometry = mesh.geometry_map(facet).expect("mesh facet has geometry");
-            let vertices = mesh
-                .entity_vertices(facet)
-                .expect("mesh facet has a vertex closure");
-            let local =
-                natural_fem_facet_contribution(&geometry, &facet_quadrature, &|coordinates| {
-                    match boundary(axis, side, coordinates) {
-                        CartesianBoundaryValue::Natural(value) => value,
-                        CartesianBoundaryValue::Essential(_) => f64::NAN,
-                    }
-                })?;
-            Ok((local, vertices))
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
+    let natural_facets = natural_fem_facets(mesh, boundary)?;
     let natural_load = natural_facets
         .iter()
         .flat_map(|(local, _)| local.rhs())
