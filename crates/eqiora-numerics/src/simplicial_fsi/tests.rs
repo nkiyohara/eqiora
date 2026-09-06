@@ -10,7 +10,7 @@ use eqiora_assembly::{
 use eqiora_core::{Diagnostic, diagnostic::codes};
 use eqiora_meshing::{
     CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, QuadratureRule, SimplicialMesh,
-    VertexId, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
+    simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
 };
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
@@ -18,6 +18,8 @@ use eqiora_solver::{
 };
 
 use super::*;
+
+mod resolved;
 
 #[test]
 fn exact_partition_rejects_missing_and_extra_interface_facets() {
@@ -136,15 +138,8 @@ fn material_coercivity_depends_on_the_admitted_spatial_dimension() {
 #[test]
 fn finalized_operator_is_symmetric_and_constant_pressure_is_closed_by_interface_action() {
     let problem = fixture_problem();
-    let finalized = finalize_fixed_reference_fsi_step_2d(
-        &problem.mesh,
-        &problem.partition,
-        &problem.boundary,
-        &problem.previous,
-        problem.config,
-        &problem.quadrature,
-    )
-    .unwrap();
+    let finalized =
+        resolved::finalize(&problem, problem.config, &REFERENCE_ASSEMBLY_BACKEND).unwrap();
     assert_eq!(
         finalized.linear_system().properties(),
         LinearOperatorProperties::SymmetricIndefinite
@@ -162,15 +157,8 @@ fn finalized_operator_is_symmetric_and_constant_pressure_is_closed_by_interface_
 #[test]
 fn finalized_step_retains_exact_reduced_and_full_target_roles() {
     let problem = fixture_problem();
-    let finalized = finalize_fixed_reference_fsi_step_2d(
-        &problem.mesh,
-        &problem.partition,
-        &problem.boundary,
-        &problem.previous,
-        problem.config,
-        &problem.quadrature,
-    )
-    .unwrap();
+    let finalized =
+        resolved::finalize(&problem, problem.config, &REFERENCE_ASSEMBLY_BACKEND).unwrap();
     let roles = finalized.assembly_target_roles();
     assert_eq!(roles.reduced().index(), 0);
     assert_eq!(roles.full().index(), 1);
@@ -180,16 +168,11 @@ fn finalized_step_retains_exact_reduced_and_full_target_roles() {
 #[test]
 fn monolithic_step_closes_residual_kinematics_interface_and_energy() {
     let problem = fixture_problem();
-    let solution = solve_fixed_reference_fsi_step_2d(
-        &problem.mesh,
-        &problem.partition,
-        &problem.boundary,
-        &problem.previous,
-        problem.config,
-        &problem.quadrature,
-        reference_solver(),
-    )
-    .unwrap();
+    let solution = resolved::finalize(&problem, problem.config, &REFERENCE_ASSEMBLY_BACKEND)
+        .unwrap()
+        .solve(&REFERENCE_LINEAR_SOLVER)
+        .unwrap()
+        .into_numerical_evidence();
     assert!(solution.residual_norm() < 1.0e-9);
     assert!(solution.continuity_residual_norm() < 1.0e-9);
     assert!(solution.kinematic_residual_norm() < 1.0e-14);
@@ -307,16 +290,11 @@ fn tetrahedral_physical_step_is_invariant_under_dimensioned_scale_profiles() {
 #[test]
 fn physical_step_is_invariant_under_admitted_scale_profiles() {
     let problem = fixture_problem();
-    let reference = solve_fixed_reference_fsi_step_2d(
-        &problem.mesh,
-        &problem.partition,
-        &problem.boundary,
-        &problem.previous,
-        problem.config,
-        &problem.quadrature,
-        reference_solver(),
-    )
-    .unwrap();
+    let reference = resolved::finalize(&problem, problem.config, &REFERENCE_ASSEMBLY_BACKEND)
+        .unwrap()
+        .solve(&REFERENCE_LINEAR_SOLVER)
+        .unwrap()
+        .into_numerical_evidence();
     let rescaled_config = FixedReferenceFsiStepConfig::<2>::new(
         problem.config.time_step(),
         problem.config.material(),
@@ -324,16 +302,11 @@ fn physical_step_is_invariant_under_admitted_scale_profiles() {
         FixedReferenceFsiLoad::Zero,
     )
     .unwrap();
-    let rescaled = solve_fixed_reference_fsi_step_2d(
-        &problem.mesh,
-        &problem.partition,
-        &problem.boundary,
-        &problem.previous,
-        rescaled_config,
-        &problem.quadrature,
-        reference_solver(),
-    )
-    .unwrap();
+    let rescaled = resolved::finalize(&problem, rescaled_config, &REFERENCE_ASSEMBLY_BACKEND)
+        .unwrap()
+        .solve(&REFERENCE_LINEAR_SOLVER)
+        .unwrap()
+        .into_numerical_evidence();
     for (left, right) in reference
         .vertex_velocity()
         .iter()
@@ -360,20 +333,17 @@ fn physical_step_is_invariant_under_admitted_scale_profiles() {
 }
 
 #[test]
-fn zero_interface_action_rejects_an_unclosed_pressure_mode() {
+fn finalization_rejects_a_symmetric_operator_with_constant_pressure_nullspace() {
     let problem = fixture_problem();
-    let all_fixed = FixedReferenceFsiBoundary::<2>::from_fixed_zero_velocity_vertices(
-        (0..problem.mesh.vertices().len())
-            .map(VertexId::new)
-            .collect(),
-    );
-    let error = finalize_fixed_reference_fsi_step_2d(
-        &problem.mesh,
-        &problem.partition,
-        &all_fixed,
-        &problem.previous,
+    let layout =
+        super::layout::FsiLayout::new(&problem.mesh, &problem.partition, &problem.boundary)
+            .unwrap();
+    let error = resolved::finalize(
+        &problem,
         problem.config,
-        &problem.quadrature,
+        &resolved::PressureNullspaceBackend {
+            pressure: layout.reduced_pressure_range(),
+        },
     )
     .unwrap_err();
     assert_eq!(error.code(), codes::INVALID_DISCRETIZATION);
@@ -383,16 +353,8 @@ fn zero_interface_action_rejects_an_unclosed_pressure_mode() {
 #[test]
 fn finalization_rejects_a_backend_result_outside_the_prepared_target_shape() {
     let problem = fixture_problem();
-    let error = finalize_fixed_reference_fsi_step_2d_with_assembly(
-        &problem.mesh,
-        &problem.partition,
-        &problem.boundary,
-        &problem.previous,
-        problem.config,
-        &problem.quadrature,
-        &WrongShapeAssemblyBackend,
-    )
-    .expect_err("an assembly backend cannot replace the prepared target shapes");
+    let error = resolved::finalize(&problem, problem.config, &WrongShapeAssemblyBackend)
+        .expect_err("an assembly backend cannot replace the prepared target shapes");
     assert_eq!(error.code(), codes::INVALID_DISCRETIZATION);
     assert!(error.message().contains("prepared target shape"));
 }
