@@ -41,6 +41,27 @@ def _document(implementations: list[str]) -> str:
 
 
 class RustdocBuilderOrderTests(unittest.TestCase):
+    def test_member_summary_counts_follow_rustdoc(self) -> None:
+        for label in ("Show 13 fields", "Show 25 variants", "Show 100 fields"):
+            with self.subTest(label=label):
+                source = (
+                    '<details class="toggle"><summary class="hideme">'
+                    f"<span>{label}</span></summary></details>"
+                )
+                projected, stats = BUILDER._project_document(source, label)
+                self.assertIn(f"<span>{label}</span>", projected)
+                self.assertEqual(stats.special_hideme_labels, 1)
+
+    def test_unknown_member_summary_labels_fail_closed(self) -> None:
+        for label in ("Show 0 fields", "Show 025 variants", "Show 25 methods", "Show all fields"):
+            with self.subTest(label=label):
+                source = (
+                    '<details class="toggle"><summary class="hideme">'
+                    f"<span>{label}</span></summary></details>"
+                )
+                with self.assertRaisesRegex(BUILDER.RustReferenceError, "unexpected hideme label"):
+                    BUILDER._project_document(source, label)
+
     def test_coverage_counts_follow_the_supplied_facade(self) -> None:
         modules = [BUILDER.FacadePath("eqiora::api", "stable")]
         items = [

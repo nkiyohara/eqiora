@@ -7,6 +7,7 @@ import argparse
 import difflib
 import html
 import json
+import re
 import shutil
 import sys
 from dataclasses import dataclass
@@ -50,17 +51,6 @@ ORDERED_IMPLEMENTATION_LIST_IDS = frozenset(
 )
 SPECIAL_HIDEME_LABELS = frozenset(
     {
-        "Show 13 fields",
-        "Show 13 variants",
-        "Show 14 fields",
-        "Show 15 fields",
-        "Show 16 variants",
-        "Show 17 variants",
-        "Show 19 variants",
-        "Show 20 variants",
-        "Show 23 variants",
-        "Show 26 variants",
-        "Show 28 variants",
         "This enum is marked as non-exhaustive",
         "This struct is marked as non-exhaustive",
     }
@@ -417,7 +407,9 @@ def _project_document(source: str, context: str) -> tuple[str, _ProjectionStats]
                     )
                 labels[0].children = ["Description"]
                 stats.description_labels += 1
-            elif label in SPECIAL_HIDEME_LABELS:
+            elif label in SPECIAL_HIDEME_LABELS or re.fullmatch(
+                r"Show [1-9][0-9]* (?:fields|variants)", label
+            ):
                 stats.special_hideme_labels += 1
             else:
                 raise RustReferenceError(
