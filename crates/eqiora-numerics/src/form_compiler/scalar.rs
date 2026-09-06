@@ -15,7 +15,6 @@ use eqiora_schema::kernel::{
 };
 use eqiora_sem::KernelProgram;
 
-use crate::affine_fem::physical_gradient;
 use crate::canonical::{boundary_parent, lowering_error, relations_on};
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::vocabulary::{
@@ -209,51 +208,27 @@ impl AdmittedScalarGalerkinForm<'_> {
         S: Fn(&[f64]) -> f64 + ?Sized,
     {
         self.validate_realization(geometry, quadrature)?;
-        let inverse = geometry.inverse_jacobian()?;
-        let space = HypercubeQ1Space::new(self.dimension)?;
-        let dof_count = space.local_dofs().len();
-        let mut matrix = vec![0.0; dof_count * dof_count];
-        let mut rhs = vec![0.0; dof_count];
-        let mut physical = vec![0.0; self.dimension];
-        for point in quadrature.points() {
-            let basis = space.tabulate(&point.coordinates)?;
-            geometry.map_point(&point.coordinates, &mut physical)?;
-            let coefficient_value = coefficient(&physical);
-            if !coefficient_value.is_finite() || coefficient_value <= 0.0 {
-                return Err(self.realization_error(
-                    "compiled Q1 coefficient produced a non-positive or non-finite value",
-                ));
-            }
-            let source_value = source(&physical);
-            if !source_value.is_finite() {
-                return Err(
-                    self.realization_error("compiled Q1 source produced a non-finite value")
-                );
-            }
-            let scale = point.weight * geometry.measure_scale();
-            let gradients = (0..dof_count)
-                .map(|dof| {
-                    physical_gradient(
-                        basis.gradient(dof).expect("Q1 tabulates every gradient"),
-                        &inverse,
-                        self.dimension,
-                    )
-                })
-                .collect::<Vec<_>>();
-            for test in 0..dof_count {
-                rhs[test] += scale * source_value * basis.values()[test];
-                for trial in 0..dof_count {
-                    matrix[test * dof_count + trial] += scale
-                        * coefficient_value
-                        * gradients[test]
-                            .iter()
-                            .zip(&gradients[trial])
-                            .map(|(left, right)| left * right)
-                            .sum::<f64>();
+        super::linear::integrate(
+            self.dimension,
+            1,
+            geometry,
+            quadrature,
+            |point, diffusion, _, forcing| {
+                diffusion[0] = coefficient(point);
+                if !diffusion[0].is_finite() || diffusion[0] <= 0.0 {
+                    return Err(self.realization_error(
+                        "compiled Q1 coefficient produced a non-positive or non-finite value",
+                    ));
                 }
-            }
-        }
-        LocalContribution::new(dof_count, dof_count, matrix, rhs)
+                forcing[0] = source(point);
+                if !forcing[0].is_finite() {
+                    return Err(
+                        self.realization_error("compiled Q1 source produced a non-finite value")
+                    );
+                }
+                Ok(())
+            },
+        )
     }
 
     fn validate_realization(
@@ -536,7 +511,7 @@ fn validate_expression(
     require_closed_dag(expression, owner)
 }
 
-fn require_closed_dag(expression: &ExprDag, owner: RawId) -> Result<(), Diagnostic> {
+pub(super) fn require_closed_dag(expression: &ExprDag, owner: RawId) -> Result<(), Diagnostic> {
     if expression.roots().len() != 1 {
         return Err(certificate_error(owner, "compiled Q1 requires one root"));
     }
@@ -572,8 +547,12 @@ fn push_operands(node: &ExprNode, pending: &mut Vec<ExprId>) {
         | ExprNode::UnaryMath(_, value)
         | ExprNode::Gradient(value)
         | ExprNode::Divergence(value)
+        | ExprNode::NormalComponent(value)
         | ExprNode::Trace(value) => pending.push(*value),
-        ExprNode::Add(left, right) | ExprNode::Sub(left, right) | ExprNode::Mul(left, right) => {
+        ExprNode::Add(left, right)
+        | ExprNode::Sub(left, right)
+        | ExprNode::Mul(left, right)
+        | ExprNode::Div(left, right) => {
             pending.push(*right);
             pending.push(*left);
         }
@@ -856,7 +835,7 @@ fn validate_relation_dependencies(
     Ok(())
 }
 
-fn continuous_activations(
+pub(super) fn continuous_activations(
     program: &KernelProgram,
     relations: &BTreeSet<RawId>,
 ) -> Result<BTreeSet<RawId>, Diagnostic> {

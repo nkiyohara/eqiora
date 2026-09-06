@@ -82,7 +82,7 @@ fn application_program_is_not_published_without_an_accepted_primal() {
     let (document, plan) = document_and_plan_with_source(CommonSpatialPolicy::Q1, &source);
     let inputs = [document.parameter_ref("source_scale").unwrap()];
     let output = document
-        .field_ref(&plan.field().ulid().to_string())
+        .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
     assert!(DifferentiableProgram::compile(plan, &inputs, &output).is_err());
 }
@@ -102,7 +102,7 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
     let (document, plan) = document_and_plan_with_source(CommonSpatialPolicy::Q1, &source);
     let diffusion = document.parameter_ref("diffusion").unwrap();
     let output = document
-        .field_ref(&plan.field().ulid().to_string())
+        .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
     let program = DifferentiableProgram::compile(plan, &[diffusion], &output).unwrap();
     let positive = program.evaluate(&[1.0]).unwrap();
@@ -138,7 +138,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     let diffusion = document.parameter_ref("diffusion").unwrap();
     let boundary = document.parameter_ref("boundary_offset").unwrap();
     let output = document
-        .field_ref(&plan.field().ulid().to_string())
+        .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
     let inputs = [source_scale, diffusion, boundary];
     let program = DifferentiableProgram::compile(plan.clone(), &inputs, &output).unwrap();

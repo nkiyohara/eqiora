@@ -74,10 +74,10 @@ fn typed_material_composition_runs_as_the_same_effective_multi_property_law() {
     assert!(composed.model().structurally_equivalent(&direct).unwrap());
     assert_same_scalar_result(
         &resolve_scalar(composed.model(), &geometry)
-            .run_result()
+            .run_result(&REFERENCE_LINEAR_SOLVER)
             .expect("composed material runs"),
         &resolve_scalar(&direct, &geometry)
-            .run_result()
+            .run_result(&REFERENCE_LINEAR_SOLVER)
             .expect("direct material Law runs"),
     );
 
@@ -98,10 +98,10 @@ fn typed_material_composition_runs_as_the_same_effective_multi_property_law() {
         .expect("second compatible exact material compiles");
     assert_same_scalar_result(
         &resolve_scalar(composed.model(), &geometry)
-            .run_result()
+            .run_result(&REFERENCE_LINEAR_SOLVER)
             .expect("first compatible material runs"),
         &resolve_scalar(compatible.model(), &geometry)
-            .run_result()
+            .run_result(&REFERENCE_LINEAR_SOLVER)
             .expect("second compatible material runs"),
     );
     assert_ne!(
@@ -195,8 +195,12 @@ fn one_exact_release_runs_through_two_independent_common_scalar_consumers() {
             "the common Plan must retain the exact package compilation's Model identity"
         );
         assert_ne!(property_plan.identity(), direct_plan.identity());
-        let property_result = property_plan.run_result().expect("property Plan runs");
-        let direct_result = direct_plan.run_result().expect("direct Plan runs");
+        let property_result = property_plan
+            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .expect("property Plan runs");
+        let direct_result = direct_plan
+            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .expect("direct Plan runs");
         assert_eq!(
             property_result.plan().model_digest(),
             property.compilation().model_digest().to_hex(),
@@ -243,13 +247,17 @@ fn provenance_and_value_changes_keep_identity_and_execution_roles_distinct() {
     assert_ne!(baseline_plan.identity(), provenance_plan.identity());
     assert_ne!(baseline_plan.identity(), value_plan.identity());
 
-    let baseline_result = baseline_plan.run_result().expect("baseline runs");
+    let baseline_result = baseline_plan
+        .run_result(&REFERENCE_LINEAR_SOLVER)
+        .expect("baseline runs");
     let provenance_result = provenance_plan
-        .run_result()
+        .run_result(&REFERENCE_LINEAR_SOLVER)
         .expect("provenance variant runs");
-    let value_result = value_plan.run_result().expect("value variant runs");
+    let value_result = value_plan
+        .run_result(&REFERENCE_LINEAR_SOLVER)
+        .expect("value variant runs");
     let reordered_result = reordered_plan
-        .run_result()
+        .run_result(&REFERENCE_LINEAR_SOLVER)
         .expect("declaration-order variant runs");
     assert_same_scalar_result(&baseline_result, &provenance_result);
     assert!(

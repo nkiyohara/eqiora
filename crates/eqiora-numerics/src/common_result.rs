@@ -6,8 +6,9 @@ use eqiora_solver::{
     ReductionPolicy,
 };
 
-use crate::numerical_admission::{CommonElasticityRunOutput, CommonSteadyStokesRunOutput};
-use crate::scalar::ResolvedScalarEllipticCartesianSolution;
+use crate::numerical_admission::{
+    CommonElasticityRunOutput, CommonScalarRunOutput, CommonSteadyStokesRunOutput,
+};
 use crate::{CommonScalarPlan, CommonTrajectory, ResolvedCommonPlan};
 
 mod artifact;
@@ -255,10 +256,7 @@ struct SteadyStokesResultObservation {
 
 #[derive(Debug, Clone, PartialEq)]
 enum StaticObservation {
-    Scalar {
-        balance: f64,
-        integrated_source: f64,
-    },
+    Scalar,
     Elasticity(ElasticityResultObservation),
     SteadyStokes(SteadyStokesResultObservation),
 }
@@ -291,59 +289,69 @@ pub struct CommonResult {
 }
 
 impl CommonResult {
-    /// Accept one scalar solve into producer-independent Field and evidence ownership.
+    /// Accept the complete scalar Field inventory from one validated solve.
     pub(crate) fn accept_scalar(
         plan: CommonScalarPlan,
         elapsed_seconds: f64,
-        output: ResolvedScalarEllipticCartesianSolution,
+        output: CommonScalarRunOutput,
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
-        let cells = plan.cells();
-        let (values, association, logical_shape, space, solve, assembly, balance, source) =
-            match output {
-                ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) => (
-                    solution.field().vertex_values().to_vec(),
-                    CommonFieldAssociation::Vertex,
-                    cells.iter().map(|count| count + 1).collect(),
-                    "continuous-lagrange-p1",
-                    CommonSolveEvidence::from_report(solution.solve_report()),
-                    CommonAssemblyEvidence::from_report(solution.assembly_report()),
-                    solution.boundary_reaction_sum(),
-                    solution.integrated_source(),
-                ),
-                ResolvedScalarEllipticCartesianSolution::FiniteVolume(solution) => (
-                    solution.cell_values().to_vec(),
-                    CommonFieldAssociation::Cell,
-                    cells.to_vec(),
-                    "cell-constant",
-                    CommonSolveEvidence::from_report(solution.solve_report()),
-                    CommonAssemblyEvidence::from_report(solution.assembly_report()),
-                    solution.boundary_flux_sum(),
-                    solution.integrated_source(),
-                ),
-            };
-        let field = CommonResultField::new(
-            plan.field_id().to_owned(),
-            plan.field_dimension(),
-            Vec::new(),
-            space,
-            vec![CommonResultFieldBlock::new(
-                association,
-                values,
-                logical_shape,
-            )?],
-        )?;
+        if output.fields.len() != plan.fields().len()
+            || output.fields.iter().zip(plan.fields()).any(
+                |((actual, value_type, _), (expected, expected_type))| {
+                    *actual != expected || value_type != expected_type
+                },
+            )
+        {
+            return Err(invalid(
+                "scalar output differs from the complete typed Plan Field inventory",
+            ));
+        }
+        let (association, logical_shape, space) = match plan.spatial() {
+            crate::CommonSpatialPolicy::Q1 => (
+                CommonFieldAssociation::Vertex,
+                plan.cells()
+                    .iter()
+                    .map(|count| count + 1)
+                    .collect::<Vec<_>>(),
+                "continuous-lagrange-p1",
+            ),
+            crate::CommonSpatialPolicy::CellCenteredTpfa => (
+                CommonFieldAssociation::Cell,
+                plan.cells().to_vec(),
+                "cell-constant",
+            ),
+            _ => {
+                return Err(invalid(
+                    "scalar Result received a non-scalar spatial policy",
+                ));
+            }
+        };
+        let fields = output
+            .fields
+            .into_iter()
+            .map(|(field, value_type, values)| {
+                CommonResultField::new(
+                    field.ulid().to_string(),
+                    value_type.dimension(),
+                    Vec::new(),
+                    space,
+                    vec![CommonResultFieldBlock::new(
+                        association,
+                        values,
+                        logical_shape.clone(),
+                    )?],
+                )
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         Self::finish_static(
             ResolvedCommonPlan::Scalar(Box::new(plan)),
             CommonResultFamily::Scalar,
             elapsed_seconds,
-            vec![field],
-            solve,
-            assembly,
-            StaticObservation::Scalar {
-                balance,
-                integrated_source: source,
-            },
+            fields,
+            CommonSolveEvidence::from_report(&output.solve_report),
+            CommonAssemblyEvidence::from_report(&output.assembly_report),
+            StaticObservation::Scalar,
         )
     }
 
@@ -829,7 +837,7 @@ impl CommonResult {
                     ],
                     value.exact_bounds,
                 )),
-                StaticObservation::Scalar { .. } | StaticObservation::SteadyStokes(_) => None,
+                StaticObservation::Scalar | StaticObservation::SteadyStokes(_) => None,
             },
             _ => None,
         }
@@ -839,7 +847,7 @@ impl CommonResult {
         match &self.payload {
             CommonResultPayload::Static(payload) => match &payload.observation {
                 StaticObservation::SteadyStokes(value) => Some((value.scalars, value.vectors)),
-                StaticObservation::Scalar { .. } | StaticObservation::Elasticity(_) => None,
+                StaticObservation::Scalar | StaticObservation::Elasticity(_) => None,
             },
             _ => None,
         }

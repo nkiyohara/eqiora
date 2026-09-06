@@ -1,6 +1,8 @@
 //! Typed capability-specific views projected from one resolved root Plan.
 
+use eqiora::realization::{Space, SpaceFamily};
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 
 use eqiora_numerics::{CommonFormulationDescription, FormulationKind, FormulationSelectionMode};
 
@@ -8,6 +10,17 @@ use crate::model::PyModelFieldRef;
 
 use super::policy::PyPressureGauge2d;
 use super::scaling::{PyIncompressibleScales, PyIncompressibleScalingReceipt2d};
+
+pub(super) fn space_name(space: Space) -> &'static str {
+    match space.family() {
+        SpaceFamily::SimplexP1Bubble => "simplex-p1-bubble",
+        SpaceFamily::ContinuousLagrange { order } if order.get() == 1 => "continuous-lagrange-p1",
+        SpaceFamily::CellConstant => "cell-constant",
+        SpaceFamily::ContinuousLagrange { .. } => {
+            unreachable!("common Plan only publishes the admitted P1 continuous space")
+        }
+    }
+}
 
 /// Closed mathematical Formulation families accepted by exact override.
 ///
@@ -170,7 +183,7 @@ impl PyOdePlanView {
     }
 }
 
-/// Scalar-elliptic field roles resolved from one Model.
+/// Scalar-valued Fields resolved from one Model.
 #[pyclass(
     name = "ScalarPlanView",
     module = "eqiora._eqiora",
@@ -179,7 +192,7 @@ impl PyOdePlanView {
 )]
 #[derive(Debug)]
 pub(crate) struct PyScalarPlanView {
-    pub(super) field: PyModelFieldRef,
+    pub(super) fields: Vec<PyModelFieldRef>,
     pub(super) coefficient_sampling: &'static str,
     pub(super) face_coefficient_policy: &'static str,
 }
@@ -188,12 +201,18 @@ pub(crate) struct PyScalarPlanView {
 impl PyScalarPlanView {
     #[getter]
     const fn kind(&self) -> &'static str {
-        "scalar-elliptic"
+        "scalar"
     }
 
     #[getter]
-    fn field(&self) -> PyModelFieldRef {
-        self.field.clone()
+    fn fields(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let fields = self
+            .fields
+            .iter()
+            .cloned()
+            .map(|field| Py::new(py, field))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PyTuple::new(py, fields)?.unbind())
     }
     #[getter]
     const fn coefficient_sampling(&self) -> &'static str {
@@ -205,11 +224,47 @@ impl PyScalarPlanView {
     }
     fn __repr__(&self) -> String {
         format!(
-            "ScalarPlanView(field={:?}, coefficient_sampling={:?}, face_coefficient_policy={:?})",
-            self.field.exact_id(),
+            "ScalarPlanView(fields={:?}, coefficient_sampling={:?}, face_coefficient_policy={:?})",
+            self.fields
+                .iter()
+                .map(PyModelFieldRef::exact_id)
+                .collect::<Vec<_>>(),
             self.coefficient_sampling,
             self.face_coefficient_policy,
         )
+    }
+}
+
+#[cfg(test)]
+mod scalar_fields_tests {
+    use super::*;
+
+    #[test]
+    fn scalar_view_preserves_every_field_in_order_without_singleton_alias() -> PyResult<()> {
+        Python::initialize();
+        Python::attach(|py| {
+            let fields = ["first", "second", "third"]
+                .map(|id| PyModelFieldRef::from_exact("model".to_owned(), id.to_owned()));
+            let expected = PyTuple::new(
+                py,
+                fields
+                    .iter()
+                    .cloned()
+                    .map(|field| Py::new(py, field))
+                    .collect::<PyResult<Vec<_>>>()?,
+            )?;
+            let view = Py::new(
+                py,
+                PyScalarPlanView {
+                    fields: fields.to_vec(),
+                    coefficient_sampling: "quadrature-point",
+                    face_coefficient_policy: "not-applicable",
+                },
+            )?;
+            assert!(view.bind(py).getattr("fields")?.eq(expected)?);
+            assert!(!view.bind(py).hasattr("field")?);
+            Ok(())
+        })
     }
 }
 

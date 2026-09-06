@@ -19,13 +19,13 @@ use validate::{
     require_reference_assembly, require_text, require_trajectory_family, validate_fields,
 };
 
-const SCHEMA: &str = "eqiora.common-result/v2";
+const SCHEMA: &str = "eqiora.common-result/v3";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCommonResultV2 {
+struct WireCommonResultV3 {
     schema: String,
     encoding: String,
     identity: String,
@@ -96,10 +96,7 @@ enum WireAssociation {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "family", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireStaticObservation {
-    Scalar {
-        balance: f64,
-        integrated_source: f64,
-    },
+    Scalar,
     Elasticity {
         constrained_reaction: [f64; 2],
         integrated_body_force: [f64; 2],
@@ -232,7 +229,7 @@ struct WireFsiInterfaceAction {
 impl CommonResult {
     /// Encode all accepted Fields, observations, evidence, and Trajectory content canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonResultV2::from_result(self)?)
+        serde_json::to_vec(&WireCommonResultV3::from_result(self)?)
             .map_err(|error| invalid(format!("cannot encode common Result artifact: {error}")))
     }
 
@@ -244,7 +241,7 @@ impl CommonResult {
                 bytes.len()
             )));
         }
-        let wire: WireCommonResultV2 = serde_json::from_slice(bytes)
+        let wire: WireCommonResultV3 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common Result JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid("common Result has an unknown schema or encoding"));
@@ -259,7 +256,7 @@ impl CommonResult {
     }
 }
 
-impl WireCommonResultV2 {
+impl WireCommonResultV3 {
     fn from_result(result: &CommonResult) -> Result<Self, Diagnostic> {
         let content = WireResultContent::from_result(result)?;
         let identity = identity(&content)?;
@@ -447,13 +444,7 @@ impl WireFieldBlock {
 impl WireStaticObservation {
     fn from_observation(value: &StaticObservation) -> Result<Self, Diagnostic> {
         Ok(match value {
-            StaticObservation::Scalar {
-                balance,
-                integrated_source,
-            } => Self::Scalar {
-                balance: *balance,
-                integrated_source: *integrated_source,
-            },
+            StaticObservation::Scalar => Self::Scalar,
             StaticObservation::Elasticity(value) => Self::Elasticity {
                 constrained_reaction: value.constrained_reaction,
                 integrated_body_force: value.integrated_body_force,
@@ -468,16 +459,7 @@ impl WireStaticObservation {
 
     fn replay(&self, family: WireResultFamily) -> Result<StaticObservation, Diagnostic> {
         let observation = match self {
-            Self::Scalar {
-                balance,
-                integrated_source,
-            } => {
-                require_finite(&[*balance, *integrated_source], "scalar Result observation")?;
-                StaticObservation::Scalar {
-                    balance: *balance,
-                    integrated_source: *integrated_source,
-                }
-            }
+            Self::Scalar => StaticObservation::Scalar,
             Self::Elasticity {
                 constrained_reaction,
                 integrated_body_force,
@@ -511,7 +493,7 @@ impl WireStaticObservation {
         };
         let matches = matches!(
             (family, &observation),
-            (WireResultFamily::Scalar, StaticObservation::Scalar { .. })
+            (WireResultFamily::Scalar, StaticObservation::Scalar)
                 | (
                     WireResultFamily::Elasticity,
                     StaticObservation::Elasticity(_)
@@ -858,7 +840,7 @@ fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
     let bytes = serde_json::to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(
-        Sha256::digest([b"eqiora.common-result/v2\0".as_slice(), &bytes].concat())
+        Sha256::digest([b"eqiora.common-result/v3\0".as_slice(), &bytes].concat())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

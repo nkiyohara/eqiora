@@ -1,6 +1,9 @@
 //! Realization-neutral strong-constraint algebra for assembled systems.
 
-use eqiora_assembly::{AssemblyMap, DofId, LinearSystem, LocalUnknown};
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
+    DofId, IndexedAssemblyWork, LinearSystem, LocalContribution, LocalUnknown, TargetAssemblyMap,
+};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
@@ -57,6 +60,36 @@ impl ConstrainedDofLayout {
 
     pub(crate) const fn free_count(&self) -> usize {
         self.free_count
+    }
+
+    pub(crate) fn assemble(
+        &self,
+        backend: &dyn AssemblyBackend,
+        packet_count: usize,
+        contribution: impl Fn(usize) -> Result<(LocalContribution, Vec<usize>), Diagnostic> + Sync,
+    ) -> Result<(LinearSystem, LinearSystem, AssemblyReport), Diagnostic> {
+        let plan = AssemblyPlan::new(vec![
+            AssemblyTarget::new(self.free_count)?,
+            AssemblyTarget::new(self.fixed_values.len())?,
+        ])?;
+        let reduced_target = plan.target_id(0).expect("reduced target");
+        let full_target = plan.target_id(1).expect("full target");
+        let work = IndexedAssemblyWork::new(packet_count, |index| {
+            let (local, globals) = contribution(index)?;
+            AssemblyPacket::new(
+                local,
+                vec![
+                    TargetAssemblyMap::new(reduced_target, self.reduced_map(&globals)?),
+                    TargetAssemblyMap::new(full_target, self.full_map(&globals)?),
+                ],
+            )
+        });
+        let (systems, report) = backend.assemble(&plan, &work)?.into_parts();
+        let mut systems = systems.into_iter();
+        let reduced = systems.next().expect("validated reduced assembly target");
+        let full = systems.next().expect("validated full assembly target");
+        debug_assert!(systems.next().is_none());
+        Ok((reduced, full, report))
     }
 
     pub(crate) fn is_free(&self, global: usize) -> Result<bool, Diagnostic> {
@@ -179,6 +212,23 @@ impl ConstrainedDofLayout {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn assembly_preserves_nonsymmetric_cross_terms_and_fixed_values() {
+        let layout = ConstrainedDofLayout::new(vec![Some(11.0), None]).unwrap();
+        let (reduced, full, _) = layout
+            .assemble(&eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND, 1, |_| {
+                Ok((
+                    LocalContribution::new(2, 2, vec![2.0, 3.0, 5.0, 7.0], vec![13.0, 17.0])?,
+                    vec![1, 0],
+                ))
+            })
+            .unwrap();
+        assert_eq!(reduced.matrix().values(), &[2.0]);
+        assert_eq!(reduced.rhs(), &[-20.0]);
+        assert_eq!(full.matrix().values(), &[7.0, 5.0, 3.0, 2.0]);
+        assert_eq!(full.rhs(), &[17.0, 13.0]);
+    }
 
     #[test]
     fn constrained_allocation_failure_is_stable() {

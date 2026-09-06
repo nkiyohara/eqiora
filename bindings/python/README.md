@@ -412,7 +412,7 @@ program = eqiora.diff.compile(
         model.parameter("diffusion"),
         model.parameter("boundary_offset"),
     ),
-    output=plan.capability.field,
+    output=plan.capability.fields[0],
 )
 point = np.array([19.739208802178716, 1.0, 0.0], dtype=np.float64)
 evaluation = program.evaluate(point)

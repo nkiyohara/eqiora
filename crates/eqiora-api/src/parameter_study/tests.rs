@@ -375,7 +375,7 @@ fn program_for(
         .map(|name| document.parameter_ref(name).unwrap())
         .collect::<Vec<_>>();
     let output = document
-        .field_ref(&plan.field().ulid().to_string())
+        .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
     DifferentiableProgram::compile(plan, &inputs, &output).unwrap()
 }

@@ -2,6 +2,7 @@
 
 mod elasticity;
 pub(crate) mod equation_roles;
+pub(crate) mod linear;
 mod scalar;
 #[cfg(test)]
 mod tests;

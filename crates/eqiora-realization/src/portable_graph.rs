@@ -499,7 +499,7 @@ pub struct PortableRealizationGraph {
 }
 
 impl PortableRealizationGraph {
-    /// Resolve one graph-native linear single-Field realization.
+    /// Resolve one graph-native dimensional linear realization for exact Field bindings.
     /// The equation-aware caller supplies the exact Semantic identities and
     /// operator class. This constructor owns graph closure and solver
     /// compatibility; provider capability admission remains a separate step.
@@ -507,11 +507,10 @@ impl PortableRealizationGraph {
     /// Returns `EQ0807` when the supplied choices cannot form one connected
     /// portable linear-solve graph.
     #[allow(clippy::too_many_arguments)]
-    pub fn linear_single_field(
+    pub fn linear_fields(
         lineage: RealizationLineage,
         domain: Id<kinds::Domain>,
-        field: Id<kinds::Field>,
-        space: Space,
+        bindings: impl IntoIterator<Item = crate::FieldSpaceBinding>,
         discretization: Discretization,
         operator_properties: LinearOperatorProperties,
         scalar_type: ScalarType,
@@ -520,7 +519,23 @@ impl PortableRealizationGraph {
         target: Target,
         schedule: ExecutionSchedule,
     ) -> Result<Self, Diagnostic> {
-        discretization.validate_space(space)?;
+        let mut bindings = bindings.into_iter().collect::<Vec<_>>();
+        bindings.sort_by_key(|binding| binding.field().ulid());
+        if bindings.is_empty()
+            || bindings
+                .windows(2)
+                .any(|pair| pair[0].field() == pair[1].field())
+        {
+            return Err(invalid_realization(
+                "linear graph requires nonempty unique Field bindings",
+            ));
+        }
+        for binding in &bindings {
+            discretization.validate_space(binding.space())?;
+        }
+        let blocks = (0..bindings.len())
+            .map(|index| SystemBlock::Field(FieldRepresentationId::new(index)))
+            .collect();
         crate::execution::validate_target_schedule(target, schedule)?;
         let graph = Self {
             lineage,
@@ -530,15 +545,18 @@ impl PortableRealizationGraph {
                 configuration: DomainConfiguration::FixedGeometry,
                 discretization,
             }],
-            fields: vec![FieldRepresentationNode {
-                domain: DomainDiscretizationId::new(0),
-                field,
-                space,
-            }],
+            fields: bindings
+                .into_iter()
+                .map(|binding| FieldRepresentationNode {
+                    domain: DomainDiscretizationId::new(0),
+                    field: binding.field(),
+                    space: binding.space(),
+                })
+                .collect(),
             geometry_actions: Vec::new(),
             transformations: Vec::new(),
             systems: vec![AlgebraicSystemNode {
-                blocks: vec![SystemBlock::Field(FieldRepresentationId::new(0))],
+                blocks,
                 transformations: Vec::new(),
                 scaling: SystemScaling::Dimensional,
                 operator_properties,

@@ -515,9 +515,9 @@ impl DifferentiableProgram {
             )));
         }
 
-        if plan.field() != output.id {
+        if !plan.fields().any(|(field, _)| field == output.id) {
             return Err(single(invalid(
-                "selected output is not the primary scalar Field of this Plan",
+                "selected output is not a scalar Field of this Plan",
             )));
         }
         let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();

@@ -180,9 +180,14 @@ impl ResolvedCommonPlan {
     pub const fn operator_properties(&self) -> Option<LinearOperatorProperties> {
         match self {
             Self::Ode(_) => None,
-            Self::Scalar(_) | Self::Elasticity(_) => {
-                Some(LinearOperatorProperties::SymmetricPositiveDefinite)
-            }
+            Self::Scalar(plan) => Some(match plan.admission.spatial {
+                super::NativeSpatialPolicy::ScalarQ1 => LinearOperatorProperties::General,
+                super::NativeSpatialPolicy::ScalarTpfa => {
+                    LinearOperatorProperties::SymmetricPositiveDefinite
+                }
+                _ => unreachable!(),
+            }),
+            Self::Elasticity(_) => Some(LinearOperatorProperties::SymmetricPositiveDefinite),
             Self::SteadyStokes(_) | Self::Fsi(_) => {
                 Some(LinearOperatorProperties::SymmetricIndefinite)
             }

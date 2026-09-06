@@ -39,10 +39,9 @@ use crate::canonical_stokes::{
 };
 use crate::cartesian_elasticity::CartesianLinearElasticity2dSolution;
 use crate::cartesian_elliptic::{
-    CartesianBoundaryValue, finalize_scalar_elliptic_cartesian_fem,
-    finalize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fem,
-    linearize_scalar_elliptic_cartesian_fem_output, linearize_scalar_elliptic_cartesian_fvm,
-    linearize_scalar_elliptic_cartesian_fvm_output,
+    CartesianBoundaryValue, finalize_scalar_elliptic_cartesian_fvm,
+    linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
+    linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
 };
 use crate::common::{AssembledLinearizedRelation, SpatialDesignCoordinate};
 use crate::common_ode::{CommonOdePlan, CommonTsitouras45};
@@ -56,7 +55,7 @@ use crate::fsi::{
 };
 use crate::scalar::{CartesianScalarFieldLinearization, ResolvedScalarEllipticCartesianSolution};
 use crate::scalar_conservation::{
-    ScalarConservationDescriptor, ScalarConservationRegion, ScalarExteriorLaw, ScalarRegionSupport,
+    ScalarConservationDescriptor, ScalarExteriorLaw, ScalarRegionSupport,
     recognize_scalar_conservation_on_supports,
 };
 use crate::simplicial_elliptic::SimplicialP1Field;
@@ -90,7 +89,7 @@ use eqiora_realization::{
     resolve_fieldwise, resolve_transient_cell_centered_incompressible_flow,
     resolve_transient_fieldwise,
 };
-use eqiora_schema::kernel::{BoundarySide, KernelNode};
+use eqiora_schema::kernel::BoundarySide;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     ExecutionProvider, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
@@ -721,10 +720,24 @@ pub struct CommonScalarPlan {
     formulation: Option<CommonFormulationDescription>,
     authored_formulation: Option<AuthoredFormulationProjection>,
     lineage: CommonSpatialPlanLineage,
-    field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
-    field_id: String,
-    field_dimension: DimExponents,
+    fields: Box<
+        [(
+            eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+            eqiora_core::ValueType,
+        )],
+    >,
     cells: Box<[usize]>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CommonScalarRunOutput {
+    pub(crate) fields: Vec<(
+        eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+        eqiora_core::ValueType,
+        Vec<f64>,
+    )>,
+    pub(crate) solve_report: eqiora_solver::SolveReport,
+    pub(crate) assembly_report: eqiora_assembly::AssemblyReport,
 }
 
 /// One accepted scalar Parameter point produced through an exact common Plan.
@@ -927,7 +940,7 @@ mod plan_artifact;
 mod resolve;
 mod resolved;
 mod scalar;
-pub(super) use scalar::ExecutableSteadyScalarConservation;
+pub(super) use scalar::ExecutableScalarEquations;
 mod solver_planning;
 mod spatial_planning;
 mod state;

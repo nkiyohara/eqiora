@@ -54,16 +54,23 @@ pub(super) fn resolve_transient_flow(
                 mini_backend,
             )
         }
-        TransientSpatialDecision::CellCentered => match request.objective() {
-            None => resolve_exact(
-                request,
-                LinearSolver::BiConjugateGradientStabilized,
-                ReductionPolicy::Reproducible,
-                LinearOperatorProperties::General,
-                &REFERENCE_LINEAR_SOLVER,
-            ),
-            Some(objective) => resolve_program_controlled(request, objective, mini_backend),
-        },
+        TransientSpatialDecision::CellCentered => resolve_general(request, mini_backend),
+    }
+}
+
+pub(super) fn resolve_general(
+    request: CommonLinearRequest,
+    backend: &dyn LinearSolverBackend,
+) -> Result<NativeLinearPolicy, Diagnostic> {
+    match request.objective() {
+        None => resolve_exact(
+            request,
+            LinearSolver::BiConjugateGradientStabilized,
+            ReductionPolicy::Reproducible,
+            LinearOperatorProperties::General,
+            &REFERENCE_LINEAR_SOLVER,
+        ),
+        Some(objective) => resolve_program_controlled(request, objective, backend),
     }
 }
 

@@ -32,6 +32,7 @@ use crate::operator::LocalOperator;
 use crate::spatial_design::SpatialDesignCoordinate;
 
 mod design;
+pub(crate) mod linear;
 
 use design::{activate_model_parameter, design_geometry, select_design_coordinates};
 
@@ -643,31 +644,7 @@ where
         source,
         compiled: &compiled,
     };
-    let vertex_count = mesh.entity_count(0).expect("mesh owns vertices");
-    let mut fixed_values = Vec::with_capacity(vertex_count);
-    for vertex_index in 0..vertex_count {
-        let vertex = MeshEntity::new(0, vertex_index);
-        if mesh
-            .is_boundary_entity(vertex)
-            .expect("mesh vertex has boundary classification")
-        {
-            let coordinates = mesh
-                .vertex_coordinates(vertex)
-                .expect("mesh vertex has geometry");
-            let essential = boundary_sides(mesh, &coordinates)?
-                .into_iter()
-                .filter_map(|(axis, side)| match boundary(axis, side, &coordinates) {
-                    CartesianBoundaryValue::Essential(value) => Some(value),
-                    CartesianBoundaryValue::Natural(_) => None,
-                })
-                .try_fold(None, |accepted: Option<f64>, candidate| {
-                    require_compatible_boundary_value(accepted, candidate)
-                })?;
-            fixed_values.push(essential);
-        } else {
-            fixed_values.push(None);
-        }
-    }
+    let fixed_values = essential_fem_values(mesh, boundary)?;
     if fixed_values.iter().all(Option::is_none) {
         return Err(invalid(
             "Cartesian Q1 system requires at least one essential boundary vertex",
@@ -680,97 +657,35 @@ where
         ));
     }
     let cell_count = mesh.entity_count(dimension).expect("mesh owns cells");
-    let facet_quadrature = scalar_facet_quadrature(dimension)?;
-    let facet_dimension = dimension - 1;
-    let natural_facets = (0..mesh
-        .entity_count(facet_dimension)
-        .expect("mesh owns facets"))
-        .filter_map(|facet_index| {
-            let facet = MeshEntity::new(facet_dimension, facet_index);
-            cartesian_boundary_facet_side(mesh, facet)
-                .transpose()
-                .map(|side| side.map(|side| (facet, side)))
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?
-        .into_iter()
-        .filter_map(|(facet, (axis, side))| {
-            let geometry = mesh.geometry_map(facet).expect("mesh facet has geometry");
-            let coordinates = geometry.origin();
-            matches!(
-                boundary(axis, side, coordinates),
-                CartesianBoundaryValue::Natural(_)
-            )
-            .then_some((facet, axis, side))
-        })
-        .map(|(facet, axis, side)| {
-            let geometry = mesh.geometry_map(facet).expect("mesh facet has geometry");
-            let vertices = mesh
-                .entity_vertices(facet)
-                .expect("mesh facet has a vertex closure");
-            let local =
-                natural_fem_facet_contribution(&geometry, &facet_quadrature, &|coordinates| {
-                    match boundary(axis, side, coordinates) {
-                        CartesianBoundaryValue::Natural(value) => value,
-                        CartesianBoundaryValue::Essential(_) => f64::NAN,
-                    }
-                })?;
-            Ok((local, vertices))
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
+    let natural_facets = natural_fem_facets(mesh, boundary)?;
     let natural_load = natural_facets
         .iter()
         .flat_map(|(local, _)| local.rhs())
         .sum::<f64>();
-    let assembly_plan = AssemblyPlan::new(vec![
-        AssemblyTarget::new(constrained_dofs.free_count())?,
-        AssemblyTarget::new(vertex_count)?,
-    ])?;
-    let reduced_target = assembly_plan
-        .target_id(0)
-        .expect("two-target FEM assembly plan owns its reduced target");
-    let full_target = assembly_plan
-        .target_id(1)
-        .expect("two-target FEM assembly plan owns its full target");
     let packet_count = cell_count
         .checked_add(natural_facets.len())
         .ok_or_else(|| invalid("Cartesian FEM packet count overflows usize"))?;
-    let work = IndexedAssemblyWork::new(packet_count, |packet_index| {
-        let (local, vertices) = if packet_index < cell_count {
-            let cell = MeshEntity::new(dimension, packet_index);
-            let geometry = mesh
-                .geometry_map(cell)
-                .expect("mesh cell has affine geometry");
-            (
-                operator.evaluate(&geometry, quadrature)?,
-                mesh.entity_vertices(cell)
-                    .expect("mesh cell has a vertex closure"),
-            )
-        } else {
-            natural_facets[packet_index - cell_count].clone()
-        };
-        let global_dofs = vertices
-            .iter()
-            .map(|vertex| vertex.index())
-            .collect::<Vec<_>>();
-        let reduced = constrained_dofs.reduced_map(&global_dofs)?;
-        let full = constrained_dofs.full_map(&global_dofs)?;
-        AssemblyPacket::new(
-            local,
-            vec![
-                TargetAssemblyMap::new(reduced_target, reduced),
-                TargetAssemblyMap::new(full_target, full),
-            ],
-        )
-    });
-    let (systems, assembly_report) = assembly.assemble(&assembly_plan, &work)?.into_parts();
-    let mut systems = systems.into_iter();
-    let reduced_system = systems
-        .next()
-        .expect("two-target FEM assembly returns its reduced system");
-    let full_system = systems
-        .next()
-        .expect("two-target FEM assembly returns its full system");
-    debug_assert!(systems.next().is_none());
+    let (reduced_system, full_system, assembly_report) =
+        constrained_dofs.assemble(assembly, packet_count, |packet_index| {
+            let (local, vertices) = if packet_index < cell_count {
+                let cell = MeshEntity::new(dimension, packet_index);
+                let geometry = mesh
+                    .geometry_map(cell)
+                    .expect("mesh cell has affine geometry");
+                (
+                    operator.evaluate(&geometry, quadrature)?,
+                    mesh.entity_vertices(cell)
+                        .expect("mesh cell has a vertex closure"),
+                )
+            } else {
+                natural_facets[packet_index - cell_count].clone()
+            };
+            let global_dofs = vertices
+                .iter()
+                .map(|vertex| vertex.index())
+                .collect::<Vec<_>>();
+            Ok((local, global_dofs))
+        })?;
 
     let integrated_source = full_system.rhs().iter().sum::<f64>() - natural_load;
     if !integrated_source.is_finite() {
@@ -1202,7 +1117,9 @@ pub fn linearize_scalar_elliptic_cartesian_fem(
         }
         let facet_quadrature = scalar_facet_quadrature(dimension)?;
         let facet_dimension = dimension - 1;
-        let facet_space = HypercubeQ1Space::new(facet_dimension)?;
+        let facet_space = (facet_dimension > 0)
+            .then(|| HypercubeQ1Space::new(facet_dimension))
+            .transpose()?;
         for facet_index in 0..mesh
             .entity_count(facet_dimension)
             .expect("mesh owns facets")
@@ -1232,7 +1149,10 @@ pub fn linearize_scalar_elliptic_cartesian_fem(
             let mut physical = vec![0.0; dimension];
             let mut physical_tangent = vec![0.0; dimension];
             for point in facet_quadrature.points() {
-                let basis = facet_space.tabulate(&point.coordinates)?;
+                let basis_values = match &facet_space {
+                    Some(space) => space.tabulate(&point.coordinates)?.values().to_vec(),
+                    None => vec![1.0],
+                };
                 geometry.map_point_jvp(&point.coordinates, &mut physical, &mut physical_tangent)?;
                 let (_, flux, flux_tangent) = model.boundary_jvp(
                     axis,
@@ -1248,7 +1168,7 @@ pub fn linearize_scalar_elliptic_cartesian_fem(
                         continue;
                     };
                     design_jacobian[global_row * design_dimension + coordinate] -=
-                        (scale_tangent * flux + scale * flux_tangent) * basis.values()[local_row];
+                        (scale_tangent * flux + scale * flux_tangent) * basis_values[local_row];
                 }
             }
         }

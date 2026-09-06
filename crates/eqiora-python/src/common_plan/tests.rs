@@ -553,6 +553,14 @@ assert q1.realization_digest == replayed_plan.realization_digest
 assert q1.realization_digest != tpfa.realization_digest
 assert q1.mesh.cells.shape == (6, 4)
 assert isinstance(q1.capability, package.ScalarPlanView)
+assert q1.capability.kind == "scalar"
+assert isinstance(q1.capability.fields, tuple)
+assert q1.capability.fields == q1.fields
+assert len(q1.capability.fields) == 1
+assert not hasattr(q1.capability, "field")
+assert "ScalarPlanView(fields=" in repr(q1.capability)
+assert replayed_plan.capability.fields == q1.capability.fields
+assert tpfa.capability.fields == tpfa.fields
 assert q1.capability.coefficient_sampling == "quadrature-point"
 assert q1.capability.face_coefficient_policy == "not-applicable"
 assert tpfa.capability.coefficient_sampling == "facet-centroid"
@@ -600,31 +608,32 @@ else:
     raise AssertionError("exact primal Formulation must reject an unproved natural boundary")
 assert not hasattr(q1.capability, "scaling")
 assert q1.requested_solve is linear
-assert q1.solve.algorithm == "conjugate-gradient"
+assert q1.solve.algorithm == "bicgstab"
+assert tpfa.solve.algorithm == "conjugate-gradient"
 q1_result = package.run(q1)
 q1_result_bytes = q1_result.to_bytes()
 replayed_q1_result = package.Result.from_bytes(q1, q1_result_bytes)
 assert replayed_q1_result.to_bytes() == q1_result_bytes
-assert replayed_q1_result.output(q1.capability.field).values("vertex").numpy().tolist() == q1_result.output(q1.capability.field).values("vertex").numpy().tolist()
+assert replayed_q1_result.output(q1.capability.fields[0]).values("vertex").numpy().tolist() == q1_result.output(q1.capability.fields[0]).values("vertex").numpy().tolist()
 portable_q1_result = package.run(portable_q1)
 file_q1_result = package.run(file_q1)
 tpfa_result = package.run(tpfa)
 variable_q1_result = package.run(variable_q1)
 variable_tpfa_result = package.run(variable_tpfa)
-assert variable_q1_result.output(variable_q1.capability.field).coefficient_count("vertex") == mesh.vertex_count
-assert variable_tpfa_result.output(variable_tpfa.capability.field).coefficient_count("cell") == mesh.cell_count
+assert variable_q1_result.output(variable_q1.capability.fields[0]).coefficient_count("vertex") == mesh.vertex_count
+assert variable_tpfa_result.output(variable_tpfa.capability.fields[0]).coefficient_count("cell") == mesh.cell_count
 assert q1_result.model_digest == q1.model_digest
 assert q1_result.plan_key == q1.identity
-assert q1_result.mesh(q1.capability.field) is mesh
-q1_output = q1_result.output(q1.capability.field)
+assert q1_result.mesh(q1.capability.fields[0]) is mesh
+q1_output = q1_result.output(q1.capability.fields[0])
 assert q1_output.associations == ("vertex",)
 assert q1_output.logical_shape("vertex") == (3, 4)
 assert len(q1_output.values("vertex")) == 12
-assert portable_q1_result.output(portable_q1.capability.field).logical_shape("vertex") == (3, 4)
-assert file_q1_result.output(file_q1.capability.field).logical_shape("vertex") == (3, 4)
+assert portable_q1_result.output(portable_q1.capability.fields[0]).logical_shape("vertex") == (3, 4)
+assert file_q1_result.output(file_q1.capability.fields[0]).logical_shape("vertex") == (3, 4)
 plan_directory_owner.cleanup()
 assert not hasattr(q1_result, "run_manifest")
-tpfa_output = tpfa_result.output(tpfa.capability.field)
+tpfa_output = tpfa_result.output(tpfa.capability.fields[0])
 assert tpfa_output.associations == ("cell",)
 assert tpfa_output.logical_shape("cell") == (2, 3)
 assert len(tpfa_output.values("cell")) == 6
