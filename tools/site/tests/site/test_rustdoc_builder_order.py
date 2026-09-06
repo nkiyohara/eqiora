@@ -41,6 +41,28 @@ def _document(implementations: list[str]) -> str:
 
 
 class RustdocBuilderOrderTests(unittest.TestCase):
+    def test_coverage_counts_follow_the_supplied_facade(self) -> None:
+        modules = [BUILDER.FacadePath("eqiora::api", "stable")]
+        items = [
+            BUILDER.FacadePath("eqiora::ValueType", "stable"),
+            BUILDER.FacadePath("eqiora::api::Draft", "transitional"),
+        ]
+        self.assertEqual(
+            BUILDER._facade_counts(modules, items),
+            {
+                "modules": 1,
+                "stable_modules": 1,
+                "transitional_modules": 0,
+                "items": 2,
+                "stable_items": 1,
+                "transitional_items": 1,
+            },
+        )
+        items.append(BUILDER.FacadePath("eqiora::ValueLiteral", "stable"))
+        counts = BUILDER._facade_counts(modules, items)
+        self.assertEqual(counts["items"], 3)
+        self.assertEqual(counts["stable_items"], 2)
+
     def test_reversed_compiler_order_converges_without_losing_no_js_links(self) -> None:
         first = _implementation("impl-Alpha-for-Value", "alpha.html")
         second = _implementation("impl-Beta-for-Value", "beta.html")

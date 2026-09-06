@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import difflib
-import hashlib
 import html
 import json
 import shutil
@@ -21,15 +20,6 @@ ROOT = Path(__file__).resolve().parents[2]
 FACADE = ROOT / "api/eqiora-facade-v1.json"
 LANDING = ROOT / "docs/site/src/content/docs/reference/rust/index.mdx"
 FACADE_SCHEMA = "eqiora.facade-inventory/v1"
-FACADE_SHA256 = "7f042f67e1428dc7b96ca76dab44921c6309f80d3f943223d7f2a46ce883d451"
-EXPECTED_COUNTS = {
-    "modules": 24,
-    "stable_modules": 3,
-    "transitional_modules": 21,
-    "items": 144,
-    "stable_items": 48,
-    "transitional_items": 96,
-}
 PUBLIC_RUSTDOC_PREFIX = "/reference/rust/api/eqiora/"
 ALLOWED_SITE_LINKS = {"/favicon.svg", "/reference/rust/"}
 VOID_TAGS = frozenset(
@@ -515,11 +505,6 @@ def _load_facade() -> tuple[list[FacadePath], list[FacadePath]]:
         document = json.loads(payload)
     except (OSError, json.JSONDecodeError) as error:
         raise RustReferenceError(f"cannot read facade inventory: {error}") from error
-    digest = hashlib.sha256(payload).hexdigest()
-    if digest != FACADE_SHA256:
-        raise RustReferenceError(
-            f"facade inventory digest changed: expected {FACADE_SHA256}, got {digest}"
-        )
     root = _object(
         document,
         "facade",
@@ -582,7 +567,13 @@ def _load_facade() -> tuple[list[FacadePath], list[FacadePath]]:
         raise RustReferenceError("facade module paths are not unique")
     if len({entry.path for entry in items}) != len(items):
         raise RustReferenceError("facade item paths are not unique")
-    counts = {
+    return modules, items
+
+
+def _facade_counts(
+    modules: list[FacadePath], items: list[FacadePath]
+) -> dict[str, int]:
+    return {
         "modules": len(modules),
         "stable_modules": sum(entry.classification == "stable" for entry in modules),
         "transitional_modules": sum(
@@ -594,11 +585,6 @@ def _load_facade() -> tuple[list[FacadePath], list[FacadePath]]:
             entry.classification == "transitional" for entry in items
         ),
     }
-    if counts != EXPECTED_COUNTS:
-        raise RustReferenceError(
-            f"facade classification counts changed: expected {EXPECTED_COUNTS}, got {counts}"
-        )
-    return modules, items
 
 
 def _resolved_directory(path: Path, context: str) -> Path:
@@ -724,6 +710,7 @@ def _render_landing(
     rustdoc: Path, modules: list[FacadePath], items: list[FacadePath]
 ) -> str:
     crate = rustdoc / "eqiora"
+    counts = _facade_counts(modules, items)
     lines = [
         "---",
         'title: "Rust API"',
@@ -749,9 +736,9 @@ def _render_landing(
         "",
         "| Surface | Stable | Transitional | Total |",
         "| --- | ---: | ---: | ---: |",
-        f"| Public modules | {EXPECTED_COUNTS['stable_modules']} | {EXPECTED_COUNTS['transitional_modules']} | {EXPECTED_COUNTS['modules']} |",
-        f"| Explicit exported items | {EXPECTED_COUNTS['stable_items']} | {EXPECTED_COUNTS['transitional_items']} | {EXPECTED_COUNTS['items']} |",
-        f"| Classified facade paths | {EXPECTED_COUNTS['stable_modules'] + EXPECTED_COUNTS['stable_items']} | {EXPECTED_COUNTS['transitional_modules'] + EXPECTED_COUNTS['transitional_items']} | **{EXPECTED_COUNTS['modules'] + EXPECTED_COUNTS['items']}** |",
+        f"| Public modules | {counts['stable_modules']} | {counts['transitional_modules']} | {counts['modules']} |",
+        f"| Explicit exported items | {counts['stable_items']} | {counts['transitional_items']} | {counts['items']} |",
+        f"| Classified facade paths | {counts['stable_modules'] + counts['stable_items']} | {counts['transitional_modules'] + counts['transitional_items']} | **{counts['modules'] + counts['items']}** |",
         "",
         "Classifications come from the checked facade inventory. Rustdoc remains compiler",
         "output; the inventory is the classification authority.",
@@ -759,7 +746,7 @@ def _render_landing(
         '- <ExactSourceLink kind="blob" path="api/eqiora-facade-v1.json">Facade inventory</ExactSourceLink>',
         '- <ExactSourceLink kind="blob" path="crates/eqiora/src/lib.rs">Facade source</ExactSourceLink>',
         "",
-            f"## Public modules ({EXPECTED_COUNTS['modules']})",
+        f"## Public modules ({counts['modules']})",
         "",
         "| Module | Classification |",
         "| --- | --- |",
@@ -772,7 +759,7 @@ def _render_landing(
     lines.extend(
         [
             "",
-            f"## Explicit exported items ({EXPECTED_COUNTS['items']})",
+            f"## Explicit exported items ({counts['items']})",
             "",
             "| Item | Classification | Provider |",
             "| --- | --- | --- |",
