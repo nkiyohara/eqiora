@@ -129,7 +129,11 @@ fn close(actual: &[f64], expected: &[f64], tolerance: f64) {
 
 fn exercise(reaction: &[Vec<f64>], reverse: bool) {
     let (source, names) = authored(reaction, reverse);
-    let (form, symbols) = compiled(&source);
+    exercise_source(reaction, &source, &names);
+}
+
+fn exercise_source(reaction: &[Vec<f64>], source: &str, names: &[String]) {
+    let (form, symbols) = compiled(source);
     let mesh = CartesianMesh::from_axes(vec![AXIS.to_vec()]).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
     let assembled =
@@ -249,4 +253,32 @@ fn three_fields_preserve_two_way_and_one_way_couplings_after_constraints() {
     ];
     exercise(&reaction, false);
     exercise(&reaction, true);
+}
+
+#[test]
+fn heterogeneous_length_and_time_fields_preserve_dimensional_general_assembly() {
+    let reaction = [vec![4.0, -1.0], vec![2.0, 3.0]];
+    let (source, names) = authored(&reaction, false);
+    // u has units m, v has units s. Their residuals have units 1/m and
+    // s/m²; cross coefficients therefore have units 1/(m*s) and s/m³.
+    // Numerical values are coherent SI, with unit inheritance only at these
+    // explicitly typed Parameter declaration initializers.
+    let source = source
+        .replace("field field_0 on body as space: 1", "field field_0 on body as space: m")
+        .replace("field field_1 on body as space: 1", "field field_1 on body as space: s")
+        .replace("parameter inverse_area:", "parameter cross_01: 1 / m / s = -1; parameter cross_10: s / m ^ 3 = 2; parameter force_0: 1 / m = 1; parameter force_1: s / m ^ 2 = 2; parameter inverse_area:")
+        .replace("(-1) * inverse_area * field_1", "cross_01 * field_1")
+        .replace("(2) * inverse_area * field_0", "cross_10 * field_0")
+        .replace("- 1 * inverse_area =", "- force_0 =")
+        .replace("- 2 * inverse_area =", "- force_1 =");
+    let (form, _) = compiled(&source);
+    assert_ne!(
+        form.fields()[0].1.dimension(),
+        form.fields()[1].1.dimension()
+    );
+    assert_ne!(
+        form.residual_types()[0].dimension(),
+        form.residual_types()[1].dimension()
+    );
+    exercise_source(&reaction, &source, &names);
 }
