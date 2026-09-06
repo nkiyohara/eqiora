@@ -49,12 +49,17 @@ pub struct InertialIncompressibleNewtonianCartesianModel2d {
     force_potential_expression: ScalarSpatialExpression,
     force_potential_definition: RawId,
     momentum_relation: RawId,
+    momentum_orientation: f64,
     incompressibility_relation: RawId,
     boundary_inventory: CartesianBoundaryInventory<2>,
     boundary_relations: Vec<BoundaryRelationBinding>,
 }
 
 impl InertialIncompressibleNewtonianCartesianModel2d {
+    pub(crate) const fn momentum_orientation(&self) -> f64 {
+        self.momentum_orientation
+    }
+
     /// Canonical Cartesian fluid Domain.
     #[must_use]
     pub const fn domain(&self) -> RawId {
@@ -347,6 +352,7 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundari
         force_potential_definition,
         momentum_relation,
         incompressibility_relation,
+        momentum_orientation: momentum.orientation,
         boundary_inventory: lowered_boundary.inventory.clone(),
         boundary_relations: lowered_boundary.boundary_relations.clone(),
     };
@@ -374,6 +380,7 @@ pub(crate) struct LoweredInertialIncompressibleNewtonianSubdomain2d {
 struct InertialMomentumParts {
     density: ExprId,
     stress: ExprId,
+    orientation: f64,
 }
 
 fn inertial_momentum_parts(
@@ -393,7 +400,13 @@ fn inertial_momentum_parts(
             pressure,
             force_potential,
             owner,
-        );
+        )
+        .map(|parts| {
+            parts.map(|parts| InertialMomentumParts {
+                orientation: -1.0,
+                ..parts
+            })
+        });
     }
     inertial_momentum_parts_oriented(residual, root, velocity, pressure, force_potential, owner)
 }
@@ -453,6 +466,7 @@ fn inertial_momentum_parts_oriented(
         return Ok(None);
     }
     Ok(Some(InertialMomentumParts {
+        orientation: 1.0,
         density,
         stress: *stress,
     }))

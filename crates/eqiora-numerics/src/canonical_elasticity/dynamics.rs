@@ -47,9 +47,14 @@ pub struct IsotropicElastodynamicsCartesianModel<const D: usize> {
     velocity: RawId,
     kinematic_relation: RawId,
     mass_density: ScalarSpatialExpression,
+    momentum_orientation: f64,
 }
 
 impl<const D: usize> IsotropicElastodynamicsCartesianModel<D> {
+    pub(crate) const fn momentum_orientation(&self) -> f64 {
+        self.momentum_orientation
+    }
+
     /// Method-neutral continuum meaning shared with static elasticity.
     #[must_use]
     pub const fn continuum(&self) -> &IsotropicElasticityContinuum<D> {
@@ -320,6 +325,7 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
         velocity,
         kinematic_relation,
         mass_density,
+        momentum_orientation: momentum_parts.orientation,
     };
     Ok(LoweredIsotropicElastodynamicsSubdomain {
         model,
@@ -345,6 +351,7 @@ pub(crate) type LoweredIsotropicElastodynamicsSubdomain2d =
 struct MomentumParts {
     density: ExprId,
     stress: ExprId,
+    orientation: f64,
 }
 
 fn exact_fields<const D: usize>(
@@ -441,7 +448,12 @@ fn momentum_root(
     load_potential: RawId,
 ) -> Option<MomentumParts> {
     if let Some(ExprNode::Neg(inner)) = expression.node(root) {
-        return momentum_root_oriented(expression, *inner, velocity, load_potential);
+        return momentum_root_oriented(expression, *inner, velocity, load_potential).map(|parts| {
+            MomentumParts {
+                orientation: -1.0,
+                ..parts
+            }
+        });
     }
     momentum_root_oriented(expression, root, velocity, load_potential).or_else(|| {
         let ExprNode::Sub(load, internal_balance) = expression.node(root)? else {
@@ -454,6 +466,10 @@ fn momentum_root(
             velocity,
             load_potential,
         )
+        .map(|parts| MomentumParts {
+            orientation: -1.0,
+            ..parts
+        })
     })
 }
 
@@ -497,6 +513,7 @@ fn momentum_parts(
     inertia_density(expression, *inertia, velocity).map(|density| MomentumParts {
         density,
         stress: *stress,
+        orientation: 1.0,
     })
 }
 

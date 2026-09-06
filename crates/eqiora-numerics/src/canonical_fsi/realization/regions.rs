@@ -9,7 +9,7 @@ use eqiora_realization::{AlgebraicBlock, CoupledFieldwiseRealizationPlan};
 use crate::canonical_fsi::FixedReferenceFsiCartesianModel2d;
 use crate::form_compiler::region::{BoundRegionForm, RegionFieldBinding, RegionTimeBinding};
 
-use super::validate::{fluid_pressure, invalid_realization};
+use super::validate::{fluid_pressure, fluid_velocity, invalid_realization, solid_velocity};
 
 mod cells;
 pub(super) use cells::prepare_cells;
@@ -63,10 +63,18 @@ pub(super) fn bind(
                         .try_div(functional)?;
                     // The admitted symmetric mixed formulation tests div(v)=0
                     // with -p, while momentum uses the positive velocity test.
+                    // Preserve the recognizer's orientation of the entire
+                    // momentum residual, including its forcing and history.
                     let sign = if tested == fluid_pressure(model).erase() {
                         -1.0
+                    } else if tested == fluid_velocity(model).erase() {
+                        model.fluid.momentum_orientation()
+                    } else if tested == solid_velocity(model).erase() {
+                        model.solid.momentum_orientation()
                     } else {
-                        1.0
+                        return Err(invalid_realization(
+                            "region row has no admitted test orientation",
+                        ));
                     };
                     Ok((
                         relation,
