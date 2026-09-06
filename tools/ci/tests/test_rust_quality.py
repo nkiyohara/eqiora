@@ -174,6 +174,14 @@ class RustQualityTests(unittest.TestCase):
             "eqiora/cli", rust_quality.cargo_command("test", ("-p", "eqiora-core"))
         )
 
+    def test_build_timings_are_collected_only_for_tests(self):
+        for selectors in (("--workspace",), ("-p", "eqiora-core")):
+            for check in ("test", "clippy", "doc"):
+                self.assertEqual(
+                    "--timings" in rust_quality.cargo_command(check, selectors),
+                    check == "test",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

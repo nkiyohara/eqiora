@@ -184,6 +184,9 @@ does not establish optional native-backend or scientific claims.
 - Fork pull requests receive no release environment or package credential.
 - Dependency caches are added only after measured benefit and key-isolation
   review.
+- The quality job retains Cargo's HTML build-timing reports for seven days,
+  including per-crate compilation and scheduling. Use reports from the same
+  hosted profile to investigate build cost before changing optimization or caches.
 - The hosted quality job owns formatting, linting, workspace tests, dependency
   layers, the public facade, and rustdoc. Ordinary CI does not separately rerun
   the complete registered Cargo suite or build the complete Python distribution
@@ -212,7 +215,10 @@ does not establish optional native-backend or scientific claims.
   A passing product test is not an automatic promotion of registered evidence.
 - Hosted test steps use Cargo's ordinary `test`
   profile with debug information disabled, incremental compilation disabled,
-  and optimization level 1 because their target trees are disposable. Debug
+  and optimization level 1 because their target trees are disposable. Test
+  builds of `eqiora-compiler` use the package override in `Cargo.toml` to avoid
+  optimizing parsing; runtime artifact validation, numerical kernels, and release
+  profiles retain their existing optimization. Debug
   assertions and overflow checks remain enabled, and no relaxed floating-point
   mode is used. `tools/ci/local_verify.py` applies that profile to every command
   it runs, so a local gate reproduces the hosted one without an operator

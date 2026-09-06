@@ -140,3 +140,8 @@ unsafe_op_in_unsafe_fn = "deny"
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 undocumented_unsafe_blocks = "deny"
+
+# Parsing spends more CI time in optimization than in execution. Keep runtime
+# artifact validation and numerical kernels at the normal hosted test profile.
+[profile.test.package.eqiora-compiler]
+opt-level = 0
