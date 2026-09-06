@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 168 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 632 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 171 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 632 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 198 literal public spellings, 168 canonical grouped declarations, 831 visible method signatures (632 non-dunder and 199 dunder), and 79 visible class assignments.
+Inventory: 18 modules, 201 literal public spellings, 171 canonical grouped declarations, 831 visible method signatures (632 non-dunder and 199 dunder), and 74 visible class assignments.
 
 Regenerate with:
 
@@ -1456,23 +1456,6 @@ class ValueEdit:
     def __hash__(self) -> int: ...
 ```
 
-<a id="api-eqiora-VendoredStandardPackage"></a>
-
-### `eqiora.VendoredStandardPackage`
-
-One exact source package written by `vendor_standard_package`.
-
-Authority: [`bindings/python/python/eqiora/__init__.py::VendoredStandardPackage`](../../bindings/python/python/eqiora/__init__.py)
-
-```python
-class VendoredStandardPackage(NamedTuple):
-    name: str
-    version: str
-    semantic_digest: str
-    source_digest: str
-    path: str
-```
-
 <a id="api-eqiora-View"></a>
 
 ### `eqiora.View`
@@ -1810,16 +1793,64 @@ Read-only projections of accepted Eqiora spatial trajectories.
 
 Authority: [`bindings/python/python/eqiora/trajectory.py`](../../bindings/python/python/eqiora/trajectory.py)
 
-<a id="api-eqiora-vendor_standard_package"></a>
+<a id="api-eqiora-add_bundled_dependency"></a>
 
-### `eqiora.vendor_standard_package`
+### `eqiora.add_bundled_dependency`
 
-Vendor one exact bundled standard package and its dependency closure.
+Add one exact bundled package through the shared manifest/lock transaction.
 
-Authority: [`bindings/python/python/eqiora/__init__.py::vendor_standard_package`](../../bindings/python/python/eqiora/__init__.py)
+Authority: [`crates/eqiora-python/src/package.rs::add_bundled_dependency`](../../crates/eqiora-python/src/package.rs)
 
 ```python
-def vendor_standard_package(project_root: str | PathLike[str], package: str, *, destination: str='packages') -> tuple[VendoredStandardPackage, ...]: ...
+def add_bundled_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str) -> bytes: ...
+```
+
+<a id="api-eqiora-fetch_project"></a>
+
+### `eqiora.fetch_project`
+
+Materialize the accepted lock from explicit sources without updating it.
+
+Authority: [`crates/eqiora-python/src/package.rs::fetch_project`](../../crates/eqiora-python/src/package.rs)
+
+```python
+def fetch_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
+```
+
+<a id="api-eqiora-open_project"></a>
+
+### `eqiora.open_project`
+
+Validate the current root and exact closure using only the supplied offline store.
+
+Authority: [`crates/eqiora-python/src/package.rs::open_project`](../../crates/eqiora-python/src/package.rs)
+
+```python
+def open_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
+```
+
+<a id="api-eqiora-update_project"></a>
+
+### `eqiora.update_project`
+
+Re-derive the exact lock from current explicit sources and requests.
+
+Authority: [`crates/eqiora-python/src/package.rs::update_project`](../../crates/eqiora-python/src/package.rs)
+
+```python
+def update_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
+```
+
+<a id="api-eqiora-vendor_project"></a>
+
+### `eqiora.vendor_project`
+
+Copy the validated accepted closure to an explicit offline store.
+
+Authority: [`crates/eqiora-python/src/package.rs::vendor_project`](../../crates/eqiora-python/src/package.rs)
+
+```python
+def vendor_project(project_root: str | PathLike[str], store_root: str | PathLike[str], destination: str | PathLike[str]) -> bytes: ...
 ```
 
 <a id="module-eqiora-geometry"></a>

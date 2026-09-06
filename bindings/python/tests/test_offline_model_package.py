@@ -115,7 +115,6 @@ EXPECTED_EQIORA_ALL = [
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",
-    "VendoredStandardPackage",
     "View",
     "across",
     "check_package_conformance",
@@ -146,7 +145,11 @@ EXPECTED_EQIORA_ALL = [
     "solve",
     "time",
     "trajectory",
-    "vendor_standard_package",
+    "add_bundled_dependency",
+    "fetch_project",
+    "open_project",
+    "update_project",
+    "vendor_project",
 ]
 
 

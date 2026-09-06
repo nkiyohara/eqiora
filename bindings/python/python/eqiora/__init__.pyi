@@ -166,18 +166,6 @@ class PackageConformanceReport(NamedTuple):
     model_digest: str
     deterministic_replay_agreement: bool
 
-class VendoredStandardPackage(NamedTuple):
-    """One exact source package written by ``vendor_standard_package``.
-
-    Authority: ``bindings/python/python/eqiora/__init__.py::VendoredStandardPackage``.
-    """
-
-    name: str
-    version: str
-    semantic_digest: str
-    source_digest: str
-    path: str
-
 @final
 class PropertyBinding:
     """Exact package-owned scalar property binding inspection.
@@ -1383,17 +1371,45 @@ def remove_local_dependency(
     """
     ...
 
-def vendor_standard_package(
+def add_bundled_dependency(
     project_root: str | PathLike[str],
-    package: str,
+    store_root: str | PathLike[str],
+    name: str,
     *,
-    destination: str = "packages",
-) -> tuple[VendoredStandardPackage, ...]:
-    """Vendor one exact bundled standard package and its dependency closure.
+    version: str,
+) -> bytes:
+    """Add one exact bundled package through the shared manifest/lock transaction.
 
-    Authority: ``bindings/python/python/eqiora/__init__.py::vendor_standard_package``.
+    Authority: ``crates/eqiora-python/src/package.rs::add_bundled_dependency``.
     """
+    ...
 
+def fetch_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes:
+    """Materialize the accepted lock from explicit sources without updating it.
+
+    Authority: ``crates/eqiora-python/src/package.rs::fetch_project``.
+    """
+    ...
+
+def open_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes:
+    """Validate the current root and exact closure using only the supplied offline store.
+
+    Authority: ``crates/eqiora-python/src/package.rs::open_project``.
+    """
+    ...
+
+def update_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes:
+    """Re-derive the exact lock from current explicit sources and requests.
+
+    Authority: ``crates/eqiora-python/src/package.rs::update_project``.
+    """
+    ...
+
+def vendor_project(project_root: str | PathLike[str], store_root: str | PathLike[str], destination: str | PathLike[str]) -> bytes:
+    """Copy the validated accepted closure to an explicit offline store.
+
+    Authority: ``crates/eqiora-python/src/package.rs::vendor_project``.
+    """
     ...
 
 def check_package_conformance(
@@ -1574,7 +1590,6 @@ __all__ = [
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",
-    "VendoredStandardPackage",
     "View",
     "across",
     "check_package_conformance",
@@ -1605,5 +1620,9 @@ __all__ = [
     "solve",
     "time",
     "trajectory",
-    "vendor_standard_package",
+    "add_bundled_dependency",
+    "fetch_project",
+    "open_project",
+    "update_project",
+    "vendor_project",
 ]

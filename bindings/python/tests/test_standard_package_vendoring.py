@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -36,123 +37,85 @@ model Main {
 """
 
 
-def write_fluid_application(root: Path) -> None:
+def project(root: Path) -> tuple[Path, Path]:
     application = root / "application"
-    source = application / "src/main.eqi"
-    source.parent.mkdir(parents=True)
-    source.write_text(FLUID_MODEL, encoding="utf-8")
-
-
-def test_vendored_standard_fluid_resolves_and_compiles_offline(tmp_path: Path) -> None:
-    packages = eqiora.vendor_standard_package(
-        tmp_path, "Eqiora.Fluid.Incompressible@0.4.0"
-    )
-    assert [package.name for package in packages] == [
-        "Eqiora.Mechanics.Interfaces",
-        "Eqiora.Fluid.Incompressible",
-    ]
-    mechanics, fluid = packages
-    assert len(fluid.semantic_digest) == 64
-    assert len(fluid.source_digest) == 64
-    assert fluid.path == "packages/Eqiora.Fluid.Incompressible/0.4.0"
-    assert (
-        eqiora.vendor_standard_package(
-            tmp_path, "Eqiora.Fluid.Incompressible@0.4.0"
-        )
-        == packages
-    )
-
-    write_fluid_application(tmp_path)
-    (tmp_path / fluid.path / "eqiora.toml").write_text(
-        f'''[package]
-name = "{fluid.name}"
-version = "{fluid.version}"
-source = "src"
-entry = "incompressible"
-
-[dependencies."{mechanics.name}"]
-version = "{mechanics.version}"
-path = "../../{mechanics.name}/{mechanics.version}"
-''',
+    (application / "src").mkdir(parents=True)
+    (application / "src/main.eqi").write_text(
+        "import org.example.External.main as external;\n" + FLUID_MODEL,
         encoding="utf-8",
     )
-    (tmp_path / mechanics.path / "eqiora.toml").write_text(
-        f'''[package]
-name = "{mechanics.name}"
-version = "{mechanics.version}"
-source = "src"
-entry = "interfaces"
-''',
+    (application / "eqiora.toml").write_text(
+        '[package]\nname = "org.example.Portable"\nversion = "1.0.0"\nentry = "main"\n'
+        '[dependencies."org.example.External"]\nversion = "1.0.0"\npath = "../external"\n',
         encoding="utf-8",
     )
-    (tmp_path / "eqiora.toml").write_text(
-        f'''[package]
-name = "org.example.VendoredFluid"
-version = "0.1.0"
-source = "application/src"
-entry = "main"
-
-[dependencies."{fluid.name}"]
-version = "{fluid.version}"
-path = "{fluid.path}"
-''',
-        encoding="utf-8",
-    )
-    store = tmp_path / "store"
+    store = root / "store"
     store.mkdir()
-    resolution = eqiora.resolve_local_project(tmp_path, store)
-    model = eqiora.compile_package(store, resolution, entry_model="Main")
-    assert model.revision.number == 1
-
-
-def test_standard_vendoring_rejects_changed_or_escaping_destinations(
-    tmp_path: Path,
-) -> None:
-    (mechanics, fluid) = eqiora.vendor_standard_package(
-        tmp_path, "Eqiora.Fluid.Incompressible@0.4.0"
+    external = root / "external"
+    (external / "src").mkdir(parents=True)
+    (external / "eqiora.toml").write_text(
+        '[package]\nname = "org.example.External"\nversion = "1.0.0"\nentry = "main"\n',
+        encoding="utf-8",
     )
-    fluid_source = tmp_path / fluid.path / "src/incompressible.eqi"
-    fluid_source.write_text("changed", encoding="utf-8")
-
-    with pytest.raises(eqiora.CompatibilityError, match="different bytes"):
-        eqiora.vendor_standard_package(
-            tmp_path, "Eqiora.Fluid.Incompressible@0.4.0"
-        )
-    assert fluid_source.read_text(encoding="utf-8") == "changed"
-    assert (tmp_path / mechanics.path / "src/interfaces.eqi").is_file()
-
-    with pytest.raises(eqiora.CompatibilityError, match="destination is invalid"):
-        eqiora.vendor_standard_package(
-            tmp_path,
-            "Eqiora.Solid.LinearElasticity@0.6.0",
-            destination="../outside",
-        )
-    assert not (tmp_path.parent / "outside").exists()
+    (external / "src/main.eqi").write_text("public model Shared {}", encoding="utf-8")
+    return application, store
 
 
-def test_standard_solid_is_available_from_the_same_distribution(tmp_path: Path) -> None:
-    mechanics, solid = eqiora.vendor_standard_package(
-        tmp_path, "Eqiora.Solid.LinearElasticity@0.6.0"
+def test_bundled_project_moves_with_one_offline_closure(tmp_path: Path) -> None:
+    application, store = project(tmp_path)
+    resolution = eqiora.add_bundled_dependency(
+        application, store, "Eqiora.Fluid.Incompressible", version="0.4.0"
     )
-    assert mechanics.name == "Eqiora.Mechanics.Interfaces"
-    assert solid.name == "Eqiora.Solid.LinearElasticity"
-    assert solid.version == "0.6.0"
-    assert (tmp_path / solid.path / "src/linear_elasticity.eqi").is_file()
+    vendor = application / "vendor"
+    vendor.mkdir()
+    assert eqiora.vendor_project(application, store, vendor) == resolution
+    assert eqiora.vendor_project(application, store, vendor) == resolution
+    original = eqiora.compile_package(store, resolution, entry_model="Main")
+    shutil.rmtree(store)
+    shutil.rmtree(tmp_path / "external")
+    moved = tmp_path / "moved"
+    application.rename(moved)
+    assert eqiora.open_project(moved, moved / "vendor") == resolution
+    replay = eqiora.compile_package(moved / "vendor", resolution, entry_model="Main")
+    assert replay.revision.number == original.revision.number == 1
+    assert (moved / "eqiora.lock").read_bytes() == resolution
 
 
-@pytest.mark.parametrize(
-    "selector",
-    [
-        "Eqiora.Fluid.Incompressible@0.2.0",
-        "Eqiora.Solid.LinearElasticity@0.4.0",
-        "Eqiora.Fluid.Incompressible@99.0.0",
-        "Eqiora.Fluid.Incompressible",
-        "Eqiora.Fluid.Incompressible@0.4.0@extra",
-    ],
-)
-def test_standard_vendoring_rejects_noncurrent_exact_selectors_without_writes(
-    tmp_path: Path, selector: str
-) -> None:
-    with pytest.raises(eqiora.CompatibilityError, match="unsupported exact package"):
-        eqiora.vendor_standard_package(tmp_path, selector)
-    assert list(tmp_path.iterdir()) == []
+def test_fetch_and_update_are_explicit_and_failed_add_is_atomic(tmp_path: Path) -> None:
+    application, store = project(tmp_path)
+    resolution = eqiora.add_bundled_dependency(
+        application, store, "Eqiora.Fluid.Incompressible", version="0.4.0"
+    )
+    manifest = (application / "eqiora.toml").read_bytes()
+    with pytest.raises(eqiora.CompatibilityError):
+        eqiora.add_bundled_dependency(
+            application, store, "Eqiora.Fluid.Incompressible", version="99.0.0"
+        )
+    assert (application / "eqiora.toml").read_bytes() == manifest
+    assert (application / "eqiora.lock").read_bytes() == resolution
+    second = tmp_path / "second"
+    second.mkdir()
+    assert eqiora.fetch_project(application, second) == resolution
+    (application / "src/main.eqi").write_text("model Changed {}", encoding="utf-8")
+    with pytest.raises(eqiora.CompatibilityError):
+        eqiora.open_project(application, second)
+    with pytest.raises(eqiora.CompatibilityError):
+        eqiora.fetch_project(application, second)
+    updated = eqiora.update_project(application, second)
+    assert updated != resolution
+    assert eqiora.open_project(application, second) == updated
+    without_fluid = eqiora.remove_local_dependency(application, second, "Eqiora.Fluid.Incompressible")
+    assert eqiora.open_project(application, second) == without_fluid
+
+
+def test_solid_is_an_ordinary_exact_bundled_dependency(tmp_path: Path) -> None:
+    application, store = project(tmp_path)
+    (application / "src/main.eqi").write_text(
+        "model Main { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+        encoding="utf-8",
+    )
+    resolution = eqiora.add_bundled_dependency(
+        application, store, "Eqiora.Solid.LinearElasticity", version="0.6.0"
+    )
+    assert eqiora.open_project(application, store) == resolution
+    assert eqiora.compile_package(store, resolution, entry_model="Main").revision.number == 1

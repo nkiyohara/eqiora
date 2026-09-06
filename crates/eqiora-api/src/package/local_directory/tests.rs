@@ -9,6 +9,8 @@ use eqiora_package::{
 use super::*;
 use crate::package::PackagedModelDocument;
 
+mod offline;
+
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 const SOURCE_PATH: &str = "src/main.eqi";
 
@@ -468,7 +470,8 @@ fn proposed_dependency_changes_are_validated_without_publishing() {
             "org.example.Library".to_owned(),
             LocalProjectDependency {
                 version: version.to_owned(),
-                path: "library".to_owned(),
+                path: Some("library".to_owned()),
+                bundled: false,
             },
         );
         let candidate = prepare_local_package_project(
@@ -477,6 +480,7 @@ fn proposed_dependency_changes_are_validated_without_publishing() {
             LocalProjectOverrides {
                 manifest: Some(manifest),
                 sources: BTreeMap::new(),
+                ..Default::default()
             },
         );
         if version == "1.0.0" {
