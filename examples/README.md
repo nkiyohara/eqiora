@@ -19,6 +19,7 @@ python examples/python/transient_cylinder_wake.py \
 # Open examples/python/transient_cylinder_wake_colab.ipynb in Google Colab.
 python examples/python/mixed_boundary_elasticity.py
 python examples/python/fixed_reference_fsi.py
+python examples/python/coupled_scalar.py
 ```
 
 | Example | Source | What it shows |
@@ -26,6 +27,7 @@ python examples/python/fixed_reference_fsi.py
 | `quickstart` | [`decay.eqi`](decay.eqi) | Compile one scalar decay model and run it through the common root Plan lifecycle. |
 | `project-modules` | [`modules/resistor-project`](modules/resistor-project/) | Compile a directly imported public Model from a closed, portable multi-file source inventory whose module identities come from paths below `src/`; the optional `package-filesystem` run discovers that same closure through bounded no-follow directory traversal. |
 | `poisson` | [`packages/org.example.poisson`](../packages/org.example.poisson/) | Compile a 2D Poisson model and exercise its verification-only native reference solve. |
+| `coupled-scalar` | [`python/coupled_scalar.py`](python/coupled_scalar.py) | Solve two diffusion/reaction equations with two-way coupling through one Q1 Plan and inspect both Fields in the common Result. |
 | `exact-cylinder-geometry` | [`python/exact_cylinder_geometry.py`](python/exact_cylinder_geometry.py) | From an installed `eqiora` package, author the exact rectangle-with-one-circular-hole identity and inspect its fixed-role named selections. |
 | `exact-cylinder-mesh` | [`python/exact_cylinder_mesh.py`](python/exact_cylinder_mesh.py) | From an installed `eqiora` package, realize the exact cylinder source with typed Gmsh policy and inspect Rust-derived selection counts. |
 | `steady-cylinder-source` | [`python/steady_cylinder_source.py`](python/steady_cylinder_source.py) | From an installed `eqiora` package, author the complete equations-only steady-cylinder Component as bounded `eqiora.lang.Source` values and emit readable deterministic `.eqi` through the same compiler ingress used by hand-written source. |
