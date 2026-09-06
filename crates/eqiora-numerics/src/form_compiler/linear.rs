@@ -114,7 +114,10 @@ impl CompiledLinearBlockForm {
                 dimension,
                 coefficients: &coefficients,
             };
-            let row = context.terms(root, 0)?;
+            let mut row = context.terms(root, 0)?;
+            if context.diffusion_orientation(root, 0)? == Some(1) {
+                row = row.scale(Data::constant(dimension, -1.0))?;
+            }
             if row.diffusion.len() != 1
                 || !row.diffusion.contains_key(field)
                 || row

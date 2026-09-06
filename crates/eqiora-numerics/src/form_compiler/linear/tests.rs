@@ -86,6 +86,33 @@ fn close(actual: f64, expected: f64) {
     assert!((actual - expected).abs() < 1e-12, "{actual} != {expected}");
 }
 
+#[test]
+fn whole_row_reversal_preserves_diffusion_reaction_and_source() {
+    let source = source(&[vec![3.0]], false);
+    let reversed = source.replace(
+        "-div(2 * grad(f0)) + (3) * unit * f0 - 1 * unit",
+        "div(2 * grad(f0)) - (3) * unit * f0 + 1 * unit",
+    );
+    assert_ne!(source, reversed);
+    let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
+    let original = derive(&source)
+        .unwrap()
+        .evaluate(&geometry(), &quadrature)
+        .unwrap();
+    let reversed = derive(&reversed)
+        .unwrap()
+        .evaluate(&geometry(), &quadrature)
+        .unwrap();
+    assert_eq!(original, reversed);
+    let negative = source.replace("2 * grad(f0)", "(-2) * grad(f0)");
+    assert!(
+        derive(&negative)
+            .unwrap()
+            .evaluate(&geometry(), &quadrature)
+            .is_err()
+    );
+}
+
 fn check(reaction: &[Vec<f64>], reverse: bool) {
     let form = derive(&source(reaction, reverse)).unwrap();
     assert!(form.fields().windows(2).all(|pair| pair[0].0 < pair[1].0));

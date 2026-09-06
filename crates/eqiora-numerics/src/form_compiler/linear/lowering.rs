@@ -35,7 +35,7 @@ impl Terms {
         }
         self
     }
-    fn scale(mut self, data: Data) -> Result<Self, Diagnostic> {
+    pub(super) fn scale(mut self, data: Data) -> Result<Self, Diagnostic> {
         if !self.diffusion.is_empty() && data.spatial() {
             return Err(super::invalid(
                 "spatial factors outside divergence require additional weak derivative terms",
@@ -54,6 +54,36 @@ impl Terms {
 }
 
 impl Context<'_> {
+    pub(super) fn diffusion_orientation(
+        &self,
+        id: ExprId,
+        depth: usize,
+    ) -> Result<Option<i8>, Diagnostic> {
+        if depth > 128 {
+            return Err(super::invalid("linear expression nesting exceeds 128"));
+        }
+        let orientation = |id| self.diffusion_orientation(id, depth + 1);
+        let merge = |left: Option<i8>, right: Option<i8>| match (left, right) {
+            (Some(a), Some(b)) if a != b => Err(super::invalid(
+                "linear diffusion terms have conflicting additive orientations",
+            )),
+            (Some(a), _) | (_, Some(a)) => Ok(Some(a)),
+            _ => Ok(None),
+        };
+        match self.dag.node(id) {
+            Some(ExprNode::Divergence(_)) => Ok(Some(1)),
+            Some(ExprNode::Neg(a)) => Ok(orientation(*a)?.map(|sign| -sign)),
+            Some(ExprNode::Add(a, b)) => merge(orientation(*a)?, orientation(*b)?),
+            Some(ExprNode::Sub(a, b)) => {
+                merge(orientation(*a)?, orientation(*b)?.map(|sign| -sign))
+            }
+            Some(ExprNode::Mul(a, b)) if self.data(*a, depth + 1).is_ok() => orientation(*b),
+            Some(ExprNode::Mul(a, b)) if self.data(*b, depth + 1).is_ok() => orientation(*a),
+            Some(ExprNode::Div(a, _)) => orientation(*a),
+            _ => Ok(None),
+        }
+    }
+
     pub(super) fn terms(&self, id: ExprId, depth: usize) -> Result<Terms, Diagnostic> {
         if depth > 128 {
             return Err(super::invalid("linear expression nesting exceeds 128"));

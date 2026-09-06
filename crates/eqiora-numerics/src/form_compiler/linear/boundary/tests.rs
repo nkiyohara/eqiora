@@ -63,6 +63,31 @@ fn mixed_laws_preserve_data_and_complete_dependencies() {
 }
 
 #[test]
+fn volume_and_boundary_reversal_keep_outward_flux_orientation() {
+    for reverse_volume in [false, true] {
+        for reverse_boundary in [false, true] {
+            let mut source = SOURCE.to_owned();
+            if reverse_volume {
+                source = source.replace("-div(", "div(");
+            }
+            if reverse_boundary {
+                source = source.replace("normal(k * grad(u)) = q", "q - normal(k * grad(u)) = 0");
+            }
+            let form = derive(&source).unwrap();
+            assert!(
+                form.boundary_laws()
+                    .values()
+                    .flat_map(|laws| laws.values())
+                    .any(|law| {
+                        matches!(law, ScalarExteriorLaw::PrescribedOutwardFlux { value, .. }
+                    if value.evaluate(&[1.0]).unwrap() == 3.0)
+                    })
+            );
+        }
+    }
+}
+
+#[test]
 fn flux_preserves_parameter_identity_not_just_its_value() {
     assert!(derive(&SOURCE.replace("normal(k * grad(u))", "normal(other * grad(u))")).is_err());
     assert!(derive(&SOURCE.replace("normal(k * grad(u))", "normal((2 * k) * grad(u))")).is_err());
