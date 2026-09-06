@@ -211,6 +211,9 @@ does not establish optional native-backend or scientific claims.
 - PR metadata edits reuse the newest authenticated run that actually performed
   heavy work. Later lightweight successes do not hide that result, and witnesses
   from different runs are never combined.
+  A completed CI run may have failed in another lane: reuse still requires each
+  selected lane's whole job and named heavy steps to have completed successfully,
+  with unchanged inputs. Pages still requires a successful publishing or build run.
 - Host-CPU case manifests disconnected from mandatory CI are marked
   `implemented`, and their capability-matrix verification is absent while the
   evidence suite is being reduced. Existing cases remain explicitly runnable

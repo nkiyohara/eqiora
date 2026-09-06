@@ -424,7 +424,7 @@ def apply_previous_run_reuse(
         )
         if reusable:
             reason = (
-                f"reused successful heavy run {run_id} from {previous}; "
+                f"reused successful heavy work from run {run_id} from {previous}; "
                 f"exact {decision.lane} input closure unchanged; {run_url}"
             )
             decisions.append(LaneImpact(decision.lane, False, reason, ()))
@@ -560,7 +560,7 @@ def append_github_outputs(path: Path, rendered: str) -> None:
         values["full"] != "false"
         or (
             values["site_reason"] != "unchanged input closure"
-            and not values["site_reason"].startswith("reused successful heavy run")
+            and not values["site_reason"].startswith("reused successful heavy work from run")
         )
     ):
         raise ValueError("a quick site decision is incomplete or inconsistent")
@@ -669,7 +669,7 @@ def main() -> int:
                     site_reason = plan.lane("site").reason
             else:
                 site_reason = plan.lane("site").reason
-                if site_reason.startswith("reused successful heavy run"):
+                if site_reason.startswith("reused successful heavy work from run"):
                     site_source_sha = arguments.previous
     except (
         OSError,
