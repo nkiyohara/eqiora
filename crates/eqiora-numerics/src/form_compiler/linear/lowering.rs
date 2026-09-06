@@ -97,7 +97,7 @@ impl Context<'_> {
         }
     }
 
-    fn flux(&self, id: ExprId, depth: usize) -> Result<(RawId, Data), Diagnostic> {
+    pub(super) fn flux(&self, id: ExprId, depth: usize) -> Result<(RawId, Data), Diagnostic> {
         if depth > 128 {
             return Err(super::invalid("linear flux nesting exceeds 128"));
         }

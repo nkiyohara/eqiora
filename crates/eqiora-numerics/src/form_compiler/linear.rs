@@ -28,7 +28,7 @@ pub(crate) struct CompiledLinearBlockForm {
     relations: Vec<RawId>,
     residual_types: Vec<ValueType>,
     dependencies: BTreeMap<RawId, BTreeSet<RawId>>,
-    essential_boundaries: BTreeMap<RawId, Vec<RawId>>,
+    boundary_laws: BTreeMap<RawId, BTreeMap<RawId, crate::scalar_conservation::ScalarExteriorLaw>>,
     rows: Vec<Terms>,
 }
 
@@ -129,12 +129,12 @@ impl CompiledLinearBlockForm {
             rows.push(row);
             residual_types.push(value_type);
         }
-        let boundary = boundary::derive(program, domain, dimension, &fields)?;
+        let boundary = boundary::derive(program, domain, dimension, &fields, &rows, &coefficients)?;
         let all_relations = roles
             .relations
             .keys()
             .copied()
-            .chain(boundary.relations)
+            .chain(boundary.dependencies.keys().copied())
             .collect();
         continuous_activations(program, &all_relations)?;
         Ok(Self {
@@ -147,8 +147,9 @@ impl CompiledLinearBlockForm {
                 .relations
                 .into_iter()
                 .map(|(id, role)| (id, role.dependencies))
+                .chain(boundary.dependencies)
                 .collect(),
-            essential_boundaries: boundary.fields,
+            boundary_laws: boundary.fields,
             rows,
         })
     }
@@ -172,8 +173,10 @@ impl CompiledLinearBlockForm {
     pub(crate) fn dependencies(&self) -> &BTreeMap<RawId, BTreeSet<RawId>> {
         &self.dependencies
     }
-    pub(crate) fn essential_boundaries(&self) -> &BTreeMap<RawId, Vec<RawId>> {
-        &self.essential_boundaries
+    pub(crate) fn boundary_laws(
+        &self,
+    ) -> &BTreeMap<RawId, BTreeMap<RawId, crate::scalar_conservation::ScalarExteriorLaw>> {
+        &self.boundary_laws
     }
 
     pub(crate) fn evaluate(

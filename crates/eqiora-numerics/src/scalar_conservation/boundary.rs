@@ -7,6 +7,32 @@ pub(super) fn recognize_exterior_law(
     volume_coefficient: &ScalarSpatialExpression,
     dimensions: usize,
 ) -> Result<ScalarExteriorLaw, Diagnostic> {
+    recognize_exterior_law_with_flux(
+        program,
+        relation,
+        field,
+        dimensions,
+        |expression, normal| {
+            validate_normal_flux(
+                program,
+                expression,
+                normal,
+                field,
+                volume_coefficient,
+                relation,
+                dimensions,
+            )
+        },
+    )
+}
+
+pub(crate) fn recognize_exterior_law_with_flux(
+    program: &KernelProgram,
+    relation: RawId,
+    field: RawId,
+    dimensions: usize,
+    check_flux: impl FnOnce(&ExprDag, ExprId) -> Result<(), Diagnostic>,
+) -> Result<ScalarExteriorLaw, Diagnostic> {
     require_continuous_relation(program, relation)?;
     let typed = typed_relation(program, relation)?;
     let expression = typed.expression();
@@ -35,15 +61,7 @@ pub(super) fn recognize_exterior_law(
         .or_else(|| robin.map(|(leaf, _, _)| leaf.sign()))
         .ok_or_else(|| view.mismatch("boundary law requires trace, normal flux, or Robin terms"))?;
     if let Some(normal) = normal {
-        validate_normal_flux(
-            program,
-            expression,
-            normal.value(),
-            field,
-            volume_coefficient,
-            relation,
-            dimensions,
-        )?;
+        check_flux(expression, normal.value())?;
     }
     let operator_ids = [
         trace.map(|leaf| leaf.value()),

@@ -547,6 +547,7 @@ fn push_operands(node: &ExprNode, pending: &mut Vec<ExprId>) {
         | ExprNode::UnaryMath(_, value)
         | ExprNode::Gradient(value)
         | ExprNode::Divergence(value)
+        | ExprNode::NormalComponent(value)
         | ExprNode::Trace(value) => pending.push(*value),
         ExprNode::Add(left, right)
         | ExprNode::Sub(left, right)
@@ -651,14 +652,6 @@ fn validate_source_expression(
         push_operands(node, &mut pending);
     }
     Ok(())
-}
-
-pub(super) fn is_homogeneous_trace(
-    expression: &ExprDag,
-    owner: RawId,
-    field: RawId,
-) -> Result<bool, Diagnostic> {
-    Ok(recognize_homogeneous_trace(expression, owner, field)?.is_some())
 }
 
 fn recognize_homogeneous_trace(

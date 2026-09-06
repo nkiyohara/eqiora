@@ -21,12 +21,68 @@ enum Node {
 }
 
 impl Data {
+    /// Compare symbolic coefficient products without sampling or erasing Parameters.
+    pub(super) fn same_coefficient(&self, other: &Self) -> bool {
+        fn product<'a>(data: &'a Data, scale: &mut f64, factors: &mut Vec<&'a Data>) {
+            match data.0.as_ref() {
+                Node::Mul(a, b) => {
+                    product(a, scale, factors);
+                    product(b, scale, factors);
+                }
+                Node::Tape(tape) if tape.parameter_fields().is_empty() => {
+                    if let Some(value) = tape.constant_value() {
+                        *scale *= value;
+                    } else {
+                        factors.push(data);
+                    }
+                }
+                _ => factors.push(data),
+            }
+        }
+        fn factor(a: &Data, b: &Data) -> bool {
+            match (a.0.as_ref(), b.0.as_ref()) {
+                (Node::Tape(a), Node::Tape(b)) => a.is_same_coefficient_as(b),
+                (Node::Add(a, b), Node::Add(c, d)) => {
+                    (a.same_coefficient(c) && b.same_coefficient(d))
+                        || (a.same_coefficient(d) && b.same_coefficient(c))
+                }
+                (Node::Div(a, b), Node::Div(c, d)) => {
+                    a.same_coefficient(c) && b.same_coefficient(d)
+                }
+                (Node::Pow(a, n), Node::Pow(b, m)) => n == m && a.same_coefficient(b),
+                (Node::Math(f, a), Node::Math(g, b)) => f == g && a.same_coefficient(b),
+                _ => false,
+            }
+        }
+        let (mut left_scale, mut right_scale) = (1.0, 1.0);
+        let (mut left, mut right) = (Vec::new(), Vec::new());
+        product(self, &mut left_scale, &mut left);
+        product(other, &mut right_scale, &mut right);
+        if !left_scale.is_finite() || left_scale != right_scale || left.len() != right.len() {
+            return false;
+        }
+        for candidate in left {
+            let Some(index) = right.iter().position(|other| factor(candidate, other)) else {
+                return false;
+            };
+            right.remove(index);
+        }
+        true
+    }
+
     pub(super) fn constant(dimension: usize, value: f64) -> Self {
         Self(Arc::new(Node::Tape(ScalarSpatialExpression::constant(
             dimension, value,
         ))))
     }
     pub(super) fn add(self, right: Self) -> Self {
+        let zero = |data: &Self| matches!(data.0.as_ref(), Node::Tape(tape) if tape.parameter_fields().is_empty() && tape.constant_value() == Some(0.0));
+        if zero(&self) {
+            return right;
+        }
+        if zero(&right) {
+            return self;
+        }
         Self(Arc::new(Node::Add(self, right)))
     }
     pub(super) fn multiply(self, right: Self) -> Self {
@@ -74,13 +130,19 @@ impl Context<'_> {
         if depth > 128 {
             return Err(super::invalid("linear expression nesting exceeds 128"));
         }
-        if let Ok(tape) =
-            spatial_expression::lower(self.program, self.dag, id, self.owner, self.dimension)
-        {
-            return Ok(Data(Arc::new(Node::Tape(tape))));
-        }
         let data = |id| self.data(id, depth + 1);
         Ok(match self.dag.node(id) {
+            Some(
+                ExprNode::Constant(_)
+                | ExprNode::SpatialCoordinate(_)
+                | ExprNode::Symbol(SymbolRef::Parameter(_)),
+            ) => Data(Arc::new(Node::Tape(spatial_expression::lower(
+                self.program,
+                self.dag,
+                id,
+                self.owner,
+                self.dimension,
+            )?))),
             Some(ExprNode::Symbol(SymbolRef::Field(field))) => self
                 .coefficients
                 .get(&field.erase())

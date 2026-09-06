@@ -348,6 +348,7 @@ mod recognize;
 mod support;
 
 use balance::*;
+pub(crate) use boundary::recognize_exterior_law_with_flux;
 use boundary::*;
 use descriptor_support::*;
 use interface::*;
