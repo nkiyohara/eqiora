@@ -191,24 +191,6 @@ fn finalize_fixed_reference_fsi_step_with_assembly<const D: usize>(
     )
 }
 
-/// Finalize through an explicit backend with an authenticated packet-set
-/// identity supplied by the owning canonical composition path.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn finalize_fixed_reference_fsi_step_2d_with_packet_set(
-    mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<2>,
-    boundary: &FixedReferenceFsiBoundary<2>,
-    previous: &FixedReferenceFsiState<2>,
-    config: FixedReferenceFsiStepConfig<2>,
-    quadrature: &QuadratureRule,
-    packet_set: AssemblyPacketSetIdentityV1,
-    assembly: &dyn AssemblyBackend,
-) -> Result<FinalizedFixedReferenceFsiStep<2>, Diagnostic> {
-    finalize_fixed_reference_fsi_step_with_packet_set(
-        mesh, partition, boundary, previous, config, quadrature, packet_set, assembly,
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn finalize_fixed_reference_fsi_step_with_packet_set<const D: usize>(
     mesh: &SimplicialMesh,
@@ -233,7 +215,7 @@ pub(crate) fn finalize_fixed_reference_fsi_step_with_packet_set<const D: usize>(
 /// placement, but they cannot introduce a second packet identity or local
 /// operator path.
 #[derive(Debug)]
-struct PreparedFixedReferenceFsiAssembly<'a, const D: usize> {
+pub(crate) struct PreparedFixedReferenceFsiAssembly<'a, const D: usize> {
     mesh: &'a SimplicialMesh,
     partition: &'a FixedReferenceFsiPartition<D>,
     previous: &'a FixedReferenceFsiState<D>,
@@ -289,7 +271,7 @@ impl FixedReferenceFsiAssemblyTargetRoles {
 }
 
 impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
-    fn new(
+    pub(crate) fn new(
         mesh: &'a SimplicialMesh,
         partition: &'a FixedReferenceFsiPartition<D>,
         boundary: &FixedReferenceFsiBoundary<D>,
@@ -322,11 +304,19 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
         })
     }
 
-    const fn plan(&self) -> &AssemblyPlan {
+    pub(crate) const fn plan(&self) -> &AssemblyPlan {
         &self.plan
     }
 
-    fn finish(
+    pub(crate) const fn layout(&self) -> &FsiLayout<D> {
+        &self.layout
+    }
+
+    pub(crate) const fn target_roles(&self) -> FixedReferenceFsiAssemblyTargetRoles {
+        self.target_roles
+    }
+
+    pub(crate) fn finish(
         self,
         result: AssemblyResult,
     ) -> Result<FinalizedFixedReferenceFsiStep<D>, Diagnostic> {

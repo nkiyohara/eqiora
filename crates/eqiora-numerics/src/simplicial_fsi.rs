@@ -40,9 +40,7 @@ pub use solve::{
     finalize_fixed_reference_fsi_step_2d_with_assembly, finalize_fixed_reference_fsi_step_3d,
     solve_fixed_reference_fsi_step_2d, solve_fixed_reference_fsi_step_3d,
 };
-pub(crate) use solve::{
-    FixedReferenceFsiAssemblyTargetRoles2d, finalize_fixed_reference_fsi_step_2d_with_packet_set,
-};
+pub(crate) use solve::{FixedReferenceFsiAssemblyTargetRoles2d, PreparedFixedReferenceFsiAssembly};
 
 const fn p1_count<const D: usize>() -> usize {
     D + 1
