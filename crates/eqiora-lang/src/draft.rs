@@ -1227,22 +1227,6 @@ impl Hash for DraftSymbol {
     }
 }
 
-fn physical_accessor_ast(
-    callee: &str,
-    reference: &DraftPortReference,
-    path: &GraphPath,
-    ranges: &mut RangeAllocator,
-    paths: &mut HashMap<TextRange, GraphPath>,
-) -> ExprKind {
-    ExprKind::Call {
-        callee: NamePath::single(callee.to_owned(), ranges.allocate(path, paths)),
-        arguments: vec![Expr {
-            kind: ExprKind::Name(reference.name.clone()),
-            range: ranges.allocate(path, paths),
-        }],
-    }
-}
-
 /// Synthetic AST plus paths that recover native declaration context.
 #[doc(hidden)]
 #[derive(Debug)]
@@ -1265,27 +1249,10 @@ impl NativeModelAst {
     }
 }
 
-#[derive(Debug, Default)]
-struct RangeAllocator {
-    next: u32,
-}
-
-impl RangeAllocator {
-    fn allocate(
-        &mut self,
-        path: &GraphPath,
-        paths: &mut HashMap<TextRange, GraphPath>,
-    ) -> TextRange {
-        let start = self.next;
-        self.next = self.next.saturating_add(1);
-        let range = TextRange::new(start, self.next);
-        paths.insert(range, path.clone());
-        range
-    }
-}
-
+mod ast_bridge;
 mod dimension;
 mod value_type;
+use ast_bridge::{RangeAllocator, physical_accessor_ast};
 use dimension::dimension_expression;
 
 fn native_diagnostic(model: &str, declaration: &str, message: impl Into<String>) -> Diagnostic {
