@@ -7,10 +7,10 @@ import argparse
 import json
 import os
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Mapping, Sequence
 
-from classify_changes import FULL_SHA, changed_paths
+from classify_changes import FULL_SHA, changed_paths, documentation_path
 from local_verify import (
     ROOT,
     WorkspacePackage,
@@ -27,15 +27,44 @@ def package_selectors(
     *,
     unsafe_mode: bool = False,
 ) -> tuple[str, ...]:
-    """Narrow only ordinary Rust source changes with unchanged Cargo topology."""
+    """Select known source owners with unchanged Cargo topology; otherwise widen."""
     if unsafe_mode:
         return ("--workspace",)
     sources = []
     source_consumers = set()
     for path in paths:
+        # Git paths must be canonical before prefix-based ownership is trusted.
+        if (
+            not isinstance(path, str)
+            or not path
+            or "\\" in path
+            or any(part in {"", ".", ".."} for part in path.split("/"))
+            or any(ord(char) < 32 for char in path)
+        ):
+            return ("--workspace",)
+        name = PurePosixPath(path).name
         if path.startswith(("docs/", "rfcs/")):
             continue
-        if not path.endswith(".rs") or not direct_packages([path], packages):
+        owners = direct_packages([path], packages)
+        if documentation_path(path) and (
+            "/" not in path or owners or path == "examples/README.md"
+        ):
+            # Crate documentation can be a rustdoc include; package/verify
+            # READMEs can be executable fixture inputs, so do not skip those.
+            sources.extend([path] if owners else [])
+            continue
+        if (
+            path.startswith("bindings/python/") and name.endswith((".py", ".pyi"))
+        ) or (path.startswith("examples/python/") and path.endswith(".py")):
+            # Native tests import Python source and include the public stub.
+            # Python example tests exercise that same installed adapter owner.
+            if not {"eqiora-python", "eqiora"}.issubset(packages):
+                return ("--workspace",)
+            source_consumers.update({"eqiora-python", "eqiora"})
+            continue
+        # .eqi examples feed build.rs and include_str! across multiple crates;
+        # they need the workspace until an existing complete owner covers them.
+        if name == "build.rs" or not path.endswith(".rs") or not owners:
             return ("--workspace",)
         # The facade's control-plane test reads Python adapter source directly,
         # without a Cargo dependency. Include that consumer and its dependents.
@@ -44,7 +73,7 @@ def package_selectors(
                 return ("--workspace",)
             source_consumers.add("eqiora")
         sources.append(path)
-    if not sources:
+    if not sources and not source_consumers:
         return ("--workspace",)
     selected = reverse_dependency_closure(
         direct_packages(sources, packages) | source_consumers, packages

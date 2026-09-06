@@ -46,6 +46,18 @@ class RustQualityTests(unittest.TestCase):
             ("-p", "leaf"),
         )
 
+    def test_mixed_python_bindings_keep_the_rust_consumer_closure(self):
+        self.assertEqual(
+            rust_quality.package_selectors(
+                ["crates/core/src/lib.rs", "bindings/python/python/eqiora/__init__.pyi",
+                 "bindings/python/tests/test_coupled_scalar_example.py",
+                 "examples/python/coupled_scalar.py", "examples/README.md",
+                 "docs/python/api.md", "README.md"], self.packages
+            ),
+            ("-p", "consumer", "-p", "core", "-p", "eqiora",
+             "-p", "eqiora-language-server", "-p", "eqiora-python"),
+        )
+
     def test_shared_unknown_and_topology_changes_use_the_workspace(self):
         for path in (
             "Cargo.toml",
@@ -53,14 +65,31 @@ class RustQualityTests(unittest.TestCase):
             "crates/core/Cargo.toml",
             ".cargo/config.toml",
             "crates/core/tests/input.json",
-            "crates/core/README.md",
             "packages/physics/README.md",
-            "README.md",
             "crates/eqiora-python/Cargo.toml",
             "packages/physics/src/model.eqi",
             "tools/ci/rust_quality.py",
             "crates/deleted/src/lib.rs",
             "unknown.rs",
+            "crates/core/build.rs",
+            "rust-toolchain.toml",
+            "bindings/python/pyproject.toml",
+            "bindings/python/unknown.json",
+            "examples/python/unknown.json",
+            "examples/unknown.py",
+            "examples/steady-flow-past-cylinder.eqi",
+            "examples/mixed-boundary-elasticity.eqi",
+            "verify/fluid/case/README.md",
+            "unknown/README.md",
+            "docs/../Cargo.toml",
+            "/crates/core/src/lib.rs",
+            "crates/core//src/lib.rs",
+            "crates/core/./src/lib.rs",
+            "crates/core/../leaf/src/lib.rs",
+            "crates\\core\\src\\lib.rs",
+            "crates/core/src/bad\n.rs",
+            "",
+            None,
         ):
             with self.subTest(path=path):
                 self.assertEqual(
@@ -77,6 +106,42 @@ class RustQualityTests(unittest.TestCase):
             self.assertEqual(
                 rust_quality.package_selectors(
                     paths, self.packages, unsafe_mode=unsafe
+                ),
+                ("--workspace",),
+            )
+
+    def test_python_example_selects_its_adapter_and_root_docs_add_no_owner(self):
+        self.assertEqual(
+            rust_quality.package_selectors(
+                ["crates/leaf/src/lib.rs", "examples/python/exact_cylinder_mesh.py",
+                 "README.md", "rfcs/design.md"], self.packages
+            ),
+            ("-p", "eqiora", "-p", "eqiora-language-server", "-p", "eqiora-python", "-p", "leaf"),
+        )
+
+    def test_crate_readme_retains_its_rustdoc_owner(self):
+        self.assertEqual(
+            rust_quality.package_selectors(
+                ["crates/leaf/src/lib.rs", "crates/core/README.md"], self.packages
+            ),
+            ("-p", "consumer", "-p", "core", "-p", "leaf"),
+        )
+
+    def test_python_bindings_alone_include_native_source_readers(self):
+        for path in ("bindings/python/python/eqiora/__init__.py",
+                     "bindings/python/python/eqiora/__init__.pyi",
+                     "bindings/python/tests/test_common_plan.py"):
+            with self.subTest(path=path):
+                self.assertEqual(
+                    rust_quality.package_selectors([path], self.packages),
+                    ("-p", "eqiora", "-p", "eqiora-language-server", "-p", "eqiora-python"),
+                )
+        for missing in ("eqiora", "eqiora-python"):
+            packages = dict(self.packages)
+            del packages[missing]
+            self.assertEqual(
+                rust_quality.package_selectors(
+                    ["bindings/python/python/eqiora/__init__.pyi"], packages
                 ),
                 ("--workspace",),
             )
