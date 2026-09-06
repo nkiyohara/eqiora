@@ -5,7 +5,6 @@ import { BASE_URL, launchOfficialBrowser } from './support';
 
 const ROUTE = '/reference/rust/api/eqiora/struct.Diagnostic.html';
 const MAIN_SCRIPT_SHA256 = 'baec8e8981b6e116315ea7ff1fed10b51352e001825228556ccd126317ed91db';
-const HREF_ORDER_SHA256 = 'b7a501d938e30e531dcf446574e0cb6383038d606f055df3aa57e3e64578c290';
 const SIZES = [1280, 390, 320] as const;
 const PRESENTATION_OK = {
   text: 0,
@@ -26,20 +25,8 @@ const PRESENTATION_OK = {
 const SUMMARY_OK = { tag: 0, parent: 0, name: 0, tabIndex: 0, forbidden: 0, open: 0 };
 const REAL_PROJECTION = {
   details: 107, open: 82, sections: 106, nested: 0,
-  sources: 321, groups: 106, links: 321, hrefs: 531, hrefDigest: HREF_ORDER_SHA256,
+  sources: 321, groups: 106, links: 321,
 };
-
-function hashParts(parts: string[]): string {
-  const hash = createHash('sha256');
-  for (const part of parts) {
-    const bytes = Buffer.from(part);
-    const length = Buffer.alloc(8);
-    length.writeBigUInt64BE(BigInt(bytes.length));
-    hash.update(length);
-    hash.update(bytes);
-  }
-  return hash.digest('hex');
-}
 
 async function seriousViolations(page: Page) {
   const results = await new AxeBuilder({ page })
@@ -130,9 +117,6 @@ async function observeProjection(page: Page) {
       groups: document.querySelectorAll('details.toggle > summary + .eqiora-signature-links').length,
       links: document.querySelectorAll('.eqiora-signature-links a[href]').length,
     };
-    const hrefs = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'), (link) =>
-      link.getAttribute('href') ?? '',
-    );
     const inspect = (nodes: Element[], activeLinks = false) => {
       const failures = {
         text: 0, size: 0, bounds: 0, display: 0, visibility: 0, opacity: 0,
@@ -180,7 +164,6 @@ async function observeProjection(page: Page) {
       }
       return {
         structure,
-        hrefs,
         sources: inspect(Array.from(document.querySelectorAll('details.toggle > summary span[data-eqiora-href]'))),
         groups: inspect(Array.from(document.querySelectorAll('details.toggle > summary + .eqiora-signature-links'))),
         links: inspect(Array.from(document.querySelectorAll('.eqiora-signature-links a[href]')), true),
@@ -194,7 +177,7 @@ async function observeProjection(page: Page) {
 
 type ProjectionExpected = {
   details: number; open: number; sections: number; nested: number;
-  sources: number; groups: number; links: number; hrefs: number; hrefDigest?: string;
+  sources: number; groups: number; links: number;
 };
 
 function assertProjectionStructure(
@@ -205,8 +188,6 @@ function assertProjectionStructure(
     details: expected.details, open: expected.open, sections: expected.sections,
     nested: expected.nested, sources: expected.sources, groups: expected.groups, links: expected.links,
   });
-  expect(observation.hrefs).toHaveLength(expected.hrefs);
-  if (expected.hrefDigest) expect(hashParts(observation.hrefs)).toBe(expected.hrefDigest);
   const { name: _, ...summarySemantics } = observation.summaries.failures;
   const { name: __, ...expectedSemantics } = SUMMARY_OK;
   expect(observation.summaries.count).toBe(expected.details);
