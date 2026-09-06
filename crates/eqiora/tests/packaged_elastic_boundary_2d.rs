@@ -199,11 +199,7 @@ fn assert_isotropic_boundary_relation(
     let (two, mu_symbol) = multiplication(residuals, twice_mu);
     assert_eq!(
         expression_node(residuals, two),
-        &ExprNode::Constant(
-            DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)
-                .try_into()
-                .unwrap()
-        )
+        &ExprNode::Constant(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
     );
     assert_symbol(residuals, mu_symbol, SymbolRef::Parameter(mu));
     let gradient = unary_operand(
