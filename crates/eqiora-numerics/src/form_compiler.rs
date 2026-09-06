@@ -1,8 +1,10 @@
 //! Private proof-carrying FEM derivations.
 
+mod bilinear;
 mod elasticity;
 pub(crate) mod equation_roles;
 pub(crate) mod linear;
+pub(crate) mod region;
 mod scalar;
 #[cfg(test)]
 mod tests;

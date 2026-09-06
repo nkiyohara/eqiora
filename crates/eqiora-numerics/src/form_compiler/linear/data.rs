@@ -8,7 +8,7 @@ use eqiora_sem::KernelProgram;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct Data(Arc<Node>);
+pub(in crate::form_compiler) struct Data(Arc<Node>);
 
 #[derive(Debug, PartialEq)]
 enum Node {
@@ -21,7 +21,7 @@ enum Node {
 }
 
 impl Data {
-    pub(super) fn bind_parameter_point(
+    pub(in crate::form_compiler) fn bind_parameter_point(
         &self,
         fields: &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>],
         values: &[f64],
@@ -38,7 +38,7 @@ impl Data {
     }
 
     /// Compare symbolic coefficient products without sampling or erasing Parameters.
-    pub(super) fn same_coefficient(&self, other: &Self) -> bool {
+    pub(in crate::form_compiler) fn same_coefficient(&self, other: &Self) -> bool {
         fn product<'a>(data: &'a Data, scale: &mut f64, factors: &mut Vec<&'a Data>) {
             match data.0.as_ref() {
                 Node::Mul(a, b) => {
@@ -86,12 +86,12 @@ impl Data {
         true
     }
 
-    pub(super) fn constant(dimension: usize, value: f64) -> Self {
+    pub(in crate::form_compiler) fn constant(dimension: usize, value: f64) -> Self {
         Self(Arc::new(Node::Tape(ScalarSpatialExpression::constant(
             dimension, value,
         ))))
     }
-    pub(super) fn add(self, right: Self) -> Self {
+    pub(in crate::form_compiler) fn add(self, right: Self) -> Self {
         let zero = |data: &Self| matches!(data.0.as_ref(), Node::Tape(tape) if tape.parameter_fields().is_empty() && tape.constant_value() == Some(0.0));
         if zero(&self) {
             return right;
@@ -101,20 +101,20 @@ impl Data {
         }
         Self(Arc::new(Node::Add(self, right)))
     }
-    pub(super) fn multiply(self, right: Self) -> Self {
+    pub(in crate::form_compiler) fn multiply(self, right: Self) -> Self {
         Self(Arc::new(Node::Mul(self, right)))
     }
-    pub(super) fn divide(self, right: Self) -> Self {
+    pub(in crate::form_compiler) fn divide(self, right: Self) -> Self {
         Self(Arc::new(Node::Div(self, right)))
     }
-    pub(super) fn spatial(&self) -> bool {
+    pub(in crate::form_compiler) fn spatial(&self) -> bool {
         match self.0.as_ref() {
             Node::Tape(tape) => tape.is_coordinate_dependent(),
             Node::Add(a, b) | Node::Mul(a, b) | Node::Div(a, b) => a.spatial() || b.spatial(),
             Node::Pow(a, _) | Node::Math(_, a) => a.spatial(),
         }
     }
-    pub(super) fn evaluate(&self, point: &[f64]) -> Result<f64, Diagnostic> {
+    pub(in crate::form_compiler) fn evaluate(&self, point: &[f64]) -> Result<f64, Diagnostic> {
         let value = match self.0.as_ref() {
             Node::Tape(tape) => tape.evaluate(point)?,
             Node::Add(a, b) => a.evaluate(point)? + b.evaluate(point)?,
@@ -133,16 +133,20 @@ impl Data {
     }
 }
 
-pub(super) struct Context<'a> {
-    pub(super) program: &'a KernelProgram,
-    pub(super) dag: &'a ExprDag,
-    pub(super) owner: RawId,
-    pub(super) dimension: usize,
-    pub(super) coefficients: &'a BTreeMap<RawId, Data>,
+pub(in crate::form_compiler) struct Context<'a> {
+    pub(in crate::form_compiler) program: &'a KernelProgram,
+    pub(in crate::form_compiler) dag: &'a ExprDag,
+    pub(in crate::form_compiler) owner: RawId,
+    pub(in crate::form_compiler) dimension: usize,
+    pub(in crate::form_compiler) coefficients: &'a BTreeMap<RawId, Data>,
 }
 
 impl Context<'_> {
-    pub(super) fn data(&self, id: ExprId, depth: usize) -> Result<Data, Diagnostic> {
+    pub(in crate::form_compiler) fn data(
+        &self,
+        id: ExprId,
+        depth: usize,
+    ) -> Result<Data, Diagnostic> {
         if depth > 128 {
             return Err(super::invalid("linear expression nesting exceeds 128"));
         }

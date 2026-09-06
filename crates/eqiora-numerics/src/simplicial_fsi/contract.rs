@@ -309,14 +309,6 @@ impl<const D: usize> FixedReferenceFsiBoundary<D> {
         &self.fixed_zero_velocity_vertices
     }
 
-    #[cfg(test)]
-    pub(super) fn from_fixed_zero_velocity_vertices(vertices: Vec<VertexId>) -> Self {
-        Self {
-            fixed_zero_velocity_vertices: vertices,
-            prepared_velocity: None,
-        }
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_prepared_velocity(
         previous_endpoint_words: [u64; 4],

@@ -13,7 +13,7 @@ use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
 mod binding;
 mod boundary;
-mod data;
+pub(super) mod data;
 mod integration;
 mod lowering;
 pub(super) use integration::integrate;
@@ -208,7 +208,7 @@ impl CompiledLinearBlockForm {
     }
 }
 
-fn coefficients(
+pub(super) fn coefficients(
     program: &KernelProgram,
     dimension: usize,
     roles: &EquationRoles,

@@ -4,6 +4,7 @@ use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
 use crate::affine_fem::physical_gradient;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
+use crate::form_compiler::bilinear::{Basis, Pairing};
 
 /// Field-major rows and columns, with the Q1 bit order within each Field.
 pub(in crate::form_compiler) fn integrate(
@@ -72,21 +73,25 @@ pub(in crate::form_compiler) fn integrate(
                 rhs[global_test] += scale * forcing[row] * basis.values()[test];
                 for column in 0..fields {
                     for trial in 0..basis_count {
+                        let test_basis = Basis {
+                            value: basis.values()[test],
+                            gradient: &gradients[test],
+                            component: 0,
+                        };
+                        let trial_basis = Basis {
+                            value: basis.values()[trial],
+                            gradient: &gradients[trial],
+                            component: 0,
+                        };
                         let gradient_pairing = if row == column {
-                            diffusion[row]
-                                * gradients[test]
-                                    .iter()
-                                    .zip(&gradients[trial])
-                                    .map(|(left, right)| left * right)
-                                    .sum::<f64>()
+                            diffusion[row] * Pairing::Gradient.entry(test_basis, trial_basis)
                         } else {
                             0.0
                         };
                         matrix[global_test * count + column * basis_count + trial] += scale
                             * (gradient_pairing
                                 + reaction[row * fields + column]
-                                    * basis.values()[test]
-                                    * basis.values()[trial]);
+                                    * Pairing::Value.entry(test_basis, trial_basis));
                     }
                 }
             }

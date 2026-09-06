@@ -18,7 +18,7 @@ use eqiora_solver::{LinearOperatorProperties, ReductionPolicy, ScalarType, Solve
 
 use super::FixedReferenceFsiCartesianModel2d;
 use crate::discrete_block::DiscreteBlockSystem;
-use crate::simplicial_fsi::finalize_fixed_reference_fsi_step_2d_with_packet_set;
+use crate::simplicial_fsi::PreparedFixedReferenceFsiAssembly;
 use crate::simplicial_fsi::{
     FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
     FixedReferenceFsiPartition, FixedReferenceFsiScale, FixedReferenceFsiState,
@@ -26,6 +26,7 @@ use crate::simplicial_fsi::{
 };
 
 mod block;
+mod regions;
 mod result;
 mod validate;
 
@@ -57,6 +58,10 @@ pub(crate) struct PreparedResolvedFixedReferenceFsiRun2d<'a> {
     quadrature: QuadratureRule,
     realization_graph: eqiora_realization::PortableRealizationGraph,
     block_system: DiscreteBlockSystem,
+    regions: std::collections::BTreeMap<
+        eqiora_core::RawId,
+        crate::form_compiler::region::BoundRegionForm,
+    >,
 }
 
 impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
@@ -66,7 +71,7 @@ impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
         previous: &FixedReferenceFsiState<2>,
     ) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
         let checked_assembly = self.block_system.checked_backend(self.assembly);
-        let inner = finalize_fixed_reference_fsi_step_2d_with_packet_set(
+        let prepared = PreparedFixedReferenceFsiAssembly::new(
             self.mesh,
             self.partition,
             &self.boundary,
@@ -74,8 +79,20 @@ impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
             self.config,
             &self.quadrature,
             AssemblyPacketSetIdentityV1::from_sha256(self.mesh_artifact.sha256()),
-            &checked_assembly,
         )?;
+        let work = regions::prepare_cells(
+            self.model,
+            &self.regions,
+            self.mesh,
+            self.partition,
+            previous,
+            &self.quadrature,
+            &prepared,
+            AssemblyPacketSetIdentityV1::from_sha256(self.mesh_artifact.sha256()),
+        )?;
+        let assembled = checked_assembly.assemble(prepared.plan(), &work)?;
+        let reactions = prepared.reactions(&work)?;
+        let inner = prepared.finish(assembled, reactions)?;
         FinalizedResolvedFixedReferenceFsiStep2d::new(
             self.resolved.model(),
             self.resolved.semantic_revision(),
@@ -517,6 +534,7 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
         triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS).map_err(realization_error)?;
     let block_system =
         block::fixed_reference_fsi_block_system(model, resolved, mesh_artifact, mesh, partition)?;
+    let regions = regions::bind(model, resolved.plan())?;
     Ok(PreparedResolvedFixedReferenceFsiRun2d {
         model,
         resolved,
@@ -529,6 +547,7 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
         quadrature,
         realization_graph,
         block_system,
+        regions,
     })
 }
 

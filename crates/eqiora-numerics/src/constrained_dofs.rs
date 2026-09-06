@@ -62,6 +62,10 @@ impl ConstrainedDofLayout {
         self.free_count
     }
 
+    pub(crate) fn free_index(&self, global: usize) -> Option<DofId> {
+        self.free_indices.get(global).copied().flatten()
+    }
+
     pub(crate) fn assemble(
         &self,
         backend: &dyn AssemblyBackend,
@@ -150,6 +154,18 @@ impl ConstrainedDofLayout {
     }
 
     pub(crate) fn lift(&self, free_values: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+        self.lift_with_constraints(free_values, false)
+    }
+
+    pub(crate) fn lift_direction(&self, free_values: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+        self.lift_with_constraints(free_values, true)
+    }
+
+    fn lift_with_constraints(
+        &self,
+        free_values: &[f64],
+        direction: bool,
+    ) -> Result<Vec<f64>, Diagnostic> {
         if free_values.len() != self.free_count {
             return Err(invalid(
                 "reduced solution shape differs from its constrained layout",
@@ -165,13 +181,43 @@ impl ConstrainedDofLayout {
             .zip(&self.free_indices)
             .zip(&mut values)
         {
-            *value = fixed.unwrap_or_else(|| {
-                free_values[free
-                    .expect("every unfixed degree of freedom owns a reduced equation")
-                    .index()]
-            });
+            *value = fixed
+                .map(|fixed| if direction { 0.0 } else { fixed })
+                .unwrap_or_else(|| {
+                    free_values[free
+                        .expect("every unfixed degree of freedom owns a reduced equation")
+                        .index()]
+                });
         }
         Ok(values)
+    }
+
+    pub(crate) fn restrict(&self, values: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+        if values.len() != self.fixed_values.len() || values.iter().any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "full solution must be finite and match its constrained layout",
+            ));
+        }
+        let mut free_values = fallible_zeroed(
+            self.free_count,
+            "reduced solution allocation exceeds platform capacity",
+        )?;
+        for ((&value, fixed), free) in values
+            .iter()
+            .zip(&self.fixed_values)
+            .zip(&self.free_indices)
+        {
+            if fixed.is_some_and(|fixed| fixed.to_bits() != value.to_bits()) {
+                return Err(invalid(
+                    "reduction requires each fixed value to match its exact prescribed word",
+                ));
+            }
+            if let Some(free) = free {
+                free_values[free.index()] = value;
+            }
+        }
+        Ok(free_values)
     }
 
     pub(crate) fn full_residual(
@@ -212,6 +258,23 @@ impl ConstrainedDofLayout {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn primal_direction_and_restriction_share_one_exact_constraint_inventory() {
+        let layout = ConstrainedDofLayout::new(vec![Some(-0.0), None, Some(1.25)]).unwrap();
+        let full = layout.lift(&[7.5]).unwrap();
+        assert_eq!(full[0].to_bits(), (-0.0_f64).to_bits());
+        assert_eq!(&full[1..], &[7.5, 1.25]);
+        assert_eq!(layout.lift_direction(&[7.5]).unwrap(), vec![0.0, 7.5, 0.0]);
+        assert_eq!(layout.restrict(&full).unwrap(), vec![7.5]);
+        assert_eq!(layout.free_index(0), None);
+        assert_eq!(layout.free_index(1), Some(DofId::new(0)));
+        assert_eq!(layout.free_index(3), None);
+        assert!(layout.restrict(&[0.0, 7.5, 1.25]).is_err());
+        assert!(layout.restrict(&[-0.0, f64::NAN, 1.25]).is_err());
+        assert!(layout.restrict(&full[..2]).is_err());
+        assert!(layout.lift_direction(&[]).is_err());
+    }
 
     #[test]
     fn assembly_preserves_nonsymmetric_cross_terms_and_fixed_values() {

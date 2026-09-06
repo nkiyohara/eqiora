@@ -9,7 +9,7 @@ use super::contract::{
 };
 use super::{fluid_local_size, p1_count};
 use crate::simplicial_mini_transient::{MiniAffineScales, MiniScaledAffineCell};
-use crate::simplicial_solid_element::{local_dimension, p1_solid_backward_euler_velocity};
+use crate::simplicial_solid_element::p1_solid_backward_euler_velocity;
 
 pub(crate) fn fluid_local<const D: usize>(
     geometry: &AffineGeometryMap,
@@ -79,13 +79,6 @@ pub(crate) fn solid_local<const D: usize>(
         velocity_scale,
         power_scale,
     )
-}
-
-pub(crate) const fn local_velocity_dimension<const D: usize>(
-    basis: usize,
-    component: usize,
-) -> usize {
-    local_dimension::<D>(basis, component)
 }
 
 pub(crate) fn dot(left: &[f64], right: &[f64]) -> f64 {

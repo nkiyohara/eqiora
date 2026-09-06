@@ -1,6 +1,6 @@
 //! Deterministic quotient layout and reduced/full assembly maps.
 
-use eqiora_assembly::{AssemblyMap, DofId, LocalUnknown};
+use eqiora_assembly::{AssemblyMap, DofId};
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{MeshEntity, MeshTopology, SimplicialMesh, VertexId};
 
@@ -8,19 +8,18 @@ use super::contract::FixedReferenceFsiBoundary;
 use super::invalid;
 use super::partition::FixedReferenceFsiPartition;
 use super::{fluid_local_size, solid_local_size};
+use crate::constrained_dofs::ConstrainedDofLayout;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FsiLayout<const D: usize = 2> {
-    reduced_vertex_velocity: Vec<[Option<DofId>; D]>,
-    reduced_bubble_offset: usize,
+    constraints: ConstrainedDofLayout,
+    vertex_count: usize,
     reduced_pressure_offset: usize,
-    reduced_size: usize,
     full_bubble_offset: usize,
     full_pressure_offset: usize,
     full_size: usize,
     pressure_vertices: Vec<VertexId>,
     pressure_position: Vec<Option<usize>>,
-    fixed_velocity: Vec<[Option<f64>; D]>,
 }
 
 type ReconstructedFsiFields<const D: usize> = (Vec<[f64; D]>, Vec<[f64; D]>, Vec<f64>);
@@ -71,25 +70,7 @@ impl<const D: usize> FsiLayout<D> {
                 "fixed-reference FSI prescribed velocity must be finite and match the mesh vertex inventory",
             ));
         }
-        let mut reduced_vertex_velocity = vec![[None; D]; vertex_count];
-        let mut next = 0_usize;
-        for (vertex, dofs) in reduced_vertex_velocity.iter_mut().enumerate() {
-            for (component, dof) in dofs.iter_mut().enumerate() {
-                if prescribed[vertex][component].is_none() {
-                    *dof = Some(DofId::new(next));
-                    next = checked_add(next, 1, "free shared velocity width")?;
-                }
-            }
-        }
-        let reduced_bubble_offset = next;
-        next = checked_add(
-            next,
-            checked_mul(partition.fluid_cells().len(), D, "fluid bubble width")?,
-            "velocity/bubble width",
-        )?;
-        let reduced_pressure_offset = next;
         let pressure_vertices = partition.fluid_vertices().to_vec();
-        next = checked_add(next, pressure_vertices.len(), "pressure width")?;
         let mut pressure_position = vec![None; vertex_count];
         for (position, vertex) in pressure_vertices.iter().enumerate() {
             pressure_position[vertex.index()] = Some(position);
@@ -105,20 +86,23 @@ impl<const D: usize> FsiLayout<D> {
             pressure_vertices.len(),
             "full FSI width",
         )?;
-        if next == 0 || full_size == 0 {
+        let mut fixed = prescribed.iter().flatten().copied().collect::<Vec<_>>();
+        fixed.resize(full_size, None);
+        let constraints = ConstrainedDofLayout::new(fixed)?;
+        let free = constraints.free_globals();
+        let reduced_pressure_offset = free.partition_point(|&global| global < full_pressure_offset);
+        if constraints.free_count() == 0 || full_size == 0 {
             return Err(invalid("fixed-reference FSI layout may not be empty"));
         }
         Ok(Self {
-            reduced_vertex_velocity,
-            reduced_bubble_offset,
+            constraints,
+            vertex_count,
             reduced_pressure_offset,
-            reduced_size: next,
             full_bubble_offset,
             full_pressure_offset,
             full_size,
             pressure_vertices,
             pressure_position,
-            fixed_velocity: prescribed.to_vec(),
         })
     }
 
@@ -128,31 +112,24 @@ impl<const D: usize> FsiLayout<D> {
         vertices: &[MeshEntity],
         reduced: bool,
     ) -> Result<AssemblyMap, Diagnostic> {
-        let local_size = fluid_local_size::<D>();
-        let mut equations = Vec::with_capacity(local_size);
-        let mut unknowns = Vec::with_capacity(local_size);
-        self.append_vertex_velocity(vertices, reduced, &mut equations, &mut unknowns);
-        for component in 0..D {
-            let index = if reduced {
-                self.reduced_bubble_offset + fluid_position * D + component
-            } else {
-                self.full_bubble_offset + fluid_position * D + component
-            };
-            equations.push(Some(DofId::new(index)));
-            unknowns.push(LocalUnknown::Free(DofId::new(index)));
+        if fluid_position >= (self.full_pressure_offset - self.full_bubble_offset) / D {
+            return Err(invalid("cell bubble is outside the resolved layout"));
         }
+        let mut globals = Vec::with_capacity(fluid_local_size::<D>());
+        self.append_vertex_velocity(vertices, &mut globals)?;
+        globals.extend(
+            (0..D).map(|component| self.full_bubble_offset + fluid_position * D + component),
+        );
         for vertex in vertices {
-            let position = self.pressure_position[vertex.index()]
-                .expect("fluid vertex owns a pressure position");
-            let index = if reduced {
-                self.reduced_pressure_offset + position
-            } else {
-                self.full_pressure_offset + position
-            };
-            equations.push(Some(DofId::new(index)));
-            unknowns.push(LocalUnknown::Free(DofId::new(index)));
+            let position = self
+                .pressure_position
+                .get(vertex.index())
+                .copied()
+                .flatten()
+                .ok_or_else(|| invalid("cell vertex has no pressure DOF in the resolved layout"))?;
+            globals.push(self.full_pressure_offset + position);
         }
-        AssemblyMap::new(equations, unknowns)
+        self.map(&globals, reduced)
     }
 
     pub(crate) fn solid_map(
@@ -160,43 +137,36 @@ impl<const D: usize> FsiLayout<D> {
         vertices: &[MeshEntity],
         reduced: bool,
     ) -> Result<AssemblyMap, Diagnostic> {
-        let local_size = solid_local_size::<D>();
-        let mut equations = Vec::with_capacity(local_size);
-        let mut unknowns = Vec::with_capacity(local_size);
-        self.append_vertex_velocity(vertices, reduced, &mut equations, &mut unknowns);
-        AssemblyMap::new(equations, unknowns)
+        let mut globals = Vec::with_capacity(solid_local_size::<D>());
+        self.append_vertex_velocity(vertices, &mut globals)?;
+        self.map(&globals, reduced)
+    }
+
+    fn map(&self, globals: &[usize], reduced: bool) -> Result<AssemblyMap, Diagnostic> {
+        if reduced {
+            self.constraints.reduced_map(globals)
+        } else {
+            self.constraints.full_map(globals)
+        }
     }
 
     fn append_vertex_velocity(
         &self,
         vertices: &[MeshEntity],
-        reduced: bool,
-        equations: &mut Vec<Option<DofId>>,
-        unknowns: &mut Vec<LocalUnknown>,
-    ) {
-        for vertex in vertices {
-            for component in 0..D {
-                if reduced {
-                    match self.reduced_vertex_velocity[vertex.index()][component] {
-                        Some(dof) => {
-                            equations.push(Some(dof));
-                            unknowns.push(LocalUnknown::Free(dof));
-                        }
-                        None => {
-                            equations.push(None);
-                            unknowns.push(LocalUnknown::Fixed(
-                                self.fixed_velocity[vertex.index()][component]
-                                    .expect("eliminated velocity owns a prescribed value"),
-                            ));
-                        }
-                    }
-                } else {
-                    let dof = DofId::new(self.full_vertex_velocity(vertex.index(), component));
-                    equations.push(Some(dof));
-                    unknowns.push(LocalUnknown::Free(dof));
-                }
-            }
+        globals: &mut Vec<usize>,
+    ) -> Result<(), Diagnostic> {
+        if vertices
+            .iter()
+            .any(|vertex| vertex.index() >= self.vertex_count)
+        {
+            return Err(invalid(
+                "cell vertex is outside the resolved velocity layout",
+            ));
         }
+        globals.extend(vertices.iter().flat_map(|vertex| {
+            (0..D).map(move |component| self.full_vertex_velocity(vertex.index(), component))
+        }));
+        Ok(())
     }
 
     pub(crate) const fn full_vertex_velocity(&self, vertex: usize, component: usize) -> usize {
@@ -204,15 +174,15 @@ impl<const D: usize> FsiLayout<D> {
     }
 
     pub(crate) const fn reduced_size(&self) -> usize {
-        self.reduced_size
+        self.constraints.free_count()
     }
 
     pub(crate) fn reduced_vertex_velocity(&self, vertex: usize, component: usize) -> Option<DofId> {
-        self.reduced_vertex_velocity
-            .get(vertex)
-            .and_then(|components| components.get(component))
-            .copied()
-            .flatten()
+        if vertex >= self.vertex_count || component >= D {
+            return None;
+        }
+        self.constraints
+            .free_index(self.full_vertex_velocity(vertex, component))
     }
 
     pub(crate) const fn full_size(&self) -> usize {
@@ -232,20 +202,12 @@ impl<const D: usize> FsiLayout<D> {
     }
 
     pub(crate) fn fixed_velocity(&self, vertex: usize) -> bool {
-        self.fixed_velocity[vertex].iter().any(Option::is_some)
-    }
-
-    pub(crate) const fn full_bubble_velocity(
-        &self,
-        fluid_position: usize,
-        component: usize,
-    ) -> usize {
-        self.full_bubble_offset + fluid_position * D + component
-    }
-
-    pub(crate) fn full_pressure(&self, vertex: usize) -> usize {
-        self.full_pressure_offset
-            + self.pressure_position[vertex].expect("fluid vertex owns pressure position")
+        (0..D).any(|component| {
+            !self
+                .constraints
+                .is_free(self.full_vertex_velocity(vertex, component))
+                .expect("accepted vertex belongs to the full layout")
+        })
     }
 
     pub(crate) fn reconstruct_primal(
@@ -253,38 +215,7 @@ impl<const D: usize> FsiLayout<D> {
         values: &[f64],
         fluid_cell_count: usize,
     ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
-        if values.len() != self.reduced_size {
-            return Err(invalid(
-                "fixed-reference FSI solution width differs from its finalized layout",
-            ));
-        }
-        let vertex_velocity = self
-            .reduced_vertex_velocity
-            .iter()
-            .enumerate()
-            .map(|(vertex, dofs)| {
-                std::array::from_fn(|component| {
-                    dofs[component].map_or_else(
-                        || {
-                            self.fixed_velocity[vertex][component]
-                                .expect("eliminated velocity owns a prescribed value")
-                        },
-                        |dof| values[dof.index()],
-                    )
-                })
-            })
-            .collect();
-        let fluid_bubbles = (0..fluid_cell_count)
-            .map(|cell| {
-                std::array::from_fn(|component| {
-                    values[self.reduced_bubble_offset + cell * D + component]
-                })
-            })
-            .collect();
-        let pressure = values[self.reduced_pressure_offset
-            ..self.reduced_pressure_offset + self.pressure_vertices.len()]
-            .to_vec();
-        Ok((vertex_velocity, fluid_bubbles, pressure))
+        self.split_fields(&self.constraints.lift(values)?, fluid_cell_count)
     }
 
     pub(crate) fn reconstruct_direction(
@@ -292,39 +223,27 @@ impl<const D: usize> FsiLayout<D> {
         values: &[f64],
         fluid_cell_count: usize,
     ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
-        if values.len() != self.reduced_size {
-            return Err(invalid(
-                "fixed-reference FSI direction width differs from its finalized layout",
-            ));
-        }
-        let vertex_velocity = self
-            .reduced_vertex_velocity
-            .iter()
-            .map(|dofs| {
-                std::array::from_fn(|component| {
-                    dofs[component].map_or(0.0, |dof| values[dof.index()])
-                })
-            })
-            .collect();
-        let fluid_bubbles = (0..fluid_cell_count)
-            .map(|cell| {
-                std::array::from_fn(|component| {
-                    values[self.reduced_bubble_offset + cell * D + component]
-                })
-            })
-            .collect();
-        let pressure = values[self.reduced_pressure_offset
-            ..self.reduced_pressure_offset + self.pressure_vertices.len()]
-            .to_vec();
-        Ok((vertex_velocity, fluid_bubbles, pressure))
+        self.split_fields(&self.constraints.lift_direction(values)?, fluid_cell_count)
     }
 
-    pub(crate) fn reconstruct(
+    fn split_fields(
         &self,
         values: &[f64],
         fluid_cell_count: usize,
     ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
-        self.reconstruct_primal(values, fluid_cell_count)
+        if fluid_cell_count.checked_mul(D)
+            != Some(self.full_pressure_offset - self.full_bubble_offset)
+        {
+            return Err(invalid(
+                "cell count differs from the resolved bubble layout",
+            ));
+        }
+        let vectors = |values: &[f64]| values.as_chunks::<D>().0.to_vec();
+        Ok((
+            vectors(&values[..self.full_bubble_offset]),
+            vectors(&values[self.full_bubble_offset..self.full_pressure_offset]),
+            values[self.full_pressure_offset..].to_vec(),
+        ))
     }
 
     pub(crate) fn reduce(
@@ -333,48 +252,17 @@ impl<const D: usize> FsiLayout<D> {
         bubbles: &[[f64; D]],
         pressure: &[f64],
     ) -> Result<Vec<f64>, Diagnostic> {
-        if vertex_velocity.len() != self.reduced_vertex_velocity.len()
-            || bubbles.len().checked_mul(D).is_none_or(|width| {
-                width != self.reduced_pressure_offset - self.reduced_bubble_offset
-            })
+        if vertex_velocity.len() != self.vertex_count
+            || bubbles.len().checked_mul(D)
+                != Some(self.full_pressure_offset - self.full_bubble_offset)
             || pressure.len() != self.pressure_vertices.len()
-            || vertex_velocity
-                .iter()
-                .chain(bubbles)
-                .flatten()
-                .chain(pressure)
-                .any(|value| !value.is_finite())
         {
             return Err(invalid(
-                "FSI field values must be finite and match the exact reduced layout",
+                "FSI Field values must match the exact resolved layout",
             ));
         }
-        for (vertex, value) in vertex_velocity.iter().enumerate() {
-            for (component, value) in value.iter().enumerate() {
-                if self.fixed_velocity[vertex][component]
-                    .is_some_and(|fixed| fixed.to_bits() != value.to_bits())
-                {
-                    return Err(invalid(
-                        "FSI reduced layout requires each eliminated velocity to match its exact prescribed word",
-                    ));
-                }
-            }
-        }
-        let mut values = vec![0.0; self.reduced_size];
-        for (vertex, vector) in vertex_velocity.iter().enumerate() {
-            for (component, value) in vector.iter().copied().enumerate() {
-                if let Some(dof) = self.reduced_vertex_velocity[vertex][component] {
-                    values[dof.index()] = value;
-                }
-            }
-        }
-        for (cell, vector) in bubbles.iter().enumerate() {
-            for (component, value) in vector.iter().copied().enumerate() {
-                values[self.reduced_bubble_offset + cell * D + component] = value;
-            }
-        }
-        values[self.reduced_pressure_offset..].copy_from_slice(pressure);
-        Ok(values)
+        self.constraints
+            .restrict(&self.fill_full(vertex_velocity, bubbles, pressure))
     }
 
     pub(crate) fn fill_full(
@@ -408,4 +296,84 @@ fn checked_add(left: usize, right: usize, name: &'static str) -> Result<usize, D
 fn checked_mul(left: usize, right: usize, name: &'static str) -> Result<usize, Diagnostic> {
     left.checked_mul(right)
         .ok_or_else(|| invalid(format!("fixed-reference FSI {name} overflows usize")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_assembly::LocalUnknown;
+    use eqiora_meshing::{CellId, FacetId, MeshQualityGate};
+
+    #[test]
+    fn shared_constraints_preserve_nonzero_component_values_and_exact_maps() {
+        let mesh = SimplicialMesh::new(
+            2,
+            vec![
+                vec![0.0, 0.0],
+                vec![1.0, 0.0],
+                vec![0.0, 1.0],
+                vec![1.0, 1.0],
+            ],
+            vec![vec![0, 1, 2], vec![1, 3, 2]],
+            MeshQualityGate::new(0.1).unwrap(),
+        )
+        .unwrap();
+        let interface = (0..mesh.entity_count(1).unwrap())
+            .find(|&index| {
+                mesh.entity_vertices(MeshEntity::new(1, index))
+                    .unwrap()
+                    .iter()
+                    .all(|vertex| [1, 2].contains(&vertex.index()))
+            })
+            .unwrap();
+        let partition = FixedReferenceFsiPartition::<2>::new(
+            &mesh,
+            vec![CellId::new(0)],
+            vec![CellId::new(1)],
+            vec![FacetId::new(interface)],
+        )
+        .unwrap();
+        let prescribed = [[Some(1.25), None], [None; 2], [None; 2], [None, Some(-2.5)]];
+        let layout = FsiLayout::with_prescribed_velocity(&mesh, &partition, &prescribed).unwrap();
+        let fluid = [0, 1, 2].map(|index| MeshEntity::new(0, index));
+        let solid = [1, 3, 2].map(|index| MeshEntity::new(0, index));
+        let fluid_map = layout.fluid_map(0, &fluid, true).unwrap();
+        assert_eq!(
+            fluid_map.equations(),
+            &[
+                None,
+                Some(0),
+                Some(1),
+                Some(2),
+                Some(3),
+                Some(4),
+                Some(6),
+                Some(7),
+                Some(8),
+                Some(9),
+                Some(10)
+            ]
+            .map(|index| index.map(DofId::new))
+        );
+        assert_eq!(fluid_map.unknowns()[0], LocalUnknown::Fixed(1.25));
+        let solid_map = layout.solid_map(&solid, true).unwrap();
+        assert_eq!(
+            solid_map.equations(),
+            &[Some(1), Some(2), Some(5), None, Some(3), Some(4)].map(|index| index.map(DofId::new))
+        );
+        assert_eq!(solid_map.unknowns()[3], LocalUnknown::Fixed(-2.5));
+        let values = (0..layout.reduced_size())
+            .map(|index| index as f64 + 10.0)
+            .collect::<Vec<_>>();
+        let (velocity, bubbles, pressure) = layout.reconstruct_primal(&values, 1).unwrap();
+        assert_eq!((velocity[0][0], velocity[3][1]), (1.25, -2.5));
+        assert_eq!(
+            layout.reduce(&velocity, &bubbles, &pressure).unwrap(),
+            values
+        );
+        let direction = layout.reconstruct_direction(&values, 1).unwrap().0;
+        assert_eq!((direction[0][0], direction[3][1]), (0.0, 0.0));
+        assert!(layout.fluid_map(1, &fluid, true).is_err());
+        assert!(layout.solid_map(&[MeshEntity::new(0, 4)], false).is_err());
+    }
 }

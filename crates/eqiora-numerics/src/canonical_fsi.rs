@@ -133,6 +133,7 @@ pub struct FixedReferenceFsiCartesianModel2d {
     solid: IsotropicElastodynamicsCartesianModel<2>,
     interface: FsiInterface,
     equation_roles: crate::form_compiler::equation_roles::EquationRoles,
+    region_forms: BTreeMap<RawId, crate::form_compiler::region::CompiledRegionForm>,
 }
 
 impl FixedReferenceFsiCartesianModel2d {
@@ -392,19 +393,32 @@ fn finish_fixed_reference_fsi(
     )?;
     require_closed_fsi_model(program, &fluid, &solid)?;
 
+    let domains = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if !crate::canonical::continuum_fields_on(program, domain.id().erase())
+                    .is_empty() =>
+            {
+                Some(domain.id().erase())
+            }
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    let equation_roles = crate::form_compiler::equation_roles::EquationRoles::derive(
+        program,
+        domains.iter().copied(),
+    )?;
+    let region_forms = domains
+        .into_iter()
+        .map(|domain| {
+            crate::form_compiler::region::CompiledRegionForm::derive(program, domain, 2)
+                .map(|form| (domain, form))
+        })
+        .collect::<Result<_, _>>()?;
     Ok(FixedReferenceFsiCartesianModel2d {
-        equation_roles: crate::form_compiler::equation_roles::EquationRoles::derive(
-            program,
-            program.nodes().filter_map(|node| match node {
-                eqiora_schema::kernel::KernelNode::Domain(domain)
-                    if !crate::canonical::continuum_fields_on(program, domain.id().erase())
-                        .is_empty() =>
-                {
-                    Some(domain.id().erase())
-                }
-                _ => None,
-            }),
-        )?,
+        equation_roles,
+        region_forms,
         model: program.model(),
         semantic_revision: program.revision().0,
         fluid: fluid.model,

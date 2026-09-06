@@ -16,7 +16,5 @@ pub use crate::simplicial_fsi::{
     FixedReferenceFsiInterfaceAction, FixedReferenceFsiInterfaceFacet, FixedReferenceFsiLoad,
     FixedReferenceFsiMaterial, FixedReferenceFsiPartition, FixedReferenceFsiScale,
     FixedReferenceFsiSolution, FixedReferenceFsiState, FixedReferenceFsiStepConfig,
-    finalize_fixed_reference_fsi_step_2d, finalize_fixed_reference_fsi_step_2d_with_assembly,
-    finalize_fixed_reference_fsi_step_3d, solve_fixed_reference_fsi_step_2d,
-    solve_fixed_reference_fsi_step_3d,
+    finalize_fixed_reference_fsi_step_3d, solve_fixed_reference_fsi_step_3d,
 };

@@ -547,6 +547,8 @@ fn push_operands(node: &ExprNode, pending: &mut Vec<ExprId>) {
         | ExprNode::UnaryMath(_, value)
         | ExprNode::Gradient(value)
         | ExprNode::Divergence(value)
+        | ExprNode::SymmetricPart(value)
+        | ExprNode::IsotropicLift(value)
         | ExprNode::NormalComponent(value)
         | ExprNode::Trace(value) => pending.push(*value),
         ExprNode::Add(left, right)
