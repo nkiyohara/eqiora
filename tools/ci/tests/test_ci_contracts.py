@@ -543,7 +543,6 @@ jobs:
         self.assertEqual(cargo["profile"]["test"], {
             "package": {
                 "eqiora-compiler": {"opt-level": 0},
-                "eqiora-artifact": {"opt-level": 0},
             },
         })
 

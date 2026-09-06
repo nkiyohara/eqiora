@@ -216,9 +216,9 @@ does not establish optional native-backend or scientific claims.
 - Hosted test steps use Cargo's ordinary `test`
   profile with debug information disabled, incremental compilation disabled,
   and optimization level 1 because their target trees are disposable. Test
-  builds of `eqiora-compiler` and `eqiora-artifact` use the package
-  overrides in `Cargo.toml` to avoid optimizing parsing and artifact validation;
-  numerical kernels and release profiles retain their existing optimization. Debug
+  builds of `eqiora-compiler` use the package override in `Cargo.toml` to avoid
+  optimizing parsing; runtime artifact validation, numerical kernels, and release
+  profiles retain their existing optimization. Debug
   assertions and overflow checks remain enabled, and no relaxed floating-point
   mode is used. `tools/ci/local_verify.py` applies that profile to every command
   it runs, so a local gate reproduces the hosted one without an operator
